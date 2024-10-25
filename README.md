@@ -4,56 +4,54 @@ author: Amr
 class: Wizard
 ---
 
-- 👋 Hi, I’m @bamr87
-- 🤖 I’m interested in the achitecture of information systems that facilitate the production of goods and services
-- 📚 I'm currently learning front-end development, specfically for Content Management Systems (it-journey.dev)
-- 🧐 I’m looking to collaborate on developing frontend frameworks for small businesses
+<!---
+bamr87/bamr87 is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+You can click the Preview link to take a look at your changes.
+--->
+
+- 👋 Hello world, I’m Amr, I hail from Denver, CO
+- 🤖 I'm a guru of IT system achitectures designed to facilitate the means of production (e.g., ERPs)
+- 📚 Mastering the full stack by writing about it (it-journey.dev), desining it, (zer0-mistakes.com), and scaling it (barodybroject.com)
+- 🧐 Open to collaborate on new ways to incorporate sustainibility vs profit as a value based ERP driver (i.e., how to quantify environmental impact when competing with profit)
 - 📫 You can reach me at @bamr87
 
 Here's some of my progress:
 
 [![roadmap.sh](https://api.roadmap.sh/v1-badge/tall/6553d32668ca6026132e78a8?variant=dark)](https://roadmap.sh)
 
+
 [![roadmap.sh](https://api.roadmap.sh/v1-badge/wide/6553d32668ca6026132e78a8?variant=dark)](https://roadmap.sh)
 
-<!---
-bamr87/bamr87 is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
 
 <summary>Add this repo as a sub-tree</summary>
 <details>
 
 ```shell
-
-cd ~/github/it-journey
-
 # Add the GitHub profile repository as a remote repository
 
-git remote add bamr87 https://github.com/bamr87/bamr87.git
+gh repo clone bamr87/bamr87
 
-# Add the remote repository as a subtree
-
-git subtree add --prefix=pages/_about/contributors/bamr87 bamr87 main
+code README.md
 
 ```
     
 </details>
 
 > [!NOTE]
-> Useful information that users should know, even when skimming content.
+> This profile is a work in progress 
 
 > [!TIP]
-> Helpful advice for doing things better or more easily.
+> Here's a CV if you'd like
+> https://github.com/bamr87/cv/blob/main/cv.pdf
 
 > [!IMPORTANT]
-> Key information users need to know to achieve their goal.
+> This profile has hidden yaml frontmatter!
 
 > [!WARNING]
-> Urgent info that needs immediate user attention to avoid problems.
+> Everything else in this profile is meaningless, and a waste of time.
 
 > [!CAUTION]
-> Advises about risks or negative outcomes of certain actions.
+> English Majors beware: There is no spellcheck in the editor view.
 
 Favorite Dish
 
@@ -72,7 +70,7 @@ Favorite Dish
 | 5     | tbsp | Cooking oil, for deep-frying  |                                     |
 | 1     | tbsp | Salt                          |                                     |
 
-Here is a simple flow chart:
+Here is a simple flow chart using markdown:
 
 ```mermaid
 graph TD;
@@ -81,6 +79,8 @@ graph TD;
     B-->D;
     C-->D;
 ```
+
+Or a map based on coordinates.
 
 ## Geo
 
@@ -110,6 +110,8 @@ graph TD;
   ]
 }
 ```
+
+One day, I will find a use for this 3D model. 
 
 ## 3D Model 
 
