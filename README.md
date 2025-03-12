@@ -70,14 +70,43 @@ Favorite Dish
 | 5     | tbsp | Cooking oil, for deep-frying  |                                     |
 | 1     | tbsp | Salt                          |                                     |
 
-Here is a simple flow chart using markdown:
+Here is a mindmap using markdown mermaid:
 
 ```mermaid
-graph TD;
-    A-->B;
-    A-->C;
-    B-->D;
-    C-->D;
+mindmap
+  root((Circular References in Excel & Economic Structures))
+    subtopic(Excel Circular References)
+      subtopic(Recursive self-reference)
+      subtopic(Symbolic of wealth accumulation)
+      subtopic(Systemic economic disparities)
+    subtopic(Traditional Economic Theories)
+      subtopic(Self-correcting markets)
+      subtopic(Equilibrium models)
+      subtopic(Challenges from AI & Machine Learning)
+    subtopic(Technological Impact)
+      subtopic(AI & Market Complexity)
+        subtopic(Non-linear feedback loops)
+        subtopic(Wealth concentration)
+        subtopic(Market manipulation)
+      subtopic(Algorithmic Trading & Analytics)
+        subtopic(Transparency paradox)
+        subtopic(Informational asymmetry)
+        subtopic(Arbitrage exploitation)
+    subtopic(Microsoft as a Metaphor)
+      subtopic(Technological monopoly)
+      subtopic(Computational infrastructure dominance)
+      subtopic(Cloud & data control)
+      subtopic(Privatization of public information)
+    subtopic(Economic Consequences of AI Monopolization)
+      subtopic(NPV of AI financial intelligence)
+      subtopic(Outdated equilibrium models)
+      subtopic(Self-reinforcing privatized gains)
+      subtopic(Widening economic disparities)
+    subtopic(Ethical & Policy Considerations)
+      subtopic(Monopoly regulation)
+      subtopic(Need for intervention)
+      subtopic(Democratization of technology)
+      subtopic(Equitable economic restructuring)
 ```
 
 Or a map based on coordinates.
