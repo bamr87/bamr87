@@ -73,8 +73,6 @@ Favorite Dish
 Here is a mindmap using markdown mermaid:
 
 ```mermaid
-Here’s a clear and structured mind map in Mermaid format to represent your article:
-
 mindmap
   root((From Excel to Programming))
     Excel as Implicit Programming Environment
