@@ -73,40 +73,40 @@ Favorite Dish
 Here is a mindmap using markdown mermaid:
 
 ```mermaid
-mindmap
-  root((Circular References in Excel & Economic Structures))
-    subtopic(Excel Circular References)
-      subtopic(Recursive self-reference)
-      subtopic(Symbolic of wealth accumulation)
-      subtopic(Systemic economic disparities)
-    subtopic(Traditional Economic Theories)
-      subtopic(Self-correcting markets)
-      subtopic(Equilibrium models)
-      subtopic(Challenges from AI & Machine Learning)
-    subtopic(Technological Impact)
-      subtopic(AI & Market Complexity)
-        subtopic(Non-linear feedback loops)
-        subtopic(Wealth concentration)
-        subtopic(Market manipulation)
-      subtopic(Algorithmic Trading & Analytics)
-        subtopic(Transparency paradox)
-        subtopic(Informational asymmetry)
-        subtopic(Arbitrage exploitation)
-    subtopic(Microsoft as a Metaphor)
-      subtopic(Technological monopoly)
-      subtopic(Computational infrastructure dominance)
-      subtopic(Cloud & data control)
-      subtopic(Privatization of public information)
-    subtopic(Economic Consequences of AI Monopolization)
-      subtopic(NPV of AI financial intelligence)
-      subtopic(Outdated equilibrium models)
-      subtopic(Self-reinforcing privatized gains)
-      subtopic(Widening economic disparities)
-    subtopic(Ethical & Policy Considerations)
-      subtopic(Monopoly regulation)
-      subtopic(Need for intervention)
-      subtopic(Democratization of technology)
-      subtopic(Equitable economic restructuring)
+graph TD;
+    A[From Excel to Programming] --> B[Excel as an Implicit Programming Environment];
+    B --> C[Complex Logical Reasoning];
+    B --> D[Automation and Iteration];
+    B --> E[Data Structuring and Normalization];
+    B --> F[Advanced Computation and Simulation];
+
+    A --> G[Structural Analogies Between Excel Mastery and Programming];
+    G --> H[Advanced Formulas and Functions → Algorithmic Logic];
+    G --> I[Macros and VBA → Structured Scripting];
+    G --> J[Pivot Tables and Data Queries → Database Methodologies];
+    G --> K[Graphical Representations → Advanced Visualization Techniques];
+
+    A --> L[Empirical Narratives];
+    L --> M[Excel Practitioners to Technology Professionals];
+
+    A --> N[Rationale for Professional Expansion Beyond Excel];
+    N --> O[Scalability Constraints];
+    N --> P[Computational Efficiency];
+    N --> Q[Integration Limitations];
+
+    A --> R[Strategic Pathways for Developing Programming Expertise];
+    R --> S[Python];
+    R --> T[SQL];
+    R --> U[R];
+    R --> V[JavaScript and Web Technologies];
+
+    A --> W[Initiation Strategies for Transitioning];
+    W --> X[Incremental Automation];
+    W --> Y[Educational Programs];
+    W --> Z[Professional Networking];
+    W --> AA[Project-Based Learning];
+
+    A --> AB[Conclusion];
 ```
 
 Or a map based on coordinates.
