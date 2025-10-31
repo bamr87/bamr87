@@ -438,7 +438,7 @@ The legendary symbol of wisdom, courage, and power from The Legend of Zelda.
 
 ```stl
 solid triforce
-  # Bottom triangle - top face
+  # Bottom-left triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
       vertex 0.0 0.0 0.2
@@ -446,7 +446,7 @@ solid triforce
       vertex 0.5 0.866 0.2
     endloop
   endfacet
-  # Bottom triangle - bottom face
+  # Bottom-left triangle - bottom face
   facet normal 0.0 0.0 -1.0
     outer loop
       vertex 0.0 0.0 0.0
@@ -454,7 +454,7 @@ solid triforce
       vertex 1.0 0.0 0.0
     endloop
   endfacet
-  # Bottom triangle - front face
+  # Bottom-left triangle - front face
   facet normal 0.0 -1.0 0.0
     outer loop
       vertex 0.0 0.0 0.0
@@ -469,30 +469,30 @@ solid triforce
       vertex 0.0 0.0 0.2
     endloop
   endfacet
-  # Bottom triangle - left face
-  facet normal -0.866 0.5 0.0
+  # Bottom-left triangle - left face
+  facet normal -0.866 -0.5 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 0.5 0.866 0.0
-      vertex 0.5 0.866 0.2
-    endloop
-  endfacet
-  facet normal -0.866 0.5 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.5 0.866 0.2
       vertex 0.0 0.0 0.2
+      vertex 0.5 0.866 0.2
     endloop
   endfacet
-  # Bottom triangle - right face
-  facet normal 0.866 0.5 0.0
+  facet normal -0.866 -0.5 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.5 0.866 0.2
+      vertex 0.5 0.866 0.0
+    endloop
+  endfacet
+  # Bottom-left triangle - right face
+  facet normal 0.866 -0.5 0.0
     outer loop
       vertex 1.0 0.0 0.0
       vertex 0.5 0.866 0.0
       vertex 0.5 0.866 0.2
     endloop
   endfacet
-  facet normal 0.866 0.5 0.0
+  facet normal 0.866 -0.5 0.0
     outer loop
       vertex 1.0 0.0 0.0
       vertex 0.5 0.866 0.2
@@ -500,127 +500,127 @@ solid triforce
     endloop
   endfacet
 
-  # Top-left triangle - top face
+  # Top triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
-      vertex -0.25 0.433 0.2
-      vertex 0.25 0.433 0.2
-      vertex 0.0 1.299 0.2
+      vertex 0.5 0.866 0.2
+      vertex 1.5 0.866 0.2
+      vertex 1.0 1.732 0.2
     endloop
   endfacet
-  # Top-left triangle - bottom face
+  # Top triangle - bottom face
   facet normal 0.0 0.0 -1.0
     outer loop
-      vertex -0.25 0.433 0.0
-      vertex 0.0 1.299 0.0
-      vertex 0.25 0.433 0.0
+      vertex 0.5 0.866 0.0
+      vertex 1.0 1.732 0.0
+      vertex 1.5 0.866 0.0
     endloop
   endfacet
-  # Top-left triangle - left face
-  facet normal -1.0 0.0 0.0
+  # Top triangle - left face
+  facet normal -0.866 -0.5 0.0
     outer loop
-      vertex -0.25 0.433 0.0
-      vertex -0.25 0.433 0.2
-      vertex 0.0 1.299 0.2
+      vertex 0.5 0.866 0.0
+      vertex 0.5 0.866 0.2
+      vertex 1.0 1.732 0.2
     endloop
   endfacet
-  facet normal -1.0 0.0 0.0
+  facet normal -0.866 -0.5 0.0
     outer loop
-      vertex -0.25 0.433 0.0
-      vertex 0.0 1.299 0.2
-      vertex 0.0 1.299 0.0
+      vertex 0.5 0.866 0.0
+      vertex 1.0 1.732 0.2
+      vertex 1.0 1.732 0.0
     endloop
   endfacet
-  # Top-left triangle - right face
-  facet normal 0.5 0.866 0.0
+  # Top triangle - right face
+  facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 0.25 0.433 0.0
-      vertex 0.0 1.299 0.0
-      vertex 0.0 1.299 0.2
+      vertex 1.5 0.866 0.0
+      vertex 1.0 1.732 0.0
+      vertex 1.0 1.732 0.2
     endloop
   endfacet
-  facet normal 0.5 0.866 0.0
+  facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 0.25 0.433 0.0
-      vertex 0.0 1.299 0.2
-      vertex 0.25 0.433 0.2
+      vertex 1.5 0.866 0.0
+      vertex 1.0 1.732 0.2
+      vertex 1.5 0.866 0.2
     endloop
   endfacet
-  # Top-left triangle - bottom face
+  # Top triangle - bottom face
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex -0.25 0.433 0.0
-      vertex 0.25 0.433 0.0
-      vertex 0.25 0.433 0.2
+      vertex 0.5 0.866 0.0
+      vertex 1.5 0.866 0.0
+      vertex 1.5 0.866 0.2
     endloop
   endfacet
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex -0.25 0.433 0.0
-      vertex 0.25 0.433 0.2
-      vertex -0.25 0.433 0.2
+      vertex 0.5 0.866 0.0
+      vertex 1.5 0.866 0.2
+      vertex 0.5 0.866 0.2
     endloop
   endfacet
 
-  # Top-right triangle - top face
+  # Bottom-right triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
-      vertex 0.75 0.433 0.2
-      vertex 1.25 0.433 0.2
-      vertex 1.0 1.299 0.2
+      vertex 1.0 0.0 0.2
+      vertex 2.0 0.0 0.2
+      vertex 1.5 0.866 0.2
     endloop
   endfacet
-  # Top-right triangle - bottom face
+  # Bottom-right triangle - bottom face
   facet normal 0.0 0.0 -1.0
     outer loop
-      vertex 0.75 0.433 0.0
-      vertex 1.0 1.299 0.0
-      vertex 1.25 0.433 0.0
+      vertex 1.0 0.0 0.0
+      vertex 1.5 0.866 0.0
+      vertex 2.0 0.0 0.0
     endloop
   endfacet
-  # Top-right triangle - left face
-  facet normal -0.5 0.866 0.0
+  # Bottom-right triangle - left face
+  facet normal -0.866 -0.5 0.0
     outer loop
-      vertex 0.75 0.433 0.0
-      vertex 1.0 1.299 0.0
-      vertex 1.0 1.299 0.2
+      vertex 1.0 0.0 0.0
+      vertex 1.0 0.0 0.2
+      vertex 1.5 0.866 0.2
     endloop
   endfacet
-  facet normal -0.5 0.866 0.0
+  facet normal -0.866 -0.5 0.0
     outer loop
-      vertex 0.75 0.433 0.0
-      vertex 1.0 1.299 0.2
-      vertex 0.75 0.433 0.2
+      vertex 1.0 0.0 0.0
+      vertex 1.5 0.866 0.2
+      vertex 1.5 0.866 0.0
     endloop
   endfacet
-  # Top-right triangle - right face
-  facet normal 1.0 0.0 0.0
+  # Bottom-right triangle - right face
+  facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 1.25 0.433 0.0
-      vertex 1.25 0.433 0.2
-      vertex 1.0 1.299 0.2
+      vertex 2.0 0.0 0.0
+      vertex 1.5 0.866 0.0
+      vertex 1.5 0.866 0.2
     endloop
   endfacet
-  facet normal 1.0 0.0 0.0
+  facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 1.25 0.433 0.0
-      vertex 1.0 1.299 0.2
-      vertex 1.0 1.299 0.0
+      vertex 2.0 0.0 0.0
+      vertex 1.5 0.866 0.2
+      vertex 2.0 0.0 0.2
     endloop
   endfacet
-  # Top-right triangle - bottom face
+  # Bottom-right triangle - front face
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.75 0.433 0.0
-      vertex 1.25 0.433 0.0
-      vertex 1.25 0.433 0.2
+      vertex 1.0 0.0 0.0
+      vertex 2.0 0.0 0.0
+      vertex 2.0 0.0 0.2
     endloop
   endfacet
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.75 0.433 0.0
-      vertex 1.25 0.433 0.2
-      vertex 0.75 0.433 0.2
+      vertex 1.0 0.0 0.0
+      vertex 2.0 0.0 0.2
+      vertex 1.0 0.0 0.2
     endloop
   endfacet
 endsolid
