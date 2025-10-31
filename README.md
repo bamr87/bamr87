@@ -436,6 +436,7 @@ Based in the beautiful state of Colorado, serving clients worldwide.
 
 ## 🔺 3D Visualization - Penrose Triangle
 
+```stl
 solid penrose_triangle
   facet normal 0.0 0.0 1.0
     outer loop
@@ -606,6 +607,7 @@ solid penrose_triangle
     endloop
   endfacet
 endsolid
+```
 
 ## 🔺 3D Visualization - Triforce
 
