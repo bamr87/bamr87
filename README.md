@@ -441,186 +441,186 @@ solid triforce
   # Bottom-left triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
-      vertex 0.0 0.0 0.2
-      vertex 1.0 0.0 0.2
-      vertex 0.5 0.866 0.2
+      vertex 0.0 0.0 2.0
+      vertex 10.0 0.0 2.0
+      vertex 5.0 8.66 2.0
     endloop
   endfacet
   # Bottom-left triangle - bottom face
   facet normal 0.0 0.0 -1.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 0.5 0.866 0.0
-      vertex 1.0 0.0 0.0
+      vertex 5.0 8.66 0.0
+      vertex 10.0 0.0 0.0
     endloop
   endfacet
   # Bottom-left triangle - front face
   facet normal 0.0 -1.0 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 1.0 0.0 0.0
-      vertex 1.0 0.0 0.2
+      vertex 10.0 0.0 0.0
+      vertex 10.0 0.0 2.0
     endloop
   endfacet
   facet normal 0.0 -1.0 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 1.0 0.0 0.2
-      vertex 0.0 0.0 0.2
+      vertex 10.0 0.0 2.0
+      vertex 0.0 0.0 2.0
     endloop
   endfacet
   # Bottom-left triangle - left face
   facet normal -0.866 -0.5 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 0.0 0.0 0.2
-      vertex 0.5 0.866 0.2
+      vertex 0.0 0.0 2.0
+      vertex 5.0 8.66 2.0
     endloop
   endfacet
   facet normal -0.866 -0.5 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 0.5 0.866 0.2
-      vertex 0.5 0.866 0.0
+      vertex 5.0 8.66 2.0
+      vertex 5.0 8.66 0.0
     endloop
   endfacet
   # Bottom-left triangle - right face
   facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 1.0 0.0 0.0
-      vertex 0.5 0.866 0.0
-      vertex 0.5 0.866 0.2
+      vertex 10.0 0.0 0.0
+      vertex 5.0 8.66 0.0
+      vertex 5.0 8.66 2.0
     endloop
   endfacet
   facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 1.0 0.0 0.0
-      vertex 0.5 0.866 0.2
-      vertex 1.0 0.0 0.2
+      vertex 10.0 0.0 0.0
+      vertex 5.0 8.66 2.0
+      vertex 10.0 0.0 2.0
     endloop
   endfacet
 
   # Top triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
-      vertex 0.5 0.866 0.2
-      vertex 1.5 0.866 0.2
-      vertex 1.0 1.732 0.2
+      vertex 5.0 8.66 2.0
+      vertex 15.0 8.66 2.0
+      vertex 10.0 17.32 2.0
     endloop
   endfacet
   # Top triangle - bottom face
   facet normal 0.0 0.0 -1.0
     outer loop
-      vertex 0.5 0.866 0.0
-      vertex 1.0 1.732 0.0
-      vertex 1.5 0.866 0.0
+      vertex 5.0 8.66 0.0
+      vertex 10.0 17.32 0.0
+      vertex 15.0 8.66 0.0
     endloop
   endfacet
   # Top triangle - left face
   facet normal -0.866 -0.5 0.0
     outer loop
-      vertex 0.5 0.866 0.0
-      vertex 0.5 0.866 0.2
-      vertex 1.0 1.732 0.2
+      vertex 5.0 8.66 0.0
+      vertex 5.0 8.66 2.0
+      vertex 10.0 17.32 2.0
     endloop
   endfacet
   facet normal -0.866 -0.5 0.0
     outer loop
-      vertex 0.5 0.866 0.0
-      vertex 1.0 1.732 0.2
-      vertex 1.0 1.732 0.0
+      vertex 5.0 8.66 0.0
+      vertex 10.0 17.32 2.0
+      vertex 10.0 17.32 0.0
     endloop
   endfacet
   # Top triangle - right face
   facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 1.5 0.866 0.0
-      vertex 1.0 1.732 0.0
-      vertex 1.0 1.732 0.2
+      vertex 15.0 8.66 0.0
+      vertex 10.0 17.32 0.0
+      vertex 10.0 17.32 2.0
     endloop
   endfacet
   facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 1.5 0.866 0.0
-      vertex 1.0 1.732 0.2
-      vertex 1.5 0.866 0.2
+      vertex 15.0 8.66 0.0
+      vertex 10.0 17.32 2.0
+      vertex 15.0 8.66 2.0
     endloop
   endfacet
   # Top triangle - bottom face
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.5 0.866 0.0
-      vertex 1.5 0.866 0.0
-      vertex 1.5 0.866 0.2
+      vertex 5.0 8.66 0.0
+      vertex 15.0 8.66 0.0
+      vertex 15.0 8.66 2.0
     endloop
   endfacet
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.5 0.866 0.0
-      vertex 1.5 0.866 0.2
-      vertex 0.5 0.866 0.2
+      vertex 5.0 8.66 0.0
+      vertex 15.0 8.66 2.0
+      vertex 5.0 8.66 2.0
     endloop
   endfacet
 
   # Bottom-right triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
-      vertex 1.0 0.0 0.2
-      vertex 2.0 0.0 0.2
-      vertex 1.5 0.866 0.2
+      vertex 10.0 0.0 2.0
+      vertex 20.0 0.0 2.0
+      vertex 15.0 8.66 2.0
     endloop
   endfacet
   # Bottom-right triangle - bottom face
   facet normal 0.0 0.0 -1.0
     outer loop
-      vertex 1.0 0.0 0.0
-      vertex 1.5 0.866 0.0
-      vertex 2.0 0.0 0.0
+      vertex 10.0 0.0 0.0
+      vertex 15.0 8.66 0.0
+      vertex 20.0 0.0 0.0
     endloop
   endfacet
   # Bottom-right triangle - left face
   facet normal -0.866 -0.5 0.0
     outer loop
-      vertex 1.0 0.0 0.0
-      vertex 1.0 0.0 0.2
-      vertex 1.5 0.866 0.2
+      vertex 10.0 0.0 0.0
+      vertex 10.0 0.0 2.0
+      vertex 15.0 8.66 2.0
     endloop
   endfacet
   facet normal -0.866 -0.5 0.0
     outer loop
-      vertex 1.0 0.0 0.0
-      vertex 1.5 0.866 0.2
-      vertex 1.5 0.866 0.0
+      vertex 10.0 0.0 0.0
+      vertex 15.0 8.66 2.0
+      vertex 15.0 8.66 0.0
     endloop
   endfacet
   # Bottom-right triangle - right face
   facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 2.0 0.0 0.0
-      vertex 1.5 0.866 0.0
-      vertex 1.5 0.866 0.2
+      vertex 20.0 0.0 0.0
+      vertex 15.0 8.66 0.0
+      vertex 15.0 8.66 2.0
     endloop
   endfacet
   facet normal 0.866 -0.5 0.0
     outer loop
-      vertex 2.0 0.0 0.0
-      vertex 1.5 0.866 0.2
-      vertex 2.0 0.0 0.2
+      vertex 20.0 0.0 0.0
+      vertex 15.0 8.66 2.0
+      vertex 20.0 0.0 2.0
     endloop
   endfacet
   # Bottom-right triangle - front face
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 1.0 0.0 0.0
-      vertex 2.0 0.0 0.0
-      vertex 2.0 0.0 0.2
+      vertex 10.0 0.0 0.0
+      vertex 20.0 0.0 0.0
+      vertex 20.0 0.0 2.0
     endloop
   endfacet
   facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 1.0 0.0 0.0
-      vertex 2.0 0.0 0.2
-      vertex 1.0 0.0 0.2
+      vertex 10.0 0.0 0.0
+      vertex 20.0 0.0 2.0
+      vertex 10.0 0.0 2.0
     endloop
   endfacet
 endsolid
