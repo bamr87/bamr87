@@ -432,178 +432,195 @@ Based in the beautiful state of Colorado, serving clients worldwide.
 
 ---
 
-## 🔺 3D Visualization - Penrose Triangle
+## 🔺 3D Visualization - Triforce
 
-An impossible object representing the intersection of technology, business, and innovation.
+The legendary symbol of wisdom, courage, and power from The Legend of Zelda.
 
 ```stl
-solid penrose_triangle
+solid triforce
+  # Bottom triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
+      vertex 0.0 0.0 0.2
+      vertex 1.0 0.0 0.2
+      vertex 0.5 0.866 0.2
+    endloop
+  endfacet
+  # Bottom triangle - bottom face
+  facet normal 0.0 0.0 -1.0
+    outer loop
       vertex 0.0 0.0 0.0
-      vertex 0.5 0.0 0.0
+      vertex 0.5 0.866 0.0
+      vertex 1.0 0.0 0.0
+    endloop
+  endfacet
+  # Bottom triangle - front face
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 1.0 0.0 0.0
+      vertex 1.0 0.0 0.2
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 1.0 0.0 0.2
+      vertex 0.0 0.0 0.2
+    endloop
+  endfacet
+  # Bottom triangle - left face
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.5 0.866 0.0
+      vertex 0.5 0.866 0.2
+    endloop
+  endfacet
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.5 0.866 0.2
+      vertex 0.0 0.0 0.2
+    endloop
+  endfacet
+  # Bottom triangle - right face
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 1.0 0.0 0.0
+      vertex 0.5 0.866 0.0
+      vertex 0.5 0.866 0.2
+    endloop
+  endfacet
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 1.0 0.0 0.0
+      vertex 0.5 0.866 0.2
+      vertex 1.0 0.0 0.2
+    endloop
+  endfacet
+
+  # Top-left triangle - top face
+  facet normal 0.0 0.0 1.0
+    outer loop
+      vertex -0.25 0.433 0.2
+      vertex 0.25 0.433 0.2
+      vertex 0.0 1.299 0.2
+    endloop
+  endfacet
+  # Top-left triangle - bottom face
+  facet normal 0.0 0.0 -1.0
+    outer loop
+      vertex -0.25 0.433 0.0
+      vertex 0.0 1.299 0.0
       vertex 0.25 0.433 0.0
     endloop
   endfacet
-  facet normal 0.0 0.0 -1.0
+  # Top-left triangle - left face
+  facet normal -1.0 0.0 0.0
     outer loop
-      vertex 0.0 0.0 -0.1
-      vertex 0.25 0.433 -0.1
-      vertex 0.5 0.0 -0.1
+      vertex -0.25 0.433 0.0
+      vertex -0.25 0.433 0.2
+      vertex 0.0 1.299 0.2
     endloop
   endfacet
-  facet normal 0.5 0.0 0.0
+  facet normal -1.0 0.0 0.0
     outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.5 0.0 -0.1
-      vertex 0.25 0.433 -0.1
+      vertex -0.25 0.433 0.0
+      vertex 0.0 1.299 0.2
+      vertex 0.0 1.299 0.0
     endloop
   endfacet
-  facet normal 0.5 0.0 0.0
+  # Top-left triangle - right face
+  facet normal 0.5 0.866 0.0
     outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.25 0.433 -0.1
       vertex 0.25 0.433 0.0
+      vertex 0.0 1.299 0.0
+      vertex 0.0 1.299 0.2
     endloop
   endfacet
-  facet normal -0.5 0.0 0.0
+  facet normal 0.5 0.866 0.0
     outer loop
-      vertex 0.0 0.0 0.0
       vertex 0.25 0.433 0.0
-      vertex 0.25 0.433 -0.1
+      vertex 0.0 1.299 0.2
+      vertex 0.25 0.433 0.2
     endloop
   endfacet
-  facet normal -0.5 0.0 0.0
+  # Top-left triangle - bottom face
+  facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.25 0.433 -0.1
-      vertex 0.0 0.0 -0.1
+      vertex -0.25 0.433 0.0
+      vertex 0.25 0.433 0.0
+      vertex 0.25 0.433 0.2
     endloop
   endfacet
-  facet normal 0.0 0.866 0.0
+  facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.0 0.0 -0.1
-      vertex 0.5 0.0 -0.1
+      vertex -0.25 0.433 0.0
+      vertex 0.25 0.433 0.2
+      vertex -0.25 0.433 0.2
     endloop
   endfacet
-  facet normal 0.0 0.866 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.5 0.0 -0.1
-      vertex 0.5 0.0 0.0
-    endloop
-  endfacet
+
+  # Top-right triangle - top face
   facet normal 0.0 0.0 1.0
     outer loop
-      vertex 0.5 0.0 0.0
-      vertex 1.0 0.0 0.0
-      vertex 0.75 0.433 0.0
+      vertex 0.75 0.433 0.2
+      vertex 1.25 0.433 0.2
+      vertex 1.0 1.299 0.2
     endloop
   endfacet
+  # Top-right triangle - bottom face
   facet normal 0.0 0.0 -1.0
     outer loop
-      vertex 0.5 0.0 -0.1
-      vertex 0.75 0.433 -0.1
-      vertex 1.0 0.0 -0.1
-    endloop
-  endfacet
-  facet normal 0.5 0.0 0.0
-    outer loop
-      vertex 1.0 0.0 0.0
-      vertex 1.0 0.0 -0.1
-      vertex 0.75 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.5 0.0 0.0
-    outer loop
-      vertex 1.0 0.0 0.0
-      vertex 0.75 0.433 -0.1
       vertex 0.75 0.433 0.0
+      vertex 1.0 1.299 0.0
+      vertex 1.25 0.433 0.0
     endloop
   endfacet
-  facet normal -0.5 0.0 0.0
+  # Top-right triangle - left face
+  facet normal -0.5 0.866 0.0
     outer loop
-      vertex 0.5 0.0 0.0
       vertex 0.75 0.433 0.0
-      vertex 0.75 0.433 -0.1
+      vertex 1.0 1.299 0.0
+      vertex 1.0 1.299 0.2
     endloop
   endfacet
-  facet normal -0.5 0.0 0.0
+  facet normal -0.5 0.866 0.0
     outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.75 0.433 -0.1
-      vertex 0.5 0.0 -0.1
+      vertex 0.75 0.433 0.0
+      vertex 1.0 1.299 0.2
+      vertex 0.75 0.433 0.2
     endloop
   endfacet
-  facet normal 0.0 0.866 0.0
+  # Top-right triangle - right face
+  facet normal 1.0 0.0 0.0
     outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.5 0.0 -0.1
-      vertex 1.0 0.0 -0.1
+      vertex 1.25 0.433 0.0
+      vertex 1.25 0.433 0.2
+      vertex 1.0 1.299 0.2
     endloop
   endfacet
-  facet normal 0.0 0.866 0.0
+  facet normal 1.0 0.0 0.0
     outer loop
-      vertex 0.5 0.0 0.0
-      vertex 1.0 0.0 -0.1
-      vertex 1.0 0.0 0.0
+      vertex 1.25 0.433 0.0
+      vertex 1.0 1.299 0.2
+      vertex 1.0 1.299 0.0
     endloop
   endfacet
-  facet normal 0.0 0.0 1.0
+  # Top-right triangle - bottom face
+  facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.5 0.433 0.0
-      vertex 0.25 0.866 0.0
+      vertex 0.75 0.433 0.0
+      vertex 1.25 0.433 0.0
+      vertex 1.25 0.433 0.2
     endloop
   endfacet
-  facet normal 0.0 0.0 -1.0
+  facet normal 0.0 -1.0 0.0
     outer loop
-      vertex 0.0 0.433 -0.1
-      vertex 0.25 0.866 -0.1
-      vertex 0.5 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.5 0.0 0.0
-    outer loop
-      vertex 0.5 0.433 0.0
-      vertex 0.5 0.433 -0.1
-      vertex 0.25 0.866 -0.1
-    endloop
-  endfacet
-  facet normal 0.5 0.0 0.0
-    outer loop
-      vertex 0.5 0.433 0.0
-      vertex 0.25 0.866 -0.1
-      vertex 0.25 0.866 0.0
-    endloop
-  endfacet
-  facet normal -0.5 0.0 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.25 0.866 0.0
-      vertex 0.25 0.866 -0.1
-    endloop
-  endfacet
-  facet normal -0.5 0.0 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.25 0.866 -0.1
-      vertex 0.0 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 0.866 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.0 0.433 -0.1
-      vertex 0.5 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 0.866 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.5 0.433 -0.1
-      vertex 0.5 0.433 0.0
+      vertex 0.75 0.433 0.0
+      vertex 1.25 0.433 0.2
+      vertex 0.75 0.433 0.2
     endloop
   endfacet
 endsolid
