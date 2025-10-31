@@ -432,6 +432,181 @@ Based in the beautiful state of Colorado, serving clients worldwide.
 
 ---
 
+
+
+## 🔺 3D Visualization - Penrose Triangle
+
+solid penrose_triangle
+  facet normal 0.0 0.0 1.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.5 0.0 0.0
+      vertex 0.25 0.433 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 -1.0
+    outer loop
+      vertex 0.0 0.0 -0.1
+      vertex 0.25 0.433 -0.1
+      vertex 0.5 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.5 0.0 -0.1
+      vertex 0.25 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.25 0.433 -0.1
+      vertex 0.25 0.433 0.0
+    endloop
+  endfacet
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.25 0.433 0.0
+      vertex 0.25 0.433 -0.1
+    endloop
+  endfacet
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.25 0.433 -0.1
+      vertex 0.0 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.0 0.0 -0.1
+      vertex 0.5 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 0.5 0.0 -0.1
+      vertex 0.5 0.0 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 1.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 1.0 0.0 0.0
+      vertex 0.75 0.433 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 -1.0
+    outer loop
+      vertex 0.5 0.0 -0.1
+      vertex 0.75 0.433 -0.1
+      vertex 1.0 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 1.0 0.0 0.0
+      vertex 1.0 0.0 -0.1
+      vertex 0.75 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 1.0 0.0 0.0
+      vertex 0.75 0.433 -0.1
+      vertex 0.75 0.433 0.0
+    endloop
+  endfacet
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.75 0.433 0.0
+      vertex 0.75 0.433 -0.1
+    endloop
+  endfacet
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.75 0.433 -0.1
+      vertex 0.5 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.5 0.0 -0.1
+      vertex 1.0 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 1.0 0.0 -0.1
+      vertex 1.0 0.0 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 1.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.5 0.433 0.0
+      vertex 0.25 0.866 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 -1.0
+    outer loop
+      vertex 0.0 0.433 -0.1
+      vertex 0.25 0.866 -0.1
+      vertex 0.5 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 0.5 0.433 0.0
+      vertex 0.5 0.433 -0.1
+      vertex 0.25 0.866 -0.1
+    endloop
+  endfacet
+  facet normal 0.866 0.5 0.0
+    outer loop
+      vertex 0.5 0.433 0.0
+      vertex 0.25 0.866 -0.1
+      vertex 0.25 0.866 0.0
+    endloop
+  endfacet
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.25 0.866 0.0
+      vertex 0.25 0.866 -0.1
+    endloop
+  endfacet
+  facet normal -0.866 0.5 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.25 0.866 -0.1
+      vertex 0.0 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.0 0.433 -0.1
+      vertex 0.5 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 -1.0 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.5 0.433 -0.1
+      vertex 0.5 0.433 0.0
+    endloop
+  endfacet
+endsolid
+
 ## 🔺 3D Visualization - Triforce
 
 The legendary symbol of wisdom, courage, and power from The Legend of Zelda.
