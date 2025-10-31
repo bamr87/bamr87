@@ -28,15 +28,49 @@ I'm a **Solutions Architect** and **ERP Specialist** based in Denver, CO, with *
 - 🏢 **ERP Architect** @ AESSE Investments (April 2025 - Present)
 - 💼 **Solutions Architect** @ BASH Consulting LLC (January 2020 - Present)
 
-### 🎯 What I Do
+### 🎯 Mission: People Over Profits
 
-- 🏗️ **Enterprise Architecture**: Design scalable ERP solutions (QAD, Infor, SAP) for global manufacturing operations
-- 💻 **Full-Stack Development**: Build custom web applications using Django, Ruby on Rails, Angular, and modern JavaScript
-- 🤖 **AI Integration**: Develop AI-powered platforms, content management systems, and intelligent automation solutions
-- ☁️ **Cloud Architecture**: Design and manage infrastructure on AWS, Azure, and GCP with CI/CD pipelines
-- 📊 **Data & Analytics**: Create BI dashboards (PowerBI), data warehouses, and operational reporting systems
-- 🔗 **System Integration**: Design seamless integrations between ERP, CRM, banking systems, and third-party applications
-- 💰 **Financial Systems**: Configure and optimize accounting information systems, GL structures, and financial consolidation platforms
+At BASH Consulting, I believe in a fundamentally different approach to technology consulting: **empowering your internal teams** and **future-proofing your technology investments** rather than creating vendor dependencies. My goal is not to make you reliant on external consultants, but to transfer knowledge, build capabilities, and establish frameworks that enable your organization to thrive independently.
+
+**Core Philosophy:**
+- 🌱 **Sustainable Technology**: Building systems that adapt and scale without requiring complete overhauls
+- 👥 **Employee Empowerment**: Developing internal capabilities that provide long-term value and strategic control
+- 🌍 **Balanced Innovation**: Exploring ways to incorporate environmental sustainability alongside profitability as core business drivers
+- 📚 **Knowledge Transfer**: Measuring success by how self-sufficient your team becomes, not how dependent on consulting services
+
+### 🎯 What I Do - Consulting Services
+
+#### **Enterprise Architecture & ERP Solutions**
+Transform business operations through manufacturing-focused ERP implementations and strategic technology planning.
+
+- 🏗️ **ERP Implementation & Optimization**: QAD, Infor, Oracle, SAP systems for global manufacturing
+- 🔄 **Legacy System Modernization**: Upgrade pathways and cloud migration strategies
+- � **System Integration**: Banking interfaces, supplier portals, multi-system connectivity
+- 📊 **Business Process Optimization**: Workflow automation, shop floor integration, lean manufacturing
+
+#### **Financial Technology & Automation**
+Streamline financial operations with enterprise-grade accounting technology and compliance solutions.
+
+- 💰 **Financial Systems Design**: OneStream, BlackLine, Hyperion implementations
+- 🤖 **Process Automation**: AP/AR automation, bank reconciliations, financial close acceleration
+- 📈 **Enterprise Performance Management**: Consolidation, planning, budgeting, forecasting
+- ✅ **Compliance Solutions**: SOX controls, GAAP/IFRS compliance, regulatory reporting
+
+#### **Cloud & Full-Stack Development**
+Build modern applications and cloud infrastructure that scale with your business.
+
+- ☁️ **Cloud Architecture**: AWS, Azure, GCP design and management with CI/CD pipelines
+- � **Custom Application Development**: Django, Ruby on Rails, Angular web applications
+- 🤖 **AI Integration**: Intelligent automation, AI agent platforms, prompt engineering
+- 📊 **Data Engineering**: BI dashboards (PowerBI), data warehouses, analytics platforms
+
+#### **IT Strategy & Employee Empowerment**
+Future-proof your technology investments while building internal capabilities.
+
+- 🎓 **Skills Development Programs**: Technical training, certification guidance, knowledge transfer
+- 🏢 **Center of Excellence**: Innovation labs, best practice documentation, internal capabilities
+- �️ **Technology Risk Management**: Vendor independence strategies, cybersecurity frameworks
+- 📋 **Strategic Advisory**: Technology roadmaps, investment planning, emerging tech evaluation
 
 ### 🌟 Specializations
 
@@ -57,12 +91,17 @@ AI & Automation       → AI Agent Platforms, Prompt Engineering, Process Automa
 Leading enterprise architecture for polymers and automotive manufacturing across North America, focusing on ERP governance, technical oversight, and strategic roadmap development.
 
 ### 🔷 BASH Consulting LLC - Solutions Architect (2020-Present)
-Providing comprehensive IT/Finance consulting across FinTech and manufacturing sectors:
-- ✅ Full-stack development of enterprise web applications
-- ✅ AI-powered content management systems
-- ✅ Cloud eCommerce integrations and architecture
-- ✅ BI dashboard development and financial modeling
-- ✅ Multi-cloud infrastructure management (AWS, GCP, Azure)
+Providing comprehensive IT/Finance consulting with a mission-driven focus on employee empowerment and sustainable technology:
+
+**Philosophy**: *"Technology should empower people, not create dependencies. We measure success by how capable and self-sufficient client teams become."*
+
+**Key Achievements**:
+- ✅ **4 Enterprise ERP Projects**: QAD EE upgrades, multi-system integrations, banking interfaces, OneStream/HFM implementations
+- ✅ **2 Accounting System Projects**: QAD entity segmentation, QuickBooks configuration
+- ✅ **3 Custom Software Projects**: Inventory tracking, home inspection platform (Ruby/JavaScript)
+- ✅ **Cloud Architecture & Data Governance**: RPM Telco system design, multi-cloud management (AWS, GCP, Azure)
+- ✅ **BI & Analytics**: PowerBI dashboards, financial modeling, operational reporting
+- ✅ **Skills Transfer Programs**: Technical training, internal capability development, knowledge documentation
 
 ### 🔷 Valmont Industries - Sr. Manager Financial Systems (2022-2023)
 Led global accounting systems strategy for agriculture and infrastructure manufacturing:
@@ -75,7 +114,11 @@ Led global accounting systems strategy for agriculture and infrastructure manufa
 - **Wolters Kluwer**: Senior Business Consultant - Tagetik EPM (2017-2018)
 - **QAD Inc.**: Finance IT Business Consultant (2014-2017)
 - **Infor Global Solutions**: Applications Consultant (2012-2014)
-- **Navistar International**: ERP/Baan Specialist & Financial Analyst (2009-2012)le
+- **Navistar International**: ERP/Baan Specialist & Financial Analyst (2009-2012)
+
+---
+
+## 🛠️ Technical Stackle
 author: Amr
 class: Wizard
 ---
@@ -255,12 +298,25 @@ Focus: Financial Analysis, Quantitative Methods, Information Systems
 
 ## 🤝 Let's Collaborate
 
-I'm passionate about exploring innovative solutions, particularly in:
+I'm passionate about exploring innovative solutions that balance technology advancement with human values:
 
-- 🌱 **Sustainable ERP Design**: Incorporating environmental impact metrics alongside profit measures
-- 🤖 **AI-Powered Business Systems**: Intelligent automation and decision support
-- 📊 **Data-Driven Operations**: Real-time analytics for manufacturing and financial systems
-- 🔗 **Modern Integration Patterns**: Microservices, APIs, and cloud-native architectures
+### 🌟 Core Collaboration Areas
+
+- 🌱 **Sustainable ERP Design**: Incorporating environmental impact metrics alongside profit measures as core KPIs in ERP systems. How can we quantify environmental impact when competing with profit-driven decisions?
+
+- 👥 **Employee Empowerment Through Technology**: Developing programs that build internal capabilities rather than creating vendor dependencies. Transforming teams from technology consumers to technology creators.
+
+- 🤖 **AI-Powered Business Intelligence**: Intelligent automation that enhances human decision-making rather than replacing human judgment. AI as augmentation, not replacement.
+
+- 🔗 **Future-Proof Architecture**: Designing systems that evolve with business needs through modular, API-first, cloud-native patterns that reduce technical debt.
+
+- 📊 **Data-Driven Social Impact**: Using business intelligence and analytics to measure and optimize both financial performance and community/environmental impact.
+
+### 💡 Innovation Focus Areas
+
+**Balancing Profit & Purpose**: Exploring how technology can help organizations pursue financial success while maintaining commitments to environmental sustainability and social responsibility. Can we design ERP systems that make "doing good" as measurable and rewarding as "making profit"?
+
+**Knowledge Democratization**: Making enterprise-grade technology knowledge accessible through open-source education platforms (IT-Journey.dev, Zer0-Mistakes.com, BarodyBroject.com). Advancing our collective capabilities rather than hoarding expertise.
 
 ### 📬 Get In Touch
 
@@ -385,78 +441,169 @@ solid penrose_triangle
   facet normal 0.0 0.0 1.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 3.0 0.0 0.0
-      vertex 1.5 2.598 0.0
+      vertex 0.5 0.0 0.0
+      vertex 0.25 0.433 0.0
     endloop
   endfacet
   facet normal 0.0 0.0 -1.0
     outer loop
-      vertex 0.0 0.0 -0.5
-      vertex 1.5 2.598 -0.5
-      vertex 3.0 0.0 -0.5
+      vertex 0.0 0.0 -0.1
+      vertex 0.25 0.433 -0.1
+      vertex 0.5 0.0 -0.1
     endloop
   endfacet
-  facet normal 0.866 -0.5 0.0
+  facet normal 0.5 0.0 0.0
     outer loop
-      vertex 3.0 0.0 0.0
-      vertex 3.0 0.0 -0.5
-      vertex 1.5 2.598 -0.5
+      vertex 0.5 0.0 0.0
+      vertex 0.5 0.0 -0.1
+      vertex 0.25 0.433 -0.1
     endloop
   endfacet
-  facet normal 0.866 -0.5 0.0
+  facet normal 0.5 0.0 0.0
     outer loop
-      vertex 3.0 0.0 0.0
-      vertex 1.5 2.598 -0.5
-      vertex 1.5 2.598 0.0
+      vertex 0.5 0.0 0.0
+      vertex 0.25 0.433 -0.1
+      vertex 0.25 0.433 0.0
     endloop
   endfacet
-  facet normal -0.866 -0.5 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 1.5 2.598 0.0
-      vertex 1.5 2.598 -0.5
-    endloop
-  endfacet
-  facet normal -0.866 -0.5 0.0
+  facet normal -0.5 0.0 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 1.5 2.598 -0.5
-      vertex 0.0 0.0 -0.5
+      vertex 0.25 0.433 0.0
+      vertex 0.25 0.433 -0.1
     endloop
   endfacet
-  facet normal 0.0 1.0 0.0
+  facet normal -0.5 0.0 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 0.0 0.0 -0.5
-      vertex 3.0 0.0 -0.5
+      vertex 0.25 0.433 -0.1
+      vertex 0.0 0.0 -0.1
     endloop
   endfacet
-  facet normal 0.0 1.0 0.0
+  facet normal 0.0 0.866 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 3.0 0.0 -0.5
-      vertex 3.0 0.0 0.0
+      vertex 0.0 0.0 -0.1
+      vertex 0.5 0.0 -0.1
     endloop
   endfacet
-  facet normal 0.0 -0.707 0.707
-    outer loop
-      vertex 1.5 2.598 0.0
-      vertex 3.0 0.0 0.0
-      vertex 2.25 1.299 0.25
-    endloop
-  endfacet
-  facet normal -0.707 -0.707 0.0
+  facet normal 0.0 0.866 0.0
     outer loop
       vertex 0.0 0.0 0.0
-      vertex 0.75 1.299 0.25
-      vertex 1.5 2.598 0.0
+      vertex 0.5 0.0 -0.1
+      vertex 0.5 0.0 0.0
     endloop
   endfacet
-  facet normal 0.707 0.0 0.707
+  facet normal 0.0 0.0 1.0
     outer loop
-      vertex 3.0 0.0 0.0
-      vertex 0.0 0.0 0.0
-      vertex 1.5 0.0 0.25
+      vertex 0.5 0.0 0.0
+      vertex 1.0 0.0 0.0
+      vertex 0.75 0.433 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 -1.0
+    outer loop
+      vertex 0.5 0.0 -0.1
+      vertex 0.75 0.433 -0.1
+      vertex 1.0 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.5 0.0 0.0
+    outer loop
+      vertex 1.0 0.0 0.0
+      vertex 1.0 0.0 -0.1
+      vertex 0.75 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.5 0.0 0.0
+    outer loop
+      vertex 1.0 0.0 0.0
+      vertex 0.75 0.433 -0.1
+      vertex 0.75 0.433 0.0
+    endloop
+  endfacet
+  facet normal -0.5 0.0 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.75 0.433 0.0
+      vertex 0.75 0.433 -0.1
+    endloop
+  endfacet
+  facet normal -0.5 0.0 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.75 0.433 -0.1
+      vertex 0.5 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 0.866 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 0.5 0.0 -0.1
+      vertex 1.0 0.0 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 0.866 0.0
+    outer loop
+      vertex 0.5 0.0 0.0
+      vertex 1.0 0.0 -0.1
+      vertex 1.0 0.0 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 1.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.5 0.433 0.0
+      vertex 0.25 0.866 0.0
+    endloop
+  endfacet
+  facet normal 0.0 0.0 -1.0
+    outer loop
+      vertex 0.0 0.433 -0.1
+      vertex 0.25 0.866 -0.1
+      vertex 0.5 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.5 0.0 0.0
+    outer loop
+      vertex 0.5 0.433 0.0
+      vertex 0.5 0.433 -0.1
+      vertex 0.25 0.866 -0.1
+    endloop
+  endfacet
+  facet normal 0.5 0.0 0.0
+    outer loop
+      vertex 0.5 0.433 0.0
+      vertex 0.25 0.866 -0.1
+      vertex 0.25 0.866 0.0
+    endloop
+  endfacet
+  facet normal -0.5 0.0 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.25 0.866 0.0
+      vertex 0.25 0.866 -0.1
+    endloop
+  endfacet
+  facet normal -0.5 0.0 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.25 0.866 -0.1
+      vertex 0.0 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 0.866 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.0 0.433 -0.1
+      vertex 0.5 0.433 -0.1
+    endloop
+  endfacet
+  facet normal 0.0 0.866 0.0
+    outer loop
+      vertex 0.0 0.433 0.0
+      vertex 0.5 0.433 -0.1
+      vertex 0.5 0.433 0.0
     endloop
   endfacet
 endsolid
@@ -466,11 +613,19 @@ endsolid
 
 <div align="center">
 
-### 💭 Philosophy
+### 💭 Philosophy & Mission
 
-> "Technology should empower business, not constrain it. The best systems are invisible—they enable people to focus on value creation rather than fighting with tools."
+> "Technology should empower people, not constrain them. The best systems are invisible—they enable teams to focus on value creation rather than fighting with tools. True success is measured not by dependency created, but by capability transferred."
 
-**Building bridges between business strategy and technical excellence.**
+**BASH Consulting Mission**: Building sustainable competitive advantages through employee empowerment and future-proof technology. We don't just implement systems—we transfer knowledge, build internal capabilities, and establish frameworks that enable organizations to thrive independently.
+
+**Core Beliefs**:
+- 🌱 **Sustainability Over Obsolescence**: Design systems that adapt and evolve, not require replacement
+- 👥 **People Over Profits**: Measure success by team capability development, not consulting hours sold
+- 📚 **Knowledge Sharing Over Gatekeeping**: Open-source education and transparent methodologies
+- 🌍 **Purpose-Driven Technology**: Explore ways to incorporate environmental and social impact as measurable business drivers
+
+*"We're not just balancing the books; we're balancing the planet."* - From the BASH Consulting philosophy of integrating profitability with sustainability and community impact.
 
 ---
 
