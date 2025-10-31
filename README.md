@@ -118,24 +118,6 @@ Led global accounting systems strategy for agriculture and infrastructure manufa
 
 ---
 
-## 🛠️ Technical Stackle
-author: Amr
-class: Wizard
----
-
-<!---
-bamr87/bamr87 is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
-
-- 👋 Hello world, I’m Amr, I hail from Denver, CO
-- 🤖 I'm a guru of IT system achitectures designed to facilitate the means of production (e.g., ERPs)
-- 📚 Mastering the full stack by writing about it (it-journey.dev), desining it, (zer0-mistakes.com), and scaling it (barodybroject.com)
-- 🧐 Open to collaborate on new ways to incorporate sustainibility vs profit as a value based ERP driver (i.e., how to quantify environmental impact when competing with profit)
-- 📫 You can reach me at @bamr87
-
----
-
 ## 🛠️ Technical Stack
 
 <details>
