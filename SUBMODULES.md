@@ -4,6 +4,7 @@ This repository uses the following submodules:
 
 - `README`: https://github.com/bamr87/README.git
 - `scripts`: https://github.com/bamr87/scripts.git
+ - `cv`: https://github.com/bamr87/cv-builder-pro.git
 
 If you clone this repository, fetch the submodules as well:
 
