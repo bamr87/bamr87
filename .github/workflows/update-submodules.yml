@@ -1,0 +1,27 @@
+name: Update Submodules
+
+on:
+  schedule:
+    # Everyday at 2:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up git for automation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@github.com"
+
+      - name: Update submodules and commit
+        run: |
+          chmod +x tools/update-submodules.sh
+          ./tools/update-submodules.sh
