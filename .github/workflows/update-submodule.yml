@@ -1,0 +1,69 @@
+name: Update Submodule (PR)
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Daily at 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      submodule:
+        description: 'Submodule path to update. Leave blank to update all.'
+        required: false
+      base_branch:
+        description: 'Base branch to open the PR against.'
+        required: false
+        default: 'main'
+
+jobs:
+  update-single:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up git for automation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@github.com"
+
+      - name: Update submodules (single or all)
+        id: update
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.submodule || '' }}" ]; then
+            echo "Updating submodule: ${{ github.event.inputs.submodule }}"
+            git submodule update --init --recursive --remote "${{ github.event.inputs.submodule }}"
+          else
+            echo "Updating all submodules"
+            git submodule update --init --recursive --remote
+          fi
+          git add .
+          # list staged changes for debugging / PR body
+          git diff --cached --name-only || true
+          if git diff --cached --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request for pointer updates
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            chore(submodule): update ${{ github.event.inputs.submodule || 'all' }} submodule(s)
+          title: "chore(submodule): update ${{ github.event.inputs.submodule || 'all' }} submodule(s)"
+          body: |
+            Automated update of submodule pointer(s). This PR updates the submodule pointer(s) to latest commit(s) from submodule remote(s).
+            
+            If you'd like these changes auto-merged, add the label 'automerge' to the PR.
+          branch: "chore/update-submodule-${{ github.event.inputs.submodule || 'all' }}-${{ github.run_id }}"
+          base: ${{ github.event.inputs.base_branch || 'main' }}
+          labels: automation, submodule
+
+      - name: Nothing to do
+        if: steps.update.outputs.changed == 'false'
+        run: echo "No submodule pointer updates detected."
