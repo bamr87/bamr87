@@ -1,0 +1,369 @@
+name: 🎯 Smart Workflow Dispatcher
+
+on:
+  push:
+    branches: [main, master, develop]
+    tags: ['v*']
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'docs/**'
+      - '*.md'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'docs/**'
+      - '*.md'
+  schedule:
+    # Daily dispatch at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      target_workflow:
+        description: 'Specific workflow to trigger (leave empty for auto-detection)'
+        required: false
+        type: choice
+        options:
+          - auto
+          - cicd
+          - release
+          - maintenance
+          - evolution
+          - docs
+          - security
+      force_run:
+        description: 'Force run even if conditions not met'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: write
+  pull-requests: read
+
+env:
+  TARGET_WORKFLOW: ${{ github.event.inputs.target_workflow || 'auto' }}
+  FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }}
+
+jobs:
+  # Analyze the trigger and determine which workflows to dispatch
+  analyze-trigger:
+    name: 🔍 Analyze Trigger & Route Workflows
+    runs-on: ubuntu-latest
+    outputs:
+      dispatch_cicd: ${{ steps.routing.outputs.dispatch_cicd }}
+      dispatch_release: ${{ steps.routing.outputs.dispatch_release }}
+      dispatch_maintenance: ${{ steps.routing.outputs.dispatch_maintenance }}
+      dispatch_evolution: ${{ steps.routing.outputs.dispatch_evolution }}
+      dispatch_docs: ${{ steps.routing.outputs.dispatch_docs }}
+      dispatch_security: ${{ steps.routing.outputs.dispatch_security }}
+      trigger_reason: ${{ steps.routing.outputs.trigger_reason }}
+      priority_level: ${{ steps.routing.outputs.priority_level }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze trigger and route workflows
+        id: routing
+        run: |
+          event_name="${{ github.event_name }}"
+          target_workflow="${TARGET_WORKFLOW}"
+          force_run="${FORCE_RUN}"
+
+          # Initialize outputs
+          dispatch_cicd="false"
+          dispatch_release="false"
+          dispatch_maintenance="false"
+          dispatch_evolution="false"
+          dispatch_docs="false"
+          dispatch_security="false"
+          trigger_reason="unknown"
+          priority_level="low"
+
+          # Auto-detect workflows based on trigger
+          if [[ "$target_workflow" == "auto" ]]; then
+            case "$event_name" in
+              "push")
+                if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
+                  dispatch_cicd="true"
+                  dispatch_maintenance="true"
+                  trigger_reason="main_branch_push"
+                  priority_level="high"
+                elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+                  dispatch_cicd="true"
+                  trigger_reason="develop_branch_push"
+                  priority_level="medium"
+                elif [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+                  dispatch_release="true"
+                  trigger_reason="tag_push"
+                  priority_level="high"
+                fi
+                ;;
+              "pull_request")
+                dispatch_cicd="true"
+                trigger_reason="pull_request"
+                priority_level="high"
+                ;;
+              "schedule")
+                dispatch_maintenance="true"
+                dispatch_evolution="true"
+                trigger_reason="scheduled"
+                priority_level="low"
+                ;;
+            esac
+          else
+            # Manual workflow selection
+            case "$target_workflow" in
+              "cicd")
+                dispatch_cicd="true"
+                ;;
+              "release")
+                dispatch_release="true"
+                ;;
+              "maintenance")
+                dispatch_maintenance="true"
+                ;;
+              "evolution")
+                dispatch_evolution="true"
+                ;;
+              "docs")
+                dispatch_docs="true"
+                ;;
+              "security")
+                dispatch_security="true"
+                ;;
+            esac
+            trigger_reason="manual_dispatch"
+            priority_level="high"
+          fi
+
+          # Force run overrides
+          if [[ "$force_run" == "true" ]]; then
+            dispatch_cicd="true"
+            dispatch_release="true"
+            dispatch_maintenance="true"
+            dispatch_evolution="true"
+            dispatch_docs="true"
+            dispatch_security="true"
+            trigger_reason="force_run"
+            priority_level="high"
+          fi
+
+          # Additional logic for specific conditions
+          if [[ "$event_name" == "push" && "${{ contains(github.event.head_commit.message, 'security') }}" == "true" ]]; then
+            dispatch_security="true"
+            priority_level="critical"
+          fi
+
+          if [[ "$event_name" == "push" && "${{ contains(github.event.head_commit.message, 'docs') }}" == "true" ]]; then
+            dispatch_docs="true"
+          fi
+
+          # Output results
+          echo "dispatch_cicd=$dispatch_cicd" >> $GITHUB_OUTPUT
+          echo "dispatch_release=$dispatch_release" >> $GITHUB_OUTPUT
+          echo "dispatch_maintenance=$dispatch_maintenance" >> $GITHUB_OUTPUT
+          echo "dispatch_evolution=$dispatch_evolution" >> $GITHUB_OUTPUT
+          echo "dispatch_docs=$dispatch_docs" >> $GITHUB_OUTPUT
+          echo "dispatch_security=$dispatch_security" >> $GITHUB_OUTPUT
+          echo "trigger_reason=$trigger_reason" >> $GITHUB_OUTPUT
+          echo "priority_level=$priority_level" >> $GITHUB_OUTPUT
+
+  # Dispatch CI/CD workflow
+  dispatch-cicd:
+    name: 🚀 Dispatch CI/CD Pipeline
+    needs: analyze-trigger
+    if: needs.analyze-trigger.outputs.dispatch_cicd == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Unified CI/CD Pipeline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'unified-cicd.yml',
+              ref: '${{ github.ref_name }}',
+              inputs: {
+                mode: '${{ needs.analyze-trigger.outputs.trigger_reason == ''pull_request'' && ''full'' || ''full'' }}',
+                force_all: '${{ needs.analyze-trigger.outputs.priority_level == ''critical'' && ''true'' || ''false'' }}'
+              }
+            })
+
+  # Dispatch Release workflow
+  dispatch-release:
+    name: 📦 Dispatch Release Pipeline
+    needs: analyze-trigger
+    if: needs.analyze-trigger.outputs.dispatch_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Unified Release Pipeline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'unified-release.yml',
+              ref: '${{ github.ref_name }}',
+              inputs: {
+                release_type: '${{ startsWith(github.ref, ''refs/tags/'') && ''github'' || ''auto'' }}',
+                version: '${{ github.ref_name }}'
+              }
+            })
+
+  # Dispatch Maintenance workflow
+  dispatch-maintenance:
+    name: 🔧 Dispatch Maintenance Pipeline
+    needs: analyze-trigger
+    if: needs.analyze-trigger.outputs.dispatch_maintenance == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Unified Maintenance Pipeline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const priority = '${{ needs.analyze-trigger.outputs.priority_level }}';
+            const triggerReason = '${{ needs.analyze-trigger.outputs.trigger_reason }}';
+
+            let maintenanceType = 'all';
+            let scope = 'minimal';
+
+            if (triggerReason === 'scheduled') {
+              maintenanceType = 'all';
+              scope = priority === 'high' ? 'comprehensive' : 'minimal';
+            } else if (priority === 'critical') {
+              maintenanceType = 'security';
+              scope = 'comprehensive';
+            }
+
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'unified-maintenance.yml',
+              ref: '${{ github.ref_name }}',
+              inputs: {
+                maintenance_type: maintenanceType,
+                scope: scope,
+                create_pr: 'true'
+              }
+            })
+
+  # Dispatch Evolution workflow
+  dispatch-evolution:
+    name: 🌱 Dispatch Evolution Pipeline
+    needs: analyze-trigger
+    if: needs.analyze-trigger.outputs.dispatch_evolution == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Unified Evolution Pipeline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const priority = '${{ needs.analyze-trigger.outputs.priority_level }}';
+            const triggerReason = '${{ needs.analyze-trigger.outputs.trigger_reason }}';
+
+            let evolutionType = 'consistency';
+            let intensity = 'minimal';
+
+            if (triggerReason === 'scheduled') {
+              evolutionType = 'all';
+              intensity = priority === 'high' ? 'moderate' : 'minimal';
+            } else if (priority === 'critical') {
+              evolutionType = 'security_updates';
+              intensity = 'comprehensive';
+            }
+
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'unified-evolution.yml',
+              ref: '${{ github.ref_name }}',
+              inputs: {
+                evolution_type: evolutionType,
+                intensity: intensity,
+                create_pr: 'true'
+              }
+            })
+
+  # Dispatch Documentation workflow
+  dispatch-docs:
+    name: 📚 Dispatch Documentation Pipeline
+    needs: analyze-trigger
+    if: needs.analyze-trigger.outputs.dispatch_docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Documentation Maintenance
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'unified-maintenance.yml',
+              ref: '${{ github.ref_name }}',
+              inputs: {
+                maintenance_type: 'docs',
+                scope: 'moderate',
+                create_pr: 'true'
+              }
+            })
+
+  # Dispatch Security workflow
+  dispatch-security:
+    name: 🔒 Dispatch Security Pipeline
+    needs: analyze-trigger
+    if: needs.analyze-trigger.outputs.dispatch_security == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Security Maintenance
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'unified-maintenance.yml',
+              ref: '${{ github.ref_name }}',
+              inputs: {
+                maintenance_type: 'security',
+                scope: 'comprehensive',
+                create_pr: 'true'
+              }
+            })
+
+  # Dispatch summary
+  dispatch-summary:
+    name: 📊 Dispatch Summary
+    needs: [analyze-trigger, dispatch-cicd, dispatch-release, dispatch-maintenance, dispatch-evolution, dispatch-docs, dispatch-security]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate dispatch summary
+        run: |
+          echo "## 🎯 Workflow Dispatch Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Workflow | Dispatched | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          # Workflow dispatch results
+          echo "| CI/CD | ${{ needs.analyze-trigger.outputs.dispatch_cicd }} | ${{ needs.dispatch-cicd.result != 'skipped' && needs.dispatch-cicd.result || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release | ${{ needs.analyze-trigger.outputs.dispatch_release }} | ${{ needs.dispatch-release.result != 'skipped' && needs.dispatch-release.result || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Maintenance | ${{ needs.analyze-trigger.outputs.dispatch_maintenance }} | ${{ needs.dispatch-maintenance.result != 'skipped' && needs.dispatch-maintenance.result || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Evolution | ${{ needs.analyze-trigger.outputs.dispatch_evolution }} | ${{ needs.dispatch-evolution.result != 'skipped' && needs.dispatch-evolution.result || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation | ${{ needs.analyze-trigger.outputs.dispatch_docs }} | ${{ needs.dispatch-docs.result != 'skipped' && needs.dispatch-docs.result || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security | ${{ needs.analyze-trigger.outputs.dispatch_security }} | ${{ needs.dispatch-security.result != 'skipped' && needs.dispatch-security.result || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger Reason:** ${{ needs.analyze-trigger.outputs.trigger_reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Priority Level:** ${{ needs.analyze-trigger.outputs.priority_level }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Workflow:** ${TARGET_WORKFLOW}" >> $GITHUB_STEP_SUMMARY
+          echo "**Force Run:** ${FORCE_RUN}" >> $GITHUB_STEP_SUMMARY
+          echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Ref:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

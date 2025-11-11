@@ -1,0 +1,464 @@
+name: 🔧 Unified Maintenance Pipeline
+
+on:
+  schedule:
+    # Daily maintenance at 2 AM UTC
+    - cron: '0 2 * * *'
+    # Weekly comprehensive maintenance on Mondays at 3 AM UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      maintenance_type:
+        description: 'Type of maintenance to perform'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - dependencies
+          - security
+          - docs
+          - lint
+          - cleanup
+          - health-check
+      scope:
+        description: 'Scope of maintenance'
+        required: false
+        default: 'minimal'
+        type: choice
+        options:
+          - minimal
+          - moderate
+          - comprehensive
+      dry_run:
+        description: 'Run in simulation mode without making changes'
+        required: false
+        default: false
+        type: boolean
+      create_pr:
+        description: 'Create pull request with changes'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  packages: write
+
+env:
+  MAINTENANCE_TYPE: ${{ github.event.inputs.maintenance_type || 'all' }}
+  SCOPE: ${{ github.event.inputs.scope || 'minimal' }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+  CREATE_PR: ${{ github.event.inputs.create_pr || 'true' }}
+
+jobs:
+  # Detect project structure and determine maintenance tasks
+  detect-project:
+    name: 🔍 Detect Project & Maintenance Scope
+    runs-on: ubuntu-latest
+    outputs:
+      has_npm: ${{ steps.detect.outputs.has_npm }}
+      has_python: ${{ steps.detect.outputs.has_python }}
+      has_ruby: ${{ steps.detect.outputs.has_ruby }}
+      has_rust: ${{ steps.detect.outputs.has_rust }}
+      has_go: ${{ steps.detect.outputs.has_go }}
+      has_docker: ${{ steps.detect.outputs.has_docker }}
+      has_docs: ${{ steps.detect.outputs.has_docs }}
+      maintenance_tasks: ${{ steps.tasks.outputs.maintenance_tasks }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect project types
+        id: detect
+        run: |
+          echo "has_npm=false" >> $GITHUB_OUTPUT
+          echo "has_python=false" >> $GITHUB_OUTPUT
+          echo "has_ruby=false" >> $GITHUB_OUTPUT
+          echo "has_rust=false" >> $GITHUB_OUTPUT
+          echo "has_go=false" >> $GITHUB_OUTPUT
+          echo "has_docker=false" >> $GITHUB_OUTPUT
+          echo "has_docs=false" >> $GITHUB_OUTPUT
+
+          [[ -f "package.json" ]] && echo "has_npm=true" >> $GITHUB_OUTPUT
+          [[ -f "requirements.txt" || -f "pyproject.toml" || -f "setup.py" ]] && echo "has_python=true" >> $GITHUB_OUTPUT
+          [[ -f "Gemfile" || -f "*.gemspec" ]] && echo "has_ruby=true" >> $GITHUB_OUTPUT
+          [[ -f "Cargo.toml" ]] && echo "has_rust=true" >> $GITHUB_OUTPUT
+          [[ -f "go.mod" ]] && echo "has_go=true" >> $GITHUB_OUTPUT
+          [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "has_docker=true" >> $GITHUB_OUTPUT
+          [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" || -f "_config.yml" ]] && echo "has_docs=true" >> $GITHUB_OUTPUT
+
+      - name: Determine maintenance tasks
+        id: tasks
+        run: |
+          maintenance_type="${MAINTENANCE_TYPE}"
+          tasks=""
+
+          case "$maintenance_type" in
+            "all")
+              tasks="dependencies,security,docs,lint,cleanup,health-check"
+              ;;
+            "dependencies")
+              tasks="dependencies"
+              ;;
+            "security")
+              tasks="security"
+              ;;
+            "docs")
+              tasks="docs"
+              ;;
+            "lint")
+              tasks="lint"
+              ;;
+            "cleanup")
+              tasks="cleanup"
+              ;;
+            "health-check")
+              tasks="health-check"
+              ;;
+          esac
+
+          echo "maintenance_tasks=$tasks" >> $GITHUB_OUTPUT
+
+  # Dependency updates
+  update-dependencies:
+    name: 📦 Update Dependencies
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.maintenance_tasks, 'dependencies')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Update NPM dependencies
+        if: needs.detect-project.outputs.has_npm == 'true'
+        uses: ./.github/actions/maintenance/update-npm-deps
+        with:
+          scope: ${{ env.SCOPE }}
+          dry-run: ${{ env.DRY_RUN }}
+
+      - name: Update Python dependencies
+        if: needs.detect-project.outputs.has_python == 'true'
+        uses: ./.github/actions/maintenance/update-python-deps
+        with:
+          scope: ${{ env.SCOPE }}
+          dry-run: ${{ env.DRY_RUN }}
+
+      - name: Update Ruby dependencies
+        if: needs.detect-project.outputs.has_ruby == 'true'
+        uses: ./.github/actions/maintenance/update-ruby-deps
+        with:
+          scope: ${{ env.SCOPE }}
+          dry-run: ${{ env.DRY_RUN }}
+
+      - name: Update Rust dependencies
+        if: needs.detect-project.outputs.has_rust == 'true'
+        uses: ./.github/actions/maintenance/update-rust-deps
+        with:
+          scope: ${{ env.SCOPE }}
+          dry-run: ${{ env.DRY_RUN }}
+
+      - name: Update Go dependencies
+        if: needs.detect-project.outputs.has_go == 'true'
+        uses: ./.github/actions/maintenance/update-go-deps
+        with:
+          scope: ${{ env.SCOPE }}
+          dry-run: ${{ env.DRY_RUN }}
+
+  # Security updates
+  security-updates:
+    name: 🔒 Security Updates
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.maintenance_tasks, 'security')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Run security audit for NPM
+        if: needs.detect-project.outputs.has_npm == 'true'
+        run: |
+          npm audit --audit-level moderate
+          if [[ "${SCOPE}" == "comprehensive" ]]; then
+            npm audit fix --dry-run || true
+            if [[ "${DRY_RUN}" != "true" ]]; then
+              npm audit fix
+            fi
+          fi
+
+      - name: Run security audit for Python
+        if: needs.detect-project.outputs.has_python == 'true'
+        run: |
+          pip install safety
+          safety check --full-report || true
+
+      - name: Run security audit for Ruby
+        if: needs.detect-project.outputs.has_ruby == 'true'
+        run: |
+          bundle audit check --update || true
+
+      - name: Run security audit for Rust
+        if: needs.detect-project.outputs.has_rust == 'true'
+        run: |
+          cargo audit || true
+
+      - name: Run security audit for Docker
+        if: needs.detect-project.outputs.has_docker == 'true'
+        run: |
+          docker run --rm -v $(pwd):/app aquasecurity/trivy repo /app || true
+
+  # Documentation maintenance
+  docs-maintenance:
+    name: 📚 Documentation Maintenance
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.maintenance_tasks, 'docs')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Update documentation
+        uses: ./.github/actions/maintenance/update-docs
+        with:
+          scope: ${{ env.SCOPE }}
+          dry-run: ${{ env.DRY_RUN }}
+
+      - name: Check documentation links
+        if: needs.detect-project.outputs.has_docs == 'true'
+        run: |
+          if [[ -f "mkdocs.yml" ]]; then
+            pip install linkchecker
+            linkchecker site/ || true
+          fi
+
+  # Code quality and linting
+  code-quality:
+    name: 🎨 Code Quality & Linting
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.maintenance_tasks, 'lint')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ESLint auto-fix
+        if: needs.detect-project.outputs.has_npm == 'true'
+        run: |
+          npm install
+          npx eslint . --ext .js,.jsx,.ts,.tsx --fix || true
+
+      - name: Run Prettier
+        if: needs.detect-project.outputs.has_npm == 'true'
+        run: |
+          npx prettier --write . || true
+
+      - name: Run Black (Python)
+        if: needs.detect-project.outputs.has_python == 'true'
+        run: |
+          pip install black
+          black . || true
+
+      - name: Run RuboCop (Ruby)
+        if: needs.detect-project.outputs.has_ruby == 'true'
+        run: |
+          bundle exec rubocop -a || true
+
+      - name: Run rustfmt (Rust)
+        if: needs.detect-project.outputs.has_rust == 'true'
+        run: |
+          rustfmt **/*.rs || true
+
+      - name: Run gofmt (Go)
+        if: needs.detect-project.outputs.has_go == 'true'
+        run: |
+          gofmt -w . || true
+
+  # Repository cleanup
+  cleanup:
+    name: 🧹 Repository Cleanup
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.maintenance_tasks, 'cleanup')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Clean up old branches
+        run: |
+          # Remove merged branches older than 30 days
+          for branch in $(git branch -r --merged origin/main | grep -v "origin/main\|origin/master" | grep -v "origin/release"); do
+            if [[ $(git log -1 --since="30 days ago" $branch) ]]; then
+              echo "Would delete branch: $branch"
+              if [[ "${DRY_RUN}" != "true" ]]; then
+                git push origin --delete ${branch#origin/} || true
+              fi
+            fi
+          done
+
+      - name: Clean up old workflow runs
+        run: |
+          # This would typically be done via GitHub API
+          echo "Cleaning up old workflow runs..."
+          # Implementation would use GitHub CLI or API
+
+      - name: Remove unused dependencies
+        run: |
+          if [[ -f "package.json" ]]; then
+            npx depcheck || true
+          fi
+
+          if [[ -f "requirements.txt" ]]; then
+            pip install pip-autoremove
+            pip-autoremove --yes || true
+          fi
+
+  # Health check
+  health-check:
+    name: 🏥 Repository Health Check
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.maintenance_tasks, 'health-check')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run repository health checks
+        run: |
+          echo "## 🏥 Repository Health Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check for README
+          if [[ -f "README.md" ]]; then
+            echo "✅ README.md exists" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Missing README.md" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for license
+          if [[ -f "LICENSE" || -f "LICENSE.md" ]]; then
+            echo "✅ License file exists" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  No license file found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for CI/CD
+          if [[ -d ".github/workflows" ]]; then
+            workflow_count=$(ls .github/workflows/*.yml 2>/dev/null | wc -l)
+            echo "✅ $workflow_count GitHub Actions workflows found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ No GitHub Actions workflows found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check test coverage
+          if [[ -f "package.json" ]]; then
+            if grep -q '"test"' package.json; then
+              echo "✅ NPM test script found" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️  No test script in package.json" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+          # Check for security
+          if [[ -f ".gitignore" ]]; then
+            if grep -q "node_modules" .gitignore; then
+              echo "✅ node_modules in .gitignore" >> $GITHUB_STEP_SUMMARY
+            fi
+            if grep -q ".env" .gitignore; then
+              echo "✅ .env files in .gitignore" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+  # Create pull request with changes
+  create-pr:
+    name: 📝 Create Maintenance PR
+    needs: [detect-project, update-dependencies, security-updates, docs-maintenance, code-quality, cleanup, health-check]
+    if: env.CREATE_PR == 'true' && env.DRY_RUN != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create pull request
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: maintenance/${{ github.run_id }}
+          title: "🔧 Automated Maintenance - ${{ env.MAINTENANCE_TYPE }} (${{ env.SCOPE }})"
+          body: |
+            ## 🔧 Automated Maintenance
+
+            This PR contains automated maintenance updates for **${{ env.MAINTENANCE_TYPE }}** with **${{ env.SCOPE }}** scope.
+
+            ### Changes Made:
+            - Dependencies updated
+            - Security vulnerabilities addressed
+            - Documentation refreshed
+            - Code formatting applied
+            - Repository cleanup performed
+
+            ### Maintenance Details:
+            - **Type:** ${{ env.MAINTENANCE_TYPE }}
+            - **Scope:** ${{ env.SCOPE }}
+            - **Run ID:** ${{ github.run_id }}
+            - **Triggered:** ${{ github.event_name }}
+
+            ---
+            🤖 This PR was automatically generated by the Unified Maintenance Pipeline
+          labels: |
+            maintenance
+            automated
+            dependencies
+          draft: false
+
+  # Maintenance summary
+  maintenance-summary:
+    name: 📊 Maintenance Summary
+    needs: [detect-project, update-dependencies, security-updates, docs-maintenance, code-quality, cleanup, health-check, create-pr]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate maintenance summary
+        run: |
+          echo "## 🔧 Maintenance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Task | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          # Task results
+          echo "| Dependencies | ${{ needs.update-dependencies.result != 'skipped' && needs.update-dependencies.result || 'N/A' }} | Updated project dependencies |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security | ${{ needs.security-updates.result != 'skipped' && needs.security-updates.result || 'N/A' }} | Security audits and fixes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation | ${{ needs.docs-maintenance.result != 'skipped' && needs.docs-maintenance.result || 'N/A' }} | Documentation updates |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.code-quality.result != 'skipped' && needs.code-quality.result || 'N/A' }} | Linting and formatting |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cleanup | ${{ needs.cleanup.result != 'skipped' && needs.cleanup.result || 'N/A' }} | Repository cleanup |" >> $GITHUB_STEP_SUMMARY
+          echo "| Health Check | ${{ needs.health-check.result != 'skipped' && needs.health-check.result || 'N/A' }} | Repository health assessment |" >> $GITHUB_STEP_SUMMARY
+          echo "| PR Creation | ${{ needs.create-pr.result != 'skipped' && needs.create-pr.result || 'N/A' }} | Pull request with changes |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Maintenance Type:** ${MAINTENANCE_TYPE}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scope:** ${SCOPE}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry Run:** ${DRY_RUN}" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY

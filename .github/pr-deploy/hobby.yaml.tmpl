@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $APP_NAME-$HOSTNAME
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: $APP_NAME-$HOSTNAME
+  template:
+    metadata:
+      labels:
+        app: $APP_NAME-$HOSTNAME
+    spec:
+      containers:
+      - name: $APP_NAME-$HOSTNAME
+        image: $REGISTRY_URL/$IMAGE_NAME:$DOCKER_TAG
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: $CPU_REQUEST
+            memory: $MEMORY_REQUEST          
+        ports:
+        - containerPort: 2375
+        - containerPort: $APP_PORT
+        env:
+        - name: BRANCH_NAME
+          value: $BRANCH_NAME
+        - name: REGISTRY_URL
+          value: $REGISTRY_URL
+        - name: DOCKER_TAG
+          value: $DOCKER_TAG
+        - name: SUBDOMAIN
+          value: $HOSTNAME
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: $APP_NAME-service-$HOSTNAME
+spec:
+  selector:
+    app: $APP_NAME-$HOSTNAME
+  ports:
+    - protocol: TCP
+      port: $APP_PORT
+      targetPort: $APP_PORT
+  type: NodePort
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: $APP_NAME-ingress-$HOSTNAME
+  annotations:
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: $CERTIFICATE_ARN
+    external-dns.alpha.kubernetes.io/hostname: $HOSTNAME.$DOMAIN
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: $APP_NAME-service-$HOSTNAME
+            port:
+              number: $APP_PORT

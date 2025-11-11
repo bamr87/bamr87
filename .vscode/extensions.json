@@ -1,0 +1,60 @@
+{
+  // ==================================================
+  // UNIFIED VS CODE EXTENSIONS - Docker-First Development
+  // ==================================================
+  // Optimized for it-journey, zer0-mistakes, barodybroject
+  // Last Updated: 2025-10-26
+  
+  "recommendations": [
+    // ==========================================
+    // CORE DEVELOPMENT TOOLS
+    // ==========================================
+    "github.copilot",
+    "github.copilot-chat",
+    "ms-azuretools.vscode-docker",
+    
+    // ==========================================
+    // PYTHON/DJANGO DEVELOPMENT
+    // ==========================================
+    "ms-python.python",
+    "ms-python.black-formatter",
+    "ms-python.flake8",
+    "ms-python.pylint",
+    "ms-python.debugpy",
+    
+    // ==========================================
+    // JEKYLL/WEB DEVELOPMENT
+    // ==========================================
+    "shopify.liquid",
+    "ms-vscode.vscode-json",
+    "redhat.vscode-yaml",
+    "davidanson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one",
+    
+    // ==========================================
+    // UTILITY EXTENSIONS
+    // ==========================================
+    "ms-vscode.vscode-typescript-next",
+    "ms-vscode-remote.remote-containers",
+    "ms-vscode.remote-repositories",
+    "streetsidesoftware.code-spell-checker",
+    "eamodio.gitlens",
+    
+    // ==========================================
+    // OPTIONAL ENHANCEMENTS
+    // ==========================================
+    "ms-vscode.live-server",
+    "bradlc.vscode-tailwindcss",
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense",
+    "esbenp.prettier-vscode"
+  ],
+  
+  // ==========================================
+  // WORKSPACE SPECIFIC RECOMMENDATIONS
+  // ==========================================
+  "unwantedRecommendations": [
+    "ms-vscode.vscode-typescript",
+    "ms-vscode.nodejs-extension-pack"
+  ]
+}

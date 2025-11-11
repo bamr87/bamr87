@@ -1,0 +1,383 @@
+name: 'Build and Push Container Image'
+description: 'Build and push container images to multiple registries with caching and multi-platform support'
+
+inputs:
+  # Image Configuration
+  image-name:
+    required: true
+    description: 'Name of the container image to build'
+  image-tag:
+    required: false
+    description: 'Tag for the container image'
+    default: ${{ github.sha }}
+  additional-tags:
+    required: false
+    description: 'Comma-separated list of additional tags'
+    default: ''
+  
+  # Registry Configuration
+  registry-type:
+    required: false
+    description: 'Registry type: ecr, ghcr, dockerhub, gcr, acr, custom'
+    default: 'dockerhub'
+  registry-url:
+    required: false
+    description: 'Registry URL (for custom or explicit registry)'
+    default: ''
+  
+  # ECR Configuration
+  aws-region:
+    required: false
+    description: 'AWS region for ECR'
+    default: 'us-east-1'
+  aws-access-key:
+    required: false
+    description: 'AWS access key for ECR'
+  aws-secret-key:
+    required: false
+    description: 'AWS secret key for ECR'
+  
+  # DockerHub Configuration
+  dockerhub-username:
+    required: false
+    description: 'DockerHub username'
+  dockerhub-token:
+    required: false
+    description: 'DockerHub token or password'
+  
+  # GHCR Configuration
+  ghcr-token:
+    required: false
+    description: 'GitHub token for GHCR'
+    default: ${{ github.token }}
+  
+  # GCR Configuration
+  gcp-project-id:
+    required: false
+    description: 'GCP project ID for GCR'
+  gcp-service-account-key:
+    required: false
+    description: 'GCP service account key JSON'
+  
+  # ACR Configuration
+  azure-client-id:
+    required: false
+    description: 'Azure client ID for ACR'
+  azure-client-secret:
+    required: false
+    description: 'Azure client secret for ACR'
+  azure-tenant-id:
+    required: false
+    description: 'Azure tenant ID for ACR'
+  
+  # Build Configuration
+  context:
+    required: false
+    description: 'Build context path'
+    default: '.'
+  dockerfile:
+    required: false
+    description: 'Path to Dockerfile'
+    default: 'Dockerfile'
+  platforms:
+    required: false
+    description: 'Target platforms (comma-separated)'
+    default: 'linux/amd64'
+  build-args:
+    required: false
+    description: 'Build arguments (key=value, newline-separated)'
+    default: ''
+  target:
+    required: false
+    description: 'Build target stage'
+    default: ''
+  
+  # Cache Configuration
+  cache-enabled:
+    required: false
+    description: 'Enable build caching'
+    default: 'true'
+  cache-type:
+    required: false
+    description: 'Cache backend: registry, gha, local'
+    default: 'gha'
+  no-cache:
+    required: false
+    description: 'Disable all caching'
+    default: 'false'
+  
+  # Push Configuration
+  push-image:
+    required: false
+    description: 'Push the built image to registry'
+    default: 'false'
+  load-image:
+    required: false
+    description: 'Load image to local Docker daemon'
+    default: 'false'
+  
+  # Advanced Options
+  sbom:
+    required: false
+    description: 'Generate SBOM attestation'
+    default: 'false'
+  provenance:
+    required: false
+    description: 'Generate provenance attestation'
+    default: 'false'
+  secrets:
+    required: false
+    description: 'Build secrets (key=value, newline-separated)'
+    default: ''
+  labels:
+    required: false
+    description: 'Image labels (key=value, newline-separated)'
+    default: ''
+  pr-number:
+    required: false
+    description: 'PR number for tagging'
+    default: ''
+
+outputs:
+  image-name:
+    description: 'Full image name with registry'
+    value: ${{ steps.meta.outputs.image-name }}
+  tags:
+    description: 'All tags applied to the image'
+    value: ${{ steps.meta.outputs.tags }}
+  digest:
+    description: 'Image digest'
+    value: ${{ steps.build.outputs.digest }}
+  metadata:
+    description: 'Build metadata'
+    value: ${{ steps.build.outputs.metadata }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    # Registry Login - ECR
+    - name: Configure AWS credentials
+      if: inputs.registry-type == 'ecr' && inputs.aws-access-key != ''
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key }}
+        aws-secret-access-key: ${{ inputs.aws-secret-key }}
+        aws-region: ${{ inputs.aws-region }}
+    
+    - name: Login to Amazon ECR
+      if: inputs.registry-type == 'ecr' && inputs.aws-access-key != ''
+      id: ecr-login
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    # Registry Login - DockerHub
+    - name: Login to DockerHub
+      if: inputs.registry-type == 'dockerhub' && inputs.dockerhub-username != ''
+      uses: docker/login-action@v3
+      with:
+        username: ${{ inputs.dockerhub-username }}
+        password: ${{ inputs.dockerhub-token }}
+    
+    # Registry Login - GHCR
+    - name: Login to GitHub Container Registry
+      if: inputs.registry-type == 'ghcr' && inputs.ghcr-token != ''
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.ghcr-token }}
+    
+    # Registry Login - GCR
+    - name: Login to Google Container Registry
+      if: inputs.registry-type == 'gcr' && inputs.gcp-service-account-key != ''
+      uses: docker/login-action@v3
+      with:
+        registry: gcr.io
+        username: _json_key
+        password: ${{ inputs.gcp-service-account-key }}
+    
+    # Registry Login - ACR
+    - name: Login to Azure Container Registry
+      if: inputs.registry-type == 'acr'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry-url }}
+        username: ${{ inputs.azure-client-id }}
+        password: ${{ inputs.azure-client-secret }}
+    
+    # Registry Login - Custom
+    - name: Login to Custom Registry
+      if: inputs.registry-type == 'custom' && inputs.registry-url != ''
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry-url }}
+        username: ${{ inputs.dockerhub-username || inputs.azure-client-id }}
+        password: ${{ inputs.dockerhub-token || inputs.azure-client-secret }}
+    
+    # Generate Metadata
+    - name: Generate image metadata
+      id: meta
+      shell: bash
+      run: |
+        # Determine registry prefix
+        case "${{ inputs.registry-type }}" in
+          ecr)
+            REGISTRY="${{ steps.ecr-login.outputs.registry }}"
+            ;;
+          ghcr)
+            REGISTRY="ghcr.io/${{ github.repository_owner }}"
+            ;;
+          gcr)
+            REGISTRY="gcr.io/${{ inputs.gcp-project-id }}"
+            ;;
+          acr|custom)
+            REGISTRY="${{ inputs.registry-url }}"
+            ;;
+          dockerhub)
+            REGISTRY="${{ inputs.dockerhub-username }}"
+            ;;
+          *)
+            REGISTRY="${{ inputs.registry-url }}"
+            ;;
+        esac
+        
+        # Build full image name
+        if [ -n "$REGISTRY" ]; then
+          IMAGE_NAME="${REGISTRY}/${{ inputs.image-name }}"
+        else
+          IMAGE_NAME="${{ inputs.image-name }}"
+        fi
+        
+        # Build tags
+        TAGS="${IMAGE_NAME}:${{ inputs.image-tag }}"
+        
+        # Add additional tags
+        if [ -n "${{ inputs.additional-tags }}" ]; then
+          IFS=',' read -ra EXTRA_TAGS <<< "${{ inputs.additional-tags }}"
+          for tag in "${EXTRA_TAGS[@]}"; do
+            TAGS="${TAGS},${IMAGE_NAME}:${tag}"
+          done
+        fi
+        
+        # Add PR tag if specified
+        if [ -n "${{ inputs.pr-number }}" ]; then
+          TAGS="${TAGS},${IMAGE_NAME}:pr-${{ inputs.pr-number }}"
+        fi
+        
+        # Add latest tag for main branch
+        if [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/master" ]; then
+          TAGS="${TAGS},${IMAGE_NAME}:latest"
+        fi
+        
+        echo "image-name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+        echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+        echo "::notice::Image: ${IMAGE_NAME}"
+        echo "::notice::Tags: ${TAGS}"
+    
+    # Prepare build arguments
+    - name: Prepare build arguments
+      id: build-args
+      shell: bash
+      run: |
+        # Add default build args
+        BUILD_ARGS="COMMIT_HASH=${{ github.sha }}"
+        BUILD_ARGS="${BUILD_ARGS}\nBUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        BUILD_ARGS="${BUILD_ARGS}\nVERSION=${{ inputs.image-tag }}"
+        
+        # Add custom build args
+        if [ -n "${{ inputs.build-args }}" ]; then
+          BUILD_ARGS="${BUILD_ARGS}\n${{ inputs.build-args }}"
+        fi
+        
+        echo "args<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$BUILD_ARGS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    # Prepare labels
+    - name: Prepare labels
+      id: labels
+      shell: bash
+      run: |
+        LABELS="org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}"
+        LABELS="${LABELS}\norg.opencontainers.image.revision=${{ github.sha }}"
+        LABELS="${LABELS}\norg.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        
+        if [ -n "${{ inputs.labels }}" ]; then
+          LABELS="${LABELS}\n${{ inputs.labels }}"
+        fi
+        
+        echo "labels<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$LABELS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    # Setup cache
+    - name: Setup cache
+      id: cache-setup
+      shell: bash
+      run: |
+        if [ "${{ inputs.cache-enabled }}" = "true" ] && [ "${{ inputs.no-cache }}" = "false" ]; then
+          case "${{ inputs.cache-type }}" in
+            gha)
+              echo "cache-from=type=gha" >> $GITHUB_OUTPUT
+              echo "cache-to=type=gha,mode=max" >> $GITHUB_OUTPUT
+              ;;
+            registry)
+              IMAGE_NAME="${{ steps.meta.outputs.image-name }}"
+              echo "cache-from=type=registry,ref=${IMAGE_NAME}:cache" >> $GITHUB_OUTPUT
+              echo "cache-to=type=registry,ref=${IMAGE_NAME}:cache,mode=max" >> $GITHUB_OUTPUT
+              ;;
+            local)
+              echo "cache-from=type=local,src=/tmp/.buildx-cache" >> $GITHUB_OUTPUT
+              echo "cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max" >> $GITHUB_OUTPUT
+              ;;
+          esac
+        fi
+    
+    # Build and Push
+    - name: Build and push image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        platforms: ${{ inputs.platforms }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.labels.outputs.labels }}
+        build-args: ${{ steps.build-args.outputs.args }}
+        target: ${{ inputs.target }}
+        push: ${{ inputs.push-image }}
+        load: ${{ inputs.load-image }}
+        cache-from: ${{ steps.cache-setup.outputs.cache-from }}
+        cache-to: ${{ steps.cache-setup.outputs.cache-to }}
+        no-cache: ${{ inputs.no-cache }}
+        sbom: ${{ inputs.sbom }}
+        provenance: ${{ inputs.provenance }}
+        secrets: ${{ inputs.secrets }}
+    
+    # Move cache (for local cache type)
+    - name: Move cache
+      if: inputs.cache-type == 'local' && inputs.cache-enabled == 'true'
+      shell: bash
+      run: |
+        rm -rf /tmp/.buildx-cache
+        mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+    
+    # Output Summary
+    - name: Build summary
+      shell: bash
+      run: |
+        echo "## 🐳 Container Image Build" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** \`${{ steps.meta.outputs.image-name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Tags:** \`${{ steps.meta.outputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Digest:** \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Platforms:** \`${{ inputs.platforms }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Pushed:** \`${{ inputs.push-image }}\`" >> $GITHUB_STEP_SUMMARY

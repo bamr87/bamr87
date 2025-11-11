@@ -1,0 +1,92 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+env:
+  IMAGE_NAME: myapp
+
+jobs:
+  build-dockerhub:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build and push to DockerHub
+        uses: ./.github/actions/deployment/build-push-image
+        with:
+          image-name: ${{ env.IMAGE_NAME }}
+          registry-type: 'dockerhub'
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          platforms: 'linux/amd64,linux/arm64'
+          build-args: |
+            NODE_ENV=production
+            VERSION=${{ github.ref_name }}
+          additional-tags: 'latest'
+          push-image: ${{ github.event_name != 'pull_request' }}
+          sbom: 'true'
+          provenance: 'true'
+
+  build-ghcr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build and push to GHCR
+        uses: ./.github/actions/deployment/build-push-image
+        with:
+          image-name: ${{ env.IMAGE_NAME }}
+          registry-type: 'ghcr'
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}
+          platforms: 'linux/amd64,linux/arm64'
+          push-image: ${{ github.event_name != 'pull_request' }}
+          pr-number: ${{ github.event.pull_request.number }}
+
+  build-ecr:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build and push to ECR
+        uses: ./.github/actions/deployment/build-push-image
+        with:
+          image-name: ${{ env.IMAGE_NAME }}
+          registry-type: 'ecr'
+          aws-region: 'us-east-1'
+          aws-access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          platforms: 'linux/amd64'
+          push-image: 'true'
+          cache-type: 'registry'
+
+  build-multi-stage:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build production image
+        uses: ./.github/actions/deployment/build-push-image
+        with:
+          image-name: ${{ env.IMAGE_NAME }}
+          dockerfile: 'Dockerfile.prod'
+          target: 'production'
+          build-args: |
+            BUILD_ENV=production
+            API_URL=${{ secrets.API_URL }}
+          labels: |
+            com.example.team=backend
+            com.example.version=${{ github.ref_name }}
+          push-image: ${{ github.event_name != 'pull_request' }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}

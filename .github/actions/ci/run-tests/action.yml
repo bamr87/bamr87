@@ -1,0 +1,296 @@
+name: 'Run Tests'
+description: 'Generic test runner for any language/framework with customizable setup and execution'
+
+inputs:
+  # Language and Version
+  language:
+    description: 'Programming language (python, node, ruby, go, rust, etc.)'
+    required: true
+  language-version:
+    description: 'Language version to use (e.g., 3.11, 18.x, 3.2)'
+    required: false
+    default: ''
+  
+  # Dependencies and Setup
+  package-manager:
+    description: 'Package manager to use (pip, npm, pnpm, yarn, bundle, cargo, go mod, etc.)'
+    required: false
+    default: ''
+  install-dependencies:
+    description: 'Whether to install dependencies'
+    required: false
+    default: 'true'
+  dependency-cache:
+    description: 'Enable dependency caching'
+    required: false
+    default: 'true'
+  setup-script:
+    description: 'Optional setup script to run before tests'
+    required: false
+    default: ''
+  
+  # Test Configuration
+  test-command:
+    description: 'Command to run tests (e.g., pytest, npm test, bundle exec rspec)'
+    required: true
+  test-directory:
+    description: 'Directory containing tests (optional)'
+    required: false
+    default: ''
+  test-pattern:
+    description: 'Test file pattern to match (optional)'
+    required: false
+    default: ''
+  test-args:
+    description: 'Additional arguments to pass to test command'
+    required: false
+    default: ''
+  
+  # Parallelization
+  parallel-jobs:
+    description: 'Number of parallel test jobs (for test splitting)'
+    required: false
+    default: '1'
+  job-index:
+    description: 'Current job index (1-based) for test splitting'
+    required: false
+    default: '1'
+  
+  # Services (Docker Compose)
+  services-enabled:
+    description: 'Whether to start services with Docker Compose'
+    required: false
+    default: 'false'
+  services-compose-file:
+    description: 'Docker Compose file path'
+    required: false
+    default: 'docker-compose.yml'
+  services-wait-script:
+    description: 'Script to wait for services to be ready'
+    required: false
+    default: ''
+  
+  # Coverage and Reporting
+  coverage-enabled:
+    description: 'Enable code coverage collection'
+    required: false
+    default: 'false'
+  coverage-format:
+    description: 'Coverage report format (xml, html, lcov, etc.)'
+    required: false
+    default: 'xml'
+  artifact-name:
+    description: 'Name for test artifacts (coverage, reports)'
+    required: false
+    default: 'test-results'
+  
+  # Authentication
+  github-token:
+    description: 'GitHub token for private dependencies'
+    required: false
+    default: ''
+
+outputs:
+  test-result:
+    description: 'Test execution result (success/failure)'
+    value: ${{ steps.run-tests.outcome }}
+  coverage-report:
+    description: 'Path to coverage report if generated'
+    value: ${{ steps.generate-coverage.outputs.report-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Setup Language Environment
+    - name: Setup Python
+      if: inputs.language == 'python'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.language-version || '3.11' }}
+        cache: ${{ inputs.dependency-cache == 'true' && inputs.package-manager || '' }}
+        token: ${{ inputs.github-token }}
+    
+    - name: Setup Node.js
+      if: inputs.language == 'node' || inputs.language == 'nodejs' || inputs.language == 'javascript' || inputs.language == 'typescript'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.language-version || '20' }}
+        cache: ${{ inputs.dependency-cache == 'true' && inputs.package-manager || '' }}
+    
+    - name: Setup Ruby
+      if: inputs.language == 'ruby'
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.language-version || '3.2' }}
+        bundler-cache: ${{ inputs.dependency-cache == 'true' }}
+    
+    - name: Setup Go
+      if: inputs.language == 'go' || inputs.language == 'golang'
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.language-version || 'stable' }}
+        cache: ${{ inputs.dependency-cache }}
+    
+    - name: Setup Rust
+      if: inputs.language == 'rust'
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ inputs.language-version || 'stable' }}
+        cache: ${{ inputs.dependency-cache }}
+    
+    # Install Dependencies
+    - name: Install dependencies
+      if: inputs.install-dependencies == 'true'
+      shell: bash
+      run: |
+        case "${{ inputs.language }}" in
+          python)
+            if [ -n "${{ inputs.package-manager }}" ]; then
+              if [ "${{ inputs.package-manager }}" = "pip" ]; then
+                pip install -r requirements.txt
+              elif [ "${{ inputs.package-manager }}" = "poetry" ]; then
+                pip install poetry && poetry install
+              elif [ "${{ inputs.package-manager }}" = "uv" ]; then
+                pip install uv && uv sync
+              fi
+            elif [ -f "requirements.txt" ]; then
+              pip install -r requirements.txt
+            fi
+            ;;
+          node|nodejs|javascript|typescript)
+            if [ -n "${{ inputs.package-manager }}" ]; then
+              case "${{ inputs.package-manager }}" in
+                npm) npm ci ;;
+                yarn) yarn install --frozen-lockfile ;;
+                pnpm) pnpm install --frozen-lockfile ;;
+              esac
+            elif [ -f "package-lock.json" ]; then
+              npm ci
+            elif [ -f "yarn.lock" ]; then
+              yarn install --frozen-lockfile
+            elif [ -f "pnpm-lock.yaml" ]; then
+              pnpm install --frozen-lockfile
+            fi
+            ;;
+          ruby)
+            bundle install --jobs 4 --retry 3
+            ;;
+          go|golang)
+            go mod download
+            ;;
+          rust)
+            cargo fetch
+            ;;
+        esac
+    
+    # Start Services
+    - name: Start Docker Compose services
+      if: inputs.services-enabled == 'true'
+      shell: bash
+      run: |
+        docker compose -f ${{ inputs.services-compose-file }} up -d
+        echo "::notice::Services started with Docker Compose"
+    
+    - name: Wait for services
+      if: inputs.services-enabled == 'true' && inputs.services-wait-script != ''
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.services-wait-script }}
+        ${{ inputs.services-wait-script }}
+    
+    # Run Setup Script
+    - name: Run setup script
+      if: inputs.setup-script != ''
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.setup-script }}
+        ${{ inputs.setup-script }}
+    
+    # Run Tests
+    - name: Run tests
+      id: run-tests
+      shell: bash
+      run: |
+        TEST_CMD="${{ inputs.test-command }}"
+        
+        # Add test directory if specified
+        if [ -n "${{ inputs.test-directory }}" ]; then
+          TEST_CMD="$TEST_CMD ${{ inputs.test-directory }}"
+        fi
+        
+        # Add test pattern if specified
+        if [ -n "${{ inputs.test-pattern }}" ]; then
+          TEST_CMD="$TEST_CMD ${{ inputs.test-pattern }}"
+        fi
+        
+        # Add parallelization for supported frameworks
+        if [ "${{ inputs.parallel-jobs }}" -gt "1" ]; then
+          case "${{ inputs.language }}" in
+            python)
+              # pytest-split or pytest-xdist
+              TEST_CMD="$TEST_CMD --splits ${{ inputs.parallel-jobs }} --group ${{ inputs.job-index }}"
+              ;;
+            node|nodejs|javascript|typescript)
+              # Jest shard
+              TEST_CMD="$TEST_CMD --shard=${{ inputs.job-index }}/${{ inputs.parallel-jobs }}"
+              ;;
+          esac
+        fi
+        
+        # Add coverage if enabled
+        if [ "${{ inputs.coverage-enabled }}" = "true" ]; then
+          case "${{ inputs.language }}" in
+            python)
+              TEST_CMD="coverage run -m $TEST_CMD"
+              ;;
+            node|nodejs|javascript|typescript)
+              TEST_CMD="$TEST_CMD --coverage --coverageReporters=${{ inputs.coverage-format }}"
+              ;;
+          esac
+        fi
+        
+        # Add additional arguments
+        if [ -n "${{ inputs.test-args }}" ]; then
+          TEST_CMD="$TEST_CMD ${{ inputs.test-args }}"
+        fi
+        
+        echo "::notice::Running: $TEST_CMD"
+        eval $TEST_CMD
+    
+    # Generate Coverage Report
+    - name: Generate coverage report
+      id: generate-coverage
+      if: inputs.coverage-enabled == 'true'
+      shell: bash
+      run: |
+        case "${{ inputs.language }}" in
+          python)
+            coverage ${{ inputs.coverage-format }} -o coverage.${{ inputs.coverage-format }}
+            echo "report-path=coverage.${{ inputs.coverage-format }}" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "report-path=coverage" >> $GITHUB_OUTPUT
+            ;;
+        esac
+    
+    # Upload Artifacts
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}-${{ inputs.job-index }}
+        path: |
+          coverage.*
+          test-results/
+          .pytest_cache/
+          **/*.log
+        retention-days: 7
+        if-no-files-found: ignore
+    
+    # Cleanup
+    - name: Stop Docker Compose services
+      if: always() && inputs.services-enabled == 'true'
+      shell: bash
+      run: |
+        docker compose -f ${{ inputs.services-compose-file }} down
+        echo "::notice::Services stopped"

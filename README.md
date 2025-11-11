@@ -2,7 +2,7 @@
 title: Amr Abdel-Motaleb - Solutions Architect & ERP Specialist
 author: Amr Abdel-Motaleb
 class: Solutions Architect
-updated: 2025-10-30
+updated: 2025-11-09
 ---
 
 <div align="center">
@@ -10,6 +10,8 @@ updated: 2025-10-30
 # 👋 Hi, I'm Amr Abdel-Motaleb
 
 **Solutions Architect | ERP Specialist | Full-Stack Developer**
+
+I build sustainable enterprise systems and empower internal teams, transforming technology from a cost center into a strategic advantage.
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/amrabdel)
 [![Portfolio](https://img.shields.io/badge/Portfolio-bashconsultants.com-green?style=for-the-badge&logo=googlechrome)](https://bashconsultants.com)
@@ -22,103 +24,18 @@ updated: 2025-10-30
 
 ## 🚀 About Me
 
-I'm a **Solutions Architect** and **ERP Specialist** based in Denver, CO, with **15+ years** of experience designing and implementing enterprise systems that drive manufacturing and business operations worldwide. I specialize in bridging the gap between business processes and technology solutions, with a focus on financial systems and operational efficiency.
+I'm a **Solutions Architect** and **ERP Specialist** based in Denver, CO, with **15+ years** of experience designing and implementing enterprise systems that drive manufacturing and business operations worldwide. My mission is to bridge the gap between complex business processes and effective technology, always prioritizing people and sustainable growth over vendor dependency.
 
-**Current Roles:**
-- 🏢 **ERP Architect** @ AESSE Investments (April 2025 - Present)
-- 💼 **Solutions Architect** @ BASH Consulting LLC (January 2020 - Present)
+### 🌟 My Philosophy: People Over Profits
 
-### 🎯 Mission: People Over Profits
-
-At BASH Consulting, I believe in a fundamentally different approach to technology consulting: **empowering your internal teams** and **future-proofing your technology investments** rather than creating vendor dependencies. My goal is not to make you reliant on external consultants, but to transfer knowledge, build capabilities, and establish frameworks that enable your organization to thrive independently.
-
-**Core Philosophy:**
-- 🌱 **Sustainable Technology**: Building systems that adapt and scale without requiring complete overhauls
-- 👥 **Employee Empowerment**: Developing internal capabilities that provide long-term value and strategic control
-- 🌍 **Balanced Innovation**: Exploring ways to incorporate environmental sustainability alongside profitability as core business drivers
-- 📚 **Knowledge Transfer**: Measuring success by how self-sufficient your team becomes, not how dependent on consulting services
-
-### 🎯 What I Do - Consulting Services
-
-#### **Enterprise Architecture & ERP Solutions**
-Transform business operations through manufacturing-focused ERP implementations and strategic technology planning.
-
-- 🏗️ **ERP Implementation & Optimization**: QAD, Infor, Oracle, SAP systems for global manufacturing
-- 🔄 **Legacy System Modernization**: Upgrade pathways and cloud migration strategies
-- � **System Integration**: Banking interfaces, supplier portals, multi-system connectivity
-- 📊 **Business Process Optimization**: Workflow automation, shop floor integration, lean manufacturing
-
-#### **Financial Technology & Automation**
-Streamline financial operations with enterprise-grade accounting technology and compliance solutions.
-
-- 💰 **Financial Systems Design**: OneStream, BlackLine, Hyperion implementations
-- 🤖 **Process Automation**: AP/AR automation, bank reconciliations, financial close acceleration
-- 📈 **Enterprise Performance Management**: Consolidation, planning, budgeting, forecasting
-- ✅ **Compliance Solutions**: SOX controls, GAAP/IFRS compliance, regulatory reporting
-
-#### **Cloud & Full-Stack Development**
-Build modern applications and cloud infrastructure that scale with your business.
-
-- ☁️ **Cloud Architecture**: AWS, Azure, GCP design and management with CI/CD pipelines
-- � **Custom Application Development**: Django, Ruby on Rails, Angular web applications
-- 🤖 **AI Integration**: Intelligent automation, AI agent platforms, prompt engineering
-- 📊 **Data Engineering**: BI dashboards (PowerBI), data warehouses, analytics platforms
-
-#### **IT Strategy & Employee Empowerment**
-Future-proof your technology investments while building internal capabilities.
-
-- 🎓 **Skills Development Programs**: Technical training, certification guidance, knowledge transfer
-- 🏢 **Center of Excellence**: Innovation labs, best practice documentation, internal capabilities
-- �️ **Technology Risk Management**: Vendor independence strategies, cybersecurity frameworks
-- 📋 **Strategic Advisory**: Technology roadmaps, investment planning, emerging tech evaluation
-
-### 🌟 Specializations
-
-```
-Enterprise Systems    → QAD ERP, Infor Cloud Suite, Oracle HFM, OneStream EPM
-Programming           → Python, Bash, Ruby, JavaScript, C#, SQL, LaTeX
-Cloud Platforms       → AWS, Azure, GCP, Power Automate
-Data Engineering      → DataBricks, Postgres, MySQL, BigQuery, Teradata
-DevOps & CI/CD        → Git, Docker, Automated Testing, Server Orchestration
-AI & Automation       → AI Agent Platforms, Prompt Engineering, Process Automation
-```
+- 🌱 **Sustainable Technology**: Building systems that adapt and scale with your business.
+- 👥 **Employee Empowerment**: Transferring knowledge to make your team self-sufficient.
+- 📚 **Knowledge Sharing**: Advancing our collective capabilities through open-source education.
+- 🌍 **Balanced Innovation**: Integrating environmental and social impact as measurable business drivers.
 
 ---
 
-## 💼 Professional Experience Highlights
-
-### 🔷 AESSE Investments - ERP Architect (2025-Present)
-Leading enterprise architecture for polymers and automotive manufacturing across North America, focusing on ERP governance, technical oversight, and strategic roadmap development.
-
-### 🔷 BASH Consulting LLC - Solutions Architect (2020-Present)
-Providing comprehensive IT/Finance consulting with a mission-driven focus on employee empowerment and sustainable technology:
-
-**Philosophy**: *"Technology should empower people, not create dependencies. We measure success by how capable and self-sufficient client teams become."*
-
-**Key Achievements**:
-- ✅ **4 Enterprise ERP Projects**: QAD EE upgrades, multi-system integrations, banking interfaces, OneStream/HFM implementations
-- ✅ **2 Accounting System Projects**: QAD entity segmentation, QuickBooks configuration
-- ✅ **3 Custom Software Projects**: Inventory tracking, home inspection platform (Ruby/JavaScript)
-- ✅ **Cloud Architecture & Data Governance**: RPM Telco system design, multi-cloud management (AWS, GCP, Azure)
-- ✅ **BI & Analytics**: PowerBI dashboards, financial modeling, operational reporting
-- ✅ **Skills Transfer Programs**: Technical training, internal capability development, knowledge documentation
-
-### 🔷 Valmont Industries - Sr. Manager Financial Systems (2022-2023)
-Led global accounting systems strategy for agriculture and infrastructure manufacturing:
-- ✅ Designed Mexico localization compliance solutions with IFS integration
-- ✅ Implemented centralized financial systems (BlackLine, OneStream, SAP Concur)
-- ✅ Developed enterprise data warehouses and BI reporting infrastructure
-
-### 🔷 Previous Roles
-- **AsteelFlash**: Global Business Analyst - Finance (2018-2020)
-- **Wolters Kluwer**: Senior Business Consultant - Tagetik EPM (2017-2018)
-- **QAD Inc.**: Finance IT Business Consultant (2014-2017)
-- **Infor Global Solutions**: Applications Consultant (2012-2014)
-- **Navistar International**: ERP/Baan Specialist & Financial Analyst (2009-2012)
-
----
-
-## 🛠️ Technical Stack
+## 🛠️ Technical Stack & Specializations
 
 <details>
 <summary><b>📦 Enterprise Applications</b></summary>
@@ -182,123 +99,87 @@ Web:         HTML5, CSS3, XML, JSON
 
 ---
 
-## 📚 Learning & Knowledge Sharing
+## 💼 Professional Experience
 
-I believe in continuous learning and sharing knowledge. I document my journey through three interconnected platforms:
+### 🔷 AESSE Investments - ERP Architect (2025-Present)
+Leading enterprise architecture for polymers and automotive manufacturing across North America, focusing on ERP governance, technical oversight, and strategic roadmap development.
 
-### 🎯 IT-Journey.dev
-**Technical Blog & Knowledge Base**
-- 📖 In-depth tutorials on enterprise systems
-- 🛠️ DevOps and cloud architecture guides
-- 💡 Problem-solving case studies
-- 🗺️ Learning roadmaps for IT professionals
+### 🔷 BASH Consulting LLC - Solutions Architect (2020-Present)
+Providing comprehensive IT/Finance consulting with a mission-driven focus on employee empowerment and sustainable technology.
 
-### 🎨 Zer0-Mistakes.com
-**Design Patterns & Best Practices**
-- 🏗️ Software architecture patterns
-- ✨ UI/UX design principles
-- 🔧 Code quality and refactoring techniques
-- 📐 System design methodologies
+**Key Achievements**:
+- ✅ **Enterprise Systems**: Led 4 major enterprise projects, including QAD EE upgrades, multi-system integrations (banking, supplier portals), and OneStream/HFM implementations for financial consolidation.
+- ✅ **Accounting Modernization**: Re-engineered accounting systems through QAD entity segmentation and QuickBooks configurations for streamlined financial operations.
+- ✅ **Custom Software Development**: Built 3 custom applications, including inventory tracking systems and a home inspection platform, using Ruby on Rails and JavaScript.
+- ✅ **Cloud & Data Governance**: Designed robust data governance frameworks and system architecture for RPM Telco and other financial systems, managing multi-cloud environments across AWS, GCP, and Azure.
+- ✅ **BI & Analytics**: Developed high-impact PowerBI dashboards, financial models, and operational reports to drive data-driven decision-making.
+- ✅ **Skills Transfer Programs**: Successfully executed knowledge transfer programs, creating comprehensive documentation and training that empowered client teams to manage their systems independently.
 
-### 🚀 BarodyBroject.com
-**Full-Stack Application Showcase**
-- 🌐 Live web applications and demos
-- 🧪 Experimental projects and prototypes
-- 🔗 Integration showcases
-- 📊 Data visualization examples
+### 🔷 Valmont Industries - Sr. Manager Financial Systems (2022-2023)
+Led global accounting systems strategy for a multi-billion dollar agriculture and infrastructure manufacturer.
+- ✅ **Compliance & Localization**: Designed and implemented a Mexico localization compliance solution with deep IFS integration.
+- ✅ **System Centralization**: Drove 3 major centralization projects for BlackLine Cash App, SAP Concur, and BlackLine GL, standardizing processes across the enterprise.
+- ✅ **Data Integration**: Architected 4 critical ERP interfaces for a supplier portal, invoice automation, account reconciliation, and a OneStream direct connect, improving data flow and efficiency.
+- ✅ **Analytics & Reporting**: Built enterprise-grade data analytics solutions, including Revenue Recognition, GL, and AR InfoMarts, and developed a centralized Chart of Accounts (COA) reporting structure.
 
-[![roadmap.sh](https://api.roadmap.sh/v1-badge/wide/6553d32668ca6026132e78a8?variant=dark)](https://roadmap.sh)
-
----
-
-## 🏆 Key Strengths
-
-<table>
-  <tr>
-    <td>
-      <ul>
-        <li>✅ Financial Data Modeling</li>
-        <li>✅ Full-Stack Development</li>
-        <li>✅ AI Engineering</li>
-      </ul>
-    </td>
-    <td>
-      <ul>
-        <li>✅ Data Warehouse Design</li>
-        <li>✅ BI Reporting</li>
-        <li>✅ System Integrations</li>
-      </ul>
-    </td>
-    <td>
-      <ul>
-        <li>✅ DevOps & CI/CD</li>
-        <li>✅ Business Process Modeling</li>
-        <li>✅ Financial System Design</li>
-      </ul>
-    </td>
-    <td>
-      <ul>
-        <li>✅ ERP System Design</li>
-        <li>✅ ERP Implementations</li>
-        <li>✅ IT Cloud Architecture</li>
-      </ul>
-    </td>
-  </tr>
-</table>
+### 🔷 Previous Roles (2009-2022)
+- **AsteelFlash - Global Business Analyst, Finance (2018-2020)**: Managed 20+ ERP implementations (QAD, SAP, SyteLine) across North America, Europe, and Asia.
+- **Wolters Kluwer - Senior Business Consultant, Tagetik EPM (2017-2018)**: Implemented multiple EPM solutions (Tagetik, HFM, OneStream).
+- **QAD Inc. - Finance IT Business Consultant (2014-2017)**: Specialized in EAM, FAM, and lease management systems.
+- **Infor Global Solutions - Applications Consultant (2012-2014)**: Focused on Baan IV and Infor LN ERP solutions.
+- **Navistar International - ERP/Baan Specialist & Financial Analyst (2009-2012)**: Started my career in ERP and financial analysis in a large-scale manufacturing environment.
 
 ---
 
-## 🌍 Project Portfolio Highlights
+## 🎯 Consulting Services
 
-### 💼 BASH Consulting LLC (2020-Present)
-- 🏢 **4 Enterprise Systems Projects**: QAD EE upgrades, ERP integrations, banking interfaces, OneStream/HFM implementations
-- 📊 **2 Accounting System Projects**: QAD entity segmentation, QuickBooks configuration
-- 🔧 **3 Custom Software Projects**: Inventory tracking systems, home inspection platform (Ruby/JavaScript)
-- ☁️ **Data Governance**: System design for RPM Telco and financial systems
+My consulting practice is built on a foundation of empowering your team and delivering sustainable, long-term value.
 
-### 🏭 Valmont Industries (2022-2023)
-- 🔄 **3 Centralization Projects**: BlackLine Cash App, SAP Concur, BlackLine GL
-- 🔗 **4 ERP Interfaces**: Supplier portal, invoice automation, account reconciliation, OneStream direct connect
-- 📈 **4 Data Analytics Projects**: Revenue recognition InfoMart, GL InfoMart (QAD & IFS), AR InfoMart
-- 📊 **BI & Reporting**: Centralized COA reporting, enterprise entity modeling
+#### **Enterprise Architecture & ERP Solutions**
+Transform business operations through manufacturing-focused ERP implementations and strategic technology planning.
 
-### 🌐 Global Manufacturing (2014-2020)
-- 🚀 **20+ ERP Implementations**: QAD EE, SAP, SyteLine across North America, Europe, Asia
-- 🔐 **Multiple EPM Projects**: Tagetik, HFM, OneStream implementations
-- 📡 **Integration Solutions**: Bank drivers, supplier portals, automated invoicing
-- 🛠️ **Specialized Systems**: EAM, FAM, lease management, document repositories
+- 🏗️ **ERP Implementation & Optimization**: QAD, Infor, Oracle, SAP systems for global manufacturing
+- 🔄 **Legacy System Modernization**: Upgrade pathways and cloud migration strategies
+- 🔗 **System Integration**: Banking interfaces, supplier portals, multi-system connectivity
+- 📊 **Business Process Optimization**: Workflow automation, shop floor integration, lean manufacturing
 
----
+#### **Financial Technology & Automation**
+Streamline financial operations with enterprise-grade accounting technology and compliance solutions.
 
-## 🎓 Education
+- 💰 **Financial Systems Design**: OneStream, BlackLine, Hyperion implementations
+- 🤖 **Process Automation**: AP/AR automation, bank reconciliations, financial close acceleration
+- 📈 **Enterprise Performance Management**: Consolidation, planning, budgeting, forecasting
+- ✅ **Compliance Solutions**: SOX controls, GAAP/IFRS compliance, regulatory reporting
 
-**Bachelor of Science (BS), Finance**  
-*University of Illinois at Urbana-Champaign*  
-Focus: Financial Analysis, Quantitative Methods, Information Systems
+#### **Cloud & Full-Stack Development**
+Build modern applications and cloud infrastructure that scale with your business.
+
+- ☁️ **Cloud Architecture**: AWS, Azure, GCP design and management with CI/CD pipelines
+- 🖥️ **Custom Application Development**: Django, Ruby on Rails, Angular web applications
+- 🤖 **AI Integration**: Intelligent automation, AI agent platforms, prompt engineering
+- 📊 **Data Engineering**: BI dashboards (PowerBI), data warehouses, analytics platforms
+
+#### **IT Strategy & Employee Empowerment**
+Future-proof your technology investments while building internal capabilities.
+
+- 🎓 **Skills Development Programs**: Technical training, certification guidance, knowledge transfer
+- 🏢 **Center of Excellence**: Innovation labs, best practice documentation, internal capabilities
+- 🛡️ **Technology Risk Management**: Vendor independence strategies, cybersecurity frameworks
+- 📋 **Strategic Advisory**: Technology roadmaps, investment planning, emerging tech evaluation
 
 ---
 
 ## 🤝 Let's Collaborate
 
-I'm passionate about exploring innovative solutions that balance technology advancement with human values:
+I'm passionate about exploring innovative solutions that balance technology advancement with human values.
 
-### 🌟 Core Collaboration Areas
+### 💡 Innovation & Collaboration Focus
 
-- 🌱 **Sustainable ERP Design**: Incorporating environmental impact metrics alongside profit measures as core KPIs in ERP systems. How can we quantify environmental impact when competing with profit-driven decisions?
-
-- 👥 **Employee Empowerment Through Technology**: Developing programs that build internal capabilities rather than creating vendor dependencies. Transforming teams from technology consumers to technology creators.
-
-- 🤖 **AI-Powered Business Intelligence**: Intelligent automation that enhances human decision-making rather than replacing human judgment. AI as augmentation, not replacement.
-
-- 🔗 **Future-Proof Architecture**: Designing systems that evolve with business needs through modular, API-first, cloud-native patterns that reduce technical debt.
-
-- 📊 **Data-Driven Social Impact**: Using business intelligence and analytics to measure and optimize both financial performance and community/environmental impact.
-
-### 💡 Innovation Focus Areas
-
-**Balancing Profit & Purpose**: Exploring how technology can help organizations pursue financial success while maintaining commitments to environmental sustainability and social responsibility. Can we design ERP systems that make "doing good" as measurable and rewarding as "making profit"?
-
-**Knowledge Democratization**: Making enterprise-grade technology knowledge accessible through open-source education platforms (IT-Journey.dev, Zer0-Mistakes.com, BarodyBroject.com). Advancing our collective capabilities rather than hoarding expertise.
+- 🌱 **Sustainable ERP Design**: How can we quantify environmental impact alongside profit in ERP systems?
+- 👥 **Empowerment Through Technology**: Developing programs that build internal capabilities, not vendor dependencies.
+- 🤖 **AI-Augmented Intelligence**: Using AI to enhance human decision-making, not replace it.
+- 🔗 **Future-Proof Architecture**: Designing modular, API-first systems that evolve with business needs.
+- 📊 **Data-Driven Social Impact**: Using BI to measure and optimize financial, community, and environmental performance.
 
 ### 📬 Get In Touch
 
@@ -310,15 +191,34 @@ I'm passionate about exploring innovative solutions that balance technology adva
 
 ---
 
-## 📊 GitHub Stats
+## 📚 Learning & Knowledge Sharing
 
-![GitHub Stats](https://github-readme-stats.vercel.app/api?username=bamr87&show_icons=true&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff&icon_color=58a6ff)
+I believe in continuous learning and sharing knowledge. I document my journey through three interconnected platforms:
 
-![Top Languages](https://github-readme-stats.vercel.app/api/top-langs/?username=bamr87&layout=compact&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff)
+- 🎯 **[it-journey.dev](https://it-journey.dev)**: In-depth tutorials on enterprise systems, DevOps, and cloud architecture.
+- 🎨 **[zer0-mistakes.com](https://zer0-mistakes.com)**: A showcase of software architecture patterns, UI/UX design, and system design methodologies.
+- 🚀 **[barodybroject.com](https://barodybroject.com)**: A playground for full-stack applications, experimental projects, and integration showcases.
+
+[![roadmap.sh](https://api.roadmap.sh/v1-badge/wide/6553d32668ca6026132e78a8?variant=dark)](https://roadmap.sh)
 
 ---
 
-## 🗺️ Career Journey Mindmap
+## 🎓 Education
+
+**Bachelor of Science (BS), Finance**  
+*University of Illinois at Urbana-Champaign*  
+Focus: Financial Analysis, Quantitative Methods, Information Systems
+
+---
+
+## 📊 GitHub Stats & Career Journey
+
+<div align="center">
+
+![GitHub Stats](https://github-readme-stats.vercel.app/api?username=bamr87&show_icons=true&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff&icon_color=58a6ff)
+![Top Languages](https://github-readme-stats.vercel.app/api/top-langs/?username=bamr87&layout=compact&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff)
+
+</div>
 
 ```mermaid
 mindmap
@@ -380,434 +280,63 @@ mindmap
 
 ---
 
-## 📍 Location
-
-Based in the beautiful state of Colorado, serving clients worldwide.
-
-```geojson
-{
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "id": 1,
-      "properties": {
-        "name": "Colorado",
-        "description": "Home Base - Denver Metro Area"
-      },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [
-          [
-            [-109.05, 41.00],
-            [-109.05, 37.00],
-            [-102.05, 37.00],
-            [-102.05, 41.00],
-            [-109.05, 41.00]
-          ]
-        ]
-      }
-    }
-  ]
-}
-```
-
----
-
-
-
-## 🔺 3D Visualization - Penrose Triangle
-
-```stl
-solid penrose_triangle
-  facet normal 0.0 0.0 1.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.5 0.0 0.0
-      vertex 0.25 0.433 0.0
-    endloop
-  endfacet
-  facet normal 0.0 0.0 -1.0
-    outer loop
-      vertex 0.0 0.0 -0.1
-      vertex 0.25 0.433 -0.1
-      vertex 0.5 0.0 -0.1
-    endloop
-  endfacet
-  facet normal 0.866 0.5 0.0
-    outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.5 0.0 -0.1
-      vertex 0.25 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.866 0.5 0.0
-    outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.25 0.433 -0.1
-      vertex 0.25 0.433 0.0
-    endloop
-  endfacet
-  facet normal -0.866 0.5 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.25 0.433 0.0
-      vertex 0.25 0.433 -0.1
-    endloop
-  endfacet
-  facet normal -0.866 0.5 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.25 0.433 -0.1
-      vertex 0.0 0.0 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.0 0.0 -0.1
-      vertex 0.5 0.0 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.5 0.0 -0.1
-      vertex 0.5 0.0 0.0
-    endloop
-  endfacet
-  facet normal 0.0 0.0 1.0
-    outer loop
-      vertex 0.5 0.0 0.0
-      vertex 1.0 0.0 0.0
-      vertex 0.75 0.433 0.0
-    endloop
-  endfacet
-  facet normal 0.0 0.0 -1.0
-    outer loop
-      vertex 0.5 0.0 -0.1
-      vertex 0.75 0.433 -0.1
-      vertex 1.0 0.0 -0.1
-    endloop
-  endfacet
-  facet normal 0.866 0.5 0.0
-    outer loop
-      vertex 1.0 0.0 0.0
-      vertex 1.0 0.0 -0.1
-      vertex 0.75 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.866 0.5 0.0
-    outer loop
-      vertex 1.0 0.0 0.0
-      vertex 0.75 0.433 -0.1
-      vertex 0.75 0.433 0.0
-    endloop
-  endfacet
-  facet normal -0.866 0.5 0.0
-    outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.75 0.433 0.0
-      vertex 0.75 0.433 -0.1
-    endloop
-  endfacet
-  facet normal -0.866 0.5 0.0
-    outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.75 0.433 -0.1
-      vertex 0.5 0.0 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.5 0.0 0.0
-      vertex 0.5 0.0 -0.1
-      vertex 1.0 0.0 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.5 0.0 0.0
-      vertex 1.0 0.0 -0.1
-      vertex 1.0 0.0 0.0
-    endloop
-  endfacet
-  facet normal 0.0 0.0 1.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.5 0.433 0.0
-      vertex 0.25 0.866 0.0
-    endloop
-  endfacet
-  facet normal 0.0 0.0 -1.0
-    outer loop
-      vertex 0.0 0.433 -0.1
-      vertex 0.25 0.866 -0.1
-      vertex 0.5 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.866 0.5 0.0
-    outer loop
-      vertex 0.5 0.433 0.0
-      vertex 0.5 0.433 -0.1
-      vertex 0.25 0.866 -0.1
-    endloop
-  endfacet
-  facet normal 0.866 0.5 0.0
-    outer loop
-      vertex 0.5 0.433 0.0
-      vertex 0.25 0.866 -0.1
-      vertex 0.25 0.866 0.0
-    endloop
-  endfacet
-  facet normal -0.866 0.5 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.25 0.866 0.0
-      vertex 0.25 0.866 -0.1
-    endloop
-  endfacet
-  facet normal -0.866 0.5 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.25 0.866 -0.1
-      vertex 0.0 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.0 0.433 -0.1
-      vertex 0.5 0.433 -0.1
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.0 0.433 0.0
-      vertex 0.5 0.433 -0.1
-      vertex 0.5 0.433 0.0
-    endloop
-  endfacet
-endsolid
-```
-
-## 🔺 3D Visualization - Triforce
-
-The legendary symbol of wisdom, courage, and power from The Legend of Zelda.
-
-```stl
-solid triforce
-  # Bottom-left triangle - top face
-  facet normal 0.0 0.0 1.0
-    outer loop
-      vertex 0.0 0.0 2.0
-      vertex 10.0 0.0 2.0
-      vertex 5.0 8.66 2.0
-    endloop
-  endfacet
-  # Bottom-left triangle - bottom face
-  facet normal 0.0 0.0 -1.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 5.0 8.66 0.0
-      vertex 10.0 0.0 0.0
-    endloop
-  endfacet
-  # Bottom-left triangle - front face
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 10.0 0.0 0.0
-      vertex 10.0 0.0 2.0
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 10.0 0.0 2.0
-      vertex 0.0 0.0 2.0
-    endloop
-  endfacet
-  # Bottom-left triangle - left face
-  facet normal -0.866 -0.5 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 0.0 0.0 2.0
-      vertex 5.0 8.66 2.0
-    endloop
-  endfacet
-  facet normal -0.866 -0.5 0.0
-    outer loop
-      vertex 0.0 0.0 0.0
-      vertex 5.0 8.66 2.0
-      vertex 5.0 8.66 0.0
-    endloop
-  endfacet
-  # Bottom-left triangle - right face
-  facet normal 0.866 -0.5 0.0
-    outer loop
-      vertex 10.0 0.0 0.0
-      vertex 5.0 8.66 0.0
-      vertex 5.0 8.66 2.0
-    endloop
-  endfacet
-  facet normal 0.866 -0.5 0.0
-    outer loop
-      vertex 10.0 0.0 0.0
-      vertex 5.0 8.66 2.0
-      vertex 10.0 0.0 2.0
-    endloop
-  endfacet
-
-  # Top triangle - top face
-  facet normal 0.0 0.0 1.0
-    outer loop
-      vertex 5.0 8.66 2.0
-      vertex 15.0 8.66 2.0
-      vertex 10.0 17.32 2.0
-    endloop
-  endfacet
-  # Top triangle - bottom face
-  facet normal 0.0 0.0 -1.0
-    outer loop
-      vertex 5.0 8.66 0.0
-      vertex 10.0 17.32 0.0
-      vertex 15.0 8.66 0.0
-    endloop
-  endfacet
-  # Top triangle - left face
-  facet normal -0.866 -0.5 0.0
-    outer loop
-      vertex 5.0 8.66 0.0
-      vertex 5.0 8.66 2.0
-      vertex 10.0 17.32 2.0
-    endloop
-  endfacet
-  facet normal -0.866 -0.5 0.0
-    outer loop
-      vertex 5.0 8.66 0.0
-      vertex 10.0 17.32 2.0
-      vertex 10.0 17.32 0.0
-    endloop
-  endfacet
-  # Top triangle - right face
-  facet normal 0.866 -0.5 0.0
-    outer loop
-      vertex 15.0 8.66 0.0
-      vertex 10.0 17.32 0.0
-      vertex 10.0 17.32 2.0
-    endloop
-  endfacet
-  facet normal 0.866 -0.5 0.0
-    outer loop
-      vertex 15.0 8.66 0.0
-      vertex 10.0 17.32 2.0
-      vertex 15.0 8.66 2.0
-    endloop
-  endfacet
-  # Top triangle - bottom face
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 5.0 8.66 0.0
-      vertex 15.0 8.66 0.0
-      vertex 15.0 8.66 2.0
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 5.0 8.66 0.0
-      vertex 15.0 8.66 2.0
-      vertex 5.0 8.66 2.0
-    endloop
-  endfacet
-
-  # Bottom-right triangle - top face
-  facet normal 0.0 0.0 1.0
-    outer loop
-      vertex 10.0 0.0 2.0
-      vertex 20.0 0.0 2.0
-      vertex 15.0 8.66 2.0
-    endloop
-  endfacet
-  # Bottom-right triangle - bottom face
-  facet normal 0.0 0.0 -1.0
-    outer loop
-      vertex 10.0 0.0 0.0
-      vertex 15.0 8.66 0.0
-      vertex 20.0 0.0 0.0
-    endloop
-  endfacet
-  # Bottom-right triangle - left face
-  facet normal -0.866 -0.5 0.0
-    outer loop
-      vertex 10.0 0.0 0.0
-      vertex 10.0 0.0 2.0
-      vertex 15.0 8.66 2.0
-    endloop
-  endfacet
-  facet normal -0.866 -0.5 0.0
-    outer loop
-      vertex 10.0 0.0 0.0
-      vertex 15.0 8.66 2.0
-      vertex 15.0 8.66 0.0
-    endloop
-  endfacet
-  # Bottom-right triangle - right face
-  facet normal 0.866 -0.5 0.0
-    outer loop
-      vertex 20.0 0.0 0.0
-      vertex 15.0 8.66 0.0
-      vertex 15.0 8.66 2.0
-    endloop
-  endfacet
-  facet normal 0.866 -0.5 0.0
-    outer loop
-      vertex 20.0 0.0 0.0
-      vertex 15.0 8.66 2.0
-      vertex 20.0 0.0 2.0
-    endloop
-  endfacet
-  # Bottom-right triangle - front face
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 10.0 0.0 0.0
-      vertex 20.0 0.0 0.0
-      vertex 20.0 0.0 2.0
-    endloop
-  endfacet
-  facet normal 0.0 -1.0 0.0
-    outer loop
-      vertex 10.0 0.0 0.0
-      vertex 20.0 0.0 2.0
-      vertex 10.0 0.0 2.0
-    endloop
-  endfacet
-endsolid
-```
-
----
-
 <div align="center">
 
-### 💭 Philosophy & Mission
+*Last Updated: November 2025*
 
-> "Technology should empower people, not constrain them. The best systems are invisible—they enable teams to focus on value creation rather than fighting with tools. True success is measured not by dependency created, but by capability transferred."
+</div>---
 
-**BASH Consulting Mission**: Building sustainable competitive advantages through employee empowerment and future-proof technology. We don't just implement systems—we transfer knowledge, build internal capabilities, and establish frameworks that enable organizations to thrive independently.
+<details>
+<summary><b>📝 Notes & Resources</b></summary>
 
-**Core Beliefs**:
-- 🌱 **Sustainability Over Obsolescence**: Design systems that adapt and evolve, not require replacement
-- 👥 **People Over Profits**: Measure success by team capability development, not consulting hours sold
-- 📚 **Knowledge Sharing Over Gatekeeping**: Open-source education and transparent methodologies
-- 🌍 **Purpose-Driven Technology**: Explore ways to incorporate environmental and social impact as measurable business drivers
+> [!NOTE]
+> This profile showcases my professional journey and current focus areas. It's continuously updated as I explore new technologies and methodologies.
 
-*"We're not just balancing the books; we're balancing the planet."* - From the BASH Consulting philosophy of integrating profitability with sustainability and community impact.
+> [!TIP]
+> For a comprehensive view of my experience, check out my [detailed CV](https://github.com/bamr87/cv/blob/main/cv.pdf).
+
+> [!IMPORTANT]
+> This README uses YAML frontmatter for metadata—view the raw file to see the structured data!
+
+### 🛠️ Quick Setup
+
+```shell
+# Clone this profile repository
+gh repo clone bamr87/bamr87
+
+# Open in your editor
+code README.md
+```
+
+</details>
+
 
 ---
 
-*Last Updated: October 2025*
+<details>
+<summary><b>📝 Notes & Resources</b></summary>
 
-</div>
+> [!NOTE]
+> This profile showcases my professional journey and current focus areas. It's continuously updated as I explore new technologies and methodologies.
+
+> [!TIP]
+> For a comprehensive view of my experience, check out my [detailed CV](https://github.com/bamr87/cv/blob/main/cv.pdf).
+
+> [!IMPORTANT]
+> This README uses YAML frontmatter for metadata—view the raw file to see the structured data!
+
+### 🛠️ Quick Setup
+
+```shell
+# Clone this profile repository
+gh repo clone bamr87/bamr87
+
+# Open in your editor
+code README.md
+```
+
+</details>
+
 
 ---
 

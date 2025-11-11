@@ -1,0 +1,71 @@
+name: Python CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Python tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'python'
+          language-version: ${{ matrix.python-version }}
+          package-manager: 'pip'
+          test-command: 'pytest'
+          test-directory: 'tests/'
+          test-args: '--verbose --cov=src'
+          coverage-enabled: 'true'
+          coverage-format: 'xml'
+          artifact-name: 'coverage-py${{ matrix.python-version }}'
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: python-${{ matrix.python-version }}
+
+  test-with-services:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run integration tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'python'
+          language-version: '3.11'
+          test-command: 'pytest'
+          test-directory: 'tests/integration/'
+          services-enabled: 'true'
+          services-compose-file: 'docker-compose.test.yml'
+          services-wait-script: './scripts/wait-for-services.sh'
+          test-args: '--verbose'
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: ./.github/actions/ci/run-checks
+        with:
+          test-script: 'echo "Tests pass"'
+          quality-script: |
+            #!/bin/bash
+            set -e
+            pip install ruff black mypy
+            ruff check src/
+            black --check src/
+            mypy src/

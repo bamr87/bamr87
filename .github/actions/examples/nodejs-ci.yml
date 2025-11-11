@@ -1,0 +1,68 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Node.js tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'node'
+          language-version: ${{ matrix.node-version }}
+          package-manager: 'npm'
+          test-command: 'npm test'
+          coverage-enabled: 'true'
+          artifact-name: 'coverage-node${{ matrix.node-version }}'
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          flags: node-${{ matrix.node-version }}
+
+  test-pnpm:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+      
+      - name: Run tests with pnpm
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'node'
+          language-version: '20'
+          package-manager: 'pnpm'
+          test-command: 'pnpm test'
+          coverage-enabled: 'true'
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: ./.github/actions/ci/run-checks
+        with:
+          test-script: |
+            #!/bin/bash
+            npm ci
+            npm test
+          quality-script: |
+            #!/bin/bash
+            npm run lint
+            npm run format:check

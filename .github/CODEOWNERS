@@ -1,0 +1,333 @@
+# CODEOWNERS - Repository Code Ownership Rules
+#
+# This file defines code ownership for different parts of the repository.
+# When a pull request is opened that modifies files matching these patterns,
+# the specified teams or users will be automatically requested for review.
+#
+# Lines starting with '#' are comments.
+# Each line is a file pattern followed by one or more owners.
+# Owners can be users (@username) or teams (@org/team-name).
+#
+# Order matters: later rules override earlier ones.
+# The last matching pattern takes precedence.
+
+# =============================================================================
+# GLOBAL OWNERSHIP
+# =============================================================================
+
+# Default owners for everything in the repository
+# These users/teams will be requested for review on all PRs unless overridden below
+* @repo-admins
+
+# Repository configuration and CI/CD
+/.github/ @devops-team @repo-admins
+/.github/workflows/ @devops-team
+/.github/actions/ @devops-team
+
+# Root configuration files
+/.*rc @devops-team
+/.*ignore @devops-team
+/package*.json @frontend-team @devops-team
+/yarn.lock @frontend-team @devops-team
+/pnpm-lock.yaml @frontend-team @devops-team
+/Dockerfile* @devops-team
+/docker-compose*.yml @devops-team
+/pyproject.toml @backend-team @devops-team
+/requirements*.txt @backend-team @devops-team
+/Gemfile* @backend-team @devops-team
+/Cargo.toml @backend-team @devops-team
+/go.mod @backend-team @devops-team
+
+# =============================================================================
+# DOCUMENTATION
+# =============================================================================
+
+# Documentation requires approval from docs team
+/docs/ @docs-team
+/README* @docs-team
+/CONTRIBUTING* @docs-team
+/LICENSE* @legal-team @repo-admins
+/CHANGELOG* @docs-team
+/*.md @docs-team
+
+# =============================================================================
+# INFRASTRUCTURE & DEVOPS
+# =============================================================================
+
+# Infrastructure as Code
+/terraform/ @devops-team @infrastructure-team
+/k8s/ @devops-team @infrastructure-team
+/kubernetes/ @devops-team @infrastructure-team
+/helm/ @devops-team @infrastructure-team
+/charts/ @devops-team @infrastructure-team
+
+# CI/CD and build configuration
+/scripts/ @devops-team
+/bin/ @devops-team
+/.circleci/ @devops-team
+/.gitlab-ci.yml @devops-team
+/azure-pipelines.yml @devops-team
+/Jenkinsfile @devops-team
+/Makefile @devops-team
+/build/ @devops-team
+
+# =============================================================================
+# FRONTEND
+# =============================================================================
+
+# Frontend application code
+/frontend/ @frontend-team
+/client/ @frontend-team
+/web/ @frontend-team
+/app/ @frontend-team
+/src/components/ @frontend-team
+/src/pages/ @frontend-team
+/src/views/ @frontend-team
+/src/assets/ @frontend-team @design-team
+/public/ @frontend-team
+
+# Frontend configuration
+/webpack*.js @frontend-team
+/vite*.js @frontend-team
+/next.config.js @frontend-team
+/nuxt.config.js @frontend-team
+/vue.config.js @frontend-team
+/angular.json @frontend-team
+/tsconfig*.json @frontend-team
+/.eslintrc* @frontend-team
+/.prettierrc* @frontend-team
+/tailwind.config.js @frontend-team @design-team
+
+# Styling and design
+/**/*.css @frontend-team @design-team
+/**/*.scss @frontend-team @design-team
+/**/*.sass @frontend-team @design-team
+/**/*.less @frontend-team @design-team
+/**/*.styl @frontend-team @design-team
+
+# JavaScript/TypeScript files
+/**/*.js @frontend-team
+/**/*.jsx @frontend-team
+/**/*.ts @frontend-team
+/**/*.tsx @frontend-team
+/**/*.vue @frontend-team
+
+# =============================================================================
+# BACKEND
+# =============================================================================
+
+# Backend application code
+/backend/ @backend-team
+/server/ @backend-team
+/api/ @backend-team
+/services/ @backend-team
+/src/main/ @backend-team
+/lib/ @backend-team
+
+# Database and migrations
+/database/ @backend-team @data-team
+/migrations/ @backend-team @data-team
+/seeds/ @backend-team @data-team
+/sql/ @backend-team @data-team
+/**/*migration* @backend-team @data-team
+
+# Backend configuration
+/config/ @backend-team @devops-team
+
+# Language-specific backend files
+/**/*.py @backend-team
+/**/*.java @backend-team
+/**/*.kt @backend-team
+/**/*.scala @backend-team
+/**/*.rb @backend-team
+/**/*.php @backend-team
+/**/*.go @backend-team
+/**/*.rs @backend-team
+/**/*.cs @backend-team
+/**/*.fs @backend-team
+
+# =============================================================================
+# MOBILE
+# =============================================================================
+
+# Mobile applications
+/mobile/ @mobile-team
+/android/ @mobile-team
+/ios/ @mobile-team
+/react-native/ @mobile-team
+/flutter/ @mobile-team
+
+# Mobile-specific files
+/**/*.dart @mobile-team
+/**/*.swift @mobile-team
+/**/*.m @mobile-team
+/**/*.h @mobile-team
+/**/*.java @mobile-team
+/**/*.kt @mobile-team
+/android/**/*.xml @mobile-team
+/ios/**/*.plist @mobile-team
+
+# =============================================================================
+# DATA & ANALYTICS
+# =============================================================================
+
+# Data science and analytics
+/data/ @data-team
+/analytics/ @data-team
+/ml/ @data-team @ml-team
+/models/ @data-team @ml-team
+/notebooks/ @data-team @ml-team
+/experiments/ @data-team @ml-team
+
+# Data processing and ETL
+/etl/ @data-team
+/pipelines/ @data-team
+/airflow/ @data-team
+/dbt/ @data-team
+/spark/ @data-team
+
+# Data files
+/**/*.sql @data-team
+/**/*.ipynb @data-team @ml-team
+/**/*.r @data-team
+/**/*.R @data-team
+
+# =============================================================================
+# SECURITY
+# =============================================================================
+
+# Security-sensitive files require security team approval
+/security/ @security-team
+/**/*secret* @security-team @devops-team
+/**/*key* @security-team @devops-team
+/**/*cert* @security-team @devops-team
+/**/*auth* @security-team @backend-team
+/**/*oauth* @security-team @backend-team
+/vault/ @security-team @devops-team
+
+# =============================================================================
+# TESTING
+# =============================================================================
+
+# Test files - require approval from respective teams
+/tests/ @qa-team
+/test/ @qa-team
+/**/*test* @qa-team
+/**/*spec* @qa-team
+/e2e/ @qa-team
+/integration/ @qa-team
+/cypress/ @qa-team @frontend-team
+/playwright/ @qa-team @frontend-team
+
+# =============================================================================
+# SPECIFIC FEATURES/MODULES (CUSTOMIZE FOR YOUR PROJECT)
+# =============================================================================
+
+# Authentication and authorization
+/**/auth/ @security-team @backend-team
+/**/authentication/ @security-team @backend-team
+/**/authorization/ @security-team @backend-team
+/**/login/ @security-team @frontend-team @backend-team
+/**/user-management/ @backend-team
+
+# Payment processing (if applicable)
+/**/payments/ @payments-team @backend-team
+/**/billing/ @payments-team @backend-team
+/**/subscriptions/ @payments-team @backend-team
+
+# APIs and integrations
+/**/api/ @backend-team @integration-team
+/**/integrations/ @integration-team @backend-team
+/**/webhooks/ @integration-team @backend-team
+
+# Notifications and messaging
+/**/notifications/ @backend-team @frontend-team
+/**/messaging/ @backend-team
+/**/emails/ @backend-team @design-team
+
+# Monitoring and observability
+/**/monitoring/ @devops-team @sre-team
+/**/logging/ @devops-team @sre-team
+/**/metrics/ @devops-team @sre-team
+/**/alerts/ @devops-team @sre-team
+
+# Admin and internal tools
+/**/admin/ @backend-team @admin-team
+/**/internal/ @backend-team @admin-team
+/**/dashboard/ @frontend-team @admin-team
+
+# =============================================================================
+# CONFIGURATION OVERRIDES
+# =============================================================================
+
+# These rules override the general patterns above for specific cases
+
+# Critical security files require additional approvals
+/.env* @security-team @devops-team @repo-admins
+/secrets/ @security-team @devops-team @repo-admins
+/.secrets/ @security-team @devops-team @repo-admins
+
+# Production configuration requires extra approval
+/prod/ @devops-team @sre-team @repo-admins
+/production/ @devops-team @sre-team @repo-admins
+/**/*prod* @devops-team @sre-team
+
+# Package management files require broader team input
+/go.sum @backend-team @security-team
+/composer.lock @backend-team @security-team
+/Pipfile.lock @backend-team @security-team
+/poetry.lock @backend-team @security-team
+
+# =============================================================================
+# TEAM DEFINITIONS (SOFT OWNERSHIP - NOTIFICATION ONLY)
+# =============================================================================
+
+# The following section defines "soft" ownership rules that will tag teams
+# for review but won't block PRs. These are informational notifications.
+# To implement soft ownership, you'll need a separate CODEOWNERS-soft file
+# or use GitHub's draft PR feature with appropriate automation.
+
+# Examples of soft ownership patterns:
+# - Feature-specific code that benefits from team awareness
+# - Cross-cutting concerns that multiple teams should know about
+# - Documentation that multiple teams contribute to
+# - Shared libraries and utilities
+
+# =============================================================================
+# INSTRUCTIONS FOR CUSTOMIZATION
+# =============================================================================
+
+# To customize this file for your repository:
+#
+# 1. Replace team names (@frontend-team, @backend-team, etc.) with your actual
+#    GitHub team names or individual usernames
+#
+# 2. Update the file patterns to match your project structure
+#    - Change /frontend/ to your actual frontend directory
+#    - Update language-specific patterns based on your tech stack
+#    - Add/remove feature directories based on your application
+#
+# 3. Add project-specific patterns in the "SPECIFIC FEATURES/MODULES" section
+#    - Payment processing, user management, specific business domains
+#    - Third-party integrations, microservices, etc.
+#
+# 4. Adjust the security and critical sections based on your security model
+#
+# 5. Consider creating a CODEOWNERS-soft file for notification-only ownership
+#
+# 6. Test the patterns using GitHub's CODEOWNERS syntax validator
+#
+# Remember:
+# - Order matters - later rules override earlier ones
+# - Use the most specific patterns possible
+# - Consider the maintenance burden of too many specific rules
+# - Regularly review and update as your project evolves
+
+# =============================================================================
+# EMERGENCY OVERRIDES
+# =============================================================================
+
+# In case of emergency, these files can be modified by repo admins
+# without requiring full team approval (use sparingly)
+# /emergency-patches/ @repo-admins
+# /hotfixes/ @repo-admins @sre-team

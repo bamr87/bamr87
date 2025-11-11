@@ -1,0 +1,274 @@
+# CODEOWNERS-SOFT - Notification-Only Code Ownership
+#
+# This file defines "soft" code ownership rules that notify teams but don't block PRs.
+# Unlike the main CODEOWNERS file, these rules are for awareness and collaboration
+# rather than mandatory approval.
+#
+# To implement soft ownership, you can:
+# 1. Use automation tools that read this file and add reviewers as optional
+# 2. Convert to regular CODEOWNERS during sensitive periods
+# 3. Use in conjunction with draft PRs for early feedback
+#
+# File patterns follow the same syntax as CODEOWNERS
+
+# =============================================================================
+# CROSS-CUTTING CONCERNS
+# =============================================================================
+
+# Shared libraries and utilities - notify all teams that might be affected
+/shared/ @frontend-team @backend-team @mobile-team
+/common/ @frontend-team @backend-team @mobile-team
+/utils/ @frontend-team @backend-team
+/helpers/ @frontend-team @backend-team
+/lib/shared/ @frontend-team @backend-team @mobile-team
+
+# Configuration changes that might affect multiple teams
+/config/shared/ @frontend-team @backend-team @devops-team
+/config/environments/ @frontend-team @backend-team @devops-team
+
+# =============================================================================
+# DOCUMENTATION (COLLABORATIVE)
+# =============================================================================
+
+# Technical documentation that multiple teams contribute to
+/docs/api/ @backend-team @frontend-team @integration-team
+/docs/architecture/ @backend-team @devops-team @security-team
+/docs/deployment/ @devops-team @backend-team @sre-team
+/docs/troubleshooting/ @devops-team @sre-team @support-team
+/docs/onboarding/ @hr-team @tech-leads
+/docs/processes/ @tech-leads @project-managers
+
+# User-facing documentation
+/docs/user/ @docs-team @product-team @support-team
+/docs/guides/ @docs-team @product-team @ux-team
+
+# =============================================================================
+# API AND CONTRACTS
+# =============================================================================
+
+# API definitions affect multiple teams
+/api/schema/ @backend-team @frontend-team @mobile-team @integration-team
+/openapi/ @backend-team @frontend-team @integration-team
+/graphql/ @backend-team @frontend-team @mobile-team
+/proto/ @backend-team @frontend-team @mobile-team
+
+# Database schemas affect multiple teams
+/schema/ @backend-team @data-team @analytics-team
+/database/schema/ @backend-team @data-team @analytics-team
+
+# =============================================================================
+# FEATURE DEVELOPMENT (COLLABORATIVE)
+# =============================================================================
+
+# User authentication - multiple teams need awareness
+/features/auth/ @security-team @backend-team @frontend-team @mobile-team
+/components/auth/ @security-team @frontend-team @ux-team
+/services/auth/ @security-team @backend-team
+
+# User management features
+/features/users/ @backend-team @frontend-team @product-team @legal-team
+/features/profiles/ @backend-team @frontend-team @ux-team @product-team
+
+# Search functionality
+/features/search/ @backend-team @frontend-team @data-team @ux-team
+/services/search/ @backend-team @data-team @infrastructure-team
+
+# Notifications system
+/features/notifications/ @backend-team @frontend-team @mobile-team @product-team
+/services/notifications/ @backend-team @infrastructure-team
+
+# Analytics and tracking
+/features/analytics/ @data-team @backend-team @frontend-team @product-team
+/tracking/ @data-team @frontend-team @mobile-team @legal-team
+
+# =============================================================================
+# PERFORMANCE AND OPTIMIZATION
+# =============================================================================
+
+# Performance-critical code that multiple teams should know about
+/**/performance/ @backend-team @frontend-team @sre-team @data-team
+/**/optimization/ @backend-team @frontend-team @devops-team
+/**/caching/ @backend-team @infrastructure-team @sre-team
+/**/cdn/ @frontend-team @infrastructure-team @devops-team
+
+# =============================================================================
+# SECURITY (AWARENESS)
+# =============================================================================
+
+# Security implementations that teams should be aware of
+/**/encryption/ @security-team @backend-team @devops-team
+/**/validation/ @security-team @backend-team @frontend-team
+/**/sanitization/ @security-team @backend-team @frontend-team
+/**/rate-limiting/ @security-team @backend-team @infrastructure-team
+
+# =============================================================================
+# DATA AND PRIVACY
+# =============================================================================
+
+# Data handling that affects compliance and privacy
+/**/data-export/ @data-team @backend-team @legal-team @privacy-team
+/**/data-import/ @data-team @backend-team @security-team
+/**/gdpr/ @legal-team @privacy-team @backend-team @frontend-team
+/**/privacy/ @privacy-team @legal-team @backend-team @frontend-team
+/**/compliance/ @legal-team @security-team @backend-team
+
+# Personal data handling
+/**/personal-data/ @privacy-team @legal-team @backend-team @data-team
+/**/user-data/ @privacy-team @backend-team @data-team
+
+# =============================================================================
+# EXTERNAL INTEGRATIONS
+# =============================================================================
+
+# Third-party integrations that multiple teams need to know about
+/integrations/payment/ @payments-team @backend-team @frontend-team @legal-team
+/integrations/analytics/ @data-team @backend-team @product-team
+/integrations/social/ @frontend-team @backend-team @marketing-team
+/integrations/email/ @backend-team @marketing-team @design-team
+/integrations/sms/ @backend-team @product-team @legal-team
+
+# Webhook handlers
+/**/webhooks/ @backend-team @integration-team @devops-team
+
+# =============================================================================
+# USER EXPERIENCE
+# =============================================================================
+
+# UI/UX components that affect user experience
+/components/forms/ @frontend-team @ux-team @accessibility-team
+/components/navigation/ @frontend-team @ux-team @product-team
+/components/modals/ @frontend-team @ux-team
+/components/accessibility/ @frontend-team @accessibility-team @legal-team
+
+# Accessibility features
+/**/a11y/ @accessibility-team @frontend-team @ux-team @legal-team
+/**/accessibility/ @accessibility-team @frontend-team @ux-team @legal-team
+
+# =============================================================================
+# MONITORING AND OBSERVABILITY
+# =============================================================================
+
+# Application monitoring that multiple teams use
+/**/logging/ @devops-team @backend-team @sre-team @support-team
+/**/metrics/ @devops-team @data-team @product-team @sre-team
+/**/tracing/ @devops-team @backend-team @sre-team
+/**/health-checks/ @devops-team @backend-team @sre-team
+
+# Error tracking and reporting
+/**/errors/ @backend-team @frontend-team @sre-team @support-team
+/**/crash-reporting/ @mobile-team @frontend-team @sre-team
+/**/exception-handling/ @backend-team @frontend-team @mobile-team
+
+# =============================================================================
+# CONTENT AND LOCALIZATION
+# =============================================================================
+
+# Content management
+/content/ @content-team @marketing-team @legal-team
+/**/cms/ @content-team @backend-team @frontend-team
+
+# Internationalization and localization
+/**/i18n/ @frontend-team @content-team @localization-team
+/**/l10n/ @frontend-team @content-team @localization-team
+/**/translations/ @content-team @localization-team @frontend-team
+
+# =============================================================================
+# BUSINESS LOGIC
+# =============================================================================
+
+# Core business logic that multiple stakeholders should know about
+/business-logic/ @backend-team @product-team @business-analysts
+/**/workflows/ @backend-team @product-team @business-analysts
+/**/rules-engine/ @backend-team @product-team @business-analysts
+/**/calculations/ @backend-team @finance-team @business-analysts
+
+# Reporting and dashboards
+/**/reports/ @data-team @business-analysts @product-team @frontend-team
+/**/dashboards/ @frontend-team @data-team @product-team @ux-team
+
+# =============================================================================
+# CUSTOMIZATION EXAMPLES
+# =============================================================================
+
+# E-commerce specific (uncomment and modify if applicable)
+# /**/cart/ @frontend-team @backend-team @product-team @payments-team
+# /**/checkout/ @frontend-team @backend-team @payments-team @legal-team
+# /**/inventory/ @backend-team @business-team @data-team
+# /**/orders/ @backend-team @business-team @support-team @finance-team
+# /**/shipping/ @backend-team @logistics-team @customer-service
+
+# SaaS specific (uncomment and modify if applicable)
+# /**/billing/ @payments-team @backend-team @frontend-team @finance-team
+# /**/subscriptions/ @payments-team @backend-team @product-team
+# /**/usage-tracking/ @backend-team @data-team @product-team @billing-team
+# /**/onboarding/ @frontend-team @product-team @ux-team @customer-success
+# /**/trial/ @frontend-team @backend-team @product-team @sales-team
+
+# Healthcare specific (uncomment and modify if applicable)
+# /**/patient-data/ @privacy-team @legal-team @backend-team @security-team
+# /**/hipaa/ @legal-team @privacy-team @security-team @backend-team
+# /**/medical-records/ @privacy-team @legal-team @backend-team @healthcare-team
+
+# Financial services specific (uncomment and modify if applicable)
+# /**/transactions/ @backend-team @finance-team @compliance-team @security-team
+# /**/kyc/ @legal-team @compliance-team @backend-team @security-team
+# /**/audit/ @compliance-team @finance-team @legal-team @backend-team
+
+# =============================================================================
+# AUTOMATION AND TOOLING
+# =============================================================================
+
+# Build and deployment automation
+/.github/workflows/ @devops-team @backend-team @frontend-team
+/scripts/deploy/ @devops-team @sre-team @backend-team
+/scripts/build/ @devops-team @frontend-team @backend-team
+
+# Development tooling
+/tools/ @devops-team @tech-leads
+/scripts/dev/ @devops-team @tech-leads
+/dev-tools/ @devops-team @tech-leads
+
+# =============================================================================
+# INSTRUCTIONS FOR IMPLEMENTATION
+# =============================================================================
+
+# To implement soft ownership in your repository:
+#
+# 1. Choose your implementation method:
+#    a) GitHub Apps/Actions that read this file and add optional reviewers
+#    b) Manually reference during PR reviews
+#    c) Convert to regular CODEOWNERS during important releases
+#
+# 2. Create automation (example GitHub Action):
+#    - Parse CODEOWNERS-soft on PR creation
+#    - Add teams/users as optional reviewers
+#    - Post comment explaining soft ownership
+#
+# 3. Customize team notifications:
+#    - Use different notification levels (Slack, email, etc.)
+#    - Create dashboard showing soft ownership coverage
+#    - Integrate with your existing review processes
+#
+# 4. Regular maintenance:
+#    - Review soft ownership patterns quarterly
+#    - Update based on team feedback and collaboration needs
+#    - Monitor for patterns that should become hard ownership
+#
+# 5. Team training:
+#    - Educate teams on when to check soft ownership
+#    - Establish guidelines for cross-team collaboration
+#    - Create processes for escalating soft-owned changes
+
+# =============================================================================
+# NOTIFICATION PREFERENCES (OPTIONAL)
+# =============================================================================
+
+# You can extend this concept to include notification preferences:
+# Format: path @team:notification-level
+# Where notification-level could be: mention, watch, ignore
+#
+# Examples:
+# /shared/ @frontend-team:mention @backend-team:watch
+# /config/ @devops-team:mention @all-teams:watch
+#
+# This would require custom tooling to implement.

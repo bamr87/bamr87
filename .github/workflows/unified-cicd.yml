@@ -1,0 +1,468 @@
+name: 🚀 Unified CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master, develop]
+    tags: ['v*']
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution mode'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - test-only
+          - build-only
+          - deploy-only
+          - lint-only
+      environment:
+        description: 'Deployment environment (for deploy-only mode)'
+        required: false
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      services:
+        description: 'Services to deploy (comma-separated, for deploy-only mode)'
+        required: false
+        default: 'all'
+      force_all:
+        description: 'Run all checks regardless of changes'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  pull-requests: write
+  issues: write
+
+env:
+  EXECUTION_MODE: ${{ github.event.inputs.mode || 'full' }}
+  FORCE_ALL: ${{ github.event.inputs.force_all || 'false' }}
+
+jobs:
+  # Detect what changed and determine what to run
+  detect-changes:
+    name: 🔍 Detect Changes & Plan Execution
+    runs-on: ubuntu-latest
+    outputs:
+      # Language detection
+      python: ${{ steps.detect.outputs.python }}
+      nodejs: ${{ steps.detect.outputs.nodejs }}
+      rust: ${{ steps.detect.outputs.rust }}
+      ruby: ${{ steps.detect.outputs.ruby }}
+      go: ${{ steps.detect.outputs.go }}
+      java: ${{ steps.detect.outputs.java }}
+      dotnet: ${{ steps.detect.outputs.dotnet }}
+
+      # Framework detection
+      django: ${{ steps.detect.outputs.django }}
+      rails: ${{ steps.detect.outputs.rails }}
+      react: ${{ steps.detect.outputs.react }}
+      vue: ${{ steps.detect.outputs.vue }}
+      angular: ${{ steps.detect.outputs.angular }}
+      nextjs: ${{ steps.detect.outputs.nextjs }}
+      nuxt: ${{ steps.detect.outputs.nuxt }}
+
+      # Service detection
+      backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+      api: ${{ steps.detect.outputs.api }}
+      worker: ${{ steps.detect.outputs.worker }}
+      database: ${{ steps.detect.outputs.database }}
+
+      # Special detection
+      docker: ${{ steps.detect.outputs.docker }}
+      kubernetes: ${{ steps.detect.outputs.kubernetes }}
+      terraform: ${{ steps.detect.outputs.terraform }}
+      docs: ${{ steps.detect.outputs.docs }}
+      ai_ml: ${{ steps.detect.outputs.ai_ml }}
+
+      # Execution plan
+      should_test: ${{ steps.plan.outputs.should_test }}
+      should_lint: ${{ steps.plan.outputs.should_lint }}
+      should_build: ${{ steps.plan.outputs.should_build }}
+      should_deploy: ${{ steps.plan.outputs.should_deploy }}
+      should_release: ${{ steps.plan.outputs.should_release }}
+
+      # Deployment targets
+      deploy_services: ${{ steps.plan.outputs.deploy_services }}
+      deploy_env: ${{ steps.plan.outputs.deploy_env }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect project structure
+        id: detect
+        run: |
+          # Initialize outputs
+          echo "python=false" >> $GITHUB_OUTPUT
+          echo "nodejs=false" >> $GITHUB_OUTPUT
+          echo "rust=false" >> $GITHUB_OUTPUT
+          echo "ruby=false" >> $GITHUB_OUTPUT
+          echo "go=false" >> $GITHUB_OUTPUT
+          echo "java=false" >> $GITHUB_OUTPUT
+          echo "dotnet=false" >> $GITHUB_OUTPUT
+
+          echo "django=false" >> $GITHUB_OUTPUT
+          echo "rails=false" >> $GITHUB_OUTPUT
+          echo "react=false" >> $GITHUB_OUTPUT
+          echo "vue=false" >> $GITHUB_OUTPUT
+          echo "angular=false" >> $GITHUB_OUTPUT
+          echo "nextjs=false" >> $GITHUB_OUTPUT
+          echo "nuxt=false" >> $GITHUB_OUTPUT
+
+          echo "backend=false" >> $GITHUB_OUTPUT
+          echo "frontend=false" >> $GITHUB_OUTPUT
+          echo "api=false" >> $GITHUB_OUTPUT
+          echo "worker=false" >> $GITHUB_OUTPUT
+          echo "database=false" >> $GITHUB_OUTPUT
+
+          echo "docker=false" >> $GITHUB_OUTPUT
+          echo "kubernetes=false" >> $GITHUB_OUTPUT
+          echo "terraform=false" >> $GITHUB_OUTPUT
+          echo "docs=false" >> $GITHUB_OUTPUT
+          echo "ai_ml=false" >> $GITHUB_OUTPUT
+
+          # Language detection
+          [[ -f "requirements.txt" || -f "pyproject.toml" || -f "setup.py" || -f "Pipfile" ]] && echo "python=true" >> $GITHUB_OUTPUT
+          [[ -f "package.json" || -f "yarn.lock" || -f "pnpm-lock.yaml" ]] && echo "nodejs=true" >> $GITHUB_OUTPUT
+          [[ -f "Cargo.toml" || -f "Cargo.lock" ]] && echo "rust=true" >> $GITHUB_OUTPUT
+          [[ -f "Gemfile" || -f "*.gemspec" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
+          [[ -f "go.mod" || -f "go.sum" ]] && echo "go=true" >> $GITHUB_OUTPUT
+          [[ -f "pom.xml" || -f "build.gradle" || -f "build.gradle.kts" ]] && echo "java=true" >> $GITHUB_OUTPUT
+          [[ -f "*.csproj" || -f "*.fsproj" || -f "*.vbproj" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+
+          # Framework detection
+          [[ -f "manage.py" || -d "django" ]] && echo "django=true" >> $GITHUB_OUTPUT
+          [[ -f "config/routes.rb" || -d "rails" ]] && echo "rails=true" >> $GITHUB_OUTPUT
+          grep -q '"react"' package.json 2>/dev/null && echo "react=true" >> $GITHUB_OUTPUT
+          grep -q '"vue"' package.json 2>/dev/null && echo "vue=true" >> $GITHUB_OUTPUT
+          grep -q '"@angular/core"' package.json 2>/dev/null && echo "angular=true" >> $GITHUB_OUTPUT
+          grep -q '"next"' package.json 2>/dev/null && echo "nextjs=true" >> $GITHUB_OUTPUT
+          grep -q '"nuxt"' package.json 2>/dev/null && echo "nuxt=true" >> $GITHUB_OUTPUT
+
+          # Service detection
+          [[ -d "backend" || -d "server" || -d "src/backend" ]] && echo "backend=true" >> $GITHUB_OUTPUT
+          [[ -d "frontend" || -d "client" || -d "src/frontend" ]] && echo "frontend=true" >> $GITHUB_OUTPUT
+          [[ -d "api" || -d "src/api" ]] && echo "api=true" >> $GITHUB_OUTPUT
+          [[ -d "worker" || -d "jobs" || -d "src/worker" ]] && echo "worker=true" >> $GITHUB_OUTPUT
+          [[ -d "database" || -d "db" || -d "migrations" ]] && echo "database=true" >> $GITHUB_OUTPUT
+
+          # Special detection
+          [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "docker=true" >> $GITHUB_OUTPUT
+          [[ -f "kustomization.yaml" || -d "k8s" || -d "kubernetes" ]] && echo "kubernetes=true" >> $GITHUB_OUTPUT
+          [[ -d ".terraform" || -f "*.tf" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
+          [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" ]] && echo "docs=true" >> $GITHUB_OUTPUT
+          [[ -d "ai" || -d "ml" || -d "models" || -f "requirements-ai.txt" ]] && echo "ai_ml=true" >> $GITHUB_OUTPUT
+
+      - name: Determine execution plan
+        id: plan
+        run: |
+          mode="${EXECUTION_MODE}"
+          force_all="${FORCE_ALL}"
+
+          # Default execution plan
+          should_test="false"
+          should_lint="false"
+          should_build="false"
+          should_deploy="false"
+          should_release="false"
+
+          case "$mode" in
+            "full")
+              should_test="true"
+              should_lint="true"
+              should_build="true"
+              # Deploy only on main/master branch or tags
+              if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" || "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+                should_deploy="true"
+              fi
+              # Release on tags
+              if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+                should_release="true"
+              fi
+              ;;
+            "test-only")
+              should_test="true"
+              ;;
+            "build-only")
+              should_build="true"
+              ;;
+            "deploy-only")
+              should_deploy="true"
+              ;;
+            "lint-only")
+              should_lint="true"
+              ;;
+          esac
+
+          # Force all if requested
+          if [[ "$force_all" == "true" ]]; then
+            should_test="true"
+            should_lint="true"
+            should_build="true"
+          fi
+
+          echo "should_test=$should_test" >> $GITHUB_OUTPUT
+          echo "should_lint=$should_lint" >> $GITHUB_OUTPUT
+          echo "should_build=$should_build" >> $GITHUB_OUTPUT
+          echo "should_deploy=$should_deploy" >> $GITHUB_OUTPUT
+          echo "should_release=$should_release" >> $GITHUB_OUTPUT
+
+          # Determine deployment targets
+          deploy_services="${{ github.event.inputs.services || 'all' }}"
+          deploy_env="${{ github.event.inputs.environment || 'development' }}"
+
+          # Auto-detect services if "all"
+          if [[ "$deploy_services" == "all" ]]; then
+            services=""
+            [[ "${{ steps.detect.outputs.backend }}" == "true" ]] && services="${services}backend,"
+            [[ "${{ steps.detect.outputs.frontend }}" == "true" ]] && services="${services}frontend,"
+            [[ "${{ steps.detect.outputs.api }}" == "true" ]] && services="${services}api,"
+            [[ "${{ steps.detect.outputs.worker }}" == "true" ]] && services="${services}worker,"
+            services="${services%,}"
+            deploy_services="$services"
+          fi
+
+          echo "deploy_services=$deploy_services" >> $GITHUB_OUTPUT
+          echo "deploy_env=$deploy_env" >> $GITHUB_OUTPUT
+
+  # Testing jobs - run in parallel based on detected languages/frameworks
+  test-python:
+    name: 🐍 Test Python
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python == 'true' && needs.detect-changes.outputs.should_test == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Python tests
+        uses: ./.github/actions/ci/test-python
+        with:
+          python-version: ${{ matrix.python-version }}
+
+  test-nodejs:
+    name: 📦 Test Node.js
+    needs: detect-changes
+    if: needs.detect-changes.outputs.nodejs == 'true' && needs.detect-changes.outputs.should_test == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Node.js tests
+        uses: ./.github/actions/ci/test-nodejs
+        with:
+          node-version: ${{ matrix.node-version }}
+
+  test-rust:
+    name: 🦀 Test Rust
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rust == 'true' && needs.detect-changes.outputs.should_test == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Rust tests
+        uses: ./.github/actions/ci/test-rust
+
+  test-go:
+    name: 🐹 Test Go
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true' && needs.detect-changes.outputs.should_test == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Go tests
+        uses: ./.github/actions/ci/test-go
+
+  test-ruby:
+    name: 💎 Test Ruby
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ruby == 'true' && needs.detect-changes.outputs.should_test == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby-version: ['3.1', '3.2', '3.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Ruby tests
+        uses: ./.github/actions/ci/test-ruby
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+
+  test-ai:
+    name: 🤖 Test AI/ML
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ai_ml == 'true' && needs.detect-changes.outputs.should_test == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run AI/ML tests
+        uses: ./.github/actions/ci/test-ai
+
+  # Linting jobs
+  lint-python:
+    name: 🔍 Lint Python
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python == 'true' && needs.detect-changes.outputs.should_lint == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Python code
+        uses: ./.github/actions/ci/lint-python
+
+  lint-nodejs:
+    name: 🔍 Lint Node.js
+    needs: detect-changes
+    if: needs.detect-changes.outputs.nodejs == 'true' && needs.detect-changes.outputs.should_lint == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Node.js code
+        uses: ./.github/actions/ci/lint-nodejs
+
+  lint-rust:
+    name: 🔍 Lint Rust
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rust == 'true' && needs.detect-changes.outputs.should_lint == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Rust code
+        uses: ./.github/actions/ci/lint-rust
+
+  lint-go:
+    name: 🔍 Lint Go
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true' && needs.detect-changes.outputs.should_lint == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Go code
+        uses: ./.github/actions/ci/lint-go
+
+  # Build jobs
+  build-docker:
+    name: 🐳 Build Docker Images
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docker == 'true' && needs.detect-changes.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.deploy_services)) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image for ${{ matrix.service }}
+        uses: ./.github/actions/build/docker-build
+        with:
+          service: ${{ matrix.service }}
+          image-tag: ${{ github.sha }}
+
+  build-static:
+    name: 📦 Build Static Assets
+    needs: detect-changes
+    if: (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.react == 'true' || needs.detect-changes.outputs.vue == 'true' || needs.detect-changes.outputs.nextjs == 'true') && needs.detect-changes.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build frontend assets
+        uses: ./.github/actions/build/static-build
+
+  # Deploy jobs
+  deploy:
+    name: 🚀 Deploy to ${{ needs.detect-changes.outputs.deploy_env }}
+    needs: [detect-changes, build-docker, build-static]
+    if: needs.detect-changes.outputs.should_deploy == 'true' && needs.detect-changes.outputs.deploy_services != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.detect-changes.outputs.deploy_env }}
+      url: ${{ steps.deploy.outputs.url }}
+    strategy:
+      matrix:
+        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.deploy_services)) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy ${{ matrix.service }}
+        id: deploy
+        uses: ./.github/actions/deploy/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          environment: ${{ needs.detect-changes.outputs.deploy_env }}
+          image-tag: ${{ github.sha }}
+
+  # Release jobs
+  release:
+    name: 📦 Create Release
+    needs: [detect-changes, test-python, test-nodejs, test-rust, test-go, test-ruby, lint-python, lint-nodejs, lint-rust, lint-go]
+    if: needs.detect-changes.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release
+        uses: ./.github/actions/release/create-release
+        with:
+          tag: ${{ github.ref_name }}
+
+  # Summary job
+  summary:
+    name: 📊 Pipeline Summary
+    needs: [detect-changes, test-python, test-nodejs, test-rust, test-go, test-ruby, test-ai, lint-python, lint-nodejs, lint-rust, lint-go, build-docker, build-static, deploy, release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate pipeline summary
+        run: |
+          echo "## 🚀 Unified CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          # Test results
+          echo "| Testing | ${{ needs.test-python.result != 'skipped' && needs.test-python.result || 'N/A' }} | Python: ${{ needs.test-python.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Testing | ${{ needs.test-nodejs.result != 'skipped' && needs.test-nodejs.result || 'N/A' }} | Node.js: ${{ needs.test-nodejs.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Testing | ${{ needs.test-rust.result != 'skipped' && needs.test-rust.result || 'N/A' }} | Rust: ${{ needs.test-rust.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Testing | ${{ needs.test-go.result != 'skipped' && needs.test-go.result || 'N/A' }} | Go: ${{ needs.test-go.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Testing | ${{ needs.test-ruby.result != 'skipped' && needs.test-ruby.result || 'N/A' }} | Ruby: ${{ needs.test-ruby.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Testing | ${{ needs.test-ai.result != 'skipped' && needs.test-ai.result || 'N/A' }} | AI/ML: ${{ needs.test-ai.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Lint results
+          echo "| Linting | ${{ needs.lint-python.result != 'skipped' && needs.lint-python.result || 'N/A' }} | Python: ${{ needs.lint-python.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linting | ${{ needs.lint-nodejs.result != 'skipped' && needs.lint-nodejs.result || 'N/A' }} | Node.js: ${{ needs.lint-nodejs.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linting | ${{ needs.lint-rust.result != 'skipped' && needs.lint-rust.result || 'N/A' }} | Rust: ${{ needs.lint-rust.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linting | ${{ needs.lint-go.result != 'skipped' && needs.lint-go.result || 'N/A' }} | Go: ${{ needs.lint-go.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Build results
+          echo "| Building | ${{ needs.build-docker.result != 'skipped' && needs.build-docker.result || 'N/A' }} | Docker: ${{ needs.build-docker.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Building | ${{ needs.build-static.result != 'skipped' && needs.build-static.result || 'N/A' }} | Static: ${{ needs.build-static.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Deploy results
+          echo "| Deployment | ${{ needs.deploy.result != 'skipped' && needs.deploy.result || 'N/A' }} | ${{ needs.detect-changes.outputs.deploy_env }}: ${{ needs.deploy.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Release results
+          echo "| Release | ${{ needs.release.result != 'skipped' && needs.release.result || 'N/A' }} | ${{ github.ref_name }}: ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Mode:** ${EXECUTION_MODE}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,74 @@
+name: Parallel Test Execution
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-python-parallel:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        job-index: [1, 2, 3, 4]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run parallel Python tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'python'
+          language-version: '3.11'
+          package-manager: 'pip'
+          test-command: 'pytest'
+          test-directory: 'tests/'
+          parallel-jobs: 4
+          job-index: ${{ matrix.job-index }}
+          test-args: '--verbose --durations=10'
+          coverage-enabled: 'true'
+          artifact-name: 'coverage-shard-${{ matrix.job-index }}'
+  
+  test-node-parallel:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run parallel Jest tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'node'
+          test-command: 'npm test'
+          parallel-jobs: 3
+          job-index: ${{ matrix.shard }}
+          coverage-enabled: 'true'
+          artifact-name: 'coverage-shard-${{ matrix.shard }}'
+  
+  merge-coverage:
+    needs: [test-python-parallel]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-shard-*
+          path: coverage-reports/
+      
+      - name: Merge coverage reports
+        run: |
+          pip install coverage
+          coverage combine coverage-reports/*/coverage.*
+          coverage xml
+          coverage report
+      
+      - name: Upload merged coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml

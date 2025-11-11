@@ -1,0 +1,46 @@
+name: 'Run Checks'
+description: 'Run tests, quality checks, and other validations'
+inputs:
+  runner-os:
+    description: 'The type of runner to use (e.g., ubuntu-latest)'
+    default: 'ubuntu-latest'
+    required: false
+  setup-script:
+    description: 'Script to run for setting up the environment'
+    required: false
+  test-script:
+    description: 'Script to run tests'
+    required: true
+  quality-script:
+    description: 'Script to run quality checks'
+    required: false
+  release-script:
+    description: 'Script to prepare release assets'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run setup script
+      if: ${{ inputs.setup-script != '' }}
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.setup-script }}
+        ${{ inputs.setup-script }}
+    - name: Run tests
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.test-script }}
+        ${{ inputs.test-script }}
+    - name: Run quality checks
+      if: ${{ inputs.quality-script != '' }}
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.quality-script }}
+        ${{ inputs.quality-script }}
+    - name: Prepare release
+      if: ${{ inputs.release-script != '' }}
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.release-script }}
+        ${{ inputs.release-script }}

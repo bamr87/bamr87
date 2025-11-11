@@ -1,0 +1,374 @@
+name: 📦 Unified Release Pipeline
+
+on:
+  push:
+    tags: ['v*', 'release-*']
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Type of release to create'
+        required: true
+        default: 'github'
+        type: choice
+        options:
+          - github
+          - npm
+          - gem
+          - docker
+          - pypi
+          - cargo
+          - all
+      version:
+        description: 'Version to release (leave empty for auto-detection)'
+        required: false
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  pull-requests: write
+
+env:
+  RELEASE_TYPE: ${{ github.event.inputs.release_type || 'github' }}
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  # Detect project type and determine what to release
+  detect-project:
+    name: 🔍 Detect Project & Release Targets
+    runs-on: ubuntu-latest
+    outputs:
+      has_npm: ${{ steps.detect.outputs.has_npm }}
+      has_gem: ${{ steps.detect.outputs.has_gem }}
+      has_docker: ${{ steps.detect.outputs.has_docker }}
+      has_pypi: ${{ steps.detect.outputs.has_pypi }}
+      has_cargo: ${{ steps.detect.outputs.has_cargo }}
+      release_targets: ${{ steps.targets.outputs.release_targets }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect project types
+        id: detect
+        run: |
+          echo "has_npm=false" >> $GITHUB_OUTPUT
+          echo "has_gem=false" >> $GITHUB_OUTPUT
+          echo "has_docker=false" >> $GITHUB_OUTPUT
+          echo "has_pypi=false" >> $GITHUB_OUTPUT
+          echo "has_cargo=false" >> $GITHUB_OUTPUT
+
+          # Package managers detection
+          [[ -f "package.json" ]] && echo "has_npm=true" >> $GITHUB_OUTPUT
+          [[ -f "Gemfile" || -f "*.gemspec" ]] && echo "has_gem=true" >> $GITHUB_OUTPUT
+          [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "has_docker=true" >> $GITHUB_OUTPUT
+          [[ -f "setup.py" || -f "pyproject.toml" ]] && echo "has_pypi=true" >> $GITHUB_OUTPUT
+          [[ -f "Cargo.toml" ]] && echo "has_cargo=true" >> $GITHUB_OUTPUT
+
+      - name: Determine release targets
+        id: targets
+        run: |
+          release_type="${RELEASE_TYPE}"
+          targets=""
+
+          case "$release_type" in
+            "all")
+              [[ "${{ steps.detect.outputs.has_npm }}" == "true" ]] && targets="${targets}npm,"
+              [[ "${{ steps.detect.outputs.has_gem }}" == "true" ]] && targets="${targets}gem,"
+              [[ "${{ steps.detect.outputs.has_docker }}" == "true" ]] && targets="${targets}docker,"
+              [[ "${{ steps.detect.outputs.has_pypi }}" == "true" ]] && targets="${targets}pypi,"
+              [[ "${{ steps.detect.outputs.has_cargo }}" == "true" ]] && targets="${targets}cargo,"
+              targets="${targets}github,"
+              ;;
+            "npm")
+              [[ "${{ steps.detect.outputs.has_npm }}" == "true" ]] && targets="npm,"
+              ;;
+            "gem")
+              [[ "${{ steps.detect.outputs.has_gem }}" == "true" ]] && targets="gem,"
+              ;;
+            "docker")
+              [[ "${{ steps.detect.outputs.has_docker }}" == "true" ]] && targets="docker,"
+              ;;
+            "pypi")
+              [[ "${{ steps.detect.outputs.has_pypi }}" == "true" ]] && targets="pypi,"
+              ;;
+            "cargo")
+              [[ "${{ steps.detect.outputs.has_cargo }}" == "true" ]] && targets="cargo,"
+              ;;
+            "github")
+              targets="github,"
+              ;;
+          esac
+
+          targets="${targets%,}"
+          echo "release_targets=$targets" >> $GITHUB_OUTPUT
+
+      - name: Determine version
+        id: version
+        run: |
+          version="${VERSION}"
+
+          # If version is a tag reference, extract the tag name
+          if [[ "$version" == refs/tags/* ]]; then
+            version="${version#refs/tags/}"
+          fi
+
+          # If no version specified and not a tag push, try to determine from package files
+          if [[ -z "$version" || "$version" == "main" || "$version" == "master" ]]; then
+            if [[ -f "package.json" ]]; then
+              version=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+            elif [[ -f "pyproject.toml" ]]; then
+              version=$(grep '^version =' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+            elif [[ -f "Cargo.toml" ]]; then
+              version=$(grep '^version =' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+            fi
+
+            # Fallback to tag name if still empty
+            if [[ -z "$version" ]]; then
+              version="${{ github.ref_name }}"
+            fi
+          fi
+
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "📦 Releasing version: $version"
+
+  # GitHub Release
+  github-release:
+    name: 📦 Create GitHub Release
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.release_targets, 'github')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog from commits since last tag
+          last_tag=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+
+          if [[ -n "$last_tag" ]]; then
+            echo "## Changes since $last_tag" > changelog.md
+            echo "" >> changelog.md
+            git log ${last_tag}..HEAD --pretty=format:"- %s (%h)" --no-merges >> changelog.md
+          else
+            echo "## Initial Release" > changelog.md
+            echo "" >> changelog.md
+            echo "First release of this project." >> changelog.md
+          fi
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.detect-project.outputs.version }}
+          release_name: Release ${{ needs.detect-project.outputs.version }}
+          body_path: changelog.md
+          draft: ${{ github.event.inputs.draft || false }}
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+
+  # NPM Release
+  npm-release:
+    name: 📦 Publish to NPM
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.release_targets, 'npm')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build || echo "No build script found"
+
+      - name: Update package version
+        run: npm version ${{ needs.detect-project.outputs.version }} --no-git-tag-version
+
+      - name: Publish to NPM
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Ruby Gem Release
+  gem-release:
+    name: 💎 Publish Ruby Gem
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.release_targets, 'gem')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Update version in gemspec
+        run: |
+          # Update version in gemspec file
+          sed -i "s/spec.version.*=.*\".*\"/spec.version = \"${{ needs.detect-project.outputs.version }}\"/" *.gemspec
+
+      - name: Build gem
+        run: gem build *.gemspec
+
+      - name: Publish to RubyGems
+        run: gem push *.gem
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+
+  # Docker Release
+  docker-release:
+    name: 🐳 Publish Docker Images
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.release_targets, 'docker')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        registry: [ghcr, dockerhub]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ${{ matrix.registry }}
+        if: matrix.registry == 'ghcr'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to ${{ matrix.registry }}
+        if: matrix.registry == 'dockerhub'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:{2}', github.repository_owner, github.event.repository.name, needs.detect-project.outputs.version) || '' }}
+            ${{ matrix.registry == 'dockerhub' && format('{0}/{1}:{2}', secrets.DOCKERHUB_USERNAME, github.event.repository.name, needs.detect-project.outputs.version) || '' }}
+            ${{ matrix.registry == 'ghcr' && format('ghcr.io/{0}/{1}:latest', github.repository_owner, github.event.repository.name) || '' }}
+            ${{ matrix.registry == 'dockerhub' && format('{0}/{1}:latest', secrets.DOCKERHUB_USERNAME, github.event.repository.name) || '' }}
+          platforms: linux/amd64,linux/arm64
+
+  # PyPI Release
+  pypi-release:
+    name: 🐍 Publish to PyPI
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.release_targets, 'pypi')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: pip install build twine
+
+      - name: Update version
+        run: |
+          if [[ -f "pyproject.toml" ]]; then
+            sed -i "s/version = \".*\"/version = \"${{ needs.detect-project.outputs.version }}\"/" pyproject.toml
+          elif [[ -f "setup.py" ]]; then
+            sed -i "s/version=.*,/version='${{ needs.detect-project.outputs.version }}',/" setup.py
+          fi
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        run: python -m twine upload dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+  # Cargo Release
+  cargo-release:
+    name: 🦀 Publish to Crates.io
+    needs: detect-project
+    if: contains(needs.detect-project.outputs.release_targets, 'cargo')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+
+      - name: Update version in Cargo.toml
+        run: |
+          sed -i "s/^version = \".*\"/version = \"${{ needs.detect-project.outputs.version }}\"/" Cargo.toml
+
+      - name: Publish to Crates.io
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+
+  # Release Summary
+  release-summary:
+    name: 📊 Release Summary
+    needs: [detect-project, github-release, npm-release, gem-release, docker-release, pypi-release, cargo-release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate release summary
+        run: |
+          echo "## 📦 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          # Release results
+          echo "| GitHub | ${{ needs.github-release.result != 'skipped' && needs.github-release.result || 'N/A' }} | Release ${{ needs.detect-project.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| NPM | ${{ needs.npm-release.result != 'skipped' && needs.npm-release.result || 'N/A' }} | @${{ github.repository_owner }}/${{ github.event.repository.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| RubyGems | ${{ needs.gem-release.result != 'skipped' && needs.gem-release.result || 'N/A' }} | ${{ github.event.repository.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker | ${{ needs.docker-release.result != 'skipped' && needs.docker-release.result || 'N/A' }} | ${{ github.repository_owner }}/${{ github.event.repository.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| PyPI | ${{ needs.pypi-release.result != 'skipped' && needs.pypi-release.result || 'N/A' }} | ${{ github.repository_owner }}/${{ github.event.repository.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Crates.io | ${{ needs.cargo-release.result != 'skipped' && needs.cargo-release.result || 'N/A' }} | ${{ github.repository_owner }}/${{ github.event.repository.name }} |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.detect-project.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Type:** ${RELEASE_TYPE}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

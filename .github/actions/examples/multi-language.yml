@@ -1,0 +1,122 @@
+name: Multi-Language Monorepo
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      api: ${{ steps.changes.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            api:
+              - 'api/**'
+
+  test-python-backend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Python tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'python'
+          language-version: '3.11'
+          test-command: 'pytest'
+          test-directory: 'backend/tests/'
+          coverage-enabled: 'true'
+          artifact-name: 'coverage-backend'
+  
+  test-node-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Node.js tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'node'
+          language-version: '20'
+          package-manager: 'pnpm'
+          test-command: 'pnpm test'
+          test-directory: 'frontend/'
+          coverage-enabled: 'true'
+          artifact-name: 'coverage-frontend'
+  
+  test-go-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Go tests
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: 'go'
+          language-version: '1.21'
+          test-command: 'go test ./...'
+          test-directory: 'api/'
+          test-args: '-v -race -coverprofile=coverage.out'
+          artifact-name: 'coverage-api'
+  
+  lint-all:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run quality checks
+        uses: ./.github/actions/ci/run-checks
+        with:
+          test-script: 'echo "Running linters..."'
+          quality-script: |
+            #!/bin/bash
+            set -e
+            echo "Linting Python..."
+            pip install ruff && ruff check backend/
+            echo "Linting JavaScript..."
+            cd frontend && npm ci && npm run lint
+            echo "Linting Go..."
+            cd ../api && go install honnef.co/go/tools/cmd/staticcheck@latest && staticcheck ./...
+
+  build-images:
+    needs: [test-python-backend, test-node-frontend, test-go-api]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend, api]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build ${{ matrix.component }} image
+        uses: ./.github/actions/deployment/build-push-image
+        with:
+          image-name: 'myapp-${{ matrix.component }}'
+          context: './${{ matrix.component }}'
+          dockerfile: '${{ matrix.component }}/Dockerfile'
+          registry-type: 'ghcr'
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}
+          push-image: 'true'
