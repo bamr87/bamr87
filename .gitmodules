@@ -6,3 +6,7 @@
 	path = scripts
 	url = https://github.com/bamr87/scripts.git
 	branch = master
+[submodule "cv"]
+	path = cv
+	url = https://github.com/bamr87/cv-builder-pro.git
+	branch = main
