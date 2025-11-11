@@ -1,0 +1,6 @@
+[submodule "README"]
+	path = README
+	url = https://github.com/bamr87/README.git
+[submodule "scripts"]
+	path = scripts
+	url = https://github.com/bamr87/scripts.git
