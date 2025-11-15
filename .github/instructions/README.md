@@ -36,7 +36,32 @@ These instructions are designed as **evolving templates** that:
 - Making architectural decisions
 - Establishing project standards
 
-### 2. `development.instructions.md` - Code and Workflow Standards
+### 2. `bash.instructions.md` - Bash Scripting Standards
+
+**Applies to**: Shell scripts (`**/*.sh`, `**/*.bash`, `scripts/**/*`)
+
+**Key Content:**
+
+- Comprehensive script template with full header documentation
+- Styling standards: file organization, naming conventions, indentation
+- Error handling patterns: `set -euo pipefail`, traps, cleanup functions
+- Logging framework: multiple log levels, colored output, file logging
+- Validation and prerequisites checking
+- Reusable utility functions (DRY): retry logic, confirmations, progress indicators
+- Common patterns: config loading, file processing, parallel execution, API calls
+- Security best practices: secrets management, input sanitization
+- Testing approaches: bats unit tests, integration testing
+- Performance optimization: efficient patterns, built-in operations
+
+**When to Reference:**
+
+- Writing automation scripts
+- Creating build or deployment scripts
+- Developing CLI utilities in bash
+- Implementing DevOps automation
+- Need robust error handling and logging
+
+### 3. `development.instructions.md` - Code and Workflow Standards
 
 **Applies to**: Source code files and CI/CD workflows
 
@@ -59,7 +84,7 @@ These instructions are designed as **evolving templates** that:
 - Designing APIs or service layers
 - Configuring CI/CD pipelines
 
-### 3. `documentation.instructions.md` - Documentation Standards
+### 4. `documentation.instructions.md` - Documentation Standards
 
 **Applies to**: Markdown and documentation files
 
@@ -81,7 +106,7 @@ These instructions are designed as **evolving templates** that:
 - Creating tutorials or educational content
 - Ensuring documentation accessibility
 
-### 4. `version-control.instructions.md` - Version Control and Release Management
+### 5. `version-control.instructions.md` - Version Control and Release Management
 
 **Applies to**: Changelogs, version files, package manifests
 
@@ -103,7 +128,7 @@ These instructions are designed as **evolving templates** that:
 - Publishing packages
 - Implementing hotfixes
 
-### 5. `tools.instructions.md` - Development Tools and Automation
+### 6. `tools.instructions.md` - Development Tools and Automation
 
 **Applies to**: Tool configuration files
 

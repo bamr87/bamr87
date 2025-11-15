@@ -28,7 +28,7 @@ All instruction files are located in `.github/instructions/` and follow the nami
 
 ### Instruction Files Architecture
 
-The instruction set is organized into **five focused domains** that cover the complete software development lifecycle:
+The instruction set is organized into **six focused domains** that cover the complete software development lifecycle:
 
 #### 1. **`core.instructions.md`** - Universal Development Principles
 
@@ -39,10 +39,22 @@ The instruction set is organized into **five focused domains** that cover the co
    - **Project Types**: Patterns for web apps, microservices, libraries, CLI tools, educational platforms
    - **Quality Standards**: Feature development workflow, progressive enhancement, quality checklists
 
-#### 2. **`development.instructions.md`** - Code and Workflow Standards
+#### 2. **`bash.instructions.md`** - Bash Scripting Standards
+
+   - **Applies to**: Shell scripts (`**/*.sh`, `**/*.bash`, `scripts/**/*`)
+   - **Comprehensive Template**: Full script structure with header, logging, error handling, cleanup
+   - **Error Handling**: `set -euo pipefail`, traps, signal handlers, cleanup functions (DFF)
+   - **Logging Framework**: Multi-level logging, colored output, file logging
+   - **Utility Functions**: Retry logic, confirmations, progress indicators, file operations (DRY)
+   - **Common Patterns**: Config loading, file processing, parallel execution, API calls, lock files
+   - **Security**: Secrets management, input sanitization, permission checking
+   - **Testing**: bats unit tests, integration testing patterns
+   - **Performance**: Efficient patterns, built-in operations, optimization techniques
+
+#### 3. **`development.instructions.md`** - Code and Workflow Standards
 
    - **Applies to**: Source code files and CI/CD workflows
-   - **Languages**: Python (type hints, docstrings), JavaScript/TypeScript (ES6+, async/await), Bash (robust scripting)
+   - **Languages**: Python (type hints, docstrings), JavaScript/TypeScript (ES6+, async/await)
    - **Error Handling**: Comprehensive patterns for each language
    - **Testing**: Pytest, Jest, RSpec patterns with fixtures and mocking
    - **Service Architecture**: Service layer patterns for complex business logic
@@ -50,7 +62,7 @@ The instruction set is organized into **five focused domains** that cover the co
    - **Security**: Input validation, environment configuration, security checklists
    - **Containers**: Docker, Docker Compose, multi-stage builds
 
-#### 3. **`documentation.instructions.md`** - Documentation Standards
+#### 4. **`documentation.instructions.md`** - Documentation Standards
 
    - **Applies to**: Markdown and documentation files
    - **Documentation Types**: Project README, directory README, API docs, educational content
@@ -60,7 +72,7 @@ The instruction set is organized into **five focused domains** that cover the co
    - **Educational Content**: Learning objectives, step-by-step tutorials, validation methods
    - **Maintenance**: Automated validation, continuous updates, freshness management
 
-#### 4. **`version-control.instructions.md`** - Version Control and Release Management
+#### 5. **`version-control.instructions.md`** - Version Control and Release Management
 
    - **Applies to**: Changelogs, version files, package manifests
    - **Git Workflows**: Git Flow, GitHub Flow, branch strategies
@@ -71,7 +83,7 @@ The instruction set is organized into **five focused domains** that cover the co
    - **Package Publishing**: PyPI, NPM, RubyGems patterns
    - **Security**: Signed commits, access control, dependency security
 
-#### 5. **`tools.instructions.md`** - Development Tools and Automation
+#### 6. **`tools.instructions.md`** - Development Tools and Automation
 
    - **Applies to**: Tool configuration files
    - **AI Toolkit**: Agent development best practices, tracing, evaluation
