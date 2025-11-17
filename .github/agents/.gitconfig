@@ -1,0 +1,7 @@
+[user]
+	name = bamr87
+	email = bamr87@users.noreply.github.com
+[pull]
+	rebase = false
+[init]
+	defaultBranch = main
