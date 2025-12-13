@@ -82,3 +82,9 @@ OneDrive/
 .env
 .zsh_history
 .github/.DS_Store
+
+.harmonize/
+
+# MkDocs
+site/
+.venv-docs/
