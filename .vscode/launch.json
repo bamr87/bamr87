@@ -94,6 +94,106 @@
     },
 
     // ==========================================
+    // MKDOCS DOCUMENTATION CONFIGURATIONS
+    // ==========================================
+    {
+      "name": "📚 MkDocs: Serve Documentation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mkdocs",
+      "args": ["serve", "--dev-addr=127.0.0.1:8000"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "autoStartBrowser": false,
+      "presentation": {
+        "group": "docs"
+      }
+    },
+
+    {
+      "name": "📚 MkDocs: Serve with Auto-Browser",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mkdocs",
+      "args": ["serve", "--dev-addr=127.0.0.1:8000"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "autoStartBrowser": true,
+      "serverReadyAction": {
+        "pattern": "Serving on (http://[^\\s]+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "presentation": {
+        "group": "docs"
+      }
+    },
+
+    {
+      "name": "🔨 MkDocs: Build Documentation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mkdocs",
+      "args": ["build", "--clean"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "presentation": {
+        "group": "docs"
+      }
+    },
+
+    {
+      "name": "🔨 MkDocs: Build Strict (Fail on Warnings)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mkdocs",
+      "args": ["build", "--strict", "--clean"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "presentation": {
+        "group": "docs"
+      }
+    },
+
+    {
+      "name": "🚀 MkDocs: Deploy to GitHub Pages",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mkdocs",
+      "args": ["gh-deploy", "--force"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "presentation": {
+        "group": "docs"
+      }
+    },
+
+    // ==========================================
     // MOBILE & RESPONSIVE TESTING
     // ==========================================
     {

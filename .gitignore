@@ -87,4 +87,5 @@ OneDrive/
 
 # MkDocs
 site/
-.venv-docs/
+.venv/
+mkdocs-build.log
