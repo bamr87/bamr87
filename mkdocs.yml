@@ -101,6 +101,7 @@ markdown_extensions:
 # Navigation
 nav:
   - Home: index.md
+  - Sitemap: sitemap.md
   - Setup: setup/
   - User Guides: user-guides/
   - API Reference: api/
