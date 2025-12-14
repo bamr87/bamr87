@@ -89,3 +89,4 @@ OneDrive/
 site/
 .venv/
 mkdocs-build.log
+backups/cv.bak
