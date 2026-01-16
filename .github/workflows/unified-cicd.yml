@@ -148,15 +148,15 @@ jobs:
           [[ -f "Cargo.toml" || -f "Cargo.lock" ]] && echo "rust=true" >> $GITHUB_OUTPUT
           [[ -f "Gemfile" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
           files=(*.gemspec)
-          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
+          [[ ${#files[@]} -gt 0 ]] && echo "ruby=true" >> $GITHUB_OUTPUT
           [[ -f "go.mod" || -f "go.sum" ]] && echo "go=true" >> $GITHUB_OUTPUT
           [[ -f "pom.xml" || -f "build.gradle" || -f "build.gradle.kts" ]] && echo "java=true" >> $GITHUB_OUTPUT
           files=(*.csproj)
-          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+          [[ ${#files[@]} -gt 0 ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
           files=(*.fsproj)
-          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+          [[ ${#files[@]} -gt 0 ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
           files=(*.vbproj)
-          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+          [[ ${#files[@]} -gt 0 ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
 
           # Framework detection
           [[ -f "manage.py" || -d "django" ]] && echo "django=true" >> $GITHUB_OUTPUT
@@ -179,7 +179,7 @@ jobs:
           [[ -f "kustomization.yaml" || -d "k8s" || -d "kubernetes" ]] && echo "kubernetes=true" >> $GITHUB_OUTPUT
           [[ -d ".terraform" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
           files=(*.tf)
-          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
+          [[ ${#files[@]} -gt 0 ]] && echo "terraform=true" >> $GITHUB_OUTPUT
           [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" ]] && echo "docs=true" >> $GITHUB_OUTPUT
           [[ -d "ai" || -d "ml" || -d "models" || -f "requirements-ai.txt" ]] && echo "ai_ml=true" >> $GITHUB_OUTPUT
 
