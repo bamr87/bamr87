@@ -109,6 +109,7 @@ jobs:
 
       - name: Detect project structure
         id: detect
+        shell: bash
         run: |
           set +e  # Disable exit on error for this script
           shopt -s nullglob  # Enable nullglob for glob patterns
@@ -182,6 +183,9 @@ jobs:
           [[ ${#files[@]} -gt 0 ]] && echo "terraform=true" >> $GITHUB_OUTPUT
           [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" ]] && echo "docs=true" >> $GITHUB_OUTPUT
           [[ -d "ai" || -d "ml" || -d "models" || -f "requirements-ai.txt" ]] && echo "ai_ml=true" >> $GITHUB_OUTPUT
+          
+          # Ensure script exits successfully
+          exit 0
 
       - name: Determine execution plan
         id: plan

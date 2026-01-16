@@ -74,6 +74,7 @@ jobs:
 
       - name: Detect project types
         id: detect
+        shell: bash
         run: |
           set +e  # Disable exit on error for this script
           shopt -s nullglob  # Enable nullglob for glob patterns
@@ -95,6 +96,9 @@ jobs:
           [[ -f "go.mod" ]] && echo "has_go=true" >> $GITHUB_OUTPUT
           [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "has_docker=true" >> $GITHUB_OUTPUT
           [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" || -f "_config.yml" ]] && echo "has_docs=true" >> $GITHUB_OUTPUT
+          
+          # Ensure script exits successfully
+          exit 0
 
       - name: Determine maintenance tasks
         id: tasks
