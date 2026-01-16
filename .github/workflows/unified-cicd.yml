@@ -110,6 +110,9 @@ jobs:
       - name: Detect project structure
         id: detect
         run: |
+          set +e  # Disable exit on error for this script
+          shopt -s nullglob  # Enable nullglob for glob patterns
+          
           # Initialize outputs
           echo "python=false" >> $GITHUB_OUTPUT
           echo "nodejs=false" >> $GITHUB_OUTPUT
@@ -144,12 +147,16 @@ jobs:
           [[ -f "package.json" || -f "yarn.lock" || -f "pnpm-lock.yaml" ]] && echo "nodejs=true" >> $GITHUB_OUTPUT
           [[ -f "Cargo.toml" || -f "Cargo.lock" ]] && echo "rust=true" >> $GITHUB_OUTPUT
           [[ -f "Gemfile" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
-          ls *.gemspec >/dev/null 2>&1 && echo "ruby=true" >> $GITHUB_OUTPUT || true
+          files=(*.gemspec)
+          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
           [[ -f "go.mod" || -f "go.sum" ]] && echo "go=true" >> $GITHUB_OUTPUT
           [[ -f "pom.xml" || -f "build.gradle" || -f "build.gradle.kts" ]] && echo "java=true" >> $GITHUB_OUTPUT
-          ls *.csproj >/dev/null 2>&1 && echo "dotnet=true" >> $GITHUB_OUTPUT || true
-          ls *.fsproj >/dev/null 2>&1 && echo "dotnet=true" >> $GITHUB_OUTPUT || true
-          ls *.vbproj >/dev/null 2>&1 && echo "dotnet=true" >> $GITHUB_OUTPUT || true
+          files=(*.csproj)
+          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+          files=(*.fsproj)
+          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+          files=(*.vbproj)
+          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
 
           # Framework detection
           [[ -f "manage.py" || -d "django" ]] && echo "django=true" >> $GITHUB_OUTPUT
@@ -171,7 +178,8 @@ jobs:
           [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "docker=true" >> $GITHUB_OUTPUT
           [[ -f "kustomization.yaml" || -d "k8s" || -d "kubernetes" ]] && echo "kubernetes=true" >> $GITHUB_OUTPUT
           [[ -d ".terraform" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
-          ls *.tf >/dev/null 2>&1 && echo "terraform=true" >> $GITHUB_OUTPUT || true
+          files=(*.tf)
+          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
           [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" ]] && echo "docs=true" >> $GITHUB_OUTPUT
           [[ -d "ai" || -d "ml" || -d "models" || -f "requirements-ai.txt" ]] && echo "ai_ml=true" >> $GITHUB_OUTPUT
 

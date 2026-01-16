@@ -65,6 +65,9 @@ jobs:
       - name: Detect project types
         id: detect
         run: |
+          set +e  # Disable exit on error for this script
+          shopt -s nullglob  # Enable nullglob for glob patterns
+          
           echo "has_npm=false" >> $GITHUB_OUTPUT
           echo "has_gem=false" >> $GITHUB_OUTPUT
           echo "has_docker=false" >> $GITHUB_OUTPUT
@@ -74,7 +77,8 @@ jobs:
           # Package managers detection
           [[ -f "package.json" ]] && echo "has_npm=true" >> $GITHUB_OUTPUT
           [[ -f "Gemfile" ]] && echo "has_gem=true" >> $GITHUB_OUTPUT
-          ls *.gemspec >/dev/null 2>&1 && echo "has_gem=true" >> $GITHUB_OUTPUT || true
+          files=(*.gemspec)
+          [[ ${#files[@]} -gt 0 && -f "${files[0]}" ]] && echo "has_gem=true" >> $GITHUB_OUTPUT
           [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "has_docker=true" >> $GITHUB_OUTPUT
           [[ -f "setup.py" || -f "pyproject.toml" ]] && echo "has_pypi=true" >> $GITHUB_OUTPUT
           [[ -f "Cargo.toml" ]] && echo "has_cargo=true" >> $GITHUB_OUTPUT
