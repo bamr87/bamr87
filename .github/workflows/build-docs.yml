@@ -1,0 +1,44 @@
+name: Build and Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'README/docs/**'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0  # Full history for git info plugin
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-docs.txt
+      
+      - name: Build documentation
+        run: |
+          mkdocs build --strict
+      
+      - name: Deploy to GitHub Pages
+        run: |
+          mkdocs gh-deploy --force --clean --verbose
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

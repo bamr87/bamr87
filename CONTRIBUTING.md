@@ -103,6 +103,125 @@ Fixes #42
 -   **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`.
 -   **Scope**: The part of the codebase the commit affects (e.g., `auth`, `api`, `docs`).
 
+## 🏗️ Monorepo Workflow
+
+This repository uses **Git submodules** to manage multiple related projects. Understanding how to work with submodules is essential for contributing.
+
+### Repository Structure
+
+```
+bamr87/
+├── cv/          # Submodule: CV Builder application
+├── README/      # Submodule: Documentation hub
+├── scripts/     # Submodule: Automation scripts
+└── (root)       # Profile README and coordination
+```
+
+For detailed information, see [docs/MONOREPO.md](docs/MONOREPO.md).
+
+### Contributing to Root Repository
+
+For changes to root-level files (README.md, .gitignore, workflows, shared configs):
+
+1. **Fork** the main repository: `https://github.com/bamr87/bamr87`
+2. **Clone** with submodules:
+   ```bash
+   git clone --recurse-submodules https://github.com/YOUR-USERNAME/bamr87.git
+   cd bamr87
+   ```
+3. **Create a branch**:
+   ```bash
+   git checkout -b feature/your-feature
+   ```
+4. **Make changes** to root-level files only
+5. **Commit and push**:
+   ```bash
+   git add .
+   git commit -m "feat: your descriptive message"
+   git push origin feature/your-feature
+   ```
+6. **Open a Pull Request** to the main repository
+
+### Contributing to Submodules
+
+For changes to cv/, README/, or scripts/:
+
+#### Option 1: Direct Submodule Contribution (Recommended)
+
+1. **Fork the submodule repository** (e.g., `https://github.com/bamr87/cv-builder-pro`)
+2. **Clone and work directly** in the submodule repo:
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/cv-builder-pro.git
+   cd cv-builder-pro
+   git checkout -b feature/your-feature
+   # Make changes
+   git commit -m "feat: your feature"
+   git push origin feature/your-feature
+   ```
+3. **Open a PR** to the submodule repository
+4. **After merge**, the parent repository will be updated automatically via CI/CD
+
+#### Option 2: Work Through Parent Repository
+
+1. **Clone parent with submodules**:
+   ```bash
+   git clone --recurse-submodules https://github.com/bamr87/bamr87.git
+   cd bamr87
+   ```
+2. **Navigate to submodule** and create branch:
+   ```bash
+   cd cv
+   git checkout -b feature/your-feature
+   ```
+3. **Make changes and commit** in the submodule:
+   ```bash
+   git add .
+   git commit -m "feat: your feature"
+   git push origin feature/your-feature
+   ```
+4. **Return to parent and update pointer**:
+   ```bash
+   cd ..
+   git add cv
+   git commit -m "chore: update cv submodule with feature"
+   git push
+   ```
+5. **Open PRs** for both the submodule and parent repository
+
+### Submodule Update Process
+
+When you see "Update submodule" PRs:
+
+1. **Review the submodule changes** by clicking the commit hash
+2. **Test the changes** locally:
+   ```bash
+   git checkout pr-branch
+   git submodule update --init --recursive
+   cd cv  # or relevant submodule
+   npm install && npm run dev  # or appropriate commands
+   ```
+3. **Approve and merge** if tests pass
+
+### Testing Across Submodules
+
+Before submitting PRs that affect multiple submodules:
+
+1. **Test each submodule independently**
+2. **Test integration** by running from the root:
+   ```bash
+   ./tools/run-all-tests.sh
+   ```
+3. **Document dependencies** between submodules in your PR description
+
+### Submodule Best Practices
+
+-   ✅ **Always commit submodule changes first**, then update parent
+-   ✅ **Test submodule changes independently** before updating parent
+-   ✅ **Use descriptive commit messages** mentioning the submodule
+-   ✅ **Keep submodules on stable branches** (main/master)
+-   ❌ **Don't make unrelated changes** in multiple submodules in one PR
+-   ❌ **Don't update parent pointer** without merging submodule changes first
+
 ## 💻 Code and Documentation Standards
 
 ### General Standards

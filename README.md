@@ -203,6 +203,77 @@ I believe in continuous learning and sharing knowledge. I document my journey th
 
 ---
 
+## 📁 Repository Structure
+
+This repository is organized as a **monorepo** using Git submodules, containing multiple independent projects:
+
+```
+bamr87/
+├── cv/          # AI-powered CV/Resume Builder
+├── README/      # Documentation Aggregation Hub  
+├── scripts/     # Development & Automation Utilities
+└── docs/        # Monorepo Documentation
+```
+
+### 🎨 CV Builder ([cv/](cv/))
+
+**AI-powered CV/resume builder** with LaTeX templates and multiple export formats.
+
+- **Tech Stack**: React, TypeScript, Vite, Tailwind CSS
+- **Features**: LaTeX/Markdown/PDF export, AI parsing, Firebase auth
+- **Live Demo**: Coming soon
+- [📖 Documentation](cv/README.md)
+
+### 📚 Documentation Hub ([README/](README/))
+
+**Automated documentation aggregation** system that collects and organizes technical documentation from multiple repositories.
+
+- **Tech Stack**: Python, MkDocs, Wiki.js
+- **Features**: AI-powered categorization, multi-format support, search
+- **Live Site**: [bamr87.github.io/bamr87](https://bamr87.github.io/bamr87)
+- [📖 Documentation](README/README.md)
+
+### 🛠️ Automation Scripts ([scripts/](scripts/))
+
+**Collection of powerful CLI utilities** for project initialization, GitHub operations, and development workflows.
+
+- **Tech Stack**: Bash, Python, Shell
+- **Tools**: project-init, forkme, git-init, rename-directory
+- **Features**: Interactive wizards, Docker integration, GitHub CLI
+- [📖 Documentation](scripts/README.md)
+
+### 🚀 Quick Start
+
+Clone with all submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/bamr87/bamr87.git
+cd bamr87
+./tools/setup-dev.sh
+```
+
+Or explore individual projects:
+
+```bash
+# CV Builder
+cd cv && npm install && npm run dev
+
+# Documentation Site  
+mkdocs serve
+
+# Scripts (standalone utilities)
+./scripts/project-init.sh --help
+```
+
+### 📖 Documentation
+
+- **[MONOREPO.md](docs/MONOREPO.md)**: Repository organization and submodule management
+- **[DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: System design and architecture decisions
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
+
+---
+
 ## 🎓 Education
 
 **Bachelor of Science (BS), Finance**  

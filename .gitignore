@@ -8,6 +8,65 @@
 !scripts/*.zsh
 !scripts/*.ps1
 
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build outputs
+site/
+dist/
+build/
+*.egg-info/
+.eggs/
+target/
+out/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+.virtualenv/
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pip-log.txt
+mkdocs-build.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+
 # Cloud and Infrastructure
 .aws/
 .aws-sam/
@@ -16,6 +75,7 @@
 .bicep/
 .gk/
 .terraform.d/
+.terraform/
 
 # Development Tools
 .codex/
@@ -30,6 +90,8 @@
 .gem/
 .local/
 .npm/
+.pnpm-store/
+.yarn/
 
 # Caches and Temporary
 .cache/
@@ -38,6 +100,7 @@
 .matplotlib/
 .Trash/
 .zsh_sessions/
+tmp/
 
 # Configurations
 .aitk/
@@ -72,7 +135,6 @@ Pictures/
 Public/
 github/
 posthog/
-tmp/
 
 # Cloud Drives
 Google Drive/
@@ -80,13 +142,12 @@ OneDrive/
 
 # Environment Files
 .env
+.env.local
+.env.*.local
 .zsh_history
-.github/.DS_Store
 
+# Harmonize
 .harmonize/
 
-# MkDocs
-site/
-.venv/
-mkdocs-build.log
-backups/cv.bak
+# Backup directories
+backups/
