@@ -145,35 +145,35 @@ jobs:
           token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Update NPM dependencies
-        if: needs.detect-project.outputs.has_npm == 'true'
+        if: needs.detect-project.outputs.has_npm == 'true' && hashFiles('.github/actions/maintenance/update-npm-deps/action.yml') != ''
         uses: ./.github/actions/maintenance/update-npm-deps
         with:
           scope: ${{ env.SCOPE }}
           dry-run: ${{ env.DRY_RUN }}
 
       - name: Update Python dependencies
-        if: needs.detect-project.outputs.has_python == 'true'
+        if: needs.detect-project.outputs.has_python == 'true' && hashFiles('.github/actions/maintenance/update-python-deps/action.yml') != ''
         uses: ./.github/actions/maintenance/update-python-deps
         with:
           scope: ${{ env.SCOPE }}
           dry-run: ${{ env.DRY_RUN }}
 
       - name: Update Ruby dependencies
-        if: needs.detect-project.outputs.has_ruby == 'true'
+        if: needs.detect-project.outputs.has_ruby == 'true' && hashFiles('.github/actions/maintenance/update-ruby-deps/action.yml') != ''
         uses: ./.github/actions/maintenance/update-ruby-deps
         with:
           scope: ${{ env.SCOPE }}
           dry-run: ${{ env.DRY_RUN }}
 
       - name: Update Rust dependencies
-        if: needs.detect-project.outputs.has_rust == 'true'
+        if: needs.detect-project.outputs.has_rust == 'true' && hashFiles('.github/actions/maintenance/update-rust-deps/action.yml') != ''
         uses: ./.github/actions/maintenance/update-rust-deps
         with:
           scope: ${{ env.SCOPE }}
           dry-run: ${{ env.DRY_RUN }}
 
       - name: Update Go dependencies
-        if: needs.detect-project.outputs.has_go == 'true'
+        if: needs.detect-project.outputs.has_go == 'true' && hashFiles('.github/actions/maintenance/update-go-deps/action.yml') != ''
         uses: ./.github/actions/maintenance/update-go-deps
         with:
           scope: ${{ env.SCOPE }}
@@ -236,6 +236,7 @@ jobs:
           token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Update documentation
+        if: hashFiles('.github/actions/maintenance/update-docs/action.yml') != ''
         uses: ./.github/actions/maintenance/update-docs
         with:
           scope: ${{ env.SCOPE }}
