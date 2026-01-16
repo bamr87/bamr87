@@ -168,7 +168,8 @@ jobs:
           # Special detection
           [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "docker=true" >> $GITHUB_OUTPUT
           [[ -f "kustomization.yaml" || -d "k8s" || -d "kubernetes" ]] && echo "kubernetes=true" >> $GITHUB_OUTPUT
-          [[ -d ".terraform" || -f "*.tf" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
+          [[ -d ".terraform" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
+          [[ -n "$(compgen -G '*.tf')" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
           [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" ]] && echo "docs=true" >> $GITHUB_OUTPUT
           [[ -d "ai" || -d "ml" || -d "models" || -f "requirements-ai.txt" ]] && echo "ai_ml=true" >> $GITHUB_OUTPUT
 
