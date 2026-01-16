@@ -32,14 +32,28 @@ jobs:
       - name: Update all submodules
         if: ${{ github.event.inputs.submodule == '' }}
         run: |
-          git submodule update --remote --merge
+          # Get list of valid submodules from .gitmodules and update each one
+          if [ -f .gitmodules ]; then
+            grep -E '^\s*path\s*=' .gitmodules | sed 's/.*=\s*//' | while read -r submodule_path; do
+              echo "Updating submodule: $submodule_path"
+              git submodule update --init --remote --merge "$submodule_path" || echo "Warning: Failed to update $submodule_path"
+            done
+          else
+            echo "No .gitmodules file found"
+          fi
           git add .
       
       - name: Update specific submodule
         if: ${{ github.event.inputs.submodule != '' }}
         run: |
-          git submodule update --remote --merge ${{ github.event.inputs.submodule }}
-          git add ${{ github.event.inputs.submodule }}
+          # Check if submodule exists in .gitmodules before updating
+          if grep -q "\[submodule.*\"${{ github.event.inputs.submodule }}\"\]" .gitmodules 2>/dev/null || \
+             grep -q "path = ${{ github.event.inputs.submodule }}" .gitmodules 2>/dev/null; then
+            git submodule update --init --remote --merge ${{ github.event.inputs.submodule }} || echo "Warning: Failed to update submodule"
+            git add ${{ github.event.inputs.submodule }}
+          else
+            echo "Warning: Submodule ${{ github.event.inputs.submodule }} not found in .gitmodules, skipping"
+          fi
       
       - name: Check for changes
         id: check_changes

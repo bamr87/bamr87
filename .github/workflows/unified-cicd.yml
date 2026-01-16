@@ -143,10 +143,11 @@ jobs:
           [[ -f "requirements.txt" || -f "pyproject.toml" || -f "setup.py" || -f "Pipfile" ]] && echo "python=true" >> $GITHUB_OUTPUT
           [[ -f "package.json" || -f "yarn.lock" || -f "pnpm-lock.yaml" ]] && echo "nodejs=true" >> $GITHUB_OUTPUT
           [[ -f "Cargo.toml" || -f "Cargo.lock" ]] && echo "rust=true" >> $GITHUB_OUTPUT
-          [[ -f "Gemfile" || -f "*.gemspec" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
+          [[ -f "Gemfile" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
+          [[ -n "$(compgen -G '*.gemspec')" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
           [[ -f "go.mod" || -f "go.sum" ]] && echo "go=true" >> $GITHUB_OUTPUT
           [[ -f "pom.xml" || -f "build.gradle" || -f "build.gradle.kts" ]] && echo "java=true" >> $GITHUB_OUTPUT
-          [[ -f "*.csproj" || -f "*.fsproj" || -f "*.vbproj" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+          [[ -n "$(compgen -G '*.csproj')" || -n "$(compgen -G '*.fsproj')" || -n "$(compgen -G '*.vbproj')" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
 
           # Framework detection
           [[ -f "manage.py" || -d "django" ]] && echo "django=true" >> $GITHUB_OUTPUT

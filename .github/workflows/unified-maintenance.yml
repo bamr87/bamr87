@@ -85,7 +85,8 @@ jobs:
 
           [[ -f "package.json" ]] && echo "has_npm=true" >> $GITHUB_OUTPUT
           [[ -f "requirements.txt" || -f "pyproject.toml" || -f "setup.py" ]] && echo "has_python=true" >> $GITHUB_OUTPUT
-          [[ -f "Gemfile" || -f "*.gemspec" ]] && echo "has_ruby=true" >> $GITHUB_OUTPUT
+          [[ -f "Gemfile" ]] && echo "has_ruby=true" >> $GITHUB_OUTPUT
+          [[ -n "$(compgen -G '*.gemspec')" ]] && echo "has_ruby=true" >> $GITHUB_OUTPUT
           [[ -f "Cargo.toml" ]] && echo "has_rust=true" >> $GITHUB_OUTPUT
           [[ -f "go.mod" ]] && echo "has_go=true" >> $GITHUB_OUTPUT
           [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "has_docker=true" >> $GITHUB_OUTPUT
