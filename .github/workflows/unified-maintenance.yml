@@ -392,7 +392,7 @@ jobs:
   create-pr:
     name: 📝 Create Maintenance PR
     needs: [detect-project, update-dependencies, security-updates, docs-maintenance, code-quality, cleanup, health-check]
-    if: env.CREATE_PR == 'true' && env.DRY_RUN != 'true'
+    if: ${{ (github.event.inputs.create_pr || 'true') == 'true' && (github.event.inputs.dry_run || 'false') != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

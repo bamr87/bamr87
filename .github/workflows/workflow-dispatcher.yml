@@ -190,8 +190,8 @@ jobs:
               workflow_id: 'unified-cicd.yml',
               ref: '${{ github.ref_name }}',
               inputs: {
-                mode: '${{ needs.analyze-trigger.outputs.trigger_reason == ''pull_request'' && ''full'' || ''full'' }}',
-                force_all: '${{ needs.analyze-trigger.outputs.priority_level == ''critical'' && ''true'' || ''false'' }}'
+                mode: "${{ needs.analyze-trigger.outputs.trigger_reason == 'pull_request' && 'full' || 'full' }}",
+                force_all: "${{ needs.analyze-trigger.outputs.priority_level == 'critical' && 'true' || 'false' }}"
               }
             })
 
@@ -212,8 +212,8 @@ jobs:
               workflow_id: 'unified-release.yml',
               ref: '${{ github.ref_name }}',
               inputs: {
-                release_type: '${{ startsWith(github.ref, ''refs/tags/'') && ''github'' || ''auto'' }}',
-                version: '${{ github.ref_name }}'
+                release_type: "${{ startsWith(github.ref, 'refs/tags/') && 'github' || 'auto' }}",
+                version: "${{ github.ref_name }}"
               }
             })
 
