@@ -88,9 +88,19 @@ if [ -d "README" ]; then
         info "Python version: $PYTHON_VERSION"
         
         if check_command pip3; then
+            info "Creating virtual environment..."
+            if [ ! -d ".venv" ]; then
+                python3 -m venv .venv
+            fi
+            
+            info "Activating virtual environment..."
+            source .venv/bin/activate
+            
             info "Installing Python dependencies..."
-            pip3 install -r requirements.txt --user
+            pip3 install -r requirements.txt
             info "✓ Documentation system dependencies installed"
+            
+            deactivate
         else
             warn "pip3 not found. Skipping README setup."
         fi
@@ -106,12 +116,19 @@ fi
 if [ -f "requirements-docs.txt" ]; then
     info "Setting up MkDocs..."
     
-    if check_command pip3; then
+    if check_command python3 && check_command pip3; then
+        info "Using virtual environment for MkDocs..."
+        if [ ! -d ".venv-docs" ]; then
+            python3 -m venv .venv-docs
+        fi
+        source .venv-docs/bin/activate
         info "Installing MkDocs dependencies..."
-        pip3 install -r requirements-docs.txt --user
-        info "✓ MkDocs dependencies installed"
+        pip3 install -r requirements-docs.txt
+        deactivate
+        info "✓ MkDocs dependencies installed in virtual environment"
+        info "   To use: source .venv-docs/bin/activate && mkdocs serve"
     else
-        warn "pip3 not found. Skipping MkDocs setup."
+        warn "Python 3 or pip3 not found. Skipping MkDocs setup."
     fi
 fi
 
