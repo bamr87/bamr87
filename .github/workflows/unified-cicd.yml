@@ -144,10 +144,12 @@ jobs:
           [[ -f "package.json" || -f "yarn.lock" || -f "pnpm-lock.yaml" ]] && echo "nodejs=true" >> $GITHUB_OUTPUT
           [[ -f "Cargo.toml" || -f "Cargo.lock" ]] && echo "rust=true" >> $GITHUB_OUTPUT
           [[ -f "Gemfile" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
-          [[ -n "$(compgen -G '*.gemspec')" ]] && echo "ruby=true" >> $GITHUB_OUTPUT
+          ls *.gemspec >/dev/null 2>&1 && echo "ruby=true" >> $GITHUB_OUTPUT || true
           [[ -f "go.mod" || -f "go.sum" ]] && echo "go=true" >> $GITHUB_OUTPUT
           [[ -f "pom.xml" || -f "build.gradle" || -f "build.gradle.kts" ]] && echo "java=true" >> $GITHUB_OUTPUT
-          [[ -n "$(compgen -G '*.csproj')" || -n "$(compgen -G '*.fsproj')" || -n "$(compgen -G '*.vbproj')" ]] && echo "dotnet=true" >> $GITHUB_OUTPUT
+          ls *.csproj >/dev/null 2>&1 && echo "dotnet=true" >> $GITHUB_OUTPUT || true
+          ls *.fsproj >/dev/null 2>&1 && echo "dotnet=true" >> $GITHUB_OUTPUT || true
+          ls *.vbproj >/dev/null 2>&1 && echo "dotnet=true" >> $GITHUB_OUTPUT || true
 
           # Framework detection
           [[ -f "manage.py" || -d "django" ]] && echo "django=true" >> $GITHUB_OUTPUT
@@ -169,7 +171,7 @@ jobs:
           [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "docker=true" >> $GITHUB_OUTPUT
           [[ -f "kustomization.yaml" || -d "k8s" || -d "kubernetes" ]] && echo "kubernetes=true" >> $GITHUB_OUTPUT
           [[ -d ".terraform" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
-          [[ -n "$(compgen -G '*.tf')" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
+          ls *.tf >/dev/null 2>&1 && echo "terraform=true" >> $GITHUB_OUTPUT || true
           [[ -d "docs" || -f "README.md" || -f "mkdocs.yml" ]] && echo "docs=true" >> $GITHUB_OUTPUT
           [[ -d "ai" || -d "ml" || -d "models" || -f "requirements-ai.txt" ]] && echo "ai_ml=true" >> $GITHUB_OUTPUT
 
