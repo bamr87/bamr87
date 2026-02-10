@@ -134,9 +134,36 @@ This directory contains **comprehensive AI agent prompts** designed to work with
 /release I need to prepare a minor release with the recent features
 ```
 
+#### 6. `/commit` - Commit & Push Assistant
+
+**File**: [`commit.prompt.md`](./commit.prompt.md)
+
+**Purpose**: Guides staging, committing, and pushing changes to GitHub with strict safety practices
+
+**Use When**:
+- Committing and pushing code changes
+- Need proper conventional commit messages
+- Want pre-push validation (tests, lint, secrets scan)
+- Working with protected branches
+- Squashing, amending, or cherry-picking commits
+
+**Key Features**:
+- 7-phase commit workflow (pre-commit → secret scan → staging → message → validation → push → post-push)
+- Mandatory secret and credential scanning before every commit
+- Conventional commit message enforcement with type reference table
+- Branch-specific push protocols (main, develop, feature)
+- Atomic commit guidance (one logical change per commit)
+- Monorepo, submodule, and container-aware recipes
+- Quick reference checklist
+
+**Typical Usage**:
+```
+/commit I've finished implementing the new auth feature and need to push my changes
+```
+
 ### System Design Prompts
 
-#### 6. `/architect` - Architecture Assistant
+#### 8. `/architect` - Architecture Assistant
 
 **File**: [`architect.prompt.md`](./architect.prompt.md)
 
@@ -165,7 +192,7 @@ This directory contains **comprehensive AI agent prompts** designed to work with
 
 ### Code Quality Prompts
 
-#### 7. `/refactor` - Refactoring Assistant
+#### 9. `/refactor` - Refactoring Assistant
 
 **File**: [`refactor.prompt.md`](./refactor.prompt.md)
 
@@ -193,7 +220,7 @@ This directory contains **comprehensive AI agent prompts** designed to work with
 
 ### Process Improvement Prompts
 
-#### 8. `/kaizen` - Continuous Improvement Assistant
+#### 10. `/kaizen` - Continuous Improvement Assistant
 
 **File**: [`kaizen.prompt.md`](./kaizen.prompt.md)
 
@@ -221,7 +248,7 @@ This directory contains **comprehensive AI agent prompts** designed to work with
 
 ### Repository Analysis Prompts
 
-#### 9. `/stackattack` - Technology Stack Analyzer
+#### 11. `/stackattack` - Technology Stack Analyzer
 
 **File**: [`stackattack.prompt.md`](./stackattack.prompt.md)
 
@@ -247,7 +274,7 @@ This directory contains **comprehensive AI agent prompts** designed to work with
 /stackattack Analyze the technology stack of this repository
 ```
 
-#### 10. `/forkme` - Repository Forking and Setup
+#### 12. `/forkme` - Repository Forking and Setup
 
 **File**: [`forkme.prompt.md`](./forkme.prompt.md)
 
@@ -275,7 +302,7 @@ This directory contains **comprehensive AI agent prompts** designed to work with
 
 ### Creative Prompts
 
-#### 11. `/amr` - AMR Machine (Acronyms Made Recursively)
+#### 13. `/amr` - AMR Machine (Acronyms Made Recursively)
 
 **File**: [`amr.prompt.md`](./amr.prompt.md)
 
@@ -321,6 +348,7 @@ These prompts are designed to work seamlessly with the instruction files:
     ├── document.prompt.md           # Generates docs using doc templates
     ├── review.prompt.md             # Reviews against all standards
     ├── release.prompt.md            # Manages releases per version control
+    ├── commit.prompt.md             # Commit & push with safety checks
     ├── architect.prompt.md          # Designs systems using patterns
     ├── refactor.prompt.md           # Improves code applying principles
     ├── kaizen.prompt.md             # Optimizes processes (PDCA)
@@ -369,7 +397,8 @@ Prompts work well in sequence:
 3. /test         → Create comprehensive test suite
 4. /review       → Review code for quality and security
 5. /document     → Generate user and API documentation
-6. /release      → Prepare and publish release
+6. /commit       → Stage, commit, and push with safety checks
+7. /release      → Prepare and publish release
 ```
 
 **Code Quality Flow**:
