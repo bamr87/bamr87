@@ -1,0 +1,32 @@
+# ============================================================================
+# bamr87 Monorepo — Brewfile (macOS)
+# ============================================================================
+#
+# Auto-generated from tools/devtools.conf for native `brew bundle` usage.
+# You can also use this directly:
+#   brew bundle --file=tools/Brewfile
+#
+# To check what's missing:
+#   brew bundle check --file=tools/Brewfile
+#
+# ============================================================================
+
+# --- Core ---
+brew "git"
+brew "jq"
+brew "curl"
+
+# --- Languages ---
+brew "node"
+brew "python@3"
+
+# --- Containers ---
+brew "docker"
+brew "docker-compose"
+
+# --- Developer Tools ---
+brew "gh"
+brew "shellcheck"
+
+# --- Editors (casks) ---
+cask "visual-studio-code"

@@ -1,0 +1,114 @@
+// Dev Container configuration for bamr87 monorepo
+// See: https://containers.dev/implementors/json_reference/
+{
+    "name": "bamr87 Monorepo",
+    "dockerComposeFile": "../docker-compose.yml",
+    "service": "devenv",
+    "workspaceFolder": "/workspace",
+
+    // Features to install into the dev container
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {
+            "version": "latest",
+            "ppa": true
+        },
+        "ghcr.io/devcontainers/features/github-cli:1": {
+            "installDirectlyFromGitHubRelease": true,
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "lts",
+            "nodeGypDependencies": true
+        },
+        "ghcr.io/devcontainers/features/python:1": {
+            "version": "3.12",
+            "installTools": true
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "version": "latest",
+            "moby": true,
+            "dockerDashComposeVersion": "v2"
+        },
+        "ghcr.io/devcontainers-extra/features/bash-command:1": {
+            "command": "apt-get update && apt-get install -y shellcheck jq"
+        }
+    },
+
+    // VS Code customizations
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "GitHub.copilot",
+                "GitHub.copilot-chat",
+                "GitHub.vscode-github-actions",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "timonwong.shellcheck",
+                "foxundermoon.shell-format",
+                "DavidAnson.vscode-markdownlint",
+                "eamodio.gitlens",
+                "ms-azuretools.vscode-docker",
+                "bradlc.vscode-tailwindcss",
+                "yzhang.markdown-all-in-one",
+                "streetsidesoftware.code-spell-checker"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "editor.formatOnSave": true,
+                "editor.codeActionsOnSave": {
+                    "source.fixAll.eslint": "explicit"
+                },
+                "files.trimTrailingWhitespace": true,
+                "files.insertFinalNewline": true,
+                "[python]": {
+                    "editor.defaultFormatter": "ms-python.black-formatter"
+                },
+                "[javascript][typescript][typescriptreact]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode"
+                },
+                "[markdown]": {
+                    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+                },
+                "shellcheck.enable": true,
+                "shellcheck.run": "onSave"
+            }
+        }
+    },
+
+    // Ports to forward from the container
+    "forwardPorts": [
+        3000,  // Wiki.js
+        4000,  // Jekyll
+        5000,  // CV Builder (Vite)
+        5173,  // Vite HMR
+        8000,  // MkDocs / Django
+        5432,  // PostgreSQL
+        6379   // Redis
+    ],
+
+    "portsAttributes": {
+        "3000": { "label": "Wiki.js",      "onAutoForward": "notify" },
+        "4000": { "label": "Jekyll",       "onAutoForward": "notify" },
+        "5000": { "label": "CV Builder",   "onAutoForward": "notify" },
+        "5173": { "label": "Vite HMR",     "onAutoForward": "silent" },
+        "8000": { "label": "MkDocs",       "onAutoForward": "notify" },
+        "5432": { "label": "PostgreSQL",   "onAutoForward": "silent" },
+        "6379": { "label": "Redis",        "onAutoForward": "silent" }
+    },
+
+    // Lifecycle scripts
+    "postCreateCommand": "bash tools/setup.sh --skip-deps --local",
+    "postStartCommand": "git submodule update --init --recursive",
+
+    // Environment variables
+    "containerEnv": {
+        "BAMR87_DEV_MODE": "local",
+        "EDITOR": "code --wait"
+    },
+
+    // Run as non-root user
+    "remoteUser": "vscode"
+}

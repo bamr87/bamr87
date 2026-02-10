@@ -1,0 +1,174 @@
+# ============================================================================
+# bamr87 Monorepo - Docker Compose Development Environment
+# ============================================================================
+#
+# Usage:
+#   docker compose up -d                     # Start all services
+#   docker compose up -d devenv              # Start dev environment only
+#   docker compose up -d wiki db             # Start wiki stack only
+#   docker compose --profile admin up -d     # Include admin tools (pgAdmin)
+#   docker compose exec devenv bash          # Open shell in dev container
+#   docker compose down                      # Stop all services
+#   docker compose down -v                   # Stop and remove volumes
+#
+# Environment:
+#   Copy .env.example to .env and configure before first run.
+#
+
+services:
+  # --------------------------------------------------------------------------
+  # Development Environment Container
+  # Primary workspace for coding, building, and testing
+  # --------------------------------------------------------------------------
+  devenv:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    container_name: bamr87-devenv
+    volumes:
+      - .:/workspace:cached
+      - node-modules:/workspace/cv/node_modules
+      - venv-docs:/workspace/.venv-docs
+      - venv-readme:/workspace/README/.venv
+    working_dir: /workspace
+    ports:
+      - "${CV_PORT:-5000}:5000"          # CV Builder (Vite)
+      - "${VITE_HMR_PORT:-5173}:5173"    # Vite HMR
+      - "${MKDOCS_PORT:-8000}:8000"      # MkDocs
+      - "${JEKYLL_PORT:-4000}:4000"      # Jekyll
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PYTHONDONTWRITEBYTECODE=1
+    stdin_open: true
+    tty: true
+    networks:
+      - dev-network
+    restart: unless-stopped
+    command: sleep infinity
+
+  # --------------------------------------------------------------------------
+  # Wiki.js - Knowledge base and documentation wiki
+  # --------------------------------------------------------------------------
+  wiki:
+    image: requarks/wiki:2
+    container_name: bamr87-wiki
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${WIKI_DB_USER:-wikijs}
+      DB_PASS: ${WIKI_DB_PASS:-wikijsrocks}
+      DB_NAME: ${WIKI_DB_NAME:-wiki}
+      WIKI_ADMIN_EMAIL: ${WIKI_ADMIN_EMAIL:-admin@example.com}
+      WIKI_SITE_URL: ${WIKI_SITE_URL:-http://localhost:3000}
+    ports:
+      - "${WIKI_PORT:-3000}:3000"
+    volumes:
+      - wiki-data:/wiki/data
+      - wiki-repo:/wiki/repo
+      - ./README/docs:/wiki/content:ro
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL - Database for Wiki.js and other services
+  # --------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: bamr87-db
+    environment:
+      POSTGRES_DB: ${WIKI_DB_NAME:-wiki}
+      POSTGRES_USER: ${WIKI_DB_USER:-wikijs}
+      POSTGRES_PASSWORD: ${WIKI_DB_PASS:-wikijsrocks}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WIKI_DB_USER:-wikijs}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Redis - Caching layer (optional, for future use)
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: bamr87-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - full
+
+  # --------------------------------------------------------------------------
+  # pgAdmin - Database management UI (admin profile only)
+  # --------------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: bamr87-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - dev-network
+    restart: unless-stopped
+    profiles:
+      - admin
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  node-modules:
+    driver: local
+  venv-docs:
+    driver: local
+  venv-readme:
+    driver: local
+  wiki-data:
+    driver: local
+  wiki-repo:
+    driver: local
+  db-data:
+    driver: local
+  redis-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  dev-network:
+    driver: bridge
