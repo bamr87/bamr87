@@ -3,6 +3,12 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 
 source ~/.env
 
+# bamr87 monorepo development environment
+# Loads PATH, aliases, and variables from tools/devtools.conf [env] section
+if [[ -f ~/bamr87/tools/devtools-env.sh ]]; then
+    source ~/bamr87/tools/devtools-env.sh
+fi
+
 # Or use the following to set the environment variables
 export GITHOME=~/github
 export GHUSER=bamr87

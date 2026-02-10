@@ -51,6 +51,12 @@ alias dprunea='docker system prune -a -f'        # Remove all unused data
 alias dvprune='docker volume prune -f'           # Remove unused volumes
 alias dnprune='docker network prune -f'          # Remove unused networks
 
+# Git Submodule Aliases - Added on 2026-02-10
+alias gsub='git submodule update --init --recursive'  # Initialize and update all submodules
+alias gsubu='git submodule update --remote --merge'   # Update submodules to latest remote
+alias gsubp='git submodule foreach git pull origin main'  # Pull latest for all submodules
+alias gsubc='git submodule status'                # Check submodule status
+
 
 # Created by `pipx` on 2025-10-29 03:00:38
 export PATH="$PATH:/Users/bamr87/.local/bin"
