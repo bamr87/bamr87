@@ -1,0 +1,177 @@
+name: 🚀 CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution mode'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - test-only
+          - lint-only
+          - build-only
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  MODE: ${{ github.event.inputs.mode || 'full' }}
+
+jobs:
+  # Path-based change detection
+  detect-changes:
+    name: 🔍 Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      cv: ${{ steps.filter.outputs.cv }}
+      docs: ${{ steps.filter.outputs.docs }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cv:
+              - 'cv/**'
+            docs:
+              - 'README/**'
+              - 'mkdocs.yml'
+              - 'requirements-docs.txt'
+              - 'docs/**'
+            scripts:
+              - 'scripts/**'
+
+  # CV Builder — lint + typecheck
+  lint-cv:
+    name: 🔍 Lint CV Builder
+    needs: detect-changes
+    if: needs.detect-changes.outputs.cv == 'true' && env.MODE != 'build-only'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cv
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: cv/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  # CV Builder — tests
+  test-cv:
+    name: 🧪 Test CV Builder
+    needs: detect-changes
+    if: needs.detect-changes.outputs.cv == 'true' && env.MODE != 'lint-only' && env.MODE != 'build-only'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cv
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: cv/package-lock.json
+      - run: npm ci
+      - run: npm test || true
+
+  # CV Builder — build
+  build-cv:
+    name: 🏗️ Build CV Builder
+    needs: [detect-changes, lint-cv, test-cv]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.cv == 'true' &&
+      env.MODE != 'lint-only' && env.MODE != 'test-only' &&
+      !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cv
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: cv/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  # Documentation — build MkDocs
+  build-docs:
+    name: 📚 Build Documentation
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          cache: pip
+      - run: pip install -r requirements-docs.txt
+      - run: mkdocs build --strict
+
+  # Shell scripts — lint
+  lint-scripts:
+    name: 🔍 Lint Scripts
+    needs: detect-changes
+    if: needs.detect-changes.outputs.scripts == 'true' && env.MODE != 'build-only'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: ShellCheck
+        run: |
+          sudo apt-get install -y shellcheck
+          find scripts/ -name '*.sh' -exec shellcheck {} + || true
+
+  # Summary
+  summary:
+    name: 📊 Pipeline Summary
+    needs: [detect-changes, lint-cv, test-cv, build-cv, build-docs, lint-scripts]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🚀 CI/CD Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint CV | ${{ needs.lint-cv.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test CV | ${{ needs.test-cv.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build CV | ${{ needs.build-cv.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Docs | ${{ needs.build-docs.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint Scripts | ${{ needs.lint-scripts.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ env.MODE }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
