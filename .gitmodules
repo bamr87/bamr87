@@ -10,3 +10,8 @@
 	path = cv
 	url = https://github.com/bamr87/cv-builder-pro.git
 	branch = main
+[submodule "skills"]
+	path = skills
+	url = https://github.com/microsoft/skills.git
+	branch = main
+	update = merge

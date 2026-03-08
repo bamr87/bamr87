@@ -114,6 +114,7 @@ bamr87/
 ├── cv/          # Submodule: CV Builder application
 ├── README/      # Submodule: Documentation hub
 ├── scripts/     # Submodule: Automation scripts
+├── skills/      # Submodule: Microsoft Agent Skills (microsoft/skills)
 └── (root)       # Profile README and coordination
 ```
 
@@ -221,6 +222,18 @@ Before submitting PRs that affect multiple submodules:
 -   ✅ **Keep submodules on stable branches** (main/master)
 -   ❌ **Don't make unrelated changes** in multiple submodules in one PR
 -   ❌ **Don't update parent pointer** without merging submodule changes first
+
+## 🧠 Skills & AI Agent Resources
+
+This repository integrates [microsoft/skills](https://github.com/microsoft/skills) as a submodule (`skills/`), providing 130+ domain-specific skills for AI coding agents. The following resources from that project have been adapted for use in this repo:
+
+-   **Code Review Checklist**: `.github/prompts/skills-code-review.prompt.md` — Comprehensive code review checklist covering frontend, backend, security, and performance.
+-   **Add Endpoint Prompt**: `.github/prompts/add-endpoint.prompt.md` — Step-by-step template for adding REST API endpoints with Pydantic models.
+-   **Pattern Enforcement**: `.github/docs/pattern-enforcement.md` — How skills enforce consistent coding patterns across teams.
+-   **Workflow Patterns**: `.github/docs/workflow-patterns.md` — Composing skills and prompts for multi-step workflows.
+-   **Agent Principles**: `AGENTS.md` — Core principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) adapted for this monorepo.
+
+These complement the existing review and development prompts in `.github/prompts/` and the agent definitions in `.github/agents/`.
 
 ## 💻 Code and Documentation Standards
 
