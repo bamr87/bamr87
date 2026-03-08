@@ -2,7 +2,7 @@
 #
 # File: setup.sh
 # Description: Cross-platform development environment setup entrypoint for bamr87 monorepo
-# Version: 1.0.0
+# Version: 2.2.0
 # Author: bamr87
 # Created: 2026-02-10
 # Last Modified: 2026-02-10
@@ -22,8 +22,16 @@
 #   COMPONENTS (optional, defaults to all):
 #     cv                  CV Builder (Node.js/React)
 #     docs                Documentation system (Python/MkDocs)
-#     scripts             Shell scripts and utilities
+#     scripts             Shell scripts and utilities (forkme, stashme, etc.)
 #     wiki                Wiki.js (Docker only)
+#
+#   SCRIPT TOOLS INSTALLED:
+#     forkme              GitHub repo forking/cloning utility (interactive batch mode)
+#     stashme             Multi-repo cloud stash (backup uncommitted changes)
+#     git-init            New repo initialization wizard
+#     project-wizard      Multi-stack project scaffolding wizard
+#     rename-dir          Safe directory renaming with backup
+#     github-setup        .github folder structure builder
 #
 # Examples:
 #   ./tools/setup.sh                        # Full setup with auto-detected platform
@@ -61,7 +69,9 @@ set -euo pipefail
 readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-readonly SCRIPT_VERSION="2.1.0"
+readonly SCRIPT_VERSION="2.2.0"
+readonly SCRIPTS_DIR="${PROJECT_ROOT}/scripts"
+readonly LOCAL_BIN="${HOME}/.local/bin"
 readonly DEVTOOLS_CONF="${SCRIPT_DIR}/devtools.conf"
 readonly BREWFILE="${SCRIPT_DIR}/Brewfile"
 
@@ -332,7 +342,7 @@ run_interactive() {
     multi_select_prompt "Which components do you want to set up?" \
         "cv:CV Builder (Node.js/React/Vite)" \
         "docs:Documentation system (Python/MkDocs)" \
-        "scripts:Shell script utilities" \
+        "scripts:Script toolkit (forkme, stashme, git-init, project-wizard, etc.)" \
         "wiki:Wiki.js (Docker compose service)"
     COMPONENTS=("${MULTI_CHOICES[@]}")
     log_debug "Selected components: ${COMPONENTS[*]}"
@@ -876,7 +886,7 @@ setup_docs() {
 
 setup_scripts() {
     if ! should_install "scripts"; then return 0; fi
-    if [[ ! -d "${PROJECT_ROOT}/scripts" ]]; then
+    if [[ ! -d "${SCRIPTS_DIR}" ]]; then
         log_warn "scripts/ directory not found; skipping"
         return 0
     fi
@@ -896,7 +906,128 @@ setup_scripts() {
         log_warn "ShellCheck not installed; consider installing for script linting"
     fi
 
+    # Install script CLI tools as symlinks in ~/.local/bin
+    setup_script_cli_tools
+
     log_info "Scripts ready."
+}
+
+#######################################
+# Install script CLI tools as commands in ~/.local/bin
+# Creates symlinks so scripts can be invoked by name from anywhere.
+# Globals:
+#   SCRIPTS_DIR, LOCAL_BIN, DRY_RUN
+# Arguments:
+#   None
+# Returns:
+#   0 on success
+#######################################
+setup_script_cli_tools() {
+    log_step "Installing script CLI tools..."
+
+    # Ensure ~/.local/bin exists
+    run_cmd mkdir -p "${LOCAL_BIN}"
+
+    # Tool definitions: "command_name:relative_script_path" (bash 3.2 compatible)
+    local tool_entries=(
+        "forkme:forkme.sh"
+        "stashme:STASHME/stashme.sh"
+        "git-init:git_init.sh"
+        "project-wizard:project-init.sh"
+        "rename-dir:rename-directory.sh"
+        "github-setup:.github.sh"
+        "create-package:create_package.sh"
+    )
+
+    local installed=0
+    local skipped=0
+
+    for entry in "${tool_entries[@]}"; do
+        local cmd_name="${entry%%:*}"
+        local rel_path="${entry#*:}"
+        local script_path="${SCRIPTS_DIR}/${rel_path}"
+        local link_path="${LOCAL_BIN}/${cmd_name}"
+
+        if [[ ! -f "$script_path" ]]; then
+            log_debug "Script not found, skipping: ${rel_path}"
+            ((skipped++)) || true
+            continue
+        fi
+
+        # Ensure executable
+        chmod +x "$script_path" 2>/dev/null || true
+
+        if [[ -L "$link_path" ]]; then
+            local existing_target
+            existing_target=$(readlink "$link_path" 2>/dev/null || echo "")
+            if [[ "$existing_target" == "$script_path" ]]; then
+                log_debug "Symlink already correct: ${cmd_name} -> ${script_path}"
+                ((installed++)) || true
+                continue
+            fi
+            # Update stale symlink
+            log_info "Updating symlink: ${cmd_name}"
+            run_cmd ln -sf "$script_path" "$link_path"
+        elif [[ -e "$link_path" ]]; then
+            log_warn "${link_path} exists but is not a symlink; skipping (remove manually to fix)"
+            ((skipped++)) || true
+            continue
+        else
+            log_info "Creating symlink: ${cmd_name} -> ${script_path}"
+            run_cmd ln -sf "$script_path" "$link_path"
+        fi
+        ((installed++)) || true
+    done
+
+    log_info "Installed ${installed} CLI tools, skipped ${skipped}"
+
+    # Ensure ~/.local/bin is on PATH
+    ensure_local_bin_on_path
+}
+
+#######################################
+# Ensure ~/.local/bin is on the user's PATH.
+# Adds it to shell RC file if missing.
+# Globals:
+#   LOCAL_BIN, DRY_RUN
+# Arguments:
+#   None
+#######################################
+ensure_local_bin_on_path() {
+    # Already on PATH?
+    if echo "$PATH" | tr ':' '\n' | grep -qx "${LOCAL_BIN}"; then
+        log_debug "${LOCAL_BIN} already on PATH"
+        return 0
+    fi
+
+    log_info "Adding ${LOCAL_BIN} to PATH..."
+
+    local shell_rc=""
+    if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$(basename "${SHELL:-}")" == "zsh" ]]; then
+        shell_rc="${HOME}/.zshrc"
+    elif [[ -n "${BASH_VERSION:-}" ]] || [[ "$(basename "${SHELL:-}")" == "bash" ]]; then
+        shell_rc="${HOME}/.bashrc"
+    fi
+
+    if [[ -n "$shell_rc" ]]; then
+        if ! grep -q '# bamr87 script tools' "$shell_rc" 2>/dev/null; then
+            log_info "Appending PATH entry to ${shell_rc}"
+            if [[ "$DRY_RUN" != "true" ]]; then
+                cat >> "$shell_rc" <<'PATHEOF'
+
+# bamr87 script tools
+export PATH="$HOME/.local/bin:$PATH"
+PATHEOF
+            else
+                log_info "[DRY RUN] Would append PATH entry to ${shell_rc}"
+            fi
+            log_warn "Run 'source ${shell_rc}' or open a new terminal to use CLI tools."
+        else
+            log_debug "PATH entry already in ${shell_rc}"
+        fi
+    else
+        log_warn "Could not detect shell RC file. Add ${LOCAL_BIN} to your PATH manually."
+    fi
 }
 
 setup_precommit() {
@@ -972,16 +1103,46 @@ print_summary() {
         || echo -e "  ${YELLOW}○${NC} Pre-commit (not installed)"
     echo ""
 
+    # Script CLI tools status
+    echo -e "${BOLD}Script CLI Tools:${NC}"
+    local cli_tools=(forkme stashme git-init project-wizard rename-dir github-setup create-package)
+    local cli_descriptions=(
+        "GitHub repo forking/cloning (batch interactive mode)"
+        "Multi-repo cloud stash (backup uncommitted changes)"
+        "New repository initialization wizard"
+        "Multi-stack project scaffolding wizard"
+        "Safe directory renaming with backup"
+        ".github folder structure builder"
+        "Python package bootstrapper"
+    )
+    for i in "${!cli_tools[@]}"; do
+        local tool="${cli_tools[$i]}"
+        local desc="${cli_descriptions[$i]}"
+        if [[ -L "${LOCAL_BIN}/${tool}" ]] && [[ -x "${LOCAL_BIN}/${tool}" ]]; then
+            echo -e "  ${GREEN}✓${NC} ${tool}  — ${desc}"
+        else
+            echo -e "  ${YELLOW}○${NC} ${tool}  — ${desc} (not linked)"
+        fi
+    done
+    echo ""
+
     echo -e "${BOLD}Quick Start:${NC}"
     if [[ "$DEV_MODE" == "docker" || "$DEV_MODE" == "all" ]]; then
-        echo "  Docker:     docker compose up -d"
-        echo "  Dev Shell:  docker compose exec app bash"
+        echo "  Docker:       docker compose up -d"
+        echo "  Dev Shell:    docker compose exec app bash"
     fi
     if [[ "$DEV_MODE" == "local" || "$DEV_MODE" == "all" ]]; then
-        echo "  CV Builder: cd cv && npm run dev"
-        echo "  MkDocs:     source .venv-docs/bin/activate && mkdocs serve"
-        echo "  Scripts:    cd scripts && ./<script>.sh --help"
+        echo "  CV Builder:   cd cv && npm run dev"
+        echo "  MkDocs:       source .venv-docs/bin/activate && mkdocs serve"
     fi
+    echo ""
+    echo -e "${BOLD}Script Tools (run from anywhere after setup):${NC}"
+    echo "  forkme -i --user <github-user>    Clone/fork repos interactively"
+    echo "  stashme ~/github                  Backup uncommitted changes to cloud"
+    echo "  git-init                          Initialize a new GitHub repository"
+    echo "  project-wizard                    Scaffold a new project"
+    echo "  rename-dir <old> <new>            Safely rename a directory"
+    echo "  github-setup <project-type>       Set up .github structure"
     echo ""
     echo -e "  Full docs:  ${CYAN}docs/DEVELOPMENT.md${NC}"
     echo ""
