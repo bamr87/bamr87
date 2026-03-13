@@ -45,14 +45,19 @@ jobs:
         with:
           filters: |
             cv:
+              - 'cv'
               - 'cv/**'
             docs:
+              - 'README'
               - 'README/**'
+              - '.gitmodules'
               - 'mkdocs.yml'
               - 'requirements-docs.txt'
               - 'docs/**'
             scripts:
+              - 'scripts'
               - 'scripts/**'
+              - '.gitmodules'
 
   # CV Builder — lint + typecheck
   lint-cv:
