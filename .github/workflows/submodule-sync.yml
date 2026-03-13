@@ -1,0 +1,89 @@
+name: 🔄 Submodule Sync
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Daily at 3 AM UTC
+  workflow_dispatch:
+    inputs:
+      submodule:
+        description: 'Submodule path to update (leave empty for all)'
+        required: false
+        type: string
+      base_branch:
+        description: 'Base branch for the PR'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update submodules
+        id: update
+        run: |
+          set -e
+          target="${{ github.event.inputs.submodule }}"
+
+          if [ -n "$target" ]; then
+            echo "Updating submodule: $target"
+            if grep -q "path = $target" .gitmodules 2>/dev/null; then
+              git submodule update --init --remote "$target" || echo "::warning::Failed to update $target"
+            else
+              echo "::error::Submodule '$target' not found in .gitmodules"
+              exit 1
+            fi
+          else
+            echo "Updating all submodules"
+            if [ -f .gitmodules ]; then
+              grep -E '^\s*path\s*=' .gitmodules | sed 's/.*=\s*//' | while read -r path; do
+                echo "Updating: $path"
+                git submodule update --init --remote "$path" || echo "::warning::Failed to update $path"
+              done
+            fi
+          fi
+
+          git add .
+          if git diff --cached --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "### Updated submodules" >> $GITHUB_STEP_SUMMARY
+            git diff --cached --name-only >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Create Pull Request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore(submodules): sync ${{ github.event.inputs.submodule || ''all'' }}'
+          title: 'chore(submodules): sync ${{ github.event.inputs.submodule || ''all'' }}'
+          body: |
+            Automated submodule pointer update.
+
+            **Updated:** ${{ github.event.inputs.submodule || 'all submodules' }}
+            **Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          branch: 'chore/submodule-sync-${{ github.run_id }}'
+          base: ${{ github.event.inputs.base_branch || 'main' }}
+          labels: automation, submodule, dependencies
+          delete-branch: true
+
+      - name: No changes
+        if: steps.update.outputs.changed == 'false'
+        run: echo "All submodules are up to date."

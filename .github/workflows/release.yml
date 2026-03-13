@@ -1,0 +1,69 @@
+name: 📦 Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 📦 Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME}"
+          if [[ "$version" == refs/tags/* ]]; then
+            version="${version#refs/tags/}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "📦 Releasing version: $version"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          last_tag=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          {
+            if [[ -n "$last_tag" ]]; then
+              echo "## Changes since $last_tag"
+              echo ""
+              git log "${last_tag}..HEAD" --pretty=format:"- %s (%h)" --no-merges
+            else
+              echo "## Initial Release"
+              echo ""
+              echo "First release of this project."
+            fi
+          } > changelog.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: changelog.md
+          draft: ${{ github.event.inputs.draft || false }}
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

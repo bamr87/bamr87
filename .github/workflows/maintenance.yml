@@ -1,0 +1,130 @@
+name: 🔧 Maintenance
+
+on:
+  schedule:
+    - cron: '0 2 * * 1' # Weekly on Monday at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Maintenance task'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - security
+          - health-check
+          - cleanup
+      dry_run:
+        description: 'Dry run (no changes)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  TASK: ${{ github.event.inputs.task || 'all' }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+
+jobs:
+  # Security audits for NPM and Python dependencies
+  security-audit:
+    name: 🔒 Security Audit
+    if: contains(fromJSON('["all", "security"]'), github.event.inputs.task || 'all')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Audit NPM (CV Builder)
+        working-directory: cv
+        run: npm audit --audit-level moderate || true
+
+      - name: Audit Python dependencies
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements-docs.txt || true
+
+  # Repository health check
+  health-check:
+    name: 🏥 Health Check
+    if: contains(fromJSON('["all", "health-check"]'), github.event.inputs.task || 'all')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Repository health
+        run: |
+          echo "## 🏥 Repository Health Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check essential files
+          for file in README.md LICENSE .gitignore .gitmodules docker-compose.yml mkdocs.yml; do
+            if [[ -f "$file" ]]; then
+              echo "✅ $file" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ Missing $file" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          # Submodule status
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Submodules" >> $GITHUB_STEP_SUMMARY
+          git submodule status | while read -r line; do
+            echo "- \`$line\`" >> $GITHUB_STEP_SUMMARY
+          done
+
+          # Workflow count
+          wf_count=$(find .github/workflows -name '*.yml' 2>/dev/null | wc -l | tr -d ' ')
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Workflows: $wf_count files" >> $GITHUB_STEP_SUMMARY
+
+  # Report stale branches
+  cleanup:
+    name: 🧹 Cleanup
+    if: contains(fromJSON('["all", "cleanup"]'), github.event.inputs.task || 'all')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Report stale branches
+        run: |
+          echo "## 🧹 Stale Branches" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          found=false
+          for branch in $(git branch -r --merged origin/main | grep -v "origin/main\|origin/master\|origin/HEAD"); do
+            echo "- $branch (merged)" >> $GITHUB_STEP_SUMMARY
+            found=true
+          done
+          if [[ "$found" == "false" ]]; then
+            echo "No stale branches found." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Summary
+  summary:
+    name: 📊 Maintenance Summary
+    needs: [security-audit, health-check, cleanup]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🔧 Maintenance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Task | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Audit | ${{ needs.security-audit.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Health Check | ${{ needs.health-check.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cleanup | ${{ needs.cleanup.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Task:** ${{ env.TASK }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry Run:** ${{ env.DRY_RUN }}" >> $GITHUB_STEP_SUMMARY
