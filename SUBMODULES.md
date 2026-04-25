@@ -9,36 +9,41 @@ This repository uses the following submodules:
 
 If you clone this repository, fetch the submodules as well:
 
-```
+```bash
 git clone --recurse-submodules <parent-repo-url>
 ```
 
 Or, if you already cloned the repo:
 
-```
+```bash
 git submodule update --init --recursive
 ```
 
 Automated updates
 -----------------
-This repository contains a GitHub Actions workflow (`.github/workflows/update-submodules.yml`) that runs on a schedule and can be triggered manually. It attempts to update the submodules to the latest remote commits and commits the parent repo to bump the submodule pointers if changes were detected.
+This repository contains two GitHub Actions workflows for submodule pointer updates:
+
+- `.github/workflows/update-submodules.yml` runs weekly or on demand and opens a consolidated pull request when updates are available.
+- `.github/workflows/update-submodule.yml` runs daily or on demand and opens a reviewable pull request for a selected submodule or all submodules.
+
+Both workflows update submodule pointers in the parent repository only. Changes inside a submodule should be committed to the submodule repository before updating the parent pointer.
 
 Local update script
 -------------------
 You can force an update locally using the included script:
 
-```
+```bash
 ./tools/update-submodules.sh
+```
 
 PR-based submodule updates
 --------------------------
-There's also an automated workflow to open a pull request when submodule pointer(s) change: `.github/workflows/update-submodule.yml`.
+The daily PR workflow is `.github/workflows/update-submodule.yml`.
 
 Usage:
 - Schedule: Runs daily, or you can trigger manually from GitHub Actions using 'workflow_dispatch'.
 - Inputs:
-	- `submodule` - optional. Path to the submodule to update (e.g., `cv`, `scripts`, `README`). Leave blank to update all.
-	- `base_branch` - optional. Base branch to open a PR against (default: `main`).
+  - `submodule` - optional. Path to the submodule to update (e.g., `cv`, `scripts`, `README`). Leave blank to update all.
+  - `base_branch` - optional. Base branch to open a PR against (default: `main`).
 
 The workflow updates the designated submodule(s) and opens a PR if pointer changes are detected. This is safer than pushing changes directly since it allows review and CI to run against the updated pointers.
-```

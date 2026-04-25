@@ -47,6 +47,10 @@ bash --version
 zsh --version
 ```
 
+#### For skills/ (Agent Skills)
+- No runtime setup is required for reading or editing skill content.
+- Some nested skill tests may define their own package or Python requirements.
+
 ## Initial Setup
 
 ### 1. Clone the Repository
@@ -75,10 +79,11 @@ git submodule status
 ```
 
 You should see:
-```
- 366375a6e5ac66ab484157b222054ad6c233a0c1 README (heads/main)
- b93ddfa12750f79fe4a207a92c5307f1b6088731 cv (heads/main)
- fecf16b07f6f8a75a8ab52783b6ef7cc062e018c scripts (heads/master)
+```bash
+ <commit> README (heads/main)
+ <commit> cv (heads/main)
+ <commit> scripts (heads/master)
+ <commit> skills (heads/main)
 ```
 
 ### 3. Install Dependencies
@@ -117,6 +122,13 @@ pip3 install -r requirements-docs.txt
 cd scripts
 # Scripts are standalone, but check individual script requirements
 chmod +x *.sh
+cd ..
+```
+
+**Agent Skills:**
+```bash
+cd skills
+# Reference content; check individual skill directories for optional test commands
 cd ..
 ```
 
@@ -192,7 +204,7 @@ Access at: http://localhost:3000
 
 1. **Navigate to submodule**:
    ```bash
-   cd cv  # or README, or scripts
+   cd cv  # or README, scripts, or skills
    ```
 
 2. **Create branch in submodule**:

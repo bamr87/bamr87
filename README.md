@@ -2,7 +2,7 @@
 title: Amr Abdel-Motaleb - Solutions Architect & ERP Specialist
 author: Amr Abdel-Motaleb
 class: Solutions Architect
-updated: 2025-11-09
+updated: 2026-04-25
 ---
 
 <div align="center">
@@ -25,6 +25,9 @@ I build sustainable enterprise systems and empower internal teams, transforming 
 ## 🚀 About Me
 
 I'm a **Solutions Architect** and **ERP Specialist** based in Denver, CO, with **15+ years** of experience designing and implementing enterprise systems that drive manufacturing and business operations worldwide. My mission is to bridge the gap between complex business processes and effective technology, always prioritizing people and sustainable growth over vendor dependency.
+
+> [!NOTE]
+> Yes, this is a profile README - but it is also a living map of the projects and systems I actively maintain.
 
 ### 🌟 My Philosophy: People Over Profits
 
@@ -195,11 +198,44 @@ I'm passionate about exploring innovative solutions that balance technology adva
 
 I believe in continuous learning and sharing knowledge. I document my journey through three interconnected platforms:
 
+> [!TIP]
+> If you are new here, start with `it-journey.dev`, then jump into the repo links below for implementation details.
+
 - 🎯 **[it-journey.dev](https://it-journey.dev)**: In-depth tutorials on enterprise systems, DevOps, and cloud architecture.
 - 🎨 **[zer0-mistakes.com](https://zer0-mistakes.com)**: A showcase of software architecture patterns, UI/UX design, and system design methodologies.
 - 🚀 **[barodybroject.com](https://barodybroject.com)**: A playground for full-stack applications, experimental projects, and integration showcases.
 
 [![roadmap.sh](https://api.roadmap.sh/v1-badge/wide/6553d32668ca6026132e78a8?variant=dark)](https://roadmap.sh)
+
+---
+
+## 🌐 Active Public Projects
+
+These public repositories reflect the same focus areas: documentation, enablement, automation, full-stack development, and practical AI workflows.
+
+> [!IMPORTANT]
+> Most projects evolve quickly - always check each repository README for current setup steps and branch details before running commands.
+
+### 📚 Documentation & Knowledge Platforms
+
+- **[it-journey](https://github.com/bamr87/it-journey)**: From-zero-to-hero docs, tools, scripts, and information to support an IT learning journey. Live at [it-journey.dev](https://it-journey.dev/).
+- **[zer0-mistakes](https://github.com/bamr87/zer0-mistakes)**: GitHub Pages compatible Jekyll theme using Bootstrap 5. Live at [zer0-mistakes.com](https://zer0-mistakes.com/).
+- **[README](https://github.com/bamr87/README)**: Documentation aggregation system for organizing technical documentation across repositories.
+
+### 🚀 Full-Stack & AI Applications
+
+- **[barodybroject](https://github.com/bamr87/barodybroject)**: Full-stack responsive web application with OpenAI integrations and CMS functionality. Live at [barodybroject.com](https://barodybroject.com).
+- **[aieo](https://github.com/bamr87/aieo)**: AI Engine Optimization tooling for optimizing content for AI engine citations.
+- **[lawmode](https://github.com/bamr87/lawmode)**: Always-on AI lawyer concept for developers.
+- **[cv-builder-pro](https://github.com/bamr87/cv-builder-pro)**: AI-powered CV/resume builder with modern TypeScript and React tooling.
+
+### 🛠️ Developer Tools & Experiments
+
+- **[scripts](https://github.com/bamr87/scripts)**: Development and automation utilities for project setup, GitHub workflows, and local tooling.
+- **[vs-sonic-pi](https://github.com/bamr87/vs-sonic-pi)**: VS Code extension for writing and performing Sonic Pi music from the editor.
+- **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
+- **[wtd](https://github.com/bamr87/wtd)**: Recursive TODO engine experiment for AI-orchestrated task decomposition.
+- **[frontmatter-cms-mvp](https://github.com/bamr87/frontmatter-cms-mvp)**: Minimal CMS for Markdown files with YAML frontmatter in VS Code.
 
 ---
 
@@ -210,7 +246,7 @@ This repository is organized as a **monorepo** using Git submodules, containing 
 ```
 bamr87/
 ├── cv/          # AI-powered CV/Resume Builder
-├── README/      # Documentation Aggregation Hub  
+├── README/      # Documentation Aggregation Hub
 ├── scripts/     # Development & Automation Utilities
 └── docs/        # Monorepo Documentation
 ```
@@ -246,6 +282,9 @@ bamr87/
 
 Clone with all submodules:
 
+> [!TIP]
+> Use `--recurse-submodules` on the first clone to avoid missing nested project dependencies.
+
 ```bash
 git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 cd bamr87
@@ -258,7 +297,7 @@ Or explore individual projects:
 # CV Builder
 cd cv && npm install && npm run dev
 
-# Documentation Site  
+# Documentation Site
 mkdocs serve
 
 # Scripts (standalone utilities)
@@ -276,9 +315,9 @@ mkdocs serve
 
 ## 🎓 Education
 
-**Bachelor of Science (BS), Finance**  
-*University of Illinois at Urbana-Champaign*  
-Focus: Financial Analysis, Quantitative Methods, Information Systems
+**Bachelor of Science (BS), Finance**
+*Northern Illinois University*
+Focus: Corporate Finance
 
 ---
 
@@ -353,84 +392,31 @@ mindmap
 
 <div align="center">
 
-*Last Updated: November 2025*
+*Last Updated: April 2026*
 
-</div>---
-
-<details>
-<summary><b>📝 Notes & Resources</b></summary>
-
-> [!NOTE]
-> This profile showcases my professional journey and current focus areas. It's continuously updated as I explore new technologies and methodologies.
-
-> [!TIP]
-> For a comprehensive view of my experience, check out my [detailed CV](https://github.com/bamr87/cv/blob/main/cv.pdf).
-
-> [!IMPORTANT]
-> This README uses YAML frontmatter for metadata—view the raw file to see the structured data!
-
-### 🛠️ Quick Setup
-
-```shell
-# Clone this profile repository
-gh repo clone bamr87/bamr87
-
-# Open in your editor
-code README.md
-```
-
-</details>
-
-
----
+</div>
 
 <details>
 <summary><b>📝 Notes & Resources</b></summary>
 
 > [!NOTE]
-> This profile showcases my professional journey and current focus areas. It's continuously updated as I explore new technologies and methodologies.
+> This README serves as both a GitHub profile overview and a monorepo entry point.
 
 > [!TIP]
-> For a comprehensive view of my experience, check out my [detailed CV](https://github.com/bamr87/cv/blob/main/cv.pdf).
+> For architecture and setup details, start with [docs/MONOREPO.md](docs/MONOREPO.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 > [!IMPORTANT]
-> This README uses YAML frontmatter for metadata—view the raw file to see the structured data!
+> For complete experience and credentials, review the [full CV (PDF)](https://github.com/bamr87/cv/blob/main/cv.pdf).
 
-### 🛠️ Quick Setup
+### ⚡ Quick Commands
 
-```shell
-# Clone this profile repository
-gh repo clone bamr87/bamr87
+```bash
+# Clone with submodules
+git clone --recurse-submodules https://github.com/bamr87/bamr87.git
+cd bamr87
 
-# Open in your editor
-code README.md
-```
-
-</details>
-
-
----
-
-<details>
-<summary><b>📝 Notes & Resources</b></summary>
-
-> [!NOTE]
-> This profile showcases my professional journey and current focus areas. It's continuously updated as I explore new technologies and methodologies.
-
-> [!TIP]
-> For a comprehensive view of my experience, check out my [detailed CV](https://github.com/bamr87/cv/blob/main/cv.pdf).
-
-> [!IMPORTANT]
-> This README uses YAML frontmatter for metadata—view the raw file to see the structured data!
-
-### 🛠️ Quick Setup
-
-```shell
-# Clone this profile repository
-gh repo clone bamr87/bamr87
-
-# Open in your editor
-code README.md
+# Bootstrap local environment
+./tools/setup-dev.sh
 ```
 
 </details>
