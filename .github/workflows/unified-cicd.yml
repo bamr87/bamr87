@@ -85,6 +85,7 @@ jobs:
 
       # Special detection
       docker: ${{ steps.detect.outputs.docker }}
+      dockerfile: ${{ steps.detect.outputs.dockerfile }}
       kubernetes: ${{ steps.detect.outputs.kubernetes }}
       terraform: ${{ steps.detect.outputs.terraform }}
       docs: ${{ steps.detect.outputs.docs }}
@@ -138,6 +139,7 @@ jobs:
           echo "database=false" >> $GITHUB_OUTPUT
 
           echo "docker=false" >> $GITHUB_OUTPUT
+          echo "dockerfile=false" >> $GITHUB_OUTPUT
           echo "kubernetes=false" >> $GITHUB_OUTPUT
           echo "terraform=false" >> $GITHUB_OUTPUT
           echo "docs=false" >> $GITHUB_OUTPUT
@@ -176,7 +178,12 @@ jobs:
           [[ -d "database" || -d "db" || -d "migrations" ]] && echo "database=true" >> $GITHUB_OUTPUT
 
           # Special detection
-          [[ -f "Dockerfile" || -f "docker-compose.yml" ]] && echo "docker=true" >> $GITHUB_OUTPUT
+          if [[ -f "Dockerfile" ]]; then
+            echo "docker=true" >> $GITHUB_OUTPUT
+            echo "dockerfile=true" >> $GITHUB_OUTPUT
+          elif [[ -f "docker-compose.yml" ]]; then
+            echo "docker=true" >> $GITHUB_OUTPUT
+          fi
           [[ -f "kustomization.yaml" || -d "k8s" || -d "kubernetes" ]] && echo "kubernetes=true" >> $GITHUB_OUTPUT
           [[ -d ".terraform" ]] && echo "terraform=true" >> $GITHUB_OUTPUT
           files=(*.tf)
@@ -271,9 +278,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Python tests
-        uses: ./.github/actions/ci/test-python
+        uses: ./.github/actions/ci/run-tests
         with:
-          python-version: ${{ matrix.python-version }}
+          language: python
+          language-version: ${{ matrix.python-version }}
+          test-command: |
+            if [ -d tests ]; then
+              python -m pytest tests
+            else
+              python -m compileall .
+            fi
 
   test-nodejs:
     name: 📦 Test Node.js
@@ -286,9 +300,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Node.js tests
-        uses: ./.github/actions/ci/test-nodejs
+        uses: ./.github/actions/ci/run-tests
         with:
-          node-version: ${{ matrix.node-version }}
+          language: node
+          language-version: ${{ matrix.node-version }}
+          test-command: npm test --if-present
 
   test-rust:
     name: 🦀 Test Rust
@@ -298,7 +314,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Rust tests
-        uses: ./.github/actions/ci/test-rust
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: rust
+          test-command: cargo test --all
 
   test-go:
     name: 🐹 Test Go
@@ -308,7 +327,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Go tests
-        uses: ./.github/actions/ci/test-go
+        uses: ./.github/actions/ci/run-tests
+        with:
+          language: go
+          test-command: go test ./...
 
   test-ruby:
     name: 💎 Test Ruby
@@ -321,9 +343,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Ruby tests
-        uses: ./.github/actions/ci/test-ruby
+        uses: ./.github/actions/ci/run-tests
         with:
-          ruby-version: ${{ matrix.ruby-version }}
+          language: ruby
+          language-version: ${{ matrix.ruby-version }}
+          test-command: bundle exec rake test
 
   test-ai:
     name: 🤖 Test AI/ML
@@ -333,7 +357,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run AI/ML tests
-        uses: ./.github/actions/ci/test-ai
+        run: |
+          if [ -f requirements-ai.txt ]; then
+            python -m pip install --upgrade pip
+            python -m pip install -r requirements-ai.txt
+          fi
+          if [ -d tests ]; then
+            python -m pytest tests
+          else
+            echo "No AI/ML tests configured."
+          fi
 
   # Linting jobs
   lint-python:
@@ -344,7 +377,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Lint Python code
-        uses: ./.github/actions/ci/lint-python
+        run: |
+          python -m pip install --upgrade pip ruff
+          ruff check .
 
   lint-nodejs:
     name: 🔍 Lint Node.js
@@ -354,7 +389,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Lint Node.js code
-        uses: ./.github/actions/ci/lint-nodejs
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+          npm run lint --if-present
 
   lint-rust:
     name: 🔍 Lint Rust
@@ -364,7 +405,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Lint Rust code
-        uses: ./.github/actions/ci/lint-rust
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   lint-go:
     name: 🔍 Lint Go
@@ -374,25 +415,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Lint Go code
-        uses: ./.github/actions/ci/lint-go
+        run: |
+          go vet ./...
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            exit 1
+          fi
 
   # Build jobs
   build-docker:
     name: 🐳 Build Docker Images
     needs: detect-changes
-    if: needs.detect-changes.outputs.docker == 'true' && needs.detect-changes.outputs.should_build == 'true'
+    if: needs.detect-changes.outputs.dockerfile == 'true' && needs.detect-changes.outputs.should_build == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.deploy_services)) }}
-      fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      - name: Build Docker image for ${{ matrix.service }}
-        uses: ./.github/actions/build/docker-build
+      - name: Build Docker image
+        uses: ./.github/actions/deployment/build-push-image
         with:
-          service: ${{ matrix.service }}
+          image-name: ${{ github.event.repository.name }}
           image-tag: ${{ github.sha }}
+          registry-type: ghcr
+          push-image: 'false'
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}
 
   build-static:
     name: 📦 Build Static Assets
@@ -402,7 +448,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build frontend assets
-        uses: ./.github/actions/build/static-build
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+          npm run build --if-present
 
   # Deploy jobs
   deploy:
@@ -421,11 +473,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Deploy ${{ matrix.service }}
         id: deploy
-        uses: ./.github/actions/deploy/deploy-service
-        with:
-          service: ${{ matrix.service }}
-          environment: ${{ needs.detect-changes.outputs.deploy_env }}
-          image-tag: ${{ github.sha }}
+        run: |
+          echo "Deployment is not configured in this reusable workflow."
+          echo "Service: ${{ matrix.service }}"
+          echo "Environment: ${{ needs.detect-changes.outputs.deploy_env }}"
+          echo "Image tag: ${{ github.sha }}"
+          echo "url=" >> "$GITHUB_OUTPUT"
 
   # Release jobs
   release:
@@ -436,9 +489,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Create release
-        uses: ./.github/actions/release/create-release
-        with:
-          tag: ${{ github.ref_name }}
+        run: |
+          echo "Release creation is not configured in this reusable workflow."
+          echo "Tag: ${{ github.ref_name }}"
 
   # Summary job
   summary:
