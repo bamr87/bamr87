@@ -201,28 +201,20 @@ jobs:
           test-command: 'npm test'
 ```
 
-## Migration from run-backend-tests
+## Service-Based Test Example
 
-If migrating from the Django-specific `run-backend-tests` action:
+Use Docker Compose inputs when tests need supporting services:
 
-**Before:**
-```yaml
-- uses: ./.github/actions/run-backend-tests
-  with:
-    python-version: '3.11.9'
-    segment: 'Core'
-```
-
-**After:**
 ```yaml
 - uses: ./.github/actions/ci/run-tests
   with:
     language: 'python'
-    language-version: '3.11.9'
+    language-version: '3.11'
     test-command: 'pytest'
-    test-directory: 'posthog/ ee/'
+    test-directory: 'tests/'
     services-enabled: 'true'
-    services-compose-file: 'docker-compose.dev.yml'
+    services-compose-file: 'docker-compose.yml'
+    services-wait-script: './scripts/wait-for-services.sh'
 ```
 
 ## Troubleshooting

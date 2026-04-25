@@ -1,72 +1,61 @@
 # AI Content Review Configuration
-# This file contains configuration settings for the AI-powered content workflows
+#
+# This file is intentionally generic. Adjust defaults, include patterns, and
+# thresholds in each repository before enabling content review workflows.
 
-# Required frontmatter fields that every markdown file should have
 required_fields:
   - title
-  - description  
+  - description
   - date
   - author
-  - categories
-  - tags
 
-# Recommended frontmatter fields for better content management
 recommended_fields:
   - excerpt
   - lastmod
   - draft
-  - keywords
+  - tags
 
-# Default values for auto-generated frontmatter
 defaults:
-  author: "bamr87"
+  author: "REPLACE_WITH_AUTHOR"
   draft: false
-  
-# Content quality thresholds
-quality_thresholds:
-  min_word_count: 100        # Minimum words for quality content
-  max_word_count: 3000       # Maximum words before suggesting split
-  min_headers: 1             # Minimum number of headers recommended
-  max_sentence_length: 25    # Maximum average sentence length
 
-# AI review settings
+quality_thresholds:
+  min_word_count: 100
+  max_word_count: 3000
+  min_headers: 1
+  max_sentence_length: 25
+
 ai_review:
   model: "gpt-4"
   max_tokens: 1500
   temperature: 0.3
-  
-# SEO optimization settings
-seo:
-  title_min_length: 30       # Minimum title length
-  title_max_length: 60       # Maximum title length  
-  description_min_length: 120 # Minimum meta description length
-  description_max_length: 160 # Maximum meta description length
-  max_tags: 10               # Maximum number of tags recommended
 
-# File patterns to include/exclude
+seo:
+  title_min_length: 30
+  title_max_length: 60
+  description_min_length: 120
+  description_max_length: 160
+  max_tags: 10
+
 file_patterns:
   include:
-    - "pages/**/*.md"
+    - "**/*.md"
   exclude:
-    - "pages/_site/**"
-    - "pages/.jekyll-cache/**"
-    - "**/README.md"
+    - "**/node_modules/**"
+    - "**/vendor/**"
+    - "**/.git/**"
 
-# Workflow behavior
 workflow_settings:
-  max_files_per_run: 20      # Maximum files to process in one run
-  artifact_retention_days: 30 # How long to keep workflow artifacts
-  auto_fix_enabled: true     # Whether auto-fix is available
-  
-# Tag inference keywords for automatic tag generation
+  max_files_per_run: 20
+  artifact_retention_days: 30
+  auto_fix_enabled: false
+
 tag_keywords:
   tutorial: ["tutorial", "guide", "how-to", "walkthrough"]
-  jekyll: ["jekyll", "liquid", "frontmatter", "static site"]
   git: ["git", "github", "version control", "commit"]
   ai: ["ai", "artificial intelligence", "machine learning", "gpt"]
-  python: ["python", "pip", "django", "flask"]
+  python: ["python", "pip", "flask", "fastapi"]
   javascript: ["javascript", "js", "node", "npm", "react"]
-  css: ["css", "sass", "scss", "bootstrap", "styling"]
   automation: ["automation", "workflow", "ci/cd", "github actions"]
   docker: ["docker", "container", "dockerfile"]
-  cloud: ["aws", "azure", "gcp", "cloud", "lambda"]
+  cloud: ["aws", "azure", "gcp", "cloud"]

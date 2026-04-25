@@ -349,19 +349,8 @@ jobs:
         run: echo "Built image digest ${{ steps.build.outputs.digest }}"
 ```
 
-## Migration from build-n-cache-image
+## ECR Example
 
-The action has been refactored for better generalization:
-
-**Old:**
-```yaml
-- uses: ./.github/actions/build-n-cache-image
-  with:
-    image-name: 'myapp'
-    registry-url: '123456789.dkr.ecr.us-east-1.amazonaws.com'
-```
-
-**New:**
 ```yaml
 - uses: ./.github/actions/deployment/build-push-image
   with:

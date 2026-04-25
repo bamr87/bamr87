@@ -1,0 +1,25 @@
+# CODEOWNERS-soft template
+#
+# This optional template can be copied to `.github/CODEOWNERS-soft` in repositories
+# that have automation for notification-only reviewers. GitHub does not read this
+# file natively.
+#
+# Replace every placeholder owner with a real GitHub user or organization team.
+
+# Shared libraries and utilities
+/shared/ @your-org/frontend @your-org/backend
+/common/ @your-org/platform
+/utils/ @your-org/platform
+
+# Documentation
+/docs/ @your-org/docs
+/docs/api/ @your-org/backend @your-org/frontend
+
+# Security-sensitive paths
+/.github/workflows/ @your-org/platform
+/**/auth/ @your-org/security
+/**/security/ @your-org/security
+
+# Release and deployment paths
+/deploy/ @your-org/platform
+/infra/ @your-org/platform

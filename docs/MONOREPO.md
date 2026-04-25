@@ -15,11 +15,10 @@ The bamr87 repository serves multiple purposes:
 
 ```
 bamr87/
-├── .github/              # GitHub Actions workflows
+├── .github/              # GitHub toolkit, workflows, templates, and AI guidance
 │   └── workflows/
 │       ├── build-docs.yml          # Documentation deployment
-│       ├── update-submodule.yml    # Daily PR-based submodule updates
-│       ├── update-submodules.yml   # Weekly submodule update PR
+│       ├── update-submodules.yml   # PR-based submodule updates
 │       └── unified-*.yml           # Consolidated CI, release, and maintenance workflows
 ├── assets/               # Shared assets (headshots, images)
 ├── README/               # Submodule: Documentation aggregation system
@@ -176,13 +175,9 @@ git push
 ### Submodule Updates
 
 The `.github/workflows/update-submodules.yml` workflow:
-- Runs weekly on Sundays at midnight
+- Runs weekly on Sundays at 03:00 UTC
 - Can be manually triggered via GitHub Actions UI
 - Creates a pull request when updates are available
-- Allows selective submodule updates
-
-The `.github/workflows/update-submodule.yml` workflow:
-- Runs daily at 03:00 UTC
 - Can update one submodule or all submodules
 - Opens a reviewable pull request against the configured base branch
 

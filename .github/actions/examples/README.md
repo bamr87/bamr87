@@ -6,11 +6,9 @@ This directory contains example workflows demonstrating how to use the reusable 
 
 - [`python-ci.yml`](python-ci.yml) - Python project CI with pytest
 - [`nodejs-ci.yml`](nodejs-ci.yml) - Node.js project CI with Jest
-- [`ruby-ci.yml`](ruby-ci.yml) - Ruby project CI with RSpec
 - [`docker-build.yml`](docker-build.yml) - Docker image build and push
 - [`multi-language.yml`](multi-language.yml) - Monorepo with multiple languages
 - [`parallel-tests.yml`](parallel-tests.yml) - Parallel test execution
-- [`release.yml`](release.yml) - Complete release workflow
 
 ## 🚀 Using These Examples
 

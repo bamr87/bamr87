@@ -181,7 +181,6 @@ steps:
 - Browse [example workflows](examples/)
 - Read the [main README](README.md)
 - Check [troubleshooting guides](README.md#🐛-troubleshooting) in each action's README
-- See the [refactoring summary](REFACTORING_SUMMARY.md) for migration
 
 ## ❓ Need Help?
 
@@ -189,12 +188,6 @@ steps:
 - Look at [examples/](examples/) for real-world usage
 - Review [troubleshooting sections](#) in each README
 - Open an issue for questions
-
-## 🔄 Migrating from Old Actions?
-
-See deprecation notices:
-- [run-backend-tests](run-backend-tests/README.md) → Use [ci/run-tests](ci/run-tests/README.md)
-- [build-n-cache-image](deployment/build-n-cache-image/README.md) → Use [deployment/build-push-image](deployment/build-push-image/README.md)
 
 ---
 

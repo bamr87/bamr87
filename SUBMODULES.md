@@ -21,12 +21,11 @@ git submodule update --init --recursive
 
 Automated updates
 -----------------
-This repository contains two GitHub Actions workflows for submodule pointer updates:
+This repository contains one GitHub Actions workflow for submodule pointer updates:
 
-- `.github/workflows/update-submodules.yml` runs weekly or on demand and opens a consolidated pull request when updates are available.
-- `.github/workflows/update-submodule.yml` runs daily or on demand and opens a reviewable pull request for a selected submodule or all submodules.
+- `.github/workflows/update-submodules.yml` runs weekly or on demand and opens a reviewable pull request for a selected submodule or all submodules.
 
-Both workflows update submodule pointers in the parent repository only. Changes inside a submodule should be committed to the submodule repository before updating the parent pointer.
+The workflow updates submodule pointers in the parent repository only. Changes inside a submodule should be committed to the submodule repository before updating the parent pointer.
 
 Local update script
 -------------------
@@ -38,10 +37,10 @@ You can force an update locally using the included script:
 
 PR-based submodule updates
 --------------------------
-The daily PR workflow is `.github/workflows/update-submodule.yml`.
+The PR workflow is `.github/workflows/update-submodules.yml`.
 
 Usage:
-- Schedule: Runs daily, or you can trigger manually from GitHub Actions using 'workflow_dispatch'.
+- Schedule: Runs weekly, or you can trigger manually from GitHub Actions using `workflow_dispatch`.
 - Inputs:
   - `submodule` - optional. Path to the submodule to update (e.g., `cv`, `scripts`, `README`). Leave blank to update all.
   - `base_branch` - optional. Base branch to open a PR against (default: `main`).

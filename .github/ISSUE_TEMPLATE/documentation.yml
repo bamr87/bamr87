@@ -1,0 +1,52 @@
+name: Documentation Improvement
+description: Suggest a documentation fix or improvement.
+title: "[Docs]: "
+labels: ["documentation", "triage"]
+assignees: []
+
+body:
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation type
+      description: What kind of documentation needs work?
+      options:
+        - README
+        - Guide
+        - API documentation
+        - Workflow documentation
+        - Code comments
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-issue
+    attributes:
+      label: Current issue
+      description: What is missing, stale, confusing, or incorrect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-improvement
+    attributes:
+      label: Suggested improvement
+      description: What should the documentation say or link to instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Include file paths, headings, URLs, or screenshots.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I can write the proposed change
+        - label: I can review the proposed change
+        - label: I can provide examples or context

@@ -245,6 +245,7 @@ This repository is organized as a **monorepo** using Git submodules, containing 
 
 ```
 bamr87/
+├── .github/    # Reusable GitHub toolkit, workflows, templates, and AI guidance
 ├── cv/          # AI-powered CV/Resume Builder
 ├── README/      # Documentation Aggregation Hub
 ├── scripts/     # Development & Automation Utilities

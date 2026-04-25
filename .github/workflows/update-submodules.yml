@@ -2,91 +2,111 @@ name: Update Submodules
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight
+    - cron: '0 3 * * 0'
   workflow_dispatch:
     inputs:
       submodule:
-        description: 'Specific submodule to update (leave empty for all)'
+        description: 'Submodule path to update. Leave blank to update all.'
         required: false
         type: string
+      base_branch:
+        description: 'Base branch for the update pull request.'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   update:
+    name: Update submodule pointers
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Configure Git
+        uses: ./.github/actions/setup/configure-git
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update submodules
+        id: update
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-      
-      - name: Update all submodules
-        if: ${{ github.event.inputs.submodule == '' }}
-        run: |
-          # Get list of valid submodules from .gitmodules and update each one
-          if [ -f .gitmodules ]; then
-            grep -E '^\s*path\s*=' .gitmodules | sed 's/.*=\s*//' | while read -r submodule_path; do
-              echo "Updating submodule: $submodule_path"
-              git submodule update --init --remote --merge "$submodule_path" || echo "Warning: Failed to update $submodule_path"
-            done
-          else
-            echo "No .gitmodules file found"
+          set -euo pipefail
+
+          requested_submodule="${{ inputs.submodule }}"
+
+          if [[ ! -f .gitmodules ]]; then
+            echo "No .gitmodules file found."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          update_submodule() {
+            local submodule_path="$1"
+
+            if grep -qE "^[[:space:]]*path[[:space:]]*=[[:space:]]*${submodule_path}$" .gitmodules; then
+              echo "Updating submodule: ${submodule_path}"
+              git submodule update --init --recursive --remote --merge "${submodule_path}" || {
+                echo "::warning::Failed to update ${submodule_path}"
+              }
+            else
+              echo "::warning::Submodule ${submodule_path} not found in .gitmodules"
+            fi
+          }
+
+          if [[ -n "${requested_submodule}" ]]; then
+            update_submodule "${requested_submodule}"
+          else
+            while IFS= read -r submodule_path; do
+              update_submodule "${submodule_path}"
+            done < <(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+          fi
+
           git add .
-      
-      - name: Update specific submodule
-        if: ${{ github.event.inputs.submodule != '' }}
-        run: |
-          # Check if submodule exists in .gitmodules before updating
-          if grep -q "\[submodule.*\"${{ github.event.inputs.submodule }}\"\]" .gitmodules 2>/dev/null || \
-             grep -q "path = ${{ github.event.inputs.submodule }}" .gitmodules 2>/dev/null; then
-            git submodule update --init --remote --merge ${{ github.event.inputs.submodule }} || echo "Warning: Failed to update submodule"
-            git add ${{ github.event.inputs.submodule }}
+
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Warning: Submodule ${{ github.event.inputs.submodule }} not found in .gitmodules, skipping"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "changed_files<<EOF"
+              git diff --cached --name-only
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           fi
-      
-      - name: Check for changes
-        id: check_changes
-        run: |
-          if git diff --staged --quiet; then
-            echo "changes=false" >> $GITHUB_OUTPUT
-            echo "No submodule updates available"
-          else
-            echo "changes=true" >> $GITHUB_OUTPUT
-            echo "Submodule updates detected"
-          fi
-      
-      - name: Create Pull Request
-        if: steps.check_changes.outputs.changes == 'true'
+
+      - name: Create pull request
+        if: steps.update.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: 'chore: update submodules to latest versions'
-          title: 'chore: Update Submodules'
+          commit-message: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s)"
+          title: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s)"
           body: |
-            ## Submodule Updates
-            
-            This PR updates submodules to their latest versions.
-            
-            ### Changed Submodules
+            Automated submodule pointer update.
+
+            Changed files:
+
+            ```text
+            ${{ steps.update.outputs.changed_files }}
             ```
-            ${{ steps.check_changes.outputs.changes }}
-            ```
-            
-            Please review the changes in each submodule before merging.
-            
-            ---
-            *This PR was automatically generated by GitHub Actions*
-          branch: automated/update-submodules
+
+            Review the corresponding submodule repositories before merging.
+          branch: "chore/update-submodules-${{ github.run_id }}"
+          base: ${{ inputs.base_branch || 'main' }}
+          labels: automation, submodule
           delete-branch: true
-          labels: dependencies, automated
+
+      - name: No changes
+        if: steps.update.outputs.changed == 'false'
+        run: echo "No submodule pointer updates detected."

@@ -1,11 +1,6 @@
 name: 🌱 Unified AI Evolution Pipeline
 
 on:
-  schedule:
-    # Daily evolution at 4 AM UTC
-    - cron: '0 4 * * *'
-    # Weekly comprehensive evolution on Tuesdays at 5 AM UTC
-    - cron: '0 5 * * 2'
   workflow_dispatch:
     inputs:
       evolution_type:
