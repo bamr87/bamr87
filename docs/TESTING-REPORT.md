@@ -4,6 +4,8 @@
 **Tested by**: Repository reorganization implementation  
 **Status**: ✅ PASSED
 
+> **Note**: This is a historical test snapshot for the January 2025 repository reorganization. For current setup commands and the active submodule list (`README`, `cv`, `scripts`, and `skills`), see [DEVELOPMENT.md](DEVELOPMENT.md) and [MONOREPO.md](MONOREPO.md).
+
 ## Executive Summary
 
 All setup scripts and documentation builds have been tested and verified working correctly. The repository reorganization is complete and functional.
@@ -18,7 +20,8 @@ All setup scripts and documentation builds have been tested and verified working
 #### Tests Performed
 
 1. **Git Submodules Initialization**
-   - ✅ All 3 submodules (cv, README, scripts) initialized successfully
+   - ✅ Tested submodules (`cv`, `README`, `scripts`) initialized successfully
+   - ℹ️ Current repository also includes the `skills` submodule
    - ✅ Submodule status shows correct commit hashes on correct branches
 
 2. **CV Builder Setup (Node.js)**

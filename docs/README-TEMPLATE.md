@@ -267,7 +267,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for 
 
 ### Code of Conduct
 
-This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+Follow the repository's published community guidelines. If this project adds a dedicated conduct policy, link it here.
 
 ## 📄 License
 

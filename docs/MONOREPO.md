@@ -9,6 +9,7 @@ The bamr87 repository serves multiple purposes:
 - **Documentation Hub**: Aggregated documentation from multiple sources (README submodule)
 - **CV Builder**: AI-powered CV/resume builder application (cv submodule)
 - **Automation Scripts**: Collection of development and deployment utilities (scripts submodule)
+- **AI Agent Skills**: Microsoft Skills content for agent workflows (skills submodule)
 
 ## Repository Structure
 
@@ -16,16 +17,23 @@ The bamr87 repository serves multiple purposes:
 bamr87/
 ├── .github/              # GitHub Actions workflows
 │   └── workflows/
-│       ├── update-submodules.yml  # Automated submodule updates
-│       └── build-docs.yml         # Documentation deployment
+│       ├── build-docs.yml          # Documentation deployment
+│       ├── update-submodule.yml    # Daily PR-based submodule updates
+│       ├── update-submodules.yml   # Weekly submodule update PR
+│       └── unified-*.yml           # Consolidated CI, release, and maintenance workflows
 ├── assets/               # Shared assets (headshots, images)
-├── cv/                   # Submodule: CV Builder application
 ├── README/               # Submodule: Documentation aggregation system
+├── cv/                   # Submodule: CV Builder application
 ├── scripts/              # Submodule: Automation and utility scripts
+├── skills/               # Submodule: Microsoft agent skills
+├── tools/                # Root-level setup and submodule helper scripts
 ├── docs/                 # Root-level monorepo documentation
 │   ├── ARCHITECTURE.md   # System design decisions
 │   ├── DEVELOPMENT.md    # Development setup guide
-│   └── MONOREPO.md       # This file
+│   ├── MONOREPO.md       # This file
+│   ├── SUBMODULE-CHECKLIST.md
+│   ├── TESTING-REPORT.md
+│   └── README-TEMPLATE.md
 ├── .gitignore           # Comprehensive ignore patterns
 ├── .gitmodules          # Submodule configuration
 ├── CONTRIBUTING.md      # Contribution guidelines
@@ -53,6 +61,12 @@ We use Git submodules rather than a traditional monorepo tool because:
 - **Selective Cloning**: Contributors can work on specific submodules
 - **Independent Versioning**: Each submodule maintains its own release cycle
 - **Flexible Ownership**: Different teams can own different submodules
+
+## Root Submodules vs Published Docs
+
+The root-level `README/`, `cv/`, `scripts/`, and `skills/` directories are Git submodules. The MkDocs site is built from `README/docs` as configured in `mkdocs.yml`.
+
+Some paths under `README/docs`, such as `README/docs/scripts/` and `README/docs/skills/`, are aggregated documentation copies for the published site. They are not the same working trees as the root `scripts/` and `skills/` submodules.
 
 ## Working with Submodules
 
@@ -149,6 +163,14 @@ git push
 - **Tech Stack**: Bash, Python, Shell scripts
 - **Setup**: Scripts are standalone executables
 
+### skills/ - Agent Skills
+
+- **Repository**: https://github.com/microsoft/skills
+- **Branch**: main
+- **Purpose**: Reusable skills, prompts, and patterns for AI coding agents
+- **Tech Stack**: Markdown, prompts, MCP configuration, tests
+- **Setup**: Reference content; use the guidance in individual skill directories
+
 ## Automated Workflows
 
 ### Submodule Updates
@@ -158,6 +180,11 @@ The `.github/workflows/update-submodules.yml` workflow:
 - Can be manually triggered via GitHub Actions UI
 - Creates a pull request when updates are available
 - Allows selective submodule updates
+
+The `.github/workflows/update-submodule.yml` workflow:
+- Runs daily at 03:00 UTC
+- Can update one submodule or all submodules
+- Opens a reviewable pull request against the configured base branch
 
 ### Documentation Deployment
 
@@ -179,7 +206,7 @@ Changes to root-level files (README.md, .gitignore, workflows):
 
 ### For Submodule Changes
 
-Changes to cv/, README/, or scripts/:
+Changes to `cv/`, `README/`, `scripts/`, or `skills/`:
 
 1. Fork the **submodule repository**
 2. Make changes in the submodule repo

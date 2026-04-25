@@ -47,6 +47,20 @@ services:
     command: sleep infinity
 
   # --------------------------------------------------------------------------
+  # MkDocs - Documentation site (Material theme)
+  # --------------------------------------------------------------------------
+  mkdocs:
+    image: squidfunk/mkdocs-material
+    container_name: bamr87-mkdocs
+    volumes:
+      - .:/docs:cached
+    ports:
+      - "${MKDOCS_SERVE_PORT:-8001}:8000"
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
   # Wiki.js - Knowledge base and documentation wiki
   # --------------------------------------------------------------------------
   wiki:

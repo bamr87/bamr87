@@ -40,11 +40,10 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
     - navigation.path
     - navigation.indexes
+    - navigation.prune
     - toc.follow
-    - toc.integrate
     - navigation.top
     - search.suggest
     - search.highlight
@@ -101,14 +100,14 @@ markdown_extensions:
 # Navigation
 nav:
   - Home: index.md
+  - Scripts: scripts/
+  - Skills: skills/
+  - Barody Project: barodybroject/
+  - Bash Crawl: bashcrawl/
+  - Zer0 Mistakes: zer0-mistakes/
+  - IT Journey: it-journey/
+  - OverTheWire: OverTheWire-website/
   - Sitemap: sitemap.md
-  - Setup: setup/
-  - User Guides: user-guides/
-  - API Reference: api/
-  - Architecture: architecture/
-  - Development: development/
-  - Miscellaneous: misc/
-  - Results: results/
 
 # Extra
 extra:
