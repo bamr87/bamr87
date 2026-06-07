@@ -6,7 +6,7 @@ description: Read the Monitor board health data, explain why each repo needs att
 # triage-attention
 
 ## Steps
-1. Ensure fresh data: `tools/dash-gen health` (writes `dash/_data/project_health.yml`).
+1. Ensure fresh data: `tools/dash-gen health` (writes `_data/project_health.yml`).
 2. Read it and rank repos by `attention_rank` (🔴 first, then 🟠).
 3. For each flagged repo, diagnose from `attention.reasons` and propose ONE next
    action:

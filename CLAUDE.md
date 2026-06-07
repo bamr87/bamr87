@@ -101,10 +101,10 @@ The published MkDocs site (`docs_dir: projects/README/docs`) pulls from the **RE
 
 The repo is a self-managing **dash**. See [`docs/DASH.md`](docs/DASH.md). Key facts:
 
-- **Single source of truth**: [`dash/_data/projects.yml`](dash/_data/projects.yml) — the project registry. To add/change a project, edit ONLY this file; every surface (portfolio, dashboard, monitor, the profile `README.md` `<!-- AUTO:projects -->` span, the drift gate) follows.
-- **Dash site**: `dash/` is a Jekyll site using `remote_theme: bamr87/zer0-mistakes`, published at `bamr87.github.io/bamr87/`. Local: `tools/dash serve` (docker, :4000).
+- **Single source of truth**: [`_data/projects.yml`](_data/projects.yml) — the project registry. To add/change a project, edit ONLY this file; every surface (portfolio, dashboard, monitor, the profile `README.md` `<!-- AUTO:projects -->` span, the drift gate) follows.
+- **Dash site**: the **root** Jekyll site (`remote_theme: bamr87/zer0-mistakes`) renders the dash from the `pages/_dash/` collection (Portfolio/Dashboard/Monitor/Toolbox/Resume/Docs), published at `bamr87.github.io/bamr87/`. Local: `tools/dash serve` (docker, :4000).
 - **CLI**: `tools/dash {status|monitor|serve|sync|run|new|evolve|gen|test}` (alias `bamr87-dash`) — reuses `setup.sh`/`run-all-tests.sh`/`update-submodules.sh`/`projects/scripts/`.
-- **Generator**: `.github/scripts/dash-gen` (`tools/dash-gen`) — `health` gathers live GitHub signals → ephemeral `dash/_data/project_health.yml` (gitignored, never commit); `readme` regenerates the README AUTO span (deterministic, committable).
+- **Generator**: `.github/scripts/dash-gen` (`tools/dash-gen`) — `health` gathers live GitHub signals → ephemeral `_data/project_health.yml` (gitignored, never commit); `readme` regenerates the README AUTO span (deterministic, committable).
 - **Drift**: `tools/check-drift.sh` gates on registry/.gitmodules parity, stale README, missing READMEs, submodule branch drift, broken dash links.
 - **AI layer**: `.mcp.json` (MCP servers) + `.claude/skills/` + `.claude/commands/` (`/dash-status`, `/evolve`, `/register-project`). `unified-evolution.yml` runs Claude Code (`anthropics/claude-code-action`, needs `ANTHROPIC_API_KEY`).
 

@@ -1,13 +1,13 @@
 # dash-gen
 
 Registry-driven generator for the development dash. Reads the single source of
-truth — [`dash/_data/projects.yml`](../../../dash/_data/projects.yml) — and:
+truth — [`_data/projects.yml`](../../../_data/projects.yml) — and:
 
 - **`health`** → gathers live GitHub signals (stars, CI build stats, issues, PRs,
   commit activity, security alerts, latest release) per project, computes an
   **attention level** (red/amber/green + reasons) from
-  [`dash/_data/health_thresholds.yml`](../../../dash/_data/health_thresholds.yml),
-  and writes `dash/_data/project_health.yml`. This file is **ephemeral** —
+  [`_data/health_thresholds.yml`](../../../_data/health_thresholds.yml),
+  and writes `_data/project_health.yml`. This file is **ephemeral** —
   generated at deploy time, gitignored, never committed.
 - **`readme`** → rewrites only the `<!-- AUTO:projects -->` span of the profile
   [`README.md`](../../../README.md) from the registry's static facts. Deterministic

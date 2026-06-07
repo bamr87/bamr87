@@ -11,7 +11,7 @@
 #
 # Modes:
 #   (default)   run gating checks (a,b,d,e); exit non-zero on any failure
-#   --ci        run all checks incl. links (requires dash/_site built + lychee)
+#   --ci        run all checks incl. links (requires _site built + lychee)
 #   --links     also run the link check
 #   --report    print a summary, never fail (used by `dash status`)
 # ============================================================================
@@ -41,7 +41,7 @@ import sys, subprocess, configparser, os, re
 import yaml
 
 root = sys.argv[1]
-reg = yaml.safe_load(open(os.path.join(root, "dash/_data/projects.yml"))) or []
+reg = yaml.safe_load(open(os.path.join(root, "_data/projects.yml"))) or []
 
 # parse .gitmodules
 gm_path = os.path.join(root, ".gitmodules")
@@ -119,10 +119,10 @@ if [[ ${#missing[@]} -eq 0 ]]; then ok "all module dirs have a README"; else bad
 # --- (c): internal links ---------------------------------------------------
 if [[ $RUN_LINKS -eq 1 ]]; then
   echo "(c) internal link check"
-  if command -v lychee >/dev/null && [[ -d "$ROOT/dash/_site" ]]; then
-    if lychee --offline "$ROOT/dash/_site" >/dev/null 2>&1; then ok "no broken internal links"; else bad "broken internal links (run: lychee --offline dash/_site)"; fi
+  if command -v lychee >/dev/null && [[ -d "$ROOT/_site" ]]; then
+    if lychee --offline "$ROOT/_site" >/dev/null 2>&1; then ok "no broken internal links"; else bad "broken internal links (run: lychee --offline _site)"; fi
   else
-    warn "skipped (need lychee + built dash/_site)"
+    warn "skipped (need lychee + built _site)"
   fi
 fi
 

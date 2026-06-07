@@ -1,12 +1,12 @@
 ---
 name: refresh-portfolio
-description: Regenerate the dash's monitoring data and the profile README project list from the registry. Use after editing dash/_data/projects.yml or when the portfolio/README looks stale.
+description: Regenerate the dash's monitoring data and the profile README project list from the registry. Use after editing _data/projects.yml or when the portfolio/README looks stale.
 ---
 
 # refresh-portfolio
 
 ## Steps
-1. Run `tools/dash-gen health` to refresh `dash/_data/project_health.yml`
+1. Run `tools/dash-gen health` to refresh `_data/project_health.yml`
    (requires `gh auth` / `GH_TOKEN`). This drives the Dashboard and Monitor pages.
 2. Run `tools/dash-gen readme` to rewrite the `<!-- AUTO:projects -->` span of the
    profile `README.md` from the registry.

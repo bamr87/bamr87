@@ -1,6 +1,6 @@
 name: 🛰️ Build & Deploy Dash
 
-# Builds the Jekyll dash (dash/, zer0-mistakes remote theme), regenerating live
+# Builds the root Jekyll site (zer0-mistakes remote theme), regenerating live
 # monitoring data at build time so the Monitor board stays fresh without commits.
 # REPLACES build-docs.yml (MkDocs) as the published GitHub Pages surface.
 
@@ -8,7 +8,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'dash/**'
+      - 'pages/**'
+      - '_data/**'
+      - '_config.yml'
+      - 'index.md'
+      - 'assets/**'
       - 'README.md'
       - '.github/scripts/dash-gen/**'
       - '.github/workflows/build-dash.yml'
@@ -48,10 +52,8 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: dash
 
-      - name: Build dash
-        working-directory: dash
+      - name: Build site
         run: bundle exec jekyll build
         env:
           JEKYLL_ENV: production
@@ -59,7 +61,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dash/_site
+          path: _site
 
   deploy:
     needs: build
