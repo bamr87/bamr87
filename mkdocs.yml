@@ -6,13 +6,13 @@ site_url: https://bamr87.github.io/bamr87/
 # Repository
 repo_name: bamr87/bamr87
 repo_url: https://github.com/bamr87/bamr87
-edit_uri: edit/main/README/docs/
+edit_uri: edit/main/projects/README/docs/
 
 # Copyright
 copyright: Copyright &copy; 2025 Amr Abdel-Motaleb
 
 # Configuration
-docs_dir: README/docs
+docs_dir: projects/README/docs
 site_dir: site
 
 theme:

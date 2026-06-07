@@ -1,0 +1,20 @@
+# Toolbox catalog: common scripts from the scripts/ submodule.
+# Run any of these via: tools/dash run <name>
+- name: project-init.sh
+  description: Multi-stack project scaffolding wizard (Django, React, Node, Python, Rust, Go, ...).
+  usage: tools/dash new <name>
+- name: git_init.sh
+  description: Repository initialization with templates and .gitignore generation.
+  usage: tools/dash run git_init
+- name: forkme.sh
+  description: Repository forking with 10 strategies (full, shallow, sparse, mirror, bundle, ...).
+  usage: tools/dash run forkme <repo>
+- name: stashme.sh
+  description: Back up uncommitted changes across git repos to remote branches (restore/cleanup/list).
+  usage: tools/dash run stashme
+- name: rename-directory.sh
+  description: Safe directory rename with Docker/git awareness and backup.
+  usage: tools/dash run rename-directory
+- name: linting/setup-lint-configs.sh
+  description: Configure linting tools across a project.
+  usage: tools/dash run linting/setup-lint-configs

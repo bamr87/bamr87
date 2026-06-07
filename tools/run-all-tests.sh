@@ -54,7 +54,7 @@ has_npm_script() {
 }
 
 run_cv_checks() {
-    local cv_dir="${PROJECT_ROOT}/cv"
+    local cv_dir="${PROJECT_ROOT}/projects/cv"
 
     if [[ ! -d "$cv_dir" ]]; then
         log_warn "Skipping cv checks; cv/ is not initialized."
@@ -67,7 +67,7 @@ run_cv_checks() {
     fi
 
     if [[ ! -d "${cv_dir}/node_modules" ]]; then
-        log_warn "Skipping cv checks; dependencies are not installed. Run 'cd cv && npm install' first."
+        log_warn "Skipping cv checks; dependencies are not installed. Run 'cd projects/cv && npm install' first."
         return 0
     fi
 
@@ -85,7 +85,7 @@ run_cv_checks() {
 }
 
 run_docs_checks() {
-    local readme_dir="${PROJECT_ROOT}/README"
+    local readme_dir="${PROJECT_ROOT}/projects/README"
 
     if [[ -d "${readme_dir}/tests" ]] && has_command python3 && python3 -m pytest --version >/dev/null 2>&1; then
         run_step "README pytest" bash -c "cd \"${readme_dir}\" && python3 -m pytest tests"
@@ -108,8 +108,8 @@ run_shell_checks() {
 
     run_step "tools shellcheck" bash -c "cd \"${PROJECT_ROOT}\" && shellcheck tools/*.sh"
 
-    if [[ -d "${PROJECT_ROOT}/scripts" ]]; then
-        run_step "scripts shellcheck" bash -c "cd \"${PROJECT_ROOT}\" && shellcheck scripts/*.sh"
+    if [[ -d "${PROJECT_ROOT}/projects/scripts" ]]; then
+        run_step "scripts shellcheck" bash -c "cd \"${PROJECT_ROOT}\" && shellcheck projects/scripts/*.sh"
     fi
 }
 

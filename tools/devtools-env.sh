@@ -24,7 +24,7 @@ _PROJECT_ROOT="$(cd "${_DEVTOOLS_DIR}/.." 2>/dev/null && pwd)"
 # --------------------------------------------------------------------------
 export BAMR87_HOME="${_PROJECT_ROOT}"
 export BAMR87_TOOLS="${_PROJECT_ROOT}/tools"
-export BAMR87_SCRIPTS="${_PROJECT_ROOT}/scripts"
+export BAMR87_SCRIPTS="${_PROJECT_ROOT}/projects/scripts"
 
 # --------------------------------------------------------------------------
 # Parse [env] section from devtools.conf (if present)
@@ -74,8 +74,9 @@ unset _DEVTOOLS_CONF
 # --------------------------------------------------------------------------
 alias bamr87-setup="${BAMR87_TOOLS}/setup.sh"
 alias bamr87-update="${BAMR87_TOOLS}/update-submodules.sh"
-alias bamr87-cv="cd ${BAMR87_HOME}/cv && npm run dev"
-alias bamr87-docs="cd ${BAMR87_HOME} && mkdocs serve"
+alias bamr87-cv="cd ${BAMR87_HOME}/projects/cv && npm run dev"
+alias bamr87-dash="${BAMR87_TOOLS}/dash"
+alias bamr87-docs="${BAMR87_TOOLS}/dash serve"
 alias bamr87-dc="cd ${BAMR87_HOME} && docker compose"
 
 # --------------------------------------------------------------------------

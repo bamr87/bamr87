@@ -24,6 +24,11 @@ build/
 target/
 out/
 
+# Jekyll build artifacts
+_site/
+.jekyll-cache/
+.jekyll-metadata
+
 # Virtual Environments
 .venv/
 venv/
@@ -151,3 +156,11 @@ OneDrive/
 
 # Backup directories
 backups/
+
+# Dash (Jekyll) build artifacts & generated monitoring data
+dash/_site/
+dash/.jekyll-cache/
+dash/vendor/
+dash/Gemfile.lock
+dash/_data/project_health.yml
+dash/_data/project_health_meta.yml

@@ -111,10 +111,10 @@ This repository uses **Git submodules** to manage multiple related projects. Und
 
 ```
 bamr87/
-├── cv/          # Submodule: CV Builder application
-├── README/      # Submodule: Documentation hub
-├── scripts/     # Submodule: Automation scripts
-├── skills/      # Submodule: Microsoft Agent Skills (microsoft/skills)
+├── projects/cv/          # Submodule: CV Builder application
+├── projects/README/      # Submodule: Documentation hub
+├── projects/scripts/     # Submodule: Automation scripts
+├── projects/skills/      # Submodule: Microsoft Agent Skills (microsoft/skills)
 └── (root)       # Profile README and coordination
 ```
 
@@ -145,7 +145,7 @@ For changes to root-level files (README.md, .gitignore, workflows, shared config
 
 ### Contributing to Submodules
 
-For changes to cv/, README/, or scripts/:
+For changes to projects/cv/, projects/README/, or projects/scripts/:
 
 #### Option 1: Direct Submodule Contribution (Recommended)
 
@@ -153,7 +153,7 @@ For changes to cv/, README/, or scripts/:
 2. **Clone and work directly** in the submodule repo:
    ```bash
    git clone https://github.com/YOUR-USERNAME/cv-builder-pro.git
-   cd cv-builder-pro
+   cd projects/cv-builder-pro
    git checkout -b feature/your-feature
    # Make changes
    git commit -m "feat: your feature"
@@ -171,7 +171,7 @@ For changes to cv/, README/, or scripts/:
    ```
 2. **Navigate to submodule** and create branch:
    ```bash
-   cd cv
+   cd projects/cv
    git checkout -b feature/your-feature
    ```
 3. **Make changes and commit** in the submodule:
@@ -198,7 +198,7 @@ When you see "Update submodule" PRs:
    ```bash
    git checkout pr-branch
    git submodule update --init --recursive
-   cd cv  # or relevant submodule
+   cd projects/cv  # or relevant submodule
    npm install && npm run dev  # or appropriate commands
    ```
 3. **Approve and merge** if tests pass
@@ -225,7 +225,7 @@ Before submitting PRs that affect multiple submodules:
 
 ## 🧠 Skills & AI Agent Resources
 
-This repository integrates [microsoft/skills](https://github.com/microsoft/skills) as a submodule (`skills/`), providing 130+ domain-specific skills for AI coding agents. The following resources from that project have been adapted for use in this repo:
+This repository integrates [microsoft/skills](https://github.com/microsoft/skills) as a submodule (`projects/skills/`), providing 130+ domain-specific skills for AI coding agents. The following resources from that project have been adapted for use in this repo:
 
 -   **Code Review Checklist**: `.github/prompts/skills-code-review.prompt.md` — Comprehensive code review checklist covering frontend, backend, security, and performance.
 -   **Add Endpoint Prompt**: `.github/prompts/add-endpoint.prompt.md` — Step-by-step template for adding REST API endpoints with Pydantic models.

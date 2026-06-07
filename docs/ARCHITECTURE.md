@@ -58,9 +58,9 @@ Each major component is a separate Git submodule:
 
 ```
 ├── Root Level      → Profile, coordination, shared assets
-├── cv/             → Application development
-├── README/         → Knowledge management
-└── scripts/        → Automation and tooling
+├── projects/cv/             → Application development
+├── projects/README/         → Knowledge management
+└── projects/scripts/        → Automation and tooling
 ```
 
 ### 4. README-First Development
@@ -72,7 +72,7 @@ All components follow the README-First principle:
 
 ## Component Architecture
 
-### CV Builder (cv/)
+### CV Builder (projects/cv/)
 
 **Tech Stack**: React, TypeScript, Vite, Tailwind CSS, Firebase
 
@@ -111,7 +111,7 @@ graph LR
 3. User selects template → Data merged with template
 4. Export generates final CV in chosen format
 
-### Documentation Hub (README/)
+### Documentation Hub (projects/README/)
 
 **Tech Stack**: Python, MkDocs, Wiki.js, Docker
 
@@ -152,7 +152,7 @@ graph TD
 5. MkDocs builds static site → GitHub Pages
 6. Wiki.js provides searchable, collaborative interface
 
-### Automation Scripts (scripts/)
+### Automation Scripts (projects/scripts/)
 
 **Tech Stack**: Bash, Python, Shell
 
@@ -224,9 +224,9 @@ graph TB
     Push --> Trigger{Which Files?}
     
     Trigger -->|.github/workflows| WorkflowValidation[Validate Workflow]
-    Trigger -->|cv/**| CVBuild[Build CV App]
-    Trigger -->|README/docs/**| DocBuild[Build Documentation]
-    Trigger -->|scripts/**| ScriptValidation[Validate Scripts]
+    Trigger -->|projects/cv/**| CVBuild[Build CV App]
+    Trigger -->|projects/README/docs/**| DocBuild[Build Documentation]
+    Trigger -->|projects/scripts/**| ScriptValidation[Validate Scripts]
     
     CVBuild --> CVTest[Run Tests]
     CVTest --> CVDeploy[Deploy to Vercel]
@@ -244,8 +244,8 @@ graph TB
 
 | Component | Platform | Trigger | URL |
 |-----------|----------|---------|-----|
-| CV Builder | Vercel | Push to cv/main | cv-builder.vercel.app |
-| Documentation | GitHub Pages | Push to README/docs | bamr87.github.io/bamr87 |
+| CV Builder | Vercel | Push to projects/cv/main | cv-builder.vercel.app |
+| Documentation | GitHub Pages | Push to projects/README/docs | bamr87.github.io/bamr87 |
 | Wiki.js | Docker/Self-hosted | Manual | localhost:3000 |
 | Profile | GitHub | Push to main | github.com/bamr87 |
 

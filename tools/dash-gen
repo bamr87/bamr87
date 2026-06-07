@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# ============================================================================
+# tools/dash-gen — thin wrapper around .github/scripts/dash-gen/dash_gen.py
+# Usage: tools/dash-gen {health|readme|all} [--check]
+# ============================================================================
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GEN="${HERE}/.github/scripts/dash-gen/dash_gen.py"
+
+PY="${PYTHON:-python3}"
+exec "$PY" "$GEN" "$@"

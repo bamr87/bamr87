@@ -1,0 +1,20 @@
+# Thresholds used by .github/scripts/dash-gen to compute the attention level
+# (red / amber / green) shown on the Monitor board. Tune freely.
+
+# Days since last commit before an `active` repo is flagged stale (red).
+stale_commit_days: 60
+
+# Days since an open issue was updated before it counts as "stale".
+stale_issue_days: 30
+
+# Days since an open PR was updated before it counts as "stale".
+stale_pr_days: 14
+
+# Open `bug`-labeled issues at/above this count raise an amber flag.
+bug_issue_amber: 3
+
+# CI pass-rate (%) over the recent window below this raises an amber flag.
+ci_pass_rate_amber: 80
+
+# Number of recent workflow runs sampled for CI build stats.
+ci_window: 20

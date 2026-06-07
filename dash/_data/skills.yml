@@ -1,0 +1,29 @@
+# Toolbox catalog: curated AI skills available in this repo.
+# Repo-specific dash skills live in .claude/skills/; the broader library is the
+# projects/skills/ submodule (microsoft/skills, 132 skills).
+
+# --- Dash orchestration skills (.claude/skills/) ---
+- name: update-registry
+  description: Reconcile dash/_data/projects.yml with .gitmodules and repo metadata.
+- name: refresh-portfolio
+  description: Regenerate monitoring data + the profile README project list.
+- name: sync-project-docs
+  description: Pull each project's current summary/status into the registry.
+- name: drift-report
+  description: Explain drift-gate failures and the exact fix.
+- name: new-project
+  description: Scaffold and register a new project.
+- name: triage-attention
+  description: Turn Monitor-board signals into prioritized actions.
+- name: evolve-project
+  description: Focused per-project improvement pass (maps to .github/agents personas).
+
+# --- Reusable from the projects/skills/ submodule ---
+- name: skill-creator
+  description: Author new Claude skills (from projects/skills/ submodule).
+- name: mcp-builder
+  description: Build new MCP servers (from projects/skills/ submodule).
+- name: github-issue-creator
+  description: Create well-formed GitHub issues (from projects/skills/ submodule).
+- name: continual-learning
+  description: Capture and reuse knowledge across sessions (from projects/skills/ submodule).
