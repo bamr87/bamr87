@@ -1,0 +1,45 @@
+# Main Navigation
+# Used by: _includes/navigation/navbar.html (zer0-mistakes theme)
+# Schema: list of { title, icon (Bootstrap Icons bi-*), url, children[] }
+
+- title: Home
+  icon: bi-house
+  url: /
+
+- title: About
+  icon: bi-person
+  url: /about/
+  children:
+    - title: About Me
+      url: /about/
+    - title: Technical Stack
+      url: /about/#technical-stack--specializations
+
+- title: Experience
+  icon: bi-briefcase
+  url: /experience/
+
+- title: Services
+  icon: bi-gear-wide-connected
+  url: /services/
+  children:
+    - title: Enterprise Architecture & ERP
+      url: /services/#enterprise-architecture--erp-solutions
+    - title: Financial Technology
+      url: /services/#financial-technology--automation
+    - title: Cloud & Full-Stack
+      url: /services/#cloud--full-stack-development
+    - title: IT Strategy
+      url: /services/#it-strategy--employee-empowerment
+
+- title: Projects
+  icon: bi-collection
+  url: /projects/
+
+- title: Blog
+  icon: bi-journal-text
+  url: /blog/
+
+- title: Contact
+  icon: bi-envelope
+  url: /contact/

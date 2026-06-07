@@ -24,6 +24,11 @@ build/
 target/
 out/
 
+# Jekyll build artifacts
+_site/
+.jekyll-cache/
+.jekyll-metadata
+
 # Virtual Environments
 .venv/
 venv/
