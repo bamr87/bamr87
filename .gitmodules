@@ -103,3 +103,7 @@
 	path = projects/jekyll
 	url = https://github.com/bamr87/jekyll.git
 	branch = master
+[submodule "projects/1897"]
+	path = projects/1897
+	url = https://github.com/bamr87/1897.git
+	branch = main
