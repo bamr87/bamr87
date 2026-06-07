@@ -1,0 +1,33 @@
+# =============================================================================
+# dash/docker-compose.yml — dedicated container that serves the dash site.
+# =============================================================================
+# Usage (from this directory):
+#   docker compose up           # build + serve at http://localhost:4000
+#   docker compose up -d        # detached
+#   docker compose logs -f      # follow the Jekyll log
+#   docker compose down         # stop
+#   docker compose down -v      # stop and drop the gem cache volume
+#
+# Optional: set GITHUB_TOKEN in the environment (or a .env file) to avoid
+# GitHub API rate limits when jekyll-remote-theme fetches the theme.
+# =============================================================================
+services:
+  dash:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bamr87-dash
+    ports:
+      - "${JEKYLL_PORT:-4000}:4000"        # Jekyll site
+      - "${LIVERELOAD_PORT:-35729}:35729"  # livereload
+    volumes:
+      - .:/site:cached                     # live source for editing
+      - dash-bundle:/usr/local/bundle      # persisted gem cache
+    environment:
+      # jekyll-remote-theme reads this to authenticate GitHub API calls.
+      JEKYLL_GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    restart: unless-stopped
+
+volumes:
+  dash-bundle:
+    driver: local

@@ -1,6 +1,9 @@
 source "https://rubygems.org"
 
 # GitHub Pages compatible toolchain for the zer0-mistakes remote theme.
-gem "github-pages", group: :jekyll_plugins
-gem "jekyll-remote-theme"
+# github-pages already bundles a version-pinned jekyll-remote-theme; listing
+# that gem standalone makes bundler backtrack github-pages to an ancient
+# release (jekyll 3.6 / kramdown 1.14) that fails on Ruby 3.3. Pin to the
+# current github-pages instead and let it provide the remote-theme plugin.
+gem "github-pages", "~> 232", group: :jekyll_plugins
 gem "webrick", "~> 1.8"

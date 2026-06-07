@@ -21,15 +21,26 @@ the portfolio, dashboard, monitoring board, and toolbox at
 ## Local development
 
 ```bash
-# From repo root, via the dev container (Jekyll on port 4000):
+# Dedicated dash container (builds + serves with livereload on port 4000):
+cd dash && docker compose up            # → http://localhost:4000
+docker compose up -d                    # detached
+docker compose logs -f                  # follow the Jekyll log
+docker compose down                     # stop
+
+# Or via the shared monorepo dev container (from repo root):
 docker compose up -d devenv
 docker compose exec devenv bash -lc \
   'cd /workspace/dash && bundle install && bundle exec jekyll serve -H 0.0.0.0 -c _config.yml,_config_dev.yml'
-# → http://localhost:4000
 
 # Or natively:
 cd dash && bundle install && bundle exec jekyll serve -c _config.yml,_config_dev.yml
 ```
+
+The dedicated container ([`Dockerfile`](Dockerfile) + [`docker-compose.yml`](docker-compose.yml))
+serves at `http://localhost:4000/` — the dev config sets `baseurl: ""`, so there is
+**no** `/bamr87` prefix locally (that prefix only applies to the GitHub Pages build).
+Set `GITHUB_TOKEN` in the environment (or a `dash/.env` file) to avoid GitHub API rate
+limits when `jekyll-remote-theme` fetches `bamr87/zer0-mistakes`.
 
 To populate the live monitoring board locally:
 

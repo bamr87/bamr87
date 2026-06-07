@@ -14,11 +14,15 @@ lang: en
 # Published at https://bamr87.github.io/bamr87/ (deployed via GitHub Actions).
 url: "https://bamr87.github.io"
 baseurl: "/bamr87"
+# Explicit repo so jekyll-github-metadata resolves outside CI (e.g. Docker,
+# where there is no origin git remote to infer it from).
+repository: bamr87/bamr87
 
 # --- Theme (remote) --------------------------------------------------------
 remote_theme: bamr87/zer0-mistakes
 plugins:
   - jekyll-remote-theme
+  - jekyll-include-cache   # theme uses the {% include_cached %} tag
   - jekyll-feed
   - jekyll-sitemap
   - jekyll-seo-tag
