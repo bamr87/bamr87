@@ -26,10 +26,12 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
   ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
-  ${c_bold}dash evolve [args]${c_off}     trigger the AI evolution workflow
+  ${c_bold}dash evolve${c_off}            evolve the monorepo itself (unified-evolution.yml)
+  ${c_bold}dash evolve --repo <name>${c_off}  evolve one upstream submodule (draft PR upstream)
+  ${c_bold}dash evolve --all${c_off}      weekly fan-out across all auto_evolve submodules
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|all|targets>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -117,12 +119,27 @@ cmd_new() {
 }
 
 cmd_evolve() {
-  if command -v gh >/dev/null; then
-    gh workflow run unified-evolution.yml "$@"
-  else
-    echo "gh CLI required to trigger unified-evolution.yml" >&2
+  if ! command -v gh >/dev/null; then
+    echo "gh CLI required to trigger evolution workflows" >&2
     return 1
   fi
+  case "${1:-}" in
+    --repo)
+      shift
+      local repo="${1:?usage: dash evolve --repo <name> [-f dry_run=true]}"; shift || true
+      # per-repo pass against a single upstream submodule (draft PR upstream)
+      gh workflow run repo-evolution.yml -f "repo_name=${repo}" "$@"
+      ;;
+    --all)
+      shift
+      # weekly fan-out across every auto_evolve submodule
+      gh workflow run evolution-scheduler.yml "$@"
+      ;;
+    *)
+      # default: evolve the monorepo itself
+      gh workflow run unified-evolution.yml "$@"
+      ;;
+  esac
 }
 
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }

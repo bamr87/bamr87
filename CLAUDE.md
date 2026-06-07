@@ -95,7 +95,7 @@ The published MkDocs site (`docs_dir: projects/README/docs`) pulls from the **RE
 
 - **pre-commit** (`.pre-commit-config.yaml`): trailing-whitespace, end-of-file, check-yaml/json, markdownlint (`--fix`, MD013/MD033/MD041 disabled), shellcheck, prettier. `black` + `flake8` (max-line 120) are **scoped to `projects/README/**/*.py` only**. Install with `pip install pre-commit && pre-commit install`; CI skips shellcheck + markdownlint.
 - **Husky** (`.husky/pre-commit`) runs `pnpm lint-staged`.
-- **CI**: `.github/workflows/unified-*.yml` (CI/CD, release, maintenance, evolution) plus `build-dash.yml` (builds the Jekyll dash and deploys to Pages), `drift-check.yml` (hard drift gate), `refresh-dash.yml` (nightly projects/README/registry refresh PR), and `update-submodules.yml` (weekly PR bumping submodule pointers). `build-docs.yml` (MkDocs) is **deprecated/manual-only**, superseded by `build-dash.yml`. Reusable composite actions live in `.github/actions/{ci,deployment,setup,utilities}`.
+- **CI**: `.github/workflows/unified-*.yml` (CI/CD, release, maintenance, evolution) plus `build-dash.yml` (builds the Jekyll dash and deploys to Pages), `drift-check.yml` (hard drift gate), `refresh-dash.yml` (nightly projects/README/registry refresh PR), and `update-submodules.yml` (weekly PR bumping submodule pointers). The **per-repo evolution framework** (`evolution-scheduler.yml` → reusable `repo-evolution.yml`) runs weekly to open draft improvement PRs on each `auto_evolve` submodule's upstream repo — see [`docs/EVOLUTION.md`](docs/EVOLUTION.md). `build-docs.yml` (MkDocs) is **deprecated/manual-only**, superseded by `build-dash.yml`. Reusable composite actions live in `.github/actions/{ci,deployment,setup,utilities}`.
 
 ## The Dash (central command surface)
 
@@ -106,7 +106,7 @@ The repo is a self-managing **dash**. See [`docs/DASH.md`](docs/DASH.md). Key fa
 - **CLI**: `tools/dash {status|monitor|serve|sync|run|new|evolve|gen|test}` (alias `bamr87-dash`) — reuses `setup.sh`/`run-all-tests.sh`/`update-submodules.sh`/`projects/scripts/`.
 - **Generator**: `.github/scripts/dash-gen` (`tools/dash-gen`) — `health` gathers live GitHub signals → ephemeral `dash/_data/project_health.yml` (gitignored, never commit); `readme` regenerates the README AUTO span (deterministic, committable).
 - **Drift**: `tools/check-drift.sh` gates on registry/.gitmodules parity, stale README, missing READMEs, submodule branch drift, broken dash links.
-- **AI layer**: `.mcp.json` (MCP servers) + `.claude/skills/` + `.claude/commands/` (`/dash-status`, `/evolve`, `/register-project`). `unified-evolution.yml` runs Claude Code (`anthropics/claude-code-action`, needs `ANTHROPIC_API_KEY`).
+- **AI layer**: `.mcp.json` (MCP servers) + `.claude/skills/` + `.claude/commands/` (`/dash-status`, `/evolve`, `/register-project`). Two evolution layers: `unified-evolution.yml` evolves the **monorepo itself**; the **per-repo framework** (`evolution-scheduler.yml` → `repo-evolution.yml`, driven by `auto_evolve` in the registry + `dash-gen targets`, prompts in `.github/evolution/`) opens draft improvement PRs on each submodule's **upstream** repo. Both run Claude Code (`anthropics/claude-code-action`, need `ANTHROPIC_API_KEY`; per-repo also needs `PAT_TOKEN`). Trigger via `tools/dash evolve [--repo <name>|--all]`. See [`docs/EVOLUTION.md`](docs/EVOLUTION.md).
 
 ## Conventions
 

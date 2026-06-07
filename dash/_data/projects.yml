@@ -21,6 +21,11 @@
 #   maintained     bool      actively maintained
 #   live_url       optional  deployed site (null if none)
 #   docs_url       optional  documentation URL (null if none)
+#   auto_evolve    bool      opt-in to the per-repo AI evolution framework
+#                            (.github/workflows/evolution-scheduler.yml). When true, the
+#                            weekly scheduler runs Claude against this repo and opens a
+#                            DRAFT PR upstream. Only set on repos you own + can PR to.
+#                            Defaults to false/absent. See docs/EVOLUTION.md.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -37,6 +42,7 @@
   status: active
   featured: true
   maintained: true
+  auto_evolve: true
   live_url: null
   docs_url: null
 
@@ -51,6 +57,7 @@
   status: active
   featured: true
   maintained: true
+  auto_evolve: true
   live_url: null
   docs_url: null
 
@@ -65,6 +72,7 @@
   status: active
   featured: true
   maintained: true
+  auto_evolve: true
   live_url: null
   docs_url: null
 
