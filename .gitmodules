@@ -107,3 +107,7 @@
 	path = projects/1897
 	url = https://github.com/bamr87/1897.git
 	branch = main
+[submodule "projects/1987"]
+	path = projects/1987
+	url = https://github.com/bamr87/1987.git
+	branch = main
