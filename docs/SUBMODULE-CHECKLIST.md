@@ -180,7 +180,7 @@ Before finalizing, verify:
 
 ## Current Submodule Status
 
-### cv/ (CV Builder)
+### projects/cv/ (CV Builder)
 
 - [x] Has comprehensive README
 - [ ] Needs standardization review
@@ -190,7 +190,7 @@ Before finalizing, verify:
 **Priority**: Medium  
 **Action**: Add development and testing sections
 
-### README/ (Documentation Hub)
+### projects/README/ (Documentation Hub)
 
 - [x] Has comprehensive README
 - [ ] Needs standardization review
@@ -200,7 +200,7 @@ Before finalizing, verify:
 **Priority**: Medium  
 **Action**: Improve quick start and add configuration details
 
-### scripts/ (Automation Scripts)
+### projects/scripts/ (Automation Scripts)
 
 - [x] Has comprehensive README
 - [ ] Well documented

@@ -27,9 +27,9 @@ services:
     container_name: bamr87-devenv
     volumes:
       - .:/workspace:cached
-      - node-modules:/workspace/cv/node_modules
+      - node-modules:/workspace/projects/cv/node_modules
       - venv-docs:/workspace/.venv-docs
-      - venv-readme:/workspace/README/.venv
+      - venv-readme:/workspace/projects/README/.venv
     working_dir: /workspace
     ports:
       - "${CV_PORT:-5000}:5000"          # CV Builder (Vite)
@@ -83,7 +83,7 @@ services:
     volumes:
       - wiki-data:/wiki/data
       - wiki-repo:/wiki/repo
-      - ./README/docs:/wiki/content:ro
+      - ./projects/README/docs:/wiki/content:ro
     networks:
       - dev-network
     restart: unless-stopped

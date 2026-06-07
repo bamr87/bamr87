@@ -1,0 +1,22 @@
+# Toolbox catalog: common templates available in the monorepo.
+- name: README template
+  path: https://github.com/bamr87/bamr87/blob/main/docs/README-TEMPLATE.md
+  description: Standardized project README structure (badges, about, usage, FAQ).
+- name: Project scaffolds
+  path: https://github.com/bamr87/scripts
+  description: Multi-stack project templates via scripts/project-init.sh.
+- name: PR / issue templates
+  path: https://github.com/bamr87/bamr87/tree/main/.github/templates
+  description: Pull request and discussion templates.
+- name: Prompt templates
+  path: https://github.com/bamr87/bamr87/tree/main/.github/prompts
+  description: Reusable prompt templates for AI workflows.
+- name: Agent personas
+  path: https://github.com/bamr87/bamr87/tree/main/.github/agents
+  description: code-reviewer, prompt-engineer, systematic-debugger, test-writer, workflow-reviewer.
+- name: MCP config
+  path: https://github.com/bamr87/bamr87/blob/main/.mcp.json
+  description: Model Context Protocol server configuration (github, memory, sequentialthinking, context7).
+- name: Skill template
+  path: https://github.com/bamr87/bamr87/tree/main/.claude/skills
+  description: Author new skills with the skill-creator skill.

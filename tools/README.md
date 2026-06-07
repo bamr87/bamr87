@@ -114,14 +114,14 @@ cd bamr87
 
 The `.zprofile` sources `tools/devtools-env.sh`, which:
 - Reads the `[env]` section from `devtools.conf` and exports variables
-- Adds `tools/` and `scripts/` to `PATH`
+- Adds `tools/` and `projects/scripts/` to `PATH`
 - Registers convenience aliases
 
 ```bash
 # Available after sourcing (or opening a new terminal):
 bamr87-setup           # Run tools/setup.sh
 bamr87-update          # Run tools/update-submodules.sh
-bamr87-cv              # cd cv && npm run dev
+bamr87-cv              # cd projects/cv && npm run dev
 bamr87-docs            # mkdocs serve
 bamr87-dc              # docker compose (from project root)
 ```
@@ -193,9 +193,9 @@ docker compose down                        # Stop
 
 **Submodule issues:** `git submodule sync --recursive && git submodule update --init --recursive --force`
 
-**Permission denied on scripts:** `chmod +x tools/*.sh scripts/*.sh`
+**Permission denied on scripts:** `chmod +x tools/*.sh projects/scripts/*.sh`
 
-**Python venv errors:** `rm -rf .venv-docs README/.venv && ./tools/setup.sh --local docs`
+**Python venv errors:** `rm -rf .venv-docs projects/README/.venv && ./tools/setup.sh --local docs`
 
 ---
 

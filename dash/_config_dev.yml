@@ -1,0 +1,8 @@
+# Local development overrides — layered on top of _config.yml:
+#   bundle exec jekyll serve -c _config.yml,_config_dev.yml
+url: "http://localhost:4000"
+baseurl: ""
+show_drafts: true
+future: true
+# Set remote_theme: false and clone the theme locally if you hit GitHub API
+# rate limits while iterating offline.

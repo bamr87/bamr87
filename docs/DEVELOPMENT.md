@@ -20,7 +20,7 @@ This guide will help you set up your local development environment for working w
 
 Depending on which submodule you're working with:
 
-#### For cv/ (CV Builder)
+#### For projects/cv/ (CV Builder)
 - **Node.js**: 18.x or higher
 - **npm**: 9.x or higher
 
@@ -29,7 +29,7 @@ node --version
 npm --version
 ```
 
-#### For README/ (Documentation)
+#### For projects/README/ (Documentation)
 - **Python**: 3.8 or higher
 - **pip**: Latest version
 
@@ -38,7 +38,7 @@ python3 --version
 pip3 --version
 ```
 
-#### For scripts/ (Automation)
+#### For projects/scripts/ (Automation)
 - **Bash**: 4.0+ (macOS users may need to upgrade)
 - **zsh**: 5.x+ (standard on macOS)
 
@@ -47,7 +47,7 @@ bash --version
 zsh --version
 ```
 
-#### For skills/ (Agent Skills)
+#### For projects/skills/ (Agent Skills)
 - No runtime setup is required for reading or editing skill content.
 - Some nested skill tests may define their own package or Python requirements.
 
@@ -100,14 +100,14 @@ Use the provided setup script:
 
 **CV Builder:**
 ```bash
-cd cv
+cd projects/cv
 npm install
 cd ..
 ```
 
 **Documentation System:**
 ```bash
-cd README
+cd projects/README
 pip3 install -r requirements.txt
 cd ..
 ```
@@ -119,7 +119,7 @@ pip3 install -r requirements-docs.txt
 
 **Scripts:**
 ```bash
-cd scripts
+cd projects/scripts
 # Scripts are standalone, but check individual script requirements
 chmod +x *.sh
 cd ..
@@ -127,7 +127,7 @@ cd ..
 
 **Agent Skills:**
 ```bash
-cd skills
+cd projects/skills
 # Reference content; check individual skill directories for optional test commands
 cd ..
 ```
@@ -137,7 +137,7 @@ cd ..
 ### CV Builder
 
 ```bash
-cd cv
+cd projects/cv
 npm run dev
 ```
 
@@ -158,7 +158,7 @@ Access at: http://localhost:8000
 If using the Wiki.js documentation system:
 
 ```bash
-cd README
+cd projects/README
 docker-compose up -d
 ```
 
@@ -178,13 +178,13 @@ Access at: http://localhost:3000
 3. **Test your changes**:
    ```bash
    # For CV Builder
-   cd cv && npm run build && npm run preview
+   cd projects/cv && npm run build && npm run preview
    
    # For Documentation
    mkdocs build --strict
    
    # For Scripts
-   shellcheck scripts/*.sh
+   shellcheck projects/scripts/*.sh
    ```
 
 4. **Commit changes**:
@@ -204,7 +204,7 @@ Access at: http://localhost:3000
 
 1. **Navigate to submodule**:
    ```bash
-   cd cv  # or README, scripts, or skills
+   cd projects/cv  # or README, scripts, or skills
    ```
 
 2. **Create branch in submodule**:
@@ -237,19 +237,19 @@ Access at: http://localhost:3000
 
 **JavaScript/TypeScript (CV Builder):**
 ```bash
-cd cv
+cd projects/cv
 npm run lint
 ```
 
 **Python (Documentation):**
 ```bash
-cd README
-pylint scripts/*.py
+cd projects/README
+pylint projects/scripts/*.py
 ```
 
 **Shell Scripts:**
 ```bash
-shellcheck scripts/*.sh
+shellcheck projects/scripts/*.sh
 ```
 
 ### Formatting
@@ -261,7 +261,7 @@ npx prettier --write "**/*.{md,json}"
 
 **Black (Python):**
 ```bash
-black README/scripts/
+black projects/README/scripts/
 ```
 
 ### Pre-commit Hooks
@@ -283,14 +283,14 @@ pre-commit run --all-files
 ### CV Builder Tests
 
 ```bash
-cd cv
+cd projects/cv
 npm run test
 ```
 
 ### Documentation Tests
 
 ```bash
-cd README
+cd projects/README
 pytest tests/
 ```
 
@@ -305,7 +305,7 @@ Run all tests:
 
 ### CV Builder (.env.local)
 
-Create `cv/.env.local`:
+Create `projects/cv/.env.local`:
 
 ```bash
 VITE_FIREBASE_API_KEY=your-api-key
@@ -318,7 +318,7 @@ VITE_FIREBASE_APP_ID=your-app-id
 
 ### Documentation System (.env)
 
-Create `README/.env`:
+Create `projects/README/.env`:
 
 ```bash
 XAI_API_KEY=your-xai-key
@@ -350,14 +350,14 @@ git submodule foreach git pull origin main
 
 **Problem**: Node modules not found
 ```bash
-cd cv
+cd projects/cv
 rm -rf node_modules package-lock.json
 npm install
 ```
 
 **Problem**: Python dependencies conflicts
 ```bash
-cd README
+cd projects/README
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -373,7 +373,7 @@ mkdocs build --clean
 
 **Problem**: Scripts not executable
 ```bash
-chmod +x scripts/*.sh
+chmod +x projects/scripts/*.sh
 chmod +x tools/*.sh
 ```
 
@@ -393,8 +393,8 @@ Workspace settings are in `.vscode/settings.json`.
 
 ### IntelliJ IDEA / WebStorm
 
-- Enable ESLint for cv/
-- Enable Python plugin for README/
+- Enable ESLint for projects/cv/
+- Enable Python plugin for projects/README/
 - Configure Prettier for code formatting
 
 ## Performance Tips
@@ -454,7 +454,7 @@ git submodule update --init --force
 mkdocs build
 
 # Run CV builder
-cd cv && npm run dev
+cd projects/cv && npm run dev
 
 # Run all tests
 ./tools/run-all-tests.sh

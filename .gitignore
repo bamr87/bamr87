@@ -156,3 +156,11 @@ OneDrive/
 
 # Backup directories
 backups/
+
+# Dash (Jekyll) build artifacts & generated monitoring data
+dash/_site/
+dash/.jekyll-cache/
+dash/vendor/
+dash/Gemfile.lock
+dash/_data/project_health.yml
+dash/_data/project_health_meta.yml

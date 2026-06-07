@@ -21,10 +21,10 @@ bamr87/
 │       ├── update-submodules.yml   # PR-based submodule updates
 │       └── unified-*.yml           # Consolidated CI, release, and maintenance workflows
 ├── assets/               # Shared assets (headshots, images)
-├── README/               # Submodule: Documentation aggregation system
-├── cv/                   # Submodule: CV Builder application
-├── scripts/              # Submodule: Automation and utility scripts
-├── skills/               # Submodule: Microsoft agent skills
+├── projects/README/               # Submodule: Documentation aggregation system
+├── projects/cv/                   # Submodule: CV Builder application
+├── projects/scripts/              # Submodule: Automation and utility scripts
+├── projects/skills/               # Submodule: Microsoft agent skills
 ├── tools/                # Root-level setup and submodule helper scripts
 ├── docs/                 # Root-level monorepo documentation
 │   ├── ARCHITECTURE.md   # System design decisions
@@ -63,9 +63,9 @@ We use Git submodules rather than a traditional monorepo tool because:
 
 ## Root Submodules vs Published Docs
 
-The root-level `README/`, `cv/`, `scripts/`, and `skills/` directories are Git submodules. The MkDocs site is built from `README/docs` as configured in `mkdocs.yml`.
+The root-level `projects/README/`, `projects/cv/`, `projects/scripts/`, and `projects/skills/` directories are Git submodules. The MkDocs site is built from `projects/README/docs` as configured in `mkdocs.yml`.
 
-Some paths under `README/docs`, such as `README/docs/scripts/` and `README/docs/skills/`, are aggregated documentation copies for the published site. They are not the same working trees as the root `scripts/` and `skills/` submodules.
+Some paths under `projects/README/docs`, such as `projects/README/docs/scripts/` and `projects/README/docs/skills/`, are aggregated documentation copies for the published site. They are not the same working trees as the root `projects/scripts/` and `projects/skills/` submodules.
 
 ## Working with Submodules
 
@@ -100,7 +100,7 @@ git push
 Update a specific submodule:
 
 ```bash
-cd cv
+cd projects/cv
 git pull origin main
 cd ..
 git add cv
@@ -112,7 +112,7 @@ git push
 
 1. **Navigate to the submodule**:
    ```bash
-   cd cv
+   cd projects/cv
    ```
 
 2. **Create a branch and make changes**:
@@ -138,23 +138,23 @@ git push
 
 ## Submodule Details
 
-### cv/ - CV Builder
+### projects/cv/ - CV Builder
 
 - **Repository**: https://github.com/bamr87/cv-builder-pro
 - **Branch**: main
 - **Purpose**: AI-powered CV/resume builder with LaTeX templates
 - **Tech Stack**: React, TypeScript, Vite, Tailwind CSS
-- **Setup**: `cd cv && npm install && npm run dev`
+- **Setup**: `cd projects/cv && npm install && npm run dev`
 
-### README/ - Documentation Hub
+### projects/README/ - Documentation Hub
 
 - **Repository**: https://github.com/bamr87/README
 - **Branch**: main
 - **Purpose**: Aggregated documentation from multiple repositories
 - **Tech Stack**: Python, MkDocs, Wiki.js
-- **Setup**: `cd README && pip install -r requirements.txt`
+- **Setup**: `cd projects/README && pip install -r requirements.txt`
 
-### scripts/ - Automation Scripts
+### projects/scripts/ - Automation Scripts
 
 - **Repository**: https://github.com/bamr87/scripts
 - **Branch**: master
@@ -162,7 +162,7 @@ git push
 - **Tech Stack**: Bash, Python, Shell scripts
 - **Setup**: Scripts are standalone executables
 
-### skills/ - Agent Skills
+### projects/skills/ - Agent Skills
 
 - **Repository**: https://github.com/microsoft/skills
 - **Branch**: main
@@ -184,7 +184,7 @@ The `.github/workflows/update-submodules.yml` workflow:
 ### Documentation Deployment
 
 The `.github/workflows/build-docs.yml` workflow:
-- Triggers on changes to `README/docs/**` or `mkdocs.yml`
+- Triggers on changes to `projects/README/docs/**` or `mkdocs.yml`
 - Builds MkDocs documentation
 - Deploys to GitHub Pages automatically
 
@@ -201,7 +201,7 @@ Changes to root-level files (README.md, .gitignore, workflows):
 
 ### For Submodule Changes
 
-Changes to `cv/`, `README/`, `scripts/`, or `skills/`:
+Changes to `projects/cv/`, `projects/README/`, `projects/scripts/`, or `projects/skills/`:
 
 1. Fork the **submodule repository**
 2. Make changes in the submodule repo

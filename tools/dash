@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# ============================================================================
+# tools/dash — unified CLI for the bamr87 development dash
+#
+# A thin dispatcher that REUSES existing tooling rather than reimplementing it:
+#   setup.sh, run-all-tests.sh, update-submodules.sh, dash-gen, check-drift.sh,
+#   and the scripts/ submodule (forkme, stashme, project-init, git_init).
+#
+# Usage: tools/dash <command> [args]
+# ============================================================================
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TOOLS="${ROOT}/tools"
+SCRIPTS="${ROOT}/scripts"
+
+c_bold=$'\033[1m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
+
+usage() {
+  cat <<EOF
+${c_bold}dash${c_off} — central CLI for the bamr87 development dash
+
+  ${c_bold}dash status${c_off}            submodule + registry + drift summary
+  ${c_bold}dash monitor${c_off}           refresh health and print repos needing attention
+  ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
+  ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
+  ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
+  ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
+  ${c_bold}dash evolve [args]${c_off}     trigger the AI evolution workflow
+  ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
+  ${c_bold}dash test${c_off}              run the aggregate test suite
+  ${c_bold}dash gen <health|readme|all>${c_off}  run the registry generator
+  ${c_bold}dash help${c_off}             this help
+EOF
+}
+
+cmd_status() {
+  echo "${c_bold}== Submodules ==${c_off}"
+  git -C "$ROOT" submodule status || true
+  echo
+  echo "${c_bold}== Registry ==${c_off}"
+  if command -v python3 >/dev/null; then
+    python3 - "$ROOT/dash/_data/projects.yml" <<'PY'
+import sys, yaml
+with open(sys.argv[1]) as fh:
+    reg = yaml.safe_load(fh) or []
+print(f"  {len(reg)} projects "
+      f"({sum(1 for p in reg if p.get('submodule_path'))} submodules, "
+      f"{sum(1 for p in reg if p.get('featured'))} featured, "
+      f"{sum(1 for p in reg if p.get('status')=='active')} active)")
+PY
+  fi
+  echo
+  echo "${c_bold}== Drift ==${c_off}"
+  "${TOOLS}/check-drift.sh" --report || true
+}
+
+cmd_monitor() {
+  "${TOOLS}/dash-gen" health
+  local health="${ROOT}/dash/_data/project_health.yml"
+  [[ -f "$health" ]] || { echo "no health data"; return 1; }
+  python3 - "$health" <<'PY'
+import sys, yaml
+data = yaml.safe_load(open(sys.argv[1])) or []
+order = {"red":0,"amber":1,"green":2}
+for h in sorted(data, key=lambda x: x.get("attention_rank", 2)):
+    lvl = h["attention"]["level"]
+    dot = {"red":"🔴","amber":"🟠","green":"🟢"}[lvl]
+    if lvl == "green":
+        continue
+    print(f'{dot} {h["name"]:<22} {"; ".join(h["attention"]["reasons"])}')
+green = sum(1 for h in data if h["attention"]["level"]=="green")
+print(f'\n🟢 {green} healthy / {len(data)} total')
+PY
+}
+
+cmd_serve() {
+  cd "$ROOT"
+  if docker compose ps >/dev/null 2>&1; then
+    docker compose up -d devenv
+    docker compose exec devenv bash -lc \
+      'cd /workspace/dash && bundle install && bundle exec jekyll serve -H 0.0.0.0 -c _config.yml,_config_dev.yml'
+  else
+    echo "Docker not available; serving natively."
+    cd "$ROOT/dash" && bundle install && bundle exec jekyll serve -c _config.yml,_config_dev.yml
+  fi
+}
+
+cmd_sync() {
+  "${TOOLS}/update-submodules.sh" "$@"
+  "${TOOLS}/dash-gen" all
+}
+
+cmd_run() {
+  [[ $# -ge 1 ]] || { echo "usage: dash run <tool> [args]"; return 1; }
+  local tool="$1"; shift
+  for cand in "${SCRIPTS}/${tool}" "${SCRIPTS}/${tool}.sh" "$(command -v "$tool" 2>/dev/null || true)"; do
+    if [[ -n "$cand" && -x "$cand" ]]; then exec "$cand" "$@"; fi
+  done
+  echo "tool not found in scripts/: ${tool}" >&2
+  echo "available:" >&2; ls "${SCRIPTS}" 2>/dev/null | sed 's/^/  /' >&2
+  return 1
+}
+
+cmd_new() {
+  [[ $# -ge 1 ]] || { echo "usage: dash new <name> [project-init args]"; return 1; }
+  local name="$1"; shift
+  if [[ -x "${SCRIPTS}/project-init.sh" ]]; then
+    "${SCRIPTS}/project-init.sh" "$name" "$@"
+  else
+    echo "scripts/project-init.sh not found (is the submodule initialized?)" >&2
+    return 1
+  fi
+  echo
+  echo "${c_dim}Remember to register '${name}' in dash/_data/projects.yml"
+  echo "(or run the .claude/skills/update-registry skill).${c_off}"
+}
+
+cmd_evolve() {
+  if command -v gh >/dev/null; then
+    gh workflow run unified-evolution.yml "$@"
+  else
+    echo "gh CLI required to trigger unified-evolution.yml" >&2
+    return 1
+  fi
+}
+
+cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
+cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
+cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
+
+main() {
+  local cmd="${1:-help}"; shift || true
+  case "$cmd" in
+    status)  cmd_status "$@" ;;
+    monitor) cmd_monitor "$@" ;;
+    serve)   cmd_serve "$@" ;;
+    sync)    cmd_sync "$@" ;;
+    run)     cmd_run "$@" ;;
+    new)     cmd_new "$@" ;;
+    evolve)  cmd_evolve "$@" ;;
+    doctor)  cmd_doctor "$@" ;;
+    test)    cmd_test "$@" ;;
+    gen)     cmd_gen "$@" ;;
+    help|-h|--help) usage ;;
+    *) echo "unknown command: ${cmd}" >&2; usage; return 1 ;;
+  esac
+}
+
+main "$@"

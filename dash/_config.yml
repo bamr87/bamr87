@@ -1,0 +1,44 @@
+# =============================================================================
+# dash/_config.yml — central dashboard site (consumes the zer0-mistakes remote theme)
+# =============================================================================
+# Local dev layers _config_dev.yml on top:
+#   bundle exec jekyll serve -c _config.yml,_config_dev.yml
+# Production build (GitHub Actions, build-dash.yml) uses this file alone.
+# =============================================================================
+
+title: "bamr87 — Dashboard"
+description: "Central dash, portfolio, and AI-augmented toolkit for bamr87's projects."
+author: bamr87
+lang: en
+
+# Published at https://bamr87.github.io/bamr87/ (deployed via GitHub Actions).
+url: "https://bamr87.github.io"
+baseurl: "/bamr87"
+
+# --- Theme (remote) --------------------------------------------------------
+remote_theme: bamr87/zer0-mistakes
+plugins:
+  - jekyll-remote-theme
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# --- Build ------------------------------------------------------------------
+markdown: kramdown
+permalink: pretty
+timezone: America/Chicago
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - .bundle
+  - README.md
+
+# --- Defaults ---------------------------------------------------------------
+defaults:
+  - scope:
+      path: ""
+    values:
+      sidebar:
+        nav: false

@@ -1,0 +1,53 @@
+name: 🚧 Drift Check
+
+# Hard gate: fails CI on registry/.gitmodules drift, a stale README AUTO:projects
+# span, missing READMEs, submodule branch drift, or broken internal dash links.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install generator deps
+        run: pip install -r .github/scripts/dash-gen/requirements.txt
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: dash
+
+      - name: Build dash (for link check)
+        working-directory: dash
+        run: bundle exec jekyll build
+        env:
+          JEKYLL_ENV: production
+
+      - name: Install lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline dash/_site
+          fail: false   # link result surfaced via check-drift below
+
+      - name: Run drift gate
+        run: tools/check-drift.sh --ci
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

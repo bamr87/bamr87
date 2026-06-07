@@ -1,4 +1,4 @@
-<!-- Adapted from: skills/Agents.md (microsoft/skills submodule) -->
+<!-- Adapted from: projects/skills/Agents.md (microsoft/skills submodule) -->
 
 # Agent Principles
 
@@ -122,10 +122,10 @@ bamr87/
 ├── AGENTS.md                   # This file — agent principles
 ├── CONTRIBUTING.md             # Contribution guidelines
 ├── docker-compose.yml          # Container-first development
-├── cv/                         # Submodule: CV Builder (React/TypeScript/Vite)
-├── README/                     # Submodule: Documentation hub (MkDocs/Wiki)
-├── scripts/                    # Submodule: Automation scripts (Bash/Python)
-├── skills/                     # Submodule: Microsoft Agent Skills (microsoft/skills)
+├── projects/cv/                         # Submodule: CV Builder (React/TypeScript/Vite)
+├── projects/README/                     # Submodule: Documentation hub (MkDocs/Wiki)
+├── projects/scripts/                    # Submodule: Automation scripts (Bash/Python)
+├── projects/skills/                     # Submodule: Microsoft Agent Skills (microsoft/skills)
 ├── tools/                      # Dev environment setup, Brewfile
 ├── docs/                       # Architecture and development docs
 ├── .github/
@@ -141,10 +141,10 @@ bamr87/
 
 | Submodule | Repo | Branch | Tech Stack |
 |-----------|------|--------|------------|
-| `cv/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
-| `README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
-| `scripts/` | `bamr87/scripts` | `master` | Bash, Python |
-| `skills/` | `microsoft/skills` | `main` | Skills, prompts, MCP configs |
+| `projects/cv/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
+| `projects/README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
+| `projects/scripts/` | `bamr87/scripts` | `master` | Bash, Python |
+| `projects/skills/` | `microsoft/skills` | `main` | Skills, prompts, MCP configs |
 
 ### Container Development
 

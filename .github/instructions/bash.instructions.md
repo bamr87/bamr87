@@ -1,5 +1,5 @@
 ---
-applyTo: '**/*.sh,**/*.bash,scripts/**/*'
+applyTo: '**/*.sh,**/*.bash,projects/scripts/**/*'
 ---
 
 # Bash Scripting Standards

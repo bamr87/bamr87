@@ -70,7 +70,7 @@ readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly SCRIPT_VERSION="2.2.0"
-readonly SCRIPTS_DIR="${PROJECT_ROOT}/scripts"
+readonly SCRIPTS_DIR="${PROJECT_ROOT}/projects/scripts"
 readonly LOCAL_BIN="${HOME}/.local/bin"
 readonly DEVTOOLS_CONF="${SCRIPT_DIR}/devtools.conf"
 readonly BREWFILE="${SCRIPT_DIR}/Brewfile"
@@ -825,20 +825,20 @@ setup_docker() {
 setup_cv() {
     if ! should_install "cv"; then return 0; fi
     if [[ "$DEV_MODE" == "docker" ]]; then return 0; fi
-    if [[ ! -d "${PROJECT_ROOT}/cv" ]]; then
+    if [[ ! -d "${PROJECT_ROOT}/projects/cv" ]]; then
         log_warn "cv/ directory not found; skipping CV Builder setup"
         return 0
     fi
 
     log_step "Setting up CV Builder (Node.js/React)..."
 
-    cd "${PROJECT_ROOT}/cv"
+    cd "${PROJECT_ROOT}/projects/cv"
 
     if command_exists node; then
         log_info "Node.js: $(node --version)"
         log_info "Installing npm dependencies..."
         run_cmd npm install
-        log_info "CV Builder ready. Start with: cd cv && npm run dev"
+        log_info "CV Builder ready. Start with: cd projects/cv && npm run dev"
     else
         log_warn "Node.js not found; skipping CV Builder setup"
     fi
@@ -872,14 +872,14 @@ setup_docs() {
     fi
 
     # README submodule venv
-    if [[ -d "README" && -f "README/requirements.txt" ]]; then
+    if [[ -d "projects/README" && -f "projects/README/requirements.txt" ]]; then
         log_info "Creating README documentation virtual environment..."
-        if [[ ! -d "README/.venv" ]]; then
-            run_cmd python3 -m venv README/.venv
+        if [[ ! -d "projects/README/.venv" ]]; then
+            run_cmd python3 -m venv projects/README/.venv
         fi
         log_info "Installing README dependencies..."
-        run_cmd README/.venv/bin/pip install --quiet --upgrade pip
-        run_cmd README/.venv/bin/pip install --quiet -r README/requirements.txt
+        run_cmd projects/README/.venv/bin/pip install --quiet --upgrade pip
+        run_cmd projects/README/.venv/bin/pip install --quiet -r projects/README/requirements.txt
         log_info "README docs ready."
     fi
 }
@@ -896,7 +896,7 @@ setup_scripts() {
     cd "${PROJECT_ROOT}"
 
     log_info "Making scripts executable..."
-    find scripts -name '*.sh' -exec chmod +x {} \; 2>/dev/null || true
+    find projects/scripts -name '*.sh' -exec chmod +x {} \; 2>/dev/null || true
     find tools -name '*.sh' -exec chmod +x {} \; 2>/dev/null || true
 
     # Validate with shellcheck if available
@@ -1083,13 +1083,13 @@ print_summary() {
     echo ""
 
     echo -e "${BOLD}Component Status:${NC}"
-    [[ -d "${PROJECT_ROOT}/cv/node_modules" ]] \
+    [[ -d "${PROJECT_ROOT}/projects/cv/node_modules" ]] \
         && echo -e "  ${GREEN}✓${NC} CV Builder (Node.js)" \
         || echo -e "  ${YELLOW}○${NC} CV Builder (not set up locally)"
     [[ -d "${PROJECT_ROOT}/.venv-docs" ]] \
         && echo -e "  ${GREEN}✓${NC} MkDocs Documentation" \
         || echo -e "  ${YELLOW}○${NC} MkDocs Documentation (not set up)"
-    [[ -d "${PROJECT_ROOT}/README/.venv" ]] \
+    [[ -d "${PROJECT_ROOT}/projects/README/.venv" ]] \
         && echo -e "  ${GREEN}✓${NC} README Documentation" \
         || echo -e "  ${YELLOW}○${NC} README Documentation (not set up)"
     command_exists docker \
@@ -1132,7 +1132,7 @@ print_summary() {
         echo "  Dev Shell:    docker compose exec app bash"
     fi
     if [[ "$DEV_MODE" == "local" || "$DEV_MODE" == "all" ]]; then
-        echo "  CV Builder:   cd cv && npm run dev"
+        echo "  CV Builder:   cd projects/cv && npm run dev"
         echo "  MkDocs:       source .venv-docs/bin/activate && mkdocs serve"
     fi
     echo ""

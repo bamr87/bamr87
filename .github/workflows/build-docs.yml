@@ -1,12 +1,11 @@
-name: Build and Deploy Documentation
+name: Build and Deploy Documentation (DEPRECATED — superseded by build-dash.yml)
+
+# SUPERSEDED by build-dash.yml (Jekyll + zer0-mistakes). Kept as a manual-only
+# fallback during the MkDocs→Jekyll cutover. Do NOT run while Pages Source is set
+# to "GitHub Actions" — `mkdocs gh-deploy` pushes to a branch and will conflict
+# with the deploy-pages flow. Scheduled for removal once the dash is verified live.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'README/docs/**'
-      - 'mkdocs.yml'
-      - 'requirements-docs.txt'
   workflow_dispatch:
 
 permissions:

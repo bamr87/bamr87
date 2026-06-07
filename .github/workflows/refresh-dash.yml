@@ -1,0 +1,99 @@
+name: 🔄 Refresh Dash
+
+# Auto-fix bot: regenerates the COMMITTABLE registry-derived content (the README
+# AUTO:projects span) and opens a PR if it changed. Live monitoring data is NOT
+# committed here — it is regenerated on each build-dash deploy.
+#
+# Optional escalation: opens/updates a tracking issue for any repo that flips to
+# 🔴 on the Monitor board.
+
+on:
+  schedule:
+    - cron: '0 4 * * *'   # daily 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      escalate:
+        description: 'Open tracking issues for 🔴 repos'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -r .github/scripts/dash-gen/requirements.txt
+
+      - name: Regenerate README AUTO:projects
+        run: python .github/scripts/dash-gen/dash_gen.py readme
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        uses: ./.github/actions/setup/configure-git
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(dash): refresh README project list from registry"
+          title: "chore(dash): refresh README project list"
+          body: |
+            Automated refresh of the `<!-- AUTO:projects -->` section of the
+            profile README from `dash/_data/projects.yml`.
+          branch: "chore/refresh-dash-${{ github.run_id }}"
+          base: main
+          labels: automation, dash
+          delete-branch: true
+
+  escalate-attention:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.escalate }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Gather health
+        run: |
+          pip install -r .github/scripts/dash-gen/requirements.txt
+          python .github/scripts/dash-gen/dash_gen.py health || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Open tracking issues for 🔴 repos
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os, subprocess, yaml, pathlib
+          p = pathlib.Path("dash/_data/project_health.yml")
+          if not p.exists():
+              raise SystemExit(0)
+          for h in yaml.safe_load(p.read_text()) or []:
+              if h["attention"]["level"] != "red":
+                  continue
+              title = f'🔴 {h["name"]} needs attention'
+              body = "Flagged by the dash Monitor board:\n\n- " + "\n- ".join(h["attention"]["reasons"])
+              # de-dupe by title via search
+              found = subprocess.run(
+                  ["gh","issue","list","--repo",os.environ["GITHUB_REPOSITORY"],
+                   "--search",title,"--state","open","--json","number"],
+                  capture_output=True, text=True).stdout.strip()
+              if found and found != "[]":
+                  continue
+              subprocess.run(["gh","issue","create","--repo",os.environ["GITHUB_REPOSITORY"],
+                              "--title",title,"--body",body,"--label","attention,dash"])
+          PY

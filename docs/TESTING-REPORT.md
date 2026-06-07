@@ -32,7 +32,7 @@ All setup scripts and documentation builds have been tested and verified working
 
 3. **Documentation System Setup (Python)**
    - ✅ Python 3.14.0 detected
-   - ✅ Virtual environment created at `README/.venv`
+   - ✅ Virtual environment created at `projects/README/.venv`
    - ✅ Dependencies installed successfully (nltk, pytest, etc.)
    - ✅ Avoided externally-managed-environment error
 
@@ -61,9 +61,9 @@ Installed components:
   1. Review docs/DEVELOPMENT.md for detailed setup
   2. Configure environment variables (see .env.example files)
   3. Run individual projects:
-     - CV Builder:      cd cv && npm run dev
+     - CV Builder:      cd projects/cv && npm run dev
      - Documentation:   mkdocs serve
-     - Scripts:         cd scripts && ./script-name.sh --help
+     - Scripts:         cd projects/scripts && ./script-name.sh --help
 ```
 
 ### ✅ 2. Documentation Build (`mkdocs build`)
@@ -133,7 +133,7 @@ site/
 1. **CV Builder npm Vulnerabilities**
    - **Severity**: Low-Moderate (14 vulnerabilities)
    - **Impact**: Development dependencies
-   - **Resolution**: Run `cd cv && npm audit fix`
+   - **Resolution**: Run `cd projects/cv && npm audit fix`
    - **Priority**: Low
 
 2. **MkDocs Documentation Warnings**
@@ -164,12 +164,12 @@ site/
 
 ### Follow-Up Actions
 
-1. **Address npm vulnerabilities** in cv/ submodule:
+1. **Address npm vulnerabilities** in projects/cv/ submodule:
    ```bash
-   cd cv && npm audit fix
+   cd projects/cv && npm audit fix
    ```
 
-2. **Clean up documentation structure** in README/ submodule:
+2. **Clean up documentation structure** in projects/README/ submodule:
    - Remove or rename conflicting README.md files
    - Fix broken internal links
    - Update front matter where needed
@@ -184,7 +184,7 @@ site/
 4. **Test individual project functionality**:
    ```bash
    # CV Builder
-   cd cv && npm run dev
+   cd projects/cv && npm run dev
    
    # Documentation with live reload
    source .venv-docs/bin/activate && mkdocs serve

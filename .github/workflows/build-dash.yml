@@ -1,0 +1,73 @@
+name: 🛰️ Build & Deploy Dash
+
+# Builds the Jekyll dash (dash/, zer0-mistakes remote theme), regenerating live
+# monitoring data at build time so the Monitor board stays fresh without commits.
+# REPLACES build-docs.yml (MkDocs) as the published GitHub Pages surface.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dash/**'
+      - 'README.md'
+      - '.github/scripts/dash-gen/**'
+      - '.github/workflows/build-dash.yml'
+  schedule:
+    - cron: '0 */6 * * *'   # keep the Monitor board current
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate monitoring data (ephemeral)
+        run: |
+          pip install -r .github/scripts/dash-gen/requirements.txt
+          python .github/scripts/dash-gen/dash_gen.py health || echo "health gen degraded; continuing"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: dash
+
+      - name: Build dash
+        working-directory: dash
+        run: bundle exec jekyll build
+        env:
+          JEKYLL_ENV: production
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dash/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
