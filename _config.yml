@@ -1,0 +1,229 @@
+# ==============================================================================
+# Jekyll configuration — bamr87 portfolio site (zer0-mistakes remote theme)
+# ==============================================================================
+# This is a CONSUMING site for the bamr87/zer0-mistakes theme. `remote_theme`
+# ships only the theme's _layouts/_includes/_sass/assets — it does NOT merge the
+# theme's _config.yml or _data, so the collections / defaults / plugins the theme
+# relies on are replicated here. Change site identity + content; keep the
+# collections/defaults structure aligned with the theme.
+#
+# NOTE: _config.yml is not reloaded by `jekyll serve` — restart after editing.
+# ==============================================================================
+
+site_configured          : true        # tells the theme this site is personalised
+
+# Theme ------------------------------------------------------------------------
+remote_theme             : "bamr87/zer0-mistakes"
+
+# Site identity ----------------------------------------------------------------
+title                    : "Amr Abdel-Motaleb"
+title_url                : "/"
+title_icon               : "person-badge"
+subtitle                 : "Solutions Architect · ERP Specialist · Full-Stack Developer"
+title_separator          : "|"
+url                      : "https://bamr87.github.io"
+baseurl                  : "/bamr87"   # project Pages subpath: bamr87.github.io/bamr87/
+locale                   : "en-US"
+email                    : "amr.abdel@gmail.com"
+description              : >-
+  Solutions Architect and ERP Specialist with 15+ years building sustainable
+  enterprise systems. Portfolio, experience, consulting services, and writing.
+og_image                 : "/assets/Amr-Headshot_v3.JPG"
+logo                     : "/assets/Amr-Headshot_v3.JPG"
+
+# GitHub -----------------------------------------------------------------------
+github_user              : &github_user "bamr87"
+repository_name          : "bamr87"
+branch                   : "main"
+repo_map                 : "/sitemap/"
+
+# Owner / author ---------------------------------------------------------------
+author:
+  name                   : "Amr Abdel-Motaleb"
+  avatar                 : "/assets/Amr-Headshot_v3.JPG"
+  bio                    : "Solutions Architect & ERP Specialist — People Over Profits."
+  location               : "Denver, CO"
+  email                  : "amr.abdel@gmail.com"
+  twitter_username       : "bamr87"
+  github_username        : *github_user
+
+# Social / footer links --------------------------------------------------------
+default_icon: "bi"   # Bootstrap Icons — https://icons.getbootstrap.com/
+links:
+  - label: "Portfolio"
+    icon: "bi-globe"
+    url: "https://bashconsultants.com"
+  - label: "LinkedIn"
+    icon: "bi-linkedin"
+    url: "https://linkedin.com/in/amrabdel"
+  - label: "GitHub"
+    icon: "bi-github"
+    url: "https://github.com/bamr87"
+  - label: "Email"
+    icon: "bi-envelope"
+    url: "mailto:amr.abdel@gmail.com"
+
+# Reading / UI -----------------------------------------------------------------
+breadcrumbs              : true
+words_per_minute         : 200
+appearance_panel         : true
+navigation:
+  unified_mobile_drawer  : false
+
+# Appearance -------------------------------------------------------------------
+theme_skin               : "air"   # air, aqua, dirt, neon, mint, plum, sunrise
+theme_background:
+  enabled: true
+  gradient_opacity: 0.6
+  texture_opacity: 0.04
+  pattern_opacity: 0.08
+  blend_mode: overlay
+# Hex codes MUST be quoted (unquoted #007bff is a YAML comment → null).
+theme_color:
+  main:         "#007bff"
+  secondary:    "#6c757d"
+  red:          "#a11111"
+  yellow:       "#ffe900"
+  teal:         "#376986"
+  blue:         "#007bff"
+  green:        "#28a745"
+  purple:       "#6f42c1"
+  pink:         "#e83e8c"
+  orange:       "#fd7e14"
+  cyan:         "#17a2b8"
+  indigo:       "#6610f2"
+
+# Mermaid (client-side; bundled JS comes from the remote theme's assets) --------
+mermaid:
+  src: "/assets/vendor/mermaid/mermaid.min.js"
+
+# Plugins — all on the GitHub Pages whitelist (bundled by the github-pages gem) -
+plugins:
+  - jekyll-remote-theme
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+  - jekyll-paginate
+  - jekyll-relative-links
+  - jekyll-redirect-from
+  - jekyll-include-cache
+
+# Markdown ---------------------------------------------------------------------
+markdown: kramdown
+kramdown:
+  input: GFM
+  header_offset: 0
+  toc_levels: 1..6
+
+permalink: pretty
+
+# Collections (mirrors the theme; content lives under `pages/`) -----------------
+collections_dir: pages
+collections:
+  pages:
+    output: true
+    permalink: /:collection/:name/
+  posts:
+    output: true
+    permalink: /:collection/:year/:month/:day/:slug/
+  docs:
+    output: true
+    permalink: /:collection/:categories/:name/
+  notes:
+    output: true
+    permalink: /:collection/:path/:name/
+  notebooks:
+    output: true
+    permalink: /:collection/:path/:name/
+  about:
+    output: true
+    permalink: /:collection/:categories/:name/
+
+# Front-matter defaults (mirrors the theme's layout/sidebar wiring) -------------
+defaults:
+  # ALL files
+  - scope:
+      path: ""
+    values:
+      layout: root
+      author_profile: false
+      read_time: true
+      comments: false
+      share: true
+      related: true
+      sidebar:
+        nav: tree
+  # pages collection (portfolio pages) — explicit permalink set per file
+  - scope:
+      path: pages
+    values:
+      layout: default
+      author_profile: true
+      read_time: true
+      share: true
+      related: true
+      toc_sticky: true
+      sidebar:
+        nav: categories
+  # blog posts
+  - scope:
+      path: pages/_posts
+    values:
+      layout: article
+      post_type: standard
+      author_profile: true
+      read_time: true
+      share: true
+      related: true
+  # docs
+  - scope:
+      path: pages/_docs
+    values:
+      layout: default
+      author_profile: true
+      sidebar:
+        nav: tree
+
+# Sass -------------------------------------------------------------------------
+sass:
+  sass_dir: _sass
+  style: expanded
+
+# Copyright --------------------------------------------------------------------
+cr_year: 2026
+cr_entity: "Amr Abdel-Motaleb"
+cr_lisense: "MIT"
+
+# Exclude from the build -------------------------------------------------------
+# Keep monorepo submodules, MkDocs, governance, and tooling OUT of the Jekyll
+# build. (Dot-dirs like .github/ .venv/ are auto-excluded; listed for clarity.)
+exclude:
+  - .sass-cache/
+  - .jekyll-cache/
+  - .github/
+  - .devcontainer/
+  - .husky/
+  - .venv/
+  # Ruby / Node
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+  - node_modules/
+  # Monorepo submodules (all live under projects/)
+  - projects/
+  # MkDocs + tooling (left untouched, just not built by Jekyll)
+  - mkdocs.yml
+  - requirements-docs.txt
+  - requirements.txt
+  - docker-compose.yml
+  - dash/
+  - tools/
+  - docs/
+  - site/            # MkDocs build output
+  # Root governance markdown
+  - README.md
+  - AGENTS.md
+  - CLAUDE.md
+  - CONTRIBUTING.md
+  - SUBMODULES.md
+  - "*.code-workspace"
