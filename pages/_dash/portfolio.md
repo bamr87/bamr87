@@ -1,11 +1,15 @@
 ---
 layout: default
-title: Portfolio
+title: Projects
 description: Featured and active projects, generated from the project registry.
-permalink: /portfolio/
+permalink: /projects/
+redirect_from:
+  - /portfolio/
+sidebar:
+  nav: dash
 ---
 
-# 🎨 Portfolio
+# 🎨 Projects
 
 Cards are generated from [`_data/projects.yml`]({{ '/toolbox/' | relative_url }}) — the single source of truth.
 

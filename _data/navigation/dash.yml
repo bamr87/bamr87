@@ -1,0 +1,16 @@
+# Sidebar navigation for the dash collection (pages/_dash/*).
+# Used by pages with `sidebar: { nav: dash }`.
+- title: Command Center
+  children:
+    - title: 📊 Dashboard
+      url: /dashboard/
+    - title: 🎨 Projects
+      url: /projects/
+    - title: 🩺 Monitor
+      url: /monitor/
+    - title: 🧰 Toolbox
+      url: /toolbox/
+    - title: 📄 Resume
+      url: /resume/
+    - title: 📚 Docs
+      url: /docs/

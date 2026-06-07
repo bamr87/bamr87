@@ -123,6 +123,9 @@ collections:
   pages:
     output: true
     permalink: /:collection/:name/
+  dash:
+    output: true
+    permalink: /:name/        # command-center pages set explicit permalinks
   posts:
     output: true
     permalink: /:collection/:year/:month/:day/:slug/
@@ -165,6 +168,16 @@ defaults:
       toc_sticky: true
       sidebar:
         nav: categories
+  # dash collection (command center: dashboard, monitor, toolbox, projects, ...)
+  - scope:
+      path: ""
+      type: dash
+    values:
+      layout: default
+      author_profile: false
+      toc_sticky: true
+      sidebar:
+        nav: dash
   # blog posts
   - scope:
       path: pages/_posts
@@ -216,7 +229,6 @@ exclude:
   - requirements-docs.txt
   - requirements.txt
   - docker-compose.yml
-  - dash/
   - tools/
   - docs/
   - site/            # MkDocs build output

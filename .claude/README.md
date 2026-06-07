@@ -6,7 +6,7 @@ Claude Code configuration that makes the dash self-managing.
 
 | Path | Purpose |
 |---|---|
-| `skills/update-registry/` | Reconcile `dash/_data/projects.yml` with `.gitmodules` + repo metadata |
+| `skills/update-registry/` | Reconcile `_data/projects.yml` with `.gitmodules` + repo metadata |
 | `skills/refresh-portfolio/` | Regenerate monitoring data + README project list |
 | `skills/sync-project-docs/` | Pull each project's current summary/status into the registry |
 | `skills/drift-report/` | Explain drift-gate failures and the exact fix |

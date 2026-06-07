@@ -6,7 +6,7 @@ description: Pull each project's current README summary and status from GitHub i
 # sync-project-docs
 
 ## Steps
-1. For each project in `dash/_data/projects.yml`, use the github MCP to read the
+1. For each project in `_data/projects.yml`, use the github MCP to read the
    repo's description, topics, latest release, and README headline.
 2. Update the registry `description`, `stack`, and `status` when they have
    drifted from reality (e.g. an experiment that became active, or archived).

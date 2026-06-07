@@ -10,7 +10,7 @@ description: Scaffold a new project and register it in the dash. Use when starti
    and whether it will be a submodule or an external repo.
 2. Scaffold via the scripts/ submodule:
    `tools/dash new <name>` (wraps `scripts/project-init.sh` + `scripts/git_init.sh`).
-3. Add an entry to `dash/_data/projects.yml` with all required fields
+3. Add an entry to `_data/projects.yml` with all required fields
    (name, repo_url, description, stack, category, status, featured, maintained).
 4. If it's a submodule, add it to `.gitmodules` and run
    `git submodule add <url> <path>`.
