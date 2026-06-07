@@ -15,3 +15,91 @@
 	url = https://github.com/microsoft/skills.git
 	branch = main
 	update = merge
+[submodule "projects/ai-seed"]
+	path = projects/ai-seed
+	url = https://github.com/bamr87/ai-seed.git
+	branch = main
+[submodule "projects/django-erp"]
+	path = projects/django-erp
+	url = https://github.com/bamr87/django-erp.git
+	branch = main
+[submodule "projects/law-ai"]
+	path = projects/law-ai
+	url = https://github.com/bamr87/law-ai.git
+	branch = main
+[submodule "projects/bamr87.github.io"]
+	path = projects/bamr87.github.io
+	url = https://github.com/bamr87/bamr87.github.io.git
+	branch = main
+[submodule "projects/1764"]
+	path = projects/1764
+	url = https://github.com/bamr87/1764.git
+	branch = main
+[submodule "projects/bashcrawl"]
+	path = projects/bashcrawl
+	url = https://github.com/bamr87/bashcrawl.git
+	branch = main
+[submodule "projects/githubai"]
+	path = projects/githubai
+	url = https://github.com/bamr87/githubai.git
+	branch = main
+[submodule "projects/zer0-mistakes"]
+	path = projects/zer0-mistakes
+	url = https://github.com/bamr87/zer0-mistakes.git
+	branch = main
+[submodule "projects/edgar-data-parse"]
+	path = projects/edgar-data-parse
+	url = https://github.com/bamr87/edgar-data-parse.git
+	branch = master
+[submodule "projects/bashconsultants"]
+	path = projects/bashconsultants
+	url = https://github.com/bamr87/bashconsultants.git
+	branch = main
+[submodule "projects/vs-sonic-pi"]
+	path = projects/vs-sonic-pi
+	url = https://github.com/bamr87/vs-sonic-pi.git
+	branch = main
+[submodule "projects/it-journey"]
+	path = projects/it-journey
+	url = https://github.com/bamr87/it-journey.git
+	branch = main
+[submodule "projects/csv-vscoode"]
+	path = projects/csv-vscoode
+	url = https://github.com/bamr87/csv-vscoode.git
+	branch = main
+[submodule "projects/zpl-viewer"]
+	path = projects/zpl-viewer
+	url = https://github.com/bamr87/zpl-viewer.git
+	branch = main
+[submodule "projects/lawmode"]
+	path = projects/lawmode
+	url = https://github.com/bamr87/lawmode.git
+	branch = main
+[submodule "projects/wtd"]
+	path = projects/wtd
+	url = https://github.com/bamr87/wtd.git
+	branch = main
+[submodule "projects/barodybroject"]
+	path = projects/barodybroject
+	url = https://github.com/bamr87/barodybroject.git
+	branch = main
+[submodule "projects/zer0-pages-remote"]
+	path = projects/zer0-pages-remote
+	url = https://github.com/bamr87/zer0-pages-remote.git
+	branch = main
+[submodule "projects/drsai"]
+	path = projects/drsai
+	url = https://github.com/bamr87/drsai.git
+	branch = main
+[submodule "projects/amrs-django"]
+	path = projects/amrs-django
+	url = https://github.com/bamr87/amrs-django.git
+	branch = main
+[submodule "projects/aieo"]
+	path = projects/aieo
+	url = https://github.com/bamr87/aieo.git
+	branch = main
+[submodule "projects/jekyll"]
+	path = projects/jekyll
+	url = https://github.com/bamr87/jekyll.git
+	branch = master
