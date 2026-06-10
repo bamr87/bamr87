@@ -29,10 +29,17 @@ The workflow updates submodule pointers in the parent repository only. Changes i
 
 Local update script
 -------------------
-You can force an update locally using the included script:
+You can refresh the `projects/` folder locally using the included script. It
+brings each submodule onto its declared branch (from `.gitmodules`) at the
+latest remote commit and records the moved pointers in the parent repo. It is
+safe by default — submodules with uncommitted, unpushed, or diverged work are
+skipped with a warning rather than reset (use `--force` to override, `--detach`
+for legacy detached-HEAD behaviour, `--status`/`--check` for read-only views):
 
 ```bash
-./tools/update-submodules.sh
+./tools/update-submodules.sh            # refresh all
+./tools/update-submodules.sh cv         # refresh one
+./tools/update-submodules.sh --status   # show declared vs. checked-out branch
 ```
 
 PR-based submodule updates

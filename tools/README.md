@@ -15,7 +15,7 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `Brewfile` | macOS Homebrew bundle — native `brew bundle` format (derived from manifest) |
 | `setup.sh` | **Primary entrypoint** — cross-platform dev environment setup |
 | `setup-dev.sh` | Legacy wrapper — delegates to `setup.sh --local` |
-| `update-submodules.sh` | Git submodule update with status checking and selective updates |
+| `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
 
 ## Architecture
 
@@ -121,7 +121,7 @@ The `.zprofile` sources `tools/devtools-env.sh`, which:
 # Available after sourcing (or opening a new terminal):
 bamr87-setup           # Run tools/setup.sh
 bamr87-update          # Run tools/update-submodules.sh
-bamr87-cv              # cd projects/cv && npm run dev
+bamr87-cv              # cd projects/cv-builder-pro && npm run dev
 bamr87-docs            # mkdocs serve
 bamr87-dc              # docker compose (from project root)
 ```
@@ -176,12 +176,24 @@ docker compose down                        # Stop
 
 ## Submodule Management
 
+`update-submodules.sh` refreshes the `projects/` folder so every submodule sits
+**on its declared branch** (from `.gitmodules`) at the latest remote commit, then
+records the moved pointers in the root repo. It is safe by default: a submodule
+with uncommitted changes, unpushed commits, or a diverged history is skipped with
+a warning instead of being reset — pass `--force` to re-align those, or
+`--detach` for the legacy detached-HEAD behaviour.
+
 ```bash
-./tools/update-submodules.sh --status      # Check status
-./tools/update-submodules.sh --check       # Check for updates
-./tools/update-submodules.sh               # Update all
-./tools/update-submodules.sh cv            # Update one
+./tools/update-submodules.sh --status      # Show declared vs. checked-out branch
+./tools/update-submodules.sh --check       # List available updates (no changes)
+./tools/update-submodules.sh               # Refresh all onto their declared branch
+./tools/update-submodules.sh cv            # Refresh one (path, short name, or .gitmodules name)
+./tools/update-submodules.sh --no-commit   # Refresh but leave pointer changes staged
+./tools/update-submodules.sh --force       # Also re-align dirty/diverged submodules
 ```
+
+Wrapped by `tools/dash sync` (which also regenerates dash data) and the
+`bamr87-update` alias.
 
 ## Troubleshooting
 
