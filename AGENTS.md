@@ -122,7 +122,7 @@ bamr87/
 ├── AGENTS.md                   # This file — agent principles
 ├── CONTRIBUTING.md             # Contribution guidelines
 ├── docker-compose.yml          # Container-first development
-├── projects/cv/                         # Submodule: CV Builder (React/TypeScript/Vite)
+├── projects/cv-builder-pro/                         # Submodule: CV Builder (React/TypeScript/Vite)
 ├── projects/README/                     # Submodule: Documentation hub (MkDocs/Wiki)
 ├── projects/scripts/                    # Submodule: Automation scripts (Bash/Python)
 ├── projects/skills/                     # Submodule: Microsoft Agent Skills (microsoft/skills)
@@ -141,7 +141,7 @@ bamr87/
 
 | Submodule | Repo | Branch | Tech Stack |
 |-----------|------|--------|------------|
-| `projects/cv/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
+| `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
 | `projects/README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
 | `projects/scripts/` | `bamr87/scripts` | `master` | Bash, Python |
 | `projects/skills/` | `microsoft/skills` | `main` | Skills, prompts, MCP configs |

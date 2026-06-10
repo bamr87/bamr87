@@ -19,7 +19,7 @@ cycle. This container keeps the repo root navigable as the portfolio grows
 
 | Path | Upstream | Branch | Stack |
 |------|----------|--------|-------|
-| `projects/cv` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite |
+| `projects/cv-builder-pro` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite |
 | `projects/README` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
 | `projects/scripts` | `bamr87/scripts` | `master` | Bash, Python |
 | `projects/skills` | `microsoft/skills` (external) | `main` (`update = merge`) | Markdown skills, MCP |

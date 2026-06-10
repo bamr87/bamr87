@@ -27,8 +27,8 @@
 # Submodules (must stay in sync with .gitmodules — enforced by check-drift.sh)
 # ---------------------------------------------------------------------------
 - name: cv-builder-pro
-  slug: cv
-  submodule_path: projects/cv
+  slug: cv-builder-pro
+  submodule_path: projects/cv-builder-pro
   branch: main
   repo_url: https://github.com/bamr87/cv-builder-pro
   description: AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase).
@@ -73,7 +73,7 @@
   submodule_path: projects/skills
   branch: main              # external microsoft/skills; consumed, not authored (update=merge)
   repo_url: https://github.com/microsoft/skills
-  description: Microsoft Agent Skills — reusable markdown skills, prompts, and MCP configs for AI agents.
+  description: Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding agents.
   stack: [markdown, mcp, agents]
   category: dev-tools
   status: maintenance
@@ -82,12 +82,10 @@
   live_url: null
   docs_url: null
 
-# ---------------------------------------------------------------------------
-# External repositories (surfaced in the dash; not git submodules)
-# ---------------------------------------------------------------------------
 - name: it-journey
-  submodule_path: null
-  branch: master
+  slug: it-journey
+  submodule_path: projects/it-journey
+  branch: main
   repo_url: https://github.com/bamr87/it-journey
   description: From-zero-to-hero docs, tools, and scripts supporting an IT learning journey.
   stack: [jekyll, ruby, markdown]
@@ -99,7 +97,8 @@
   docs_url: https://it-journey.dev
 
 - name: zer0-mistakes
-  submodule_path: null
+  slug: zer0-mistakes
+  submodule_path: projects/zer0-mistakes
   branch: main
   repo_url: https://github.com/bamr87/zer0-mistakes
   description: GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash.
@@ -112,7 +111,8 @@
   docs_url: https://zer0-mistakes.com
 
 - name: barodybroject
-  submodule_path: null
+  slug: barodybroject
+  submodule_path: projects/barodybroject
   branch: main
   repo_url: https://github.com/bamr87/barodybroject
   description: Full-stack responsive web app with OpenAI integrations and CMS functionality.
@@ -125,20 +125,22 @@
   docs_url: null
 
 - name: aieo
-  submodule_path: null
+  slug: aieo
+  submodule_path: projects/aieo
   branch: main
   repo_url: https://github.com/bamr87/aieo
-  description: AI Engine Optimization tooling for optimizing content for AI engine citations.
-  stack: [python, ai]
+  description: AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI).
+  stack: [python, fastapi, react, typescript, ai]
   category: full-stack-ai
-  status: experiment
+  status: active
   featured: false
   maintained: true
   live_url: null
   docs_url: null
 
 - name: lawmode
-  submodule_path: null
+  slug: lawmode
+  submodule_path: projects/lawmode
   branch: main
   repo_url: https://github.com/bamr87/lawmode
   description: Always-on AI lawyer concept for developers.
@@ -150,34 +152,107 @@
   live_url: null
   docs_url: null
 
-- name: vs-sonic-pi
-  submodule_path: null
+- name: law-ai
+  slug: law-ai
+  submodule_path: projects/law-ai
   branch: main
-  repo_url: https://github.com/bamr87/vs-sonic-pi
-  description: VS Code extension for writing and performing Sonic Pi music from the editor.
-  stack: [typescript, vscode]
-  category: dev-tools
-  status: maintenance
+  repo_url: https://github.com/bamr87/law-ai
+  description: LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ollama).
+  stack: [python, ai, docker, ollama]
+  category: full-stack-ai
+  status: experiment
   featured: false
   maintained: true
   live_url: null
   docs_url: null
 
-- name: bashcrawl
-  submodule_path: null
-  branch: master
-  repo_url: https://github.com/bamr87/bashcrawl
-  description: Terminal game and command-line learning project.
-  stack: [bash]
+- name: githubai
+  slug: githubai
+  submodule_path: projects/githubai
+  branch: main
+  repo_url: https://github.com/bamr87/githubai
+  description: AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django).
+  stack: [django, python, ai]
+  category: full-stack-ai
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: edgar-data-parse
+  slug: edgar-data-parse
+  submodule_path: projects/edgar-data-parse
+  branch: master            # NOTE: tracks master, not main
+  repo_url: https://github.com/bamr87/edgar-data-parse
+  description: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
+  stack: [django, python, react, typescript]
+  category: full-stack-ai
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: django-erp
+  slug: django-erp
+  submodule_path: projects/django-erp
+  branch: main
+  repo_url: https://github.com/bamr87/django-erp
+  description: Self-hosted product analytics platform (PostHog fork) explored as a Django ERP base.
+  stack: [django, python, posthog]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: amrs-django
+  slug: amrs-django
+  submodule_path: projects/amrs-django
+  branch: main
+  repo_url: https://github.com/bamr87/amrs-django
+  description: Django web application (early scaffolding).
+  stack: [django, python]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: drsai
+  slug: drsai
+  submodule_path: projects/drsai
+  branch: main
+  repo_url: https://github.com/bamr87/drsai
+  description: Dr. Seuss-style AI poetry generator.
+  stack: [python, ai]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: ai-seed
+  slug: ai-seed
+  submodule_path: projects/ai-seed
+  branch: main
+  repo_url: https://github.com/bamr87/ai-seed
+  description: AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human collaboration.
+  stack: [javascript, docker, ai]
   category: dev-tools
-  status: maintenance
+  status: experiment
   featured: false
   maintained: true
   live_url: null
   docs_url: null
 
 - name: wtd
-  submodule_path: null
+  slug: wtd
+  submodule_path: projects/wtd
   branch: main
   repo_url: https://github.com/bamr87/wtd
   description: Recursive TODO engine experiment for AI-orchestrated task decomposition.
@@ -189,6 +264,334 @@
   live_url: null
   docs_url: null
 
+- name: vs-sonic-pi
+  slug: vs-sonic-pi
+  submodule_path: projects/vs-sonic-pi
+  branch: main
+  repo_url: https://github.com/bamr87/vs-sonic-pi
+  description: VS Code extension for writing and performing Sonic Pi music from the editor.
+  stack: [typescript, vscode]
+  category: dev-tools
+  status: maintenance
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: zpl-viewer
+  slug: zpl-viewer
+  submodule_path: projects/zpl-viewer
+  branch: main
+  repo_url: https://github.com/bamr87/zpl-viewer
+  description: ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.
+  stack: [typescript, vscode]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: csv-vscoode
+  slug: csv-vscoode
+  submodule_path: projects/csv-vscoode
+  branch: main
+  repo_url: https://github.com/bamr87/csv-vscoode
+  description: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
+  stack: [typescript, vscode]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: bashcrawl
+  slug: bashcrawl
+  submodule_path: projects/bashcrawl
+  branch: main
+  repo_url: https://github.com/bamr87/bashcrawl
+  description: Terminal game and command-line learning project.
+  stack: [bash, python]
+  category: dev-tools
+  status: maintenance
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: jekyll
+  slug: jekyll
+  submodule_path: projects/jekyll
+  branch: master            # NOTE: tracks master, not main
+  repo_url: https://github.com/bamr87/jekyll
+  description: Fork of Jekyll, the blog-aware static site generator in Ruby.
+  stack: [ruby, jekyll]
+  category: dev-tools
+  status: maintenance
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: bamr87.github.io
+  slug: bamr87.github.io
+  submodule_path: projects/bamr87.github.io
+  branch: main
+  repo_url: https://github.com/bamr87/bamr87.github.io
+  description: Personal profile and portfolio website.
+  stack: [jekyll, ruby, markdown]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: https://bamr87.github.io
+  docs_url: null
+
+- name: zer0-pages-remote
+  slug: zer0-pages-remote
+  submodule_path: projects/zer0-pages-remote
+  branch: main
+  repo_url: https://github.com/bamr87/zer0-pages-remote
+  description: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
+  stack: [ruby, jekyll]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: bashconsultants
+  slug: bashconsultants
+  submodule_path: projects/bashconsultants
+  branch: main
+  repo_url: https://github.com/bamr87/bashconsultants
+  description: BASH Consulting — Denver-based IT consulting firm website.
+  stack: [jekyll, shell]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: "1764"
+  slug: "1764"
+  submodule_path: projects/1764
+  branch: main
+  repo_url: https://github.com/bamr87/1764
+  description: Self-growing knowledge base about the year 1764 — history, events, and culture.
+  stack: [markdown, ai]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: "1897"
+  slug: "1897"
+  submodule_path: projects/1897
+  branch: main
+  repo_url: https://github.com/bamr87/1897
+  description: Self-growing knowledge base about the year 1897.
+  stack: [markdown, ai]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: "1987"
+  slug: "1987"
+  submodule_path: projects/1987
+  branch: main
+  repo_url: https://github.com/bamr87/1987
+  description: Self-growing knowledge base about the year 1987 — history, politics, science, and culture.
+  stack: [markdown, ai]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: "2005"
+  slug: "2005"
+  submodule_path: projects/2005
+  branch: main
+  repo_url: https://github.com/bamr87/2005
+  description: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
+  stack: [markdown, ai]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+# --- Accounting / finance Django experiments -------------------------------
+- name: amrs-project
+  slug: amrs-project
+  submodule_path: projects/amrs-project
+  branch: main
+  repo_url: https://github.com/bamr87/amrs-project
+  description: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
+  stack: [django, python, drf, postgres]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: afms
+  slug: afms
+  submodule_path: projects/afms
+  branch: main
+  repo_url: https://github.com/bamr87/afms
+  description: AFMS — Django accounting & financial management web app with role-based access and reporting.
+  stack: [django, python]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: django-fin
+  slug: django-fin
+  submodule_path: projects/django-fin
+  branch: main
+  repo_url: https://github.com/bamr87/django-fin
+  description: Django finance app scaffold built around OpenEDGAR (SEC filings).
+  stack: [django, python]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: djangoerp
+  slug: djangoerp
+  submodule_path: projects/djangoerp
+  branch: main
+  repo_url: https://github.com/bamr87/djangoerp
+  description: Django-Magic — a beginner-friendly Django starter project.
+  stack: [django, python]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: digitalBookstore
+  slug: digitalBookstore
+  submodule_path: projects/digitalBookstore
+  branch: main
+  repo_url: https://github.com/bamr87/digitalBookstore
+  description: Fork — extracting and processing information for a digital bookstore.
+  stack: [python]
+  category: dev-tools
+  status: archived
+  featured: false
+  maintained: false
+  live_url: null
+  docs_url: null
+
+# --- Personal content / CV -------------------------------------------------
+- name: cv
+  slug: cv
+  submodule_path: projects/cv
+  branch: main
+  repo_url: https://github.com/bamr87/cv
+  description: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
+  stack: [latex]
+  category: docs
+  status: maintenance
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: books
+  slug: books
+  submodule_path: projects/books
+  branch: main
+  repo_url: https://github.com/bamr87/books
+  description: Personal books and reference notes collection.
+  stack: [markdown]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: zer0-pages
+  slug: zer0-pages
+  submodule_path: projects/zer0-pages
+  branch: main
+  repo_url: https://github.com/bamr87/zer0-pages
+  description: Product-requirements and planning notes for the zer0-pages concept.
+  stack: [markdown]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+# --- Forks of upstream tools -----------------------------------------------
+- name: sonic-pi
+  slug: sonic-pi
+  submodule_path: projects/sonic-pi
+  branch: dev               # NOTE: upstream fork tracks dev, not main
+  repo_url: https://github.com/bamr87/sonic-pi
+  description: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
+  stack: [ruby, elixir, cpp]
+  category: dev-tools
+  status: maintenance
+  featured: false
+  maintained: false
+  live_url: null
+  docs_url: null
+
+- name: vscode-front-matter
+  slug: vscode-front-matter
+  submodule_path: projects/vscode-front-matter
+  branch: main
+  repo_url: https://github.com/bamr87/vscode-front-matter
+  description: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
+  stack: [typescript, vscode]
+  category: dev-tools
+  status: maintenance
+  featured: false
+  maintained: false
+  live_url: null
+  docs_url: null
+
+- name: skills-github-pages
+  slug: skills-github-pages
+  submodule_path: projects/skills-github-pages
+  branch: main
+  repo_url: https://github.com/bamr87/skills-github-pages
+  description: Clone of the GitHub Skills "GitHub Pages" interactive course.
+  stack: [github-actions, markdown]
+  category: dev-tools
+  status: archived
+  featured: false
+  maintained: false
+  live_url: null
+  docs_url: null
+
+# ---------------------------------------------------------------------------
+# External repositories (surfaced in the dash; not git submodules)
+# ---------------------------------------------------------------------------
 - name: frontmatter-cms-mvp
   submodule_path: null
   branch: main

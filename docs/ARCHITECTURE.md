@@ -58,7 +58,7 @@ Each major component is a separate Git submodule:
 
 ```
 ├── Root Level      → Profile, coordination, shared assets
-├── projects/cv/             → Application development
+├── projects/cv-builder-pro/             → Application development
 ├── projects/README/         → Knowledge management
 └── projects/scripts/        → Automation and tooling
 ```
@@ -72,7 +72,7 @@ All components follow the README-First principle:
 
 ## Component Architecture
 
-### CV Builder (projects/cv/)
+### CV Builder (projects/cv-builder-pro/)
 
 **Tech Stack**: React, TypeScript, Vite, Tailwind CSS, Firebase
 
@@ -224,7 +224,7 @@ graph TB
     Push --> Trigger{Which Files?}
     
     Trigger -->|.github/workflows| WorkflowValidation[Validate Workflow]
-    Trigger -->|projects/cv/**| CVBuild[Build CV App]
+    Trigger -->|projects/cv-builder-pro/**| CVBuild[Build CV App]
     Trigger -->|projects/README/docs/**| DocBuild[Build Documentation]
     Trigger -->|projects/scripts/**| ScriptValidation[Validate Scripts]
     
@@ -244,7 +244,7 @@ graph TB
 
 | Component | Platform | Trigger | URL |
 |-----------|----------|---------|-----|
-| CV Builder | Vercel | Push to projects/cv/main | cv-builder.vercel.app |
+| CV Builder | Vercel | Push to projects/cv-builder-pro/main | cv-builder.vercel.app |
 | Documentation | GitHub Pages | Push to projects/README/docs | bamr87.github.io/bamr87 |
 | Wiki.js | Docker/Self-hosted | Manual | localhost:3000 |
 | Profile | GitHub | Push to main | github.com/bamr87 |

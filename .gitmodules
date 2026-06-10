@@ -6,10 +6,6 @@
 	path = projects/scripts
 	url = https://github.com/bamr87/scripts.git
 	branch = master
-[submodule "cv"]
-	path = projects/cv
-	url = https://github.com/bamr87/cv-builder-pro.git
-	branch = main
 [submodule "skills"]
 	path = projects/skills
 	url = https://github.com/microsoft/skills.git
@@ -110,4 +106,56 @@
 [submodule "projects/1987"]
 	path = projects/1987
 	url = https://github.com/bamr87/1987.git
+	branch = main
+[submodule "projects/2005"]
+	path = projects/2005
+	url = https://github.com/bamr87/2005.git
+	branch = main
+[submodule "projects/books"]
+	path = projects/books
+	url = https://github.com/bamr87/books.git
+	branch = main
+[submodule "projects/zer0-pages"]
+	path = projects/zer0-pages
+	url = https://github.com/bamr87/zer0-pages.git
+	branch = main
+[submodule "projects/django-fin"]
+	path = projects/django-fin
+	url = https://github.com/bamr87/django-fin.git
+	branch = main
+[submodule "projects/djangoerp"]
+	path = projects/djangoerp
+	url = https://github.com/bamr87/djangoerp.git
+	branch = main
+[submodule "projects/amrs-project"]
+	path = projects/amrs-project
+	url = https://github.com/bamr87/amrs-project.git
+	branch = main
+[submodule "projects/afms"]
+	path = projects/afms
+	url = https://github.com/bamr87/afms.git
+	branch = main
+[submodule "projects/skills-github-pages"]
+	path = projects/skills-github-pages
+	url = https://github.com/bamr87/skills-github-pages.git
+	branch = main
+[submodule "projects/vscode-front-matter"]
+	path = projects/vscode-front-matter
+	url = https://github.com/bamr87/vscode-front-matter.git
+	branch = main
+[submodule "projects/digitalBookstore"]
+	path = projects/digitalBookstore
+	url = https://github.com/bamr87/digitalBookstore.git
+	branch = main
+[submodule "projects/sonic-pi"]
+	path = projects/sonic-pi
+	url = https://github.com/bamr87/sonic-pi.git
+	branch = dev
+[submodule "projects/cv-builder-pro"]
+	path = projects/cv-builder-pro
+	url = https://github.com/bamr87/cv-builder-pro.git
+	branch = main
+[submodule "projects/cv"]
+	path = projects/cv
+	url = https://github.com/bamr87/cv.git
 	branch = main

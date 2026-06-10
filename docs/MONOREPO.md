@@ -22,7 +22,7 @@ bamr87/
 │       └── unified-*.yml           # Consolidated CI, release, and maintenance workflows
 ├── assets/               # Shared assets (headshots, images)
 ├── projects/README/               # Submodule: Documentation aggregation system
-├── projects/cv/                   # Submodule: CV Builder application
+├── projects/cv-builder-pro/                   # Submodule: CV Builder application
 ├── projects/scripts/              # Submodule: Automation and utility scripts
 ├── projects/skills/               # Submodule: Microsoft agent skills
 ├── tools/                # Root-level setup and submodule helper scripts
@@ -63,7 +63,7 @@ We use Git submodules rather than a traditional monorepo tool because:
 
 ## Root Submodules vs Published Docs
 
-The root-level `projects/README/`, `projects/cv/`, `projects/scripts/`, and `projects/skills/` directories are Git submodules. The MkDocs site is built from `projects/README/docs` as configured in `mkdocs.yml`.
+The root-level `projects/README/`, `projects/cv-builder-pro/`, `projects/scripts/`, and `projects/skills/` directories are Git submodules. The MkDocs site is built from `projects/README/docs` as configured in `mkdocs.yml`.
 
 Some paths under `projects/README/docs`, such as `projects/README/docs/scripts/` and `projects/README/docs/skills/`, are aggregated documentation copies for the published site. They are not the same working trees as the root `projects/scripts/` and `projects/skills/` submodules.
 
@@ -100,7 +100,7 @@ git push
 Update a specific submodule:
 
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 git pull origin main
 cd ..
 git add cv
@@ -112,7 +112,7 @@ git push
 
 1. **Navigate to the submodule**:
    ```bash
-   cd projects/cv
+   cd projects/cv-builder-pro
    ```
 
 2. **Create a branch and make changes**:
@@ -138,13 +138,13 @@ git push
 
 ## Submodule Details
 
-### projects/cv/ - CV Builder
+### projects/cv-builder-pro/ - CV Builder
 
 - **Repository**: https://github.com/bamr87/cv-builder-pro
 - **Branch**: main
 - **Purpose**: AI-powered CV/resume builder with LaTeX templates
 - **Tech Stack**: React, TypeScript, Vite, Tailwind CSS
-- **Setup**: `cd projects/cv && npm install && npm run dev`
+- **Setup**: `cd projects/cv-builder-pro && npm install && npm run dev`
 
 ### projects/README/ - Documentation Hub
 
@@ -201,7 +201,7 @@ Changes to root-level files (README.md, .gitignore, workflows):
 
 ### For Submodule Changes
 
-Changes to `projects/cv/`, `projects/README/`, `projects/scripts/`, or `projects/skills/`:
+Changes to `projects/cv-builder-pro/`, `projects/README/`, `projects/scripts/`, or `projects/skills/`:
 
 1. Fork the **submodule repository**
 2. Make changes in the submodule repo

@@ -111,7 +111,7 @@ This repository uses **Git submodules** to manage multiple related projects. Und
 
 ```
 bamr87/
-├── projects/cv/          # Submodule: CV Builder application
+├── projects/cv-builder-pro/          # Submodule: CV Builder application
 ├── projects/README/      # Submodule: Documentation hub
 ├── projects/scripts/     # Submodule: Automation scripts
 ├── projects/skills/      # Submodule: Microsoft Agent Skills (microsoft/skills)
@@ -145,7 +145,7 @@ For changes to root-level files (README.md, .gitignore, workflows, shared config
 
 ### Contributing to Submodules
 
-For changes to projects/cv/, projects/README/, or projects/scripts/:
+For changes to projects/cv-builder-pro/, projects/README/, or projects/scripts/:
 
 #### Option 1: Direct Submodule Contribution (Recommended)
 
@@ -171,7 +171,7 @@ For changes to projects/cv/, projects/README/, or projects/scripts/:
    ```
 2. **Navigate to submodule** and create branch:
    ```bash
-   cd projects/cv
+   cd projects/cv-builder-pro
    git checkout -b feature/your-feature
    ```
 3. **Make changes and commit** in the submodule:
@@ -198,7 +198,7 @@ When you see "Update submodule" PRs:
    ```bash
    git checkout pr-branch
    git submodule update --init --recursive
-   cd projects/cv  # or relevant submodule
+   cd projects/cv-builder-pro  # or relevant submodule
    npm install && npm run dev  # or appropriate commands
    ```
 3. **Approve and merge** if tests pass

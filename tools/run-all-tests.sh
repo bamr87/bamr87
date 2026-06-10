@@ -54,7 +54,7 @@ has_npm_script() {
 }
 
 run_cv_checks() {
-    local cv_dir="${PROJECT_ROOT}/projects/cv"
+    local cv_dir="${PROJECT_ROOT}/projects/cv-builder-pro"
 
     if [[ ! -d "$cv_dir" ]]; then
         log_warn "Skipping cv checks; cv/ is not initialized."
@@ -67,7 +67,7 @@ run_cv_checks() {
     fi
 
     if [[ ! -d "${cv_dir}/node_modules" ]]; then
-        log_warn "Skipping cv checks; dependencies are not installed. Run 'cd projects/cv && npm install' first."
+        log_warn "Skipping cv checks; dependencies are not installed. Run 'cd projects/cv-builder-pro && npm install' first."
         return 0
     fi
 

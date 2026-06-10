@@ -20,7 +20,7 @@ This guide will help you set up your local development environment for working w
 
 Depending on which submodule you're working with:
 
-#### For projects/cv/ (CV Builder)
+#### For projects/cv-builder-pro/ (CV Builder)
 - **Node.js**: 18.x or higher
 - **npm**: 9.x or higher
 
@@ -100,7 +100,7 @@ Use the provided setup script:
 
 **CV Builder:**
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 npm install
 cd ..
 ```
@@ -137,7 +137,7 @@ cd ..
 ### CV Builder
 
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 npm run dev
 ```
 
@@ -178,7 +178,7 @@ Access at: http://localhost:3000
 3. **Test your changes**:
    ```bash
    # For CV Builder
-   cd projects/cv && npm run build && npm run preview
+   cd projects/cv-builder-pro && npm run build && npm run preview
    
    # For Documentation
    mkdocs build --strict
@@ -204,7 +204,7 @@ Access at: http://localhost:3000
 
 1. **Navigate to submodule**:
    ```bash
-   cd projects/cv  # or README, scripts, or skills
+   cd projects/cv-builder-pro  # or README, scripts, or skills
    ```
 
 2. **Create branch in submodule**:
@@ -237,7 +237,7 @@ Access at: http://localhost:3000
 
 **JavaScript/TypeScript (CV Builder):**
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 npm run lint
 ```
 
@@ -283,7 +283,7 @@ pre-commit run --all-files
 ### CV Builder Tests
 
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 npm run test
 ```
 
@@ -305,7 +305,7 @@ Run all tests:
 
 ### CV Builder (.env.local)
 
-Create `projects/cv/.env.local`:
+Create `projects/cv-builder-pro/.env.local`:
 
 ```bash
 VITE_FIREBASE_API_KEY=your-api-key
@@ -350,7 +350,7 @@ git submodule foreach git pull origin main
 
 **Problem**: Node modules not found
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 rm -rf node_modules package-lock.json
 npm install
 ```
@@ -393,7 +393,7 @@ Workspace settings are in `.vscode/settings.json`.
 
 ### IntelliJ IDEA / WebStorm
 
-- Enable ESLint for projects/cv/
+- Enable ESLint for projects/cv-builder-pro/
 - Enable Python plugin for projects/README/
 - Configure Prettier for code formatting
 
@@ -454,7 +454,7 @@ git submodule update --init --force
 mkdocs build
 
 # Run CV builder
-cd projects/cv && npm run dev
+cd projects/cv-builder-pro && npm run dev
 
 # Run all tests
 ./tools/run-all-tests.sh
