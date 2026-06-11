@@ -74,7 +74,7 @@ unset _DEVTOOLS_CONF
 # --------------------------------------------------------------------------
 alias bamr87-setup="${BAMR87_TOOLS}/setup.sh"
 alias bamr87-update="${BAMR87_TOOLS}/update-submodules.sh"
-alias bamr87-cv="cd ${BAMR87_HOME}/projects/cv && npm run dev"
+alias bamr87-cv="cd ${BAMR87_HOME}/projects/cv-builder-pro && npm run dev"
 alias bamr87-dash="${BAMR87_TOOLS}/dash"
 alias bamr87-docs="${BAMR87_TOOLS}/dash serve"
 alias bamr87-dc="cd ${BAMR87_HOME} && docker compose"

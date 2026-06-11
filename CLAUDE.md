@@ -8,7 +8,7 @@ A **monorepo composed of Git submodules**. The root is simultaneously a GitHub p
 
 | Path | Upstream repo | Branch | Stack |
 |------|---------------|--------|-------|
-| `projects/cv/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite (GitHub Spark template), Tailwind |
+| `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite (GitHub Spark template), Tailwind |
 | `projects/README/` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
 | `projects/scripts/` | `bamr87/scripts` | **`master`** | Bash, Python |
 | `projects/skills/` | `microsoft/skills` (external) | `main`, `update = merge` | Markdown skills, prompts, MCP configs |
@@ -17,16 +17,16 @@ A **monorepo composed of Git submodules**. The root is simultaneously a GitHub p
 
 ## Submodule workflow (critical, non-obvious)
 
-Submodules are full clones of other repos. A change inside `projects/cv/`, `projects/README/`, `projects/scripts/`, or `projects/skills/` is **not** committed by the root repo — you commit it *in the submodule's own repo first*, then update the pointer in root:
+Submodules are full clones of other repos. A change inside `projects/cv-builder-pro/`, `projects/README/`, `projects/scripts/`, or `projects/skills/` is **not** committed by the root repo — you commit it *in the submodule's own repo first*, then update the pointer in root:
 
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 git checkout main                      # submodules often land in detached HEAD; check out the branch first
 # ...edit, then:
 git add . && git commit -m "feat: ..."
 git push origin main                   # pushes to bamr87/cv-builder-pro, NOT this repo
 cd ../..
-git add projects/cv && git commit -m "chore: update cv submodule"   # root only records the new commit SHA
+git add projects/cv-builder-pro && git commit -m "chore: update cv submodule"   # root only records the new commit SHA
 ```
 
 Consequences:
@@ -41,16 +41,16 @@ Clone fresh with `git clone --recurse-submodules ...`; bootstrap everything with
 
 Run project commands **inside the relevant submodule** — each has its own dependencies.
 
-**CV Builder (`projects/cv/`)** — Vite dev server (serves on port 5000 per the compose/`kill` config; docs sometimes cite Vite's default 5173):
+**CV Builder (`projects/cv-builder-pro/`)** — Vite dev server (serves on port 5000 per the compose/`kill` config; docs sometimes cite Vite's default 5173):
 ```bash
-cd projects/cv
+cd projects/cv-builder-pro
 npm install
 npm run dev
 npm run build        # tsc -b --noCheck && vite build
 npm run lint         # eslint .
 npm run kill         # frees port 5000
 ```
-Note: there is **no `npm test` script** in `projects/cv/`. Tests are Cypress e2e specs under `projects/cv/cypress/e2e/` (`npx cypress run` against a running dev server).
+Note: there is **no `npm test` script** in `projects/cv-builder-pro/`. Tests are Cypress e2e specs under `projects/cv-builder-pro/cypress/e2e/` (`npx cypress run` against a running dev server).
 
 **Documentation (`projects/README/`)** — Python + pytest:
 ```bash
@@ -101,10 +101,10 @@ The published MkDocs site (`docs_dir: projects/README/docs`) pulls from the **RE
 
 The repo is a self-managing **dash**. See [`docs/DASH.md`](docs/DASH.md). Key facts:
 
-- **Single source of truth**: [`dash/_data/projects.yml`](dash/_data/projects.yml) — the project registry. To add/change a project, edit ONLY this file; every surface (portfolio, dashboard, monitor, the profile `README.md` `<!-- AUTO:projects -->` span, the drift gate) follows.
-- **Dash site**: `dash/` is a Jekyll site using `remote_theme: bamr87/zer0-mistakes`, published at `bamr87.github.io/bamr87/`. Local: `tools/dash serve` (docker, :4000).
+- **Single source of truth**: [`_data/projects.yml`](_data/projects.yml) — the project registry. To add/change a project, edit ONLY this file; every surface (portfolio, dashboard, monitor, the profile `README.md` `<!-- AUTO:projects -->` span, the drift gate) follows.
+- **Dash site**: the **root** Jekyll site (`remote_theme: bamr87/zer0-mistakes`) renders the dash from the `pages/_dash/` collection (Portfolio/Dashboard/Monitor/Toolbox/Resume/Docs), published at `bamr87.github.io/bamr87/`. Local: `tools/dash serve` (docker, :4000).
 - **CLI**: `tools/dash {status|monitor|serve|sync|run|new|evolve|gen|test}` (alias `bamr87-dash`) — reuses `setup.sh`/`run-all-tests.sh`/`update-submodules.sh`/`projects/scripts/`.
-- **Generator**: `.github/scripts/dash-gen` (`tools/dash-gen`) — `health` gathers live GitHub signals → ephemeral `dash/_data/project_health.yml` (gitignored, never commit); `readme` regenerates the README AUTO span (deterministic, committable).
+- **Generator**: `.github/scripts/dash-gen` (`tools/dash-gen`) — `health` gathers live GitHub signals → ephemeral `_data/project_health.yml` (gitignored, never commit); `readme` regenerates the README AUTO span (deterministic, committable).
 - **Drift**: `tools/check-drift.sh` gates on registry/.gitmodules parity, stale README, missing READMEs, submodule branch drift, broken dash links.
 - **AI layer**: `.mcp.json` (MCP servers) + `.claude/skills/` + `.claude/commands/` (`/dash-status`, `/evolve`, `/register-project`). Two evolution layers: `unified-evolution.yml` evolves the **monorepo itself**; the **per-repo framework** (`evolution-scheduler.yml` → `repo-evolution.yml`, driven by `auto_evolve` in the registry + `dash-gen targets`, prompts in `.github/evolution/`) opens draft improvement PRs on each submodule's **upstream** repo. Both run Claude Code (`anthropics/claude-code-action`, need `ANTHROPIC_API_KEY`; per-repo also needs `PAT_TOKEN`). Trigger via `tools/dash evolve [--repo <name>|--all]`. See [`docs/EVOLUTION.md`](docs/EVOLUTION.md).
 

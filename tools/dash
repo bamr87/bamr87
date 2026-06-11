@@ -42,7 +42,7 @@ cmd_status() {
   echo
   echo "${c_bold}== Registry ==${c_off}"
   if command -v python3 >/dev/null; then
-    python3 - "$ROOT/dash/_data/projects.yml" <<'PY'
+    python3 - "$ROOT/_data/projects.yml" <<'PY'
 import sys, yaml
 with open(sys.argv[1]) as fh:
     reg = yaml.safe_load(fh) or []
@@ -59,7 +59,7 @@ PY
 
 cmd_monitor() {
   "${TOOLS}/dash-gen" health
-  local health="${ROOT}/dash/_data/project_health.yml"
+  local health="${ROOT}/_data/project_health.yml"
   [[ -f "$health" ]] || { echo "no health data"; return 1; }
   python3 - "$health" <<'PY'
 import sys, yaml
@@ -81,10 +81,10 @@ cmd_serve() {
   if docker compose ps >/dev/null 2>&1; then
     docker compose up -d devenv
     docker compose exec devenv bash -lc \
-      'cd /workspace/dash && bundle install && bundle exec jekyll serve -H 0.0.0.0 -c _config.yml,_config_dev.yml'
+      'cd /workspace && bundle install && bundle exec jekyll serve -H 0.0.0.0 -c _config.yml,_config_dev.yml'
   else
     echo "Docker not available; serving natively."
-    cd "$ROOT/dash" && bundle install && bundle exec jekyll serve -c _config.yml,_config_dev.yml
+    cd "$ROOT" && bundle install && bundle exec jekyll serve -c _config.yml,_config_dev.yml
   fi
 }
 
@@ -114,7 +114,7 @@ cmd_new() {
     return 1
   fi
   echo
-  echo "${c_dim}Remember to register '${name}' in dash/_data/projects.yml"
+  echo "${c_dim}Remember to register '${name}' in _data/projects.yml"
   echo "(or run the .claude/skills/update-registry skill).${c_off}"
 }
 

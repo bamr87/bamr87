@@ -180,7 +180,7 @@ Before finalizing, verify:
 
 ## Current Submodule Status
 
-### projects/cv/ (CV Builder)
+### projects/cv-builder-pro/ (CV Builder)
 
 - [x] Has comprehensive README
 - [ ] Needs standardization review

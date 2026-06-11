@@ -9,7 +9,7 @@ permalink: /resume/
 
 The interactive resume is built and exported with
 [**cv-builder-pro**](https://github.com/bamr87/cv-builder-pro) — the React/Vite CV
-builder in the [`projects/cv/`](https://github.com/bamr87/cv-builder-pro) submodule, which
+builder in the [`projects/cv-builder-pro/`](https://github.com/bamr87/cv-builder-pro) submodule, which
 exports LaTeX, Markdown, and ASCII.
 
 {% assign r = site.data.resume %}
@@ -28,6 +28,6 @@ exports LaTeX, Markdown, and ASCII.
 > or run the CV builder locally:
 >
 > ```bash
-> cd projects/cv && npm install && npm run dev   # http://localhost:5000
+> cd projects/cv-builder-pro && npm install && npm run dev   # http://localhost:5000
 > ```
 {% endif %}

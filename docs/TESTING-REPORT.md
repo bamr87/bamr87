@@ -61,7 +61,7 @@ Installed components:
   1. Review docs/DEVELOPMENT.md for detailed setup
   2. Configure environment variables (see .env.example files)
   3. Run individual projects:
-     - CV Builder:      cd projects/cv && npm run dev
+     - CV Builder:      cd projects/cv-builder-pro && npm run dev
      - Documentation:   mkdocs serve
      - Scripts:         cd projects/scripts && ./script-name.sh --help
 ```
@@ -133,7 +133,7 @@ site/
 1. **CV Builder npm Vulnerabilities**
    - **Severity**: Low-Moderate (14 vulnerabilities)
    - **Impact**: Development dependencies
-   - **Resolution**: Run `cd projects/cv && npm audit fix`
+   - **Resolution**: Run `cd projects/cv-builder-pro && npm audit fix`
    - **Priority**: Low
 
 2. **MkDocs Documentation Warnings**
@@ -164,9 +164,9 @@ site/
 
 ### Follow-Up Actions
 
-1. **Address npm vulnerabilities** in projects/cv/ submodule:
+1. **Address npm vulnerabilities** in projects/cv-builder-pro/ submodule:
    ```bash
-   cd projects/cv && npm audit fix
+   cd projects/cv-builder-pro && npm audit fix
    ```
 
 2. **Clean up documentation structure** in projects/README/ submodule:
@@ -184,7 +184,7 @@ site/
 4. **Test individual project functionality**:
    ```bash
    # CV Builder
-   cd projects/cv && npm run dev
+   cd projects/cv-builder-pro && npm run dev
    
    # Documentation with live reload
    source .venv-docs/bin/activate && mkdocs serve

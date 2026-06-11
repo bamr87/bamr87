@@ -27,7 +27,7 @@ services:
     container_name: bamr87-devenv
     volumes:
       - .:/workspace:cached
-      - node-modules:/workspace/projects/cv/node_modules
+      - node-modules:/workspace/projects/cv-builder-pro/node_modules
       - venv-docs:/workspace/.venv-docs
       - venv-readme:/workspace/projects/README/.venv
     working_dir: /workspace

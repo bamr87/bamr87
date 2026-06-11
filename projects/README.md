@@ -11,7 +11,7 @@ cycle. This container keeps the repo root navigable as the portfolio grows
   subfolders. Logical grouping (docs / full-stack-ai / dev-tools / hub) lives in
   the registry's `category` field, not the filesystem, so a project can be
   re-categorized without moving files.
-- The single source of truth is [`../dash/_data/projects.yml`](../dash/_data/projects.yml).
+- The single source of truth is [`../_data/projects.yml`](../_data/projects.yml).
   Each submodule entry's `submodule_path` is `projects/<name>` and **must** equal
   the `.gitmodules` path — the drift gate (`tools/check-drift.sh`) enforces this.
 
@@ -19,7 +19,7 @@ cycle. This container keeps the repo root navigable as the portfolio grows
 
 | Path | Upstream | Branch | Stack |
 |------|----------|--------|-------|
-| `projects/cv` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite |
+| `projects/cv-builder-pro` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite |
 | `projects/README` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
 | `projects/scripts` | `bamr87/scripts` | `master` | Bash, Python |
 | `projects/skills` | `microsoft/skills` (external) | `main` (`update = merge`) | Markdown skills, MCP |
@@ -28,7 +28,7 @@ cycle. This container keeps the repo root navigable as the portfolio grows
 
 ```bash
 git submodule add <url> projects/<name>
-# add a matching entry to dash/_data/projects.yml
+# add a matching entry to _data/projects.yml
 tools/dash-gen readme        # refresh the profile README list
 tools/check-drift.sh         # verify .gitmodules ↔ registry parity
 ```

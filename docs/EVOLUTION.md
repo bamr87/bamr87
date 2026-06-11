@@ -15,7 +15,7 @@ on improving its **documentation, functionality, and clarity**.
 ## How it works
 
 ```
-dash/_data/projects.yml            # registry — auto_evolve: true opts a repo in
+_data/projects.yml                 # registry — auto_evolve: true opts a repo in
         │
         ▼
 dash-gen targets                   # emits the JSON matrix of eligible submodules
@@ -40,7 +40,7 @@ repo-evolution.yml (per repo)
 
 ## Adding or removing a repo
 
-Edit **only** the registry — `dash/_data/projects.yml`:
+Edit **only** the registry — `_data/projects.yml`:
 
 ```yaml
 - name: scripts

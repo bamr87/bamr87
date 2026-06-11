@@ -2,7 +2,7 @@ version: 2
 # Auto-fix PRs for dependency drift across the monorepo's root-owned ecosystems.
 # Replaces the (never-implemented) update-*-deps composite actions referenced by
 # unified-maintenance.yml. All PRs respect the no-direct-push-to-master rule.
-# (projects/cv/ and projects/README/ ecosystems are managed in their own submodule repos.)
+# (projects/cv-builder-pro/ and projects/README/ ecosystems are managed in their own submodule repos.)
 updates:
   - package-ecosystem: "github-actions"
     directory: "/.github/workflows"

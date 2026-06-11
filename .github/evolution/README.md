@@ -33,7 +33,7 @@ categories/<category>.md
 
 - **Tune what every run does** → edit `evolve-prompt.md`.
 - **Tune a category** → edit the matching `categories/*.md`.
-- **Add/remove a target repo** → set `auto_evolve: true|false` in `dash/_data/projects.yml`
+- **Add/remove a target repo** → set `auto_evolve: true|false` in `_data/projects.yml`
   (NOT here). See [`docs/EVOLUTION.md`](../../docs/EVOLUTION.md).
 
 All changes are surgical and draft-PR only — see the guardrails in `evolve-prompt.md`.

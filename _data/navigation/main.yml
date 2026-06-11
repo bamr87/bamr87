@@ -1,23 +1,24 @@
 # Main Navigation
 # Used by: _includes/navigation/navbar.html (zer0-mistakes theme)
 # Schema: list of { title, icon (Bootstrap Icons bi-*), url, children[] }
+# Order: Dashboard (far left) → Projects → Services → About (far right).
 
-- title: Home
-  icon: bi-house
-  url: /
-
-- title: About
-  icon: bi-person
-  url: /about/
+- title: Dashboard
+  icon: bi-speedometer2
+  url: /dashboard/
   children:
-    - title: About Me
-      url: /about/
-    - title: Technical Stack
-      url: /about/#technical-stack--specializations
+    - title: Overview
+      url: /dashboard/
+    - title: Monitor
+      url: /monitor/
+    - title: Toolbox
+      url: /toolbox/
+    - title: Resume
+      url: /resume/
 
-- title: Experience
-  icon: bi-briefcase
-  url: /experience/
+- title: Projects
+  icon: bi-collection
+  url: /projects/
 
 - title: Services
   icon: bi-gear-wide-connected
@@ -32,14 +33,15 @@
     - title: IT Strategy
       url: /services/#it-strategy--employee-empowerment
 
-- title: Projects
-  icon: bi-collection
-  url: /projects/
-
-- title: Blog
-  icon: bi-journal-text
-  url: /blog/
-
-- title: Contact
-  icon: bi-envelope
-  url: /contact/
+- title: About
+  icon: bi-person
+  url: /about/
+  children:
+    - title: About Me
+      url: /about/
+    - title: Technical Stack
+      url: /about/#technical-stack--specializations
+    - title: Experience
+      url: /experience/
+    - title: Contact
+      url: /contact/

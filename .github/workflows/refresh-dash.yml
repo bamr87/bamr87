@@ -53,7 +53,7 @@ jobs:
           title: "chore(dash): refresh README project list"
           body: |
             Automated refresh of the `<!-- AUTO:projects -->` section of the
-            profile README from `dash/_data/projects.yml`.
+            profile README from `_data/projects.yml`.
           branch: "chore/refresh-dash-${{ github.run_id }}"
           base: main
           labels: automation, dash
@@ -79,7 +79,7 @@ jobs:
         run: |
           python - <<'PY'
           import os, subprocess, yaml, pathlib
-          p = pathlib.Path("dash/_data/project_health.yml")
+          p = pathlib.Path("_data/project_health.yml")
           if not p.exists():
               raise SystemExit(0)
           for h in yaml.safe_load(p.read_text()) or []:
