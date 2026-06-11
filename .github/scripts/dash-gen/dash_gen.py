@@ -324,6 +324,34 @@ def cmd_health(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# evolution targets
+# --------------------------------------------------------------------------- #
+def cmd_targets(args: argparse.Namespace) -> int:
+    """Emit the per-repo evolution matrix as JSON.
+
+    Selects registry entries that have opted into the per-repo AI evolution
+    framework (`auto_evolve: true`) AND are submodules (`submodule_path` set).
+    The output feeds the matrix of .github/workflows/evolution-scheduler.yml.
+    """
+    registry = load_registry()
+    targets = [
+        {
+            "name": p["name"],
+            "repo_url": p["repo_url"],
+            "branch": p.get("branch") or "main",
+            "category": p.get("category", "dev-tools"),
+            "stack": ",".join(p.get("stack", [])),
+        }
+        for p in registry
+        if p.get("auto_evolve") and p.get("submodule_path")
+    ]
+    # GitHub Actions reads `matrix` from a single-line JSON array.
+    print(json.dumps(targets, separators=(",", ":")))
+    sys.stderr.write(f"Selected {len(targets)} evolution target(s).\n")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # readme regeneration
 # --------------------------------------------------------------------------- #
 def render_projects_block(registry: list[dict]) -> str:
@@ -380,6 +408,11 @@ def main(argv: list[str] | None = None) -> int:
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")
     p_all.set_defaults(func=lambda a: (cmd_health(a) or cmd_readme(a)))
+
+    p_targets = sub.add_parser(
+        "targets", help="emit the auto_evolve submodule matrix as JSON"
+    )
+    p_targets.set_defaults(func=cmd_targets)
 
     args = parser.parse_args(argv)
     return args.func(args)

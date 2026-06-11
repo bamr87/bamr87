@@ -5,6 +5,12 @@ description: Run a focused improvement pass on a single project (code quality, d
 
 # evolve-project
 
+This is the **manual** counterpart to the automated per-repo evolution framework
+(`.github/workflows/evolution-scheduler.yml` → `repo-evolution.yml`). For consistency,
+reuse the same shared prompt material in `.github/evolution/` — `evolve-prompt.md` (goals:
+documentation, functionality, clarity + guardrails) plus the matching
+`.github/evolution/categories/<category>.md`. The persona mapping below adds focus on top.
+
 ## Steps
 1. Pick the project and the evolution type. Map type → persona in
    `.github/agents/`:

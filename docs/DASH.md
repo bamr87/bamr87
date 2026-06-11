@@ -38,7 +38,8 @@ follow.
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
 | Auto-fix bots | Scheduled PRs | `update-submodules.yml`, `refresh-dash.yml`, `dependabot.yml` |
 | AI layer | Skills, commands, MCP | `.claude/`, `.mcp.json` |
-| Self-evolution | Weekly AI pass | `.github/workflows/unified-evolution.yml` (Claude Code) |
+| Self-evolution | Weekly AI pass on the monorepo | `.github/workflows/unified-evolution.yml` (Claude Code) |
+| Per-repo evolution | Weekly AI pass on each upstream submodule (draft PRs) | `evolution-scheduler.yml` → `repo-evolution.yml` ([`docs/EVOLUTION.md`](EVOLUTION.md)) |
 
 ## The dash CLI
 
@@ -49,8 +50,11 @@ tools/dash serve      # serve the Jekyll dash locally (docker, :4000)
 tools/dash sync       # update submodules + regenerate dash data
 tools/dash run <tool> # run a projects/scripts/ submodule tool (forkme, stashme, ...)
 tools/dash new <name> # scaffold + register a new project
-tools/dash evolve     # trigger the AI evolution workflow
+tools/dash evolve     # evolve the monorepo itself (unified-evolution.yml)
+tools/dash evolve --repo <name>  # evolve one upstream submodule (draft PR upstream)
+tools/dash evolve --all          # weekly fan-out across all auto_evolve submodules
 tools/dash gen all    # run the generator (health + README)
+tools/dash gen targets # print the per-repo evolution matrix (auto_evolve submodules)
 ```
 
 ## Monitoring & "needs attention"
@@ -91,10 +95,17 @@ counterpart is `unified-evolution.yml` (weekly, via `anthropics/claude-code-acti
 needs the `ANTHROPIC_API_KEY` secret). So "which repos need attention" both shows
 on the frontend and steers what the AI works on next.
 
+Beyond the monorepo, the **per-repo evolution framework** carries the same idea to the
+individual upstream repos: `evolution-scheduler.yml` builds a matrix from every submodule
+with `auto_evolve: true` (via `dash-gen targets`) and fans out to `repo-evolution.yml`,
+which runs Claude Code against each repo and opens a **draft PR upstream**. The shared
+prompts live in `.github/evolution/`. Full details in [`docs/EVOLUTION.md`](EVOLUTION.md).
+
 ## One-time setup
 
 1. Repo **Settings → Pages → Source = "GitHub Actions"** (the dash deploys via
    `build-dash.yml`; the old MkDocs `build-docs.yml` is now manual-only).
-2. Add the `ANTHROPIC_API_KEY` repo secret to enable `unified-evolution.yml`.
+2. Add the `ANTHROPIC_API_KEY` repo secret to enable `unified-evolution.yml`. For the
+   per-repo framework also add `PAT_TOKEN` (PAT with `repo` + PR scope on the target repos).
 3. `pip install -r .github/scripts/dash-gen/requirements.txt` and `gh auth login`
    for local `tools/dash-gen health`.

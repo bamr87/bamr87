@@ -1,0 +1,177 @@
+name: 🌿 Per-Repo AI Evolution
+
+# Reusable workflow that runs a focused Claude Code improvement pass against a SINGLE
+# upstream repository and opens a DRAFT pull request there. Driven by
+# .github/workflows/evolution-scheduler.yml (weekly matrix) or dispatched manually.
+#
+# Requires secrets:
+#   ANTHROPIC_API_KEY  — Claude Code
+#   PAT_TOKEN          — PAT with `repo` + PR scope on the TARGET repositories
+#                        (the default GITHUB_TOKEN cannot push/PR to other repos)
+
+on:
+  workflow_call:
+    inputs:
+      repo_name: { required: true,  type: string }
+      repo_url:  { required: true,  type: string }
+      branch:    { required: true,  type: string }
+      category:  { required: false, type: string, default: dev-tools }
+      stack:     { required: false, type: string, default: "" }
+      dry_run:   { required: false, type: boolean, default: false }
+    secrets:
+      ANTHROPIC_API_KEY: { required: true }
+      PAT_TOKEN:         { required: true }
+  workflow_dispatch:
+    inputs:
+      repo_name:
+        description: 'Registry name of the repo to evolve (must have auto_evolve: true)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Run Claude but do not push/open a PR'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  evolve:
+    name: 🌿 Evolve ${{ inputs.repo_name }}
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out THIS repo (the framework) to read prompts + resolve the target.
+      - name: Checkout framework
+        uses: actions/checkout@v4
+
+      - name: Resolve target + assemble prompt
+        id: prep
+        run: |
+          set -euo pipefail
+          pip install pyyaml >/dev/null 2>&1 || true
+
+          # Resolve target fields. workflow_call passes them directly; workflow_dispatch
+          # provides only repo_name, so look the rest up in the registry.
+          REPO_NAME='${{ inputs.repo_name }}'
+          REPO_URL='${{ inputs.repo_url }}'
+          BRANCH='${{ inputs.branch }}'
+          CATEGORY='${{ inputs.category }}'
+          STACK='${{ inputs.stack }}'
+
+          if [[ -z "$REPO_URL" ]]; then
+            eval "$(python3 - "$REPO_NAME" <<'PY'
+          import sys, json
+          from pathlib import Path
+          sys.path.insert(0, ".github/scripts/dash-gen")
+          import dash_gen
+          name = sys.argv[1]
+          match = next((p for p in dash_gen.load_registry()
+                        if p["name"] == name and p.get("auto_evolve") and p.get("submodule_path")), None)
+          if not match:
+              sys.stderr.write(f"'{name}' is not an auto_evolve submodule in the registry\n")
+              sys.exit(1)
+          print(f'REPO_URL={match["repo_url"]}')
+          print(f'BRANCH={match.get("branch") or "main"}')
+          print(f'CATEGORY={match.get("category","dev-tools")}')
+          print(f'STACK={",".join(match.get("stack",[]))}')
+          PY
+          )"
+          fi
+
+          # owner/repo (nwo) from the URL.
+          NWO="$(echo "$REPO_URL" | sed -E 's#https?://github.com/##; s#\.git$##')"
+
+          # Assemble the prompt: base template + category appendix, with substitutions.
+          PROMPT_FILE="$RUNNER_TEMP/evolution_prompt.txt"
+          {
+            sed -e "s|{{REPO_NAME}}|$REPO_NAME|g" \
+                -e "s|{{BRANCH}}|$BRANCH|g" \
+                -e "s|{{CATEGORY}}|$CATEGORY|g" \
+                -e "s|{{STACK}}|${STACK:-unknown}|g" \
+                .github/evolution/evolve-prompt.md
+            echo ""
+            cat ".github/evolution/categories/$CATEGORY.md" 2>/dev/null || true
+          } > "$PROMPT_FILE"
+
+          # Export resolved values for later steps.
+          {
+            echo "repo_name=$REPO_NAME"
+            echo "repo_url=$REPO_URL"
+            echo "branch=$BRANCH"
+            echo "category=$CATEGORY"
+            echo "nwo=$NWO"
+            echo "prompt_file=$PROMPT_FILE"
+          } >> "$GITHUB_OUTPUT"
+
+          # Stash the prompt as a multiline output for claude-code-action.
+          {
+            echo 'prompt<<__EVOLVE_EOF__'
+            cat "$PROMPT_FILE"
+            echo '__EVOLVE_EOF__'
+          } >> "$GITHUB_OUTPUT"
+
+      # 2. Check out the TARGET repo over the workspace (clean overwrites the framework).
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.prep.outputs.nwo }}
+          ref: ${{ steps.prep.outputs.branch }}
+          token: ${{ secrets.PAT_TOKEN }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      # 3. Run Claude Code against the target working tree.
+      - name: Run Claude Code evolution
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.prep.outputs.prompt }}
+          claude_args: "--max-turns 30"
+
+      # 4. Commit any changes to a branch and open a DRAFT PR in the target repo.
+      - name: Open draft PR in target repo
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          NWO: ${{ steps.prep.outputs.nwo }}
+          BASE: ${{ steps.prep.outputs.branch }}
+          REPO_NAME: ${{ steps.prep.outputs.repo_name }}
+          CATEGORY: ${{ steps.prep.outputs.category }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No changes produced for $REPO_NAME — nothing to open." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          BR="ai-evolution/$(date -u +%Y%m%d)-${{ github.run_id }}"
+          git config user.name  "AI Evolution Bot"
+          git config user.email "ai-evolution@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add -A
+          git commit -m "chore(evolve): automated documentation/clarity/functionality pass" \
+                     -m "Focused AI improvement pass for $REPO_NAME ($CATEGORY)." \
+                     -m "Generated by the bamr87 per-repo evolution framework. Review carefully."
+          git push origin "$BR"
+
+          gh pr create \
+            --repo "$NWO" \
+            --base "$BASE" \
+            --head "$BR" \
+            --title "🌿 AI Evolution: documentation, functionality & clarity pass" \
+            --body "Automated improvement pass from the [bamr87 per-repo evolution framework](https://github.com/bamr87/bamr87/blob/main/docs/EVOLUTION.md).
+
+          - **Repo:** \`$REPO_NAME\` (\`$CATEGORY\`)
+          - **Goals:** documentation, functionality, clarity
+          - **Source run:** bamr87/bamr87 run \`${{ github.run_id }}\`
+
+          ⚠️ Generated by Claude Code — **review carefully before merging.** This is a draft." \
+            --label "ai-evolution" \
+            --draft
+
+      - name: Dry-run notice
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "## 👁️ Dry run for ${{ steps.prep.outputs.repo_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Claude ran against \`${{ steps.prep.outputs.nwo }}\` but no PR was opened." >> "$GITHUB_STEP_SUMMARY"
