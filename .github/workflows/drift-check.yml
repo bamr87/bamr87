@@ -18,7 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # The drift gate reads .gitmodules, the registry, and top-level dir
+          # READMEs — it does NOT need submodule working trees. Recursive
+          # submodule checkout over ~40 repos was fragile and the actual cause
+          # of this gate failing on main; the gate is submodule-content-agnostic.
           fetch-depth: 0
 
       - uses: actions/setup-python@v5

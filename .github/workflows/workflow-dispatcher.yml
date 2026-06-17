@@ -177,7 +177,10 @@ jobs:
   dispatch-cicd:
     name: 🚀 Dispatch CI/CD Pipeline
     needs: analyze-trigger
-    if: needs.analyze-trigger.outputs.dispatch_cicd == 'true'
+    # Skip on pull_request: unified-cicd.yml already triggers on PRs natively, so
+    # dispatching it here is redundant — and workflow_dispatch can't use a PR's
+    # `<n>/merge` ref (github.ref_name on PRs), which is what made this job fail.
+    if: needs.analyze-trigger.outputs.dispatch_cicd == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Unified CI/CD Pipeline

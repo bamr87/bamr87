@@ -347,7 +347,9 @@ jobs:
         with:
           language: ruby
           language-version: ${{ matrix.ruby-version }}
-          test-command: bundle exec rake test
+          # `rake` (a Ruby default gem) runs the root Rakefile's lightweight
+          # `test` task; no need for it to be in the bundle (it isn't).
+          test-command: rake test
 
   test-ai:
     name: 🤖 Test AI/ML
