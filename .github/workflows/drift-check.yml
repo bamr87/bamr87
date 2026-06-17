@@ -38,14 +38,14 @@ jobs:
           bundler-cache: true
 
       - name: Build site (for link check)
-        run: bundle exec jekyll build
-        env:
-          JEKYLL_ENV: production
+        # Build with baseurl="" (dev config) so internal links are root-relative
+        # paths lychee can resolve offline against _site via --root-dir.
+        run: bundle exec jekyll build --config _config.yml,_config_dev.yml
 
       - name: Install lychee
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --offline _site
+          args: --offline --root-dir ${{ github.workspace }}/_site ${{ github.workspace }}/_site
           fail: false   # link result surfaced via check-drift below
 
       - name: Run drift gate
