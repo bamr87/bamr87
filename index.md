@@ -85,16 +85,16 @@ description: "Project command center — a live dashboard, monitoring board, and
 
     <div class="cc-controls">
       <div class="cc-chips" role="group" aria-label="Filters">
-        <span class="cc-chip" data-group="reset" data-value="all" aria-pressed="false">All</span>
-        <span class="cc-chip" data-group="cat" data-value="docs" aria-pressed="false">Docs</span>
-        <span class="cc-chip" data-group="cat" data-value="full-stack-ai" aria-pressed="false">Full-stack / AI</span>
-        <span class="cc-chip" data-group="cat" data-value="dev-tools" aria-pressed="false">Dev tools</span>
-        <span class="cc-chip" data-group="status" data-value="active" aria-pressed="false">Active</span>
-        <span class="cc-chip" data-group="status" data-value="experiment" aria-pressed="false">Experiment</span>
-        <span class="cc-chip" data-group="featured" data-value="true" aria-pressed="false">★ Featured</span>
-        <span class="cc-chip cc-chip-red" data-group="health" data-value="red" aria-pressed="false">🔴 Red</span>
-        <span class="cc-chip cc-chip-amber" data-group="health" data-value="amber" aria-pressed="false">🟠 Amber</span>
-        <span class="cc-chip cc-chip-green" data-group="health" data-value="green" aria-pressed="false">🟢 Green</span>
+        <button type="button" class="cc-chip" data-group="reset" data-value="all" aria-pressed="false">All</button>
+        <button type="button" class="cc-chip" data-group="cat" data-value="docs" aria-pressed="false">Docs</button>
+        <button type="button" class="cc-chip" data-group="cat" data-value="full-stack-ai" aria-pressed="false">Full-stack / AI</button>
+        <button type="button" class="cc-chip" data-group="cat" data-value="dev-tools" aria-pressed="false">Dev tools</button>
+        <button type="button" class="cc-chip" data-group="status" data-value="active" aria-pressed="false">Active</button>
+        <button type="button" class="cc-chip" data-group="status" data-value="experiment" aria-pressed="false">Experiment</button>
+        <button type="button" class="cc-chip" data-group="featured" data-value="true" aria-pressed="false">★ Featured</button>
+        <button type="button" class="cc-chip cc-chip-red" data-group="health" data-value="red" aria-pressed="false">🔴 Red</button>
+        <button type="button" class="cc-chip cc-chip-amber" data-group="health" data-value="amber" aria-pressed="false">🟠 Amber</button>
+        <button type="button" class="cc-chip cc-chip-green" data-group="health" data-value="green" aria-pressed="false">🟢 Green</button>
       </div>
     </div>
 
@@ -140,7 +140,7 @@ description: "Project command center — a live dashboard, monitoring board, and
       </article>
       {% endfor %}
     </div>
-    <div id="cc-empty" class="cc-empty">No projects match those filters. <span style="cursor:pointer;text-decoration:underline" onclick="document.querySelector('.cc-chip[data-group=reset]').click()">Clear filters</span></div>
+    <div id="cc-empty" class="cc-empty">No projects match those filters. <button type="button" id="cc-clear" class="cc-linkbtn">Clear filters</button></div>
   </section>
 
   <!-- ========================== ANALYTICS =========================== -->
@@ -166,5 +166,5 @@ description: "Project command center — a live dashboard, monitoring board, and
   window.DASH_PROJECTS = {{ projects | jsonify }};
   window.DASH_HEALTH = {% if health %}{{ health | jsonify }}{% else %}[]{% endif %};
 </script>
-<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script defer src="{{ '/assets/js/dashboard.js' | relative_url }}"></script>

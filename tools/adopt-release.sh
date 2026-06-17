@@ -100,12 +100,17 @@ case "$RELEASE_TYPE" in
   ruby)
     EXTRA=""
     [[ -f package.json ]] && EXTRA=', "extra-files": [ { "type": "json", "path": "package.json", "jsonpath": "$.version" } ]'
+    # Only pin version-file when we actually found one; an empty "version-file": ""
+    # breaks release-please. Without it, the ruby strategy falls back to its default.
+    VF=""
+    [[ -n "$VERSION_FILE" ]] && VF="\"version-file\": \"${VERSION_FILE}\", "
     cat > release-please-config.json <<JSON
 {
   "\$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "packages": { ".": { "release-type": "ruby", "version-file": "${VERSION_FILE}", "changelog-path": "CHANGELOG.md"${EXTRA} } }
+  "packages": { ".": { "release-type": "ruby", ${VF}"changelog-path": "CHANGELOG.md"${EXTRA} } }
 }
 JSON
+    [[ -z "$VERSION_FILE" ]] && note "no lib/**/version.rb found — omitted version-file; set it manually if needed"
     ;;
   *)
     cat > release-please-config.json <<JSON

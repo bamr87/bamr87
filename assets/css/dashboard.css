@@ -104,11 +104,14 @@
 .cc-search:focus { outline: none; border-color: var(--cc-ai); box-shadow: 0 0 0 3px rgba(139,92,246,.22); }
 .cc-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
 .cc-chip {
+  appearance: none; -webkit-appearance: none; font-family: inherit; line-height: 1.4;
   padding: .38rem .7rem; border-radius: 999px; font-size: .8rem; font-weight: 600;
   cursor: pointer; user-select: none; color: var(--cc-muted);
   background: var(--cc-surface-2); border: 1px solid var(--cc-border);
   transition: all .12s ease;
 }
+.cc-chip:focus-visible { outline: 2px solid var(--cc-ai); outline-offset: 2px; }
+.cc-linkbtn { appearance: none; background: none; border: none; padding: 0; font: inherit; color: var(--cc-ai); text-decoration: underline; cursor: pointer; }
 .cc-chip:hover { color: var(--cc-text); }
 .cc-chip[aria-pressed="true"] { color: #fff; background: var(--cc-ai); border-color: var(--cc-ai); }
 .cc-chip.cc-chip-red[aria-pressed="true"] { background: var(--cc-red); border-color: var(--cc-red); }

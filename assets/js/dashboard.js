@@ -122,6 +122,13 @@
       apply();
     });
   });
+  // Chips are <button> elements, so Enter/Space activation is native — the click
+  // handler above covers keyboard users without extra keydown wiring.
+  var clearBtn = document.getElementById("cc-clear");
+  if (clearBtn) clearBtn.addEventListener("click", function () {
+    var reset = root.querySelector('.cc-chip[data-group="reset"]');
+    if (reset) reset.click();
+  });
   if (sortSel) sortSel.addEventListener("change", function () { sortCards(sortSel.value); });
   sortCards("featured");
   apply();
