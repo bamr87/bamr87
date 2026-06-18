@@ -339,7 +339,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ruby-version: ['3.1', '3.2', '3.3']
+        # The dash's Gemfile.lock (github-pages stack) pins deps requiring Ruby
+        # >= 3.2 (e.g. connection_pool), and the rest of the dash tooling
+        # (drift-check, zer0-mistakes) standardizes on 3.3 — so bundle install
+        # only succeeds on 3.3. Testing 3.1/3.2 just fails at install.
+        ruby-version: ['3.3']
     steps:
       - uses: actions/checkout@v4
       - name: Run Ruby tests
@@ -347,7 +351,9 @@ jobs:
         with:
           language: ruby
           language-version: ${{ matrix.ruby-version }}
-          test-command: bundle exec rake test
+          # `rake` (a Ruby default gem) runs the root Rakefile's lightweight
+          # `test` task; no need for it to be in the bundle (it isn't).
+          test-command: rake test
 
   test-ai:
     name: 🤖 Test AI/ML
