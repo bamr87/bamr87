@@ -13,6 +13,7 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/new-project/` | Scaffold + register a new project |
 | `skills/triage-attention/` | Turn Monitor-board signals into prioritized actions |
 | `skills/evolve-project/` | Focused per-project improvement pass (maps to `.github/agents` personas) |
+| `skills/run-dash/` | `/run-dash` — orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
 | `commands/dash-status.md` | `/dash-status` — read-only status |
 | `commands/evolve.md` | `/evolve` — run the self-evolution loop |
 | `commands/register-project.md` | `/register-project` — add/reconcile a project |
