@@ -45,9 +45,11 @@ Show the **rendered spec** (human-readable) AND the **exact YAML block**. Then u
 ## 5. On approval — backlog it
 - Append the YAML entry to `_data/roadmap.yml` (keep ids monotonic; keep the file
   valid YAML).
-- If **Approve + open GitHub issue**: open an issue in the target repo via the
-  GitHub MCP (`mcp__github__issue_write`) — title = the feature, body = the spec,
-  labels `enhancement`, `roadmap` — then set the entry's `issue_url`.
+- If **Approve + open GitHub issue**: open an issue in the target repo with the
+  `gh` CLI (repo convention — not MCP write tools, per
+  `.github/docs/skills-agents-principles.md`):
+  `gh issue create --repo <owner/repo> --title "<feature>" --body "<spec>" --label enhancement --label roadmap`
+  — then set the entry's `issue_url`.
 - Confirm the new id and the file changed. Don't commit/push unless asked; the
   surrounding session/PR handles that.
 

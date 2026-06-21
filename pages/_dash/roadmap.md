@@ -46,15 +46,15 @@ or let the <code>feature-scout</code> sub-agent harvest them from a session.
   <tbody>
   {% for it in items %}
     <tr>
-      <td><code>{{ it.id }}</code></td>
+      <td><code>{{ it.id | escape }}</code></td>
       <td>
-        {% if it.issue_url %}<a href="{{ it.issue_url }}">{{ it.title }}</a>{% else %}{{ it.title }}{% endif %}
-        <br><small class="text-muted">{{ it.problem | strip_newlines | truncate: 130 }}</small>
+        {% if it.issue_url %}<a href="{{ it.issue_url | escape }}">{{ it.title | escape }}</a>{% else %}{{ it.title | escape }}{% endif %}
+        <br><small class="text-muted">{{ it.problem | strip_newlines | truncate: 130 | escape }}</small>
       </td>
-      <td><a href="{{ it.repo_url }}">{{ it.project }}</a></td>
-      <td><span class="badge bg-secondary">{{ it.priority }}</span></td>
-      <td>{{ it.effort }}</td>
-      <td>{{ it.category }}</td>
+      <td><a href="{{ it.repo_url | escape }}">{{ it.project | escape }}</a></td>
+      <td><span class="badge bg-secondary">{{ it.priority | escape }}</span></td>
+      <td>{{ it.effort | escape }}</td>
+      <td>{{ it.category | escape }}</td>
     </tr>
   {% endfor %}
   </tbody>

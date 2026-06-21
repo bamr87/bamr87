@@ -14,9 +14,9 @@ import json
 import os
 import sys
 
-# Sentinel embedded in injected text so the Stop-hook scanner can exclude its
-# own context and avoid self-triggering on words like "roadmap"/"backlog".
-SENTINEL = "future-features"
+# The injected text below intentionally contains the self-markers
+# ("future-features" / "feature-scout") that the Stop hook's SELF_MARKERS filter
+# excludes from its scan, so this context never self-triggers the scout nudge.
 
 
 def main() -> None:
