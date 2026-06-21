@@ -49,7 +49,9 @@ Show the **rendered spec** (human-readable) AND the **exact YAML block**. Then u
   `gh` CLI (repo convention — not MCP write tools, per
   `.github/docs/skills-agents-principles.md`):
   `gh issue create --repo <owner/repo> --title "<feature>" --body "<spec>" --label enhancement --label roadmap`
-  — then set the entry's `issue_url`.
+  — then set the entry's `issue_url`. If the repo has Issues disabled or the
+  create fails, skip it and keep `issue_url: null` — the local backlog is the
+  source of truth.
 - Confirm the new id and the file changed. Don't commit/push unless asked; the
   surrounding session/PR handles that.
 

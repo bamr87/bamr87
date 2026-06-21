@@ -80,3 +80,41 @@
   source: manual
   created: 2026-06-21
   issue_url: null
+
+- id: FF-0002
+  title: "`tools/dash roadmap` CLI subcommand — list and add roadmap items from the terminal"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: S
+  category: feature
+  problem: >-
+    Capturing or reviewing roadmap items today means hand-editing
+    _data/roadmap.yml or running a full Claude session. There is no quick
+    terminal way to see what's on the roadmap or jot a new item — friction for
+    fast capture and for scripting.
+  proposal: >-
+    Add a `roadmap` subcommand to tools/dash following the existing cmd_* + case
+    dispatch: `tools/dash roadmap [list|add|next-id]`. `list` prints items
+    (filterable by --status/--project); `add` appends a schema-valid entry with
+    the next FF id (status proposed, source manual); reuse python3 + pyyaml.
+  acceptance:
+    - "`tools/dash roadmap list` prints items grouped by status; --status/--project filter."
+    - "`tools/dash roadmap add` appends a valid entry with the next FF-NNNN id, status proposed, source manual, created=today."
+    - "`tools/dash roadmap next-id` prints the next free id."
+    - "Output stays valid YAML, passes the roadmap schema check, and shows in `tools/dash help`."
+    - "Resolves --project to a registry name or `bamr87`; rejects unknown projects helpfully."
+  scope:
+    in:
+      - tools/dash roadmap subcommand (list/add/next-id) + schema validation
+    out:
+      - editing/deleting existing items
+      - GitHub issue sync (stays in /future-features)
+      - a TUI
+  risks:
+    - pyyaml round-trip may reorder keys / drop header comments — append text, don't re-dump.
+    - Keep id allocation consistent with the slash command (single next-id source).
+  source: manual
+  created: 2026-06-21
+  issue_url: null
