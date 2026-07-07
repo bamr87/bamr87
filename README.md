@@ -249,7 +249,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
 - **[afms](https://github.com/bamr87/afms)**: AFMS — Django accounting & financial management web app with role-based access and reporting.
 - **[django-fin](https://github.com/bamr87/django-fin)**: Django finance app scaffold built around OpenEDGAR (SEC filings).
-- **[djangoerp](https://github.com/bamr87/djangoerp)**: Django-Magic — a beginner-friendly Django starter project.
+- **[djangoerp](https://github.com/bamr87/djangoerp)**: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
 
 ### 🛠️ Developer Tools & Experiments
 

@@ -34,6 +34,33 @@ technology from a cost center into a strategic advantage.
 
 ---
 
+## ⭐ Featured Projects
+
+A snapshot of what I'm actively building — see the [full portfolio](/projects/) for everything.
+
+<div class="row">
+{% assign featured = site.data.projects | where: "featured", true %}
+{% for p in featured %}
+  <div class="col-lg-4 col-md-6 mb-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title"><a href="{{ p.repo_url }}">{{ p.name }}</a></h5>
+        <span class="badge bg-{% if p.status == 'active' %}success{% elsif p.status == 'experiment' %}info{% elsif p.status == 'archived' %}secondary{% else %}primary{% endif %}">{{ p.status }}</span>
+        <p class="card-text mt-2">{{ p.description }}</p>
+        <p>{% for t in p.stack %}<code class="me-1">{{ t }}</code>{% endfor %}</p>
+      </div>
+      <div class="card-footer bg-transparent border-0">
+        <a class="btn btn-sm btn-outline-secondary" href="{{ p.repo_url }}">Repo</a>
+        {% if p.live_url %}<a class="btn btn-sm btn-outline-primary" href="{{ p.live_url }}">Live</a>{% endif %}
+        {% if p.docs_url %}<a class="btn btn-sm btn-outline-info" href="{{ p.docs_url }}">Docs</a>{% endif %}
+      </div>
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+---
+
 ## My Philosophy: People Over Profits
 
 - 🌱 **Sustainable Technology** — building systems that adapt and scale with your business.

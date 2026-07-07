@@ -480,11 +480,11 @@
   submodule_path: projects/djangoerp
   branch: main
   repo_url: https://github.com/bamr87/djangoerp
-  description: Django-Magic — a beginner-friendly Django starter project.
+  description: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
   stack: [django, python]
   category: full-stack-ai
   status: experiment
-  featured: false
+  featured: true
   maintained: true
   live_url: null
   docs_url: null
