@@ -21,6 +21,11 @@
 #   maintained     bool      actively maintained
 #   live_url       optional  deployed site (null if none)
 #   docs_url       optional  documentation URL (null if none)
+#   release        optional  standardized release pipeline (bamr87/.github). Sub-keys:
+#                            engine: release-please | type: ruby|node|python|simple
+#                            registries: [rubygems|npm|pypi|ghcr|github]
+#                            status: adopted (merged) | pending (PR open) | none
+#                            pr: optional adoption PR URL
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -109,6 +114,12 @@
   maintained: true
   live_url: https://zer0-mistakes.com
   docs_url: https://zer0-mistakes.com
+  release:
+    engine: release-please
+    type: ruby
+    registries: [rubygems, github]
+    status: pending          # reference migration
+    pr: https://github.com/bamr87/zer0-mistakes/pull/170
 
 - name: barodybroject
   slug: barodybroject
@@ -193,6 +204,12 @@
   maintained: true
   live_url: null
   docs_url: null
+  release:
+    engine: release-please
+    type: simple             # no package metadata → versioning + GitHub Releases only
+    registries: [github]
+    status: pending
+    pr: https://github.com/bamr87/edgar-data-parse/pull/7
 
 - name: django-erp
   slug: django-erp
@@ -291,6 +308,12 @@
   maintained: true
   live_url: null
   docs_url: null
+  release:
+    engine: release-please
+    type: node
+    registries: [npm, github]
+    status: pending
+    pr: https://github.com/bamr87/zpl-viewer/pull/2
 
 - name: csv-vscoode
   slug: csv-vscoode

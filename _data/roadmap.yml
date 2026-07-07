@@ -1,0 +1,120 @@
+# =============================================================================
+# _data/roadmap.yml  —  THE FEATURE BACKLOG / ROADMAP (single source of truth)
+# =============================================================================
+# Every feature request captured by the Future-Features pipeline lands here:
+#   - `/future-features <idea>`  (manual entry point — one idea)
+#   - the `feature-scout` sub-agent (automatic — scans the session thread)
+#
+# This file is committed and reviewable. The dash Roadmap surface
+# (pages/_dash/roadmap.md) renders it, and entries optionally mirror to a
+# GitHub issue in the target repo once approved.
+#
+# WORKFLOW
+#   proposed  → drafted by the command/scout, awaiting human review/approval
+#   approved  → accepted into the backlog (next up for scoping)
+#   backlog   → planned, not yet started
+#   in-progress
+#   shipped   → delivered
+#   declined  → reviewed and rejected (kept for the record; set `reason`)
+#
+# Nothing is written here without human approval. The sub-agent only *proposes*;
+# a human approves before the entry is committed.
+#
+# -----------------------------------------------------------------------------
+# Schema (per entry):
+#   id          required  stable id, `FF-NNNN` (monotonic; never reuse)
+#   title       required  short imperative summary
+#   project     required  target project `name` from _data/projects.yml,
+#                         or `bamr87` for the root dash / this monorepo itself
+#   repo_url    required  GitHub repo the feature targets
+#   status      required  proposed | approved | backlog | in-progress | shipped | declined
+#   priority    required  P0 (now) | P1 (soon) | P2 (later) | P3 (someday)
+#   effort      required  S | M | L | XL  (rough t-shirt size)
+#   category    required  feature | enhancement | infra | docs | research | fix
+#   problem     required  the user/maintainer pain, in one or two sentences
+#   proposal    required  the proposed solution / what to build
+#   acceptance  required  list of acceptance criteria (what "done" looks like)
+#   scope       optional  { in: [...], out: [...] }  explicit in/out of scope
+#   risks       optional  list of risks / open questions
+#   source      required  where it came from: `manual`, `scout`, or `session:<id>`
+#   created     required  ISO date (YYYY-MM-DD)
+#   issue_url   optional  GitHub issue URL once mirrored (null until then)
+#   reason      optional  rationale when status is `declined`
+# =============================================================================
+
+- id: FF-0001
+  title: Future-Features pipeline — capture, spec, and backlog feature ideas
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: in-progress
+  priority: P1
+  effort: M
+  category: infra
+  problem: >-
+    Good feature ideas surface mid-conversation while working in a session and
+    are lost when the session ends. There is no consistent way to turn a passing
+    idea into a well-formed, reviewable feature request on the right repo's
+    roadmap.
+  proposal: >-
+    A Future-Features pipeline: a `/future-features` slash command that turns an
+    idea into a full spec and routes it to the correct repo's roadmap, plus a
+    `feature-scout` sub-agent wired to a session hook that scans the thread for
+    latent feature ideas and presents complete specs for human review before
+    anything is backlogged in this file.
+  acceptance:
+    - "`/future-features <idea>` drafts a full spec and, on approval, appends an entry here."
+    - "The target repo is resolved from _data/projects.yml (or `bamr87` for the root)."
+    - "A `feature-scout` sub-agent analyzes the conversation and proposes specs."
+    - "A SessionStart hook makes the workflow active in every Claude Code session."
+    - "A Stop hook nudges the scout when feature-signal language appears (throttled, opt-out)."
+    - "Nothing is committed to this file without explicit human approval."
+  scope:
+    in:
+      - slash command, sub-agent, hooks, this backlog file, dash Roadmap surface
+    out:
+      - automatic GitHub issue creation without approval
+      - cross-repo epics / dependency tracking
+  risks:
+    - Hook noise — mitigated by once-per-session throttling and an opt-out env var.
+    - Mis-routing an idea to the wrong repo — mitigated by a confirmation step.
+  source: manual
+  created: 2026-06-21
+  issue_url: null
+
+- id: FF-0002
+  title: "`tools/dash roadmap` CLI subcommand — list and add roadmap items from the terminal"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: S
+  category: feature
+  problem: >-
+    Capturing or reviewing roadmap items today means hand-editing
+    _data/roadmap.yml or running a full Claude session. There is no quick
+    terminal way to see what's on the roadmap or jot a new item — friction for
+    fast capture and for scripting.
+  proposal: >-
+    Add a `roadmap` subcommand to tools/dash following the existing cmd_* + case
+    dispatch: `tools/dash roadmap [list|add|next-id]`. `list` prints items
+    (filterable by --status/--project); `add` appends a schema-valid entry with
+    the next FF id (status proposed, source manual); reuse python3 + pyyaml.
+  acceptance:
+    - "`tools/dash roadmap list` prints items grouped by status; --status/--project filter."
+    - "`tools/dash roadmap add` appends a valid entry with the next FF-NNNN id, status proposed, source manual, created=today."
+    - "`tools/dash roadmap next-id` prints the next free id."
+    - "Output stays valid YAML, passes the roadmap schema check, and shows in `tools/dash help`."
+    - "Resolves --project to a registry name or `bamr87`; rejects unknown projects helpfully."
+  scope:
+    in:
+      - tools/dash roadmap subcommand (list/add/next-id) + schema validation
+    out:
+      - editing/deleting existing items
+      - GitHub issue sync (stays in /future-features)
+      - a TUI
+  risks:
+    - pyyaml round-trip may reorder keys / drop header comments — append text, don't re-dump.
+    - Keep id allocation consistent with the slash command (single next-id source).
+  source: manual
+  created: 2026-06-21
+  issue_url: null
