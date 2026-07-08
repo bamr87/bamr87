@@ -3,7 +3,7 @@
 # ============================================================================
 #
 # Multi-stage Dockerfile for the development environment.
-# Provides Node.js, Python, and shell tooling in a single container.
+# Provides Node.js, Python, Ruby, and shell tooling in a single container.
 #
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install common Python tools globally
-RUN pip3 install --no-cache-dir --break-system-packages \
+# (Ubuntu 22.04 ships pip 22.0.2, which predates PEP 668 / --break-system-packages)
+RUN pip3 install --no-cache-dir \
     pre-commit \
     black \
     flake8 \
@@ -66,9 +67,42 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     mkdocs-material
 
 # ---------------------------------------------------------------------------
+# Ruby 3.3 (matches build-dash.yml's ruby/setup-ruby version)
+# ---------------------------------------------------------------------------
+# Ubuntu 22.04 (jammy) has no apt package for Ruby 3.3 — the archive ships 3.0,
+# and the brightbox PPA that used to backport newer Rubies stopped publishing
+# jammy builds after 2.7. Build from the official source tarball instead; the
+# root Gemfile (github-pages + jekyll) needs the dash's Jekyll site to build.
+FROM python-setup AS ruby-setup
+
+ARG RUBY_VERSION=3.3.11
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    autoconf \
+    bison \
+    libffi-dev \
+    libgdbm-dev \
+    libgmp-dev \
+    libncurses-dev \
+    libreadline-dev \
+    libssl-dev \
+    libyaml-dev \
+    uuid-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://cache.ruby-lang.org/pub/ruby/${RUBY_VERSION%.*}/ruby-${RUBY_VERSION}.tar.gz" -o /tmp/ruby.tar.gz \
+    && tar -xzf /tmp/ruby.tar.gz -C /tmp \
+    && cd "/tmp/ruby-${RUBY_VERSION}" \
+    && ./configure --disable-install-doc --prefix=/usr/local \
+    && make -j"$(nproc)" \
+    && make install \
+    && cd / && rm -rf "/tmp/ruby-${RUBY_VERSION}" /tmp/ruby.tar.gz \
+    && gem install bundler --no-document
+
+# ---------------------------------------------------------------------------
 # GitHub CLI
 # ---------------------------------------------------------------------------
-FROM python-setup AS gh-setup
+FROM ruby-setup AS gh-setup
 
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -96,6 +130,14 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
 # Set up workspace directory
 RUN mkdir -p /workspace && chown ${USERNAME}:${USERNAME} /workspace
 
+# Gems install here (not under /usr/local, which root owns) so `bundle install`
+# works as the non-root user. Backed by the `bundle-gems` named volume in
+# docker-compose.yml — Docker seeds a fresh volume from this image directory,
+# so ownership carries over on first mount.
+ENV BUNDLE_PATH=/home/${USERNAME}/.bundle-gems
+ENV BUNDLE_APP_CONFIG=/home/${USERNAME}/.bundle-gems
+RUN mkdir -p "${BUNDLE_PATH}" && chown ${USERNAME}:${USERNAME} "${BUNDLE_PATH}"
+
 # Version labels
 LABEL maintainer="bamr87"
 LABEL description="bamr87 monorepo development container"
@@ -113,6 +155,8 @@ RUN echo "=== Development Container Versions ===" \
     && echo "pip:     $(pip3 --version)" \
     && echo "git:     $(git --version)" \
     && echo "gh:      $(gh --version | head -1)" \
+    && echo "Ruby:    $(ruby --version)" \
+    && echo "Bundler: $(bundle --version)" \
     && echo "jq:      $(jq --version)" \
     && echo "shellcheck: $(shellcheck --version | head -2 | tail -1)"
 

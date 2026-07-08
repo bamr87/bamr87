@@ -30,12 +30,19 @@ services:
       - node-modules:/workspace/projects/cv-builder-pro/node_modules
       - venv-docs:/workspace/.venv-docs
       - venv-readme:/workspace/projects/README/.venv
+      - bundle-gems:/home/vscode/.bundle-gems
     working_dir: /workspace
     ports:
-      - "${CV_PORT:-5000}:5000"          # CV Builder (Vite)
-      - "${VITE_HMR_PORT:-5173}:5173"    # Vite HMR
-      - "${MKDOCS_PORT:-8000}:8000"      # MkDocs
-      - "${JEKYLL_PORT:-4000}:4000"      # Jekyll
+      # Bound to 127.0.0.1 explicitly: on Docker Desktop for Mac, the default
+      # 0.0.0.0 mapping also opens an IPv6 ([::]) docker-proxy listener that
+      # resets connections on some hosts. Since `localhost` often resolves to
+      # ::1 first, that alone makes the dev server look unreachable even
+      # though IPv4 (127.0.0.1) works fine. Loopback-only also matches these
+      # ports' actual use (local dev, not LAN-exposed).
+      - "127.0.0.1:${CV_PORT:-5000}:5000"          # CV Builder (Vite)
+      - "127.0.0.1:${VITE_HMR_PORT:-5173}:5173"    # Vite HMR
+      - "127.0.0.1:${MKDOCS_PORT:-8000}:8000"      # MkDocs
+      - "127.0.0.1:${JEKYLL_PORT:-4000}:4000"      # Jekyll
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PYTHONDONTWRITEBYTECODE=1
@@ -168,6 +175,8 @@ volumes:
   venv-docs:
     driver: local
   venv-readme:
+    driver: local
+  bundle-gems:
     driver: local
   wiki-data:
     driver: local
