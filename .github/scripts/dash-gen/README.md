@@ -13,6 +13,15 @@ truth — [`_data/projects.yml`](../../../_data/projects.yml) — and:
   [`README.md`](../../../README.md) from the registry's static facts. Deterministic
   and safe to commit. `--check` fails (non-zero) if the span is stale instead of
   writing — used by the drift gate.
+- **`ai`** → shadow-prices local Claude Code usage per repo ([`ai_activity.py`](ai_activity.py)).
+  Scans the per-session JSONL ledgers under `~/.claude/projects/`, dedupes streamed
+  records, attributes each turn to a repo via its `cwd` (worktrees/submodules
+  normalized), max-merges daily aggregates into a **persistent ledger**
+  (`~/.claude/ai-activity-ledger.json`, so history survives Claude Code's ~30-day
+  transcript cleanup), and writes `_data/ai_activity.yml` — **ephemeral**, gitignored,
+  rendered by the `/ai-activity/` dash page. Costs are estimates at Anthropic API
+  list prices (subscription usage bills nothing per token). **Local-only**: not part
+  of `all`, never runs in CI, and spend data is never committed or published.
 - **`all`** → `health` then `readme`.
 
 ## Usage
@@ -23,10 +32,12 @@ gh auth login                       # health needs GitHub API access (or GH_TOKE
 
 python .github/scripts/dash-gen/dash_gen.py health
 python .github/scripts/dash-gen/dash_gen.py readme [--check]
+python .github/scripts/dash-gen/dash_gen.py ai [--window 30] [--ledger PATH] [--claude-dir PATH]
 
 # or via the wrapper:
 tools/dash-gen health
 tools/dash-gen readme
+tools/dash-gen ai        # also: tools/dash ai
 ```
 
 GitHub access uses the `gh` CLI, so failures degrade gracefully (a project that

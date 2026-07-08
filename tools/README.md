@@ -16,6 +16,8 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `setup.sh` | **Primary entrypoint** — cross-platform dev environment setup |
 | `setup-dev.sh` | Legacy wrapper — delegates to `setup.sh --local` |
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
+| `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, …) — see [docs/DASH.md](../docs/DASH.md) |
+| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
 
 ## Architecture
 

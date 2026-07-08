@@ -33,7 +33,8 @@ follow.
 | Submodules | All projects, flat under one container | `projects/<name>/` (see [`projects/README.md`](../projects/README.md)) |
 | Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection | `pages/_dash/` → `bamr87.github.io/bamr87/` |
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
-| Generator | Health gathering + README AUTO regen | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
+| AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
+| Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
 | Auto-fix bots | Scheduled PRs | `update-submodules.yml`, `refresh-dash.yml`, `dependabot.yml` |
@@ -51,6 +52,7 @@ tools/dash sync       # update submodules + regenerate dash data
 tools/dash run <tool> # run a projects/scripts/ submodule tool (forkme, stashme, ...)
 tools/dash new <name> # scaffold + register a new project
 tools/dash evolve     # trigger the AI evolution workflow
+tools/dash ai         # shadow-priced Claude Code usage per repo (local-only)
 tools/dash gen all    # run the generator (health + README)
 ```
 
@@ -69,6 +71,26 @@ security alerts. It computes an **attention level**:
 Thresholds live in [`_data/health_thresholds.yml`](../_data/health_thresholds.yml).
 The board surfaces on the `/monitor/` page (and a "Needs Attention" strip on Home),
 in `tools/dash monitor`, and as the input signal for the self-evolution loop.
+
+## AI activity (shadow-priced usage)
+
+`tools/dash ai` tracks Claude Code activity across **every repo touched from this
+machine** — including repos outside the monorepo. Claude Code writes a JSONL
+transcript per session to `~/.claude/projects/` with the model and full token
+breakdown for every assistant turn; on a subscription plan there's no invoice, so
+the generator answers *"what would this cost at API list prices?"*:
+
+- **Scan** all session files, dedupe streamed records, attribute each turn to a
+  repo via its `cwd` (worktrees and submodule gitdirs fold back to their repo).
+- **Persist** daily `(machine, day, repo, model)` aggregates in
+  `~/.claude/ai-activity-ledger.json` (max-merge), so history outlives Claude
+  Code's ~30-day transcript cleanup.
+- **Report** to the gitignored `_data/ai_activity.yml`, rendered at `/ai-activity/`
+  (repo/model/day tables, cache-read ratio — the highest-leverage cost signal).
+
+Costs are **estimates** (tokens × list prices; unknown models are flagged, not
+guessed). Local-only by design: it never runs in CI, and the published dash shows
+a "run `tools/dash ai` locally" notice instead of your spend.
 
 ## Anti-drift: gates + auto-fix PRs
 

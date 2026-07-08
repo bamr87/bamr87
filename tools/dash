@@ -27,9 +27,10 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
   ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
   ${c_bold}dash evolve [args]${c_off}     trigger the AI evolution workflow
+  ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -125,6 +126,7 @@ cmd_evolve() {
   fi
 }
 
+cmd_ai()     { "${TOOLS}/dash-gen" ai "$@"; }
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
 cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
@@ -139,6 +141,7 @@ main() {
     run)     cmd_run "$@" ;;
     new)     cmd_new "$@" ;;
     evolve)  cmd_evolve "$@" ;;
+    ai)      cmd_ai "$@" ;;
     doctor)  cmd_doctor "$@" ;;
     test)    cmd_test "$@" ;;
     gen)     cmd_gen "$@" ;;

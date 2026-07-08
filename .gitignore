@@ -163,3 +163,4 @@ _site/
 .sass-cache/
 _data/project_health.yml
 _data/project_health_meta.yml
+_data/ai_activity.yml

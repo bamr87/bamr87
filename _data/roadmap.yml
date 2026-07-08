@@ -118,3 +118,146 @@
   source: manual
   created: 2026-06-21
   issue_url: null
+
+- id: FF-0003
+  title: "AI cost telemetry via OpenTelemetry — local collector stack with per-prompt drill-down (finance-ai Layer 2)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: L
+  category: infra
+  problem: >-
+    The AI-activity layer (tools/dash ai, .github/scripts/dash-gen/ai_activity.py)
+    is pull-based and daily-grained. It can say what a repo cost per day at list
+    prices, but not which prompt, skill, agent, or MCP server burned the tokens,
+    and there is no live view of spend while a session is running. Request-level
+    questions ("why was Thursday $9?") currently have no answer surface.
+  proposal: >-
+    Opt into Claude Code's native OTel instrumentation and stand up a local,
+    opt-in backend. Add a `telemetry` profile to docker-compose.yml with four
+    services (otel-collector, prometheus, loki, grafana) and provisioned config
+    checked into the repo, plus a documented managed-settings/env template that
+    sets CLAUDE_CODE_ENABLE_TELEMETRY=1 and points OTLP metric/log exporters at
+    the local collector. Ship one provisioned Grafana dashboard implementing the
+    question tiers from finance-ai.md — estimated spend over time, split by model
+    and query_source, cache-read ratio, and session→prompt drill-down via Loki
+    queries on prompt.id. Single machine, single developer, local-only.
+  acceptance:
+    - "`docker compose --profile telemetry up -d` starts otel-collector + prometheus + loki + grafana with provisioned datasources/dashboards committed to the repo."
+    - "A documented settings template (managed settings or ~/.claude/settings.json env block) enables telemetry and targets the local collector; no endpoints or tokens are hard-coded elsewhere."
+    - "claude_code.cost.usage and claude_code.token.usage are queryable in Prometheus; user_prompt/api_request/tool_result events land in Loki and filter by prompt.id."
+    - "The committed Grafana dashboard shows spend over time, per-model/query_source split, cache-read ratio, and links a session to its prompt-level events."
+    - "Local-only is preserved: telemetry services never run in CI and the published dash stays free of spend data."
+    - "docs/DASH.md documents the layer split — ledger scan is retroactive history, OTel is forward-looking drill-down — and that dollar figures remain estimates."
+  scope:
+    in:
+      - docker-compose.yml `telemetry` profile + collector/prometheus/loki/grafana provisioning
+      - managed-settings / env rollout template and docs
+      - one provisioned Grafana dashboard
+    out:
+      - Layer 3 Admin APIs (org-level reporting)
+      - multi-user fleet rollout, auth hardening, cloud backends
+      - replacing the JSONL ledger (OTel only captures forward from enablement)
+      - traces beta (CLAUDE_CODE_ENHANCED_TELEMETRY_BETA) beyond a docs note
+  risks:
+    - Metric cardinality — session-id/account-uuid labels can explode Prometheus series; keep OTEL_METRICS_INCLUDE_SESSION_ID off by default.
+    - Prometheus/Loki volumes grow unbounded without retention limits — set retention in the provisioned config.
+    - The managed-settings path differs per OS (macOS vs Linux container) — document both or prefer the user settings env block.
+    - Four extra containers is heavy for one developer — the compose profile must keep the stack strictly opt-in.
+  source: scout
+  created: 2026-07-06
+  issue_url: null
+
+- id: FF-0004
+  title: "Per-run AI cost ledger and --max-budget-usd guardrails for headless agent invocations"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P1
+  effort: M
+  category: infra
+  problem: >-
+    Headless invocations — the weekly unified-evolution.yml Claude pass and any
+    local `claude -p` scripting — bypass the AI-activity ledger entirely, since
+    CI runners have their own ~/.claude and the local scan never sees them. They
+    also run uncapped in dollar terms; the only guardrail today is
+    `--max-turns 30`. A misbehaving automation run has no budget ceiling and
+    leaves no cost record.
+  proposal: >-
+    Use the per-run accounting Claude Code already emits. Add a wrapper
+    (`tools/dash ai run -- <args>`) that invokes `claude -p --output-format
+    json` with a default --max-budget-usd, parses session_id, usage, and
+    total_cost_usd from the result, and merges a record into a new `runs`
+    section of ~/.claude/ai-activity-ledger.json; render headless runs as their
+    own table on /ai-activity/. In CI, add an explicit --max-budget-usd to
+    claude_args in unified-evolution.yml, write the run's total_cost_usd to the
+    job summary, and upload the raw result JSON as a workflow artifact.
+  acceptance:
+    - "`tools/dash ai run -- <prompt/args>` wraps claude -p, enforces a default budget cap, and appends {timestamp, machine, repo, session_id, models, usage, total_cost_usd, source} to the ledger's runs section."
+    - "unified-evolution.yml passes an explicit --max-budget-usd and a budget abort is loud (job annotation/failure), not silent."
+    - "Each CI evolution run publishes total_cost_usd in the GitHub Actions job summary and uploads the result JSON as an artifact."
+    - "`tools/dash ai` renders headless runs as a distinct table on /ai-activity/, never blended into interactive-session estimates."
+    - "Run records dedupe by session_id so a local headless run is not double-counted by the JSONL scan."
+    - "The run-record schema is documented in .github/scripts/dash-gen/README.md."
+  scope:
+    in:
+      - wrapper subcommand, ledger `runs` section, /ai-activity/ rendering
+      - budget cap + cost surfacing in unified-evolution.yml
+    out:
+      - automatic sync of CI run records into the local ledger (artifact download/import stays manual)
+      - budget enforcement for interactive sessions
+      - a database — the JSON ledger is sufficient at this scale
+  risks:
+    - claude-code-action@v1 may not expose the result JSON directly — verify whether claude_args + its execution log yield total_cost_usd before committing to the CI half.
+    - A budget abort mid-evolution leaves partial work on the branch — pick generous caps and make the abort path explicit.
+    - Cost figures are still estimates on subscription auth; label them as such everywhere they surface.
+  source: scout
+  created: 2026-07-06
+  issue_url: null
+
+- id: FF-0005
+  title: "ccusage reconciliation check and opt-in MCP burn-rate self-awareness for the AI-activity layer"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: S
+  category: enhancement
+  problem: >-
+    The shadow-pricing math in ai_activity.py rests on a hand-maintained PRICING
+    table (last refreshed 2026-06-24), alias resolution, and homegrown dedupe.
+    A new model id, a list-price change, or a dedupe regression would silently
+    skew every number on /ai-activity/ with no signal. Separately, agents have
+    no way to query their own burn rate mid-session, so cost economizing cannot
+    be an in-loop instruction.
+  proposal: >-
+    Two thin additions. (1) `tools/dash ai check` runs a pinned `npx ccusage
+    daily --json` over the same JSONL files and reconciles per-day and per-model
+    totals against the generator's report, warning past a configurable tolerance
+    and itemizing explainable deltas (unpriced models, intro-pricing divergence)
+    — an independent audit of the pricing table and dedupe logic. (2) A
+    documented, opt-in .mcp.json snippet for the ccusage MCP server so an agent
+    can answer "what has this session cost so far" and be instructed to
+    economize (switch models, compact, stop early).
+  acceptance:
+    - "`tools/dash ai check` prints a per-day/per-model delta table versus ccusage and exits non-zero (or warns unmistakably) beyond a configurable tolerance."
+    - "Explainable deltas — unpriced models, known pricing divergences — are itemized separately from unexplained drift."
+    - "The ccusage version is pinned in the check so schema changes fail loudly instead of skewing the comparison."
+    - "A documented .mcp.json snippet adds the ccusage MCP server as an explicit opt-in; it is not enabled by default."
+    - "docs/DASH.md's AI-activity section documents the check cadence and the self-awareness pattern."
+  scope:
+    in:
+      - reconciliation subcommand + tolerance config
+      - opt-in MCP snippet and docs
+    out:
+      - treating ccusage as the source of truth (the ledger stays authoritative)
+      - auto-updating the PRICING table from ccusage output
+      - scheduled/CI reconciliation (the data is local-only)
+  risks:
+    - ccusage is third-party — JSON schema and its own pricing source can change; pinning mitigates but does not eliminate drift.
+    - Day bucketing may differ (timezones) — compare in a fixed timezone or tolerate day-boundary noise.
+    - An always-on MCP server adds session startup overhead and context — keep it opt-in.
+  source: scout
+  created: 2026-07-06
+  issue_url: null

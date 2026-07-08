@@ -11,6 +11,11 @@ Subcommands:
   readme   Regenerate ONLY the <!-- AUTO:projects --> span of the profile README.md
            from the registry's static facts (deterministic; safe to commit).
 
+  ai       Shadow-price local Claude Code usage per repo (scans ~/.claude/projects
+           JSONL ledgers, persists a daily ledger, writes _data/ai_activity.yml).
+           LOCAL-ONLY and ephemeral — not part of `all`, never runs in CI.
+           Implemented in ai_activity.py.
+
   all      Run health then readme.
 
 The single source of truth is dash/_data/projects.yml. This script never invents
@@ -29,6 +34,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+import ai_activity
 
 try:
     import yaml
@@ -376,6 +383,11 @@ def main(argv: list[str] | None = None) -> int:
     p_readme = sub.add_parser("readme", help="regenerate README AUTO:projects span")
     p_readme.add_argument("--check", action="store_true", help="fail if stale; do not write")
     p_readme.set_defaults(func=cmd_readme)
+
+    p_ai = sub.add_parser(
+        "ai", help="shadow-price local Claude Code usage -> ai_activity.yml (local-only)"
+    )
+    ai_activity.add_arguments(p_ai)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")
