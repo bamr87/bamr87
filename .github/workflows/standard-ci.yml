@@ -1,0 +1,89 @@
+name: standard-ci
+
+# Reusable CI gate for bamr87 submodules — the shared "standard" a member repo
+# adopts with a short caller workflow (see templates/standard-ci/ci.yml, dropped
+# in by standardize-fanout.yml). Auto-detects the stack and runs lint + test +
+# build; every step is guarded so a repo only runs what applies to it.
+#
+# Call it from a member repo:
+#   jobs:
+#     ci:
+#       uses: bamr87/bamr87/.github/workflows/standard-ci.yml@main
+#       secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: "20"
+      python-version:
+        type: string
+        default: "3.12"
+      ruby-version:
+        type: string
+        default: "3.3"
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------------------------- Node -----------------------------------
+      - name: Setup Node
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Install (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Lint / test / build (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          npm run lint --if-present
+          npm test --if-present
+          npm run build --if-present
+
+      # --------------------------- Python ----------------------------------
+      - name: Setup Python
+        if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Install (pip)
+        if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f pyproject.toml ]; then pip install -e . 2>/dev/null || pip install . 2>/dev/null || true; fi
+          for r in requirements.txt requirements/base.txt requirements-dev.txt requirements-dev.in; do
+            [ -f "$r" ] && pip install -r "$r" || true
+          done
+          pip install pytest
+      - name: Test (pytest)
+        if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
+        run: |
+          pytest -q; rc=$?
+          # exit code 5 = "no tests collected" — not a failure for the gate
+          if [ "$rc" -eq 5 ]; then echo "::notice::no tests collected"; rc=0; fi
+          exit "$rc"
+
+      # ------------------------- Ruby / Jekyll -----------------------------
+      - name: Setup Ruby
+        if: ${{ hashFiles('Gemfile') != '' }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby-version }}
+          bundler-cache: true
+      - name: Test / build (ruby)
+        if: ${{ hashFiles('Gemfile') != '' }}
+        run: |
+          if bundle exec rake -T 2>/dev/null | grep -q ' test'; then bundle exec rake test
+          elif [ -d spec ]; then bundle exec rspec
+          elif grep -qi jekyll Gemfile; then bundle exec jekyll build
+          else echo "::notice::no ruby test/build target"; fi

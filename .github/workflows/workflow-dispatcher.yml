@@ -1,22 +1,8 @@
 name: 🎯 Smart Workflow Dispatcher
 
 on:
-  push:
-    branches: [main, master, develop]
-    tags: ['v*']
-    paths-ignore:
-      - '.github/workflows/**'
-      - 'docs/**'
-      - '*.md'
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - '.github/workflows/**'
-      - 'docs/**'
-      - '*.md'
-  schedule:
-    # Daily dispatch at 6 AM UTC
-    - cron: '0 6 * * *'
+  # Legacy router — dispatch-only. Its auto/scheduled re-dispatch raced the
+  # unified-* workflows (double runs); the control plane doesn't need a router.
   workflow_dispatch:
     inputs:
       target_workflow:
