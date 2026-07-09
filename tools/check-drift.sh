@@ -3,11 +3,12 @@
 # tools/check-drift.sh — hard drift gate for the dash
 #
 # Checks (each contributes to the exit status unless --report):
-#   (a) registry <-> .gitmodules parity (paths + branches)
+#   (a) registry <-> .gitmodules parity + no stray/unregistered project dirs
 #   (b) README.md AUTO:projects span is up to date
 #   (c) broken internal links in the built dash        (--links / --ci only)
-#   (d) every top-level dir + submodule has a README
+#   (d) every top-level module dir has a README
 #   (e) each submodule is on its declared branch
+#   (f) submodule standardization conformance          (warn; see `dash audit`)
 #
 # Modes:
 #   (default)   run gating checks (a,b,d,e); exit non-zero on any failure
@@ -87,6 +88,23 @@ for path, info in mods.items():
     if br and br not in ("HEAD", "", info["branch"]):
         problems.append(f"submodule '{path}' on branch '{br}', declared '{info['branch']}'")
 
+# stray/unregistered project dirs on disk. The parity loops above are set-vs-set
+# and never look at the tree, so a project dropped into projects/ that is in
+# neither the registry nor .gitmodules is otherwise invisible and CI stays green.
+projects_dir = os.path.join(root, "projects")
+if os.path.isdir(projects_dir):
+    for entry in sorted(os.listdir(projects_dir)):
+        full = os.path.join(projects_dir, entry)
+        if not os.path.isdir(full):
+            continue
+        sp = f"projects/{entry}"
+        if sp in reg_by_path or sp in mods:
+            continue
+        if os.path.exists(os.path.join(full, ".git")):
+            problems.append(f"unregistered project dir '{sp}' contains a git repo — add it to .gitmodules + the registry (use /onboard-dir), or remove it")
+        else:
+            problems.append(f"stray dir '{sp}' is in neither the registry nor .gitmodules")
+
 for p in problems:
     print("DRIFT:" + p)
 sys.exit(1 if problems else 0)
@@ -115,6 +133,24 @@ for d in "$ROOT"/*/; do
   [[ -f "${d}README.md" || -f "${d}readme.md" || -f "${d}README.rst" ]] || missing+=("$name")
 done
 if [[ ${#missing[@]} -eq 0 ]]; then ok "all module dirs have a README"; else bad "missing README in: ${missing[*]}"; fi
+
+# --- (f): standardization conformance (report/warn, non-gating) ------------
+# Filesystem-based via audit-standards.sh — most complete locally where the
+# submodules are checked out; in a submodule-less CI checkout it self-skips.
+echo "(f) standardization conformance"
+if [[ -x "$ROOT/tools/audit-standards.sh" ]]; then
+  summary="$("$ROOT/tools/audit-standards.sh" --json --no-color 2>/dev/null)"
+  if [[ -n "$summary" ]]; then
+    read -r audited failn < <(printf '%s' "$summary" | "$PY" -c 'import sys,json; d=json.load(sys.stdin)["summary"]; print(d["audited"], d["with_required_gaps"])' 2>/dev/null)
+    if [[ "${audited:-0}" == "0" ]]; then warn "standardization: skipped (no submodules checked out)"
+    elif [[ "${failn:-0}" == "0" ]]; then ok "all ${audited} checked-out submodules meet their tier baseline"
+    else warn "${failn}/${audited} submodules missing required artifacts (run: tools/dash audit)"; fi
+  else
+    warn "could not run standardization audit"
+  fi
+else
+  warn "tools/audit-standards.sh not found"
+fi
 
 # --- (c): internal links ---------------------------------------------------
 if [[ $RUN_LINKS -eq 1 ]]; then

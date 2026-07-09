@@ -26,6 +26,12 @@
 #                            registries: [rubygems|npm|pypi|ghcr|github]
 #                            status: adopted (merged) | pending (PR open) | none
 #                            pr: optional adoption PR URL
+#   license        optional  SPDX id (e.g. MIT, Apache-2.0) or null if none yet
+#   tier           optional  standardization tier override (active|experiment|
+#                            content|fork|archived). Normally derived from status
+#                            via _data/standards.yml; set only to override.
+#                            The standardization baseline per tier lives in
+#                            _data/standards.yml; the audit is `tools/dash audit`.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
