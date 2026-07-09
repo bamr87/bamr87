@@ -151,8 +151,8 @@ Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/pro
 | `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
 | `projects/skills/` | `microsoft/skills` (external) | `main` | Skills, prompts, MCP configs |
 
-**Branches vary:** most track `main`; `scripts`/`edgar-data-parse`/`jekyll` track
-`master`, `sonic-pi` tracks `dev`. Read the branch from `.gitmodules`.
+**Branches vary:** most track `main`; `scripts`/`jekyll` track `master`,
+`sonic-pi` tracks `dev`. Read the branch from `.gitmodules`.
 
 ### Container Development
 

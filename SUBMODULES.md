@@ -23,10 +23,9 @@ tools/dash status                 # registry + drift summary
 
 ### Branch conventions
 
-Most submodules track `main`. Exceptions: `scripts`, `edgar-data-parse`, and
-`jekyll` track `master`; `sonic-pi` tracks `dev`; `skills` is an external
-`microsoft/skills` mirror (`update = merge`). Always read the branch from
-`.gitmodules` — never assume `main`.
+Most submodules track `main`. Exceptions: `scripts` and `jekyll` track `master`;
+`sonic-pi` tracks `dev`; `skills` is an external `microsoft/skills` mirror
+(`update = merge`). Always read the branch from `.gitmodules` — never assume `main`.
 
 ## Cloning and updating
 
