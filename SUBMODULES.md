@@ -1,55 +1,84 @@
 # Submodules
 
-This repository uses the following submodules:
+This repository is a **dash** (control plane) whose projects live as ~40 Git
+submodules under [`projects/`](projects/). Each submodule is a separate
+repository with its own stack, branch, and release cycle.
 
-- `README`: https://github.com/bamr87/README.git
-- `scripts`: https://github.com/bamr87/scripts.git
-- `cv`: https://github.com/bamr87/cv-builder-pro.git
-- `skills`: https://github.com/microsoft/skills.git (tracks `main` branch)
+## Where the list lives (do not hardcode it here)
 
-If you clone this repository, fetch the submodules as well:
+The authoritative list is the registry, cross-checked against `.gitmodules`:
+
+- **[`_data/projects.yml`](_data/projects.yml)** — the single source of truth
+  (name, `submodule_path`, `branch`, stack, category, status, standards tier).
+- **[`.gitmodules`](.gitmodules)** — the Git-level definitions.
+
+`tools/check-drift.sh` fails CI if these two disagree, so this document
+intentionally does **not** repeat the list — read the registry or run:
 
 ```bash
-git clone --recurse-submodules <parent-repo-url>
+git submodule status              # checked-out SHAs + branches
+tools/dash status                 # registry + drift summary
+./tools/update-submodules.sh --status   # declared vs. checked-out branch
 ```
 
-Or, if you already cloned the repo:
+### Branch conventions
+
+Most submodules track `main`. Exceptions: `scripts`, `edgar-data-parse`, and
+`jekyll` track `master`; `sonic-pi` tracks `dev`; `skills` is an external
+`microsoft/skills` mirror (`update = merge`). Always read the branch from
+`.gitmodules` — never assume `main`.
+
+## Cloning and updating
 
 ```bash
+git clone --recurse-submodules https://github.com/bamr87/bamr87.git
+# already cloned:
 git submodule update --init --recursive
 ```
 
-Automated updates
------------------
-This repository contains one GitHub Actions workflow for submodule pointer updates:
+## Working inside a submodule
 
-- `.github/workflows/update-submodules.yml` runs weekly or on demand and opens a reviewable pull request for a selected submodule or all submodules.
-
-The workflow updates submodule pointers in the parent repository only. Changes inside a submodule should be committed to the submodule repository before updating the parent pointer.
-
-Local update script
--------------------
-You can refresh the `projects/` folder locally using the included script. It
-brings each submodule onto its declared branch (from `.gitmodules`) at the
-latest remote commit and records the moved pointers in the parent repo. It is
-safe by default — submodules with uncommitted, unpushed, or diverged work are
-skipped with a warning rather than reset (use `--force` to override, `--detach`
-for legacy detached-HEAD behaviour, `--status`/`--check` for read-only views):
+A change inside a submodule is committed **in its own repo first**, then the
+pointer is recorded in root (see [`CLAUDE.md`](CLAUDE.md) for the full flow):
 
 ```bash
-./tools/update-submodules.sh            # refresh all
-./tools/update-submodules.sh cv         # refresh one
-./tools/update-submodules.sh --status   # show declared vs. checked-out branch
+cd projects/<name>
+git checkout <branch>                 # submodules often land in detached HEAD
+# ...edit...
+git add . && git commit -m "feat: ..."
+git push origin <branch>              # pushes to bamr87/<name>, NOT this repo
+cd ../..
+git add projects/<name> && git commit -m "chore: bump <name> submodule"
 ```
 
-PR-based submodule updates
---------------------------
-The PR workflow is `.github/workflows/update-submodules.yml`.
+Don't bundle changes across multiple submodules into one PR.
 
-Usage:
-- Schedule: Runs weekly, or you can trigger manually from GitHub Actions using `workflow_dispatch`.
-- Inputs:
-  - `submodule` - optional. Path to the submodule to update (e.g., `cv`, `scripts`, `README`). Leave blank to update all.
-  - `base_branch` - optional. Base branch to open a PR against (default: `main`).
+## Automated pointer updates
 
-The workflow updates the designated submodule(s) and opens a PR if pointer changes are detected. This is safer than pushing changes directly since it allows review and CI to run against the updated pointers.
+`.github/workflows/update-submodules.yml` runs weekly (or on demand) and opens a
+reviewable PR bumping submodule pointers **up** into root. It never pushes
+directly and never modifies submodule contents — content changes belong to the
+submodule's own repo. The complementary **downward** flow
+(`.github/workflows/standardize-fanout.yml`) opens standardization PRs *into*
+submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
+
+Local refresh (safe by default — skips submodules with uncommitted/diverged work):
+
+```bash
+./tools/update-submodules.sh            # refresh all onto declared branch
+./tools/update-submodules.sh <name>     # refresh one
+```
+
+## Adding or onboarding a project
+
+```bash
+git submodule add <url> projects/<name>
+# add a matching entry to _data/projects.yml (or use /register-project)
+tools/dash-gen readme        # refresh the profile README list
+tools/check-drift.sh         # verify .gitmodules <-> registry parity
+tools/dash audit <name>      # check it against the standardization baseline
+```
+
+If a project directory already exists on disk but is in neither `.gitmodules`
+nor the registry, the drift gate now flags it; use the `/onboard-dir` skill to
+adopt it (or remove it).

@@ -1,27 +1,39 @@
 # Workflows
 
-This directory contains active GitHub Actions workflows for the monorepo. Keep workflow files here only when they are enabled for this repository or intentionally reusable as a workflow template.
+GitHub Actions for the bamr87 dash. Two groups: the **control-plane** workflows
+that keep the dash and its ~40 submodules aligned, and a **legacy** generic suite
+kept dispatch-only.
 
-## Active Workflows
+## Control plane (live)
 
-| Workflow | Purpose |
-| --- | --- |
-| `unified-cicd.yml` | Detects project types and runs CI/build/deploy jobs based on trigger mode. |
-| `unified-release.yml` | Provides manual and tag-driven release automation. |
-| `unified-maintenance.yml` | Runs scheduled or manual maintenance checks. |
-| `unified-evolution.yml` | Optional manual AI-assisted repository evolution workflow. |
-| `workflow-dispatcher.yml` | Dispatches selected workflows based on repository events. |
-| `build-docs.yml` | Builds documentation for the monorepo docs stack. |
-| `update-submodules.yml` | Updates one or all Git submodules and opens a pull request. |
+| Workflow | Triggers | Purpose |
+| --- | --- | --- |
+| `build-dash.yml` | push `main` (dash paths), 6h cron, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. **The sole Pages surface.** |
+| `drift-check.yml` | push `main`, PR, dispatch | Hard gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, **submodule standardization** (README/LICENSE/CI per tier), broken dash links. |
+| `refresh-dash.yml` | daily 04:00, dispatch | Regenerates the committable README `AUTO:projects` span + registry data; opens a PR. |
+| `update-submodules.yml` | weekly Sun 03:00, dispatch | Bumps submodule pointers **up** into root; opens a PR. Pointer changes only. |
+| `standardize-fanout.yml` | dispatch (per-repo or all) | Opens standardization PRs **down** into submodules, seeding the reusable `standard-ci.yml` caller + baseline config (`.editorconfig`, etc.). |
+| `standard-ci.yml` | `workflow_call` | Reusable CI (detect stack → lint + test + build) that member repos adopt via a short caller. |
+
+## Legacy / dispatch-only
+
+`unified-cicd.yml`, `unified-release.yml`, `unified-maintenance.yml`,
+`unified-evolution.yml`, and `workflow-dispatcher.yml` are a generic single-app
+template. They only ever ran against the **root** tree (which has no app code —
+the projects are submodules), so their scheduled triggers are removed; they
+remain **`workflow_dispatch`-only** for reference and manual use. Prefer the
+control-plane workflows above. `unified-evolution.yml` still powers the manual AI
+evolution pass (needs `ANTHROPIC_API_KEY`).
 
 ## Standards
 
-- Prefer one workflow per durable responsibility.
-- Use `workflow_dispatch` inputs for reusable behavior instead of copying near-duplicate workflows.
-- Keep repository-specific paths, secrets, and service names documented in the workflow itself.
-- Avoid scheduled write-capable workflows unless the repository owner has confirmed the required permissions and secrets.
+- One workflow per durable responsibility; propagate shared CI via the
+  `workflow_call` template, not by copying near-duplicate workflows.
+- Top-level `permissions: contents: read`; elevate per-job only where needed.
+- Add a `concurrency:` group to every write-capable schedulable workflow.
+- Avoid scheduled write-capable workflows unless the owner confirmed perms/secrets.
 - Update this README when adding, removing, or renaming workflows.
 
 ## Validation
 
-After editing workflow files, run YAML validation and `actionlint` when available. At minimum, check that referenced local actions and scripts exist.
+Run `actionlint` after editing; check that referenced local actions/scripts exist.

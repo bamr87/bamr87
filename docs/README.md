@@ -6,6 +6,7 @@ own docs).
 | Doc | Purpose |
 |---|---|
 | [DASH.md](DASH.md) | **The dash architecture** — registry, surfaces, monitoring, drift gates, AI loop. Start here. |
+| [STANDARDS.md](STANDARDS.md) | The per-tier standardization baseline every submodule is held to, and how it's enforced. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System design, components, and design decisions. |
 | [MONOREPO.md](MONOREPO.md) | Repository organization and submodule management. |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local setup and development workflow. |

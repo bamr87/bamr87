@@ -12,7 +12,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS="${ROOT}/tools"
-SCRIPTS="${ROOT}/scripts"
+SCRIPTS="${ROOT}/projects/scripts"   # the scripts submodule lives under projects/
 
 c_bold=$'\033[1m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
 

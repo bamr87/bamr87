@@ -2,7 +2,7 @@
 
 # Agent Principles
 
-Guidelines for AI coding agents working in the bamr87 monorepo — a multi-project workspace spanning a CV Builder (React/TypeScript), documentation hub (MkDocs/Jekyll), automation scripts (Bash/Python), and shared tooling.
+Guidelines for AI coding agents working in the bamr87 monorepo — a self-managing **dash** (control plane) that manages ~40 Git submodules (docs sites, full-stack AI apps, VS Code extensions, dev tools, and content repos) from one registry-driven source of truth. See [`CLAUDE.md`](CLAUDE.md) and [`docs/DASH.md`](docs/DASH.md) for the architecture; the authoritative project list is [`_data/projects.yml`](_data/projects.yml).
 
 ## ⚠️ Fresh Information First
 
@@ -115,36 +115,44 @@ Follow these layered boundaries when building features:
 
 ## Repository Structure
 
-This is a monorepo using Git submodules:
+This is a monorepo of ~40 Git submodules, driven by a registry:
 
 ```
 bamr87/
 ├── AGENTS.md                   # This file — agent principles
-├── CONTRIBUTING.md             # Contribution guidelines
+├── CLAUDE.md                   # Claude Code guidance (start here)
+├── _data/projects.yml          # THE REGISTRY — single source of truth for all submodules
+├── _data/standards.yml         # per-tier standardization requirements
 ├── docker-compose.yml          # Container-first development
-├── projects/cv-builder-pro/                         # Submodule: CV Builder (React/TypeScript/Vite)
-├── projects/README/                     # Submodule: Documentation hub (MkDocs/Wiki)
-├── projects/scripts/                    # Submodule: Automation scripts (Bash/Python)
-├── projects/skills/                     # Submodule: Microsoft Agent Skills (microsoft/skills)
-├── tools/                      # Dev environment setup, Brewfile
-├── docs/                       # Architecture and development docs
+├── projects/<name>/            # ~40 submodules, flat (category lives in the registry)
+├── pages/_dash/                # the Jekyll dash collection
+├── tools/                      # dash CLI (tools/dash), drift gate, standards audit, setup
+├── docs/                       # DASH.md (canonical) + architecture/dev docs
 ├── .github/
-│   ├── agents/                 # Agent persona definitions
+│   ├── agents/                 # PORTABLE Copilot persona templates (seeded into submodules)
 │   ├── prompts/                # Reusable prompt templates
 │   ├── instructions/           # Copilot instruction files (applyTo patterns)
-│   ├── docs/                   # Pattern enforcement, workflow patterns
-│   ├── workflows/              # CI/CD GitHub Actions
+│   ├── workflows/              # control-plane CI (build-dash, drift-check, standardize-fanout, …)
 │   └── copilot-instructions.md # Global Copilot config
+└── .claude/                    # dash-operational AI layer (skills, commands, agents, hooks)
 ```
 
-### Submodule Quick Reference
+### Submodule reference
+
+Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/projects.yml)
+(cross-checked against `.gitmodules` by the drift gate). Foundational submodules:
 
 | Submodule | Repo | Branch | Tech Stack |
 |-----------|------|--------|------------|
 | `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
 | `projects/README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
 | `projects/scripts/` | `bamr87/scripts` | `master` | Bash, Python |
-| `projects/skills/` | `microsoft/skills` | `main` | Skills, prompts, MCP configs |
+| `projects/zer0-mistakes/` | `bamr87/zer0-mistakes` | `main` | Jekyll theme (powers the dash) |
+| `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
+| `projects/skills/` | `microsoft/skills` (external) | `main` | Skills, prompts, MCP configs |
+
+**Branches vary:** most track `main`; `scripts`/`edgar-data-parse`/`jekyll` track
+`master`, `sonic-pi` tracks `dev`. Read the branch from `.gitmodules`.
 
 ### Container Development
 

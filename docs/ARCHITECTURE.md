@@ -1,5 +1,13 @@
 # Architecture Overview
 
+> **Canonical architecture is [DASH.md](DASH.md); the source of truth is
+> [`_data/projects.yml`](../_data/projects.yml).** This document predates the dash
+> and is partly historical. Corrections that override anything below: the repo
+> holds **~40 submodules** (not four), the live GitHub Pages surface is the
+> **Jekyll dash** (`build-dash.yml`), **not** MkDocs, and the CV Builder / Vercel
+> examples describe *one* project, not the deployment model. Treat the diagrams as
+> conceptual.
+
 This document describes the system architecture and design decisions for the bamr87 monorepo.
 
 ## System Overview
