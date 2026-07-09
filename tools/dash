@@ -12,7 +12,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS="${ROOT}/tools"
-SCRIPTS="${ROOT}/scripts"
+SCRIPTS="${ROOT}/projects/scripts"   # the scripts submodule lives under projects/
 
 c_bold=$'\033[1m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
 
@@ -21,11 +21,15 @@ usage() {
 ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
 
   ${c_bold}dash status${c_off}            submodule + registry + drift summary
+  ${c_bold}dash audit [name]${c_off}      standardization conformance matrix (--gate to fail on gaps)
   ${c_bold}dash monitor${c_off}           refresh health and print repos needing attention
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
+  ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
   ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
   ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
+  ${c_bold}dash adopt-release <repo>${c_off} scaffold the release-please pipeline (--all for active repos)
+  ${c_bold}dash protect <repo>${c_off}    require the CI gate on a repo's default branch (--all)
   ${c_bold}dash evolve [args]${c_off}     trigger the AI evolution workflow
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
@@ -126,6 +130,56 @@ cmd_evolve() {
   fi
 }
 
+cmd_audit()  { "${TOOLS}/audit-standards.sh" "$@"; }
+
+# Run a shell command in every checked-out submodule (continue on error).
+cmd_foreach() {
+  [[ $# -ge 1 ]] || { echo "usage: dash foreach <command...>"; return 1; }
+  local cmd="$*" rc=0 name dir
+  while IFS= read -r sp; do
+    dir="${ROOT}/${sp}"
+    name="$(basename "$sp")"
+    if [[ ! -d "$dir" ]] || [[ -z "$(ls -A "$dir" 2>/dev/null)" ]]; then
+      echo "${c_dim}-- skip ${name} (not checked out)${c_off}"; continue
+    fi
+    echo "${c_bold}== ${name} ==${c_off}"
+    ( cd "$dir" && name="$name" sm_path="$sp" bash -c "$cmd" ) || { rc=1; echo "${c_dim}   (exit $?)${c_off}"; }
+  done < <(git -C "$ROOT" config -f .gitmodules --get-regexp '\.path$' | awk '{print $2}')
+  return $rc
+}
+
+# Active-tier, non-fork submodule names (the release/protect candidates).
+_active_repos() {
+  "${TOOLS}/audit-standards.sh" --json --no-color 2>/dev/null \
+    | python3 -c 'import sys,json;print("\n".join(r["name"] for r in json.load(sys.stdin)["rows"] if r["tier"]=="active"))'
+}
+
+cmd_adopt_release() {
+  if [[ "${1:-}" == "--all" ]]; then
+    shift
+    local r
+    for r in $(_active_repos); do
+      echo "${c_bold}== adopt-release: ${r} ==${c_off}"
+      "${TOOLS}/adopt-release.sh" "$r" "$@" || echo "${c_dim}   (skipped ${r})${c_off}"
+    done
+  else
+    "${TOOLS}/adopt-release.sh" "$@"
+  fi
+}
+
+cmd_protect() {
+  if [[ "${1:-}" == "--all" ]]; then
+    shift
+    local r
+    for r in $(_active_repos); do
+      echo "${c_bold}== protect: ${r} ==${c_off}"
+      "${TOOLS}/protect-branch.sh" "$r" "$@" || echo "${c_dim}   (skipped ${r})${c_off}"
+    done
+  else
+    "${TOOLS}/protect-branch.sh" "$@"
+  fi
+}
+
 cmd_ai()     { "${TOOLS}/dash-gen" ai "$@"; }
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
@@ -135,11 +189,15 @@ main() {
   local cmd="${1:-help}"; shift || true
   case "$cmd" in
     status)  cmd_status "$@" ;;
+    audit)   cmd_audit "$@" ;;
     monitor) cmd_monitor "$@" ;;
     serve)   cmd_serve "$@" ;;
     sync)    cmd_sync "$@" ;;
+    foreach) cmd_foreach "$@" ;;
     run)     cmd_run "$@" ;;
     new)     cmd_new "$@" ;;
+    adopt-release) cmd_adopt_release "$@" ;;
+    protect) cmd_protect "$@" ;;
     evolve)  cmd_evolve "$@" ;;
     ai)      cmd_ai "$@" ;;
     doctor)  cmd_doctor "$@" ;;

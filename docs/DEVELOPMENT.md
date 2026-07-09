@@ -1,5 +1,12 @@
 # Development Setup Guide
 
+> **The repo is a dash of ~40 submodules — see [DASH.md](DASH.md) and
+> [`../CLAUDE.md`](../CLAUDE.md).** The `projects/cv-builder-pro` / MkDocs examples
+> below are one project each, not the whole picture; the primary local surface is
+> the Jekyll dash (`tools/dash serve`, port 4000). Run per-project commands inside
+> the relevant submodule (`tools/dash foreach` for fleet-wide ones), and read a
+> submodule's branch from `.gitmodules` rather than assuming `main`.
+
 This guide will help you set up your local development environment for working with the bamr87 monorepo.
 
 ## Prerequisites

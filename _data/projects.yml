@@ -26,6 +26,12 @@
 #                            registries: [rubygems|npm|pypi|ghcr|github]
 #                            status: adopted (merged) | pending (PR open) | none
 #                            pr: optional adoption PR URL
+#   license        optional  SPDX id (e.g. MIT, Apache-2.0) or null if none yet
+#   tier           optional  standardization tier override (active|experiment|
+#                            content|fork|archived). Normally derived from status
+#                            via _data/standards.yml; set only to override.
+#                            The standardization baseline per tier lives in
+#                            _data/standards.yml; the audit is `tools/dash audit`.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -194,7 +200,7 @@
 - name: edgar-data-parse
   slug: edgar-data-parse
   submodule_path: projects/edgar-data-parse
-  branch: master            # NOTE: tracks master, not main
+  branch: main              # NOTE: repo renamed on GitHub to bamr87/fredgar-ai (redirect active)
   repo_url: https://github.com/bamr87/edgar-data-parse
   description: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
   stack: [django, python, react, typescript]

@@ -1,0 +1,116 @@
+# =============================================================================
+# _data/standards.yml — the standardization baseline for the dash
+# =============================================================================
+# The "definition of done" every submodule is held to, tiered by what a repo
+# actually is. Consumed by:
+#   - tools/audit-standards.sh   (`dash audit`) — per-repo conformance matrix
+#   - tools/check-drift.sh       — the standardization slice of the drift gate
+#   - .github/workflows/standardize-fanout.yml — what to propagate downward
+#
+# Per artifact, each tier declares a level:
+#   required     -> missing = FAIL (red)      counts against the gate
+#   recommended  -> missing = WARN (amber)    surfaced, non-blocking
+#   na           -> not expected (grey)       omit or set "na"
+#
+# TIER ASSIGNMENT (highest precedence first):
+#   1. an explicit `tier:` field on the registry entry
+#   2. tier_overrides below (by project name) — forks, pure content, archived
+#   3. status_tier below (derived from the registry `status`)
+#   4. fallback: experiment
+# =============================================================================
+
+# Canonical artifact ids + the paths that satisfy each (first match wins).
+# `ci` requires the dir to contain at least one *.yml/*.yaml.
+artifacts:
+  readme:        [README.md, README.rst, readme.md]
+  license:       [LICENSE, LICENSE.md, LICENSE.txt, COPYING, COPYING.md]
+  gitignore:     [.gitignore]
+  editorconfig:  [.editorconfig]
+  ci:            [.github/workflows]
+  agent_context: [CLAUDE.md, AGENTS.md, .github/copilot-instructions.md, .cursorrules]
+  tests:         [tests, test, spec, __tests__, cypress, pytest.ini, jest.config.js, jest.config.ts, vitest.config.ts]
+  container:     [Dockerfile, .devcontainer, docker-compose.yml, compose.yml]
+  release:       [release-please-config.json, .release-please-manifest.json, CHANGELOG.md]
+
+tiers:
+  active:
+    label: "Active / maintained apps & libs"
+    readme: required
+    license: required
+    gitignore: required
+    editorconfig: recommended
+    ci: required
+    agent_context: required
+    tests: required
+    container: recommended
+    release: recommended
+  experiment:
+    label: "Early / experimental"
+    readme: required
+    license: required
+    gitignore: required
+    editorconfig: recommended
+    ci: recommended
+    agent_context: recommended
+    tests: na
+    container: na
+    release: na
+  content:
+    label: "Markdown / knowledge base"
+    readme: required
+    license: required
+    gitignore: required
+    editorconfig: recommended
+    agent_context: recommended
+    ci: na
+    tests: na
+    container: na
+    release: na
+  fork:
+    label: "Fork of an upstream project (rely on upstream)"
+    readme: recommended
+    license: recommended
+    gitignore: na
+    editorconfig: na
+    ci: na
+    agent_context: na
+    tests: na
+    container: na
+    release: na
+  archived:
+    label: "Archived / read-only"
+    readme: required
+    license: recommended
+    gitignore: na
+    editorconfig: na
+    ci: na
+    agent_context: na
+    tests: na
+    container: na
+    release: na
+
+# Default tier derived from the registry `status`.
+status_tier:
+  active: active
+  maintenance: active
+  experiment: experiment
+  archived: archived
+
+# Explicit per-project tier overrides (project name -> tier).
+tier_overrides:
+  # forks: standardize only what bamr87 adds; upstream owns the baseline
+  skills: fork
+  django-erp: fork          # PostHog fork (registry metadata mislabels it)
+  jekyll: fork
+  sonic-pi: fork
+  vscode-front-matter: fork
+  skills-github-pages: archived   # archived fork
+  digitalBookstore: archived
+  # pure content / knowledge bases (no build, no tests)
+  "1764": content
+  "1897": content
+  "1987": content
+  "2005": content
+  books: content
+  cv: content
+  zer0-pages: content

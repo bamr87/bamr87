@@ -37,6 +37,8 @@ follow.
 | Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
+| Standards | Per-tier baseline + conformance audit | `_data/standards.yml`, `tools/audit-standards.sh` (`dash audit`), [`docs/STANDARDS.md`](STANDARDS.md) |
+| Propagation | Standardization PRs *into* submodules | `.github/workflows/standardize-fanout.yml` + `standard-ci.yml` (`workflow_call`) |
 | Auto-fix bots | Scheduled PRs | `update-submodules.yml`, `refresh-dash.yml`, `dependabot.yml` |
 | AI layer | Skills, commands, MCP | `.claude/`, `.mcp.json` |
 | Future-Features | Capture feature ideas → roadmap | `_data/roadmap.yml`, `/future-features`, `feature-scout` agent + session hooks (`.claude/`) |
@@ -117,7 +119,8 @@ on the frontend and steers what the AI works on next.
 ## One-time setup
 
 1. Repo **Settings → Pages → Source = "GitHub Actions"** (the dash deploys via
-   `build-dash.yml`; the old MkDocs `build-docs.yml` is now manual-only).
+   `build-dash.yml`, the sole Pages surface; the old MkDocs `build-docs.yml` has
+   been removed).
 2. Add the `ANTHROPIC_API_KEY` repo secret to enable `unified-evolution.yml`.
 3. `pip install -r .github/scripts/dash-gen/requirements.txt` and `gh auth login`
    for local `tools/dash-gen health`.

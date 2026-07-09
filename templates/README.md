@@ -3,6 +3,18 @@
 Scaffolding templates consumed by the dash's tooling — copied into target repos,
 never built by Jekyll.
 
+## `standard-ci/`
+
+The baseline CI caller dropped into a submodule by
+[`.github/workflows/standardize-fanout.yml`](../.github/workflows/standardize-fanout.yml):
+
+| File | Purpose |
+|------|---------|
+| `ci.yml` | thin caller → the reusable `standard-ci.yml` gate in `bamr87/bamr87` (`__DEFAULT_BRANCH__` substituted) |
+
+`standard-ci` is the minimal shared CI gate (lint + test + build, auto-detected);
+`release-pipeline` below is the fuller release+CI adopted by publishable repos.
+
 ## `release-pipeline/`
 
 The per-repo glue for the standardized release pipeline (see [`docs/RELEASES.md`](../docs/RELEASES.md)),

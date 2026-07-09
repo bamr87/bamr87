@@ -1,271 +1,126 @@
 # Monorepo Organization
 
-This document explains how the bamr87 repository is organized as a monorepo using Git submodules.
+> **This repo is a dash (control plane).** For the architecture — registry,
+> surfaces, monitoring, drift gates, standardization, and the AI loop — read
+> **[DASH.md](DASH.md)** first. This file covers the submodule mechanics.
 
-## Overview
+The bamr87 repository is a monorepo of **~40 Git submodules** under `projects/`,
+each a separate repository with its own stack, branch, and release cycle. The
+root repo is the machinery that manages, monitors, documents, and standardizes
+them; it is also the GitHub profile README and the published Jekyll dash site.
 
-The bamr87 repository serves multiple purposes:
-- **GitHub Profile**: The root README.md showcases professional experience and projects
-- **Documentation Hub**: Aggregated documentation from multiple sources (README submodule)
-- **CV Builder**: AI-powered CV/resume builder application (cv submodule)
-- **Automation Scripts**: Collection of development and deployment utilities (scripts submodule)
-- **AI Agent Skills**: Microsoft Skills content for agent workflows (skills submodule)
+## The registry is the source of truth
 
-## Repository Structure
+The authoritative project list is **[`_data/projects.yml`](../_data/projects.yml)**,
+cross-checked against `.gitmodules` by `tools/check-drift.sh`. This document does
+not enumerate the submodules — read the registry, or:
+
+```bash
+tools/dash status         # registry + drift summary
+git submodule status      # checked-out SHAs + branches
+```
+
+## Repository structure
 
 ```
 bamr87/
-├── .github/              # GitHub toolkit, workflows, templates, and AI guidance
-│   └── workflows/
-│       ├── build-docs.yml          # Documentation deployment
-│       ├── update-submodules.yml   # PR-based submodule updates
-│       └── unified-*.yml           # Consolidated CI, release, and maintenance workflows
-├── assets/               # Shared assets (headshots, images)
-├── projects/README/               # Submodule: Documentation aggregation system
-├── projects/cv-builder-pro/                   # Submodule: CV Builder application
-├── projects/scripts/              # Submodule: Automation and utility scripts
-├── projects/skills/               # Submodule: Microsoft agent skills
-├── tools/                # Root-level setup and submodule helper scripts
-├── docs/                 # Root-level monorepo documentation
-│   ├── ARCHITECTURE.md   # System design decisions
-│   ├── DEVELOPMENT.md    # Development setup guide
-│   ├── MONOREPO.md       # This file
-│   ├── SUBMODULE-CHECKLIST.md
-│   ├── TESTING-REPORT.md
-│   └── README-TEMPLATE.md
-├── .gitignore           # Comprehensive ignore patterns
-├── .gitmodules          # Submodule configuration
-├── CONTRIBUTING.md      # Contribution guidelines
-├── README.md            # GitHub profile README
-├── SUBMODULES.md        # Submodule management guide
-├── mkdocs.yml           # Documentation site configuration
-└── requirements-docs.txt # Documentation dependencies
+├── _data/projects.yml    # THE REGISTRY — single source of truth
+├── _data/standards.yml   # per-tier standardization requirements
+├── pages/_dash/          # the Jekyll dash collection (Portfolio/Dashboard/Monitor/…)
+├── projects/<name>/      # ~40 submodules, flat (category lives in the registry, not the fs)
+├── tools/                # dash CLI + submodule/standardization scripts
+│   ├── dash              #   unified CLI (status/audit/monitor/serve/sync/foreach/…)
+│   ├── check-drift.sh    #   hard drift + standardization gate
+│   ├── audit-standards.sh#   per-repo conformance matrix
+│   └── update-submodules.sh
+├── .github/
+│   ├── workflows/        # build-dash, drift-check, refresh-dash, update-submodules, standardize-fanout
+│   ├── actions/          # reusable composite actions
+│   └── agents|instructions|prompts/  # PORTABLE templates seeded into submodules
+├── .claude/              # skills, commands, agents, hooks (dash-operational AI layer)
+├── docs/                 # this documentation set (DASH.md is canonical)
+├── .gitmodules           # submodule definitions (parity-checked vs the registry)
+└── README.md             # GitHub profile README (AUTO:projects span is generated)
 ```
 
-## Why a Monorepo?
+Logical grouping (docs / full-stack-ai / dev-tools / dash) lives in the
+registry's `category` field, **not** the filesystem — so a project is
+re-categorized by editing one line, without moving files.
 
-### Benefits
+## Why submodules
 
-1. **Unified Version Control**: Single source of truth for related projects
-2. **Simplified Dependency Management**: Shared configurations and tools
-3. **Atomic Changes**: Cross-project changes in a single commit
-4. **Centralized CI/CD**: Unified workflows for all projects
-5. **Code Reuse**: Share assets and utilities across projects
+We use Git submodules rather than a monorepo build tool because each project must
+keep **independent development, versioning, and release cycles**, and be
+clonable/deployable on its own. The dash adds the coordination layer on top:
+one registry, one CLI, one drift gate, one standardization pipeline.
 
-### Git Submodules Approach
+## Working with submodules
 
-We use Git submodules rather than a traditional monorepo tool because:
-
-- **Independent Development**: Each project can be developed separately
-- **Selective Cloning**: Contributors can work on specific submodules
-- **Independent Versioning**: Each submodule maintains its own release cycle
-- **Flexible Ownership**: Different teams can own different submodules
-
-## Root Submodules vs Published Docs
-
-The root-level `projects/README/`, `projects/cv-builder-pro/`, `projects/scripts/`, and `projects/skills/` directories are Git submodules. The MkDocs site is built from `projects/README/docs` as configured in `mkdocs.yml`.
-
-Some paths under `projects/README/docs`, such as `projects/README/docs/scripts/` and `projects/README/docs/skills/`, are aggregated documentation copies for the published site. They are not the same working trees as the root `projects/scripts/` and `projects/skills/` submodules.
-
-## Working with Submodules
-
-### Initial Setup
-
-Clone with all submodules:
+### Setup
 
 ```bash
 git clone --recurse-submodules https://github.com/bamr87/bamr87.git
-cd bamr87
-```
-
-Or initialize submodules after cloning:
-
-```bash
-git clone https://github.com/bamr87/bamr87.git
-cd bamr87
+# already cloned:
 git submodule update --init --recursive
 ```
 
-### Updating Submodules
+At scale you rarely need all 40 checked out — `tools/dash sync` supports a
+per-project/category subset.
 
-Update all submodules to latest:
+### Making changes inside a submodule
 
-```bash
-git submodule update --remote --merge
-git add .
-git commit -m "chore: update submodules"
-git push
-```
-
-Update a specific submodule:
+A change inside a submodule is committed **in its own repo first**, then the
+pointer is recorded in root. Use the submodule's own name, not `cv`:
 
 ```bash
-cd projects/cv-builder-pro
-git pull origin main
-cd ..
-git add cv
-git commit -m "chore: update cv submodule"
-git push
+cd projects/<name>
+git checkout <branch>                    # read the branch from .gitmodules
+git checkout -b feature/thing
+# ...edit...
+git add . && git commit -m "feat: ..."
+git push origin feature/thing            # PR + merge in bamr87/<name>
+cd ../..
+git add projects/<name>
+git commit -m "chore: bump <name> submodule"
 ```
 
-### Making Changes in Submodules
+Never bundle changes across multiple submodules into one PR.
 
-1. **Navigate to the submodule**:
-   ```bash
-   cd projects/cv-builder-pro
-   ```
+### Updating pointers
 
-2. **Create a branch and make changes**:
-   ```bash
-   git checkout -b feature/new-feature
-   # Make your changes
-   git add .
-   git commit -m "feat: add new feature"
-   ```
+```bash
+./tools/update-submodules.sh             # refresh all onto declared branch (safe by default)
+./tools/update-submodules.sh <name>      # one
+```
 
-3. **Push to the submodule repository**:
-   ```bash
-   git push origin feature/new-feature
-   ```
+The `update-submodules.yml` workflow does the same on a weekly schedule and opens
+a reviewable PR — pointer bumps only, never content changes.
 
-4. **Update parent repository**:
-   ```bash
-   cd ..
-   git add cv
-   git commit -m "chore: update cv submodule with new feature"
-   git push
-   ```
+## Automated workflows
 
-## Submodule Details
+| Workflow | Direction | What |
+|---|---|---|
+| `build-dash.yml` | root | Builds the Jekyll dash and deploys to GitHub Pages (the sole Pages surface). |
+| `drift-check.yml` | root | Hard gate: registry↔.gitmodules parity, stray projects, README freshness, standardization. |
+| `refresh-dash.yml` | root | Nightly PR refreshing the README AUTO span + registry data. |
+| `update-submodules.yml` | up | Weekly PR bumping submodule pointers into root. |
+| `standardize-fanout.yml` | down | Opens standardization PRs into submodules from the reusable `standard-ci.yml` template. |
 
-### projects/cv-builder-pro/ - CV Builder
-
-- **Repository**: https://github.com/bamr87/cv-builder-pro
-- **Branch**: main
-- **Purpose**: AI-powered CV/resume builder with LaTeX templates
-- **Tech Stack**: React, TypeScript, Vite, Tailwind CSS
-- **Setup**: `cd projects/cv-builder-pro && npm install && npm run dev`
-
-### projects/README/ - Documentation Hub
-
-- **Repository**: https://github.com/bamr87/README
-- **Branch**: main
-- **Purpose**: Aggregated documentation from multiple repositories
-- **Tech Stack**: Python, MkDocs, Wiki.js
-- **Setup**: `cd projects/README && pip install -r requirements.txt`
-
-### projects/scripts/ - Automation Scripts
-
-- **Repository**: https://github.com/bamr87/scripts
-- **Branch**: master
-- **Purpose**: Project initialization, GitHub utilities, deployment scripts
-- **Tech Stack**: Bash, Python, Shell scripts
-- **Setup**: Scripts are standalone executables
-
-### projects/skills/ - Agent Skills
-
-- **Repository**: https://github.com/microsoft/skills
-- **Branch**: main
-- **Purpose**: Reusable skills, prompts, and patterns for AI coding agents
-- **Tech Stack**: Markdown, prompts, MCP configuration, tests
-- **Setup**: Reference content; use the guidance in individual skill directories
-
-## Automated Workflows
-
-### Submodule Updates
-
-The `.github/workflows/update-submodules.yml` workflow:
-- Runs weekly on Sundays at 03:00 UTC
-- Can be manually triggered via GitHub Actions UI
-- Creates a pull request when updates are available
-- Can update one submodule or all submodules
-- Opens a reviewable pull request against the configured base branch
-
-### Documentation Deployment
-
-The `.github/workflows/build-docs.yml` workflow:
-- Triggers on changes to `projects/README/docs/**` or `mkdocs.yml`
-- Builds MkDocs documentation
-- Deploys to GitHub Pages automatically
-
-## Contributing to the Monorepo
-
-### For Root Repository Changes
-
-Changes to root-level files (README.md, .gitignore, workflows):
-
-1. Fork the main repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-### For Submodule Changes
-
-Changes to `projects/cv-builder-pro/`, `projects/README/`, `projects/scripts/`, or `projects/skills/`:
-
-1. Fork the **submodule repository**
-2. Make changes in the submodule repo
-3. Submit PR to the submodule repo
-4. After merge, update the parent repo's submodule pointer
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed guidelines.
+The generic `unified-*.yml` suite is legacy/dispatch-only (see
+[DASH.md](DASH.md) and the workflow README).
 
 ## Troubleshooting
 
-### Submodule Not Initialized
-
 ```bash
-git submodule update --init --recursive
+git submodule update --init --recursive   # not initialized
+cd projects/<name> && git checkout <branch>; cd -   # detached HEAD
+git submodule update --init --force        # reset to parent's recorded SHA
 ```
-
-### Submodule Detached HEAD
-
-```bash
-cd <submodule>
-git checkout main  # or master
-cd ..
-```
-
-### Submodule Merge Conflicts
-
-```bash
-# In the submodule
-cd <submodule>
-git fetch origin
-git merge origin/main
-# Resolve conflicts
-git add .
-git commit
-cd ..
-git add <submodule>
-git commit -m "fix: resolve submodule conflicts"
-```
-
-### Reset Submodule to Parent's Version
-
-```bash
-git submodule update --init --force
-```
-
-## Best Practices
-
-1. **Always commit submodule changes first**, then update the parent
-2. **Use descriptive commit messages** that mention which submodule changed
-3. **Test locally** before pushing submodule updates
-4. **Review submodule diffs** carefully in pull requests
-5. **Keep submodules on stable branches** (main/master)
-6. **Document cross-submodule dependencies** in this file
 
 ## Resources
 
+- [DASH.md](DASH.md) — the dash architecture (start here)
+- [STANDARDS.md](STANDARDS.md) — the per-tier standardization baseline
+- [SUBMODULES.md](../SUBMODULES.md) — submodule quick reference
+- [DEVELOPMENT.md](DEVELOPMENT.md) — local setup
 - [Git Submodules Documentation](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
-- [SUBMODULES.md](../SUBMODULES.md) - Quick reference guide
-- [DEVELOPMENT.md](DEVELOPMENT.md) - Development environment setup
-- [GitHub: Working with submodules](https://github.blog/2016-02-01-working-with-submodules/)
-
-## Questions?
-
-For questions about the monorepo structure:
-- Open an issue in the main repository
-- Review existing issues and discussions
-- Check the [CONTRIBUTING.md](../CONTRIBUTING.md) guide

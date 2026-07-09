@@ -10,9 +10,12 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/refresh-portfolio/` | Regenerate monitoring data + README project list |
 | `skills/sync-project-docs/` | Pull each project's current summary/status into the registry |
 | `skills/drift-report/` | Explain drift-gate failures and the exact fix |
+| `skills/standardize-audit/` | Audit the fleet against the tiered baseline (`dash audit`); explain each gap |
+| `skills/standardize-project/` | Bring one submodule up to its tier baseline and open a PR |
+| `skills/onboard-dir/` | Adopt or remove a stray/unregistered `projects/*/` dir the drift gate flagged |
 | `skills/new-project/` | Scaffold + register a new project |
 | `skills/triage-attention/` | Turn Monitor-board signals into prioritized actions |
-| `skills/evolve-project/` | Focused per-project improvement pass (maps to `.github/agents` personas) |
+| `skills/evolve-project/` | Focused per-project improvement pass (reads `.github/agents` personas as guidance) |
 | `skills/run-dash/` | `/run-dash` — orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
 | `commands/dash-status.md` | `/dash-status` — read-only status |
 | `commands/evolve.md` | `/evolve` — run the self-evolution loop |
@@ -24,6 +27,20 @@ Claude Code configuration that makes the dash self-managing.
 
 MCP servers (github, memory, sequentialthinking, context7) are configured in the
 repo-root [`.mcp.json`](../.mcp.json).
+
+> **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and
+> `.github/prompts/` are **portable Copilot templates** (per
+> `.github/docs/toolkit-retention-map.md`) meant to be seeded into submodules —
+> Claude Code cannot Task-launch them. Only `.claude/agents/` (feature-scout) are
+> real subagents. For a working-diff review use the native `/code-review` skill.
+
+## Standardization
+
+`standardize-audit` (see what's off-standard, via `tools/dash audit` +
+[`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one
+repo, PR into its own repo) → the `standardize-fanout.yml` workflow (fleet-wide
+`.editorconfig` + reusable `standard-ci.yml` adoption). The full standard lives in
+[`docs/STANDARDS.md`](../docs/STANDARDS.md).
 
 ## The Future-Features pipeline
 
@@ -44,4 +61,5 @@ truth; rendered at the dash **Roadmap** surface), targets come from
 `triage-attention` (read Monitor signals) → `sync-project-docs` (update registry)
 → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main`
 → drift + dash-build gates verify → human merges. The CI counterpart is
-`.github/workflows/unified-evolution.yml` (weekly, via `anthropics/claude-code-action`).
+`.github/workflows/unified-evolution.yml` (dispatch-only — trigger via
+`tools/dash evolve`; via `anthropics/claude-code-action`, needs `ANTHROPIC_API_KEY`).

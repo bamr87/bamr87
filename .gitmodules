@@ -46,7 +46,7 @@
 [submodule "projects/edgar-data-parse"]
 	path = projects/edgar-data-parse
 	url = https://github.com/bamr87/edgar-data-parse.git
-	branch = master
+	branch = main
 [submodule "projects/bashconsultants"]
 	path = projects/bashconsultants
 	url = https://github.com/bamr87/bashconsultants.git

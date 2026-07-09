@@ -1,11 +1,9 @@
 name: 🔧 Unified Maintenance Pipeline
 
 on:
-  schedule:
-    # Daily maintenance at 2 AM UTC
-    - cron: '0 2 * * *'
-    # Weekly comprehensive maintenance on Mondays at 3 AM UTC
-    - cron: '0 3 * * 1'
+  # Legacy — dispatch-only. The scheduled run was a no-op (the create-pr job
+  # checked out a pristine tree) and its cleanup deleted the wrong branches; do
+  # not re-enable the schedule without fixing both. See .github/workflows/README.md.
   workflow_dispatch:
     inputs:
       maintenance_type:
@@ -33,7 +31,7 @@ on:
       dry_run:
         description: 'Run in simulation mode without making changes'
         required: false
-        default: false
+        default: true   # safe default: the cleanup branch-deletion logic is buggy
         type: boolean
       create_pr:
         description: 'Create pull request with changes'

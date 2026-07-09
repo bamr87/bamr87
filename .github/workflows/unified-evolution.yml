@@ -1,8 +1,8 @@
 name: 🌱 Unified AI Evolution Pipeline
 
 on:
-  schedule:
-    - cron: '0 6 * * 1'   # weekly Monday 06:00 UTC (defaults to minimal intensity)
+  # Dispatch-only: no unattended AI writes on a schedule. Trigger deliberately via
+  # `tools/dash evolve` or the Actions UI (needs ANTHROPIC_API_KEY).
   workflow_dispatch:
     inputs:
       evolution_type:

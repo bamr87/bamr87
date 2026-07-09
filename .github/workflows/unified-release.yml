@@ -1,8 +1,8 @@
 name: 📦 Unified Release Pipeline
 
 on:
-  push:
-    tags: ['v*', 'release-*']
+  # Legacy — dispatch-only so a tag on the profile repo can't accidentally
+  # publish it. Real releases are per-submodule (tools/adopt-release.sh).
   workflow_dispatch:
     inputs:
       release_type:

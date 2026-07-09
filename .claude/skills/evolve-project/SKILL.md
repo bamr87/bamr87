@@ -6,10 +6,12 @@ description: Run a focused improvement pass on a single project (code quality, d
 # evolve-project
 
 ## Steps
-1. Pick the project and the evolution type. Map type → persona in
-   `.github/agents/`:
-   - code quality → `code-reviewer.md`
-   - documentation → `prompt-engineer.md` (+ `.github/instructions/documentation.instructions.md`, README-First rule)
+1. Pick the project and the evolution type. The `.github/agents/*.md` files are
+   **portable Copilot persona templates** (per `.github/docs/toolkit-retention-map.md`),
+   not Claude subagents — **read** the matching one as guidance, don't try to
+   Task-launch it. Map type → guidance / native tool:
+   - code quality → run the native `/code-review` skill (read `code-reviewer.md` for framing)
+   - documentation → `prompt-engineer.md` + `.github/instructions/documentation.instructions.md` (README-First rule)
    - testing → `test-writer.md`
    - CI/workflow → `workflow-reviewer.md`
    - debugging → `systematic-debugger.md`

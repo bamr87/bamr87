@@ -4,16 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A **monorepo composed of Git submodules**. The root is simultaneously a GitHub profile README, a documentation hub, and the container for several independent projects. Each top-level project directory is a *separate Git repository* with its own stack, branch, and release cycle — there is no shared build system tying them together.
+A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (control plane) and a GitHub profile README. Every directory under `projects/` is a *separate Git repository* with its own stack, branch, and release cycle — there is no shared build system tying them together. The root repo (`tools/`, `docs/`, `.github/`, `_data/`, `pages/`, and the Jekyll site) is the machinery that manages, monitors, documents, and **standardizes** them.
 
-| Path | Upstream repo | Branch | Stack |
-|------|---------------|--------|-------|
-| `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite (GitHub Spark template), Tailwind |
+**The authoritative project list is [`_data/projects.yml`](_data/projects.yml)** (the registry), cross-checked against `.gitmodules` by the drift gate — *not* this file. Don't maintain a submodule list here; read the registry. Representative/foundational submodules:
+
+| Path | Upstream | Branch | Stack |
+|------|----------|--------|-------|
+| `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind, Firebase |
 | `projects/README/` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
 | `projects/scripts/` | `bamr87/scripts` | **`master`** | Bash, Python |
-| `projects/skills/` | `microsoft/skills` (external) | `main`, `update = merge` | Markdown skills, prompts, MCP configs |
+| `projects/zer0-mistakes/` | `bamr87/zer0-mistakes` | `main` | Jekyll theme (powers this dash) |
+| `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
+| `projects/skills/` | `microsoft/skills` (external) | `main`, `update = merge` | Markdown skills, MCP |
 
-`tools/`, `docs/`, and `.github/` are part of the **root** repo (not submodules).
+**Branch exceptions** (most submodules track `main`): `scripts` and `jekyll` track **`master`**; `sonic-pi` tracks **`dev`**; `skills` is an external `microsoft/skills` mirror (`update = merge`). Always read the branch from `.gitmodules` / the registry — never assume `main`.
+
+`tools/`, `docs/`, `.github/`, `_data/`, and `pages/` are part of the **root** repo (not submodules).
 
 ## Submodule workflow (critical, non-obvious)
 
@@ -30,7 +36,7 @@ git add projects/cv-builder-pro && git commit -m "chore: update cv submodule"   
 ```
 
 Consequences:
-- `projects/scripts/` tracks `master`, the rest track `main` — don't assume `main` everywhere.
+- Branches vary: `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`, the rest track `main`. Read the branch from `.gitmodules`; don't assume `main`.
 - `projects/skills/` belongs to `microsoft/skills`; you generally consume it, not modify it.
 - Don't bundle changes across multiple submodules into one PR.
 - After pulling, run `git submodule update --init --recursive` if a submodule looks empty or stale.
@@ -95,7 +101,7 @@ The published MkDocs site (`docs_dir: projects/README/docs`) pulls from the **RE
 
 - **pre-commit** (`.pre-commit-config.yaml`): trailing-whitespace, end-of-file, check-yaml/json, markdownlint (`--fix`, MD013/MD033/MD041 disabled), shellcheck, prettier. `black` + `flake8` (max-line 120) are **scoped to `projects/README/**/*.py` only**. Install with `pip install pre-commit && pre-commit install`; CI skips shellcheck + markdownlint.
 - **Husky** (`.husky/pre-commit`) runs `pnpm lint-staged`.
-- **CI**: `.github/workflows/unified-*.yml` (CI/CD, release, maintenance, evolution) plus `build-dash.yml` (builds the Jekyll dash and deploys to Pages), `drift-check.yml` (hard drift gate), `refresh-dash.yml` (nightly projects/README/registry refresh PR), and `update-submodules.yml` (weekly PR bumping submodule pointers). `build-docs.yml` (MkDocs) is **deprecated/manual-only**, superseded by `build-dash.yml`. Reusable composite actions live in `.github/actions/{ci,deployment,setup,utilities}`.
+- **CI**: the live control-plane workflows are `build-dash.yml` (builds the Jekyll dash and deploys to Pages — the sole Pages surface), `drift-check.yml` (hard drift gate), `refresh-dash.yml` (nightly README/registry refresh PR), `update-submodules.yml` (weekly PR bumping submodule pointers *up*), and `standardize-fanout.yml` (opens standardization PRs *down* into submodules from the reusable `standard-ci.yml` `workflow_call` template). The generic `unified-*.yml` suite is legacy/dispatch-only. Reusable composite actions live in `.github/actions/{ci,deployment,setup,utilities}`.
 
 ## The Dash (central command surface)
 
@@ -103,10 +109,10 @@ The repo is a self-managing **dash**. See [`docs/DASH.md`](docs/DASH.md). Key fa
 
 - **Single source of truth**: [`_data/projects.yml`](_data/projects.yml) — the project registry. To add/change a project, edit ONLY this file; every surface (portfolio, dashboard, monitor, the profile `README.md` `<!-- AUTO:projects -->` span, the drift gate) follows.
 - **Dash site**: the **root** Jekyll site (`remote_theme: bamr87/zer0-mistakes`) renders the dash from the `pages/_dash/` collection (Portfolio/Dashboard/Monitor/Toolbox/Resume/Docs), published at `bamr87.github.io/bamr87/`. Local: `tools/dash serve` (docker, :4000).
-- **CLI**: `tools/dash {status|monitor|serve|sync|run|new|evolve|ai|gen|test}` (alias `bamr87-dash`) — reuses `setup.sh`/`run-all-tests.sh`/`update-submodules.sh`/`projects/scripts/`.
+- **CLI**: `tools/dash {status|audit|monitor|serve|sync|foreach|run|new|adopt-release|protect|evolve|ai|gen|test|doctor}` (alias `bamr87-dash`) — reuses `setup.sh`/`run-all-tests.sh`/`update-submodules.sh`/`audit-standards.sh`/`projects/scripts/`. `dash audit` prints the per-repo standardization conformance matrix; `dash foreach <cmd>` runs a command in every submodule.
 - **Generator**: `.github/scripts/dash-gen` (`tools/dash-gen`) — `health` gathers live GitHub signals → ephemeral `_data/project_health.yml` (gitignored, never commit); `readme` regenerates the README AUTO span (deterministic, committable); `ai` shadow-prices local Claude Code usage per repo (`ai_activity.py`: scans `~/.claude/projects/` JSONL, persists `~/.claude/ai-activity-ledger.json`, writes gitignored `_data/ai_activity.yml` for the `/ai-activity/` page — local-only, never part of `all`/CI).
 - **Drift**: `tools/check-drift.sh` gates on registry/.gitmodules parity, stale README, missing READMEs, submodule branch drift, broken dash links.
-- **AI layer**: `.mcp.json` (MCP servers) + `.claude/skills/` + `.claude/commands/` (`/dash-status`, `/evolve`, `/register-project`). `unified-evolution.yml` runs Claude Code (`anthropics/claude-code-action`, needs `ANTHROPIC_API_KEY`).
+- **AI layer**: [`.claude/README.md`](.claude/README.md) indexes it. `.mcp.json` (MCP servers) + `.claude/skills/` (drift-report, evolve-project, new-project, refresh-portfolio, run-dash, sync-project-docs, triage-attention, update-registry, **standardize-audit**, **standardize-project**, **onboard-dir**) + `.claude/commands/` (`/dash-status`, `/evolve`, `/register-project`, `/adopt-release`, `/future-features`) + `.claude/agents/feature-scout.md` + `.claude/hooks/` (Future-Features session hooks). The **`run-dash` skill's `driver.py` is the orchestration entrypoint** (per-submodule work orders). `unified-evolution.yml` runs Claude Code (`anthropics/claude-code-action`, needs `ANTHROPIC_API_KEY`). Note: `.github/agents|instructions|prompts/` are **portable Copilot templates** meant to be seeded into submodules — not dash-operational Claude subagents (only `.claude/agents/` are Task-launchable).
 
 ## Conventions
 

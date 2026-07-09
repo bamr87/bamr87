@@ -1,11 +1,9 @@
 name: 🚀 Unified CI/CD Pipeline
 
 on:
-  push:
-    branches: [main, master, develop]
-    tags: ['v*']
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  # Legacy generic pipeline — dispatch-only. The control plane's real CI is
+  # build-dash.yml (Pages) + drift-check.yml (gate); member-repo CI is the
+  # reusable standard-ci.yml. See .github/workflows/README.md.
   workflow_dispatch:
     inputs:
       mode:
