@@ -2,6 +2,9 @@ name: 🚧 Drift Check
 
 # Hard gate: fails CI on registry/.gitmodules drift, a stale README AUTO:projects
 # span, missing READMEs, submodule branch drift, or broken internal dash links.
+# Also runs an advisory (non-gating) check that the registry's repo_urls still
+# match GitHub reality — flagging renamed / moved / deleted repos the set-vs-set
+# parity check can't see (uses GITHUB_TOKEN; self-skips if the API is unreachable).
 
 on:
   push:

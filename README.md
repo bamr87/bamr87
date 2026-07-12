@@ -262,7 +262,6 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[sonic-pi](https://github.com/bamr87/sonic-pi)**: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
 - **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
 - **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.
-- **[frontmatter-cms-mvp](https://github.com/bamr87/frontmatter-cms-mvp)**: Minimal CMS for Markdown files with YAML frontmatter in VS Code.
 
 <!-- AUTO:projects END -->
 

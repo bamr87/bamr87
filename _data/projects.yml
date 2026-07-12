@@ -563,17 +563,6 @@
   docs_url: null
 
 # ---------------------------------------------------------------------------
-# External repositories (surfaced in the dash; not git submodules)
+# External repositories (surfaced in the dash; not git submodules) — none
+# currently. Add entries here with submodule_path: null.
 # ---------------------------------------------------------------------------
-- name: frontmatter-cms-mvp
-  submodule_path: null
-  branch: main
-  repo_url: https://github.com/bamr87/frontmatter-cms-mvp
-  description: Minimal CMS for Markdown files with YAML frontmatter in VS Code.
-  stack: [typescript, vscode, markdown]
-  category: dev-tools
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
