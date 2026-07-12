@@ -15,10 +15,6 @@
 	path = projects/ai-seed
 	url = https://github.com/bamr87/ai-seed.git
 	branch = main
-[submodule "projects/django-erp"]
-	path = projects/django-erp
-	url = https://github.com/bamr87/django-erp.git
-	branch = main
 [submodule "projects/law-ai"]
 	path = projects/law-ai
 	url = https://github.com/bamr87/law-ai.git
@@ -26,10 +22,6 @@
 [submodule "projects/bamr87.github.io"]
 	path = projects/bamr87.github.io
 	url = https://github.com/bamr87/bamr87.github.io.git
-	branch = main
-[submodule "projects/1764"]
-	path = projects/1764
-	url = https://github.com/bamr87/1764.git
 	branch = main
 [submodule "projects/bashcrawl"]
 	path = projects/bashcrawl
@@ -45,7 +37,7 @@
 	branch = main
 [submodule "projects/edgar-data-parse"]
 	path = projects/edgar-data-parse
-	url = https://github.com/bamr87/edgar-data-parse.git
+	url = https://github.com/bamr87/fredgar-ai.git
 	branch = main
 [submodule "projects/bashconsultants"]
 	path = projects/bashconsultants
@@ -99,17 +91,13 @@
 	path = projects/jekyll
 	url = https://github.com/bamr87/jekyll.git
 	branch = master
-[submodule "projects/1897"]
-	path = projects/1897
-	url = https://github.com/bamr87/1897.git
-	branch = main
 [submodule "projects/1987"]
 	path = projects/1987
 	url = https://github.com/bamr87/1987.git
 	branch = main
 [submodule "projects/2005"]
 	path = projects/2005
-	url = https://github.com/bamr87/2005.git
+	url = https://github.com/year-of-ai/2005.git
 	branch = main
 [submodule "projects/books"]
 	path = projects/books
@@ -141,11 +129,7 @@
 	branch = main
 [submodule "projects/vscode-front-matter"]
 	path = projects/vscode-front-matter
-	url = https://github.com/bamr87/vscode-front-matter.git
-	branch = main
-[submodule "projects/digitalBookstore"]
-	path = projects/digitalBookstore
-	url = https://github.com/bamr87/digitalBookstore.git
+	url = https://github.com/bamr87/zer0-CMS.git
 	branch = main
 [submodule "projects/sonic-pi"]
 	path = projects/sonic-pi
