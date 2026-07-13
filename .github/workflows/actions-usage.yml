@@ -1,0 +1,58 @@
+name: 📈 Actions Usage Refresh
+
+# Daily: query the GitHub Actions API (via PyGithub) for every registry repo,
+# recompute the usage analytics, and commit the refreshed data file. The Jekyll
+# dash renders _data/actions_usage.yml at /actions/. Committing to _data/**
+# lets build-dash republish (its 6h cron picks up the change — commits made with
+# GITHUB_TOKEN don't themselves trigger other workflows).
+#
+# Token: uses GITHUB_TOKEN by default (reads public repos' run data + commits).
+# Add an ACTIONS_ANALYTICS_TOKEN secret (fine-grained PAT, actions:read) for
+# higher rate limits or to include private repos.
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # daily 05:00 UTC
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Analysis window (days)"
+        type: string
+        default: "14"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actions-usage
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install generator deps
+        run: pip install -r .github/scripts/dash-gen/requirements.txt
+
+      - name: Generate Actions usage data
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: tools/dash-gen actions --days "${{ inputs.days || 14 }}" --max-runs 600 --quiet
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- _data/actions_usage.yml; then
+            echo "No change in Actions usage data."
+            exit 0
+          fi
+          git config user.name "bamr87-bot"
+          git config user.email "10567847+bamr87@users.noreply.github.com"
+          git add _data/actions_usage.yml
+          git commit -m "chore(data): refresh GitHub Actions usage analytics"
+          git push
