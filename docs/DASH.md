@@ -98,8 +98,11 @@ a "run `tools/dash ai` locally" notice instead of your spend.
 ## Anti-drift: gates + auto-fix PRs
 
 **Hard gates** ([`tools/check-drift.sh`](../tools/check-drift.sh), run by
-`drift-check.yml`) fail CI on: registry ↔ `.gitmodules` mismatch, stale README
-AUTO span, missing READMEs, submodule branch drift, and broken internal dash links.
+`drift-check.yml` — a fast offline+API check, no site build) fail CI on: registry
+↔ `.gitmodules` mismatch, stray/unregistered project dirs, a stale README AUTO
+span, and missing top-level READMEs. Advisory (non-gating): GitHub-reality drift
+(renames/deletions/branch) and standardization. The internal-link check is
+local-only (`tools/check-drift.sh --links`, needs a built `_site`).
 
 **Auto-fix bots** open PRs (never direct pushes to `master`): submodule pointer
 bumps (`update-submodules.yml`), projects/README/registry refresh (`refresh-dash.yml`),

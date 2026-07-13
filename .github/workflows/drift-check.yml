@@ -1,10 +1,14 @@
 name: 🚧 Drift Check
 
-# Hard gate: fails CI on registry/.gitmodules drift, a stale README AUTO:projects
-# span, missing READMEs, submodule branch drift, or broken internal dash links.
-# Also runs an advisory (non-gating) check that the registry's repo_urls still
-# match GitHub reality — flagging renamed / moved / deleted repos the set-vs-set
-# parity check can't see (uses GITHUB_TOKEN; self-skips if the API is unreachable).
+# Hard gate (fast, deterministic): fails CI on registry ↔ .gitmodules drift,
+# stray/unregistered project dirs, a stale README AUTO:projects span, or missing
+# top-level READMEs. Also runs an advisory (non-gating) check that the registry's
+# repo_urls still match GitHub reality — renamed / moved / deleted repos the
+# set-vs-set parity check can't see (uses GITHUB_TOKEN; self-skips if unreachable).
+#
+# Deliberately submodule-content-agnostic and offline+API only — no Ruby/Jekyll
+# build. The internal-link check moved out of the gate (it was non-gating and
+# needed a full site build); run it locally with `tools/check-drift.sh --links`.
 
 on:
   push:
@@ -15,41 +19,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: drift-check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   drift:
     runs-on: ubuntu-latest
     steps:
+      # Shallow, no submodules: the gate reads .gitmodules, the registry, and
+      # top-level READMEs — never submodule working trees.
       - uses: actions/checkout@v4
-        with:
-          # The drift gate reads .gitmodules, the registry, and top-level dir
-          # READMEs — it does NOT need submodule working trees. Recursive
-          # submodule checkout over ~40 repos was fragile and the actual cause
-          # of this gate failing on main; the gate is submodule-content-agnostic.
-          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install generator deps
-        run: pip install -r .github/scripts/dash-gen/requirements.txt
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-
-      - name: Build site (for link check)
-        # Build with baseurl="" (dev config) so internal links are root-relative
-        # paths lychee can resolve offline against _site via --root-dir.
-        run: bundle exec jekyll build --config _config.yml,_config_dev.yml
-
-      - name: Install lychee
-        uses: lycheeverse/lychee-action@v2
-        with:
-          args: --offline --root-dir ${{ github.workspace }}/_site ${{ github.workspace }}/_site
-          fail: false   # link result surfaced via check-drift below
+      - name: Install gate deps
+        run: pip install pyyaml   # the gate needs PyYAML + gh (preinstalled on the runner)
 
       - name: Run drift gate
         run: tools/check-drift.sh --ci

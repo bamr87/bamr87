@@ -5,7 +5,7 @@
 # Checks (each contributes to the exit status unless --report):
 #   (a) registry <-> .gitmodules parity + no stray/unregistered project dirs
 #   (b) README.md AUTO:projects span is up to date
-#   (c) broken internal links in the built dash        (--links / --ci only)
+#   (c) broken internal links in the built dash        (--links only; needs _site)
 #   (d) every top-level module dir has a README
 #   (e) each submodule is on its declared branch
 #   (f) submodule standardization conformance          (warn; see `dash audit`)
@@ -16,10 +16,14 @@
 #       deletions). Advisory because the default CI token is repo-scoped, so a
 #       private submodule can 404; self-skips if the API is unreachable.
 #
+# (e) is LOCAL-ONLY (skipped when submodules aren't checked out, e.g. CI).
+# (c) the internal-link check needs a built _site + lychee, so it is NOT part of
+#     the CI gate (which no longer builds the site) — run it locally with --links.
+#
 # Modes:
-#   (default)   run gating checks (a,b,d,e); exit non-zero on any failure
-#   --ci        run all checks incl. links + GitHub-reality (needs _site, lychee, gh)
-#   --links     also run the link check
+#   (default)   run gating checks (a,b,d, + e when checked out); non-zero on failure
+#   --ci        gate + GitHub-reality (g). Fast: no Ruby/Jekyll/lychee. (needs gh)
+#   --links     also run the link check (needs a locally built _site + lychee)
 #   --remote    also run the GitHub-reality check (g)
 #   --report    print a summary, never fail (used by `dash status`)
 # ============================================================================
@@ -31,7 +35,7 @@ RUN_LINKS=0
 RUN_REMOTE=0
 case "${1:-}" in
   --report) MODE="report" ;;
-  --ci)     MODE="gate"; RUN_LINKS=1; RUN_REMOTE=1 ;;
+  --ci)     MODE="gate"; RUN_REMOTE=1 ;;   # no link check: CI doesn't build _site
   --links)  RUN_LINKS=1 ;;
   --remote) RUN_REMOTE=1 ;;
 esac
@@ -84,11 +88,16 @@ for path in reg_by_path:
     if path not in mods:
         problems.append(f"registry submodule_path '{path}' not in .gitmodules")
 
-# (e) current checked-out branch matches declared.
-# NOTE: a fresh `git submodule update`/CI checkout leaves submodules in DETACHED
-# HEAD at the recorded SHA — that is normal and NOT drift. We only flag a *named*
-# branch that differs from the declared one (a real local divergence).
+# (e) current checked-out branch matches declared. LOCAL-ONLY: only runs for
+# submodules actually checked out (a `.git` inside the dir). When a submodule is
+# NOT checked out — e.g. CI, which is submodule-content-agnostic — `git -C` walks
+# up to the PARENT repo and returns its branch ("main"), which false-positived the
+# gate on every non-main submodule. Branch drift in CI is covered by (a) (static
+# registry↔.gitmodules) and (g) (declared↔GitHub default). Detached HEAD at the
+# recorded SHA (normal after `git submodule update`) is not drift.
 for path, info in mods.items():
+    if not os.path.exists(os.path.join(root, path, ".git")):
+        continue  # not checked out here; can't (and shouldn't) infer its branch
     try:
         br = subprocess.run(["git","-C",os.path.join(root,path),"rev-parse","--abbrev-ref","HEAD"],
                             capture_output=True, text=True).stdout.strip()

@@ -9,7 +9,7 @@ kept dispatch-only.
 | Workflow | Triggers | Purpose |
 | --- | --- | --- |
 | `build-dash.yml` | push `main` (dash paths), 6h cron, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. **The sole Pages surface.** |
-| `drift-check.yml` | push `main`, PR, dispatch | Hard gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, **submodule standardization** (README/LICENSE/CI per tier), broken dash links. |
+| `drift-check.yml` | push `main`, PR, dispatch | Fast offline+API gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, missing top-level READMEs; advisory **GitHub-reality** (renames/deletions/branch) + **standardization**. No Ruby/Jekyll build; the internal-link check is local-only (`--links`). |
 | `refresh-dash.yml` | daily 04:00, dispatch | Regenerates the committable README `AUTO:projects` span + registry data; opens a PR. |
 | `update-submodules.yml` | weekly Sun 03:00, dispatch | Bumps submodule pointers **up** into root; opens a PR. Pointer changes only. |
 | `standardize-fanout.yml` | dispatch (per-repo or all) | Opens standardization PRs **down** into submodules, seeding the reusable `standard-ci.yml` caller + baseline config (`.editorconfig`, etc.). |
