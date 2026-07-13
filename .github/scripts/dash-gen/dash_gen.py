@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 import ai_activity
+import actions_analytics
 
 try:
     import yaml
@@ -388,6 +389,11 @@ def main(argv: list[str] | None = None) -> int:
         "ai", help="shadow-price local Claude Code usage -> ai_activity.yml (local-only)"
     )
     ai_activity.add_arguments(p_ai)
+
+    p_actions = sub.add_parser(
+        "actions", help="GitHub Actions usage analytics -> actions_usage.yml (daily-refreshed)"
+    )
+    actions_analytics.add_arguments(p_actions)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

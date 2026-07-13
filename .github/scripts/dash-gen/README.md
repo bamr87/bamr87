@@ -22,6 +22,15 @@ truth — [`_data/projects.yml`](../../../_data/projects.yml) — and:
   rendered by the `/ai-activity/` dash page. Costs are estimates at Anthropic API
   list prices (subscription usage bills nothing per token). **Local-only**: not part
   of `all`, never runs in CI, and spend data is never committed or published.
+- **`actions`** → GitHub Actions usage analytics ([`actions_analytics.py`](actions_analytics.py)).
+  Queries the Actions API for every registry repo via the **PyGithub** integration
+  library, aggregates per-workflow consumption (wall-clock minutes, success/failure,
+  **effectiveness** = share of minutes ending in success, **waste** = minutes on
+  non-success runs), groups by workflow **type**, flags "high-running, low-effective"
+  workflows, and writes `_data/actions_usage.yml` — rendered by the `/actions/` dash
+  page. Unlike `health`/`ai`, this file is **committed** and refreshed **daily** by
+  [`actions-usage.yml`](../../workflows/actions-usage.yml) so the page shows a stable
+  once-a-day snapshot. Auth via `GH_TOKEN`/`GITHUB_TOKEN` or `gh auth token`.
 - **`all`** → `health` then `readme`.
 
 ## Usage
@@ -38,6 +47,7 @@ python .github/scripts/dash-gen/dash_gen.py ai [--window 30] [--ledger PATH] [--
 tools/dash-gen health
 tools/dash-gen readme
 tools/dash-gen ai        # also: tools/dash ai
+tools/dash-gen actions --days 14   # also: tools/dash actions
 ```
 
 GitHub access uses the `gh` CLI, so failures degrade gracefully (a project that
