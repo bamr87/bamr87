@@ -94,7 +94,9 @@ def open_review_markers(repo_slug: str, label: str) -> set[str]:
 
     markers: set[str] = set()
     for it in items:
-        for m in re.findall(r'key="([^"]+)"', it.get("body", "") or ""):
+        # Match the FULL marker only — a bare `key="…"` elsewhere in the body
+        # (an unrelated HTML comment, a code snippet) must not suppress a candidate.
+        for m in re.findall(r'<!-- actions-review key="([^"]+)" -->', it.get("body", "") or ""):
             markers.add(m)
     return markers
 
@@ -233,7 +235,11 @@ def render_workorder(cands: list[dict], report: dict, cap: int) -> str:
         L.append(f"- **Submodule / repo:** {c.get('repo')} — {c.get('repo_url')}")
         L.append(f"- **Workflow file:** `{c.get('path') or '(unknown path)'}`")
         L.append(f"- **Type:** {c.get('type')}")
-        L.append(f"- **MARKER (first line of the issue body):** `{issue_marker(marker_key(c))}`")
+        L.append("- **MARKER** — the issue body's FIRST line must be exactly this "
+                 "(no backticks, no bullet):")
+        L.append("")
+        L.append(issue_marker(marker_key(c)))
+        L.append("")
         L.append(f"- **Signal (last {report.get('window_days','?')}d):** "
                  f"{c.get('runs')} runs · {c.get('total_min')}m total · "
                  f"{c.get('avg_min')}m avg · {c.get('p95_min')}m p95 · "

@@ -25,8 +25,8 @@ on:
     inputs:
       max_issues:
         description: "Max issues to file this run"
-        type: string
-        default: "4"
+        type: number
+        default: 4
       dry_run:
         description: "Build the work order but do not run the AI / file issues"
         type: boolean
@@ -91,7 +91,7 @@ jobs:
           claude_args: >-
             --model opus
             --max-turns 60
-            --allowedTools "Bash(gh:*),Bash(cat:*),Bash(jq:*),Read,Grep"
+            --allowedTools "Bash(gh:*),Read,Grep"
           prompt: |
             You are an expert CI/CD cost-optimization reviewer (Opus) for the
             **bamr87 monorepo dash**, which manages ~36 submodule repos. A daily
@@ -103,7 +103,7 @@ jobs:
             proposes a concrete, actionable improvement.
 
             ## Step 1 — read the work order
-            Run: `cat actions-review-workorder.md`
+            Read the file `actions-review-workorder.md` (use the Read tool).
             It lists each candidate with its submodule, workflow file path, the
             analytics signal, a per-candidate MARKER line, and links to the specific
             problem runs to inspect.
