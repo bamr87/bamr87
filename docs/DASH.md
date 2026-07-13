@@ -35,6 +35,7 @@ follow.
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
 | AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
 | Actions usage | GitHub Actions cost/effectiveness analytics (via PyGithub, daily-committed) | `.github/scripts/dash-gen/actions_analytics.py` → `_data/actions_usage.yml` → `/actions/`; refreshed by `actions-usage.yml` |
+| Actions review | Opus Claude Code deep-dive on failing/slow workflows → optimization **issues** (deduped) | `actions_review.py` (triage + dedupe) → `actions-review.yml` (Claude reviewer files one issue per candidate) |
 | Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
@@ -94,6 +95,31 @@ the generator answers *"what would this cost at API list prices?"*:
 Costs are **estimates** (tokens × list prices; unknown models are flagged, not
 guessed). Local-only by design: it never runs in CI, and the published dash shows
 a "run `tools/dash ai` locally" notice instead of your spend.
+
+## Actions optimization loop (analytics → AI review → issues)
+
+The Actions layer doesn't just *report* waste — it closes the loop:
+
+1. **Measure** — `actions-usage.yml` (daily) runs `actions_analytics.py` across the
+   fleet and commits `_data/actions_usage.yml`, flagging each workflow as
+   `failing` / `flaky` / `slow` / `high-cost-low-value` / `cancel-heavy` and
+   ranking by a `priority` score (wasted minutes + ineffective minutes). Rendered
+   at `/actions/`.
+2. **Triage** — `actions-review.yml` (right after the refresh) runs
+   `dash-gen actions-review`: it selects the top offenders, **dedupes** them
+   against open `actions-review` issues (a hidden `<!-- actions-review key=… -->`
+   marker), enriches each with links to the specific failing/slowest runs, and
+   writes a capped Markdown *work order*. Selection + dedupe are deterministic code
+   so the AI step can't spam.
+3. **Review & file** — an **Opus Claude Code reviewer** reads the work order, does a
+   deeper root-cause dive (`gh run view --log-failed`, reads the workflow file),
+   and opens ONE GitHub issue per candidate in `bamr87/bamr87` — each naming the
+   submodule + its workflow/responsibility with a concrete proposed fix (caching,
+   `concurrency`, `timeout-minutes`, trigger gating, cron cadence, a failing-step
+   fix…). Gated on `ANTHROPIC_API_KEY`; skipped when absent.
+
+Run the triage locally with `tools/dash actions-review` (add `--no-enrich` to skip
+the run-link lookups); the analytics itself is `tools/dash actions`.
 
 ## Anti-drift: gates + auto-fix PRs
 

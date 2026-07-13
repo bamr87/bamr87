@@ -14,6 +14,8 @@ kept dispatch-only.
 | `update-submodules.yml` | weekly Sun 03:00, dispatch | Bumps submodule pointers **up** into root; opens a PR. Pointer changes only. |
 | `standardize-fanout.yml` | dispatch (per-repo or all) | Opens standardization PRs **down** into submodules, seeding the reusable `standard-ci.yml` caller + baseline config (`.editorconfig`, etc.). |
 | `standard-ci.yml` | `workflow_call` | Reusable CI (detect stack → lint + test + build) that member repos adopt via a short caller. |
+| `actions-usage.yml` | daily 05:00, dispatch | Queries the Actions API (PyGithub) for every registry repo; commits refreshed `_data/actions_usage.yml` (cost / effectiveness / waste per workflow) for the `/actions/` page. |
+| `actions-review.yml` | after `actions-usage.yml`, dispatch | Triages the worst workflows (failing / slow / high-cost) and runs an **Opus Claude Code reviewer** that deep-dives them and files ONE optimization **issue** per candidate (deduped by a hidden marker; capped per run). Needs `ANTHROPIC_API_KEY`. |
 
 ## Legacy / dispatch-only
 
