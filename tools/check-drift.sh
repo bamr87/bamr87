@@ -9,11 +9,18 @@
 #   (d) every top-level module dir has a README
 #   (e) each submodule is on its declared branch
 #   (f) submodule standardization conformance          (warn; see `dash audit`)
+#   (g) registry <-> GitHub reality: renamed / deleted repos & branch drift
+#       (warn; --remote / --ci only; needs gh + network). Catches the class the
+#       set-vs-set parity check (a) cannot: registry and .gitmodules agreeing
+#       with each other while both are stale vs GitHub (renames, org moves,
+#       deletions). Advisory because the default CI token is repo-scoped, so a
+#       private submodule can 404; self-skips if the API is unreachable.
 #
 # Modes:
 #   (default)   run gating checks (a,b,d,e); exit non-zero on any failure
-#   --ci        run all checks incl. links (requires _site built + lychee)
+#   --ci        run all checks incl. links + GitHub-reality (needs _site, lychee, gh)
 #   --links     also run the link check
+#   --remote    also run the GitHub-reality check (g)
 #   --report    print a summary, never fail (used by `dash status`)
 # ============================================================================
 set -uo pipefail
@@ -21,10 +28,12 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="gate"
 RUN_LINKS=0
+RUN_REMOTE=0
 case "${1:-}" in
   --report) MODE="report" ;;
-  --ci)     MODE="gate"; RUN_LINKS=1 ;;
+  --ci)     MODE="gate"; RUN_LINKS=1; RUN_REMOTE=1 ;;
   --links)  RUN_LINKS=1 ;;
+  --remote) RUN_REMOTE=1 ;;
 esac
 
 PY="${PYTHON:-python3}"
@@ -150,6 +159,82 @@ if [[ -x "$ROOT/tools/audit-standards.sh" ]]; then
   fi
 else
   warn "tools/audit-standards.sh not found"
+fi
+
+# --- (g): registry <-> GitHub reality (renames / deletions / branch) -------
+# Closes the class the set-vs-set parity check (a) is blind to: registry and
+# .gitmodules can agree with each other while both are stale vs GitHub. Advisory
+# (warn) — the default CI token is repo-scoped so a private submodule may 404,
+# and a network blip should never fail the gate.
+if [[ $RUN_REMOTE -eq 1 ]]; then
+  echo "(g) registry ↔ GitHub reality"
+  if command -v gh >/dev/null 2>&1; then
+    g_out="$("$PY" - "$ROOT" <<'PY'
+import sys, os, subprocess, json
+try:
+    import yaml
+except ImportError:
+    sys.exit(2)
+root = sys.argv[1]
+reg = yaml.safe_load(open(os.path.join(root, "_data/projects.yml"))) or []
+
+def gh(path):
+    r = subprocess.run(["gh", "api", path], capture_output=True, text=True)
+    return r.returncode, r.stdout, r.stderr
+
+# canary: is the API reachable + authenticated?
+if gh("rate_limit")[0] != 0:
+    sys.exit(2)
+
+def slug_of(url):
+    if not url or "github.com/" not in url:
+        return None
+    tail = url.split("github.com/", 1)[1].strip().rstrip("/")
+    if tail.endswith(".git"):
+        tail = tail[:-4]
+    parts = tail.split("/")
+    return f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else None
+
+problems = []
+for p in reg:
+    slug = slug_of(p.get("repo_url", ""))
+    if not slug:
+        continue
+    name = p.get("name")
+    rc, out, err = gh(f"repos/{slug}")
+    if rc != 0:
+        if "Not Found" in err or "404" in err:
+            problems.append(f"{name}: {slug} not found on GitHub (deleted / renamed-without-redirect / private) — reconcile repo_url or remove")
+        else:
+            problems.append(f"{name}: could not verify {slug}")
+        continue
+    try:
+        data = json.loads(out)
+    except Exception:
+        continue
+    full = data.get("full_name") or ""
+    defbr = data.get("default_branch") or ""
+    if full and full.lower() != slug.lower():
+        problems.append(f"{name}: renamed on GitHub {slug} -> {full} — update repo_url + .gitmodules url")
+    decl = p.get("branch")
+    if p.get("submodule_path") and decl and defbr and decl != defbr:
+        problems.append(f"{name}: declared branch '{decl}' but GitHub default is '{defbr}'")
+
+for x in problems:
+    print(x)
+PY
+)"
+    g_rc=$?
+    if [[ $g_rc -eq 2 ]]; then
+      warn "skipped (GitHub API unreachable or gh not authenticated)"
+    elif [[ -z "$g_out" ]]; then
+      ok "registry matches GitHub (names, branches)"
+    else
+      while IFS= read -r line; do warn "$line"; done <<< "$g_out"
+    fi
+  else
+    warn "skipped (gh not installed)"
+  fi
 fi
 
 # --- (c): internal links ---------------------------------------------------

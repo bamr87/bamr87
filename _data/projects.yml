@@ -200,8 +200,8 @@
 - name: edgar-data-parse
   slug: edgar-data-parse
   submodule_path: projects/edgar-data-parse
-  branch: main              # NOTE: repo renamed on GitHub to bamr87/fredgar-ai (redirect active)
-  repo_url: https://github.com/bamr87/edgar-data-parse
+  branch: main
+  repo_url: https://github.com/bamr87/fredgar-ai   # renamed on GitHub; local dir kept as edgar-data-parse
   description: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
   stack: [django, python, react, typescript]
   category: full-stack-ai
@@ -216,20 +216,6 @@
     registries: [github]
     status: pending
     pr: https://github.com/bamr87/edgar-data-parse/pull/7
-
-- name: django-erp
-  slug: django-erp
-  submodule_path: projects/django-erp
-  branch: main
-  repo_url: https://github.com/bamr87/django-erp
-  description: Self-hosted product analytics platform (PostHog fork) explored as a Django ERP base.
-  stack: [django, python, posthog]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
 
 - name: amrs-django
   slug: amrs-django
@@ -405,34 +391,6 @@
   live_url: null
   docs_url: null
 
-- name: "1764"
-  slug: "1764"
-  submodule_path: projects/1764
-  branch: main
-  repo_url: https://github.com/bamr87/1764
-  description: Self-growing knowledge base about the year 1764 — history, events, and culture.
-  stack: [markdown, ai]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
-- name: "1897"
-  slug: "1897"
-  submodule_path: projects/1897
-  branch: main
-  repo_url: https://github.com/bamr87/1897
-  description: Self-growing knowledge base about the year 1897.
-  stack: [markdown, ai]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
 - name: "1987"
   slug: "1987"
   submodule_path: projects/1987
@@ -451,7 +409,7 @@
   slug: "2005"
   submodule_path: projects/2005
   branch: main
-  repo_url: https://github.com/bamr87/2005
+  repo_url: https://github.com/year-of-ai/2005   # moved to the year-of-ai org; local dir kept as 2005
   description: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
   stack: [markdown, ai]
   category: docs
@@ -518,20 +476,6 @@
   live_url: null
   docs_url: null
 
-- name: digitalBookstore
-  slug: digitalBookstore
-  submodule_path: projects/digitalBookstore
-  branch: main
-  repo_url: https://github.com/bamr87/digitalBookstore
-  description: Fork — extracting and processing information for a digital bookstore.
-  stack: [python]
-  category: dev-tools
-  status: archived
-  featured: false
-  maintained: false
-  live_url: null
-  docs_url: null
-
 # --- Personal content / CV -------------------------------------------------
 - name: cv
   slug: cv
@@ -594,7 +538,7 @@
   slug: vscode-front-matter
   submodule_path: projects/vscode-front-matter
   branch: main
-  repo_url: https://github.com/bamr87/vscode-front-matter
+  repo_url: https://github.com/bamr87/zer0-CMS   # renamed on GitHub; local dir kept as vscode-front-matter
   description: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
   stack: [typescript, vscode]
   category: dev-tools
@@ -619,17 +563,6 @@
   docs_url: null
 
 # ---------------------------------------------------------------------------
-# External repositories (surfaced in the dash; not git submodules)
+# External repositories (surfaced in the dash; not git submodules) — none
+# currently. Add entries here with submodule_path: null.
 # ---------------------------------------------------------------------------
-- name: frontmatter-cms-mvp
-  submodule_path: null
-  branch: main
-  repo_url: https://github.com/bamr87/frontmatter-cms-mvp
-  description: Minimal CMS for Markdown files with YAML frontmatter in VS Code.
-  stack: [typescript, vscode, markdown]
-  category: dev-tools
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null

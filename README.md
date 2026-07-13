@@ -226,10 +226,8 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[bamr87.github.io](https://github.com/bamr87/bamr87.github.io)**: Personal profile and portfolio website. Live at [https://bamr87.github.io](https://bamr87.github.io).
 - **[zer0-pages-remote](https://github.com/bamr87/zer0-pages-remote)**: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
 - **[bashconsultants](https://github.com/bamr87/bashconsultants)**: BASH Consulting — Denver-based IT consulting firm website.
-- **[1764](https://github.com/bamr87/1764)**: Self-growing knowledge base about the year 1764 — history, events, and culture.
-- **[1897](https://github.com/bamr87/1897)**: Self-growing knowledge base about the year 1897.
 - **[1987](https://github.com/bamr87/1987)**: Self-growing knowledge base about the year 1987 — history, politics, science, and culture.
-- **[2005](https://github.com/bamr87/2005)**: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
+- **[2005](https://github.com/year-of-ai/2005)**: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
 - **[cv](https://github.com/bamr87/cv)**: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
 - **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Product-requirements and planning notes for the zer0-pages concept.
@@ -242,8 +240,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[lawmode](https://github.com/bamr87/lawmode)**: Always-on AI lawyer concept for developers.
 - **[law-ai](https://github.com/bamr87/law-ai)**: LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ollama).
 - **[githubai](https://github.com/bamr87/githubai)**: AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django).
-- **[edgar-data-parse](https://github.com/bamr87/edgar-data-parse)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
-- **[django-erp](https://github.com/bamr87/django-erp)**: Self-hosted product analytics platform (PostHog fork) explored as a Django ERP base.
+- **[edgar-data-parse](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
 - **[amrs-django](https://github.com/bamr87/amrs-django)**: Django web application (early scaffolding).
 - **[drsai](https://github.com/bamr87/drsai)**: Dr. Seuss-style AI poetry generator.
 - **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
@@ -262,11 +259,9 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
 - **[jekyll](https://github.com/bamr87/jekyll)**: Fork of Jekyll, the blog-aware static site generator in Ruby.
-- **[digitalBookstore](https://github.com/bamr87/digitalBookstore)**: Fork — extracting and processing information for a digital bookstore.
 - **[sonic-pi](https://github.com/bamr87/sonic-pi)**: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
-- **[vscode-front-matter](https://github.com/bamr87/vscode-front-matter)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
+- **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
 - **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.
-- **[frontmatter-cms-mvp](https://github.com/bamr87/frontmatter-cms-mvp)**: Minimal CMS for Markdown files with YAML frontmatter in VS Code.
 
 <!-- AUTO:projects END -->
 
