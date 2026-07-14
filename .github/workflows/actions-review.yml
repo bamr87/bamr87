@@ -1,0 +1,158 @@
+name: 🔬 Actions Optimization Review
+
+# The AI closing-the-loop step for the Actions analytics layer.
+#
+# actions-usage.yml (daily) measures where Actions minutes go and flags the worst
+# workflows into _data/actions_usage.yml. This workflow runs right after it: a
+# deterministic triage step (dash-gen actions-review) selects the top offenders
+# and DEDUPES them against open `actions-review` issues, then an Opus Claude Code
+# reviewer does a deeper root-cause dive on the failing / long-running workflows
+# and files ONE actionable GitHub issue per candidate in bamr87/bamr87 — each
+# referencing the submodule, its workflow/responsibility, and a proposed fix.
+#
+# Guardrails: candidate selection + dedupe are code (the AI can't spam); a per-run
+# cap bounds issues; the AI step is skipped unless ANTHROPIC_API_KEY is set.
+#
+# Token: GITHUB_TOKEN can create issues here + read PUBLIC submodule run data.
+# Add ACTIONS_ANALYTICS_TOKEN (fine-grained PAT, actions:read on the fleet) to let
+# the reviewer read private submodules' logs.
+
+on:
+  workflow_run:
+    workflows: ["📈 Actions Usage Refresh"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      max_issues:
+        description: "Max issues to file this run"
+        type: number
+        default: 4
+      dry_run:
+        description: "Build the work order but do not run the AI / file issues"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: actions-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Skip when the upstream analytics run failed (nothing fresh to review). Manual
+    # dispatch always proceeds.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    env:
+      # secrets can't be read in a step `if`; surface presence here as a plain env.
+      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -r .github/scripts/dash-gen/requirements.txt
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create actions-review --color BFD4F2 \
+            --description "AI-proposed GitHub Actions optimization" --force
+          gh label create optimization --color FBCA04 \
+            --description "Efficiency / cost optimization" --force
+
+      - name: Triage → reviewer work order
+        id: triage
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tools/dash-gen actions-review \
+            --limit "${{ github.event.inputs.max_issues || '4' }}" \
+            --out actions-review-workorder.md
+
+      - name: Show work order
+        run: cat actions-review-workorder.md || true
+
+      - name: AI review & file issues
+        if: ${{ steps.triage.outputs.has_candidates == 'true' && (github.event.inputs.dry_run || 'false') != 'true' && env.HAS_ANTHROPIC_KEY == 'true' }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+          claude_args: >-
+            --model opus
+            --max-turns 60
+            --allowedTools "Bash(gh:*),Read,Grep"
+          prompt: |
+            You are an expert CI/CD cost-optimization reviewer (Opus) for the
+            **bamr87 monorepo dash**, which manages ~36 submodule repos. A daily
+            analytics job already measured GitHub Actions consumption across the
+            fleet, and a triage step selected the worst-offending workflows into a
+            work order. Your job: for each candidate, do a DEEPER root-cause
+            investigation, then file exactly ONE GitHub issue in **bamr87/bamr87**
+            that references the submodule + its specific workflow/responsibility and
+            proposes a concrete, actionable improvement.
+
+            ## Step 1 — read the work order
+            Read the file `actions-review-workorder.md` (use the Read tool).
+            It lists each candidate with its submodule, workflow file path, the
+            analytics signal, a per-candidate MARKER line, and links to the specific
+            problem runs to inspect.
+
+            ## Step 2 — investigate each candidate (the deeper dive)
+            Gather concrete evidence BEFORE writing:
+            - Read the workflow definition (raw):
+              `gh api repos/<owner>/<repo>/contents/<workflow-path> -H "Accept: application/vnd.github.raw"`
+            - For FAILING/flaky candidates, read why the listed runs failed:
+              `gh run view -R <owner>/<repo> <run_id> --log-failed`
+              (fall back to `gh run view -R <owner>/<repo> <run_id>` if logs 404).
+            - For SLOW candidates, inspect the slowest listed run's step timings:
+              `gh run view -R <owner>/<repo> <run_id>`.
+            - If a cross-repo call 404s (token lacks access to that submodule), base
+              your analysis on the workflow file + the analytics signal and say so.
+            Form a SPECIFIC root-cause hypothesis — name the failing step, the
+            un-cached dependency install, the missing concurrency guard, the
+            over-frequent cron, the un-bounded job, etc.
+
+            ## Step 3 — file ONE issue per candidate
+            First confirm it isn't already filed (belt-and-suspenders; triage already
+            excluded open ones):
+              `gh issue list -R bamr87/bamr87 --label actions-review --state open --search '<marker key>'`
+            If an open issue with that marker exists, SKIP it. Otherwise:
+              `gh issue create -R bamr87/bamr87 --label actions-review --label optimization --title "<title>" --body "<body>"`
+
+            Title: `⚙️ Actions: <submodule>/<workflow> — <one-line problem>`
+
+            Body, in this order:
+            1. The candidate's MARKER line **verbatim** (must be the first line so
+               future runs dedupe).
+            2. **Submodule / responsibility** — which repo, and what this workflow does.
+            3. **Signal** — the analytics metrics (cost, effectiveness, waste, runs/wk)
+               from the work order.
+            4. **Evidence** — what you found in the logs/config (quote the failing step
+               or the slow phase).
+            5. **Likely root cause** — your specific hypothesis.
+            6. **Proposed improvement** — concrete steps referencing the exact workflow
+               file + keys to change (e.g. add `actions/cache`, `concurrency:
+               cancel-in-progress`, `timeout-minutes`, a `paths:` filter, trim a matrix,
+               fix step X, reduce the `cron` cadence). Give a before/after snippet where
+               useful.
+            7. **Expected impact** — estimated minutes / effectiveness recovered.
+            8. **Links** — the dash `/actions/` page, the submodule workflow file, and
+               1–2 sample run URLs.
+
+            ## Rules
+            - File AT MOST the number of candidates in the work order. Do not invent
+              extra issues.
+            - Do NOT modify files, push commits, or open PRs. ONLY create issues.
+            - Be specific and technical — propose real changes, not generic "add
+              caching" boilerplate. One issue per candidate, focused on that workflow.

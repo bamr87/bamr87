@@ -37,6 +37,7 @@ from pathlib import Path
 
 import ai_activity
 import actions_analytics
+import actions_review
 
 try:
     import yaml
@@ -394,6 +395,12 @@ def main(argv: list[str] | None = None) -> int:
         "actions", help="GitHub Actions usage analytics -> actions_usage.yml (daily-refreshed)"
     )
     actions_analytics.add_arguments(p_actions)
+
+    p_areview = sub.add_parser(
+        "actions-review",
+        help="triage worst workflows into a reviewer work order (feeds actions-review.yml)",
+    )
+    actions_review.add_arguments(p_areview)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")
