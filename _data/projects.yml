@@ -127,6 +127,26 @@
     status: pending          # reference migration
     pr: https://github.com/bamr87/zer0-mistakes/pull/170
 
+- name: zer0-image-generator
+  slug: zer0-image-generator
+  submodule_path: projects/zer0-image-generator
+  branch: main
+  repo_url: https://github.com/bamr87/zer0-image-generator
+  description: AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Portable companion to the zer0-mistakes theme.
+  stack: [ruby, jekyll, python, ai]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  release:
+    engine: release-please
+    type: ruby
+    registries: [github]     # rubygems publish is a follow-up (needs RUBYGEMS_API_KEY)
+    status: adopted
+  license: MIT
+
 - name: barodybroject
   slug: barodybroject
   submodule_path: projects/barodybroject

@@ -143,3 +143,7 @@
 	path = projects/cv
 	url = https://github.com/bamr87/cv.git
 	branch = main
+[submodule "projects/zer0-image-generator"]
+	path = projects/zer0-image-generator
+	url = https://github.com/bamr87/zer0-image-generator.git
+	branch = main

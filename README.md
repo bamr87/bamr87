@@ -252,6 +252,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 
 - **[scripts](https://github.com/bamr87/scripts)**: Development and automation utilities for project setup, GitHub workflows, and local tooling.
 - **[skills](https://github.com/microsoft/skills)**: Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding agents.
+- **[zer0-image-generator](https://github.com/bamr87/zer0-image-generator)**: AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Portable companion to the zer0-mistakes theme.
 - **[ai-seed](https://github.com/bamr87/ai-seed)**: AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human collaboration.
 - **[wtd](https://github.com/bamr87/wtd)**: Recursive TODO engine experiment for AI-orchestrated task decomposition.
 - **[vs-sonic-pi](https://github.com/bamr87/vs-sonic-pi)**: VS Code extension for writing and performing Sonic Pi music from the editor.
