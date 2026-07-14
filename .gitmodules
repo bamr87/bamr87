@@ -147,3 +147,19 @@
 	path = projects/zer0-image-generator
 	url = https://github.com/bamr87/zer0-image-generator.git
 	branch = main
+[submodule "projects/gitorio"]
+	path = projects/gitorio
+	url = https://github.com/bamr87/gitorio.git
+	branch = main
+[submodule "projects/lifehacker.dev"]
+	path = projects/lifehacker.dev
+	url = https://github.com/bamr87/lifehacker.dev.git
+	branch = main
+[submodule "projects/wargames"]
+	path = projects/wargames
+	url = https://github.com/bamr87/wargames.git
+	branch = main
+[submodule "projects/Dodge-and-Reena-Book"]
+	path = projects/Dodge-and-Reena-Book
+	url = https://github.com/bamr87/Dodge-and-Reena-Book.git
+	branch = main
