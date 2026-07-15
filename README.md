@@ -222,14 +222,17 @@ These public repositories reflect the same focus areas: documentation, enablemen
 
 - **[README](https://github.com/bamr87/README)**: Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js).
 - **[it-journey](https://github.com/bamr87/it-journey)**: From-zero-to-hero docs, tools, and scripts supporting an IT learning journey. Live at [https://it-journey.dev](https://it-journey.dev).
+- **[wargames](https://github.com/bamr87/wargames)**: Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey.
 - **[zer0-mistakes](https://github.com/bamr87/zer0-mistakes)**: GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash. Live at [https://zer0-mistakes.com](https://zer0-mistakes.com).
 - **[bamr87.github.io](https://github.com/bamr87/bamr87.github.io)**: Personal profile and portfolio website. Live at [https://bamr87.github.io](https://bamr87.github.io).
+- **[lifehacker.dev](https://github.com/bamr87/lifehacker.dev)**: Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages. Live at [https://lifehacker.dev](https://lifehacker.dev).
 - **[zer0-pages-remote](https://github.com/bamr87/zer0-pages-remote)**: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
 - **[bashconsultants](https://github.com/bamr87/bashconsultants)**: BASH Consulting — Denver-based IT consulting firm website.
 - **[1987](https://github.com/bamr87/1987)**: Self-growing knowledge base about the year 1987 — history, politics, science, and culture.
 - **[2005](https://github.com/year-of-ai/2005)**: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
 - **[cv](https://github.com/bamr87/cv)**: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
+- **[Dodge-and-Reena-Book](https://github.com/bamr87/Dodge-and-Reena-Book)**: Children's picture book — Deputy Dodge & Ranger Reena monthly mystery stories with a full illustration guide.
 - **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Product-requirements and planning notes for the zer0-pages concept.
 
 ### 🚀 Full-Stack & AI Applications
@@ -253,6 +256,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[scripts](https://github.com/bamr87/scripts)**: Development and automation utilities for project setup, GitHub workflows, and local tooling.
 - **[skills](https://github.com/microsoft/skills)**: Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding agents.
 - **[zer0-image-generator](https://github.com/bamr87/zer0-image-generator)**: AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Portable companion to the zer0-mistakes theme.
+- **[gitorio](https://github.com/bamr87/gitorio)**: Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions workflows running Claude Code agents.
 - **[ai-seed](https://github.com/bamr87/ai-seed)**: AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human collaboration.
 - **[wtd](https://github.com/bamr87/wtd)**: Recursive TODO engine experiment for AI-orchestrated task decomposition.
 - **[vs-sonic-pi](https://github.com/bamr87/vs-sonic-pi)**: VS Code extension for writing and performing Sonic Pi music from the editor.
@@ -263,6 +267,10 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[sonic-pi](https://github.com/bamr87/sonic-pi)**: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
 - **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
 - **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.
+
+### 🛰️ Dash
+
+- **[.github](https://github.com/bamr87/.github)**: Shared CI/release automation (reusable workflows, release-please, publish) + community health files for all bamr87 repos.
 
 <!-- AUTO:projects END -->
 

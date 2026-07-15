@@ -107,6 +107,21 @@
   live_url: https://it-journey.dev
   docs_url: https://it-journey.dev
 
+- name: wargames
+  slug: wargames
+  submodule_path: projects/wargames
+  branch: main
+  repo_url: https://github.com/bamr87/wargames
+  description: Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey.
+  stack: [python, shell, markdown]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  license: MIT
+
 - name: zer0-mistakes
   slug: zer0-mistakes
   submodule_path: projects/zer0-mistakes
@@ -143,9 +158,23 @@
   release:
     engine: release-please
     type: ruby
-    registries: [github]     # rubygems publish is a follow-up (needs RUBYGEMS_API_KEY)
+    registries: [rubygems, github]   # CI publish still needs the RUBYGEMS_API_KEY secret
     status: adopted
   license: MIT
+
+- name: gitorio
+  slug: gitorio
+  submodule_path: projects/gitorio
+  branch: main
+  repo_url: https://github.com/bamr87/gitorio
+  description: Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions workflows running Claude Code agents.
+  stack: [typescript, github-actions, ai]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
 
 - name: barodybroject
   slug: barodybroject
@@ -383,6 +412,20 @@
   live_url: https://bamr87.github.io
   docs_url: null
 
+- name: lifehacker.dev
+  slug: lifehacker.dev
+  submodule_path: projects/lifehacker.dev
+  branch: main
+  repo_url: https://github.com/bamr87/lifehacker.dev
+  description: Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages.
+  stack: [jekyll, ruby]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: https://lifehacker.dev
+  docs_url: null
+
 - name: zer0-pages-remote
   slug: zer0-pages-remote
   submodule_path: projects/zer0-pages-remote
@@ -525,6 +568,20 @@
   live_url: null
   docs_url: null
 
+- name: Dodge-and-Reena-Book
+  slug: Dodge-and-Reena-Book
+  submodule_path: projects/Dodge-and-Reena-Book
+  branch: main
+  repo_url: https://github.com/bamr87/Dodge-and-Reena-Book
+  description: Children's picture book — Deputy Dodge & Ranger Reena monthly mystery stories with a full illustration guide.
+  stack: [markdown]
+  category: docs
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
 - name: zer0-pages
   slug: zer0-pages
   submodule_path: projects/zer0-pages
@@ -583,6 +640,19 @@
   docs_url: null
 
 # ---------------------------------------------------------------------------
-# External repositories (surfaced in the dash; not git submodules) — none
-# currently. Add entries here with submodule_path: null.
+# External repositories (surfaced in the dash; not git submodules).
+# Add entries here with submodule_path: null.
 # ---------------------------------------------------------------------------
+- name: .github
+  slug: dot-github
+  submodule_path: null      # org-level repo; a hidden dir under projects/ would be fragile
+  branch: main
+  repo_url: https://github.com/bamr87/.github
+  description: Shared CI/release automation (reusable workflows, release-please, publish) + community health files for all bamr87 repos.
+  stack: [github-actions]
+  category: dash
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
