@@ -261,3 +261,182 @@
   source: scout
   created: 2026-07-06
   issue_url: null
+
+- id: FF-0006
+  title: "Impact verification for actions-review issues — measure before/after waste per filed optimization"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    The Actions AI-reviewer loop (actions_review.py + actions-review.yml) files
+    one optimization issue per worst-offending workflow, but nothing measures
+    whether a filed or resolved issue actually reduced that workflow's waste. The
+    reviewer's own ROI — is the Opus spend buying real minute savings? — is
+    unmeasured, and recommendations that worked can't be told apart from ones that
+    were ignored or made no difference.
+  proposal: >-
+    Add a deterministic follow-up pass (e.g. `tools/dash-gen actions-impact`, or a
+    step after the reviewer) that, for each `actions-review` issue (identified by
+    the hidden `<!-- actions-review key="..." -->` marker), compares the target
+    workflow's current analytics metrics (waste_min, effectiveness_pct, avg_min,
+    total_min) against a baseline captured when the issue was filed, computes a
+    before/after delta, and posts/updates an issue comment (and/or a small
+    committed impact ledger keyed by marker) — e.g. "waste 62m → 8m (-87%) since
+    #NN." Requires persisting the baseline snapshot at issue-creation time (in the
+    issue body next to the marker, or a committed ledger), since actions_usage.yml
+    is overwritten daily. Surface an aggregate "minutes recovered by the reviewer
+    loop" figure on /actions/.
+  acceptance:
+    - "Each actions-review issue records a baseline metric snapshot (waste/effectiveness/avg/total) at creation time, keyed by its marker."
+    - "A follow-up pass recomputes the same metrics from the latest analytics and posts a before/after delta per open/resolved issue."
+    - "Workflows that improved past a threshold are flagged (optionally auto-commented / close-suggested); issues with no improvement after N days are flagged stale/ineffective."
+    - "The /actions/ page shows an aggregate 'minutes recovered since issue filed' for resolved recommendations."
+    - "The measurement runs deterministically without the AI step (impact is computed in code, not by a model)."
+    - "Degrades gracefully when a target workflow was renamed or deleted between baseline and recompute."
+  scope:
+    in:
+      - baseline capture at issue creation, delta-recompute pass, per-issue comment + aggregate /actions/ surfacing
+    out:
+      - automatic issue closing without human confirmation
+      - causal attribution of the improvement to the fix (report it as observational/correlational)
+  risks:
+    - Correlation is not causation — a workflow may improve for unrelated reasons; label deltas as observational.
+    - Baseline needs durable storage (issue-body marker or committed ledger) because actions_usage.yml is overwritten daily.
+    - Workflow rename/deletion breaks the marker→workflow key match — handle missing targets explicitly.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
+
+- id: FF-0007
+  title: "Retain a rolling Actions-analytics history and flag regressions/anomalies day-over-day"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: M
+  category: infra
+  problem: >-
+    actions_analytics writes a single committed snapshot (_data/actions_usage.yml)
+    that is overwritten daily. There is no retained history, so a workflow that
+    suddenly regresses — jumps from 40m to 400m, or whose success rate collapses —
+    is invisible beyond that day's numbers, and nothing proactively surfaces it;
+    you'd only catch it by manually diffing the page.
+  proposal: >-
+    Retain a compact, bounded time series of the per-workflow/per-repo metrics
+    (append a committed history file such as _data/actions_usage_history.yml keyed
+    by date + workflow marker, rolled to a retention window) and add a regression
+    detector to the daily pass that compares the latest window against a trailing
+    baseline, flagging workflows whose total_min/avg_min/waste_min spiked or whose
+    effectiveness/success_rate dropped beyond configurable thresholds. Render
+    regressions as a distinct band on /actions/ and optionally feed a `regressed`
+    flag into the actions-review candidate selection so a fresh regression is
+    prioritized. This history is also the substrate FF-0006 needs for baselines.
+  acceptance:
+    - "The daily pass appends a compact per-workflow metric history that stays committable, small, and bounded to a retention window/rollup."
+    - "A regression check flags workflows whose total_min/avg_min/waste_min rose or whose effectiveness/success_rate fell beyond configurable thresholds vs a trailing baseline."
+    - "Regressions render as a distinct 'newly regressed' section on /actions/ with before/after numbers."
+    - "actions_review.select() can prioritize a `regressed` flag so fresh regressions enter the work order."
+    - "Regression thresholds are tunable constants alongside the existing analytics thresholds."
+    - "History-file growth is bounded and the bound is enforced (verified so the drift gate stays green)."
+  scope:
+    in:
+      - bounded history-retention file, regression detector + thresholds, /actions/ surfacing, optional select() integration
+    out:
+      - external alerting (email/Slack) — page surfacing + feeding the reviewer is enough
+      - a full time-series database (bounded YAML/JSON is sufficient at this scale)
+  risks:
+    - A committed history file can grow unbounded — enforce a retention window/rollup.
+    - Naturally spiky workflows create noise — require a minimum absolute delta plus a percentage.
+    - Window overlap could double-count — key strictly by date.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
+
+- id: FF-0008
+  title: "Let the Actions reviewer open high-confidence mechanical fix PRs into submodules (opt-in)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: L
+  category: feature
+  problem: >-
+    The Actions AI-reviewer only FILES issues; a human must still open every fix
+    PR into the submodule. For a class of high-confidence, mechanical fixes —
+    missing `concurrency: cancel-in-progress`, missing `timeout-minutes`, obvious
+    dependency caching, an over-frequent cron — that round-trip is pure toil, and
+    many issues will sit unactioned.
+  proposal: >-
+    Extend the loop with an opt-in "fix" mode that, for candidates whose
+    recommended change is mechanical and high-confidence, opens ONE draft PR
+    directly into the target submodule — reusing the standardize-fanout /
+    unified-evolution claude-code-action pattern and reading the submodule's branch
+    from .gitmodules/the registry (never assuming main). Each PR links back to its
+    originating actions-review issue and stays strictly gated: an allowlist of
+    change types, a per-run PR cap, draft-only, requires ANTHROPIC_API_KEY plus a
+    dedicated fine-grained PAT with contents/PR write, and dry-run by default.
+    Low-confidence or non-mechanical findings continue to file issues only.
+  acceptance:
+    - "An opt-in mode opens at most a capped number of DRAFT PRs per run, only for an allowlisted set of mechanical fixes (concurrency, timeout-minutes, caching, cron cadence)."
+    - "Each PR targets the correct submodule + branch (read from .gitmodules/registry, not assumed main), references the source actions-review issue, and contains only the scoped change."
+    - "Non-mechanical or low-confidence candidates fall back to issue-only (current behavior)."
+    - "The mode is off by default, requires explicit dispatch/flag, and is skipped when the required secrets are absent."
+    - "PRs dedupe against already-open fix PRs for the same workflow marker."
+    - "docs/DASH.md documents the escalation ladder: measure → file issue → (opt-in) draft fix PR."
+  scope:
+    in:
+      - opt-in fix mode, mechanical-change allowlist, draft PR into the submodule, issue linkage, guardrails
+    out:
+      - auto-merge of the fix PRs
+      - non-mechanical / semantic fixes
+      - touching more than one workflow per PR
+  risks:
+    - Opening PRs across ~36 external submodule repos automatically is high-blast-radius — draft-only, capped, allowlisted, opt-in.
+    - Submodule branch/permission variance — must read the branch from the registry and hold a PAT scoped to the fleet.
+    - A wrong "mechanical" fix (e.g. too-low timeout) could break CI — keep the allowlist conservative and PRs draft for human review.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
+
+- id: FF-0009
+  title: "Surface Actions waste and open actions-review issues on the /monitor/ attention board"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P3
+  effort: S
+  category: enhancement
+  problem: >-
+    Actions waste and the AI reviewer's open `actions-review` issues live only on
+    /actions/ and in the bamr87 issue tracker, disconnected from the /monitor/
+    attention board (which ranks repos by health: CI, issues, PRs, security,
+    activity). A repo bleeding CI minutes or carrying open optimization issues
+    doesn't raise its attention rank or show up where a maintainer triages.
+  proposal: >-
+    Fold Actions signals into the monitor surface: join per-repo Actions waste
+    (from actions_usage.yml `by_repo`) and open actions-review issue counts into
+    the health/attention model so a high-waste or optimization-backlogged repo is
+    reflected on /monitor/, and/or add a compact "Actions attention" strip linking
+    each flagged workflow to its /actions/ row and its optimization issue. Read-only
+    aggregation over existing committed/generated data — no new collection.
+  acceptance:
+    - "The /monitor/ board (or an adjacent strip) shows per-repo Actions waste and open actions-review issue count from existing data files."
+    - "A repo with significant Actions waste or open optimization issues is visibly surfaced (badge/column or a modest attention-rank contribution)."
+    - "Links connect a flagged repo to its /actions/ detail and its open optimization issue(s)."
+    - "No new API calls beyond joining actions_usage.yml with issue counts health already gathers."
+    - "Degrades cleanly when actions_usage.yml is absent."
+  scope:
+    in:
+      - join Actions waste + actions-review issue counts into the monitor surface; cross-links
+    out:
+      - materially rewriting the attention_rank algorithm (a modest signal contribution is fine)
+      - any new data collection beyond existing generated files
+  risks:
+    - Over-weighting Actions waste could drown out health signals — keep it a modest input or a separate strip.
+    - Public-repo minutes are free, so waste is an effort signal, not a dollar signal — label accordingly.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
