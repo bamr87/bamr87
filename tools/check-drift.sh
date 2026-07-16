@@ -2,10 +2,10 @@
 # ============================================================================
 # tools/check-drift.sh — hard drift gate for the dash
 #
-# Checks (each contributes to the exit status unless --report):
+# Checks ((a,b,d,e,h) gate the exit status unless --report; (c,f,g) warn only):
 #   (a) registry <-> .gitmodules parity + no stray/unregistered project dirs
 #   (b) README.md AUTO:projects span is up to date
-#   (c) broken internal links in the built dash        (--links only; needs _site)
+#   (c) broken internal links in the built dash        (warn; --links only; needs _site)
 #   (d) every top-level module dir has a README
 #   (e) each submodule is on its declared branch
 #   (f) submodule standardization conformance          (warn; see `dash audit`)
@@ -15,6 +15,10 @@
 #       with each other while both are stale vs GitHub (renames, org moves,
 #       deletions). Advisory because the default CI token is repo-scoped, so a
 #       private submodule can 404; self-skips if the API is unreachable.
+#   (h) SCHEMA.md pyramid: the hub pyramid lints green (schema errors gate;
+#       stray-file warnings only warn) and the generated projects/SCHEMA.md
+#       matches .gitmodules + the registry. Offline, submodule-content-agnostic,
+#       so it runs in CI too.
 #
 # (e) is LOCAL-ONLY (skipped when submodules aren't checked out, e.g. CI).
 # (c) the internal-link check needs a built _site + lychee, so it is NOT part of

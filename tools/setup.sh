@@ -23,7 +23,6 @@
 #     cv                  CV Builder (Node.js/React)
 #     docs                Documentation system (Python/MkDocs)
 #     scripts             Shell scripts and utilities (forkme, stashme, etc.)
-#     wiki                Wiki.js (Docker only)
 #
 #   SCRIPT TOOLS INSTALLED:
 #     forkme              GitHub repo forking/cloning utility (interactive batch mode)
@@ -169,7 +168,6 @@ usage() {
     echo "  cv                    CV Builder (Node.js/React/Vite)"
     echo "  docs                  Documentation system (Python/MkDocs)"
     echo "  scripts               Shell script utilities"
-    echo "  wiki                  Wiki.js (Docker compose service)"
     echo ""
     echo "  If no components are specified, all are set up."
     echo ""
@@ -342,8 +340,7 @@ run_interactive() {
     multi_select_prompt "Which components do you want to set up?" \
         "cv:CV Builder (Node.js/React/Vite)" \
         "docs:Documentation system (Python/MkDocs)" \
-        "scripts:Script toolkit (forkme, stashme, git-init, project-wizard, etc.)" \
-        "wiki:Wiki.js (Docker compose service)"
+        "scripts:Script toolkit (forkme, stashme, git-init, project-wizard, etc.)"
     COMPONENTS=("${MULTI_CHOICES[@]}")
     log_debug "Selected components: ${COMPONENTS[*]}"
 
@@ -790,14 +787,6 @@ setup_docker() {
 
     cd "$PROJECT_ROOT"
 
-    # Ensure root docker-compose.yml exists
-    if [[ ! -f "docker-compose.yml" ]]; then
-        log_info "Creating root docker-compose.yml..."
-        run_cmd cp "${SCRIPT_DIR}/docker-compose.dev.yml" docker-compose.yml 2>/dev/null || {
-            log_warn "No docker-compose.dev.yml template found; skipping root compose creation"
-        }
-    fi
-
     # Ensure devcontainer config exists
     if [[ ! -d ".devcontainer" ]]; then
         log_info "Dev container configuration found at .devcontainer/"
@@ -1057,9 +1046,9 @@ setup_env_files() {
     cd "${PROJECT_ROOT}"
 
     # Root .env from example
-    if [[ -f "scripts/env.example" && ! -f ".env" ]]; then
-        log_info "Creating .env from scripts/env.example..."
-        run_cmd cp scripts/env.example .env
+    if [[ -f ".env.example" && ! -f ".env" ]]; then
+        log_info "Creating .env from .env.example..."
+        run_cmd cp .env.example .env
         log_warn "Review and edit .env with your configuration values."
     elif [[ -f ".env" ]]; then
         log_debug ".env already exists"
@@ -1167,7 +1156,7 @@ parse_arguments() {
             --all)           DEV_MODE="all"; shift ;;
             --version)       echo "${SCRIPT_NAME} v${SCRIPT_VERSION}"; trap - EXIT ERR; exit 0 ;;
             -*)              log_error "Unknown option: $1"; usage ;;
-            cv|docs|scripts|wiki)
+            cv|docs|scripts)
                 COMPONENTS+=("$1"); shift ;;
             *)               log_error "Unknown component: $1"; usage ;;
         esac
