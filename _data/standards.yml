@@ -97,18 +97,17 @@ status_tier:
   archived: archived
 
 # Explicit per-project tier overrides (project name -> tier).
+# Keys MUST be exact registry `name` values from _data/projects.yml —
+# stale/mismatched entries silently no-op.
 tier_overrides:
   # forks: standardize only what bamr87 adds; upstream owns the baseline
   skills: fork
-  django-erp: fork          # PostHog fork (registry metadata mislabels it)
+  djangoerp: fork           # PostHog fork (registry metadata mislabels it)
   jekyll: fork
   sonic-pi: fork
   vscode-front-matter: fork
   skills-github-pages: archived   # archived fork
-  digitalBookstore: archived
   # pure content / knowledge bases (no build, no tests)
-  "1764": content
-  "1897": content
   "1987": content
   "2005": content
   books: content
