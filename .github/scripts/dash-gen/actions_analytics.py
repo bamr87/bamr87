@@ -232,6 +232,11 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
         scanned += 1
         name = project["name"]
         repo_url = project.get("repo_url")
+        # External mirrors (upstream not bamr87, e.g. microsoft/skills) stay
+        # visible per-workflow but are excluded from fleet KPIs and triage:
+        # their spend isn't ours to optimize and their "failures" can be
+        # by-design signals (see bamr87/bamr87#24).
+        external = not nwo.startswith("bamr87/")
 
         # per-workflow buckets for this repo
         wf_buckets: dict[int, dict] = {}
@@ -242,7 +247,9 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
             b["_path"] = rec["path"]
             fold(b, rec)
             wtype = classify_type(rec["name"], rec["path"])
-            # roll up type / repo / day
+            # roll up type / repo / day — bamr87-owned repos only
+            if external:
+                continue
             for agg, key in ((by_type, wtype), (by_repo, name), (by_day, rec["day"])):
                 if key is None:
                     continue
@@ -252,7 +259,7 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
             wtype = classify_type(b["_name"], b["_path"])
             sched = b["events"].get("schedule", 0)
             workflows.append({
-                "repo": name, "repo_url": repo_url,
+                "repo": name, "repo_url": repo_url, "external": external,
                 "workflow": b["_name"], "type": wtype, "path": b["_path"],
                 "runs": b["runs"],
                 "total_min": round(b["total_min"], 1),
@@ -288,11 +295,16 @@ def summarize(bucket: dict) -> dict:
 
 
 def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) -> dict:
-    grand_min = sum(w["total_min"] for w in workflows) or 1.0
-    median_min = statistics.median([w["total_min"] for w in workflows]) if workflows else 0.0
+    owned = [w for w in workflows if not w.get("external")]
+    grand_min = sum(w["total_min"] for w in owned) or 1.0
+    median_min = statistics.median([w["total_min"] for w in owned]) if owned else 0.0
 
-    # optimization flags per workflow
+    # optimization flags per workflow (external mirrors: visible, never flagged)
     for w in workflows:
+        if w.get("external"):
+            w["flags"] = []
+            w["priority"] = 0.0
+            continue
         flags = []
         completed = w["success"] + w["failure"] + w["cancelled"]
         if (w["total_min"] >= median_min and w["effectiveness_pct"] < LOW_EFFECTIVENESS
