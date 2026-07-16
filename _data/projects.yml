@@ -696,7 +696,8 @@
   live_url: null
   docs_url: null
   schema:
-    status: none
+    status: adopted
+    pr: https://github.com/bamr87/zer0-pages/pull/4
 
 # --- Forks of upstream tools -----------------------------------------------
 - name: sonic-pi
