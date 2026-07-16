@@ -26,6 +26,12 @@
 #                            registries: [rubygems|npm|pypi|ghcr|github]
 #                            status: adopted (merged) | pending (PR open) | none
 #                            pr: optional adoption PR URL
+#   schema         optional  Pyramid Schema adoption (SCHEMA.md structural contracts,
+#                            seeded from templates/schema/ via tools/seed-schema.sh or
+#                            the schema-fanout workflow; see docs/SCHEMA-FRAMEWORK.md).
+#                            Sub-keys:
+#                            status: adopted (merged) | pending (PR open) | none
+#                            pr: optional adoption PR URL
 #   license        optional  SPDX id (e.g. MIT, Apache-2.0) or null if none yet
 #   tier           optional  standardization tier override (active|experiment|
 #                            content|fork|archived). Normally derived from status

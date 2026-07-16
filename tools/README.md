@@ -18,6 +18,9 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
 | `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, …) — see [docs/DASH.md](../docs/DASH.md) |
 | `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
+| `schema_lint.py` | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
+| `gen-projects-schema.py` | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
+| `seed-schema.sh` | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 
 ## Architecture
 
