@@ -1,0 +1,7 @@
+kit: agent-context
+version: 0.1.0
+source: bamr87/bamr87 templates/agent-context/
+seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude) via tools/fanout.sh
+files: CLAUDE.template.md, claude.yml
+updated: 2026-07-16
+notes: CLAUDE.template.md is seeded only when the target has NO agent-context file (CLAUDE.md/AGENTS.md/copilot-instructions/.cursorrules); claude.yml only when .github/workflows/claude.yml is absent. Both additive-only, never overwrite.
