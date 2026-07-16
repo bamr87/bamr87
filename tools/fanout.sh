@@ -145,12 +145,18 @@ run_one() {
     if [[ "$APPLY" -eq 0 ]]; then
       echo "${slug}: DRY RUN — would open PR:"; git show --stat HEAD | head -25; exit 0
     fi
-    # A depth-1 (single-branch) clone has no tracking ref for the kit branch,
-    # and its restricted fetch refspec means a plain fetch lands in FETCH_HEAD
-    # only — fetch with an explicit refspec so --force-with-lease has lease
-    # info when the branch already exists remotely (re-run / earlier fan-out).
-    git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" >/dev/null 2>&1 || true
-    git push -u origin "$BRANCH" --force-with-lease
+    # The kit branch is machine-owned: re-runs regenerate it. Bare
+    # --force-with-lease is useless here — a single-branch clone's fetch
+    # refspec doesn't map the kit branch, so git ignores even an explicitly
+    # fetched tracking ref and rejects with 'stale info'. Fetch the remote
+    # tip and lease on it EXPLICITLY; if the branch doesn't exist yet, a
+    # plain push creates it.
+    if git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" >/dev/null 2>&1; then
+      git push -u origin "$BRANCH" \
+        --force-with-lease="${BRANCH}:$(git rev-parse "refs/remotes/origin/${BRANCH}")"
+    else
+      git push -u origin "$BRANCH"
+    fi
     gh pr create --repo "$slug" --base "$def" --head "$BRANCH" \
       --title "$PR_TITLE" --body "$PR_BODY" \
       || echo "${slug}: PR may already exist"
