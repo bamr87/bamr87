@@ -85,12 +85,11 @@ Check that all submodules are properly initialized:
 git submodule status
 ```
 
-You should see:
+You should see one line per registered submodule (~41 in total), e.g.:
 ```bash
- <commit> README (heads/main)
- <commit> cv (heads/main)
- <commit> scripts (heads/master)
- <commit> skills (heads/main)
+ <commit> projects/README (heads/main)
+ <commit> projects/scripts (heads/master)
+ ...
 ```
 
 ### 3. Install Dependencies
@@ -148,7 +147,9 @@ cd projects/cv-builder-pro
 npm run dev
 ```
 
-Access at: http://localhost:5173
+Access at: http://localhost:5173 (Vite's default). Inside the compose `devenv`
+container the server is exposed on port 5000 instead (see `docker-compose.yml`
+and the `npm run kill` script).
 
 ### Documentation Site
 
@@ -230,11 +231,11 @@ Access at: http://localhost:3000
    git push origin feature/new-feature
    ```
 
-5. **Return to parent and update pointer**:
+5. **Return to the repo root and update the pointer**:
    ```bash
-   cd ..
-   git add cv
-   git commit -m "chore: update cv submodule"
+   cd ../..
+   git add projects/cv-builder-pro
+   git commit -m "chore: update cv-builder-pro submodule"
    git push
    ```
 
@@ -248,10 +249,11 @@ cd projects/cv-builder-pro
 npm run lint
 ```
 
-**Python (Documentation):**
+**Python (Documentation)** — the repo toolchain is black + flake8 (pre-commit,
+scoped to `projects/README/**/*.py`; max line 120):
 ```bash
-cd projects/README
-pylint projects/scripts/*.py
+black projects/README/scripts/
+flake8 --max-line-length 120 projects/README/scripts/
 ```
 
 **Shell Scripts:**
@@ -289,9 +291,13 @@ pre-commit run --all-files
 
 ### CV Builder Tests
 
+There is no `npm test` script — tests are Cypress e2e specs under
+`cypress/e2e/`, run against a running dev server:
+
 ```bash
 cd projects/cv-builder-pro
-npm run test
+npm run dev &        # or use the compose devenv container
+npx cypress run
 ```
 
 ### Documentation Tests
@@ -332,6 +338,12 @@ XAI_API_KEY=your-xai-key
 OPENAI_API_KEY=your-openai-key
 ```
 
+### AI Layer (Claude)
+
+The dash's AI workflows and MCP servers have their own auth (OAuth token /
+API key / GitHub tokens) — see [AI-INTEGRATION.md](AI-INTEGRATION.md) for the
+secrets matrix and one-time setup.
+
 ## Troubleshooting
 
 ### Submodule Issues
@@ -350,8 +362,10 @@ cd ..
 
 **Problem**: Submodule changes not showing
 ```bash
-git submodule foreach git pull origin main
+./tools/update-submodules.sh    # refreshes each onto its declared branch
 ```
+(Avoid `git submodule foreach git pull origin main` — not every submodule
+tracks `main`: `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`.)
 
 ### Build Issues
 
@@ -416,7 +430,7 @@ git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com
 ### Parallel Submodule Operations
 
 ```bash
-git submodule foreach --recursive git pull origin main
+git submodule update --remote --jobs 8   # respects each submodule's declared branch
 ```
 
 ### Incremental Builds

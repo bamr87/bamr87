@@ -31,7 +31,7 @@ follow.
 |---|---|---|
 | Registry | Single source of truth | `_data/projects.yml` |
 | Submodules | All projects, flat under one container | `projects/<name>/` (see [`projects/README.md`](../projects/README.md)) |
-| Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection | `pages/_dash/` → `bamr87.github.io/bamr87/` |
+| Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection (portfolio, dashboard, monitor, toolbox, actions, ai-activity, roadmap, resume, docs) | `pages/_dash/` → `bamr87.github.io/bamr87/` |
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
 | AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
 | Actions usage | GitHub Actions cost/effectiveness analytics (via PyGithub, daily-committed) | `.github/scripts/dash-gen/actions_analytics.py` → `_data/actions_usage.yml` → `/actions/`; refreshed by `actions-usage.yml` |
@@ -40,24 +40,33 @@ follow.
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
 | Standards | Per-tier baseline + conformance audit | `_data/standards.yml`, `tools/audit-standards.sh` (`dash audit`), [`docs/STANDARDS.md`](STANDARDS.md) |
-| Propagation | Standardization PRs *into* submodules | `.github/workflows/standardize-fanout.yml` + `standard-ci.yml` (`workflow_call`) |
+| Schema | Per-directory `SCHEMA.md` structural contracts + linter | `tools/schema_lint.py`, `tools/gen-projects-schema.py`, [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) |
+| Propagation | Standardization + schema PRs *into* submodules | `tools/fanout.sh` via `.github/workflows/standardize-fanout.yml` + `schema-fanout.yml`; `standard-ci.yml` (`workflow_call`) |
 | Auto-fix bots | Scheduled PRs | `update-submodules.yml`, `refresh-dash.yml`, `dependabot.yml` |
 | AI layer | Skills, commands, MCP | `.claude/`, `.mcp.json` |
 | Future-Features | Capture feature ideas → roadmap | `_data/roadmap.yml`, `/future-features`, `feature-scout` agent + session hooks (`.claude/`) |
-| Self-evolution | Weekly AI pass | `.github/workflows/unified-evolution.yml` (Claude Code) |
+| Self-evolution | Dispatch-only AI pass (`tools/dash evolve`) | `.github/workflows/unified-evolution.yml` (Claude Code) |
 
 ## The dash CLI
 
 ```bash
-tools/dash status     # submodules + registry + drift
-tools/dash monitor    # refresh health, print repos needing attention
-tools/dash serve      # serve the Jekyll dash locally (docker, :4000)
-tools/dash sync       # update submodules + regenerate dash data
-tools/dash run <tool> # run a projects/scripts/ submodule tool (forkme, stashme, ...)
-tools/dash new <name> # scaffold + register a new project
-tools/dash evolve     # trigger the AI evolution workflow
-tools/dash ai         # shadow-priced Claude Code usage per repo (local-only)
-tools/dash gen all    # run the generator (health + README)
+tools/dash status         # submodules + registry + drift
+tools/dash audit [name]   # standardization conformance matrix (--gate to fail on gaps)
+tools/dash monitor        # refresh health, print repos needing attention
+tools/dash actions        # GitHub Actions usage analytics (cost/effectiveness by workflow)
+tools/dash actions-review # triage worst workflows → reviewer work order
+tools/dash serve          # serve the Jekyll dash locally (docker, :4000)
+tools/dash sync           # update submodules + regenerate dash data
+tools/dash foreach <cmd>  # run a shell command in every checked-out submodule
+tools/dash run <tool>     # run a projects/scripts/ submodule tool (forkme, stashme, ...)
+tools/dash new <name>     # scaffold + register a new project
+tools/dash adopt-release <repo>  # scaffold the release-please pipeline (--all)
+tools/dash protect <repo> # require the CI gate on a repo's default branch (--all)
+tools/dash evolve         # trigger the AI evolution workflow
+tools/dash ai             # shadow-priced Claude Code usage per repo (local-only)
+tools/dash doctor         # environment checks (setup.sh --dry-run)
+tools/dash test           # run the aggregate test suite
+tools/dash gen all        # run the generator (health + README)
 ```
 
 ## Monitoring & "needs attention"
@@ -116,7 +125,9 @@ The Actions layer doesn't just *report* waste — it closes the loop:
    and opens ONE GitHub issue per candidate in `bamr87/bamr87` — each naming the
    submodule + its workflow/responsibility with a concrete proposed fix (caching,
    `concurrency`, `timeout-minutes`, trigger gating, cron cadence, a failing-step
-   fix…). Gated on `ANTHROPIC_API_KEY`; skipped when absent.
+   fix…). Gated on Claude auth (`CLAUDE_CODE_OAUTH_TOKEN` preferred,
+   `ANTHROPIC_API_KEY` fallback — see [AI-INTEGRATION.md](AI-INTEGRATION.md));
+   self-skips when absent.
 
 Run the triage locally with `tools/dash actions-review` (add `--no-enrich` to skip
 the run-link lookups); the analytics itself is `tools/dash actions`.
@@ -126,9 +137,16 @@ the run-link lookups); the analytics itself is `tools/dash actions`.
 **Hard gates** ([`tools/check-drift.sh`](../tools/check-drift.sh), run by
 `drift-check.yml` — a fast offline+API check, no site build) fail CI on: registry
 ↔ `.gitmodules` mismatch, stray/unregistered project dirs, a stale README AUTO
-span, and missing top-level READMEs. Advisory (non-gating): GitHub-reality drift
-(renames/deletions/branch) and standardization. The internal-link check is
-local-only (`tools/check-drift.sh --links`, needs a built `_site`).
+span, missing top-level READMEs, and SCHEMA.md pyramid errors or a stale
+generated `projects/SCHEMA.md` (check (h), `tools/schema_lint.py`). Advisory
+(non-gating): GitHub-reality drift (renames/deletions/branch) and
+standardization. The internal-link check is local-only
+(`tools/check-drift.sh --links`, needs a built `_site`).
+
+**Pyramid Schema**: every directory carries a lintable `SCHEMA.md` contract of
+what lives where ([SCHEMA-FRAMEWORK.md](SCHEMA-FRAMEWORK.md)). `projects/SCHEMA.md`
+is generated by `tools/gen-projects-schema.py`; submodules adopt their own
+pyramids via the seed kit (`tools/seed-schema.sh`) or `schema-fanout.yml`.
 
 **Auto-fix bots** open PRs (never direct pushes to `master`): submodule pointer
 bumps (`update-submodules.yml`), projects/README/registry refresh (`refresh-dash.yml`),
@@ -142,8 +160,10 @@ gitignored — generated on each deploy so it never flaps the gate.
 `triage-attention` reads the Monitor signals → `sync-project-docs` updates the
 registry → `evolve-project` makes a focused improvement → `refresh-portfolio`
 regenerates → PR to `main` → gates verify → human merges → dash republishes. The CI
-counterpart is `unified-evolution.yml` (weekly, via `anthropics/claude-code-action`,
-needs the `ANTHROPIC_API_KEY` secret). So "which repos need attention" both shows
+counterpart is `unified-evolution.yml` (**dispatch-only** — trigger via
+`tools/dash evolve`; via `anthropics/claude-code-action`; auth:
+`CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see
+[AI-INTEGRATION.md](AI-INTEGRATION.md)). So "which repos need attention" both shows
 on the frontend and steers what the AI works on next.
 
 ## One-time setup
@@ -151,6 +171,10 @@ on the frontend and steers what the AI works on next.
 1. Repo **Settings → Pages → Source = "GitHub Actions"** (the dash deploys via
    `build-dash.yml`, the sole Pages surface; the old MkDocs `build-docs.yml` has
    been removed).
-2. Add the `ANTHROPIC_API_KEY` repo secret to enable `unified-evolution.yml`.
+2. Provision Claude auth for the AI workflows (`claude.yml`, `actions-review.yml`,
+   `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`): `claude setup-token`
+   → `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87` (preferred;
+   `ANTHROPIC_API_KEY` is the fallback). Full secrets matrix:
+   [AI-INTEGRATION.md](AI-INTEGRATION.md).
 3. `pip install -r .github/scripts/dash-gen/requirements.txt` and `gh auth login`
    for local `tools/dash-gen health`.
