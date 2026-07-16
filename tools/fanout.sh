@@ -120,6 +120,9 @@ run_one() {
   if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
     echo "skip ${slug}: clone failed"; echo "::endgroup::"; rm -rf "$work"; return 0
   fi
+  # gh authenticates the clone itself but not later pushes from this repo —
+  # route git credentials through gh (uses GH_TOKEN in CI, keyring locally).
+  git -C "$work" config credential.helper '!gh auth git-credential'
   # Seed in a subshell whose exit code we capture WITHOUT a condition context
   # (that would suppress errexit inside it), so cleanup always runs and a
   # failure is reported to the caller instead of aborting the whole script.
