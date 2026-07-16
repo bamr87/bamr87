@@ -11,7 +11,9 @@ name: 🔬 Actions Optimization Review
 # referencing the submodule, its workflow/responsibility, and a proposed fix.
 #
 # Guardrails: candidate selection + dedupe are code (the AI can't spam); a per-run
-# cap bounds issues; the AI step is skipped unless ANTHROPIC_API_KEY is set.
+# cap bounds issues; the AI step is skipped unless Claude auth is provisioned
+# (CLAUDE_CODE_OAUTH_TOKEN preferred, ANTHROPIC_API_KEY fallback — see
+# docs/AI-INTEGRATION.md).
 #
 # Token: GITHUB_TOKEN can create issues here + read PUBLIC submodule run data.
 # Add ACTIONS_ANALYTICS_TOKEN (fine-grained PAT, actions:read on the fleet) to let
@@ -43,21 +45,17 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # Skip when the upstream analytics run failed (nothing fresh to review). Manual
     # dispatch always proceeds.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     env:
       # secrets can't be read in a step `if`; surface presence here as a plain env.
-      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install deps
-        run: pip install -r .github/scripts/dash-gen/requirements.txt
+      - uses: ./.github/actions/setup/dash-gen
 
       - name: Ensure labels exist
         env:
@@ -81,12 +79,13 @@ jobs:
         run: cat actions-review-workorder.md || true
 
       - name: AI review & file issues
-        if: ${{ steps.triage.outputs.has_candidates == 'true' && (github.event.inputs.dry_run || 'false') != 'true' && env.HAS_ANTHROPIC_KEY == 'true' }}
+        if: ${{ steps.triage.outputs.has_candidates == 'true' && (github.event.inputs.dry_run || 'false') != 'true' && env.HAS_CLAUDE_AUTH == 'true' }}
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
           claude_args: >-
             --model opus

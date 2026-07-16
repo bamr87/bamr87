@@ -1,4 +1,4 @@
-name: Update Submodules
+name: 🔀 Update Submodules
 
 on:
   schedule:
@@ -16,13 +16,20 @@ on:
         type: string
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: update-submodules
+  cancel-in-progress: false
 
 jobs:
   update:
     name: Update submodule pointers
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -72,7 +79,9 @@ jobs:
             done < <(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
           fi
 
-          git add .
+          # Stage ONLY submodule pointer changes — never stray root-tree edits.
+          git config --file .gitmodules --get-regexp path | awk '{ print $2 }' \
+            | while IFS= read -r p; do git add -- "$p"; done
 
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -87,7 +96,7 @@ jobs:
 
       - name: Create pull request
         if: steps.update.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s)"

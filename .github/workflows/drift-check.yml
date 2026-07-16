@@ -26,6 +26,7 @@ concurrency:
 jobs:
   drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       # Shallow, no submodules: the gate reads .gitmodules, the registry, and
       # top-level READMEs — never submodule working trees.
@@ -42,3 +43,27 @@ jobs:
         run: tools/check-drift.sh --ci
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The workflows dir's own standard ("run actionlint after editing") — enforced
+  # for the live control plane. The legacy unified-*/dispatcher suite carries
+  # ~240 pre-existing findings and is exempt until retired or fixed.
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run actionlint (control plane)
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color \
+            .github/workflows/build-dash.yml \
+            .github/workflows/drift-check.yml \
+            .github/workflows/refresh-dash.yml \
+            .github/workflows/update-submodules.yml \
+            .github/workflows/standardize-fanout.yml \
+            .github/workflows/schema-fanout.yml \
+            .github/workflows/standard-ci.yml \
+            .github/workflows/claude.yml \
+            .github/workflows/actions-usage.yml \
+            .github/workflows/actions-review.yml

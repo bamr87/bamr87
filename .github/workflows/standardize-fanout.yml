@@ -1,13 +1,19 @@
 name: standardize-fanout
 
 # Downward propagation: opens standardization PRs INTO submodule repos, seeding
-# the baseline (.editorconfig + a caller for the reusable standard-ci gate). This
-# is the complement to update-submodules.yml (which only bumps pointers UP).
+# baseline artifacts (.editorconfig, the reusable standard-ci caller, and — on
+# request — the agent-context kit: a CLAUDE.md scaffold and the @claude OAuth
+# workflow). This is the complement to update-submodules.yml (which only bumps
+# pointers UP). The clone→seed→commit→PR engine is shared with schema-fanout:
+# tools/fanout.sh (dry-run by default, PRs only, skips external upstreams,
+# additive-only seeding).
 #
-# SAFETY: dispatch-only, dry-run by default, opens PRs (never pushes to default).
-# Requires a repo secret FANOUT_TOKEN — a fine-grained PAT with contents:write +
-# pull-requests:write on the target repos (the default GITHUB_TOKEN cannot push
-# to other repositories).
+# SAFETY: dispatch-only, dry-run by default, opens PRs (never pushes to a
+# default branch). Requires a repo secret FANOUT_TOKEN — a fine-grained PAT
+# with contents:write + pull-requests:write + workflows:write on the target
+# repos (the ci/claude artifacts push .github/workflows/* files, which GitHub
+# refuses without the Workflows permission; the default GITHUB_TOKEN cannot
+# push to other repositories at all).
 
 on:
   workflow_dispatch:
@@ -17,7 +23,7 @@ on:
         type: string
         default: "all"
       artifacts:
-        description: "Comma-separated: editorconfig,ci"
+        description: "Comma-separated: editorconfig,ci,agent-context,claude"
         type: string
         default: "editorconfig,ci"
       dry_run:
@@ -35,6 +41,7 @@ concurrency:
 jobs:
   fanout:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout control plane
         uses: actions/checkout@v4
@@ -48,51 +55,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::FANOUT_TOKEN secret is required (fine-grained PAT with contents+PR write)."
+            echo "::error::FANOUT_TOKEN secret is required (fine-grained PAT with contents+PR+workflows write)."
             exit 1
           fi
-          OWNER=bamr87
-          BRANCH=chore/standardize-baseline
-          # Build the target list from .gitmodules (name = basename of path).
-          mapfile -t PATHS < <(git config -f .gitmodules --get-regexp '\.path$' | awk '{print $2}')
-          run_one() {
-            local slug="${OWNER}/$1" work
-            work="$(mktemp -d)"
-            echo "::group::${slug}"
-            if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
-              echo "skip ${slug}: clone failed"; echo "::endgroup::"; return 0
-            fi
-            local def; def="$(gh api "repos/${slug}" --jq .default_branch)"
-            ( cd "$work"
-              git checkout -b "$BRANCH"
-              local changed=0
-              case ",$ARTIFACTS," in *,editorconfig,*)
-                if [ ! -f .editorconfig ]; then cp "$GITHUB_WORKSPACE/.editorconfig" .editorconfig; changed=1; fi ;;
-              esac
-              case ",$ARTIFACTS," in *,ci,*)
-                mkdir -p .github/workflows
-                if [ ! -f .github/workflows/ci.yml ]; then
-                  sed "s/__DEFAULT_BRANCH__/${def}/g" "$GITHUB_WORKSPACE/templates/standard-ci/ci.yml" > .github/workflows/ci.yml
-                  changed=1
-                fi ;;
-              esac
-              if [ "$changed" -eq 0 ]; then echo "${slug}: already conformant"; exit 0; fi
-              git add -A
-              git -c user.name=bamr87-bot -c user.email=bot@users.noreply.github.com \
-                commit -m "chore: adopt standardization baseline (.editorconfig, CI)" >/dev/null
-              if [ "$DRY_RUN" = "true" ]; then
-                echo "${slug}: DRY RUN — would open PR:"; git show --stat HEAD | head -20; exit 0
-              fi
-              git push -u origin "$BRANCH" --force-with-lease
-              gh pr create --repo "$slug" --base "$def" --head "$BRANCH" \
-                --title "chore: adopt standardization baseline" \
-                --body "Automated by bamr87 standardize-fanout: adds \`.editorconfig\` and a caller for the shared \`standard-ci\` gate. See bamr87/bamr87 docs/STANDARDS.md." \
-                || echo "${slug}: PR may already exist"
-            )
-            rm -rf "$work"; echo "::endgroup::"
-          }
-          if [ "$TARGET" = "all" ]; then
-            for p in "${PATHS[@]}"; do run_one "$(basename "$p")"; done
-          else
-            run_one "$TARGET"
-          fi
+          APPLY=()
+          if [ "$DRY_RUN" != "true" ]; then APPLY=(--apply); fi
+          tools/fanout.sh --kit standardize --target "$TARGET" --artifacts "$ARTIFACTS" "${APPLY[@]}"

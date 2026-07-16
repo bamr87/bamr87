@@ -3,16 +3,22 @@ name: schema-fanout
 # Downward propagation of the Pyramid Schema framework: opens adoption PRs
 # INTO submodule repos, seeding the kit (vendored linter, SCHEMA.md scaffolds,
 # schema-check CI, agent protocol snippet in CLAUDE.md). Complement of
-# standardize-fanout, same safety posture: dispatch-only, dry-run by default,
-# PRs only (never pushes to a default branch), and skips submodules whose
-# upstream isn't github.com/bamr87 (e.g. the microsoft/skills mirror).
+# standardize-fanout; both ride the shared engine tools/fanout.sh — same
+# safety posture: dispatch-only, dry-run by default, PRs only (never pushes
+# to a default branch), and skips submodules whose upstream isn't
+# github.com/bamr87 (e.g. the microsoft/skills mirror).
 #
 # Secrets:
 #   FANOUT_TOKEN             required — fine-grained PAT with contents:write +
-#                            pull-requests:write on the target repos.
+#                            pull-requests:write + workflows:write on the
+#                            target repos (the kit seeds schema-check.yml,
+#                            which GitHub refuses to push without the
+#                            Workflows permission).
 #   CLAUDE_CODE_OAUTH_TOKEN  only for agent_fill — Claude Code OAuth token
 #                            (from `claude setup-token`); the agent pass turns
 #                            scaffold TODOs into real purposes on the PR branch.
+#                            ANTHROPIC_API_KEY works as a fallback. See
+#                            docs/AI-INTEGRATION.md.
 #
 # agent_fill is single-target by design: forty agent runs from one dispatch is
 # a cost decision a human should make forty times.
@@ -43,9 +49,29 @@ concurrency:
 jobs:
   seed:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      slug: ${{ steps.resolve.outputs.slug }}
     steps:
       - name: Checkout control plane
         uses: actions/checkout@v4
+
+      # agent-fill must not assume repo name == submodule dir name (e.g.
+      # edgar-data-parse's upstream is fredgar-ai) — resolve the slug from
+      # the .gitmodules URL, exactly like the engine does.
+      - name: Resolve target repo slug
+        id: resolve
+        if: ${{ inputs.target != 'all' }}
+        run: |
+          set -euo pipefail
+          sect="$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
+                  | awk -v p="projects/${{ inputs.target }}" '$2==p{print $1}' \
+                  | sed 's/^submodule\.//; s/\.path$//')"
+          if [ -z "$sect" ]; then
+            echo "::error::no submodule at projects/${{ inputs.target }}"; exit 1
+          fi
+          url="$(git config -f .gitmodules --get "submodule.${sect}.url")"
+          echo "slug=bamr87/$(basename "${url%.git}")" >> "$GITHUB_OUTPUT"
 
       - name: Open schema adoption PRs
         env:
@@ -55,66 +81,34 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::FANOUT_TOKEN secret is required (fine-grained PAT with contents+PR write)."
+            echo "::error::FANOUT_TOKEN secret is required (fine-grained PAT with contents+PR+workflows write)."
             exit 1
           fi
-          BRANCH=chore/schema-adoption
-          mapfile -t PATHS < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
-          run_one() {
-            local path="$1" name sect url slug work def
-            name="$(basename "$path")"
-            sect="$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
-                    | awk -v p="$path" '$2==p{print $1}' | sed 's/^submodule\.//; s/\.path$//')"
-            url="$(git config -f .gitmodules --get "submodule.${sect}.url")"
-            case "$url" in
-              *github.com/bamr87/*|*github.com:bamr87/*) ;;
-              *) echo "skip ${name}: external upstream (${url})"; return 0 ;;
-            esac
-            slug="bamr87/$(basename "${url%.git}")"
-            work="$(mktemp -d)"
-            echo "::group::${slug}"
-            if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
-              echo "skip ${slug}: clone failed"; echo "::endgroup::"; return 0
-            fi
-            def="$(gh api "repos/${slug}" --jq .default_branch)"
-            ( cd "$work"
-              git checkout -b "$BRANCH"
-              "$GITHUB_WORKSPACE/tools/seed-schema.sh" "$work" --apply --default-branch "$def"
-              if [ -z "$(git status --porcelain)" ]; then
-                echo "${slug}: already adopted"; exit 0
-              fi
-              git add -A
-              git -c user.name=bamr87-bot -c user.email=bot@users.noreply.github.com \
-                commit -m "docs: adopt Pyramid Schema (SCHEMA.md contracts + linter + CI)" >/dev/null
-              if [ "$DRY_RUN" = "true" ]; then
-                echo "${slug}: DRY RUN — would open PR:"; git show --stat HEAD | head -25; exit 0
-              fi
-              git push -u origin "$BRANCH" --force-with-lease
-              gh pr create --repo "$slug" --base "$def" --head "$BRANCH" \
-                --title "docs: adopt Pyramid Schema structural contracts" \
-                --body "$(printf 'Automated by bamr87 schema-fanout: seeds SCHEMA.md contracts in every directory, the vendored schema_lint.py, a schema-check CI gate, and the agent protocol in CLAUDE.md.\n\nScaffold purposes are TODO until the agent/human pass fills them (dispatch schema-fanout with agent_fill, or edit by hand). See bamr87/bamr87 docs/SCHEMA-FRAMEWORK.md.')" \
-                || echo "${slug}: PR may already exist"
-            )
-            rm -rf "$work"; echo "::endgroup::"
-          }
-          if [ "$TARGET" = "all" ]; then
-            for p in "${PATHS[@]}"; do run_one "$p"; done
-          else
-            run_one "projects/${TARGET}"
-          fi
+          APPLY=()
+          if [ "$DRY_RUN" != "true" ]; then APPLY=(--apply); fi
+          tools/fanout.sh --kit schema --target "$TARGET" "${APPLY[@]}"
 
-  # Claude Code (OAuth) fills the scaffold TODOs on the adoption branch, then
-  # pushes to the already-open PR. Runs only for a real (non-dry) single-target
-  # dispatch with agent_fill.
+  # Claude Code fills the scaffold TODOs on the adoption branch, then pushes
+  # to the already-open PR. Runs only for a real (non-dry) single-target
+  # dispatch with agent_fill. Auth: OAuth token preferred, API key fallback.
   agent-fill:
     needs: seed
     if: ${{ inputs.agent_fill && inputs.target != 'all' && !inputs.dry_run }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
     steps:
+      - name: Require Claude auth
+        if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
+        run: |
+          echo "::error::agent_fill needs CLAUDE_CODE_OAUTH_TOKEN (preferred; from 'claude setup-token') or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          exit 1
+
       - name: Checkout target adoption branch
         uses: actions/checkout@v4
         with:
-          repository: bamr87/${{ inputs.target }}
+          repository: ${{ needs.seed.outputs.slug }}
           ref: chore/schema-adoption
           token: ${{ secrets.FANOUT_TOKEN }}
 
@@ -122,6 +116,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           prompt: |
             This repository just adopted the Pyramid Schema: every directory
             carries a SCHEMA.md contract (scaffolded, purposes still TODO).
@@ -145,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           git add -A
-          if git -c user.name=bamr87-bot -c user.email=bot@users.noreply.github.com \
+          if git -c user.name=bamr87-bot -c user.email=10567847+bamr87@users.noreply.github.com \
                commit -m "docs(schema): fill scaffold purposes (Claude agent pass)"; then
             git push origin chore/schema-adoption
           else

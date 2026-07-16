@@ -1,0 +1,25 @@
+name: 'Setup dash-gen'
+description: >-
+  Python 3.12 + the dash-gen generator dependencies. Replaces the
+  setup-python/pip-install block previously copy-pasted across build-dash,
+  refresh-dash, actions-usage, and actions-review. Assumes the repo is
+  already checked out.
+inputs:
+  python-version:
+    description: 'Python version'
+    default: '3.12'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: .github/scripts/dash-gen/requirements.txt
+
+    - name: Install dash-gen dependencies
+      shell: bash
+      run: pip install -r .github/scripts/dash-gen/requirements.txt
