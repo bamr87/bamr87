@@ -13,7 +13,9 @@ Keep it in sync with reality.
 1. Read `.gitmodules` and `_data/projects.yml`.
 2. For every submodule in `.gitmodules`, ensure a registry entry exists with a
    matching `submodule_path` and `branch`. Add missing ones; fix branch
-   mismatches (remember `scripts` tracks `master`, `skills` tracks `main`).
+   mismatches — always read the branch from `.gitmodules`, never assume `main`
+   (current exceptions for reference: `scripts` + `jekyll` track `master`,
+   `sonic-pi` tracks `dev`).
 3. For each entry, confirm `repo_url`, `description`, `stack`, `category`,
    `status`, and `featured` are accurate (use the github MCP to read the repo's
    description/topics/default branch when unsure).

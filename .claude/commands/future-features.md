@@ -1,5 +1,6 @@
 ---
 description: Turn an idea into a full feature spec and place it on the right repo's roadmap (_data/roadmap.yml)
+allowed-tools: Read, Edit, AskUserQuestion, Bash(gh issue create:*)
 argument-hint: "[idea — optionally naming the target project]"
 ---
 

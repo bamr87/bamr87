@@ -1,5 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(tools/check-drift.sh*)",
+      "Bash(./tools/check-drift.sh*)",
+      "Bash(python3 tools/schema_lint.py check *)",
+      "Bash(git submodule status*)",
+      "Bash(actionlint*)",
+      "Bash(shellcheck *)",
+      "Bash(tools/audit-standards.sh*)",
+      "Bash(./tools/audit-standards.sh*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {

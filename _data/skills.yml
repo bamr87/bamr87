@@ -11,12 +11,22 @@
   description: Pull each project's current summary/status into the registry.
 - name: drift-report
   description: Explain drift-gate failures and the exact fix.
+- name: onboard-dir
+  description: Adopt or remove a stray projects/ dir that is in neither .gitmodules nor the registry.
+- name: standardize-audit
+  description: Audit the fleet against the tiered standardization baseline; explain each required gap.
+- name: standardize-project
+  description: Bring one submodule up to its tier baseline and open a PR in its own repo.
 - name: new-project
   description: Scaffold and register a new project.
 - name: triage-attention
   description: Turn Monitor-board signals into prioritized actions.
+- name: actions-triage
+  description: Explain the worst Actions workflows from _data/actions_usage.yml and drive the fix or the actions-review dispatch.
 - name: evolve-project
   description: Focused per-project improvement pass (maps to .github/agents personas).
+- name: run-dash
+  description: Orchestration hub — project map, health, per-project work orders; serve/screenshot the dash site.
 
 # --- Reusable from the projects/skills/ submodule ---
 - name: skill-creator
