@@ -63,7 +63,7 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f pyproject.toml ]; then pip install -e . 2>/dev/null || pip install . 2>/dev/null || true; fi
           for r in requirements.txt requirements/base.txt requirements-dev.txt requirements-dev.in; do
-            [ -f "$r" ] && pip install -r "$r" || true
+            if [ -f "$r" ]; then pip install -r "$r" || true; fi
           done
           pip install pytest
       - name: Test (pytest)
