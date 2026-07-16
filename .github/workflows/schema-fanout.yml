@@ -96,6 +96,9 @@ jobs:
     if: ${{ inputs.agent_fill && inputs.target != 'all' && !inputs.dry_run }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write   # claude-code-action's OIDC token exchange (no explicit github_token here)
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
     steps:
