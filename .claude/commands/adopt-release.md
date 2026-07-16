@@ -1,6 +1,7 @@
 ---
 description: Adopt the standardized release-please pipeline in a repo (scaffold + PR)
 allowed-tools: Bash(tools/adopt-release.sh:*), Bash(gh:*), Bash(git:*)
+argument-hint: "<repo name>"
 ---
 
 Adopt the standardized release pipeline for: $ARGUMENTS

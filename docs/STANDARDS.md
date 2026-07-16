@@ -44,19 +44,25 @@ Not-expected → grey.
 | .gitignore | `.gitignore` |
 | .editorconfig | `.editorconfig` (a copy of the root [`.editorconfig`](../.editorconfig) is the canonical template) |
 | CI | `.github/workflows/` with ≥1 workflow |
-| Agent context | `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md` |
+| Agent context | `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md` / `.cursorrules` |
 | Tests | a test dir or runner config (`tests/`, `pytest.ini`, `cypress/`, `*.config.ts`…) |
-| Container | `Dockerfile` / `.devcontainer/` / `docker-compose.yml` |
-| Release automation | `release-please-config.json` / `CHANGELOG.md` |
+| Container | `Dockerfile` / `.devcontainer/` / `docker-compose.yml` / `compose.yml` |
+| Release automation | `release-please-config.json` / `.release-please-manifest.json` / `CHANGELOG.md` |
 
 ## Bringing a repo up to standard
 
 1. `tools/dash audit <name>` — see what's missing for its tier.
 2. `.editorconfig`: fan out the root template (`standardize-fanout.yml`, or the
    `/standardize-project` skill for a single repo).
-3. LICENSE / release automation: `tools/adopt-release.sh <name>` scaffolds the
+3. Agent context: fan out the agent-context kit — dispatch
+   `standardize-fanout.yml` with artifacts `agent-context,claude` (a `CLAUDE.md`
+   scaffold plus the `@claude` mention workflow; defaults stay
+   `editorconfig,ci`), or use the `/standardize-project` skill for one repo.
+   Fan-outs ride [`tools/fanout.sh`](../tools/fanout.sh) — dry-run by default,
+   additive-only, PRs only. See [AI-INTEGRATION.md](AI-INTEGRATION.md).
+4. LICENSE / release automation: `tools/adopt-release.sh <name>` scaffolds the
    release-please pipeline; add the SPDX id to the registry `license:` field.
-4. CI: adopt the reusable [`standard-ci.yml`](../.github/workflows/standard-ci.yml)
+5. CI: adopt the reusable [`standard-ci.yml`](../.github/workflows/standard-ci.yml)
    via a short caller workflow (what the fan-out drops in).
 
 Changes are always committed in the submodule's own repo first, then the pointer

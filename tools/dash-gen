@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # tools/dash-gen — thin wrapper around .github/scripts/dash-gen/dash_gen.py
-# Usage: tools/dash-gen {health|readme|ai|all} [--check]
+# Usage: tools/dash-gen {health|readme|ai|actions|actions-review|all} [--check]
 # ============================================================================
 set -euo pipefail
 

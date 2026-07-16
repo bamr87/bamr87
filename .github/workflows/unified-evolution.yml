@@ -2,7 +2,8 @@ name: 🌱 Unified AI Evolution Pipeline
 
 on:
   # Dispatch-only: no unattended AI writes on a schedule. Trigger deliberately via
-  # `tools/dash evolve` or the Actions UI (needs ANTHROPIC_API_KEY).
+  # `tools/dash evolve` or the Actions UI. Auth: CLAUDE_CODE_OAUTH_TOKEN preferred,
+  # ANTHROPIC_API_KEY fallback — see docs/AI-INTEGRATION.md.
   workflow_dispatch:
     inputs:
       evolution_type:
@@ -53,16 +54,6 @@ on:
         required: false
         default: true
         type: boolean
-      ai_provider:
-        description: 'AI provider to use'
-        required: false
-        default: 'openai'
-        type: choice
-        options:
-          - openai
-          - anthropic
-          - gemini
-          - auto
 
 permissions:
   contents: write
@@ -76,14 +67,14 @@ env:
   SCOPE: ${{ github.event.inputs.scope || 'auto' }}
   DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
   CREATE_PR: ${{ github.event.inputs.create_pr || 'true' }}
-  AI_PROVIDER: ${{ github.event.inputs.ai_provider || 'openai' }}
-  EVOLUTION_VERSION: "2.0.0"
+  EVOLUTION_VERSION: "2.1.0"
 
 jobs:
   # Analyze repository and determine evolution needs
   analyze-repository:
     name: 🔍 Analyze Repository & Plan Evolution
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       needs_evolution: ${{ steps.analysis.outputs.needs_evolution }}
       evolution_plan: ${{ steps.analysis.outputs.evolution_plan }}
@@ -177,6 +168,7 @@ jobs:
     needs: analyze-repository
     if: needs.analyze-repository.outputs.needs_evolution == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       evolution_prompt: ${{ steps.prompt.outputs.evolution_prompt }}
       evolution_tasks: ${{ steps.prompt.outputs.evolution_tasks }}
@@ -188,8 +180,10 @@ jobs:
       - name: Generate AI-powered evolution prompt
         id: prompt
         run: |
-          # Generate detailed evolution prompt based on analysis
-          cat > evolution_prompt.txt << 'EOF'
+          # Generate detailed evolution prompt based on analysis.
+          # Unquoted delimiter ON PURPOSE: ${EVOLUTION_TYPE}/${INTENSITY}/${SCOPE}
+          # must expand here or Claude receives literal placeholders.
+          cat > evolution_prompt.txt << EOF
           You are an expert software engineer tasked with evolving this codebase.
 
           ## Repository Analysis
@@ -264,12 +258,22 @@ jobs:
     needs: [analyze-repository, generate-evolution-prompt]
     if: ${{ needs.analyze-repository.outputs.needs_evolution == 'true' && (github.event.inputs.dry_run || 'false') != 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
       issues: write
+    env:
+      # secrets can't be read in a step `if`; surface presence as a plain env.
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
 
     steps:
+      - name: Require Claude auth
+        if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
+        run: |
+          echo "::error::Evolution needs CLAUDE_CODE_OAUTH_TOKEN (preferred; from 'claude setup-token') or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          exit 1
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -281,7 +285,8 @@ jobs:
       - name: Run Claude Code evolution
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           prompt: ${{ needs.generate-evolution-prompt.outputs.evolution_prompt }}
           claude_args: "--max-turns 30"
 
@@ -289,8 +294,8 @@ jobs:
       - name: Commit & push evolution changes
         run: |
           if [[ -n $(git status --porcelain) ]]; then
-            git config --global user.name "AI Evolution Bot"
-            git config --global user.email "ai-evolution@users.noreply.github.com"
+            git config --global user.name "bamr87-bot"
+            git config --global user.email "10567847+bamr87@users.noreply.github.com"
             git checkout -b "ai-evolution/${{ github.run_id }}"
             git add .
             git commit -m "🤖 AI Evolution: ${EVOLUTION_TYPE} (${INTENSITY})" \
@@ -308,6 +313,7 @@ jobs:
     needs: [analyze-repository, generate-evolution-prompt]
     if: ${{ needs.analyze-repository.outputs.needs_evolution == 'true' && (github.event.inputs.dry_run || 'false') == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Display evolution preview
         run: |
@@ -335,6 +341,7 @@ jobs:
     needs: [analyze-repository, generate-evolution-prompt, execute-evolution]
     if: ${{ (github.event.inputs.create_pr || 'true') == 'true' && (github.event.inputs.dry_run || 'false') != 'true' && needs.analyze-repository.outputs.needs_evolution == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
@@ -372,9 +379,10 @@ jobs:
   # Evolution metrics and reporting
   evolution-metrics:
     name: 📊 Evolution Metrics & Reporting
-    needs: [analyze-repository, execute-evolution, create-evolution-pr]
+    needs: [analyze-repository, generate-evolution-prompt, execute-evolution, create-evolution-pr]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Generate evolution report
         run: |

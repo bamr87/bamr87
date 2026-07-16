@@ -1,5 +1,7 @@
 ---
 description: Run the attention-driven self-evolution loop (or trigger the CI workflow)
+allowed-tools: Skill, Bash(tools/dash-gen:*), Bash(tools/check-drift.sh:*), Bash(gh:*), Bash(git:*)
+argument-hint: "[repo name — default: all flagged repos]"
 ---
 
 Run the dash self-evolution loop for: $ARGUMENTS (default: all flagged repos).

@@ -1,5 +1,7 @@
 ---
 description: Add or reconcile a project in the dash registry
+allowed-tools: Skill, Read, Edit, Bash(tools/dash-gen:*), Bash(tools/check-drift.sh:*), Bash(git submodule:*)
+argument-hint: "<project name or repo URL>"
 ---
 
 Register/reconcile project: $ARGUMENTS

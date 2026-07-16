@@ -56,6 +56,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: README
   slug: README
@@ -70,6 +73,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: scripts
   slug: scripts
@@ -84,6 +90,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: skills
   slug: skills
@@ -98,6 +107,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: it-journey
   slug: it-journey
@@ -112,6 +124,9 @@
   maintained: true
   live_url: https://it-journey.dev
   docs_url: https://it-journey.dev
+  schema:
+    status: none
+  license: MIT
 
 - name: wargames
   slug: wargames
@@ -126,6 +141,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
   license: MIT
 
 - name: zer0-mistakes
@@ -147,6 +164,9 @@
     registries: [rubygems, github]
     status: pending          # reference migration
     pr: https://github.com/bamr87/zer0-mistakes/pull/170
+  schema:
+    status: none
+  license: MIT
 
 - name: zer0-image-generator
   slug: zer0-image-generator
@@ -166,6 +186,8 @@
     type: ruby
     registries: [rubygems, github]   # CI publish still needs the RUBYGEMS_API_KEY secret
     status: adopted
+  schema:
+    status: none
   license: MIT
 
 - name: gitorio
@@ -181,6 +203,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: barodybroject
   slug: barodybroject
@@ -195,6 +219,9 @@
   maintained: true
   live_url: https://barodybroject.com
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: aieo
   slug: aieo
@@ -209,6 +236,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: lawmode
   slug: lawmode
@@ -223,6 +253,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: law-ai
   slug: law-ai
@@ -237,6 +270,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: githubai
   slug: githubai
@@ -251,6 +286,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: edgar-data-parse
   slug: edgar-data-parse
@@ -270,7 +308,10 @@
     type: simple             # no package metadata → versioning + GitHub Releases only
     registries: [github]
     status: pending
-    pr: https://github.com/bamr87/edgar-data-parse/pull/7
+    pr: https://github.com/bamr87/fredgar-ai/pull/7
+  schema:
+    status: none
+  license: MIT
 
 - name: amrs-django
   slug: amrs-django
@@ -285,6 +326,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: drsai
   slug: drsai
@@ -299,6 +342,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: ai-seed
   slug: ai-seed
@@ -313,6 +358,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: wtd
   slug: wtd
@@ -327,6 +374,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: vs-sonic-pi
   slug: vs-sonic-pi
@@ -341,6 +391,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: zpl-viewer
   slug: zpl-viewer
@@ -361,6 +414,9 @@
     registries: [npm, github]
     status: pending
     pr: https://github.com/bamr87/zpl-viewer/pull/2
+  schema:
+    status: none
+  license: MIT
 
 - name: csv-vscoode
   slug: csv-vscoode
@@ -375,6 +431,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: bashcrawl
   slug: bashcrawl
@@ -389,6 +448,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: jekyll
   slug: jekyll
@@ -403,6 +465,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: bamr87.github.io
   slug: bamr87.github.io
@@ -417,6 +482,9 @@
   maintained: true
   live_url: https://bamr87.github.io
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: lifehacker.dev
   slug: lifehacker.dev
@@ -431,6 +499,8 @@
   maintained: true
   live_url: https://lifehacker.dev
   docs_url: null
+  schema:
+    status: none
 
 - name: zer0-pages-remote
   slug: zer0-pages-remote
@@ -445,6 +515,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: bashconsultants
   slug: bashconsultants
@@ -459,6 +531,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: "1987"
   slug: "1987"
@@ -473,6 +548,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: "2005"
   slug: "2005"
@@ -487,6 +564,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 # --- Accounting / finance Django experiments -------------------------------
 - name: amrs-project
@@ -502,6 +581,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: afms
   slug: afms
@@ -516,6 +597,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: django-fin
   slug: django-fin
@@ -530,6 +614,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: djangoerp
   slug: djangoerp
@@ -544,6 +630,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 # --- Personal content / CV -------------------------------------------------
 - name: cv
@@ -559,6 +647,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: books
   slug: books
@@ -573,6 +663,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: Dodge-and-Reena-Book
   slug: Dodge-and-Reena-Book
@@ -587,6 +679,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: zer0-pages
   slug: zer0-pages
@@ -601,6 +695,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: adopted
+    pr: https://github.com/bamr87/zer0-pages/pull/4
 
 # --- Forks of upstream tools -----------------------------------------------
 - name: sonic-pi
@@ -616,6 +713,8 @@
   maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: vscode-front-matter
   slug: vscode-front-matter
@@ -630,6 +729,9 @@
   maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: skills-github-pages
   slug: skills-github-pages
@@ -644,6 +746,9 @@
   maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 # ---------------------------------------------------------------------------
 # External repositories (surfaced in the dash; not git submodules).

@@ -18,22 +18,23 @@ on:
         default: false
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
+
+concurrency:
+  group: refresh-dash
+  cancel-in-progress: false
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install deps
-        run: pip install -r .github/scripts/dash-gen/requirements.txt
+      - uses: ./.github/actions/setup/dash-gen
 
       - name: Regenerate README AUTO:projects
         run: python .github/scripts/dash-gen/dash_gen.py readme
@@ -46,7 +47,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore(dash): refresh README project list from registry"
@@ -62,15 +63,15 @@ jobs:
   escalate-attention:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.escalate }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - uses: ./.github/actions/setup/dash-gen
       - name: Gather health
-        run: |
-          pip install -r .github/scripts/dash-gen/requirements.txt
-          python .github/scripts/dash-gen/dash_gen.py health || true
+        run: python .github/scripts/dash-gen/dash_gen.py health || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Open tracking issues for 🔴 repos

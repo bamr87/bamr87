@@ -151,9 +151,7 @@ git -c user.name="$LOGIN" -c user.email="$NOREPLY" commit -q -m "ci: adopt stand
 
 Scaffolds release-please (${RELEASE_TYPE}) + caller workflows referencing
 bamr87/.github. Conventional Commits now drive versioning, CHANGELOG, and the
-GitHub Release; ${REGISTRY} publishing runs on release.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+GitHub Release; ${REGISTRY} publishing runs on release."
 git push -u origin "$BRANCH" >/dev/null 2>&1 && ok "pushed ${BRANCH}"
 
 $OPEN_PR || { note "--no-pr: skipping PR"; exit 0; }

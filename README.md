@@ -304,7 +304,7 @@ bamr87/
 
 - **Tech Stack**: Python, MkDocs, Wiki.js
 - **Features**: AI-powered categorization, multi-format support, search
-- **Live Site**: [bamr87.github.io/bamr87](https://bamr87.github.io/bamr87)
+- **Live Site**: [bamr87.github.io/bamr87](https://bamr87.github.io/bamr87) — the Jekyll dash (this repo's sole Pages surface), not this project's MkDocs output
 - [📖 Documentation](projects/README/README.md)
 
 ### 🛠️ Automation Scripts ([projects/scripts/](projects/scripts/))
@@ -339,7 +339,7 @@ cd projects/cv-builder-pro && npm install && npm run dev
 mkdocs serve
 
 # Scripts (standalone utilities)
-./scripts/project-init.sh --help
+./projects/scripts/project-init.sh --help
 ```
 
 ### 📖 Documentation

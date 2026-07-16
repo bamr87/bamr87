@@ -17,7 +17,13 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `setup-dev.sh` | Legacy wrapper — delegates to `setup.sh --local` |
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
 | `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, …) — see [docs/DASH.md](../docs/DASH.md) |
-| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
+| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `actions`, `actions-review`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
+| `check-drift.sh` | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
+| `audit-standards.sh` | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
+| `run-all-tests.sh` | Aggregate verification — delegates to each project's own checks (wrapped by `dash test`) |
+| `adopt-release.sh` | Scaffolds the release-please pipeline into a repo and opens a PR (wrapped by `dash adopt-release`) |
+| `protect-branch.sh` | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
+| `fanout.sh` | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `standardize-fanout.yml` and `schema-fanout.yml` |
 | `schema_lint.py` | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
 | `gen-projects-schema.py` | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
 | `seed-schema.sh` | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
@@ -26,19 +32,15 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 
 ```
 bamr87/
-├── .devcontainer/
-│   ├── devcontainer.json      # VS Code dev container config
-│   └── Dockerfile             # Dev container image
+├── .devcontainer/             # VS Code dev container config + image
 ├── .env.example               # Environment variable template
-├── .zprofile                   # Sources tools/devtools-env.sh
+├── .zprofile                  # Sources tools/devtools-env.sh
 ├── docker-compose.yml         # All services (dev, wiki, db, etc.)
-└── tools/
-    ├── devtools.conf          # ← Central tool manifest (edit this)
-    ├── devtools-env.sh        # Shell env loader (sourced by .zprofile)
-    ├── Brewfile               # macOS Homebrew bundle
-    ├── setup.sh               # Main setup entrypoint
-    ├── setup-dev.sh           # Legacy wrapper
-    └── update-submodules.sh   # Submodule management
+└── tools/                     # This directory — the Files table above is authoritative
+    ├── environment setup      #   devtools.conf, devtools-env.sh, Brewfile, setup.sh, setup-dev.sh
+    ├── dash CLI + gates       #   dash, dash-gen, check-drift.sh, audit-standards.sh, run-all-tests.sh
+    ├── fleet operations       #   update-submodules.sh, adopt-release.sh, protect-branch.sh, fanout.sh
+    └── schema tooling         #   schema_lint.py, gen-projects-schema.py, seed-schema.sh
 ```
 
 ## Central Tool Manifest — `devtools.conf`
@@ -127,7 +129,8 @@ The `.zprofile` sources `tools/devtools-env.sh`, which:
 bamr87-setup           # Run tools/setup.sh
 bamr87-update          # Run tools/update-submodules.sh
 bamr87-cv              # cd projects/cv-builder-pro && npm run dev
-bamr87-docs            # mkdocs serve
+bamr87-dash            # Run tools/dash (unified dash CLI)
+bamr87-docs            # tools/dash serve — Jekyll dash via docker (:4000)
 bamr87-dc              # docker compose (from project root)
 ```
 
@@ -216,4 +219,4 @@ Wrapped by `tools/dash sync` (which also regenerates dash data) and the
 
 ---
 
-**Version:** 2.0.0 | **Last Modified:** 2026-02-10
+**Version:** 2.1.0 | **Last Modified:** 2026-07-16

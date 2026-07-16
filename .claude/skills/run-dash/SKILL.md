@@ -77,7 +77,7 @@ path. Add `--json` (any position) for machine-readable output.
 Refresh the health column first if it's missing or stale:
 
 ```bash
-tools/dash gen health      # writes _data/project_health.yml (EPHEMERAL — gitignored, never commit)
+tools/dash-gen health      # writes _data/project_health.yml (EPHEMERAL — gitignored, never commit)
 ```
 
 Release-pipeline adoption + current version per repo:
@@ -149,15 +149,15 @@ docker rm -f dash-preview && rm -rf /tmp/dash-preview
 - **Every submodule is uninitialized by default** — `git submodule status` shows a
   leading `-`, the dirs are empty. Init only the one you need; don't
   `--init --recursive` all 40 unless you mean it. The driver shows this as state `·`.
-- **Submodules land in detached HEAD**, and `projects/scripts`, `projects/jekyll`,
-  `projects/edgar-data-parse` track **`master`** (not `main`); `projects/sonic-pi`
-  tracks **`dev`**. Always `git checkout <declared-branch>` from the work order —
+- **Submodules land in detached HEAD**, and `projects/scripts` and
+  `projects/jekyll` track **`master`** (not `main`); `projects/sonic-pi` tracks
+  **`dev`**. Always `git checkout <declared-branch>` from the work order —
   don't assume `main`.
 - **In a git worktree, the drift gate reports every submodule as drifted** (it sees
   the worktree's branch name, e.g. `claude/…`, instead of the declared branch).
   This is a worktree artifact, not real drift — `tools/dash status` will show ~40
   DRIFT lines that don't apply. Verify on the main checkout if in doubt.
-- **`_data/project_health.yml` is ephemeral and gitignored.** `tools/dash gen
+- **`_data/project_health.yml` is ephemeral and gitignored.** `tools/dash-gen
   health` / `monitor` regenerate it; never commit it.
 - **Run/test commands in the work order are heuristics until the submodule is
   checked out.** After init, the driver reads the real `package.json`; before that
@@ -172,7 +172,7 @@ docker rm -f dash-preview && rm -rf /tmp/dash-preview
   interpreter. Use the `python3` that runs `tools/dash` (Homebrew 3.x here), or
   `python3 -m pip install pyyaml` for the one on your PATH. A bare login shell may
   resolve `/usr/bin/python3` 3.9, which lacks it.
-- **Health column blank / "no health data"**: run `tools/dash gen health` (needs
+- **Health column blank / "no health data"**: run `tools/dash-gen health` (needs
   `gh` authenticated), then re-run the driver.
 - **`tools/dash monitor` errors or all-null health**: `gh auth status` — an expired
   token makes every repo degrade to null (the generator won't crash, just empty).
@@ -183,6 +183,6 @@ docker rm -f dash-preview && rm -rf /tmp/dash-preview
 ## After: authoring a per-submodule run skill
 
 When you've initialized a submodule and want a reusable launch harness for *it*,
-`cd` into the submodule and run `/run-skill-generator` there — it'll create
-`projects/<name>/.claude/skills/run-<name>/`, which this driver then detects and
-surfaces (`+run-skill` in the map).
+author `projects/<name>/.claude/skills/run-<name>/` inside the submodule (the
+`skill-creator` skill in `projects/skills/.github/skills/skill-creator/` guides
+authoring). This driver then detects and surfaces it (`+run-skill` in the map).

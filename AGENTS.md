@@ -2,7 +2,7 @@
 
 # Agent Principles
 
-Guidelines for AI coding agents working in the bamr87 monorepo — a self-managing **dash** (control plane) that manages ~40 Git submodules (docs sites, full-stack AI apps, VS Code extensions, dev tools, and content repos) from one registry-driven source of truth. See [`CLAUDE.md`](CLAUDE.md) and [`docs/DASH.md`](docs/DASH.md) for the architecture; the authoritative project list is [`_data/projects.yml`](_data/projects.yml).
+Guidelines for AI coding agents working in the bamr87 monorepo — a self-managing **dash** (control plane) that manages ~40 Git submodules (docs sites, full-stack AI apps, VS Code extensions, dev tools, and content repos) from one registry-driven source of truth. See [`CLAUDE.md`](CLAUDE.md) and [`docs/DASH.md`](docs/DASH.md) for the architecture, and [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) for the AI surfaces and Claude auth; the authoritative project list is [`_data/projects.yml`](_data/projects.yml).
 
 ## ⚠️ Fresh Information First
 

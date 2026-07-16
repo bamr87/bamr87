@@ -115,6 +115,9 @@ def select(report: dict, min_priority: float, min_runs: int) -> list[dict]:
     """Worst-offending workflows worth a deeper look, most-severe first."""
     cands = []
     for w in report.get("workflows", []):
+        # external mirrors (e.g. microsoft/skills) are not ours to optimize
+        if w.get("external"):
+            continue
         if w.get("runs", 0) < min_runs:
             continue
         flags = set(w.get("flags", []))

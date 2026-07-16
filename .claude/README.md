@@ -15,18 +15,22 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/onboard-dir/` | Adopt or remove a stray/unregistered `projects/*/` dir the drift gate flagged |
 | `skills/new-project/` | Scaffold + register a new project |
 | `skills/triage-attention/` | Turn Monitor-board signals into prioritized actions |
+| `skills/actions-triage/` | Explain the worst Actions workflows from `_data/actions_usage.yml`; drive a direct fix or dispatch `actions-review.yml` |
 | `skills/evolve-project/` | Focused per-project improvement pass (reads `.github/agents` personas as guidance) |
 | `skills/run-dash/` | `/run-dash` — orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
 | `commands/dash-status.md` | `/dash-status` — read-only status |
 | `commands/evolve.md` | `/evolve` — run the self-evolution loop |
 | `commands/register-project.md` | `/register-project` — add/reconcile a project |
+| `commands/adopt-release.md` | `/adopt-release <repo>` — adopt the standardized release-please pipeline (scaffold + PR) |
+| `commands/adopt-schema.md` | `/adopt-schema <submodule>` — seed the Pyramid Schema kit into one submodule (preview → apply → PR) |
 | `commands/future-features.md` | `/future-features <idea>` — draft a full feature spec + place it on the right repo's roadmap |
 | `agents/feature-scout.md` | sub-agent that scans the session thread for latent feature ideas and proposes roadmap-ready specs (review/approval before backlog) |
 | `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |
 
 MCP servers (github, memory, sequentialthinking, context7) are configured in the
-repo-root [`.mcp.json`](../.mcp.json).
+repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN`
+env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
 
 > **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and
 > `.github/prompts/` are **portable Copilot templates** (per
@@ -62,4 +66,6 @@ truth; rendered at the dash **Roadmap** surface), targets come from
 → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main`
 → drift + dash-build gates verify → human merges. The CI counterpart is
 `.github/workflows/unified-evolution.yml` (dispatch-only — trigger via
-`tools/dash evolve`; via `anthropics/claude-code-action`, needs `ANTHROPIC_API_KEY`).
+`tools/dash evolve`; via `anthropics/claude-code-action`; auth:
+`CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see
+[`docs/AI-INTEGRATION.md`](../docs/AI-INTEGRATION.md)).
