@@ -170,6 +170,32 @@ else
   warn "tools/audit-standards.sh not found"
 fi
 
+# --- (h): SCHEMA.md pyramid (structural contracts) --------------------------
+# The hub's own pyramid must lint green (errors gate; stray warnings surface),
+# and projects/SCHEMA.md must match the registry it is generated from. Offline,
+# stdlib + PyYAML — same deps the gate already requires. Projects are terminal
+# rows, so this never needs submodule content and is CI-safe.
+echo "(h) SCHEMA.md pyramid"
+if [[ -f "$ROOT/SCHEMA.md" ]]; then
+  if lint_out="$("$PY" "$ROOT/tools/schema_lint.py" check "$ROOT" 2>&1)"; then
+    nwarn="$(printf '%s' "$lint_out" | grep -c '^warning' || true)"
+    if [[ "${nwarn:-0}" -gt 0 ]]; then
+      warn "hub pyramid: green with ${nwarn} stray warning(s) (python3 tools/schema_lint.py check .)"
+    else
+      ok "hub pyramid lints green"
+    fi
+  else
+    bad "hub pyramid has schema errors (python3 tools/schema_lint.py check .)"
+  fi
+  if "$PY" "$ROOT/tools/gen-projects-schema.py" --check >/dev/null 2>&1; then
+    ok "projects/SCHEMA.md matches .gitmodules + registry"
+  else
+    bad "projects/SCHEMA.md is stale (regenerate: tools/gen-projects-schema.py)"
+  fi
+else
+  warn "no root SCHEMA.md yet (hub pyramid not seeded)"
+fi
+
 # --- (g): registry <-> GitHub reality (renames / deletions / branch) -------
 # Closes the class the set-vs-set parity check (a) is blind to: registry and
 # .gitmodules can agree with each other while both are stale vs GitHub. Advisory

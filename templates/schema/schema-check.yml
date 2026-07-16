@@ -1,0 +1,24 @@
+name: schema-check
+
+# Seeded by the bamr87 dash (templates/schema/ — see its VERSION for
+# provenance). Validates the SCHEMA.md pyramid: every directory's structural
+# contract vs reality. Errors gate; warnings (unregistered strays under
+# `listed` coverage) surface in the log without failing, so adoption can
+# tighten incrementally. Escalate to `--werror` once the tree is disciplined.
+
+on:
+  push:
+    branches: [__DEFAULT_BRANCH__]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate SCHEMA.md pyramid
+        run: python3 tools/schema_lint.py check .

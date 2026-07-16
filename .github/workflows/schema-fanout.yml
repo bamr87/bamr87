@@ -1,0 +1,153 @@
+name: schema-fanout
+
+# Downward propagation of the Pyramid Schema framework: opens adoption PRs
+# INTO submodule repos, seeding the kit (vendored linter, SCHEMA.md scaffolds,
+# schema-check CI, agent protocol snippet in CLAUDE.md). Complement of
+# standardize-fanout, same safety posture: dispatch-only, dry-run by default,
+# PRs only (never pushes to a default branch), and skips submodules whose
+# upstream isn't github.com/bamr87 (e.g. the microsoft/skills mirror).
+#
+# Secrets:
+#   FANOUT_TOKEN             required — fine-grained PAT with contents:write +
+#                            pull-requests:write on the target repos.
+#   CLAUDE_CODE_OAUTH_TOKEN  only for agent_fill — Claude Code OAuth token
+#                            (from `claude setup-token`); the agent pass turns
+#                            scaffold TODOs into real purposes on the PR branch.
+#
+# agent_fill is single-target by design: forty agent runs from one dispatch is
+# a cost decision a human should make forty times.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Submodule name, or 'all'"
+        type: string
+        default: "all"
+      dry_run:
+        description: "Build branches but don't push/PR"
+        type: boolean
+        default: true
+      agent_fill:
+        description: "After seeding, run Claude Code (OAuth) to fill TODO purposes — single target only"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schema-fanout
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v4
+
+      - name: Open schema adoption PRs
+        env:
+          GH_TOKEN: ${{ secrets.FANOUT_TOKEN }}
+          TARGET: ${{ inputs.target }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::FANOUT_TOKEN secret is required (fine-grained PAT with contents+PR write)."
+            exit 1
+          fi
+          BRANCH=chore/schema-adoption
+          mapfile -t PATHS < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
+          run_one() {
+            local path="$1" name sect url slug work def
+            name="$(basename "$path")"
+            sect="$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
+                    | awk -v p="$path" '$2==p{print $1}' | sed 's/^submodule\.//; s/\.path$//')"
+            url="$(git config -f .gitmodules --get "submodule.${sect}.url")"
+            case "$url" in
+              *github.com/bamr87/*|*github.com:bamr87/*) ;;
+              *) echo "skip ${name}: external upstream (${url})"; return 0 ;;
+            esac
+            slug="bamr87/$(basename "${url%.git}")"
+            work="$(mktemp -d)"
+            echo "::group::${slug}"
+            if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
+              echo "skip ${slug}: clone failed"; echo "::endgroup::"; return 0
+            fi
+            def="$(gh api "repos/${slug}" --jq .default_branch)"
+            ( cd "$work"
+              git checkout -b "$BRANCH"
+              "$GITHUB_WORKSPACE/tools/seed-schema.sh" "$work" --apply --default-branch "$def"
+              if [ -z "$(git status --porcelain)" ]; then
+                echo "${slug}: already adopted"; exit 0
+              fi
+              git add -A
+              git -c user.name=bamr87-bot -c user.email=bot@users.noreply.github.com \
+                commit -m "docs: adopt Pyramid Schema (SCHEMA.md contracts + linter + CI)" >/dev/null
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "${slug}: DRY RUN — would open PR:"; git show --stat HEAD | head -25; exit 0
+              fi
+              git push -u origin "$BRANCH" --force-with-lease
+              gh pr create --repo "$slug" --base "$def" --head "$BRANCH" \
+                --title "docs: adopt Pyramid Schema structural contracts" \
+                --body "$(printf 'Automated by bamr87 schema-fanout: seeds SCHEMA.md contracts in every directory, the vendored schema_lint.py, a schema-check CI gate, and the agent protocol in CLAUDE.md.\n\nScaffold purposes are TODO until the agent/human pass fills them (dispatch schema-fanout with agent_fill, or edit by hand). See bamr87/bamr87 docs/SCHEMA-FRAMEWORK.md.')" \
+                || echo "${slug}: PR may already exist"
+            )
+            rm -rf "$work"; echo "::endgroup::"
+          }
+          if [ "$TARGET" = "all" ]; then
+            for p in "${PATHS[@]}"; do run_one "$p"; done
+          else
+            run_one "projects/${TARGET}"
+          fi
+
+  # Claude Code (OAuth) fills the scaffold TODOs on the adoption branch, then
+  # pushes to the already-open PR. Runs only for a real (non-dry) single-target
+  # dispatch with agent_fill.
+  agent-fill:
+    needs: seed
+    if: ${{ inputs.agent_fill && inputs.target != 'all' && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target adoption branch
+        uses: actions/checkout@v4
+        with:
+          repository: bamr87/${{ inputs.target }}
+          ref: chore/schema-adoption
+          token: ${{ secrets.FANOUT_TOKEN }}
+
+      - name: Fill schema purposes with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            This repository just adopted the Pyramid Schema: every directory
+            carries a SCHEMA.md contract (scaffolded, purposes still TODO).
+
+            Your task, and nothing else:
+            1. Replace every TODO purpose in every SCHEMA.md with a real
+               one-line purpose derived from the directory's actual contents.
+            2. Where a directory holds a homogeneous collection with a naming
+               rule (dated posts, ADRs, migrations, components), replace the
+               per-file rows with a single `pattern` row.
+            3. Mark build-output directories `generated` and vendored trees
+               `terminal`, and delete any scaffolded SCHEMA.md files inside
+               them.
+            4. Fill the Placement route for the two or three most common kinds
+               of additions to this repo.
+            Keep `python3 tools/schema_lint.py check .` passing with zero
+            errors. Do not modify any file other than SCHEMA.md files.
+          claude_args: "--max-turns 25"
+
+      - name: Push agent pass to the PR branch
+        run: |
+          set -euo pipefail
+          git add -A
+          if git -c user.name=bamr87-bot -c user.email=bot@users.noreply.github.com \
+               commit -m "docs(schema): fill scaffold purposes (Claude agent pass)"; then
+            git push origin chore/schema-adoption
+          else
+            echo "agent pass produced no changes"
+          fi
