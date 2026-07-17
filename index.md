@@ -15,6 +15,8 @@ description: "Project command center — a live dashboard, monitoring board, and
 {% assign featured = projects | where: "featured", true %}
 {% assign rest = projects | where_exp: "p", "p.featured != true" %}
 {% assign ordered = featured | concat: rest %}
+{% assign aiu = site.data.ai_usage %}
+{% assign actu = site.data.actions_usage %}
 
 <link rel="stylesheet" href="{{ '/assets/css/dashboard.css' | relative_url }}">
 
@@ -33,7 +35,10 @@ description: "Project command center — a live dashboard, monitoring board, and
       <div class="cc-stat cc-red"><div class="cc-num" data-count="{{ red.size }}">{{ red.size }}</div><div class="cc-label">🔴 Need attention</div></div>
       <div class="cc-stat cc-amber"><div class="cc-num" data-count="{{ amber.size }}">{{ amber.size }}</div><div class="cc-label">🟠 Watch</div></div>
       <div class="cc-stat cc-green"><div class="cc-num" data-count="{{ green.size }}">{{ green.size }}</div><div class="cc-label">🟢 Healthy</div></div>
+      {% if aiu %}<div class="cc-stat"><div class="cc-num">${{ aiu.totals.ci_cost_usd }}</div><div class="cc-label">🧮 Claude CI / {{ aiu.window_days }}d</div></div>{% endif %}
+      {% if actu %}<div class="cc-stat"><div class="cc-num">{{ actu.totals.total_hours }}h</div><div class="cc-label">📈 Actions / {{ actu.window_days }}d</div></div>{% endif %}
     </div>
+    {% if aiu or actu %}<p class="cc-lede" style="margin-top:.75rem"><a href="{{ '/cockpit/' | relative_url }}">💰 Open the Cost Cockpit →</a></p>{% endif %}
   </section>
 
   <!-- ============================ TOOLS ============================== -->
@@ -43,6 +48,7 @@ description: "Project command center — a live dashboard, monitoring board, and
       <a class="cc-tool" href="{{ '/dashboard/' | relative_url }}"><span class="cc-ico">📊</span> Dashboard</a>
       <a class="cc-tool" href="{{ '/monitor/' | relative_url }}"><span class="cc-ico">🩺</span> Monitor</a>
       <a class="cc-tool" href="{{ '/projects/' | relative_url }}"><span class="cc-ico">🎨</span> Portfolio</a>
+      <a class="cc-tool" href="{{ '/cockpit/' | relative_url }}"><span class="cc-ico">💰</span> Cost Cockpit</a>
       <a class="cc-tool" href="{{ '/toolbox/' | relative_url }}"><span class="cc-ico">🧪</span> Toolbox</a>
       <a class="cc-tool" href="{{ '/docs/' | relative_url }}"><span class="cc-ico">📚</span> Docs</a>
       <a class="cc-tool" href="{{ '/resume/' | relative_url }}"><span class="cc-ico">📄</span> Resume</a>
