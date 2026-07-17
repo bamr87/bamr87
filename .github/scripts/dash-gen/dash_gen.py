@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 import ai_activity
+import ai_usage_collector
 import actions_analytics
 import actions_review
 
@@ -390,6 +391,12 @@ def main(argv: list[str] | None = None) -> int:
         "ai", help="shadow-price local Claude Code usage -> ai_activity.yml (local-only)"
     )
     ai_activity.add_arguments(p_ai)
+
+    p_ai_usage = sub.add_parser(
+        "ai-usage",
+        help="fleet Claude Code usage ledger -> ai_usage.yml (committed, daily-refreshed)",
+    )
+    ai_usage_collector.add_arguments(p_ai_usage)
 
     p_actions = sub.add_parser(
         "actions", help="GitHub Actions usage analytics -> actions_usage.yml (daily-refreshed)"

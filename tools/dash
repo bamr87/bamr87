@@ -36,7 +36,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|actions|actions-review|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|actions-review|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }

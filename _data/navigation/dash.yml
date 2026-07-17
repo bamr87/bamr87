@@ -12,10 +12,18 @@
       url: /roadmap/
     - title: 🧰 Toolbox
       url: /toolbox/
+- title: Finance
+  children:
+    - title: 💰 Cost Cockpit
+      url: /cockpit/
+    - title: 🧮 AI Usage
+      url: /ai-usage/
     - title: 🤖 AI Activity
       url: /ai-activity/
     - title: 📈 Actions Usage
       url: /actions/
+- title: Reference
+  children:
     - title: 📄 Resume
       url: /resume/
     - title: 📚 Docs
