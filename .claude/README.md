@@ -5,7 +5,7 @@ Claude Code configuration that makes the dash self-managing.
 ## Contents
 
 | Path | Purpose |
-|---|---|
+| --- | --- |
 | `skills/update-registry/` | Reconcile `_data/projects.yml` with `.gitmodules` + repo metadata |
 | `skills/refresh-portfolio/` | Regenerate monitoring data + README project list |
 | `skills/sync-project-docs/` | Pull each project's current summary/status into the registry |
@@ -28,44 +28,21 @@ Claude Code configuration that makes the dash self-managing.
 | `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |
 
-MCP servers (github, memory, sequentialthinking, context7) are configured in the
-repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN`
-env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
+MCP servers (github, memory, sequentialthinking, context7) are configured in the repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN` env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
 
-> **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and
-> `.github/prompts/` are **portable Copilot templates** (per
-> `.github/docs/toolkit-retention-map.md`) meant to be seeded into submodules —
-> Claude Code cannot Task-launch them. Only `.claude/agents/` (feature-scout) are
-> real subagents. For a working-diff review use the native `/code-review` skill.
+> **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and `.github/prompts/` are **portable Copilot templates** (per `.github/docs/toolkit-retention-map.md`) meant to be seeded into submodules — Claude Code cannot Task-launch them. Only `.claude/agents/` (feature-scout) are real subagents. For a working-diff review use the native `/code-review` skill.
 
 ## Standardization
 
-`standardize-audit` (see what's off-standard, via `tools/dash audit` +
-[`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one
-repo, PR into its own repo) → the `standardize-fanout.yml` workflow (fleet-wide
-`.editorconfig` + reusable `standard-ci.yml` adoption). The full standard lives in
-[`docs/STANDARDS.md`](../docs/STANDARDS.md).
+`standardize-audit` (see what's off-standard, via `tools/dash audit` + [`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one repo, PR into its own repo) → the `standardize-fanout.yml` workflow (fleet-wide `.editorconfig` + reusable `standard-ci.yml` adoption). The full standard lives in [`docs/STANDARDS.md`](../docs/STANDARDS.md).
 
 ## The Future-Features pipeline
 
-Captures feature ideas before they're lost and routes them to the right repo's
-roadmap. The backlog is [`_data/roadmap.yml`](../_data/roadmap.yml) (source of
-truth; rendered at the dash **Roadmap** surface), targets come from
-[`_data/projects.yml`](../_data/projects.yml) (or `bamr87` for the monorepo).
+Captures feature ideas before they're lost and routes them to the right repo's roadmap. The backlog is [`_data/roadmap.yml`](../_data/roadmap.yml) (source of truth; rendered at the dash **Roadmap** surface), targets come from [`_data/projects.yml`](../_data/projects.yml) (or `bamr87` for the monorepo).
 
-- **Manual:** `/future-features <idea>` → drafts a full spec → review/approval →
-  appends to `_data/roadmap.yml` (optionally opens a GitHub issue).
-- **Automatic:** a `SessionStart` hook keeps the workflow active; a throttled
-  `Stop` hook nudges the `feature-scout` sub-agent (once per session) when
-  feature-signal language appears. The scout **proposes**; a human approves;
-  nothing is backlogged without approval. Opt out with `FUTURE_FEATURES_AUTOSCOUT=0`.
+- **Manual:** `/future-features <idea>` → drafts a full spec → review/approval → appends to `_data/roadmap.yml` (optionally opens a GitHub issue).
+- **Automatic:** a `SessionStart` hook keeps the workflow active; a throttled `Stop` hook nudges the `feature-scout` sub-agent (once per session) when feature-signal language appears. The scout **proposes**; a human approves; nothing is backlogged without approval. Opt out with `FUTURE_FEATURES_AUTOSCOUT=0`.
 
 ## The self-evolution loop
 
-`triage-attention` (read Monitor signals) → `sync-project-docs` (update registry)
-→ `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main`
-→ drift + dash-build gates verify → human merges. The CI counterpart is
-`.github/workflows/unified-evolution.yml` (dispatch-only — trigger via
-`tools/dash evolve`; via `anthropics/claude-code-action`; auth:
-`CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see
-[`docs/AI-INTEGRATION.md`](../docs/AI-INTEGRATION.md)).
+`triage-attention` (read Monitor signals) → `sync-project-docs` (update registry) → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main` → drift + dash-build gates verify → human merges. The CI counterpart is `.github/workflows/unified-evolution.yml` (dispatch-only — trigger via `tools/dash evolve`; via `anthropics/claude-code-action`; auth: `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [`docs/AI-INTEGRATION.md`](../docs/AI-INTEGRATION.md)).

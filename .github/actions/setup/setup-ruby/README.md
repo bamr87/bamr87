@@ -38,7 +38,7 @@ Sets up Ruby environment with bundler caching and system dependencies for GitHub
 ## Inputs
 
 | Input | Description | Required | Default |
-|-------|-------------|----------|---------|
+| --- | --- | --- | --- |
 | `ruby-version` | Ruby version to install | No | `3.2` |
 | `install-system-deps` | Install system dependencies (jq) | No | `true` |
 
@@ -72,36 +72,33 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         ruby-version: ['3.1', '3.2', '3.3']
-    
+
     services:
       postgres:
         image: postgres:15
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/setup/setup-ruby
         with:
           ruby-version: ${{ matrix.ruby-version }}
-      
+
       - name: Setup database
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
         run: |
           bundle exec rails db:create db:schema:load
-      
+
       - name: Run tests
         run: bundle exec rspec
 ```
@@ -118,17 +115,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/setup/setup-ruby
         with:
           ruby-version: '3.2'
-      
+
       - name: Build site
         run: bundle exec jekyll build
-      
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -148,17 +145,17 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/setup/setup-ruby
         with:
           ruby-version: '3.3'
-      
+
       - name: Build gem
         run: gem build *.gemspec
-      
+
       - name: Publish to RubyGems
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
@@ -179,16 +176,16 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/setup/setup-ruby
-      
+
       - name: Run tests with SimpleCov
         run: |
           bundle exec rspec --format documentation
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -205,12 +202,12 @@ on: [push, pull_request]
 jobs:
   rubocop:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/setup/setup-ruby
-      
+
       - name: Run RuboCop
         run: bundle exec rubocop --parallel
 ```
@@ -229,11 +226,13 @@ bundle install --jobs 4 --retry 3
 ## Caching
 
 Bundler caching is enabled automatically by `ruby/setup-ruby`. This caches:
+
 - Installed gems
 - `vendor/bundle` directory (if used)
 - Platform-specific native extensions
 
 Cache key is based on:
+
 - Ruby version
 - `Gemfile.lock` content
 - Operating system
@@ -241,6 +240,7 @@ Cache key is based on:
 ## System Dependencies
 
 When `install-system-deps: 'true'` (default), installs:
+
 - **jq**: Command-line JSON processor
 
 Add custom system dependencies before this action:
@@ -257,6 +257,7 @@ Add custom system dependencies before this action:
 ## Script Permissions
 
 The action automatically makes scripts executable in:
+
 - `scripts/*.sh`
 - `test/*.sh`
 
@@ -265,9 +266,11 @@ This prevents "permission denied" errors when running test or build scripts.
 ## Troubleshooting
 
 ### Bundler version mismatch
+
 **Solution**: Update `Gemfile.lock` with the appropriate bundler version
 
 ### Native extension compilation fails
+
 **Solution**: Install required system libraries before this action
 
 ```yaml
@@ -276,9 +279,11 @@ This prevents "permission denied" errors when running test or build scripts.
 ```
 
 ### Cache not being used
+
 **Solution**: Ensure `Gemfile.lock` is committed to repository
 
 ### jq installation fails
+
 **Solution**: Set `install-system-deps: 'false'` and install manually if needed
 
 ## Best Practices
@@ -298,6 +303,7 @@ This prevents "permission denied" errors when running test or build scripts.
 ## Platform Support
 
 This action runs on:
+
 - **ubuntu-latest** (recommended)
 - **ubuntu-22.04**
 - **ubuntu-20.04**
@@ -316,6 +322,7 @@ Note: System dependencies installation only works on Ubuntu.
 If migrating from older versions:
 
 **Old:**
+
 ```yaml
 - uses: actions/setup-ruby@v1
   with:
@@ -323,6 +330,7 @@ If migrating from older versions:
 ```
 
 **New:**
+
 ```yaml
 - uses: ./.github/actions/setup/setup-ruby
   with:

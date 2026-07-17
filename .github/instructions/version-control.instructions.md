@@ -135,20 +135,25 @@ Follow SemVer: `MAJOR.MINOR.PATCH`
 ## [Unreleased]
 
 ### Added
+
 - New features
 
 ### Changed
+
 - Changes to existing functionality
 
 ### Fixed
+
 - Bug fixes
 
 ## [2.0.0] - 2025-01-27
 
 ### Added
+
 - Feature description
 
 ### Changed
+
 - Change description
 ```
 
@@ -208,33 +213,33 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Set up environment
-        uses: actions/setup-python@v4  # or setup-node, setup-ruby
+        uses: actions/setup-python@v4 # or setup-node, setup-ruby
         with:
           python-version: '3.11'
-      
+
       - name: Bump version
         id: bump
         run: |
           # Your version bump script
           ./scripts/version-bump.sh ${{ inputs.version_type }}
-          
+
           # Get new version
           NEW_VERSION=$(cat VERSION)
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Commit and tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           git add .
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
           git tag "v${{ steps.bump.outputs.new_version }}"
@@ -257,23 +262,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-      
+
       - name: Extract changelog
         id: changelog
         run: |
           # Extract changelog for this version
           ./scripts/extract-changelog.sh ${{ steps.version.outputs.version }} > release-notes.md
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -360,9 +365,7 @@ For projects with multiple packages:
 // package.json with workspaces
 {
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "workspaces": ["packages/*"],
   "scripts": {
     "version:patch": "lerna version patch",
     "version:minor": "lerna version minor",
@@ -412,4 +415,3 @@ For related repositories:
 **Version:** 3.0.0 | **Last Modified:** 2025-11-14 | **Author:** Amr Abdel-Motaleb
 
 **Purpose:** Universal version control and release management template for various project types, package managers, and deployment strategies.
-

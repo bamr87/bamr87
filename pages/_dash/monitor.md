@@ -7,14 +7,12 @@ permalink: /monitor/
 
 # 🩺 Monitor
 
-Observability across every tracked repository. Data is generated at deploy time by
-`.github/scripts/dash-gen health` (refreshed every few hours) and is **not** committed.
+Observability across every tracked repository. Data is generated at deploy time by `.github/scripts/dash-gen health` (refreshed every few hours) and is **not** committed.
 
 {% assign health = site.data.project_health %}
 {% if health == nil %}
 <div class="alert alert-info">
-Monitoring data has not been generated yet. Run <code>tools/dash-gen health</code>
-locally (requires <code>gh auth login</code>), or wait for the next scheduled
+Monitoring data has not been generated yet. Run <code>tools/dash-gen health</code> locally (requires <code>gh auth login</code>), or wait for the next scheduled
 <code>build-dash</code> deploy.
 </div>
 {% else %}

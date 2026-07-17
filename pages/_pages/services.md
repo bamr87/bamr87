@@ -6,13 +6,11 @@ toc_sticky: true
 description: "Enterprise architecture, financial technology, cloud/full-stack, and IT strategy consulting."
 ---
 
-My consulting practice is built on a foundation of empowering your team and delivering
-sustainable, long-term value.
+My consulting practice is built on a foundation of empowering your team and delivering sustainable, long-term value.
 
 ## Enterprise Architecture & ERP Solutions
 
-Transform business operations through manufacturing-focused ERP implementations and strategic
-technology planning.
+Transform business operations through manufacturing-focused ERP implementations and strategic technology planning.
 
 - 🏗️ **ERP Implementation & Optimization** — QAD, Infor, Oracle, SAP systems for global manufacturing
 - 🔄 **Legacy System Modernization** — upgrade pathways and cloud migration strategies
@@ -21,8 +19,7 @@ technology planning.
 
 ## Financial Technology & Automation
 
-Streamline financial operations with enterprise-grade accounting technology and compliance
-solutions.
+Streamline financial operations with enterprise-grade accounting technology and compliance solutions.
 
 - 💰 **Financial Systems Design** — OneStream, BlackLine, Hyperion implementations
 - 🤖 **Process Automation** — AP/AR automation, bank reconciliations, financial close acceleration

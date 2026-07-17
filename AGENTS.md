@@ -55,12 +55,14 @@ These principles reduce common LLM coding mistakes. Apply them to every task.
 **Touch only what you must. Clean up only your own mess.**
 
 When editing existing code:
+
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it — don't delete it.
 
 When your changes create orphans:
+
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
@@ -72,13 +74,14 @@ When your changes create orphans:
 
 Transform tasks into verifiable goals:
 
-| Instead of... | Transform to... |
-|---------------|-----------------|
+| Instead of...    | Transform to...                                       |
+| ---------------- | ----------------------------------------------------- |
 | "Add validation" | "Write tests for invalid inputs, then make them pass" |
-| "Fix the bug" | "Write a test that reproduces it, then make it pass" |
-| "Refactor X" | "Ensure tests pass before and after" |
+| "Fix the bug"    | "Write a test that reproduces it, then make it pass"  |
+| "Refactor X"     | "Ensure tests pass before and after"                  |
 
 For multi-step tasks, state a brief plan:
+
 ```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
@@ -106,6 +109,7 @@ Follow these layered boundaries when building features:
 ```
 
 **Rules:**
+
 - Dependencies point inward (outer layers depend on inner layers)
 - Domain layer has no external dependencies
 - Infrastructure implements interfaces defined in inner layers
@@ -139,11 +143,10 @@ bamr87/
 
 ### Submodule reference
 
-Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/projects.yml)
-(cross-checked against `.gitmodules` by the drift gate). Foundational submodules:
+Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/projects.yml) (cross-checked against `.gitmodules` by the drift gate). Foundational submodules:
 
 | Submodule | Repo | Branch | Tech Stack |
-|-----------|------|--------|------------|
+| --- | --- | --- | --- |
 | `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
 | `projects/README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
 | `projects/scripts/` | `bamr87/scripts` | `master` | Bash, Python |
@@ -151,19 +154,18 @@ Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/pro
 | `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
 | `projects/skills/` | `microsoft/skills` (external) | `main` | Skills, prompts, MCP configs |
 
-**Branches vary:** most track `main`; `scripts`/`jekyll` track `master`,
-`sonic-pi` tracks `dev`. Read the branch from `.gitmodules`.
+**Branches vary:** most track `main`; `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`. Read the branch from `.gitmodules`.
 
 ### Container Development
 
 All development runs in Docker. The `docker-compose.yml` provides:
 
-| Service | Port | Purpose |
-|---------|------|---------|
+| Service  | Port   | Purpose           |
+| -------- | ------ | ----------------- |
 | `devenv` | `5000` | CV Builder (Vite) |
-| `devenv` | `5173` | Vite HMR |
-| `devenv` | `8000` | MkDocs |
-| `devenv` | `4000` | Jekyll |
+| `devenv` | `5173` | Vite HMR          |
+| `devenv` | `8000` | MkDocs            |
+| `devenv` | `4000` | Jekyll            |
 
 ```bash
 # Start development

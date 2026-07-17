@@ -1,11 +1,6 @@
 # Development Setup Guide
 
-> **The repo is a dash of ~40 submodules — see [DASH.md](DASH.md) and
-> [`../CLAUDE.md`](../CLAUDE.md).** The `projects/cv-builder-pro` / MkDocs examples
-> below are one project each, not the whole picture; the primary local surface is
-> the Jekyll dash (`tools/dash serve`, port 4000). Run per-project commands inside
-> the relevant submodule (`tools/dash foreach` for fleet-wide ones), and read a
-> submodule's branch from `.gitmodules` rather than assuming `main`.
+> **The repo is a dash of ~40 submodules — see [DASH.md](DASH.md) and [`../CLAUDE.md`](../CLAUDE.md).** The `projects/cv-builder-pro` / MkDocs examples below are one project each, not the whole picture; the primary local surface is the Jekyll dash (`tools/dash serve`, port 4000). Run per-project commands inside the relevant submodule (`tools/dash foreach` for fleet-wide ones), and read a submodule's branch from `.gitmodules` rather than assuming `main`.
 
 This guide will help you set up your local development environment for working with the bamr87 monorepo.
 
@@ -14,6 +9,7 @@ This guide will help you set up your local development environment for working w
 ### Required Tools
 
 - **Git**: Version 2.13+ (for submodule support)
+
   ```bash
   git --version
   ```
@@ -28,6 +24,7 @@ This guide will help you set up your local development environment for working w
 Depending on which submodule you're working with:
 
 #### For projects/cv-builder-pro/ (CV Builder)
+
 - **Node.js**: 18.x or higher
 - **npm**: 9.x or higher
 
@@ -37,6 +34,7 @@ npm --version
 ```
 
 #### For projects/README/ (Documentation)
+
 - **Python**: 3.8 or higher
 - **pip**: Latest version
 
@@ -46,6 +44,7 @@ pip3 --version
 ```
 
 #### For projects/scripts/ (Automation)
+
 - **Bash**: 4.0+ (macOS users may need to upgrade)
 - **zsh**: 5.x+ (standard on macOS)
 
@@ -55,6 +54,7 @@ zsh --version
 ```
 
 #### For projects/skills/ (Agent Skills)
+
 - No runtime setup is required for reading or editing skill content.
 - Some nested skill tests may define their own package or Python requirements.
 
@@ -86,6 +86,7 @@ git submodule status
 ```
 
 You should see one line per registered submodule (~41 in total), e.g.:
+
 ```bash
  <commit> projects/README (heads/main)
  <commit> projects/scripts (heads/master)
@@ -105,6 +106,7 @@ Use the provided setup script:
 #### Manual Setup
 
 **CV Builder:**
+
 ```bash
 cd projects/cv-builder-pro
 npm install
@@ -112,6 +114,7 @@ cd ..
 ```
 
 **Documentation System:**
+
 ```bash
 cd projects/README
 pip3 install -r requirements.txt
@@ -119,11 +122,13 @@ cd ..
 ```
 
 **MkDocs (Root):**
+
 ```bash
 pip3 install -r requirements-docs.txt
 ```
 
 **Scripts:**
+
 ```bash
 cd projects/scripts
 # Scripts are standalone, but check individual script requirements
@@ -132,6 +137,7 @@ cd ..
 ```
 
 **Agent Skills:**
+
 ```bash
 cd projects/skills
 # Reference content; check individual skill directories for optional test commands
@@ -147,9 +153,7 @@ cd projects/cv-builder-pro
 npm run dev
 ```
 
-Access at: http://localhost:5173 (Vite's default). Inside the compose `devenv`
-container the server is exposed on port 5000 instead (see `docker-compose.yml`
-and the `npm run kill` script).
+Access at: http://localhost:5173 (Vite's default). Inside the compose `devenv` container the server is exposed on port 5000 instead (see `docker-compose.yml` and the `npm run kill` script).
 
 ### Documentation Site
 
@@ -177,6 +181,7 @@ Access at: http://localhost:3000
 ### Standard Workflow
 
 1. **Create a branch**:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -184,18 +189,20 @@ Access at: http://localhost:3000
 2. **Make changes** in the root or submodules
 
 3. **Test your changes**:
+
    ```bash
    # For CV Builder
    cd projects/cv-builder-pro && npm run build && npm run preview
-   
+
    # For Documentation
    mkdocs build --strict
-   
+
    # For Scripts
    shellcheck projects/scripts/*.sh
    ```
 
 4. **Commit changes**:
+
    ```bash
    git add .
    git commit -m "feat: your descriptive message"
@@ -211,22 +218,26 @@ Access at: http://localhost:3000
 #### Making Changes in a Submodule
 
 1. **Navigate to submodule**:
+
    ```bash
    cd projects/cv-builder-pro  # or README, scripts, or skills
    ```
 
 2. **Create branch in submodule**:
+
    ```bash
    git checkout -b feature/new-feature
    ```
 
 3. **Make and commit changes**:
+
    ```bash
    git add .
    git commit -m "feat: add new feature"
    ```
 
 4. **Push to submodule repo**:
+
    ```bash
    git push origin feature/new-feature
    ```
@@ -244,19 +255,21 @@ Access at: http://localhost:3000
 ### Linting
 
 **JavaScript/TypeScript (CV Builder):**
+
 ```bash
 cd projects/cv-builder-pro
 npm run lint
 ```
 
-**Python (Documentation)** — the repo toolchain is black + flake8 (pre-commit,
-scoped to `projects/README/**/*.py`; max line 120):
+**Python (Documentation)** — the repo toolchain is black + flake8 (pre-commit, scoped to `projects/README/**/*.py`; max line 120):
+
 ```bash
 black projects/README/scripts/
 flake8 --max-line-length 120 projects/README/scripts/
 ```
 
 **Shell Scripts:**
+
 ```bash
 shellcheck projects/scripts/*.sh
 ```
@@ -264,11 +277,13 @@ shellcheck projects/scripts/*.sh
 ### Formatting
 
 **Prettier (Markdown, JSON):**
+
 ```bash
 npx prettier --write "**/*.{md,json}"
 ```
 
 **Black (Python):**
+
 ```bash
 black projects/README/scripts/
 ```
@@ -283,6 +298,7 @@ pre-commit install
 ```
 
 Run manually:
+
 ```bash
 pre-commit run --all-files
 ```
@@ -291,8 +307,7 @@ pre-commit run --all-files
 
 ### CV Builder Tests
 
-There is no `npm test` script — tests are Cypress e2e specs under
-`cypress/e2e/`, run against a running dev server:
+There is no `npm test` script — tests are Cypress e2e specs under `cypress/e2e/`, run against a running dev server:
 
 ```bash
 cd projects/cv-builder-pro
@@ -310,6 +325,7 @@ pytest tests/
 ### Integration Tests
 
 Run all tests:
+
 ```bash
 ./tools/run-all-tests.sh
 ```
@@ -340,20 +356,20 @@ OPENAI_API_KEY=your-openai-key
 
 ### AI Layer (Claude)
 
-The dash's AI workflows and MCP servers have their own auth (OAuth token /
-API key / GitHub tokens) — see [AI-INTEGRATION.md](AI-INTEGRATION.md) for the
-secrets matrix and one-time setup.
+The dash's AI workflows and MCP servers have their own auth (OAuth token / API key / GitHub tokens) — see [AI-INTEGRATION.md](AI-INTEGRATION.md) for the secrets matrix and one-time setup.
 
 ## Troubleshooting
 
 ### Submodule Issues
 
 **Problem**: Submodule not initialized
+
 ```bash
 git submodule update --init --recursive
 ```
 
 **Problem**: Submodule detached HEAD
+
 ```bash
 cd <submodule>
 git checkout main
@@ -361,15 +377,17 @@ cd ..
 ```
 
 **Problem**: Submodule changes not showing
+
 ```bash
 ./tools/update-submodules.sh    # refreshes each onto its declared branch
 ```
-(Avoid `git submodule foreach git pull origin main` — not every submodule
-tracks `main`: `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`.)
+
+(Avoid `git submodule foreach git pull origin main` — not every submodule tracks `main`: `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`.)
 
 ### Build Issues
 
 **Problem**: Node modules not found
+
 ```bash
 cd projects/cv-builder-pro
 rm -rf node_modules package-lock.json
@@ -377,6 +395,7 @@ npm install
 ```
 
 **Problem**: Python dependencies conflicts
+
 ```bash
 cd projects/README
 python3 -m venv .venv
@@ -385,6 +404,7 @@ pip install -r requirements.txt
 ```
 
 **Problem**: MkDocs build fails
+
 ```bash
 pip install --upgrade -r requirements-docs.txt
 mkdocs build --clean
@@ -393,6 +413,7 @@ mkdocs build --clean
 ### Permission Issues
 
 **Problem**: Scripts not executable
+
 ```bash
 chmod +x projects/scripts/*.sh
 chmod +x tools/*.sh
@@ -403,6 +424,7 @@ chmod +x tools/*.sh
 ### VS Code
 
 Recommended extensions:
+
 - ESLint
 - Prettier
 - Python
@@ -423,6 +445,7 @@ Workspace settings are in `.vscode/settings.json`.
 ### Faster Clones
 
 Use shallow clones for testing:
+
 ```bash
 git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/bamr87/bamr87.git
 ```
@@ -436,11 +459,13 @@ git submodule update --remote --jobs 8   # respects each submodule's declared br
 ### Incremental Builds
 
 For CV Builder:
+
 ```bash
 npm run dev  # Uses Vite's fast HMR
 ```
 
 For Documentation:
+
 ```bash
 mkdocs serve --dirtyreload  # Only rebuilds changed files
 ```

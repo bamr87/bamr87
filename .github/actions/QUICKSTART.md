@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/ci/run-tests
         with:
           language: 'python'
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/ci/run-tests
         with:
           language: 'node'
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/deployment/build-push-image
         with:
           image-name: 'myapp'
@@ -78,16 +78,16 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/setup/configure-git
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Make changes
         run: |
           # Your update script
           npm update
-      
+
       - name: Commit
         run: |
           git add .
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/ci/run-checks
         with:
           setup-script: './scripts/setup.sh'
@@ -117,7 +117,7 @@ jobs:
 ## 📚 Action Reference
 
 | Action | Purpose | When to Use |
-|--------|---------|-------------|
+| --- | --- | --- |
 | [ci/run-tests](ci/run-tests/README.md) | Run tests for any language | Standard testing workflow |
 | [ci/run-checks](ci/run-checks/README.md) | Run custom scripts | Custom CI pipelines |
 | [deployment/build-push-image](deployment/build-push-image/README.md) | Build Docker images | Container deployment |

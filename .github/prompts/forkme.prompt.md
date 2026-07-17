@@ -6,29 +6,34 @@ Prompt instructions file:
 -
 
 ## Purpose
+
 Fork or analyze a GitHub repository URL to generate comprehensive `.github/copilot-instructions.md` that enables AI coding agents to be immediately productive in the codebase.
 
 ## Primary Focus Areas
 
 ### Architecture Discovery
+
 - **System Overview**: Identify major components, service boundaries, and data flows
 - **Design Decisions**: Document the "why" behind structural choices that require reading multiple files
 - **Module Relationships**: Map dependencies and communication patterns between components
 - **Technology Stack**: List frameworks, libraries, and their specific versions used
 
 ### Developer Workflows
+
 - **Build System**: Document exact commands (Make targets, npm scripts, custom shell scripts)
 - **Testing Framework**: Specify test runner commands, suite organization, and coverage requirements
 - **Development Environment**: Docker setup, local vs containerized workflows, required tools
 - **CI/CD Pipeline**: Automation workflows, versioning strategy, deployment procedures
 
 ### Project-Specific Conventions
+
 - **File Organization**: Directory structure patterns and component placement rules
 - **Naming Conventions**: Files, functions, variables - especially non-standard patterns
 - **Code Patterns**: Template systems (Liquid, Jinja), configuration management, error handling approaches
 - **Documentation Standards**: Front matter requirements, inline documentation format, README structure
 
 ### Integration & Dependencies
+
 - **External Services**: APIs, CDNs, third-party integrations
 - **Configuration Management**: Multi-environment setup, secrets handling
 - **Cross-Component Patterns**: How modules communicate, shared utilities, common interfaces
@@ -36,13 +41,17 @@ Fork or analyze a GitHub repository URL to generate comprehensive `.github/copil
 ## Information Gathering Strategy
 
 ### Search Existing AI Conventions
+
 Use semantic search for:
+
 ```
 **/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**}
 ```
 
 ### Mine Repository Documentation
+
 Prioritize searching:
+
 - README.md, CONTRIBUTING.md, docs/
 - Test directories (reveals implementation patterns)
 - Build scripts (scripts/, Makefile, package.json)
@@ -51,7 +60,9 @@ Prioritize searching:
 - Configuration files (_config.yml, tsconfig.json, etc.)
 
 ### Query for Key Patterns
+
 Use targeted GitHub repo searches for:
+
 - "architecture", "structure", "setup", "development workflow"
 - "build", "test", "deploy", "CI/CD"
 - "convention", "pattern", "guideline", "best practice"
@@ -60,6 +71,7 @@ Use targeted GitHub repo searches for:
 ## Output Guidelines
 
 ### Structure (Markdown format)
+
 1. **Project Overview** (2-3 sentences)
 2. **Architecture & Key Components** (file tree, hierarchy diagrams)
 3. **Development Workflows** (exact commands with explanations)
@@ -71,6 +83,7 @@ Use targeted GitHub repo searches for:
 9. **Quick Reference Links** (key documentation files)
 
 ### Content Principles
+
 - **Specificity**: "Use `make test-core` for unit tests" NOT "run tests"
 - **Actionability**: Include actual file paths, command examples, code snippets
 - **Discoverability**: Focus on patterns you learned FROM the codebase
@@ -79,6 +92,7 @@ Use targeted GitHub repo searches for:
 - **Examples**: Pull real examples from the repository
 
 ### Intelligent Merging (if file exists)
+
 - Preserve project-specific content and examples
 - Update outdated framework versions or deprecated commands
 - Add missing critical sections
@@ -90,35 +104,43 @@ Use targeted GitHub repo searches for:
 Include a section on "AI-Specific Guidance" with:
 
 ### Prompt Best Practices
+
 - How to request code that follows project patterns
 - Required context to include (files, principles, dependencies)
 - Testing expectations for generated code
 
 ### Code Generation Rules
+
 - ALWAYS/NEVER patterns specific to this project
 - Required documentation format
 - Error handling expectations
 - Testing requirements
 
 Example template:
+
 ```markdown
 ## AI-Specific Guidance
 
 ### Prompt Writing Best Practices
+
 When requesting AI assistance for this project:
+
 1. **Context**: Specify which [framework components] are affected
 2. **Patterns**: Reference existing [pattern examples]
 3. **Principles**: Mention which [project principles] apply
 4. **Testing**: Request test code alongside implementation
 
 ### Code Generation Guidelines
+
 ALWAYS:
+
 - Include [required metadata format]
 - Use [framework] classes/patterns
 - Add error handling for [common failure modes]
 - Include inline documentation
 
 NEVER:
+
 - Hardcode values that belong in [config location]
 - Create duplicate functionality without checking [location]
 ```
@@ -128,22 +150,27 @@ NEVER:
 After creating `.github/copilot-instructions.md`:
 
 ### 1. Ask User for Direction
+
 Present two clear options:
 
 **Option A: Plant the Seed (MVP Roadmap)**
+
 - Generate minimal viable project structure
 - Create foundational files (README, basic config)
 - Establish core directory structure
 - Set up initial build/test scaffolding
 
 **Option B: Build Upon It (Validate & Enhance)**
+
 - Deploy development environment (Docker/local)
 - Run existing test suites to validate understanding
 - Identify gaps in documentation
 - Create integration examples
 
 ### 2. Create Deployment Prompt
+
 Generate `.github/prompts/deploy.prompt.md` with:
+
 - Full context from this task
 - Repository URL and analysis summary
 - Devcontainer/Docker setup instructions
@@ -152,7 +179,9 @@ Generate `.github/prompts/deploy.prompt.md` with:
 - Common troubleshooting scenarios
 
 ### 3. Update This Prompt (Meta-Improvement)
+
 Before asking next steps, enhance `forkme.prompt.md` with:
+
 - Specific insights from analyzing this repository
 - Patterns that were hard to discover (document search strategies)
 - Effective vs ineffective approaches
@@ -162,6 +191,7 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 ## Improvements from Practice
 
 ### Lessons Learned (Update after each use)
+
 - **Jekyll Projects**: Search for Liquid template patterns, _includes organization, front matter standards
 - **Automated Projects**: Look for scripts/ directory, Makefile targets, GitHub Actions
 - **Testing Complexity**: Check test/README.md for consolidated framework info
@@ -174,6 +204,7 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 - **Statistics Systems**: Look for data generation scripts and dashboard components
 
 ### Search Strategy Refinements
+
 - Use multiple targeted queries rather than one broad search
 - Look for "comprehensive", "guide", "automation", "workflow" in docs
 - Check CHANGELOG.md for historical context on architecture decisions
@@ -188,6 +219,7 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 - **Data Files**: _data/ directory reveals navigation, statistics, and configuration patterns
 
 ### Output Quality Checks
+
 - ✅ Includes actual command examples with flags
 - ✅ Shows real file paths and code snippets from repo
 - ✅ Explains WHY patterns exist (not just WHAT)
@@ -203,7 +235,9 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 - ✅ Provides quick reference tables for commands and configurations
 
 ### Jekyll Theme Specific Insights (2025-01-28)
+
 **Discovery Process**:
+
 1. **Initial Structure**: Start with file tree to understand organization (_layouts/, _includes/, pages/, docs/, scripts/)
 2. **Configuration Layer**: Examine _config.yml and _config_dev.yml to understand production vs development setup
 3. **Docker Setup**: Review docker-compose.yml for platform requirements (linux/amd64), volume mounts, and livereload
@@ -214,6 +248,7 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 8. **Testing Framework**: Review test/ directory structure and test_runner.sh for suite organization
 
 **Key Patterns Found**:
+
 - **Docker-First Philosophy**: All development via docker-compose, not optional
 - **Layered Configs**: _config.yml (production) + _config_dev.yml (dev overrides)
 - **Conventional Commits Drive Automation**: feat: → minor, fix: → patch, BREAKING CHANGE → major
@@ -225,12 +260,14 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 - **Keep a Changelog**: Auto-generated from conventional commits in standard format
 
 **Search Queries That Worked Well**:
+
 1. "repository structure architecture README documentation" - Revealed organizational patterns
 2. "Jekyll configuration build test development workflow Makefile docker gemspec" - Exposed build system
 3. "CI/CD GitHub Actions workflows automation conventional commits" - Uncovered automation details
 4. "Liquid templates includes layouts front matter collections" - Documented template patterns
 
 **What Would Have Helped Earlier**:
+
 - Initial check for docker-compose.yml to identify Docker-first projects
 - Look for scripts/README.md as entry point to automation documentation
 - Search for _layouts/README.md and _includes/ to understand template organization early
@@ -238,6 +275,7 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 - Examine package.json as version source of truth before diving into other files
 
 **Effective Content Structure Discovered**:
+
 1. Project Overview (mission, tech stack, philosophy)
 2. Repository Structure (directory tree with annotations)
 3. Development Workflows (exact commands, Docker primary)
@@ -262,6 +300,7 @@ Before asking next steps, enhance `forkme.prompt.md` with:
 **Execution**: Analyze [repository URL], generate comprehensive instructions, ask for next steps, create deployment prompt, update this file.
 
 Focus on discovering the essential knowledge that would help an AI agents be immediately productive in this codebase. Consider aspects like:
+
 - The "big picture" architecture that requires reading multiple files to understand - major components, service boundaries, data flows, and the "why" behind structural decisions
 - Critical developer workflows (builds, tests, debugging) especially commands that aren't obvious from file inspection alone
 - Project-specific conventions and patterns that differ from common practices
@@ -270,6 +309,7 @@ Focus on discovering the essential knowledge that would help an AI agents be imm
 Source existing AI conventions from `**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}` (do one glob search).
 
 Guidelines (read more at https://aka.ms/vscode-instructions-docs):
+
 - If `.github/copilot-instructions.md` exists, merge intelligently - preserve valuable content while updating outdated sections
 - Write concise, actionable instructions (~20-50 lines) using markdown structure
 - Include specific examples from the codebase when describing patterns

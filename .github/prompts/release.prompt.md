@@ -22,12 +22,14 @@ When a user invokes `/release`, guide them through version control and release m
 ### Version Format: MAJOR.MINOR.PATCH
 
 **MAJOR (X.0.0)**: Breaking changes
+
 - API changes that break existing functionality
 - Removed features or endpoints
 - Changed behavior that requires code updates
 - Incompatible dependency updates
 
 **MINOR (0.X.0)**: Backward-compatible new features
+
 - New features or endpoints
 - New optional parameters
 - Functionality enhancements
@@ -35,6 +37,7 @@ When a user invokes `/release`, guide them through version control and release m
 - Deprecation warnings (not removal)
 
 **PATCH (0.0.X)**: Backward-compatible bug fixes
+
 - Bug fixes
 - Documentation updates
 - Security patches
@@ -209,16 +212,19 @@ git push origin small-change
 Update version in these files (depending on project type):
 
 **Python:**
+
 - `setup.py`: `version='X.Y.Z'`
 - `pyproject.toml`: `version = "X.Y.Z"`
 - `package_name/__init__.py`: `__version__ = "X.Y.Z"`
 - `VERSION` file: `X.Y.Z`
 
 **JavaScript/TypeScript:**
+
 - `package.json`: `"version": "X.Y.Z"`
 - `package-lock.json` (auto-updated)
 
 **Ruby:**
+
 - `lib/gem_name/version.rb`: `VERSION = "X.Y.Z"`
 - `gemspec`: `spec.version = GemName::VERSION`
 
@@ -229,49 +235,59 @@ Update version in these files (depending on project type):
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ### Added
+
 - New feature descriptions (from `feat:` commits)
 
 ### Changed
+
 - Changes to existing functionality (from `feat:` or `refactor:` commits)
 
 ### Deprecated
+
 - Features marked for removal (with timeline)
 
 ### Removed
+
 - Removed features (BREAKING CHANGE)
 
 ### Fixed
+
 - Bug fixes (from `fix:` commits)
 
 ### Security
+
 - Security patches and vulnerability fixes
 
 ## [2.0.0] - 2025-01-15
 
 ### Added
+
 - OAuth2 authentication provider support
 - API pagination with configurable page sizes
 - Dark mode theme option
 
 ### Changed
+
 - Updated minimum Python version to 3.9
 - Improved error messages for validation failures
 
 ### Removed
+
 - **BREAKING**: Deprecated v1 API endpoints removed
   - Migration guide: docs/migration/v2.md
 
 ### Fixed
+
 - Race condition in concurrent user creation
 - Timezone calculation errors in reporting
 
 ### Security
+
 - Updated dependencies with security patches
 - Added rate limiting to prevent DoS
 
@@ -306,49 +322,49 @@ permissions:
 jobs:
   bump-version:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Set up environment
-        uses: actions/setup-node@v4  # or setup-python, setup-ruby
+        uses: actions/setup-node@v4 # or setup-python, setup-ruby
         with:
           node-version: '18'
-      
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      
+
       - name: Bump version
         id: bump
         run: |
           # Bump version in package.json
           npm version ${{ inputs.version_type }} --no-git-tag-version
-          
+
           NEW_VERSION=$(node -p "require('./package.json').version")
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "Bumped version to $NEW_VERSION"
-      
+
       - name: Update CHANGELOG
         run: |
           # Extract unreleased changes
           ./scripts/extract-changelog.sh unreleased > temp-changelog.md
-          
+
           # Add version and date
           echo "## [${{ steps.bump.outputs.new_version }}] - $(date +%Y-%m-%d)" > new-entry.md
           cat temp-changelog.md >> new-entry.md
-          
+
           # Insert into CHANGELOG.md
           sed -i '/## \[Unreleased\]/r new-entry.md' CHANGELOG.md
-          
+
           # Clear unreleased section
           sed -i '/## \[Unreleased\]/,/## \[/{//!d}' CHANGELOG.md
-      
+
       - name: Commit and tag
         run: |
           git add package.json package-lock.json CHANGELOG.md
@@ -356,7 +372,7 @@ jobs:
           git tag "v${{ steps.bump.outputs.new_version }}"
           git push origin main
           git push origin "v${{ steps.bump.outputs.new_version }}"
-      
+
       - name: Trigger release workflow
         run: echo "Release workflow will be triggered by tag push"
 ```
@@ -378,30 +394,30 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Extract version from tag
         id: version
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Releasing version $VERSION"
-      
+
       - name: Extract changelog for this version
         id: changelog
         run: |
           # Extract section for this version from CHANGELOG.md
           ./scripts/extract-changelog.sh ${{ steps.version.outputs.version }} > release-notes.md
-          
+
           # Preview
           echo "Release notes:"
           cat release-notes.md
-      
+
       - name: Detect prerelease
         id: prerelease
         run: |
@@ -411,14 +427,14 @@ jobs:
           else
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           body_path: release-notes.md
           draft: false
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
-          generate_release_notes: true  # Includes commit list
+          generate_release_notes: true # Includes commit list
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -438,26 +454,26 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
           pip install build twine
-      
+
       - name: Build package
         run: python -m build
-      
+
       - name: Check package
         run: twine check dist/*
-      
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -477,25 +493,25 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           registry-url: 'https://registry.npmjs.org'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run tests
         run: npm test
-      
+
       - name: Build
         run: npm run build
-      
+
       - name: Publish to NPM
         run: npm publish
         env:
@@ -515,22 +531,22 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
           bundler-cache: true
-      
+
       - name: Run tests
         run: bundle exec rspec
-      
+
       - name: Build gem
         run: gem build *.gemspec
-      
+
       - name: Publish to RubyGems
         run: |
           mkdir -p ~/.gem
@@ -668,20 +684,20 @@ When guiding a release, use this format:
 ```markdown
 ## Release Planning: v[X.Y.Z]
 
-**Current Version**: [Current]
-**Target Version**: [Target]
-**Version Type**: [MAJOR/MINOR/PATCH]
-**Release Date**: [Planned Date]
+**Current Version**: [Current] **Target Version**: [Target] **Version Type**: [MAJOR/MINOR/PATCH] **Release Date**: [Planned Date]
 
 **Changes Since Last Release**:
+
 - [Change 1] (type: feat/fix/etc.)
 - [Change 2]
 - [Change 3]
 
 **Breaking Changes**: [Yes/No]
+
 - If yes: [List breaking changes]
 
 **Dependencies**:
+
 - [Any dependency updates needed]
 ```
 
@@ -692,11 +708,7 @@ When guiding a release, use this format:
 
 ### 1. Prepare Release Branch
 
-\`\`\`bash
-git checkout develop
-git pull origin develop
-git checkout -b release/vX.Y.Z
-\`\`\`
+\`\`\`bash git checkout develop git pull origin develop git checkout -b release/vX.Y.Z \`\`\`
 
 ### 2. Update Version Files
 
@@ -705,41 +717,36 @@ git checkout -b release/vX.Y.Z
 ### 3. Update CHANGELOG
 
 \`\`\`bash
+
 # Add new version section
+
 # Move unreleased items to version section
+
 \`\`\`
 
 ### 4. Run Pre-Release Tests
 
 \`\`\`bash
+
 # Run full test suite
+
 [specific test command]
 
 # Build and verify
-[specific build command]
-\`\`\`
+
+[specific build command] \`\`\`
 
 ### 5. Commit and Tag
 
-\`\`\`bash
-git add [files]
-git commit -m "chore: bump version to X.Y.Z"
-git tag vX.Y.Z
-\`\`\`
+\`\`\`bash git add [files] git commit -m "chore: bump version to X.Y.Z" git tag vX.Y.Z \`\`\`
 
 ### 6. Merge and Push
 
-\`\`\`bash
-git checkout main
-git merge release/vX.Y.Z
-git push origin main --tags
-\`\`\`
+\`\`\`bash git checkout main git merge release/vX.Y.Z git push origin main --tags \`\`\`
 
 ### 7. Publish Package
 
-\`\`\`bash
-[Package-specific publish commands]
-\`\`\`
+\`\`\`bash [Package-specific publish commands] \`\`\`
 
 ### 8. Create GitHub Release
 
@@ -751,24 +758,26 @@ git push origin main --tags
 When user invokes `/release`, follow this flow:
 
 1. **Identify Release Intent**:
+
    ```
    I'll help you manage this release following semantic versioning.
-   
+
    What type of release is this?
    - [ ] Standard release (planned feature release)
    - [ ] Hotfix release (critical bug fix)
    - [ ] Prerelease (alpha/beta/rc)
    - [ ] Check if a release is needed (analyze commits)
-   
+
    Current version: [If known]
    Last release: [If known]
    ```
 
 2. **Analyze Changes** (if "check if needed"):
+
    ```bash
    # Get commits since last release
    git log v[LAST_VERSION]..HEAD --pretty=format:"%s"
-   
+
    # Categorize by type
    feat: [count] → Suggests MINOR bump
    fix: [count] → Suggests PATCH bump
@@ -776,27 +785,30 @@ When user invokes `/release`, follow this flow:
    ```
 
 3. **Determine Version Bump**:
+
    ```markdown
    ## Version Analysis
-   
-   **Current Version**: X.Y.Z
-   **Recommended Bump**: [MAJOR/MINOR/PATCH]
-   **New Version**: [New Version]
-   
+
+   **Current Version**: X.Y.Z **Recommended Bump**: [MAJOR/MINOR/PATCH] **New Version**: [New Version]
+
    **Reasoning**:
-   - [X] `feat:` commits → MINOR bump warranted
-   - [X] Breaking changes present → MAJOR bump required
-   - [X] Only bug fixes → PATCH bump appropriate
-   
+
+   - [x] `feat:` commits → MINOR bump warranted
+   - [x] Breaking changes present → MAJOR bump required
+   - [x] Only bug fixes → PATCH bump appropriate
+
    **Changes to Include**:
-   
+
    ### Added
+
    - [Feature from feat: commits]
-   
+
    ### Fixed
+
    - [Bug fix from fix: commits]
-   
+
    ### Breaking Changes
+
    - [Breaking changes from BREAKING CHANGE: commits]
    ```
 
@@ -809,12 +821,12 @@ When user invokes `/release`, follow this flow:
 5. **Validate and Confirm**:
    ```
    Release plan ready! 🚀
-   
+
    Summary:
    - Version: X.Y.Z → A.B.C ([TYPE] bump)
    - Changes: [count] features, [count] fixes
    - Breaking changes: [Yes/No]
-   
+
    Proceed with:
    - [ ] Automated release (GitHub Actions)
    - [ ] Manual release (step-by-step)
@@ -829,10 +841,8 @@ When user invokes `/release`, follow this flow:
 ```json
 // lerna.json or package.json workspaces
 {
-  "version": "independent",  // or "fixed"
-  "packages": [
-    "packages/*"
-  ],
+  "version": "independent", // or "fixed"
+  "packages": ["packages/*"],
   "command": {
     "version": {
       "allowBranch": ["main", "develop"],
@@ -856,12 +866,14 @@ lerna version --scope=@org/package-name
 ## Cross-Repository Release Checklist
 
 ### Before Releasing Package A:
+
 - [ ] Ensure dependent packages are compatible
 - [ ] Test integration with package B (v[X.Y.Z])
 - [ ] Update dependency constraints if needed
 - [ ] Document breaking changes affecting dependencies
 
 ### After Releasing Package A:
+
 - [ ] Update package B's dependency: `@org/package-a: ^X.Y.Z`
 - [ ] Test package B with new dependency
 - [ ] Release package B if needed
@@ -908,4 +920,3 @@ git tag -v v1.0.0
 Invoke me with `/release` and let's automate your release workflow!
 
 **Remember**: Semantic versioning communicates change impact to users clearly.
-

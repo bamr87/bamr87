@@ -1,9 +1,9 @@
 ---
 name: General issue
 about: Describe a task, risk, question, or improvement
-title: "[Issue]: "
+title: '[Issue]: '
 labels: triage
-assignees: ""
+assignees: ''
 ---
 
 ## Summary

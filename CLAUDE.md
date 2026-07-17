@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (control plane) and a GitHub profile README. Every directory under `projects/` is a *separate Git repository* with its own stack, branch, and release cycle — there is no shared build system tying them together. The root repo (`tools/`, `docs/`, `.github/`, `_data/`, `pages/`, and the Jekyll site) is the machinery that manages, monitors, documents, and **standardizes** them.
+A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (control plane) and a GitHub profile README. Every directory under `projects/` is a _separate Git repository_ with its own stack, branch, and release cycle — there is no shared build system tying them together. The root repo (`tools/`, `docs/`, `.github/`, `_data/`, `pages/`, and the Jekyll site) is the machinery that manages, monitors, documents, and **standardizes** them.
 
-**The authoritative project list is [`_data/projects.yml`](_data/projects.yml)** (the registry), cross-checked against `.gitmodules` by the drift gate — *not* this file. Don't maintain a submodule list here; read the registry. Representative/foundational submodules:
+**The authoritative project list is [`_data/projects.yml`](_data/projects.yml)** (the registry), cross-checked against `.gitmodules` by the drift gate — _not_ this file. Don't maintain a submodule list here; read the registry. Representative/foundational submodules:
 
 | Path | Upstream | Branch | Stack |
-|------|----------|--------|-------|
+| --- | --- | --- | --- |
 | `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind, Firebase |
 | `projects/README/` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
 | `projects/scripts/` | `bamr87/scripts` | **`master`** | Bash, Python |
@@ -23,7 +23,7 @@ A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (c
 
 ## Submodule workflow (critical, non-obvious)
 
-Submodules are full clones of other repos. A change inside `projects/cv-builder-pro/`, `projects/README/`, `projects/scripts/`, or `projects/skills/` is **not** committed by the root repo — you commit it *in the submodule's own repo first*, then update the pointer in root:
+Submodules are full clones of other repos. A change inside `projects/cv-builder-pro/`, `projects/README/`, `projects/scripts/`, or `projects/skills/` is **not** committed by the root repo — you commit it _in the submodule's own repo first_, then update the pointer in root:
 
 ```bash
 cd projects/cv-builder-pro
@@ -36,6 +36,7 @@ git add projects/cv-builder-pro && git commit -m "chore: update cv submodule"   
 ```
 
 Consequences:
+
 - Branches vary: `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`, the rest track `main`. Read the branch from `.gitmodules`; don't assume `main`.
 - `projects/skills/` belongs to `microsoft/skills`; you generally consume it, not modify it.
 - Don't bundle changes across multiple submodules into one PR.
@@ -48,6 +49,7 @@ Clone fresh with `git clone --recurse-submodules ...`; bootstrap everything with
 Run project commands **inside the relevant submodule** — each has its own dependencies.
 
 **CV Builder (`projects/cv-builder-pro/`)** — Vite dev server (serves on port 5000 per the compose/`kill` config; docs sometimes cite Vite's default 5173):
+
 ```bash
 cd projects/cv-builder-pro
 npm install
@@ -56,9 +58,11 @@ npm run build        # tsc -b --noCheck && vite build
 npm run lint         # eslint .
 npm run kill         # frees port 5000
 ```
+
 Note: there is **no `npm test` script** in `projects/cv-builder-pro/`. Tests are Cypress e2e specs under `projects/cv-builder-pro/cypress/e2e/` (`npx cypress run` against a running dev server).
 
 **Documentation (`projects/README/`)** — Python + pytest:
+
 ```bash
 cd projects/README
 pip install -r requirements.txt
@@ -66,6 +70,7 @@ pytest tests/                  # or a single test: pytest tests/test_x.py::test_
 ```
 
 **MkDocs site (root)** — builds from `projects/README/docs` (see `docs_dir` in `mkdocs.yml`):
+
 ```bash
 pip install -r requirements-docs.txt
 mkdocs serve                   # http://localhost:8000
@@ -73,6 +78,7 @@ mkdocs build --strict          # CI-style strict build
 ```
 
 **Aggregate verification** — delegates to each project's own checks; skips any whose tooling/deps are absent:
+
 ```bash
 ./tools/run-all-tests.sh       # fans out over EVERY checked-out submodule, running each project's own suite when its deps are installed and skipping (with a reason) otherwise; plus mkdocs build + shellcheck of tools/ & projects/scripts/. cv-builder-pro is a skip, not a failure (no npm test script).
 ```
@@ -95,13 +101,13 @@ Services: `devenv` (ports 5000 CV / 5173 HMR / 8000 MkDocs / 4000 Jekyll), `mkdo
 
 ## Docs aggregation gotcha
 
-The published MkDocs site (`docs_dir: projects/README/docs`) pulls from the **README submodule**. Paths like `projects/README/docs/scripts/` and `projects/README/docs/skills/` are *aggregated documentation copies* for the site — they are **not** the same working trees as the root `projects/scripts/` and `projects/skills/` submodules. Edit source in the submodules; the copies under `projects/README/docs` are generated/mirrored content.
+The published MkDocs site (`docs_dir: projects/README/docs`) pulls from the **README submodule**. Paths like `projects/README/docs/scripts/` and `projects/README/docs/skills/` are _aggregated documentation copies_ for the site — they are **not** the same working trees as the root `projects/scripts/` and `projects/skills/` submodules. Edit source in the submodules; the copies under `projects/README/docs` are generated/mirrored content.
 
 ## Quality gates
 
 - **pre-commit** (`.pre-commit-config.yaml`): trailing-whitespace, end-of-file, check-yaml/json, markdownlint (`--fix`, MD013/MD033/MD041 disabled), shellcheck, prettier. `black` + `flake8` (max-line 120) are **scoped to `projects/README/**/*.py` only**. Install with `pip install pre-commit && pre-commit install`; CI skips shellcheck + markdownlint.
 - **Husky** (`.husky/pre-commit`) runs `pnpm lint-staged`.
-- **CI**: the live control-plane workflows are `build-dash.yml` (builds the Jekyll dash and deploys to Pages — the sole Pages surface), `drift-check.yml` (hard drift gate), `refresh-dash.yml` (nightly README/registry refresh PR), `update-submodules.yml` (weekly PR bumping submodule pointers *up*), `standardize-fanout.yml` (opens standardization PRs *down* into submodules — the reusable `standard-ci.yml` caller, `.editorconfig`, and on request the **agent-context kit**: artifacts `agent-context,claude` seed a `CLAUDE.md` scaffold + the `@claude` mention workflow from `templates/agent-context/`), `schema-fanout.yml` (opens Pyramid Schema adoption PRs *down* into submodules; optional `agent_fill` Claude Code pass fills scaffold TODOs), `actions-usage.yml` (daily commit of the Actions cost/effectiveness analytics), and `actions-review.yml` (an **Opus Claude Code reviewer** that deep-dives the worst workflows from that analytics and files optimization *issues*). Both fan-outs ride `tools/fanout.sh` (dry-run default, PRs only, additive-only). **Claude auth convention**: every `anthropics/claude-code-action` call site (`claude.yml` @claude handler, `actions-review.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`) is OAuth-first — `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback; see [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md). The generic `unified-*.yml` suite is legacy/dispatch-only. Reusable composite actions live in `.github/actions/{ci,deployment,setup,utilities}`.
+- **CI**: the live control-plane workflows are `build-dash.yml` (builds the Jekyll dash and deploys to Pages — the sole Pages surface), `drift-check.yml` (hard drift gate), `refresh-dash.yml` (nightly README/registry refresh PR), `update-submodules.yml` (weekly PR bumping submodule pointers _up_), `standardize-fanout.yml` (opens standardization PRs _down_ into submodules — the reusable `standard-ci.yml` caller, `.editorconfig`, and on request the **agent-context kit**: artifacts `agent-context,claude` seed a `CLAUDE.md` scaffold + the `@claude` mention workflow from `templates/agent-context/`), `schema-fanout.yml` (opens Pyramid Schema adoption PRs _down_ into submodules; optional `agent_fill` Claude Code pass fills scaffold TODOs), `actions-usage.yml` (daily commit of the Actions cost/effectiveness analytics), and `actions-review.yml` (an **Opus Claude Code reviewer** that deep-dives the worst workflows from that analytics and files optimization _issues_). Both fan-outs ride `tools/fanout.sh` (dry-run default, PRs only, additive-only). **Claude auth convention**: every `anthropics/claude-code-action` call site (`claude.yml` @claude handler, `actions-review.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`) is OAuth-first — `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback; see [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md). The generic `unified-*.yml` suite is legacy/dispatch-only. Reusable composite actions live in `.github/actions/{ci,deployment,setup,utilities}`.
 
 ## The Dash (central command surface)
 

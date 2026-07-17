@@ -9,9 +9,7 @@ sidebar:
 
 # 💰 Cost Cockpit
 
-One financial surface for the whole fleet: **Claude Code spend** (real CI cost
-from run logs + opt-in local estimates) and **GitHub Actions consumption**
-(minutes, waste, effectiveness), unified per repo. Every number drills down —
+One financial surface for the whole fleet: **Claude Code spend** (real CI cost from run logs + opt-in local estimates) and **GitHub Actions consumption** (minutes, waste, effectiveness), unified per repo. Every number drills down —
 to the [/ai-usage/]({{ '/ai-usage/' | relative_url }}) audit ledgers, the
 [/actions/]({{ '/actions/' | relative_url }}) workflow table, and the runs,
 commits, and PRs at the source.

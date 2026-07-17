@@ -1,19 +1,12 @@
 # Monorepo Organization
 
-> **This repo is a dash (control plane).** For the architecture — registry,
-> surfaces, monitoring, drift gates, standardization, and the AI loop — read
-> **[DASH.md](DASH.md)** first. This file covers the submodule mechanics.
+> **This repo is a dash (control plane).** For the architecture — registry, surfaces, monitoring, drift gates, standardization, and the AI loop — read **[DASH.md](DASH.md)** first. This file covers the submodule mechanics.
 
-The bamr87 repository is a monorepo of **~40 Git submodules** under `projects/`,
-each a separate repository with its own stack, branch, and release cycle. The
-root repo is the machinery that manages, monitors, documents, and standardizes
-them; it is also the GitHub profile README and the published Jekyll dash site.
+The bamr87 repository is a monorepo of **~40 Git submodules** under `projects/`, each a separate repository with its own stack, branch, and release cycle. The root repo is the machinery that manages, monitors, documents, and standardizes them; it is also the GitHub profile README and the published Jekyll dash site.
 
 ## The registry is the source of truth
 
-The authoritative project list is **[`_data/projects.yml`](../_data/projects.yml)**,
-cross-checked against `.gitmodules` by `tools/check-drift.sh`. This document does
-not enumerate the submodules — read the registry, or:
+The authoritative project list is **[`_data/projects.yml`](../_data/projects.yml)**, cross-checked against `.gitmodules` by `tools/check-drift.sh`. This document does not enumerate the submodules — read the registry, or:
 
 ```bash
 tools/dash status         # registry + drift summary
@@ -43,16 +36,11 @@ bamr87/
 └── README.md             # GitHub profile README (AUTO:projects span is generated)
 ```
 
-Logical grouping (docs / full-stack-ai / dev-tools / dash) lives in the
-registry's `category` field, **not** the filesystem — so a project is
-re-categorized by editing one line, without moving files.
+Logical grouping (docs / full-stack-ai / dev-tools / dash) lives in the registry's `category` field, **not** the filesystem — so a project is re-categorized by editing one line, without moving files.
 
 ## Why submodules
 
-We use Git submodules rather than a monorepo build tool because each project must
-keep **independent development, versioning, and release cycles**, and be
-clonable/deployable on its own. The dash adds the coordination layer on top:
-one registry, one CLI, one drift gate, one standardization pipeline.
+We use Git submodules rather than a monorepo build tool because each project must keep **independent development, versioning, and release cycles**, and be clonable/deployable on its own. The dash adds the coordination layer on top: one registry, one CLI, one drift gate, one standardization pipeline.
 
 ## Working with submodules
 
@@ -64,13 +52,11 @@ git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 git submodule update --init --recursive
 ```
 
-At scale you rarely need all 40 checked out — `tools/dash sync` supports a
-per-project/category subset.
+At scale you rarely need all 40 checked out — `tools/dash sync` supports a per-project/category subset.
 
 ### Making changes inside a submodule
 
-A change inside a submodule is committed **in its own repo first**, then the
-pointer is recorded in root. Use the submodule's own name, not `cv`:
+A change inside a submodule is committed **in its own repo first**, then the pointer is recorded in root. Use the submodule's own name, not `cv`:
 
 ```bash
 cd projects/<name>
@@ -93,13 +79,12 @@ Never bundle changes across multiple submodules into one PR.
 ./tools/update-submodules.sh <name>      # one
 ```
 
-The `update-submodules.yml` workflow does the same on a weekly schedule and opens
-a reviewable PR — pointer bumps only, never content changes.
+The `update-submodules.yml` workflow does the same on a weekly schedule and opens a reviewable PR — pointer bumps only, never content changes.
 
 ## Automated workflows
 
 | Workflow | Direction | What |
-|---|---|---|
+| --- | --- | --- |
 | `build-dash.yml` | root | Builds the Jekyll dash and deploys to GitHub Pages (the sole Pages surface). |
 | `drift-check.yml` | root | Hard gate: registry↔.gitmodules parity, stray projects, README freshness, missing top-level READMEs, SCHEMA.md pyramid (check h). Advisory: GitHub-reality drift + standardization. Also runs `actionlint`. |
 | `refresh-dash.yml` | root | Nightly PR refreshing the README AUTO span + registry data. |
@@ -110,8 +95,7 @@ a reviewable PR — pointer bumps only, never content changes.
 | `actions-usage.yml` | root | Daily commit of the Actions cost/effectiveness analytics (`_data/actions_usage.yml`). |
 | `actions-review.yml` | root | Opus Claude Code reviewer files one optimization issue per worst-offender workflow. |
 
-The generic `unified-*.yml` suite is legacy/dispatch-only (see
-[DASH.md](DASH.md) and the workflow README).
+The generic `unified-*.yml` suite is legacy/dispatch-only (see [DASH.md](DASH.md) and the workflow README).
 
 ## Troubleshooting
 

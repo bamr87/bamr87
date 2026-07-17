@@ -1,8 +1,6 @@
 # Workflows
 
-GitHub Actions for the bamr87 dash. Two groups: the **control-plane** workflows
-that keep the dash and its ~40 submodules aligned, and a **legacy** generic suite
-kept dispatch-only.
+GitHub Actions for the bamr87 dash. Two groups: the **control-plane** workflows that keep the dash and its ~40 submodules aligned, and a **legacy** generic suite kept dispatch-only.
 
 ## Control plane (live)
 
@@ -22,35 +20,19 @@ kept dispatch-only.
 
 ## Legacy / dispatch-only
 
-`unified-cicd.yml`, `unified-release.yml`, `unified-maintenance.yml`,
-`unified-evolution.yml`, and `workflow-dispatcher.yml` are a generic single-app
-template. They only ever ran against the **root** tree (which has no app code —
-the projects are submodules), so their scheduled triggers are removed; they
-remain **`workflow_dispatch`-only** for reference and manual use. Prefer the
-control-plane workflows above. `unified-evolution.yml` still powers the manual AI
-evolution pass (trigger via `tools/dash evolve`).
+`unified-cicd.yml`, `unified-release.yml`, `unified-maintenance.yml`, `unified-evolution.yml`, and `workflow-dispatcher.yml` are a generic single-app template. They only ever ran against the **root** tree (which has no app code — the projects are submodules), so their scheduled triggers are removed; they remain **`workflow_dispatch`-only** for reference and manual use. Prefer the control-plane workflows above. `unified-evolution.yml` still powers the manual AI evolution pass (trigger via `tools/dash evolve`).
 
 ## Standards
 
-- One workflow per durable responsibility; propagate shared CI via the
-  `workflow_call` template, not by copying near-duplicate workflows.
+- One workflow per durable responsibility; propagate shared CI via the `workflow_call` template, not by copying near-duplicate workflows.
 - Top-level `permissions: contents: read`; elevate per-job only where needed.
-- Every job sets `timeout-minutes`; every write-capable schedulable workflow
-  has a `concurrency:` group.
-- **Claude auth (house convention):** every `anthropics/claude-code-action@v1`
-  call site is OAuth-first —
-  `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` with
-  `anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}`
-  as the fallback. Provisioning: [`docs/AI-INTEGRATION.md`](../../docs/AI-INTEGRATION.md).
-- **Bot identity:** automated commits use
-  `bamr87-bot <10567847+bamr87@users.noreply.github.com>` (the noreply form is
-  required by email-privacy push protection).
-- Fan-outs go through `tools/fanout.sh` (dry-run default, PRs only,
-  external-upstream guard) — don't inline new clone→seed→PR loops.
+- Every job sets `timeout-minutes`; every write-capable schedulable workflow has a `concurrency:` group.
+- **Claude auth (house convention):** every `anthropics/claude-code-action@v1` call site is OAuth-first — `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` with `anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}` as the fallback. Provisioning: [`docs/AI-INTEGRATION.md`](../../docs/AI-INTEGRATION.md).
+- **Bot identity:** automated commits use `bamr87-bot <10567847+bamr87@users.noreply.github.com>` (the noreply form is required by email-privacy push protection).
+- Fan-outs go through `tools/fanout.sh` (dry-run default, PRs only, external-upstream guard) — don't inline new clone→seed→PR loops.
 - Avoid scheduled write-capable workflows unless the owner confirmed perms/secrets.
 - Update this README when adding, removing, or renaming workflows.
 
 ## Validation
 
-`actionlint` runs in CI (drift-check.yml) and locally: `actionlint` from the
-repo root. Also check that referenced local actions/scripts exist.
+`actionlint` runs in CI (drift-check.yml) and locally: `actionlint` from the repo root. Also check that referenced local actions/scripts exist.

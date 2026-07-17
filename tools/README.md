@@ -9,7 +9,7 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 ## Files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `devtools.conf` | **Central manifest** — declares all tools, packages, and env vars by platform |
 | `devtools-env.sh` | Shell environment loader — exports vars, PATH, and aliases from the manifest |
 | `Brewfile` | macOS Homebrew bundle — native `brew bundle` format (derived from manifest) |
@@ -69,16 +69,16 @@ BAMR87_HOME=~/bamr87            # Exported to shell environment
 
 **Prefix reference:**
 
-| Prefix | Package Manager | Platform |
-|---|---|---|
-| *(none)* | Generic (brew/apt/winget) | All |
-| `@brew` | Homebrew formula | macOS |
-| `@cask` | Homebrew cask | macOS |
-| `@apt` | apt-get | Ubuntu/Debian/WSL |
-| `@winget` | winget | Windows |
-| `@pip` | pip3 | All (Python) |
-| `@npm` | npm | All (Node.js) |
-| `@custom` | Custom install logic | Platform-specific |
+| Prefix    | Package Manager           | Platform          |
+| --------- | ------------------------- | ----------------- |
+| _(none)_  | Generic (brew/apt/winget) | All               |
+| `@brew`   | Homebrew formula          | macOS             |
+| `@cask`   | Homebrew cask             | macOS             |
+| `@apt`    | apt-get                   | Ubuntu/Debian/WSL |
+| `@winget` | winget                    | Windows           |
+| `@pip`    | pip3                      | All (Python)      |
+| `@npm`    | npm                       | All (Node.js)     |
+| `@custom` | Custom install logic      | Platform-specific |
 
 After editing `devtools.conf`, also update `Brewfile` to stay in sync for macOS users who prefer native `brew bundle`.
 
@@ -120,6 +120,7 @@ cd bamr87
 ### Shell Environment
 
 The `.zprofile` sources `tools/devtools-env.sh`, which:
+
 - Reads the `[env]` section from `devtools.conf` and exports variables
 - Adds `tools/` and `projects/scripts/` to `PATH`
 - Registers convenience aliases
@@ -135,6 +136,7 @@ bamr87-dc              # docker compose (from project root)
 ```
 
 To load manually in any shell:
+
 ```bash
 source ~/bamr87/tools/devtools-env.sh
 ```
@@ -168,12 +170,12 @@ docker compose down                        # Stop
 
 ## Platform Support
 
-| Platform | Package Manager | Status |
-|---|---|---|
-| macOS | Homebrew (`brew`) | Full support |
-| Ubuntu/Debian | APT (`apt-get`) | Full support |
-| WSL (Windows) | APT + winget | Full support |
-| Windows (Git Bash) | winget | Basic support |
+| Platform           | Package Manager   | Status        |
+| ------------------ | ----------------- | ------------- |
+| macOS              | Homebrew (`brew`) | Full support  |
+| Ubuntu/Debian      | APT (`apt-get`)   | Full support  |
+| WSL (Windows)      | APT + winget      | Full support  |
+| Windows (Git Bash) | winget            | Basic support |
 
 ## Adding a New Tool
 
@@ -184,12 +186,7 @@ docker compose down                        # Stop
 
 ## Submodule Management
 
-`update-submodules.sh` refreshes the `projects/` folder so every submodule sits
-**on its declared branch** (from `.gitmodules`) at the latest remote commit, then
-records the moved pointers in the root repo. It is safe by default: a submodule
-with uncommitted changes, unpushed commits, or a diverged history is skipped with
-a warning instead of being reset — pass `--force` to re-align those, or
-`--detach` for the legacy detached-HEAD behaviour.
+`update-submodules.sh` refreshes the `projects/` folder so every submodule sits **on its declared branch** (from `.gitmodules`) at the latest remote commit, then records the moved pointers in the root repo. It is safe by default: a submodule with uncommitted changes, unpushed commits, or a diverged history is skipped with a warning instead of being reset — pass `--force` to re-align those, or `--detach` for the legacy detached-HEAD behaviour.
 
 ```bash
 ./tools/update-submodules.sh --status      # Show declared vs. checked-out branch
@@ -200,12 +197,12 @@ a warning instead of being reset — pass `--force` to re-align those, or
 ./tools/update-submodules.sh --force       # Also re-align dirty/diverged submodules
 ```
 
-Wrapped by `tools/dash sync` (which also regenerates dash data) and the
-`bamr87-update` alias.
+Wrapped by `tools/dash sync` (which also regenerates dash data) and the `bamr87-update` alias.
 
 ## Troubleshooting
 
 **Docker not starting:**
+
 - macOS: Ensure Docker Desktop is running
 - Linux: `sudo systemctl start docker`
 

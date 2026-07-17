@@ -146,109 +146,126 @@ A comprehensive container image builder supporting multiple registries, platform
 ## Inputs
 
 ### Image Configuration
+
 | Input | Description | Required | Default |
-|-------|-------------|----------|---------|
+| --- | --- | --- | --- |
 | `image-name` | Container image name | Yes | - |
 | `image-tag` | Primary image tag | No | `${{ github.sha }}` |
 | `additional-tags` | Comma-separated additional tags | No | - |
 
 ### Registry Configuration
+
 | Input | Description | Required | Default |
-|-------|-------------|----------|---------|
+| --- | --- | --- | --- |
 | `registry-type` | Registry type (ecr/ghcr/dockerhub/gcr/acr/custom) | No | `dockerhub` |
 | `registry-url` | Custom registry URL | No | - |
 
 ### Registry Credentials
 
 **AWS ECR:**
+
 - `aws-region` - AWS region (default: us-east-1)
 - `aws-access-key` - AWS access key ID
 - `aws-secret-key` - AWS secret access key
 
 **DockerHub:**
+
 - `dockerhub-username` - DockerHub username
 - `dockerhub-token` - DockerHub token/password
 
 **GHCR:**
+
 - `ghcr-token` - GitHub token (default: `${{ github.token }}`)
 
 **GCR:**
+
 - `gcp-project-id` - GCP project ID
 - `gcp-service-account-key` - Service account JSON key
 
 **ACR:**
+
 - `azure-client-id` - Azure client ID
 - `azure-client-secret` - Azure client secret
 - `azure-tenant-id` - Azure tenant ID
 
 ### Build Configuration
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `context` | Build context path | No | `.` |
-| `dockerfile` | Dockerfile path | No | `Dockerfile` |
-| `platforms` | Target platforms | No | `linux/amd64` |
-| `build-args` | Build arguments | No | - |
-| `target` | Build target stage | No | - |
+
+| Input        | Description        | Required | Default       |
+| ------------ | ------------------ | -------- | ------------- |
+| `context`    | Build context path | No       | `.`           |
+| `dockerfile` | Dockerfile path    | No       | `Dockerfile`  |
+| `platforms`  | Target platforms   | No       | `linux/amd64` |
+| `build-args` | Build arguments    | No       | -             |
+| `target`     | Build target stage | No       | -             |
 
 ### Cache Configuration
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `cache-enabled` | Enable caching | No | `true` |
-| `cache-type` | Cache backend (gha/registry/local) | No | `gha` |
-| `no-cache` | Disable all caching | No | `false` |
+
+| Input           | Description                        | Required | Default |
+| --------------- | ---------------------------------- | -------- | ------- |
+| `cache-enabled` | Enable caching                     | No       | `true`  |
+| `cache-type`    | Cache backend (gha/registry/local) | No       | `gha`   |
+| `no-cache`      | Disable all caching                | No       | `false` |
 
 ### Push Configuration
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `push-image` | Push to registry | No | `false` |
-| `load-image` | Load to Docker daemon | No | `false` |
+
+| Input        | Description           | Required | Default |
+| ------------ | --------------------- | -------- | ------- |
+| `push-image` | Push to registry      | No       | `false` |
+| `load-image` | Load to Docker daemon | No       | `false` |
 
 ### Advanced Options
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `sbom` | Generate SBOM | No | `false` |
-| `provenance` | Generate provenance | No | `false` |
-| `secrets` | Build secrets | No | - |
-| `labels` | Image labels | No | - |
-| `pr-number` | PR number for tagging | No | - |
+
+| Input        | Description           | Required | Default |
+| ------------ | --------------------- | -------- | ------- |
+| `sbom`       | Generate SBOM         | No       | `false` |
+| `provenance` | Generate provenance   | No       | `false` |
+| `secrets`    | Build secrets         | No       | -       |
+| `labels`     | Image labels          | No       | -       |
+| `pr-number`  | PR number for tagging | No       | -       |
 
 ## Outputs
 
-| Output | Description |
-|--------|-------------|
+| Output       | Description                   |
+| ------------ | ----------------------------- |
 | `image-name` | Full image name with registry |
-| `tags` | All applied tags |
-| `digest` | Image digest (SHA256) |
-| `metadata` | Build metadata |
+| `tags`       | All applied tags              |
+| `digest`     | Image digest (SHA256)         |
+| `metadata`   | Build metadata                |
 
 ## Registry Types
 
 ### ECR (Amazon Elastic Container Registry)
+
 - Automatic authentication with AWS credentials
 - Regional registry URLs
 - Requires `aws-access-key` and `aws-secret-key`
 
 ### GHCR (GitHub Container Registry)
+
 - Uses GitHub token for authentication
 - Images at `ghcr.io/<owner>/<image>`
 - Integrated with GitHub packages
 
 ### DockerHub
+
 - Classic Docker registry
 - Requires username and token
 - Images at `<username>/<image>`
 
 ### GCR (Google Container Registry)
+
 - Requires GCP service account
 - Images at `gcr.io/<project>/<image>`
 - JSON key authentication
 
 ### ACR (Azure Container Registry)
+
 - Requires Azure service principal
 - Custom registry URL
 - Client ID/secret authentication
 
 ### Custom
+
 - Any Docker-compatible registry
 - Provide registry URL
 - Username/password authentication
@@ -256,12 +273,14 @@ A comprehensive container image builder supporting multiple registries, platform
 ## Automatic Tagging
 
 The action automatically generates tags:
+
 - **Primary tag**: `image-tag` input (default: commit SHA)
 - **Latest**: Added on main/master branch pushes
 - **PR tag**: `pr-<number>` if `pr-number` provided
 - **Additional**: Any tags in `additional-tags` input
 
 Example for commit `abc123` on PR #42:
+
 ```
 myimage:abc123
 myimage:pr-42
@@ -271,16 +290,19 @@ myimage:latest  # if on main branch
 ## Caching Strategies
 
 ### GitHub Actions Cache (gha)
+
 - **Best for**: Most use cases
 - **Pros**: Fast, automatic, free
 - **Cons**: 10GB limit per repository
 
 ### Registry Cache
+
 - **Best for**: Large images, shared across repos
 - **Pros**: Unlimited size, shareable
 - **Cons**: Slower than GHA cache
 
 ### Local Cache
+
 - **Best for**: Self-hosted runners
 - **Pros**: Persistent across builds
 - **Cons**: Requires storage management
@@ -288,11 +310,13 @@ myimage:latest  # if on main branch
 ## Build Arguments
 
 Default build args automatically included:
+
 - `COMMIT_HASH` - Current commit SHA
 - `BUILD_DATE` - ISO 8601 timestamp
 - `VERSION` - Image tag value
 
 Add custom build args:
+
 ```yaml
 build-args: |
   NODE_ENV=production
@@ -303,11 +327,13 @@ build-args: |
 ## Labels
 
 OCI labels automatically added:
+
 - `org.opencontainers.image.source` - Repository URL
 - `org.opencontainers.image.revision` - Commit SHA
 - `org.opencontainers.image.created` - Build timestamp
 
 Add custom labels:
+
 ```yaml
 labels: |
   com.example.team=backend
@@ -328,7 +354,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Build and push
         uses: ./.github/actions/deployment/build-push-image
         with:
@@ -344,7 +370,7 @@ jobs:
           push-image: ${{ github.event_name != 'pull_request' }}
           pr-number: ${{ github.event.pull_request.number }}
           ghcr-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Image digest
         run: echo "Built image digest ${{ steps.build.outputs.digest }}"
 ```
@@ -362,21 +388,25 @@ jobs:
 ## Troubleshooting
 
 ### Authentication failures
+
 - Verify credentials are correct and not expired
 - Check token/key has necessary permissions
 - Ensure registry URL is correct format
 
 ### Multi-platform builds fail
+
 - Requires QEMU (automatically installed)
 - Some base images don't support all platforms
 - Check Dockerfile compatibility
 
 ### Cache not working
+
 - Verify `cache-enabled` is `true`
 - Check cache backend is appropriate
 - GHA cache has 10GB limit
 
 ### Image too large
+
 - Use multi-stage builds
 - Minimize layers
 - Use `.dockerignore`
@@ -392,6 +422,7 @@ jobs:
 ## Contributing
 
 When adding new registry types:
+
 1. Add registry-specific inputs
 2. Implement login step
 3. Add registry URL handling in metadata step

@@ -8,11 +8,7 @@ description: "Solutions Architect & ERP Specialist based in Denver, CO with 15+ 
 
 ## About Me
 
-I'm a **Solutions Architect** and **ERP Specialist** based in Denver, CO, with **15+ years**
-of experience designing and implementing enterprise systems that drive manufacturing and
-business operations worldwide. My mission is to bridge the gap between complex business
-processes and effective technology, always prioritizing people and sustainable growth over
-vendor dependency.
+I'm a **Solutions Architect** and **ERP Specialist** based in Denver, CO, with **15+ years** of experience designing and implementing enterprise systems that drive manufacturing and business operations worldwide. My mission is to bridge the gap between complex business processes and effective technology, always prioritizing people and sustainable growth over vendor dependency.
 
 ### My Philosophy: People Over Profits
 
@@ -67,5 +63,4 @@ Web:         HTML5, CSS3, XML, JSON
 
 ## Education
 
-**Bachelor of Science (BS), Finance** — *Northern Illinois University*
-Focus: Corporate Finance
+**Bachelor of Science (BS), Finance** — *Northern Illinois University* Focus: Corporate Finance

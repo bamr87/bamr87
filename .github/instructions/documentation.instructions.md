@@ -16,17 +16,21 @@ Every directory should have a `README.md` that includes:
 # Directory Name
 
 ## Purpose
+
 Brief description of what this directory contains and its role.
 
 ## Contents
+
 - `file1.ext`: Description
 - `file2.ext`: Description
 - `subdirectory/`: Description
 
 ## Usage
+
 Examples of how to use or interact with the contents.
 
 ## Related Resources
+
 Links to related documentation or resources.
 ```
 
@@ -43,31 +47,24 @@ Links to related documentation or resources.
 Always specify the language:
 
 ```markdown
-\`\`\`python
-def example():
-    pass
-\`\`\`
+\`\`\`python def example(): pass \`\`\`
 
-\`\`\`bash
-echo "Hello, World!"
-\`\`\`
+\`\`\`bash echo "Hello, World!" \`\`\`
 ```
 
 ### Links
 
 ```markdown
-[Internal Link](./relative/path.md)
-[External Link](https://example.com)
-[Anchor Link](#section-name)
+[Internal Link](./relative/path.md) [External Link](https://example.com) [Anchor Link](#section-name)
 ```
 
 ### Tables
 
 ```markdown
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Feature 1 | ✅ | Working |
-| Feature 2 | 🔄 | In progress |
+| Feature   | Status | Notes       |
+| --------- | ------ | ----------- |
+| Feature 1 | ✅     | Working     |
+| Feature 2 | 🔄     | In progress |
 ```
 
 ## Code Documentation
@@ -80,17 +77,17 @@ Use Google-style docstrings:
 def process_data(data: dict, options: dict = None) -> dict:
     """
     Process input data with optional configuration.
-    
+
     Args:
         data: Input data dictionary
         options: Optional processing configuration
-    
+
     Returns:
         Processed data dictionary
-    
+
     Raises:
         ValueError: If data is invalid
-    
+
     Example:
         >>> result = process_data({"key": "value"})
         >>> print(result["processed"])
@@ -104,17 +101,17 @@ def process_data(data: dict, options: dict = None) -> dict:
 ```javascript
 /**
  * Process data with optional configuration
- * 
+ *
  * @param {Object} data - Input data object
  * @param {Object} [options] - Optional configuration
  * @returns {Promise<Object>} Processed data
  * @throws {Error} If data is invalid
- * 
+ *
  * @example
  * const result = await processData({key: 'value'});
  */
 async function processData(data, options = {}) {
-    // Implementation
+  // Implementation
 }
 ```
 
@@ -128,33 +125,19 @@ async function processData(data, options = {}) {
 Description of what this endpoint does.
 
 ### Request
+
 **Headers:**
+
 - `Content-Type: application/json`
 - `Authorization: Bearer <token>`
 
-**Body:**
-\`\`\`json
-{
-  "key": "value"
-}
-\`\`\`
+**Body:** \`\`\`json { "key": "value" } \`\`\`
 
 ### Response
-**Success (200):**
-\`\`\`json
-{
-  "status": "success",
-  "data": {}
-}
-\`\`\`
 
-**Error (400):**
-\`\`\`json
-{
-  "error": "Invalid input",
-  "code": "INVALID_INPUT"
-}
-\`\`\`
+**Success (200):** \`\`\`json { "status": "success", "data": {} } \`\`\`
+
+**Error (400):** \`\`\`json { "error": "Invalid input", "code": "INVALID_INPUT" } \`\`\`
 ```
 
 ## Changelog Format
@@ -167,17 +150,21 @@ All notable changes will be documented in this file.
 ## [Unreleased]
 
 ### Added
+
 - New features
 
 ### Changed
+
 - Changes to existing functionality
 
 ### Fixed
+
 - Bug fixes
 
 ## [1.0.0] - 2025-01-27
 
 ### Added
+
 - Initial release
 ```
 
@@ -212,29 +199,31 @@ Brief one-sentence description of what the project does.
 ## Installation
 
 ### Prerequisites
+
 - Requirement 1
 - Requirement 2
 
 ### Quick Start
 
 \`\`\`bash
+
 # Clone and setup
-git clone https://github.com/user/repo.git
-cd repo
-npm install  # or pip install -r requirements.txt
+
+git clone https://github.com/user/repo.git cd repo npm install # or pip install -r requirements.txt
 
 # Run
-npm start    # or python app.py
-\`\`\`
+
+npm start # or python app.py \`\`\`
 
 ## Usage
 
 ### Basic Usage
 
 \`\`\`language
+
 # Example usage
-example_code_here
-\`\`\`
+
+example_code_here \`\`\`
 
 ### Configuration
 
@@ -259,15 +248,18 @@ example_code_here
 # Directory Name
 
 ## Purpose
+
 What this directory contains and its role in the project.
 
 ## Contents
 
 ### Files
+
 - `file1.ext`: Description of what this file does
 - `file2.ext`: Description of what this file does
 
 ### Subdirectories
+
 - `subdirectory/`: Description of subdirectory contents
 
 ## Usage
@@ -275,6 +267,7 @@ What this directory contains and its role in the project.
 [Examples of how to use or interact with the directory contents]
 
 ## Related Resources
+
 - [Link to related documentation]
 - [Link to related directories]
 ```
@@ -319,6 +312,7 @@ For tutorials, guides, and learning resources:
 ### Learning Objectives
 
 By the end of this tutorial, you will:
+
 - [ ] Understand [concept 1]
 - [ ] Be able to [skill 1]
 - [ ] Know how to [task 1]
@@ -326,9 +320,11 @@ By the end of this tutorial, you will:
 ### Prerequisites
 
 **Knowledge:**
+
 - Understanding of [prerequisite topic]
 
 **System Setup:**
+
 - [Tool] installed and configured
 - Access to [resource]
 
@@ -338,11 +334,11 @@ By the end of this tutorial, you will:
 
 **Objective**: What this step accomplishes
 
-**Implementation**:
-\`\`\`language
+**Implementation**: \`\`\`language
+
 # Code with educational comments
-code_example_here  # Explain what this line does and why
-\`\`\`
+
+code_example_here # Explain what this line does and why \`\`\`
 
 **Expected Result**: What you should see/experience
 
@@ -351,6 +347,7 @@ code_example_here  # Explain what this line does and why
 ### Validation
 
 Test your understanding:
+
 1. Can you explain [concept] in your own words?
 2. What would happen if you changed [parameter]?
 3. How does this relate to [other concept]?
@@ -400,12 +397,15 @@ Test your understanding:
 
 ```markdown
 # Good: Descriptive alt text
+
 ![Architecture diagram showing the flow from client through API gateway to microservices](./arch.png)
 
 # Bad: Generic alt text
+
 ![diagram](./arch.png)
 
 # Decorative images: Empty alt text
+
 ![](./decorative-border.png)
 ```
 
@@ -423,17 +423,12 @@ Test your understanding:
 
 ```markdown
 # Include descriptive comments in code examples
-\`\`\`python
-def calculate_total(items):
-    """Calculate total price with tax"""
-    subtotal = sum(item.price for item in items)
-    tax = subtotal * 0.08  # 8% sales tax
-    return subtotal + tax
-\`\`\`
+
+\`\`\`python def calculate_total(items): """Calculate total price with tax""" subtotal = sum(item.price for item in items) tax = subtotal * 0.08 # 8% sales tax return subtotal + tax \`\`\`
 
 # Provide alternative text descriptions for complex code
-*This function iterates through all items, sums their prices, 
-applies 8% sales tax, and returns the final total.*
+
+_This function iterates through all items, sums their prices, applies 8% sales tax, and returns the final total._
 ```
 
 ## Documentation Tools
@@ -534,4 +529,3 @@ Include documentation for:
 **Version:** 3.0.0 | **Last Modified:** 2025-11-14 | **Author:** Amr Abdel-Motaleb
 
 **Purpose:** Universal documentation standards template for comprehensive, accessible, and maintainable documentation across all project types.
-

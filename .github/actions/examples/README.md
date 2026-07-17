@@ -20,16 +20,19 @@ This directory contains example workflows demonstrating how to use the reusable 
 ## 📝 Action Path Formats
 
 ### Same Repository
+
 ```yaml
 uses: ./.github/actions/ci/run-tests
 ```
 
 ### Different Repository
+
 ```yaml
 uses: owner/repo/.github/actions/ci/run-tests@main
 ```
 
 ### Specific Version
+
 ```yaml
 uses: owner/repo/.github/actions/ci/run-tests@v1.0.0
 ```
@@ -39,9 +42,11 @@ uses: owner/repo/.github/actions/ci/run-tests@v1.0.0
 Depending on which actions you use, configure these secrets:
 
 ### Git Operations
+
 - `GITHUB_TOKEN` - Automatically provided by GitHub
 
 ### Docker Registries
+
 - `DOCKERHUB_USERNAME` - DockerHub username
 - `DOCKERHUB_TOKEN` - DockerHub access token
 - `AWS_ACCESS_KEY_ID` - AWS access key for ECR

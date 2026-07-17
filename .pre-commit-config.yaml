@@ -66,6 +66,18 @@ repos:
         types_or: [javascript, jsx, ts, tsx, json, markdown, yaml]
         exclude: ^(projects/cv-builder-pro/package-lock\.json|.*\.min\.(js|css))$
 
+  # Liquid-safe "one paragraph per line" for the Jekyll dash pages. Prettier is
+  # kept off these (see .prettierignore) because its markdown parser merges
+  # {% %} tags into prose and breaks rendering; this surgical unwrapper only
+  # joins wrapped prose, leaving Liquid/HTML/tables/code/front-matter untouched.
+  - repo: local
+    hooks:
+      - id: unwrap-prose
+        name: markdown one paragraph per line (Liquid-safe)
+        entry: python3 tools/unwrap-prose.py --write
+        language: system
+        files: ^(pages/.*\.md|index\.md)$
+
 # Skip these hooks in CI (too slow)
 ci:
   skip: [shellcheck, markdownlint]

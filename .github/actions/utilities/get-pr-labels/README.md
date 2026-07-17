@@ -38,18 +38,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/utilities/get-pr-labels
         id: pr-labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Deploy to production
         if: contains(steps.pr-labels.outputs.labels, 'deploy:prod')
         run: |
           echo "Deploying to production..."
           # Your deployment logic
-      
+
       - name: Deploy to staging
         if: contains(steps.pr-labels.outputs.labels, 'deploy:staging')
         run: |
@@ -59,14 +59,14 @@ jobs:
 
 ## Inputs
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `token` | GitHub token | Yes | - |
+| Input   | Description  | Required | Default |
+| ------- | ------------ | -------- | ------- |
+| `token` | GitHub token | Yes      | -       |
 
 ## Outputs
 
 | Output | Description |
-|--------|-------------|
+| --- | --- |
 | `labels` | JSON array of label names from the merged PR (e.g., `["bug", "enhancement"]`). Empty array `[]` if no PR found. |
 
 ## How It Works
@@ -92,20 +92,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/utilities/get-pr-labels
         id: labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Run expensive tests
         if: contains(steps.labels.outputs.labels, 'test:full')
         run: npm run test:all
-      
+
       - name: Run quick tests
         if: "!contains(steps.labels.outputs.labels, 'test:full')"
         run: npm run test:unit
-      
+
       - name: Build documentation
         if: contains(steps.labels.outputs.labels, 'docs')
         run: npm run docs:build
@@ -130,7 +130,7 @@ jobs:
         id: get-labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-  
+
   deploy-dev:
     needs: check-labels
     if: contains(needs.check-labels.outputs.labels, 'env:dev')
@@ -138,7 +138,7 @@ jobs:
     steps:
       - name: Deploy to dev
         run: echo "Deploying to dev..."
-  
+
   deploy-staging:
     needs: check-labels
     if: contains(needs.check-labels.outputs.labels, 'env:staging')
@@ -146,7 +146,7 @@ jobs:
     steps:
       - name: Deploy to staging
         run: echo "Deploying to staging..."
-  
+
   deploy-prod:
     needs: check-labels
     if: contains(needs.check-labels.outputs.labels, 'env:prod')
@@ -171,28 +171,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/utilities/get-pr-labels
         id: labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Bump major version
         if: contains(steps.labels.outputs.labels, 'version:major')
         run: npm version major
-      
+
       - name: Bump minor version
         if: contains(steps.labels.outputs.labels, 'version:minor')
         run: npm version minor
-      
+
       - name: Bump patch version
         if: contains(steps.labels.outputs.labels, 'version:patch')
         run: npm version patch
-      
+
       - uses: ./.github/actions/setup/configure-git
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Push version bump
         run: git push --follow-tags
 ```
@@ -211,12 +211,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/utilities/get-pr-labels
         id: labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Add to changelog
         run: |
           LABELS='${{ steps.labels.outputs.labels }}'
@@ -229,7 +229,7 @@ jobs:
           else
             SECTION="Other"
           fi
-          
+
           echo "## $SECTION" >> CHANGELOG.md
           echo "- ${{ github.event.head_commit.message }}" >> CHANGELOG.md
 ```
@@ -253,7 +253,7 @@ jobs:
         id: labels
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Check skip label
         id: check
         run: |
@@ -262,7 +262,7 @@ jobs:
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
-  
+
   build:
     needs: check-labels
     if: needs.check-labels.outputs.should-skip != 'true'
@@ -277,22 +277,28 @@ jobs:
 Suggested label naming patterns:
 
 ### Deployment
+
 - `deploy:prod`, `deploy:staging`, `deploy:dev`
 - `env:production`, `env:staging`
 
 ### Testing
+
 - `test:full`, `test:quick`, `skip-tests`
 
 ### Versioning
+
 - `version:major`, `version:minor`, `version:patch`
 
 ### Change Type
+
 - `feature`, `bug`, `hotfix`, `breaking`
 
 ### Documentation
+
 - `docs`, `docs:api`, `docs:readme`
 
 ### Priority
+
 - `priority:high`, `priority:low`
 
 ## JSON Processing
@@ -303,16 +309,16 @@ The labels are returned as a JSON array, making them easy to process:
 - name: Process labels
   run: |
     LABELS='${{ steps.labels.outputs.labels }}'
-    
+
     # Check if specific label exists
     if echo "$LABELS" | jq -e 'contains(["feature"])' > /dev/null; then
       echo "This is a feature"
     fi
-    
+
     # Get label count
     COUNT=$(echo "$LABELS" | jq 'length')
     echo "PR had $COUNT labels"
-    
+
     # Iterate over labels
     echo "$LABELS" | jq -r '.[]' | while read label; do
       echo "Processing label: $label"
@@ -322,16 +328,16 @@ The labels are returned as a JSON array, making them easy to process:
 ## Troubleshooting
 
 ### No labels returned for merged PR
-**Cause**: The commit may not be associated with a PR
-**Solution**: Ensure workflow triggers on push after PR merge, not direct commits
+
+**Cause**: The commit may not be associated with a PR **Solution**: Ensure workflow triggers on push after PR merge, not direct commits
 
 ### Labels output is empty array
-**Cause**: PR exists but has no labels, or PR wasn't found
-**Solution**: Check that PRs are properly labeled before merging
+
+**Cause**: PR exists but has no labels, or PR wasn't found **Solution**: Check that PRs are properly labeled before merging
 
 ### Permission denied error
-**Cause**: Token lacks necessary permissions
-**Solution**: Ensure `GITHUB_TOKEN` has `pull-requests: read` permission
+
+**Cause**: Token lacks necessary permissions **Solution**: Ensure `GITHUB_TOKEN` has `pull-requests: read` permission
 
 ```yaml
 permissions:
@@ -339,8 +345,8 @@ permissions:
 ```
 
 ### Wrong PR detected
-**Cause**: Multiple PRs may reference the same commit
-**Solution**: Action uses the most recent PR; ensure clean merge workflow
+
+**Cause**: Multiple PRs may reference the same commit **Solution**: Action uses the most recent PR; ensure clean merge workflow
 
 ## Limitations
 
@@ -361,7 +367,7 @@ permissions:
 
 ```yaml
 permissions:
-  pull-requests: read  # Required to fetch PR labels
+  pull-requests: read # Required to fetch PR labels
 ```
 
 ## Related Actions

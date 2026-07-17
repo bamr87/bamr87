@@ -57,6 +57,7 @@ Every project should maintain clear organization:
 ### Project-Specific Adaptations
 
 **Web Applications:**
+
 ```
 project/
 ├── src/              # Application code
@@ -69,6 +70,7 @@ project/
 ```
 
 **Microservices:**
+
 ```
 project/
 ├── services/         # Individual microservices
@@ -81,6 +83,7 @@ project/
 ```
 
 **Libraries/Packages:**
+
 ```
 project/
 ├── lib/              # Library source code
@@ -122,7 +125,7 @@ project/
 ## Documentation Standards
 
 - Every directory should have a `README.md` explaining purpose and usage
-- Use comments to explain *why*, not *what*
+- Use comments to explain _why_, not _what_
 - Generate API documentation from source code comments
 - Keep documentation current with code changes
 
@@ -144,8 +147,10 @@ project/
 ### Effective AI Prompting Patterns
 
 **Code Generation Pattern:**
+
 ```markdown
 Generate a [language] [component type] for [specific purpose] that:
+
 - Follows [framework/style guide] conventions
 - Includes comprehensive error handling (DFF)
 - Implements [specific functionality] with [constraints]
@@ -156,8 +161,10 @@ Generate a [language] [component type] for [specific purpose] that:
 ```
 
 **Test Generation Pattern:**
+
 ```markdown
 Generate comprehensive tests for [component] that:
+
 - Cover happy path scenarios
 - Test edge cases: [list specific edges]
 - Test error conditions: [list specific errors]
@@ -168,8 +175,10 @@ Generate comprehensive tests for [component] that:
 ```
 
 **Documentation Generation Pattern:**
+
 ```markdown
 Generate documentation for [component/feature] that:
+
 - Explains purpose and use cases
 - Includes setup/installation instructions
 - Provides practical code examples
@@ -180,8 +189,10 @@ Generate documentation for [component/feature] that:
 ```
 
 **Refactoring Pattern:**
+
 ```markdown
 Refactor [code/module] to:
+
 - Improve [specific aspect: readability/performance/maintainability]
 - Apply [design pattern/principle]
 - Maintain existing functionality (with tests)
@@ -192,8 +203,10 @@ Refactor [code/module] to:
 ```
 
 **Architecture Design Pattern:**
+
 ```markdown
 Design [system/component] architecture that:
+
 - Solves [specific problem/requirement]
 - Follows [architectural pattern: MVC/microservices/etc]
 - Considers scalability: [specific requirements]
@@ -206,6 +219,7 @@ Design [system/component] architecture that:
 ### AI Assistance Best Practices
 
 **Quality Gates Before Accepting AI Suggestions:**
+
 - [ ] **Correctness**: Does it work as intended? Are there logical errors?
 - [ ] **Security**: Any vulnerabilities, injection risks, or data leaks?
 - [ ] **Performance**: Is the approach efficient? Any obvious bottlenecks?
@@ -215,6 +229,7 @@ Design [system/component] architecture that:
 - [ ] **Documentation**: Are complex parts explained?
 
 **When to Request Human Review:**
+
 - Security-sensitive operations (authentication, data access, encryption)
 - Performance-critical code (algorithms, database queries, API calls)
 - Breaking changes or major architectural decisions
@@ -245,6 +260,7 @@ Design [system/component] architecture that:
 ### Quality Assurance Checklist
 
 Before considering any feature complete:
+
 - [ ] Code follows project standards and conventions
 - [ ] Comprehensive tests written and passing
 - [ ] Documentation updated (README, API docs, inline comments)
@@ -258,6 +274,7 @@ Before considering any feature complete:
 ## Project Type Adaptations
 
 ### Web Applications
+
 - Follow MVC or similar architectural patterns
 - Implement service layers for business logic
 - Use ORM/query builders instead of raw SQL
@@ -266,6 +283,7 @@ Before considering any feature complete:
 - Consider frontend framework best practices
 
 ### CLI Tools
+
 - Implement clear command structure and help text
 - Provide verbose and quiet modes
 - Use configuration files for complex settings
@@ -273,6 +291,7 @@ Before considering any feature complete:
 - Include shell completion scripts
 
 ### Libraries/Packages
+
 - Design clear, intuitive public APIs
 - Minimize dependencies
 - Provide comprehensive documentation
@@ -281,6 +300,7 @@ Before considering any feature complete:
 - Maintain semantic versioning strictly
 
 ### Data Processing/Analytics
+
 - Implement data validation and sanitization
 - Use appropriate data structures for scale
 - Consider memory and performance implications
@@ -288,6 +308,7 @@ Before considering any feature complete:
 - Document data schemas and transformations
 
 ### Educational/Content Platforms
+
 - Design for multiple learning styles
 - Provide clear learning objectives
 - Include hands-on examples and exercises
@@ -299,4 +320,3 @@ Before considering any feature complete:
 **Version:** 3.0.0 | **Last Modified:** 2025-11-14 | **Author:** Amr Abdel-Motaleb
 
 **Purpose:** Universal template for core development principles applicable to any software development effort, from web applications to enterprise systems.
-

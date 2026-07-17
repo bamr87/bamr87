@@ -103,7 +103,7 @@ jobs:
 ## Inputs
 
 | Input | Description | Required | Default |
-|-------|-------------|----------|---------|
+| --- | --- | --- | --- |
 | `language` | Programming language | Yes | - |
 | `language-version` | Language version | No | Language default |
 | `package-manager` | Package manager | No | Auto-detect |
@@ -126,32 +126,37 @@ jobs:
 
 ## Outputs
 
-| Output | Description |
-|--------|-------------|
-| `test-result` | Test execution result (success/failure) |
-| `coverage-report` | Path to coverage report |
+| Output            | Description                             |
+| ----------------- | --------------------------------------- |
+| `test-result`     | Test execution result (success/failure) |
+| `coverage-report` | Path to coverage report                 |
 
 ## Supported Languages
 
 ### Python
+
 - **Package Managers**: pip, poetry, uv
 - **Default Version**: 3.11
 - **Parallelization**: pytest-split
 
 ### Node.js
+
 - **Package Managers**: npm, yarn, pnpm
 - **Default Version**: 20
 - **Parallelization**: Jest sharding
 
 ### Ruby
+
 - **Package Manager**: bundler
 - **Default Version**: 3.2
 
 ### Go
+
 - **Package Manager**: go mod
 - **Default Version**: stable
 
 ### Rust
+
 - **Package Manager**: cargo
 - **Default Version**: stable
 
@@ -169,10 +174,10 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/ci/run-tests
         with:
           language: 'python'
@@ -192,7 +197,7 @@ jobs:
         with:
           language: 'python'
           test-command: 'pytest backend/'
-  
+
   test-node:
     steps:
       - uses: ./.github/actions/ci/run-tests
@@ -220,21 +225,25 @@ Use Docker Compose inputs when tests need supporting services:
 ## Troubleshooting
 
 ### Tests fail to find dependencies
+
 - Ensure `install-dependencies` is `true`
 - Check `package-manager` is correctly specified
 - Verify dependency files exist (requirements.txt, package.json, etc.)
 
 ### Services not ready
+
 - Add a `services-wait-script` that polls service health
 - Increase timeout in wait script
 - Check Docker Compose file configuration
 
 ### Coverage not generated
+
 - Ensure `coverage-enabled` is `true`
 - Install coverage tools in dependencies (coverage.py, jest --coverage, etc.)
 - Check coverage format is supported for your language
 
 ### Parallel tests fail
+
 - Ensure test framework supports parallelization
 - Install required plugins (pytest-split, etc.)
 - Use unique test databases/resources per job

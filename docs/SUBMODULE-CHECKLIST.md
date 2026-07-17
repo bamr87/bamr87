@@ -1,9 +1,6 @@
 # Submodule README Standardization Checklist
 
-> **Note**: the operational standard is now the **tier system** —
-> [`_data/standards.yml`](../_data/standards.yml) + [STANDARDS.md](STANDARDS.md),
-> enforced by `tools/dash audit`. This checklist is the narrative/historical
-> companion for writing a good README.
+> **Note**: the operational standard is now the **tier system** — [`_data/standards.yml`](../_data/standards.yml) + [STANDARDS.md](STANDARDS.md), enforced by `tools/dash audit`. This checklist is the narrative/historical companion for writing a good README.
 
 Use this checklist to ensure all submodule READMEs follow a consistent structure and contain all necessary information.
 
@@ -135,7 +132,7 @@ Every submodule README must have:
 
 - [ ] **Syntax Highlighting**
   - Proper language tags on code blocks
-  - ```bash, ```typescript, etc.
+  - `bash, `typescript, etc.
 
 - [ ] **Tested Examples**
   - All code examples actually work
@@ -219,10 +216,8 @@ Before finalizing, verify:
 
 Already in place:
 
-- [x] Validation script — `tools/audit-standards.sh` (`tools/dash audit`) checks
-      README presence per tier
-- [x] CI check — the drift gate (`tools/check-drift.sh` via `drift-check.yml`)
-      hard-fails on missing top-level READMEs
+- [x] Validation script — `tools/audit-standards.sh` (`tools/dash audit`) checks README presence per tier
+- [x] CI check — the drift gate (`tools/check-drift.sh` via `drift-check.yml`) hard-fails on missing top-level READMEs
 - [x] Markdown linting — markdownlint runs in pre-commit
 
 Future improvements:

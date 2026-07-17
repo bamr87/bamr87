@@ -1,12 +1,6 @@
 # Architecture Overview
 
-> **Canonical architecture is [DASH.md](DASH.md); the source of truth is
-> [`_data/projects.yml`](../_data/projects.yml).** This document predates the dash
-> and is partly historical. Corrections that override anything below: the repo
-> holds **~40 submodules** (not four), the live GitHub Pages surface is the
-> **Jekyll dash** (`build-dash.yml`), **not** MkDocs, and the CV Builder / Vercel
-> examples describe *one* project, not the deployment model. Treat the diagrams as
-> conceptual.
+> **Canonical architecture is [DASH.md](DASH.md); the source of truth is [`_data/projects.yml`](../_data/projects.yml).** This document predates the dash and is partly historical. Corrections that override anything below: the repo holds **~40 submodules** (not four), the live GitHub Pages surface is the **Jekyll dash** (`build-dash.yml`), **not** MkDocs, and the CV Builder / Vercel examples describe _one_ project, not the deployment model. Treat the diagrams as conceptual.
 
 This document describes the system architecture and design decisions for the bamr87 monorepo.
 
@@ -17,30 +11,30 @@ The bamr87 repository is organized as a **modular monorepo** using Git submodule
 ```mermaid
 graph TD
     Root[bamr87 Root Repository]
-    
+
     Root --> Profile[GitHub Profile]
     Root --> Assets[Shared Assets]
     Root --> Workflows[CI/CD Workflows]
-    
+
     Root --> CV[CV Builder Submodule]
     Root --> Docs[Documentation Submodule]
     Root --> Scripts[Scripts Submodule]
-    
+
     CV --> CVApp[React Application]
     CV --> CVBackend[Firebase Backend]
     CV --> CVExport[Export Engine]
-    
+
     Docs --> WikiJS[Wiki.js]
     Docs --> MkDocs[MkDocs Site]
     Docs --> Aggregator[Doc Aggregator]
-    
+
     Scripts --> GitUtils[Git Utilities]
     Scripts --> ProjectInit[Project Init]
     Scripts --> DevTools[Dev Tools]
-    
+
     Workflows --> SubmoduleUpdates[Submodule Updates]
     Workflows --> DocDeployment[Doc Deployment]
-    
+
     style Root fill:#6bcf7f
     style CV fill:#4d96ff
     style Docs fill:#4d96ff
@@ -52,6 +46,7 @@ graph TD
 ### 1. Modularity
 
 Each major component is a separate Git submodule:
+
 - **Independence**: Can be developed and deployed separately
 - **Reusability**: Components can be used in other projects
 - **Isolation**: Changes in one module don't affect others
@@ -74,6 +69,7 @@ Each major component is a separate Git submodule:
 ### 4. README-First Development
 
 All components follow the README-First principle:
+
 - Documentation created before code
 - README serves as specification
 - Living documentation updated with code
@@ -87,20 +83,20 @@ All components follow the README-First principle:
 ```mermaid
 graph LR
     User[User Interface]
-    
+
     User --> Forms[CV Forms]
     User --> AIParser[AI Parser]
     User --> Export[Export Engine]
-    
+
     Forms --> Storage[Local Storage]
     AIParser --> Firebase[Firebase Auth]
     Firebase --> Firestore[(Firestore)]
-    
+
     AIParser --> AIService[AI Service]
     Export --> LaTeX[LaTeX Generator]
     Export --> Markdown[Markdown Generator]
     Export --> PDF[PDF Generator]
-    
+
     Storage --> CVData[CV Data Model]
     CVData --> Templates[Template System]
     Templates --> LaTeX
@@ -108,12 +104,14 @@ graph LR
 ```
 
 **Key Features**:
+
 - Client-side data persistence (localStorage)
 - Optional Firebase authentication for AI features
 - Multiple export formats (LaTeX, Markdown, PDF, ASCII)
 - Template-based CV generation
 
 **Data Flow**:
+
 1. User enters data → Stored in localStorage
 2. Optional: AI parses existing CV → Extracts structured data
 3. User selects template → Data merged with template
@@ -126,33 +124,35 @@ graph LR
 ```mermaid
 graph TD
     Sources[Source Repositories]
-    
+
     Sources --> Aggregator[Doc Aggregator Script]
     Aggregator --> Process[Processing Pipeline]
-    
+
     Process --> Categorize[Categorization]
     Process --> FrontMatter[Front Matter Generation]
     Process --> Organize[Organization]
-    
+
     Categorize --> AI[AI Context Analysis]
-    
+
     Organize --> MkDocsContent[MkDocs Content]
     Organize --> WikiContent[Wiki.js Content]
-    
+
     MkDocsContent --> MkDocsBuild[MkDocs Build]
     WikiContent --> WikiDB[(PostgreSQL)]
-    
+
     MkDocsBuild --> GHPages[GitHub Pages]
     WikiDB --> WikiJS[Wiki.js UI]
 ```
 
 **Key Features**:
+
 - Automated documentation aggregation from multiple repos
 - AI-powered content categorization and tagging
 - Dual rendering: MkDocs (static) and Wiki.js (dynamic)
 - Version-controlled documentation with Git
 
 **Data Flow**:
+
 1. Scheduled workflow pulls docs from source repos
 2. Python scripts process and categorize content
 3. AI enhances front matter with tags and summaries
@@ -167,27 +167,28 @@ graph TD
 ```mermaid
 graph LR
     CLI[Command Line Interface]
-    
+
     CLI --> ProjectInit[project-init.sh]
     CLI --> ForkMe[forkme.sh]
     CLI --> GitInit[git_init.sh]
     CLI --> Rename[rename-directory.sh]
-    
+
     ProjectInit --> Templates[Project Templates]
     ProjectInit --> GitHub[GitHub Integration]
-    
+
     ForkMe --> Strategies[Fork Strategies]
     Strategies --> Analysis[Repository Analysis]
-    
+
     GitInit --> Scaffold[Scaffolding]
     GitInit --> IgnoreGen[.gitignore Generator]
-    
+
     Rename --> Safety[Safety Checks]
     Safety --> Docker[Docker Management]
     Safety --> Git[Git Integrity]
 ```
 
 **Key Features**:
+
 - Interactive and headless modes
 - Extensive error handling and validation
 - Docker integration for project management
@@ -228,30 +229,30 @@ last_updated: 2025-01-15
 ```mermaid
 graph TB
     Push[Git Push]
-    
+
     Push --> Trigger{Which Files?}
-    
+
     Trigger -->|.github/workflows| WorkflowValidation[Validate Workflow]
     Trigger -->|projects/cv-builder-pro/**| CVBuild[Build CV App]
     Trigger -->|projects/README/docs/**| DocBuild[Build Documentation]
     Trigger -->|projects/scripts/**| ScriptValidation[Validate Scripts]
-    
+
     CVBuild --> CVTest[Run Tests]
     CVTest --> CVDeploy[Deploy to Vercel]
-    
+
     DocBuild --> MkDocsBuild[MkDocs Build]
     MkDocsBuild --> GHPagesDeploy[Deploy to GH Pages]
-    
+
     ScriptValidation --> Shellcheck[ShellCheck]
     Shellcheck --> ScriptTests[Run Script Tests]
-    
+
     WorkflowValidation --> WorkflowTest[Test Workflow]
 ```
 
 ### Deployment Strategy
 
 | Component | Platform | Trigger | URL |
-|-----------|----------|---------|-----|
+| --- | --- | --- | --- |
 | CV Builder | Vercel | Push to projects/cv-builder-pro/main | cv-builder.vercel.app |
 | Documentation | GitHub Pages | Push to projects/README/docs | bamr87.github.io/bamr87 |
 | Wiki.js | Docker/Self-hosted | Manual | localhost:3000 |
@@ -348,11 +349,11 @@ graph LR
     Current[Git Submodules]
     Current --> Assessment[Assess Pain Points]
     Assessment --> Options{Choose Approach}
-    
+
     Options --> Lerna[Lerna/Nx Monorepo]
     Options --> Separate[Separate Repos]
     Options --> Keep[Keep Submodules]
-    
+
     Lerna --> Migration[Migration Plan]
     Separate --> Split[Repository Split]
     Keep --> Optimize[Optimize Current]
@@ -365,6 +366,7 @@ graph LR
 **Decision**: Use Git submodules instead of monorepo tools (Lerna, Nx)
 
 **Rationale**:
+
 - Independent deployment and versioning
 - Smaller clone sizes for contributors
 - Existing separate repositories
@@ -372,6 +374,7 @@ graph LR
 - Flexibility to migrate later
 
 **Trade-offs**:
+
 - More complex Git operations
 - Coordination required for cross-module changes
 - Potential for submodule pointer drift
@@ -381,11 +384,13 @@ graph LR
 **Decision**: Use both MkDocs (static) and Wiki.js (dynamic)
 
 **Rationale**:
+
 - MkDocs: Public documentation, version control
 - Wiki.js: Internal knowledge base, collaboration
 - Different use cases, different strengths
 
 **Trade-offs**:
+
 - Content duplication possible
 - Two systems to maintain
 - More complex setup
@@ -393,6 +398,7 @@ graph LR
 ## Questions & Feedback
 
 For architecture questions or suggestions:
+
 - Open an issue with `architecture` label
 - Discuss in GitHub Discussions
 - Review existing ADRs (Architecture Decision Records)

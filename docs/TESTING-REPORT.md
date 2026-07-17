@@ -165,6 +165,7 @@ site/
 ### Follow-Up Actions
 
 1. **Address npm vulnerabilities** in projects/cv-builder-pro/ submodule:
+
    ```bash
    cd projects/cv-builder-pro && npm audit fix
    ```
@@ -175,6 +176,7 @@ site/
    - Update front matter where needed
 
 3. **Install pre-commit hooks** (optional but recommended):
+
    ```bash
    source .venv-docs/bin/activate
    pip install pre-commit
@@ -185,10 +187,10 @@ site/
    ```bash
    # CV Builder
    cd projects/cv-builder-pro && npm run dev
-   
+
    # Documentation with live reload
    source .venv-docs/bin/activate && mkdocs serve
-   
+
    # Scripts
    ./scripts/project-init.sh --help
    ```
