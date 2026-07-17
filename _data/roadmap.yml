@@ -440,3 +440,272 @@
   source: scout
   created: 2026-07-13
   issue_url: null
+
+- id: FF-0010
+  title: "Fleet facts parser — recurse into local composite actions and called reusable workflows"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P1
+  effort: M
+  category: enhancement
+  problem: >-
+    The Fleet Ops facts parser (app/src/fleet/facts.ts) reads only the workflow
+    file itself. Steps that call ./.github/actions/*/action.yml composites or
+    reusable workflows are opaque, and the fleet survey showed roughly 90% of
+    the AI/sink logic (claude-run composites, token chains, gh side effects)
+    hides there in some repos — so facts, alignment audits, and S–D grades
+    materially under-report reality for exactly the repos that matter most.
+  proposal: >-
+    When scanning a repo, additionally fetch local composite action.yml files
+    referenced via `uses: ./...` and same-repo reusable-workflow calls, run
+    them through the same facts extractor, and merge the child facts (auth
+    chain, kill switches, pinning, side effects, provenance headers) into the
+    calling job's facts with provenance tags saying which facts came from a
+    composite. Bound recursion depth, make it cycle-safe, and keep fetches
+    ETag-conditional. Cross-repo reusable workflows resolve when the target
+    repo is already in the roster; otherwise they are marked
+    "external — unresolved" instead of silently ignored.
+  acceptance:
+    - "A step `uses: ./.github/actions/<name>` pulls that action.yml, parses it, and merges its facts (auth, tools, side effects, pinning) into the job's facts."
+    - "Same-repo reusable-workflow calls are resolved and merged the same way; roster-resolvable cross-repo calls resolve one hop."
+    - "Merged facts carry provenance so the cockpit can show which facts came from a composite versus the workflow file."
+    - "Recursion is depth-bounded and cycle-safe; unresolved external targets render an explicit 'unresolved' marker, never silence."
+    - "Fetches are ETag-conditional/cached so a roster scan does not multiply API calls per workflow."
+    - "Alignment-audit rules re-evaluate over merged facts; a test fixture covers a previously-hidden finding (e.g. OAuth-first auth living inside a claude-run composite)."
+  scope:
+    in:
+      - local composite actions, same-repo reusable workflows, one-hop roster-resolvable cross-repo reusable workflows
+    out:
+      - recursing into third-party marketplace actions' source
+      - transitive cross-repo graphs beyond one hop
+  risks:
+    - API-call multiplication on large rosters — fetch only referenced paths and cache aggressively.
+    - Merge semantics need care — a kill switch inside a composite does not necessarily gate the whole workflow; audit rules must distinguish.
+    - Reusable-workflow `with:`/`secrets:` indirection can defeat simple token-chain tracing — degrade to "indirect" rather than guessing.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0011
+  title: "Fleet-audit work orders — sweep open issues for the dedup marker before filing"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P1
+  effort: S
+  category: enhancement
+  problem: >-
+    The audit board's one-click work-order filing embeds a
+    `<!-- gitorio-fleet-audit key="..." -->` marker in the issue body, but
+    dedup only remembers issues filed in the current session (in-memory in
+    app/src/state/fleetops.ts). Reopening the cockpit — or a second operator —
+    can file duplicate work orders into target repos, which is spam in other
+    repos' trackers.
+  proposal: >-
+    Before filing, list the target repo's open issues and scan bodies for a
+    marker with the same key, mirroring the dash's actions-review dedupe. On a
+    hit, skip filing and render the finding as a link to the existing issue
+    (with its state) instead of a file button. Cache the sweep per repo per
+    session so the board does not re-list issues on every render.
+  acceptance:
+    - "Filing first checks the target repo's open issues for a matching marker key and aborts with a link to the existing issue when found."
+    - "The audit board renders already-filed findings as 'filed -> #NN' links, not duplicate file buttons."
+    - "Sweep results are cached per repo per session (conditional requests where possible)."
+    - "Closed marker issues do not block re-filing (a resolved finding can recur), or blocking is an explicit user choice."
+    - "A test covers the marker round-trip: a filed body is detected by the sweep with the same deterministic key."
+  risks:
+    - Issue-list/search rate limits on big rosters — sweep lazily (only for repos with pending findings).
+    - Key stability — the finding key must be deterministic across rescans or dedup silently fails.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0012
+  title: "Persist fleet scan results (ETags, facts, metrics) to localStorage for instant cockpit reopen"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    Fleet snapshots are in-memory only: every cockpit open rescans the whole
+    roster (workflows, facts, runs, audits), which is slow against a ~40-repo
+    hub roster and burns API quota even when nothing changed.
+  proposal: >-
+    Persist per-repo scan results — ETags, parsed facts, computed metrics,
+    audit results, timestamps — to localStorage keyed by owner/repo. Hydrate
+    the cockpit instantly from cache with a visible "cached, revalidating"
+    state, then revalidate in the background with conditional requests
+    (unchanged repos cost 304s). Keep the existing discipline: slugs and data
+    only, never tokens. Version the cache schema and bound its size with
+    eviction so shape changes and quota limits invalidate cleanly.
+  acceptance:
+    - "Reopening the cockpit renders the last snapshot instantly from cache with a visible cached/revalidating indicator."
+    - "Background revalidation uses stored ETags; unchanged repos resolve via 304, changed repos refresh in place."
+    - "No token or secret ever lands in localStorage; only slugs, ETags, and parsed data."
+    - "The cache is schema-versioned and size-bounded with eviction; corrupt or old-version caches fall back to a clean scan."
+    - "A manual hard-refresh control bypasses the cache entirely."
+  risks:
+    - localStorage's ~5MB quota versus 40 repos of facts — store compact derived facts, not raw YAML, and prune.
+    - Stale grades presented as current — the cached state must be visibly labeled until revalidation completes.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0013
+  title: "One-click kill-switch arm/disarm from the fleet Schedule board (confirmed mutation)"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: S
+  category: feature
+  problem: >-
+    The Schedule board shows each factory's *_ENABLED kill switch as
+    armed/disarmed but read-only; flipping one means leaving the cockpit for
+    the repo's Settings > Variables page, even though the GitHub client
+    already implements setVariable (used by the Content tab for the connected
+    repo). The cockpit displays a control panel it cannot operate.
+  proposal: >-
+    Add arm/disarm controls to the Schedule board (and district cards) using
+    the existing repo-variable client methods, gated by an explicit
+    confirmation dialog — it is a mutation on a target repo — that names the
+    repo, the variable, the old and new value, and the consequence. After a
+    toggle, re-read the variable so the board reflects GitHub reality, and
+    surface permission failures clearly.
+  acceptance:
+    - "Each *_ENABLED kill switch on the Schedule board has an arm/disarm control wired to the variables API."
+    - "A confirmation dialog states repo, variable, old -> new value, and consequence; no write happens without it."
+    - "Insufficient PAT scope / 403 shows a clear error and leaves displayed state untouched (state re-read after failure)."
+    - "State is re-read after every toggle; the board never trusts optimistic state alone."
+    - "Controls are disabled in read-only/observe contexts."
+  risks:
+    - Accidental disarm/arm of a production factory — consider a stronger confirm (type the repo name) for arming.
+    - The toggled variable name must match the gate the workflow actually checks (derived from parsed facts, not convention guessing).
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0014
+  title: "Fleet-wide generated-workflow drift board — diff factory--*.yml against blueprints across the roster"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: M
+  category: feature
+  problem: >-
+    Generated factory--*.yml files carry a blueprint hash and MANUAL EDIT
+    markers, and a single-repo drift banner exists, but there is no
+    fleet-wide view. A hand-patched generated workflow diverges silently from
+    its blueprint and its siblings — observed for real: lifehacker's
+    factory-1 rate limiter was hand-patched to exit 0 while factory-2 still
+    exits 1.
+  proposal: >-
+    A Fleet drift board: for each roster repo with a .factory/, recompile each
+    blueprint with the pure compiler and diff against the deployed
+    factory--*.yml (and/or compare the embedded hash), classifying each as
+    in-sync, hand-edited (hash mismatch), or blueprint-stale (fresh compile
+    differs). Group sibling repos generated from the same template whose
+    outputs have skewed apart. Read-only, cache-friendly, no writes.
+  acceptance:
+    - "The board lists, per roster repo, each factory--*.yml with a drift status: in-sync, hand-edited, or blueprint-stale."
+    - "Selecting a drifted workflow shows the diff between deployed YAML and a fresh compile of its blueprint."
+    - "Sibling skew is surfaced: repos sharing a blueprint/template whose generated outputs differ are grouped together."
+    - "Detection is read-only with conditional requests; repos without .factory/ are skipped silently."
+    - "Compiler-version skew is surfaced (old-compiler output flagged as 'stale compiler', not falsely 'hand-edited')."
+  risks:
+    - Compiler evolution creates false stale positives on old deployments — the status taxonomy must distinguish compiler drift from hand edits.
+    - Diff noise from headers/hashes — normalize before diffing.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0015
+  title: "Billable-cost model — runner-pricing table turning wall-clock minutes into dollars"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    The fleet metrics port (app/src/fleet/metrics.ts, mirroring the dash's
+    actions-analytics formulas) prices cost as raw wall-clock minutes: a
+    macOS-runner minute counts the same as a Linux one, and public (free
+    minutes) versus private (billed) repos are indistinguishable. "Compute
+    burned" cannot be read as dollars, which private-repo fleets actually pay.
+  proposal: >-
+    Add a versioned runner-pricing table (linux/windows/macos multipliers and
+    per-minute rates, optional larger-runner entries) applied per job from its
+    runs-on labels, with an explicit unknown-runner fallback. Classify roster
+    repos public (label dollar figures as notional/included) versus private
+    (billable). Surface both minutes and estimated dollars on the HUD,
+    district cards, and leaderboards. Keep the table a documented standalone
+    constant so the dash's Python analytics can adopt the identical table
+    later.
+  acceptance:
+    - "Per-job cost applies the runner-OS rate/multiplier from a single documented pricing table; repo and fleet totals show minutes and estimated dollars."
+    - "Public repos label dollars as 'included minutes — notional'; private repos label them billable."
+    - "Runner OS derives from runs-on labels with an explicit default-rate fallback for unknown/self-hosted runners."
+    - "The pricing table is versioned, carries a source link to GitHub's pricing doc and a last-reviewed date."
+    - "Leaderboards can rank by dollars or minutes; the new formulas are unit-tested."
+  scope:
+    in:
+      - pricing table, per-job OS resolution, public/private labeling, HUD/cards/leaderboard surfacing
+    out:
+      - querying the GitHub billing API for real entitlements/included-minute balances
+      - upstreaming the table into the dash's actions_analytics.py (candidate follow-up item)
+  risks:
+    - GitHub pricing changes silently — the review date makes staleness visible but not impossible.
+    - Self-hosted runners bill $0 on GitHub but cost real money — label as self-hosted, do not guess a rate.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0016
+  title: "Auto-remediation draft PRs for mechanical fleet-audit findings (opt-in)"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P3
+  effort: L
+  category: feature
+  problem: >-
+    Mechanical audit findings — missing concurrency block, missing
+    timeout-minutes, floating @main pins — are filed as issues a human must
+    still turn into PRs. For deterministic single-block YAML edits that
+    round-trip is pure toil, issues rot unactioned, and the cockpit's
+    "maintain" loop stays open-ended.
+  proposal: >-
+    For an allowlisted set of mechanical rules, generate the exact YAML patch
+    client-side and open a DRAFT PR in the target repo (branch + contents API
+    + PR — machinery gitorio's deploy path already has) as an alternative to
+    filing an issue. Strictly gated: per-action opt-in with a diff preview and
+    confirm, draft-only, one finding per PR, a dedup marker in the PR body
+    (extending the FF-0011 sweep to PRs), a per-session cap, and never
+    patching generated factory--*.yml directly — those route to the blueprint
+    or refuse with an explanation.
+  acceptance:
+    - "Allowlisted mechanical findings offer 'Open fix PR' beside 'File issue'; the draft PR contains only the scoped change on a fresh branch."
+    - "PR bodies carry a dedup marker; an open fix PR for the same finding key suppresses duplicates."
+    - "Generated factory--*.yml files are never patched directly — the flow routes to the blueprint or refuses, explaining why."
+    - "Edits are surgical (formatting/comments preserved) and shown as a diff before an explicit confirm."
+    - "Branch name, commit message, and PR body follow a documented convention linking the audit rule."
+    - "A per-session PR cap is enforced; 403/protected-branch failures surface clearly."
+  scope:
+    in:
+      - allowlist (concurrency, timeout-minutes, action pinning), draft PR flow, dedup marker, caps
+    out:
+      - auto-merge of any fix PR
+      - semantic/non-mechanical fixes
+      - patching generated files
+  risks:
+    - YAML round-trip fidelity — naive parse/re-dump destroys comments and formatting; needs a surgical text-level edit.
+    - Overlap with the dash's FF-0008 reviewer fix-PR loop — the two must not double-file on the same repos; markers should be mutually detectable.
+    - A wrong mechanical value (e.g. too-low timeout) can break CI — conservative defaults and draft-only are mandatory.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
