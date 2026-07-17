@@ -21,6 +21,12 @@ Usage:
 With no PATHS, operates on the current repo's git-tracked *.md / *.markdown
 files (so vendored/ignored/submodule content is excluded automatically).
 """
+# Vendored verbatim from the bamr87 hub (tools/unwrap-prose.py) into each repo
+# by tools/fanout.sh; it is not the host repo's own source, so it opts out of
+# that repo's linters / type-checkers rather than chase every project's config.
+# ruff: noqa
+# flake8: noqa
+# mypy: ignore-errors
 from __future__ import annotations
 
 import argparse
