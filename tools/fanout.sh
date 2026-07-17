@@ -53,8 +53,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$KIT" in
-  standardize|schema) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -71,6 +71,12 @@ case "$KIT" in
     COMMIT_MSG="docs: adopt Pyramid Schema (SCHEMA.md contracts + linter + CI)"
     PR_TITLE="docs: adopt Pyramid Schema structural contracts"
     PR_BODY="$(printf 'Automated by bamr87 schema-fanout: seeds SCHEMA.md contracts in every directory, the vendored schema_lint.py, a schema-check CI gate, and the agent protocol in CLAUDE.md.\n\nScaffold purposes are TODO until the agent/human pass fills them (dispatch schema-fanout with agent_fill, or edit by hand). See bamr87/bamr87 docs/SCHEMA-FRAMEWORK.md.')"
+    ;;
+  prose)
+    BRANCH="style/markdown-oneline"
+    COMMIT_MSG="style(markdown): one paragraph per line + CI enforcement"
+    PR_TITLE="style(markdown): enforce one paragraph per line"
+    PR_BODY="Automated by bamr87 prose-fanout (tools/fanout.sh): unwraps soft-wrapped markdown prose so each paragraph is a single line — Liquid/HTML/tables/code/front-matter left byte-for-byte, and SCHEMA.md/CHANGELOG.md skipped. Also vendors tools/unwrap-prose.py and seeds a markdown-oneline CI check. Additive-only. See bamr87/bamr87."
     ;;
 esac
 
@@ -99,6 +105,27 @@ seed_standardize() {
       cp "$HUB/templates/agent-context/claude.yml" .github/workflows/claude.yml
     fi ;;
   esac
+}
+
+seed_prose() {
+  # cwd = target clone; $1 = repo name (unused), $2 = default branch.
+  # Liquid-safe: unwrap-prose.py only joins wrapped prose, so this is safe even
+  # in Jekyll repos where blanket prettier would merge {% %} tags and break
+  # rendering. Additive: nothing the repo already has is overwritten.
+  local def="$2"
+  # 1. vendor the Liquid-safe unwrapper
+  mkdir -p tools
+  [[ -f tools/unwrap-prose.py ]] || cp "$HUB/tools/unwrap-prose.py" tools/unwrap-prose.py
+  # 2. seed the markdown-oneline CI gate
+  if [[ ! -f .github/workflows/markdown-oneline.yml ]]; then
+    mkdir -p .github/workflows
+    sed "s/__DEFAULT_BRANCH__/${def}/g" "$HUB/templates/prose/markdown-oneline.yml" \
+      > .github/workflows/markdown-oneline.yml
+  fi
+  # 3. one-time fix: unwrap wrapped prose in every tracked markdown file, leaving
+  #    lint-gated SCHEMA.md contracts and release-please CHANGELOGs untouched
+  python3 tools/unwrap-prose.py --write \
+    --exclude '(^|/)SCHEMA\.md$' --exclude '(^|/)CHANGELOG\.md$' >/dev/null 2>&1 || true
 }
 
 run_one() {
@@ -135,6 +162,7 @@ run_one() {
     case "$KIT" in
       standardize) seed_standardize "$(basename "${url%.git}")" "$def" ;;
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
+      prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0

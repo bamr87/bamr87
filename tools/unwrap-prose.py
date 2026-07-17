@@ -160,11 +160,16 @@ def main() -> int:
     mode.add_argument("--check", action="store_true", help="list files that would change; exit 1 if any")
     mode.add_argument("--diff", action="store_true", help="print a unified diff; no writes")
     mode.add_argument("--write", action="store_true", help="rewrite files in place")
+    ap.add_argument("--exclude", action="append", metavar="REGEX", default=[],
+                    help="skip paths matching this regex (repeatable)")
     ap.add_argument("paths", nargs="*", help="files/dirs (default: git-tracked markdown)")
     args = ap.parse_args()
 
+    excludes = [re.compile(p) for p in args.exclude]
     changed: list[Path] = []
     for path in iter_paths(args.paths):
+        if any(rx.search(path.as_posix()) for rx in excludes):
+            continue
         try:
             original = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as e:
