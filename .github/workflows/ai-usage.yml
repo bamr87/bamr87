@@ -1,0 +1,58 @@
+name: 🧮 AI Usage Refresh
+
+# Daily: harvest every Claude Code touchpoint the fleet leaves in public
+# infrastructure — claude-code-action workflow runs (with cost/token usage
+# scraped from run logs), Claude-attributed commits, and Claude-generated
+# PRs — and commit the ledger to _data/ai_usage.yml for the /ai-usage/ dash
+# page. Local-session spend is a separate, deliberate publish (run
+# `tools/dash-gen ai-usage` on your machine); this job PRESERVES any
+# previously published `local` section rather than erasing it.
+#
+# Token: GITHUB_TOKEN reads public repos' runs/logs/commits. Add
+# ACTIONS_ANALYTICS_TOKEN (fine-grained PAT, actions:read + contents:read on
+# the fleet) for private repos or higher rate limits.
+
+on:
+  schedule:
+    - cron: '30 5 * * *'   # daily 05:30 UTC, after actions-usage at 05:00
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Analysis window (days)"
+        type: string
+        default: "14"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-usage
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      - name: Collect fleet Claude usage
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: tools/dash-gen ai-usage --days "${{ inputs.days || 14 }}"
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- _data/ai_usage.yml; then
+            echo "No change in AI usage data."
+            exit 0
+          fi
+          git config user.name "bamr87-bot"
+          git config user.email "10567847+bamr87@users.noreply.github.com"
+          git add _data/ai_usage.yml
+          git commit -m "chore(data): refresh Claude Code usage ledger"
+          git push

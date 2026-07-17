@@ -31,6 +31,15 @@ truth — [`_data/projects.yml`](../../../_data/projects.yml) — and:
   page. Unlike `health`/`ai`, this file is **committed** and refreshed **daily** by
   [`actions-usage.yml`](../../workflows/actions-usage.yml) so the page shows a stable
   once-a-day snapshot. Auth via `GH_TOKEN`/`GITHUB_TOKEN` or `gh auth token`.
+- **`ai-usage`** → the COMMITTED fleet Claude Code ledger ([`ai_usage_collector.py`](ai_usage_collector.py)).
+  Harvests every Claude touchpoint in public infrastructure: workflow runs of
+  `anthropics/claude-code-action` in any registry repo (auto-detected from workflow
+  content; **cost + turn counts scraped from run logs** — CI logs carry no token
+  breakdown), commits with a `Co-Authored-By: Claude` trailer, and PRs carrying the
+  Claude Code marker. Writes `_data/ai_usage.yml` (committed, refreshed daily by
+  [`ai-usage.yml`](../../workflows/ai-usage.yml)), rendered by `/ai-usage/`. Run it
+  **locally** to also fold the machine ledger's aggregate into the `local` section
+  (an explicit publish); the CI refresh preserves that section without adding to it.
 - **`all`** → `health` then `readme`.
 
 ## Usage
@@ -47,6 +56,7 @@ python .github/scripts/dash-gen/dash_gen.py ai [--window 30] [--ledger PATH] [--
 tools/dash-gen health
 tools/dash-gen readme
 tools/dash-gen ai        # also: tools/dash ai
+tools/dash-gen ai-usage --days 14  # committed fleet Claude ledger (/ai-usage/)
 tools/dash-gen actions --days 14   # also: tools/dash actions
 ```
 

@@ -18,6 +18,7 @@ kept dispatch-only.
 | `claude.yml` | `@claude` mention (issues/PRs) | Claude Code responds to `@claude` mentions in this repo. Same file the agent-context kit seeds into submodules. |
 | `actions-usage.yml` | daily 05:00, dispatch | Queries the Actions API (PyGithub) for every registry repo; commits refreshed `_data/actions_usage.yml` (cost / effectiveness / waste per workflow) for the `/actions/` page. **Display name is load-bearing** — `actions-review.yml` triggers on it by string. |
 | `actions-review.yml` | after `actions-usage.yml`, dispatch | Triages the worst workflows (failing / slow / high-cost) and runs an **Opus Claude Code reviewer** that deep-dives them and files ONE optimization **issue** per candidate (deduped by a hidden marker; capped per run). AI step self-skips when no Claude auth is provisioned. |
+| `ai-usage.yml` | daily 05:30, dispatch | Harvests every fleet Claude Code touchpoint — claude-code-action runs (cost/turns from logs), Claude-attributed commits and PRs — and commits `_data/ai_usage.yml` for the `/ai-usage/` transparency page. Preserves opt-in `local` publishes. |
 
 ## Legacy / dispatch-only
 

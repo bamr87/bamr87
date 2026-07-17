@@ -87,6 +87,28 @@ Copy this shape verbatim into any new workflow (it is what `claude.yml` uses):
   `/drift-report` skill explains any failure (checks (a)–(h)) with the exact
   fix.
 
+## Usage dashboard (transparency + audit)
+
+Two layers, one page family:
+
+- **Fleet ledger — [`/ai-usage/`](https://bamr87.github.io/bamr87/ai-usage/)**
+  (committed): `.github/workflows/ai-usage.yml` runs
+  `tools/dash-gen ai-usage` daily, harvesting every Claude touchpoint the
+  fleet leaves in public infrastructure — **CI runs** of
+  `anthropics/claude-code-action` in any registry repo (auto-detected from
+  workflow content; cost + turn counts scraped from run logs), **commits**
+  with a `Co-Authored-By: Claude` trailer, and **PRs** carrying the Claude
+  Code marker — into `_data/ai_usage.yml`, categorized by repo / workflow /
+  registry category / day, with per-run audit links. CI logs expose cost and
+  turns but no token breakdown.
+- **Local sessions — [`/ai-activity/`](https://bamr87.github.io/bamr87/ai-activity/)**
+  (gitignored): `tools/dash ai` shadow-prices this machine's
+  `~/.claude/projects/` transcripts with full token detail. Publishing local
+  spend is an explicit opt-in: running `tools/dash-gen ai-usage` **locally**
+  folds the machine ledger's windowed aggregate into the committed file's
+  `local` section; the daily CI refresh preserves (never adds, never erases)
+  that section.
+
 ## Fleet propagation
 
 Both fan-outs ride [`tools/fanout.sh`](../tools/fanout.sh) — dry-run by

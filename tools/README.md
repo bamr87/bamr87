@@ -17,7 +17,7 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `setup-dev.sh` | Legacy wrapper — delegates to `setup.sh --local` |
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
 | `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, …) — see [docs/DASH.md](../docs/DASH.md) |
-| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `actions`, `actions-review`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
+| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `ai-usage`, `actions`, `actions-review`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
 | `check-drift.sh` | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
 | `audit-standards.sh` | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
 | `run-all-tests.sh` | Aggregate verification — delegates to each project's own checks (wrapped by `dash test`) |

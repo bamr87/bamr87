@@ -35,6 +35,7 @@ follow.
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
 | AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
 | Actions usage | GitHub Actions cost/effectiveness analytics (via PyGithub, daily-committed) | `.github/scripts/dash-gen/actions_analytics.py` → `_data/actions_usage.yml` → `/actions/`; refreshed by `actions-usage.yml` |
+| AI usage ledger | Fleet-wide Claude Code transparency: CI runs (cost/turns from logs), Claude commits + PRs, opt-in local publishes | `.github/scripts/dash-gen/ai_usage_collector.py` → `_data/ai_usage.yml` → `/ai-usage/`; refreshed by `ai-usage.yml` (see [AI-INTEGRATION.md](AI-INTEGRATION.md#usage-dashboard-transparency--audit)) |
 | Actions review | Opus Claude Code deep-dive on failing/slow workflows → optimization **issues** (deduped) | `actions_review.py` (triage + dedupe) → `actions-review.yml` (Claude reviewer files one issue per candidate) |
 | Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
