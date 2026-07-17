@@ -6,10 +6,10 @@ First off, thank you for considering contributing! Your time and effort are grea
 
 This repository and its projects are guided by a core philosophy:
 
--   🌱 **Sustainable Technology**: Building systems that adapt and scale.
--   👥 **Employee Empowerment**: Transferring knowledge to make teams self-sufficient.
--   📚 **Knowledge Sharing**: Advancing our collective capabilities through open-source education.
--   🌍 **Balanced Innovation**: Integrating environmental and social impact as measurable business drivers.
+- 🌱 **Sustainable Technology**: Building systems that adapt and scale.
+- 👥 **Employee Empowerment**: Transferring knowledge to make teams self-sufficient.
+- 📚 **Knowledge Sharing**: Advancing our collective capabilities through open-source education.
+- 🌍 **Balanced Innovation**: Integrating environmental and social impact as measurable business drivers.
 
 Contributions should align with these values, aiming to create technology that is not only functional but also educational, sustainable, and empowering.
 
@@ -17,9 +17,9 @@ Contributions should align with these values, aiming to create technology that i
 
 We embrace AI-powered development (AIPD) to enhance productivity and quality. When contributing, you are encouraged to use AI tools like GitHub Copilot. However, please adhere to the following principles:
 
--   **Assist, Don't Replace**: Use AI to generate drafts, suggest improvements, and automate repetitive tasks.
--   **Human Oversight**: As the contributor, you are responsible for the final code. Always review, understand, and validate AI-generated code.
--   **Maintain Quality**: Ensure that all contributions, whether human or AI-assisted, meet the standards outlined in this document.
+- **Assist, Don't Replace**: Use AI to generate drafts, suggest improvements, and automate repetitive tasks.
+- **Human Oversight**: As the contributor, you are responsible for the final code. Always review, understand, and validate AI-generated code.
+- **Maintain Quality**: Ensure that all contributions, whether human or AI-assisted, meet the standards outlined in this document.
 
 ## 📋 How to Contribute
 
@@ -42,9 +42,9 @@ We welcome several types of contributions:
 
 All contributions should adhere to the following principles:
 
--   **Design for Failure (DFF)**: Implement robust error handling, logging, and fallback mechanisms.
--   **Don't Repeat Yourself (DRY)**: Create reusable functions, modules, and components.
--   **Keep It Simple (KIS)**: Prefer clear, readable code over complex or "clever" solutions.
+- **Design for Failure (DFF)**: Implement robust error handling, logging, and fallback mechanisms.
+- **Don't Repeat Yourself (DRY)**: Create reusable functions, modules, and components.
+- **Keep It Simple (KIS)**: Prefer clear, readable code over complex or "clever" solutions.
 
 ### 📖 README-First, README-Last
 
@@ -65,23 +65,24 @@ After completing your code changes:
 2.  **Ensure all documentation is accurate**, links are working, and examples are correct.
 3.  **Update the `lastmod` date** in the frontmatter if the `README.md` has it.
 
-##  Git Workflow
+## Git Workflow
 
 ### Branching
 
 Please follow these branch naming conventions:
 
--   `feature/<description>`: For new features.
--   `fix/<description>`: For bug fixes.
--   `docs/<description>`: For documentation-only changes.
--   `refactor/<description>`: For code refactoring without functional changes.
--   `chore/<description>`: For maintenance tasks (e.g., updating dependencies).
+- `feature/<description>`: For new features.
+- `fix/<description>`: For bug fixes.
+- `docs/<description>`: For documentation-only changes.
+- `refactor/<description>`: For code refactoring without functional changes.
+- `chore/<description>`: For maintenance tasks (e.g., updating dependencies).
 
 ### Commit Messages
 
 We follow the **Conventional Commits** specification. This makes the commit history more readable and allows for automated changelog generation.
 
 **Format**:
+
 ```
 <type>(<scope>): <description>
 
@@ -91,6 +92,7 @@ We follow the **Conventional Commits** specification. This makes the commit hist
 ```
 
 **Example**:
+
 ```
 feat(auth): add password reset functionality
 
@@ -100,8 +102,8 @@ notifications and a secure token-based reset mechanism.
 Fixes #42
 ```
 
--   **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`.
--   **Scope**: The part of the codebase the commit affects (e.g., `auth`, `api`, `docs`).
+- **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`.
+- **Scope**: The part of the codebase the commit affects (e.g., `auth`, `api`, `docs`).
 
 ## 🏗️ Monorepo Workflow
 
@@ -216,22 +218,22 @@ Before submitting PRs that affect multiple submodules:
 
 ### Submodule Best Practices
 
--   ✅ **Always commit submodule changes first**, then update parent
--   ✅ **Test submodule changes independently** before updating parent
--   ✅ **Use descriptive commit messages** mentioning the submodule
--   ✅ **Keep submodules on stable branches** (main/master)
--   ❌ **Don't make unrelated changes** in multiple submodules in one PR
--   ❌ **Don't update parent pointer** without merging submodule changes first
+- ✅ **Always commit submodule changes first**, then update parent
+- ✅ **Test submodule changes independently** before updating parent
+- ✅ **Use descriptive commit messages** mentioning the submodule
+- ✅ **Keep submodules on stable branches** (main/master)
+- ❌ **Don't make unrelated changes** in multiple submodules in one PR
+- ❌ **Don't update parent pointer** without merging submodule changes first
 
 ## 🧠 Skills & AI Agent Resources
 
 This repository integrates [microsoft/skills](https://github.com/microsoft/skills) as a submodule (`projects/skills/`), providing 130+ domain-specific skills for AI coding agents. The following resources from that project have been adapted for use in this repo:
 
--   **Code Review Checklist**: `.github/prompts/skills-code-review.prompt.md` — Comprehensive code review checklist covering frontend, backend, security, and performance.
--   **Add Endpoint Prompt**: `.github/prompts/add-endpoint.prompt.md` — Step-by-step template for adding REST API endpoints with Pydantic models.
--   **Pattern Enforcement**: `.github/docs/pattern-enforcement.md` — How skills enforce consistent coding patterns across teams.
--   **Workflow Patterns**: `.github/docs/workflow-patterns.md` — Composing skills and prompts for multi-step workflows.
--   **Agent Principles**: `AGENTS.md` — Core principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) adapted for this monorepo.
+- **Code Review Checklist**: `.github/prompts/skills-code-review.prompt.md` — Comprehensive code review checklist covering frontend, backend, security, and performance.
+- **Add Endpoint Prompt**: `.github/prompts/add-endpoint.prompt.md` — Step-by-step template for adding REST API endpoints with Pydantic models.
+- **Pattern Enforcement**: `.github/docs/pattern-enforcement.md` — How skills enforce consistent coding patterns across teams.
+- **Workflow Patterns**: `.github/docs/workflow-patterns.md` — Composing skills and prompts for multi-step workflows.
+- **Agent Principles**: `AGENTS.md` — Core principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) adapted for this monorepo.
 
 These complement the existing review and development prompts in `.github/prompts/` and the agent definitions in `.github/agents/`.
 
@@ -239,27 +241,27 @@ These complement the existing review and development prompts in `.github/prompts
 
 ### General Standards
 
--   **Code Style**: Follow the existing code style. Use linters and formatters where provided.
--   **File Headers**: Include a standardized header in all source files, as defined in the project's instruction files.
--   **Comments**: Explain the "why," not the "what." Code should be self-documenting.
+- **Code Style**: Follow the existing code style. Use linters and formatters where provided.
+- **File Headers**: Include a standardized header in all source files, as defined in the project's instruction files.
+- **Comments**: Explain the "why," not the "what." Code should be self-documenting.
 
 ### Language-Specific Guidelines
 
--   **Python**: Follow PEP 8. Use type hints and `black` for formatting.
--   **JavaScript/TypeScript**: Use Prettier for formatting and ESLint for linting. Prefer TypeScript for new projects.
--   **Bash/Shell**: Use `shellcheck` to validate scripts. Include `set -euo pipefail` for robustness.
+- **Python**: Follow PEP 8. Use type hints and `black` for formatting.
+- **JavaScript/TypeScript**: Use Prettier for formatting and ESLint for linting. Prefer TypeScript for new projects.
+- **Bash/Shell**: Use `shellcheck` to validate scripts. Include `set -euo pipefail` for robustness.
 
 ### Documentation
 
--   **READMEs are essential**: Every directory should have a `README.md` explaining its purpose.
--   **Docstrings/JSDoc**: All public functions, classes, and modules must have complete documentation.
--   **Front Matter**: Use the standardized front matter for all content and instruction files to provide context for both humans and AI.
+- **READMEs are essential**: Every directory should have a `README.md` explaining its purpose.
+- **Docstrings/JSDoc**: All public functions, classes, and modules must have complete documentation.
+- **Front Matter**: Use the standardized front matter for all content and instruction files to provide context for both humans and AI.
 
 ## 🧪 Testing
 
--   **Write tests**: All new features and bug fixes must be accompanied by tests.
--   **High Coverage**: Aim for high test coverage to ensure reliability.
--   **CI/CD**: All tests will be run automatically via GitHub Actions when you open a PR. Ensure they pass.
+- **Write tests**: All new features and bug fixes must be accompanied by tests.
+- **High Coverage**: Aim for high test coverage to ensure reliability.
+- **CI/CD**: All tests will be run automatically via GitHub Actions when you open a PR. Ensure they pass.
 
 ## 🤝 Pull Request (PR) Process
 

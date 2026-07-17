@@ -1,19 +1,15 @@
 # Submodules
 
-This repository is a **dash** (control plane) whose projects live as ~40 Git
-submodules under [`projects/`](projects/). Each submodule is a separate
-repository with its own stack, branch, and release cycle.
+This repository is a **dash** (control plane) whose projects live as ~40 Git submodules under [`projects/`](projects/). Each submodule is a separate repository with its own stack, branch, and release cycle.
 
 ## Where the list lives (do not hardcode it here)
 
 The authoritative list is the registry, cross-checked against `.gitmodules`:
 
-- **[`_data/projects.yml`](_data/projects.yml)** — the single source of truth
-  (name, `submodule_path`, `branch`, stack, category, status, standards tier).
+- **[`_data/projects.yml`](_data/projects.yml)** — the single source of truth (name, `submodule_path`, `branch`, stack, category, status, standards tier).
 - **[`.gitmodules`](.gitmodules)** — the Git-level definitions.
 
-`tools/check-drift.sh` fails CI if these two disagree, so this document
-intentionally does **not** repeat the list — read the registry or run:
+`tools/check-drift.sh` fails CI if these two disagree, so this document intentionally does **not** repeat the list — read the registry or run:
 
 ```bash
 git submodule status              # checked-out SHAs + branches
@@ -23,9 +19,7 @@ tools/dash status                 # registry + drift summary
 
 ### Branch conventions
 
-Most submodules track `main`. Exceptions: `scripts` and `jekyll` track `master`;
-`sonic-pi` tracks `dev`; `skills` is an external `microsoft/skills` mirror
-(`update = merge`). Always read the branch from `.gitmodules` — never assume `main`.
+Most submodules track `main`. Exceptions: `scripts` and `jekyll` track `master`; `sonic-pi` tracks `dev`; `skills` is an external `microsoft/skills` mirror (`update = merge`). Always read the branch from `.gitmodules` — never assume `main`.
 
 ## Cloning and updating
 
@@ -37,8 +31,7 @@ git submodule update --init --recursive
 
 ## Working inside a submodule
 
-A change inside a submodule is committed **in its own repo first**, then the
-pointer is recorded in root (see [`CLAUDE.md`](CLAUDE.md) for the full flow):
+A change inside a submodule is committed **in its own repo first**, then the pointer is recorded in root (see [`CLAUDE.md`](CLAUDE.md) for the full flow):
 
 ```bash
 cd projects/<name>
@@ -54,12 +47,7 @@ Don't bundle changes across multiple submodules into one PR.
 
 ## Automated pointer updates
 
-`.github/workflows/update-submodules.yml` runs weekly (or on demand) and opens a
-reviewable PR bumping submodule pointers **up** into root. It never pushes
-directly and never modifies submodule contents — content changes belong to the
-submodule's own repo. The complementary **downward** flow
-(`.github/workflows/standardize-fanout.yml`) opens standardization PRs *into*
-submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
+`.github/workflows/update-submodules.yml` runs weekly (or on demand) and opens a reviewable PR bumping submodule pointers **up** into root. It never pushes directly and never modifies submodule contents — content changes belong to the submodule's own repo. The complementary **downward** flow (`.github/workflows/standardize-fanout.yml`) opens standardization PRs _into_ submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
 
 Local refresh (safe by default — skips submodules with uncommitted/diverged work):
 
@@ -78,6 +66,4 @@ tools/check-drift.sh         # verify .gitmodules <-> registry parity
 tools/dash audit <name>      # check it against the standardization baseline
 ```
 
-If a project directory already exists on disk but is in neither `.gitmodules`
-nor the registry, the drift gate now flags it; use the `/onboard-dir` skill to
-adopt it (or remove it).
+If a project directory already exists on disk but is in neither `.gitmodules` nor the registry, the drift gate now flags it; use the `/onboard-dir` skill to adopt it (or remove it).

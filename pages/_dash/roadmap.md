@@ -9,17 +9,14 @@ sidebar:
 
 # 🗺️ Roadmap
 
-The feature backlog, generated from <code>_data/roadmap.yml</code> — the single
-source of truth captured by the **Future-Features** pipeline
-(`/future-features` + the `feature-scout` sub-agent). Each item is routed to a
+The feature backlog, generated from <code>_data/roadmap.yml</code> — the single source of truth captured by the **Future-Features** pipeline (`/future-features` + the `feature-scout` sub-agent). Each item is routed to a
 target repo from [`_data/projects.yml`]({{ '/toolbox/' | relative_url }}), or to
 `bamr87` for the monorepo itself.
 
 {% assign roadmap = site.data.roadmap %}
 {% if roadmap == nil or roadmap.size == 0 %}
 <div class="alert alert-info">
-No roadmap items yet. Capture one with <code>/future-features &lt;idea&gt;</code>,
-or let the <code>feature-scout</code> sub-agent harvest them from a session.
+No roadmap items yet. Capture one with <code>/future-features &lt;idea&gt;</code>, or let the <code>feature-scout</code> sub-agent harvest them from a session.
 </div>
 {% else %}
 

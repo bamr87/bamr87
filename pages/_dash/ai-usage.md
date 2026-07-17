@@ -9,21 +9,14 @@ sidebar:
 
 # 🧮 Claude Code Usage — fleet ledger
 
-Every Claude Code touchpoint the fleet leaves in public infrastructure,
-refreshed daily by `.github/workflows/ai-usage.yml` into `_data/ai_usage.yml`:
-**CI runs** of `anthropics/claude-code-action` (cost and turn counts scraped
-from run logs), **commits** carrying a `Co-Authored-By: Claude` trailer, and
-**PRs** carrying the Claude Code marker. Each ledger row links to its run,
-commit, or PR — the audit trail is the data, not a claim about it. Local
-(machine) sessions appear under **Local sessions** only when deliberately
+Every Claude Code touchpoint the fleet leaves in public infrastructure, refreshed daily by `.github/workflows/ai-usage.yml` into `_data/ai_usage.yml`: **CI runs** of `anthropics/claude-code-action` (cost and turn counts scraped from run logs), **commits** carrying a `Co-Authored-By: Claude` trailer, and **PRs** carrying the Claude Code marker. Each ledger row links to its run, commit, or PR — the audit trail is the data, not a claim about it. Local (machine) sessions appear under **Local sessions** only when deliberately
 published via `tools/dash-gen ai-usage`; see [/ai-activity/]({{ '/ai-activity/' | relative_url }})
 for the local-only view.
 
 {% assign u = site.data.ai_usage %}
 {% if u == nil %}
 <div class="alert alert-info">
-No usage ledger yet. Run <code>tools/dash-gen ai-usage</code> (needs a GitHub
-token), or wait for the daily <code>AI Usage Refresh</code> workflow to commit
+No usage ledger yet. Run <code>tools/dash-gen ai-usage</code> (needs a GitHub token), or wait for the daily <code>AI Usage Refresh</code> workflow to commit
 <code>_data/ai_usage.yml</code>.
 </div>
 {% else %}
@@ -39,8 +32,7 @@ token), or wait for the daily <code>AI Usage Refresh</code> workflow to commit
 
 {% if u.totals.ci_unpriced_runs > 0 %}
 <p class="text-muted small">{{ u.totals.ci_unpriced_runs }} of {{ u.totals.ci_runs }}
-CI runs carried no parsable usage in their logs (skipped gates, expired logs) —
-counted as runs, priced at $0. CI logs expose cost and turn counts but no token breakdown — token detail comes from deliberately published local-ledger sections below.</p>
+CI runs carried no parsable usage in their logs (skipped gates, expired logs) — counted as runs, priced at $0. CI logs expose cost and turn counts but no token breakdown — token detail comes from deliberately published local-ledger sections below.</p>
 {% endif %}
 
 ## By repo

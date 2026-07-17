@@ -12,7 +12,7 @@ Skills contain explicit instructions that agents follow. When a skill says "Alwa
 
 The `azure-identity-py` skill contains:
 
-```markdown
+````markdown
 ## Authentication
 
 Always use `DefaultAzureCredential` for production code:
@@ -24,9 +24,11 @@ from azure.cosmos import CosmosClient
 credential = DefaultAzureCredential()
 client = CosmosClient(url=endpoint, credential=credential)
 ```
+````
 
 Never hardcode credentials or use connection strings in code.
-```
+
+````
 
 **Result**: Every agent with this skill loaded will use `DefaultAzureCredential`, never hardcoded secrets.
 
@@ -75,10 +77,10 @@ Teams can enforce consistent patterns by sharing the same skill set:
 team-skills/
 ├── .github/skills/
 │   ├── azure-identity-py/      # Auth patterns
-│   ├── azure-cosmos-db-py/     # Data layer patterns  
+│   ├── azure-cosmos-db-py/     # Data layer patterns
 │   ├── fastapi-router-py/      # API patterns
 │   └── team-conventions/       # Custom team rules
-```
+````
 
 Every project symlinks to the team skills:
 
@@ -93,7 +95,7 @@ ln -s /path/to/team-skills/.github/skills .github/skills
 
 Create team-specific skills for internal conventions:
 
-```markdown
+````markdown
 ---
 name: team-conventions
 description: Internal coding standards for the platform team
@@ -104,6 +106,7 @@ description: Internal coding standards for the platform team
 ## API Response Format
 
 All endpoints must return:
+
 ```python
 {
     "data": <result>,
@@ -113,10 +116,12 @@ All endpoints must return:
     }
 }
 ```
+````
 
 ## Logging
 
 Use structured logging with correlation IDs:
+
 ```python
 logger.info("Operation completed", extra={
     "correlation_id": request.state.correlation_id,
@@ -128,6 +133,7 @@ logger.info("Operation completed", extra={
 ## Database Queries
 
 Always use parameterized queries:
+
 ```python
 # CORRECT
 query = "SELECT * FROM c WHERE c.id = @id"
@@ -136,7 +142,8 @@ params = [{"name": "@id", "value": user_id}]
 # WRONG - SQL injection risk
 query = f"SELECT * FROM c WHERE c.id = '{user_id}'"
 ```
-```
+
+````
 
 ## Enforcement Verification
 
@@ -153,23 +160,23 @@ repos:
         name: Type checking
         entry: mypy src/
         language: system
-        
+
       - id: lint
         name: Linting
         entry: ruff check src/
         language: system
-```
+````
 
 ### Code Review Checklist
 
 Skills provide implicit review criteria:
 
-| If Skill Loaded | Reviewer Checks |
-|-----------------|-----------------|
-| `azure-identity-py` | No hardcoded credentials? |
+| If Skill Loaded      | Reviewer Checks                    |
+| -------------------- | ---------------------------------- |
+| `azure-identity-py`  | No hardcoded credentials?          |
 | `azure-cosmos-db-py` | Partition key strategy documented? |
-| `fastapi-router-py` | Response models defined? |
-| `pydantic-models-py` | Using model variants correctly? |
+| `fastapi-router-py`  | Response models defined?           |
+| `pydantic-models-py` | Using model variants correctly?    |
 
 ## Pattern Enforcement Examples
 
@@ -178,6 +185,7 @@ Skills provide implicit review criteria:
 **Skill**: `azure-cosmos-db-py`
 
 **Enforced patterns**:
+
 - Service class wraps CosmosClient
 - Partition key included in all operations
 - Parameterized queries for safety
@@ -188,7 +196,7 @@ Skills provide implicit review criteria:
 class UserService:
     def __init__(self, client: CosmosClient, database: str, container: str):
         self.container = client.get_database_client(database).get_container_client(container)
-    
+
     async def get_user(self, user_id: str, partition_key: str) -> User:
         query = "SELECT * FROM c WHERE c.id = @id"
         params = [{"name": "@id", "value": user_id}]
@@ -201,6 +209,7 @@ class UserService:
 **Skill**: `fastapi-router-py`
 
 **Enforced patterns**:
+
 - Router with prefix and tags
 - Dependency injection for auth
 - Pydantic response models
@@ -227,6 +236,7 @@ async def get_user(
 **Skill**: `pydantic-models-py`
 
 **Enforced patterns**:
+
 - Base model with shared fields
 - Create model (no id, no timestamps)
 - Update model (all optional)
@@ -256,10 +266,10 @@ class UserInDB(UserResponse):
 
 ## Benefits of Skill-Based Enforcement
 
-| Benefit | How Skills Achieve It |
-|---------|----------------------|
-| **Consistency** | Same patterns across all code |
-| **Onboarding** | New devs inherit team standards |
+| Benefit         | How Skills Achieve It                 |
+| --------------- | ------------------------------------- |
+| **Consistency** | Same patterns across all code         |
+| **Onboarding**  | New devs inherit team standards       |
 | **Maintenance** | Update skill = update all future code |
-| **Auditing** | Skills document "why" not just "what" |
-| **Evolution** | Patterns improve over time |
+| **Auditing**    | Skills document "why" not just "what" |
+| **Evolution**   | Patterns improve over time            |

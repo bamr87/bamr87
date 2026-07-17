@@ -1,9 +1,9 @@
 ---
 name: Custom issue
 about: Open an issue that does not fit the standard templates
-title: ""
+title: ''
 labels: triage
-assignees: ""
+assignees: ''
 ---
 
 ## Summary

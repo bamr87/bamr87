@@ -51,7 +51,7 @@ A flexible composite action for running tests, quality checks, and validations w
 ## Inputs
 
 | Input | Description | Required | Default |
-|-------|-------------|----------|---------|
+| --- | --- | --- | --- |
 | `runner-os` | OS for the runner (unused in composite) | No | `ubuntu-latest` |
 | `setup-script` | Setup script path or content | No | - |
 | `test-script` | Test script path or content | Yes | - |
@@ -81,11 +81,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - uses: ./.github/actions/ci/run-checks
         with:
           setup-script: |
@@ -113,12 +113,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - uses: ./.github/actions/ci/run-checks
         with:
           setup-script: 'npm ci'
@@ -142,11 +142,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      
+
       - uses: ./.github/actions/ci/run-checks
         with:
           test-script: 'go test -v -race -coverprofile=coverage.out ./...'
@@ -168,9 +168,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      
+
       - uses: ./.github/actions/ci/run-checks
         with:
           test-script: 'cargo test --all-features'
@@ -189,15 +189,15 @@ jobs:
     setup-script: |
       #!/bin/bash
       set -e
-      
+
       # Install system dependencies
       sudo apt-get update
       sudo apt-get install -y libsqlite3-dev
-      
+
       # Setup database
       createdb test_db
       psql test_db < schema.sql
-      
+
       # Install app dependencies
       bundle install
     test-script: 'bundle exec rspec'
@@ -218,7 +218,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: ./.github/actions/ci/run-checks
         with:
           test-script: 'npm test'
@@ -227,7 +227,7 @@ jobs:
             #!/bin/bash
             npm run build
             tar -czf release.tar.gz dist/
-      
+
       - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
@@ -364,15 +364,19 @@ quality-script: |
 ## Troubleshooting
 
 ### Script not found
+
 **Solution**: Ensure script path is relative to repository root, or use inline script
 
 ### Permission denied
+
 **Solution**: Action automatically handles this, but ensure script content is valid
 
 ### Setup script fails
+
 **Solution**: Add error handling and check dependencies are available
 
 ### Quality checks too strict
+
 **Solution**: Configure linters to match your project's standards
 
 ## Integration with Other Actions
@@ -417,19 +421,21 @@ steps:
 
 ## Comparison with run-tests
 
-| Feature | run-checks | run-tests |
-|---------|-----------|-----------|
-| **Purpose** | Custom scripts | Language-specific testing |
-| **Setup** | Manual | Automatic language setup |
-| **Flexibility** | High | Medium |
-| **Simplicity** | Low | High |
+| Feature         | run-checks     | run-tests                 |
+| --------------- | -------------- | ------------------------- |
+| **Purpose**     | Custom scripts | Language-specific testing |
+| **Setup**       | Manual         | Automatic language setup  |
+| **Flexibility** | High           | Medium                    |
+| **Simplicity**  | Low            | High                      |
 
 Use **run-checks** when:
+
 - You have custom build/test scripts
 - Multiple tools need to run in sequence
 - You need fine-grained control
 
 Use **run-tests** when:
+
 - Standard language testing workflow
 - Want automatic setup and caching
 - Need parallelization support

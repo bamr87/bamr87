@@ -1,5 +1,5 @@
 ---
-schema: "0.1"
+schema: '0.1'
 coverage: listed
 ---
 
@@ -14,10 +14,10 @@ coverage: listed
 ## Structure
 
 | entry | kind | purpose | rules |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | {{`name/`}} | dir | {{why it exists}} | {{required \| terminal \| generated}} |
 | {{`name.ext`}} | file | {{why it exists}} | {{required}} |
-| {{`*.ext`}} | pattern | {{naming rule + what one of these is}} | |
+| {{`*.ext`}} | pattern | {{naming rule + what one of these is}} |  |
 
 ## Placement
 

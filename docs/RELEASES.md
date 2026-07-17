@@ -1,8 +1,6 @@
 # Release & Versioning Methodology
 
-How versioning, changelogs, releases, and the merge-to-main quality gate work
-across every repo in this monorepo. The shared implementation lives in
-**[bamr87/.github](https://github.com/bamr87/.github)**; this doc is the operator's guide.
+How versioning, changelogs, releases, and the merge-to-main quality gate work across every repo in this monorepo. The shared implementation lives in **[bamr87/.github](https://github.com/bamr87/.github)**; this doc is the operator's guide.
 
 ## TL;DR
 
@@ -33,7 +31,7 @@ feature branch ──PR──► ci.yml gate ──► merge to main
 Reusable building blocks (in `bamr87/.github`):
 
 | File | Role |
-|---|---|
+| --- | --- |
 | `.github/workflows/ci.yml` | merge gate — detect stack → test/lint/build/docs/commitlint/codeql |
 | `.github/workflows/release-please.yml` | version bump + CHANGELOG + GitHub Release |
 | `.github/workflows/publish.yml` | publish to the detected registry + attach assets |
@@ -42,7 +40,7 @@ Reusable building blocks (in `bamr87/.github`):
 ## Conventional Commits → semver
 
 | Commit | Bump |
-|---|---|
+| --- | --- |
 | `fix: …` | patch (x.y.**z**) |
 | `feat: …` | minor (x.**y**.0) |
 | `feat!: …` or a `BREAKING CHANGE:` footer | major (**x**.0.0) |
@@ -68,17 +66,14 @@ CHANGELOG.md                    # seeded if missing
 RELEASING.md                    # per-repo cheat-sheet
 ```
 
-`release-type` is chosen automatically: `ruby` (gemspec), `node` (publishable `package.json`),
-`python` (pyproject/setup with packaging metadata), else **`simple`** (version + changelog +
-GitHub Release, no package) — which covers docs, Jekyll, bash, and script repos.
+`release-type` is chosen automatically: `ruby` (gemspec), `node` (publishable `package.json`), `python` (pyproject/setup with packaging metadata), else **`simple`** (version + changelog + GitHub Release, no package) — which covers docs, Jekyll, bash, and script repos.
 
 ## Per-registry setup
 
-Publishing only runs when the ecosystem is detected **and** its credential exists; otherwise the
-version bump, changelog, and GitHub Release still succeed. Add credentials as **repo secrets**:
+Publishing only runs when the ecosystem is detected **and** its credential exists; otherwise the version bump, changelog, and GitHub Release still succeed. Add credentials as **repo secrets**:
 
 | Registry | Credential | How |
-|---|---|---|
+| --- | --- | --- |
 | RubyGems | `RUBYGEMS_API_KEY` | `gh secret set RUBYGEMS_API_KEY -R bamr87/<repo>` |
 | npm | `NPM_TOKEN` | `gh secret set NPM_TOKEN -R bamr87/<repo>` (published with provenance) |
 | PyPI | none | configure **trusted publishing** (OIDC) for the repo on pypi.org |
@@ -101,9 +96,6 @@ tools/protect-branch.sh <repo>           # require CI checks + PR review on the 
 
 ## FAQ
 
-- **Why a release PR instead of auto-publishing?** Every release is reviewable, and it avoids the
-  `[skip ci]` push-loop the old per-repo scripts needed.
-- **No release happened after merge.** Your commits were all `chore:`/`docs:`/etc. — nothing to release.
-  Land a `fix:`/`feat:` or merge the pending release PR.
-- **Wrong version computed.** Check the commit types since the last tag and the seed in
-  `.release-please-manifest.json`.
+- **Why a release PR instead of auto-publishing?** Every release is reviewable, and it avoids the `[skip ci]` push-loop the old per-repo scripts needed.
+- **No release happened after merge.** Your commits were all `chore:`/`docs:`/etc. — nothing to release. Land a `fix:`/`feat:` or merge the pending release PR.
+- **Wrong version computed.** Check the commit types since the last tag and the seed in `.release-please-manifest.json`.

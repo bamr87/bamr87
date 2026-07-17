@@ -12,10 +12,10 @@ A more detailed explanation of the directory or module. Explain its purpose, wha
 
 ## Contents
 
-| File/Directory | Description |
-| --- | --- |
-| `file1.ext` | Description of this file. |
-| `dir1/` | Description of this directory. |
+| File/Directory | Description                    |
+| -------------- | ------------------------------ |
+| `file1.ext`    | Description of this file.      |
+| `dir1/`        | Description of this directory. |
 
 ## Usage
 

@@ -23,8 +23,7 @@ model: opus
 - **Positive Observations** — what’s working well to keep
 - **Overall Assessment** — **Approve** | **Request Changes** | **Comment Only** + 1–2 next steps
 
-**Example pattern (format only):**
-`L42: Possible NPE if user is null → add null check.`
+**Example pattern (format only):** `L42: Possible NPE if user is null → add null check.`
 
 ```diff
 - if (user.isActive()) { … }

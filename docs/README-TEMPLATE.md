@@ -10,8 +10,7 @@ This template provides a standardized structure for README files across all bamr
 
 [Optional: Badges for build status, version, license, etc.]
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/user/repo/ci.yml)](link)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/user/repo/ci.yml)](link) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## 📋 Table of Contents
 
@@ -80,23 +79,27 @@ List all required tools and versions:
 ### Step-by-Step Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/bamr87/[project-name].git
    cd [project-name]
    ```
 
 2. **Install dependencies**:
+
    ```bash
    npm install
    ```
 
 3. **Configure environment variables**:
+
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
    ```
 
 4. **Initialize database** (if applicable):
+
    ```bash
    npm run db:migrate
    ```
@@ -142,10 +145,10 @@ const example = doSomething();
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `VAR_NAME` | What it does | `default` | Yes/No |
-| `API_KEY` | API key for service | - | Yes |
+| Variable   | Description         | Default   | Required |
+| ---------- | ------------------- | --------- | -------- |
+| `VAR_NAME` | What it does        | `default` | Yes/No   |
+| `API_KEY`  | API key for service | -         | Yes      |
 
 ### Configuration Files
 

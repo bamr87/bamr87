@@ -9,10 +9,7 @@ sidebar:
 
 # 🤖 AI Activity
 
-Claude Code usage across **every repo touched from this machine**, shadow-priced at
-Anthropic API list rates from the local session ledger (`~/.claude/projects/`).
-Generated locally by `tools/dash ai` and **never committed** — spend data stays on
-your machine unless you deliberately publish it.
+Claude Code usage across **every repo touched from this machine**, shadow-priced at Anthropic API list rates from the local session ledger (`~/.claude/projects/`). Generated locally by `tools/dash ai` and **never committed** — spend data stays on your machine unless you deliberately publish it.
 
 {% assign ai = site.data.ai_activity %}
 {% if ai == nil %}
@@ -116,8 +113,6 @@ add rates to <code>.github/scripts/dash-gen/ai_activity.py</code>.
 </div>
 
 <p class="small text-muted">
-Generated {{ ai.generated_at }} on <code>{{ ai.machine }}</code> from the persistent
-ledger (survives Claude Code's ~30-day transcript cleanup). {{ ai.pricing_note }}
-The dollar estimate is a parallel accounting system, not a subscription quota gauge.
+Generated {{ ai.generated_at }} on <code>{{ ai.machine }}</code> from the persistent ledger (survives Claude Code's ~30-day transcript cleanup). {{ ai.pricing_note }} The dollar estimate is a parallel accounting system, not a subscription quota gauge.
 </p>
 {% endif %}

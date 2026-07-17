@@ -9,9 +9,7 @@ sidebar:
 
 # 📊 Dashboard
 
-A single place to **manage**, **view**, **run**, and **evolve** the project
-portfolio — backed by a machine-readable registry, a live monitoring board, and
-an AI orchestration layer.
+A single place to **manage**, **view**, **run**, and **evolve** the project portfolio — backed by a machine-readable registry, a live monitoring board, and an AI orchestration layer.
 
 <div class="row text-center my-4">
   <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/projects/' | relative_url }}">🎨 Portfolio</a></div>

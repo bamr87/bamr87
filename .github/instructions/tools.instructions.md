@@ -91,10 +91,10 @@ services:
       - ./src:/app/src:ro
       - ./.env:/app/.env:ro
     ports:
-      - "8000:8000"
+      - '8000:8000'
     environment:
       - NODE_ENV=development
-    command: npm run dev  # or python manage.py runserver
+    command: npm run dev # or python manage.py runserver
 ```
 
 **Useful Docker Commands:**
@@ -137,7 +137,7 @@ docker-compose down -v
       }
     }
   },
-  "postCreateCommand": "npm install",  // or pip install -r requirements.txt
+  "postCreateCommand": "npm install", // or pip install -r requirements.txt
   "remoteUser": "node"
 }
 ```
@@ -187,25 +187,25 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: mixed-line-ending
-  
+
   # Python
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
       - id: black
-  
+
   - repo: https://github.com/PyCQA/flake8
     rev: 6.0.0
     hooks:
       - id: flake8
-  
+
   # JavaScript/TypeScript
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.0.0
     hooks:
       - id: prettier
         types_or: [javascript, jsx, ts, tsx, json, yaml]
-  
+
   # Markdown
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.35.0
@@ -280,7 +280,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup environment
         run: |
           case "${{ inputs.language }}" in
@@ -294,7 +294,7 @@ jobs:
               bundle install
               ;;
           esac
-      
+
       - name: Run tests
         run: |
           case "${{ inputs.language }}" in
@@ -366,7 +366,7 @@ def setup_logging(level=logging.INFO):
             logging.FileHandler('app.log')
         ]
     )
-    
+
     # Suppress noisy third-party loggers
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('requests').setLevel(logging.WARNING)
@@ -387,8 +387,8 @@ const logger = winston.createLogger({
   transports: [
     new winston.transports.Console(),
     new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
-  ]
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
 });
 
 module.exports = logger;
@@ -450,4 +450,3 @@ Scripts should be:
 **Version:** 3.0.0 | **Last Modified:** 2025-11-14 | **Author:** Amr Abdel-Motaleb
 
 **Purpose:** Universal development tools and automation reference adaptable to various project types, languages, and development environments.
-
