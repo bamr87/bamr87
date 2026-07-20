@@ -25,6 +25,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash monitor${c_off}           refresh health and print repos needing attention
   ${c_bold}dash actions [--days N]${c_off} GitHub Actions usage analytics (cost/effectiveness by workflow)
   ${c_bold}dash actions-review${c_off}    triage worst workflows → reviewer work order (feeds actions-review.yml)
+  ${c_bold}dash daily${c_off}             prior-day fleet activity digest + failure work order (feeds daily-repo-analysis.yml)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
@@ -36,7 +37,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|actions-review|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|actions-review|daily|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -185,6 +186,7 @@ cmd_protect() {
 cmd_ai()     { "${TOOLS}/dash-gen" ai "$@"; }
 cmd_actions() { "${TOOLS}/dash-gen" actions "$@"; }
 cmd_actions_review() { "${TOOLS}/dash-gen" actions-review "$@"; }
+cmd_daily() { "${TOOLS}/dash-gen" daily "$@"; }
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
 cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
@@ -197,6 +199,7 @@ main() {
     monitor) cmd_monitor "$@" ;;
     actions) cmd_actions "$@" ;;
     actions-review) cmd_actions_review "$@" ;;
+    daily)   cmd_daily "$@" ;;
     serve)   cmd_serve "$@" ;;
     sync)    cmd_sync "$@" ;;
     foreach) cmd_foreach "$@" ;;

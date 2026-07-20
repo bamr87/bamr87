@@ -19,6 +19,7 @@ coverage: listed
 |---|---|---|---|
 | `.github/` | dir | Actions control plane: drift gate, unified CI/CD/evolution, fan-outs | terminal |
 | `_data/` | dir | Registries powering every dash surface — projects.yml is the source of truth | required |
+| `_reports/` | dir | Committed automation records — the daily repo-activity digests | generated |
 | `_site/` | dir | Jekyll build output | generated |
 | `assets/` | dir | Static site assets (structure owned by the zer0-mistakes theme) | terminal |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |

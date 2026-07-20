@@ -39,6 +39,7 @@ import ai_activity
 import ai_usage_collector
 import actions_analytics
 import actions_review
+import daily_report
 
 try:
     import yaml
@@ -408,6 +409,12 @@ def main(argv: list[str] | None = None) -> int:
         help="triage worst workflows into a reviewer work order (feeds actions-review.yml)",
     )
     actions_review.add_arguments(p_areview)
+
+    p_daily = sub.add_parser(
+        "daily",
+        help="prior-day fleet activity digest + failure work order (feeds daily-repo-analysis.yml)",
+    )
+    daily_report.add_arguments(p_daily)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")
