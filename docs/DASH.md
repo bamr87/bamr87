@@ -27,12 +27,14 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | --- | --- | --- |
 | Registry | Single source of truth | `_data/projects.yml` |
 | Submodules | All projects, flat under one container | `projects/<name>/` (see [`projects/README.md`](../projects/README.md)) |
-| Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection (portfolio, dashboard, monitor, toolbox, actions, ai-activity, roadmap, resume, docs) | `pages/_dash/` → `bamr87.github.io/bamr87/` |
+| Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection (portfolio, dashboard, monitor, triage, toolbox, actions, ai-activity, roadmap, resume, docs) | `pages/_dash/` → `bamr87.github.io/bamr87/` |
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
 | AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
 | Actions usage | GitHub Actions cost/effectiveness analytics (via PyGithub, daily-committed) | `.github/scripts/dash-gen/actions_analytics.py` → `_data/actions_usage.yml` → `/actions/`; refreshed by `actions-usage.yml` |
 | AI usage ledger | Fleet-wide Claude Code transparency: CI runs (cost/turns from logs), Claude commits + PRs, opt-in local publishes | `.github/scripts/dash-gen/ai_usage_collector.py` → `_data/ai_usage.yml` → `/ai-usage/`; refreshed by `ai-usage.yml` (see [AI-INTEGRATION.md](AI-INTEGRATION.md#usage-dashboard-transparency--audit)) |
 | Actions review | Opus Claude Code deep-dive on failing/slow workflows → optimization **issues** (deduped) | `actions_review.py` (triage + dedupe) → `actions-review.yml` (Claude reviewer files one issue per candidate) |
+| Daily analysis | Prior-day fleet digest + CI-failure → fix loop (Opus agent: draft PRs / issues, deduped + capped) | `daily_report.py` → `_reports/daily/<date>.md` + `daily-repo-analysis.yml` (see [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md)) |
+| Fleet triage | Daily-committed open-state inventory: every open issue, PR (with CI state), failing workflow; prioritized inbox | `fleet_triage.py` → `_data/fleet_triage.yml` → `/triage/`; refreshed by `daily-repo-analysis.yml` |
 | Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
@@ -52,6 +54,8 @@ tools/dash audit [name]   # standardization conformance matrix (--gate to fail o
 tools/dash monitor        # refresh health, print repos needing attention
 tools/dash actions        # GitHub Actions usage analytics (cost/effectiveness by workflow)
 tools/dash actions-review # triage worst workflows → reviewer work order
+tools/dash daily          # prior-day fleet digest + failure work order
+tools/dash triage         # open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/)
 tools/dash serve          # serve the Jekyll dash locally (docker, :4000)
 tools/dash sync           # update submodules + regenerate dash data
 tools/dash foreach <cmd>  # run a shell command in every checked-out submodule

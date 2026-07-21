@@ -40,6 +40,7 @@ import ai_usage_collector
 import actions_analytics
 import actions_review
 import daily_report
+import fleet_triage
 
 try:
     import yaml
@@ -415,6 +416,12 @@ def main(argv: list[str] | None = None) -> int:
         help="prior-day fleet activity digest + failure work order (feeds daily-repo-analysis.yml)",
     )
     daily_report.add_arguments(p_daily)
+
+    p_triage = sub.add_parser(
+        "triage",
+        help="fleet-wide open issues/PRs/CI snapshot -> fleet_triage.yml (committed, daily-refreshed)",
+    )
+    fleet_triage.add_arguments(p_triage)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

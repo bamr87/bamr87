@@ -5,9 +5,12 @@ name: 🗓️ Daily Repo Analysis
 #   1. GATHER  — dash-gen daily scans every registry repo for the prior day's
 #      commits, PRs, issues, releases, and CI failures (PyGithub), writes a
 #      COMMITTED digest to _reports/daily/<date>.md (+ refreshes the index), and
-#      emits a DEDUPED work order of the failures worth acting on.
-#   2. RECORD  — the digest is committed to main (a durable daily summary saved
-#      in the monorepo). Committing with GITHUB_TOKEN doesn't retrigger CI.
+#      emits a DEDUPED work order of the failures worth acting on. dash-gen
+#      triage then snapshots the fleet's OPEN state — every open issue, open PR
+#      (with CI status), and failing workflow — into _data/fleet_triage.yml,
+#      the committed data behind the dash's /triage/ portal page.
+#   2. RECORD  — the digest + triage snapshot are committed to main (a durable,
+#      diffable daily summary). Committing with GITHUB_TOKEN doesn't retrigger CI.
 #   3. IMPLEMENT — when there are failures and Claude auth is provisioned, an
 #      Opus Claude Code agent reviews each failure and either opens ONE draft PR
 #      (hub-fixable) or files ONE tracking issue (submodule / cross-repo), one
@@ -19,8 +22,9 @@ name: 🗓️ Daily Repo Analysis
 # docs/AI-INTEGRATION.md) and on a `dry_run`.
 #
 # Token: GITHUB_TOKEN reads public repo activity + commits the digest + opens
-# PRs/issues in this repo. Add DAILY_ANALYSIS_TOKEN (fine-grained PAT,
-# actions:read on the fleet) to read private submodules' run logs.
+# PRs/issues in this repo. Add DAILY_ANALYSIS_TOKEN (fine-grained PAT:
+# actions:read, issues:read, pull_requests:read on the fleet) to also read
+# private submodules' run logs and their open issues/PRs for the triage snapshot.
 
 on:
   schedule:
@@ -87,16 +91,22 @@ jobs:
       - name: Show work order
         run: cat daily-analysis-workorder.md || true
 
-      - name: Commit daily digest
+      - name: Fleet triage snapshot
+        env:
+          GH_TOKEN: ${{ secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: tools/dash-gen triage
+
+      - name: Commit daily digest + triage snapshot
         run: |
-          if git diff --quiet -- _reports/; then
-            echo "No change in daily digest."
+          git add -N _reports/ _data/fleet_triage.yml
+          if git diff --quiet -- _reports/ _data/fleet_triage.yml; then
+            echo "No change in daily digest or triage snapshot."
             exit 0
           fi
           git config user.name "bamr87-bot"
           git config user.email "10567847+bamr87@users.noreply.github.com"
-          git add _reports/
-          git commit -m "chore(reports): daily repo activity digest ${{ steps.gather.outputs.date }}"
+          git add _reports/ _data/fleet_triage.yml
+          git commit -m "chore(reports): daily digest + fleet triage ${{ steps.gather.outputs.date }}"
           git push
 
       - name: AI review & implement fixes
@@ -126,7 +136,10 @@ jobs:
             Read `daily-analysis-workorder.md` with the Read tool. It lists each failing
             workflow with its repo, workflow file path, a per-candidate MARKER line, and
             links to the specific failing runs. Also read today's digest under
-            `_reports/daily/` for context.
+            `_reports/daily/` for context, and `_data/fleet_triage.yml` — the same run's
+            fleet-wide snapshot of ALL open issues, PRs, and failing workflows (rendered
+            at the dash's /triage/ page) — to understand each failure's wider context
+            (e.g. a pile of dependabot PRs failing the same check).
 
             ## Step 2 — investigate each candidate
             Gather concrete evidence BEFORE acting:

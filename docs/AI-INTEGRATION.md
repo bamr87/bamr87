@@ -15,10 +15,11 @@ House convention: **OAuth-first**. Every Claude call site prefers `CLAUDE_CODE_O
 
 | Secret | Used by | Required? |
 | --- | --- | --- |
-| `CLAUDE_CODE_OAUTH_TOKEN` | `claude.yml`, `actions-review.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`, seeded fleet `claude.yml` workflows | Preferred Claude auth. From `claude setup-token`, then `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/<repo>` |
+| `CLAUDE_CODE_OAUTH_TOKEN` | `claude.yml`, `actions-review.yml`, `daily-repo-analysis.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`, seeded fleet `claude.yml` workflows | Preferred Claude auth. From `claude setup-token`, then `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/<repo>` |
 | `ANTHROPIC_API_KEY` | same call sites | Fallback only (used when the OAuth token is unset) |
 | `FANOUT_TOKEN` | `standardize-fanout.yml`, `schema-fanout.yml` | Required for fan-outs — fine-grained PAT with contents + PR + **workflows** write on the targets (the kits push `.github/workflows/*` files, which GitHub refuses without the Workflows permission). **Already provisioned — verify it has the Workflows scope before the first non-dry run.** |
 | `ACTIONS_ANALYTICS_TOKEN` | `actions-usage.yml`, `actions-review.yml` | Optional (higher rate limits / private repos) |
+| `DAILY_ANALYSIS_TOKEN` | `daily-repo-analysis.yml` | Optional — fine-grained PAT (`actions:read`, `issues:read`, `pull_requests:read` on the fleet) so the daily digest + `/triage/` snapshot cover private submodules; falls back to `GITHUB_TOKEN` (public repos only) |
 | `PAT_TOKEN` | `unified-evolution.yml` checkouts | Optional fallback to `GITHUB_TOKEN` |
 
 ### One-time setup
@@ -30,7 +31,7 @@ gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87    # provision the hub
 gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/<repo>
 ```
 
-> **Status:** neither `CLAUDE_CODE_OAUTH_TOKEN` nor `ANTHROPIC_API_KEY` is provisioned in `bamr87/bamr87` yet (only `FANOUT_TOKEN` exists). Until one is set, every AI step self-skips (`actions-review.yml`) or fails loudly with a pointer here (`unified-evolution.yml`, `schema-fanout.yml` `agent_fill`).
+> **Status:** `CLAUDE_CODE_OAUTH_TOKEN` is provisioned in `bamr87/bamr87` (since 2026-07-16), alongside `FANOUT_TOKEN` — the hub's AI steps run. `ANTHROPIC_API_KEY` remains unset (it's only the fallback). Fleet repos still need their own `CLAUDE_CODE_OAUTH_TOKEN` for seeded `claude.yml` workflows.
 
 ### Canonical call site
 
@@ -47,6 +48,7 @@ Copy this shape verbatim into any new workflow (it is what `claude.yml` uses):
 
 - **Self-evolution** — `triage-attention` (read Monitor signals) → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR → gates verify → human merges. CI counterpart: `unified-evolution.yml` (**dispatch-only** — trigger via `tools/dash evolve`). Details: [DASH.md](DASH.md#self-evolution-loop).
 - **Actions optimization** — `actions-usage.yml` (daily) commits `_data/actions_usage.yml` → `actions-review.yml` runs the Opus reviewer that files one optimization issue per worst-offender workflow → locally, the `actions-triage` skill reads the same data and drives a direct fix or a dispatch. Details: [DASH.md](DASH.md#actions-optimization-loop-analytics--ai-review--issues).
+- **Daily analysis + fleet triage** — `daily-repo-analysis.yml` (daily 06:00) commits the prior-day digest (`_reports/daily/<date>.md`) and the open-state snapshot (`_data/fleet_triage.yml` → the [`/triage/`](https://bamr87.github.io/bamr87/triage/) portal: every open issue, PR with CI status, failing workflow, prioritized inbox), then an Opus agent opens one draft PR (hub) or files one `daily-analysis` issue (submodule) per fresh CI failure — deduped by hidden marker, capped per run. Locally, the `triage-attention` skill reads the same snapshot. Details: [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md).
 - **Future-Features** — `SessionStart`/`Stop` hooks keep the pipeline active in every session; the `feature-scout` subagent proposes roadmap-ready specs; a human approves before anything lands in `_data/roadmap.yml` (rendered at the dash Roadmap surface).
 - **Drift** — `drift-check.yml` runs `tools/check-drift.sh` in CI; the `/drift-report` skill explains any failure (checks (a)–(h)) with the exact fix.
 

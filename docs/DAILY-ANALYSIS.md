@@ -1,8 +1,10 @@
 # Daily Repo Analysis
 
 The dash's **continuous analysis → implementation cycle**: once a day it reviews
-the whole fleet's prior-day activity, saves a durable summary in the monorepo, and
-dispatches a Claude Code agent to turn the day's CI failures into fixes.
+the whole fleet's prior-day activity, snapshots everything that is **open right
+now** (issues, PRs, failing workflows) into the `/triage/` portal, saves both as
+durable records in the monorepo, and dispatches a Claude Code agent to turn the
+day's CI failures into fixes.
 
 It complements the other daily jobs — `refresh-dash` (README/registry),
 `actions-usage` + `actions-review` (Actions cost), `ai-usage` (Claude spend) — by
@@ -39,6 +41,16 @@ what broke that we should fix today?**
    in [`_reports/README.md`](../_reports/README.md) is regenerated in place.
    `_reports/` is `generated` in the SCHEMA pyramid — never hand-edited.
 
+   The same run also executes `tools/dash-gen triage`
+   (`.github/scripts/dash-gen/fleet_triage.py`): a fleet-wide inventory of the
+   OPEN state — every open issue (labels, age, author), every open PR (draft /
+   dependabot / CI check status), and each workflow's latest completed
+   conclusion — plus a deterministic per-repo attention score and a prioritized
+   cross-fleet **inbox**. It is committed as `_data/fleet_triage.yml` in the
+   same commit and rendered by the dash's **`/triage/`** portal page, so the
+   whole backlog is reviewable (and diffable, day over day) in one place.
+   External mirrors are excluded from totals, scores, and the inbox.
+
 3. **Implement** — the gather step also emits an ephemeral
    `daily-analysis-workorder.md`: one candidate per failing workflow, **deduped**
    against open `daily-analysis` issues so a persistently-failing workflow gets one
@@ -73,6 +85,10 @@ tools/dash daily                     # last 1 day
 tools/dash daily --days 3            # wider window
 tools/dash daily --no-dedupe        # skip the open-issue dedupe (offline/testing)
 
+# Fleet open-state snapshot (the /triage/ portal's data):
+tools/dash triage                    # writes _data/fleet_triage.yml
+tools/dash triage --print            # …and print the top of the inbox
+
 # In CI — scheduled daily 06:00 UTC, or on demand:
 #   Actions ▸ 🗓️ Daily Repo Analysis ▸ Run workflow
 #   inputs: days, max_failures, dry_run
@@ -82,8 +98,8 @@ tools/dash daily --no-dedupe        # skip the open-issue dedupe (offline/testin
 
 | Secret | Needed for | Fallback |
 | --- | --- | --- |
-| `GITHUB_TOKEN` | read public activity, commit the digest, open PRs/issues | — (built-in) |
-| `DAILY_ANALYSIS_TOKEN` | read **private** submodules' run logs (fine-grained PAT, `actions:read`) | `GITHUB_TOKEN` |
+| `GITHUB_TOKEN` | read public activity, commit the digest + triage snapshot, open PRs/issues | — (built-in) |
+| `DAILY_ANALYSIS_TOKEN` | read **private** submodules' run logs and open issues/PRs (fine-grained PAT: `actions:read`, `issues:read`, `pull_requests:read`) | `GITHUB_TOKEN` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | the AI implement step | `ANTHROPIC_API_KEY` |
 
 Without a Claude token the workflow degrades to gather + record only — the digest
@@ -95,6 +111,9 @@ still lands every day.
 | --- | --- |
 | `.github/workflows/daily-repo-analysis.yml` | the daily cron workflow (gather → record → implement) |
 | `.github/scripts/dash-gen/daily_report.py` | the PyGithub gather + digest + work-order generator |
+| `.github/scripts/dash-gen/fleet_triage.py` | the open-state (issues/PRs/CI) snapshot generator |
 | `_reports/daily/<date>.md` | committed daily digests |
 | `_reports/README.md` | reports index (AUTO span regenerated each run) |
+| `_data/fleet_triage.yml` | committed open-state snapshot rendered at `/triage/` |
+| `pages/_dash/triage.md` | the Fleet Triage portal page |
 | `daily-analysis-workorder.md` | ephemeral agent brief (gitignored) |

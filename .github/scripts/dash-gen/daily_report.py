@@ -167,7 +167,9 @@ def collect_repo(gh, project: dict, start: dt.datetime, max_runs: int) -> dict |
     try:
         scanned = 0
         for iss in repo.get_issues(state="all", since=start, sort="updated", direction="desc"):
-            if getattr(iss, "pull_request", None) is not None:
+            # Raw-payload check: reading iss.pull_request on a list-fetched
+            # Issue triggers a hidden per-issue GET (PyGithub lazy completion).
+            if "pull_request" in iss._rawData:  # noqa: SLF001 — perf, not laziness
                 continue
             scanned += 1
             if scanned > 120:
@@ -181,8 +183,13 @@ def collect_repo(gh, project: dict, start: dt.datetime, max_runs: int) -> dict |
         pass
 
     # --- releases ----------------------------------------------------------
+    # Never slice a PaginatedList: PyGithub's slice iterator raises IndexError
+    # (not GithubException) when the repo has fewer releases than the slice —
+    # that killed the whole 2026-07-21 run. Iterate + break instead.
     try:
-        for rel in repo.get_releases()[:10]:
+        for idx, rel in enumerate(repo.get_releases()):
+            if idx >= 10:
+                break
             if in_window(rel.published_at, start):
                 act["releases"].append({"tag": rel.tag_name, "name": short(rel.title or ""),
                                         "url": rel.html_url})
@@ -234,7 +241,11 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
         if not nwo:
             continue
         sys.stderr.write(f"  · {nwo}\n")
-        act = collect_repo(gh, project, start, max_runs)
+        try:
+            act = collect_repo(gh, project, start, max_runs)
+        except Exception as exc:  # one unreadable repo must never sink the digest
+            sys.stderr.write(f"    ! {nwo} skipped: {type(exc).__name__}: {exc}\n")
+            act = None
         scanned += 1
         if act is not None:
             repos.append(act)
@@ -526,6 +537,14 @@ def run(args: argparse.Namespace) -> int:
 
     with REGISTRY.open() as fh:
         registry = yaml.safe_load(fh) or []
+
+    # The hub isn't a registry project, but its own activity + CI failures are
+    # exactly what the implement agent can fix directly — always scan it.
+    if not any(actions_analytics.owner_repo(p.get("repo_url", "") or "") == args.repo
+               for p in registry):
+        registry = [{"name": "bamr87 (hub)",
+                     "repo_url": f"https://github.com/{args.repo}",
+                     "branch": "main"}] + list(registry)
 
     date_label = args.date or now_utc().strftime("%Y-%m-%d")
     gh = Github(auth=Auth.Token(token), per_page=100)
