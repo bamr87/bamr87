@@ -67,4 +67,5 @@ jobs:
             .github/workflows/claude.yml \
             .github/workflows/actions-usage.yml \
             .github/workflows/actions-review.yml \
-            .github/workflows/ai-usage.yml
+            .github/workflows/ai-usage.yml \
+            .github/workflows/daily-repo-analysis.yml

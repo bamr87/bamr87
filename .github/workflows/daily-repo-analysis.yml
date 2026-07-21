@@ -1,0 +1,179 @@
+name: 🗓️ Daily Repo Analysis
+
+# The dash's continuous analysis → implementation cycle. Once a day:
+#
+#   1. GATHER  — dash-gen daily scans every registry repo for the prior day's
+#      commits, PRs, issues, releases, and CI failures (PyGithub), writes a
+#      COMMITTED digest to _reports/daily/<date>.md (+ refreshes the index), and
+#      emits a DEDUPED work order of the failures worth acting on.
+#   2. RECORD  — the digest is committed to main (a durable daily summary saved
+#      in the monorepo). Committing with GITHUB_TOKEN doesn't retrigger CI.
+#   3. IMPLEMENT — when there are failures and Claude auth is provisioned, an
+#      Opus Claude Code agent reviews each failure and either opens ONE draft PR
+#      (hub-fixable) or files ONE tracking issue (submodule / cross-repo), one
+#      per failing workflow, deduped by a hidden marker and capped per run.
+#
+# Guardrails: candidate selection + dedupe are code (the AI can't spam); a
+# per-run cap bounds PRs/issues; the AI step self-skips without Claude auth
+# (CLAUDE_CODE_OAUTH_TOKEN preferred, ANTHROPIC_API_KEY fallback — see
+# docs/AI-INTEGRATION.md) and on a `dry_run`.
+#
+# Token: GITHUB_TOKEN reads public repo activity + commits the digest + opens
+# PRs/issues in this repo. Add DAILY_ANALYSIS_TOKEN (fine-grained PAT,
+# actions:read on the fleet) to read private submodules' run logs.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # daily 06:00 UTC (after refresh-dash 04:00, actions-usage 05:00)
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Analysis window (days)"
+        type: string
+        default: "1"
+      max_failures:
+        description: "Max failures to act on this run"
+        type: number
+        default: 6
+      dry_run:
+        description: "Gather + commit the digest, but do not run the AI / open PRs"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-repo-analysis
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write        # commit the digest + push the agent's fix branch
+      pull-requests: write    # the agent opens draft PRs
+      issues: write           # the agent files tracking issues
+      id-token: write         # OIDC for claude-code-action OAuth
+      actions: read           # read fleet run logs
+    env:
+      # secrets can't be read in a step `if`; surface presence as a plain env.
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create daily-analysis --color 1D76DB \
+            --description "AI-proposed fix from the daily repo analysis" --force
+          gh label create automation --color BFD4F2 \
+            --description "Automated / bot-generated" --force
+
+      - name: Gather → digest + work order
+        id: gather
+        env:
+          GH_TOKEN: ${{ secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tools/dash-gen daily \
+            --days "${{ github.event.inputs.days || '1' }}" \
+            --limit "${{ github.event.inputs.max_failures || '6' }}" \
+            --workorder daily-analysis-workorder.md
+
+      - name: Show work order
+        run: cat daily-analysis-workorder.md || true
+
+      - name: Commit daily digest
+        run: |
+          if git diff --quiet -- _reports/; then
+            echo "No change in daily digest."
+            exit 0
+          fi
+          git config user.name "bamr87-bot"
+          git config user.email "10567847+bamr87@users.noreply.github.com"
+          git add _reports/
+          git commit -m "chore(reports): daily repo activity digest ${{ steps.gather.outputs.date }}"
+          git push
+
+      - name: AI review & implement fixes
+        if: ${{ steps.gather.outputs.has_failures == 'true' && (github.event.inputs.dry_run || 'false') != 'true' && env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          github_token: ${{ secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+          claude_args: >-
+            --model opus
+            --max-turns 80
+            --allowedTools "Bash(gh:*),Bash(git:*),Read,Grep,Glob,Edit,Write"
+          prompt: |
+            You are the **daily repo-analysis implementation agent** (Opus) for the
+            **bamr87 monorepo dash**, which manages ~40 submodule repos. A gather step
+            has already scanned the last day of fleet activity and written a work order
+            of the CI failures worth acting on. Your job: for each candidate failure,
+            investigate the root cause, then EITHER open one draft PR (if the fix lives
+            in this hub repo, `bamr87/bamr87`) OR file one tracking issue (if the
+            failure is inside a submodule / another repo you can't safely fix from the
+            hub checkout).
+
+            ## Step 1 — read the work order
+            Read `daily-analysis-workorder.md` with the Read tool. It lists each failing
+            workflow with its repo, workflow file path, a per-candidate MARKER line, and
+            links to the specific failing runs. Also read today's digest under
+            `_reports/daily/` for context.
+
+            ## Step 2 — investigate each candidate
+            Gather concrete evidence BEFORE acting:
+            - Read the failing run's logs:
+              `gh run view -R <owner>/<repo> <run_id> --log-failed`
+              (fall back to `gh run view -R <owner>/<repo> <run_id>` if logs 404).
+            - Read the workflow definition and any file the failing step points at.
+            - If a cross-repo call 404s (token lacks access), base your analysis on the
+              work order + what you can read, and say so.
+            Form a SPECIFIC root-cause hypothesis — name the failing step / assertion /
+            missing dependency / bad path.
+
+            ## Step 3a — HUB failures (repo == bamr87/bamr87): open a draft PR
+            Only when the fix is genuinely inside THIS repo's tree (a hub workflow,
+            `tools/` script, doc, `_data/`, config):
+            - Confirm it isn't already open:
+              `gh pr list -R bamr87/bamr87 --state open --search '<marker key>'` and
+              `gh issue list -R bamr87/bamr87 --label daily-analysis --state open --search '<marker key>'`.
+              If found, SKIP.
+            - Create a branch: `git checkout -b fix/daily-analysis-<slug>`.
+            - Make the SMALLEST correct change that fixes the root cause. Do NOT
+              refactor, do NOT touch unrelated files, do NOT edit generated surfaces
+              (`_site/`, `site/`, `_reports/`, the README AUTO span, `projects/SCHEMA.md`).
+            - Commit (Conventional Commits: `fix(scope): …` / `ci(scope): …`), push the
+              branch, and open a **draft** PR:
+              `gh pr create -R bamr87/bamr87 --draft --base main --label daily-analysis --label automation --title "<title>" --body "<body>"`.
+
+            ## Step 3b — SUBMODULE / cross-repo failures: file one issue
+            When you cannot safely fix it from the hub checkout, file ONE issue in
+            `bamr87/bamr87` (after the same dedupe check):
+            `gh issue create -R bamr87/bamr87 --label daily-analysis --label automation --title "<title>" --body "<body>"`.
+            Do NOT clone, modify, or push to submodule working trees.
+
+            ## PR / issue body — in this order
+            1. The candidate's MARKER line **verbatim** as the FIRST line (so future
+               runs dedupe).
+            2. **Failure** — repo, workflow, conclusion, and the failing runs.
+            3. **Root cause** — your specific hypothesis, quoting the failing log line.
+            4. **Fix** — what the PR changes (or, for an issue, the concrete proposed
+               change and why it can't be done from the hub).
+            5. **Links** — the failing run URL(s) and today's digest under `_reports/daily/`.
+
+            ## Rules
+            - Act on AT MOST the number of candidates in the work order. Do not invent
+              extra work.
+            - One PR OR one issue per candidate — never both.
+            - Draft PRs only; never merge, never push to `main` directly, never
+              force-push.
+            - Prefer an issue over a speculative PR when the fix is uncertain or large.
+            - Be specific and technical. No generic boilerplate.

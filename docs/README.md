@@ -6,6 +6,7 @@ Architecture and process docs for the root monorepo (the submodules carry their 
 | --- | --- |
 | [DASH.md](DASH.md) | **The dash architecture** — registry, surfaces, monitoring, drift gates, AI loop. Start here. |
 | [AI-INTEGRATION.md](AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth/secrets, feedback loops, fleet propagation. |
+| [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md) | The continuous analysis → implementation cycle — daily fleet digest + agent that fixes CI failures. |
 | [STANDARDS.md](STANDARDS.md) | The per-tier standardization baseline every submodule is held to, and how it's enforced. |
 | [SCHEMA-FRAMEWORK.md](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — per-directory `SCHEMA.md` contracts and fleet adoption. |
 | [RELEASES.md](RELEASES.md) | Versioning, changelogs, releases, and the merge-to-main quality gate. |

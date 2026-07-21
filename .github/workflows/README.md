@@ -17,6 +17,7 @@ GitHub Actions for the bamr87 dash. Two groups: the **control-plane** workflows 
 | `actions-usage.yml` | daily 05:00, dispatch | Queries the Actions API (PyGithub) for every registry repo; commits refreshed `_data/actions_usage.yml` (cost / effectiveness / waste per workflow) for the `/actions/` page. **Display name is load-bearing** — `actions-review.yml` triggers on it by string. |
 | `actions-review.yml` | after `actions-usage.yml`, dispatch | Triages the worst workflows (failing / slow / high-cost) and runs an **Opus Claude Code reviewer** that deep-dives them and files ONE optimization **issue** per candidate (deduped by a hidden marker; capped per run). AI step self-skips when no Claude auth is provisioned. |
 | `ai-usage.yml` | daily 05:30, dispatch | Harvests every fleet Claude Code touchpoint — claude-code-action runs (cost/turns from logs), Claude-attributed commits and PRs — and commits `_data/ai_usage.yml` for the `/ai-usage/` transparency page. Preserves opt-in `local` publishes. |
+| `daily-repo-analysis.yml` | daily 06:00, dispatch | The continuous analysis → implementation cycle. Gathers the prior day's fleet activity + CI failures (PyGithub) → commits a digest to `_reports/daily/<date>.md` → runs an **Opus Claude Code agent** that opens ONE draft **PR** (hub-fixable) or files ONE **issue** (submodule / cross-repo) per failure, deduped by a hidden marker and capped per run. AI step self-skips without Claude auth or on `dry_run`. |
 
 ## Legacy / dispatch-only
 
