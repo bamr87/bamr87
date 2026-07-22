@@ -72,6 +72,10 @@ navigation:
 
 # Appearance -------------------------------------------------------------------
 theme_skin               : "air"   # air, aqua, dirt, neon, mint, plum, sunrise
+# Load assets/css/user-overrides.css (last, after main.css) on every page — the
+# theme-sanctioned hook for consumer CSS. Fixes Bootstrap contextual table/badge
+# classes that ignore the dark-mode toggle across the dash surfaces.
+user_overrides           : true
 theme_background:
   enabled: true
   gradient_opacity: 0.6
