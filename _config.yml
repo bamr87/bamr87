@@ -239,3 +239,13 @@ exclude:
   - CONTRIBUTING.md
   - SUBMODULES.md
   - "*.code-workspace"
+  # Governance/template content that must never publish as pages. NOTE: the
+  # github-pages gem force-enables jekyll-optional-front-matter, so even .md
+  # files WITHOUT front matter render unless excluded (exclude is prefix-
+  # matched — root SCHEMA.md does not cover pages/SCHEMA.md).
+  - SCHEMA.md
+  - pages/SCHEMA.md
+  - templates/
+  - _reports/
+  - daily-analysis-workorder.md
+  - actions-review-workorder.md
