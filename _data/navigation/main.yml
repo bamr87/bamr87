@@ -1,7 +1,11 @@
 # Main Navigation
-# Used by: _includes/navigation/navbar.html (zer0-mistakes theme)
+# Used by: _includes/navigation/navbar.html, navbar-mobile-quicklinks.html,
+#          unified-drawer.html (zer0-mistakes theme)
 # Schema: list of { title, icon (Bootstrap Icons bi-*), url, children[] }
-# Order: Dashboard (far left) → Projects → Services → About (far right).
+# Every rendered page must be reachable from here (directly or via its hub):
+# dash pages also appear in the per-page sidebar (_data/navigation/dash.yml) —
+# keep the two files' groupings aligned when adding a page.
+# Order: Dashboard (far left) → Finance → Projects → Blog → Services → About.
 
 - title: Dashboard
   icon: bi-speedometer2
@@ -11,18 +15,33 @@
       url: /dashboard/
     - title: Monitor
       url: /monitor/
+    - title: Fleet Triage
+      url: /triage/
     - title: Roadmap
       url: /roadmap/
     - title: Toolbox
       url: /toolbox/
+
+- title: Finance
+  icon: bi-cash-stack
+  url: /cockpit/
+  children:
+    - title: Cost Cockpit
+      url: /cockpit/
+    - title: AI Usage
+      url: /ai-usage/
     - title: AI Activity
       url: /ai-activity/
-    - title: Resume
-      url: /resume/
+    - title: Actions Usage
+      url: /actions/
 
 - title: Projects
   icon: bi-collection
   url: /projects/
+
+- title: Blog
+  icon: bi-journal-text
+  url: /blog/
 
 - title: Services
   icon: bi-gear-wide-connected
@@ -47,5 +66,9 @@
       url: /about/#technical-stack--specializations
     - title: Experience
       url: /experience/
+    - title: Resume
+      url: /resume/
+    - title: Docs
+      url: /docs/
     - title: Contact
       url: /contact/
