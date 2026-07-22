@@ -1,0 +1,79 @@
+/* ==========================================================================
+   user-overrides.css — consumer overrides for the bamr87 dash
+   Loaded LAST (after main.css + tokens-inline) via `site.user_overrides: true`,
+   so these rules win over both the compiled theme and Bootstrap defaults.
+
+   Purpose: the dash pages (monitor, triage, actions, …) lean on Bootstrap's
+   contextual helpers — `.table-danger/.warning/.success/.light` rows and
+   `.badge.bg-light.text-dark`. Those ship FIXED LIGHT colours: on the theme's
+   dark surface they render as glaring near-white blocks with washed-out text.
+   Here we redefine them as translucent, semantic tints that composite over the
+   current `--bs-body-bg`, so a red row reads as pale-pink on light and deep-red
+   on dark — legible in both, driven by the same colour toggle as everything else.
+   ========================================================================== */
+
+/* ---------- Theme-aware contextual table rows ---------------------------- */
+/* Keep row TEXT at the body colour (Bootstrap forces near-black), and swap the
+   opaque variant background for a translucent semantic tint. Because the tint
+   carries alpha, the page background shows through and the row adapts per theme. */
+.table > :not(caption) > * > *,
+.table-danger,
+.table-warning,
+.table-success,
+.table-info,
+.table-primary,
+.table-secondary,
+.table-light {
+  --bs-table-color: var(--bs-body-color);
+  --bs-table-color-state: var(--bs-body-color);
+}
+
+.table-danger {
+  --bs-table-bg: rgba(var(--bs-danger-rgb), 0.13);
+  --bs-table-border-color: rgba(var(--bs-danger-rgb), 0.28);
+  --bs-table-hover-bg: rgba(var(--bs-danger-rgb), 0.22);
+  --bs-table-striped-bg: rgba(var(--bs-danger-rgb), 0.18);
+  --bs-table-active-bg: rgba(var(--bs-danger-rgb), 0.24);
+}
+.table-warning {
+  --bs-table-bg: rgba(var(--bs-warning-rgb), 0.15);
+  --bs-table-border-color: rgba(var(--bs-warning-rgb), 0.30);
+  --bs-table-hover-bg: rgba(var(--bs-warning-rgb), 0.24);
+  --bs-table-striped-bg: rgba(var(--bs-warning-rgb), 0.20);
+  --bs-table-active-bg: rgba(var(--bs-warning-rgb), 0.26);
+}
+.table-success {
+  --bs-table-bg: rgba(var(--bs-success-rgb), 0.13);
+  --bs-table-border-color: rgba(var(--bs-success-rgb), 0.28);
+  --bs-table-hover-bg: rgba(var(--bs-success-rgb), 0.22);
+  --bs-table-striped-bg: rgba(var(--bs-success-rgb), 0.18);
+  --bs-table-active-bg: rgba(var(--bs-success-rgb), 0.24);
+}
+.table-info {
+  --bs-table-bg: rgba(var(--bs-info-rgb), 0.13);
+  --bs-table-border-color: rgba(var(--bs-info-rgb), 0.28);
+  --bs-table-hover-bg: rgba(var(--bs-info-rgb), 0.22);
+  --bs-table-striped-bg: rgba(var(--bs-info-rgb), 0.18);
+  --bs-table-active-bg: rgba(var(--bs-info-rgb), 0.24);
+}
+/* `.table-light` is used on the Monitor board for HEALTHY rows — semantically it
+   just means "no alert". Render it as the neutral default row (no glaring block);
+   the 🟢 marker already carries the signal. */
+.table-light {
+  --bs-table-bg: transparent;
+  --bs-table-border-color: var(--bs-border-color);
+  --bs-table-hover-bg: rgba(var(--bs-emphasis-color-rgb, 0, 0, 0), 0.04);
+  --bs-table-striped-bg: rgba(var(--bs-emphasis-color-rgb, 0, 0, 0), 0.03);
+  --bs-table-active-bg: rgba(var(--bs-emphasis-color-rgb, 0, 0, 0), 0.06);
+}
+
+/* ---------- Theme-aware neutral badges ----------------------------------- */
+/* `.badge.bg-light.text-dark` (workflow-type / external / private chips) is a
+   fixed light pill that glares on dark. Make it a subtle secondary-surface chip
+   that follows the theme. Colored badges (bg-danger/success/warning/info) are
+   intentional and left untouched. */
+.badge.bg-light.text-dark {
+  background-color: var(--bs-secondary-bg) !important;
+  color: var(--bs-body-color) !important;
+  border-color: var(--bs-border-color) !important;
+}

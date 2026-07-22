@@ -137,7 +137,7 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
   var WF = {{ a.workflows | jsonify }};
   if (!Array.isArray(WF) || !WF.length) return;
 
-// ---- cost-vs-effectiveness quadrant (canvas) ---- var cv = document.getElementById('quadrant'); if (cv && cv.getContext) {
+/* ---- cost-vs-effectiveness quadrant (canvas) ---- */ var cv = document.getElementById('quadrant'); if (cv && cv.getContext) {
     var ctx = cv.getContext('2d'), W = cv.width, H = cv.height,
         padL = 48, padR = 16, padT = 16, padB = 34;
     var maxMin = Math.max.apply(null, WF.map(function (w) { return w.total_min; })) || 1;
@@ -185,7 +185,7 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
     });
   }
 
-// ---- type filter ---- var rows = Array.prototype.slice.call(document.querySelectorAll('#wf-table tbody tr')); document.querySelectorAll('#type-filter button').forEach(function (btn) {
+/* ---- type filter ---- */ var rows = Array.prototype.slice.call(document.querySelectorAll('#wf-table tbody tr')); document.querySelectorAll('#type-filter button').forEach(function (btn) {
     btn.addEventListener('click', function () {
       document.querySelectorAll('#type-filter button').forEach(function (b) { b.classList.remove('active'); });
       btn.classList.add('active');
@@ -194,7 +194,7 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
     });
   });
 
-// ---- column sort ---- var tbody = document.querySelector('#wf-table tbody'), dir = {}; document.querySelectorAll('#wf-table th[data-sort]').forEach(function (th) {
+/* ---- column sort ---- */ var tbody = document.querySelector('#wf-table tbody'), dir = {}; document.querySelectorAll('#wf-table th[data-sort]').forEach(function (th) {
     th.style.cursor = 'pointer';
     th.addEventListener('click', function () {
       var key = th.getAttribute('data-sort'), num = key !== 'repo' && key !== 'type';
