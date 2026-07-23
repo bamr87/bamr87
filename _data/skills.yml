@@ -23,6 +23,8 @@
   description: Turn Monitor-board signals into prioritized actions.
 - name: actions-triage
   description: Explain the worst Actions workflows from _data/actions_usage.yml and drive the fix or the actions-review dispatch.
+- name: estimate-issue
+  description: Deep-analyze a GitHub issue into a client-engagement estimate in _data/engagements.yml (estimator draft refined by analysis; human approves).
 - name: evolve-project
   description: Focused per-project improvement pass (maps to .github/agents personas).
 - name: run-dash

@@ -8,6 +8,12 @@ name: 🧮 AI Usage Refresh
 # `tools/dash-gen ai-usage` on your machine); this job PRESERVES any
 # previously published `local` section rather than erasing it.
 #
+# The refreshed ledger is also the evidence source for the engagement
+# register (_data/engagements.yml, the /engagements/ page): after the
+# harvest, `dash-gen ledger` accrues the new CI-run/commit/PR evidence into
+# approved/in-progress engagements and recomputes variance — estimates vs
+# actuals settle daily, in the same commit as the evidence itself.
+#
 # Token: GITHUB_TOKEN reads public repos' runs/logs/commits. Add
 # ACTIONS_ANALYTICS_TOKEN (fine-grained PAT, actions:read + contents:read on
 # the fleet) for private repos or higher rate limits.
@@ -45,14 +51,18 @@ jobs:
           GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
         run: tools/dash-gen ai-usage --days "${{ inputs.days || 14 }}"
 
+      - name: Accrue engagement actuals
+        # CI has no local session ledger; evidence comes from ai_usage.yml only.
+        run: tools/dash-gen ledger --no-local
+
       - name: Commit if changed
         run: |
-          if git diff --quiet -- _data/ai_usage.yml; then
-            echo "No change in AI usage data."
+          if git diff --quiet -- _data/ai_usage.yml _data/engagements.yml; then
+            echo "No change in AI usage data or engagement actuals."
             exit 0
           fi
           git config user.name "bamr87-bot"
           git config user.email "10567847+bamr87@users.noreply.github.com"
-          git add _data/ai_usage.yml
-          git commit -m "chore(data): refresh Claude Code usage ledger"
+          git add _data/ai_usage.yml _data/engagements.yml
+          git commit -m "chore(data): refresh Claude Code usage ledger + engagement actuals"
           git push
