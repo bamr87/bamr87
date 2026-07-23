@@ -18,6 +18,8 @@
   children:
     - title: 💰 Cost Cockpit
       url: /cockpit/
+    - title: 💼 Engagements
+      url: /engagements/
     - title: 🧮 AI Usage
       url: /ai-usage/
     - title: 🤖 AI Activity

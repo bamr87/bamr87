@@ -40,6 +40,7 @@ import ai_usage_collector
 import actions_analytics
 import actions_review
 import daily_report
+import engagements
 import fleet_triage
 
 try:
@@ -422,6 +423,18 @@ def main(argv: list[str] | None = None) -> int:
         help="fleet-wide open issues/PRs/CI snapshot -> fleet_triage.yml (committed, daily-refreshed)",
     )
     fleet_triage.add_arguments(p_triage)
+
+    p_estimate = sub.add_parser(
+        "estimate",
+        help="draft client-engagement estimates from open issues -> engagements.yml (committed)",
+    )
+    engagements.add_estimate_arguments(p_estimate)
+
+    p_ledger = sub.add_parser(
+        "ledger",
+        help="accrue engagement actuals from usage evidence + recompute variance -> engagements.yml",
+    )
+    engagements.add_ledger_arguments(p_ledger)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

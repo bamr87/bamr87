@@ -35,6 +35,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | Actions review | Opus Claude Code deep-dive on failing/slow workflows → optimization **issues** (deduped) | `actions_review.py` (triage + dedupe) → `actions-review.yml` (Claude reviewer files one issue per candidate) |
 | Daily analysis | Prior-day fleet digest + CI-failure → fix loop (Opus agent: draft PRs / issues, deduped + capped) | `daily_report.py` → `_reports/daily/<date>.md` + `daily-repo-analysis.yml` (see [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md)) |
 | Fleet triage | Daily-committed open-state inventory: every open issue, PR (with CI state), failing workflow; prioritized inbox | `fleet_triage.py` → `_data/fleet_triage.yml` → `/triage/`; refreshed by `daily-repo-analysis.yml` |
+| Engagements | Every project a client: deterministic estimates (AI/broker/platform decomposition), evidence-accrued actuals, variance + leverage | `engagements.py` (`dash estimate`/`dash ledger`) + `_data/engagement_rates.yml` → `_data/engagements.yml` → `/engagements/`; actuals settle daily via `ai-usage.yml` (see [ESTIMATION.md](ESTIMATION.md)) |
 | Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
@@ -56,6 +57,8 @@ tools/dash actions        # GitHub Actions usage analytics (cost/effectiveness b
 tools/dash actions-review # triage worst workflows → reviewer work order
 tools/dash daily          # prior-day fleet digest + failure work order
 tools/dash triage         # open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/)
+tools/dash estimate       # draft client-engagement estimates from open issues (/engagements/)
+tools/dash ledger         # accrue engagement actuals + variance from usage evidence
 tools/dash serve          # serve the Jekyll dash locally (docker, :4000)
 tools/dash sync           # update submodules + regenerate dash data
 tools/dash foreach <cmd>  # run a shell command in every checked-out submodule

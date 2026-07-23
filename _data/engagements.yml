@@ -1,0 +1,916 @@
+# =============================================================================
+# _data/engagements.yml — THE ENGAGEMENT LEDGER (client work register)
+# =============================================================================
+# Every registry project is a client; every entry is a statement of work with
+# a deterministic estimate (estimator-v1; rate card: _data/engagement_rates.yml)
+# and evidence-accrued actuals. Rendered at /engagements/; see docs/ESTIMATION.md.
+#
+# Managed by .github/scripts/dash-gen/engagements.py:
+#   tools/dash estimate   append/update draft estimates (status: estimated)
+#   tools/dash ledger     accrue actuals evidence + recompute rollups/variance
+#
+# HUMANS own (the broker's controls):
+#   status     estimated -> approved -> in_progress -> delivered -> reconciled
+#              (cancelled from any pre-reconciled state); edit here or use
+#              `tools/dash ledger --set-status ENG-NNNN=<status>`
+#   plan.*     approach / deliverables / acceptance — refine before approving
+#   actuals.broker_hours   validated human time (priced at the rate card)
+#   estimate.* overrides   set estimate.method: manual to protect from re-runs
+#
+# The GENERATOR owns: computed estimate fields, actuals.entries + derived
+# totals, variance, summary, clients. No secrets — this is public site data.
+# =============================================================================
+version: 1
+summary:
+  updated_at: 2026-07-23 02:36 UTC
+  engagements: 12
+  counts:
+    estimated: 12
+    approved: 0
+    in_progress: 0
+    delivered: 0
+    reconciled: 0
+    cancelled: 0
+  pipeline_usd: 1285.49
+  in_flight_usd: 0.0
+  delivered_est_usd: 0.0
+  delivered_actual_usd: 0.0
+  actual_usd: 0.0
+  avg_leverage_est: 12.7
+  clients: 7
+clients:
+- name: law-ai
+  nwo: bamr87/law-ai
+  engagements: 1
+  open: 1
+  delivered: 0
+  est_usd: 342.74
+  actual_usd: 0.0
+- name: lifehacker.dev
+  nwo: bamr87/lifehacker.dev
+  engagements: 2
+  open: 2
+  delivered: 0
+  est_usd: 191.9
+  actual_usd: 0.0
+- name: ai-seed
+  nwo: bamr87/ai-seed
+  engagements: 2
+  open: 2
+  delivered: 0
+  est_usd: 190.66
+  actual_usd: 0.0
+- name: barodybroject
+  nwo: bamr87/barodybroject
+  engagements: 2
+  open: 2
+  delivered: 0
+  est_usd: 190.66
+  actual_usd: 0.0
+- name: zer0-mistakes
+  nwo: bamr87/zer0-mistakes
+  engagements: 2
+  open: 2
+  delivered: 0
+  est_usd: 190.66
+  actual_usd: 0.0
+- name: githubai
+  nwo: bamr87/githubai
+  engagements: 2
+  open: 2
+  delivered: 0
+  est_usd: 137.1
+  actual_usd: 0.0
+- name: it-journey
+  nwo: bamr87/it-journey
+  engagements: 1
+  open: 1
+  delivered: 0
+  est_usd: 41.77
+  actual_usd: 0.0
+engagements:
+- id: ENG-0001
+  client: lifehacker.dev
+  nwo: bamr87/lifehacker.dev
+  title: 'Work order: link-rot — broken #comments anchor on /news/field-notes/ listing'
+  type: bug
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 370
+    url: https://github.com/bamr87/lifehacker.dev/issues/370
+    labels:
+    - factory:work-order
+    age_days: 0
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - title:bug
+    - type:bug -> tier s
+    - 'calibration: lifehacker.dev avg $1.70/run x 1 sessions'
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.7
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.76
+    contingency_pct: 25
+    contingency_usd: 19.19
+    total_usd: 95.95
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.5
+  plan:
+    approach: Reproduce, isolate root cause, fix, add a regression check.
+    deliverables:
+    - root-cause note
+    - fix PR
+    - regression test/check
+    acceptance:
+    - failure no longer reproduces
+    - CI green
+    - no unrelated changes
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0002
+  client: zer0-mistakes
+  nwo: bamr87/zer0-mistakes
+  title: 'a11y: dialog titles use a bare <h5 class="modal-title"> — heading-order
+    skip (WCAG 1.3.1)'
+  type: bug
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 318
+    url: https://github.com/bamr87/zer0-mistakes/issues/318
+    labels:
+    - bug
+    - priority:P3
+    - area:a11y
+    - risk:low
+    - autopilot:triaged
+    age_days: 1
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:bug
+    - type:bug -> tier s
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.2
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.26
+    contingency_pct: 25
+    contingency_usd: 19.07
+    total_usd: 95.33
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.6
+  plan:
+    approach: Reproduce, isolate root cause, fix, add a regression check.
+    deliverables:
+    - root-cause note
+    - fix PR
+    - regression test/check
+    acceptance:
+    - failure no longer reproduces
+    - CI green
+    - no unrelated changes
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0003
+  client: barodybroject
+  nwo: bamr87/barodybroject
+  title: 'Deployment failure: a1edc96'
+  type: bug
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 139
+    url: https://github.com/bamr87/barodybroject/issues/139
+    labels:
+    - bug
+    - deployment
+    - high-priority
+    age_days: 4
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:bug
+    - type:bug -> tier s
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.2
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.26
+    contingency_pct: 25
+    contingency_usd: 19.07
+    total_usd: 95.33
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.6
+  plan:
+    approach: Reproduce, isolate root cause, fix, add a regression check.
+    deliverables:
+    - root-cause note
+    - fix PR
+    - regression test/check
+    acceptance:
+    - failure no longer reproduces
+    - CI green
+    - no unrelated changes
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0004
+  client: githubai
+  nwo: bamr87/githubai
+  title: Bug [BUG]  test
+  type: bug
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 87
+    url: https://github.com/bamr87/githubai/issues/87
+    labels:
+    - bug
+    - ai-assist
+    age_days: 240
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:bug
+    - type:bug -> tier s
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.2
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.26
+    contingency_pct: 25
+    contingency_usd: 19.07
+    total_usd: 95.33
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.6
+  plan:
+    approach: Reproduce, isolate root cause, fix, add a regression check.
+    deliverables:
+    - root-cause note
+    - fix PR
+    - regression test/check
+    acceptance:
+    - failure no longer reproduces
+    - CI green
+    - no unrelated changes
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0005
+  client: ai-seed
+  nwo: bamr87/ai-seed
+  title: '[CI Failure] ci-cd-pipeline on refs/pull/17/merge @ 8a9d774'
+  type: ci
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 19
+    url: https://github.com/bamr87/ai-seed/issues/19
+    labels:
+    - ci-failure
+    - triage
+    age_days: 43
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:ci
+    - type:ci -> tier s
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.2
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.26
+    contingency_pct: 25
+    contingency_usd: 19.07
+    total_usd: 95.33
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.6
+  plan:
+    approach: Diagnose the failing workflow from run logs, patch the pipeline.
+    deliverables:
+    - workflow fix PR
+    acceptance:
+    - workflow completes green on the default branch
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0006
+  client: it-journey
+  nwo: bamr87/it-journey
+  title: 🚨 Dependency Security Issues (automated)
+  type: deps
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 388
+    url: https://github.com/bamr87/it-journey/issues/388
+    labels:
+    - dependencies
+    - automated
+    - critical
+    - security
+    - needs-human
+    age_days: 22
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: xs
+    confidence: high
+    drivers:
+    - label:dependencies
+    - type:deps -> tier xs
+    ai:
+      sessions: 1
+      turns: 10
+      input_ktok: 40
+      output_ktok: 15
+      cost_usd: 0.44
+    human:
+      broker_hours: 0.25
+      rate_usd_hr: 150.0
+      cost_usd: 37.5
+    platform:
+      ci_minutes: 4.0
+      cost_usd: 0.03
+    subtotal_usd: 37.97
+    contingency_pct: 10
+    contingency_usd: 3.8
+    total_usd: 41.77
+    traditional:
+      hours: 4.0
+      rate_usd_hr: 150.0
+      cost_usd: 600.0
+    leverage: 14.4
+  plan:
+    approach: Bump, run the suite, adapt call sites if the changelog demands.
+    deliverables:
+    - dependency bump PR
+    acceptance:
+    - build + tests green on the new version
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0007
+  client: law-ai
+  nwo: bamr87/law-ai
+  title: 'evolve: run /evolve on top BACKLOG item'
+  type: unknown
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 52
+    url: https://github.com/bamr87/law-ai/issues/52
+    labels:
+    - evolve
+    age_days: 1
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: m
+    confidence: low
+    drivers:
+    - no classification signal
+    - type:unknown -> tier m
+    ai:
+      sessions: 2
+      turns: 60
+      input_ktok: 350
+      output_ktok: 110
+      cost_usd: 3.33
+    human:
+      broker_hours: 1.5
+      rate_usd_hr: 150.0
+      cost_usd: 225.0
+    platform:
+      ci_minutes: 20.0
+      cost_usd: 0.16
+    subtotal_usd: 228.49
+    contingency_pct: 50
+    contingency_usd: 114.25
+    total_usd: 342.74
+    traditional:
+      hours: 24.0
+      rate_usd_hr: 150.0
+      cost_usd: 3600.0
+    leverage: 10.5
+  plan:
+    approach: 'Broker triages: clarify intent, then re-estimate.'
+    deliverables:
+    - triage note
+    acceptance:
+    - item classified and re-estimated
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0008
+  client: lifehacker.dev
+  nwo: bamr87/lifehacker.dev
+  title: '[sev2] content-bug: missing-preview (/docs/ai-usage/)'
+  type: bug
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 353
+    url: https://github.com/bamr87/lifehacker.dev/issues/353
+    labels:
+    - type/content-bug
+    - area/content
+    - severity/sev2
+    - source/ci-test
+    - factory:needs-human
+    age_days: 1
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:bug
+    - type:bug -> tier s
+    - 'calibration: lifehacker.dev avg $1.70/run x 1 sessions'
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.7
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.76
+    contingency_pct: 25
+    contingency_usd: 19.19
+    total_usd: 95.95
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.5
+  plan:
+    approach: Reproduce, isolate root cause, fix, add a regression check.
+    deliverables:
+    - root-cause note
+    - fix PR
+    - regression test/check
+    acceptance:
+    - failure no longer reproduces
+    - CI green
+    - no unrelated changes
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0009
+  client: zer0-mistakes
+  nwo: bamr87/zer0-mistakes
+  title: 'fix: <html class="no-js"> is never upgraded to "js" — dead progressive-enhancement
+    hook'
+  type: bug
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 319
+    url: https://github.com/bamr87/zer0-mistakes/issues/319
+    labels:
+    - bug
+    - javascript
+    - priority:P3
+    - area:infra
+    - risk:low
+    age_days: 1
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:bug
+    - type:bug -> tier s
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.2
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.26
+    contingency_pct: 25
+    contingency_usd: 19.07
+    total_usd: 95.33
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.6
+  plan:
+    approach: Reproduce, isolate root cause, fix, add a regression check.
+    deliverables:
+    - root-cause note
+    - fix PR
+    - regression test/check
+    acceptance:
+    - failure no longer reproduces
+    - CI green
+    - no unrelated changes
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0010
+  client: barodybroject
+  nwo: bamr87/barodybroject
+  title: 'Deployment failure: 40cbff9'
+  type: bug
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 141
+    url: https://github.com/bamr87/barodybroject/issues/141
+    labels:
+    - bug
+    - deployment
+    - high-priority
+    age_days: 4
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:bug
+    - type:bug -> tier s
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.2
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.26
+    contingency_pct: 25
+    contingency_usd: 19.07
+    total_usd: 95.33
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.6
+  plan:
+    approach: Reproduce, isolate root cause, fix, add a regression check.
+    deliverables:
+    - root-cause note
+    - fix PR
+    - regression test/check
+    acceptance:
+    - failure no longer reproduces
+    - CI green
+    - no unrelated changes
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0011
+  client: githubai
+  nwo: bamr87/githubai
+  title: '[Auto] Repository Health Check'
+  type: chore
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 83
+    url: https://github.com/bamr87/githubai/issues/83
+    labels:
+    - auto-generated
+    - maintenance
+    - health-check
+    age_days: 241
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: xs
+    confidence: high
+    drivers:
+    - label:maintenance
+    - type:chore -> tier xs
+    ai:
+      sessions: 1
+      turns: 10
+      input_ktok: 40
+      output_ktok: 15
+      cost_usd: 0.44
+    human:
+      broker_hours: 0.25
+      rate_usd_hr: 150.0
+      cost_usd: 37.5
+    platform:
+      ci_minutes: 4.0
+      cost_usd: 0.03
+    subtotal_usd: 37.97
+    contingency_pct: 10
+    contingency_usd: 3.8
+    total_usd: 41.77
+    traditional:
+      hours: 4.0
+      rate_usd_hr: 150.0
+      cost_usd: 600.0
+    leverage: 14.4
+  plan:
+    approach: Do the maintenance task exactly as scoped.
+    deliverables:
+    - chore PR
+    acceptance:
+    - CI green
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null
+- id: ENG-0012
+  client: ai-seed
+  nwo: bamr87/ai-seed
+  title: '[CI Failure] ci-cd-pipeline on refs/pull/17/merge @ 99f1a5d'
+  type: ci
+  status: estimated
+  opened: '2026-07-23'
+  delivered: null
+  source:
+    kind: issue
+    number: 18
+    url: https://github.com/bamr87/ai-seed/issues/18
+    labels:
+    - ci-failure
+    - triage
+    age_days: 44
+  estimate:
+    method: estimator-v1
+    model: claude-opus-4-8
+    tier: s
+    confidence: medium
+    drivers:
+    - label:ci
+    - type:ci -> tier s
+    ai:
+      sessions: 1
+      turns: 25
+      input_ktok: 120
+      output_ktok: 40
+      cost_usd: 1.2
+    human:
+      broker_hours: 0.5
+      rate_usd_hr: 150.0
+      cost_usd: 75.0
+    platform:
+      ci_minutes: 8.0
+      cost_usd: 0.06
+    subtotal_usd: 76.26
+    contingency_pct: 25
+    contingency_usd: 19.07
+    total_usd: 95.33
+    traditional:
+      hours: 8.0
+      rate_usd_hr: 150.0
+      cost_usd: 1200.0
+    leverage: 12.6
+  plan:
+    approach: Diagnose the failing workflow from run logs, patch the pipeline.
+    deliverables:
+    - workflow fix PR
+    acceptance:
+    - workflow completes green on the default branch
+  actuals:
+    entries: []
+    broker_hours: 0.0
+    ai_cost_usd: 0.0
+    human_cost_usd: 0.0
+    platform_cost_usd: 0.0
+    total_usd: 0.0
+    turns: 0
+    ci_minutes: 0
+    commits: 0
+    prs: 0
+    first: null
+    last: null

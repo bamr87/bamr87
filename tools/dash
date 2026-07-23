@@ -27,6 +27,8 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash actions-review${c_off}    triage worst workflows → reviewer work order (feeds actions-review.yml)
   ${c_bold}dash daily${c_off}             prior-day fleet activity digest + failure work order (feeds daily-repo-analysis.yml)
   ${c_bold}dash triage${c_off}            fleet-wide open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/ portal)
+  ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
+  ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
@@ -38,7 +40,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|actions-review|daily|triage|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|actions-review|daily|triage|estimate|ledger|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -189,6 +191,8 @@ cmd_actions() { "${TOOLS}/dash-gen" actions "$@"; }
 cmd_actions_review() { "${TOOLS}/dash-gen" actions-review "$@"; }
 cmd_daily() { "${TOOLS}/dash-gen" daily "$@"; }
 cmd_triage() { "${TOOLS}/dash-gen" triage "$@"; }
+cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
+cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
 cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
@@ -203,6 +207,8 @@ main() {
     actions-review) cmd_actions_review "$@" ;;
     daily)   cmd_daily "$@" ;;
     triage)  cmd_triage "$@" ;;
+    estimate) cmd_estimate "$@" ;;
+    ledger)  cmd_ledger "$@" ;;
     serve)   cmd_serve "$@" ;;
     sync)    cmd_sync "$@" ;;
     foreach) cmd_foreach "$@" ;;
