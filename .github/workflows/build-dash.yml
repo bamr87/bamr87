@@ -18,7 +18,14 @@ on:
       - '.github/actions/setup/dash-gen/**'
       - '.github/workflows/build-dash.yml'
   schedule:
-    - cron: '0 */6 * * *'   # keep the Monitor board current
+    # Daily, AFTER the data-refresh jobs have committed (refresh-dash 04:00,
+    # actions-usage 05:00, ai-usage 05:30, daily-repo-analysis 06:00). Those
+    # commits use GITHUB_TOKEN so they can't trigger this workflow themselves —
+    # this run is what republishes them. It was every 6h, but three of those
+    # four daily builds landed before any new data existed and only rebuilt an
+    # unchanged site; the Monitor board's live signals are regenerated here at
+    # build time either way.
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 permissions:

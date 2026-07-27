@@ -8,6 +8,7 @@ Architecture and process docs for the root monorepo (the submodules carry their 
 | [AI-INTEGRATION.md](AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth/secrets, feedback loops, fleet propagation. |
 | [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md) | The continuous analysis → implementation cycle — daily fleet digest + agent that fixes CI failures. |
 | [ESTIMATION.md](ESTIMATION.md) | Engagement estimation & cost tracking — every project a client, deterministic estimates (AI/broker/platform), evidence-accrued actuals, variance. |
+| [WORKFLOW-OPTIMIZATION.md](WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit — where the minutes go, what was optimized, and what is still submodule-owned. |
 | [STANDARDS.md](STANDARDS.md) | The per-tier standardization baseline every submodule is held to, and how it's enforced. |
 | [SCHEMA-FRAMEWORK.md](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — per-directory `SCHEMA.md` contracts and fleet adoption. |
 | [RELEASES.md](RELEASES.md) | Versioning, changelogs, releases, and the merge-to-main quality gate. |

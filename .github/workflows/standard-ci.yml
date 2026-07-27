@@ -40,6 +40,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
+          # Cache ~/.npm between runs. Only enabled when a lockfile exists —
+          # setup-node hard-fails if `cache` is set and it can't find one.
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
       - name: Install (npm)
         if: ${{ hashFiles('package.json') != '' }}
         run: |
@@ -57,6 +60,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
+          # Cache the pip download cache. Only enabled when a file the cache can
+          # key on exists — setup-python errors out on an unmatched dep path.
+          cache: ${{ hashFiles('requirements.txt', 'requirements/*.txt', 'requirements-dev.txt', 'pyproject.toml') != '' && 'pip' || '' }}
+          cache-dependency-path: |
+            requirements.txt
+            requirements/*.txt
+            requirements-dev.txt
+            pyproject.toml
       - name: Install (pip)
         if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
         run: |
@@ -69,7 +80,13 @@ jobs:
       - name: Test (pytest)
         if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
         run: |
-          pytest -q; rc=$?
+          # `run:` uses `bash -eo pipefail`, so the exit status MUST be captured
+          # with `set +e` — a bare `pytest -q; rc=$?` aborts the step on failure
+          # and never reaches the exit-5 handling below.
+          set +e
+          pytest -q
+          rc=$?
+          set -e
           # exit code 5 = "no tests collected" — not a failure for the gate
           if [ "$rc" -eq 5 ]; then echo "::notice::no tests collected"; rc=0; fi
           exit "$rc"
