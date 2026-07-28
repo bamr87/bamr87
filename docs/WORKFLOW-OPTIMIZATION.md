@@ -4,6 +4,8 @@ A fleet-wide audit of every GitHub Actions workflow in the hub and its submodule
 
 Baseline: `_data/actions_usage.yml` (14-day window ending 2026-07-13) plus a static read of all workflow files in the checked-out submodules.
 
+> **Read the snapshot date before acting on a row.** The analytics refresh is daily, but a finding drawn from it can be stale by the time it is read — `it-journey` had already consolidated three auto-merge workflows into one after the snapshot above was taken. Always confirm a workflow still exists, and still looks the way the data implies, before opening work against it.
+
 ## Scope of the audit
 
 | | Count |
@@ -23,7 +25,8 @@ Measured consumption in the window: **3,290 minutes** across 1,594 runs, of whic
 The distinction drives every recommendation below, because the fixes are completely different:
 
 - **Structural waste** — the workflow is configured to do more work than it needs to: no dependency cache, a cron that fires more often than its inputs change, a missing concurrency guard, a job that exists only to spin a runner. Fixable by editing YAML. This is what was implemented.
-- **Failure waste** — the workflow is correctly configured but its runs fail. `zer0-mistakes/ci.yml` (528 lines, change-detection, matrix with `fail-fast: false`, npm caching, per-job timeouts) is *well* engineered; its 134 wasted minutes come from a 66% success rate, not from its config. Re-shaping it would not recover a minute. This class already has an owner — the `daily-repo-analysis.yml` loop opens a PR or files an issue per failing workflow — and is deliberately **not** addressed here.
+- **Failure waste** — the workflow is correctly configured but its runs fail. `zer0-mistakes/ci.yml` (528 lines, change-detection, matrix with `fail-fast: false`, npm caching, per-job timeouts) is *well* engineered; its 134 wasted minutes come from failing runs, not from its config. Re-shaping it would not recover a minute. This class already has an owner — the `daily-repo-analysis.yml` loop opens a PR or files an issue per failing workflow — and is deliberately **not** addressed here.
+- **Cancellation waste** — a third class, identified after the first pass and described under [Measurement](#measurement-the-success-rate-was-wrong) below. The minutes are real, but nothing is broken and there is nothing to fix in the workflow.
 
 Distinguishing them matters: 984 of the 1,271 wasted minutes are in the `ai` workflow type, whose runs are expensive by design. An AI loop that fails half its runs is a correctness problem, not a configuration problem.
 
@@ -92,9 +95,34 @@ The largest single line item in the fleet: 1,153 minutes over 15 runs (77 min av
 
 ### 5. Structural gaps worth a fan-out
 
-- `it-journey/content-auto-merge.yml` — 114 runs at 8% success, `cancel-heavy`. A `pull_request_target` auto-merge firing on every PR event and losing almost all of them.
-- `it-journey/dependabot-auto-merge.yml` — 30 wasted minutes over 35 runs, 67% success, `high-cost-low-value`. An auto-merge helper should cost seconds.
+- `it-journey/dependabot-auto-merge.yml` — 30 wasted minutes over 35 runs, `high-cost-low-value`. An auto-merge helper should cost seconds.
 - Missing `concurrency` on 24 workflows, and no path filters on 16 `push`/`pull_request` workflows — both are exactly what the `standardize-fanout.yml` channel exists to propagate.
+
+> `it-journey/content-auto-merge.yml` was listed here in the first pass as "114 runs at 8% success". That was the measurement bug below, not the workflow: it has **1 real failure**. It also already absorbed the separate `issue-pr-auto-merge.yml` and `quest-report-auto-merge.yml`, so the three-workflows-per-PR-event problem the analytics snapshot captured is already fixed upstream.
+
+## Measurement: the success rate was wrong
+
+The single most consequential finding, and the reason several entries above needed correcting.
+
+`success_rate_pct` was computed as `success / (success + failure + cancelled)`. Cancelled runs have no verdict — they were superseded by a newer commit, which is exactly what a `concurrency: cancel-in-progress: true` guard is *supposed* to do, and which the hub's own workflow standards mandate. Counting them as non-successes made the metric measure churn instead of correctness, and anything under 50% then tripped the **`failing`** flag.
+
+`failing` is in `SERIOUS_FLAGS`, so those workflows were nominated for the `actions-review` loop, where an **Opus** agent was dispatched to read `--log-failed` evidence for runs that had never failed. Replaying the corrected logic over the same data, six workflows change classification — and **four of them had zero actual failures**:
+
+| Workflow | ok / fail / cancelled | Old | New |
+| --- | --- | --- | --- |
+| `it-journey/agentic-quest-review.yml` | 3 / **0** / 8 | 27.3%, `failing` | **100%**, clean |
+| `zer0-mistakes/issue-autopilot.yml` | 8 / **0** / 11 | 42.1%, `failing` | **100%**, clean |
+| `it-journey/issue-pr-auto-merge.yml` | 0 / **0** / 27 | 0%, `failing` | no verdicts, clean |
+| `it-journey/content-auto-merge.yml` | 4 / 1 / 45 | 8.0%, `failing` | 80%, `flaky` |
+| `zer0-mistakes/ci.yml` | 40 / 7 / 14 | 65.6%, `flaky` | **85.1%**, clean |
+| `skills/vally-evaluation.lock.yml` | 0 / **0** / 6 | `failing` | no verdicts |
+
+Fixed in `.github/scripts/dash-gen/`:
+
+- `success_rate_pct` now counts only runs that reached a verdict (`success + failure`). Cancelled **minutes** still count in `waste_min` — they were really burned — and the churn stays visible as the new `cancel_pct` field and the existing `cancel-heavy` flag.
+- The `failing`/`flaky` flags gate on decided runs, not completed ones. Without this the fix is incomplete: `pct(0, 0)` returns `0.0`, so a workflow with only cancellations would still have read as "0% success" and stayed flagged.
+- `cancel-heavy` no longer pulls failing-run evidence in `actions_review.py` — cancelled runs produce no failure logs.
+- The reviewer's suggested angle for `cancel-heavy` no longer says "add `concurrency: cancel-in-progress: true`". That was self-contradictory: a high cancel share usually means the guard is already there and working. The advice is now to start fewer runs, not to cancel more.
 
 ## Verification
 

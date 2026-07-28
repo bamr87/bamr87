@@ -52,7 +52,10 @@ OUT_DEFAULT = REPO_ROOT / "actions-review-workorder.md"
 # Flags that make a workflow worth a reviewer's time (see actions_analytics).
 SERIOUS_FLAGS = {"failing", "flaky", "slow", "high-cost-low-value", "cancel-heavy"}
 # Which candidates want failing-run evidence vs slow-run evidence.
-FAILING_FLAGS = {"failing", "flaky", "cancel-heavy", "high-cost-low-value"}
+# `cancel-heavy` is deliberately absent: cancelled runs produce no failure logs,
+# so pulling `--log-failed` evidence for them sends the reviewer after runs that
+# never failed.
+FAILING_FLAGS = {"failing", "flaky", "high-cost-low-value"}
 
 
 # --------------------------------------------------------------------------- #
@@ -198,8 +201,13 @@ def angle(flags: list[str]) -> str:
         tips.append("most minutes end in non-success — gate the triggers or fix the "
                     "root failure so the spend produces value")
     if "cancel-heavy" in f:
-        tips.append("add `concurrency: {group, cancel-in-progress: true}` and/or narrower "
-                    "triggers so runs aren't superseded mid-flight")
+        # Do NOT suggest adding `cancel-in-progress: true` here — a high cancel
+        # share usually means the workflow ALREADY has it and is doing its job.
+        # Check first; the fix is to stop starting the run, not to cancel it later.
+        tips.append("check whether `cancel-in-progress: true` is already set — if so the "
+                    "cancellations are correct and the fix is to START fewer runs (narrower "
+                    "`paths:`/branch filters, fewer trigger `types:`, a job-level `if:` guard), "
+                    "not to add more cancelling")
     if "cron-heavy" in f:
         tips.append("reduce the `schedule` cadence or convert to event-driven triggers")
     return "; ".join(tips) or "review triggers, caching, and job structure for waste"
