@@ -14,6 +14,11 @@ while producing little? It groups consumption by workflow *type* and surfaces
 "high running, low effective" workflows quantitatively (cost = wall-clock minutes,
 value = share of minutes that end in success; waste = minutes on non-success runs).
 
+Cancelled runs are counted as waste (the minutes were really burned) but NOT as
+failures: `success_rate_pct` and the failing/flaky flags look only at runs that
+reached a verdict. Conflating the two made every workflow with a working
+`concurrency: cancel-in-progress` guard read as broken.
+
 Auth: a token from GH_TOKEN / GITHUB_TOKEN, else `gh auth token`. Network / rate
 -limit failures degrade gracefully (a repo that can't be read is skipped, not fatal).
 """
@@ -268,7 +273,15 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
                 "waste_min": round(b["waste_min"], 1),
                 "runs_per_week": round(b["runs"] / weeks, 1),
                 "success": b["success"], "failure": b["failure"], "cancelled": b["cancelled"],
-                "success_rate_pct": pct(b["success"], b["success"] + b["failure"] + b["cancelled"]),
+                # Cancelled runs are EXCLUDED from the denominator: a superseded
+                # run reached no verdict, so counting it as "not a success" made
+                # `success_rate_pct` measure churn instead of correctness, and
+                # the sub-50% result then tripped the `failing` flag on
+                # workflows with zero actual failures. Cancelled MINUTES still
+                # count as waste (they were really burned) — see waste_min — and
+                # the churn itself stays visible as cancel_pct / `cancel-heavy`.
+                "success_rate_pct": pct(b["success"], b["success"] + b["failure"]),
+                "cancel_pct": pct(b["cancelled"], b["success"] + b["failure"] + b["cancelled"]),
                 "effectiveness_pct": pct(b["success_min"], b["total_min"]) if b["total_min"] else 100.0,
                 "sched_pct": pct(sched, b["runs"]),
                 "events": b["events"],
@@ -290,7 +303,8 @@ def summarize(bucket: dict) -> dict:
         "total_min": round(bucket["total_min"], 1),
         "waste_min": round(bucket["waste_min"], 1),
         "effectiveness_pct": pct(bucket["success_min"], bucket["total_min"]) if bucket["total_min"] else 100.0,
-        "success_rate_pct": pct(bucket["success"], bucket["success"] + bucket["failure"] + bucket["cancelled"]),
+        # Cancelled excluded from the denominator — see the per-workflow record.
+        "success_rate_pct": pct(bucket["success"], bucket["success"] + bucket["failure"]),
     }
 
 
@@ -307,12 +321,17 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
             continue
         flags = []
         completed = w["success"] + w["failure"] + w["cancelled"]
+        # Runs that actually reached a verdict. failing/flaky gate on THIS, not
+        # on `completed`: a workflow whose runs are merely superseded has no
+        # verdicts at all, and pct(0, 0) == 0.0 would otherwise read as "0%
+        # success" and flag it `failing` despite zero failures.
+        decided = w["success"] + w["failure"]
         if (w["total_min"] >= median_min and w["effectiveness_pct"] < LOW_EFFECTIVENESS
                 and w["waste_min"] >= MIN_WASTE_MIN):
             flags.append("high-cost-low-value")
-        if completed >= 3 and w["success_rate_pct"] < 50:
+        if decided >= 3 and w["success_rate_pct"] < 50:
             flags.append("failing")
-        elif completed >= 4 and 50 <= w["success_rate_pct"] < 85:
+        elif decided >= 4 and 50 <= w["success_rate_pct"] < 85:
             flags.append("flaky")
         if w["avg_min"] > SLOW_AVG_MIN:
             flags.append("slow")
@@ -345,7 +364,10 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
 
     tot_runs = sum(w["runs"] for w in workflows)
     tot_success = sum(w["success"] for w in workflows)
-    tot_fail = sum(w["failure"] + w["cancelled"] for w in workflows)
+    # Failures only — cancelled runs reached no verdict and are excluded from
+    # the success rate, matching the per-workflow record. Their MINUTES still
+    # count in waste_min.
+    tot_fail = sum(w["failure"] for w in workflows)
     tot_waste = round(sum(w["waste_min"] for w in workflows), 1)
 
     return {
@@ -370,7 +392,10 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         "inactive": sorted(inactive, key=lambda x: (x["repo"], x["workflow"])),
         "note": ("Cost = wall-clock run minutes (run_started_at → updated_at), a proxy for "
                  "billable minutes. Value = share of minutes ending in success. "
-                 "Waste = minutes on failed/cancelled/timed-out runs."),
+                 "Waste = minutes on failed/cancelled/timed-out runs. "
+                 "Success rate counts only runs that reached a verdict "
+                 "(success + failure); cancelled runs were superseded, not broken, "
+                 "and show up as cancel_pct / the cancel-heavy flag instead."),
     }
 
 
