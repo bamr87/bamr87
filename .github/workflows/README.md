@@ -6,9 +6,9 @@ GitHub Actions for the bamr87 dash. Two groups: the **control-plane** workflows 
 
 | Workflow | Triggers | Purpose |
 | --- | --- | --- |
-| `build-dash.yml` | push `main` (dash paths), 6h cron, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. **The sole Pages surface.** |
-| `drift-check.yml` | push `main`, PR, dispatch | Fast offline+API gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, missing top-level READMEs, **SCHEMA.md pyramid (h)**; advisory **GitHub-reality** (renames/deletions/branch) + **standardization**. Also runs `actionlint` over the live control-plane workflows (add new workflows to its list; legacy suite exempt). No Ruby/Jekyll build; the internal-link check is local-only (`--links`). |
-| `refresh-dash.yml` | daily 04:00, dispatch | Regenerates the committable README `AUTO:projects` span + registry data; opens a PR. |
+| `build-dash.yml` | push `main` (dash paths), daily 07:00, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. **The sole Pages surface.** The cron runs *after* the data-refresh jobs (04:00–06:00) commit, since their `GITHUB_TOKEN` commits can't trigger this workflow themselves. |
+| `drift-check.yml` | push `main`, PR, dispatch | Fast offline+API gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, missing top-level READMEs, **SCHEMA.md pyramid (h)**; advisory **GitHub-reality** (renames/deletions/branch) + **standardization**. Also runs `actionlint` — as a step in the same job, over every workflow found by glob (`unified-evolution.yml` exempt; no list to maintain). No Ruby/Jekyll build; the internal-link check is local-only (`--links`). |
+| `refresh-dash.yml` | daily 04:00, dispatch | Regenerates the committable README `AUTO:projects` span + registry data; opens a PR on the **stable** `chore/refresh-dash` branch, so a daily no-op updates one rolling PR instead of opening a new one. |
 | `update-submodules.yml` | weekly Sun 03:00, dispatch | Bumps submodule pointers **up** into root (pointer-only staging); opens a PR. |
 | `standardize-fanout.yml` | dispatch (per-repo or all) | Opens standardization PRs **down** into submodules via `tools/fanout.sh`, seeding `.editorconfig`, the reusable `standard-ci.yml` caller, and on request the **agent-context kit** (`CLAUDE.md` scaffold + `@claude` workflow). Dry-run default. |
 | `schema-fanout.yml` | dispatch (per-repo or all) | Opens **Pyramid Schema** adoption PRs down into submodules via `tools/fanout.sh` (SCHEMA.md contracts + vendored linter + CI gate). Optional `agent_fill` runs a Claude Code pass that fills scaffold TODOs on the PR branch (single target only). Dry-run default. |
@@ -21,7 +21,9 @@ GitHub Actions for the bamr87 dash. Two groups: the **control-plane** workflows 
 
 ## Legacy / dispatch-only
 
-`unified-cicd.yml`, `unified-release.yml`, `unified-maintenance.yml`, `unified-evolution.yml`, and `workflow-dispatcher.yml` are a generic single-app template. They only ever ran against the **root** tree (which has no app code — the projects are submodules), so their scheduled triggers are removed; they remain **`workflow_dispatch`-only** for reference and manual use. Prefer the control-plane workflows above. `unified-evolution.yml` still powers the manual AI evolution pass (trigger via `tools/dash evolve`).
+`unified-evolution.yml` is the last of a generic single-app suite that only ever ran against the **root** tree (which has no app code — the projects are submodules). It is **`workflow_dispatch`-only** and still powers the manual AI evolution pass (trigger via `tools/dash evolve`).
+
+The other four — `unified-cicd.yml`, `unified-release.yml`, `unified-maintenance.yml`, and `workflow-dispatcher.yml` (1,754 lines) — were **removed**: nothing in `tools/`, `.claude/`, or the docs invoked them, `workflow-dispatcher.yml` existed only to dispatch the other three, and every responsibility they nominally covered is served by a control-plane workflow above. Recover from git history if a reference implementation is ever wanted.
 
 ## Standards
 

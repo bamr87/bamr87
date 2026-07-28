@@ -44,28 +44,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # The workflows dir's own standard ("run actionlint after editing") — enforced
-  # for the live control plane. The legacy unified-*/dispatcher suite carries
-  # ~240 pre-existing findings and is exempt until retired or fixed.
-  actionlint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
+      # The workflows dir's own standard ("run actionlint after editing"). This
+      # used to be a second job — a whole extra runner (and billed minute) on
+      # every push and PR just to curl a binary and lint. It reuses this job's
+      # checkout instead.
+      #
+      # Discovered by glob rather than a hand-maintained include list: the old
+      # list silently skipped any newly added workflow. `unified-evolution.yml`
+      # is the one exemption — the last of the legacy suite, which carries
+      # pre-existing findings — and is excluded until it is fixed or retired.
       - name: Run actionlint (control plane)
         run: |
+          shopt -s nullglob
+          files=()
+          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+            [[ "$f" == *"/unified-evolution.yml" ]] && continue
+            files+=("$f")
+          done
+          echo "Linting ${#files[@]} workflow(s):"
+          printf '  %s\n' "${files[@]}"
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint -color \
-            .github/workflows/build-dash.yml \
-            .github/workflows/drift-check.yml \
-            .github/workflows/refresh-dash.yml \
-            .github/workflows/update-submodules.yml \
-            .github/workflows/standardize-fanout.yml \
-            .github/workflows/schema-fanout.yml \
-            .github/workflows/standard-ci.yml \
-            .github/workflows/claude.yml \
-            .github/workflows/actions-usage.yml \
-            .github/workflows/actions-review.yml \
-            .github/workflows/ai-usage.yml \
-            .github/workflows/daily-repo-analysis.yml
+          ./actionlint -color "${files[@]}"

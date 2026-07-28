@@ -55,7 +55,10 @@ jobs:
           body: |
             Automated refresh of the `<!-- AUTO:projects -->` section of the
             profile README from `_data/projects.yml`.
-          branch: "chore/refresh-dash-${{ github.run_id }}"
+          # Stable branch (NOT per-run): create-pull-request updates the single
+          # open refresh PR in place instead of opening a fresh one every day and
+          # leaving the previous one — and its drift-check runs — behind.
+          branch: "chore/refresh-dash"
           base: main
           labels: automation, dash
           delete-branch: true

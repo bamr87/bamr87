@@ -1,7 +1,14 @@
 kit: agent-context
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/agent-context/
 seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude) via tools/fanout.sh
 files: CLAUDE.template.md, claude.yml
-updated: 2026-07-16
+updated: 2026-07-27
+changelog: |
+  0.2.0 — claude.yml gains a per-thread `concurrency` group (cancel-in-progress:
+  false) so concurrent @claude mentions serialize instead of racing each other on
+  the same branch. NOTE: the kit is additive-only, so the ~9 repos that already
+  carry a seeded claude.yml do NOT pick this up via fan-out — they need the
+  three-line block applied directly.
+  0.1.0 — initial kit.
 notes: CLAUDE.template.md is seeded only when the target has NO agent-context file (CLAUDE.md/AGENTS.md/copilot-instructions/.cursorrules); claude.yml only when .github/workflows/claude.yml is absent. Both additive-only, never overwrite.
