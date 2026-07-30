@@ -16,6 +16,13 @@ name: 🧭 Reconcile Registry
 #                              as it does on a deleted one, and this fleet
 #                              intentionally tracks non-default branches
 #                              (scripts=master, sonic-pi=dev).
+#
+# Token: the default GITHUB_TOKEN is repo-scoped and 404s on EVERY private repo
+# in the fleet — observed live on PR #42, where check (g) reported 11 healthy
+# private repos as "not found". Set ACTIONS_ANALYTICS_TOKEN (the same
+# fine-grained PAT actions-usage.yml uses) to see them. Without it reconcile
+# still behaves: a mass of 404s collapses into a single "token-scope" finding
+# rather than a dozen false deletion alarms.
 
 on:
   schedule:
@@ -53,7 +60,7 @@ jobs:
       - name: Detect drift
         id: detect
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           python .github/scripts/dash-gen/dash_gen.py reconcile --json > /tmp/reconcile.json
           python - <<'PY' >> "$GITHUB_OUTPUT"
@@ -69,7 +76,7 @@ jobs:
       - name: Apply authoritative fixes
         if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
         run: python .github/scripts/dash-gen/dash_gen.py reconcile --apply
 
       - name: Configure Git

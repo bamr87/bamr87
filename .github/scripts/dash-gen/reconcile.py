@@ -56,7 +56,14 @@ GITMODULES = REPO_ROOT / ".gitmodules"
 
 # Kinds that `--apply` is allowed to write. Everything else is report-only.
 AUTHORITATIVE = ("renamed", "url-mismatch")
-ADVISORY = ("branch-drift", "missing", "unverifiable")
+ADVISORY = ("branch-drift", "missing", "token-scope", "unverifiable")
+
+# If more than this share of probed repos 404, the token almost certainly cannot
+# see private repos — it is not that the fleet was mass-deleted overnight. CI's
+# default GITHUB_TOKEN is repo-scoped and 404s on every private repo in the
+# fleet, which would otherwise flood the nightly issue with false "missing"
+# findings and train everyone to ignore it.
+BLIND_TOKEN_RATIO = 0.25
 
 
 @dataclass
@@ -136,6 +143,7 @@ def probe(gh, nwo: str) -> tuple[str, str | None, str | None]:
 def collect(gh, registry: list[dict], mods: dict[str, dict[str, str]]) -> list[Finding]:
     """Compare all three sources and classify every disagreement."""
     findings: list[Finding] = []
+    probed = 0
 
     # .gitmodules url indexed by submodule path, for the internal-consistency check
     gm_by_path = {m["path"]: m for m in mods.values() if m.get("path")}
@@ -158,6 +166,7 @@ def collect(gh, registry: list[dict], mods: dict[str, dict[str, str]]) -> list[F
             ))
 
         # (2) external: what does GitHub actually say?
+        probed += 1
         status, full, default_branch = probe(gh, nwo)
         if status == "missing":
             findings.append(Finding(
@@ -189,7 +198,33 @@ def collect(gh, registry: list[dict], mods: dict[str, dict[str, str]]) -> list[F
                 current=declared, proposed=default_branch,
             ))
 
-    return findings
+    return collapse_blind_token(findings, probed)
+
+
+def collapse_blind_token(findings: list[Finding], probed: int) -> list[Finding]:
+    """Replace a pile of 404s with one 'your token is blind' finding.
+
+    A repo-scoped token (CI's default GITHUB_TOKEN) 404s on every private repo
+    in the fleet. Reported verbatim that is a dozen false "deleted" alarms per
+    night; collapsed, it is one actionable line telling you to grant the token
+    private-repo visibility.
+    """
+    missing = [f for f in findings if f.kind == "missing"]
+    if not probed or len(missing) <= 1 or len(missing) / probed < BLIND_TOKEN_RATIO:
+        return findings
+
+    names = ", ".join(sorted(f.name for f in missing))
+    collapsed = [f for f in findings if f.kind != "missing"]
+    collapsed.append(Finding(
+        kind="token-scope",
+        name="(token)",
+        detail=(f"{len(missing)}/{probed} repos returned 404 — the token almost "
+                f"certainly cannot see private repos rather than the fleet having "
+                f"been deleted. Grant private-repo read (e.g. set "
+                f"ACTIONS_ANALYTICS_TOKEN) and re-run before believing any of "
+                f"these: {names}"),
+    ))
+    return collapsed
 
 
 # --------------------------------------------------------------------------

@@ -90,6 +90,10 @@ class _FakeGitHub:
         return _Repo(nwo, "main")
 
 
+def Finding_missing(name: str) -> "reconcile.Finding":
+    return reconcile.Finding(kind="missing", name=name, detail="404")
+
+
 def main() -> int:
     tmp = Path(tempfile.mkdtemp())
     reg_path, gm_path = tmp / "projects.yml", tmp / ".gitmodules"
@@ -125,6 +129,20 @@ def main() -> int:
     check("inline comment survives", "# this comment must survive" in after)
     check("edit is surgical (line count stable)",
           len(before.splitlines()) == len(after.splitlines()))
+
+    # A repo-scoped token 404s on every private repo. Reported verbatim that is a
+    # dozen false "deleted" alarms a night, so a mass of 404s must collapse into
+    # one token-scope finding instead. Observed for real in CI on PR #42.
+    print("blind-token collapse:")
+    many_404 = [Finding_missing(f"repo{i}") for i in range(10)]
+    collapsed = reconcile.collapse_blind_token(list(many_404), probed=12)
+    check("10/12 404s collapse to a single token-scope finding",
+          len(collapsed) == 1 and collapsed[0].kind == "token-scope")
+
+    one_404 = [Finding_missing("only-one")]
+    kept = reconcile.collapse_blind_token(list(one_404), probed=12)
+    check("a lone 404 is NOT collapsed (real deletion still surfaces)",
+          len(kept) == 1 and kept[0].kind == "missing")
 
     shutil.rmtree(tmp)
     print(f"\n{'FAILED: ' + str(len(failures)) if failures else 'OK'}")
