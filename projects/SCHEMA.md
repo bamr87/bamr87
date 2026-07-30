@@ -19,7 +19,6 @@ coverage: listed
 | `README.md` | file | Projects index page | |
 | `1987/` | dir | Self-growing knowledge base about the year 1987 — history, politics, science, and culture. | terminal |
 | `2005/` | dir | Self-growing knowledge base about the year 2005 — history, science, arts, society, and people. | terminal |
-| `Dodge-and-Reena-Book/` | dir | Children's picture book — Deputy Dodge & Ranger Reena monthly mystery stories with a full illustrat… | terminal |
 | `README/` | dir | Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js). | terminal |
 | `afms/` | dir | AFMS — Django accounting & financial management web app with role-based access and reporting. | terminal |
 | `ai-seed/` | dir | AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human… | terminal |
@@ -41,7 +40,6 @@ coverage: listed
 | `githubai/` | dir | AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django). | terminal |
 | `gitorio/` | dir | Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions wo… | terminal |
 | `it-journey/` | dir | From-zero-to-hero docs, tools, and scripts supporting an IT learning journey. | terminal |
-| `jekyll/` | dir | Fork of Jekyll, the blog-aware static site generator in Ruby. | terminal |
 | `law-ai/` | dir | LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ol… | terminal |
 | `lawmode/` | dir | Always-on AI lawyer concept for developers. | terminal |
 | `lifehacker.dev/` | dir | Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages. | terminal |

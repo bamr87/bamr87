@@ -232,7 +232,6 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[2005](https://github.com/year-of-ai/2005)**: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
 - **[cv](https://github.com/bamr87/cv)**: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
-- **[Dodge-and-Reena-Book](https://github.com/bamr87/Dodge-and-Reena-Book)**: Children's picture book — Deputy Dodge & Ranger Reena monthly mystery stories with a full illustration guide.
 - **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Product-requirements and planning notes for the zer0-pages concept.
 
 ### 🚀 Full-Stack & AI Applications
@@ -263,7 +262,6 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[zpl-viewer](https://github.com/bamr87/zpl-viewer)**: ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.
 - **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
-- **[jekyll](https://github.com/bamr87/jekyll)**: Fork of Jekyll, the blog-aware static site generator in Ruby.
 - **[sonic-pi](https://github.com/bamr87/sonic-pi)**: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
 - **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
 - **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.

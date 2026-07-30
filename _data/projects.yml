@@ -452,23 +452,6 @@
     status: none
   license: MIT
 
-- name: jekyll
-  slug: jekyll
-  submodule_path: projects/jekyll
-  branch: master            # NOTE: tracks master, not main
-  repo_url: https://github.com/bamr87/jekyll
-  description: Fork of Jekyll, the blog-aware static site generator in Ruby.
-  stack: [ruby, jekyll]
-  category: dev-tools
-  status: maintenance
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
 - name: bamr87.github.io
   slug: bamr87.github.io
   submodule_path: projects/bamr87.github.io
@@ -656,22 +639,6 @@
   branch: main
   repo_url: https://github.com/bamr87/books
   description: Personal books and reference notes collection.
-  stack: [markdown]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-
-- name: Dodge-and-Reena-Book
-  slug: Dodge-and-Reena-Book
-  submodule_path: projects/Dodge-and-Reena-Book
-  branch: main
-  repo_url: https://github.com/bamr87/Dodge-and-Reena-Book
-  description: Children's picture book — Deputy Dodge & Ranger Reena monthly mystery stories with a full illustration guide.
   stack: [markdown]
   category: docs
   status: experiment

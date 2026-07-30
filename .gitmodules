@@ -87,10 +87,6 @@
 	path = projects/aieo
 	url = https://github.com/bamr87/aieo.git
 	branch = main
-[submodule "projects/jekyll"]
-	path = projects/jekyll
-	url = https://github.com/bamr87/jekyll.git
-	branch = master
 [submodule "projects/1987"]
 	path = projects/1987
 	url = https://github.com/bamr87/1987.git
@@ -158,8 +154,4 @@
 [submodule "projects/wargames"]
 	path = projects/wargames
 	url = https://github.com/bamr87/wargames.git
-	branch = main
-[submodule "projects/Dodge-and-Reena-Book"]
-	path = projects/Dodge-and-Reena-Book
-	url = https://github.com/bamr87/Dodge-and-Reena-Book.git
 	branch = main
