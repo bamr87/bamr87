@@ -42,6 +42,7 @@ import actions_review
 import daily_report
 import engagements
 import fleet_triage
+import reconcile
 
 try:
     import yaml
@@ -423,6 +424,12 @@ def main(argv: list[str] | None = None) -> int:
         help="fleet-wide open issues/PRs/CI snapshot -> fleet_triage.yml (committed, daily-refreshed)",
     )
     fleet_triage.add_arguments(p_triage)
+
+    p_reconcile = sub.add_parser(
+        "reconcile",
+        help="reconcile the registry + .gitmodules against GitHub reality (renames/deletions/urls)",
+    )
+    reconcile.add_arguments(p_reconcile)
 
     p_estimate = sub.add_parser(
         "estimate",
