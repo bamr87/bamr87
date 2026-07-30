@@ -3,7 +3,9 @@
 # tools/check-drift.sh — hard drift gate for the dash
 #
 # Checks ((a,b,d,e,h) gate the exit status unless --report; (c,f,g) warn only):
-#   (a) registry <-> .gitmodules parity + no stray/unregistered project dirs
+#   (a) registry <-> .gitmodules parity (paths, branches, AND urls) + no
+#       stray/unregistered project dirs. The url leg is offline, so it gates on
+#       every PR; the live GitHub side (renames/deletions) is (g) + `dash reconcile`.
 #   (b) README.md AUTO:projects span is up to date
 #   (c) broken internal links in the built dash        (warn; --links only; needs _site)
 #   (d) every top-level module dir has a README
@@ -63,18 +65,24 @@ reg = yaml.safe_load(open(os.path.join(root, "_data/projects.yml"))) or []
 
 # parse .gitmodules
 gm_path = os.path.join(root, ".gitmodules")
-mods = {}  # path -> branch
+mods = {}  # path -> {branch, url}
 cur = None
 for line in open(gm_path):
     line = line.strip()
     m = re.match(r'\[submodule "(.+)"\]', line)
     if m:
-        cur = {"path": None, "branch": "main"}
+        cur = {"path": None, "branch": "main", "url": ""}
         continue
     if cur is not None and "=" in line:
         k, v = [x.strip() for x in line.split("=", 1)]
         if k == "path": cur["path"] = v; mods[v] = cur
         elif k == "branch": cur["branch"] = v
+        elif k == "url": cur["url"] = v
+
+
+def norm_url(u):
+    """Compare urls without tripping on .git / trailing slash / case."""
+    return (u or "").strip().rstrip("/").removesuffix(".git").lower()
 
 reg_by_path = {p["submodule_path"]: p for p in reg if p.get("submodule_path")}
 problems = []
@@ -86,6 +94,14 @@ for path, info in mods.items():
         problems.append(f"submodule '{path}' is not in projects.yml")
     elif p.get("branch") != info["branch"]:
         problems.append(f"submodule '{path}' branch mismatch: registry={p.get('branch')} .gitmodules={info['branch']}")
+    # URL parity: the registry and .gitmodules can name DIFFERENT repos for the
+    # same path and every other check still passes (paths and branches agree),
+    # so the fleet silently fetches something other than what the dash
+    # advertises. Offline, so it gates on every PR; the live GitHub side of this
+    # (renames/deletions) is check (g) and `dash-gen reconcile`.
+    if p and p.get("repo_url") and norm_url(p["repo_url"]) != norm_url(info["url"]):
+        problems.append(
+            f"submodule '{path}' url mismatch: registry={p.get('repo_url')} .gitmodules={info['url']}")
 
 # every registry submodule_path exists in .gitmodules
 for path in reg_by_path:
