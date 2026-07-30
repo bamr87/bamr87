@@ -37,7 +37,16 @@ env/
 .virtualenv/
 
 # IDE & Editors
+# .vscode/ is ignored by default, but this repo intentionally tracks its shared
+# workspace config (notably the raised git.detectSubmodulesLimit that the ~40
+# submodules require). Without these negations, new files added here are
+# silently invisible to git.
 .vscode/
+!.vscode/README.md
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
