@@ -177,3 +177,6 @@ _data/ai_activity.yml
 actions-review-workorder.md
 # Ephemeral failure work order (daily-repo-analysis gather → Claude Code agent)
 daily-analysis-workorder.md
+
+# Playwright MCP browser artifacts (screenshots, snapshots, downloads)
+.playwright-mcp/
