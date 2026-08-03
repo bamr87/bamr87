@@ -215,12 +215,21 @@ runs:
             gh label create "$l" --color BFD4F2 --description "Automated" --force >/dev/null 2>&1 || true
             LABEL_ARGS+=(--label "$l")
           done
-          PR_URL="$(gh pr create --head "$IN_BRANCH" --base "$BASE" \
-                      --title "$TITLE" --body "$BODY" "${LABEL_ARGS[@]}" 2>&1 | tail -1)"
-          case "$PR_URL" in
-            https://*) echo "Opened pull request: $PR_URL" ;;
-            *) echo "::warning::Could not open a pull request: $PR_URL"; PR_URL="" ;;
-          esac
+          # Match the URL out of the full output rather than taking `tail -1`:
+          # gh prints deprecation notices, auth hints, and "remote: " chatter
+          # around the URL, and any of them landing last would be captured as if
+          # it were the PR. Keeping the whole output also means a real failure
+          # gets reported in full instead of as one truncated line.
+          CREATE_OUT="$(gh pr create --head "$IN_BRANCH" --base "$BASE" \
+                          --title "$TITLE" --body "$BODY" "${LABEL_ARGS[@]}" 2>&1)"
+          PR_URL="$(printf '%s\n' "$CREATE_OUT" \
+                      | grep -Eom1 'https://[^[:space:]]+/pull/[0-9]+')"
+          if [ -n "$PR_URL" ]; then
+            echo "Opened pull request: $PR_URL"
+          else
+            echo "::warning::Could not open a pull request."
+            printf '%s\n' "$CREATE_OUT" | sed 's/^/  | /'
+          fi
         fi
 
         if [ "$IN_AUTO_MERGE" = "true" ] && [ -n "$PR_URL" ]; then

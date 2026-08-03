@@ -313,8 +313,11 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 print(f"  {EXTRA} {r['nwo']:30} set {label}")
                 changed += 1
             else:
+                # `.splitlines()[:1]` is a LIST, and an f-string renders it as
+                # `['permission denied']` — brackets, quotes and all. Index it.
+                err = (proc.stderr or "").strip().splitlines()
                 print(f"  {MISSING} {r['nwo']:30} FAILED {key}: "
-                      f"{(proc.stderr or '').strip().splitlines()[:1]}")
+                      f"{err[0] if err else '(no error output)'}")
                 failed += 1
 
     verb = "applied" if args.apply else "pending"
