@@ -173,7 +173,8 @@ _site/
 _data/project_health.yml
 _data/project_health_meta.yml
 _data/ai_activity.yml
-# Ephemeral reviewer work order (actions-review triage → Claude Code reviewer)
+# Ephemeral agent work orders (triage → Claude Code). Generated per run, never committed.
+remediation-workorder.md
 actions-review-workorder.md
 # Ephemeral failure work order (daily-repo-analysis gather → Claude Code agent)
 daily-analysis-workorder.md

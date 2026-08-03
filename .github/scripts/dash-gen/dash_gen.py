@@ -16,6 +16,10 @@ Subcommands:
            LOCAL-ONLY and ephemeral — not part of `all`, never runs in CI.
            Implemented in ai_activity.py.
 
+  remediate Merge the fleet's failing + expensive workflow signals into ONE
+           ranked, deduped, capped fix queue and emit the work order that
+           drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
+
   all      Run health then readme.
 
 The single source of truth is dash/_data/projects.yml. This script never invents
@@ -43,6 +47,7 @@ import daily_report
 import engagements
 import fleet_triage
 import reconcile
+import remediation
 
 try:
     import yaml
@@ -409,13 +414,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p_areview = sub.add_parser(
         "actions-review",
-        help="triage worst workflows into a reviewer work order (feeds actions-review.yml)",
+        help="triage worst workflows into a reviewer work order (standalone; the daily loop uses `remediate`)",
     )
     actions_review.add_arguments(p_areview)
 
     p_daily = sub.add_parser(
         "daily",
-        help="prior-day fleet activity digest + failure work order (feeds daily-repo-analysis.yml)",
+        help="prior-day fleet activity digest + failure work order (feeds fleet-pulse.yml)",
     )
     daily_report.add_arguments(p_daily)
 
@@ -424,6 +429,12 @@ def main(argv: list[str] | None = None) -> int:
         help="fleet-wide open issues/PRs/CI snapshot -> fleet_triage.yml (committed, daily-refreshed)",
     )
     fleet_triage.add_arguments(p_triage)
+
+    p_remediate = sub.add_parser(
+        "remediate",
+        help="merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse.yml)",
+    )
+    remediation.add_arguments(p_remediate)
 
     p_reconcile = sub.add_parser(
         "reconcile",

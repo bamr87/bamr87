@@ -9,7 +9,7 @@ name: schema-fanout
 # github.com/bamr87 (e.g. the microsoft/skills mirror).
 #
 # Secrets:
-#   FANOUT_TOKEN             required — fine-grained PAT with contents:write +
+#   FLEET_TOKEN              required (legacy FANOUT_TOKEN honoured) — fine-grained PAT with contents:write +
 #                            pull-requests:write + workflows:write on the
 #                            target repos (the kit seeds schema-check.yml,
 #                            which GitHub refuses to push without the
@@ -75,13 +75,13 @@ jobs:
 
       - name: Open schema adoption PRs
         env:
-          GH_TOKEN: ${{ secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
           TARGET: ${{ inputs.target }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::FANOUT_TOKEN secret is required (fine-grained PAT with contents+PR+workflows write)."
+            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
             exit 1
           fi
           APPLY=()
@@ -113,7 +113,7 @@ jobs:
         with:
           repository: ${{ needs.seed.outputs.slug }}
           ref: chore/schema-adoption
-          token: ${{ secrets.FANOUT_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
 
       - name: Fill schema purposes with Claude Code
         uses: anthropics/claude-code-action@v1

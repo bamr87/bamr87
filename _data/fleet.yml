@@ -1,0 +1,141 @@
+# =============================================================================
+# _data/fleet.yml — the fleet's central control-plane configuration
+# =============================================================================
+# ONE file for the settings that were previously copy-pasted inline across a
+# dozen workflows: toolchain versions, schedule cadences, remediation caps, and
+# the token/variable contract every repo is held to.
+#
+# Consumed by:
+#   - tools/fleet-config.py        — reader + `dash config` / `dash secrets`
+#   - .github/workflows/fleet-pulse.yml — cadence + caps for the daily loop
+#   - .github/scripts/dash-gen/remediation.py — ranking + cap defaults
+#
+# WHY A FILE INSTEAD OF ORG SETTINGS
+# ----------------------------------
+# `bamr87` is a personal account, not an organization, so GitHub's org-level
+# secrets/variables and shared rulesets are unavailable — there is no server-side
+# place to centralize. The workable equivalent is: declare the contract here (in
+# version control, reviewable, diffable), and use tooling to PROJECT it onto the
+# fleet (`dash config sync`) and AUDIT the result (`dash secrets`). Secret VALUES
+# never live here — only their names, purpose, and required placement.
+# =============================================================================
+
+# --------------------------------------------------------------------------- #
+# Toolchain — the versions every reusable CI workflow defaults to.
+# Bump here, not in each workflow's `inputs.default`.
+# --------------------------------------------------------------------------- #
+toolchain:
+  node: "20"
+  python: "3.12"
+  ruby: "3.3"
+
+# --------------------------------------------------------------------------- #
+# Hub identity
+# --------------------------------------------------------------------------- #
+hub:
+  repo: bamr87/bamr87
+  shared: bamr87/.github          # reusable workflows + community health files
+  default_branch: main
+  bot_name: bamr87-bot
+  bot_email: "10567847+bamr87@users.noreply.github.com"
+
+# --------------------------------------------------------------------------- #
+# Daily loop cadence (UTC). The pipeline is ONE workflow now, so these are the
+# stages within it rather than separate cron entries racing each other.
+# --------------------------------------------------------------------------- #
+schedule:
+  fleet_pulse: "0 6 * * *"        # gather → publish → remediate
+  build_dash: "0 7 * * *"         # republish the site after the data lands
+  refresh_dash: "0 4 * * *"       # README AUTO span refresh PR
+  reconcile_registry: "0 5 * * *" # registry ↔ GitHub reconciliation
+  update_submodules: "0 3 * * 0"  # weekly pointer bump PR
+
+# --------------------------------------------------------------------------- #
+# Remediation — the auto-fix loop's guardrails.
+#
+# These are deliberately conservative. The loop opens DRAFT PRs and the caps
+# bound blast radius: an agent that misreads a signal can waste a review, not a
+# weekend.
+# --------------------------------------------------------------------------- #
+remediation:
+  max_candidates: 6               # total candidates acted on per run
+  max_cross_repo: 3               # of those, how many may become submodule PRs
+  min_runs: 3                     # ignore workflows with fewer runs in the window
+  min_priority: 10.0              # unflagged workflows at/above this are eligible
+  slow_avg_min: 10                # avg minutes/run that counts as "long-running"
+  slow_p95_min: 20                # p95 minutes/run that counts as "long-running"
+  window_days: 14                 # analytics window
+  # Signals ranked highest-first. A workflow matching several is ranked by its
+  # strongest and reported with all of them.
+  severity:
+    failing: 100                  # currently red on its default branch
+    high-cost-low-value: 80       # most minutes end in non-success
+    flaky: 60
+    slow: 40
+    cancel-heavy: 20
+    cron-heavy: 10
+
+# --------------------------------------------------------------------------- #
+# Token contract — WHICH secret does WHAT, and where it must exist.
+#
+# `scope: hub` secrets live on bamr87/bamr87 only. `scope: fleet` secrets are
+# expected on every non-external registry repo (audited by `dash secrets`).
+# Values are never stored here.
+# --------------------------------------------------------------------------- #
+tokens:
+  - name: CLAUDE_CODE_OAUTH_TOKEN
+    scope: fleet
+    required: true
+    purpose: >-
+      Preferred Claude auth for every claude-code-action call site (house
+      convention: OAuth first). Produced by `claude setup-token`.
+    used_by: [fleet-pulse.yml, claude.yml, unified-evolution.yml, schema-fanout.yml]
+
+  - name: ANTHROPIC_API_KEY
+    scope: fleet
+    required: false
+    purpose: Fallback Claude auth, used only when the OAuth token is absent.
+    used_by: [fleet-pulse.yml, claude.yml, unified-evolution.yml, schema-fanout.yml]
+
+  - name: FLEET_TOKEN
+    scope: hub
+    required: true
+    purpose: >-
+      Fine-grained PAT the control plane uses to see and act on the whole fleet.
+      Needs actions:read + contents:read + issues:read/write +
+      pull_requests:read/write on the fleet, plus contents:write +
+      workflows:write on repos the fan-outs and the remediation loop may open
+      PRs against. Supersedes the three separate PATs below.
+    replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN, FANOUT_TOKEN]
+
+  # Legacy PATs — still honoured as fallbacks so nothing breaks mid-migration.
+  # Remove from the repo once FLEET_TOKEN is provisioned and verified.
+  - name: ACTIONS_ANALYTICS_TOKEN
+    scope: hub
+    required: false
+    deprecated: true
+    purpose: Legacy — read fleet Actions data. Folded into FLEET_TOKEN.
+  - name: DAILY_ANALYSIS_TOKEN
+    scope: hub
+    required: false
+    deprecated: true
+    purpose: Legacy — read fleet runs/issues for the daily analysis. Folded into FLEET_TOKEN.
+  - name: FANOUT_TOKEN
+    scope: hub
+    required: false
+    deprecated: true
+    purpose: Legacy — push branches + open PRs in submodules. Folded into FLEET_TOKEN.
+
+# --------------------------------------------------------------------------- #
+# Canonical repository VARIABLES (not secrets) projected onto every fleet repo
+# by `dash config sync`. Non-sensitive, so they can be declared with values.
+#
+# This is what makes a per-repo workflow able to say `${{ vars.NODE_VERSION }}`
+# instead of hardcoding a version that then drifts across 40 repos.
+# --------------------------------------------------------------------------- #
+variables:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  RUBY_VERSION: "3.3"
+  FLEET_HUB: bamr87/bamr87
+  FLEET_CI_WORKFLOW: bamr87/.github/.github/workflows/ci.yml@main

@@ -9,7 +9,8 @@ name: standardize-fanout
 # additive-only seeding).
 #
 # SAFETY: dispatch-only, dry-run by default, opens PRs (never pushes to a
-# default branch). Requires a repo secret FANOUT_TOKEN — a fine-grained PAT
+# default branch). Requires FLEET_TOKEN (legacy FANOUT_TOKEN still honoured)
+# — a fine-grained PAT
 # with contents:write + pull-requests:write + workflows:write on the target
 # repos (the ci/claude artifacts push .github/workflows/* files, which GitHub
 # refuses without the Workflows permission; the default GITHUB_TOKEN cannot
@@ -48,14 +49,14 @@ jobs:
 
       - name: Open standardization PRs
         env:
-          GH_TOKEN: ${{ secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
           TARGET: ${{ inputs.target }}
           ARTIFACTS: ${{ inputs.artifacts }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::FANOUT_TOKEN secret is required (fine-grained PAT with contents+PR+workflows write)."
+            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
             exit 1
           fi
           APPLY=()

@@ -1,0 +1,354 @@
+name: 🩺 Fleet Pulse
+
+# THE daily loop. One workflow, two jobs:
+#
+#   pulse   GATHER every fleet signal (Actions cost/effectiveness, Claude usage +
+#           engagement actuals, the prior-day activity digest, the open-state
+#           triage snapshot), PUBLISH them in a single commit, and TRIAGE them
+#           into one ranked remediation queue.
+#   doctor  FIX the top of that queue — an Opus Claude Code agent that reads each
+#           failing / long-running workflow's logs and opens a draft PR with the
+#           actual fix, in the hub OR in the submodule that owns it.
+#
+# WHAT THIS REPLACES, AND WHY
+# ---------------------------
+# Four workflows used to do this: actions-usage.yml, ai-usage.yml,
+# daily-repo-analysis.yml, and actions-review.yml. Each paid for its own
+# checkout and Python setup, each ran on its own cron, and they were chained by
+# `workflow_run` on a display name that had to be kept in sync by hand.
+#
+# That chain broke silently. A ruleset was added to main ("Changes must be made
+# through a pull request"), the three data jobs' final `git push` started being
+# rejected, and because actions-review triggered on actions-usage *succeeding*,
+# it stopped running too. Every generator still worked perfectly; the fleet's
+# data froze for three weeks and nothing said so.
+#
+# The two structural fixes are baked in here:
+#   1. publishing goes through .github/actions/utilities/publish-data, which
+#      falls back to a pull request when a direct push is refused — so a repo
+#      settings change can no longer decapitate the loop;
+#   2. `doctor` is `needs: pulse`, not a separate `workflow_run` workflow, so it
+#      runs off the same checkout and cannot be silently skipped.
+#
+# Each gather step is independently fault-tolerant: one API hiccup degrades that
+# signal and is reported in the run summary, instead of costing the whole day's
+# data.
+#
+# TOKENS (see _data/fleet.yml for the full contract)
+#   FLEET_TOKEN  fine-grained PAT covering the fleet. Needed to read private
+#                repos' runs and to open fix PRs in submodules. Falls back to
+#                the legacy ACTIONS_ANALYTICS_TOKEN / DAILY_ANALYSIS_TOKEN /
+#                FANOUT_TOKEN, then to GITHUB_TOKEN (public + hub only).
+#   CLAUDE_CODE_OAUTH_TOKEN  preferred Claude auth; ANTHROPIC_API_KEY fallback.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # daily 06:00 UTC (build-dash republishes at 07:00)
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Analysis window (days)"
+        type: string
+        default: "14"
+      max_candidates:
+        description: "Max workflows to remediate this run"
+        type: string
+        default: "6"
+      dry_run:
+        description: "Gather + publish data, but do not run the fixer"
+        type: boolean
+        default: false
+      skip_publish:
+        description: "Generate data without committing it (debugging)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-pulse
+  cancel-in-progress: false
+
+jobs:
+  # ========================================================================= #
+  # 1. GATHER → PUBLISH → TRIAGE
+  # ========================================================================= #
+  pulse:
+    name: Gather fleet signals
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write         # publish the refreshed data
+      pull-requests: write    # …via a PR when a direct push is refused
+      issues: write           # label creation for the fallback PR
+    outputs:
+      has_candidates: ${{ steps.remediate.outputs.has_candidates }}
+      candidate_count: ${{ steps.remediate.outputs.candidate_count }}
+      cross_repo_count: ${{ steps.remediate.outputs.cross_repo_count }}
+      publish_mode: ${{ steps.publish.outputs.mode }}
+    env:
+      # One resolution of the token chain, reused by every step below. Secrets
+      # can't be referenced from a step `if:`, so presence is surfaced as plain
+      # env where a step needs to branch on it.
+      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+      DAYS: ${{ inputs.days || '14' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # --- gather ---------------------------------------------------------
+      # Each signal is independent; `continue-on-error` keeps one degraded API
+      # call from costing the other three. The summary step reports what landed.
+      - name: Actions usage analytics
+        id: g_actions
+        continue-on-error: true
+        run: tools/dash-gen actions --days "$DAYS" --max-runs 600 --quiet
+
+      - name: Claude usage ledger
+        id: g_ai
+        continue-on-error: true
+        run: tools/dash-gen ai-usage --days "$DAYS"
+
+      - name: Engagement actuals
+        id: g_ledger
+        continue-on-error: true
+        # CI has no local session ledger; evidence comes from ai_usage.yml only.
+        run: tools/dash-gen ledger --no-local
+
+      - name: Prior-day activity digest
+        id: g_daily
+        continue-on-error: true
+        run: tools/dash-gen daily --days 1 --limit "${{ inputs.max_candidates || '6' }}"
+
+      - name: Fleet open-state triage snapshot
+        id: g_triage
+        continue-on-error: true
+        run: tools/dash-gen triage
+
+      - name: Gather summary
+        run: |
+          {
+            echo "### 🩺 Fleet pulse — signal gathering"
+            echo ""
+            echo "| Signal | Result |"
+            echo "| --- | --- |"
+            echo "| Actions analytics | ${{ steps.g_actions.outcome }} |"
+            echo "| Claude usage ledger | ${{ steps.g_ai.outcome }} |"
+            echo "| Engagement actuals | ${{ steps.g_ledger.outcome }} |"
+            echo "| Activity digest | ${{ steps.g_daily.outcome }} |"
+            echo "| Triage snapshot | ${{ steps.g_triage.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # --- publish --------------------------------------------------------
+      - name: Publish refreshed data
+        id: publish
+        if: ${{ inputs.skip_publish != true }}
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: "_data/ _reports/"
+          message: "chore(data): daily fleet pulse — usage, triage, digest, engagements"
+          branch: chore/fleet-pulse
+          title: "chore(data): daily fleet pulse"
+          body: |
+            Automated daily refresh of the fleet's generated data:
+
+            - `_data/actions_usage.yml` — Actions cost / effectiveness / waste
+            - `_data/ai_usage.yml`, `_data/engagements.yml` — Claude usage + engagement actuals
+            - `_data/fleet_triage.yml` — fleet open-state snapshot (the `/triage/` portal)
+            - `_reports/daily/` — the prior-day activity digest
+
+            Delivered as a pull request because a direct push to the default
+            branch was refused by branch protection. This branch is regenerated
+            on every run — review the diff, not the history.
+          labels: automation,data
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- triage ---------------------------------------------------------
+      # Runs AFTER publishing so the queue is built from exactly the data that
+      # was just recorded, and so a publish failure can't silently change what
+      # the fixer sees.
+      - name: Build remediation queue
+        id: remediate
+        run: |
+          tools/dash-gen remediate \
+            --limit "${{ inputs.max_candidates || '6' }}" \
+            --out remediation-workorder.md
+
+      - name: Show remediation queue
+        run: |
+          cat remediation-workorder.md || true
+          {
+            echo ""
+            echo "### 🩺 Remediation queue"
+            echo ""
+            cat remediation-workorder.md
+          } >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload work order
+        uses: actions/upload-artifact@v4
+        with:
+          name: remediation-workorder
+          path: remediation-workorder.md
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ========================================================================= #
+  # 2. FIX
+  # ========================================================================= #
+  doctor:
+    name: Fix failing & long-running workflows
+    needs: pulse
+    if: ${{ needs.pulse.outputs.has_candidates == 'true' && inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write         # push the fix branch in this repo
+      pull-requests: write    # open the draft PR
+      issues: write           # file a tracking issue when a fix isn't safe
+      id-token: write         # OIDC for claude-code-action OAuth
+      actions: read           # read fleet run logs
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      # The fixer needs a token that can push branches and open PRs in OTHER
+      # repos. GITHUB_TOKEN cannot do that at all, so cross-repo fixes degrade
+      # to hub-filed issues without FLEET_TOKEN/FANOUT_TOKEN.
+      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create fleet-doctor --color 0E8A16 \
+            --description "Automated fix from the daily fleet-doctor loop" --force
+          gh label create automation --color BFD4F2 \
+            --description "Automated / bot-generated" --force
+
+      - name: Download work order
+        uses: actions/download-artifact@v4
+        with:
+          name: remediation-workorder
+
+      - name: Report degraded capability
+        if: ${{ env.FLEET_WRITE_TOKEN == '' || env.HAS_CLAUDE_AUTH != 'true' }}
+        run: |
+          {
+            echo "### 🩺 Fleet doctor — degraded"
+            echo ""
+            if [ "${HAS_CLAUDE_AUTH}" != "true" ]; then
+              echo "- ❌ No Claude auth (\`CLAUDE_CODE_OAUTH_TOKEN\` or \`ANTHROPIC_API_KEY\`) — the fixer is skipped entirely."
+            fi
+            if [ -z "${FLEET_WRITE_TOKEN}" ]; then
+              echo "- ⚠️ No \`FLEET_TOKEN\` — cross-repo fixes cannot be pushed; submodule problems will be filed as hub issues instead of fixed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Diagnose & fix
+        if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+          FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          github_token: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+          claude_args: >-
+            --model opus
+            --max-turns 120
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Read,Grep,Glob,Edit,Write"
+          prompt: |
+            You are the **fleet doctor** (Opus) for the bamr87 monorepo dash, the
+            control plane for ~40 submodule repos. A deterministic triage step has
+            already scanned the fleet and written a ranked, de-duplicated, capped
+            queue of workflows that are FAILING and/or BURNING TIME. Your job is to
+            actually FIX them — not to describe them.
+
+            ## Step 1 — read the queue
+            Read `remediation-workorder.md` with the Read tool. Every candidate
+            carries: the repo, the workflow file path, its signals
+            (`failing` / `flaky` / `slow` / `high-cost-low-value` / `cancel-heavy` /
+            `cron-heavy`), a **MARKER** line, links to the specific bad runs, and a
+            suggested angle. Act on the candidates listed, in order. Do not invent
+            extra work and do not exceed the queue.
+
+            ## Step 2 — diagnose from evidence, not from the flags
+            For EACH candidate, before changing anything:
+            - Read the failing run's log:
+              `gh run view -R <owner>/<repo> <run_id> --log-failed`
+              (fall back to `gh run view -R <owner>/<repo> <run_id>` if logs 404).
+            - Read the workflow definition:
+              `gh api repos/<owner>/<repo>/contents/<path> -H "Accept: application/vnd.github.raw"`
+            - For `slow` candidates, inspect the slowest run's per-step timings to
+              find WHERE the minutes go before proposing a cache or a filter.
+            Form a SPECIFIC root cause — name the failing step, the uncached
+            install, the missing `concurrency` guard, the over-frequent cron. If a
+            cross-repo read 404s (the token can't reach a private repo), say so and
+            fall back to Step 3c.
+
+            ## Step 3a — `hub` candidates (repo is bamr87/bamr87)
+            The file is in this checkout. Fix it here:
+            - `git checkout -b fix/fleet-doctor-<slug>`
+            - Make the SMALLEST correct change. Do not refactor, do not touch
+              unrelated files, and never edit generated surfaces (`_site/`,
+              `_reports/`, `_data/*_usage.yml`, `_data/fleet_triage.yml`, the README
+              AUTO span, `projects/SCHEMA.md`).
+            - Commit with Conventional Commits (`fix(ci): …` / `ci(scope): …`),
+              push, and open a **draft** PR:
+              `gh pr create --draft --base main --label fleet-doctor --label automation --title "<title>" --body "<body>"`
+
+            ## Step 3b — `submodule` candidates: fix them IN THEIR OWN REPO
+            This is the point of the loop. Only attempt it when `FLEET_WRITE_TOKEN`
+            is non-empty in the environment (check with
+            `test -n "$FLEET_WRITE_TOKEN" && echo yes`); otherwise go to 3c.
+            - Clone into a scratch dir, never into `projects/` (that is a submodule
+              working tree and must not be touched):
+              `git clone --depth 20 https://x-access-token:$FLEET_WRITE_TOKEN@github.com/<owner>/<repo>.git /tmp/fix-<repo>`
+            - `cd /tmp/fix-<repo>`, branch (`fix/fleet-doctor-<slug>`), make the
+              minimal fix to the workflow file, commit, push.
+            - Open a **draft** PR in THAT repo:
+              `gh pr create -R <owner>/<repo> --draft --title "<title>" --body "<body>"`
+            - If the push is rejected (token lacks `workflows: write` for that repo),
+              do not retry — fall back to 3c and say why.
+
+            ## Step 3c — fallback: file ONE tracking issue in bamr87/bamr87
+            When you cannot safely fix it (no write token, no access, the fix is
+            large or genuinely ambiguous), file one issue:
+            `gh issue create -R bamr87/bamr87 --label fleet-doctor --label automation --title "<title>" --body "<body>"`
+            Prefer this over a speculative PR. A wrong fix costs more than a good
+            description.
+
+            ## PR / issue body — in this order
+            1. The candidate's **MARKER** line verbatim as the FIRST line. This is
+               how tomorrow's run knows not to re-file it. Getting this wrong makes
+               the loop spam the fleet.
+            2. **Problem** — repo, workflow, signals, and what the evidence showed.
+            3. **Root cause** — your specific hypothesis, quoting the failing log
+               line or the slow step.
+            4. **Fix** — what changed and why it addresses the root cause (or, for
+               an issue, the concrete proposed change and why you couldn't apply it).
+            5. **Expected impact** — for cost candidates, the minutes recovered.
+            6. **Links** — the bad run URL(s) and the dash `/actions/` page.
+
+            ## Rules
+            - Draft PRs only. Never merge, never push to a default branch, never
+              force-push.
+            - One PR **or** one issue per candidate — never both.
+            - Never modify anything under `projects/` in this checkout.
+            - Do not add `continue-on-error` or blanket retries to make a red
+              workflow look green. Fix the cause or file an issue.
+            - Be specific and technical. No boilerplate.
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### 🩺 Fleet doctor"
+            echo ""
+            echo "- Queue: \`${{ needs.pulse.outputs.candidate_count }}\` candidate(s), "
+            echo "  \`${{ needs.pulse.outputs.cross_repo_count }}\` cross-repo."
+            echo "- Data publish route: \`${{ needs.pulse.outputs.publish_mode }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
