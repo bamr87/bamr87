@@ -205,12 +205,14 @@ if [[ -f "$ROOT/SCHEMA.md" ]]; then
   if lint_out="$("$PY" "$ROOT/tools/schema_lint.py" check "$ROOT" 2>&1)"; then
     nwarn="$(printf '%s' "$lint_out" | grep -c '^warning' || true)"
     if [[ "${nwarn:-0}" -gt 0 ]]; then
-      bad "hub pyramid has ${nwarn} warning(s) — warnings gate here; register or prune (try: python3 tools/schema_lint.py check . --fix)"
+      bad "hub pyramid has ${nwarn} warning(s) — warnings gate here; mechanical drift (strays/stale rows) auto-fixes with: python3 tools/schema_lint.py check . --fix"
+      printf '%s\n' "$lint_out" | grep '^warning' | sed 's/^/      /'
     else
       ok "hub pyramid lints clean (errors and warnings)"
     fi
   else
     bad "hub pyramid has schema errors (python3 tools/schema_lint.py check .)"
+    printf '%s\n' "$lint_out" | grep '^ERROR\|^warning' | sed 's/^/      /'
   fi
   if "$PY" "$ROOT/tools/gen-projects-schema.py" --check >/dev/null 2>&1; then
     ok "projects/SCHEMA.md matches .gitmodules + registry"
