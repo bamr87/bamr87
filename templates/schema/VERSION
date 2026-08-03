@@ -1,6 +1,6 @@
-source: pyramid-schema (local package at ~/github/SCHEMA; update this to its GitHub URL once published)
-upstream-commit: c8a4373
+source: pyramid-schema (https://github.com/bamr87/SCHEMA)
+upstream-commit: 04b0980
 spec: "0.1"
-vendored: 2026-07-15
+vendored: 2026-08-03
 files: tools/schema_lint.py, templates/schema/SCHEMA.template.md, templates/schema/CLAUDE.snippet.md, templates/schema/schema-check.yml
 reinvest: improvements discovered in fleet use go to the upstream package first, then re-vendor and bump this file.

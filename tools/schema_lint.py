@@ -4,12 +4,15 @@
 Spec: Pyramid Schema v0.1. Stdlib only.
 
 Usage:
-    python schema_lint.py check <path> [--werror] [--include-hidden]
+    python schema_lint.py check <path> [--fix] [--werror] [--include-hidden]
     python schema_lint.py init  <path>
 
 `check` walks the pyramid from <path>, verifying every traversed directory's
 SCHEMA.md against reality. Exit 0 = clean (warnings allowed unless --werror),
-exit 1 = errors. `init` scaffolds a SCHEMA.md (coverage: listed, purposes TODO)
+exit 1 = errors. With --fix, mechanical drift is remediated first — strays are
+registered with TODO purposes (newly registered dirs get scaffolded schemas),
+stale rows are pruned — then the tree is re-checked; review the diff and fill
+the TODOs. `init` scaffolds a SCHEMA.md (coverage: listed, purposes TODO)
 into every directory that lacks one; it never overwrites.
 """
 
@@ -56,18 +59,30 @@ class SchemaDoc:
     path: Path
     coverage: str = DEFAULT_COVERAGE
     rows: list[Row] = field(default_factory=list)
+    has_table: bool = False  # a Structure table exists (may be empty)
+
+
+@dataclass
+class FixPlan:
+    """Mechanical remediations `check --fix` may apply to one SCHEMA.md."""
+    add: list[tuple[str, str]] = field(default_factory=list)   # (display, kind)
+    prune: list[str] = field(default_factory=list)             # entry names
 
 
 @dataclass
 class Report:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    plans: dict[Path, FixPlan] = field(default_factory=dict)
 
     def error(self, msg: str) -> None:
         self.errors.append(msg)
 
     def warn(self, msg: str) -> None:
         self.warnings.append(msg)
+
+    def plan(self, schema_path: Path) -> FixPlan:
+        return self.plans.setdefault(schema_path, FixPlan())
 
 
 # ---------------------------------------------------------------- parsing
@@ -124,6 +139,7 @@ def parse_schema(path: Path, report: Report) -> SchemaDoc:
     if not table_lines:
         report.error(f"{rel}: no '## Structure' table found")
         return doc
+    doc.has_table = True
 
     for raw in table_lines[1:]:  # skip header row
         cells = [c.strip() for c in raw.strip("|").split("|")]
@@ -195,6 +211,10 @@ def check_dir(dirpath: Path, root: Path, report: Report,
                              f"(coverage: strict)")
             elif doc.coverage == "listed":
                 report.warn(f"{rel}: unregistered entry '{name}'")
+            if doc.coverage != "open" and doc.has_table:
+                display = f"{name}/" if child.is_dir() else name
+                kind = "dir" if child.is_dir() else "file"
+                report.plan(schema_path).add.append((display, kind))
             continue
 
         row.seen = True
@@ -220,6 +240,80 @@ def check_dir(dirpath: Path, root: Path, report: Report,
         elif row.kind != "pattern" and "generated" not in row.rules:
             report.warn(f"{rel}: stale entry '{row.entry}' "
                         f"(registered but absent)")
+            report.plan(schema_path).prune.append(row.entry)
+
+
+# ---------------------------------------------------------------- fix
+
+def apply_fixes(report: Report, root: Path) -> list[str]:
+    """Apply the mechanical remediations a check pass planned.
+
+    Surgical, byte-preserving edits: append `| entry | kind | TODO | |` rows
+    for strays at the end of the Structure table, drop the table lines of
+    stale literal rows, and leave every other byte of the file alone.
+    Newly registered directories get their missing schemas scaffolded via
+    ``init_tree`` so the re-check can descend. Pattern, ``required``, and
+    ``generated`` rows are never planned, hence never touched.
+    Returns human-readable summary lines.
+    """
+    summary: list[str] = []
+    for schema_path in sorted(report.plans):
+        plan = report.plans[schema_path]
+        if not plan.add and not plan.prune:
+            continue
+        lines = schema_path.read_text(encoding="utf-8").splitlines(keepends=True)
+
+        in_structure = False
+        first = last = None
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("## "):
+                in_structure = stripped.lower().startswith("## structure")
+                continue
+            if in_structure and stripped.startswith("|"):
+                if first is None:
+                    first = i
+                last = i
+        if first is None or last is None:
+            continue  # no table to edit (already reported as an error)
+
+        prune = set(plan.prune)
+        drop: set[int] = set()
+        for i in range(first, last + 1):
+            cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+            if not cells or set(cells[0]) <= {"-", ":", " "}:
+                continue  # header/separator
+            if _clean_entry(cells[0]) in prune:
+                drop.add(i)
+
+        add_rows = [f"| `{display}` | {kind} | TODO | |\n"
+                    for display, kind in plan.add]
+        out: list[str] = []
+        for i, line in enumerate(lines):
+            keep = i not in drop
+            if keep:
+                out.append(line)
+            if i == last and add_rows:
+                if keep and not line.endswith("\n"):
+                    out[-1] = line + "\n"
+                out.extend(add_rows)
+        schema_path.write_text("".join(out), encoding="utf-8")
+
+        scaffolded = 0
+        for display, kind in plan.add:
+            if kind == "dir":
+                target = schema_path.parent / display.rstrip("/")
+                if target.is_dir() and not target.is_symlink():
+                    scaffolded += len(init_tree(target))
+
+        rel = schema_path.relative_to(root)
+        parts = [f"+{len(add_rows)} registered"] if add_rows else []
+        if drop:
+            parts.append(f"-{len(drop)} stale pruned")
+        if scaffolded:
+            parts.append(f"{scaffolded} SCHEMA.md scaffolded")
+        summary.append(f"fixed    {rel}: {', '.join(parts)}")
+    return summary
 
 
 # ---------------------------------------------------------------- init
@@ -302,6 +396,9 @@ def main(argv: list[str] | None = None) -> int:
 
     p_check = sub.add_parser("check", help="validate a schema pyramid")
     p_check.add_argument("path", nargs="?", default=".")
+    p_check.add_argument("--fix", action="store_true",
+                         help="auto-register strays (TODO purposes) and "
+                              "prune stale rows, then re-check")
     p_check.add_argument("--werror", action="store_true",
                          help="treat warnings as errors")
     p_check.add_argument("--include-hidden", action="store_true",
@@ -331,6 +428,16 @@ def main(argv: list[str] | None = None) -> int:
 
     report = Report()
     check_dir(root, root, report, include_hidden=args.include_hidden)
+
+    if args.fix and report.plans:
+        fixed = apply_fixes(report, root)
+        if fixed:
+            for line in fixed:
+                print(line)
+            print("note: review the diff and fill in the TODO purposes "
+                  "left by --fix.")
+            report = Report()
+            check_dir(root, root, report, include_hidden=args.include_hidden)
 
     for msg in report.errors:
         print(f"ERROR    {msg}")

@@ -129,7 +129,7 @@ The hub is structured by `SCHEMA.md` files — one per directory, a lintable con
 - **Propagate**: creating a directory is atomic — the dir + its `SCHEMA.md` (from `templates/schema/SCHEMA.template.md`) + a row in the parent's Structure table.
 - **Maintain**: any add/remove/rename updates the local `SCHEMA.md` in the same commit. `projects/SCHEMA.md` is **generated** — after registry/`.gitmodules` changes, run `tools/gen-projects-schema.py`.
 - **Fleet**: `projects/*` are separate pyramids (`terminal` here). Seed one locally with `tools/seed-schema.sh <name> --apply` (then commit inside the submodule per the workflow above), or dispatch **`schema-fanout.yml`** (dry-run default; `agent_fill` runs a Claude Code OAuth pass that fills scaffold TODOs on the adoption PR branch).
-- **Verify**: `python3 tools/schema_lint.py check .` — wired into the drift gate as check (h), so schema drift fails CI.
+- **Verify**: `python3 tools/schema_lint.py check .` — wired into the drift gate as check (h), where errors **and warnings** fail CI (the hub practices what it seeds). `check . --fix` remediates mechanical drift — registers strays with TODO purposes, prunes stale rows — then you fill in the TODOs. Gitignored ephemera belong in the tables as `generated` (absence tolerated).
 
 ## Conventions
 

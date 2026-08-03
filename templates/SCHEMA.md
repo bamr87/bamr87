@@ -15,7 +15,7 @@ coverage: listed
 | `agent-context/` | dir | Agent-context kit: CLAUDE.md scaffold + @claude OAuth workflow, seeded by standardize-fanout | terminal |
 | `standard-ci/` | dir | Reusable CI gate caller seeded by standardize-fanout | terminal |
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
-| `year-repo/` | dir | Year-in-review knowledge-base repo kit (1987, 2005, …) — planned, currently empty | terminal |
+| `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
 
 ## Placement
