@@ -1,119 +1,190 @@
-# Daily Repo Analysis
+# The Daily Fleet Loop
 
-The dash's **continuous analysis → implementation cycle**: once a day it reviews
-the whole fleet's prior-day activity, snapshots everything that is **open right
-now** (issues, PRs, failing workflows) into the `/triage/` portal, saves both as
-durable records in the monorepo, and dispatches a Claude Code agent to turn the
-day's CI failures into fixes.
+The dash's **continuous analysis → remediation cycle**. Once a day it measures
+the whole fleet, records what it found as durable data in the monorepo, and
+dispatches a Claude Code agent to **fix** the workflows that are broken or
+burning time — opening the fix as a draft PR in whichever repo owns it.
 
-It complements the other daily jobs — `refresh-dash` (README/registry),
-`actions-usage` + `actions-review` (Actions cost), `ai-usage` (Claude spend) — by
-answering a different question: **what happened across the fleet yesterday, and
-what broke that we should fix today?**
+One workflow does all of it: [`fleet-pulse.yml`](../.github/workflows/fleet-pulse.yml).
 
 ## The loop
 
 ```text
-                 ┌──────────────────────── daily 06:00 UTC ────────────────────────┐
-                 │                                                                  │
-   registry ──▶  1. GATHER            2. RECORD                3. IMPLEMENT         │
- _data/         dash-gen daily  ──▶  commit digest to    ──▶  Opus Claude Code      │
- projects.yml   (PyGithub scan)      _reports/daily/          agent reviews each    │
-                 │                    <date>.md                CI failure and opens  │
-                 │                                             a draft PR (hub) or   │
-                 ▼                                             files an issue (sub). │
-        daily-analysis-workorder.md ─────────────────────────────▲                 │
-        (ephemeral, deduped failures) ─────────────────────────── ┘                 │
-                                                                                    │
-   next day the agent's PRs/issues show up in the digest ◀───────────────────────── ┘
+              ┌───────────────────── daily 06:00 UTC · fleet-pulse.yml ─────────────────────┐
+              │                                                                              │
+              │   job: pulse                                    job: doctor  (needs: pulse)  │
+              │  ┌────────────────────────────────┐            ┌────────────────────────┐   │
+ registry ──▶ │  │ 1. GATHER                      │            │ 3. FIX                 │   │
+ _data/       │  │   dash-gen actions   (cost)    │            │  Opus Claude Code      │   │
+ projects.yml │  │   dash-gen ai-usage  (spend)   │            │  · reads each run's    │   │
+              │  │   dash-gen ledger    (actuals) │            │    failing log         │   │
+              │  │   dash-gen daily     (digest)  │            │  · finds root cause    │   │
+              │  │   dash-gen triage    (open)    │            │  · opens a DRAFT PR    │   │
+              │  └───────────────┬────────────────┘            │    with the fix — in   │   │
+              │                  ▼                             │    the hub OR in the   │   │
+              │  ┌────────────────────────────────┐            │    submodule that      │   │
+              │  │ 2. PUBLISH + TRIAGE            │            │    owns the workflow   │   │
+              │  │   publish-data → one commit    │            │  · falls back to a hub │   │
+              │  │     (direct push, else a PR)   │            │    issue when it can't │   │
+              │  │   dash-gen remediate → queue   │──────────▶ │                        │   │
+              │  └────────────────────────────────┘            └───────────┬────────────┘   │
+              │                                                            │                │
+              └────────────────────────────────────────────────────────────┼────────────────┘
+                                                                           ▼
+                       tomorrow's run sees the open PR/issue and does NOT re-file it
 ```
 
-1. **Gather** — `.github/scripts/dash-gen/daily_report.py` (`tools/dash-gen daily`,
-   `tools/dash daily`) queries the GitHub API via PyGithub for every repo in
-   `_data/projects.yml`, over the window `[now − days, now]` (default 1 day):
-   commits on the default branch, PRs opened/merged/closed, issues opened/closed,
-   releases, and **completed workflow runs that failed / timed out** (the
-   actionable signal). External mirrors (e.g. `microsoft/skills`) appear in the
-   digest but are never turned into failure work — their failures aren't ours.
+### 1. Gather
 
-2. **Record** — a Markdown digest is written to `_reports/daily/<date>.md` and
-   committed to `main` (a durable summary saved in the monorepo). The index span
-   in [`_reports/README.md`](../_reports/README.md) is regenerated in place.
-   `_reports/` is `generated` in the SCHEMA pyramid — never hand-edited.
+Five generators run off one checkout and one Python setup. Each is independently
+fault-tolerant (`continue-on-error`) and its outcome is reported in the run
+summary — one degraded API call costs that signal, not the whole day's data.
 
-   The same run also executes `tools/dash-gen triage`
-   (`.github/scripts/dash-gen/fleet_triage.py`): a fleet-wide inventory of the
-   OPEN state — every open issue (labels, age, author), every open PR (draft /
-   dependabot / CI check status), and each workflow's latest completed
-   conclusion — plus a deterministic per-repo attention score and a prioritized
-   cross-fleet **inbox**. It is committed as `_data/fleet_triage.yml` in the
-   same commit and rendered by the dash's **`/triage/`** portal page, so the
-   whole backlog is reviewable (and diffable, day over day) in one place.
-   External mirrors are excluded from totals, scores, and the inbox.
+| Generator | Writes | Signal |
+| --- | --- | --- |
+| `dash-gen actions` | `_data/actions_usage.yml` | per-workflow cost / effectiveness / waste, with `slow`/`flaky`/`high-cost-low-value` flags |
+| `dash-gen ai-usage` | `_data/ai_usage.yml` | fleet Claude Code touchpoints (runs, commits, PRs) |
+| `dash-gen ledger --no-local` | `_data/engagements.yml` | engagement actuals accrued from that evidence |
+| `dash-gen daily` | `_reports/daily/<date>.md` | prior-day commits / PRs / issues / releases / CI failures |
+| `dash-gen triage` | `_data/fleet_triage.yml` | **open state**: every open issue, open PR (with CI status), and each workflow's latest conclusion, plus per-repo attention scores — the `/triage/` portal |
 
-3. **Implement** — the gather step also emits an ephemeral
-   `daily-analysis-workorder.md`: one candidate per failing workflow, **deduped**
-   against open `daily-analysis` issues so a persistently-failing workflow gets one
-   thread, not one per day. When there are fresh failures and Claude auth is
-   present, the [`daily-repo-analysis.yml`](../.github/workflows/daily-repo-analysis.yml)
-   workflow runs an **Opus Claude Code agent** that, per candidate:
-   - **hub-fixable** (`bamr87/bamr87`): opens ONE **draft PR** with the surgical fix;
-   - **submodule / cross-repo**: files ONE **issue** in `bamr87/bamr87`.
+External mirrors (e.g. `microsoft/skills`) appear in the digests but are excluded
+from totals, scores, and anything actionable — their failures are not ours.
 
-   The draft PRs then flow through the normal review + CI gate before anyone
-   merges — the agent proposes, humans dispose.
+### 2. Publish + triage
+
+All five outputs land in **one commit** through
+[`utilities/publish-data`](../.github/actions/utilities/publish-data/action.yml),
+which pushes straight to `main` when branch protection allows it and otherwise
+opens a stable-branch pull request (`chore/fleet-pulse`, updated in place,
+auto-merge requested). See [Why publishing is indirect](#why-publishing-is-indirect).
+
+Then `dash-gen remediate`
+([`remediation.py`](../.github/scripts/dash-gen/remediation.py)) merges the two
+*actionable* signals into **one ranked queue**:
+
+- **failing** — from `fleet_triage.yml`: every workflow whose latest completed run
+  is red. This is *standing* state, so a workflow broken for three weeks stays on
+  the queue until it's fixed — the class of failure a prior-day-only scan misses.
+- **expensive** — from `actions_usage.yml`: slow, flaky, cancel-heavy,
+  cron-heavy, or high-cost-low-value.
+
+Candidates are keyed on `owner/repo:workflow-path`, so a workflow that is *both*
+red and slow is **one** entry with both signals — not two tickets, which is how
+the previous split loops turned a queue into noise. Each is then classified `hub`
+(fixable in this checkout) or `submodule` (needs a cross-repo PR), ranked by
+severity then wasted minutes, de-duplicated against open issues **and** open PRs
+in both the hub and the target repo, and capped.
+
+### 3. Fix
+
+`doctor` is a `needs: pulse` job — not a separate `workflow_run` workflow — so it
+runs off the same checkout and cannot be skipped by an upstream publish problem.
+
+For each candidate the Opus agent reads the failing run's log and the workflow
+definition, forms a specific root cause, and then:
+
+- **hub** (`bamr87/bamr87`) → branches in the checkout, makes the minimal fix,
+  opens a **draft PR** here;
+- **submodule** → clones that repo to a scratch dir (never into `projects/`),
+  fixes it there, opens a **draft PR in that repo**. Requires `FLEET_TOKEN`;
+- **can't fix safely** → files ONE tracking issue in the hub.
+
+The agent proposes; humans dispose. Draft PRs flow through the normal review + CI
+gate.
 
 ## Guardrails
 
-- **Code decides what's actionable, not the AI.** Candidate selection + dedupe run
-  in `daily_report.py`; the AI only investigates + authors fixes for a pre-vetted,
-  capped list. It cannot spam.
-- **Per-run cap** (`--limit`, default 6; `max_failures` dispatch input).
-- **Draft PRs only** — never merges, never pushes to `main`, never force-pushes,
-  and never modifies submodule working trees. It edits only this repo's tree and
-  never the generated surfaces (`_site/`, `_reports/`, README AUTO span,
-  `projects/SCHEMA.md`).
-- **Self-skips** without Claude auth (`CLAUDE_CODE_OAUTH_TOKEN` preferred,
-  `ANTHROPIC_API_KEY` fallback — see [AI-INTEGRATION.md](AI-INTEGRATION.md)) and on
-  a `dry_run` dispatch. The digest is still gathered + committed in both cases.
+- **Code decides what's actionable, not the AI.** Selection, merging, dedupe,
+  ranking, and caps all run in `remediation.py`. The AI only investigates and
+  authors on a pre-vetted, capped list — it cannot spam the fleet.
+- **Caps** come from `_data/fleet.yml` → `remediation.max_candidates` (default 6)
+  and `max_cross_repo` (default 3). The cross-repo sub-cap stops a burst of
+  submodule failures from starving hub fixes that could land the same day.
+- **Dedupe is marker-based.** Every PR/issue body starts with
+  `<!-- fleet-doctor key="owner/repo:path" -->`. Markers from the two retired
+  loops (`actions-review`, `daily-analysis`) are honoured too, so open tickets
+  from before the migration are not re-filed.
+- **Draft PRs only** — never merges, never pushes to a default branch, never
+  force-pushes, never touches submodule working trees under `projects/`, and
+  never edits generated surfaces (`_site/`, `_reports/`, `_data/*_usage.yml`,
+  `_data/fleet_triage.yml`, the README AUTO span, `projects/SCHEMA.md`).
+- **No green-washing.** The agent is explicitly forbidden from adding
+  `continue-on-error` or blanket retries to make a red workflow look healthy.
+- **Degrades, never blocks.** Without Claude auth the fixer is skipped and the
+  data still lands. Without `FLEET_TOKEN` cross-repo fixes downgrade to hub
+  issues. Both are reported in the run summary.
+
+## Why publishing is indirect
+
+The three data-refresh workflows this loop replaces each ended in a bare
+`git push` to `main`. A ruleset was then added to `bamr87/bamr87` — *"Changes must
+be made through a pull request"* and *"Commits must have verified signatures"* —
+and every one of them began failing on that final step, every day. Because
+`actions-review.yml` triggered on `actions-usage.yml` **succeeding**, it stopped
+running as collateral.
+
+Every generator still worked perfectly. The data simply stopped being saved, and
+nothing said so; `_data/actions_usage.yml` sat three weeks stale while the daily
+runs went red in a tab nobody was watching.
+
+Two structural lessons are baked into the replacement:
+
+1. **The publish route is a property of the repository, not the workflow**, and it
+   can change without warning. So it is resolved at runtime by `publish-data`,
+   which falls back to a PR rather than failing.
+2. **`workflow_run` chaining is fragile** — it couples workflows by display-name
+   string and silently skips the downstream when the upstream fails for *any*
+   reason. `needs:` within one workflow does not have that failure mode.
 
 ## Running it
 
 ```bash
-# Locally — build today's digest + work order (needs gh auth or GH_TOKEN):
-tools/dash daily                     # last 1 day
-tools/dash daily --days 3            # wider window
-tools/dash daily --no-dedupe        # skip the open-issue dedupe (offline/testing)
+# Locally — any single signal (needs gh auth or GH_TOKEN):
+tools/dash actions                  # cost/effectiveness analytics
+tools/dash daily                    # prior-day digest + failure work order
+tools/dash triage                   # open-state snapshot → _data/fleet_triage.yml
 
-# Fleet open-state snapshot (the /triage/ portal's data):
-tools/dash triage                    # writes _data/fleet_triage.yml
-tools/dash triage --print            # …and print the top of the inbox
+# The merged remediation queue:
+tools/dash remediate                        # respects _data/fleet.yml caps
+tools/dash remediate --limit 3              # override the cap
+tools/dash remediate --no-dedupe            # skip the open-issue/PR check (offline)
 
 # In CI — scheduled daily 06:00 UTC, or on demand:
-#   Actions ▸ 🗓️ Daily Repo Analysis ▸ Run workflow
-#   inputs: days, max_failures, dry_run
+#   Actions ▸ 🩺 Fleet Pulse ▸ Run workflow
+#   inputs: days, max_candidates, dry_run (data only, no fixer), skip_publish
 ```
 
 ## Tokens & secrets
 
+Declared centrally in [`_data/fleet.yml`](../_data/fleet.yml); audit what is
+actually set with `tools/dash secrets`.
+
 | Secret | Needed for | Fallback |
 | --- | --- | --- |
-| `GITHUB_TOKEN` | read public activity, commit the digest + triage snapshot, open PRs/issues | — (built-in) |
-| `DAILY_ANALYSIS_TOKEN` | read **private** submodules' run logs and open issues/PRs (fine-grained PAT: `actions:read`, `issues:read`, `pull_requests:read`) | `GITHUB_TOKEN` |
-| `CLAUDE_CODE_OAUTH_TOKEN` | the AI implement step | `ANTHROPIC_API_KEY` |
+| `GITHUB_TOKEN` | read public activity, publish data, open hub PRs/issues | — (built-in) |
+| `FLEET_TOKEN` | read **private** repos' runs/issues, and **push fix branches + open PRs in submodules** | `ACTIONS_ANALYTICS_TOKEN` → `DAILY_ANALYSIS_TOKEN` → `FANOUT_TOKEN` → `GITHUB_TOKEN` |
+| `CLAUDE_CODE_OAUTH_TOKEN` | the fixer job | `ANTHROPIC_API_KEY` |
 
-Without a Claude token the workflow degrades to gather + record only — the digest
-still lands every day.
+`FLEET_TOKEN` supersedes the three legacy PATs; they stay wired as fallbacks so
+the migration is non-breaking. `dash secrets` flags them once `FLEET_TOKEN` is in
+place.
+
+Without a Claude token the loop degrades to gather + publish — the data still
+lands every day.
 
 ## Files
 
 | Path | Role |
 | --- | --- |
-| `.github/workflows/daily-repo-analysis.yml` | the daily cron workflow (gather → record → implement) |
-| `.github/scripts/dash-gen/daily_report.py` | the PyGithub gather + digest + work-order generator |
-| `.github/scripts/dash-gen/fleet_triage.py` | the open-state (issues/PRs/CI) snapshot generator |
+| `.github/workflows/fleet-pulse.yml` | the daily loop (gather → publish → triage → fix) |
+| `.github/actions/utilities/publish-data/action.yml` | protection-proof publish (direct push, else stable-branch PR) |
+| `.github/scripts/dash-gen/remediation.py` | merges failing + expensive signals into the ranked fix queue |
+| `.github/scripts/dash-gen/daily_report.py` | prior-day gather + digest generator |
+| `.github/scripts/dash-gen/fleet_triage.py` | open-state (issues/PRs/CI) snapshot generator |
+| `.github/scripts/dash-gen/actions_analytics.py` | Actions cost / effectiveness / waste analytics |
+| `_data/fleet.yml` | central config: caps, cadences, toolchain, token contract |
 | `_reports/daily/<date>.md` | committed daily digests |
-| `_reports/README.md` | reports index (AUTO span regenerated each run) |
 | `_data/fleet_triage.yml` | committed open-state snapshot rendered at `/triage/` |
 | `pages/_dash/triage.md` | the Fleet Triage portal page |
-| `daily-analysis-workorder.md` | ephemeral agent brief (gitignored) |
+| `remediation-workorder.md` | ephemeral agent brief (gitignored; also a run artifact) |

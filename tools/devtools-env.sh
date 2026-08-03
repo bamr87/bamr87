@@ -14,7 +14,12 @@
 # variables, plus adds convenience aliases and PATH entries.
 # ============================================================================
 
-# Resolve paths
+# Resolve paths.
+# `${(%):-%x}` is the ZSH way to get the sourced file's path; `BASH_SOURCE[0]`
+# is bash's. This file is sourced from either shell, so it needs both. The
+# linter parses it as bash and can't know that, so the zsh half reads as a
+# syntax error — suppressed rather than rewritten, because the idiom is correct.
+# shellcheck disable=SC2296
 _DEVTOOLS_DIR="${BASH_SOURCE[0]:-${(%):-%x}}"
 _DEVTOOLS_DIR="$(cd "$(dirname "$_DEVTOOLS_DIR")" 2>/dev/null && pwd)"
 _PROJECT_ROOT="$(cd "${_DEVTOOLS_DIR}/.." 2>/dev/null && pwd)"

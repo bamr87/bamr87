@@ -4,7 +4,7 @@ Helper scripts in this directory must be reusable and configured through argumen
 
 ## dash-gen/
 
-The registry generator — the only part of this directory called by live workflows (`build-dash.yml`, `refresh-dash.yml`, `actions-usage.yml`, `actions-review.yml`, and the drift gate via `tools/`). Fronted by the [`tools/dash-gen`](../../tools/dash-gen) wrapper; subcommands: `health`, `readme`, `ai`, `actions`, `actions-review`, `all`. See [dash-gen/README.md](dash-gen/README.md).
+The registry generator — the only part of this directory called by live workflows (`build-dash.yml`, `refresh-dash.yml`, `fleet-pulse.yml`, `reconcile-registry.yml`, and the drift gate via `tools/`). Fronted by the [`tools/dash-gen`](../../tools/dash-gen) wrapper; subcommands: `health`, `readme`, `ai`, `ai-usage`, `actions`, `actions-review`, `daily`, `triage`, `remediate`, `reconcile`, `estimate`, `ledger`, `all`. See [dash-gen/README.md](dash-gen/README.md).
 
 ## Copyable workflow helpers
 

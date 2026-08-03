@@ -92,12 +92,43 @@ run_submodule_checks() {
     done < <(git -C "$PROJECT_ROOT" config -f .gitmodules --get-regexp '\.path$' | awk '{print $2}')
 }
 
+# The control plane's own tests. These are deliberately dependency-light —
+# each test_*.py stubs its GitHub client and runs on a bare interpreter with only
+# PyYAML — so there is no reason for the aggregate suite not to run them. They
+# were previously reachable only by invoking the file directly, which meant the
+# only tests guarding the dash's own generators were never part of any sweep.
+run_control_plane_tests() {
+    printf '\n%s== Control plane (dash-gen) ==%s\n' "$c_bold" "$c_off"
+    local gen_dir="${PROJECT_ROOT}/.github/scripts/dash-gen"
+    if ! has_command python3; then skip "python3 not installed"; return; fi
+    if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+        skip "dash-gen tests: PyYAML not installed (pip install -r .github/scripts/dash-gen/requirements.txt)"
+        return
+    fi
+    local found=0 t
+    for t in "${gen_dir}"/test_*.py; do
+        [[ -e "$t" ]] || continue
+        found=1
+        run_step "dash-gen $(basename "$t")" python3 "$t"
+    done
+    [[ "$found" -eq 1 ]] || skip "no dash-gen tests found"
+}
+
 run_root_checks() {
     printf '\n%s== Root checks ==%s\n' "$c_bold" "$c_off"
     if has_command shellcheck; then
         run_step "tools shellcheck" bash -c "cd '${PROJECT_ROOT}' && shellcheck tools/*.sh"
-        [[ -d "${PROJECT_ROOT}/projects/scripts" ]] && \
+        # An un-checked-out submodule still leaves an EMPTY directory behind, so
+        # `-d` alone passes and the glob then expands to a literal path that the
+        # linter reports as a missing file — a guaranteed failure on any clone
+        # without `--recurse-submodules`. Test for actual content instead.
+        # (Do not start a comment line with the linter's name: it parses that as
+        # a directive, which is its own parse error.)
+        if compgen -G "${PROJECT_ROOT}/projects/scripts/*.sh" > /dev/null; then
             run_step "scripts shellcheck" bash -c "cd '${PROJECT_ROOT}' && shellcheck projects/scripts/*.sh"
+        else
+            skip "scripts shellcheck: projects/scripts not checked out"
+        fi
     else
         skip "shellcheck not installed"
     fi
@@ -111,6 +142,7 @@ run_root_checks() {
 main() {
     log_info "Verification sweep from ${PROJECT_ROOT}"
     run_root_checks
+    run_control_plane_tests
     run_submodule_checks
 
     printf '\n%s== Summary ==%s\n' "$c_bold" "$c_off"

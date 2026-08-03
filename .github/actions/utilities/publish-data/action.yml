@@ -1,0 +1,251 @@
+name: 'Publish generated data'
+description: >-
+  Commit generated data files and get them onto the default branch by whatever
+  route the branch protection allows: direct push when permitted, otherwise a
+  stable-branch pull request (updated in place, auto-merge requested). Never
+  fails the job for a rejected push — the generator's work is still recorded.
+
+# WHY THIS EXISTS
+# ---------------
+# Every data-refresh workflow used to end in a bare `git push` to main. When a
+# ruleset was added to bamr87/bamr87 ("Changes must be made through a pull
+# request" + "Commits must have verified signatures"), all three of them —
+# actions-usage, ai-usage, daily-repo-analysis — began failing at that final
+# step, every single day, silently: the data was generated correctly and then
+# thrown away. actions-review.yml, which triggers on actions-usage COMPLETING
+# SUCCESSFULLY, was skipped as collateral. The whole daily loop was dead for
+# weeks while every individual generator worked perfectly.
+#
+# The lesson is that the publish route is a property of the REPOSITORY, not of
+# the workflow, and it can change out from under the automation at any time. So
+# it is resolved here, once, at runtime — and a repo-config change can no longer
+# take the fleet's automation down.
+
+inputs:
+  paths:
+    description: 'Space-separated paths to stage and publish (e.g. "_data/ _reports/")'
+    required: true
+  message:
+    description: 'Commit message'
+    required: true
+  branch:
+    description: >-
+      Stable branch used for the pull-request fallback. Stable (not per-run) so
+      the single open PR is updated in place instead of a new one accumulating
+      every day.
+    default: 'chore/data-refresh'
+    required: false
+  title:
+    description: 'Pull-request title for the fallback route'
+    default: ''
+    required: false
+  body:
+    description: 'Pull-request body for the fallback route'
+    default: ''
+    required: false
+  labels:
+    description: 'Comma-separated labels applied to the fallback pull request'
+    default: 'automation,data'
+    required: false
+  auto-merge:
+    description: 'Request auto-merge on the fallback pull request'
+    default: 'true'
+    required: false
+  base:
+    description: 'Base branch to publish onto (defaults to the repo default branch)'
+    default: ''
+    required: false
+  user-name:
+    description: 'Commit author name'
+    default: 'bamr87-bot'
+    required: false
+  user-email:
+    description: 'Commit author email'
+    default: '10567847+bamr87@users.noreply.github.com'
+    required: false
+  token:
+    description: 'Token used for the push and the pull-request API calls'
+    required: true
+
+outputs:
+  changed:
+    description: '"true" when the paths had changes to publish'
+    value: ${{ steps.publish.outputs.changed }}
+  mode:
+    description: 'How the data landed: none | push | pr | failed'
+    value: ${{ steps.publish.outputs.mode }}
+  pr-url:
+    description: 'Pull-request URL when the fallback route was used'
+    value: ${{ steps.publish.outputs.pr_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Commit and publish
+      id: publish
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        IN_PATHS: ${{ inputs.paths }}
+        IN_MESSAGE: ${{ inputs.message }}
+        IN_BRANCH: ${{ inputs.branch }}
+        IN_TITLE: ${{ inputs.title }}
+        IN_BODY: ${{ inputs.body }}
+        IN_LABELS: ${{ inputs.labels }}
+        IN_AUTO_MERGE: ${{ inputs.auto-merge }}
+        IN_BASE: ${{ inputs.base }}
+        IN_USER_NAME: ${{ inputs.user-name }}
+        IN_USER_EMAIL: ${{ inputs.user-email }}
+      run: |
+        # NOTE: GitHub runs composite `shell: bash` steps with `-e` already set.
+        # This action's contract is "never fail the job over a publish route",
+        # so `-e` is switched OFF deliberately and every status is checked by
+        # hand below. Leaving it on would abort the step on the first guard that
+        # evaluates false — including the harmless `[ -n "$PR_URL" ]` ones.
+        set +e
+        set -uo pipefail
+
+        emit() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+        note() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+        fail_soft() {   # report, but hand the job back a success
+          echo "::warning::$1"
+          note "⚠️ $1"
+          emit mode failed
+          emit pr_url ""
+          exit 0
+        }
+
+        read -r -a PATHS <<< "$IN_PATHS"
+        if [ "${#PATHS[@]}" -eq 0 ]; then
+          echo "::error::publish-data requires a non-empty `paths` input."
+          emit changed false; emit mode failed; emit pr_url ""
+          exit 1
+        fi
+
+        BASE="$IN_BASE"
+        if [ -z "$BASE" ]; then
+          BASE="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null)"
+          [ -n "$BASE" ] || BASE="main"
+        fi
+
+        # `git add -N` first so a brand-new untracked file (e.g. today's daily
+        # report) registers as a diff — without it `git diff --quiet` reports
+        # "no change" and the new file is never published.
+        git add -N -- "${PATHS[@]}" 2>/dev/null
+        git diff --quiet -- "${PATHS[@]}"
+        if [ $? -eq 0 ]; then
+          echo "No changes in: ${PATHS[*]}"
+          note "### 📦 Publish data"
+          note ""
+          note "No changes in \`${PATHS[*]}\` — nothing to publish."
+          emit changed false
+          emit mode none
+          emit pr_url ""
+          exit 0
+        fi
+        emit changed true
+
+        git config user.name "$IN_USER_NAME"
+        git config user.email "$IN_USER_EMAIL"
+        git add -- "${PATHS[@]}"
+        if ! git commit -m "$IN_MESSAGE" --quiet; then
+          emit changed false
+          fail_soft "Nothing could be committed from: ${PATHS[*]}"
+        fi
+        SHA="$(git rev-parse HEAD)"
+
+        note "### 📦 Publish data"
+        note ""
+
+        # ---- route 1: straight to the base branch ------------------------
+        # Cheapest and quietest when protection allows it. Piping to `tee` would
+        # mask the exit status, so capture to a file instead.
+        if git push origin "HEAD:${BASE}" > /tmp/publish-push.log 2>&1; then
+          echo "Pushed directly to ${BASE}."
+          note "Pushed directly to \`${BASE}\` (\`${SHA:0:8}\`)."
+          emit mode push
+          emit pr_url ""
+          exit 0
+        fi
+
+        echo "::notice::Direct push to ${BASE} was rejected — falling back to a pull request."
+        sed 's/^/  | /' /tmp/publish-push.log
+
+        # ---- route 2: stable-branch pull request -------------------------
+        # force-push (not --force-with-lease): the branch is a disposable
+        # projection of generated data and the previous run's tip is meant to be
+        # discarded. Nobody hand-edits it, so there is no lease worth protecting
+        # — and a lease check would wedge the loop the first time two runs raced.
+        if ! git push --force origin "HEAD:refs/heads/${IN_BRANCH}"; then
+          note "Could not publish: both the direct push to \`${BASE}\` and the"
+          note "fallback push to \`${IN_BRANCH}\` were rejected. Check the token's"
+          note "\`contents: write\` permission and the branch ruleset."
+          fail_soft "Could not push to ${BASE} or ${IN_BRANCH} — the data was not published."
+        fi
+
+        TITLE="$IN_TITLE"
+        [ -n "$TITLE" ] || TITLE="$IN_MESSAGE"
+
+        BODY="$IN_BODY"
+        if [ -z "$BODY" ]; then
+          # printf, not an indented shell string: leading whitespace inside a
+          # YAML block scalar would land in the body and render as a code block.
+          BODY="$(printf '%s\n' \
+            "Automated data refresh published by \`${GITHUB_WORKFLOW}\`." \
+            "" \
+            "Generated from: \`${PATHS[*]}\`" \
+            "" \
+            "A direct push to \`${BASE}\` was rejected by branch protection, so the" \
+            "refresh is delivered as a pull request instead. This branch is" \
+            "regenerated on every run — review the diff, not the history.")"
+        fi
+
+        PR_URL="$(gh pr list --head "$IN_BRANCH" --base "$BASE" --state open \
+                    --json url --jq '.[0].url' 2>/dev/null)"
+        if [ -n "$PR_URL" ]; then
+          gh pr edit "$PR_URL" --title "$TITLE" --body "$BODY" >/dev/null 2>&1 || true
+          echo "Updated existing pull request: $PR_URL"
+        else
+          LABEL_ARGS=()
+          IFS=',' read -r -a LABELS <<< "$IN_LABELS"
+          for l in "${LABELS[@]}"; do
+            [ -n "$l" ] || continue
+            # A missing label makes `gh pr create` hard-fail, which would throw
+            # away a perfectly good PR over a cosmetic detail. Create on demand.
+            gh label create "$l" --color BFD4F2 --description "Automated" --force >/dev/null 2>&1 || true
+            LABEL_ARGS+=(--label "$l")
+          done
+          # Match the URL out of the full output rather than taking `tail -1`:
+          # gh prints deprecation notices, auth hints, and "remote: " chatter
+          # around the URL, and any of them landing last would be captured as if
+          # it were the PR. Keeping the whole output also means a real failure
+          # gets reported in full instead of as one truncated line.
+          CREATE_OUT="$(gh pr create --head "$IN_BRANCH" --base "$BASE" \
+                          --title "$TITLE" --body "$BODY" "${LABEL_ARGS[@]}" 2>&1)"
+          PR_URL="$(printf '%s\n' "$CREATE_OUT" \
+                      | grep -Eom1 'https://[^[:space:]]+/pull/[0-9]+')"
+          if [ -n "$PR_URL" ]; then
+            echo "Opened pull request: $PR_URL"
+          else
+            echo "::warning::Could not open a pull request."
+            printf '%s\n' "$CREATE_OUT" | sed 's/^/  | /'
+          fi
+        fi
+
+        if [ "$IN_AUTO_MERGE" = "true" ] && [ -n "$PR_URL" ]; then
+          if gh pr merge "$PR_URL" --auto --squash >/dev/null 2>&1; then
+            echo "Auto-merge requested."
+          else
+            echo "::notice::Auto-merge unavailable (not enabled on the repo, or checks disallow it) — the PR stays open for review."
+          fi
+        fi
+
+        note "Direct push to \`${BASE}\` was rejected by branch protection — published"
+        note "as a pull request on \`${IN_BRANCH}\` instead."
+        note ""
+        if [ -n "$PR_URL" ]; then
+          note "- ${PR_URL}"
+        fi
+        note "- Paths: \`${PATHS[*]}\`"
+        emit mode pr
+        emit pr_url "$PR_URL"

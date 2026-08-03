@@ -17,10 +17,11 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `setup-dev.sh` | Legacy wrapper — delegates to `setup.sh --local` |
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
 | `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, …) — see [docs/DASH.md](../docs/DASH.md) |
-| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `ai-usage`, `actions`, `actions-review`, `daily`, `triage`, `estimate`, `ledger`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
+| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `ai-usage`, `actions`, `actions-review`, `daily`, `triage`, `remediate`, `reconcile`, `estimate`, `ledger`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
+| `fleet-config.py` | Reads [`_data/fleet.yml`](../_data/fleet.yml), the fleet's central config. `audit` (= `dash secrets`) prints the per-repo matrix of declared secrets/variables vs what GitHub actually has; `sync --apply` (= `dash config sync`) projects the canonical repo **variables** onto every fleet repo; `show [dotted.key]` reads a value. Secret *values* are never read or stored — `gh` returns names only. |
 | `check-drift.sh` | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
 | `audit-standards.sh` | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
-| `run-all-tests.sh` | Aggregate verification — delegates to each project's own checks (wrapped by `dash test`) |
+| `run-all-tests.sh` | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
 | `adopt-release.sh` | Scaffolds the release-please pipeline into a repo and opens a PR (wrapped by `dash adopt-release`) |
 | `protect-branch.sh` | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
 | `fanout.sh` | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `standardize-fanout.yml` and `schema-fanout.yml` |
