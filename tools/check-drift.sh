@@ -17,10 +17,12 @@
 #       with each other while both are stale vs GitHub (renames, org moves,
 #       deletions). Advisory because the default CI token is repo-scoped, so a
 #       private submodule can 404; self-skips if the API is unreachable.
-#   (h) SCHEMA.md pyramid: the hub pyramid lints green (schema errors gate;
-#       stray-file warnings only warn) and the generated projects/SCHEMA.md
+#   (h) SCHEMA.md pyramid: the hub pyramid lints clean — errors AND warnings
+#       gate (--werror posture: the hub practices the discipline it seeds;
+#       gitignored ephemera are registered `generated`, so a clean checkout
+#       and a working tree agree) — and the generated projects/SCHEMA.md
 #       matches .gitmodules + the registry. Offline, submodule-content-agnostic,
-#       so it runs in CI too.
+#       so it runs in CI too. Mechanical drift: tools/schema_lint.py check . --fix
 #
 # (e) is LOCAL-ONLY (skipped when submodules aren't checked out, e.g. CI).
 # (c) the internal-link check needs a built _site + lychee, so it is NOT part of
@@ -191,21 +193,26 @@ else
 fi
 
 # --- (h): SCHEMA.md pyramid (structural contracts) --------------------------
-# The hub's own pyramid must lint green (errors gate; stray warnings surface),
-# and projects/SCHEMA.md must match the registry it is generated from. Offline,
-# stdlib + PyYAML — same deps the gate already requires. Projects are terminal
-# rows, so this never needs submodule content and is CI-safe.
+# The hub's own pyramid must lint clean: errors AND warnings gate (the hub is
+# the flagship adopter — a warning that can sit is a contract that rots, which
+# is the exact failure the framework exists to prevent). Ephemeral gitignored
+# artifacts are registered `generated`, so clean checkouts and working trees
+# agree. projects/SCHEMA.md must match the registry it is generated from.
+# Offline, stdlib + PyYAML — same deps the gate already requires. Projects are
+# terminal rows, so this never needs submodule content and is CI-safe.
 echo "(h) SCHEMA.md pyramid"
 if [[ -f "$ROOT/SCHEMA.md" ]]; then
   if lint_out="$("$PY" "$ROOT/tools/schema_lint.py" check "$ROOT" 2>&1)"; then
     nwarn="$(printf '%s' "$lint_out" | grep -c '^warning' || true)"
     if [[ "${nwarn:-0}" -gt 0 ]]; then
-      warn "hub pyramid: green with ${nwarn} stray warning(s) (python3 tools/schema_lint.py check .)"
+      bad "hub pyramid has ${nwarn} warning(s) — warnings gate here; mechanical drift (strays/stale rows) auto-fixes with: python3 tools/schema_lint.py check . --fix"
+      printf '%s\n' "$lint_out" | grep '^warning' | sed 's/^/      /'
     else
-      ok "hub pyramid lints green"
+      ok "hub pyramid lints clean (errors and warnings)"
     fi
   else
     bad "hub pyramid has schema errors (python3 tools/schema_lint.py check .)"
+    printf '%s\n' "$lint_out" | grep '^ERROR\|^warning' | sed 's/^/      /'
   fi
   if "$PY" "$ROOT/tools/gen-projects-schema.py" --check >/dev/null 2>&1; then
     ok "projects/SCHEMA.md matches .gitmodules + registry"

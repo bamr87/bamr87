@@ -9,9 +9,8 @@ This repository is structured by `SCHEMA.md` files — one per directory, each a
 **Follow.** Place and name new files according to `## Placement` and `## Structure` in the nearest schema. If nothing routes your file, do not guess: add a row to the appropriate Structure table (and a Placement route if it will recur), then create the file. Respect `## Forbidden`. Never hand-edit entries marked `generated`. Never descend into directories marked `terminal`.
 
 **Propagate.** Creating a directory is one atomic act with three parts:
-
 1. Create the directory.
-2. Create its `SCHEMA.md` from `templates/SCHEMA.template.md`, filling every placeholder — especially the one-line purpose.
+2. Create its `SCHEMA.md` — scaffold it with `python3 tools/schema_lint.py init <new-dir>`, or copy `templates/SCHEMA.template.md` where this repo carries it — and fill every placeholder, especially the one-line purpose.
 3. Register it in the parent directory's Structure table. Never leave a new directory schemaless.
 
 **Maintain.** Any add / remove / rename updates the local `SCHEMA.md` in the same commit as the change itself. Schema edits ride with the work they describe. If you find drift you didn't cause, fix it and note it.
@@ -22,4 +21,4 @@ This repository is structured by `SCHEMA.md` files — one per directory, each a
 python tools/schema_lint.py check .
 ```
 
-Fix errors. Surface warnings to the user with a one-line explanation each if you choose not to fix them.
+Fix errors. Surface warnings to the user with a one-line explanation each if you choose not to fix them. For mechanical drift — strays to register, stale rows to prune — `check --fix` applies the edits; review its diff and replace the TODO purposes it leaves.

@@ -8,8 +8,8 @@ How the dash carries, enforces, and propagates `SCHEMA.md` structural contracts 
 
 ```
 ┌ upstream ────────────────────────────────────────────────────────┐
-│ pyramid-schema package (~/github/SCHEMA): spec, linter, template, │
-│ protocol, scenario tests, token benchmark                        │
+│ pyramid-schema package (github.com/bamr87/SCHEMA): spec, linter,  │
+│ template, protocol, scenario tests, token benchmark              │
 └──────────────────┬───────────────────────────────────────────────┘
                    │ vendor (templates/schema/VERSION records commit)
 ┌ hub ─────────────▼───────────────────────────────────────────────┐
@@ -27,15 +27,16 @@ How the dash carries, enforces, and propagates `SCHEMA.md` structural contracts 
                    └────────────► reinvest: fix upstream, re-vendor, re-seed
 ```
 
-- **Upstream** owns the paradigm. Improvements discovered anywhere in the fleet are fixed there first (it has the 50-scenario test suite), then re-vendored here — bump `templates/schema/VERSION` in the same commit.
-- **The hub** is both carrier and adopter: its own pyramid starts at [`../SCHEMA.md`](../SCHEMA.md) and lints in the drift gate, so the machinery that seeds the fleet is itself under contract.
+- **Upstream** owns the paradigm. Improvements discovered anywhere in the fleet are fixed there first (it has the 54-scenario test suite), then re-vendored here — bump `templates/schema/VERSION` in the same commit.
+- **The hub** is both carrier and adopter: its own pyramid starts at [`../SCHEMA.md`](../SCHEMA.md) and lints in the drift gate at the strictest posture — **errors and warnings both gate** — so the machinery that seeds the fleet is itself under contract. Gitignored ephemera (`_data/project_health.yml`, `_data/ai_activity.yml`, build output) are registered `generated`, which tolerates absence, so clean checkouts and working trees lint identically.
 - **The fleet** adopts via PRs, never pushes: each submodule gets its own self-contained pyramid (vendored linter, no dependency on the hub at runtime) and gates itself with `schema-check.yml`.
 - **Feedback** closes the loop: adoption status lives in the registry (`schema:` sub-key per project), schema-check failures surface on the monitor board like any other CI signal, and recurring pain patterns go upstream.
 
 ## Commands
 
 ```bash
-python3 tools/schema_lint.py check .        # lint the hub pyramid (drift gate check (h))
+python3 tools/schema_lint.py check .        # lint the hub pyramid (drift gate check (h) — warnings gate too)
+python3 tools/schema_lint.py check . --fix  # remediate mechanical drift: register strays, prune stale rows
 python3 tools/gen-projects-schema.py        # regenerate projects/SCHEMA.md from the registry
 tools/seed-schema.sh <name>                 # DRY RUN: what adoption would add to projects/<name>
 tools/seed-schema.sh <name> --apply         # seed a local submodule worktree
