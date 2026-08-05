@@ -87,7 +87,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup analysis environment
         run: |
@@ -277,7 +277,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       # Real AI execution via Claude Code (replaces the former provider stubs).
@@ -348,7 +348,7 @@ jobs:
     steps:
       - name: Open PR from the evolution branch
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           branch="ai-evolution/${{ github.run_id }}"
           # execute-evolution only pushes this branch when Claude produced changes.

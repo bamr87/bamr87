@@ -13,6 +13,12 @@ makes the declaration real.
           returns names only, which is all an audit needs and all it should see.
   sync    Project the canonical `variables:` block onto the fleet. Dry-run by
           default; `--apply` writes.
+  sync-secrets
+          Project the declared token contract onto the fleet. Values are read
+          ONLY from the environment (export the secret under its own name);
+          they are never stored in, or read from, any file. Dry-run by
+          default; `--apply` writes; already-set secrets are left alone unless
+          `--rotate`.
 
 WHY THIS EXISTS
 ---------------
@@ -328,6 +334,84 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# sync-secrets
+# --------------------------------------------------------------------------- #
+def cmd_sync_secrets(args: argparse.Namespace) -> int:
+    """Project the token contract onto the fleet, values supplied via env.
+
+    Secrets are write-only on GitHub, so unlike variables there is no way to
+    copy one repo's secret to another — the value must come from the operator.
+    The ONLY accepted channel is an environment variable named after the
+    secret (e.g. `CLAUDE_CODE_OAUTH_TOKEN=... dash secrets sync --apply`).
+    Values are never echoed, logged, or written to disk by this tool.
+    """
+    import os
+
+    cfg = load(FLEET)
+    registry = load(REGISTRY)
+    tokens = [t for t in (cfg.get("tokens") or []) if not t.get("deprecated")]
+    if args.only:
+        tokens = [t for t in tokens if t["name"] in args.only]
+        missing = set(args.only) - {t["name"] for t in tokens}
+        if missing:
+            sys.stderr.write(f"not in the token contract: {', '.join(sorted(missing))}\n")
+            return 1
+
+    hub_nwo = cfg.get("hub", {}).get("repo") or "bamr87/bamr87"
+    repos = fleet_repos(cfg, registry)
+    if args.repo:
+        repos = [r for r in repos if args.repo in (r["name"], r["nwo"])]
+        if not repos:
+            sys.stderr.write(f"no fleet repo matching {args.repo!r}\n")
+            return 1
+
+    mode = "APPLY" if args.apply else "DRY-RUN"
+    print(f"\n\033[1mSync token contract\033[0m [{mode}]\n")
+    changed = skipped = failed = 0
+
+    for t in tokens:
+        name = t["name"]
+        value = os.environ.get(name)
+        targets = repos if t.get("scope") == "fleet" else \
+            [r for r in repos if r["nwo"] == hub_nwo]
+        if not value:
+            print(f"  \033[2m{name}: no value in env — export {name}=… to provision "
+                  f"({len(targets)} target repo(s))\033[0m")
+            continue
+        for r in targets:
+            present = repo_secret_names(r["nwo"])
+            if present is None:
+                print(f"  {UNKNOWN} {r['nwo']:30} unreachable — skipped {name}")
+                skipped += 1
+                continue
+            if name in present and not args.rotate:
+                print(f"  {OK} {r['nwo']:30} {name} already set")
+                continue
+            verb = "rotate" if name in present else "set"
+            if not args.apply:
+                print(f"  {EXTRA} {r['nwo']:30} would {verb} {name}")
+                changed += 1
+                continue
+            proc = subprocess.run(
+                ["gh", "secret", "set", name, "-R", r["nwo"]],
+                input=value, capture_output=True, text=True)
+            if proc.returncode == 0:
+                print(f"  {EXTRA} {r['nwo']:30} {verb} {name}")
+                changed += 1
+            else:
+                err = (proc.stderr or "").strip().splitlines()
+                print(f"  {MISSING} {r['nwo']:30} FAILED {name}: "
+                      f"{err[0] if err else '(no error output)'}")
+                failed += 1
+
+    verb = "applied" if args.apply else "pending"
+    print(f"\n  {changed} change(s) {verb} · {skipped} unreachable · {failed} failed")
+    if not args.apply and changed:
+        print("  Re-run with --apply to write.\n")
+    return 1 if failed else 0
+
+
+# --------------------------------------------------------------------------- #
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="fleet-config", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -349,6 +433,17 @@ def main(argv: list[str] | None = None) -> int:
     p_sync.add_argument("--repo", metavar="NAME", help="sync one repo")
     p_sync.add_argument("--apply", action="store_true", help="write (default: dry-run)")
     p_sync.set_defaults(func=cmd_sync)
+
+    p_ss = sub.add_parser("sync-secrets",
+                          help="project the token contract onto the fleet "
+                               "(values from env, never from files)")
+    p_ss.add_argument("--repo", metavar="NAME", help="sync one repo")
+    p_ss.add_argument("--only", metavar="SECRET", action="append",
+                      help="limit to this contract secret (repeatable)")
+    p_ss.add_argument("--rotate", action="store_true",
+                      help="overwrite secrets that are already set")
+    p_ss.add_argument("--apply", action="store_true", help="write (default: dry-run)")
+    p_ss.set_defaults(func=cmd_sync_secrets)
 
     args = parser.parse_args(argv)
     return args.func(args)
