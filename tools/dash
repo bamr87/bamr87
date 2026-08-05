@@ -29,7 +29,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash triage${c_off}            fleet-wide open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/ portal)
   ${c_bold}dash reconcile${c_off}         registry + .gitmodules vs GitHub reality (renames/deletions/urls); --apply fixes safe ones
   ${c_bold}dash remediate${c_off}         merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse)
-  ${c_bold}dash secrets${c_off}           per-repo matrix of declared secrets/variables vs what GitHub actually has
+  ${c_bold}dash secrets [sync]${c_off}    per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env)
   ${c_bold}dash config [show|audit|sync]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
@@ -197,13 +197,21 @@ cmd_daily() { "${TOOLS}/dash-gen" daily "$@"; }
 cmd_triage() { "${TOOLS}/dash-gen" triage "$@"; }
 cmd_reconcile() { "${TOOLS}/dash-gen" reconcile "$@"; }
 cmd_remediate() { "${TOOLS}/dash-gen" remediate "$@"; }
-cmd_secrets() { python3 "${TOOLS}/fleet-config.py" audit "$@"; }
+cmd_secrets() {
+  # `dash secrets` audits; `dash secrets sync` provisions the token contract
+  # (values from env only — see fleet-config.py sync-secrets).
+  case "${1:-}" in
+    sync) shift; python3 "${TOOLS}/fleet-config.py" sync-secrets "$@" ;;
+    *) python3 "${TOOLS}/fleet-config.py" audit "$@" ;;
+  esac
+}
 cmd_config() {
   # `dash config` with no subcommand prints the resolved config; otherwise it
   # forwards show/audit/sync straight through.
   local sub="${1:-show}"
   case "$sub" in
     show|audit|sync) shift; python3 "${TOOLS}/fleet-config.py" "$sub" "$@" ;;
+    sync-secrets) shift; python3 "${TOOLS}/fleet-config.py" sync-secrets "$@" ;;
     *) python3 "${TOOLS}/fleet-config.py" show "$@" ;;
   esac
 }
