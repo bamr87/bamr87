@@ -149,12 +149,12 @@ Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/pro
 | --- | --- | --- | --- |
 | `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
 | `projects/README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
-| `projects/scripts/` | `bamr87/scripts` | `master` | Bash, Python |
+| `projects/scripts/` | `bamr87/scripts` | `main` | Bash, Python |
 | `projects/zer0-mistakes/` | `bamr87/zer0-mistakes` | `main` | Jekyll theme (powers the dash) |
 | `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
 | `projects/skills/` | `microsoft/skills` (external) | `main` | Skills, prompts, MCP configs |
 
-**Branches vary:** most track `main`; `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`. Read the branch from `.gitmodules`.
+**Branches:** all track `main` except `sonic-pi` (`dev`, upstream fork with no `main`). Read the branch from `.gitmodules`.
 
 ### Container Development
 

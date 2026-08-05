@@ -5,7 +5,7 @@
 [submodule "scripts"]
 	path = projects/scripts
 	url = https://github.com/bamr87/scripts.git
-	branch = master
+	branch = main
 [submodule "skills"]
 	path = projects/skills
 	url = https://github.com/microsoft/skills.git
