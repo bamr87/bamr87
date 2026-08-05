@@ -89,7 +89,7 @@ You should see one line per registered submodule (~41 in total), e.g.:
 
 ```bash
  <commit> projects/README (heads/main)
- <commit> projects/scripts (heads/master)
+ <commit> projects/scripts (heads/main)
  ...
 ```
 
@@ -382,7 +382,7 @@ cd ..
 ./tools/update-submodules.sh    # refreshes each onto its declared branch
 ```
 
-(Avoid `git submodule foreach git pull origin main` — not every submodule tracks `main`: `scripts`/`jekyll` track `master`, `sonic-pi` tracks `dev`.)
+(Avoid `git submodule foreach git pull origin main` — `sonic-pi` tracks `dev`, not `main`; the script above respects each submodule's declared branch.)
 
 ### Build Issues
 

@@ -80,7 +80,7 @@
 - name: scripts
   slug: scripts
   submodule_path: projects/scripts
-  branch: master            # NOTE: tracks master, not main
+  branch: main
   repo_url: https://github.com/bamr87/scripts
   description: Development and automation utilities for project setup, GitHub workflows, and local tooling.
   stack: [bash, python]

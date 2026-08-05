@@ -19,7 +19,7 @@ tools/dash status                 # registry + drift summary
 
 ### Branch conventions
 
-Most submodules track `main`. Exceptions: `scripts` and `jekyll` track `master`; `sonic-pi` tracks `dev`; `skills` is an external `microsoft/skills` mirror (`update = merge`). Always read the branch from `.gitmodules` — never assume `main`.
+All submodules track `main` except `sonic-pi`, which tracks `dev` (fork of `sonic-pi-net/sonic-pi`; upstream has no `main`). `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` — never assume.
 
 ## Cloning and updating
 
@@ -47,7 +47,7 @@ Don't bundle changes across multiple submodules into one PR.
 
 ## Automated pointer updates
 
-`.github/workflows/update-submodules.yml` runs weekly (or on demand) and opens a reviewable PR bumping submodule pointers **up** into root. It never pushes directly and never modifies submodule contents — content changes belong to the submodule's own repo. The complementary **downward** flow (`.github/workflows/standardize-fanout.yml`) opens standardization PRs _into_ submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
+`.github/workflows/update-submodules.yml` runs daily (or on demand) and opens a reviewable PR bumping submodule pointers **up** into root. It never pushes directly and never modifies submodule contents — content changes belong to the submodule's own repo. The complementary **downward** flow (`.github/workflows/standardize-fanout.yml`) opens standardization PRs _into_ submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
 
 Local refresh (safe by default — skips submodules with uncommitted/diverged work):
 

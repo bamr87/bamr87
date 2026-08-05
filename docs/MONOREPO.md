@@ -79,7 +79,7 @@ Never bundle changes across multiple submodules into one PR.
 ./tools/update-submodules.sh <name>      # one
 ```
 
-The `update-submodules.yml` workflow does the same on a weekly schedule and opens a reviewable PR — pointer bumps only, never content changes.
+The `update-submodules.yml` workflow does the same on a daily schedule and opens a reviewable PR — pointer bumps only, never content changes.
 
 ## Automated workflows
 
@@ -88,7 +88,7 @@ The `update-submodules.yml` workflow does the same on a weekly schedule and open
 | `build-dash.yml` | root | Builds the Jekyll dash and deploys to GitHub Pages (the sole Pages surface). |
 | `drift-check.yml` | root | Hard gate: registry↔.gitmodules parity, stray projects, README freshness, missing top-level READMEs, SCHEMA.md pyramid (check h). Advisory: GitHub-reality drift + standardization. Also runs `actionlint`. |
 | `refresh-dash.yml` | root | Nightly PR refreshing the README AUTO span + registry data. |
-| `update-submodules.yml` | up | Weekly PR bumping submodule pointers into root. |
+| `update-submodules.yml` | up | Daily PR bumping submodule pointers into root. |
 | `standardize-fanout.yml` | down | Opens standardization PRs into submodules via `tools/fanout.sh` (.editorconfig, the reusable `standard-ci.yml` caller, and on request the agent-context kit). |
 | `schema-fanout.yml` | down | Opens Pyramid Schema adoption PRs into submodules via `tools/fanout.sh` (dry-run default; optional `agent_fill` Claude pass). |
 | `claude.yml` | root | `@claude` mention handler (Claude Code) — same file the agent-context kit seeds into submodules. |
