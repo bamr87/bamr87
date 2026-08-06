@@ -109,6 +109,16 @@ gate.
   force-pushes, never touches submodule working trees under `projects/`, and
   never edits generated surfaces (`_site/`, `_reports/`, `_data/*_usage.yml`,
   `_data/fleet_triage.yml`, the README AUTO span, `projects/SCHEMA.md`).
+- **Retired workflows are dropped.** GitHub keeps a deleted workflow's run
+  history forever, so one deleted while red stays "currently failing" in the
+  triage data permanently. Each candidate's file is verified to still exist on
+  its default branch before it is queued — checked at selection time, so the API
+  cost is bounded by the cap. Ambiguity resolves toward *keeping* the candidate:
+  an unreachable private repo 404s exactly like a deleted file, and dropping real
+  work silently is worse than carrying one stale entry.
+- **Token validity is probed, not assumed.** A secret can be set and still be
+  expired. `pulse` probes the write token against the API and reports the
+  degraded capability, rather than inferring health from the secret's presence.
 - **No green-washing.** The agent is explicitly forbidden from adding
   `continue-on-error` or blanket retries to make a red workflow look healthy.
 - **Degrades, never blocks.** Without Claude auth the fixer is skipped and the

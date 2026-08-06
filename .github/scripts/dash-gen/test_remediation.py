@@ -192,16 +192,48 @@ def main() -> int:
     check("hub fixes are not starved by a burst of submodule failures",
           sum(1 for c in selected if c["_where"] == "hub") == 2)
 
+    # --- retired workflows -------------------------------------------------- #
+    # The bug the first production run exposed: a workflow deleted while red
+    # stays "currently failing" in the triage data forever, because GitHub keeps
+    # its run history. Three retired workflows took half the queue.
+    print("retired:")
+    real_exists = remediation.workflow_exists
+    calls = []
+
+    def fake_exists(nwo, path):
+        calls.append((nwo, path))
+        return "retired" not in path
+
+    remediation.workflow_exists = fake_exists
+    remediation._EXISTS_CACHE.clear()
+    try:
+        live = {"nwo": "bamr87/a", "path": ".github/workflows/live.yml"}
+        dead = {"nwo": "bamr87/a", "path": ".github/workflows/retired.yml"}
+        check("a live workflow file passes", fake_exists(**live))
+        check("a deleted workflow file is filtered", not fake_exists(**dead))
+    finally:
+        remediation.workflow_exists = real_exists
+        remediation._EXISTS_CACHE.clear()
+
+    # Ambiguity must resolve toward KEEPING work: an unreachable repo 404s
+    # exactly like a deleted file, and dropping real failures silently is worse
+    # than carrying one stale entry.
+    remediation._EXISTS_CACHE.clear()
+    remediation._EXISTS_CACHE["bamr87/private:x.yml"] = True
+    check("cache is consulted (no repeat API calls)",
+          remediation.workflow_exists("bamr87/private", "x.yml") is True)
+    remediation._EXISTS_CACHE.clear()
+
     # --- rendering --------------------------------------------------------- #
     print("render:")
     md = remediation.render(selected, CFG, HUB, usage(), triage(),
-                            {"total": len(all_c), "deduped": 0})
+                            {"total": len(all_c), "deduped": 0, "retired": 2})
     check("every candidate's marker is emitted verbatim",
           all(remediation.doctor_marker(c["key"]) in md for c in selected))
     check("cross-repo candidates are told to PR in their own repo",
           "clone that repo and open a" in md)
     empty = remediation.render([], CFG, HUB, usage(), triage(),
-                               {"total": 0, "deduped": 0})
+                               {"total": 0, "deduped": 0, "retired": 0})
     check("an empty queue says do nothing", "Nothing to do." in empty)
 
     # --- report ------------------------------------------------------------ #

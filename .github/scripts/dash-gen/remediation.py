@@ -157,6 +157,50 @@ def open_markers(repo_slug: str) -> set[str]:
     return markers
 
 
+_EXISTS_CACHE: dict[str, bool] = {}
+
+
+def workflow_exists(nwo: str, path: str) -> bool:
+    """Does this workflow file still exist on the repo's default branch?
+
+    GitHub keeps a deleted workflow's RUN HISTORY forever, and the triage
+    snapshot reads each workflow's latest completed conclusion — so a workflow
+    that was deleted while red stays "currently failing" in the data for good.
+    Observed live on the first fleet-pulse run: the three workflows retired by
+    the consolidation (actions-usage, ai-usage, daily-repo-analysis) took 3 of
+    the 6 queue slots, and would have taken them every day forever.
+
+    Ambiguity is resolved toward KEEPING the candidate. A token that cannot see
+    a private repo 404s exactly as it does on a deleted file, and silently
+    dropping real work is a worse failure than carrying one stale entry — the
+    same reasoning reconcile.py applies to 404s.
+    """
+    key = f"{nwo}:{path}"
+    if key in _EXISTS_CACHE:
+        return _EXISTS_CACHE[key]
+
+    def _reachable(args: list[str]) -> bool | None:
+        """True = 200, False = 404, None = anything else (auth, network, rate)."""
+        try:
+            out = subprocess.run(["gh", "api", *args],
+                                 capture_output=True, text=True, timeout=30)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return None
+        if out.returncode == 0:
+            return True
+        return False if "404" in (out.stderr or "") else None
+
+    result = True
+    file_state = _reachable([f"repos/{nwo}/contents/{path}", "--jq", ".name"])
+    if file_state is False:
+        # The file 404s. Only treat that as "deleted" if the REPO itself is
+        # visible — otherwise the 404 is about access, not existence.
+        if _reachable([f"repos/{nwo}", "--jq", ".name"]) is True:
+            result = False
+    _EXISTS_CACHE[key] = result
+    return result
+
+
 def cross_repo_open_markers(nwos: list[str]) -> set[str]:
     """Keys with an open fix PR in the TARGET repo.
 
@@ -356,9 +400,11 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
              f"{u.get('waste_hours', '?')}h wasted · "
              f"{u.get('effectiveness_pct', '?')}% effective")
     L.append("")
+    retired = stats.get("retired", 0)
     L.append(f"Triage: {stats['total']} problem workflow(s) detected · "
              f"{stats['deduped']} already have an open issue/PR · "
-             f"{len(cands)} on this run's queue "
+             + (f"{retired} retired (workflow file deleted) · " if retired else "")
+             + f"{len(cands)} on this run's queue "
              f"(cap {cfg['max_candidates']}, of which ≤{cfg['max_cross_repo']} cross-repo).")
     L.append("")
 
@@ -468,7 +514,15 @@ def run(args: argparse.Namespace) -> int:
     # agent could actually land today.
     selected: list[dict] = []
     cross = 0
+    retired = 0
     for c in fresh:
+        # Checked HERE rather than during merge so the API cost is bounded by the
+        # cap (a handful of calls), not by the 60+ workflows the signals surface.
+        if not args.no_existence_check and not workflow_exists(c["nwo"], c["path"]):
+            retired += 1
+            sys.stderr.write(f"  ~ skipping {c['nwo']}/{c['workflow']} "
+                             f"— {c['path']} no longer exists (retired workflow)\n")
+            continue
         where = classify(c, args.hub)
         if where == "submodule":
             if cross >= cfg["max_cross_repo"]:
@@ -479,7 +533,7 @@ def run(args: argparse.Namespace) -> int:
         if len(selected) >= cfg["max_candidates"]:
             break
 
-    stats = {"total": total, "deduped": deduped}
+    stats = {"total": total, "deduped": deduped, "retired": retired}
     Path(args.out).write_text(render(selected, cfg, args.hub, usage, triage, stats))
 
     emit_output("has_candidates", "true" if selected else "false")
@@ -488,7 +542,7 @@ def run(args: argparse.Namespace) -> int:
 
     sys.stderr.write(
         f"fleet-doctor: {total} problem workflow(s), {deduped} already tracked, "
-        f"{len(selected)} queued ({cross} cross-repo) → {args.out}\n")
+        f"{retired} retired, {len(selected)} queued ({cross} cross-repo) → {args.out}\n")
     for c in selected:
         sys.stderr.write(f"  · [{c['_where']}] {c['nwo']}/{c['workflow']} "
                          f"[{', '.join(sorted(c['signals']))}]\n")
@@ -514,6 +568,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="max target repos queried for existing fix PRs (default 25)")
     parser.add_argument("--no-dedupe", action="store_true",
                         help="skip the open-issue/PR dedupe (offline / debugging)")
+    parser.add_argument("--no-existence-check", action="store_true",
+                        help="skip verifying each candidate's workflow file still exists (offline)")
     parser.set_defaults(func=run)
 
 
