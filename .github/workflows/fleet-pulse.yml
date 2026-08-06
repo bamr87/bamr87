@@ -94,7 +94,7 @@ jobs:
       GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
       DAYS: ${{ inputs.days || '14' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup/dash-gen
 
@@ -187,7 +187,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Upload work order
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: remediation-workorder
           path: remediation-workorder.md
@@ -216,7 +216,7 @@ jobs:
       # to hub-filed issues without FLEET_TOKEN/FANOUT_TOKEN.
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Ensure labels exist
         env:
@@ -228,7 +228,7 @@ jobs:
             --description "Automated / bot-generated" --force
 
       - name: Download work order
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: remediation-workorder
 

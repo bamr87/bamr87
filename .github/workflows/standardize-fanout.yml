@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout control plane
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Open standardization PRs
         env:
