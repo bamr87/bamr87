@@ -37,8 +37,7 @@ name: 🩺 Fleet Pulse
 # TOKENS (see _data/fleet.yml for the full contract)
 #   FLEET_TOKEN  fine-grained PAT covering the fleet. Needed to read private
 #                repos' runs and to open fix PRs in submodules. Falls back to
-#                the legacy ACTIONS_ANALYTICS_TOKEN / DAILY_ANALYSIS_TOKEN /
-#                FANOUT_TOKEN, then to GITHUB_TOKEN (public + hub only).
+#                GITHUB_TOKEN (public + hub only).
 #   CLAUDE_CODE_OAUTH_TOKEN  preferred Claude auth; ANTHROPIC_API_KEY fallback.
 
 on:
@@ -91,7 +90,7 @@ jobs:
       # One resolution of the token chain, reused by every step below. Secrets
       # can't be referenced from a step `if:`, so presence is surfaced as plain
       # env where a step needs to branch on it.
-      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
       DAYS: ${{ inputs.days || '14' }}
     steps:
       - uses: actions/checkout@v4
@@ -213,8 +212,8 @@ jobs:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
       # The fixer needs a token that can push branches and open PRs in OTHER
       # repos. GITHUB_TOKEN cannot do that at all, so cross-repo fixes degrade
-      # to hub-filed issues without FLEET_TOKEN/FANOUT_TOKEN.
-      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+      # to hub-filed issues without FLEET_TOKEN.
+      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -250,12 +249,12 @@ jobs:
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
         uses: anthropics/claude-code-action@v1
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
-          FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
-          github_token: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           claude_args: >-
             --model opus
             --max-turns 120

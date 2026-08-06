@@ -17,11 +17,7 @@ House convention: **OAuth-first**. Every Claude call site prefers `CLAUDE_CODE_O
 | --- | --- | --- |
 | `CLAUDE_CODE_OAUTH_TOKEN` | `claude.yml`, `fleet-pulse.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`, seeded fleet `claude.yml` workflows | Preferred Claude auth. From `claude setup-token`, then `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/<repo>` |
 | `ANTHROPIC_API_KEY` | same call sites | Fallback only (used when the OAuth token is unset) |
-| `FLEET_TOKEN` | `fleet-pulse.yml`, `standardize-fanout.yml`, `schema-fanout.yml` | **The one control-plane PAT.** Fine-grained, covering the fleet: `actions:read` + `contents:read` + `issues:read/write` + `pull_requests:read/write`, plus `contents:write` + **`workflows:write`** on repos the fan-outs and the fixer may open PRs against (GitHub refuses a push touching `.github/workflows/*` without the Workflows permission). Supersedes the three legacy PATs below, which remain wired as fallbacks. |
-| `FANOUT_TOKEN` | `standardize-fanout.yml`, `schema-fanout.yml` | **Legacy** — folded into `FLEET_TOKEN`. Still honoured as a fallback. |
-| `ACTIONS_ANALYTICS_TOKEN` | `fleet-pulse.yml` | **Legacy** — folded into `FLEET_TOKEN`. Optional fallback (higher rate limits / private repos). |
-| `DAILY_ANALYSIS_TOKEN` | `fleet-pulse.yml` | **Legacy** — folded into `FLEET_TOKEN`. Optional fallback so the digest + `/triage/` snapshot cover private submodules; without any PAT it falls back to `GITHUB_TOKEN` (public repos only). |
-| `PAT_TOKEN` | `unified-evolution.yml` checkouts | Optional fallback to `GITHUB_TOKEN` |
+| `FLEET_TOKEN` | `fleet-pulse.yml`, `standardize-fanout.yml`, `schema-fanout.yml` | **The one control-plane PAT.** Fine-grained, covering the fleet: `actions:read` + `contents:read` + `issues:read/write` + `pull_requests:read/write`, plus `contents:write` + **`workflows:write`** on repos the fan-outs and the fixer may open PRs against (GitHub refuses a push touching `.github/workflows/*` without the Workflows permission). Superseded the legacy `FANOUT_TOKEN` / `ACTIONS_ANALYTICS_TOKEN` / `DAILY_ANALYSIS_TOKEN` / `PAT_TOKEN`, all retired 2026-08-05 after a green fleet-pulse run on `FLEET_TOKEN` alone. |
 
 ### One-time setup
 
@@ -32,7 +28,7 @@ gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87    # provision the hub
 gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/<repo>
 ```
 
-> **Status:** `CLAUDE_CODE_OAUTH_TOKEN` is provisioned in `bamr87/bamr87` (since 2026-07-16), alongside `FANOUT_TOKEN` — the hub's AI steps run. `ANTHROPIC_API_KEY` remains unset (it's only the fallback). Fleet repos still need their own `CLAUDE_CODE_OAUTH_TOKEN` for seeded `claude.yml` workflows.
+> **Status:** `CLAUDE_CODE_OAUTH_TOKEN` (since 2026-07-16) and `FLEET_TOKEN` (since 2026-08-05, verified by a green fleet-pulse run) are provisioned in `bamr87/bamr87` — the hub's AI steps run. `ANTHROPIC_API_KEY` remains unset (it's only the fallback). Fleet repos still need their own `CLAUDE_CODE_OAUTH_TOKEN` for seeded `claude.yml` workflows — provision fleet-wide with `CLAUDE_CODE_OAUTH_TOKEN=$(claude setup-token) ./tools/dash secrets sync --apply`.
 
 ### Canonical call site
 

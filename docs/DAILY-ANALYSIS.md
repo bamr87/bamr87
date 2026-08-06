@@ -163,7 +163,7 @@ actually set with `tools/dash secrets`.
 | Secret | Needed for | Fallback |
 | --- | --- | --- |
 | `GITHUB_TOKEN` | read public activity, publish data, open hub PRs/issues | — (built-in) |
-| `FLEET_TOKEN` | read **private** repos' runs/issues, and **push fix branches + open PRs in submodules** | `ACTIONS_ANALYTICS_TOKEN` → `DAILY_ANALYSIS_TOKEN` → `FANOUT_TOKEN` → `GITHUB_TOKEN` |
+| `FLEET_TOKEN` | read **private** repos' runs/issues, and **push fix branches + open PRs in submodules** | `GITHUB_TOKEN` (public + hub only) |
 | `CLAUDE_CODE_OAUTH_TOKEN` | the fixer job | `ANTHROPIC_API_KEY` |
 
 `FLEET_TOKEN` supersedes the three legacy PATs; they stay wired as fallbacks so

@@ -49,7 +49,7 @@ Seeding is idempotent and additive-only: existing files are never overwritten, e
 
 **`schema-fanout.yml`** (dispatch-only, dry-run by default) is the fleet rollout mechanism, mirroring `standardize-fanout.yml`:
 
-1. For each bamr87-owned submodule (or one `target`): shallow-clone, run `tools/seed-schema.sh --apply`, commit to `chore/schema-adoption`, open a PR against the repo's default branch. Requires the **`FANOUT_TOKEN`** secret (fine-grained PAT, contents + pull-requests write on targets).
+1. For each bamr87-owned submodule (or one `target`): shallow-clone, run `tools/seed-schema.sh --apply`, commit to `chore/schema-adoption`, open a PR against the repo's default branch. Requires the **`FLEET_TOKEN`** secret (fine-grained PAT, contents + pull-requests write on targets).
 2. With **`agent_fill`** (single target only): after seeding, a `anthropics/claude-code-action@v1` job authenticated by the **`CLAUDE_CODE_OAUTH_TOKEN`** secret (generate with `claude setup-token`) checks out the PR branch and replaces scaffold TODOs with real one-line purposes, converts enumerations to pattern rows, marks build output `generated`, and keeps the linter green — then pushes to the same PR.
 
 Rollout playbook: dispatch with `target=all, dry_run=true` and read the logs; pick a pilot (`target=<name>, dry_run=false, agent_fill=true`); merge its PR and let `schema-check.yml` run in the submodule; then fan out the rest in batches, setting `schema: {status: pending, pr: …}` → `adopted` in `_data/projects.yml` as PRs open and merge.

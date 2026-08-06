@@ -60,7 +60,7 @@ jobs:
       - name: Detect drift
         id: detect
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           python .github/scripts/dash-gen/dash_gen.py reconcile --json > /tmp/reconcile.json
           python - <<'PY' >> "$GITHUB_OUTPUT"
@@ -76,7 +76,7 @@ jobs:
       - name: Apply authoritative fixes
         if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         run: python .github/scripts/dash-gen/dash_gen.py reconcile --apply
 
       - name: Configure Git

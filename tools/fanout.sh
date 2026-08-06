@@ -5,7 +5,7 @@
 # One safety posture for every fan-out: clone each target repo, create the
 # kit branch, seed files, commit, and (only with --apply) push + open a PR.
 # Called by .github/workflows/standardize-fanout.yml and schema-fanout.yml;
-# runs locally too. Auth (`gh` / FANOUT_TOKEN) needs contents:write +
+# runs locally too. Auth (`gh` / FLEET_TOKEN) needs contents:write +
 # pull-requests:write AND workflows:write on the targets — every kit can seed
 # .github/workflows/* files, which GitHub refuses to push without it.
 #

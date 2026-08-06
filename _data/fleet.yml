@@ -105,26 +105,9 @@ tokens:
       Needs actions:read + contents:read + issues:read/write +
       pull_requests:read/write on the fleet, plus contents:write +
       workflows:write on repos the fan-outs and the remediation loop may open
-      PRs against. Supersedes the three separate PATs below.
-    replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN, FANOUT_TOKEN]
-
-  # Legacy PATs — still honoured as fallbacks so nothing breaks mid-migration.
-  # Remove from the repo once FLEET_TOKEN is provisioned and verified.
-  - name: ACTIONS_ANALYTICS_TOKEN
-    scope: hub
-    required: false
-    deprecated: true
-    purpose: Legacy — read fleet Actions data. Folded into FLEET_TOKEN.
-  - name: DAILY_ANALYSIS_TOKEN
-    scope: hub
-    required: false
-    deprecated: true
-    purpose: Legacy — read fleet runs/issues for the daily analysis. Folded into FLEET_TOKEN.
-  - name: FANOUT_TOKEN
-    scope: hub
-    required: false
-    deprecated: true
-    purpose: Legacy — push branches + open PRs in submodules. Folded into FLEET_TOKEN.
+      PRs against. Superseded and replaced the legacy ACTIONS_ANALYTICS_TOKEN /
+      DAILY_ANALYSIS_TOKEN / FANOUT_TOKEN trio (retired 2026-08-05 after a
+      green fleet-pulse run on FLEET_TOKEN alone).
 
 # --------------------------------------------------------------------------- #
 # Canonical repository VARIABLES (not secrets) projected onto every fleet repo

@@ -221,7 +221,7 @@ def collapse_blind_token(findings: list[Finding], probed: int) -> list[Finding]:
         detail=(f"{len(missing)}/{probed} repos returned 404 — the token almost "
                 f"certainly cannot see private repos rather than the fleet having "
                 f"been deleted. Grant private-repo read (e.g. set "
-                f"ACTIONS_ANALYTICS_TOKEN) and re-run before believing any of "
+                f"FLEET_TOKEN) and re-run before believing any of "
                 f"these: {names}"),
     ))
     return collapsed
