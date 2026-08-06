@@ -60,12 +60,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # ---------------------------- Node -----------------------------------
       - name: Setup Node
         if: ${{ hashFiles('package.json') != '' }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_V }}
           # Cache ~/.npm between runs. Only enabled when a lockfile exists —
@@ -85,7 +85,7 @@ jobs:
       # --------------------------- Python ----------------------------------
       - name: Setup Python
         if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_V }}
           # Cache the pip download cache. Only enabled when a file the cache can

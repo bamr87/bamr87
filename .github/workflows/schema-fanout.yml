@@ -54,7 +54,7 @@ jobs:
       slug: ${{ steps.resolve.outputs.slug }}
     steps:
       - name: Checkout control plane
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # agent-fill must not assume repo name == submodule dir name (e.g.
       # edgar-data-parse's upstream is fredgar-ai) — resolve the slug from
@@ -109,7 +109,7 @@ jobs:
           exit 1
 
       - name: Checkout target adoption branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ needs.seed.outputs.slug }}
           ref: chore/schema-adoption
