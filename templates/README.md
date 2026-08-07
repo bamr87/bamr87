@@ -57,6 +57,6 @@ The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/mark
 
 ## `year-repo/`
 
-Planned kit for the year-in-review knowledge-base repos (`1987`, `2005`, …) — registered in `SCHEMA.md` but currently empty.
+Planned kit for the year-in-review knowledge-base repos (`1987`, `2005`, …) — not yet scaffolded; register it in `SCHEMA.md` when the directory is created. (The year-of-ai org now owns the living framework, so this kit may never be needed.)
 
 Placeholders use the `__NAME__` convention and are replaced by the tools via `sed`.

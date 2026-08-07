@@ -17,7 +17,6 @@ coverage: listed
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
 | `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
-| `year-repo/` | dir | Planned kit for the year-in-review knowledge-base repos — empty scaffold, untracked | terminal |
 
 ## Placement
 
