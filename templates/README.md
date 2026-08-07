@@ -44,7 +44,7 @@ The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](..
 | `CLAUDE.template.md` | minimal CLAUDE.md scaffold (`__PROJECT_NAME__` / `__DEFAULT_BRANCH__` / `__KIT_VERSION__` substituted); seeded only when the repo has **no** agent-context file |
 | `claude.yml` | `@claude` mention workflow (`anthropics/claude-code-action@v1`, OAuth-first auth — see [`docs/AI-INTEGRATION.md`](../docs/AI-INTEGRATION.md)) |
 | `settings.template.json` | minimal `.claude/settings.json` baseline (schemastore `$schema` + read-only permissions allowlist). **The only `.claude/` artifact that fans out** — hooks, skills, commands, agents, and memory are repo-specific and stay local |
-| `archive/claude-0.1.0.yml` | byte-exact 0.1.0 seed; `fanout.sh --upgrade` refreshes a target's claude.yml only when it matches this (machine-seeded, unmodified) |
+| `archive/claude-0.1.0*.yml` | byte-exact archived machine-seed shapes (pristine 0.1.0, and 0.1.0 + the fleet-wide checkout@v7 bump); `fanout.sh --upgrade` refreshes a target's claude.yml only when it matches one of these — hand-modified copies are never touched |
 | `VERSION` | kit provenance + changelog + the declared fleet `.claude/` position |
 
 ## `prose/`

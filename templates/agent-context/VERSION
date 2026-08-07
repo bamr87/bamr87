@@ -1,10 +1,16 @@
 kit: agent-context
-version: 0.3.0
+version: 0.3.1
 source: bamr87/bamr87 templates/agent-context/
 seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-settings) via tools/fanout.sh
-files: CLAUDE.template.md, claude.yml, settings.template.json, archive/claude-0.1.0.yml
-updated: 2026-08-06
+files: CLAUDE.template.md, claude.yml, settings.template.json, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml
+updated: 2026-08-07
 changelog: |
+  0.3.1 — claude.yml bumps actions/checkout to v7, matching the mechanical
+  bump that already reached 27 fleet copies (which made them non-byte-identical
+  to the 0.1.0 archive and invisible to --upgrade). archive/ gains the
+  claude-0.1.0-checkout-v7.yml variant so --upgrade recognizes BOTH machine
+  shapes (pristine 0.1.0, and 0.1.0 + the checkout bump); anything else is
+  treated as hand-modified and left alone.
   0.3.0 — three changes:
   (1) settings.template.json: an optional minimal .claude/settings.json baseline
   (artifact `claude-settings`) — the schemastore $schema plus a universally-safe
