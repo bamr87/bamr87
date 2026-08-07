@@ -30,6 +30,39 @@ toolchain:
   ruby: "3.3"
 
 # --------------------------------------------------------------------------- #
+# Dependencies — the fleet-wide version policy: ALWAYS LATEST.
+#
+# Decision (2026-08): every repo installs whatever is newest at build time.
+# No exact pins, no version ceilings, no committed lockfiles. Breakage is
+# expected to surface in standard CI and flow through the daily fleet-pulse
+# loop (triage → doctor draft PR) instead of being prevented by pinning.
+# Accepted tradeoffs, on the record: builds are not reproducible, and a bad
+# (or malicious) upstream release reaches CI the day it ships — the fleet
+# trades both for zero update maintenance.
+#
+# Applied by: tools/unpin-deps.sh (one repo), the deps-latest kit in
+# tools/fanout.sh + deps-fanout.yml (fleet-wide PRs), and the hub's own tree.
+# Full policy: docs/DEPENDENCIES.md
+# --------------------------------------------------------------------------- #
+dependencies:
+  strategy: latest
+  lockfiles: never-commit           # local ephemera only — gitignored fleet-wide
+  lockfile_patterns:
+    - package-lock.json
+    - npm-shrinkwrap.json
+    - pnpm-lock.yaml
+    - yarn.lock
+    - Gemfile.lock
+    - poetry.lock
+    - Pipfile.lock
+    - uv.lock
+    - composer.lock
+  exceptions:
+    github_actions: major-tag       # `uses:` needs a ref; @vN floats minor/patch, hub dependabot bumps majors
+    pre_commit: pinned-rev          # `rev:` is mandatory in .pre-commit-config.yaml; refresh via `pre-commit autoupdate`
+    toolchain: fleet-config         # node/python/ruby versions stay governed by `toolchain:` above, not per-repo pins
+
+# --------------------------------------------------------------------------- #
 # Hub identity
 # --------------------------------------------------------------------------- #
 hub:

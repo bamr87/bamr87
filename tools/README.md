@@ -24,7 +24,8 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `run-all-tests.sh` | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
 | `adopt-release.sh` | Scaffolds the release-please pipeline into a repo and opens a PR (wrapped by `dash adopt-release`) |
 | `protect-branch.sh` | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
-| `fanout.sh` | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `standardize-fanout.yml` and `schema-fanout.yml` |
+| `fanout.sh` | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `standardize-fanout.yml`, `schema-fanout.yml`, and `deps-fanout.yml` |
+| `unpin-deps.sh` | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-latest` fan-out kit runs it per clone) — see [docs/DEPENDENCIES.md](../docs/DEPENDENCIES.md) |
 | `schema_lint.py` | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
 | `gen-projects-schema.py` | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
 | `seed-schema.sh` | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
