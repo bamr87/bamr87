@@ -163,7 +163,14 @@ jobs:
             branch was refused by branch protection. This branch is regenerated
             on every run — review the diff, not the history.
           labels: automation,data
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # FLEET_TOKEN first, GITHUB_TOKEN as fallback. The first production
+          # run published NOTHING: this repo's ruleset targets every branch, so
+          # the Actions bot was refused on `main` (PR required, unsigned commit)
+          # AND on the fallback branch (ref creation restricted, no merge
+          # commits, unsigned commit). A repo-owner PAT can be granted ruleset
+          # bypass; `GITHUB_TOKEN` cannot be. If both are refused the action
+          # still reports `mode=failed` rather than failing the job.
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
 
       # --- triage ---------------------------------------------------------
       # Runs AFTER publishing so the queue is built from exactly the data that
@@ -232,8 +239,26 @@ jobs:
         with:
           name: remediation-workorder
 
+      # A secret can be SET and still be dead. On the first production run
+      # FLEET_TOKEN was present but expired, so the presence check below passed,
+      # nothing warned, and the agent silently degraded to filing issues instead
+      # of opening cross-repo fix PRs — a capability loss visible only by
+      # noticing the PRs never appeared. Probe it for real.
+      - name: Probe fleet write token
+        id: probe
+        run: |
+          ok=false
+          if [ -n "${FLEET_WRITE_TOKEN}" ]; then
+            if GH_TOKEN="${FLEET_WRITE_TOKEN}" gh api user --jq .login >/dev/null 2>&1; then
+              ok=true
+            else
+              echo "::warning::FLEET_TOKEN is set but rejected by the API (expired or revoked) — cross-repo fixes will degrade to hub issues."
+            fi
+          fi
+          echo "write_token_ok=$ok" >> "$GITHUB_OUTPUT"
+
       - name: Report degraded capability
-        if: ${{ env.FLEET_WRITE_TOKEN == '' || env.HAS_CLAUDE_AUTH != 'true' }}
+        if: ${{ steps.probe.outputs.write_token_ok != 'true' || env.HAS_CLAUDE_AUTH != 'true' }}
         run: |
           {
             echo "### 🩺 Fleet doctor — degraded"
@@ -241,8 +266,12 @@ jobs:
             if [ "${HAS_CLAUDE_AUTH}" != "true" ]; then
               echo "- ❌ No Claude auth (\`CLAUDE_CODE_OAUTH_TOKEN\` or \`ANTHROPIC_API_KEY\`) — the fixer is skipped entirely."
             fi
-            if [ -z "${FLEET_WRITE_TOKEN}" ]; then
-              echo "- ⚠️ No \`FLEET_TOKEN\` — cross-repo fixes cannot be pushed; submodule problems will be filed as hub issues instead of fixed."
+            if [ "${{ steps.probe.outputs.write_token_ok }}" != "true" ]; then
+              if [ -z "${FLEET_WRITE_TOKEN}" ]; then
+                echo "- ⚠️ No \`FLEET_TOKEN\` — cross-repo fixes cannot be pushed; submodule problems will be filed as hub issues instead of fixed."
+              else
+                echo "- ⚠️ \`FLEET_TOKEN\` is set but the API rejected it (expired or revoked) — cross-repo fixes will be filed as hub issues instead. Rotate it."
+              fi
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -302,8 +331,10 @@ jobs:
 
             ## Step 3b — `submodule` candidates: fix them IN THEIR OWN REPO
             This is the point of the loop. Only attempt it when `FLEET_WRITE_TOKEN`
-            is non-empty in the environment (check with
-            `test -n "$FLEET_WRITE_TOKEN" && echo yes`); otherwise go to 3c.
+            actually WORKS — not merely that it is set (it has been present but
+            expired before). Check with
+            `GH_TOKEN="$FLEET_WRITE_TOKEN" gh api user --jq .login`; if that
+            errors, go straight to 3c and say the token was rejected.
             - Clone into a scratch dir, never into `projects/` (that is a submodule
               working tree and must not be touched):
               `git clone --depth 20 https://x-access-token:$FLEET_WRITE_TOKEN@github.com/<owner>/<repo>.git /tmp/fix-<repo>`
