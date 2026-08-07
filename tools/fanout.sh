@@ -72,6 +72,16 @@ done
 # Kit version stamped into seeded agent-context files (see the VERSION file).
 AC_VERSION="$(awk '/^version:/{print $2; exit}' "$HUB/templates/agent-context/VERSION")"
 
+# True when the file is byte-identical to ANY archived machine-seeded shape —
+# the only copies --upgrade may replace. Hand-modified copies never match.
+upgradeable_claude() {
+  local f="$1" a
+  for a in "$HUB"/templates/agent-context/archive/claude-0.1.0*.yml; do
+    [[ -f "$a" ]] && cmp -s "$f" "$a" && return 0
+  done
+  return 1
+}
+
 case "$KIT" in
   standardize|schema|prose) ;;
   *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose> --target <name|all> [--artifacts csv] [--apply]" >&2
@@ -102,7 +112,7 @@ esac
 
 seed_standardize() {
   # cwd = target clone; $1 = repo name, $2 = default branch
-  local name="$1" def="$2"
+  local name="$1" def="$2" cur
   case ",$ARTIFACTS," in *,editorconfig,*)
     [[ -f .editorconfig ]] || cp "$HUB/.editorconfig" .editorconfig ;;
   esac
@@ -125,11 +135,23 @@ seed_standardize() {
       mkdir -p .github/workflows
       sed "s/__KIT_VERSION__/${AC_VERSION}/g" \
         "$HUB/templates/agent-context/claude.yml" > .github/workflows/claude.yml
-    elif [[ "$UPGRADE" -eq 1 ]] && \
-         cmp -s .github/workflows/claude.yml "$HUB/templates/agent-context/archive/claude-0.1.0.yml"; then
-      # byte-identical to the archived 0.1.0 seed → machine-owned, safe to refresh
-      sed "s/__KIT_VERSION__/${AC_VERSION}/g" \
-        "$HUB/templates/agent-context/claude.yml" > .github/workflows/claude.yml
+      echo "claude.yml: seeded (kit v${AC_VERSION})"
+    elif upgradeable_claude .github/workflows/claude.yml; then
+      # byte-identical to an archived machine seed → machine-owned, safe to refresh
+      if [[ "$UPGRADE" -eq 1 ]]; then
+        sed "s/__KIT_VERSION__/${AC_VERSION}/g" \
+          "$HUB/templates/agent-context/claude.yml" > .github/workflows/claude.yml
+        echo "claude.yml: upgraded machine seed -> kit v${AC_VERSION}"
+      else
+        echo "claude.yml: upgradeable machine seed (latest kit v${AC_VERSION}; rerun with --upgrade)"
+      fi
+    else
+      cur="$(sed -n 's/^# kit: agent-context v//p' .github/workflows/claude.yml | head -1)"
+      if [[ "$cur" == "$AC_VERSION" ]]; then
+        echo "claude.yml: current (kit v${AC_VERSION})"
+      else
+        echo "claude.yml: hand-modified — left alone (stamp: ${cur:-none})"
+      fi
     fi ;;
   esac
   case ",$ARTIFACTS," in *,claude-settings,*)

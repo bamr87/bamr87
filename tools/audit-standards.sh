@@ -17,6 +17,15 @@
 # Note: filesystem-based — most complete when submodules are checked out. Repos
 # whose working tree is absent/empty are reported as "not checked out" and are
 # excluded from the gate (they can't be judged without a checkout).
+#
+# Agent-context kit awareness (FF-0017):
+#   - AGT renders '~' (amber) when CLAUDE.md is still the unfilled kit scaffold
+#     (template TODO fingerprint) — present, but says nothing. Non-gating.
+#   - Each row is annotated when its seeded claude.yml is on a stale kit
+#     version (stamp `# kit: agent-context vX.Y.Z` vs templates/agent-context/
+#     VERSION; unstamped copies byte-identical to archive/claude-0.1.0.yml
+#     report as ≤0.1.0). Hand-modified copies are never flagged.
+#     Upgrade path: standardize-fanout with upgrade=true.
 # ============================================================================
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -60,6 +69,60 @@ def tier_for(p):
     if n in overrides: return overrides[n]
     return status_tier.get(p.get('status'), 'experiment')
 
+# ---- agent-context kit awareness (FF-0017) ----
+KIT_VERSION = None
+try:
+    with open(os.path.join(root, 'templates/agent-context/VERSION')) as fh:
+        for ln in fh:
+            if ln.startswith('version:'):
+                KIT_VERSION = ln.split(':', 1)[1].strip(); break
+except OSError:
+    pass
+
+SCAFFOLD_MARKS = ('<!-- TODO: one paragraph', '<!-- TODO: fill in the real commands')
+
+def kit_state(base):
+    """State of the repo's seeded @claude workflow vs the agent-context kit.
+    Returns (state, version): absent | current | stale | unstamped | modified.
+    Never raises — unparseable files report as 'modified', not errors."""
+    p = os.path.join(base, '.github', 'workflows', 'claude.yml')
+    if not os.path.isfile(p):
+        return 'absent', None
+    try:
+        with open(p, encoding='utf-8', errors='replace') as fh:
+            head = fh.read(4096)
+    except OSError:
+        return 'modified', None
+    for ln in head.splitlines():
+        if ln.startswith('# kit: agent-context v'):
+            v = ln.split('agent-context v', 1)[1].strip()
+            if not v:
+                return 'modified', None
+            return ('current' if v == KIT_VERSION else 'stale'), v
+    # No stamp: a byte-exact archived machine seed reports its real vintage;
+    # anything else is hand-modified/hand-authored and is left alone.
+    try:
+        import filecmp, glob as _glob
+        for a in _glob.glob(os.path.join(root, 'templates/agent-context/archive/claude-0.1.0*.yml')):
+            if filecmp.cmp(p, a, shallow=False):
+                return 'unstamped', '0.1.0'
+    except OSError:
+        pass
+    return 'modified', None
+
+def is_scaffold(base):
+    """True when CLAUDE.md is still the unfilled kit scaffold (template TODO
+    fingerprint — not the mere word TODO)."""
+    p = os.path.join(base, 'CLAUDE.md')
+    if not os.path.isfile(p):
+        return False
+    try:
+        with open(p, encoding='utf-8', errors='replace') as fh:
+            txt = fh.read(8192)
+    except OSError:
+        return False
+    return any(m in txt for m in SCAFFOLD_MARKS)
+
 def has_artifact(base, aid):
     if aid == 'ci':
         d = os.path.join(base, '.github', 'workflows')
@@ -76,7 +139,8 @@ def col(s, c):
     codes = {'red':31,'green':32,'yellow':33,'grey':90,'bold':1,'cyan':36}
     return f"\033[{codes[c]}m{s}\033[0m"
 
-GLYPH = {'ok':('✓','green'),'bad':('✗','red'),'warn':('!','yellow'),'na':('·','grey')}
+GLYPH = {'ok':('✓','green'),'bad':('✗','red'),'warn':('!','yellow'),'na':('·','grey'),
+         'scaffold':('~','yellow')}
 
 rows, skipped, gate_fail = [], [], 0
 for p in reg:
@@ -101,9 +165,16 @@ for p in reg:
         elif level == 'recommended':   state = 'warn'; warns.append(aid)
         else:                          state = 'na'
         cells[aid] = state
+    ks, kv = kit_state(base)
+    scaffold = False
+    if cells.get('agent_context') == 'ok' and is_scaffold(base):
+        cells['agent_context'] = 'scaffold'   # present but unfilled — amber, non-gating
+        scaffold = True
+        warns.append('agent_context(scaffold)')
     if fails:
         gate_fail += 1
-    rows.append({'name': name, 'tier': tier, 'cells': cells, 'fails': fails, 'warns': warns})
+    rows.append({'name': name, 'tier': tier, 'cells': cells, 'fails': fails, 'warns': warns,
+                 'kit_state': ks, 'kit_version': kv, 'claude_md_scaffold': scaffold})
 
 if as_json:
     print(json.dumps({'rows': rows, 'not_checked_out': skipped,
@@ -121,8 +192,19 @@ if only:
     for aid in ART_ORDER:
         level = tiers.get(r['tier'], {}).get(aid, 'na')
         g, c = GLYPH[r['cells'][aid]]
-        note = '' if r['cells'][aid] == 'ok' else f"  <- {level} & missing" if level in ('required','recommended') else ''
+        state = r['cells'][aid]
+        if state == 'scaffold':
+            note = '  <- present but unfilled kit scaffold'
+        elif state != 'ok' and level in ('required', 'recommended'):
+            note = f"  <- {level} & missing"
+        else:
+            note = ''
         print(f"  {col(g, c)}  {aid:<14} [{level}]{note}")
+    kdesc = {'absent': 'no claude.yml', 'current': f'current (v{KIT_VERSION})',
+             'stale': f"stale (v{r['kit_version']}; latest v{KIT_VERSION})",
+             'unstamped': 'unstamped (≤0.1.0 machine seed; latest v' + str(KIT_VERSION) + ')',
+             'modified': 'hand-modified (unstamped) — never auto-upgraded'}
+    print(f"\n  agent-context kit: {kdesc[r['kit_state']]}")
     if r['fails']:
         print("\n" + col(f"  FAIL: missing required: {', '.join(r['fails'])}", 'red'))
     elif r['warns']:
@@ -134,7 +216,7 @@ if only:
 # ---- full matrix ----
 w = 22
 head = ' ' * w + '  ' + ' '.join(f"{ART_SHORT[a]:>3}" for a in ART_ORDER)
-print("\n" + col("Standardization conformance", 'bold') + col("   (✓ ok  ✗ required-missing  ! recommended-missing  · n/a)", 'grey'))
+print("\n" + col("Standardization conformance", 'bold') + col("   (✓ ok  ✗ required-missing  ! recommended-missing  ~ scaffold-unfilled  · n/a)", 'grey'))
 print(col(head, 'grey'))
 for tier in TIER_ORDER:
     trows = [r for r in rows if r['tier'] == tier]
@@ -147,7 +229,10 @@ for tier in TIER_ORDER:
         for a in ART_ORDER:
             g, c = GLYPH[r['cells'][a]]
             cellstr.append(col(f"{g:>3}", c))
-        print(line + ' '.join(cellstr))
+        note = ''
+        if r['kit_state'] in ('stale', 'unstamped'):
+            note = col(f"  kit v{r['kit_version'] or '?'}→v{KIT_VERSION}", 'yellow')
+        print(line + ' '.join(cellstr) + note)
 
 print()
 tot = len(rows)
@@ -158,6 +243,14 @@ msg = (f"  {tot} audited  ·  " + col(f"{clean} clean", 'green') + "  ·  " +
        col(f"{reqgaps} with required gaps", 'red' if reqgaps else 'grey') + "  ·  " +
        col(f"{recgaps} recommended-only gaps", 'yellow' if recgaps else 'grey'))
 print(msg)
+stale_kit = [r['name'] for r in rows if r['kit_state'] in ('stale', 'unstamped')]
+if stale_kit and KIT_VERSION:
+    shown = ', '.join(stale_kit[:12]) + ('…' if len(stale_kit) > 12 else '')
+    print(col(f"  {len(stale_kit)} on a stale agent-context kit (latest v{KIT_VERSION}; upgrade: standardize-fanout upgrade=true): {shown}", 'yellow'))
+scaff = [r['name'] for r in rows if r.get('claude_md_scaffold')]
+if scaff:
+    shown = ', '.join(scaff[:12]) + ('…' if len(scaff) > 12 else '')
+    print(col(f"  {len(scaff)} CLAUDE.md still an unfilled scaffold (fill: standardize-fanout agent_fill, or accept for dormant repos): {shown}", 'yellow'))
 if skipped:
     print(col(f"  {len(skipped)} not checked out (excluded): " + ', '.join(n for n, _ in skipped), 'grey'))
 print()
