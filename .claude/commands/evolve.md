@@ -6,6 +6,8 @@ argument-hint: '[repo name — default: all flagged repos]'
 
 Run the dash self-evolution loop for: $ARGUMENTS (default: all flagged repos).
 
+This command chains the loop's skills (`triage-attention` → `sync-project-docs` → `evolve-project` → `refresh-portfolio`); the `evolve-project` skill on its own is just the per-repo improvement step.
+
 1. Use the `triage-attention` skill to read `_data/project_health.yml` (run `tools/dash-gen health` first if missing) and prioritize 🔴/🟠 repos.
 2. Use `sync-project-docs` to update registry descriptions/status from reality.
 3. Use `evolve-project` for the top-priority repo's improvement pass.

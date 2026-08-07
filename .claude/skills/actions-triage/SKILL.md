@@ -1,11 +1,11 @@
 ---
 name: actions-triage
-description: Read the committed Actions analytics (_data/actions_usage.yml), explain the worst workflows (cost, effectiveness, waste), and drive the next action — dispatch the actions-review issue-filer or fix a workflow directly. Use when asked "where are Actions minutes going" or after the daily actions-usage refresh.
+description: Read the committed Actions analytics (_data/actions_usage.yml), explain the worst workflows (cost, effectiveness, waste), and drive the next action — trigger the fleet-pulse doctor pass or fix a workflow directly. Use when asked "where are Actions minutes going" or after the daily fleet-pulse refresh.
 ---
 
 # actions-triage
 
-The analytics loop: `tools/dash-gen actions` (`actions_analytics.py`, PyGithub) writes the **committed** `_data/actions_usage.yml`, refreshed daily by `actions-usage.yml`; `actions-review.yml` is the downstream AI issue-filer. This skill is the local triage between the two.
+The analytics loop: `tools/dash-gen actions` (`actions_analytics.py`, PyGithub) writes the **committed** `_data/actions_usage.yml`, refreshed daily by `fleet-pulse.yml`'s `pulse` job, which also merges the expensive + failing signals into one ranked fix queue (`dash-gen remediate`) for the `doctor` job's Opus agent. This skill is the local triage layer on the same data.
 
 ## Steps
 
@@ -14,7 +14,7 @@ The analytics loop: `tools/dash-gen actions` (`actions_analytics.py`, PyGithub) 
 3. Cross-check open `actions-review`-labeled issues to avoid duplicates: `gh issue list -R bamr87/bamr87 --label actions-review --state open`.
 4. Propose ONE concrete fix per flagged workflow: dependency/build caching, a `concurrency` group with `cancel-in-progress` (cancel-heavy), `timeout-minutes` (slow), `paths`/`paths-ignore` filters, a looser cron cadence (cron-heavy), or disabling/pruning an `inactive` workflow.
 5. Drive the action, with approval:
-   - **Deep AI pass** → `gh workflow run actions-review.yml` (deterministic candidate selection + dedupe, then an Opus reviewer files one optimization issue per candidate; `dry_run` / `max_issues` inputs).
+   - **Deep AI pass** → `gh workflow run fleet-pulse.yml` (the `pulse` job rebuilds the ranked, deduped fix queue via `dash-gen remediate`; the `doctor` job reads each candidate's logs and opens a draft fix PR — in the hub or the owning submodule — falling back to a hub issue. It dedupes against open issues AND PRs in both hub and target repo).
    - **Direct fix** → edit the workflow in the owning submodule and commit in THAT repo (branch + PR per the submodule workflow) — never in the hub.
 
 ## Guardrail

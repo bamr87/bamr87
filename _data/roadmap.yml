@@ -709,3 +709,229 @@
   source: scout
   created: 2026-07-17
   issue_url: null
+
+- id: FF-0017
+  title: "Kit-version drift visibility — dash audit column + fanout dry-run report, and scaffold-aware AGT status"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P1
+  effort: S
+  category: enhancement
+  problem: >-
+    Seeded agent-context kit files now carry a `kit: agent-context vX.Y.Z` stamp
+    (kit 0.3.0), but nothing reports version drift — which is exactly the blind
+    spot that left 36 of 37 fleet repos stranded on the 0.1.0 claude.yml for
+    weeks with no surface showing it. Separately, `dash audit` counts an
+    unfilled TODO-scaffold CLAUDE.md as satisfying agent_context (green AGT),
+    overstating fleet conformance.
+  proposal: >-
+    Teach tools/audit-standards.sh (dash audit) to parse the kit stamp from
+    seeded files (claude.yml, .claude/settings.json, machine-seeded CLAUDE.md)
+    and render a per-repo kit-version annotation, flagging repos behind
+    templates/agent-context/VERSION. Add a fanout.sh dry-run summary that
+    prints, per target, current vs latest kit version and whether --upgrade
+    would apply (byte-identical machine-seeded copy) or skip (hand-modified).
+    Downgrade unfilled scaffolds: a CLAUDE.md matching the kit's TODO-scaffold
+    fingerprint renders amber (present-but-scaffold) in the AGT column instead
+    of green.
+  acceptance:
+    - "`tools/dash audit` shows each repo's agent-context kit version parsed from stamps and visibly flags versions older than templates/agent-context/VERSION."
+    - "`tools/fanout.sh --upgrade` without --apply prints per-target: current version, latest version, and upgradeable vs hand-modified (skipped)."
+    - "A CLAUDE.md still matching the unfilled kit scaffold fingerprint renders amber/scaffold in AGT, not green; a filled one stays green."
+    - "Unstamped pre-0.3.0 seeded files render as 'unstamped (≤0.1.0)', never as parse errors."
+    - "The audit legend and the relevant docs (docs/DASH.md or the audit's own header) document the new column and the amber state."
+  scope:
+    in:
+      - stamp parsing in audit-standards.sh, fanout dry-run version report, scaffold fingerprint check
+    out:
+      - auto-upgrading stale repos (that stays an explicit --upgrade --apply dispatch)
+      - version tracking for non-kit .claude content (repo-local layers are unversioned by design)
+  risks:
+    - Stamp parsing must tolerate hand-edited files — treat unparseable stamps as 'modified', never fail the audit.
+    - Scaffold detection keyed on a template fingerprint, not the mere word TODO, to avoid false-amber on legitimately terse CLAUDE.md files.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+- id: FF-0018
+  title: "issue-autopilot hub kit — extract the duplicated issue-triage engine into templates/, policy stays per-repo"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P1
+  effort: L
+  category: infra
+  problem: >-
+    it-journey and zer0-mistakes each maintain a fork of the same ~1,000-line
+    issue-triage engine (scripts/issues/triage.py + dispatch.py) that is 92%
+    token-identical, plus near-identical issue-triage SKILL.md files and
+    issue-triager/issue-resolver agent skeletons. Every improvement is
+    hand-ported, and the forks have already drifted: zer0-mistakes grew an
+    issue-verifier (verify_close.py), it-journey grew batching — neither
+    reached the other.
+  proposal: >-
+    Create templates/issue-autopilot/ in the hub: the canonical engine
+    (triage.py, dispatch.py, verify_close.py), the issue-triage SKILL.md, the
+    triager/resolver/verifier agent skeletons, and a VERSION file with the same
+    `kit: issue-autopilot vX.Y.Z` stamp convention as agent-context. Converge
+    the forks by upstreaming both divergences into the kit as features gated by
+    .issues/config.yml flags (verify-close on/off, batch size). Per-repo policy
+    lives ONLY in .issues/config.yml, which the kit never seeds over. Seed and
+    re-sync via tools/fanout.sh / standardize-fanout.yml as an explicitly
+    requested, opt-in artifact set (dry-run default, additive-only, --upgrade
+    refreshes byte-identical machine-seeded copies only).
+  acceptance:
+    - "templates/issue-autopilot/ contains engine + SKILL.md + agent skeletons + VERSION, all carrying the kit stamp."
+    - "Fork-exclusive features (zer0's verify-close, it-journey's batching) exist in the kit engine, gated by .issues/config.yml flags."
+    - "fanout.sh seeds the kit as an opt-in artifact set: dry-run default, additive-only, never touches .issues/config.yml, --upgrade only replaces byte-identical machine-seeded copies."
+    - "it-journey and zer0-mistakes each adopt via one PR replacing their fork with the kit + their local config, with behavior parity on their existing triage runs."
+    - "The policy boundary (engine in kit, policy in .issues/config.yml) is documented in the kit's VERSION/README."
+    - "The agent-context kit's 'never fan out skills/agents' position is amended to name dedicated opt-in kits as the sanctioned exception."
+  scope:
+    in:
+      - kit extraction, fork convergence, fanout wiring, two adoption PRs
+    out:
+      - fanning the kit to repos that never had the engine (opt-in only, on request)
+      - changing either repo's triage policy or labels
+  risks:
+    - The 8% fork divergence may hide semantic conflicts beyond verifier/batching — diff both forks against the common ancestor before writing the canonical engine.
+    - A shared engine re-creates the stranded-version problem at higher stakes — depends on FF-0017-style version drift visibility covering this kit too.
+    - Behavior parity is hard to prove without tests — port zer0's test_verify_close.py into the kit and add engine-level tests before the adoption PRs.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+- id: FF-0019
+  title: "Theme-canary reporting contract — publish the canonical upstream bug-intake protocol for downstream theme-scouts"
+  project: zer0-mistakes
+  repo_url: https://github.com/bamr87/zer0-mistakes
+  status: approved
+  priority: P2
+  effort: M
+  category: feature
+  problem: >-
+    Two downstream consumers of the theme (it-journey, lifehacker.dev) each
+    independently invented a 'theme-scout' agent that files theme bugs upstream
+    into bamr87/zer0-mistakes — with different designs (deterministic crawler
+    vs manual heuristics), different labels, dedupe conventions, caps, and
+    evidence formats. The upstream repo has no say in its own intake: duplicate
+    or unactionable reports are only prevented by each consumer's private
+    convention.
+  proposal: >-
+    zer0-mistakes publishes the canonical reporting contract and owns the
+    intake furniture. A committed contract doc defines: required labels (e.g.
+    theme-canary + a from-<consumer> label), a hidden deterministic dedupe
+    marker and the exact issue search a consumer must run before filing, a
+    per-consumer per-run filing cap, and the required evidence format (theme
+    version/commit, page URL, rendered-vs-expected, minimal repro). The repo
+    gains the labels and an issue form matching the evidence format. Consumers
+    keep only local evidence-gathering and rewire their scouts to the contract
+    (follow-up PRs in their own repos).
+  acceptance:
+    - "A committed contract doc in zer0-mistakes defines labels, dedupe marker + pre-filing search, per-run cap, and evidence format."
+    - "The labels exist on the repo and an issue form enforces the evidence format."
+    - "The dedupe marker key is deterministic for the same finding, so the mandated search reliably surfaces prior reports (open or closed)."
+    - "The contract records the theme version/commit the bug was observed on, making fixed-in-release triage mechanical."
+    - "Adoption follow-ups are filed in it-journey and lifehacker.dev to rewire their theme-scouts to the contract (tracked there, out of this item's scope)."
+  scope:
+    in:
+      - contract doc, labels, issue form, dedupe/cap/evidence specification
+    out:
+      - implementing or standardizing the consumers' evidence-gathering machinery (crawler vs heuristics stays a consumer choice)
+      - any automation that auto-closes or auto-triages incoming canary issues
+  risks:
+    - Overfitting the contract to one consumer's existing design — derive it from both scouts' current behavior, taking the stricter rule where they differ.
+    - The cap is per consumer, so total intake still scales with consumer count — revisit if more sites adopt the theme.
+    - Upstream cannot force adoption in consumer repos — the contract must be strictly better than each scout's status quo to win the rewire.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+- id: FF-0020
+  title: "Parameterized agent-auditor template in the agent-context kit (opt-in artifact)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: S
+  category: enhancement
+  problem: >-
+    it-journey (.claude/agents/agent-auditor.md) and lifehacker.dev
+    (agent-reviewer.md) independently reinvented the same meta-auditor role —
+    periodic drift/least-privilege audit of the repo's .claude agents and
+    skills, one PR per audit, never weakens a guardrail — with only 0.23
+    Jaccard text similarity between them. zer0-mistakes, the largest roster at
+    15 agents, has no auditor at all.
+  proposal: >-
+    Ship one parameterized template in the agent-context kit
+    (templates/agent-context/agent-auditor.template.md) carrying the kit stamp.
+    Fixed invariants live in the template: least-privilege review of every
+    agent/skill, exactly one PR per audit, never weaken an existing guardrail,
+    honesty about uncertainty. Repo specifics (name, roster location, cadence,
+    review focus) are placeholders substituted by fanout.sh. Seed as a NEW
+    opt-in fanout artifact (e.g. `claude-agent-auditor`), never in the default
+    artifact set, additive-only — skipped wherever an auditor-role agent
+    already exists. Amend the kit VERSION's declared position to carve out
+    explicitly-requested agent templates.
+  acceptance:
+    - "The template exists in templates/agent-context/, kit-stamped, with invariants fixed and repo specifics parameterized."
+    - "A new opt-in fanout artifact seeds .claude/agents/agent-auditor.md only when no auditor-role agent exists; additive-only, dry-run default."
+    - "zer0-mistakes (the motivating gap) is seeded via the standard fanout PR flow."
+    - "it-journey's and lifehacker.dev's bespoke auditors are left untouched (hand-authored files are never upgraded); adopting the template there is their own optional follow-up."
+    - "The kit VERSION changelog and the 0.3.0 'never fan out agents' position are amended to name this opt-in exception."
+  scope:
+    in:
+      - the template, the opt-in fanout artifact, the zer0-mistakes seeding PR, the VERSION amendment
+    out:
+      - replacing the two existing bespoke auditors
+      - any default-set seeding
+  risks:
+    - A template generic enough for 40 repos risks being too vague to audit anything — keep the invariants strong and the parameters few.
+    - Overlap with FF-0021 — if both are approved, ship them as one kit version bump (0.4.0) with a single position amendment.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+- id: FF-0021
+  title: "Canonical shared guardrails doc (quarantine.md) as an opt-in agent-context kit artifact"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: S
+  category: enhancement
+  problem: >-
+    lifehacker.dev factored its agent guardrail boilerplate (untrusted-input
+    fence, honesty rule, never-merge) into .claude/skills/_shared/quarantine.md,
+    but the same boilerplate is restated inline in 8-31 agent files per repo
+    across the Jekyll trio (it-journey, zer0-mistakes, lifehacker.dev). A
+    wording fix in one copy never reaches the others, and inline restatements
+    have already diverged.
+  proposal: >-
+    Promote the guardrails doc into the agent-context kit
+    (templates/agent-context/quarantine.template.md, seeded to
+    .claude/skills/_shared/quarantine.md), kit-stamped, as a new opt-in fanout
+    artifact (e.g. `claude-guardrails`). The canonical text reconciles
+    lifehacker's doc with the inline variants — where wordings differ, the
+    strictest wins. Document a one-line citation pattern so agents reference
+    the doc instead of restating it; consumer repos deduplicate their inline
+    boilerplate in local follow-up PRs.
+  acceptance:
+    - "The kit ships the canonical guardrails doc, kit-stamped, seeded additive-only to .claude/skills/_shared/quarantine.md as an opt-in artifact."
+    - "Seeding skips repos with an existing _shared/quarantine.md; --upgrade refreshes only byte-identical machine-seeded copies."
+    - "The canonical text is verified against every inline variant it replaces — no guardrail is weakened (diff before delete)."
+    - "A documented one-line citation pattern replaces inline restatement, and at least one consumer repo lands a dedup PR proving it."
+    - "The kit VERSION changelog and position statement are amended (shared with FF-0020 if both ship as kit 0.4.0)."
+  scope:
+    in:
+      - the canonical doc, the opt-in fanout artifact, the citation pattern
+    out:
+      - performing every consumer repo's inline dedup (their own follow-up PRs)
+      - weakening or rewording guardrails beyond strictest-wins reconciliation
+  risks:
+    - A pointer is weaker than inline text if an agent never loads the doc — the citation pattern must make the doc load-bearing (referenced from the skill preamble, not a footnote).
+    - Consolidating differently-worded guardrails risks silently weakening one — the strictest-wording rule must be checked variant by variant.
+  source: scout
+  created: 2026-08-06
+  issue_url: null

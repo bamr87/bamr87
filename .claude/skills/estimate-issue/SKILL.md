@@ -45,4 +45,5 @@ engagement's actuals. No secrets in the register — it is public site data.
 ## Pairs with
 
 `triage-attention` (pick what to estimate from the inbox) and the daily
-`ai-usage.yml` accrual (actuals settle against what you estimated here).
+accrual in `fleet-pulse.yml`'s `pulse` job (actuals from `_data/ai_usage.yml`
+evidence settle against what you estimated here).

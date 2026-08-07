@@ -49,9 +49,9 @@ tiers       = std['tiers']
 status_tier = std.get('status_tier', {})
 overrides   = std.get('tier_overrides', {})
 
-ART_ORDER = ['readme','license','gitignore','editorconfig','ci','agent_context','tests','container','release']
+ART_ORDER = ['readme','license','gitignore','editorconfig','ci','agent_context','claude_workflow','tests','container','release']
 ART_SHORT = {'readme':'RDM','license':'LIC','gitignore':'GIT','editorconfig':'EDC',
-             'ci':'CI','agent_context':'AGT','tests':'TST','container':'CNT','release':'REL'}
+             'ci':'CI','agent_context':'AGT','claude_workflow':'CLW','tests':'TST','container':'CNT','release':'REL'}
 TIER_ORDER = ['active','experiment','content','fork','archived']
 
 def tier_for(p):

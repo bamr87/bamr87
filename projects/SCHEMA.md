@@ -18,7 +18,7 @@ coverage: listed
 |---|---|---|---|
 | `README.md` | file | Projects index page | |
 | `1987/` | dir | Self-growing knowledge base about the year 1987 — history, politics, science, and culture. | terminal |
-| `2005/` | dir | Self-growing knowledge base about the year 2005 — history, science, arts, society, and people. | terminal |
+| `2005/` | dir | Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into y… | terminal |
 | `README/` | dir | Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js). | terminal |
 | `afms/` | dir | AFMS — Django accounting & financial management web app with role-based access and reporting. | terminal |
 | `ai-seed/` | dir | AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human… | terminal |

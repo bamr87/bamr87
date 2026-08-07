@@ -7,7 +7,7 @@ One page for the whole AI layer: what runs where, how it authenticates, and the 
 1. **Local `.claude/` layer** — skills, commands, agents, and hooks that make the dash self-managing from a local Claude Code session. The full inventory lives in [`.claude/README.md`](../.claude/README.md); highlights: the `run-dash` skill (orchestration hub, `driver.py`), `drift-report` (explains drift-gate checks (a)–(h)), `standardize-audit`/`standardize-project`, `actions-triage`, `triage-attention`/`evolve-project`/`refresh-portfolio`, the `/adopt-schema` and `/adopt-release` commands, the `feature-scout` subagent, and the Future-Features session hooks.
 2. **CI workflows** — every `anthropics/claude-code-action@v1` call site in the hub: [`claude.yml`](../.github/workflows/claude.yml) (@claude mention handler), [`fleet-pulse.yml`](../.github/workflows/fleet-pulse.yml) (the daily loop's `doctor` job — the Opus fixer; self-skips without Claude auth), [`unified-evolution.yml`](../.github/workflows/unified-evolution.yml) (dispatch-only evolution pass; fails loudly without auth), and the `agent_fill` job of [`schema-fanout.yml`](../.github/workflows/schema-fanout.yml).
 3. **MCP servers** — [`.mcp.json`](../.mcp.json): `github` (needs a `GITHUB_TOKEN` env var), `memory`, `sequentialthinking`, `context7`.
-4. **Portable Copilot templates** — `.github/agents/`, `.github/instructions/`, `.github/prompts/` are templates meant to be _seeded into submodules_; they are not Task-launchable Claude subagents (only `.claude/agents/` are).
+4. **Copilot-format reference templates** — `.github/agents/`, `.github/instructions/`, `.github/prompts/` are consumed _in place_ by hub skills (e.g. `evolve-project` reads the agent personas); nothing seeds them into submodules, and they are not Task-launchable Claude subagents (only `.claude/agents/` are).
 
 ## Auth & secrets
 
@@ -21,7 +21,6 @@ House convention: **OAuth-first**. Every Claude call site prefers `CLAUDE_CODE_O
 | `FANOUT_TOKEN` | `standardize-fanout.yml`, `schema-fanout.yml` | **Legacy** — folded into `FLEET_TOKEN`. Still honoured as a fallback. |
 | `ACTIONS_ANALYTICS_TOKEN` | `fleet-pulse.yml` | **Legacy** — folded into `FLEET_TOKEN`. Optional fallback (higher rate limits / private repos). |
 | `DAILY_ANALYSIS_TOKEN` | `fleet-pulse.yml` | **Legacy** — folded into `FLEET_TOKEN`. Optional fallback so the digest + `/triage/` snapshot cover private submodules; without any PAT it falls back to `GITHUB_TOKEN` (public repos only). |
-| `PAT_TOKEN` | `unified-evolution.yml` checkouts | Optional fallback to `GITHUB_TOKEN` |
 
 ### One-time setup
 
@@ -32,7 +31,7 @@ gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87    # provision the hub
 gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/<repo>
 ```
 
-> **Status:** `CLAUDE_CODE_OAUTH_TOKEN` is provisioned in `bamr87/bamr87` (since 2026-07-16), alongside `FANOUT_TOKEN` — the hub's AI steps run. `ANTHROPIC_API_KEY` remains unset (it's only the fallback). Fleet repos still need their own `CLAUDE_CODE_OAUTH_TOKEN` for seeded `claude.yml` workflows.
+> **Status:** `CLAUDE_CODE_OAUTH_TOKEN` is provisioned in `bamr87/bamr87` (since 2026-07-16) and `FLEET_TOKEN` is the one live control-plane PAT — the hub's AI steps run. The legacy per-loop PATs were retired 2026-08-05 (`PAT_TOKEN`'s last call site was removed in PR #61); the legacy names above survive only as fallback expressions in the workflows. `ANTHROPIC_API_KEY` remains unset (it's only the fallback). Fleet repos still need their own `CLAUDE_CODE_OAUTH_TOKEN` for seeded `claude.yml` workflows.
 
 ### Canonical call site
 

@@ -181,3 +181,9 @@ daily-analysis-workorder.md
 
 # Playwright MCP browser artifacts (screenshots, snapshots, downloads)
 .playwright-mcp/
+
+# Claude Code machine-local files (never commit: local settings, session worktrees,
+# ephemeral dash screenshots from the run-dash skill)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/skills/run-dash/*.png
