@@ -1,10 +1,24 @@
 kit: agent-context
-version: 0.3.1
+version: 0.4.0
 source: bamr87/bamr87 templates/agent-context/
-seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-settings) via tools/fanout.sh
-files: CLAUDE.template.md, claude.yml, settings.template.json, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml
+seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-settings, claude-guardrails, claude-agent-auditor) via tools/fanout.sh
+files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml
 updated: 2026-08-07
 changelog: |
+  0.4.0 — FF-0020 + FF-0021: two OPT-IN agent artifacts (never in the default
+  artifact set), amending the 0.3.0 position: hooks/skills/commands/agents
+  still never fan out by default — dedicated, explicitly-requested kit
+  artifacts are the sanctioned exception.
+  (1) quarantine.template.md (artifact `claude-guardrails`) → .claude/skills/
+  _shared/quarantine.md: the canonical shared guardrails doc (untrusted-input
+  quarantine, honesty rule, merge discipline), reconciled strictest-wins from
+  lifehacker.dev's _shared/quarantine.md and the inline boilerplate in the
+  Jekyll trio's agents. Agents cite it in one line instead of restating.
+  (2) agent-auditor.template.md (artifact `claude-agent-auditor`) → .claude/
+  agents/agent-auditor.md: parameterized meta-auditor (accuracy/consistency/
+  least-privilege drift audit, one PR or none), merged from it-journey's
+  agent-auditor and lifehacker.dev's agent-reviewer; seeded only when NO
+  auditor-role agent exists — hand-authored auditors are never touched.
   0.3.1 — claude.yml bumps actions/checkout to v7, matching the mechanical
   bump that already reached 27 fleet copies (which made them non-byte-identical
   to the 0.1.0 archive and invisible to --upgrade). archive/ gains the

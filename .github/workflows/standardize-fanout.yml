@@ -33,7 +33,7 @@ on:
         type: string
         default: "all"
       artifacts:
-        description: "Comma-separated: editorconfig,ci,agent-context,claude,claude-settings"
+        description: "Comma-separated: editorconfig,ci,agent-context,claude,claude-settings,claude-guardrails,claude-agent-auditor"
         type: string
         default: "editorconfig,ci"
       dry_run:
