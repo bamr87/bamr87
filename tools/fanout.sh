@@ -19,7 +19,8 @@
 #
 # Usage:
 #   tools/fanout.sh --kit standardize --target <name|all> [--apply] [--upgrade]
-#                   [--artifacts editorconfig,ci,agent-context,claude,claude-settings]
+#                   [--artifacts editorconfig,ci,agent-context,claude,claude-settings,
+#                    claude-guardrails,claude-agent-auditor]
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #
@@ -34,8 +35,16 @@
 #                                  (@claude mention workflow, OAuth-first)
 #                  claude-settings templates/agent-context/settings.template.json
 #                                  → .claude/settings.json (minimal read-only
-#                                  permissions baseline; nothing else fans out —
-#                                  hooks/skills/commands/agents stay repo-local)
+#                                  permissions baseline)
+#                  claude-guardrails      quarantine.template.md →
+#                                  .claude/skills/_shared/quarantine.md (the
+#                                  canonical shared guardrails doc; FF-0021)
+#                  claude-agent-auditor   agent-auditor.template.md →
+#                                  .claude/agents/agent-auditor.md, only when
+#                                  no auditor-role agent exists (FF-0020)
+#                The three claude-* .claude artifacts are OPT-IN (never in the
+#                default set); other hooks/skills/commands/agents stay
+#                repo-local and never fan out.
 #                Seeded agent-context/claude files carry a `kit: agent-context
 #                vX.Y.Z` stamp (from templates/agent-context/VERSION).
 #                --upgrade additionally refreshes a target's existing claude.yml
@@ -158,6 +167,21 @@ seed_standardize() {
     if [[ ! -f .claude/settings.json ]]; then
       mkdir -p .claude
       cp "$HUB/templates/agent-context/settings.template.json" .claude/settings.json
+    fi ;;
+  esac
+  case ",$ARTIFACTS," in *,claude-guardrails,*)
+    if [[ ! -f .claude/skills/_shared/quarantine.md ]]; then
+      mkdir -p .claude/skills/_shared
+      sed -e "s/__PROJECT_NAME__/${name}/g" -e "s/__KIT_VERSION__/${AC_VERSION}/g" \
+        "$HUB/templates/agent-context/quarantine.template.md" > .claude/skills/_shared/quarantine.md
+    fi ;;
+  esac
+  case ",$ARTIFACTS," in *,claude-agent-auditor,*)
+    # Skip when ANY auditor-role agent exists (hand-authored auditors are theirs).
+    if [[ ! -f .claude/agents/agent-auditor.md && ! -f .claude/agents/agent-reviewer.md ]]; then
+      mkdir -p .claude/agents
+      sed -e "s/__PROJECT_NAME__/${name}/g" -e "s/__KIT_VERSION__/${AC_VERSION}/g" \
+        "$HUB/templates/agent-context/agent-auditor.template.md" > .claude/agents/agent-auditor.md
     fi ;;
   esac
 }
