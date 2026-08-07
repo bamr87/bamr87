@@ -539,12 +539,15 @@
   submodule_path: projects/2005
   branch: main
   repo_url: https://github.com/year-of-ai/2005   # moved to the year-of-ai org; local dir kept as 2005
-  description: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
+  # The self-growing framework consolidated into year-of-ai/2005-2011 (June 2026);
+  # this repo is now static content + Pages config. The year-of-ai org successors
+  # are deliberately out of fleet scope — only this original member is tracked.
+  description: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011).
   stack: [markdown, ai]
   category: docs
   status: experiment
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
   schema:

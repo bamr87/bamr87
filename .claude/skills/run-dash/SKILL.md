@@ -1,6 +1,6 @@
 ---
 name: run-dash
-description: Run, drive, and orchestrate the bamr87 dash — the hub for ~40 submodule projects. Use to get the orchestration map, see project health/status, generate a per-project "work order" before dispatching Claude Code into a submodule, or serve/screenshot the Jekyll dash site. Triggers: "run the dash", "start the dash", "dash status", "what should I work on", "orchestrate the submodules", "serve the dash site", "screenshot the dash".
+description: Run, drive, and orchestrate the bamr87 dash — the hub for ~40 submodule projects. Use to get the orchestration map, see project health/status, generate a per-project "work order" before dispatching Claude Code into a submodule, or serve/screenshot the Jekyll dash site. Triggers: "run the dash", "start the dash", "what should I work on", "orchestrate the submodules", "serve the dash site", "screenshot the dash". (For a plain read-only status readout, /dash-status owns that.)
 ---
 
 # run-dash — orchestrate the bamr87 hub
@@ -103,7 +103,7 @@ The orchestration surfaces are `/dashboard/` (command center — counts + "needs
   http://localhost:4001/dashboard/
 ```
 
-`dash-screenshot.png` in this skill dir is a reference capture of `/dashboard/`. Tear down when done:
+The capture is a local, gitignored artifact (`.claude/skills/run-dash/*.png` is ignored) — never commit it. Tear down when done:
 
 ```bash
 docker rm -f dash-preview && rm -rf /tmp/dash-preview
@@ -114,11 +114,10 @@ docker rm -f dash-preview && rm -rf /tmp/dash-preview
 - **`tools/dash serve` is broken on a clean machine.** Its docker path runs `docker compose exec devenv … bundle exec jekyll serve`, but `.devcontainer/` installs only node/python/docker — **no Ruby/Jekyll/Bundler**. Its native fallback needs Ruby ≥ 2.7 (`github-pages` gem), but system Ruby here is 2.6.10. Use the standalone `jekyll/jekyll` container above.
 - **`:4000` is often already in use** by an unrelated Jekyll container (the user runs several). `lsof -i :4000` to check; serve on `:4001` (or any free port).
 - **Every submodule is uninitialized by default** — `git submodule status` shows a leading `-`, the dirs are empty. Init only the one you need; don't `--init --recursive` all 40 unless you mean it. The driver shows this as state `·`.
-- **Submodules land in detached HEAD**, and `projects/scripts` and `projects/jekyll` track **`master`** (not `main`); `projects/sonic-pi` tracks **`dev`**. Always `git checkout <declared-branch>` from the work order — don't assume `main`.
+- **Submodules land in detached HEAD.** All track **`main`** except `projects/sonic-pi` (**`dev`**, upstream fork) — but always `git checkout <declared-branch>` from the work order (the declared branch comes from `.gitmodules`), don't assume.
 - **In a git worktree, the drift gate reports every submodule as drifted** (it sees the worktree's branch name, e.g. `claude/…`, instead of the declared branch). This is a worktree artifact, not real drift — `tools/dash status` will show ~40 DRIFT lines that don't apply. Verify on the main checkout if in doubt.
 - **`_data/project_health.yml` is ephemeral and gitignored.** `tools/dash-gen health` / `monitor` regenerate it; never commit it.
 - **Run/test commands in the work order are heuristics until the submodule is checked out.** After init, the driver reads the real `package.json`; before that it guesses from the registry's `stack` tags (e.g. it'll guess `pytest` for the bash-heavy `scripts` repo). Trust the post-checkout reading.
-- **`frontmatter-cms-mvp` is external** (no submodule) — clone it standalone; the driver flags it with `◇`.
 
 ## Troubleshooting
 

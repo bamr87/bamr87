@@ -1,14 +1,34 @@
 kit: agent-context
-version: 0.2.0
+version: 0.3.0
 source: bamr87/bamr87 templates/agent-context/
-seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude) via tools/fanout.sh
-files: CLAUDE.template.md, claude.yml
-updated: 2026-07-27
+seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-settings) via tools/fanout.sh
+files: CLAUDE.template.md, claude.yml, settings.template.json, archive/claude-0.1.0.yml
+updated: 2026-08-06
 changelog: |
+  0.3.0 — three changes:
+  (1) settings.template.json: an optional minimal .claude/settings.json baseline
+  (artifact `claude-settings`) — the schemastore $schema plus a universally-safe
+  read-only permissions allowlist (git status/log/diff, gh pr view, gh run view).
+  DECLARED POSITION on fleet .claude/ directories: the kit seeds ONLY this
+  settings baseline. Hooks, skills, commands, agents, and agent memory are
+  repo-specific and never fan out — repos that need them grow them locally.
+  Conventions for locally-grown layers: python3 fail-open hook payload parsing
+  (exit 0 when a dependency is missing), kebab-case frontmatter names, no
+  `model:` pins unless a role demonstrably needs one, namespace command names
+  to avoid collisions with hub commands (e.g. /evolve), and keep user-scoped
+  memory out of repos (user facts belong in ~/.claude, not committed
+  agent-memory).
+  (2) Seeded files now carry a `kit: agent-context vX.Y.Z` stamp
+  (__KIT_VERSION__ substituted by fanout.sh) so version drift is detectable.
+  (3) archive/claude-0.1.0.yml: byte-exact copy of the 0.1.0 claude.yml, used
+  by `tools/fanout.sh --upgrade` to safely refresh machine-seeded, unmodified
+  copies. CORRECTION to the 0.2.0 note below: the concurrency block reached
+  ZERO fleet repos — 36 of 37 seeded copies verified byte-identical to 0.1.0
+  (the 37th, bashcrawl, was hand-modified and is skipped by --upgrade).
   0.2.0 — claude.yml gains a per-thread `concurrency` group (cancel-in-progress:
   false) so concurrent @claude mentions serialize instead of racing each other on
-  the same branch. NOTE: the kit is additive-only, so the ~9 repos that already
+  the same branch. NOTE: the kit is additive-only, so repos that already
   carry a seeded claude.yml do NOT pick this up via fan-out — they need the
-  three-line block applied directly.
+  block applied via --upgrade (see 0.3.0).
   0.1.0 — initial kit.
-notes: CLAUDE.template.md is seeded only when the target has NO agent-context file (CLAUDE.md/AGENTS.md/copilot-instructions/.cursorrules); claude.yml only when .github/workflows/claude.yml is absent. Both additive-only, never overwrite.
+notes: CLAUDE.template.md is seeded only when the target has NO agent-context file (CLAUDE.md/AGENTS.md/copilot-instructions/.cursorrules); claude.yml only when .github/workflows/claude.yml is absent; settings.template.json only when .claude/settings.json is absent. All additive-only, never overwrite — except `--upgrade`, which replaces a claude.yml ONLY when it is byte-identical to archive/claude-0.1.0.yml (machine-seeded, never touched).

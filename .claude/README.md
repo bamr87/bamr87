@@ -15,10 +15,10 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/onboard-dir/` | Adopt or remove a stray/unregistered `projects/*/` dir the drift gate flagged |
 | `skills/new-project/` | Scaffold + register a new project |
 | `skills/triage-attention/` | Turn Monitor-board signals into prioritized actions |
-| `skills/actions-triage/` | Explain the worst Actions workflows from `_data/actions_usage.yml`; drive a direct fix or dispatch `actions-review.yml` |
+| `skills/actions-triage/` | Explain the worst Actions workflows from `_data/actions_usage.yml`; drive a direct fix or dispatch `fleet-pulse.yml` (its `doctor` job is the AI fix pass) |
 | `skills/estimate-issue/` | Deep-analyze a GitHub issue into a client-engagement estimate in `_data/engagements.yml` (refines the `dash estimate` draft; approval stays human) |
 | `skills/evolve-project/` | Focused per-project improvement pass (reads `.github/agents` personas as guidance) |
-| `skills/run-dash/` | `/run-dash` — orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
+| `skills/run-dash/` | Orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
 | `commands/dash-status.md` | `/dash-status` — read-only status |
 | `commands/evolve.md` | `/evolve` — run the self-evolution loop |
 | `commands/register-project.md` | `/register-project` — add/reconcile a project |
@@ -31,11 +31,11 @@ Claude Code configuration that makes the dash self-managing.
 
 MCP servers (github, memory, sequentialthinking, context7) are configured in the repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN` env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
 
-> **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and `.github/prompts/` are **portable Copilot templates** (per `.github/docs/toolkit-retention-map.md`) meant to be seeded into submodules — Claude Code cannot Task-launch them. Only `.claude/agents/` (feature-scout) are real subagents. For a working-diff review use the native `/code-review` skill.
+> **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and `.github/prompts/` are **Copilot-format reference templates** (per `.github/docs/toolkit-retention-map.md`) consumed in place by hub skills (e.g. `evolve-project` reads the agent personas) — nothing seeds them into submodules, and Claude Code cannot Task-launch them. Only `.claude/agents/` (feature-scout) are real subagents. For a working-diff review use the native `/code-review` skill.
 
 ## Standardization
 
-`standardize-audit` (see what's off-standard, via `tools/dash audit` + [`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one repo, PR into its own repo) → the `standardize-fanout.yml` workflow (fleet-wide `.editorconfig` + reusable `standard-ci.yml` adoption). The full standard lives in [`docs/STANDARDS.md`](../docs/STANDARDS.md).
+`standardize-audit` (see what's off-standard, via `tools/dash audit` + [`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one repo, PR into its own repo) → the `standardize-fanout.yml` workflow (fleet-wide `.editorconfig` + reusable `standard-ci.yml` adoption, plus the `agent-context,claude` artifacts: `CLAUDE.md` scaffold, `@claude` mention workflow, and the minimal `.claude/settings.json` baseline from [`templates/agent-context/`](../templates/agent-context/)). The full standard lives in [`docs/STANDARDS.md`](../docs/STANDARDS.md).
 
 ## The Future-Features pipeline
 

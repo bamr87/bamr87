@@ -18,21 +18,37 @@
 #   - one bot identity: bamr87-bot <10567847+bamr87@users.noreply.github.com>
 #
 # Usage:
-#   tools/fanout.sh --kit standardize --target <name|all> [--apply]
-#                   [--artifacts editorconfig,ci,agent-context,claude]
+#   tools/fanout.sh --kit standardize --target <name|all> [--apply] [--upgrade]
+#                   [--artifacts editorconfig,ci,agent-context,claude,claude-settings]
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
+#   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #
 # Kits:
 #   standardize  branch chore/standardize-baseline; artifacts (default
 #                editorconfig,ci):
-#                  editorconfig   copy the hub's .editorconfig
-#                  ci             templates/standard-ci/ci.yml caller
-#                  agent-context  templates/agent-context/CLAUDE.template.md,
-#                                 only when the repo has NO agent-context file
-#                  claude         templates/agent-context/claude.yml
-#                                 (@claude mention workflow, OAuth-first)
+#                  editorconfig    copy the hub's .editorconfig
+#                  ci              templates/standard-ci/ci.yml caller
+#                  agent-context   templates/agent-context/CLAUDE.template.md,
+#                                  only when the repo has NO agent-context file
+#                  claude          templates/agent-context/claude.yml
+#                                  (@claude mention workflow, OAuth-first)
+#                  claude-settings templates/agent-context/settings.template.json
+#                                  → .claude/settings.json (minimal read-only
+#                                  permissions baseline; nothing else fans out —
+#                                  hooks/skills/commands/agents stay repo-local)
+#                Seeded agent-context/claude files carry a `kit: agent-context
+#                vX.Y.Z` stamp (from templates/agent-context/VERSION).
+#                --upgrade additionally refreshes a target's existing claude.yml
+#                ONLY when it is byte-identical to
+#                templates/agent-context/archive/claude-0.1.0.yml (i.e.
+#                machine-seeded and never touched); hand-modified copies are
+#                left alone.
 #   schema       branch chore/schema-adoption; delegates to
 #                tools/seed-schema.sh (SCHEMA.md contracts + linter + CI)
+#   prose        branch style/markdown-oneline; vendors the Liquid-safe
+#                tools/unwrap-prose.py, seeds the markdown-oneline CI gate,
+#                and does a one-time unwrap of wrapped prose
+#                (SCHEMA.md/CHANGELOG.md skipped)
 # ============================================================================
 set -euo pipefail
 
@@ -40,17 +56,21 @@ HUB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOT_NAME="bamr87-bot"
 BOT_EMAIL="10567847+bamr87@users.noreply.github.com"
 
-KIT="" TARGET="" ARTIFACTS="editorconfig,ci" APPLY=0
+KIT="" TARGET="" ARTIFACTS="editorconfig,ci" APPLY=0 UPGRADE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --kit)       KIT="${2:?--kit needs a value}"; shift ;;
     --target)    TARGET="${2:?--target needs a value}"; shift ;;
     --artifacts) ARTIFACTS="${2:?--artifacts needs a value}"; shift ;;
     --apply)     APPLY=1 ;;
+    --upgrade)   UPGRADE=1 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
   shift
 done
+
+# Kit version stamped into seeded agent-context files (see the VERSION file).
+AC_VERSION="$(awk '/^version:/{print $2; exit}' "$HUB/templates/agent-context/VERSION")"
 
 case "$KIT" in
   standardize|schema|prose) ;;
@@ -96,13 +116,26 @@ seed_standardize() {
   case ",$ARTIFACTS," in *,agent-context,*)
     if [[ ! -f CLAUDE.md && ! -f AGENTS.md && ! -f .github/copilot-instructions.md && ! -f .cursorrules ]]; then
       sed -e "s/__PROJECT_NAME__/${name}/g" -e "s/__DEFAULT_BRANCH__/${def}/g" \
+          -e "s/__KIT_VERSION__/${AC_VERSION}/g" \
         "$HUB/templates/agent-context/CLAUDE.template.md" > CLAUDE.md
     fi ;;
   esac
   case ",$ARTIFACTS," in *,claude,*)
     if [[ ! -f .github/workflows/claude.yml ]]; then
       mkdir -p .github/workflows
-      cp "$HUB/templates/agent-context/claude.yml" .github/workflows/claude.yml
+      sed "s/__KIT_VERSION__/${AC_VERSION}/g" \
+        "$HUB/templates/agent-context/claude.yml" > .github/workflows/claude.yml
+    elif [[ "$UPGRADE" -eq 1 ]] && \
+         cmp -s .github/workflows/claude.yml "$HUB/templates/agent-context/archive/claude-0.1.0.yml"; then
+      # byte-identical to the archived 0.1.0 seed → machine-owned, safe to refresh
+      sed "s/__KIT_VERSION__/${AC_VERSION}/g" \
+        "$HUB/templates/agent-context/claude.yml" > .github/workflows/claude.yml
+    fi ;;
+  esac
+  case ",$ARTIFACTS," in *,claude-settings,*)
+    if [[ ! -f .claude/settings.json ]]; then
+      mkdir -p .claude
+      cp "$HUB/templates/agent-context/settings.template.json" .claude/settings.json
     fi ;;
   esac
 }

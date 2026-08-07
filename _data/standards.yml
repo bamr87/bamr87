@@ -28,6 +28,7 @@ artifacts:
   editorconfig:  [.editorconfig]
   ci:            [.github/workflows]
   agent_context: [CLAUDE.md, AGENTS.md, .github/copilot-instructions.md, .cursorrules]
+  claude_workflow: [.github/workflows/claude.yml]
   tests:         [tests, test, spec, __tests__, cypress, pytest.ini, jest.config.js, jest.config.ts, vitest.config.ts]
   container:     [Dockerfile, .devcontainer, docker-compose.yml, compose.yml]
   release:       [release-please-config.json, .release-please-manifest.json, CHANGELOG.md]
@@ -41,6 +42,7 @@ tiers:
     editorconfig: recommended
     ci: required
     agent_context: required
+    claude_workflow: recommended
     tests: required
     container: recommended
     release: recommended
@@ -52,6 +54,7 @@ tiers:
     editorconfig: recommended
     ci: recommended
     agent_context: recommended
+    claude_workflow: recommended
     tests: na
     container: na
     release: na
@@ -62,6 +65,7 @@ tiers:
     gitignore: required
     editorconfig: recommended
     agent_context: recommended
+    claude_workflow: recommended
     ci: na
     tests: na
     container: na

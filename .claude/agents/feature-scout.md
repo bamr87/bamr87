@@ -1,7 +1,7 @@
 ---
 name: feature-scout
 description: Analyzes the current conversation/session thread for latent feature ideas, enhancement requests, pain points, and "it would be nice if…" moments, then authors complete, roadmap-ready feature specs for human review. Use proactively at the end of a substantive session, when the user asks to "scan for features" / "capture ideas", or when the Future-Features Stop hook requests it. Returns proposed specs; it does NOT write to the backlog itself.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: inherit
 ---
 

@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+<!-- kit: agent-context v__KIT_VERSION__ -->
+
 Guidance for AI coding agents (Claude Code, Copilot, Cursor) working in ****PROJECT_NAME****.
 
 <!-- TODO: one paragraph — what this project is, who it serves, and what "done" looks like here. -->

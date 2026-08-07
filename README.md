@@ -229,7 +229,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[zer0-pages-remote](https://github.com/bamr87/zer0-pages-remote)**: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
 - **[bashconsultants](https://github.com/bamr87/bashconsultants)**: BASH Consulting — Denver-based IT consulting firm website.
 - **[1987](https://github.com/bamr87/1987)**: Self-growing knowledge base about the year 1987 — history, politics, science, and culture.
-- **[2005](https://github.com/year-of-ai/2005)**: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
+- **[2005](https://github.com/year-of-ai/2005)**: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011).
 - **[cv](https://github.com/bamr87/cv)**: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
 - **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Product-requirements and planning notes for the zer0-pages concept.

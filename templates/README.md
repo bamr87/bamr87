@@ -37,16 +37,26 @@ The Pyramid Schema seed kit, stamped into a repo by [`tools/seed-schema.sh`](../
 
 ## `agent-context/`
 
-The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](../.github/workflows/standardize-fanout.yml) (artifacts `agent-context` and `claude`) via [`tools/fanout.sh`](../tools/fanout.sh) — closes the `agent_context` requirement in [`_data/standards.yml`](../_data/standards.yml):
+The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](../.github/workflows/standardize-fanout.yml) (artifacts `agent-context`, `claude`, `claude-settings`) via [`tools/fanout.sh`](../tools/fanout.sh) — closes the `agent_context` + `claude_workflow` requirements in [`_data/standards.yml`](../_data/standards.yml):
 
 | File | Purpose |
 | --- | --- |
-| `CLAUDE.template.md` | minimal CLAUDE.md scaffold (`__PROJECT_NAME__` / `__DEFAULT_BRANCH__` substituted); seeded only when the repo has **no** agent-context file |
+| `CLAUDE.template.md` | minimal CLAUDE.md scaffold (`__PROJECT_NAME__` / `__DEFAULT_BRANCH__` / `__KIT_VERSION__` substituted); seeded only when the repo has **no** agent-context file |
 | `claude.yml` | `@claude` mention workflow (`anthropics/claude-code-action@v1`, OAuth-first auth — see [`docs/AI-INTEGRATION.md`](../docs/AI-INTEGRATION.md)) |
-| `VERSION` | kit provenance |
+| `settings.template.json` | minimal `.claude/settings.json` baseline (schemastore `$schema` + read-only permissions allowlist). **The only `.claude/` artifact that fans out** — hooks, skills, commands, agents, and memory are repo-specific and stay local |
+| `archive/claude-0.1.0.yml` | byte-exact 0.1.0 seed; `fanout.sh --upgrade` refreshes a target's claude.yml only when it matches this (machine-seeded, unmodified) |
+| `VERSION` | kit provenance + changelog + the declared fleet `.claude/` position |
+
+## `prose/`
+
+The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/markdown-oneline`):
+
+| File | Purpose |
+| --- | --- |
+| `markdown-oneline.yml` | CI gate enforcing one-paragraph-per-line markdown (`__DEFAULT_BRANCH__` substituted); the fan-out also vendors the Liquid-safe `tools/unwrap-prose.py` and runs a one-time unwrap (SCHEMA.md/CHANGELOG.md skipped) |
 
 ## `year-repo/`
 
-Planned kit for the year-in-review knowledge-base repos (`1987`, `2005`, …) — registered in `SCHEMA.md` but currently empty.
+Planned kit for the year-in-review knowledge-base repos (`1987`, `2005`, …) — not yet scaffolded; register it in `SCHEMA.md` when the directory is created. (The year-of-ai org now owns the living framework, so this kit may never be needed.)
 
 Placeholders use the `__NAME__` convention and are replaced by the tools via `sed`.
