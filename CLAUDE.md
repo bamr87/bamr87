@@ -135,6 +135,7 @@ The hub is structured by `SCHEMA.md` files — one per directory, a lintable con
 
 - **Commits**: Conventional Commits — `type(scope): description` (`feat`/`fix`/`docs`/`style`/`refactor`/`test`/`chore`/`perf`/`ci`). Use `gh` CLI for GitHub operations.
 - **Branches**: `feature/`, `fix/`, `docs/`, `refactor/`, `test/`.
+- **Dependencies — ALWAYS LATEST**: fleet policy is no exact pins, no version ceilings, no committed lockfiles — every install resolves the newest published versions, breakage surfaces in standard CI, and the daily fleet-pulse doctor triages it ([docs/DEPENDENCIES.md](docs/DEPENDENCIES.md); declared in `dependencies:` of [`_data/fleet.yml`](_data/fleet.yml)). Exceptions: Actions ride major tags (`@vN`), pre-commit `rev:` pins (tool-mandated, `pre-commit autoupdate`), toolchain versions (fleet.yml `toolchain:`). Convert a repo with `tools/unpin-deps.sh`; fleet-wide via `deps-fanout.yml` (dry-run default). Never commit a lockfile.
 - **README-First, README-Last**: a heavily-emphasized house rule (`AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/`). Read the nearest `README.md` for context before changing a directory, and update it after. Several directories keep their own `README.md` current as part of the change.
 - Don't suppress type errors (`as any`, `@ts-ignore`, `# type: ignore`) or leave empty exception handlers.
 

@@ -280,7 +280,7 @@ This prevents "permission denied" errors when running test or build scripts.
 
 ### Cache not being used
 
-**Solution**: Ensure `Gemfile.lock` is committed to repository
+**Solution**: Expected under the fleet's always-latest dependency policy — no `Gemfile.lock` is committed, so `setup-ruby` generates one at run time and cache hits only repeat between upstream gem releases (see `docs/DEPENDENCIES.md`)
 
 ### jq installation fails
 
@@ -288,11 +288,9 @@ This prevents "permission denied" errors when running test or build scripts.
 
 ## Best Practices
 
-1. **Commit Gemfile.lock**: Essential for reproducible builds and caching
+1. **Never commit Gemfile.lock**: the fleet's always-latest dependency policy keeps lockfiles local-only (`_data/fleet.yml` `dependencies:`, `docs/DEPENDENCIES.md`)
 2. **Use matrix testing**: Test against multiple Ruby versions
-3. **Pin bundler version**: Specify in Gemfile if needed
-4. **Update dependencies regularly**: Use Dependabot or similar tools
-5. **Run bundle update** in a separate workflow/branch
+3. **Don't pin gem versions**: every build resolves the newest gems; breakage surfaces in CI and the fleet-pulse loop triages it
 
 ## Performance Tips
 

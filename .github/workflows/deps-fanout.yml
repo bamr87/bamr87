@@ -1,0 +1,63 @@
+name: deps-fanout
+
+# Downward propagation of the fleet's ALWAYS-LATEST dependency policy
+# (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md): opens PRs INTO
+# submodule repos that strip exact version pins, delete + gitignore lockfiles,
+# and adapt CI (npm ci → npm install, lockfile-keyed caches removed, action
+# tags floated to their major). Engine: tools/fanout.sh --kit deps-latest →
+# tools/unpin-deps.sh per clone.
+#
+# UNLIKE the seeding kits this one EDITS existing files — that is its purpose —
+# but the engine safety posture is unchanged: dispatch-only, dry-run by
+# default, PR-only (never a default branch), external upstreams skipped, and
+# the transformer is idempotent so re-runs on converted repos are no-ops.
+# Follow-ups the transformer won't automate (pyproject/poetry/Pipfile tables,
+# hash-pinned requirements, npm overrides) are printed in the run log for a
+# human or the fleet-pulse doctor agent.
+#
+# Requires FLEET_TOKEN (legacy FANOUT_TOKEN still honoured) — a fine-grained
+# PAT with contents:write + pull-requests:write + workflows:write on the
+# targets (the transformer may edit .github/workflows/* files, which GitHub
+# refuses without the Workflows permission).
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Submodule name, or 'all'"
+        type: string
+        default: "all"
+      dry_run:
+        description: "Build branches but don't push/PR"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deps-fanout
+  cancel-in-progress: false
+
+jobs:
+  fanout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v7
+
+      - name: Open deps-latest PRs
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          TARGET: ${{ inputs.target }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
+            exit 1
+          fi
+          FLAGS=()
+          if [ "$DRY_RUN" != "true" ]; then FLAGS+=(--apply); fi
+          tools/fanout.sh --kit deps-latest --target "$TARGET" ${FLAGS[@]+"${FLAGS[@]}"}

@@ -14,7 +14,11 @@
 #   - never pushes to a default branch (PR only, --force-with-lease)
 #   - skips submodules whose upstream isn't github.com/bamr87 (external
 #     mirrors like microsoft/skills)
-#   - additive-only seeding: never overwrites a file the target already has
+#   - additive-only seeding for the seeding kits (standardize/schema/prose):
+#     never overwrites a file the target already has. The deps-latest kit is
+#     the deliberate exception — converting a repo to the always-latest
+#     dependency policy MEANS editing manifests and deleting lockfiles
+#     (docs/DEPENDENCIES.md); every other guarantee here still applies to it
 #   - one bot identity: bamr87-bot <10567847+bamr87@users.noreply.github.com>
 #
 # Usage:
@@ -23,6 +27,7 @@
 #                    claude-guardrails,claude-agent-auditor]
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
+#   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
 #
 # Kits:
 #   standardize  branch chore/standardize-baseline; artifacts (default
@@ -58,6 +63,12 @@
 #                tools/unwrap-prose.py, seeds the markdown-oneline CI gate,
 #                and does a one-time unwrap of wrapped prose
 #                (SCHEMA.md/CHANGELOG.md skipped)
+#   deps-latest  branch chore/deps-latest; converts the repo to the fleet's
+#                ALWAYS-LATEST dependency policy via tools/unpin-deps.sh —
+#                strips exact pins (package.json/requirements*.txt/Gemfile),
+#                deletes + gitignores lockfiles, npm ci → npm install,
+#                lockfile-keyed caches removed, action tags floated to @major
+#                (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md)
 # ============================================================================
 set -euo pipefail
 
@@ -92,8 +103,8 @@ upgradeable_claude() {
 }
 
 case "$KIT" in
-  standardize|schema|prose) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -116,6 +127,12 @@ case "$KIT" in
     COMMIT_MSG="style(markdown): one paragraph per line + CI enforcement"
     PR_TITLE="style(markdown): enforce one paragraph per line"
     PR_BODY="Automated by bamr87 prose-fanout (tools/fanout.sh): unwraps soft-wrapped markdown prose so each paragraph is a single line — Liquid/HTML/tables/code/front-matter left byte-for-byte, and SCHEMA.md/CHANGELOG.md skipped. Also vendors tools/unwrap-prose.py and seeds a markdown-oneline CI check. Additive-only. See bamr87/bamr87."
+    ;;
+  deps-latest)
+    BRANCH="chore/deps-latest"
+    COMMIT_MSG="build(deps): adopt fleet always-latest dependency policy"
+    PR_TITLE="build(deps): always-latest dependencies — drop pins and lockfiles"
+    PR_BODY="Automated by bamr87 deps-fanout (tools/fanout.sh --kit deps-latest): adopts the fleet's ALWAYS-LATEST dependency policy — strips exact version pins from package.json/requirements*.txt/Gemfile, deletes and gitignores lockfiles, floats GitHub Actions on their major tags, and adapts CI installs (npm ci → npm install; lockfile-keyed caches removed). Every install now resolves the newest published versions; breakage surfaces in CI and is triaged by the hub's daily fleet-pulse loop. Follow-ups the script won't automate (pyproject/poetry/Pipfile tables, hash-pinned requirements, npm overrides) are listed in the run log. See bamr87/bamr87 docs/DEPENDENCIES.md."
     ;;
 esac
 
@@ -242,6 +259,7 @@ run_one() {
       standardize) seed_standardize "$(basename "${url%.git}")" "$def" ;;
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
+      deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0

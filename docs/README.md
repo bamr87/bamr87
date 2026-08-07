@@ -10,6 +10,7 @@ Architecture and process docs for the root monorepo (the submodules carry their 
 | [ESTIMATION.md](ESTIMATION.md) | Engagement estimation & cost tracking — every project a client, deterministic estimates (AI/broker/platform), evidence-accrued actuals, variance. |
 | [WORKFLOW-OPTIMIZATION.md](WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit — where the minutes go, what was optimized, and what is still submodule-owned. |
 | [STANDARDS.md](STANDARDS.md) | The per-tier standardization baseline every submodule is held to, and how it's enforced. |
+| [DEPENDENCIES.md](DEPENDENCIES.md) | The **always-latest** dependency policy — no pins, no lockfiles; CI + the fleet-pulse loop absorb breakage. Conversion tooling and exceptions. |
 | [SCHEMA-FRAMEWORK.md](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — per-directory `SCHEMA.md` contracts and fleet adoption. |
 | [RELEASES.md](RELEASES.md) | Versioning, changelogs, releases, and the merge-to-main quality gate. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System design, components, and design decisions. |
