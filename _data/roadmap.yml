@@ -754,6 +754,21 @@
   created: 2026-08-06
   issue_url: null
 
+# FF-0018 diff-first gate PASSED 2026-08-07 (read-only fork analysis): dispatch.py
+# byte-identical; zer0's triage.py is a STRICT SUPERSET of it-journey's (no
+# conflicting edits, no fix missing from shared code). Plan corrections for the
+# build: (1) batching is shared engine code, NOT an it-journey feature — the two
+# config-gated features are verify-close + the protected/skip lane (both zer0);
+# the kit engine is zer0's file essentially as-is. (2) De-hardcode the
+# "backlog-managed" policy string from verify_candidate (zer0 triage.py:380) —
+# key off action=="skip" or a verify.exclude config list. (3) Fold in: cmd_status
+# + dispatch "skipped"-batch filtering bugs, dead budget.yml policy: block,
+# unread labels.verified key, zer0's job-level autopilot:go gate filter (adopt
+# fleet-wide), it-journey's SHA-pinned actions (adopt fleet-wide), promote
+# GH_FETCH_LIMIT + bot heuristics to config. (4) test_verify_close.py is wired
+# into NOTHING — kit CI must run the suite; add engine tests for the
+# human-close-downgrade guardrail, any_of semantics, verify_candidate exclusions,
+# skip batching, caps, dispatch decide()/plan_is_stale, is_bot_author/infer_area.
 - id: FF-0018
   title: "issue-autopilot hub kit — extract the duplicated issue-triage engine into templates/, policy stays per-repo"
   project: bamr87
