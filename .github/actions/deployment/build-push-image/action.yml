@@ -156,13 +156,13 @@ runs:
   using: 'composite'
   steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@v4
     
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
     
     # Registry Login - ECR
     - name: Configure AWS credentials
@@ -181,7 +181,7 @@ runs:
     # Registry Login - DockerHub
     - name: Login to DockerHub
       if: inputs.registry-type == 'dockerhub' && inputs.dockerhub-username != ''
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         username: ${{ inputs.dockerhub-username }}
         password: ${{ inputs.dockerhub-token }}
@@ -189,7 +189,7 @@ runs:
     # Registry Login - GHCR
     - name: Login to GitHub Container Registry
       if: inputs.registry-type == 'ghcr' && inputs.ghcr-token != ''
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -198,7 +198,7 @@ runs:
     # Registry Login - GCR
     - name: Login to Google Container Registry
       if: inputs.registry-type == 'gcr' && inputs.gcp-service-account-key != ''
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: gcr.io
         username: _json_key
@@ -207,7 +207,7 @@ runs:
     # Registry Login - ACR
     - name: Login to Azure Container Registry
       if: inputs.registry-type == 'acr'
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ${{ inputs.registry-url }}
         username: ${{ inputs.azure-client-id }}
@@ -216,7 +216,7 @@ runs:
     # Registry Login - Custom
     - name: Login to Custom Registry
       if: inputs.registry-type == 'custom' && inputs.registry-url != ''
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ${{ inputs.registry-url }}
         username: ${{ inputs.dockerhub-username || inputs.azure-client-id }}
@@ -344,7 +344,7 @@ runs:
     # Build and Push
     - name: Build and push image
       id: build
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: ${{ inputs.context }}
         file: ${{ inputs.dockerfile }}

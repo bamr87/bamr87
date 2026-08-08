@@ -104,7 +104,7 @@ runs:
     # Setup Language Environment
     - name: Setup Python
       if: inputs.language == 'python'
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ inputs.language-version || '3.11' }}
         cache: ${{ inputs.dependency-cache == 'true' && inputs.package-manager || '' }}
@@ -112,7 +112,7 @@ runs:
     
     - name: Setup Node.js
       if: inputs.language == 'node' || inputs.language == 'nodejs' || inputs.language == 'javascript' || inputs.language == 'typescript'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.language-version || '20' }}
         cache: ${{ inputs.dependency-cache == 'true' && inputs.package-manager || '' }}
@@ -126,7 +126,7 @@ runs:
     
     - name: Setup Go
       if: inputs.language == 'go' || inputs.language == 'golang'
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v7
       with:
         go-version: ${{ inputs.language-version || 'stable' }}
         cache: ${{ inputs.dependency-cache }}
@@ -276,7 +276,7 @@ runs:
     # Upload Artifacts
     - name: Upload test artifacts
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.artifact-name }}-${{ inputs.job-index }}
         path: |
