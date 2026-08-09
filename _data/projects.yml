@@ -313,22 +313,6 @@
     status: none
   license: MIT
 
-- name: amrs-django
-  slug: amrs-django
-  submodule_path: projects/amrs-django
-  branch: main
-  repo_url: https://github.com/bamr87/amrs-django
-  description: Django web application (early scaffolding).
-  stack: [django, python]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-
 - name: drsai
   slug: drsai
   submodule_path: projects/drsai
@@ -570,39 +554,6 @@
   schema:
     status: none
 
-- name: afms
-  slug: afms
-  submodule_path: projects/afms
-  branch: main
-  repo_url: https://github.com/bamr87/afms
-  description: AFMS — Django accounting & financial management web app with role-based access and reporting.
-  stack: [django, python]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
-- name: django-fin
-  slug: django-fin
-  submodule_path: projects/django-fin
-  branch: main
-  repo_url: https://github.com/bamr87/django-fin
-  description: Django finance app scaffold built around OpenEDGAR (SEC filings).
-  stack: [django, python]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-
 - name: djangoerp
   slug: djangoerp
   submodule_path: projects/djangoerp
@@ -670,22 +621,6 @@
     pr: https://github.com/bamr87/zer0-pages/pull/4
 
 # --- Forks of upstream tools -----------------------------------------------
-- name: sonic-pi
-  slug: sonic-pi
-  submodule_path: projects/sonic-pi
-  branch: dev               # NOTE: upstream fork tracks dev, not main
-  repo_url: https://github.com/bamr87/sonic-pi
-  description: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
-  stack: [ruby, elixir, cpp]
-  category: dev-tools
-  status: maintenance
-  featured: false
-  maintained: false
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-
 - name: vscode-front-matter
   slug: vscode-front-matter
   submodule_path: projects/vscode-front-matter

@@ -79,10 +79,6 @@
 	path = projects/drsai
 	url = https://github.com/bamr87/drsai.git
 	branch = main
-[submodule "projects/amrs-django"]
-	path = projects/amrs-django
-	url = https://github.com/bamr87/amrs-django.git
-	branch = main
 [submodule "projects/aieo"]
 	path = projects/aieo
 	url = https://github.com/bamr87/aieo.git
@@ -103,10 +99,6 @@
 	path = projects/zer0-pages
 	url = https://github.com/bamr87/zer0-pages.git
 	branch = main
-[submodule "projects/django-fin"]
-	path = projects/django-fin
-	url = https://github.com/bamr87/django-fin.git
-	branch = main
 [submodule "projects/djangoerp"]
 	path = projects/djangoerp
 	url = https://github.com/bamr87/djangoerp.git
@@ -114,10 +106,6 @@
 [submodule "projects/amrs-project"]
 	path = projects/amrs-project
 	url = https://github.com/bamr87/amrs-project.git
-	branch = main
-[submodule "projects/afms"]
-	path = projects/afms
-	url = https://github.com/bamr87/afms.git
 	branch = main
 [submodule "projects/skills-github-pages"]
 	path = projects/skills-github-pages
@@ -127,10 +115,6 @@
 	path = projects/vscode-front-matter
 	url = https://github.com/bamr87/zer0-CMS.git
 	branch = main
-[submodule "projects/sonic-pi"]
-	path = projects/sonic-pi
-	url = https://github.com/bamr87/sonic-pi.git
-	branch = dev
 [submodule "projects/cv-builder-pro"]
 	path = projects/cv-builder-pro
 	url = https://github.com/bamr87/cv-builder-pro.git

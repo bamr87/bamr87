@@ -20,10 +20,8 @@ coverage: listed
 | `1987/` | dir | Self-growing knowledge base about the year 1987 — history, politics, science, and culture. | terminal |
 | `2005/` | dir | Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into y… | terminal |
 | `README/` | dir | Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js). | terminal |
-| `afms/` | dir | AFMS — Django accounting & financial management web app with role-based access and reporting. | terminal |
 | `ai-seed/` | dir | AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human… | terminal |
 | `aieo/` | dir | AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI). | terminal |
-| `amrs-django/` | dir | Django web application (early scaffolding). | terminal |
 | `amrs-project/` | dir | AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5). | terminal |
 | `bamr87.github.io/` | dir | Personal profile and portfolio website. | terminal |
 | `barodybroject/` | dir | Full-stack responsive web app with OpenAI integrations and CMS functionality. | terminal |
@@ -33,7 +31,6 @@ coverage: listed
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
 | `cv/` | dir | LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots. | terminal |
 | `cv-builder-pro/` | dir | AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase). | terminal |
-| `django-fin/` | dir | Django finance app scaffold built around OpenEDGAR (SEC filings). | terminal |
 | `djangoerp/` | dir | A Django-based ERP experiment exploring enterprise resource planning modules in Python. | terminal |
 | `drsai/` | dir | Dr. Seuss-style AI poetry generator. | terminal |
 | `edgar-data-parse/` | dir | SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI. | terminal |
@@ -46,7 +43,6 @@ coverage: listed
 | `scripts/` | dir | Development and automation utilities for project setup, GitHub workflows, and local tooling. | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |
 | `skills-github-pages/` | dir | Clone of the GitHub Skills "GitHub Pages" interactive course. | terminal |
-| `sonic-pi/` | dir | Fork of Sonic Pi — the live-coding music synthesizer and IDE. | terminal |
 | `vs-sonic-pi/` | dir | VS Code extension for writing and performing Sonic Pi music from the editor. | terminal |
 | `vscode-front-matter/` | dir | Fork of Front Matter — a CMS running inside VS Code for static-site generators. | terminal |
 | `wargames/` | dir | Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey. | terminal |

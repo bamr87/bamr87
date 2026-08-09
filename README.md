@@ -243,11 +243,8 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[law-ai](https://github.com/bamr87/law-ai)**: LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ollama).
 - **[githubai](https://github.com/bamr87/githubai)**: AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django).
 - **[edgar-data-parse](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
-- **[amrs-django](https://github.com/bamr87/amrs-django)**: Django web application (early scaffolding).
 - **[drsai](https://github.com/bamr87/drsai)**: Dr. Seuss-style AI poetry generator.
 - **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
-- **[afms](https://github.com/bamr87/afms)**: AFMS — Django accounting & financial management web app with role-based access and reporting.
-- **[django-fin](https://github.com/bamr87/django-fin)**: Django finance app scaffold built around OpenEDGAR (SEC filings).
 - **[djangoerp](https://github.com/bamr87/djangoerp)**: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
 
 ### 🛠️ Developer Tools & Experiments
@@ -262,7 +259,6 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[zpl-viewer](https://github.com/bamr87/zpl-viewer)**: ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.
 - **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
-- **[sonic-pi](https://github.com/bamr87/sonic-pi)**: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
 - **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
 - **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.
 
