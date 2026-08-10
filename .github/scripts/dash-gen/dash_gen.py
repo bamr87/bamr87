@@ -42,7 +42,6 @@ from pathlib import Path
 import ai_activity
 import ai_usage_collector
 import actions_analytics
-import actions_review
 import daily_report
 import engagements
 import fleet_triage
@@ -411,12 +410,6 @@ def main(argv: list[str] | None = None) -> int:
         "actions", help="GitHub Actions usage analytics -> actions_usage.yml (daily-refreshed)"
     )
     actions_analytics.add_arguments(p_actions)
-
-    p_areview = sub.add_parser(
-        "actions-review",
-        help="triage worst workflows into a reviewer work order (standalone; the daily loop uses `remediate`)",
-    )
-    actions_review.add_arguments(p_areview)
 
     p_daily = sub.add_parser(
         "daily",

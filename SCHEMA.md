@@ -38,14 +38,10 @@ coverage: listed
 | `SUBMODULES.md` | file | Submodule operations guide | |
 | `_config.yml` | file | Jekyll configuration | required |
 | `_config_dev.yml` | file | Jekyll local-dev overrides | |
-| `actions-review-workorder.md` | file | Ephemeral Actions-review work order (dash-gen actions-review; gitignored) | generated |
-| `daily-analysis-workorder.md` | file | Ephemeral daily failure work order (dash-gen daily; gitignored) | generated |
 | `docker-compose.yml` | file | Containerized dev services | |
 | `home.code-workspace` | file | VS Code multi-root workspace | |
 | `index.md` | file | Dash site landing page | |
-| `mkdocs.yml` | file | MkDocs config (builds from projects/README docs) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
-| `requirements-docs.txt` | file | Python deps for the MkDocs build | |
 
 ## Placement
 

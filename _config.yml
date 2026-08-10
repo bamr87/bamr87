@@ -228,14 +228,11 @@ exclude:
   - node_modules/
   # Monorepo submodules (all live under projects/)
   - projects/
-  # MkDocs + tooling (left untouched, just not built by Jekyll)
-  - mkdocs.yml
-  - requirements-docs.txt
+  # Tooling (left untouched, just not built by Jekyll)
   - requirements.txt
   - docker-compose.yml
   - tools/
   - docs/
-  - site/            # MkDocs build output
   # Root governance markdown
   - README.md
   - AGENTS.md
@@ -251,5 +248,4 @@ exclude:
   - pages/SCHEMA.md
   - templates/
   - _reports/
-  - daily-analysis-workorder.md
-  - actions-review-workorder.md
+  - remediation-workorder.md

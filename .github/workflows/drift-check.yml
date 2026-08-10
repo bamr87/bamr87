@@ -50,17 +50,17 @@ jobs:
       # checkout instead.
       #
       # Discovered by glob rather than a hand-maintained include list: the old
-      # list silently skipped any newly added workflow. `unified-evolution.yml`
-      # is the one exemption — the last of the legacy suite, which carries
-      # pre-existing findings — and is excluded until it is fixed or retired.
+      # list silently skipped any newly added workflow.
+      #
+      # There are NO exemptions. `unified-evolution.yml` used to be one — carried
+      # because the last of the legacy suite had pre-existing findings nobody
+      # wanted to fix. It was rewritten on 2026-08-09 (424 lines → ~120) and the
+      # exemption deleted with it. Re-adding an exemption here means the gate has
+      # stopped covering a file; fix the workflow instead.
       - name: Run actionlint (control plane)
         run: |
           shopt -s nullglob
-          files=()
-          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
-            [[ "$f" == *"/unified-evolution.yml" ]] && continue
-            files+=("$f")
-          done
+          files=(.github/workflows/*.yml .github/workflows/*.yaml)
           echo "Linting ${#files[@]} workflow(s):"
           printf '  %s\n' "${files[@]}"
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)

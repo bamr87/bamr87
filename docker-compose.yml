@@ -55,12 +55,17 @@ services:
 
   # --------------------------------------------------------------------------
   # MkDocs - Documentation site (Material theme)
+  #
+  # Mounts the README SUBMODULE, not the hub root. The hub's own mkdocs.yml was
+  # a stale fork of projects/README/mkdocs.yml that no workflow ever built —
+  # build-dash.yml (Jekyll) is the hub's sole Pages surface — so it was deleted
+  # and this service repointed at the config that is actually live and deployed.
   # --------------------------------------------------------------------------
   mkdocs:
     image: squidfunk/mkdocs-material
     container_name: bamr87-mkdocs
     volumes:
-      - .:/docs:cached
+      - ./projects/README:/docs:cached
     ports:
       - "${MKDOCS_SERVE_PORT:-8001}:8000"
     networks:

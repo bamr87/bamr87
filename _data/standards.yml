@@ -106,7 +106,10 @@ status_tier:
 tier_overrides:
   # forks: standardize only what bamr87 adds; upstream owns the baseline
   skills: fork
-  djangoerp: fork           # PostHog fork (registry metadata mislabels it)
+  # djangoerp: NOT a fork. It was labelled one here on the strength of a stale
+  # "PostHog fork" note; the repo is bamr87's own Django ERP and, since the
+  # amrs-project consolidation, the fleet's accounting/ERP system of record.
+  # It is held to the full active-tier baseline like any other first-party repo.
   jekyll: fork
   sonic-pi: fork
   vscode-front-matter: fork

@@ -185,11 +185,10 @@ _site/
 _data/project_health.yml
 _data/project_health_meta.yml
 _data/ai_activity.yml
-# Ephemeral agent work orders (triage → Claude Code). Generated per run, never committed.
+# Ephemeral agent work order (remediate triage → the fleet-pulse doctor agent).
+# Generated per run, never committed. The retired actions-review and
+# daily-analysis work orders were removed with their generators (2026-08-09).
 remediation-workorder.md
-actions-review-workorder.md
-# Ephemeral failure work order (daily-repo-analysis gather → Claude Code agent)
-daily-analysis-workorder.md
 
 # Playwright MCP browser artifacts (screenshots, snapshots, downloads)
 .playwright-mcp/

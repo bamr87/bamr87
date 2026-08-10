@@ -22,7 +22,6 @@
 # Root setup and tooling.
 /tools/ @bamr87
 /requirements*.txt @bamr87
-/mkdocs.yml @bamr87
 /docker-compose*.yml @bamr87
 
 # Submodule pointers. Changes inside these projects should be reviewed in

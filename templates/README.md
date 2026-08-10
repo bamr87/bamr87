@@ -57,8 +57,4 @@ The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/mark
 | --- | --- |
 | `markdown-oneline.yml` | CI gate enforcing one-paragraph-per-line markdown (`__DEFAULT_BRANCH__` substituted); the fan-out also vendors the Liquid-safe `tools/unwrap-prose.py` and runs a one-time unwrap (SCHEMA.md/CHANGELOG.md skipped) |
 
-## `year-repo/`
-
-Planned kit for the year-in-review knowledge-base repos (`1987`, `2005`, …) — not yet scaffolded; register it in `SCHEMA.md` when the directory is created. (The year-of-ai org now owns the living framework, so this kit may never be needed.)
-
 Placeholders use the `__NAME__` convention and are replaced by the tools via `sed`.

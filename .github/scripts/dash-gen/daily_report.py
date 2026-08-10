@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
 """
-daily_report — prior-day fleet activity digest + failure work order.
+daily_report — prior-day fleet activity digest.
 
 The gather step of the dash's continuous analysis → implementation cycle
 (.github/workflows/fleet-pulse.yml). Once a day it queries the GitHub
 API (via PyGithub, same as actions_analytics) for every repo in the registry
 and produces, for the window [now - <days>, now]:
 
-  1. a COMMITTED Markdown digest — _reports/daily/<date>.md — summarizing the
-     day's commits, pull requests, issues, releases, and CI failures across the
-     fleet (a durable record saved in the monorepo), plus a regenerated index
-     span in _reports/README.md; and
+a COMMITTED Markdown digest — _reports/daily/<date>.md — summarizing the day's
+commits, pull requests, issues, releases, and CI failures across the fleet (a
+durable record saved in the monorepo), plus a regenerated index span in
+_reports/README.md.
 
-  2. an EPHEMERAL agent work order — daily-analysis-workorder.md — listing the
-     CI failures worth acting on, DEDUPED against open `daily-analysis` issues
-     in the dash repo, that the Opus Claude Code reviewer consumes to open one
-     draft PR (hub-fixable) or file one issue (submodule/cross-repo) per failure.
+THE DIGEST ONLY. This module used to ALSO emit a deduped failure work order for
+an AI fixer. remediation.py owns that job now, and owns it better: it merges the
+failing signal with the cost signal into one queue keyed on
+owner/repo:workflow-path, so a workflow that is both red and expensive is one
+candidate instead of two competing tickets. The work-order half here had already
+been dead for some time — fleet-pulse.yml calls this generator but consumes only
+remediation-workorder.md, and nothing ever read the `has_failures` /
+`failure_count` outputs. It was removed on 2026-08-09 rather than left as a
+second, diverging dedupe implementation. (remediation.py still honours the old
+`daily-analysis` issue marker so pre-migration tickets are never re-filed.)
 
-Deterministic where it matters: the digest and the candidate selection + dedupe
-are computed HERE (in code). The non-deterministic AI step only investigates and
-authors fixes for a pre-vetted, de-duplicated, capped list — it cannot spam.
-
-Exit status is 0 even on a quiet day (no activity, no failures — that is normal
-and still writes a "quiet day" digest). When GITHUB_OUTPUT is set it emits
-`has_failures=true|false`, `failure_count=N`, `report_path=...`, and `date=...`
-for the workflow to branch on.
+Exit status is 0 even on a quiet day (no activity — that is normal and still
+writes a "quiet day" digest). When GITHUB_OUTPUT is set it emits `report_path=...`
+and `date=...`.
 
 Auth: a token from GH_TOKEN / GITHUB_TOKEN, else `gh auth token`. Network /
 rate-limit failures degrade gracefully — a repo that can't be read is skipped,
@@ -36,7 +37,6 @@ import argparse
 import datetime as dt
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -52,7 +52,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = REPO_ROOT / "_data" / "projects.yml"
 REPORT_DIR_DEFAULT = REPO_ROOT / "_reports" / "daily"
 INDEX_DEFAULT = REPO_ROOT / "_reports" / "README.md"
-WORKORDER_DEFAULT = REPO_ROOT / "daily-analysis-workorder.md"
 
 # CI conclusions that count as a failure worth reviewing.
 FAILURE_CONCLUSIONS = actions_analytics.WASTE_CONCLUSIONS - {"cancelled"}
@@ -80,16 +79,6 @@ def in_window(value: dt.datetime | None, start: dt.datetime) -> bool:
 def short(text: str | None, n: int = 72) -> str:
     text = (text or "").splitlines()[0].strip() if text else ""
     return text if len(text) <= n else text[: n - 1] + "…"
-
-
-def marker_key(repo_name: str, path: str, workflow: str) -> str:
-    """Stable identity for a failing workflow (repo + file path)."""
-    tail = path or workflow or "?"
-    return f"{repo_name}:{tail}"
-
-
-def issue_marker(key: str) -> str:
-    return f'<!-- daily-analysis key="{key}" -->'
 
 
 # --------------------------------------------------------------------------- #
@@ -364,100 +353,6 @@ def render_report_md(rep: dict, date_label: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# dedupe against open daily-analysis issues
-# --------------------------------------------------------------------------- #
-def open_markers(repo_slug: str, label: str) -> set[str]:
-    import json
-
-    def _list(cmd: list[str]) -> list[dict] | None:
-        try:
-            out = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            return None
-        if out.returncode != 0:
-            return None
-        try:
-            return json.loads(out.stdout)
-        except json.JSONDecodeError:
-            return None
-
-    base = ["gh", "issue", "list", "-R", repo_slug, "--state", "open",
-            "--json", "number,title,body", "--limit", "200"]
-    items = _list(base + ["--label", label])
-    if items is None:
-        items = _list(base + ["--search", "daily-analysis in:body"])
-    markers: set[str] = set()
-    for it in items or []:
-        for m in re.findall(r'<!-- daily-analysis key="([^"]+)" -->', it.get("body", "") or ""):
-            markers.add(m)
-    return markers
-
-
-def collect_failures(rep: dict) -> list[dict]:
-    """Flatten per-repo failures into one candidate per failing workflow."""
-    by_key: dict[str, dict] = {}
-    for r in rep["repos"]:
-        for f in r["failures"]:
-            key = marker_key(r["name"], f["path"], f["workflow"])
-            cand = by_key.setdefault(key, {
-                "key": key, "repo": r["name"], "nwo": r["nwo"],
-                "repo_url": r["repo_url"], "workflow": f["workflow"],
-                "path": f["path"], "runs": [],
-            })
-            cand["runs"].append(f)
-    return list(by_key.values())
-
-
-def render_workorder(cands: list[dict], rep: dict, cap: int, hub: str) -> str:
-    t = rep["totals"]
-    L: list[str] = []
-    L.append("# Daily repo analysis — reviewer work order")
-    L.append("")
-    L.append(f"Window: last {rep['window_days']}d · generated {rep['generated_at']} · "
-             f"{rep['repos_scanned']} repos scanned")
-    L.append(f"Fleet day: {t['commits']} commits · {t['prs_merged']} PRs merged · "
-             f"{t['issues_opened']} issues opened · **{t['failures']} CI failure(s)**")
-    L.append("")
-    if not cands:
-        L.append("**No actionable failures** — no CI failures in the window, or every "
-                 "failing workflow already has an open `daily-analysis` issue. No action "
-                 "needed.")
-        L.append("")
-        return "\n".join(L)
-
-    L.append(f"**{len(cands)} failing workflow(s)** to review (cap: {cap} this run). For each:")
-    L.append("")
-    L.append(f"- If the fix is in **{hub}** itself (a hub workflow, script, doc, or config), "
-             "open ONE **draft PR** with the surgical fix.")
-    L.append(f"- If the failure is inside a **submodule / another repo** (you cannot safely "
-             f"fix it from the hub checkout), file ONE **issue** in `{hub}` instead.")
-    L.append("- Paste the candidate's **MARKER** line verbatim as the FIRST line of the PR / "
-             "issue body so future runs dedupe.")
-    L.append("")
-    for i, c in enumerate(cands, 1):
-        L.append("---")
-        L.append("")
-        L.append(f"## {i}. {c['repo']}/{c['workflow']}")
-        L.append("")
-        L.append(f"- **Repo:** {c['repo']} — {c['repo_url']}  "
-                 f"({'hub — fix here' if c['nwo'] == hub else 'submodule / external — file an issue'})")
-        L.append(f"- **Workflow file:** `{c['path'] or '(unknown path)'}`")
-        L.append("- **MARKER** (first body line, verbatim, no bullet/backticks):")
-        L.append("")
-        L.append(issue_marker(c["key"]))
-        L.append("")
-        L.append(f"- **Failing runs ({len(c['runs'])}):**")
-        for run in c["runs"][:5]:
-            L.append(f"    - `{run['conclusion']}` · {run['event']} on `{run['branch']}` · "
-                     f"{run['created']} · run `{run['run_id']}` · {run['url']}")
-        L.append(f"- **Investigate:** `gh run view -R {c['nwo']} {c['runs'][0]['run_id']} "
-                 f"--log-failed` (fall back to `gh run view -R {c['nwo']} "
-                 f"{c['runs'][0]['run_id']}` if logs 404).")
-        L.append("")
-    return "\n".join(L)
-
-
-# --------------------------------------------------------------------------- #
 # index span regeneration
 # --------------------------------------------------------------------------- #
 def render_index_span(report_dir: Path) -> str:
@@ -551,29 +446,16 @@ def run(args: argparse.Namespace) -> int:
     sys.stderr.write(f"Scanning daily activity for {len(registry)} repos (last {args.days}d)…\n")
     rep = build_report(registry, gh, args.days, args.max_runs)
 
-    # 1) committed digest
+    # committed digest
     report_dir = Path(args.report_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / f"{date_label}.md"
     report_path.write_text(render_report_md(rep, date_label))
     sys.stderr.write(f"Wrote {report_path}\n")
 
-    # 2) regenerated index span
+    # regenerated index span
     update_index(Path(args.index), report_dir)
 
-    # 3) deduped failure work order
-    cands = collect_failures(rep)
-    if not args.no_dedupe:
-        seen = open_markers(args.repo, args.label)
-        fresh = [c for c in cands if c["key"] not in seen]
-        skipped = len(cands) - len(fresh)
-    else:
-        fresh, skipped = cands, 0
-    fresh = fresh[: args.limit]
-    Path(args.workorder).write_text(render_workorder(fresh, rep, args.limit, args.repo))
-
-    emit_output("has_failures", "true" if fresh else "false")
-    emit_output("failure_count", len(fresh))
     emit_output("report_path", str(report_path.relative_to(REPO_ROOT))
                 if report_path.is_relative_to(REPO_ROOT) else str(report_path))
     emit_output("date", date_label)
@@ -581,12 +463,8 @@ def run(args: argparse.Namespace) -> int:
     t = rep["totals"]
     sys.stderr.write(
         f"daily: {t['commits']} commits · {t['prs_merged']} merged · "
-        f"{t['issues_opened']} issues · {t['failures']} failures "
-        f"({len(cands)} candidate workflow(s), {skipped} already-open, "
-        f"{len(fresh)} in work order → {args.workorder})\n"
+        f"{t['issues_opened']} issues · {t['failures']} failures\n"
     )
-    for c in fresh:
-        sys.stderr.write(f"  · {c['repo']}/{c['workflow']} ({len(c['runs'])} run(s))\n")
     return 0
 
 
@@ -599,18 +477,10 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="directory for the committed digest (default _reports/daily)")
     parser.add_argument("--index", default=str(INDEX_DEFAULT), metavar="PATH",
                         help="index file whose AUTO span is regenerated (default _reports/README.md)")
-    parser.add_argument("--workorder", default=str(WORKORDER_DEFAULT), metavar="PATH",
-                        help="ephemeral failure work order (default daily-analysis-workorder.md)")
     parser.add_argument("--date", default=None, metavar="YYYY-MM-DD",
                         help="report date label (default today, UTC)")
-    parser.add_argument("--limit", type=int, default=6, metavar="N",
-                        help="max failing workflows in the work order (default 6)")
     parser.add_argument("--repo", default="bamr87/bamr87", metavar="OWNER/REPO",
-                        help="hub repo for dedupe + PRs/issues (default bamr87/bamr87)")
-    parser.add_argument("--label", default="daily-analysis", metavar="LABEL",
-                        help="label marking analysis issues (default daily-analysis)")
-    parser.add_argument("--no-dedupe", action="store_true",
-                        help="skip dedupe against open issues (offline / testing)")
+                        help="hub repo, always scanned even though it is not a registry project")
     parser.set_defaults(func=run)
 
 

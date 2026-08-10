@@ -848,17 +848,9 @@ setup_docs() {
 
     log_info "Python: $(python3 --version)"
 
-    # Root-level MkDocs venv
-    if [[ -f "requirements-docs.txt" ]]; then
-        log_info "Creating MkDocs virtual environment..."
-        if [[ ! -d ".venv-docs" ]]; then
-            run_cmd python3 -m venv .venv-docs
-        fi
-        log_info "Installing MkDocs dependencies..."
-        run_cmd .venv-docs/bin/pip install --quiet --upgrade pip
-        run_cmd .venv-docs/bin/pip install --quiet -r requirements-docs.txt
-        log_info "MkDocs ready. Run: source .venv-docs/bin/activate && mkdocs serve"
-    fi
+    # The hub no longer carries its own MkDocs config or requirements-docs.txt:
+    # build-dash.yml (Jekyll) is its sole Pages surface, and the docs site is
+    # owned by the README submodule, whose venv is set up just below.
 
     # README submodule venv
     if [[ -d "projects/README" && -f "projects/README/requirements.txt" ]]; then
@@ -1122,7 +1114,8 @@ print_summary() {
     fi
     if [[ "$DEV_MODE" == "local" || "$DEV_MODE" == "all" ]]; then
         echo "  CV Builder:   cd projects/cv-builder-pro && npm run dev"
-        echo "  MkDocs:       source .venv-docs/bin/activate && mkdocs serve"
+        echo "  Dash site:    tools/dash serve"
+        echo "  Docs site:    cd projects/README && mkdocs serve"
     fi
     echo ""
     echo -e "${BOLD}Script Tools (run from anywhere after setup):${NC}"

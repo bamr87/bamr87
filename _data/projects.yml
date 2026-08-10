@@ -278,8 +278,8 @@
   submodule_path: projects/githubai
   branch: main
   repo_url: https://github.com/bamr87/githubai
-  description: AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django).
-  stack: [django, python, ai]
+  description: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
+  stack: [github-actions, ai, claude-code]
   category: full-stack-ai
   status: active
   featured: false
@@ -608,8 +608,8 @@
   submodule_path: projects/zer0-pages
   branch: main
   repo_url: https://github.com/bamr87/zer0-pages
-  description: Product-requirements and planning notes for the zer0-pages concept.
-  stack: [markdown]
+  description: Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Dataview to GitHub Pages via the zer0-mistakes gem; the theme's second brain.
+  stack: [jekyll, ruby, obsidian, ai]
   category: docs
   status: experiment
   featured: false
@@ -625,13 +625,16 @@
   slug: vscode-front-matter
   submodule_path: projects/vscode-front-matter
   branch: main
-  repo_url: https://github.com/bamr87/zer0-CMS   # renamed on GitHub; local dir kept as vscode-front-matter
-  description: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
+  repo_url: https://github.com/bamr87/zer0-CMS   # renamed on GitHub; local dir rename tracked in the restructuring plan
+  # No longer a fork in substance: "refactor!: break free from the Front Matter
+  # fork — a lightweight zer0-CMS extension" (2026-07-31). GitHub still reports
+  # isFork:true because the upstream history was never detached.
+  description: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
   stack: [typescript, vscode]
   category: dev-tools
-  status: maintenance
+  status: active
   featured: false
-  maintained: false
+  maintained: true
   live_url: null
   docs_url: null
   schema:
@@ -658,6 +661,14 @@
 # ---------------------------------------------------------------------------
 # External repositories (surfaced in the dash; not git submodules).
 # Add entries here with submodule_path: null.
+#
+# Registration is how a repo becomes VISIBLE to the dash, the reconciler, and
+# the engagement ledger. Being unregistered is not neutral — it is invisible.
+# The 2026-08-09 audit found four live bamr87 repos in neither .gitmodules nor
+# this file, one of them (irony-works) under active daily development. They are
+# registered below as external rather than as submodules: the fleet's problem is
+# too much duplicated weight, not too few tracked directories, so a repo earns a
+# submodule checkout only when the hub actually needs to build or fan out into it.
 # ---------------------------------------------------------------------------
 - name: .github
   slug: dot-github
@@ -668,6 +679,62 @@
   stack: [github-actions]
   category: dash
   status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: SCHEMA
+  slug: schema
+  submodule_path: null      # upstream of the vendored tools/schema_lint.py
+  branch: main
+  repo_url: https://github.com/bamr87/SCHEMA
+  description: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
+  stack: [python, markdown]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: irony-works
+  slug: irony-works
+  submodule_path: null
+  branch: main
+  repo_url: https://github.com/bamr87/irony-works
+  description: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
+  stack: [javascript, markdown, ai]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: bash-cms
+  slug: bash-cms
+  submodule_path: null
+  branch: main
+  repo_url: https://github.com/bamr87/bash-cms
+  description: Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).
+  stack: [typescript, vscode, mcp]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: git-with-the-program
+  slug: git-with-the-program
+  submodule_path: null
+  branch: main
+  repo_url: https://github.com/bamr87/git-with-the-program
+  description: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
+  stack: [typescript, ai]
+  category: dev-tools
+  status: experiment
   featured: false
   maintained: true
   live_url: null
