@@ -17,6 +17,26 @@ on:
       - '.github/scripts/dash-gen/**'
       - '.github/actions/setup/dash-gen/**'
       - '.github/workflows/build-dash.yml'
+  # Build (never deploy) on PRs touching the same paths. Without this the site
+  # build was verified only AFTER merge, so a broken page reached main before
+  # anything noticed — the same shape as the failure that froze the fleet's data
+  # for three weeks. The drift gate covers the registry, not Liquid or the theme.
+  #
+  # The list is duplicated rather than shared via a YAML anchor: anchors are
+  # valid YAML and actionlint accepts them, but GitHub Actions' own workflow
+  # parser does not support them, so the anchor version parses clean locally and
+  # fails on GitHub. Keep the two lists in sync by hand.
+  pull_request:
+    paths:
+      - 'pages/**'
+      - '_data/**'
+      - '_config.yml'
+      - 'index.md'
+      - 'assets/**'
+      - 'README.md'
+      - '.github/scripts/dash-gen/**'
+      - '.github/actions/setup/dash-gen/**'
+      - '.github/workflows/build-dash.yml'
   schedule:
     # Daily, AFTER the data-refresh jobs have landed (refresh-dash 04:00,
     # reconcile-registry 05:00, fleet-pulse 06:00). Those commits use
@@ -61,12 +81,16 @@ jobs:
           JEKYLL_ENV: production
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
   deploy:
     needs: build
+    # PRs verify the build and stop there. Deploying from a PR would publish
+    # unreviewed content to the live dash.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
