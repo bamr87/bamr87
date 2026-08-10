@@ -413,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_daily = sub.add_parser(
         "daily",
-        help="prior-day fleet activity digest + failure work order (feeds fleet-pulse.yml)",
+        help="prior-day fleet activity digest (the fix queue is `remediate`)",
     )
     daily_report.add_arguments(p_daily)
 

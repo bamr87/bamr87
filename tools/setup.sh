@@ -30,7 +30,6 @@
 #     git-init            New repo initialization wizard
 #     project-wizard      Multi-stack project scaffolding wizard
 #     rename-dir          Safe directory renaming with backup
-#     github-setup        .github folder structure builder
 #
 # Examples:
 #   ./tools/setup.sh                        # Full setup with auto-detected platform
@@ -916,7 +915,6 @@ setup_script_cli_tools() {
         "git-init:git_init.sh"
         "project-wizard:project-init.sh"
         "rename-dir:rename-directory.sh"
-        "github-setup:.github.sh"
         "create-package:create_package.sh"
     )
 
@@ -1086,7 +1084,7 @@ print_summary() {
 
     # Script CLI tools status
     echo -e "${BOLD}Script CLI Tools:${NC}"
-    local cli_tools=(forkme stashme git-init project-wizard rename-dir github-setup create-package)
+    local cli_tools=(forkme stashme git-init project-wizard rename-dir create-package)
     local cli_descriptions=(
         "GitHub repo forking/cloning (batch interactive mode)"
         "Multi-repo cloud stash (backup uncommitted changes)"
@@ -1124,7 +1122,6 @@ print_summary() {
     echo "  git-init                          Initialize a new GitHub repository"
     echo "  project-wizard                    Scaffold a new project"
     echo "  rename-dir <old> <new>            Safely rename a directory"
-    echo "  github-setup <project-type>       Set up .github structure"
     echo ""
     echo -e "  Full docs:  ${CYAN}docs/DEVELOPMENT.md${NC}"
     echo ""
