@@ -30,12 +30,11 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection (portfolio, dashboard, monitor, triage, toolbox, actions, ai-activity, roadmap, resume, docs) | `pages/_dash/` → `bamr87.github.io/bamr87/` |
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
 | AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
-| Actions usage | GitHub Actions cost/effectiveness analytics (via PyGithub, daily-committed) | `.github/scripts/dash-gen/actions_analytics.py` → `_data/actions_usage.yml` → `/actions/`; refreshed by `actions-usage.yml` |
-| AI usage ledger | Fleet-wide Claude Code transparency: CI runs (cost/turns from logs), Claude commits + PRs, opt-in local publishes | `.github/scripts/dash-gen/ai_usage_collector.py` → `_data/ai_usage.yml` → `/ai-usage/`; refreshed by `ai-usage.yml` (see [AI-INTEGRATION.md](AI-INTEGRATION.md#usage-dashboard-transparency--audit)) |
-| Actions review | Opus Claude Code deep-dive on failing/slow workflows → optimization **issues** (deduped) | `actions_review.py` (triage + dedupe) → `actions-review.yml` (Claude reviewer files one issue per candidate) |
-| Daily analysis | Prior-day fleet digest + CI-failure → fix loop (Opus agent: draft PRs / issues, deduped + capped) | `daily_report.py` → `_reports/daily/<date>.md` + `daily-repo-analysis.yml` (see [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md)) |
-| Fleet triage | Daily-committed open-state inventory: every open issue, PR (with CI state), failing workflow; prioritized inbox | `fleet_triage.py` → `_data/fleet_triage.yml` → `/triage/`; refreshed by `daily-repo-analysis.yml` |
-| Engagements | Every project a client: deterministic estimates (AI/broker/platform decomposition), evidence-accrued actuals, variance + leverage | `engagements.py` (`dash estimate`/`dash ledger`) + `_data/engagement_rates.yml` → `_data/engagements.yml` → `/engagements/`; actuals settle daily via `ai-usage.yml` (see [ESTIMATION.md](ESTIMATION.md)) |
+| Actions usage | GitHub Actions cost/effectiveness analytics (via PyGithub, daily-committed) | `.github/scripts/dash-gen/actions_analytics.py` → `_data/actions_usage.yml` → `/actions/`; refreshed by `fleet-pulse.yml` |
+| AI usage ledger | Fleet-wide Claude Code transparency: CI runs (cost/turns from logs), Claude commits + PRs, opt-in local publishes | `.github/scripts/dash-gen/ai_usage_collector.py` → `_data/ai_usage.yml` → `/ai-usage/`; refreshed by `fleet-pulse.yml` (see [AI-INTEGRATION.md](AI-INTEGRATION.md#usage-dashboard-transparency--audit)) |
+| Daily analysis | Prior-day fleet digest, plus the ranked fix queue and the Opus agent that works it | `daily_report.py` → `_reports/daily/<date>.md` and `remediation.py` → the queue, both driven by `fleet-pulse.yml` (see [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md)) |
+| Fleet triage | Daily-committed open-state inventory: every open issue, PR (with CI state), failing workflow; prioritized inbox | `fleet_triage.py` → `_data/fleet_triage.yml` → `/triage/`; refreshed by `fleet-pulse.yml` |
+| Engagements | Every project a client: deterministic estimates (AI/broker/platform decomposition), evidence-accrued actuals, variance + leverage | `engagements.py` (`dash estimate`/`dash ledger`) + `_data/engagement_rates.yml` → `_data/engagements.yml` → `/engagements/`; actuals settle daily via `fleet-pulse.yml` (see [ESTIMATION.md](ESTIMATION.md)) |
 | Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
@@ -54,8 +53,8 @@ tools/dash status         # submodules + registry + drift
 tools/dash audit [name]   # standardization conformance matrix (--gate to fail on gaps)
 tools/dash monitor        # refresh health, print repos needing attention
 tools/dash actions        # GitHub Actions usage analytics (cost/effectiveness by workflow)
-tools/dash actions-review # triage worst workflows → reviewer work order
-tools/dash daily          # prior-day fleet digest + failure work order
+tools/dash daily          # prior-day fleet activity digest
+tools/dash remediate      # merge failing + expensive signals into one ranked fix queue
 tools/dash triage         # open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/)
 tools/dash estimate       # draft client-engagement estimates from open issues (/engagements/)
 tools/dash ledger         # accrue engagement actuals + variance from usage evidence
@@ -93,15 +92,17 @@ Thresholds live in [`_data/health_thresholds.yml`](../_data/health_thresholds.ym
 
 Costs are **estimates** (tokens × list prices; unknown models are flagged, not guessed). Local-only by design: it never runs in CI, and the published dash shows a "run `tools/dash ai` locally" notice instead of your spend.
 
-## Actions optimization loop (analytics → AI review → issues)
+## Actions optimization loop (analytics → ranked queue → fixes)
 
-The Actions layer doesn't just _report_ waste — it closes the loop:
+The Actions layer doesn't just _report_ waste — it closes the loop, and it does so inside the ONE daily workflow, `fleet-pulse.yml`:
 
-1. **Measure** — `actions-usage.yml` (daily) runs `actions_analytics.py` across the fleet and commits `_data/actions_usage.yml`, flagging each workflow as `failing` / `flaky` / `slow` / `high-cost-low-value` / `cancel-heavy` and ranking by a `priority` score (wasted minutes + ineffective minutes). Rendered at `/actions/`.
-2. **Triage** — `actions-review.yml` (right after the refresh) runs `dash-gen actions-review`: it selects the top offenders, **dedupes** them against open `actions-review` issues (a hidden `<!-- actions-review key=… -->` marker), enriches each with links to the specific failing/slowest runs, and writes a capped Markdown _work order_. Selection + dedupe are deterministic code so the AI step can't spam.
-3. **Review & file** — an **Opus Claude Code reviewer** reads the work order, does a deeper root-cause dive (`gh run view --log-failed`, reads the workflow file), and opens ONE GitHub issue per candidate in `bamr87/bamr87` — each naming the submodule + its workflow/responsibility with a concrete proposed fix (caching, `concurrency`, `timeout-minutes`, trigger gating, cron cadence, a failing-step fix…). Gated on Claude auth (`CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [AI-INTEGRATION.md](AI-INTEGRATION.md)); self-skips when absent.
+1. **Measure** — the `pulse` job runs `actions_analytics.py` across the fleet and commits `_data/actions_usage.yml`, flagging each workflow as `failing` / `flaky` / `slow` / `high-cost-low-value` / `cancel-heavy` and ranking by a `priority` score (wasted minutes + ineffective minutes). Rendered at `/actions/`.
+2. **Triage** — the same job runs `dash-gen remediate`, which merges the **cost** signal above with the **failing** signal from `_data/fleet_triage.yml` into one queue keyed on `owner/repo:workflow-path`. A workflow that is both red and expensive is therefore ONE candidate carrying both signals — the failure mode of the two split loops this replaced, which filed competing tickets for the same workflow. Candidates are classified hub-fixable or cross-repo, ranked, deduped against open issues **and** PRs in both the hub and the target repo, and capped per `_data/fleet.yml`.
+3. **Fix** — the `doctor` job (`needs: pulse`) runs an **Opus Claude Code agent** that reads each candidate's logs and opens a draft **PR with the fix** — in the hub, or in the submodule that owns the workflow — falling back to a hub issue when it can't. Gated on Claude auth (`CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [AI-INTEGRATION.md](AI-INTEGRATION.md)); self-skips when absent.
 
-Run the triage locally with `tools/dash actions-review` (add `--no-enrich` to skip the run-link lookups); the analytics itself is `tools/dash actions`.
+Run the triage locally with `tools/dash remediate`; the analytics itself is `tools/dash actions`.
+
+Two standing rules came out of the incident that killed the previous four-workflow version of this loop (a `main` ruleset made each one's closing `git push` fail, silently, for three weeks): **never end a workflow in a bare `git push` to a protected branch** — use `.github/actions/utilities/publish-data`, which falls back to a PR — and **prefer `needs:` over `workflow_run`**, which is skipped as collateral when an upstream workflow fails.
 
 ## Anti-drift: gates + auto-fix PRs
 
@@ -120,5 +121,5 @@ Live monitoring data (`project_health.yml`) is network-derived, **ephemeral**, a
 ## One-time setup
 
 1. Repo **Settings → Pages → Source = "GitHub Actions"** (the dash deploys via `build-dash.yml`, the sole Pages surface; the old MkDocs `build-docs.yml` has been removed).
-2. Provision Claude auth for the AI workflows (`claude.yml`, `actions-review.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`): `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87` (preferred; `ANTHROPIC_API_KEY` is the fallback). Full secrets matrix: [AI-INTEGRATION.md](AI-INTEGRATION.md).
+2. Provision Claude auth for the AI workflows (`claude.yml`, `fleet-pulse.yml` `doctor`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`): `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87` (preferred; `ANTHROPIC_API_KEY` is the fallback). Full secrets matrix: [AI-INTEGRATION.md](AI-INTEGRATION.md).
 3. `pip install -r .github/scripts/dash-gen/requirements.txt` and `gh auth login` for local `tools/dash-gen health`.

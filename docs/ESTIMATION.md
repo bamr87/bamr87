@@ -50,7 +50,7 @@ machine's shadow-priced session ledger. Every accrued dollar has a URL.
           ▼                                ▼
  _data/ai_usage.yml  ──────────►  tools/dash ledger
  (daily evidence harvest,         (accrue evidence by URL, dedupe,
-  ai-usage.yml workflow)           recompute variance + rollups)
+  fleet-pulse.yml `pulse` job)     recompute variance + rollups)
                                            │
                                            ▼
                                    /engagements/ page
@@ -72,7 +72,7 @@ machine's shadow-priced session ledger. Every accrued dollar has a URL.
    signs with `tools/dash ledger --set-status ENG-NNNN=approved` (transitions
    are validated: estimated → approved → in_progress → delivered → reconciled,
    cancelled from any pre-reconciled state). Nothing accrues before approval.
-3. **Execute & accrue** — the daily `ai-usage.yml` workflow harvests evidence
+3. **Execute & accrue** — the daily `fleet-pulse.yml` workflow harvests evidence
    and immediately runs `dash-gen ledger --no-local`: each CI run/commit/PR row
    for a client is attributed to that client's **oldest open engagement whose
    window covers the evidence day**, deduped by URL across the **whole
@@ -119,7 +119,7 @@ tools/dash ledger --set-status ENG-0007=delivered
 ```
 
 The `/engagements/` page re-renders on the next Pages deploy; the daily
-`ai-usage.yml` run keeps actuals settling without any manual step.
+`fleet-pulse.yml` run keeps actuals settling without any manual step.
 
 ## Files
 
@@ -129,5 +129,5 @@ The `/engagements/` page re-renders on the next Pages deploy; the daily
 | `_data/engagement_rates.yml` | The rate card — hand-edited; broker/traditional rates, tier effort profiles, contingency, type→tier map |
 | `.github/scripts/dash-gen/engagements.py` | `estimate` + `ledger` subcommands (registered in `dash_gen.py`; `tools/dash estimate` / `tools/dash ledger`) |
 | `pages/_dash/engagements.md` | The `/engagements/` portal page |
-| `.github/workflows/ai-usage.yml` | Daily evidence harvest + `ledger --no-local` accrual, one commit |
+| `.github/workflows/fleet-pulse.yml` | Daily evidence harvest + `ledger --no-local` accrual, published in the `pulse` job's single commit |
 | `.claude/skills/estimate-issue/` | Agent skill: deep-analyze one issue and refine its engagement (method: agent) |

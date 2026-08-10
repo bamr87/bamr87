@@ -48,4 +48,4 @@ Tier is assigned by (in precedence order): an explicit `tier:` on the registry e
 4. LICENSE / release automation: `tools/adopt-release.sh <name>` scaffolds the release-please pipeline; add the SPDX id to the registry `license:` field.
 5. CI: adopt the reusable [`standard-ci.yml`](../.github/workflows/standard-ci.yml) via a short caller workflow (what the fan-out drops in).
 
-Changes are always committed in the submodule's own repo first, then the pointer is bumped in root — see [MONOREPO.md](MONOREPO.md).
+Changes are always committed in the submodule's own repo first, then the pointer is bumped in root — see [SUBMODULES.md](../SUBMODULES.md).

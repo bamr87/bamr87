@@ -232,7 +232,8 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[2005](https://github.com/year-of-ai/2005)**: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011).
 - **[cv](https://github.com/bamr87/cv)**: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
-- **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Product-requirements and planning notes for the zer0-pages concept.
+- **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Dataview to GitHub Pages via the zer0-mistakes gem; the theme's second brain.
+- **[irony-works](https://github.com/bamr87/irony-works)**: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
 
 ### 🚀 Full-Stack & AI Applications
 
@@ -241,7 +242,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[aieo](https://github.com/bamr87/aieo)**: AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI).
 - **[lawmode](https://github.com/bamr87/lawmode)**: Always-on AI lawyer concept for developers.
 - **[law-ai](https://github.com/bamr87/law-ai)**: LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ollama).
-- **[githubai](https://github.com/bamr87/githubai)**: AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django).
+- **[githubai](https://github.com/bamr87/githubai)**: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
 - **[edgar-data-parse](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
 - **[drsai](https://github.com/bamr87/drsai)**: Dr. Seuss-style AI poetry generator.
 - **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
@@ -259,8 +260,11 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[zpl-viewer](https://github.com/bamr87/zpl-viewer)**: ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.
 - **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
-- **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
+- **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
 - **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.
+- **[SCHEMA](https://github.com/bamr87/SCHEMA)**: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
+- **[bash-cms](https://github.com/bamr87/bash-cms)**: Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).
+- **[git-with-the-program](https://github.com/bamr87/git-with-the-program)**: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
 
 ### 🛰️ Dash
 
@@ -338,9 +342,9 @@ mkdocs serve
 
 ### 📖 Documentation
 
-- **[MONOREPO.md](docs/MONOREPO.md)**: Repository organization and submodule management
-- **[DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: System design and architecture decisions
+- **[SUBMODULES.md](SUBMODULES.md)**: The submodule workflow — commit in the submodule, then bump the pointer
+- **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
+- **[docs/DASH.md](docs/DASH.md)**: The dash architecture — registry, surfaces, gates, AI loop
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
 
 ---
@@ -435,7 +439,7 @@ mindmap
 > This README serves as both a GitHub profile overview and a monorepo entry point.
 
 > [!TIP]
-> For architecture and setup details, start with [docs/MONOREPO.md](docs/MONOREPO.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+> For architecture and setup details, start with [docs/DASH.md](docs/DASH.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 > [!IMPORTANT]
 > For complete experience and credentials, review the [full CV (PDF)](https://github.com/bamr87/cv/blob/main/cv.pdf).

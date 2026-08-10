@@ -9,7 +9,7 @@ sidebar:
 
 # 📥 Fleet Triage
 
-Every **open issue**, **open PR**, and **failing workflow** across the fleet, snapshotted daily by `.github/workflows/daily-repo-analysis.yml` (via `dash-gen triage`) into `_data/fleet_triage.yml` — the reviewable, diffable companion to the daily digests in [`_reports/daily/`](https://github.com/bamr87/bamr87/tree/main/_reports/daily).
+Every **open issue**, **open PR**, and **failing workflow** across the fleet, snapshotted daily by `.github/workflows/fleet-pulse.yml` (via `dash-gen triage`) into `_data/fleet_triage.yml` — the reviewable, diffable companion to the daily digests in [`_reports/daily/`](https://github.com/bamr87/bamr87/tree/main/_reports/daily).
 
 {% assign t = site.data.fleet_triage %}
 {% if t == nil %}

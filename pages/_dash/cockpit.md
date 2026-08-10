@@ -20,7 +20,7 @@ commits, and PRs at the source.
 
 {% if ai == nil and act == nil %}
 <div class="alert alert-info">No cost data yet — the daily
-<code>ai-usage.yml</code> and <code>actions-usage.yml</code> workflows commit
+<code>fleet-pulse.yml</code> workflow commits
 <code>_data/ai_usage.yml</code> and <code>_data/actions_usage.yml</code>,
 which this page renders.</div>
 {% else %}
