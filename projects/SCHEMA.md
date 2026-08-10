@@ -22,7 +22,7 @@ coverage: listed
 | `README/` | dir | Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js). | terminal |
 | `ai-seed/` | dir | AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human… | terminal |
 | `aieo/` | dir | AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI). | terminal |
-| `amrs-project/` | dir | AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5). | terminal |
+| `amrs-project/` | dir | AMRS — modular Django accounting & financial management system with REST APIs. Accounting core port… | terminal |
 | `bamr87.github.io/` | dir | Personal profile and portfolio website. | terminal |
 | `barodybroject/` | dir | Full-stack responsive web app with OpenAI integrations and CMS functionality. | terminal |
 | `bashconsultants/` | dir | BASH Consulting — Denver-based IT consulting firm website. | terminal |

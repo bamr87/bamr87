@@ -245,7 +245,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[githubai](https://github.com/bamr87/githubai)**: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
 - **[edgar-data-parse](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
 - **[drsai](https://github.com/bamr87/drsai)**: Dr. Seuss-style AI poetry generator.
-- **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
+- **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs. Accounting core ported to djangoerp; new accounting-domain work goes there. Still runs standalone and still owns the unported `edgar` app.
 - **[djangoerp](https://github.com/bamr87/djangoerp)**: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
 
 ### 🛠️ Developer Tools & Experiments

@@ -51,9 +51,14 @@
   description: AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase).
   stack: [react, typescript, vite, tailwind, firebase]
   category: full-stack-ai
-  status: active
-  featured: true
-  maintained: true
+  # Last substantive commit 2025-08-19; everything since is hub fan-out. It works,
+  # so it is not archived — but it was `active` + `featured`, which put a dormant
+  # app on the portfolio's front page. The natural pairing is unexploited: the
+  # `cv` repo's real LaTeX source is the obvious golden fixture for this app's
+  # LaTeX exporter.
+  status: maintenance
+  featured: false
+  maintained: false
   live_url: null
   docs_url: null
   schema:
@@ -337,9 +342,11 @@
   description: AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human collaboration.
   stack: [javascript, docker, ai]
   category: dev-tools
-  status: experiment
+  # Last feature commit 2025-07-23 — thirteen months. A README-first project whose
+  # implementation never arrived; githubai carries the concept with working code.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
   schema:
@@ -353,9 +360,12 @@
   description: Recursive TODO engine experiment for AI-orchestrated task decomposition.
   stack: [python, ai]
   category: dev-tools
-  status: experiment
+  # Last substantive commit 2026-05; the 2026-07/08 activity is entirely hub
+  # fan-out. Its concept space (self-evolving AI automation) is carried by
+  # githubai, which has a working artifact.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
   schema:
@@ -410,9 +420,11 @@
   description: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
   stack: [typescript, vscode]
   category: dev-tools
-  status: experiment
+  # Six commits total, one feature, last substantive work 2026-04, and the repo
+  # name is a typo. Complete and unmaintained rather than in progress.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
   schema:
@@ -477,9 +489,15 @@
   description: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
   stack: [ruby, jekyll]
   category: docs
-  status: experiment
+  # Eleven tracked files, of which eight are hub-seeded config — a smoke-test
+  # harness for `remote_theme`. zer0-mistakes already carries the same coverage in
+  # test/fixtures/consumer-remote/, and four real sites (lifehacker.dev, wargames,
+  # 2005, drsai) exercise remote_theme against actual content. Its one unique
+  # asset is the `layout: welcome` wizard demo, which belongs in the theme's
+  # examples/ before this repo goes.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
   schema:
@@ -543,7 +561,13 @@
   submodule_path: projects/amrs-project
   branch: main
   repo_url: https://github.com/bamr87/amrs-project
-  description: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
+  # NOT archived, despite the consolidation. Its README is explicit: the accounting
+  # core was ported into djangoerp (djangoerp#7) but "this repo is unchanged and
+  # keeps running standalone; nothing here has been deleted or archived", and the
+  # `edgar` app was never ported. Open question worth settling: `edgar` here,
+  # `sec_edgar` in fredgar-ai, and the EDGAR work in edgar-data-parse are three
+  # implementations of one integration.
+  description: AMRS — modular Django accounting & financial management system with REST APIs. Accounting core ported to djangoerp; new accounting-domain work goes there. Still runs standalone and still owns the unported `edgar` app.
   stack: [django, python, drf, postgres]
   category: full-stack-ai
   status: experiment
@@ -579,9 +603,14 @@
   description: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
   stack: [latex]
   category: docs
+  # Content last changed 2025-11. Kept deliberately — it is real personal data and
+  # the natural golden fixture for cv-builder-pro's LaTeX exporter. Housekeeping
+  # owed: LaTeX build artifacts (.aux/.fls/.log/.fdb_latexmk/.synctex.gz) are
+  # committed, four near-identical ~2MB PDF renders are kept, and it is the only
+  # repo in the fleet with no README.
   status: maintenance
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
   schema:
