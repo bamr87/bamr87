@@ -22,7 +22,7 @@ coverage: listed
 | `README/` | dir | Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js). | terminal |
 | `ai-seed/` | dir | AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human… | terminal |
 | `aieo/` | dir | AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI). | terminal |
-| `amrs-project/` | dir | AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5). | terminal |
+| `amrs-project/` | dir | AMRS — modular Django accounting & financial management system with REST APIs. Accounting core port… | terminal |
 | `bamr87.github.io/` | dir | Personal profile and portfolio website. | terminal |
 | `barodybroject/` | dir | Full-stack responsive web app with OpenAI integrations and CMS functionality. | terminal |
 | `bashconsultants/` | dir | BASH Consulting — Denver-based IT consulting firm website. | terminal |
@@ -34,7 +34,7 @@ coverage: listed
 | `djangoerp/` | dir | A Django-based ERP experiment exploring enterprise resource planning modules in Python. | terminal |
 | `drsai/` | dir | Dr. Seuss-style AI poetry generator. | terminal |
 | `edgar-data-parse/` | dir | SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI. | terminal |
-| `githubai/` | dir | AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django). | terminal |
+| `githubai/` | dir | Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude in… | terminal |
 | `gitorio/` | dir | Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions wo… | terminal |
 | `it-journey/` | dir | From-zero-to-hero docs, tools, and scripts supporting an IT learning journey. | terminal |
 | `law-ai/` | dir | LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ol… | terminal |
@@ -44,19 +44,19 @@ coverage: listed
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |
 | `skills-github-pages/` | dir | Clone of the GitHub Skills "GitHub Pages" interactive course. | terminal |
 | `vs-sonic-pi/` | dir | VS Code extension for writing and performing Sonic Pi music from the editor. | terminal |
-| `vscode-front-matter/` | dir | Fork of Front Matter — a CMS running inside VS Code for static-site generators. | terminal |
+| `vscode-front-matter/` | dir | zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a… | terminal |
 | `wargames/` | dir | Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey. | terminal |
 | `wtd/` | dir | Recursive TODO engine experiment for AI-orchestrated task decomposition. | terminal |
 | `zer0-image-generator/` | dir | AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Po… | terminal |
 | `zer0-mistakes/` | dir | GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash. | terminal |
-| `zer0-pages/` | dir | Product-requirements and planning notes for the zer0-pages concept. | terminal |
+| `zer0-pages/` | dir | Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Data… | terminal |
 | `zer0-pages-remote/` | dir | Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme. | terminal |
 | `zpl-viewer/` | dir | ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully off… | terminal |
 
 ## Placement
 
 - New project → register in `.gitmodules` **and** `_data/projects.yml` first
-  (see `docs/SUBMODULE-CHECKLIST.md`), then regenerate this file.
+  (see `docs/STANDARDS.md`), then regenerate this file.
 - Seed a project's own pyramid with `tools/seed-schema.sh <name>`.
 
 ## Forbidden

@@ -120,7 +120,7 @@ jobs:
       - name: Prior-day activity digest
         id: g_daily
         continue-on-error: true
-        run: tools/dash-gen daily --days 1 --limit "${{ inputs.max_candidates || '6' }}"
+        run: tools/dash-gen daily --days 1
 
       - name: Fleet open-state triage snapshot
         id: g_triage

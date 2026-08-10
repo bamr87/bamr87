@@ -9,7 +9,7 @@ sidebar:
 
 # 🧮 Claude Code Usage — fleet ledger
 
-Every Claude Code touchpoint the fleet leaves in public infrastructure, refreshed daily by `.github/workflows/ai-usage.yml` into `_data/ai_usage.yml`: **CI runs** of `anthropics/claude-code-action` (cost and turn counts scraped from run logs), **commits** carrying a `Co-Authored-By: Claude` trailer, and **PRs** carrying the Claude Code marker. Each ledger row links to its run, commit, or PR — the audit trail is the data, not a claim about it. Local (machine) sessions appear under **Local sessions** only when deliberately
+Every Claude Code touchpoint the fleet leaves in public infrastructure, refreshed daily by `.github/workflows/fleet-pulse.yml` into `_data/ai_usage.yml`: **CI runs** of `anthropics/claude-code-action` (cost and turn counts scraped from run logs), **commits** carrying a `Co-Authored-By: Claude` trailer, and **PRs** carrying the Claude Code marker. Each ledger row links to its run, commit, or PR — the audit trail is the data, not a claim about it. Local (machine) sessions appear under **Local sessions** only when deliberately
 published via `tools/dash-gen ai-usage`; see [/ai-activity/]({{ '/ai-activity/' | relative_url }})
 for the local-only view.
 

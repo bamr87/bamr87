@@ -52,7 +52,7 @@ FOOTER = """\
 ## Placement
 
 - New project → register in `.gitmodules` **and** `_data/projects.yml` first
-  (see `docs/SUBMODULE-CHECKLIST.md`), then regenerate this file.
+  (see `docs/STANDARDS.md`), then regenerate this file.
 - Seed a project's own pyramid with `tools/seed-schema.sh <name>`.
 
 ## Forbidden

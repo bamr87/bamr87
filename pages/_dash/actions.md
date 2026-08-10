@@ -9,7 +9,7 @@ sidebar:
 
 # 📈 GitHub Actions Usage
 
-Where your Actions minutes go across every registry repo, and — quantitatively — which workflows are **high-running but low-effective**. Refreshed daily by `.github/workflows/actions-usage.yml` (via PyGithub) into `_data/actions_usage.yml`.
+Where your Actions minutes go across every registry repo, and — quantitatively — which workflows are **high-running but low-effective**. Refreshed daily by `.github/workflows/fleet-pulse.yml` (via PyGithub) into `_data/actions_usage.yml`.
 
 {% assign a = site.data.actions_usage %}
 {% if a == nil %}

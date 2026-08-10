@@ -223,6 +223,49 @@ else
   warn "no root SCHEMA.md yet (hub pyramid not seeded)"
 fi
 
+# --- (i): vendored-tool parity ---------------------------------------------
+# The hub VENDORS two tools into the fleet: tools/unwrap-prose.py (the prose kit
+# payload — it defines what the markdown-oneline gate actually enforces) and
+# tools/schema_lint.py (the schema kit's linter, itself vendored from
+# bamr87/SCHEMA). A vendored copy that drifts is worse than a missing one: the
+# repo still passes a gate, just not the same gate as everyone else.
+#
+# Nothing detected this before, and it happened three times: schema_lint.py
+# exists in projects/README (independently rewritten, ~600 diff lines) and
+# projects/zer0-pages (~110 diff lines) alongside the hub's canonical copy. The
+# schema kit's own VERSION file already states the policy — improvements go
+# upstream first, then re-vendor — it simply had no enforcement.
+#
+# Advisory, never gating: a submodule may legitimately be mid-upgrade, and this
+# reads working trees that CI does not check out. Local-only for that reason.
+if [[ -d "$ROOT/projects" ]]; then
+  echo "(i) vendored-tool parity"
+  vend_checked=0 vend_drift=0
+  for tool in unwrap-prose.py schema_lint.py; do
+    [[ -f "$ROOT/tools/$tool" ]] || continue
+    while IFS= read -r copy; do
+      [[ -f "$copy" ]] || continue
+      vend_checked=$((vend_checked + 1))
+      if ! cmp -s "$ROOT/tools/$tool" "$copy"; then
+        vend_drift=$((vend_drift + 1))
+        warn "${copy#"$ROOT"/} differs from tools/${tool} ($(diff "$ROOT/tools/$tool" "$copy" | grep -c '^[<>]' || true) changed line(s))"
+      fi
+    done < <(find "$ROOT/projects" -mindepth 2 -maxdepth 3 -name "$tool" -not -path '*/node_modules/*' 2>/dev/null)
+  done
+  if [[ $vend_checked -eq 0 ]]; then
+    warn "skipped (no submodule copies found — submodules not checked out?)"
+  elif [[ $vend_drift -eq 0 ]]; then
+    ok "all ${vend_checked} vendored copies match the hub"
+  else
+    # Two different remedies, because the two tools are vendored by different
+    # kits: unwrap-prose.py rides the prose fan-out, schema_lint.py is a
+    # re-vendor from bamr87/SCHEMA via the schema kit.
+    warn "${vend_drift}/${vend_checked} vendored copies drifted"
+    warn "  unwrap-prose.py → tools/fanout.sh --kit prose --target <name> --upgrade"
+    warn "  schema_lint.py  → upstream the change to bamr87/SCHEMA first, then re-vendor (templates/schema/VERSION)"
+  fi
+fi
+
 # --- (g): registry <-> GitHub reality (renames / deletions / branch) -------
 # Closes the class the set-vs-set parity check (a) is blind to: registry and
 # .gitmodules can agree with each other while both are stale vs GitHub. Advisory

@@ -22,7 +22,7 @@
 - name: triage-attention
   description: Turn Monitor-board signals into prioritized actions.
 - name: actions-triage
-  description: Explain the worst Actions workflows from _data/actions_usage.yml and drive the fix or the actions-review dispatch.
+  description: Explain the worst Actions workflows from _data/actions_usage.yml and drive the fix or the fleet-pulse doctor dispatch.
 - name: estimate-issue
   description: Deep-analyze a GitHub issue into a client-engagement estimate in _data/engagements.yml (estimator draft refined by analysis; human approves).
 - name: evolve-project

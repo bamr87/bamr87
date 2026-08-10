@@ -1,6 +1,29 @@
 source: pyramid-schema (https://github.com/bamr87/SCHEMA)
-upstream-commit: 04b0980
+upstream-commit: ce09aeb
 spec: "0.1"
 vendored: 2026-08-03
+verified: 2026-08-09
 files: tools/schema_lint.py, templates/schema/SCHEMA.template.md, templates/schema/CLAUDE.snippet.md, templates/schema/schema-check.yml
 reinvest: improvements discovered in fleet use go to the upstream package first, then re-vendor and bump this file.
+enforcement: |
+  The reinvest rule is now checked, not just stated. tools/check-drift.sh check
+  (i) compares every submodule copy of schema_lint.py (and unwrap-prose.py)
+  against the hub's, so a fork can no longer diverge unnoticed. It found two on
+  the day it shipped.
+notes: |
+  2026-08-09 audit of the vendored copy:
+  - tools/schema_lint.py is byte-identical to upstream HEAD (ce09aeb). The
+    recorded upstream-commit said 04b0980, which was accurate when vendored but
+    stale afterwards: 04b0980 was the last commit to TOUCH the linter, not the
+    upstream HEAD. Recording the commit the file came from is only useful if it
+    is the commit you can diff against, so `verified:` is now tracked too.
+  - The vendored templates differ from upstream only by prose reflow (the fleet's
+    one-paragraph-per-line rule). That is deliberate local adaptation, not drift.
+  - Known gap: the hub vendors this linter to ~40 repos with NO local test
+    coverage. Upstream has a 60-test suite that is not pulled in, so a re-vendor
+    is currently verified only by the hub's own pyramid linting clean. Pulling
+    the suite in (or running it against the vendored copy in CI) is the obvious
+    next step.
+  - Open upstream: bamr87/SCHEMA#4 fixes a real bug found by this audit — a
+    schema that registers its own `SCHEMA.md` row was reported as missing that
+    file. Re-vendor once it merges.

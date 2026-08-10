@@ -117,7 +117,7 @@ contingency. Lev. = traditional-consulting quote ÷ estimate. Every actual links
 2. **Approve** — the broker reviews the plan (approach, deliverables, acceptance), adjusts, and
    signs: `--set-status ENG-NNNN=approved`. Only then does the meter start.
 3. **Execute** — the AI implements (sessions, CI runs, PRs). The daily
-   [`ai-usage` refresh](https://github.com/bamr87/bamr87/blob/main/.github/workflows/ai-usage.yml)
+   [`fleet-pulse` refresh](https://github.com/bamr87/bamr87/blob/main/.github/workflows/fleet-pulse.yml)
    harvests the evidence; `tools/dash ledger` accrues it to the engagement, deduped by URL.
 4. **Deliver & reconcile** — on `delivered`, variance closes the loop: estimate vs actual,
    band (±10% = on), and the *actual* leverage against the traditional quote.

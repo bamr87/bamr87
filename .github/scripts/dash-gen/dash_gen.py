@@ -42,7 +42,6 @@ from pathlib import Path
 import ai_activity
 import ai_usage_collector
 import actions_analytics
-import actions_review
 import daily_report
 import engagements
 import fleet_triage
@@ -412,15 +411,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     actions_analytics.add_arguments(p_actions)
 
-    p_areview = sub.add_parser(
-        "actions-review",
-        help="triage worst workflows into a reviewer work order (standalone; the daily loop uses `remediate`)",
-    )
-    actions_review.add_arguments(p_areview)
-
     p_daily = sub.add_parser(
         "daily",
-        help="prior-day fleet activity digest + failure work order (feeds fleet-pulse.yml)",
+        help="prior-day fleet activity digest (the fix queue is `remediate`)",
     )
     daily_report.add_arguments(p_daily)
 

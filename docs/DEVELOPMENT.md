@@ -1,519 +1,75 @@
-# Development Setup Guide
+# Development Setup
 
-> **The repo is a dash of ~40 submodules — see [DASH.md](DASH.md) and [`../CLAUDE.md`](../CLAUDE.md).** The `projects/cv-builder-pro` / MkDocs examples below are one project each, not the whole picture; the primary local surface is the Jekyll dash (`tools/dash serve`, port 4000). Run per-project commands inside the relevant submodule (`tools/dash foreach` for fleet-wide ones), and read a submodule's branch from `.gitmodules` rather than assuming `main`.
+Local setup for the hub. The projects under `projects/` are separate repositories with their own toolchains — run their commands **inside the submodule**, and read a submodule's branch from `.gitmodules` rather than assuming `main`.
 
-This guide will help you set up your local development environment for working with the bamr87 monorepo.
+Submodule mechanics (commit in the submodule, then bump the pointer) live in one place: [`../SUBMODULES.md`](../SUBMODULES.md). The architecture lives in [DASH.md](DASH.md).
 
 ## Prerequisites
 
-### Required Tools
+| Tool | Why | Notes |
+| --- | --- | --- |
+| git 2.13+ | submodules | `git clone --recurse-submodules` |
+| Docker + Compose | the container-first path | `devenv` is the workspace container |
+| Ruby 3.3 | the Jekyll dash site | only for local `dash serve` outside Docker |
+| Python 3.12 | `dash-gen`, the drift gate, schema lint | |
+| Node 20 | the JS/TS projects | |
+| `gh` CLI | every GitHub operation, incl. fan-outs | must be authenticated |
 
-- **Git**: Version 2.13+ (for submodule support)
+Versions come from [`_data/fleet.yml`](../_data/fleet.yml) (`toolchain:`), which is also what reusable CI resolves against — so bumping one there reaches the whole fleet. Read them with `tools/dash config show toolchain`.
 
-  ```bash
-  git --version
-  ```
-
-- **GitHub CLI** (recommended): For repository management
-  ```bash
-  gh --version
-  ```
-
-### Project-Specific Requirements
-
-Depending on which submodule you're working with:
-
-#### For projects/cv-builder-pro/ (CV Builder)
-
-- **Node.js**: 18.x or higher
-- **npm**: 9.x or higher
-
-```bash
-node --version
-npm --version
-```
-
-#### For projects/README/ (Documentation)
-
-- **Python**: 3.8 or higher
-- **pip**: Latest version
-
-```bash
-python3 --version
-pip3 --version
-```
-
-#### For projects/scripts/ (Automation)
-
-- **Bash**: 4.0+ (macOS users may need to upgrade)
-- **zsh**: 5.x+ (standard on macOS)
-
-```bash
-bash --version
-zsh --version
-```
-
-#### For projects/skills/ (Agent Skills)
-
-- No runtime setup is required for reading or editing skill content.
-- Some nested skill tests may define their own package or Python requirements.
-
-## Initial Setup
-
-### 1. Clone the Repository
-
-Clone with all submodules:
+## Bootstrap
 
 ```bash
 git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 cd bamr87
+./tools/setup.sh              # cross-platform: packages, submodules, venvs, script CLIs
+./tools/setup.sh --dry-run    # preview first (same as `tools/dash doctor`)
 ```
 
-Or clone then initialize submodules:
-
-```bash
-git clone https://github.com/bamr87/bamr87.git
-cd bamr87
-git submodule update --init --recursive
-```
-
-### 2. Verify Submodules
-
-Check that all submodules are properly initialized:
-
-```bash
-git submodule status
-```
-
-You should see one line per registered submodule (~41 in total), e.g.:
-
-```bash
- <commit> projects/README (heads/main)
- <commit> projects/scripts (heads/main)
- ...
-```
-
-### 3. Install Dependencies
-
-#### Quick Setup (All Projects)
-
-Use the provided setup script:
-
-```bash
-./tools/setup-dev.sh
-```
-
-#### Manual Setup
-
-**CV Builder:**
-
-```bash
-cd projects/cv-builder-pro
-npm install
-cd ..
-```
-
-**Documentation System:**
-
-```bash
-cd projects/README
-pip3 install -r requirements.txt
-cd ..
-```
-
-**MkDocs (Root):**
-
-```bash
-pip3 install -r requirements-docs.txt
-```
-
-**Scripts:**
-
-```bash
-cd projects/scripts
-# Scripts are standalone, but check individual script requirements
-chmod +x *.sh
-cd ..
-```
-
-**Agent Skills:**
-
-```bash
-cd projects/skills
-# Reference content; check individual skill directories for optional test commands
-cd ..
-```
-
-## Running Projects Locally
-
-### CV Builder
-
-```bash
-cd projects/cv-builder-pro
-npm run dev
-```
-
-Access at: http://localhost:5173 (Vite's default). Inside the compose `devenv` container the server is exposed on port 5000 instead (see `docker-compose.yml` and the `npm run kill` script).
-
-### Documentation Site
-
-Build and serve MkDocs documentation:
-
-```bash
-mkdocs serve
-```
-
-Access at: http://localhost:8000
-
-### Wiki.js (Optional)
-
-If using the Wiki.js documentation system:
-
-```bash
-cd projects/README
-docker-compose up -d
-```
-
-Access at: http://localhost:3000
-
-## Development Workflow
-
-### Standard Workflow
-
-1. **Create a branch**:
-
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **Make changes** in the root or submodules
-
-3. **Test your changes**:
-
-   ```bash
-   # For CV Builder
-   cd projects/cv-builder-pro && npm run build && npm run preview
-
-   # For Documentation
-   mkdocs build --strict
-
-   # For Scripts
-   shellcheck projects/scripts/*.sh
-   ```
-
-4. **Commit changes**:
-
-   ```bash
-   git add .
-   git commit -m "feat: your descriptive message"
-   ```
-
-5. **Push and create PR**:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-### Working with Submodules
-
-#### Making Changes in a Submodule
-
-1. **Navigate to submodule**:
-
-   ```bash
-   cd projects/cv-builder-pro  # or README, scripts, or skills
-   ```
-
-2. **Create branch in submodule**:
-
-   ```bash
-   git checkout -b feature/new-feature
-   ```
-
-3. **Make and commit changes**:
-
-   ```bash
-   git add .
-   git commit -m "feat: add new feature"
-   ```
-
-4. **Push to submodule repo**:
-
-   ```bash
-   git push origin feature/new-feature
-   ```
-
-5. **Return to the repo root and update the pointer**:
-   ```bash
-   cd ../..
-   git add projects/cv-builder-pro
-   git commit -m "chore: update cv-builder-pro submodule"
-   git push
-   ```
-
-## Code Quality Tools
-
-### Linting
-
-**JavaScript/TypeScript (CV Builder):**
-
-```bash
-cd projects/cv-builder-pro
-npm run lint
-```
-
-**Python (Documentation)** — the repo toolchain is black + flake8 (pre-commit, scoped to `projects/README/**/*.py`; max line 120):
-
-```bash
-black projects/README/scripts/
-flake8 --max-line-length 120 projects/README/scripts/
-```
-
-**Shell Scripts:**
-
-```bash
-shellcheck projects/scripts/*.sh
-```
-
-### Formatting
-
-**Prettier (Markdown, JSON):**
-
-```bash
-npx prettier --write "**/*.{md,json}"
-```
-
-**Black (Python):**
-
-```bash
-black projects/README/scripts/
-```
-
-### Pre-commit Hooks
-
-Install pre-commit hooks:
-
-```bash
-pip install pre-commit
-pre-commit install
-```
-
-Run manually:
-
-```bash
-pre-commit run --all-files
-```
-
-## Testing
-
-### CV Builder Tests
-
-There is no `npm test` script — tests are Cypress e2e specs under `cypress/e2e/`, run against a running dev server:
-
-```bash
-cd projects/cv-builder-pro
-npm run dev &        # or use the compose devenv container
-npx cypress run
-```
-
-### Documentation Tests
-
-```bash
-cd projects/README
-pytest tests/
-```
-
-### Integration Tests
-
-Run all tests:
-
-```bash
-./tools/run-all-tests.sh
-```
-
-## Environment Variables
-
-### CV Builder (.env.local)
-
-Create `projects/cv-builder-pro/.env.local`:
-
-```bash
-VITE_FIREBASE_API_KEY=your-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-domain
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-VITE_FIREBASE_APP_ID=your-app-id
-```
-
-### Documentation System (.env)
-
-Create `projects/README/.env`:
-
-```bash
-XAI_API_KEY=your-xai-key
-OPENAI_API_KEY=your-openai-key
-```
-
-### AI Layer (Claude)
-
-The dash's AI workflows and MCP servers have their own auth (OAuth token / API key / GitHub tokens) — see [AI-INTEGRATION.md](AI-INTEGRATION.md) for the secrets matrix and one-time setup.
-
-## Troubleshooting
-
-### Submodule Issues
-
-**Problem**: Submodule not initialized
+If a submodule directory looks empty or stale after a pull:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-**Problem**: Submodule detached HEAD
+## Containers
+
+`docker-compose.yml` defines the full environment; `devenv` is the primary workspace (repo mounted at `/workspace`).
 
 ```bash
-cd <submodule>
-git checkout main
-cd ..
+docker compose up -d devenv
+docker compose exec devenv bash
+docker compose --profile admin up -d   # adds pgAdmin
+docker compose down -v                 # stop and wipe volumes
 ```
 
-**Problem**: Submodule changes not showing
+Copy `.env.example` → `.env` before the first run. Ports and services are tabulated in [DASH.md](DASH.md) — that table is maintained in exactly one place.
+
+## The everyday loop
 
 ```bash
-./tools/update-submodules.sh    # refreshes each onto its declared branch
+tools/dash status              # submodules + registry + drift, at a glance
+tools/dash serve               # the Jekyll dash on :4000 (docker)
+tools/dash audit               # per-repo standardization conformance
+tools/dash foreach <cmd>       # run a command in every submodule
+tools/check-drift.sh --report  # explain every drift finding
+./tools/run-all-tests.sh       # each project's own suite, skipping what isn't installed
 ```
 
-(Avoid `git submodule foreach git pull origin main` — `sonic-pi` tracks `dev`, not `main`; the script above respects each submodule's declared branch.)
+`tools/dash` is the entry point for everything else (`triage`, `remediate`, `reconcile`, `secrets`, `config`, `estimate`); run it with no arguments for the full list.
 
-### Build Issues
+## Before you open a PR
 
-**Problem**: Node modules not found
+- `tools/check-drift.sh` must be green — it gates every PR. `/drift-report` explains failures in plain language.
+- Shell changes: `shellcheck --severity=warning`.
+- Workflow changes: `actionlint` (the drift gate runs it over every workflow, with no exemptions).
+- Markdown: one paragraph per line. Fix with `python3 tools/unwrap-prose.py --write`.
+- Structure changes: update the directory's `SCHEMA.md` in the same commit, then `python3 tools/schema_lint.py check .`.
+
+## Docs sites
+
+The hub publishes the **Jekyll dash** (`build-dash.yml` → GitHub Pages) — that is the only Pages surface the hub owns. The MkDocs documentation site belongs to the README submodule and builds from its own config:
 
 ```bash
-cd projects/cv-builder-pro
-rm -rf node_modules package-lock.json
-npm install
+cd projects/README && mkdocs serve      # or: docker compose up -d mkdocs
 ```
-
-**Problem**: Python dependencies conflicts
-
-```bash
-cd projects/README
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-**Problem**: MkDocs build fails
-
-```bash
-pip install --upgrade -r requirements-docs.txt
-mkdocs build --clean
-```
-
-### Permission Issues
-
-**Problem**: Scripts not executable
-
-```bash
-chmod +x projects/scripts/*.sh
-chmod +x tools/*.sh
-```
-
-## IDE Setup
-
-### VS Code
-
-Recommended extensions:
-
-- ESLint
-- Prettier
-- Python
-- GitLens
-- Markdown All in One
-- YAML
-
-Workspace settings are in `.vscode/settings.json`.
-
-### IntelliJ IDEA / WebStorm
-
-- Enable ESLint for projects/cv-builder-pro/
-- Enable Python plugin for projects/README/
-- Configure Prettier for code formatting
-
-## Performance Tips
-
-### Faster Clones
-
-Use shallow clones for testing:
-
-```bash
-git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/bamr87/bamr87.git
-```
-
-### Parallel Submodule Operations
-
-```bash
-git submodule update --remote --jobs 8   # respects each submodule's declared branch
-```
-
-### Incremental Builds
-
-For CV Builder:
-
-```bash
-npm run dev  # Uses Vite's fast HMR
-```
-
-For Documentation:
-
-```bash
-mkdocs serve --dirtyreload  # Only rebuilds changed files
-```
-
-## Getting Help
-
-### Documentation
-
-- [MONOREPO.md](MONOREPO.md) - Repository organization
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System design
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines
-
-### Support Channels
-
-- **Issues**: https://github.com/bamr87/bamr87/issues
-- **Discussions**: https://github.com/bamr87/bamr87/discussions
-- **Email**: amr.abdel@gmail.com
-
-### Common Commands Reference
-
-```bash
-# Update all submodules
-git submodule update --remote --merge
-
-# Check submodule status
-git submodule status
-
-# Reset submodule to parent's version
-git submodule update --init --force
-
-# Build documentation
-mkdocs build
-
-# Run CV builder
-cd projects/cv-builder-pro && npm run dev
-
-# Run all tests
-./tools/run-all-tests.sh
-
-# Format all code
-npx prettier --write "**/*.{md,json,yml,yaml}"
-```
-
-## Next Steps
-
-1. Review the [CONTRIBUTING.md](../CONTRIBUTING.md) guide
-2. Check open issues for good first contributions
-3. Join discussions to connect with other contributors
-4. Read submodule-specific documentation in each folder
-
-Happy coding! 🚀

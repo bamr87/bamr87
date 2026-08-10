@@ -20,7 +20,7 @@ Fixes what `standardize-audit` finds, for a single repo. Pairs with the audit th
    - `.editorconfig` → copy the root [`.editorconfig`](../../../.editorconfig) (canonical template).
    - `LICENSE` → the repo's SPDX license; also set `license:` in the registry.
    - `CI` → copy `templates/standard-ci/ci.yml`, substituting `__DEFAULT_BRANCH__`.
-   - `README` / `CLAUDE.md` → seed from `docs/README-TEMPLATE.md` and the repo's actual stack (don't invent features it doesn't have).
+   - `README` / `CLAUDE.md` → seed from `.github/templates/README.template.md` and the repo's actual stack (don't invent features it doesn't have).
    - release automation → `tools/adopt-release.sh <name>`.
 4. Commit (Conventional Commits) and open a PR in `bamr87/<name>`. Do **not** write audit/report `.md` files into the submodule tree.
 5. Re-run `tools/dash audit <name>` to confirm the gaps closed.

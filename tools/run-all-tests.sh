@@ -124,18 +124,20 @@ run_root_checks() {
         # without `--recurse-submodules`. Test for actual content instead.
         # (Do not start a comment line with the linter's name: it parses that as
         # a directive, which is its own parse error.)
-        if compgen -G "${PROJECT_ROOT}/projects/scripts/*.sh" > /dev/null; then
-            run_step "scripts shellcheck" bash -c "cd '${PROJECT_ROOT}' && shellcheck projects/scripts/*.sh"
-        else
-            skip "scripts shellcheck: projects/scripts not checked out"
-        fi
+        # projects/scripts is NOT shellchecked from here: it is a submodule with
+        # its own CI (a standard-ci caller) that already shellchecks itself, and
+        # gating the same files twice means one fix has to satisfy two gates.
+        # The hub lints the hub.
     else
         skip "shellcheck not installed"
     fi
-    if has_command mkdocs; then
-        run_step "MkDocs build" bash -c "cd '${PROJECT_ROOT}' && mkdocs build --clean"
+    # The docs site belongs to the README submodule (its own mkdocs.yml is the
+    # live, deployed one — the hub's fork was deleted). Build it where it lives.
+    if has_command mkdocs && [[ -f "${PROJECT_ROOT}/projects/README/mkdocs.yml" ]]; then
+        run_step "MkDocs build (projects/README)" \
+            bash -c "cd '${PROJECT_ROOT}/projects/README' && mkdocs build --clean"
     else
-        skip "mkdocs not installed"
+        skip "mkdocs build: mkdocs not installed or projects/README not checked out"
     fi
 }
 

@@ -1,6 +1,6 @@
 # Toolbox catalog: common templates available in the monorepo.
 - name: README template
-  path: https://github.com/bamr87/bamr87/blob/main/docs/README-TEMPLATE.md
+  path: https://github.com/bamr87/bamr87/blob/main/.github/templates/README.template.md
   description: Standardized project README structure (badges, about, usage, FAQ).
 - name: Project scaffolds
   path: https://github.com/bamr87/scripts

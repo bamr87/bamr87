@@ -30,7 +30,6 @@
 #     git-init            New repo initialization wizard
 #     project-wizard      Multi-stack project scaffolding wizard
 #     rename-dir          Safe directory renaming with backup
-#     github-setup        .github folder structure builder
 #
 # Examples:
 #   ./tools/setup.sh                        # Full setup with auto-detected platform
@@ -848,17 +847,9 @@ setup_docs() {
 
     log_info "Python: $(python3 --version)"
 
-    # Root-level MkDocs venv
-    if [[ -f "requirements-docs.txt" ]]; then
-        log_info "Creating MkDocs virtual environment..."
-        if [[ ! -d ".venv-docs" ]]; then
-            run_cmd python3 -m venv .venv-docs
-        fi
-        log_info "Installing MkDocs dependencies..."
-        run_cmd .venv-docs/bin/pip install --quiet --upgrade pip
-        run_cmd .venv-docs/bin/pip install --quiet -r requirements-docs.txt
-        log_info "MkDocs ready. Run: source .venv-docs/bin/activate && mkdocs serve"
-    fi
+    # The hub no longer carries its own MkDocs config or requirements-docs.txt:
+    # build-dash.yml (Jekyll) is its sole Pages surface, and the docs site is
+    # owned by the README submodule, whose venv is set up just below.
 
     # README submodule venv
     if [[ -d "projects/README" && -f "projects/README/requirements.txt" ]]; then
@@ -924,7 +915,6 @@ setup_script_cli_tools() {
         "git-init:git_init.sh"
         "project-wizard:project-init.sh"
         "rename-dir:rename-directory.sh"
-        "github-setup:.github.sh"
         "create-package:create_package.sh"
     )
 
@@ -1094,7 +1084,7 @@ print_summary() {
 
     # Script CLI tools status
     echo -e "${BOLD}Script CLI Tools:${NC}"
-    local cli_tools=(forkme stashme git-init project-wizard rename-dir github-setup create-package)
+    local cli_tools=(forkme stashme git-init project-wizard rename-dir create-package)
     local cli_descriptions=(
         "GitHub repo forking/cloning (batch interactive mode)"
         "Multi-repo cloud stash (backup uncommitted changes)"
@@ -1122,7 +1112,8 @@ print_summary() {
     fi
     if [[ "$DEV_MODE" == "local" || "$DEV_MODE" == "all" ]]; then
         echo "  CV Builder:   cd projects/cv-builder-pro && npm run dev"
-        echo "  MkDocs:       source .venv-docs/bin/activate && mkdocs serve"
+        echo "  Dash site:    tools/dash serve"
+        echo "  Docs site:    cd projects/README && mkdocs serve"
     fi
     echo ""
     echo -e "${BOLD}Script Tools (run from anywhere after setup):${NC}"
@@ -1131,7 +1122,6 @@ print_summary() {
     echo "  git-init                          Initialize a new GitHub repository"
     echo "  project-wizard                    Scaffold a new project"
     echo "  rename-dir <old> <new>            Safely rename a directory"
-    echo "  github-setup <project-type>       Set up .github structure"
     echo ""
     echo -e "  Full docs:  ${CYAN}docs/DEVELOPMENT.md${NC}"
     echo ""

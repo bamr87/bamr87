@@ -52,11 +52,6 @@
 #                repo-local and never fan out.
 #                Seeded agent-context/claude files carry a `kit: agent-context
 #                vX.Y.Z` stamp (from templates/agent-context/VERSION).
-#                --upgrade additionally refreshes a target's existing claude.yml
-#                ONLY when it is byte-identical to
-#                templates/agent-context/archive/claude-0.1.0.yml (i.e.
-#                machine-seeded and never touched); hand-modified copies are
-#                left alone.
 #   schema       branch chore/schema-adoption; delegates to
 #                tools/seed-schema.sh (SCHEMA.md contracts + linter + CI)
 #   prose        branch style/markdown-oneline; vendors the Liquid-safe
@@ -69,6 +64,20 @@
 #                deletes + gitignores lockfiles, npm ci → npm install,
 #                lockfile-keyed caches removed, action tags floated to @major
 #                (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md)
+#
+# --upgrade (every templated artifact, not just claude.yml):
+#   Each kit dir carries a VERSION and an archive/ of the shapes it has seeded
+#   over time. A target's existing file is refreshed ONLY when it is
+#   byte-identical to the current template or to one of those archived shapes —
+#   proof it was machine-seeded and never touched. Anything else is treated as
+#   hand-modified and left alone, stamp or no stamp.
+#
+#   Keeping archive/ current is therefore load-bearing: SNAPSHOT THE OUTGOING
+#   SHAPE INTO archive/ BEFORE editing a template. Skip that and every deployed
+#   copy reads as hand-modified, so --upgrade silently stops reaching the fleet
+#   — which is exactly how templates/prose/ sat two major action versions BEHIND
+#   its own 30 deployed copies (fixed in prose kit 0.2.0). The reverse failure
+#   is worse: re-seeding from a stale template downgrades the fleet.
 # ============================================================================
 set -euo pipefail
 
@@ -89,17 +98,65 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# Kit version stamped into seeded agent-context files (see the VERSION file).
-AC_VERSION="$(awk '/^version:/{print $2; exit}' "$HUB/templates/agent-context/VERSION")"
+kit_version() {  # $1 = kit dir under templates/
+  local v="$HUB/templates/$1/VERSION"
+  [[ -f "$v" ]] && awk '/^version:/{print $2; exit}' "$v" || echo "0.0.0"
+}
 
-# True when the file is byte-identical to ANY archived machine-seeded shape —
-# the only copies --upgrade may replace. Hand-modified copies never match.
-upgradeable_claude() {
-  local f="$1" a
-  for a in "$HUB"/templates/agent-context/archive/claude-0.1.0*.yml; do
-    [[ -f "$a" ]] && cmp -s "$f" "$a" && return 0
+# Kit version stamped into seeded agent-context files (see the VERSION file).
+AC_VERSION="$(kit_version agent-context)"
+PROSE_VERSION="$(kit_version prose)"
+CI_VERSION="$(kit_version standard-ci)"
+
+# Render a kit template exactly as seeding would, so an on-disk copy can be
+# compared byte-for-byte against it.
+render_kit_template() {  # $1 template, $2 repo name, $3 default branch, $4 kit version
+  sed -e "s/__PROJECT_NAME__/${2}/g" \
+      -e "s/__DEFAULT_BRANCH__/${3}/g" \
+      -e "s/__KIT_VERSION__/${4}/g" "$1"
+}
+
+# True when the on-disk file is byte-identical to some ARCHIVED machine-seeded
+# shape of its template — i.e. it was seeded by a previous kit version and never
+# touched, so --upgrade may replace it. Hand-modified copies never match and are
+# always left alone. Archived shapes live beside the template as
+# archive/<template-basename>-<version>[-<variant>].yml.
+machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 version
+  local f="$1" tpl="$2" dir base cand tmp
+  dir="$(dirname "$tpl")"; base="$(basename "$tpl" .yml)"
+  tmp="$(mktemp)"
+  for cand in "$dir/archive/$base"-*.yml; do
+    [[ -f "$cand" ]] || continue
+    render_kit_template "$cand" "$3" "$4" "$5" > "$tmp"
+    if cmp -s "$f" "$tmp"; then rm -f "$tmp"; return 0; fi
   done
+  rm -f "$tmp"
   return 1
+}
+
+# Seed one templated workflow artifact, or report/refresh an existing copy.
+# This is the single upgrade path for EVERY kit artifact: previously only
+# claude.yml could be upgraded, which is how the prose kit drifted two major
+# action versions behind the fleet unnoticed.
+seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch, $6 version
+  local label="$1" dest="$2" tpl="$3" name="$4" def="$5" ver="$6" stamp
+  if [[ ! -f "$dest" ]]; then
+    mkdir -p "$(dirname "$dest")"
+    render_kit_template "$tpl" "$name" "$def" "$ver" > "$dest"
+    echo "${label}: seeded (kit v${ver})"
+  elif cmp -s "$dest" <(render_kit_template "$tpl" "$name" "$def" "$ver"); then
+    echo "${label}: current (kit v${ver})"
+  elif machine_seeded "$dest" "$tpl" "$name" "$def" "$ver"; then
+    if [[ "$UPGRADE" -eq 1 ]]; then
+      render_kit_template "$tpl" "$name" "$def" "$ver" > "$dest"
+      echo "${label}: upgraded machine seed -> kit v${ver}"
+    else
+      echo "${label}: upgradeable machine seed (latest kit v${ver}; rerun with --upgrade)"
+    fi
+  else
+    stamp="$(sed -n 's/^# kit: [a-z-]* v//p' "$dest" | head -1)"
+    echo "${label}: hand-modified — left alone (stamp: ${stamp:-none})"
+  fi
 }
 
 case "$KIT" in
@@ -138,16 +195,13 @@ esac
 
 seed_standardize() {
   # cwd = target clone; $1 = repo name, $2 = default branch
-  local name="$1" def="$2" cur
+  local name="$1" def="$2"
   case ",$ARTIFACTS," in *,editorconfig,*)
     [[ -f .editorconfig ]] || cp "$HUB/.editorconfig" .editorconfig ;;
   esac
   case ",$ARTIFACTS," in *,ci,*)
-    if [[ ! -f .github/workflows/ci.yml ]]; then
-      mkdir -p .github/workflows
-      sed "s/__DEFAULT_BRANCH__/${def}/g" "$HUB/templates/standard-ci/ci.yml" \
-        > .github/workflows/ci.yml
-    fi ;;
+    seed_workflow_artifact "ci.yml" .github/workflows/ci.yml \
+      "$HUB/templates/standard-ci/ci.yml" "$name" "$def" "$CI_VERSION" ;;
   esac
   case ",$ARTIFACTS," in *,agent-context,*)
     if [[ ! -f CLAUDE.md && ! -f AGENTS.md && ! -f .github/copilot-instructions.md && ! -f .cursorrules ]]; then
@@ -157,28 +211,8 @@ seed_standardize() {
     fi ;;
   esac
   case ",$ARTIFACTS," in *,claude,*)
-    if [[ ! -f .github/workflows/claude.yml ]]; then
-      mkdir -p .github/workflows
-      sed "s/__KIT_VERSION__/${AC_VERSION}/g" \
-        "$HUB/templates/agent-context/claude.yml" > .github/workflows/claude.yml
-      echo "claude.yml: seeded (kit v${AC_VERSION})"
-    elif upgradeable_claude .github/workflows/claude.yml; then
-      # byte-identical to an archived machine seed → machine-owned, safe to refresh
-      if [[ "$UPGRADE" -eq 1 ]]; then
-        sed "s/__KIT_VERSION__/${AC_VERSION}/g" \
-          "$HUB/templates/agent-context/claude.yml" > .github/workflows/claude.yml
-        echo "claude.yml: upgraded machine seed -> kit v${AC_VERSION}"
-      else
-        echo "claude.yml: upgradeable machine seed (latest kit v${AC_VERSION}; rerun with --upgrade)"
-      fi
-    else
-      cur="$(sed -n 's/^# kit: agent-context v//p' .github/workflows/claude.yml | head -1)"
-      if [[ "$cur" == "$AC_VERSION" ]]; then
-        echo "claude.yml: current (kit v${AC_VERSION})"
-      else
-        echo "claude.yml: hand-modified — left alone (stamp: ${cur:-none})"
-      fi
-    fi ;;
+    seed_workflow_artifact "claude.yml" .github/workflows/claude.yml \
+      "$HUB/templates/agent-context/claude.yml" "$name" "$def" "$AC_VERSION" ;;
   esac
   case ",$ARTIFACTS," in *,claude-settings,*)
     if [[ ! -f .claude/settings.json ]]; then
@@ -208,16 +242,25 @@ seed_prose() {
   # Liquid-safe: unwrap-prose.py only joins wrapped prose, so this is safe even
   # in Jekyll repos where blanket prettier would merge {% %} tags and break
   # rendering. Additive: nothing the repo already has is overwritten.
-  local def="$2"
+  local name="$1" def="$2"
   # 1. vendor the Liquid-safe unwrapper
   mkdir -p tools
-  [[ -f tools/unwrap-prose.py ]] || cp "$HUB/tools/unwrap-prose.py" tools/unwrap-prose.py
-  # 2. seed the markdown-oneline CI gate
-  if [[ ! -f .github/workflows/markdown-oneline.yml ]]; then
-    mkdir -p .github/workflows
-    sed "s/__DEFAULT_BRANCH__/${def}/g" "$HUB/templates/prose/markdown-oneline.yml" \
-      > .github/workflows/markdown-oneline.yml
+  if [[ ! -f tools/unwrap-prose.py ]]; then
+    cp "$HUB/tools/unwrap-prose.py" tools/unwrap-prose.py
+  elif ! cmp -s tools/unwrap-prose.py "$HUB/tools/unwrap-prose.py"; then
+    # The vendored copy is the fan-out payload — a drifted one silently changes
+    # what the gate enforces. Refresh it only under --upgrade, same posture as
+    # the workflow artifacts.
+    if [[ "$UPGRADE" -eq 1 ]]; then
+      cp "$HUB/tools/unwrap-prose.py" tools/unwrap-prose.py
+      echo "unwrap-prose.py: upgraded to hub copy"
+    else
+      echo "unwrap-prose.py: drifted from hub copy (rerun with --upgrade to refresh)"
+    fi
   fi
+  # 2. seed the markdown-oneline CI gate
+  seed_workflow_artifact "markdown-oneline.yml" .github/workflows/markdown-oneline.yml \
+    "$HUB/templates/prose/markdown-oneline.yml" "$name" "$def" "$PROSE_VERSION"
   # 3. one-time fix: unwrap wrapped prose in every tracked markdown file, leaving
   #    lint-gated SCHEMA.md contracts and release-please CHANGELOGs untouched
   python3 tools/unwrap-prose.py --write \
