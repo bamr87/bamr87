@@ -324,7 +324,7 @@ Clone with all submodules:
 ```bash
 git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 cd bamr87
-./tools/setup-dev.sh
+./tools/setup.sh
 ```
 
 Or explore individual projects:
@@ -333,8 +333,8 @@ Or explore individual projects:
 # CV Builder
 cd projects/cv-builder-pro && npm install && npm run dev
 
-# Documentation Site
-mkdocs serve
+# Documentation site (owned by the README submodule)
+cd projects/README && mkdocs serve
 
 # Scripts (standalone utilities)
 ./projects/scripts/project-init.sh --help
@@ -452,7 +452,7 @@ git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 cd bamr87
 
 # Bootstrap local environment
-./tools/setup-dev.sh
+./tools/setup.sh
 ```
 
 </details>
