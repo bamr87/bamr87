@@ -189,6 +189,12 @@ _data/ai_activity.yml
 # Generated per run, never committed. The retired actions-review and
 # daily-analysis work orders were removed with their generators (2026-08-09).
 remediation-workorder.md
+# Ephemeral agent work orders (issue-pipeline scan → the tier 1/2/3 agents).
+# Generated per run, uploaded as an artifact, never committed.
+issue-workorder-t*.md
+# Evidence sandboxes built by tools/issue-evidence.sh: a full clone plus its
+# venv/node_modules per issue. Uploaded as a workflow artifact; never committed.
+.evidence/
 
 # Playwright MCP browser artifacts (screenshots, snapshots, downloads)
 .playwright-mcp/

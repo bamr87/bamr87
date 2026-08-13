@@ -79,6 +79,7 @@ hub:
 schedule:
   fleet_pulse: "0 6 * * *"        # gather → publish → remediate
   build_dash: "0 7 * * *"         # republish the site after the data lands
+  issue_pipeline: "0 8 * * *"     # intake → implement → complete (see issue_pipeline:)
   refresh_dash: "0 4 * * *"       # README AUTO span refresh PR
   reconcile_registry: "0 5 * * *" # registry ↔ GitHub reconciliation
   update_submodules: "0 3 * * 0"  # weekly pointer bump PR
@@ -107,6 +108,92 @@ remediation:
     slow: 40
     cancel-heavy: 20
     cron-heavy: 10
+
+# --------------------------------------------------------------------------- #
+# Issue pipeline — the three-tier loop that turns an open issue into a
+# merge-ready pull request. Counterpart to `remediation:` above: that one fixes
+# broken WORKFLOWS, this one resolves ISSUES.
+#
+#   T1 intake     enrich, gather evidence in an isolated virtual environment,
+#                 label, prioritize, assign an owner  → `agent:ready`
+#   T2 implement  branch, implement, open a DRAFT PR  → `agent:in-pr`
+#   T3 complete   drive CI green, tests + docs, mark ready for review
+#
+# Stage lives in LABELS, not in a database: a human re-queues, skips, or stops
+# any issue by editing one label, and a lost run resumes from current state
+# instead of dying with the event that would have chained it.
+#
+# Consumed by:
+#   - .github/scripts/dash-gen/issue_pipeline.py  — queues, caps, taxonomy
+#   - .github/workflows/issue-pipeline.yml        — the three agent tiers
+#   - tools/issue-evidence.sh                     — evidence timeout
+# Full doc: docs/ISSUE-PIPELINE.md
+# --------------------------------------------------------------------------- #
+issue_pipeline:
+  enabled: true
+  hub: bamr87/bamr87
+  branch_prefix: agent/issue      # T2 branches; also how T3 recognises its own PRs
+
+  # Per-run blast radius. Deliberately small: every tier costs Claude tokens and
+  # every T2 candidate becomes a pull request somebody has to look at.
+  tiers:
+    intake:
+      max_issues: 8               # issues enriched per run, fleet-wide
+      max_per_repo: 3             # …so one noisy backlog can't consume the run
+    implement:
+      max_issues: 3               # draft PRs opened per run
+      max_cross_repo: 2           # of those, how many may land outside the hub
+    complete:
+      max_prs: 4                  # pipeline PRs driven toward mergeable per run
+
+  # The virtual environment T1 reproduces issues in (tools/issue-evidence.sh).
+  # This is the expensive half of intake — one clone + toolchain install + test
+  # run per issue — so it is capped separately and cached by TTL.
+  evidence:
+    enabled: true
+    max_runs: 6                   # evidence bundles built per run
+    ttl_days: 7                   # a bundle newer than this is reused, not rebuilt
+    timeout_minutes: 8            # per PHASE (clone/install/lint/test/build), not per bundle;
+                                  # the workflow step's own timeout is the hard ceiling
+    screenshots: true             # capture a page screenshot for web stacks
+
+  readiness:
+    min_score: 70                 # 100 − gap weights; below this T1 must not pass it on
+
+  # What may proceed unattended, and what stops one step short of asking for a
+  # merge. `assisted` still gets a full implementation and a PR — it just never
+  # gets marked ready-for-review by an agent.
+  autonomy:
+    default: auto
+    never_merge: true             # no tier may ever merge. Not configurable in practice.
+    assisted_types: [security]    # a security fix always gets human eyes
+    assisted_sizes: [size:xl]     # too big to land unattended — split it instead
+    assisted_priorities: []       # e.g. [P0] to force review on urgent work
+
+  # Suggested assignee. `bamr87` is a personal account with no teams, so this is
+  # a routing table rather than a lookup — override per category or per repo as
+  # collaborators appear.
+  owners:
+    default: bamr87
+    by_category: {}               # e.g. docs: some-writer
+    by_repo: {}                   # e.g. bamr87/it-journey: someone
+
+  # The taxonomy every tier applies. Created/refreshed in each target repo by
+  # `dash issues --sync-labels --apply` — `gh issue edit --add-label` fails the
+  # WHOLE call on one unknown label, so a missing label costs an issue its
+  # entire triage.
+  labels:
+    state:
+      queued: agent:queued
+      ready: agent:ready
+      blocked: agent:blocked
+      in_pr: agent:in-pr
+      done: agent:done
+      hold: agent:hold            # human brake: excluded from every tier
+      human_review: human-review  # human brake: PR is never auto-advanced
+    types: [bug, feature, docs, chore, ci, refactor, test, security, question]
+    priorities: [P0, P1, P2, P3]
+    sizes: [size:xs, size:s, size:m, size:l, size:xl]
 
 # --------------------------------------------------------------------------- #
 # Token contract — WHICH secret does WHAT, and where it must exist.
