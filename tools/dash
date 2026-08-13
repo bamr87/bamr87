@@ -28,6 +28,8 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash triage${c_off}            fleet-wide open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/ portal)
   ${c_bold}dash reconcile${c_off}         registry + .gitmodules vs GitHub reality (renames/deletions/urls); --apply fixes safe ones
   ${c_bold}dash remediate${c_off}         merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse)
+  ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
+  ${c_bold}dash evidence <repo> <n>${c_off} build one issue's evidence bundle in an isolated virtual environment
   ${c_bold}dash secrets [sync]${c_off}    per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env)
   ${c_bold}dash config [show|audit|sync]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
@@ -43,7 +45,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|remediate|reconcile|estimate|ledger|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|remediate|issues|reconcile|estimate|ledger|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -195,6 +197,18 @@ cmd_daily() { "${TOOLS}/dash-gen" daily "$@"; }
 cmd_triage() { "${TOOLS}/dash-gen" triage "$@"; }
 cmd_reconcile() { "${TOOLS}/dash-gen" reconcile "$@"; }
 cmd_remediate() { "${TOOLS}/dash-gen" remediate "$@"; }
+cmd_issues() { "${TOOLS}/dash-gen" issues "$@"; }
+cmd_evidence() {
+  # `dash evidence bamr87/repo 42 [extra flags]` — positional repo + issue, so
+  # the everyday invocation matches how you'd say it out loud.
+  local repo="${1:-}" num="${2:-}"
+  if [ -z "$repo" ] || [ -z "$num" ]; then
+    echo "usage: dash evidence <owner/repo> <issue-number> [--ref REF] [--out DIR] [--no-screenshot]" >&2
+    return 1
+  fi
+  shift 2
+  "${TOOLS}/issue-evidence.sh" --repo "$repo" --issue "$num" "$@"
+}
 cmd_secrets() {
   # `dash secrets` audits; `dash secrets sync` provisions the token contract
   # (values from env only — see fleet-config.py sync-secrets).
@@ -230,6 +244,8 @@ main() {
     triage)  cmd_triage "$@" ;;
     reconcile) cmd_reconcile "$@" ;;
     remediate) cmd_remediate "$@" ;;
+    issues)  cmd_issues "$@" ;;
+    evidence) cmd_evidence "$@" ;;
     secrets) cmd_secrets "$@" ;;
     config)  cmd_config "$@" ;;
     estimate) cmd_estimate "$@" ;;

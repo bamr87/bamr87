@@ -10,6 +10,7 @@ Operator documentation for the hub and the machinery that runs the fleet. The su
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local setup, containers, the everyday loop, and the pre-PR checklist. |
 | [AI-INTEGRATION.md](AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth/secrets, feedback loops, fleet propagation. |
 | [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md) | The daily fleet-pulse loop — signals gathered, queue built, doctor agent fixes. |
+| [ISSUE-PIPELINE.md](ISSUE-PIPELINE.md) | The three-tier issue loop — intake + virtual-environment evidence, implementation into a draft PR, completion to merge-ready. |
 | [ESTIMATION.md](ESTIMATION.md) | Engagement estimation & cost tracking — every project a client, deterministic estimates, evidence-accrued actuals, variance. |
 | [WORKFLOW-OPTIMIZATION.md](WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit — where the minutes go and what was optimized. |
 | [STANDARDS.md](STANDARDS.md) | The per-tier standardization baseline every submodule is held to, and how it's enforced. |

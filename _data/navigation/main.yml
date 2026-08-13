@@ -17,6 +17,8 @@
       url: /monitor/
     - title: Fleet Triage
       url: /triage/
+    - title: Issue Pipeline
+      url: /issue-pipeline/
     - title: Roadmap
       url: /roadmap/
     - title: Toolbox

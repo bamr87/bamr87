@@ -20,6 +20,12 @@ Subcommands:
            ranked, deduped, capped fix queue and emit the work order that
            drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
 
+  issues   Classify every open fleet issue into the three-tier issue pipeline
+           (intake → implement → complete) by its label state, score
+           completeness/priority/size/autonomy, and emit one capped work order
+           per tier plus the committed _data/issue_pipeline.yml snapshot.
+           Drives issue-pipeline.yml. Implemented in issue_pipeline.py.
+
   all      Run health then readme.
 
 The single source of truth is dash/_data/projects.yml. This script never invents
@@ -45,6 +51,7 @@ import actions_analytics
 import daily_report
 import engagements
 import fleet_triage
+import issue_pipeline
 import reconcile
 import remediation
 
@@ -428,6 +435,12 @@ def main(argv: list[str] | None = None) -> int:
         help="merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse.yml)",
     )
     remediation.add_arguments(p_remediate)
+
+    p_issues = sub.add_parser(
+        "issues",
+        help="three-tier issue pipeline queues -> issue_pipeline.yml + per-tier work orders",
+    )
+    issue_pipeline.add_arguments(p_issues)
 
     p_reconcile = sub.add_parser(
         "reconcile",
