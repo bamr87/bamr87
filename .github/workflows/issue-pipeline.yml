@@ -309,9 +309,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          # Turn budget must clear a FULL-capacity intake run: tiers.intake.max_issues (8)
+          # issues plus evidence.max_runs (6) bundles to read. A run at exactly that
+          # capacity measured 182 turns, so the previous 150 failed the job after the
+          # work had already succeeded. Raise the caps in _data/fleet.yml together.
           claude_args: >-
             --model opus
-            --max-turns 150
+            --max-turns 250
             --allowedTools "Bash(gh:*),Bash(cat:*),Bash(ls:*),Bash(jq:*),Bash(sed:*),Bash(head:*),Bash(tail:*),Bash(tools/issue-evidence.sh:*),Read,Grep,Glob,Write"
           prompt: |
             You are **tier 1** of the bamr87 fleet's issue pipeline: INTAKE. A
