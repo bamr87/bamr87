@@ -15,6 +15,7 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `Brewfile` | macOS Homebrew bundle — native `brew bundle` format (derived from manifest) |
 | `setup.sh` | **Primary entrypoint** — cross-platform dev environment setup |
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
+| `install-workspace-sync.sh` | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main` everywhere — pointer recording stays with the `update-submodules.yml` PR (`--uninstall` removes it) |
 | `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, …) — see [docs/DASH.md](../docs/DASH.md) |
 | `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `ai-usage`, `actions`, `daily`, `triage`, `remediate`, `reconcile`, `estimate`, `ledger`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
 | `fleet-config.py` | Reads [`_data/fleet.yml`](../_data/fleet.yml), the fleet's central config. `audit` (= `dash secrets`) prints the per-repo matrix of declared secrets/variables vs what GitHub actually has; `sync --apply` (= `dash config sync`) projects the canonical repo **variables** onto every fleet repo; `show [dotted.key]` reads a value. Secret *values* are never read or stored — `gh` returns names only. |
