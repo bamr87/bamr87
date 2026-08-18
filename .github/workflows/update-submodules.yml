@@ -1,5 +1,12 @@
 name: 🔀 Update Submodules
 
+# Requires FLEET_TOKEN (see _data/fleet.yml) for two reasons:
+#   - GITHUB_TOKEN 404s on the fleet's private submodules, so a recursive
+#     checkout with it dies before the update step ever runs.
+#   - A PR opened with GITHUB_TOKEN fires no workflow events, so the required
+#     drift gate never runs and the PR is unmergeable on protected main.
+# Both call sites fall back to GITHUB_TOKEN (degraded: public repos only).
+
 on:
   schedule:
     - cron: '0 3 * * *'
@@ -32,17 +39,21 @@ jobs:
       pull-requests: write
 
     steps:
+      # submodules: false — a recursive checkout hard-fails the whole job when
+      # one submodule repo is private-to-the-token or gone (renamed/deleted).
+      # The update step below inits each submodule itself and degrades those
+      # to per-path warnings instead.
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: false
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
         uses: ./.github/actions/setup/configure-git
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Update submodules
         id: update
@@ -80,8 +91,10 @@ jobs:
           fi
 
           # Stage ONLY submodule pointer changes — never stray root-tree edits.
+          # A path whose repo was unreachable is still an empty dir here; adding
+          # it is a no-op, but don't let one bad path abort the loop.
           git config --file .gitmodules --get-regexp path | awk '{ print $2 }' \
-            | while IFS= read -r p; do git add -- "$p"; done
+            | while IFS= read -r p; do git add -- "$p" || echo "::warning::could not stage ${p}"; done
 
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -98,7 +111,8 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # FLEET_TOKEN so the PR fires workflow events and the drift gate runs.
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s)"
           title: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s)"
           body: |
