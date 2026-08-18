@@ -766,6 +766,16 @@ setup_submodules() {
 
     cd "$PROJECT_ROOT"
 
+    # Workspace-local git config: fetch/pull/checkout recurse into submodules
+    # automatically, pushes refuse to publish a pointer whose submodule commit
+    # isn't pushed, and status/diff stay submodule-aware.
+    run_cmd git config submodule.recurse true
+    run_cmd git config fetch.recurseSubmodules on-demand
+    run_cmd git config push.recurseSubmodules check
+    run_cmd git config submodule.fetchJobs 8
+    run_cmd git config status.submodulesummary true
+    run_cmd git config diff.submodule log
+
     run_cmd git submodule sync --recursive
     run_cmd git submodule update --init --recursive
 
