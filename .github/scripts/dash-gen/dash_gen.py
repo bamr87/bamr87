@@ -11,6 +11,11 @@ Subcommands:
   readme   Regenerate ONLY the <!-- AUTO:projects --> span of the profile README.md
            from the registry's static facts (deterministic; safe to commit).
 
+  cv       Project the registry into bamr87/cv's data contract: write the
+           committed _data/cv_portfolio.json proposal (CVData Project[]/Skill[]
+           shapes) that the sync-cv loop merges into that repo's data/cv.json.
+           Deterministic; implemented in cv_fragment.py.
+
   ai       Shadow-price local Claude Code usage per repo (scans ~/.claude/projects
            JSONL ledgers, persists a daily ledger, writes _data/ai_activity.yml).
            LOCAL-ONLY and ephemeral — not part of `all`, never runs in CI.
@@ -48,6 +53,7 @@ from pathlib import Path
 import ai_activity
 import ai_usage_collector
 import actions_analytics
+import cv_fragment
 import daily_report
 import engagements
 import fleet_triage
@@ -391,6 +397,10 @@ def cmd_readme(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cv(args: argparse.Namespace) -> int:
+    return cv_fragment.write_fragment(load_registry(), REPO_ROOT, check=args.check)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="dash-gen", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -401,6 +411,12 @@ def main(argv: list[str] | None = None) -> int:
     p_readme = sub.add_parser("readme", help="regenerate README AUTO:projects span")
     p_readme.add_argument("--check", action="store_true", help="fail if stale; do not write")
     p_readme.set_defaults(func=cmd_readme)
+
+    p_cv = sub.add_parser(
+        "cv", help="project the registry into bamr87/cv's contract -> cv_portfolio.json (committed)"
+    )
+    p_cv.add_argument("--check", action="store_true", help="fail if stale; do not write")
+    p_cv.set_defaults(func=cmd_cv)
 
     p_ai = sub.add_parser(
         "ai", help="shadow-price local Claude Code usage -> ai_activity.yml (local-only)"
