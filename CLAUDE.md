@@ -59,7 +59,7 @@ npm run lint         # eslint .
 npm run kill         # frees port 5000
 ```
 
-Note: there is **no `npm test` script** in `projects/cv-builder-pro/`. Tests are Cypress e2e specs under `projects/cv-builder-pro/cypress/e2e/` (`npx cypress run` against a running dev server).
+Note: `npm test` in `projects/cv-builder-pro/` is the **CVData contract gate** (`scripts/contract-check.mjs` against the vendored `contract/cv.schema.json` from bamr87/cv); e2e tests are Cypress specs under `projects/cv-builder-pro/cypress/e2e/` (`npx cypress run` against a running dev server).
 
 **Documentation (`projects/README/`)** — Python + pytest:
 
@@ -78,7 +78,7 @@ cd projects/README && pip install -r requirements.txt && mkdocs serve
 **Aggregate verification** — delegates to each project's own checks; skips any whose tooling/deps are absent:
 
 ```bash
-./tools/run-all-tests.sh       # fans out over EVERY checked-out submodule, running each project's own suite when its deps are installed and skipping (with a reason) otherwise; plus shellcheck of tools/ and the README submodule's mkdocs build. cv-builder-pro is a skip, not a failure (no npm test script).
+./tools/run-all-tests.sh       # fans out over EVERY checked-out submodule, running each project's own suite when its deps are installed and skipping (with a reason) otherwise; plus shellcheck of tools/ and the README submodule's mkdocs build. cv and cv-builder-pro both carry real npm test suites (sync gates / the CVData contract gate).
 ```
 
 **Shell scripts** — `shellcheck tools/*.sh` (CI uses `--severity=warning`). `projects/scripts/` shellchecks itself in its own CI; the hub deliberately does not gate it a second time.
