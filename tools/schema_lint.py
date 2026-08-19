@@ -5,6 +5,7 @@ Spec: Pyramid Schema v0.1. Stdlib only.
 
 Usage:
     python schema_lint.py check <path> [--fix] [--werror] [--include-hidden]
+                                       [--federation] [--expect-schema VER]
     python schema_lint.py init  <path>
 
 `check` walks the pyramid from <path>, verifying every traversed directory's
@@ -14,6 +15,13 @@ registered with TODO purposes (newly registered dirs get scaffolded schemas),
 stale rows are pruned — then the tree is re-checked; review the diff and fill
 the TODOs. `init` scaffolds a SCHEMA.md (coverage: listed, purposes TODO)
 into every directory that lacks one; it never overwrites.
+
+Walks stop at git repo boundaries (submodules, nested clones, worktrees):
+those subtrees are separate pyramids that validate in their own repos.
+`check --federation` additionally verifies the seams named in .gitmodules —
+each mount is a terminal row in its parent's SCHEMA.md and each child carries
+its own root SCHEMA.md at the expected spec version — without ever linting
+child interiors.
 """
 
 from __future__ import annotations
@@ -177,6 +185,27 @@ def _match_row(name: str, is_dir: bool, doc: SchemaDoc) -> Row | None:
     return None
 
 
+def is_repo_boundary(path: Path) -> bool:
+    """True if `path` is the root of another git repo.
+
+    Submodules and linked worktrees carry a `.git` *file* (a gitdir
+    pointer); nested clones carry a `.git` directory. Either way the tree
+    below is a foreign pyramid: it validates in its own repo, on its own
+    commit clock — walks must never cross the seam.
+    """
+    return (path / ".git").exists()
+
+
+def _under_repo_boundary(path: Path, root: Path) -> bool:
+    """True if any ancestor of `path` strictly below `root` is a boundary."""
+    for anc in path.parents:
+        if anc == root:
+            return False
+        if is_repo_boundary(anc):
+            return True
+    return False
+
+
 def check_dir(dirpath: Path, root: Path, report: Report,
               include_hidden: bool) -> None:
     rel = dirpath.relative_to(root) if dirpath != root else Path(".")
@@ -192,6 +221,12 @@ def check_dir(dirpath: Path, root: Path, report: Report,
     for child in entries:
         name = child.name
         if name in IMPLICIT_ALLOWED:
+            # Implicitly allowed everywhere, but a schema may still register
+            # it (commonly `| `SCHEMA.md` | file | this contract | required |`)
+            # -- mark that row seen so it is not reported missing.
+            row = _match_row(name, child.is_dir(), doc)
+            if row is not None:
+                row.seen = True
             continue
         if name in ALWAYS_IGNORED:
             # Registering one of these documents it; contents are never
@@ -226,8 +261,16 @@ def check_dir(dirpath: Path, root: Path, report: Report,
                 continue
         # Symlinked dirs are entries, not subtrees: never descend (their
         # targets are checked wherever they really live, and cycles must
-        # not hang the walk).
+        # not hang the walk). Repo boundaries (submodules, nested clones)
+        # are foreign pyramids: auto-skipped, but the row should say so.
         if child.is_dir() and not row.terminal and not child.is_symlink():
+            if is_repo_boundary(child):
+                crel = child.relative_to(root)
+                report.warn(f"{rel}: '{name}' is a git repo boundary "
+                            f"(submodule?); not descending — mark its row "
+                            f"'terminal' in {rel}/SCHEMA.md "
+                            f"({crel} validates in its own repo)")
+                continue
             check_dir(child, root, report, include_hidden)
 
     for row in doc.rows:
@@ -316,6 +359,86 @@ def apply_fixes(report: Report, root: Path) -> list[str]:
     return summary
 
 
+# ---------------------------------------------------------------- federation
+
+def _parse_gitmodules(path: Path) -> list[dict[str, str]]:
+    """Minimal .gitmodules reader: [submodule "…"] sections, key = value."""
+    entries: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        if line.startswith("[submodule") and line.endswith("]"):
+            current = {}
+            entries.append(current)
+            continue
+        if line.startswith("["):            # some other section kind
+            current = None
+            continue
+        if current is not None and "=" in line:
+            key, _, value = line.partition("=")
+            current[key.strip().lower()] = value.strip()
+    return [e for e in entries if e.get("path")]
+
+
+def check_federation(root: Path, report: Report, expect_schema: str) -> str:
+    """Seam invariants over git submodules; never lints child interiors.
+
+    Federation is how pyramids stack: each repo validates its own interior
+    on its own commit clock, and the parent checks only the seam — every
+    `.gitmodules` mount is a terminal row in its parent's SCHEMA.md, and
+    the child carries its own root SCHEMA.md at the expected spec version.
+    Returns a one-line fleet summary.
+    """
+    gm = root / ".gitmodules"
+    if not gm.is_file():
+        return "federation: no .gitmodules; nothing to check"
+    scratch = Report()      # seam lookups must not duplicate walk output
+    n_ok = n_drift = n_unseeded = n_uninit = 0
+    entries = _parse_gitmodules(gm)
+    for entry in entries:
+        rel = entry["path"]
+        mount = root / rel
+        if not mount.is_dir() or not is_repo_boundary(mount):
+            report.warn(f"{rel}: submodule not initialized; seam unchecked")
+            n_uninit += 1
+            continue
+        parent_schema = mount.parent / "SCHEMA.md"
+        prel = parent_schema.relative_to(root)
+        if not parent_schema.is_file():
+            report.error(f"{rel}: mount unregistered — no {prel} to carry "
+                         f"its row")
+        else:
+            row = _match_row(mount.name, True,
+                             parse_schema(parent_schema, scratch))
+            if row is None:
+                report.error(f"{rel}: submodule mount not registered "
+                             f"in {prel}")
+            elif not row.terminal:
+                report.error(f"{rel}: submodule row must be marked "
+                             f"'terminal' in {prel}")
+        child_schema = mount / "SCHEMA.md"
+        if not child_schema.is_file():
+            report.warn(f"{rel}: child pyramid not seeded "
+                        f"(no root SCHEMA.md)")
+            n_unseeded += 1
+            continue
+        fm, _ = _parse_frontmatter(
+            child_schema.read_text(encoding="utf-8").splitlines())
+        declared = fm.get("schema")
+        if declared != expect_schema:
+            report.warn(f"{rel}: child declares schema "
+                        f"{declared if declared else '(unset)'}, "
+                        f"expected {expect_schema}")
+            n_drift += 1
+        else:
+            n_ok += 1
+    return (f"federation: {len(entries)} submodule(s) — {n_ok} ok, "
+            f"{n_drift} version-drift, {n_unseeded} unseeded, "
+            f"{n_uninit} uninitialized")
+
+
 # ---------------------------------------------------------------- init
 
 INIT_TEMPLATE = """\
@@ -347,6 +470,8 @@ def _terminal_marked(root: Path) -> set[Path]:
         parts = set(schema_path.relative_to(root).parts[:-1])
         if parts & ALWAYS_IGNORED or any(p.startswith(".") for p in parts):
             continue
+        if _under_repo_boundary(schema_path, root):
+            continue    # foreign pyramid's schema — not ours to read
         doc = parse_schema(schema_path, scratch)
         for row in doc.rows:
             if row.kind == "dir" and row.terminal:
@@ -363,6 +488,9 @@ def init_tree(root: Path) -> list[Path]:
         parts = set(dirpath.relative_to(root).parts)
         if parts & ALWAYS_IGNORED or any(p.startswith(".") for p in parts):
             continue
+        if dirpath != root and (is_repo_boundary(dirpath)
+                                or _under_repo_boundary(dirpath, root)):
+            continue    # never scaffold inside another repo
         resolved = dirpath.resolve()
         if any(t == resolved or t in resolved.parents for t in terminals):
             continue
@@ -403,6 +531,11 @@ def main(argv: list[str] | None = None) -> int:
                          help="treat warnings as errors")
     p_check.add_argument("--include-hidden", action="store_true",
                          help="also check dotfiles/dirs")
+    p_check.add_argument("--federation", action="store_true",
+                         help="also verify submodule seams via .gitmodules")
+    p_check.add_argument("--expect-schema", metavar="VER", default=None,
+                         help="spec version submodule pyramids must declare "
+                              f"(default: {SPEC_VERSION})")
 
     p_init = sub.add_parser("init", help="scaffold missing SCHEMA.md files")
     p_init.add_argument("path", nargs="?", default=".")
@@ -428,6 +561,9 @@ def main(argv: list[str] | None = None) -> int:
 
     report = Report()
     check_dir(root, root, report, include_hidden=args.include_hidden)
+    if args.federation:
+        print(check_federation(root, report,
+                               args.expect_schema or SPEC_VERSION))
 
     if args.fix and report.plans:
         fixed = apply_fixes(report, root)

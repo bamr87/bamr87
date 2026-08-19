@@ -6,7 +6,7 @@ This repository is structured by `SCHEMA.md` files — one per directory, each a
 
 **Orient.** At the start of work, read `./SCHEMA.md`. Before touching any directory, read its `SCHEMA.md` and, if placement is in question, the chain of schemas from root down to it. `## Conventions` inherit from ancestors; the nearest schema wins.
 
-**Follow.** Place and name new files according to `## Placement` and `## Structure` in the nearest schema. If nothing routes your file, do not guess: add a row to the appropriate Structure table (and a Placement route if it will recur), then create the file. Respect `## Forbidden`. Never hand-edit entries marked `generated`. Never descend into directories marked `terminal`.
+**Follow.** Place and name new files according to `## Placement` and `## Structure` in the nearest schema. If nothing routes your file, do not guess: add a row to the appropriate Structure table (and a Placement route if it will recur), then create the file. Respect `## Forbidden`. Never hand-edit entries marked `generated`. Never descend into directories marked `terminal`. Submodule mounts are separate pyramids: treat them as `terminal` even when unmarked — their interiors are governed by their own root `SCHEMA.md`, in their own repo.
 
 **Propagate.** Creating a directory is one atomic act with three parts:
 1. Create the directory.

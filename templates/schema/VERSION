@@ -1,8 +1,8 @@
 source: pyramid-schema (https://github.com/bamr87/SCHEMA)
-upstream-commit: ce09aeb
+upstream-commit: b2ffca1
 spec: "0.1"
-vendored: 2026-08-03
-verified: 2026-08-09
+vendored: 2026-08-18
+verified: 2026-08-18
 files: tools/schema_lint.py, templates/schema/SCHEMA.template.md, templates/schema/CLAUDE.snippet.md, templates/schema/schema-check.yml
 reinvest: improvements discovered in fleet use go to the upstream package first, then re-vendor and bump this file.
 enforcement: |
@@ -11,19 +11,22 @@ enforcement: |
   against the hub's, so a fork can no longer diverge unnoticed. It found two on
   the day it shipped.
 notes: |
-  2026-08-09 audit of the vendored copy:
-  - tools/schema_lint.py is byte-identical to upstream HEAD (ce09aeb). The
-    recorded upstream-commit said 04b0980, which was accurate when vendored but
-    stale afterwards: 04b0980 was the last commit to TOUCH the linter, not the
-    upstream HEAD. Recording the commit the file came from is only useful if it
-    is the commit you can diff against, so `verified:` is now tracked too.
-  - The vendored templates differ from upstream only by prose reflow (the fleet's
-    one-paragraph-per-line rule). That is deliberate local adaptation, not drift.
-  - Known gap: the hub vendors this linter to ~40 repos with NO local test
-    coverage. Upstream has a 60-test suite that is not pulled in, so a re-vendor
-    is currently verified only by the hub's own pyramid linting clean. Pulling
-    the suite in (or running it against the vendored copy in CI) is the obvious
-    next step.
-  - Open upstream: bamr87/SCHEMA#4 fixes a real bug found by this audit — a
-    schema that registers its own `SCHEMA.md` row was reported as missing that
-    file. Re-vendor once it merges.
+  2026-08-18 re-vendor (ce09aeb → b2ffca1):
+  - Picks up everything the 2026-08-09 audit was waiting on: the SCHEMA#4
+    self-registration fix (a schema registering its own SCHEMA.md row was
+    reported as missing that file) and the federation layer — walks stop at
+    git repo boundaries, `check --federation` verifies .gitmodules seams,
+    `init` never scaffolds across a boundary. Directly relevant to this
+    monorepo: the vendored linter now treats every projects/* mount as a
+    foreign pyramid even without a terminal row.
+  - tools/schema_lint.py stays byte-identical to upstream HEAD (the check (i)
+    parity contract). Adopted submodules hold the older copy until re-seeded,
+    so check (i) will warn on them — expected mid-upgrade state, resolve by
+    re-running the schema fan-out per repo.
+  - CLAUDE.snippet.md ports upstream's new submodule-mounts sentence into the
+    fleet's one-paragraph-per-line reflow; the reflow remains deliberate local
+    adaptation, not drift. SCHEMA.template.md is content-identical to upstream
+    (quote/spacing style only).
+  - Known gap (unchanged): the vendored copy has no local test coverage;
+    upstream's suite (69 lint + 6 bench tests, green at b2ffca1) is the only
+    verification beyond the hub's own pyramid linting clean.
