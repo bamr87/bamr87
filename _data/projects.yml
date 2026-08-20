@@ -48,17 +48,17 @@
   submodule_path: projects/cv-builder-pro
   branch: main
   repo_url: https://github.com/bamr87/cv-builder-pro
-  description: AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase).
+  description: AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor half of the bamr87/cv machine (React 19, TS, Vite 6, Firebase).
   stack: [react, typescript, vite, tailwind, firebase]
   category: full-stack-ai
-  # Last substantive commit 2025-08-19; everything since is hub fan-out. It works,
-  # so it is not archived — but it was `active` + `featured`, which put a dormant
-  # app on the portfolio's front page. The natural pairing is unexploited: the
-  # `cv` repo's real LaTeX source is the obvious golden fixture for this app's
-  # LaTeX exporter.
+  # Revived 2026-08: the long-noted cv pairing is now exploited — bamr87/cv keeps
+  # the CV of record as data/cv.json in this app's CVData shape (a two-repo
+  # contract), its builder/ engine is a Node port of this app's exporters, and
+  # the app gained cv.json import/export to close the loop. Kept off the front
+  # page pending sustained activity.
   status: maintenance
   featured: false
-  maintained: false
+  maintained: true
   live_url: null
   docs_url: null
   schema:
@@ -600,18 +600,19 @@
   submodule_path: projects/cv
   branch: main
   repo_url: https://github.com/bamr87/cv
-  description: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
-  stack: [latex]
+  description: CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII/LaTeX/HTML/PDF, published to Pages and releases; round-trips with cv-builder-pro.
+  stack: [latex, typescript, node]
   category: docs
-  # Content last changed 2025-11. Kept deliberately — it is real personal data and
-  # the natural golden fixture for cv-builder-pro's LaTeX exporter. Housekeeping
-  # owed: LaTeX build artifacts (.aux/.fls/.log/.fdb_latexmk/.synctex.gz) are
-  # committed, four near-identical ~2MB PDF renders are kept, and it is the only
-  # repo in the fleet with no README.
-  status: maintenance
+  # Rebuilt 2026-08 as the fleet's CV machine: data/cv.json (cv-builder-pro's
+  # CVData contract) + a builder/ engine ported from that app, CI-gated generated
+  # CV.md, weekly publish + freshness loops, snapshot releases, and the jd/
+  # tailoring loop. The old housekeeping debts (tracked LaTeX byproducts, four
+  # ~2MB PDF renders, no README) were cleared in the same change; the real data
+  # doubles as the engine's golden test fixture.
+  status: active
   featured: false
-  maintained: false
-  live_url: null
+  maintained: true
+  live_url: https://bamr87.github.io/cv/
   docs_url: null
   schema:
     status: none

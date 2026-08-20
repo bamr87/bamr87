@@ -29,8 +29,8 @@ coverage: listed
 | `bashcrawl/` | dir | Terminal game and command-line learning project. | terminal |
 | `books/` | dir | Personal books and reference notes collection. | terminal |
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
-| `cv/` | dir | LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots. | terminal |
-| `cv-builder-pro/` | dir | AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase). | terminal |
+| `cv/` | dir | CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII… | terminal |
+| `cv-builder-pro/` | dir | AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor… | terminal |
 | `djangoerp/` | dir | A Django-based ERP experiment exploring enterprise resource planning modules in Python. | terminal |
 | `drsai/` | dir | Dr. Seuss-style AI poetry generator. | terminal |
 | `edgar-data-parse/` | dir | SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI. | terminal |

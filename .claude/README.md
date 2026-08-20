@@ -9,6 +9,7 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/update-registry/` | Reconcile `_data/projects.yml` with `.gitmodules` + repo metadata |
 | `skills/refresh-portfolio/` | Regenerate monitoring data + README project list |
 | `skills/sync-project-docs/` | Pull each project's current summary/status into the registry |
+| `skills/sync-cv/` | Sync bamr87/cv's data/cv.json with the fleet via the `dash-gen cv` projection (`_data/cv_portfolio.json`) — curated merge PR, never a mechanical overwrite |
 | `skills/drift-report/` | Explain drift-gate failures and the exact fix |
 | `skills/standardize-audit/` | Audit the fleet against the tiered baseline (`dash audit`); explain each gap |
 | `skills/standardize-project/` | Bring one submodule up to its tier baseline and open a PR |

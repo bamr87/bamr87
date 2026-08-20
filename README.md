@@ -230,14 +230,14 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[bashconsultants](https://github.com/bamr87/bashconsultants)**: BASH Consulting — Denver-based IT consulting firm website.
 - **[1987](https://github.com/bamr87/1987)**: Self-growing knowledge base about the year 1987 — history, politics, science, and culture.
 - **[2005](https://github.com/year-of-ai/2005)**: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011).
-- **[cv](https://github.com/bamr87/cv)**: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
+- **[cv](https://github.com/bamr87/cv)**: CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII/LaTeX/HTML/PDF, published to Pages and releases; round-trips with cv-builder-pro. Live at [https://bamr87.github.io/cv/](https://bamr87.github.io/cv/).
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
 - **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Dataview to GitHub Pages via the zer0-mistakes gem; the theme's second brain.
 - **[irony-works](https://github.com/bamr87/irony-works)**: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
 
 ### 🚀 Full-Stack & AI Applications
 
-- **[cv-builder-pro](https://github.com/bamr87/cv-builder-pro)**: AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase).
+- **[cv-builder-pro](https://github.com/bamr87/cv-builder-pro)**: AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor half of the bamr87/cv machine (React 19, TS, Vite 6, Firebase).
 - **[barodybroject](https://github.com/bamr87/barodybroject)**: Full-stack responsive web app with OpenAI integrations and CMS functionality. Live at [https://barodybroject.com](https://barodybroject.com).
 - **[aieo](https://github.com/bamr87/aieo)**: AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI).
 - **[lawmode](https://github.com/bamr87/lawmode)**: Always-on AI lawyer concept for developers.
