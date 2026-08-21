@@ -1,0 +1,190 @@
+name: Resolve fleet token
+description: >-
+  Select the first GitHub token that actually works against a probe repository,
+  instead of the first one that merely happens to be non-empty. Every candidate
+  is masked before use and validated with an idempotent GET /repos/{owner}/{repo}.
+
+inputs:
+  fleet-token:
+    description: >-
+      Primary candidate token, e.g. secrets.FLEET_TOKEN. May be empty.
+    required: false
+    default: ''
+  fleet-token-name:
+    description: >-
+      Human-readable name reported in the `source` output when the primary
+      candidate wins. Used for logging only; never the token value itself.
+    required: false
+    default: FLEET_TOKEN
+  fallback-token:
+    description: >-
+      Second candidate token, e.g. a personal access token. May be empty.
+    required: false
+    default: ''
+  fallback-token-name:
+    description: Human-readable name for the second candidate.
+    required: false
+    default: FALLBACK_TOKEN
+  default-token:
+    description: >-
+      Last-resort candidate, normally ${{ github.token }}. Note that the
+      job-scoped GITHUB_TOKEN cannot read foreign repositories and will probe
+      as 404 when `probe-repo` is not this repository.
+    required: false
+    default: ''
+  default-token-name:
+    description: Human-readable name for the last-resort candidate.
+    required: false
+    default: GITHUB_TOKEN
+  probe-repo:
+    description: >-
+      owner/repo used for the validity probe. Set this to the repository the
+      caller actually intends to touch, otherwise the probe proves nothing
+      about cross-repo access.
+    required: false
+    default: ${{ github.repository }}
+  api-url:
+    description: GitHub API base URL.
+    required: false
+    default: ${{ github.api_url }}
+  fail-on-no-valid-token:
+    description: >-
+      When 'true' (default) the step fails if no candidate validates. Set to
+      'false' to branch on the `valid` output instead.
+    required: false
+    default: 'true'
+
+outputs:
+  token:
+    description: >-
+      The first candidate that returned HTTP 200 for the probe repository.
+      Empty when no candidate validated and fail-on-no-valid-token is 'false'.
+    value: ${{ steps.resolve.outputs.token }}
+  source:
+    description: >-
+      Name of the secret the winning token came from, e.g. FLEET_TOKEN.
+      Empty when no candidate validated.
+    value: ${{ steps.resolve.outputs.source }}
+  valid:
+    description: "'true' when a candidate validated, otherwise 'false'."
+    value: ${{ steps.resolve.outputs.valid }}
+
+runs:
+  using: composite
+  steps:
+    - id: resolve
+      shell: bash
+      env:
+        FLEET_TOKEN: ${{ inputs.fleet-token }}
+        FLEET_TOKEN_NAME: ${{ inputs.fleet-token-name }}
+        FALLBACK_TOKEN: ${{ inputs.fallback-token }}
+        FALLBACK_TOKEN_NAME: ${{ inputs.fallback-token-name }}
+        DEFAULT_TOKEN: ${{ inputs.default-token }}
+        DEFAULT_TOKEN_NAME: ${{ inputs.default-token-name }}
+        PROBE_REPO: ${{ inputs.probe-repo }}
+        API_URL: ${{ inputs.api-url }}
+        FAIL_ON_NO_VALID_TOKEN: ${{ inputs.fail-on-no-valid-token }}
+      run: |
+        # No `set -e`: a failing curl is an expected outcome that we handle by
+        # falling through to the next candidate, not a reason to abort the step.
+        set -uo pipefail
+
+        names=("$FLEET_TOKEN_NAME" "$FALLBACK_TOKEN_NAME" "$DEFAULT_TOKEN_NAME")
+        values=("$FLEET_TOKEN" "$FALLBACK_TOKEN" "$DEFAULT_TOKEN")
+
+        # Mask every candidate up front, before any of them is used. Rejected
+        # candidates are masked too, so a failed probe cannot leak a secret.
+        for value in "${values[@]}"; do
+          if [ -n "$value" ]; then
+            echo "::add-mask::${value}"
+          fi
+        done
+
+        if [ -z "${API_URL}" ]; then
+          API_URL="https://api.github.com"
+        fi
+        API_URL="${API_URL%/}"
+
+        if [ -z "${PROBE_REPO}" ]; then
+          echo "::error::resolve-fleet-token: probe-repo is empty; nothing to validate against."
+          exit 1
+        fi
+
+        # Idempotent, side-effect-free read. Only the status code is captured;
+        # the response body is discarded so no token-adjacent data is printed.
+        probe() {
+          local token="$1"
+          curl -sS \
+            -o /dev/null \
+            -w '%{http_code}' \
+            -X GET \
+            -H "Authorization: Bearer ${token}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            --max-time 15 \
+            --retry 2 \
+            --retry-connrefused \
+            "${API_URL}/repos/${PROBE_REPO}" 2>/dev/null || echo '000'
+        }
+
+        winning_token=''
+        winning_source=''
+
+        echo "Probing token candidates against ${PROBE_REPO}:"
+        for i in "${!values[@]}"; do
+          name="${names[$i]}"
+          value="${values[$i]}"
+
+          if [ -z "$value" ]; then
+            echo "  - ${name}: not set, skipping"
+            continue
+          fi
+
+          status="$(probe "$value")"
+          case "$status" in
+            200)
+              echo "  - ${name}: ok (200)"
+              winning_token="$value"
+              winning_source="$name"
+              break
+              ;;
+            401)
+              echo "  - ${name}: rejected (401) - token is expired, revoked or malformed"
+              ;;
+            403)
+              echo "  - ${name}: forbidden (403) - authenticated but insufficient scope, or rate limited"
+              ;;
+            404)
+              echo "  - ${name}: not visible (404) - this token cannot see ${PROBE_REPO}; a repo-scoped GITHUB_TOKEN returns 404, not 403, for foreign repositories"
+              ;;
+            000)
+              echo "  - ${name}: network error contacting ${API_URL}"
+              ;;
+            *)
+              echo "  - ${name}: unexpected status ${status}"
+              ;;
+          esac
+        done
+
+        if [ -n "$winning_token" ]; then
+          {
+            echo "token=${winning_token}"
+            echo "source=${winning_source}"
+            echo "valid=true"
+          } >> "$GITHUB_OUTPUT"
+          echo "Using ${winning_source} for ${PROBE_REPO}."
+          exit 0
+        fi
+
+        {
+          echo "token="
+          echo "source="
+          echo "valid=false"
+        } >> "$GITHUB_OUTPUT"
+
+        if [ "${FAIL_ON_NO_VALID_TOKEN}" = 'true' ]; then
+          echo "::error::resolve-fleet-token: no candidate token can read ${PROBE_REPO}. See the per-candidate status codes above."
+          exit 1
+        fi
+
+        echo "::warning::resolve-fleet-token: no candidate token can read ${PROBE_REPO}; continuing because fail-on-no-valid-token is not 'true'."
