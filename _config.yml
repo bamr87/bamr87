@@ -224,6 +224,7 @@ exclude:
   # Ruby / Node
   - Gemfile
   - Gemfile.lock
+  - fleet.manifest.yml
   - vendor/
   - node_modules/
   # Monorepo submodules (all live under projects/)

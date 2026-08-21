@@ -37,6 +37,7 @@ coverage: listed
 | `Rakefile` | file | Rake tasks for site build and maintenance | |
 | `SUBMODULES.md` | file | Submodule operations guide | |
 | `_config.yml` | file | Jekyll configuration | required |
+| `fleet.manifest.yml` | file | This repo's AI lanes in the shared `fleet/v1` vocabulary (spec: bamr87/wtd docs/FLEET-SPEC.md) | |
 | `_config_dev.yml` | file | Jekyll local-dev overrides | |
 | `docker-compose.yml` | file | Containerized dev services | |
 | `home.code-workspace` | file | VS Code multi-root workspace | |
