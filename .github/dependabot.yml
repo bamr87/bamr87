@@ -1,15 +1,32 @@
+# Dependabot configuration
+#
+# GitHub Actions in this repository are pinned to full commit SHAs with a
+# trailing version comment, e.g.
+#
+#   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#
+# Pinning removes tag mutability, but it also means an action stops picking up
+# upstream fixes on its own. Dependabot understands the "SHA + version comment"
+# convention and rewrites both parts together, so the pin stays current instead
+# of quietly aging into an unmaintained release.
+#
+# Docs: https://docs.github.com/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot
 version: 2
-# ALWAYS-LATEST dependency policy (_data/fleet.yml `dependencies:`,
-# docs/DEPENDENCIES.md): nothing is pinned and no lockfiles are committed, so
-# there are no library versions for Dependabot to bump — the bundler and pip
-# entries this file used to carry became no-ops and were removed. GitHub
-# Actions are the one declared exception: `uses:` requires a ref, so workflows
-# float on major tags (@vN, minors/patches arrive automatically) and this
-# single entry keeps the majors current.
 updates:
   - package-ecosystem: "github-actions"
+    # "/" is correct for workflows: Dependabot looks in .github/workflows for
+    # this ecosystem. Composite actions living in subdirectories would each
+    # need their own entry.
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     open-pull-requests-limit: 5
-    labels: ["automation", "dependencies"]
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      # One PR per week for all action bumps rather than one PR per action.
+      github-actions:
+        patterns:
+          - "*"
