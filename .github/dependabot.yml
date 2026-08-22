@@ -1,15 +1,43 @@
+# Dependabot configuration
+#
+# Keeps SHA-pinned GitHub Actions current. Pinning `uses:` to a commit SHA is
+# what makes the supply chain deterministic, but a pin never moves on its own --
+# not even for security fixes. Dependabot understands SHA pins: it bumps the SHA
+# and rewrites the trailing `# vX.Y.Z` comment, so the pins stay both pinned and
+# fresh.
+#
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 version: 2
-# ALWAYS-LATEST dependency policy (_data/fleet.yml `dependencies:`,
-# docs/DEPENDENCIES.md): nothing is pinned and no lockfiles are committed, so
-# there are no library versions for Dependabot to bump — the bundler and pip
-# entries this file used to carry became no-ops and were removed. GitHub
-# Actions are the one declared exception: `uses:` requires a ref, so workflows
-# float on major tags (@vN, minors/patches arrive automatically) and this
-# single entry keeps the majors current.
+
 updates:
+  # Workflow files under .github/workflows/ relative to this directory.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     open-pull-requests-limit: 5
-    labels: ["automation", "dependencies"]
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      # Batch routine bumps into one PR; majors still land individually so they
+      # get a real review.
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # NOTE: Dependabot scans each `directory` independently. If a composite action
+  # (an `action.yml` / `action.yaml`) lives in a subdirectory, add an entry for
+  # it here so its own `uses:` pins are updated too, e.g.:
+  #
+  # - package-ecosystem: "github-actions"
+  #   directory: "/.github/actions/<name>"
+  #   schedule:
+  #     interval: "weekly"
