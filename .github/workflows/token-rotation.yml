@@ -1,0 +1,353 @@
+name: 🔑 Token Rotation
+
+# THE weekly credential loop. Sibling of fleet-pulse.yml (broken workflows) and
+# issue-pipeline.yml (open issues): this one keeps the fleet's CREDENTIALS
+# current, so a repo's `CLAUDE_CODE_OAUTH_TOKEN` is never quietly older than the
+# rest of the fleet's — or quietly absent.
+#
+# WHAT IT ACTUALLY DOES, AND WHY IT IS SHAPED THIS WAY
+# ----------------------------------------------------
+# `claude setup-token` opens a browser, prints a one-year credential, and saves
+# nothing. There is no headless equivalent, and Anthropic documents no way to
+# re-mint one programmatically. So "rotate weekly" is three jobs, not one:
+#
+#   PROPAGATE  push the hub's canonical value to every fleet repo whose copy is
+#              missing or past `max_age_days`. Always runs, needs nothing new.
+#              This is what enrols a newly-registered repo and re-heals a secret
+#              someone deleted — the failure mode that used to be found only
+#              when a submodule's @claude workflow started 401-ing.
+#   AUDIT      record each repo's secret age from GitHub's own `updated_at`
+#              into _data/token_rotation.yml. Always runs. The secrets API
+#              returns names and timestamps but never values, which is exactly
+#              the shape an audit needs.
+#   RE-MINT    obtain a genuinely NEW credential. Only possible when the
+#              optional OAuth refresh grant is provisioned; otherwise the run
+#              opens ONE tracking issue asking a human to re-mint, and keeps
+#              propagating the current value in the meantime.
+#
+# The third is deliberately allowed to fail. A week the fleet cannot re-mint is
+# fine; a week it stops propagating because it could not re-mint is not.
+#
+# HOUSE RULES OBSERVED HERE
+#   - the ledger is published through utilities/publish-data, never a bare
+#     `git push` to a protected branch (that already cost this fleet three
+#     weeks of data once);
+#   - `report` is `needs: rotate`, not a `workflow_run` chain, so a rotation
+#     that fails still gets its findings filed;
+#   - FLEET_TOKEN is PROBED, not presence-checked — writing an Actions secret is
+#     an admin-level call and a present-but-under-scoped PAT looks identical to
+#     a working one until every write 403s.
+#
+# TOKENS (full contract: _data/fleet.yml)
+#   FLEET_TOKEN                       needs secrets:write across the fleet on
+#                                     top of its existing scopes — this is the
+#                                     one workflow that requires it.
+#   CLAUDE_CODE_OAUTH_TOKEN           the hub's copy is the canonical value the
+#                                     fleet is brought into line with.
+#   CLAUDE_CODE_OAUTH_REFRESH_TOKEN   optional. Present → the run can re-mint.
+#                                     Absent → propagate-and-alert only.
+#
+# Full doc: docs/TOKEN-ROTATION.md
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'   # weekly, Monday 02:00 UTC (_data/fleet.yml schedule.rotate_tokens)
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Write the secrets (unchecked = dry run, the default)"
+        type: boolean
+        default: false
+      source:
+        description: "Where the value comes from"
+        type: choice
+        options: [auto, refresh, env, none]
+        default: auto
+      only:
+        description: "Limit to one contract secret (blank = every rotating token)"
+        type: string
+        default: ''
+      repo:
+        description: "Limit to one repo, e.g. bamr87/it-journey (blank = the fleet)"
+        type: string
+        default: ''
+      force:
+        description: "Write every reachable repo, not just missing/stale copies"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One rotation at a time, and never cancelled mid-fan-out: a killed run can
+# leave half the fleet on the new credential and half on the old, which is the
+# one outcome worse than not rotating at all.
+concurrency:
+  group: token-rotation
+  cancel-in-progress: false
+
+jobs:
+  # ========================================================================= #
+  # 1. AUDIT → MINT → PROPAGATE
+  # ========================================================================= #
+  rotate:
+    name: Rotate fleet credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write         # publish the ledger
+      pull-requests: write    # …via a PR when a direct push is refused
+      issues: write           # labels for the fallback PR
+    outputs:
+      written: ${{ steps.rotate.outputs.written }}
+      failed: ${{ steps.rotate.outputs.failed }}
+      minted: ${{ steps.rotate.outputs.minted }}
+      attention: ${{ steps.rotate.outputs.attention }}
+      reasons: ${{ steps.rotate.outputs.reasons }}
+      can_write: ${{ steps.probe.outputs.can_write }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # Scheduled runs always apply; a manual run is a dry run unless asked
+      # otherwise, so an operator can see the plan before touching 40 repos.
+      - name: Resolve run mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
+            echo "apply=--apply" >> "$GITHUB_OUTPUT"
+            echo "label=APPLY" >> "$GITHUB_OUTPUT"
+          else
+            echo "apply=" >> "$GITHUB_OUTPUT"
+            echo "label=DRY-RUN" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          fallback-token: ${{ secrets.FANOUT_TOKEN }}
+          fallback-token-name: FANOUT_TOKEN
+          default-token: ${{ github.token }}
+          probe-repo: ${{ github.repository }}
+          fail-on-no-valid-token: 'false'
+
+      # Reading a repo's secret NAMES is already an admin-level call, so this
+      # probe answers the only question that matters before we start: can this
+      # credential see and write secrets at all? A PAT that lost `secrets:write`
+      # still passes the generic validity probe above and then 403s on all 41
+      # writes, one at a time, for 30 minutes.
+      - name: Probe secret-write access
+        id: probe
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          TOKEN_SOURCE: ${{ steps.token.outputs.source || 'no token' }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "can_write=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No usable GitHub token — rotation cannot read or write secrets."
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/actions/secrets" --jq '.total_count' >/dev/null 2>&1; then
+            echo "can_write=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Secret access confirmed via $TOKEN_SOURCE."
+          else
+            echo "can_write=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::$TOKEN_SOURCE cannot list Actions secrets on $GITHUB_REPOSITORY — it needs admin (secrets:write). Rotation will report every repo as unreachable until that is granted."
+          fi
+
+      - name: Rotate
+        id: rotate
+        if: steps.probe.outputs.can_write == 'true'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          # The hub's own copy is the canonical value the fleet is brought into
+          # line with. The tool masks both of these before doing anything else.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_REFRESH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_REFRESH_TOKEN }}
+          # Dispatch inputs reach the shell as environment variables, never
+          # spliced into the command line: `${{ }}` interpolation inside `run:`
+          # is textual substitution, which turns any input into arbitrary shell.
+          SOURCE: ${{ inputs.source || 'auto' }}
+          ONLY: ${{ inputs.only }}
+          TARGET_REPO: ${{ inputs.repo }}
+          FORCE: ${{ inputs.force }}
+          APPLY: ${{ steps.mode.outputs.apply }}
+        run: |
+          set -euo pipefail
+          # `if` blocks rather than `[ … ] && …`: the latter only survives
+          # `set -e` because bash exempts non-final operands of an && list, and
+          # that exemption stops applying the moment such a line becomes the
+          # last one in the step. Not worth depending on.
+          args=(--source "${SOURCE:-auto}" --attention-file rotation-attention.md)
+          if [ -n "${ONLY:-}" ]; then args+=(--only "$ONLY"); fi
+          if [ -n "${TARGET_REPO:-}" ]; then args+=(--repo "$TARGET_REPO"); fi
+          if [ "${FORCE:-false}" = "true" ]; then args+=(--force); fi
+          if [ -n "${APPLY:-}" ]; then args+=("$APPLY"); fi
+          tools/dash secrets rotate "${args[@]}"
+
+      # A run that could not even read secrets still produces a summary saying
+      # so, rather than a green tick that means nothing.
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### 🔑 Token rotation — ${{ steps.mode.outputs.label }}"
+            echo ""
+            if [ "${{ steps.probe.outputs.can_write }}" != "true" ]; then
+              echo "**Blocked:** no credential with \`secrets:write\` on this fleet."
+              echo "See \`docs/TOKEN-ROTATION.md\` for the scopes \`FLEET_TOKEN\` needs."
+            else
+              echo "| Metric | Value |"
+              echo "| --- | --- |"
+              echo "| Secrets written | ${{ steps.rotate.outputs.written || 0 }} |"
+              echo "| Write failures | ${{ steps.rotate.outputs.failed || 0 }} |"
+              echo "| Fresh credential minted | ${{ steps.rotate.outputs.minted || 'false' }} |"
+              echo "| Needs attention | ${{ steps.rotate.outputs.attention || 'false' }} |"
+              echo "| Reasons | ${{ steps.rotate.outputs.reasons || '—' }} |"
+              echo ""
+              if [ -f rotation-attention.md ]; then cat rotation-attention.md; fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload attention report
+        if: always() && hashFiles('rotation-attention.md') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: rotation-attention
+          path: rotation-attention.md
+
+      # The ledger records ages and outcomes, never values — see
+      # tools/fleet-config.py write_ledger(). Published like every other
+      # generated signal so the fleet's credential health is reviewable in git
+      # rather than only in a run log that expires.
+      # `always()` on purpose: a run with write failures is exactly the run whose
+      # ledger someone needs to read, and the rotate step exits non-zero for it.
+      - name: Publish rotation ledger
+        if: always() && steps.probe.outputs.can_write == 'true'
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: "_data/token_rotation.yml"
+          message: "chore(data): weekly credential rotation ledger"
+          branch: chore/token-rotation
+          title: "chore(data): weekly credential rotation ledger"
+          body: |
+            Automated weekly refresh of `_data/token_rotation.yml` — the fleet's
+            per-repo credential age audit.
+
+            Secret **names, ages, and outcomes only**; no credential value is
+            recorded here or anywhere else in the repository.
+
+            Delivered as a pull request because a direct push to the default
+            branch was refused by branch protection. This branch is regenerated
+            on every run — review the diff, not the history.
+          labels: automation,data
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+
+  # ========================================================================= #
+  # 2. FILE WHAT A HUMAN HAS TO DO
+  #
+  # `needs: rotate` with `if: always()` rather than a `workflow_run` chain: the
+  # runs most worth reporting are the ones where rotation did NOT go cleanly,
+  # and a `workflow_run` trigger skips exactly those.
+  # ========================================================================= #
+  report:
+    name: File the tracking issue
+    needs: rotate
+    if: always() && (needs.rotate.outputs.attention == 'true' || needs.rotate.outputs.can_write != 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # This job reads `rotation.issue` out of _data/fleet.yml, so it needs the
+      # same Python env as the rotate job. Relying on PyYAML happening to be in
+      # the runner image is the kind of undocumented dependency that breaks on
+      # an image bump and takes the week's report with it.
+      - uses: ./.github/actions/setup/dash-gen
+
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: rotation-attention
+
+      # ONE issue, updated in place. Deduped on an exact title rather than a
+      # body marker: GitHub's issue search does not reliably match text inside
+      # an HTML comment, and a rotation report that silently forked into a new
+      # issue every Monday would be worse than no report.
+      #
+      # Repo, labels, and marker come from `rotation.issue` in _data/fleet.yml —
+      # config that nothing reads is the drift this control plane exists to
+      # prevent, so it is read rather than restated here.
+      - name: Open or update the rotation issue
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          TITLE: "🔑 Fleet credential rotation needs attention"
+          REASONS: ${{ needs.rotate.outputs.reasons }}
+          CAN_WRITE: ${{ needs.rotate.outputs.can_write }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          cfg=$(python3 tools/fleet-config.py show rotation.issue)
+          if [ "$(jq -r '.enabled' <<<"$cfg")" != "true" ]; then
+            echo "::notice::rotation.issue.enabled is false — not filing."
+            exit 0
+          fi
+          repo=$(jq -r '.repo // empty' <<<"$cfg")
+          repo=${repo:-$GITHUB_REPOSITORY}
+          marker=$(jq -r '.marker // "token-rotation"' <<<"$cfg")
+          mapfile -t labels < <(jq -r '.labels[]?' <<<"$cfg")
+
+          if [ ! -f rotation-attention.md ]; then
+            {
+              echo "## Fleet credential rotation needs attention"
+              echo ""
+              if [ "$CAN_WRITE" != "true" ]; then
+                echo "The weekly rotation could not read or write Actions secrets."
+                echo ""
+                echo "\`FLEET_TOKEN\` needs **admin (secrets:write)** on every fleet repo on"
+                echo "top of its existing scopes — writing an Actions secret is an"
+                echo "admin-level operation. Until that is granted the loop can neither"
+                echo "audit ages nor propagate the credential."
+              else
+                echo "The rotation reported: \`${REASONS:-unknown}\`."
+              fi
+            } > rotation-attention.md
+          fi
+
+          {
+            echo ""
+            echo "<!-- $marker -->"
+            echo "_Filed by [\`token-rotation.yml\`]($RUN_URL) · this issue is updated in place each week._"
+            echo ""
+            echo "---"
+            echo "_Generated by [Claude Code](https://claude.ai/code)_"
+          } >> rotation-attention.md
+
+          existing=$(gh issue list --repo "$repo" --state open \
+            --search "\"$TITLE\" in:title" --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty" || true)
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --repo "$repo" --body-file rotation-attention.md
+            echo "::notice::Updated rotation issue #$existing in $repo"
+            exit 0
+          fi
+
+          # One unknown label fails the WHOLE create call — which would cost the
+          # report entirely — so make sure each exists first, then fall back to
+          # an unlabelled issue if anything still rejects it.
+          args=(--repo "$repo" --title "$TITLE" --body-file rotation-attention.md)
+          for l in "${labels[@]}"; do
+            gh label create "$l" --repo "$repo" --color ededed \
+              --description "Managed by token-rotation.yml" >/dev/null 2>&1 || true
+            args+=(--label "$l")
+          done
+          gh issue create "${args[@]}" \
+            || gh issue create --repo "$repo" --title "$TITLE" --body-file rotation-attention.md
+          echo "::notice::Opened the rotation issue in $repo"

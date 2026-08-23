@@ -30,7 +30,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash remediate${c_off}         merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse)
   ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
   ${c_bold}dash evidence <repo> <n>${c_off} build one issue's evidence bundle in an isolated virtual environment
-  ${c_bold}dash secrets [sync]${c_off}    per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env)
+  ${c_bold}dash secrets [sync|rotate|plan]${c_off} per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env); \`rotate --apply\` runs the weekly credential loop (audit ages, mint where possible, propagate hub-first); \`plan\` shows the ages read-only
   ${c_bold}dash config [show|audit|sync]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
@@ -210,10 +210,13 @@ cmd_evidence() {
   "${TOOLS}/issue-evidence.sh" --repo "$repo" --issue "$num" "$@"
 }
 cmd_secrets() {
-  # `dash secrets` audits; `dash secrets sync` provisions the token contract
-  # (values from env only — see fleet-config.py sync-secrets).
+  # `dash secrets` audits; `sync` provisions the token contract; `rotate` runs
+  # the weekly credential loop and `plan` is its read-only half. Values come
+  # from the environment only — see fleet-config.py.
   case "${1:-}" in
     sync) shift; python3 "${TOOLS}/fleet-config.py" sync-secrets "$@" ;;
+    rotate) shift; python3 "${TOOLS}/fleet-config.py" rotate "$@" ;;
+    plan) shift; python3 "${TOOLS}/fleet-config.py" rotation-plan "$@" ;;
     *) python3 "${TOOLS}/fleet-config.py" audit "$@" ;;
   esac
 }
@@ -223,7 +226,7 @@ cmd_config() {
   local sub="${1:-show}"
   case "$sub" in
     show|audit|sync) shift; python3 "${TOOLS}/fleet-config.py" "$sub" "$@" ;;
-    sync-secrets) shift; python3 "${TOOLS}/fleet-config.py" sync-secrets "$@" ;;
+    sync-secrets|rotate|rotation-plan) shift; python3 "${TOOLS}/fleet-config.py" "$sub" "$@" ;;
     *) python3 "${TOOLS}/fleet-config.py" show "$@" ;;
   esac
 }

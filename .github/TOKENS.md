@@ -70,6 +70,13 @@ token, not merely inconvenient:
 3. **A stable, attributable identity.** Actions taken by the fleet are
    recognisable as the fleet rather than as generic CI, which matters for audit
    trails and for filtering notifications.
+4. **Reading and writing Actions secrets.** Both are admin-level operations, and
+   both are cross-repository here. `token-rotation.yml` is the only workflow
+   that needs this, and it is the one scope `FLEET_TOKEN` can lose without
+   anything looking broken: a PAT that dropped `secrets:write` still passes a
+   generic validity probe and then 403s on every write. That workflow therefore
+   probes the capability directly (`gh api repos/{repo}/actions/secrets`) before
+   it starts, and reports rather than failing 41 times in a row.
 
 Everything else — checking out this repo, reading its contents, posting a status
 — works perfectly well with the ambient token, and should not reach for
