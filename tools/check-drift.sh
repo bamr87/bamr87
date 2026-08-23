@@ -500,6 +500,8 @@ if gh("rate_limit")[0] != 0:
 LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
          "Gemfile.lock", "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock"}
 SHA_USES = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+@[0-9a-f]{40})")
+PIN_USES = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+@v\d+\.\d+[^'\"\s#]*)")
+REQ_PIN = re.compile(r"(==|~=|<)")
 
 def slug_of(url):
     if not url or "github.com/" not in url:
@@ -548,6 +550,67 @@ for p in reg:
             m = SHA_USES.match(line)
             if m:
                 problems.append(f"{slug}: SHA-pinned action {path}:{n} `{m.group(1)}`")
+                continue
+            m = PIN_USES.match(line)
+            if m:
+                problems.append(f"{slug}: minor/patch-pinned action {path}:{n} `{m.group(1)}`")
+
+    # Manifest pins. Counted per file rather than per dependency: a repo with 71
+    # pinned requirements is one conversion job, and 71 warning lines would bury
+    # every other repo in the report.
+    for path in paths:
+        base = os.path.basename(path)
+        if "node_modules" in path or "/vendor/" in path:
+            continue
+        if base.startswith("requirements") and base.endswith(".txt"):
+            kind = "req"
+        elif base == "package.json":
+            kind = "npm"
+        elif base == "Gemfile":
+            kind = "gem"
+        else:
+            continue
+        rc, out = gh(f"repos/{slug}/contents/{path}?ref={branch}")
+        if rc != 0:
+            continue
+        try:
+            text = base64.b64decode(json.loads(out).get("content", "")).decode("utf-8", "replace")
+        except Exception:
+            continue
+
+        pinned = []
+        if kind == "req":
+            for line in text.splitlines():
+                spec = line.split("#", 1)[0].strip()
+                if spec and not spec.startswith("-") and REQ_PIN.search(spec):
+                    pinned.append(spec)
+        elif kind == "npm":
+            try:
+                d = json.loads(text)
+            except Exception:
+                continue
+            for k in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
+                for name, spec in (d.get(k) or {}).items():
+                    # `*` and a bare floor are the compliant shapes; local/git/url
+                    # specifiers name no version at all, so they cannot pin one.
+                    if not isinstance(spec, str) or spec == "*" or spec.startswith(
+                            (">=", "file:", "link:", "workspace:", "git", "http", "npm:")):
+                        continue
+                    pinned.append(f"{name}@{spec}")
+        else:
+            for line in text.splitlines():
+                s = line.split("#", 1)[0].strip()
+                m = re.match(r'gem\s+["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']', s)
+                # A FLOOR IS NOT A PIN. Matching the version off the gem name and
+                # then testing the whole remainder for `>=` is how a first pass at
+                # this reported the hub's own compliant `github-pages ">= 228"`.
+                if m and not m.group(2).strip().startswith(">="):
+                    pinned.append(f"{m.group(1)} {m.group(2)}")
+
+        if pinned:
+            shown = ", ".join(pinned[:3])
+            more = f" (+{len(pinned) - 3} more)" if len(pinned) > 3 else ""
+            problems.append(f"{slug}: {len(pinned)} pinned in {path} — {shown}{more}")
 
 print(f"__SCANNED__ {scanned}")
 if unread:

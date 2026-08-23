@@ -47,7 +47,9 @@ Don't bundle changes across multiple submodules into one PR.
 
 ## Automated pointer updates
 
-`.github/workflows/update-submodules.yml` runs daily (or on demand) and opens a reviewable PR bumping submodule pointers **up** into root. It never pushes directly and never modifies submodule contents — content changes belong to the submodule's own repo. The complementary **downward** flow (`.github/workflows/standardize-fanout.yml`) opens standardization PRs _into_ submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
+`.github/workflows/update-submodules.yml` runs daily (or on demand) and commits submodule pointers **up** into root **directly on the base branch — no pull request**. A pointer bump records a SHA that was already reviewed and merged in the submodule's own repo, so a hub PR reviews nothing; it was pure queue. Publishing goes through `publish-data`, which pushes straight to the branch when allowed and falls back to a stable-branch PR only if a ruleset rejects the push. The commit carries `[skip ci]` — nothing needs to run on a pointer bump.
+
+It still never modifies submodule contents: content changes belong to the submodule's own repo. The complementary **downward** flow (`.github/workflows/standardize-fanout.yml`) opens standardization PRs _into_ submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
 
 Local refresh (safe by default — skips submodules with uncommitted/diverged work):
 
