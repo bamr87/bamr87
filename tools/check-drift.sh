@@ -2,7 +2,7 @@
 # ============================================================================
 # tools/check-drift.sh — hard drift gate for the dash
 #
-# Checks ((a,b,d,e,h,j) gate the exit status unless --report; (c,f,g,i) warn only):
+# Checks ((a,b,d,e,h,j) gate the exit status unless --report; (c,f,g,i,k) warn only):
 #   (a) registry <-> .gitmodules parity (paths, branches, AND urls) + no
 #       stray/unregistered project dirs. The url leg is offline, so it gates on
 #       every PR; the live GitHub side (renames/deletions) is (g) + `dash reconcile`.
@@ -27,6 +27,11 @@
 #       trailing the hub's action majors, no committed lockfiles, no exact or
 #       ceiling pins in hub manifests (docs/DEPENDENCIES.md, `dependencies:` in
 #       _data/fleet.yml). Offline and hub-scoped, so it gates on every PR.
+#   (k) the fleet half of (j): committed lockfiles and SHA-pinned `uses:` in
+#       every registry repo (warn; --remote / --ci only; needs gh + network).
+#       Advisory for (g)'s reason — a repo-scoped token 404s on a private repo
+#       exactly as on a deleted one — so unreadable repos are reported as
+#       UNREAD rather than counted clean.
 #
 # (e) is LOCAL-ONLY (skipped when submodules aren't checked out, e.g. CI).
 # (c) the internal-link check needs a built _site + lychee, so it is NOT part of
@@ -452,6 +457,120 @@ PY
       ok "registry matches GitHub (names, branches)"
     else
       while IFS= read -r line; do warn "$line"; done <<< "$g_out"
+    fi
+  else
+    warn "skipped (gh not installed)"
+  fi
+fi
+
+# --- (k): fleet-wide dependency policy -------------------------------------
+# Check (j) is offline and hub-scoped: it proves the HUB is clean and that no
+# seed template will downgrade anyone, but it cannot see the ~40 repos the
+# policy actually governs. This is the other half — one git-tree read per repo,
+# looking for the two violations that are visible without cloning: committed
+# lockfiles and SHA-pinned `uses:` refs.
+#
+# Advisory and --remote/--ci only, for the same reason as (g): a repo-scoped
+# token 404s on a private repo exactly as on a deleted one, so a miss here is
+# not evidence of a clean repo. Unreadable repos are reported as unread rather
+# than counted as passing — the distinction matters, since "0 violations" over
+# 40 unread repos would otherwise read as a fleet-wide all-clear.
+if [[ $RUN_REMOTE -eq 1 ]]; then
+  echo "(k) fleet-wide dependency policy"
+  if command -v gh >/dev/null 2>&1; then
+    k_out="$("$PY" - "$ROOT" <<'PY'
+import sys, os, subprocess, json, re, base64
+try:
+    import yaml
+except ImportError:
+    sys.exit(2)
+
+root = sys.argv[1]
+reg = yaml.safe_load(open(os.path.join(root, "_data/projects.yml"))) or []
+if isinstance(reg, dict):
+    reg = reg.get("projects", [])
+
+def gh(path):
+    r = subprocess.run(["gh", "api", path], capture_output=True, text=True)
+    return r.returncode, r.stdout
+
+if gh("rate_limit")[0] != 0:
+    sys.exit(2)
+
+LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
+         "Gemfile.lock", "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock"}
+SHA_USES = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+@[0-9a-f]{40})")
+
+def slug_of(url):
+    if not url or "github.com/" not in url:
+        return None
+    tail = url.split("github.com/", 1)[1].strip().rstrip("/")
+    if tail.endswith(".git"):
+        tail = tail[:-4]
+    parts = tail.split("/")
+    return f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else None
+
+problems, unread, scanned = [], [], 0
+for p in reg:
+    slug = slug_of(p.get("repo_url", ""))
+    if not slug:
+        continue
+    branch = p.get("branch") or "main"
+    rc, out = gh(f"repos/{slug}/git/trees/{branch}?recursive=1")
+    if rc != 0:
+        unread.append(slug)
+        continue
+    try:
+        tree = json.loads(out).get("tree", [])
+    except json.JSONDecodeError:
+        unread.append(slug)
+        continue
+    scanned += 1
+    paths = [e["path"] for e in tree if e.get("type") == "blob"]
+
+    for path in paths:
+        if os.path.basename(path) in LOCKS:
+            problems.append(f"{slug}: committed lockfile {path}")
+
+    # SHA pins live in workflow YAML; read only those, and only if present.
+    for path in paths:
+        if not re.fullmatch(r"\.github/workflows/[^/]+\.ya?ml", path):
+            continue
+        rc, out = gh(f"repos/{slug}/contents/{path}?ref={branch}")
+        if rc != 0:
+            continue
+        try:
+            blob = json.loads(out)
+            text = base64.b64decode(blob.get("content", "")).decode("utf-8", "replace")
+        except Exception:
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            m = SHA_USES.match(line)
+            if m:
+                problems.append(f"{slug}: SHA-pinned action {path}:{n} `{m.group(1)}`")
+
+print(f"__SCANNED__ {scanned}")
+if unread:
+    print(f"__UNREAD__ {len(unread)} {' '.join(sorted(unread)[:6])}")
+for x in problems:
+    print(x)
+PY
+)"
+    k_rc=$?
+    if [[ $k_rc -eq 2 ]]; then
+      warn "skipped (GitHub API unreachable or gh not authenticated)"
+    else
+      k_scanned="$(printf '%s\n' "$k_out" | sed -n 's/^__SCANNED__ //p')"
+      k_unread="$(printf '%s\n' "$k_out" | sed -n 's/^__UNREAD__ //p')"
+      k_probs="$(printf '%s\n' "$k_out" | grep -v '^__' | grep -v '^$' || true)"
+      if [[ -z "$k_probs" ]]; then
+        ok "no lockfiles or SHA pins in ${k_scanned:-0} readable fleet repo(s)"
+      else
+        while IFS= read -r line; do warn "$line"; done <<< "$k_probs"
+        warn "  convert a repo with: tools/unpin-deps.sh <checkout>  (fleet-wide: deps-fanout.yml)"
+      fi
+      # Never let unread repos masquerade as clean ones.
+      [[ -n "$k_unread" ]] && warn "${k_unread% *} unread (private or 404 under a repo-scoped token) — NOT verified clean"
     fi
   else
     warn "skipped (gh not installed)"

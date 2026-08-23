@@ -39,6 +39,8 @@ Until 2026-08 the policy was declared in three places and checked in none — wh
 
 The check is offline and hub-scoped, so it cannot know whether the hub's own majors are current *upstream* — that is Dependabot's job (the single `github-actions` entry in `.github/dependabot.yml`, bumping majors weekly). The two are complementary: **Dependabot pushes the fleet forward, check (j) stops anything from being frozen or left behind.** Neither one alone is sufficient.
 
+**Check (k)** is the fleet half, reading one git tree per registry repo for the two violations visible without cloning — committed lockfiles and SHA-pinned `uses:`. It is advisory and `--remote`/`--ci` only, for the same reason as check (g): a repo-scoped token 404s on a private repo exactly as it does on a deleted one. Repos it cannot read are reported as **UNREAD, explicitly not verified clean** — a "0 violations" line over 40 unread repos would otherwise read as a fleet-wide all-clear, which is precisely the false comfort that let three stale seed templates ship. Remediate what it finds with `tools/unpin-deps.sh <checkout>` per repo, or `deps-fanout.yml` fleet-wide.
+
 `templates/*/archive/` is exempt: those are deliberately frozen shapes that `fanout.sh --upgrade` byte-compares against to recognize machine-seeded copies. Freezing them is the point.
 
 ## Why CI keeps working without lockfiles
