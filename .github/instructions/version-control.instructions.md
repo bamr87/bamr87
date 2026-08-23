@@ -216,12 +216,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up environment
-        uses: actions/setup-python@v4 # or setup-node, setup-ruby
+        uses: actions/setup-python@v7 # or setup-node, setup-ruby
         with:
           python-version: '3.11'
 
@@ -265,7 +265,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -321,7 +321,7 @@ npm publish
 ```yaml
 # GitHub Actions for NPM publishing
 - name: Setup Node
-  uses: actions/setup-node@v4
+  uses: actions/setup-node@v7
   with:
     node-version: '18'
     registry-url: 'https://registry.npmjs.org'

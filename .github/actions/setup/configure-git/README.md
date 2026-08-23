@@ -41,7 +41,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup/configure-git
         with:
@@ -138,7 +138,7 @@ jobs:
     git push origin automated-update
 
 - name: Create PR
-  uses: peter-evans/create-pull-request@v5
+  uses: peter-evans/create-pull-request@v8
 ```
 
 ## Authentication Methods
@@ -183,7 +183,7 @@ permissions:
 1. **Always use `${{ secrets.GITHUB_TOKEN }}`** - Don't use PATs unless necessary
 2. **Set permissions explicitly** in workflow
 3. **Use the default bot user** unless you need custom attribution
-4. **Run after `actions/checkout@v4`** in your workflow
+4. **Run after `actions/checkout@v7`** in your workflow
 5. **Combine with branch protection rules** for safety
 
 ## Security Notes
@@ -212,7 +212,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
