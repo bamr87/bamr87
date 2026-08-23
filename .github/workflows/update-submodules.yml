@@ -1,11 +1,22 @@
 name: 🔀 Update Submodules
 
-# Requires FLEET_TOKEN (see _data/fleet.yml) for two reasons:
-#   - GITHUB_TOKEN 404s on the fleet's private submodules, so a recursive
-#     checkout with it dies before the update step ever runs.
-#   - A PR opened with GITHUB_TOKEN fires no workflow events, so the required
-#     drift gate never runs and the PR is unmergeable on protected main.
-# Both call sites fall back to GITHUB_TOKEN (degraded: public repos only).
+# Submodule pointers land DIRECTLY on the base branch — no pull request. A
+# pointer bump records a SHA that is already reviewed and merged in the
+# submodule's own repo, so a hub PR reviews nothing; it was pure queue.
+#
+# Publishing goes through .github/actions/utilities/publish-data, which picks
+# the route at runtime: direct push normally, stable-branch PR only if a ruleset
+# rejects the push. A bare `git push` here would be the exact mistake that left
+# four workflows failing nightly for three weeks (see that action's header).
+#
+# The commit carries `[skip ci]`: nothing needs to run on a pointer bump, and
+# the per-workflow reasoning is at the publish step.
+#
+# Requires FLEET_TOKEN (see _data/fleet.yml) because GITHUB_TOKEN 404s on the
+# fleet's private submodules, so a recursive checkout with it dies before the
+# update step ever runs. Both call sites fall back to GITHUB_TOKEN (degraded:
+# public repos only) — and on the PR fallback route a GITHUB_TOKEN-opened PR
+# fires no workflow events, so its checks never run.
 
 on:
   schedule:
@@ -17,7 +28,7 @@ on:
         required: false
         type: string
       base_branch:
-        description: 'Base branch for the update pull request.'
+        description: 'Branch the pointer commit is published onto.'
         required: false
         default: 'main'
         type: string
@@ -101,15 +112,15 @@ jobs:
           git config --file .gitmodules --get-regexp path | awk '{ print $2 }' \
             | while IFS= read -r p; do git add -- "$p" || echo "::warning::could not stage ${p}"; done
 
-          # STABLE branch name — see the "Create pull request" step. Targeted
-          # dispatches get their own branch so a `--submodule projects/foo` run
-          # never fights the scheduled all-submodules PR for the same ref.
-          if [[ -n "${requested_submodule}" ]]; then
-            slug="$(printf '%s' "${requested_submodule}" | tr '/' '-' | tr -cd '[:alnum:]._-')"
-            echo "branch=chore/update-submodules-${slug}" >> "$GITHUB_OUTPUT"
-          else
-            echo "branch=chore/update-submodules" >> "$GITHUB_OUTPUT"
-          fi
+          # The exact submodule path list, handed to publish-data as the ONLY
+          # paths it may stage. Preserves the "pointer changes, never stray
+          # root-tree edits" guarantee the hand-rolled `git add` loop above gives.
+          {
+            echo "paths<<EOF"
+            git config --file .gitmodules --get-regexp path | awk '{ print $2 }' | tr '\n' ' '
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -122,34 +133,60 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create pull request
+          # UNSTAGE. The staging above exists only to detect changes with
+          # `git diff --cached`; publish-data detects with `git diff`, which
+          # compares the working tree to the INDEX. Handing it a staged tree
+          # makes those two identical, so it reports "nothing to publish" and
+          # drops the pointers — silently, every night, with a green run. Left
+          # unstaged, the submodule pointer change is a working-tree diff and
+          # publish-data stages and commits it itself.
+          git reset --quiet
+
+      # Straight onto the base branch — no pull request. publish-data resolves
+      # the route at RUNTIME: a direct push when the branch allows it (the
+      # normal path today, and what the fleet-pulse bot already does nightly),
+      # falling back to a stable-branch PR only if a ruleset ever rejects the
+      # push. That fallback is not a preference for PRs — it is the reason this
+      # repo's daily loop is not silently dead again. Four workflows once ended
+      # in a bare `git push` to main, a ruleset was added, and they failed at
+      # that last step every night for three weeks while every generator inside
+      # them worked perfectly.
+      - name: Publish submodule pointers
+        id: publish
         if: steps.update.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v8
+        uses: ./.github/actions/utilities/publish-data
         with:
-          # FLEET_TOKEN so the PR fires workflow events and the drift gate runs.
           token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
-          commit-message: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s)"
+          paths: ${{ steps.update.outputs.paths }}
+          base: ${{ inputs.base_branch || 'main' }}
+          # `[skip ci]` because nothing needs to run on a pointer bump, and the
+          # alternative is worse. build-dash.yml already filters `projects/**`
+          # out by path, so it never woke for these. drift-check.yml has no path
+          # filter and is the one workflow this push would trigger — but adding
+          # `paths-ignore: projects/**` there would ALSO stop it firing when a
+          # HUMAN touches projects/, and check (a) exists precisely to catch
+          # stray/unregistered dirs in that directory. Skipping CI on the bot's
+          # own commit is targeted; weakening the gate for everyone is not.
+          message: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s) [skip ci]"
+          branch: chore/update-submodules
           title: "chore(submodule): update ${{ inputs.submodule || 'all' }} submodule pointer(s)"
           body: |
             Automated submodule pointer update.
 
-            Changed files:
+            A direct push to the base branch was rejected by branch protection,
+            so the pointers arrive as a pull request instead. Review the
+            corresponding submodule repositories before merging.
+          labels: automation,submodule
+          auto-merge: 'true'
 
-            ```text
-            ${{ steps.update.outputs.changed_files }}
-            ```
-
-            Review the corresponding submodule repositories before merging.
-          # STABLE across runs, deliberately. peter-evans/create-pull-request
-          # reuses an existing branch: it force-pushes the new pointers and
-          # UPDATES the open PR in place. Interpolating github.run_id here
-          # defeated that — every nightly run cut a fresh branch and therefore a
-          # fresh PR, so #110, #113, #118 and #126 accumulated as four open PRs
-          # for one recurring job, each silently superseding the last.
-          branch: ${{ steps.update.outputs.branch }}
-          base: ${{ inputs.base_branch || 'main' }}
-          labels: automation, submodule
-          delete-branch: true
+      - name: Report route
+        if: steps.update.outputs.changed == 'true'
+        env:
+          MODE: ${{ steps.publish.outputs.mode }}
+          CHANGED: ${{ steps.update.outputs.changed_files }}
+        run: |
+          echo "Published via: ${MODE}"
+          printf '%s\n' "${CHANGED}" | sed 's/^/  /'
 
       - name: No changes
         if: steps.update.outputs.changed == 'false'
