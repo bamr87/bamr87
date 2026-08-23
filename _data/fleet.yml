@@ -83,6 +83,7 @@ schedule:
   refresh_dash: "0 4 * * *"       # README AUTO span refresh PR
   reconcile_registry: "0 5 * * *" # registry ↔ GitHub reconciliation
   update_submodules: "0 3 * * 0"  # weekly pointer bump PR
+  rotate_tokens: "0 2 * * 1"      # weekly credential rotation (see rotation:)
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -201,6 +202,10 @@ issue_pipeline:
 # `scope: hub` secrets live on bamr87/bamr87 only. `scope: fleet` secrets are
 # expected on every non-external registry repo (audited by `dash secrets`).
 # Values are never stored here.
+#
+# Each entry may carry a `rotation:` policy read by `dash secrets rotate` and
+# the weekly `token-rotation.yml` workflow — see the `rotation:` block below for
+# what the knobs mean and what the loop can and cannot do unattended.
 # --------------------------------------------------------------------------- #
 tokens:
   - name: CLAUDE_CODE_OAUTH_TOKEN
@@ -209,13 +214,63 @@ tokens:
     purpose: >-
       Preferred Claude auth for every claude-code-action call site (house
       convention: OAuth first). Produced by `claude setup-token`.
-    used_by: [fleet-pulse.yml, claude.yml, unified-evolution.yml, schema-fanout.yml]
+    used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
+              unified-evolution.yml, schema-fanout.yml]
+    rotation:
+      enabled: true
+      # `claude setup-token` mints a ONE-YEAR credential, so the value itself is
+      # not the weekly event — distribution and freshness are. 45 days is the
+      # propagation heartbeat: any repo whose copy is older than this gets
+      # rewritten, which is what pulls a newly-registered repo into line and
+      # what re-heals a secret someone deleted by hand.
+      max_age_days: 45
+      # A hard deadline measured against the credential's own one-year life.
+      # Past this the loop asks a human to re-mint (it cannot do it itself
+      # unless `refresh:` below is provisioned).
+      lifetime_days: 365
+      renew_before_days: 30
+      # Accepted value shapes. A rotation that would write something not
+      # matching one of these is refused before any repo is touched — the fleet
+      # has 41 call sites and a malformed credential breaks all of them at once.
+      value_prefixes: ["sk-ant-oat", "sk-ant-oa"]
+      refresh:
+        # UNOFFICIAL and therefore opt-in: Anthropic documents no programmatic
+        # way to re-mint a `claude setup-token` credential (the documented
+        # zero-rotation path is Workload Identity Federation — see
+        # docs/TOKEN-ROTATION.md). The OAuth refresh grant below is derived
+        # from the CLI's own login flow and can change without notice, so the
+        # loop treats a failure here as "ask a human", never as an error that
+        # costs the fan-out. Provision CLAUDE_CODE_OAUTH_REFRESH_TOKEN on the
+        # hub to turn it on; leave it unset to run propagate-and-alert only.
+        secret: CLAUDE_CODE_OAUTH_REFRESH_TOKEN
+        client_id: 9d1c250a-e61b-44d9-88ed-5944d1962f5e
+        # Tried in order. Anthropic moved the token endpoint to platform.*;
+        # console.* is kept as the fallback for older tenants.
+        endpoints:
+          - https://platform.claude.com/v1/oauth/token
+          - https://console.anthropic.com/v1/oauth/token
+
+  - name: CLAUDE_CODE_OAUTH_REFRESH_TOKEN
+    scope: hub
+    required: false
+    purpose: >-
+      OAuth refresh credential that lets the weekly rotation mint a fresh
+      CLAUDE_CODE_OAUTH_TOKEN without a browser. Optional: without it the loop
+      still propagates and audits, it just cannot re-mint. Rotates itself — the
+      grant returns a new refresh token, which the loop writes straight back to
+      the hub.
+    used_by: [token-rotation.yml]
+    rotation:
+      enabled: false      # rotated as a side effect of the grant, not on its own
 
   - name: ANTHROPIC_API_KEY
     scope: fleet
     required: false
     purpose: Fallback Claude auth, used only when the OAuth token is absent.
-    used_by: [fleet-pulse.yml, claude.yml, unified-evolution.yml, schema-fanout.yml]
+    used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
+              unified-evolution.yml, schema-fanout.yml]
+    rotation:
+      enabled: false      # console-issued key; re-issue and re-seed by hand
 
   - name: FLEET_TOKEN
     scope: hub
@@ -225,8 +280,13 @@ tokens:
       Needs actions:read + contents:read + issues:read/write +
       pull_requests:read/write on the fleet, plus contents:write +
       workflows:write on repos the fan-outs and the remediation loop may open
-      PRs against. Supersedes the three separate PATs below.
+      PRs against, plus secrets:write on every fleet repo for the weekly
+      rotation (writing an Actions secret is an admin-level operation — without
+      it `token-rotation.yml` can audit ages but not fix them). Supersedes the
+      three separate PATs below.
     replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN, FANOUT_TOKEN]
+    rotation:
+      enabled: false      # GitHub PAT; re-issue in GitHub settings and re-seed
 
   # Legacy PATs — still honoured as fallbacks so nothing breaks mid-migration.
   # Remove from the repo once FLEET_TOKEN is provisioned and verified.
@@ -245,6 +305,77 @@ tokens:
     required: false
     deprecated: true
     purpose: Legacy — push branches + open PRs in submodules. Folded into FLEET_TOKEN.
+
+# --------------------------------------------------------------------------- #
+# Rotation — the weekly credential loop's guardrails.
+#
+# Counterpart to `remediation:` (broken workflows) and `issue_pipeline:` (open
+# issues): this one keeps the fleet's CREDENTIALS current. Driven by
+# .github/workflows/token-rotation.yml (weekly, `schedule.rotate_tokens`) and
+# runnable by hand as `dash secrets rotate`.
+#
+# WHAT THE LOOP CAN AND CANNOT DO
+# -------------------------------
+# `claude setup-token` opens a browser and prints a one-year credential; it
+# saves nothing and has no headless equivalent. So "rotate weekly" decomposes
+# into three jobs, only two of which are unconditionally automatable:
+#
+#   1. PROPAGATE  push the canonical value to every fleet repo whose copy is
+#                 missing or older than `max_age_days`. Always runs. This is
+#                 what enrols a newly-registered repo and re-heals a secret
+#                 someone deleted, without anyone remembering to.
+#   2. AUDIT      record each repo's secret age from GitHub's own `updated_at`
+#                 into the ledger below. Always runs. Values are never read —
+#                 the secrets API returns names and timestamps only.
+#   3. RE-MINT    obtain a genuinely NEW credential. Only possible when the
+#                 optional refresh grant is provisioned (see the token entry
+#                 above); otherwise the loop opens ONE tracking issue asking a
+#                 human to run `claude setup-token`, and keeps propagating the
+#                 current value meanwhile.
+#
+# The zero-rotation alternative is Workload Identity Federation, which trades
+# the stored credential for an OIDC exchange per run. It needs an Anthropic
+# organization console, which a personal account does not have — the same
+# constraint that made `_data/fleet.yml` necessary in the first place.
+# Full doc: docs/TOKEN-ROTATION.md
+# --------------------------------------------------------------------------- #
+rotation:
+  enabled: true
+
+  # Order matters and is not negotiable: the hub is written and verified FIRST,
+  # and a failure there aborts the fan-out. A bad credential on one repo is an
+  # incident; a bad credential on all 41 is an outage, and the hub is the repo
+  # whose own automation would have to fix it.
+  hub_first: true
+
+  # Rewrite only what is missing or past `max_age_days`. A freshly MINTED value
+  # overrides this and goes everywhere — a rotation that reached half the fleet
+  # is worse than one that reached none.
+  only_stale: true
+
+  # Blast radius per run. `max_repos: 0` means "no cap" — the whole point is
+  # fleet-wide consistency, and a partial rotation leaves call sites split
+  # across two credentials. Raise `max_failures` tolerance rather than capping.
+  max_repos: 0
+  max_failures: 5             # abort the remaining writes past this many failures
+
+  # Unreachable repos (no admin on them, or private and out of the token's
+  # scope) are reported, not fatal. `dash secrets` already distinguishes
+  # "cannot see" from "not there"; rotation inherits that distinction.
+  fail_on_unreachable: false
+
+  # When a credential is past `renew_before_days` of its `lifetime_days` and
+  # cannot be re-minted unattended, open ONE hub issue (deduped by marker,
+  # updated in place) rather than failing the run.
+  issue:
+    enabled: true
+    repo: bamr87/bamr87
+    labels: [automation, security, tokens]
+    marker: token-rotation   # hidden dedupe marker, same convention as fleet-doctor
+
+  # Values-free record of what happened, published like every other generated
+  # signal. Names, ages, and outcomes only — never a credential.
+  ledger: _data/token_rotation.yml
 
 # --------------------------------------------------------------------------- #
 # Canonical repository VARIABLES (not secrets) projected onto every fleet repo
