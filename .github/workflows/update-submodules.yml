@@ -58,10 +58,15 @@ jobs:
       - name: Update submodules
         id: update
         shell: bash
+        # The dispatch input reaches the script through env, never through `${{ }}`
+        # interpolation: expanding it inline splices attacker-chosen text into the
+        # shell source before bash ever parses it.
+        env:
+          REQUESTED_SUBMODULE: ${{ inputs.submodule }}
         run: |
           set -euo pipefail
 
-          requested_submodule="${{ inputs.submodule }}"
+          requested_submodule="${REQUESTED_SUBMODULE:-}"
 
           if [[ ! -f .gitmodules ]]; then
             echo "No .gitmodules file found."
@@ -96,6 +101,16 @@ jobs:
           git config --file .gitmodules --get-regexp path | awk '{ print $2 }' \
             | while IFS= read -r p; do git add -- "$p" || echo "::warning::could not stage ${p}"; done
 
+          # STABLE branch name — see the "Create pull request" step. Targeted
+          # dispatches get their own branch so a `--submodule projects/foo` run
+          # never fights the scheduled all-submodules PR for the same ref.
+          if [[ -n "${requested_submodule}" ]]; then
+            slug="$(printf '%s' "${requested_submodule}" | tr '/' '-' | tr -cd '[:alnum:]._-')"
+            echo "branch=chore/update-submodules-${slug}" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=chore/update-submodules" >> "$GITHUB_OUTPUT"
+          fi
+
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -125,7 +140,13 @@ jobs:
             ```
 
             Review the corresponding submodule repositories before merging.
-          branch: "chore/update-submodules-${{ github.run_id }}"
+          # STABLE across runs, deliberately. peter-evans/create-pull-request
+          # reuses an existing branch: it force-pushes the new pointers and
+          # UPDATES the open PR in place. Interpolating github.run_id here
+          # defeated that — every nightly run cut a fresh branch and therefore a
+          # fresh PR, so #110, #113, #118 and #126 accumulated as four open PRs
+          # for one recurring job, each silently superseding the last.
+          branch: ${{ steps.update.outputs.branch }}
           base: ${{ inputs.base_branch || 'main' }}
           labels: automation, submodule
           delete-branch: true
