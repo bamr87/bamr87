@@ -325,7 +325,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up environment
         run: # Setup commands
       - name: Run tests
@@ -345,7 +345,7 @@ strategy:
 **Caching:**
 
 ```yaml
-- uses: actions/setup-python@v4
+- uses: actions/setup-python@v7
   with:
     cache: 'pip'
 ```

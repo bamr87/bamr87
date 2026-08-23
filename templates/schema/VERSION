@@ -11,6 +11,20 @@ enforcement: |
   against the hub's, so a fork can no longer diverge unnoticed. It found two on
   the day it shipped.
 notes: |
+  2026-08-23 schema-check.yml floats actions/checkout to @v7. This is the same
+  bug the prose kit hit at 0.2.0 and agent-context at 0.3.1, missed here both
+  times: the hub's own workflows moved to @v7 while this template stayed on
+  @v4, so re-running the schema fan-out would have seeded a three-major
+  DOWNGRADE into every adopting repo. Not a re-vendor — schema_lint.py,
+  SCHEMA.template.md and CLAUDE.snippet.md are untouched, so the b2ffca1 parity
+  contract below still holds
+  (upstream's schema-check.yml is not part of the vendored payload; the fleet
+  copy is already locally adapted via __DEFAULT_BRANCH__). No archive/ shape is
+  needed: seed-schema.sh is additive-only (it skips a target that already has
+  the workflow) and this kit has no --upgrade path, so nothing byte-compares
+  against the outgoing text. The class is now gated — tools/check-drift.sh
+  check (j) fails any seed template whose action major trails the hub's.
+
   2026-08-18 re-vendor (ce09aeb → b2ffca1):
   - Picks up everything the 2026-08-09 audit was waiting on: the SCHEMA#4
     self-registration fix (a schema registering its own SCHEMA.md row was

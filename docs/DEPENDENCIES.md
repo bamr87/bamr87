@@ -25,6 +25,24 @@ Accepted tradeoffs, on the record rather than hidden: builds are **not reproduci
 | pre-commit | **exception** — `rev:` pins are mandated by the tool; refresh with `pre-commit autoupdate` |
 | Toolchains (node/python/ruby) | **exception** — runtime versions are fleet configuration (`toolchain:` in `_data/fleet.yml` → repo `vars.*` → reusable CI), not per-repo pins |
 
+## Enforcement
+
+Until 2026-08 the policy was declared in three places and checked in none — which is how four PRs arguing *for* SHA-pinned actions (two Dependabot configs premised on pinning, two contributor guides documenting it as the house convention) came to sit open against it simultaneously, and how the prose and agent-context kits each shipped a template that trailed the fleet by two majors before anyone noticed (their `VERSION` changelogs are both post-mortems). It is now **check (j)** of `tools/check-drift.sh`, so it gates every PR:
+
+| Caught | Why it matters |
+| --- | --- |
+| a SHA-pinned `uses:` (`@<40-hex>`) | frozen forever by design — the Actions exception is `@vN` major tags, nothing narrower |
+| a `uses:` pinned to a minor/patch (`@v4.2.2`) | blocks the minors/patches the major tag exists to deliver |
+| a **seed template** whose action major trails the hub's own workflows | `templates/` is copied verbatim into ~40 repos, so a stale one *downgrades* every repo the fan-out reaches |
+| a committed lockfile | reproducibility the fleet deliberately traded away |
+| `==` / `~=` / `<` in a hub `requirements*.txt` | floors (`>=`) never block currency; pins and ceilings do |
+
+The check is offline and hub-scoped, so it cannot know whether the hub's own majors are current *upstream* — that is Dependabot's job (the single `github-actions` entry in `.github/dependabot.yml`, bumping majors weekly). The two are complementary: **Dependabot pushes the fleet forward, check (j) stops anything from being frozen or left behind.** Neither one alone is sufficient.
+
+**Check (k)** is the fleet half, reading one git tree per registry repo for the two violations visible without cloning — committed lockfiles and SHA-pinned `uses:`. It is advisory and `--remote`/`--ci` only, for the same reason as check (g): a repo-scoped token 404s on a private repo exactly as it does on a deleted one. Repos it cannot read are reported as **UNREAD, explicitly not verified clean** — a "0 violations" line over 40 unread repos would otherwise read as a fleet-wide all-clear, which is precisely the false comfort that let three stale seed templates ship. Remediate what it finds with `tools/unpin-deps.sh <checkout>` per repo, or `deps-fanout.yml` fleet-wide.
+
+`templates/*/archive/` is exempt: those are deliberately frozen shapes that `fanout.sh --upgrade` byte-compares against to recognize machine-seeded copies. Freezing them is the point.
+
 ## Why CI keeps working without lockfiles
 
 - `standard-ci.yml` was already lockfile-tolerant: the npm cache and `npm ci` are used **only when a lockfile exists** (otherwise `npm install`), the pip cache keys on requirements/pyproject, and `ruby/setup-ruby`'s `bundler-cache` generates its own lock at run time when none is committed.
