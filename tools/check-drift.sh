@@ -273,6 +273,36 @@ else
   warn "no .github/actions/ directory"
 fi
 
+# Every `scope: fleet` secret in the token contract must be handed to the
+# rotation loop by name. GitHub gives a workflow no way to enumerate `secrets.*`
+# and never returns a secret's value through the API, so the ONLY route from the
+# hub's store to another repo is token-rotation.yml naming it explicitly. A
+# contract secret that is not named there can never propagate — and nothing
+# would say so: the contract looks right, `dash secrets` reports the repos as
+# missing it forever, and every weekly run quietly writes nothing.
+if [[ -f "$ROOT/.github/workflows/token-rotation.yml" ]]; then
+  unwired="$("$PY" - "$ROOT" <<'PYEOF'
+import sys, pathlib, yaml
+root = pathlib.Path(sys.argv[1])
+cfg = yaml.safe_load((root / "_data/fleet.yml").read_text()) or {}
+wf = (root / ".github/workflows/token-rotation.yml").read_text()
+for t in cfg.get("tokens") or []:
+    if t.get("deprecated") or t.get("scope") != "fleet":
+        continue
+    if not ((t.get("rotation") or {}).get("enabled")):
+        continue
+    if f"secrets.{t['name']}" not in wf:
+        print(t["name"])
+PYEOF
+)"
+  if [[ -n "$unwired" ]]; then
+    bad "fleet-scoped contract secret(s) never handed to token-rotation.yml — they can never propagate"
+    printf '%s\n' "$unwired" | sed 's/^/      /'
+  else
+    ok "every rotating fleet secret is wired into token-rotation.yml"
+  fi
+fi
+
 # --- (j): always-latest dependency policy ----------------------------------
 # The policy (docs/DEPENDENCIES.md, `dependencies:` in _data/fleet.yml) was
 # declared in three places and enforced in none, which is how four PRs
