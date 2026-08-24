@@ -232,6 +232,47 @@ else
   warn "no root SCHEMA.md yet (hub pyramid not seeded)"
 fi
 
+# --- (l): composite action manifests carry no stray expressions -------------
+# An action.yml is itself a TEMPLATE: GitHub evaluates `${{ … }}` wherever it
+# appears, INCLUDING inside `description:` prose. A context named there purely
+# as documentation is parsed as a real expression against a context that does
+# not exist at manifest-load time, and the action then fails to load AT ALL —
+# taking down every workflow that uses it, before a single step runs.
+#
+# That is not hypothetical: resolve-fleet-token documented its default as
+# "normally ${'$'}{{ github.token }}" in a description, and the first scheduled
+# token-rotation run died with "Unrecognized named-value: 'github'" in 34
+# seconds. actionlint does not check action manifests, so nothing caught it
+# until it ran in production. Descriptions name contexts in backticks instead.
+echo "(l) composite action manifests"
+if [[ -d "$ROOT/.github/actions" ]]; then
+  manifest_hits=0
+  while IFS= read -r manifest; do
+    offenders="$("$PY" - "$manifest" <<'PYEOF'
+import sys, yaml
+path = sys.argv[1]
+try:
+    doc = yaml.safe_load(open(path)) or {}
+except Exception as exc:                      # a manifest that will not parse
+    print(f"unparseable: {exc}")              # is itself the finding
+    sys.exit(0)
+for section in ("inputs", "outputs"):
+    for name, spec in (doc.get(section) or {}).items():
+        if isinstance(spec, dict) and "${{" in str(spec.get("description", "")):
+            print(f"{section}.{name}.description")
+PYEOF
+)"
+    if [[ -n "$offenders" ]]; then
+      manifest_hits=$((manifest_hits+1))
+      bad "${manifest#"$ROOT"/} evaluates expressions in description prose — name contexts in backticks instead"
+      printf '%s\n' "$offenders" | sed 's/^/      /'
+    fi
+  done < <(find "$ROOT/.github/actions" -name 'action.yml' -o -name 'action.yaml' | sort)
+  [[ $manifest_hits -eq 0 ]] && ok "no action manifest evaluates expressions in its descriptions"
+else
+  warn "no .github/actions/ directory"
+fi
+
 # --- (j): always-latest dependency policy ----------------------------------
 # The policy (docs/DEPENDENCIES.md, `dependencies:` in _data/fleet.yml) was
 # declared in three places and enforced in none, which is how four PRs

@@ -196,9 +196,13 @@ jobs:
           {
             echo "### 🔑 Token rotation — ${{ steps.mode.outputs.label }}"
             echo ""
-            if [ "${{ steps.probe.outputs.can_write }}" != "true" ]; then
+            if [ "${{ steps.probe.outputs.can_write }}" = "false" ]; then
               echo "**Blocked:** no credential with \`secrets:write\` on this fleet."
               echo "See \`docs/TOKEN-ROTATION.md\` for the scopes \`FLEET_TOKEN\` needs."
+            elif [ -z "${{ steps.probe.outputs.can_write }}" ]; then
+              echo "**Broken:** a step failed before the secret-access probe ran, so"
+              echo "nothing was audited and nothing was written. This is a workflow"
+              echo "fault, not a credential finding."
             else
               echo "| Metric | Value |"
               echo "| --- | --- |"
@@ -288,7 +292,12 @@ jobs:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           TITLE: "🔑 Fleet credential rotation needs attention"
           REASONS: ${{ needs.rotate.outputs.reasons }}
+          # '' = the probe never ran (the job broke before it); 'false' = the
+          # probe ran and the credential genuinely lacks the scope. Conflating
+          # the two filed an issue blaming a missing scope for what was actually
+          # an unloadable composite action.
           CAN_WRITE: ${{ needs.rotate.outputs.can_write }}
+          ROTATE_RESULT: ${{ needs.rotate.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -307,13 +316,21 @@ jobs:
             {
               echo "## Fleet credential rotation needs attention"
               echo ""
-              if [ "$CAN_WRITE" != "true" ]; then
+              if [ "$CAN_WRITE" = "false" ]; then
                 echo "The weekly rotation could not read or write Actions secrets."
                 echo ""
                 echo "\`FLEET_TOKEN\` needs **admin (secrets:write)** on every fleet repo on"
                 echo "top of its existing scopes — writing an Actions secret is an"
                 echo "admin-level operation. Until that is granted the loop can neither"
                 echo "audit ages nor propagate the credential."
+              elif [ -z "$CAN_WRITE" ]; then
+                echo "The rotation job ended (\`${ROTATE_RESULT:-unknown}\`) **before it could"
+                echo "probe for secret access**, so nothing is known about the fleet's"
+                echo "credentials this week — and in particular this is NOT evidence that"
+                echo "\`FLEET_TOKEN\` is missing a scope."
+                echo ""
+                echo "This means the workflow itself broke: a step failed ahead of the probe."
+                echo "Read the run log linked below and start at the first red step."
               else
                 echo "The rotation reported: \`${REASONS:-unknown}\`."
               fi

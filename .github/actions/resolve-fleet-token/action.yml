@@ -27,9 +27,16 @@ inputs:
     default: FALLBACK_TOKEN
   default-token:
     description: >-
-      Last-resort candidate, normally ${{ github.token }}. Note that the
+      Last-resort candidate, normally the caller's `github.token`. Note that the
       job-scoped GITHUB_TOKEN cannot read foreign repositories and will probe
       as 404 when `probe-repo` is not this repository.
+      NOTE: never write a workflow expression inside these description strings.
+      An action manifest is itself a TEMPLATE, and descriptions are evaluated
+      like any other node — so an expression written here purely as prose
+      documentation is parsed as a REAL expression against a context that does
+      not exist at manifest-load time. That failed this whole action with
+      "Unrecognized named-value: 'github'" before a single step ran, and it took
+      every caller down with it. Name contexts in plain backticks instead.
     required: false
     default: ''
   default-token-name:
@@ -41,12 +48,17 @@ inputs:
       owner/repo used for the validity probe. Set this to the repository the
       caller actually intends to touch, otherwise the probe proves nothing
       about cross-repo access.
+      Defaults to the workflow's own repository, resolved at RUN time from
+      $GITHUB_REPOSITORY rather than from a manifest default, for the same
+      reason as above: what a manifest may evaluate is a moving target, and a
+      composite action that cannot load takes every caller down with it.
     required: false
-    default: ${{ github.repository }}
+    default: ''
   api-url:
-    description: GitHub API base URL.
+    description: >-
+      GitHub API base URL. Defaults to $GITHUB_API_URL at run time.
     required: false
-    default: ${{ github.api_url }}
+    default: ''
   fail-on-no-valid-token:
     description: >-
       When 'true' (default) the step fails if no candidate validates. Set to
@@ -100,10 +112,18 @@ runs:
           fi
         done
 
+        # Both of these used to be manifest defaults reading the `github`
+        # context. The runner exports the same values as environment variables
+        # on every job, so taking them from here keeps the manifest free of
+        # expressions entirely.
         if [ -z "${API_URL}" ]; then
-          API_URL="https://api.github.com"
+          API_URL="${GITHUB_API_URL:-https://api.github.com}"
         fi
         API_URL="${API_URL%/}"
+
+        if [ -z "${PROBE_REPO}" ]; then
+          PROBE_REPO="${GITHUB_REPOSITORY:-}"
+        fi
 
         if [ -z "${PROBE_REPO}" ]; then
           echo "::error::resolve-fleet-token: probe-repo is empty; nothing to validate against."
