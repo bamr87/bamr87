@@ -223,6 +223,13 @@ tokens:
       # propagation heartbeat: any repo whose copy is older than this gets
       # rewritten, which is what pulls a newly-registered repo into line and
       # what re-heals a secret someone deleted by hand.
+      # A repo is ALSO stale when its copy predates the hub's, whatever its
+      # age. That is the rule that makes a human updating the hub's token
+      # actually reach the fleet: without it, every repo written inside this
+      # window keeps the OLD credential and the fleet ends up split across two.
+      # Real case, 2026-08-24: the hub was updated at 22:26Z and three repos —
+      # zer0-mistakes (1d), githubai (4d), irony-works (16d) — were classified
+      # current by age and would have been skipped.
       max_age_days: 45
       # A hard deadline measured against the credential's own one-year life.
       # Past this the loop asks a human to re-mint (it cannot do it itself

@@ -68,8 +68,20 @@ The two halves reach the fleet by different routes, because GitHub treats them d
 
 | | Can the API read the value? | So the source is… | A repo is rewritten when… |
 | --- | --- | --- | --- |
-| **Secrets** | **No** — never, not even your own | the hub's workflow reading `${{ secrets.X }}` | its copy is missing, or older than `max_age_days` |
+| **Secrets** | **No** — never, not even your own | the hub's workflow reading `${{ secrets.X }}` | its copy is missing, older than `max_age_days`, **or older than the hub's copy** |
 | **Variables** | **Yes** — name *and* value | the hub's live variables, read through the API | its value **differs** from the hub's |
+
+### "Older than the hub" beats "older than 45 days"
+
+A repo is stale for either of two reasons, and the second matters more.
+
+Age is the weak signal — it's the propagation heartbeat, and all a timestamp can tell you on its own. The strong one is **the repo's copy is older than the hub's**: that says plainly *the hub holds something you do not*, whatever the age. Both timestamps come from the same API call, so it costs nothing to check.
+
+Without that second rule, a human updating the hub's token reaches only the repos that happen to be missing or old — and every repo written inside the heartbeat window keeps the **old** credential. The fleet ends up split across two, which is the exact outcome `hub_first` exists to prevent.
+
+That is not hypothetical. On 2026-08-24 the hub's token was updated at 22:26Z, and three repos — `zer0-mistakes` (1d), `githubai` (4d), `irony-works` (16d) — were all classified *current* by age and would have been skipped, leaving 28 repos on the new token and 3 on the old.
+
+The rule converges rather than churning: once a repo has been written its copy is newer than the hub's, so it goes quiet until the hub changes again. One extra write per repo per hub update, then nothing.
 
 That asymmetry explains the one part of this design that looks inconsistent at first glance. Secrets are audited by **age** because age is the only signal available: nothing can compare a repo's secret to the hub's, so the loop falls back to "how long since anyone wrote it". Variables are compared by **value**, which is strictly better — one that still matches the hub is correct however old it is, and one that has drifted is wrong however fresh.
 
