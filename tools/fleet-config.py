@@ -639,27 +639,60 @@ def rotation_targets(cfg: dict, registry: list, token: dict,
 
 
 def survey(token: dict, repos: list[dict],
-           cache: dict[str, dict[str, str] | None]) -> list[dict]:
+           cache: dict[str, dict[str, str] | None],
+           hub_nwo: str | None = None) -> list[dict]:
     """Per-repo state of one secret. `cache` is shared so a repo whose secrets
-    were already listed for another token is not fetched twice."""
+    were already listed for another token is not fetched twice.
+
+    A repo is stale for either of two reasons, and the second one matters more:
+
+      age        its copy is older than `max_age_days` — the propagation
+                 heartbeat, which is all age can tell you.
+      behind hub its copy was written BEFORE the hub's was. The hub is the
+                 master copy, so this says plainly "the hub holds something you
+                 do not", whatever the age.
+
+    Without the second rule a human updating the hub's secret would reach only
+    the repos that happened to be missing or old: every repo written inside the
+    heartbeat window would keep the OLD credential and the fleet would end up
+    split across two — the exact outcome `hub_first` exists to prevent. Both
+    timestamps come from the same API call, so this costs nothing.
+    """
     pol = token["_rotation"]
     max_age = int(pol.get("max_age_days") or 0)
+
+    def meta_for(nwo):
+        if nwo not in cache:
+            cache[nwo] = repo_secret_meta(nwo)
+        return cache[nwo]
+
+    hub_dt = None
+    if hub_nwo:
+        hub_meta = meta_for(hub_nwo)
+        if hub_meta:
+            hub_dt = parse_ts(hub_meta.get(token["name"]))
+
     rows = []
     for r in repos:
-        if r["nwo"] not in cache:
-            cache[r["nwo"]] = repo_secret_meta(r["nwo"])
-        meta = cache[r["nwo"]]
+        meta = meta_for(r["nwo"])
         if meta is None:
-            rows.append({**r, "state": S_UNREACHABLE, "age_days": None, "updated_at": None})
+            rows.append({**r, "state": S_UNREACHABLE, "age_days": None,
+                         "updated_at": None, "behind_hub": False})
             continue
         if token["name"] not in meta:
-            rows.append({**r, "state": S_MISSING, "age_days": None, "updated_at": None})
+            rows.append({**r, "state": S_MISSING, "age_days": None,
+                         "updated_at": None, "behind_hub": False})
             continue
         updated = meta[token["name"]]
         age = age_days(updated)
-        stale = max_age > 0 and age is not None and age >= max_age
-        rows.append({**r, "state": S_STALE if stale else S_OK,
-                     "age_days": age, "updated_at": updated})
+        aged_out = max_age > 0 and age is not None and age >= max_age
+        behind_hub = False
+        if hub_dt is not None and r["nwo"] != hub_nwo:
+            rdt = parse_ts(updated)
+            behind_hub = bool(rdt and rdt < hub_dt)
+        rows.append({**r, "state": S_STALE if (aged_out or behind_hub) else S_OK,
+                     "age_days": age, "updated_at": updated,
+                     "behind_hub": behind_hub})
     return rows
 
 
@@ -741,6 +774,10 @@ def ledger_entry(token: dict, rows: list[dict], source: str, minted: bool,
             "state": r["state"],
             "age_days": r["age_days"],
             "updated_at": r["updated_at"],
+            # true = the hub holds a NEWER copy than this repo, which is a
+            # stronger signal than age and the reason a human's hub update
+            # reaches repos that are otherwise well inside the heartbeat.
+            "behind_hub": r.get("behind_hub", False),
             "action": ("failed" if r["nwo"] in failed
                        else "written" if r["nwo"] in written else "none"),
         } for r in rows],
@@ -883,7 +920,7 @@ def cmd_rotation_plan(args: argparse.Namespace) -> int:
     entries = []
     for t in tokens:
         repos = rotation_targets(cfg, registry, t, args.repo)
-        rows = survey(t, repos, cache)
+        rows = survey(t, repos, cache, hub_nwo)
         attention = []
         if needs_human_mint(rows, t["_rotation"], hub_nwo):
             attention.append("needs-mint")
@@ -949,7 +986,7 @@ def cmd_rotate(args: argparse.Namespace) -> int:
         name = t["name"]
         pol = t["_rotation"]
         repos = rotation_targets(cfg, registry, t, args.repo)
-        rows = survey(t, repos, cache)
+        rows = survey(t, repos, cache, hub_nwo)
         print(f"\n\033[1m{name}\033[0m — {len(rows)} target repo(s)")
 
         # --- where does this run's value come from? -------------------------
