@@ -20,6 +20,12 @@ name: 🔑 Token Rotation
 #              into _data/token_rotation.yml. Always runs. The secrets API
 #              returns names and timestamps but never values, which is exactly
 #              the shape an audit needs.
+#   VARIABLES  the same pass also brings every repo's canonical repository
+#              VARIABLES into line with the hub's. These are the half of the
+#              contract the API DOES return, so the hub's live settings are the
+#              source of truth and repos are compared by VALUE, not by age — a
+#              variable fixed on the hub reaches the fleet within the week
+#              instead of whenever someone remembers `dash config sync`.
 #   RE-MINT    obtain a genuinely NEW credential. Only possible when the
 #              optional OAuth refresh grant is provisioned; otherwise the run
 #              opens ONE tracking issue asking a human to re-mint, and keeps
@@ -44,6 +50,9 @@ name: 🔑 Token Rotation
 #                                     one workflow that requires it.
 #   CLAUDE_CODE_OAUTH_TOKEN           the hub's copy is the canonical value the
 #                                     fleet is brought into line with.
+#   ANTHROPIC_API_KEY                 same, for the fallback credential. Unset
+#                                     on the hub today, which the loop reports
+#                                     and moves past rather than flagging.
 #   CLAUDE_CODE_OAUTH_REFRESH_TOKEN   optional. Present → the run can re-mint.
 #                                     Absent → propagate-and-alert only.
 #
@@ -100,6 +109,7 @@ jobs:
       issues: write           # labels for the fallback PR
     outputs:
       written: ${{ steps.rotate.outputs.written }}
+      variables_written: ${{ steps.rotate.outputs.variables_written }}
       failed: ${{ steps.rotate.outputs.failed }}
       minted: ${{ steps.rotate.outputs.minted }}
       attention: ${{ steps.rotate.outputs.attention }}
@@ -163,9 +173,21 @@ jobs:
         if: steps.probe.outputs.can_write == 'true'
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
-          # The hub's own copy is the canonical value the fleet is brought into
-          # line with. The tool masks both of these before doing anything else.
+          # THE HUB IS THE MASTER COPY. Every fleet-scoped secret in the token
+          # contract is handed over from this repository's own secret store, and
+          # the fleet is brought into line with it.
+          #
+          # This list is written out by hand because it has to be: GitHub gives
+          # a workflow no way to enumerate `secrets.*`, and a secret's value is
+          # never returned by the API — so the only route from the hub's store
+          # to another repo is a workflow OF THE HUB reading `${{ secrets.X }}`
+          # and handing it on. A contract secret that is not named here can
+          # therefore never propagate, however correct the contract is, and it
+          # would fail silently. Drift-gate check (l) fails CI on exactly that.
+          #
+          # The tool masks every one of these before doing anything else.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_REFRESH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_REFRESH_TOKEN }}
           # Dispatch inputs reach the shell as environment variables, never
           # spliced into the command line: `${{ }}` interpolation inside `run:`
@@ -211,6 +233,8 @@ jobs:
               echo "| Fresh credential minted | ${{ steps.rotate.outputs.minted || 'false' }} |"
               echo "| Needs attention | ${{ steps.rotate.outputs.attention || 'false' }} |"
               echo "| Reasons | ${{ steps.rotate.outputs.reasons || '—' }} |"
+              echo "| Variables written | ${{ steps.rotate.outputs.variables_written || 0 }} |"
+              echo "| Variable failures | ${{ steps.rotate.outputs.variables_failed || 0 }} |"
               echo ""
               if [ -f rotation-attention.md ]; then cat rotation-attention.md; fi
             fi
@@ -234,7 +258,7 @@ jobs:
         uses: ./.github/actions/utilities/publish-data
         with:
           paths: "_data/token_rotation.yml"
-          message: "chore(data): weekly credential rotation ledger"
+          message: "chore(data): weekly credential + variable rotation ledger"
           branch: chore/token-rotation
           title: "chore(data): weekly credential rotation ledger"
           body: |

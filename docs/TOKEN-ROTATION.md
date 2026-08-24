@@ -26,8 +26,9 @@ What a weekly job *can* do splits into three jobs, and it is worth being precise
 
 | | What it does | Runs unattended? |
 | --- | --- | --- |
-| **Propagate** | Write the hub's canonical value to every fleet repo whose copy is **missing** or older than `max_age_days` | **Always** |
+| **Propagate** | Write the hub's value to every fleet repo whose copy is **missing** or older than `max_age_days` | **Always** |
 | **Audit** | Record each repo's secret age, read from GitHub's own `updated_at`, into `_data/token_rotation.yml` | **Always** |
+| **Variables** | Bring every repo's canonical repository variables into line with the hub's live values | **Always** |
 | **Re-mint** | Obtain a genuinely *new* credential | Only with the optional refresh grant |
 
 Propagate is the one that pays for itself immediately: it is what enrols a newly-registered repo and re-heals a secret somebody deleted, without anyone having to remember to. Audit is what turns "I think the fleet is fine" into a diffable file. Re-mint is the part that needs help.
@@ -57,10 +58,30 @@ gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87   # seed the hub
 
 ---
 
+---
+
+## The hub is the master copy
+
+Everything this loop writes comes from **bamr87/bamr87's own stored secrets and variables**. `_data/fleet.yml` declares the *contract* — which names exist, which are fleet-scoped, what the policy is — and the hub holds the *values*. One place to fix a value; the loop carries it everywhere.
+
+The two halves reach the fleet by different routes, because GitHub treats them differently:
+
+| | Can the API read the value? | So the source is… | A repo is rewritten when… |
+| --- | --- | --- | --- |
+| **Secrets** | **No** — never, not even your own | the hub's workflow reading `${{ secrets.X }}` | its copy is missing, or older than `max_age_days` |
+| **Variables** | **Yes** — name *and* value | the hub's live variables, read through the API | its value **differs** from the hub's |
+
+That asymmetry explains the one part of this design that looks inconsistent at first glance. Secrets are audited by **age** because age is the only signal available: nothing can compare a repo's secret to the hub's, so the loop falls back to "how long since anyone wrote it". Variables are compared by **value**, which is strictly better — one that still matches the hub is correct however old it is, and one that has drifted is wrong however fresh.
+
+It also explains a maintenance wart worth knowing about. Because a workflow cannot enumerate `secrets.*`, every fleet-scoped secret has to be named by hand in `token-rotation.yml`'s `env:` block. A secret in the contract but missing from that list can never propagate, and would fail *silently* — the contract would look right while every run wrote nothing. **Drift-gate check (l)** fails CI on exactly that, so the list cannot quietly fall behind the contract.
+
+If the hub lacks a variable the contract declares, the run falls back to the value declared in `fleet.yml` and says so. Set it on the hub to make it authoritative.
+
 ## How a run goes
 
 ```
-probe secrets:write ─→ survey ages ─→ mint (or seed) ─→ validate shape ─→ hub ─→ fleet ─→ ledger ─→ issue?
+secrets    probe secrets:write ─→ survey ages ─→ mint (or seed) ─→ validate shape ─→ hub ─→ fleet ─┐
+variables  read the hub's live values ─→ diff each repo ─→ write only what differs ────────────────┴─→ ledger ─→ issue?
 ```
 
 **Probe before anything else.** Listing a repo's secret *names* is already an admin-level call, so one `gh api repos/{hub}/actions/secrets` answers the only question that matters up front. A PAT that quietly lost `secrets:write` passes a generic validity probe and then 403s on all 41 writes, one at a time. This follows the house rule the issue pipeline learned the hard way: **probe a token, never merely presence-check it**.
@@ -158,6 +179,7 @@ dash secrets rotate --apply                        # propagate the hub's value t
 dash secrets rotate --source refresh --apply       # force a re-mint via the OAuth grant
 dash secrets rotate --repo bamr87/it-journey --apply
 dash secrets rotate --force --apply                # write every reachable repo
+dash secrets rotate --no-variables --apply         # secrets only, skip the variable pass
 ```
 
 A manual `workflow_dispatch` is a **dry run unless you tick `apply`**, so you can see the plan before touching 40 repos. Scheduled runs always apply.

@@ -270,7 +270,16 @@ tokens:
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
               unified-evolution.yml, schema-fanout.yml]
     rotation:
-      enabled: false      # console-issued key; re-issue and re-seed by hand
+      # The loop cannot RE-ISSUE a console key — that is a human action in the
+      # Anthropic console — but it can and should PROPAGATE whatever the hub
+      # holds, exactly like the OAuth token. `enabled` means "this loop keeps
+      # the fleet's copies in line with the hub's", not "this loop can mint".
+      # The hub does not currently hold one; while that is true every run
+      # simply reports it as unavailable and moves on, and because
+      # `required: false` that is not an attention item.
+      enabled: true
+      max_age_days: 45
+      value_prefixes: ["sk-ant-api"]
 
   - name: FLEET_TOKEN
     scope: hub
@@ -373,13 +382,40 @@ rotation:
     labels: [automation, security, tokens]
     marker: token-rotation   # hidden dedupe marker, same convention as fleet-doctor
 
+  # Repository VARIABLES ride the same weekly pass as the secrets.
+  #
+  # They are the half of the contract that CAN be read back: GitHub returns a
+  # variable's value, so the hub's own settings are the live source of truth and
+  # the fleet is compared against them by VALUE, not by age. A repo is written
+  # when its value differs from the hub's or is absent — so a no-op week writes
+  # nothing, and a variable corrected on the hub reaches the fleet within a week
+  # instead of whenever somebody remembers `dash config sync --apply`.
+  #
+  # `variables:` at the bottom of this file declares WHICH names are canonical
+  # and carries a fallback value for each; bamr87/bamr87 holds the authoritative
+  # value. That is deliberately the same split the secrets half uses — the
+  # contract is in version control, the values are in the hub — and it is why a
+  # value can be fixed in one place and land everywhere.
+  variables:
+    enabled: true
+    source: hub             # hub's live value wins; `variables:` below is the fallback
+    warn_on_fallback: true  # say so when the hub lacks a declared variable
+
   # Values-free record of what happened, published like every other generated
-  # signal. Names, ages, and outcomes only — never a credential.
+  # signal. Names, ages, and outcomes only — never a credential. Variables are
+  # not secret, so the ledger records their values.
   ledger: _data/token_rotation.yml
 
 # --------------------------------------------------------------------------- #
-# Canonical repository VARIABLES (not secrets) projected onto every fleet repo
-# by `dash config sync`. Non-sensitive, so they can be declared with values.
+# Canonical repository VARIABLES (not secrets).
+#
+# This block declares WHICH variables are canonical fleet-wide and carries a
+# fallback value for each. The authoritative value lives on the hub
+# (bamr87/bamr87's own repository variables) — the same split the token contract
+# above uses, where the contract is in version control and the values are in the
+# hub. `token-rotation.yml` reads the hub's live values weekly and propagates
+# them; `dash config sync --apply` does the same on demand. A name declared here
+# but absent from the hub falls back to the value below, and the run says so.
 #
 # This is what makes a per-repo workflow able to say `${{ vars.NODE_VERSION }}`
 # instead of hardcoding a version that then drifts across 40 repos.
