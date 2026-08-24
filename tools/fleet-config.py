@@ -700,12 +700,25 @@ def hub_row(rows: list[dict], hub_nwo: str) -> dict | None:
     return next((r for r in rows if r["nwo"] == hub_nwo), None)
 
 
-def needs_human_mint(rows: list[dict], pol: dict, hub_nwo: str) -> bool:
-    """True when the credential itself is approaching the end of its life.
+def needs_human_mint(rows: list[dict], pol: dict, hub_nwo: str,
+                     required: bool = True) -> bool:
+    """True when a human has to go mint a credential.
 
     The hub's `updated_at` is the best available proxy for when the credential
     was minted — nothing else in the system records it, and the secrets API
     offers no expiry field.
+
+    Two conditions reach this answer, and they are not the same question:
+
+      aging    the hub HOLDS a credential and it is nearing the end of its
+               one-year life. Worth flagging whatever the contract says, since
+               an expired credential breaks every repo holding a copy.
+      absent   the hub holds NO credential. Worth flagging only when the
+               contract marks the secret required. ANTHROPIC_API_KEY is the
+               fallback nobody has provisioned, and its absence is the intended
+               state — asking for it every week is how a weekly report gets
+               skimmed and then ignored. Same reasoning as the `needs-seed`
+               guard in cmd_rotate, which this mirrors.
     """
     lifetime = int(pol.get("lifetime_days") or 0)
     renew_before = int(pol.get("renew_before_days") or 0)
@@ -713,7 +726,7 @@ def needs_human_mint(rows: list[dict], pol: dict, hub_nwo: str) -> bool:
         return False
     row = hub_row(rows, hub_nwo)
     if row is None or row["age_days"] is None:
-        return row is not None and row["state"] == S_MISSING
+        return required and row is not None and row["state"] == S_MISSING
     return row["age_days"] >= max(0, lifetime - renew_before)
 
 
@@ -922,7 +935,8 @@ def cmd_rotation_plan(args: argparse.Namespace) -> int:
         repos = rotation_targets(cfg, registry, t, args.repo)
         rows = survey(t, repos, cache, hub_nwo)
         attention = []
-        if needs_human_mint(rows, t["_rotation"], hub_nwo):
+        if needs_human_mint(rows, t["_rotation"], hub_nwo,
+                            bool(t.get("required"))):
             attention.append("needs-mint")
         if any(r["state"] in (S_STALE, S_MISSING) for r in rows):
             attention.append("needs-propagate")
@@ -996,7 +1010,8 @@ def cmd_rotate(args: argparse.Namespace) -> int:
         minted_any = minted_any or minted
 
         attention = []
-        if needs_human_mint(rows, pol, hub_nwo) and not minted:
+        if needs_human_mint(rows, pol, hub_nwo,
+                            bool(t.get("required"))) and not minted:
             attention.append("needs-mint")
         # Only a REQUIRED secret missing its value is worth anyone's attention.
         # ANTHROPIC_API_KEY is the fallback nobody has provisioned; flagging its
