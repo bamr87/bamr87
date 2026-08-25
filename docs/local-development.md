@@ -148,6 +148,23 @@ bundle exec jekyll serve --config _config.yml,_config_dev.yml
 > `_config_dev.yml` is layered as above, whether `docker-compose.yml` already
 > applies it, and what the local URL/port is.
 
+### Option C — Dev Container (VS Code / GitHub Codespaces)
+
+The `.devcontainer/` directory describes the toolchain, so you don't have to
+install Ruby or the Compose services by hand:
+
+- **VS Code:** install the *Dev Containers* extension, open the repository
+  folder, and choose **Reopen in Container** when prompted (or run
+  *Dev Containers: Reopen in Container* from the command palette).
+- **GitHub Codespaces:** create a codespace on the branch you want; the same
+  definition is used automatically.
+
+Once the container is up, continue with the Bundler commands from Option B.
+
+> **TODO (maintainer):** state whether `.devcontainer/devcontainer.json` runs a
+> `postCreateCommand` that already installs dependencies, and which preview port
+> it forwards, so readers can skip straight to the server.
+
 ---
 
 ## 5. Build and automation tasks
@@ -178,6 +195,11 @@ If you have `pre-commit` installed, wire up the hooks declared in
 pre-commit install
 pre-commit run --all-files   # run every hook across the repo once
 ```
+
+The repository also carries **Husky** hooks (`.husky/`, managed through the Node
+toolchain) and **Prettier** / **EditorConfig** settings (`.prettierrc`,
+`.prettierignore`, `.editorconfig`) — formatting is enforced, so let your editor
+pick these up rather than reformatting by hand.
 
 ---
 
@@ -233,6 +255,13 @@ anything that might symlink them over your own configuration.
 current Ruby. Re-run `bundle install`, and make sure you are prefixing commands
 with `bundle exec`.
 
+**`bundle: command not found`** — Bundler isn't installed for your Ruby:
+`gem install bundler`.
+
+**A native gem fails to build during `bundle install`** — use the Dev Container
+(Option C) or Docker Compose (Option A) instead; both exist precisely so you
+don't have to fight a local Ruby toolchain.
+
 **Port already in use with Docker** — something else is bound to the published
 port. Check with `docker compose ps` and `docker compose config`, then stop the
 conflicting process or change the mapping.
@@ -240,6 +269,10 @@ conflicting process or change the mapping.
 **Changes not appearing in the browser** — Jekyll's watcher can miss files inside
 bind-mounted volumes on some platforms. Restart the server, or check whether the
 path is excluded in `_config.yml`.
+
+**Links or assets resolve incorrectly in the local preview** — the development
+config (`_config_dev.yml`) is probably not being applied; see the Bundler
+invocation under Option B.
 
 ---
 
