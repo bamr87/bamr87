@@ -93,7 +93,13 @@ schedule:
 # weekend.
 # --------------------------------------------------------------------------- #
 remediation:
-  max_candidates: 6               # total candidates acted on per run
+  # Bounded by what the doctor agent can actually WORK, not by what looks
+  # ambitious: each candidate costs it ~40 turns out of a 160-turn budget
+  # (`--max-turns` in fleet-pulse.yml). At 6 the agent exhausted its turns and
+  # the whole day's remediation was lost — a queue nobody can finish delivers
+  # fewer fixes than a shorter one. Raise this and raise `--max-turns` with it;
+  # test_fleet_pulse_doctor.py fails the pair if you don't.
+  max_candidates: 4               # total candidates acted on per run
   max_cross_repo: 3               # of those, how many may become submodule PRs
   min_runs: 3                     # ignore workflows with fewer runs in the window
   min_priority: 10.0              # unflagged workflows at/above this are eligible

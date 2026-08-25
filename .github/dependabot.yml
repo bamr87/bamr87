@@ -15,6 +15,7 @@ updates:
   # Dependabot updates both the SHA and the trailing version comment, which is
   # what keeps SHA pinning maintainable over time.
   - package-ecosystem: "github-actions"
+    # "/" covers every workflow under .github/workflows.
     directory: "/"
     schedule:
       interval: "weekly"

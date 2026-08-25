@@ -460,6 +460,47 @@ jobs:
               a comment, you have already done this one — skip it.
             - Redact anything credential-shaped before quoting a log.
 
+      # `claude-code-action` surfaces a rejected credential as a bare
+      # `is_error: true` with NO message, so the annotation reads "Claude
+      # execution failed" and names nothing. That is how an expired
+      # CLAUDE_CODE_OAUTH_TOKEN kept tiers 1 and 3 red from 2026-08-15 to
+      # 08-24 without anyone being told which secret to rotate. The result
+      # record does carry the tell: a credential rejected at the first API
+      # call bills nothing, so `total_cost_usd == 0` AND an empty
+      # `modelUsage` means the model was never reached — as opposed to a
+      # genuine agent failure, which always has usage against it.
+      # HAS_CLAUDE_AUTH only tests that the secret is non-empty, exactly the
+      # present-but-expired trap `Probe fleet write token` catches for
+      # FLEET_TOKEN. Classify it so the next expiry costs one run, not ten days.
+      - name: Diagnose Claude failure
+        if: ${{ failure() && env.HAS_CLAUDE_AUTH == 'true' }}
+        env:
+          TIER: Tier 1 — intake
+        run: |
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          result=""
+          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+          if [ -z "$result" ]; then
+            echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
+            exit 0
+          fi
+          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
+          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
+          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
+          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+            {
+              echo "### 🧭 ${TIER} — Claude credential rejected"
+              echo ""
+              echo "No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
+              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
+              echo ""
+              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
+          fi
+
       - name: Summary
         if: always()
         run: |
@@ -641,6 +682,38 @@ jobs:
             - `assisted` issues get the same full implementation — the
               difference is that tier 3 will leave the PR as a draft for a human.
 
+      # See the tier-1 copy of this step for why a bare `is_error: true` needs
+      # classifying: zero billed turns + empty modelUsage means the credential
+      # was refused, anything else means the agent itself failed.
+      - name: Diagnose Claude failure
+        if: ${{ failure() && env.HAS_CLAUDE_AUTH == 'true' }}
+        env:
+          TIER: Tier 2 — implement
+        run: |
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          result=""
+          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+          if [ -z "$result" ]; then
+            echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
+            exit 0
+          fi
+          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
+          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
+          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
+          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+            {
+              echo "### 🧭 ${TIER} — Claude credential rejected"
+              echo ""
+              echo "No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
+              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
+              echo ""
+              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
+          fi
+
       - name: Summary
         if: always()
         run: |
@@ -773,6 +846,38 @@ jobs:
             - Never modify anything under `projects/` in this checkout.
             - Do not open new PRs — you finish existing ones.
             - Be specific in every comment. Quote the failing line, name the fix.
+
+      # See the tier-1 copy of this step for why a bare `is_error: true` needs
+      # classifying: zero billed turns + empty modelUsage means the credential
+      # was refused, anything else means the agent itself failed.
+      - name: Diagnose Claude failure
+        if: ${{ failure() && env.HAS_CLAUDE_AUTH == 'true' }}
+        env:
+          TIER: Tier 3 — complete
+        run: |
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          result=""
+          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+          if [ -z "$result" ]; then
+            echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
+            exit 0
+          fi
+          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
+          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
+          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
+          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+            {
+              echo "### 🧭 ${TIER} — Claude credential rejected"
+              echo ""
+              echo "No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
+              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
+              echo ""
+              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
+          fi
 
       - name: Summary
         if: always()
