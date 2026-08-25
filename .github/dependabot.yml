@@ -1,15 +1,19 @@
+# Dependabot keeps GitHub Actions up to date even when they are SHA-pinned.
+#
+# Pinning an action to a full commit SHA (`uses: owner/repo@<sha> # vX.Y.Z`)
+# is good supply-chain hygiene, but it also freezes that action forever:
+# nothing bumps the SHA on its own, so patch and security releases are never
+# picked up. Dependabot understands the pinned-SHA-plus-version-comment
+# convention and opens PRs that update both the SHA and the trailing comment.
+#
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 version: 2
-# ALWAYS-LATEST dependency policy (_data/fleet.yml `dependencies:`,
-# docs/DEPENDENCIES.md): nothing is pinned and no lockfiles are committed, so
-# there are no library versions for Dependabot to bump — the bundler and pip
-# entries this file used to carry became no-ops and were removed. GitHub
-# Actions are the one declared exception: `uses:` requires a ref, so workflows
-# float on major tags (@vN, minors/patches arrive automatically) and this
-# single entry keeps the majors current.
 updates:
   - package-ecosystem: "github-actions"
+    # "/" covers every workflow under .github/workflows.
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
-    labels: ["automation", "dependencies"]
+    commit-message:
+      prefix: "ci"
