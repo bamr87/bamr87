@@ -373,6 +373,46 @@ jobs:
               workflow look green. Fix the cause or file an issue.
             - Be specific and technical. No boilerplate.
 
+      # `claude-code-action` surfaces a rejected credential as a bare
+      # `is_error: true` with NO message, so the annotation reads "Claude
+      # execution failed" and names nothing. That is how an expired
+      # CLAUDE_CODE_OAUTH_TOKEN kept this job red from 2026-08-17 to 08-24
+      # without anyone being told which secret to rotate. The result record
+      # does carry the tell: a credential rejected at the first API call
+      # bills nothing, so `total_cost_usd == 0` AND an empty `modelUsage`
+      # means the model was never actually reached — as opposed to a genuine
+      # agent failure, which always has usage against it. Classify it here so
+      # the next expiry costs one run instead of eight days.
+      - name: Diagnose Claude failure
+        if: ${{ failure() && env.HAS_CLAUDE_AUTH == 'true' }}
+        run: |
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          if [ ! -f "$log" ]; then
+            echo "::warning::Claude failed before writing an execution log — check the step output directly."
+            exit 0
+          fi
+          result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+          if [ -z "$result" ]; then
+            echo "::warning::No result record in the Claude execution log — check the step output directly."
+            exit 0
+          fi
+          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
+          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
+          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
+          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+            echo "::error::Claude was never reached: 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+            {
+              echo "### 🩺 Fleet doctor — Claude credential rejected"
+              echo ""
+              echo "The agent made **no billed API call** (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
+              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
+              echo ""
+              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\` in this repo, then run \`token-rotation.yml\` to propagate it to the fleet."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::Claude ran ($turns turn(s), \$$cost billed) and still failed — this is an agent/tooling failure, not an auth failure."
+          fi
+
       - name: Summary
         if: always()
         run: |
