@@ -4,10 +4,11 @@ name: 🌿 Per-Repo AI Evolution
 # upstream repository and opens a DRAFT pull request there. Driven by
 # .github/workflows/evolution-scheduler.yml (weekly matrix) or dispatched manually.
 #
-# Requires secrets:
-#   ANTHROPIC_API_KEY  — Claude Code
-#   PAT_TOKEN          — PAT with `repo` + PR scope on the TARGET repositories
-#                        (the default GITHUB_TOKEN cannot push/PR to other repos)
+# Requires secrets (the hub's token contract — _data/fleet.yml, docs/AI-INTEGRATION.md):
+#   CLAUDE_CODE_OAUTH_TOKEN — Claude Code (preferred; ANTHROPIC_API_KEY is the fallback)
+#   FLEET_TOKEN             — the control-plane PAT with `repo` scope on the TARGET
+#                             repositories (GITHUB_TOKEN cannot push/PR to other repos,
+#                             and fires no workflow events for refs it pushes)
 
 on:
   workflow_call:
@@ -19,8 +20,9 @@ on:
       stack:     { required: false, type: string, default: "" }
       dry_run:   { required: false, type: boolean, default: false }
     secrets:
-      ANTHROPIC_API_KEY: { required: true }
-      PAT_TOKEN:         { required: true }
+      CLAUDE_CODE_OAUTH_TOKEN: { required: false }
+      ANTHROPIC_API_KEY:       { required: false }
+      FLEET_TOKEN:             { required: true }
   workflow_dispatch:
     inputs:
       repo_name:
@@ -40,16 +42,32 @@ jobs:
   evolve:
     name: 🌿 Evolve ${{ inputs.repo_name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
       # 1. Check out THIS repo (the framework) to read prompts + resolve the target.
       - name: Checkout framework
         uses: actions/checkout@v4
 
+      # Fail loudly rather than burning a runner on a no-op: missing auth is an
+      # error, not a skip (house convention, docs/AI-INTEGRATION.md).
+      - name: Require Claude auth
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$OAUTH" ] && [ -z "$APIKEY" ]; then
+            echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (preferred) or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+            exit 1
+          fi
+
       - name: Resolve target + assemble prompt
         id: prep
         run: |
           set -euo pipefail
-          pip install pyyaml >/dev/null 2>&1 || true
+          pip install -q -r .github/scripts/dash-gen/requirements.txt
 
           # Resolve target fields. workflow_call passes them directly; workflow_dispatch
           # provides only repo_name, so look the rest up in the registry.
@@ -117,7 +135,7 @@ jobs:
         with:
           repository: ${{ steps.prep.outputs.nwo }}
           ref: ${{ steps.prep.outputs.branch }}
-          token: ${{ secrets.PAT_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -125,7 +143,8 @@ jobs:
       - name: Run Claude Code evolution
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           prompt: ${{ steps.prep.outputs.prompt }}
           claude_args: "--max-turns 30"
 
@@ -133,7 +152,7 @@ jobs:
       - name: Open draft PR in target repo
         if: ${{ inputs.dry_run != true }}
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           NWO: ${{ steps.prep.outputs.nwo }}
           BASE: ${{ steps.prep.outputs.branch }}
           REPO_NAME: ${{ steps.prep.outputs.repo_name }}
@@ -146,8 +165,8 @@ jobs:
           fi
 
           BR="ai-evolution/$(date -u +%Y%m%d)-${{ github.run_id }}"
-          git config user.name  "AI Evolution Bot"
-          git config user.email "ai-evolution@users.noreply.github.com"
+          git config user.name  "bamr87-bot"
+          git config user.email "10567847+bamr87@users.noreply.github.com"
           git checkout -b "$BR"
           git add -A
           git commit -m "chore(evolve): automated documentation/clarity/functionality pass" \

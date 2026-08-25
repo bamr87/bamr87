@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: pip install pyyaml
+        run: pip install -q -r .github/scripts/dash-gen/requirements.txt
       - name: Generate target matrix
         id: targets
         run: |
@@ -59,5 +59,6 @@ jobs:
       stack:     ${{ matrix.stack }}
       dry_run:   ${{ inputs.dry_run == true }}
     secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      PAT_TOKEN:         ${{ secrets.PAT_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY:       ${{ secrets.ANTHROPIC_API_KEY }}
+      FLEET_TOKEN:             ${{ secrets.FLEET_TOKEN }}

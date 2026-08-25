@@ -26,7 +26,7 @@ evolution-scheduler.yml (weekly)   # fans out a parallel matrix, one job per rep
         ▼
 repo-evolution.yml (per repo)
    1. assemble prompt  ← .github/evolution/evolve-prompt.md + categories/<category>.md
-   2. checkout target repo (PAT)
+   2. checkout target repo (FLEET_TOKEN)
    3. run anthropics/claude-code-action
    4. commit changes → branch ai-evolution/<date>-<run_id>
    5. gh pr create --draft   (in the TARGET repo)
@@ -35,7 +35,7 @@ repo-evolution.yml (per repo)
 - **Selection:** full weekly matrix over every submodule with `auto_evolve: true`. Schedule
   is `cron: '0 7 * * 1'` (Mon 07:00 UTC), offset after the 06:00 root run.
 - **Scope today:** the three authored submodules — `cv-builder-pro` (main), `README` (main),
-  `scripts` (master). `microsoft/skills` is excluded (not owned).
+  `scripts` (main). `microsoft/skills` is excluded (not owned).
 - **Delivery:** draft PRs only — a human reviews and merges. Nothing is auto-merged.
 
 ## Adding or removing a repo
@@ -58,12 +58,12 @@ python3 .github/scripts/dash-gen/dash_gen.py targets   # or: tools/dash gen targ
 
 ## Required secrets
 
-Set these as repository (or org) secrets on `bamr87/bamr87`:
+Both are part of the hub's token contract (`_data/fleet.yml`) and already live on `bamr87/bamr87` — audit with `tools/dash secrets`:
 
 | Secret | Purpose |
 |--------|---------|
-| `ANTHROPIC_API_KEY` | Claude Code (`anthropics/claude-code-action`) |
-| `PAT_TOKEN` | Personal access token with `repo` + pull-request scope on **each target repo** — the default `GITHUB_TOKEN` cannot push or open PRs in other repositories |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code (`anthropics/claude-code-action`) — preferred; `ANTHROPIC_API_KEY` is the fallback, OAuth-first at every call site (see [AI-INTEGRATION.md](AI-INTEGRATION.md)) |
+| `FLEET_TOKEN` | The control-plane PAT with `repo` scope on **each target repo** — `GITHUB_TOKEN` cannot push or open PRs in other repositories, and fires no workflow events for refs it pushes |
 
 ## Running it manually
 
