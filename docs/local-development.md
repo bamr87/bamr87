@@ -1,50 +1,157 @@
 ---
-title: Running the site locally
-description: How to install dependencies, build, and serve this repository on your own machine.
+title: Local Development Guide
+description: How to clone, configure and run this monorepo locally with Docker or Bundler + Jekyll.
 ---
 
-# Running the site locally
+# Local Development Guide
 
-This page is a starting point for anyone who has just cloned the repository and
-wants to build and preview the site.
+This guide gets a newcomer from `git clone` to a site running on their machine.
 
-> **About the `TODO` markers below.** This guide was written from the repository
-> layout. A few details — exact task names, container service names, ports —
-> depend on file contents that should be read straight from the source rather
-> than guessed. Where that is the case, the guide shows you the command that
-> *lists* the real answer, and leaves a `TODO` for a maintainer to fill in the
-> short version. Please replace them as you confirm each one.
+`README.md` at the root of this repository is a **profile README** — it describes the
+author, not the repository's build. This document covers the repository itself.
+
+> **Note on accuracy:** every command below is either a standard tool command or a
+> *discovery* command that prints the repository's real configuration. Where a value
+> is specific to this repo and needs a maintainer to confirm it, you'll see a
+> `TODO (maintainer)` callout. Please replace those with concrete values rather than
+> guessing.
 
 ---
 
-## 1. What's in the repository
+## 1. Prerequisites
 
-This is a monorepo. The files that matter for local development are all at the
-repository root:
+Pick **one** of the two paths below. You do not need both.
 
-| File / directory | Role |
+| Path | You need |
 | --- | --- |
-| `Gemfile` | Ruby dependencies, installed with [Bundler](https://bundler.io/). |
-| `Rakefile` | Task runner — the entry point for build/serve/clean tasks. |
-| `_config.yml` | Site configuration. |
-| `_config_dev.yml` | Development overrides layered on top of `_config.yml`. |
-| `docker-compose.yml` | Container-based workflow, if you'd rather not install Ruby locally. |
-| `.devcontainer/` | Dev container definition for VS Code and GitHub Codespaces. |
-| `.env.example` | Template for local environment variables. |
-| `.gitmodules`, `SUBMODULES.md` | Git submodules — see [`SUBMODULES.md`](../SUBMODULES.md). |
-| `.pre-commit-config.yaml`, `.husky/` | Commit-time hooks and checks. |
-| `.prettierrc`, `.prettierignore`, `.editorconfig` | Formatting rules. |
-| `_data/`, `assets/`, `pages/`, `projects/`, `templates/`, `docs/`, `index.md` | Site content and layout sources. |
-| `tools/` | Repository tooling and scripts. |
+| **Docker** (recommended for a first run) | Docker Desktop / Docker Engine with the `docker compose` plugin |
+| **Native Ruby** | Ruby + Bundler (`gem install bundler`) |
+| **Dev Container** (VS Code) | VS Code + the *Dev Containers* extension + Docker |
 
-There are three reasonable ways to get running. Pick **one**.
+The repository ships a `.devcontainer/` directory, so VS Code will offer to
+"Reopen in Container" when you open the folder. That path handles the toolchain
+for you.
+
+Other tooling present at the root that you may want installed:
+
+- `.pre-commit-config.yaml` — [pre-commit](https://pre-commit.com/) hooks
+- `.editorconfig`, `.prettierrc`, `.prettierignore` — editor and formatting config
 
 ---
 
-## 2. Option A — Dev container (least setup)
+## 2. Clone the repository (with submodules)
 
-The repository ships a `.devcontainer/` directory, so the toolchain is already
-described for you.
+This repository uses git submodules — there is a `.gitmodules` file at the root.
+If you clone without them, parts of the tree will be empty directories.
+
+```bash
+git clone --recurse-submodules https://github.com/bamr87/bamr87.git
+cd bamr87
+```
+
+Already cloned without `--recurse-submodules`? Fix it in place:
+
+```bash
+git submodule update --init --recursive
+```
+
+To see which submodules are configured and where they point:
+
+```bash
+cat .gitmodules
+git submodule status
+```
+
+📖 See [`SUBMODULES.md`](../SUBMODULES.md) for this repository's own guidance on
+adding, updating and troubleshooting submodules — treat it as the authoritative
+source over this section.
+
+---
+
+## 3. Configure your environment
+
+The repository provides `.env.example` as a template. Copy it and fill in values:
+
+```bash
+cp .env.example .env
+```
+
+To see exactly which variables are expected, read the template — it is the single
+source of truth:
+
+```bash
+cat .env.example
+```
+
+`.env` is intended to stay on your machine; check `.gitignore` before committing
+anything that looks like a secret.
+
+> **TODO (maintainer):** state whether `.env` is *required* for a plain local
+> build, or only for optional integrations, and which variables are mandatory.
+
+---
+
+## 4. Run the site
+
+### Option A — Docker Compose
+
+`docker-compose.yml` lives at the repository root. First, see what it defines:
+
+```bash
+docker compose config --services   # list the service names
+docker compose config              # the fully-resolved configuration, incl. ports
+```
+
+Then start everything in the foreground (Ctrl-C to stop):
+
+```bash
+docker compose up
+```
+
+Or in the background, with logs followed separately:
+
+```bash
+docker compose up -d
+docker compose logs -f
+docker compose down          # stop and remove the containers
+```
+
+Open the port published by the service — read it from the `ports:` mapping shown
+by `docker compose config`.
+
+> **TODO (maintainer):** replace the above with the concrete service name and
+> URL, e.g. `docker compose up <service>` → <http://localhost:PORT>.
+
+### Option B — Native Ruby / Bundler
+
+The root `Gemfile` declares the Ruby dependencies:
+
+```bash
+bundle install
+```
+
+Then run the Jekyll development server:
+
+```bash
+bundle exec jekyll serve
+```
+
+By default Jekyll reads `_config.yml`. This repository *also* contains
+`_config_dev.yml`, which suggests a development override is layered on top —
+Jekyll supports this with a comma-separated list:
+
+```bash
+bundle exec jekyll serve --config _config.yml,_config_dev.yml
+```
+
+> **TODO (maintainer):** confirm which invocation is correct here — whether
+> `_config_dev.yml` is layered as above, whether `docker-compose.yml` already
+> applies it, and what the local URL/port is.
+
+### Option C — Dev Container (VS Code / GitHub Codespaces)
+
+The `.devcontainer/` directory describes the toolchain, so you don't have to
+install Ruby or the Compose services by hand:
 
 - **VS Code:** install the *Dev Containers* extension, open the repository
   folder, and choose **Reopen in Container** when prompted (or run
@@ -52,172 +159,123 @@ described for you.
 - **GitHub Codespaces:** create a codespace on the branch you want; the same
   definition is used automatically.
 
-Once the container is up, continue from [step 5, *Build and serve*](#5-build-and-serve).
+Once the container is up, continue with the Bundler commands from Option B.
 
-> **TODO (verify):** does `.devcontainer/devcontainer.json` run a
-> `postCreateCommand` that already installs dependencies, and does it forward a
-> preview port? If so, say so here so readers can skip ahead.
-
----
-
-## 3. Option B — Docker Compose
-
-The repository includes a `docker-compose.yml`. First, see which services it
-defines:
-
-```bash
-docker compose config --services
-```
-
-Then start the one you need:
-
-```bash
-docker compose up <service>
-```
-
-To stop and clean up:
-
-```bash
-docker compose down
-```
-
-> **TODO (verify):** replace `<service>` with the real service name, note the
-> port the site is published on, and mention any volumes or environment
-> variables the service expects.
+> **TODO (maintainer):** state whether `.devcontainer/devcontainer.json` runs a
+> `postCreateCommand` that already installs dependencies, and which preview port
+> it forwards, so readers can skip straight to the server.
 
 ---
 
-## 4. Option C — Native Ruby toolchain
+## 5. Build and automation tasks
 
-### Prerequisites
-
-- **Ruby** with **Bundler** available (`gem install bundler` if `bundle` is
-  missing). The presence of a `Gemfile` is what makes Bundler the install path.
-- **Git**, for the repository and its submodules.
-
-> **TODO (verify):** if `Gemfile` (or a `.ruby-version` / `Gemfile.lock`) pins a
-> Ruby version, state it explicitly here.
-
-### Clone with submodules
-
-This repository uses git submodules (`.gitmodules`), so a plain clone will leave
-some directories empty:
+A `Rakefile` sits at the repository root. Rather than memorising task names, ask
+Rake what it offers:
 
 ```bash
-git clone --recurse-submodules https://github.com/bamr87/bamr87.git
-cd bamr87
+bundle exec rake -T          # list all documented tasks with descriptions
+bundle exec rake -T build    # filter to tasks matching "build"
 ```
 
-Already cloned without them?
+Run a task with:
 
 ```bash
-git submodule update --init --recursive
+bundle exec rake <task_name>
 ```
 
-See [`SUBMODULES.md`](../SUBMODULES.md) for the full story on how submodules are
-organised and updated in this repository.
+> **TODO (maintainer):** call out the two or three tasks a newcomer actually
+> needs (build, test, lint, deploy) so they don't have to guess from `rake -T`.
 
-### Install dependencies
+### Pre-commit hooks
+
+If you have `pre-commit` installed, wire up the hooks declared in
+`.pre-commit-config.yaml`:
 
 ```bash
-bundle install
+pre-commit install
+pre-commit run --all-files   # run every hook across the repo once
 ```
 
-### Environment variables
-
-Copy the example file and fill in any values you need:
-
-```bash
-cp .env.example .env
-```
-
-`.env` is not committed — check `.env.example` for the list of keys and what
-each one is for.
+The repository also carries **Husky** hooks (`.husky/`, managed through the Node
+toolchain) and **Prettier** / **EditorConfig** settings (`.prettierrc`,
+`.prettierignore`, `.editorconfig`) — formatting is enforced, so let your editor
+pick these up rather than reformatting by hand.
 
 ---
 
-## 5. Build and serve
+## 6. Repository layout
 
-The repository drives its build through a `Rakefile`. List the available tasks
-first — this is always the authoritative answer, and it never goes stale:
+The top level of the monorepo:
 
-```bash
-bundle exec rake -T
-```
+| Path | What it is |
+| --- | --- |
+| `_config.yml`, `_config_dev.yml` | Jekyll site configuration (production and development) |
+| `_data/` | Jekyll data files |
+| `_reports/` | Generated or checked-in reports |
+| `assets/` | Static assets for the site |
+| `docs/` | Documentation (you are here) |
+| `index.md`, `pages/` | Site content |
+| `projects/` | Project directories (several are git submodules — see `.gitmodules`) |
+| `templates/` | Reusable templates |
+| `tools/` | Repository tooling and scripts |
+| `Gemfile` | Ruby dependencies |
+| `Rakefile` | Automation tasks |
+| `docker-compose.yml` | Container definition for local development |
+| `fleet.manifest.yml` | Fleet/automation manifest |
+| `home.code-workspace` | VS Code multi-root workspace file |
+| `.devcontainer/` | VS Code Dev Container definition |
+| `.github/` | GitHub workflows, issue and PR templates |
+| `.vscode/` | Editor settings shared with the team |
+| `.claude/`, `.mcp.json` | AI agent configuration |
 
-That prints every task with its description. Pick the one that builds or serves
-the site and run it:
-
-```bash
-bundle exec rake <task>
-```
-
-> **TODO (verify):** replace this with the two or three tasks a newcomer
-> actually needs — for example the build task, the local serve task, and a clean
-> task — plus the URL the local server listens on.
-
-### Development configuration
-
-There are two config files: `_config.yml` and `_config_dev.yml`. The `_dev`
-variant exists to override settings for local work (things like the site URL or
-base path typically differ between local and published builds).
-
-> **TODO (verify):** document how `_config_dev.yml` gets applied — whether a
-> rake task passes it automatically, or whether you need to supply both config
-> files on the command line. Getting this wrong is the most common reason local
-> links and asset paths break, so it's worth spelling out.
+Shell dotfiles (`.zshrc`, `.zprofile`, `.gitconfig`) are tracked at the root —
+this repository doubles as a dotfiles/home directory. Read them before running
+anything that might symlink them over your own configuration.
 
 ---
 
-## 6. Checks before you commit
+## 7. Related documentation
 
-The repository configures automated checks:
-
-- **pre-commit** (`.pre-commit-config.yaml`). Install the hooks once with:
-
-  ```bash
-  pre-commit install
-  ```
-
-  and run them against everything with:
-
-  ```bash
-  pre-commit run --all-files
-  ```
-
-- **Husky** (`.husky/`) — git hooks managed through the Node toolchain.
-- **Prettier** (`.prettierrc`, `.prettierignore`) and **EditorConfig**
-  (`.editorconfig`) — formatting is enforced, so let your editor pick these up.
-
-> **TODO (verify):** if there is a test task, add it here (`bundle exec rake -T`
-> will reveal it) along with anything CI in `.github/workflows/` runs that
-> contributors should reproduce locally.
+| Document | Purpose |
+| --- | --- |
+| [`CONTRIBUTING.md`](../CONTRIBUTING.md) | Contribution workflow, branch and commit conventions |
+| [`SUBMODULES.md`](../SUBMODULES.md) | Working with the git submodules in `projects/` |
+| [`SCHEMA.md`](../SCHEMA.md) | Data/content schema reference |
+| [`AGENTS.md`](../AGENTS.md), [`CLAUDE.md`](../CLAUDE.md) | Conventions for AI agents operating on this repository |
+| [`fleet.manifest.yml`](../fleet.manifest.yml) | Automation manifest |
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
-**A directory is empty or a build fails on a missing include.**
-Submodules probably aren't checked out. Run
-`git submodule update --init --recursive` and see [`SUBMODULES.md`](../SUBMODULES.md).
+**Empty directories under `projects/`** — submodules were not initialised. Run
+`git submodule update --init --recursive`.
 
-**`bundle: command not found`.**
-Bundler isn't installed for your Ruby: `gem install bundler`.
+**`bundler: command not found: jekyll`** — dependencies are not installed for the
+current Ruby. Re-run `bundle install`, and make sure you are prefixing commands
+with `bundle exec`.
 
-**Native gem fails to build during `bundle install`.**
-Use the dev container (Option A) or Docker Compose (Option B) instead — both
-exist precisely so you don't have to fight a local Ruby toolchain.
+**`bundle: command not found`** — Bundler isn't installed for your Ruby:
+`gem install bundler`.
 
-**Links or assets resolve incorrectly in the local preview.**
-The development config (`_config_dev.yml`) is likely not being applied — see
-[Development configuration](#development-configuration).
+**A native gem fails to build during `bundle install`** — use the Dev Container
+(Option C) or Docker Compose (Option A) instead; both exist precisely so you
+don't have to fight a local Ruby toolchain.
+
+**Port already in use with Docker** — something else is bound to the published
+port. Check with `docker compose ps` and `docker compose config`, then stop the
+conflicting process or change the mapping.
+
+**Changes not appearing in the browser** — Jekyll's watcher can miss files inside
+bind-mounted volumes on some platforms. Restart the server, or check whether the
+path is excluded in `_config.yml`.
+
+**Links or assets resolve incorrectly in the local preview** — the development
+config (`_config_dev.yml`) is probably not being applied; see the Bundler
+invocation under Option B.
 
 ---
 
-## See also
-
-- [`CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution workflow.
-- [`SUBMODULES.md`](../SUBMODULES.md) — how submodules are structured.
-- [`SCHEMA.md`](../SCHEMA.md) — content/data schema.
-- [`AGENTS.md`](../AGENTS.md) / [`CLAUDE.md`](../CLAUDE.md) — conventions for
-  automated contributors working in this repository.
+*Found a gap or an inaccuracy in this guide? Please open a PR — the `TODO
+(maintainer)` callouts above are the known unknowns and are the best place to
+start.*
