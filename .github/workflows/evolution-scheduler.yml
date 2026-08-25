@@ -40,7 +40,11 @@ jobs:
           echo "matrix={\"include\":$JSON}" >> "$GITHUB_OUTPUT"
           echo "count=$(echo "$JSON" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" >> "$GITHUB_OUTPUT"
           echo "## 🌱 Evolution targets" >> "$GITHUB_STEP_SUMMARY"
-          echo "$JSON" | python3 -c 'import json,sys; [print(f"- {t[\"name\"]} (`{t[\"branch\"]}`, {t[\"category\"]})") for t in json.load(sys.stdin)]' >> "$GITHUB_STEP_SUMMARY"
+          JSON="$JSON" python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os
+          for t in json.loads(os.environ["JSON"]):
+              print(f"- {t['name']} (`{t['branch']}`, {t['category']})")
+          PY
 
   evolve:
     name: 🌿 Evolve
