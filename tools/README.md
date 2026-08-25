@@ -9,31 +9,41 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 ## Files
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `devtools.conf` | **Central manifest** — declares all tools, packages, and env vars by platform |
 | `devtools-env.sh` | Shell environment loader — exports vars, PATH, and aliases from the manifest |
 | `Brewfile` | macOS Homebrew bundle — native `brew bundle` format (derived from manifest) |
 | `setup.sh` | **Primary entrypoint** — cross-platform dev environment setup |
-| `setup-dev.sh` | Legacy wrapper — delegates to `setup.sh --local` |
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
+| `install-workspace-sync.sh` | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main` everywhere — pointer recording stays with the `update-submodules.yml` PR (`--uninstall` removes it) |
+| `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, …) — see [docs/DASH.md](../docs/DASH.md) |
+| `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `ai-usage`, `actions`, `daily`, `triage`, `remediate`, `reconcile`, `estimate`, `ledger`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
+| `fleet-config.py` | Reads [`_data/fleet.yml`](../_data/fleet.yml), the fleet's central config. `audit` (= `dash secrets`) prints the per-repo matrix of declared secrets/variables vs what GitHub actually has; `sync --apply` (= `dash config sync`) projects the canonical repo **variables** onto every fleet repo; `show [dotted.key]` reads a value; `rotate` (= `dash secrets rotate`) runs the weekly credential loop — audit each repo's secret AGE from GitHub's `updated_at`, re-mint via the optional OAuth refresh grant, propagate hub-first to missing/stale copies — and `rotation-plan` (= `dash secrets plan`) is its read-only half. Secret *values* are never read or stored: `gh` returns names only, and a value to be written comes from the environment and goes straight to `gh secret set`'s stdin. See [`docs/TOKEN-ROTATION.md`](../docs/TOKEN-ROTATION.md). |
+| `check-drift.sh` | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
+| `audit-standards.sh` | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
+| `run-all-tests.sh` | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
+| `adopt-release.sh` | Scaffolds the release-please pipeline into a repo and opens a PR (wrapped by `dash adopt-release`) |
+| `protect-branch.sh` | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
+| `fanout.sh` | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `standardize-fanout.yml`, `schema-fanout.yml`, and `deps-fanout.yml` |
+| `issue-evidence.sh` | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/test/build, screenshots, and issue-term-ranked candidate files. Tier 1 of the [issue pipeline](../docs/ISSUE-PIPELINE.md); `dash evidence <owner/repo> <n>`. Never executes commands found in an issue body, and scrubs credentials from every log it writes |
+| `unpin-deps.sh` | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-latest` fan-out kit runs it per clone) — see [docs/DEPENDENCIES.md](../docs/DEPENDENCIES.md) |
+| `schema_lint.py` | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
+| `gen-projects-schema.py` | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
+| `seed-schema.sh` | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 
 ## Architecture
 
 ```
 bamr87/
-├── .devcontainer/
-│   ├── devcontainer.json      # VS Code dev container config
-│   └── Dockerfile             # Dev container image
+├── .devcontainer/             # VS Code dev container config + image
 ├── .env.example               # Environment variable template
-├── .zprofile                   # Sources tools/devtools-env.sh
+├── .zprofile                  # Sources tools/devtools-env.sh
 ├── docker-compose.yml         # All services (dev, wiki, db, etc.)
-└── tools/
-    ├── devtools.conf          # ← Central tool manifest (edit this)
-    ├── devtools-env.sh        # Shell env loader (sourced by .zprofile)
-    ├── Brewfile               # macOS Homebrew bundle
-    ├── setup.sh               # Main setup entrypoint
-    ├── setup-dev.sh           # Legacy wrapper
-    └── update-submodules.sh   # Submodule management
+└── tools/                     # This directory — the Files table above is authoritative
+    ├── environment setup      #   devtools.conf, devtools-env.sh, Brewfile, setup.sh
+    ├── dash CLI + gates       #   dash, dash-gen, check-drift.sh, audit-standards.sh, run-all-tests.sh
+    ├── fleet operations       #   update-submodules.sh, adopt-release.sh, protect-branch.sh, fanout.sh
+    └── schema tooling         #   schema_lint.py, gen-projects-schema.py, seed-schema.sh
 ```
 
 ## Central Tool Manifest — `devtools.conf`
@@ -62,16 +72,16 @@ BAMR87_HOME=~/bamr87            # Exported to shell environment
 
 **Prefix reference:**
 
-| Prefix | Package Manager | Platform |
-|---|---|---|
-| *(none)* | Generic (brew/apt/winget) | All |
-| `@brew` | Homebrew formula | macOS |
-| `@cask` | Homebrew cask | macOS |
-| `@apt` | apt-get | Ubuntu/Debian/WSL |
-| `@winget` | winget | Windows |
-| `@pip` | pip3 | All (Python) |
-| `@npm` | npm | All (Node.js) |
-| `@custom` | Custom install logic | Platform-specific |
+| Prefix    | Package Manager           | Platform          |
+| --------- | ------------------------- | ----------------- |
+| _(none)_  | Generic (brew/apt/winget) | All               |
+| `@brew`   | Homebrew formula          | macOS             |
+| `@cask`   | Homebrew cask             | macOS             |
+| `@apt`    | apt-get                   | Ubuntu/Debian/WSL |
+| `@winget` | winget                    | Windows           |
+| `@pip`    | pip3                      | All (Python)      |
+| `@npm`    | npm                       | All (Node.js)     |
+| `@custom` | Custom install logic      | Platform-specific |
 
 After editing `devtools.conf`, also update `Brewfile` to stay in sync for macOS users who prefer native `brew bundle`.
 
@@ -113,6 +123,7 @@ cd bamr87
 ### Shell Environment
 
 The `.zprofile` sources `tools/devtools-env.sh`, which:
+
 - Reads the `[env]` section from `devtools.conf` and exports variables
 - Adds `tools/` and `projects/scripts/` to `PATH`
 - Registers convenience aliases
@@ -122,11 +133,13 @@ The `.zprofile` sources `tools/devtools-env.sh`, which:
 bamr87-setup           # Run tools/setup.sh
 bamr87-update          # Run tools/update-submodules.sh
 bamr87-cv              # cd projects/cv-builder-pro && npm run dev
-bamr87-docs            # mkdocs serve
+bamr87-dash            # Run tools/dash (unified dash CLI)
+bamr87-docs            # tools/dash serve — Jekyll dash via docker (:4000)
 bamr87-dc              # docker compose (from project root)
 ```
 
 To load manually in any shell:
+
 ```bash
 source ~/bamr87/tools/devtools-env.sh
 ```
@@ -160,12 +173,12 @@ docker compose down                        # Stop
 
 ## Platform Support
 
-| Platform | Package Manager | Status |
-|---|---|---|
-| macOS | Homebrew (`brew`) | Full support |
-| Ubuntu/Debian | APT (`apt-get`) | Full support |
-| WSL (Windows) | APT + winget | Full support |
-| Windows (Git Bash) | winget | Basic support |
+| Platform           | Package Manager   | Status        |
+| ------------------ | ----------------- | ------------- |
+| macOS              | Homebrew (`brew`) | Full support  |
+| Ubuntu/Debian      | APT (`apt-get`)   | Full support  |
+| WSL (Windows)      | APT + winget      | Full support  |
+| Windows (Git Bash) | winget            | Basic support |
 
 ## Adding a New Tool
 
@@ -176,12 +189,7 @@ docker compose down                        # Stop
 
 ## Submodule Management
 
-`update-submodules.sh` refreshes the `projects/` folder so every submodule sits
-**on its declared branch** (from `.gitmodules`) at the latest remote commit, then
-records the moved pointers in the root repo. It is safe by default: a submodule
-with uncommitted changes, unpushed commits, or a diverged history is skipped with
-a warning instead of being reset — pass `--force` to re-align those, or
-`--detach` for the legacy detached-HEAD behaviour.
+`update-submodules.sh` refreshes the `projects/` folder so every submodule sits **on its declared branch** (from `.gitmodules`) at the latest remote commit, then records the moved pointers in the root repo. It is safe by default: a submodule with uncommitted changes, unpushed commits, or a diverged history is skipped with a warning instead of being reset — pass `--force` to re-align those, or `--detach` for the legacy detached-HEAD behaviour.
 
 ```bash
 ./tools/update-submodules.sh --status      # Show declared vs. checked-out branch
@@ -192,12 +200,12 @@ a warning instead of being reset — pass `--force` to re-align those, or
 ./tools/update-submodules.sh --force       # Also re-align dirty/diverged submodules
 ```
 
-Wrapped by `tools/dash sync` (which also regenerates dash data) and the
-`bamr87-update` alias.
+Wrapped by `tools/dash sync` (which also regenerates dash data) and the `bamr87-update` alias.
 
 ## Troubleshooting
 
 **Docker not starting:**
+
 - macOS: Ensure Docker Desktop is running
 - Linux: `sudo systemctl start docker`
 
@@ -211,4 +219,4 @@ Wrapped by `tools/dash sync` (which also regenerates dash data) and the
 
 ---
 
-**Version:** 2.0.0 | **Last Modified:** 2026-02-10
+**Version:** 2.1.0 | **Last Modified:** 2026-07-16

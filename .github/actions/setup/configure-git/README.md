@@ -41,17 +41,17 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      - uses: actions/checkout@v7
+
       - uses: ./.github/actions/setup/configure-git
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Make changes
         run: |
           # Your update logic
           echo "Updated at $(date)" >> UPDATED.txt
-      
+
       - name: Commit and push
         run: |
           git add .
@@ -62,7 +62,7 @@ jobs:
 ## Inputs
 
 | Input | Description | Required | Default |
-|-------|-------------|----------|---------|
+| --- | --- | --- | --- |
 | `user-name` | Git user name | No | `github-actions[bot]` |
 | `user-email` | Git user email | No | `github-actions[bot]@users.noreply.github.com` |
 | `github-token` | GitHub token for authentication | Yes | - |
@@ -138,7 +138,7 @@ jobs:
     git push origin automated-update
 
 - name: Create PR
-  uses: peter-evans/create-pull-request@v5
+  uses: peter-evans/create-pull-request@v8
 ```
 
 ## Authentication Methods
@@ -157,21 +157,25 @@ The workflow must have appropriate permissions for the token:
 
 ```yaml
 permissions:
-  contents: write  # Required for pushing commits
+  contents: write # Required for pushing commits
 ```
 
 ## Troubleshooting
 
 ### Push fails with permission denied
+
 **Solution**: Ensure the workflow has `contents: write` permission
 
 ### Commits appear as different user
+
 **Solution**: Verify `user-name` and `user-email` inputs are set correctly
 
 ### Safe directory warnings
+
 **Solution**: Action automatically handles this, but ensure workspace is checked out first
 
 ### Authentication verification fails
+
 **Solution**: This is non-fatal; Git operations will still work if the token is valid
 
 ## Best Practices
@@ -179,7 +183,7 @@ permissions:
 1. **Always use `${{ secrets.GITHUB_TOKEN }}`** - Don't use PATs unless necessary
 2. **Set permissions explicitly** in workflow
 3. **Use the default bot user** unless you need custom attribution
-4. **Run after `actions/checkout@v4`** in your workflow
+4. **Run after `actions/checkout@v7`** in your workflow
 5. **Combine with branch protection rules** for safety
 
 ## Security Notes
@@ -196,7 +200,7 @@ name: Weekly Dependency Update
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Every Sunday
+    - cron: '0 0 * * 0' # Every Sunday
   workflow_dispatch:
 
 permissions:
@@ -206,30 +210,30 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      
+
       - uses: ./.github/actions/setup/configure-git
         with:
           user-name: 'Dependency Bot'
           user-email: 'deps@example.com'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Update dependencies
         run: |
           npm update
           npm audit fix || true
-      
+
       - name: Check for changes
         id: check
         run: |
           if [[ -n $(git status -s) ]]; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Commit and push
         if: steps.check.outputs.has-changes == 'true'
         run: |

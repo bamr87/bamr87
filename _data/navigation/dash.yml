@@ -8,8 +8,32 @@
       url: /projects/
     - title: 🩺 Monitor
       url: /monitor/
+    - title: 📥 Fleet Triage
+      url: /triage/
+    - title: 🧭 Issue Pipeline
+      url: /issue-pipeline/
+    - title: 🗺️ Roadmap
+      url: /roadmap/
     - title: 🧰 Toolbox
       url: /toolbox/
+- title: Finance
+  children:
+    - title: 💰 Cost Cockpit
+      url: /cockpit/
+    - title: 💼 Engagements
+      url: /engagements/
+    - title: 🧮 AI Usage
+      url: /ai-usage/
+    # Local-only by design: ai_activity.py reads ~/.claude/projects/ on the
+    # operator's machine and writes a gitignored data file, so this page renders
+    # under `tools/dash serve` and is empty (with an explanatory panel) on the
+    # published site. Labelled so the nav doesn't promise data Pages can't have.
+    - title: 🤖 AI Activity (local)
+      url: /ai-activity/
+    - title: 📈 Actions Usage
+      url: /actions/
+- title: Reference
+  children:
     - title: 📄 Resume
       url: /resume/
     - title: 📚 Docs

@@ -2,7 +2,7 @@
 
 # Agent Principles
 
-Guidelines for AI coding agents working in the bamr87 monorepo — a multi-project workspace spanning a CV Builder (React/TypeScript), documentation hub (MkDocs/Jekyll), automation scripts (Bash/Python), and shared tooling.
+Guidelines for AI coding agents working in the bamr87 monorepo — a self-managing **dash** (control plane) that manages ~40 Git submodules (docs sites, full-stack AI apps, VS Code extensions, dev tools, and content repos) from one registry-driven source of truth. See [`CLAUDE.md`](CLAUDE.md) and [`docs/DASH.md`](docs/DASH.md) for the architecture, and [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) for the AI surfaces and Claude auth; the authoritative project list is [`_data/projects.yml`](_data/projects.yml).
 
 ## ⚠️ Fresh Information First
 
@@ -55,12 +55,14 @@ These principles reduce common LLM coding mistakes. Apply them to every task.
 **Touch only what you must. Clean up only your own mess.**
 
 When editing existing code:
+
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it — don't delete it.
 
 When your changes create orphans:
+
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
@@ -72,13 +74,14 @@ When your changes create orphans:
 
 Transform tasks into verifiable goals:
 
-| Instead of... | Transform to... |
-|---------------|-----------------|
+| Instead of...    | Transform to...                                       |
+| ---------------- | ----------------------------------------------------- |
 | "Add validation" | "Write tests for invalid inputs, then make them pass" |
-| "Fix the bug" | "Write a test that reproduces it, then make it pass" |
-| "Refactor X" | "Ensure tests pass before and after" |
+| "Fix the bug"    | "Write a test that reproduces it, then make it pass"  |
+| "Refactor X"     | "Ensure tests pass before and after"                  |
 
 For multi-step tasks, state a brief plan:
+
 ```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
@@ -106,6 +109,7 @@ Follow these layered boundaries when building features:
 ```
 
 **Rules:**
+
 - Dependencies point inward (outer layers depend on inner layers)
 - Domain layer has no external dependencies
 - Infrastructure implements interfaces defined in inner layers
@@ -115,47 +119,53 @@ Follow these layered boundaries when building features:
 
 ## Repository Structure
 
-This is a monorepo using Git submodules:
+This is a monorepo of ~40 Git submodules, driven by a registry:
 
 ```
 bamr87/
 ├── AGENTS.md                   # This file — agent principles
-├── CONTRIBUTING.md             # Contribution guidelines
+├── CLAUDE.md                   # Claude Code guidance (start here)
+├── _data/projects.yml          # THE REGISTRY — single source of truth for all submodules
+├── _data/standards.yml         # per-tier standardization requirements
 ├── docker-compose.yml          # Container-first development
-├── projects/cv-builder-pro/                         # Submodule: CV Builder (React/TypeScript/Vite)
-├── projects/README/                     # Submodule: Documentation hub (MkDocs/Wiki)
-├── projects/scripts/                    # Submodule: Automation scripts (Bash/Python)
-├── projects/skills/                     # Submodule: Microsoft Agent Skills (microsoft/skills)
-├── tools/                      # Dev environment setup, Brewfile
-├── docs/                       # Architecture and development docs
+├── projects/<name>/            # ~40 submodules, flat (category lives in the registry)
+├── pages/_dash/                # the Jekyll dash collection
+├── tools/                      # dash CLI (tools/dash), drift gate, standards audit, setup
+├── docs/                       # DASH.md (canonical) + architecture/dev docs
 ├── .github/
-│   ├── agents/                 # Agent persona definitions
+│   ├── agents/                 # PORTABLE Copilot persona templates (seeded into submodules)
 │   ├── prompts/                # Reusable prompt templates
 │   ├── instructions/           # Copilot instruction files (applyTo patterns)
-│   ├── docs/                   # Pattern enforcement, workflow patterns
-│   ├── workflows/              # CI/CD GitHub Actions
+│   ├── workflows/              # control-plane CI (build-dash, drift-check, standardize-fanout, …)
 │   └── copilot-instructions.md # Global Copilot config
+└── .claude/                    # dash-operational AI layer (skills, commands, agents, hooks)
 ```
 
-### Submodule Quick Reference
+### Submodule reference
+
+Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/projects.yml) (cross-checked against `.gitmodules` by the drift gate). Foundational submodules:
 
 | Submodule | Repo | Branch | Tech Stack |
-|-----------|------|--------|------------|
+| --- | --- | --- | --- |
 | `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
 | `projects/README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
-| `projects/scripts/` | `bamr87/scripts` | `master` | Bash, Python |
-| `projects/skills/` | `microsoft/skills` | `main` | Skills, prompts, MCP configs |
+| `projects/scripts/` | `bamr87/scripts` | `main` | Bash, Python |
+| `projects/zer0-mistakes/` | `bamr87/zer0-mistakes` | `main` | Jekyll theme (powers the dash) |
+| `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
+| `projects/skills/` | `microsoft/skills` (external) | `main` | Skills, prompts, MCP configs |
+
+**Branches:** all track `main` except `sonic-pi` (`dev`, upstream fork with no `main`). Read the branch from `.gitmodules`.
 
 ### Container Development
 
 All development runs in Docker. The `docker-compose.yml` provides:
 
-| Service | Port | Purpose |
-|---------|------|---------|
+| Service  | Port   | Purpose           |
+| -------- | ------ | ----------------- |
 | `devenv` | `5000` | CV Builder (Vite) |
-| `devenv` | `5173` | Vite HMR |
-| `devenv` | `8000` | MkDocs |
-| `devenv` | `4000` | Jekyll |
+| `devenv` | `5173` | Vite HMR          |
+| `devenv` | `8000` | MkDocs            |
+| `devenv` | `4000` | Jekyll            |
 
 ```bash
 # Start development

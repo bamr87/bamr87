@@ -5,8 +5,7 @@ toc: false
 description: "Get in touch — consulting, collaboration, and innovation."
 ---
 
-I'm passionate about exploring innovative solutions that balance technology advancement with
-human values.
+I'm passionate about exploring innovative solutions that balance technology advancement with human values.
 
 ## 💡 Innovation & Collaboration Focus
 

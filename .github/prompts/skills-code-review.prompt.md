@@ -22,6 +22,7 @@ Use this checklist when reviewing code changes in CoreAI DIY.
 ## Frontend (React/TypeScript)
 
 ### Components
+
 - [ ] Uses `memo()` + named function pattern for React Flow nodes
 - [ ] Proper TypeScript types (no implicit any)
 - [ ] Uses design tokens (`--frontier-*`, `--foundry-*`)
@@ -29,12 +30,14 @@ Use this checklist when reviewing code changes in CoreAI DIY.
 - [ ] Barrel export in component folder
 
 ### State (Zustand)
+
 - [ ] Uses `subscribeWithSelector` middleware
 - [ ] Selects specific state (not entire store)
 - [ ] Actions properly update immutably
 - [ ] Types exported (State, Actions, Store)
 
 ### React Flow Nodes
+
 - [ ] Respects `canvasMode` (viewing vs editing)
 - [ ] Has proper Handle components
 - [ ] NodeResizer only in editing mode
@@ -43,18 +46,21 @@ Use this checklist when reviewing code changes in CoreAI DIY.
 ## Backend (FastAPI/Python)
 
 ### Pydantic Models
+
 - [ ] Multi-model pattern (Base → Create → Update → Response → InDB)
 - [ ] Uses `Field(..., alias="camelCase")` for JSON compatibility
 - [ ] Config has `populate_by_name = True`
 - [ ] Response model has `from_attributes = True`
 
 ### Routers
+
 - [ ] Proper auth dependency (`get_current_user` vs `get_current_user_required`)
 - [ ] Returns proper HTTP status codes
 - [ ] Has response_model defined
 - [ ] Raises HTTPException for errors
 
 ### Services
+
 - [ ] Handles Cosmos DB availability (`_use_cosmos()`)
 - [ ] Proper async/await usage
 - [ ] Error handling for database operations

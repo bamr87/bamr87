@@ -1,23 +1,31 @@
+# Dependabot configuration
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Only the `github-actions` ecosystem is enabled here. If other ecosystems
+# (npm, bundler, pip, docker, ...) become relevant, add them as additional
+# entries under `updates:` rather than replacing this one.
 version: 2
-# Auto-fix PRs for dependency drift across the monorepo's root-owned ecosystems.
-# Replaces the (never-implemented) update-*-deps composite actions referenced by
-# unified-maintenance.yml. All PRs respect the no-direct-push-to-master rule.
-# (projects/cv-builder-pro/ and projects/README/ ecosystems are managed in their own submodule repos.)
+
 updates:
+  # Keeps the actions used by workflows in .github/workflows up to date.
+  # For the github-actions ecosystem, `directory` is the repository root.
+  #
+  # When an action is pinned to a commit SHA, e.g.
+  #   uses: actions/checkout@<sha> # v4.1.2
+  # Dependabot updates both the SHA and the trailing version comment, which is
+  # what keeps SHA pinning maintainable over time.
   - package-ecosystem: "github-actions"
-    directory: "/.github/workflows"
+    # "/" covers every workflow under .github/workflows.
+    directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     open-pull-requests-limit: 5
-
-  - package-ecosystem: "bundler"
-    directory: "/dash"
-    schedule:
-      interval: "weekly"
-    labels: ["automation", "dependencies", "dash"]
-
-  - package-ecosystem: "pip"
-    directory: "/.github/scripts/dash-gen"
-    schedule:
-      interval: "weekly"
-    labels: ["automation", "dependencies"]
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      # Bundle all action bumps into a single pull request per run.
+      github-actions:
+        patterns:
+          - "*"

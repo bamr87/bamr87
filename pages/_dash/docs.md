@@ -12,8 +12,8 @@ Deep documentation lives in each project. The dash links out rather than re-aggr
 ## Dash & monorepo
 
 - [Dash architecture](https://github.com/bamr87/bamr87/blob/main/docs/DASH.md)
-- [Monorepo guide](https://github.com/bamr87/bamr87/blob/main/docs/MONOREPO.md)
-- [Architecture](https://github.com/bamr87/bamr87/blob/main/docs/ARCHITECTURE.md)
+- [Submodule workflow](https://github.com/bamr87/bamr87/blob/main/SUBMODULES.md)
+- [Dash architecture](https://github.com/bamr87/bamr87/blob/main/docs/DASH.md)
 - [Development](https://github.com/bamr87/bamr87/blob/main/docs/DEVELOPMENT.md)
 - [Submodules](https://github.com/bamr87/bamr87/blob/main/SUBMODULES.md)
 

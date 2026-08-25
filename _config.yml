@@ -72,6 +72,10 @@ navigation:
 
 # Appearance -------------------------------------------------------------------
 theme_skin               : "air"   # air, aqua, dirt, neon, mint, plum, sunrise
+# Load assets/css/user-overrides.css (last, after main.css) on every page — the
+# theme-sanctioned hook for consumer CSS. Fixes Bootstrap contextual table/badge
+# classes that ignore the dark-mode toggle across the dash surfaces.
+user_overrides           : true
 theme_background:
   enabled: true
   gradient_opacity: 0.6
@@ -220,18 +224,16 @@ exclude:
   # Ruby / Node
   - Gemfile
   - Gemfile.lock
+  - fleet.manifest.yml
   - vendor/
   - node_modules/
   # Monorepo submodules (all live under projects/)
   - projects/
-  # MkDocs + tooling (left untouched, just not built by Jekyll)
-  - mkdocs.yml
-  - requirements-docs.txt
+  # Tooling (left untouched, just not built by Jekyll)
   - requirements.txt
   - docker-compose.yml
   - tools/
   - docs/
-  - site/            # MkDocs build output
   # Root governance markdown
   - README.md
   - AGENTS.md
@@ -239,3 +241,12 @@ exclude:
   - CONTRIBUTING.md
   - SUBMODULES.md
   - "*.code-workspace"
+  # Governance/template content that must never publish as pages. NOTE: the
+  # github-pages gem force-enables jekyll-optional-front-matter, so even .md
+  # files WITHOUT front matter render unless excluded (exclude is prefix-
+  # matched — root SCHEMA.md does not cover pages/SCHEMA.md).
+  - SCHEMA.md
+  - pages/SCHEMA.md
+  - templates/
+  - _reports/
+  - remediation-workorder.md

@@ -1,0 +1,143 @@
+name: 🧭 Reconcile Registry
+
+# Keeps the project registry in sync with GitHub reality.
+#
+# `drift-check.yml` runs check (g), which DETECTS registry↔GitHub drift — but it
+# only warns, only on push/PR, and nothing ever acts on it. That is how two
+# deleted repos (jekyll, Dodge-and-Reena-Book) sat in the registry as
+# `maintained: true` while every recursive fetch errored on them.
+#
+# This closes the loop, routing by how trustworthy each signal is:
+#
+#   renamed / url-mismatch  -> GitHub states these unambiguously, so they are
+#                              applied and opened as a PR.
+#   404 / branch-drift      -> filed as an issue, NEVER auto-applied. A
+#                              repo-scoped token 404s on a private repo exactly
+#                              as it does on a deleted one, and this fleet
+#                              intentionally tracks non-default branches
+#                              (scripts=master, sonic-pi=dev).
+#
+# Token: the default GITHUB_TOKEN is repo-scoped and 404s on EVERY private repo
+# in the fleet — observed live on PR #42, where check (g) reported 11 healthy
+# private repos as "not found". Set FLEET_TOKEN (the same
+# fine-grained PAT fleet-pulse.yml uses; FLEET_TOKEN supersedes it) to see them. Without it reconcile
+# still behaves: a mass of 404s collapses into a single "token-scope" finding
+# rather than a dozen false deletion alarms.
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # daily 05:00 UTC, after refresh-dash (04:00)
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Apply the authoritative fixes and open a PR'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reconcile-registry
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile registry against GitHub
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # Report-only first, so the routing decision is made from a clean read
+      # of the fleet before anything is written.
+      - name: Detect drift
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/dash-gen/dash_gen.py reconcile --json > /tmp/reconcile.json
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d = json.load(open("/tmp/reconcile.json"))
+          print(f"authoritative={d['authoritative']}")
+          print(f"advisory={d['advisory']}")
+          PY
+          echo "--- findings ---"
+          python .github/scripts/dash-gen/dash_gen.py reconcile
+
+      # --- authoritative: apply + PR ------------------------------------
+      - name: Apply authoritative fixes
+        if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: python .github/scripts/dash-gen/dash_gen.py reconcile --apply
+
+      - name: Configure Git
+        if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
+        uses: ./.github/actions/setup/configure-git
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create pull request
+        if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(registry): reconcile repo urls with GitHub"
+          title: "chore(registry): reconcile repo urls with GitHub"
+          body: |
+            Automated reconciliation of `_data/projects.yml` + `.gitmodules`
+            against GitHub, by `dash-gen reconcile --apply`.
+
+            Only **authoritative** drift is applied here — repository renames
+            (GitHub resolves the old slug to a new `full_name`) and internal
+            registry↔`.gitmodules` URL mismatches.
+
+            Deletions (404) and branch drift are deliberately **not** touched;
+            they are tracked in the companion issue instead.
+          # Stable branch so the single open reconcile PR is updated in place
+          # rather than a new one opened every night.
+          branch: chore/reconcile-registry
+          delete-branch: true
+          labels: |
+            registry
+            automated
+
+      # --- advisory: issue, never auto-applied ---------------------------
+      - name: File / update tracking issue
+        if: steps.detect.outputs.advisory != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="Registry drift needs review (deleted / branch-drift)"
+          python - <<'PY' > /tmp/issue_body.md
+          import json
+          print(json.load(open("/tmp/reconcile.json"))["issue_body"])
+          PY
+          EXISTING="$(gh issue list --state open --label registry-drift \
+                        --search "$TITLE in:title" --json number --jq '.[0].number')"
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" --body-file /tmp/issue_body.md
+            echo "updated issue #$EXISTING"
+          else
+            gh issue create --title "$TITLE" --body-file /tmp/issue_body.md \
+              --label registry-drift || \
+            gh issue create --title "$TITLE" --body-file /tmp/issue_body.md
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Registry reconciliation"
+            echo ""
+            echo "- auto-fixable (renames, url mismatches): \`${{ steps.detect.outputs.authoritative }}\`"
+            echo "- needs a human (404s, branch drift): \`${{ steps.detect.outputs.advisory }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

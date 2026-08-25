@@ -5,6 +5,7 @@ This file provides AI-assisted development guidelines for this repository. These
 ## Core Development Principles
 
 ### Design for Failure (DFF)
+
 - Implement comprehensive error handling with try-catch blocks
 - Include meaningful error messages and logging
 - Design fallback mechanisms and redundancy
@@ -12,21 +13,25 @@ This file provides AI-assisted development guidelines for this repository. These
 - Add monitoring capabilities where appropriate
 
 ### Don't Repeat Yourself (DRY)
+
 - Extract reusable code into functions, modules, or utilities
 - Use configuration files for repeated constants
 - Create template patterns for similar structures
 - Leverage inheritance, composition, and shared utilities
 
 ### Keep It Simple (KIS)
+
 - Prefer clear, readable code over clever optimizations
 - Use descriptive names for variables, functions, and classes
 - Break complex functions into smaller, focused units
 - Choose well-established patterns over custom solutions
 
 ### README-First, README-Last
+
 **CRITICAL WORKFLOW RULE**: Before and after EVERY development task, interaction, or request:
 
 #### 🔍 README-FIRST: Start with Documentation Review
+
 Before beginning any work, **ALWAYS**:
 
 1. **Locate the Relevant README.md**
@@ -50,6 +55,7 @@ Before beginning any work, **ALWAYS**:
    - Detect broken links or references
 
 #### ✅ README-LAST: Update Documentation After Changes
+
 After completing any work, **ALWAYS**:
 
 1. **Update the Relevant README.md**
@@ -95,10 +101,12 @@ Cross-reference related docs → Verify quality → Task Complete
 #### 📝 Practical Examples
 
 **Example 1: Adding a New File**
+
 ```markdown
 Request: "Create a new utility script for data validation"
 
 README-FIRST:
+
 1. Check ./scripts/README.md
 2. Note existing scripts and their purposes
 3. Identify naming conventions
@@ -107,6 +115,7 @@ README-FIRST:
 Work: Create data_validator.py
 
 README-LAST:
+
 1. Update ./scripts/README.md:
    - Add data_validator.py to file listing
    - Document its purpose and usage
@@ -116,10 +125,12 @@ README-LAST:
 ```
 
 **Example 2: Fixing a Bug**
+
 ```markdown
 Request: "Fix the broken link checker"
 
 README-FIRST:
+
 1. Read ./tools/README.md
 2. Understand current functionality
 3. Note existing issues or limitations
@@ -128,6 +139,7 @@ README-FIRST:
 Work: Fix link validation logic
 
 README-LAST:
+
 1. Update ./tools/README.md:
    - Note the bug fix in a changelog section
    - Update behavior description if changed
@@ -137,10 +149,12 @@ README-LAST:
 ```
 
 **Example 3: Creating New Feature**
+
 ```markdown
 Request: "Add AI-powered code review feature"
 
 README-FIRST:
+
 1. Read root README.md and feature documentation
 2. Understand existing features and structure
 3. Note feature naming conventions
@@ -149,6 +163,7 @@ README-FIRST:
 Work: Implement AI code review module
 
 README-LAST:
+
 1. Create ./features/ai-code-review/README.md with full documentation
 2. Update ./features/README.md to list new feature
 3. Update root README.md if this is a major capability
@@ -158,6 +173,7 @@ README-LAST:
 #### 🎯 Why README-First, README-Last?
 
 **Benefits**:
+
 - 📚 **Continuous Documentation** - README always reflects current state
 - 🧭 **Better Context** - Understanding before acting prevents mistakes
 - 🔗 **Maintained Connections** - Cross-references stay current
@@ -167,6 +183,7 @@ README-LAST:
 - ♻️ **Knowledge Preservation** - Learning and decisions are captured
 
 **Prevents**:
+
 - ❌ Duplicate functionality (you'd see it in README first)
 - ❌ Broken documentation (updated immediately after changes)
 - ❌ Lost context (README provides the "why" and "how")
@@ -194,10 +211,10 @@ For tutorials, guides, and learning resources:
 
 ```yaml
 ---
-title: "Clear, Action-Oriented Title"
-description: "Complete description of what the content teaches (150-300 characters)"
+title: 'Clear, Action-Oriented Title'
+description: 'Complete description of what the content teaches (150-300 characters)'
 date: YYYY-MM-DDTHH:MM:SS.000Z
-author: "Author Name"
+author: 'Author Name'
 tags:
   - primary-technology
   - skill-level
@@ -206,30 +223,30 @@ categories:
   - Main-Category
   - Skill-Category
 learning_objectives:
-  - "Specific skill or knowledge to be gained"
-  - "Measurable learning outcome"
-  - "Practical application ability"
+  - 'Specific skill or knowledge to be gained'
+  - 'Measurable learning outcome'
+  - 'Practical application ability'
 target_audience:
-  skill_level: "beginner | intermediate | advanced | expert"
+  skill_level: 'beginner | intermediate | advanced | expert'
   prerequisites:
-    - "Required prior knowledge"
-    - "Recommended background"
+    - 'Required prior knowledge'
+    - 'Recommended background'
 educational_context:
-  category: "Technical Category"
-  subcategory: "Specific Focus Area"
-  estimated_time: "X-Y hours"
+  category: 'Technical Category'
+  subcategory: 'Specific Focus Area'
+  estimated_time: 'X-Y hours'
 technical_requirements:
-  - "Required software or tools"
-  - "System requirements"
-  - "Development environment"
+  - 'Required software or tools'
+  - 'System requirements'
+  - 'Development environment'
 assessment_criteria:
-  - "Success measurement method"
-  - "Skill demonstration requirement"
+  - 'Success measurement method'
+  - 'Skill demonstration requirement'
 ai_teaching_notes:
-  - "Focus areas for AI assistance"
-  - "Common learning challenges"
-  - "Recommended teaching approach"
-version: "X.Y.Z"
+  - 'Focus areas for AI assistance'
+  - 'Common learning challenges'
+  - 'Recommended teaching approach'
+version: 'X.Y.Z'
 lastmod: YYYY-MM-DDTHH:MM:SS.000Z
 ---
 ```
@@ -241,25 +258,25 @@ For code files, projects, and technical documentation:
 ```yaml
 ---
 file: filename.ext
-description: "Brief description of file purpose and functionality"
-author: "Name <email@domain.com>"
+description: 'Brief description of file purpose and functionality'
+author: 'Name <email@domain.com>'
 created: YYYY-MM-DD
 lastModified: YYYY-MM-DD
 version: X.Y.Z
 dependencies:
-  - package-name: "version or description"
-  - another-package: "purpose in this project"
+  - package-name: 'version or description'
+  - another-package: 'purpose in this project'
 technical_stack:
-  - "Primary technology or framework"
-  - "Supporting libraries or tools"
+  - 'Primary technology or framework'
+  - 'Supporting libraries or tools'
 container_requirements:
-  baseImage: "image:tag"
+  baseImage: 'image:tag'
   exposedPorts: [port_list]
-  volumes: ["/path:permission"]
+  volumes: ['/path:permission']
   environment:
-    VARIABLE: "description"
-usage: "Brief example of how to use this file/module"
-notes: "Important considerations or limitations"
+    VARIABLE: 'description'
+usage: 'Brief example of how to use this file/module'
+notes: 'Important considerations or limitations'
 ---
 ```
 
@@ -270,39 +287,39 @@ For AI agent and development instructions:
 ```yaml
 ---
 file: filename.instructions.md
-description: "VS Code Copilot-optimized instructions for [purpose]"
-author: "Team or Individual Name"
+description: 'VS Code Copilot-optimized instructions for [purpose]'
+author: 'Team or Individual Name'
 created: YYYY-MM-DD
 lastModified: YYYY-MM-DD
 version: X.Y.Z
-applyTo: "file patterns where these instructions apply"
+applyTo: 'file patterns where these instructions apply'
 dependencies:
-  - other-instructions.md: "How this relates to other instructions"
+  - other-instructions.md: 'How this relates to other instructions'
 relatedEvolutions:
-  - "Related improvements or changes"
+  - 'Related improvements or changes'
 containerRequirements:
-  baseImage: "appropriate-image:tag"
-  description: "Container environment purpose"
+  baseImage: 'appropriate-image:tag'
+  description: 'Container environment purpose'
   exposedPorts: [port_list]
-  portDescription: "What ports are used for"
-  volumes: ["/path:permission"]
+  portDescription: 'What ports are used for'
+  volumes: ['/path:permission']
   environment:
-    VARIABLE: "description"
+    VARIABLE: 'description'
   resources:
-    cpu: "resource_range"
-    memory: "memory_range"
-  healthCheck: "health check method"
+    cpu: 'resource_range'
+    memory: 'memory_range'
+  healthCheck: 'health check method'
 paths:
   workflow_name_path:
     - step_1
     - step_2
     - step_3
 changelog:
-  - date: "YYYY-MM-DD"
-    description: "What changed"
-    author: "Who made changes"
-usage: "How to use these instructions"
-notes: "Important considerations"
+  - date: 'YYYY-MM-DD'
+    description: 'What changed'
+    author: 'Who made changes'
+usage: 'How to use these instructions'
+notes: 'Important considerations'
 ---
 ```
 
@@ -336,9 +353,11 @@ notes: "Important considerations"
 ## File Standards
 
 ### File Headers
+
 Include standardized headers in all source files:
 
 **Python:**
+
 ```python
 """
 File: filename.py
@@ -356,6 +375,7 @@ Usage: Brief usage example
 ```
 
 **JavaScript/TypeScript:**
+
 ```javascript
 /**
  * File: filename.js
@@ -364,15 +384,16 @@ Usage: Brief usage example
  * Created: YYYY-MM-DD
  * Last Modified: YYYY-MM-DD
  * Version: X.Y.Z
- * 
+ *
  * Dependencies:
  * - package-name: description
- * 
+ *
  * Usage: Brief usage example
  */
 ```
 
 **Bash:**
+
 ```bash
 #!/bin/bash
 # File: filename.sh
@@ -389,6 +410,7 @@ Usage: Brief usage example
 ```
 
 ### Documentation Requirements
+
 - **README files**: Required in every major directory
 - **Code comments**: Explain "why", not "what"
 - **Docstrings/JSDoc**: For all public functions, classes, and modules
@@ -397,6 +419,7 @@ Usage: Brief usage example
 ## Language-Specific Guidelines
 
 ### Python
+
 - Follow PEP 8 style guide
 - Use type hints for all function signatures
 - Write Google-style or NumPy-style docstrings
@@ -405,6 +428,7 @@ Usage: Brief usage example
 - Use `black` for formatting, `flake8` or `ruff` for linting
 
 ### JavaScript/TypeScript
+
 - Use ESLint for linting, Prettier for formatting
 - Prefer TypeScript over JavaScript for type safety
 - Use camelCase for variables and functions
@@ -412,6 +436,7 @@ Usage: Brief usage example
 - Use ES6+ features (arrow functions, destructuring, async/await)
 
 ### Bash/Shell
+
 - Use ShellCheck for validation
 - Include error handling: `set -euo pipefail`
 - Add descriptive comments for complex operations
@@ -419,6 +444,7 @@ Usage: Brief usage example
 - Quote all variable expansions: `"${variable}"`
 
 ### Other Languages
+
 - Follow community-standard style guides
 - Use language-appropriate linters and formatters
 - Maintain consistency with existing codebase patterns
@@ -426,6 +452,7 @@ Usage: Brief usage example
 ## Testing Standards
 
 ### Test Coverage
+
 - Write tests for all new features and bug fixes
 - Include unit tests for individual functions/methods
 - Add integration tests for component interactions
@@ -433,6 +460,7 @@ Usage: Brief usage example
 - Aim for 80%+ code coverage
 
 ### Test Structure
+
 - Use descriptive test names that explain what's being tested
 - Follow Arrange-Act-Assert or Given-When-Then patterns
 - Include edge cases and error conditions
@@ -441,7 +469,9 @@ Usage: Brief usage example
 ## Git Workflow
 
 ### Commit Messages
+
 Follow Conventional Commits format:
+
 ```
 type(scope): brief description (50 chars or less)
 
@@ -453,6 +483,7 @@ Fixes #issue-number
 **Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`
 
 ### Branch Naming
+
 - `feature/description` - New features
 - `fix/description` - Bug fixes
 - `docs/description` - Documentation updates
@@ -462,7 +493,9 @@ Fixes #issue-number
 ## AI-Assisted Development Best Practices
 
 ### Code Generation Guidelines
+
 When generating code, always:
+
 - Include comprehensive error handling
 - Add clear, educational comments
 - Write complete documentation and docstrings
@@ -471,7 +504,9 @@ When generating code, always:
 - Validate inputs and sanitize outputs
 
 ### Context-Aware Development
+
 Always consider:
+
 - **Project Architecture**: Existing patterns and structures
 - **Code Style**: Follow established conventions
 - **Tech Stack**: Use appropriate libraries and frameworks
@@ -479,6 +514,7 @@ Always consider:
 - **Performance**: Consider efficiency for production code
 
 ### Quality Standards
+
 - **Input Validation**: Validate all user inputs and external data
 - **Error Handling**: Handle errors gracefully with meaningful messages
 - **Logging**: Log important operations and errors
@@ -488,6 +524,7 @@ Always consider:
 ## Security Guidelines
 
 ### Critical Security Practices
+
 - **Never commit secrets**: No API keys, passwords, or tokens in code
 - **Environment Variables**: Use `.env` files (git-ignored) for sensitive data
 - **Input Validation**: Validate and sanitize all user inputs
@@ -496,6 +533,7 @@ Always consider:
 - **Encryption**: Use industry-standard encryption for sensitive data
 
 ### Code Review Checklist
+
 - [ ] No hardcoded secrets or credentials
 - [ ] All inputs validated and sanitized
 - [ ] Error messages don't leak sensitive information
@@ -540,7 +578,7 @@ services:
       dockerfile: Dockerfile
       target: development
     ports:
-      - "8000:8000"
+      - '8000:8000'
     volumes:
       - ./src:/app/src:rw
       - ./static:/app/static:rw
@@ -562,12 +600,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - '5432:5432'
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
 
@@ -639,6 +677,7 @@ CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--chdir", "src", "app.wsgi:applicati
    - Example: `python:3.11-slim`, `node:18-alpine`
 
 2. **Run as Non-Root User**
+
    ```dockerfile
    # Create non-root user
    RUN useradd -m -u 1000 appuser
@@ -685,7 +724,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 services:
   app:
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
       interval: 30s
       timeout: 3s
       retries: 3
@@ -710,11 +749,12 @@ services:
 ### Container Networking
 
 1. **Define Networks Explicitly**
+
    ```yaml
    networks:
      frontend:
      backend:
-   
+
    services:
      web:
        networks:
@@ -767,14 +807,16 @@ docker-compose down -v
 
 Every containerized project MUST document:
 
-```markdown
+````markdown
 ## Container Development Setup
 
 ### Prerequisites
+
 - Docker Desktop 20.10+
 - Docker Compose 2.0+
 
 ### Quick Start
+
 ```bash
 # Clone repository
 git clone <repo-url>
@@ -792,13 +834,16 @@ docker-compose exec app python manage.py migrate
 # Access application
 open http://localhost:8000
 ```
+````
 
 ### Container Services
+
 - **app**: Main application (port 8000)
 - **db**: PostgreSQL database (port 5432)
 - **redis**: Redis cache (port 6379)
 
 ### Common Commands
+
 - Start: `docker-compose up -d`
 - Stop: `docker-compose down`
 - Logs: `docker-compose logs -f`
@@ -806,9 +851,10 @@ open http://localhost:8000
 - Tests: `docker-compose exec app pytest`
 
 ### Troubleshooting
-**Issue**: Permission errors with volumes
-**Solution**: Ensure correct UID/GID in container matches host
-```
+
+**Issue**: Permission errors with volumes **Solution**: Ensure correct UID/GID in container matches host
+
+````
 
 ## API Integration Best Practices
 
@@ -827,28 +873,28 @@ logger = logging.getLogger(__name__)
 class BaseAPIService(ABC):
     """
     Abstract base class for API service integrations
-    
+
     Provides common functionality for error handling, retry logic,
     and response processing that all API services should implement.
     """
-    
+
     def __init__(self, api_key: str, base_url: str, timeout: int = 30):
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.max_retries = 3
-    
+
     @abstractmethod
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Subclasses must implement request logic"""
         pass
-    
+
     def handle_error(self, error: Exception, context: str) -> None:
         """Centralized error handling with logging"""
         logger.error(f"{context}: {str(error)}")
         # Add monitoring/alerting logic here
         raise
-```
+````
 
 ### OpenAI API Integration Example
 
@@ -862,20 +908,20 @@ from django.conf import settings
 class OpenAIService:
     """
     Service for OpenAI API interactions with error handling and retry logic
-    
+
     Features:
     - Automatic retry with exponential backoff
     - Rate limit handling
     - Comprehensive error logging
     - Response caching support
     """
-    
+
     def __init__(self):
         openai.api_key = settings.OPENAI_API_KEY
         self.model = settings.OPENAI_MODEL
         self.max_retries = 3
         self.timeout = 30
-    
+
     def generate_content(
         self,
         prompt: str,
@@ -885,22 +931,22 @@ class OpenAIService:
     ) -> str:
         """
         Generate content using OpenAI API
-        
+
         Args:
             prompt: User prompt for content generation
             system_message: Optional system role message
             max_tokens: Maximum tokens in response
             temperature: Randomness in generation (0-2)
-        
+
         Returns:
             Generated content as string
-        
+
         Raises:
             openai.OpenAIError: If API call fails after retries
         """
         max_tokens = max_tokens or settings.OPENAI_MAX_TOKENS
         system_msg = system_message or "You are a helpful assistant."
-        
+
         for attempt in range(self.max_retries):
             try:
                 response = openai.ChatCompletion.create(
@@ -913,18 +959,18 @@ class OpenAIService:
                     temperature=temperature,
                     timeout=self.timeout
                 )
-                
+
                 content = response.choices[0].message.content
                 logger.info(f"Generated content successfully (attempt {attempt + 1})")
-                
+
                 # Log usage for monitoring
                 usage = response.usage
                 logger.info(f"Token usage - Prompt: {usage.prompt_tokens}, "
                           f"Completion: {usage.completion_tokens}, "
                           f"Total: {usage.total_tokens}")
-                
+
                 return content
-                
+
             except openai.RateLimitError as e:
                 logger.warning(f"Rate limit hit (attempt {attempt + 1}): {e}")
                 if attempt < self.max_retries - 1:
@@ -932,14 +978,14 @@ class OpenAIService:
                     time.sleep(wait_time)
                 else:
                     raise
-                    
+
             except openai.APIError as e:
                 logger.error(f"OpenAI API error (attempt {attempt + 1}): {e}")
                 if attempt < self.max_retries - 1:
                     time.sleep(1)
                 else:
                     raise
-            
+
             except openai.Timeout as e:
                 logger.error(f"Request timeout (attempt {attempt + 1}): {e}")
                 if attempt < self.max_retries - 1:
@@ -963,14 +1009,14 @@ logger = logging.getLogger(__name__)
 class APIClient:
     """
     Generic HTTP API client with retry logic and error handling
-    
+
     Features:
     - Automatic retry with configurable strategy
     - Session management for connection pooling
     - Request/response logging
     - Timeout handling
     """
-    
+
     def __init__(
         self,
         base_url: str,
@@ -981,7 +1027,7 @@ class APIClient:
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.session = requests.Session()
-        
+
         # Configure retry strategy
         retry_strategy = Retry(
             total=max_retries,
@@ -992,7 +1038,7 @@ class APIClient:
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
-        
+
         # Set default headers
         if api_key:
             self.session.headers.update({'Authorization': f'Bearer {api_key}'})
@@ -1000,78 +1046,78 @@ class APIClient:
             'Content-Type': 'application/json',
             'User-Agent': 'YourApp/1.0'
         })
-    
+
     def get(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Make GET request with error handling
-        
+
         Args:
             endpoint: API endpoint path
             params: Query parameters
-        
+
         Returns:
             JSON response as dictionary
-        
+
         Raises:
             requests.exceptions.RequestException: On request failure
         """
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        
+
         try:
             logger.debug(f"GET request to {url} with params: {params}")
             response = self.session.get(url, params=params, timeout=self.timeout)
             response.raise_for_status()
-            
+
             data = response.json()
             logger.debug(f"Response received from {url}")
             return data
-            
+
         except requests.exceptions.HTTPError as e:
             logger.error(f"HTTP error for GET {url}: {e}")
             logger.error(f"Response: {e.response.text if e.response else 'No response'}")
             raise
-            
+
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Connection error for GET {url}: {e}")
             raise
-            
+
         except requests.exceptions.Timeout as e:
             logger.error(f"Timeout for GET {url}: {e}")
             raise
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Request failed for GET {url}: {e}")
             raise
-    
+
     def post(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Make POST request with error handling
-        
+
         Args:
             endpoint: API endpoint path
             data: Request body data
-        
+
         Returns:
             JSON response as dictionary
-        
+
         Raises:
             requests.exceptions.RequestException: On request failure
         """
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        
+
         try:
             logger.debug(f"POST request to {url}")
             response = self.session.post(url, json=data, timeout=self.timeout)
             response.raise_for_status()
-            
+
             result = response.json()
             logger.debug(f"Response received from {url}")
             return result
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"POST request failed: {url}, Error: {e}")
             raise
-    
+
     def close(self):
         """Close session and cleanup resources"""
         self.session.close()
@@ -1113,24 +1159,24 @@ logger = logging.getLogger(__name__)
 
 def api_view_with_error_handling(request):
     """Example view with comprehensive API error handling"""
-    
+
     try:
         # Business logic with API call
         service = ExternalAPIService()
         data = service.fetch_data()
-        
+
         return JsonResponse({
             'status': 'success',
             'data': data
         })
-        
+
     except requests.exceptions.Timeout:
         logger.error("API request timeout")
         return JsonResponse(
             {'status': 'error', 'message': 'Service temporarily unavailable'},
             status=504
         )
-        
+
     except requests.exceptions.HTTPError as e:
         logger.error(f"API HTTP error: {e}")
         status_code = e.response.status_code if e.response else 500
@@ -1138,21 +1184,21 @@ def api_view_with_error_handling(request):
             {'status': 'error', 'message': 'External service error'},
             status=status_code
         )
-        
+
     except openai.RateLimitError:
         logger.warning("OpenAI rate limit exceeded")
         return JsonResponse(
             {'status': 'error', 'message': 'Service rate limit exceeded, please try again later'},
             status=429
         )
-        
+
     except openai.OpenAIError as e:
         logger.error(f"OpenAI API error: {e}")
         return JsonResponse(
             {'status': 'error', 'message': 'AI service temporarily unavailable'},
             status=502
         )
-        
+
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")
         return JsonResponse(
@@ -1171,11 +1217,11 @@ from services.openai_service import OpenAIService
 
 class TestOpenAIService:
     """Test OpenAI service with mocked API calls"""
-    
+
     @pytest.fixture
     def service(self):
         return OpenAIService()
-    
+
     @patch('openai.ChatCompletion.create')
     def test_generate_content_success(self, mock_create, service):
         """Test successful content generation"""
@@ -1187,29 +1233,29 @@ class TestOpenAIService:
             total_tokens=30
         )
         mock_create.return_value = mock_response
-        
+
         result = service.generate_content("Test prompt")
-        
+
         assert result == "Generated content"
         mock_create.assert_called_once()
-    
+
     @patch('openai.ChatCompletion.create')
     def test_generate_content_retry_on_rate_limit(self, mock_create, service):
         """Test retry logic on rate limit"""
         import openai
-        
+
         # First call raises rate limit, second succeeds
         mock_response = Mock()
         mock_response.choices = [Mock(message=Mock(content="Success"))]
         mock_response.usage = Mock(prompt_tokens=10, completion_tokens=20, total_tokens=30)
-        
+
         mock_create.side_effect = [
             openai.RateLimitError("Rate limited"),
             mock_response
         ]
-        
+
         result = service.generate_content("Test prompt")
-        
+
         assert result == "Success"
         assert mock_create.call_count == 2
 ```
@@ -1224,13 +1270,13 @@ When creating book chapters or narrative content, follow these AI-optimized patt
 
 ```yaml
 ---
-title: "Chapter Title"
-subtitle: "Short thematic phrase"
-character: "Main character(s) featured"
-setting: "Primary location(s)"
-era: "Time period or year(s)"
-tone: "Emotional tone (Satirical, Somber, Hopeful, etc.)"
-style: "Narrative style (First-Person, Observational, etc.)"
+title: 'Chapter Title'
+subtitle: 'Short thematic phrase'
+character: 'Main character(s) featured'
+setting: 'Primary location(s)'
+era: 'Time period or year(s)'
+tone: 'Emotional tone (Satirical, Somber, Hopeful, etc.)'
+style: 'Narrative style (First-Person, Observational, etc.)'
 ---
 ```
 
@@ -1240,27 +1286,32 @@ style: "Narrative style (First-Person, Observational, etc.)"
 ## Outline and Contextual Alignment
 
 ### Purpose of the Chapter
+
 - Primary narrative goal
 - Character development focus
 - Thematic exploration
 
 ### Setting
+
 - Physical environment description
 - Social/cultural context
 - Atmosphere and mood
 
 ### Main Character(s)
+
 - Role in this chapter
 - Background relevant to events
 - Character traits displayed
 
 ### Plot Progression
+
 1. Opening scene or situation
 2. Rising action or conflict
 3. Key turning point
 4. Resolution or cliffhanger
 
 ### Themes Introduced
+
 - Primary thematic element
 - Symbolic or metaphorical content
 - Connection to overall narrative
@@ -1287,18 +1338,21 @@ style: "Narrative style (First-Person, Observational, etc.)"
 ### AI Instructions for Book Content
 
 **When generating book outlines:**
+
 1. Create README.md with three-act structure
 2. Define 4-6 major themes
 3. Map character arc with 4-5 phases
 4. Suggest 10-15 chapter titles
 
 **When writing/updating chapters:**
+
 1. Review outline and existing chapters for continuity
 2. Maintain consistent tone, style, and character development
 3. Align with overall narrative structure and themes
 4. Suggest minor updates to related chapters for coherence
 
 **Cross-referencing requirements:**
+
 - Link to main README outline
 - Connect to previous and next chapters
 - Reference character backgrounds when introduced
@@ -1311,9 +1365,11 @@ style: "Narrative style (First-Person, Observational, etc.)"
 **Chronicle Every AI-Powered Development Session** by creating Jekyll articles that document the learning journey:
 
 #### Article Naming Convention
+
 Follow Jekyll standard: `YYYY-MM-DD-descriptive-title-with-hyphens.md`
 
 Examples:
+
 - `2025-11-09-implementing-api-integration-patterns.md`
 - `2025-11-09-debugging-docker-compose-setup.md`
 - `2025-11-09-exploring-ai-assisted-development.md`
@@ -1322,27 +1378,27 @@ Examples:
 
 ```yaml
 ---
-title: "Descriptive Title: What Was Accomplished"
+title: 'Descriptive Title: What Was Accomplished'
 description: Brief description explaining the learning objective and outcome
 date: YYYY-MM-DDTHH:MM:SS.000Z
-preview: "Short preview text for social media and search"
+preview: 'Short preview text for social media and search'
 tags:
-    - ai-assisted-development
-    - specific-technology
-    - learning-journey
+  - ai-assisted-development
+  - specific-technology
+  - learning-journey
 categories:
-    - Development
-    - Specific-Category
+  - Development
+  - Specific-Category
 sub-title: Concise explanation of the specific focus
 excerpt: One-sentence summary of key learning or achievement
 snippet: Memorable quote or key insight from the session
 author: Team Name
 layout: journals
 keywords:
-    primary:
-        - main topic keyword
-    secondary:
-        - supporting concepts
+  primary:
+    - main topic keyword
+  secondary:
+    - supporting concepts
 lastmod: YYYY-MM-DDTHH:MM:SS.000Z
 permalink: /descriptive-url-slug/
 comments: true
@@ -1351,7 +1407,7 @@ comments: true
 
 #### Article Structure Template
 
-```markdown
+````markdown
 ## The Challenge: [What Problem Were We Solving?]
 
 [Clear problem statement explaining what you were trying to accomplish, why it was important, and what obstacles you faced]
@@ -1359,6 +1415,7 @@ comments: true
 ## AI-Assisted Development Process
 
 [Document the collaboration between human and AI:
+
 - Which AI tools/agents were used
 - How prompts were crafted and refined
 - What reasoning approaches were taken
@@ -1367,6 +1424,7 @@ comments: true
 ## Step-by-Step Implementation
 
 [Provide detailed, reproducible steps:
+
 - Code examples with syntax highlighting
 - Configuration files and settings
 - Command-line instructions
@@ -1375,6 +1433,7 @@ comments: true
 ## Key Learnings and Insights
 
 [Reflect on the development process:
+
 - What worked well in the AI collaboration
 - What required human intervention or correction
 - Unexpected discoveries or solutions
@@ -1386,10 +1445,12 @@ comments: true
 # Include all relevant code with proper formatting
 # Document expected outputs and error handling
 ```
+````
 
 ## Challenges and Solutions
 
 [Document any issues encountered:
+
 - Error messages and their solutions
 - Alternative approaches considered
 - Performance considerations
@@ -1398,10 +1459,12 @@ comments: true
 ## Next Steps and Evolution
 
 [Connect to the broader learning journey:
+
 - How this builds on previous work
 - What future developments this enables
 - Additional areas for exploration
 - Links to related articles]
+
 ```
 
 ### Article Quality Checklist
@@ -1424,6 +1487,6 @@ Before publishing, verify:
 
 ---
 
-*These instructions embody AI-assisted development principles, emphasizing consistency, quality, and continuous improvement guided by comprehensive README maintenance, containerized development, and integrated API patterns.*
+_These instructions embody AI-assisted development principles, emphasizing consistency, quality, and continuous improvement guided by comprehensive README maintenance, containerized development, and integrated API patterns._
 
 **Last Modified:** 2025-11-09

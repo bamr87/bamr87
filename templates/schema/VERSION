@@ -1,0 +1,46 @@
+source: pyramid-schema (https://github.com/bamr87/SCHEMA)
+upstream-commit: b2ffca1
+spec: "0.1"
+vendored: 2026-08-18
+verified: 2026-08-18
+files: tools/schema_lint.py, templates/schema/SCHEMA.template.md, templates/schema/CLAUDE.snippet.md, templates/schema/schema-check.yml
+reinvest: improvements discovered in fleet use go to the upstream package first, then re-vendor and bump this file.
+enforcement: |
+  The reinvest rule is now checked, not just stated. tools/check-drift.sh check
+  (i) compares every submodule copy of schema_lint.py (and unwrap-prose.py)
+  against the hub's, so a fork can no longer diverge unnoticed. It found two on
+  the day it shipped.
+notes: |
+  2026-08-23 schema-check.yml floats actions/checkout to @v7. This is the same
+  bug the prose kit hit at 0.2.0 and agent-context at 0.3.1, missed here both
+  times: the hub's own workflows moved to @v7 while this template stayed on
+  @v4, so re-running the schema fan-out would have seeded a three-major
+  DOWNGRADE into every adopting repo. Not a re-vendor — schema_lint.py,
+  SCHEMA.template.md and CLAUDE.snippet.md are untouched, so the b2ffca1 parity
+  contract below still holds
+  (upstream's schema-check.yml is not part of the vendored payload; the fleet
+  copy is already locally adapted via __DEFAULT_BRANCH__). No archive/ shape is
+  needed: seed-schema.sh is additive-only (it skips a target that already has
+  the workflow) and this kit has no --upgrade path, so nothing byte-compares
+  against the outgoing text. The class is now gated — tools/check-drift.sh
+  check (j) fails any seed template whose action major trails the hub's.
+
+  2026-08-18 re-vendor (ce09aeb → b2ffca1):
+  - Picks up everything the 2026-08-09 audit was waiting on: the SCHEMA#4
+    self-registration fix (a schema registering its own SCHEMA.md row was
+    reported as missing that file) and the federation layer — walks stop at
+    git repo boundaries, `check --federation` verifies .gitmodules seams,
+    `init` never scaffolds across a boundary. Directly relevant to this
+    monorepo: the vendored linter now treats every projects/* mount as a
+    foreign pyramid even without a terminal row.
+  - tools/schema_lint.py stays byte-identical to upstream HEAD (the check (i)
+    parity contract). Adopted submodules hold the older copy until re-seeded,
+    so check (i) will warn on them — expected mid-upgrade state, resolve by
+    re-running the schema fan-out per repo.
+  - CLAUDE.snippet.md ports upstream's new submodule-mounts sentence into the
+    fleet's one-paragraph-per-line reflow; the reflow remains deliberate local
+    adaptation, not drift. SCHEMA.template.md is content-identical to upstream
+    (quote/spacing style only).
+  - Known gap (unchanged): the vendored copy has no local test coverage;
+    upstream's suite (69 lint + 6 bench tests, green at b2ffca1) is the only
+    verification beyond the hub's own pyramid linting clean.

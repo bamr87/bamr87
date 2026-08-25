@@ -21,6 +21,23 @@
 #   maintained     bool      actively maintained
 #   live_url       optional  deployed site (null if none)
 #   docs_url       optional  documentation URL (null if none)
+#   release        optional  standardized release pipeline (bamr87/.github). Sub-keys:
+#                            engine: release-please | type: ruby|node|python|simple
+#                            registries: [rubygems|npm|pypi|ghcr|github]
+#                            status: adopted (merged) | pending (PR open) | none
+#                            pr: optional adoption PR URL
+#   schema         optional  Pyramid Schema adoption (SCHEMA.md structural contracts,
+#                            seeded from templates/schema/ via tools/seed-schema.sh or
+#                            the schema-fanout workflow; see docs/SCHEMA-FRAMEWORK.md).
+#                            Sub-keys:
+#                            status: adopted (merged) | pending (PR open) | none
+#                            pr: optional adoption PR URL
+#   license        optional  SPDX id (e.g. MIT, Apache-2.0) or null if none yet
+#   tier           optional  standardization tier override (active|experiment|
+#                            content|fork|archived). Normally derived from status
+#                            via _data/standards.yml; set only to override.
+#                            The standardization baseline per tier lives in
+#                            _data/standards.yml; the audit is `tools/dash audit`.
 #   auto_evolve    bool      opt-in to the per-repo AI evolution framework
 #                            (.github/workflows/evolution-scheduler.yml). When true, the
 #                            weekly scheduler runs Claude against this repo and opens a
@@ -36,15 +53,23 @@
   submodule_path: projects/cv-builder-pro
   branch: main
   repo_url: https://github.com/bamr87/cv-builder-pro
-  description: AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase).
+  description: AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor half of the bamr87/cv machine (React 19, TS, Vite 6, Firebase).
   stack: [react, typescript, vite, tailwind, firebase]
   category: full-stack-ai
-  status: active
-  featured: true
+  # Revived 2026-08: the long-noted cv pairing is now exploited — bamr87/cv keeps
+  # the CV of record as data/cv.json in this app's CVData shape (a two-repo
+  # contract), its builder/ engine is a Node port of this app's exporters, and
+  # the app gained cv.json import/export to close the loop. Kept off the front
+  # page pending sustained activity.
+  status: maintenance
+  featured: false
   maintained: true
   auto_evolve: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: README
   slug: README
@@ -60,11 +85,14 @@
   auto_evolve: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: scripts
   slug: scripts
   submodule_path: projects/scripts
-  branch: master            # NOTE: tracks master, not main
+  branch: main
   repo_url: https://github.com/bamr87/scripts
   description: Development and automation utilities for project setup, GitHub workflows, and local tooling.
   stack: [bash, python]
@@ -75,6 +103,9 @@
   auto_evolve: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: skills
   slug: skills
@@ -89,6 +120,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: it-journey
   slug: it-journey
@@ -103,6 +137,26 @@
   maintained: true
   live_url: https://it-journey.dev
   docs_url: https://it-journey.dev
+  schema:
+    status: none
+  license: MIT
+
+- name: wargames
+  slug: wargames
+  submodule_path: projects/wargames
+  branch: main
+  repo_url: https://github.com/bamr87/wargames
+  description: Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey.
+  stack: [python, shell, markdown]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: zer0-mistakes
   slug: zer0-mistakes
@@ -117,6 +171,53 @@
   maintained: true
   live_url: https://zer0-mistakes.com
   docs_url: https://zer0-mistakes.com
+  release:
+    engine: release-please
+    type: ruby
+    registries: [rubygems, github]
+    status: pending          # reference migration
+    pr: https://github.com/bamr87/zer0-mistakes/pull/170
+  schema:
+    status: none
+  license: MIT
+
+- name: zer0-image-generator
+  slug: zer0-image-generator
+  submodule_path: projects/zer0-image-generator
+  branch: main
+  repo_url: https://github.com/bamr87/zer0-image-generator
+  description: AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Portable companion to the zer0-mistakes theme.
+  stack: [ruby, jekyll, python, ai]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  release:
+    engine: release-please
+    type: ruby
+    registries: [rubygems, github]   # CI publish still needs the RUBYGEMS_API_KEY secret
+    status: adopted
+  schema:
+    status: none
+  license: MIT
+
+- name: gitorio
+  slug: gitorio
+  submodule_path: projects/gitorio
+  branch: main
+  repo_url: https://github.com/bamr87/gitorio
+  description: Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions workflows running Claude Code agents.
+  stack: [typescript, github-actions, ai]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
 
 - name: barodybroject
   slug: barodybroject
@@ -131,6 +232,9 @@
   maintained: true
   live_url: https://barodybroject.com
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: aieo
   slug: aieo
@@ -145,6 +249,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: lawmode
   slug: lawmode
@@ -159,6 +266,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: law-ai
   slug: law-ai
@@ -173,26 +283,31 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: githubai
   slug: githubai
   submodule_path: projects/githubai
   branch: main
   repo_url: https://github.com/bamr87/githubai
-  description: AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django).
-  stack: [django, python, ai]
+  description: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
+  stack: [github-actions, ai, claude-code]
   category: full-stack-ai
   status: active
   featured: false
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: edgar-data-parse
   slug: edgar-data-parse
   submodule_path: projects/edgar-data-parse
-  branch: master            # NOTE: tracks master, not main
-  repo_url: https://github.com/bamr87/edgar-data-parse
+  branch: main
+  repo_url: https://github.com/bamr87/fredgar-ai   # renamed on GitHub; local dir kept as edgar-data-parse
   description: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
   stack: [django, python, react, typescript]
   category: full-stack-ai
@@ -201,34 +316,15 @@
   maintained: true
   live_url: null
   docs_url: null
-
-- name: django-erp
-  slug: django-erp
-  submodule_path: projects/django-erp
-  branch: main
-  repo_url: https://github.com/bamr87/django-erp
-  description: Self-hosted product analytics platform (PostHog fork) explored as a Django ERP base.
-  stack: [django, python, posthog]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
-- name: amrs-django
-  slug: amrs-django
-  submodule_path: projects/amrs-django
-  branch: main
-  repo_url: https://github.com/bamr87/amrs-django
-  description: Django web application (early scaffolding).
-  stack: [django, python]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
+  release:
+    engine: release-please
+    type: simple             # no package metadata → versioning + GitHub Releases only
+    registries: [github]
+    status: pending
+    pr: https://github.com/bamr87/fredgar-ai/pull/7
+  schema:
+    status: none
+  license: MIT
 
 - name: drsai
   slug: drsai
@@ -243,6 +339,8 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: ai-seed
   slug: ai-seed
@@ -252,11 +350,15 @@
   description: AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human collaboration.
   stack: [javascript, docker, ai]
   category: dev-tools
-  status: experiment
+  # Last feature commit 2025-07-23 — thirteen months. A README-first project whose
+  # implementation never arrived; githubai carries the concept with working code.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: wtd
   slug: wtd
@@ -266,11 +368,17 @@
   description: Recursive TODO engine experiment for AI-orchestrated task decomposition.
   stack: [python, ai]
   category: dev-tools
-  status: experiment
+  # Last substantive commit 2026-05; the 2026-07/08 activity is entirely hub
+  # fan-out. Its concept space (self-evolving AI automation) is carried by
+  # githubai, which has a working artifact.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: vs-sonic-pi
   slug: vs-sonic-pi
@@ -285,6 +393,9 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: zpl-viewer
   slug: zpl-viewer
@@ -299,6 +410,15 @@
   maintained: true
   live_url: null
   docs_url: null
+  release:
+    engine: release-please
+    type: node
+    registries: [npm, github]
+    status: pending
+    pr: https://github.com/bamr87/zpl-viewer/pull/2
+  schema:
+    status: none
+  license: MIT
 
 - name: csv-vscoode
   slug: csv-vscoode
@@ -308,11 +428,16 @@
   description: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
   stack: [typescript, vscode]
   category: dev-tools
-  status: experiment
+  # Six commits total, one feature, last substantive work 2026-04, and the repo
+  # name is a typo. Complete and unmaintained rather than in progress.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: bashcrawl
   slug: bashcrawl
@@ -327,20 +452,9 @@
   maintained: true
   live_url: null
   docs_url: null
-
-- name: jekyll
-  slug: jekyll
-  submodule_path: projects/jekyll
-  branch: master            # NOTE: tracks master, not main
-  repo_url: https://github.com/bamr87/jekyll
-  description: Fork of Jekyll, the blog-aware static site generator in Ruby.
-  stack: [ruby, jekyll]
-  category: dev-tools
-  status: maintenance
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: bamr87.github.io
   slug: bamr87.github.io
@@ -355,6 +469,25 @@
   maintained: true
   live_url: https://bamr87.github.io
   docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: lifehacker.dev
+  slug: lifehacker.dev
+  submodule_path: projects/lifehacker.dev
+  branch: main
+  repo_url: https://github.com/bamr87/lifehacker.dev
+  description: Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages.
+  stack: [jekyll, ruby]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: https://lifehacker.dev
+  docs_url: null
+  schema:
+    status: none
 
 - name: zer0-pages-remote
   slug: zer0-pages-remote
@@ -364,11 +497,19 @@
   description: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
   stack: [ruby, jekyll]
   category: docs
-  status: experiment
+  # Eleven tracked files, of which eight are hub-seeded config — a smoke-test
+  # harness for `remote_theme`. zer0-mistakes already carries the same coverage in
+  # test/fixtures/consumer-remote/, and four real sites (lifehacker.dev, wargames,
+  # 2005, drsai) exercise remote_theme against actual content. Its one unique
+  # asset is the `layout: welcome` wizard demo, which belongs in the theme's
+  # examples/ before this repo goes.
+  status: archived
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: bashconsultants
   slug: bashconsultants
@@ -383,34 +524,9 @@
   maintained: true
   live_url: null
   docs_url: null
-
-- name: "1764"
-  slug: "1764"
-  submodule_path: projects/1764
-  branch: main
-  repo_url: https://github.com/bamr87/1764
-  description: Self-growing knowledge base about the year 1764 — history, events, and culture.
-  stack: [markdown, ai]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
-- name: "1897"
-  slug: "1897"
-  submodule_path: projects/1897
-  branch: main
-  repo_url: https://github.com/bamr87/1897
-  description: Self-growing knowledge base about the year 1897.
-  stack: [markdown, ai]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: "1987"
   slug: "1987"
@@ -425,20 +541,27 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: "2005"
   slug: "2005"
   submodule_path: projects/2005
   branch: main
-  repo_url: https://github.com/bamr87/2005
-  description: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
+  repo_url: https://github.com/year-of-ai/2005   # moved to the year-of-ai org; local dir kept as 2005
+  # The self-growing framework consolidated into year-of-ai/2005-2011 (June 2026);
+  # this repo is now static content + Pages config. The year-of-ai org successors
+  # are deliberately out of fleet scope — only this original member is tracked.
+  description: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011).
   stack: [markdown, ai]
   category: docs
   status: experiment
   featured: false
-  maintained: true
+  maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 # --- Accounting / finance Django experiments -------------------------------
 - name: amrs-project
@@ -446,7 +569,13 @@
   submodule_path: projects/amrs-project
   branch: main
   repo_url: https://github.com/bamr87/amrs-project
-  description: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
+  # NOT archived, despite the consolidation. Its README is explicit: the accounting
+  # core was ported into djangoerp (djangoerp#7) but "this repo is unchanged and
+  # keeps running standalone; nothing here has been deleted or archived", and the
+  # `edgar` app was never ported. Open question worth settling: `edgar` here,
+  # `sec_edgar` in fredgar-ai, and the EDGAR work in edgar-data-parse are three
+  # implementations of one integration.
+  description: AMRS — modular Django accounting & financial management system with REST APIs. Accounting core ported to djangoerp; new accounting-domain work goes there. Still runs standalone and still owns the unported `edgar` app.
   stack: [django, python, drf, postgres]
   category: full-stack-ai
   status: experiment
@@ -454,62 +583,24 @@
   maintained: true
   live_url: null
   docs_url: null
-
-- name: afms
-  slug: afms
-  submodule_path: projects/afms
-  branch: main
-  repo_url: https://github.com/bamr87/afms
-  description: AFMS — Django accounting & financial management web app with role-based access and reporting.
-  stack: [django, python]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
-- name: django-fin
-  slug: django-fin
-  submodule_path: projects/django-fin
-  branch: main
-  repo_url: https://github.com/bamr87/django-fin
-  description: Django finance app scaffold built around OpenEDGAR (SEC filings).
-  stack: [django, python]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
+  schema:
+    status: none
 
 - name: djangoerp
   slug: djangoerp
   submodule_path: projects/djangoerp
   branch: main
   repo_url: https://github.com/bamr87/djangoerp
-  description: Django-Magic — a beginner-friendly Django starter project.
+  description: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
   stack: [django, python]
   category: full-stack-ai
   status: experiment
-  featured: false
+  featured: true
   maintained: true
   live_url: null
   docs_url: null
-
-- name: digitalBookstore
-  slug: digitalBookstore
-  submodule_path: projects/digitalBookstore
-  branch: main
-  repo_url: https://github.com/bamr87/digitalBookstore
-  description: Fork — extracting and processing information for a digital bookstore.
-  stack: [python]
-  category: dev-tools
-  status: archived
-  featured: false
-  maintained: false
-  live_url: null
-  docs_url: null
+  schema:
+    status: none
 
 # --- Personal content / CV -------------------------------------------------
 - name: cv
@@ -517,14 +608,22 @@
   submodule_path: projects/cv
   branch: main
   repo_url: https://github.com/bamr87/cv
-  description: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
-  stack: [latex]
+  description: CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII/LaTeX/HTML/PDF, published to Pages and releases; round-trips with cv-builder-pro.
+  stack: [latex, typescript, node]
   category: docs
-  status: maintenance
+  # Rebuilt 2026-08 as the fleet's CV machine: data/cv.json (cv-builder-pro's
+  # CVData contract) + a builder/ engine ported from that app, CI-gated generated
+  # CV.md, weekly publish + freshness loops, snapshot releases, and the jd/
+  # tailoring loop. The old housekeeping debts (tracked LaTeX byproducts, four
+  # ~2MB PDF renders, no README) were cleared in the same change; the real data
+  # doubles as the engine's golden test fixture.
+  status: active
   featured: false
   maintained: true
-  live_url: null
+  live_url: https://bamr87.github.io/cv/
   docs_url: null
+  schema:
+    status: none
 
 - name: books
   slug: books
@@ -539,49 +638,46 @@
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
 
 - name: zer0-pages
   slug: zer0-pages
   submodule_path: projects/zer0-pages
   branch: main
   repo_url: https://github.com/bamr87/zer0-pages
-  description: Product-requirements and planning notes for the zer0-pages concept.
-  stack: [markdown]
+  description: Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Dataview to GitHub Pages via the zer0-mistakes gem; the theme's second brain.
+  stack: [jekyll, ruby, obsidian, ai]
   category: docs
   status: experiment
   featured: false
   maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: adopted
+    pr: https://github.com/bamr87/zer0-pages/pull/4
 
 # --- Forks of upstream tools -----------------------------------------------
-- name: sonic-pi
-  slug: sonic-pi
-  submodule_path: projects/sonic-pi
-  branch: dev               # NOTE: upstream fork tracks dev, not main
-  repo_url: https://github.com/bamr87/sonic-pi
-  description: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
-  stack: [ruby, elixir, cpp]
-  category: dev-tools
-  status: maintenance
-  featured: false
-  maintained: false
-  live_url: null
-  docs_url: null
-
 - name: vscode-front-matter
   slug: vscode-front-matter
   submodule_path: projects/vscode-front-matter
   branch: main
-  repo_url: https://github.com/bamr87/vscode-front-matter
-  description: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
+  repo_url: https://github.com/bamr87/zer0-CMS   # renamed on GitHub; local dir rename tracked in the restructuring plan
+  # No longer a fork in substance: "refactor!: break free from the Front Matter
+  # fork — a lightweight zer0-CMS extension" (2026-07-31). GitHub still reports
+  # isFork:true because the upstream history was never detached.
+  description: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
   stack: [typescript, vscode]
   category: dev-tools
-  status: maintenance
+  status: active
   featured: false
-  maintained: false
+  maintained: true
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 - name: skills-github-pages
   slug: skills-github-pages
@@ -596,16 +692,85 @@
   maintained: false
   live_url: null
   docs_url: null
+  schema:
+    status: none
+  license: MIT
 
 # ---------------------------------------------------------------------------
-# External repositories (surfaced in the dash; not git submodules)
+# External repositories (surfaced in the dash; not git submodules).
+# Add entries here with submodule_path: null.
+#
+# Registration is how a repo becomes VISIBLE to the dash, the reconciler, and
+# the engagement ledger. Being unregistered is not neutral — it is invisible.
+# The 2026-08-09 audit found four live bamr87 repos in neither .gitmodules nor
+# this file, one of them (irony-works) under active daily development. They are
+# registered below as external rather than as submodules: the fleet's problem is
+# too much duplicated weight, not too few tracked directories, so a repo earns a
+# submodule checkout only when the hub actually needs to build or fan out into it.
 # ---------------------------------------------------------------------------
-- name: frontmatter-cms-mvp
+- name: .github
+  slug: dot-github
+  submodule_path: null      # org-level repo; a hidden dir under projects/ would be fragile
+  branch: main
+  repo_url: https://github.com/bamr87/.github
+  description: Shared CI/release automation (reusable workflows, release-please, publish) + community health files for all bamr87 repos.
+  stack: [github-actions]
+  category: dash
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: SCHEMA
+  slug: schema
+  submodule_path: null      # upstream of the vendored tools/schema_lint.py
+  branch: main
+  repo_url: https://github.com/bamr87/SCHEMA
+  description: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
+  stack: [python, markdown]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: irony-works
+  slug: irony-works
   submodule_path: null
   branch: main
-  repo_url: https://github.com/bamr87/frontmatter-cms-mvp
-  description: Minimal CMS for Markdown files with YAML frontmatter in VS Code.
-  stack: [typescript, vscode, markdown]
+  repo_url: https://github.com/bamr87/irony-works
+  description: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
+  stack: [javascript, markdown, ai]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: bash-cms
+  slug: bash-cms
+  submodule_path: null
+  branch: main
+  repo_url: https://github.com/bamr87/bash-cms
+  description: Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).
+  stack: [typescript, vscode, mcp]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+
+- name: git-with-the-program
+  slug: git-with-the-program
+  submodule_path: null
+  branch: main
+  repo_url: https://github.com/bamr87/git-with-the-program
+  description: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
+  stack: [typescript, ai]
   category: dev-tools
   status: experiment
   featured: false

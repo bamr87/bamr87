@@ -127,6 +127,17 @@
   },
 
   // ==========================================
+  // GIT / SUBMODULES
+  // ==========================================
+  // This repo has ~40 submodules under projects/. VS Code's default
+  // git.detectSubmodulesLimit is 10, so most submodules never appear in the
+  // Source Control panel. Raise the cap so every submodule is registered.
+  "git.detectSubmodules": true,
+  "git.detectSubmodulesLimit": 100,
+  "git.autoRepositoryDetection": "subFolders",
+  "git.openRepositoryInParentFolders": "always",
+
+  // ==========================================
   // FILE WATCHING & PERFORMANCE
   // ==========================================
   "files.watcherExclude": {

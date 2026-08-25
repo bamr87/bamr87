@@ -1,0 +1,23 @@
+name: CI
+
+# Scaffolded by tools/adopt-release.sh — calls the shared reusable CI gate in
+# bamr87/.github. Do not edit the logic here; change it once in bamr87/.github.
+
+on:
+  pull_request:
+  push:
+    branches: [__DEFAULT_BRANCH__]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  ci:
+    uses: bamr87/.github/.github/workflows/ci.yml@main
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    secrets: inherit

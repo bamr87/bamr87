@@ -222,51 +222,53 @@ These public repositories reflect the same focus areas: documentation, enablemen
 
 - **[README](https://github.com/bamr87/README)**: Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js).
 - **[it-journey](https://github.com/bamr87/it-journey)**: From-zero-to-hero docs, tools, and scripts supporting an IT learning journey. Live at [https://it-journey.dev](https://it-journey.dev).
+- **[wargames](https://github.com/bamr87/wargames)**: Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey.
 - **[zer0-mistakes](https://github.com/bamr87/zer0-mistakes)**: GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash. Live at [https://zer0-mistakes.com](https://zer0-mistakes.com).
 - **[bamr87.github.io](https://github.com/bamr87/bamr87.github.io)**: Personal profile and portfolio website. Live at [https://bamr87.github.io](https://bamr87.github.io).
+- **[lifehacker.dev](https://github.com/bamr87/lifehacker.dev)**: Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages. Live at [https://lifehacker.dev](https://lifehacker.dev).
 - **[zer0-pages-remote](https://github.com/bamr87/zer0-pages-remote)**: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
 - **[bashconsultants](https://github.com/bamr87/bashconsultants)**: BASH Consulting — Denver-based IT consulting firm website.
-- **[1764](https://github.com/bamr87/1764)**: Self-growing knowledge base about the year 1764 — history, events, and culture.
-- **[1897](https://github.com/bamr87/1897)**: Self-growing knowledge base about the year 1897.
 - **[1987](https://github.com/bamr87/1987)**: Self-growing knowledge base about the year 1987 — history, politics, science, and culture.
-- **[2005](https://github.com/bamr87/2005)**: Self-growing knowledge base about the year 2005 — history, science, arts, society, and people.
-- **[cv](https://github.com/bamr87/cv)**: LaTeX résumé/CV source (cv.tex + sections) with rendered PDF exports and headshots.
+- **[2005](https://github.com/year-of-ai/2005)**: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011).
+- **[cv](https://github.com/bamr87/cv)**: CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII/LaTeX/HTML/PDF, published to Pages and releases; round-trips with cv-builder-pro. Live at [https://bamr87.github.io/cv/](https://bamr87.github.io/cv/).
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
-- **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Product-requirements and planning notes for the zer0-pages concept.
+- **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Dataview to GitHub Pages via the zer0-mistakes gem; the theme's second brain.
+- **[irony-works](https://github.com/bamr87/irony-works)**: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
 
 ### 🚀 Full-Stack & AI Applications
 
-- **[cv-builder-pro](https://github.com/bamr87/cv-builder-pro)**: AI-powered CV/resume builder with LaTeX/Markdown/ASCII export (React 19, TS, Vite 6, Firebase).
+- **[cv-builder-pro](https://github.com/bamr87/cv-builder-pro)**: AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor half of the bamr87/cv machine (React 19, TS, Vite 6, Firebase).
 - **[barodybroject](https://github.com/bamr87/barodybroject)**: Full-stack responsive web app with OpenAI integrations and CMS functionality. Live at [https://barodybroject.com](https://barodybroject.com).
 - **[aieo](https://github.com/bamr87/aieo)**: AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI).
 - **[lawmode](https://github.com/bamr87/lawmode)**: Always-on AI lawyer concept for developers.
 - **[law-ai](https://github.com/bamr87/law-ai)**: LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ollama).
-- **[githubai](https://github.com/bamr87/githubai)**: AI-powered GitHub automation — issue management, docs generation, and semantic versioning (Django).
-- **[edgar-data-parse](https://github.com/bamr87/edgar-data-parse)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
-- **[django-erp](https://github.com/bamr87/django-erp)**: Self-hosted product analytics platform (PostHog fork) explored as a Django ERP base.
-- **[amrs-django](https://github.com/bamr87/amrs-django)**: Django web application (early scaffolding).
+- **[githubai](https://github.com/bamr87/githubai)**: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
+- **[edgar-data-parse](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
 - **[drsai](https://github.com/bamr87/drsai)**: Dr. Seuss-style AI poetry generator.
-- **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs (Bootstrap 5).
-- **[afms](https://github.com/bamr87/afms)**: AFMS — Django accounting & financial management web app with role-based access and reporting.
-- **[django-fin](https://github.com/bamr87/django-fin)**: Django finance app scaffold built around OpenEDGAR (SEC filings).
-- **[djangoerp](https://github.com/bamr87/djangoerp)**: Django-Magic — a beginner-friendly Django starter project.
+- **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs. Accounting core ported to djangoerp; new accounting-domain work goes there. Still runs standalone and still owns the unported `edgar` app.
+- **[djangoerp](https://github.com/bamr87/djangoerp)**: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
 
 ### 🛠️ Developer Tools & Experiments
 
 - **[scripts](https://github.com/bamr87/scripts)**: Development and automation utilities for project setup, GitHub workflows, and local tooling.
 - **[skills](https://github.com/microsoft/skills)**: Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding agents.
+- **[zer0-image-generator](https://github.com/bamr87/zer0-image-generator)**: AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Portable companion to the zer0-mistakes theme.
+- **[gitorio](https://github.com/bamr87/gitorio)**: Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions workflows running Claude Code agents.
 - **[ai-seed](https://github.com/bamr87/ai-seed)**: AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human collaboration.
 - **[wtd](https://github.com/bamr87/wtd)**: Recursive TODO engine experiment for AI-orchestrated task decomposition.
 - **[vs-sonic-pi](https://github.com/bamr87/vs-sonic-pi)**: VS Code extension for writing and performing Sonic Pi music from the editor.
 - **[zpl-viewer](https://github.com/bamr87/zpl-viewer)**: ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.
 - **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
-- **[jekyll](https://github.com/bamr87/jekyll)**: Fork of Jekyll, the blog-aware static site generator in Ruby.
-- **[digitalBookstore](https://github.com/bamr87/digitalBookstore)**: Fork — extracting and processing information for a digital bookstore.
-- **[sonic-pi](https://github.com/bamr87/sonic-pi)**: Fork of Sonic Pi — the live-coding music synthesizer and IDE.
-- **[vscode-front-matter](https://github.com/bamr87/vscode-front-matter)**: Fork of Front Matter — a CMS running inside VS Code for static-site generators.
+- **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
 - **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.
-- **[frontmatter-cms-mvp](https://github.com/bamr87/frontmatter-cms-mvp)**: Minimal CMS for Markdown files with YAML frontmatter in VS Code.
+- **[SCHEMA](https://github.com/bamr87/SCHEMA)**: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
+- **[bash-cms](https://github.com/bamr87/bash-cms)**: Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).
+- **[git-with-the-program](https://github.com/bamr87/git-with-the-program)**: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
+
+### 🛰️ Dash
+
+- **[.github](https://github.com/bamr87/.github)**: Shared CI/release automation (reusable workflows, release-please, publish) + community health files for all bamr87 repos.
 
 <!-- AUTO:projects END -->
 
@@ -300,7 +302,7 @@ bamr87/
 
 - **Tech Stack**: Python, MkDocs, Wiki.js
 - **Features**: AI-powered categorization, multi-format support, search
-- **Live Site**: [bamr87.github.io/bamr87](https://bamr87.github.io/bamr87)
+- **Live Site**: [bamr87.github.io/bamr87](https://bamr87.github.io/bamr87) — the Jekyll dash (this repo's sole Pages surface), not this project's MkDocs output
 - [📖 Documentation](projects/README/README.md)
 
 ### 🛠️ Automation Scripts ([projects/scripts/](projects/scripts/))
@@ -322,7 +324,7 @@ Clone with all submodules:
 ```bash
 git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 cd bamr87
-./tools/setup-dev.sh
+./tools/setup.sh
 ```
 
 Or explore individual projects:
@@ -331,18 +333,18 @@ Or explore individual projects:
 # CV Builder
 cd projects/cv-builder-pro && npm install && npm run dev
 
-# Documentation Site
-mkdocs serve
+# Documentation site (owned by the README submodule)
+cd projects/README && mkdocs serve
 
 # Scripts (standalone utilities)
-./scripts/project-init.sh --help
+./projects/scripts/project-init.sh --help
 ```
 
 ### 📖 Documentation
 
-- **[MONOREPO.md](docs/MONOREPO.md)**: Repository organization and submodule management
-- **[DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: System design and architecture decisions
+- **[SUBMODULES.md](SUBMODULES.md)**: The submodule workflow — commit in the submodule, then bump the pointer
+- **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
+- **[docs/DASH.md](docs/DASH.md)**: The dash architecture — registry, surfaces, gates, AI loop
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
 
 ---
@@ -437,7 +439,7 @@ mindmap
 > This README serves as both a GitHub profile overview and a monorepo entry point.
 
 > [!TIP]
-> For architecture and setup details, start with [docs/MONOREPO.md](docs/MONOREPO.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+> For architecture and setup details, start with [docs/DASH.md](docs/DASH.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 > [!IMPORTANT]
 > For complete experience and credentials, review the [full CV (PDF)](https://github.com/bamr87/cv/blob/main/cv.pdf).
@@ -450,7 +452,7 @@ git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 cd bamr87
 
 # Bootstrap local environment
-./tools/setup-dev.sh
+./tools/setup.sh
 ```
 
 </details>

@@ -193,7 +193,7 @@ init_logging() {
             return 1
         }
     fi
-    
+
     # Initialize log file
     {
         echo "========================================="
@@ -205,7 +205,7 @@ init_logging() {
         echo "PID: $$"
         echo "========================================="
     } > "$LOG_FILE"
-    
+
     return 0
 }
 
@@ -225,10 +225,10 @@ log() {
     local message="$2"
     local timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
     local log_entry="[${level}] ${timestamp} - ${message}"
-    
+
     # Write to log file (always)
     echo "$log_entry" >> "$LOG_FILE"
-    
+
     # Check if level should be displayed
     case "$LOG_LEVEL" in
         DEBUG)
@@ -244,10 +244,10 @@ log() {
             [[ "$level" != "ERROR" ]] && return 0
             ;;
     esac
-    
+
     # Skip console output if quiet mode (except errors)
     [[ "$QUIET" == "true" && "$level" != "ERROR" ]] && return 0
-    
+
     # Write to console with colors
     case "$level" in
         DEBUG)
@@ -293,11 +293,11 @@ error_handler() {
     local line_number="${1:-unknown}"
     local exit_code="${2:-1}"
     local last_command="${BASH_COMMAND}"
-    
+
     log_error "Script failed at line ${line_number}"
     log_error "Failed command: ${last_command}"
     log_error "Exit code: ${exit_code}"
-    
+
     # Show call stack
     log_error "Call stack:"
     local frame=0
@@ -306,10 +306,10 @@ error_handler() {
     done | while read line func file; do
         log_error "  at ${func} (${file}:${line})"
     done
-    
+
     # Perform cleanup
     cleanup_on_error
-    
+
     exit "$exit_code"
 }
 
@@ -326,33 +326,33 @@ trap 'error_handler ${LINENO} $?' ERR
 #######################################
 cleanup() {
     local exit_code=$?
-    
+
     log_debug "Performing cleanup (exit code: ${exit_code})"
-    
+
     # Remove temporary files
     if [[ -n "${TEMP_FILE:-}" && -f "$TEMP_FILE" ]]; then
         rm -f "$TEMP_FILE"
         log_debug "Removed temporary file: $TEMP_FILE"
     fi
-    
+
     # Clean up temporary directory
     if [[ -n "${TEMP_DIR:-}" && -d "$TEMP_DIR" ]]; then
         rm -rf "$TEMP_DIR"
         log_debug "Removed temporary directory: $TEMP_DIR"
     fi
-    
+
     # Kill background processes
     if [[ -n "${BG_PID:-}" ]]; then
         kill "$BG_PID" 2>/dev/null || true
         log_debug "Terminated background process: $BG_PID"
     fi
-    
+
     if [[ $exit_code -eq 0 ]]; then
         log_info "Script completed successfully"
     else
         log_error "Script completed with errors (exit code: ${exit_code})"
     fi
-    
+
     log_info "Log saved to: $LOG_FILE"
 }
 
@@ -369,13 +369,13 @@ trap cleanup EXIT
 #######################################
 cleanup_on_error() {
     log_warn "Performing error cleanup..."
-    
+
     # Rollback changes if needed
     if [[ "${CHANGES_MADE:-false}" == "true" ]]; then
         log_warn "Attempting to rollback changes..."
         rollback_changes || log_error "Rollback failed"
     fi
-    
+
     # Release locks
     if [[ -f "${LOCK_FILE:-}" ]]; then
         rm -f "$LOCK_FILE"
@@ -416,37 +416,37 @@ trap 'signal_handler SIGTERM' TERM
 #######################################
 validate_prerequisites() {
     log_info "Validating prerequisites..."
-    
+
     # Check bash version
     if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
         log_error "Bash 4.0 or higher required (current: ${BASH_VERSION})"
         return 1
     fi
-    
+
     # Check required commands
     local required_commands=("git" "curl" "jq")
     local missing_commands=()
-    
+
     for cmd in "${required_commands[@]}"; do
         if ! command -v "$cmd" &> /dev/null; then
             missing_commands+=("$cmd")
         fi
     done
-    
+
     if [[ ${#missing_commands[@]} -gt 0 ]]; then
         log_error "Missing required commands: ${missing_commands[*]}"
         log_error "Install with: apt-get install ${missing_commands[*]} (Ubuntu/Debian)"
         log_error "Or: brew install ${missing_commands[*]} (macOS)"
         return 1
     fi
-    
+
     # Check required environment variables
     if [[ -z "${API_KEY:-}" ]]; then
         log_error "Required environment variable API_KEY is not set"
         log_error "Set with: export API_KEY='your-api-key'"
         return 1
     fi
-    
+
     # Check write permissions to required directories
     local required_dirs=("$LOG_DIR" "${PROJECT_ROOT}/output")
     for dir in "${required_dirs[@]}"; do
@@ -455,7 +455,7 @@ validate_prerequisites() {
             return 1
         fi
     done
-    
+
     log_info "All prerequisites validated successfully"
     return 0
 }
@@ -470,25 +470,25 @@ validate_prerequisites() {
 #######################################
 validate_arguments() {
     log_debug "Validating arguments: $*"
-    
+
     # Example: Check file exists
     if [[ $# -lt 1 ]]; then
         log_error "Missing required argument: FILE"
         usage
     fi
-    
+
     local input_file="$1"
-    
+
     if [[ ! -f "$input_file" ]]; then
         log_error "Input file not found: $input_file"
         return 1
     fi
-    
+
     if [[ ! -r "$input_file" ]]; then
         log_error "Cannot read input file: $input_file"
         return 1
     fi
-    
+
     log_debug "Arguments validated successfully"
     return 0
 }
@@ -520,15 +520,15 @@ confirm() {
     local prompt="$1"
     local default="${2:-n}"
     local response
-    
+
     # Skip prompts in non-interactive mode or dry-run
     [[ "$DRY_RUN" == "true" ]] && return 0
     [[ ! -t 0 ]] && return 1  # Not interactive
-    
+
     while true; do
         read -r -p "${prompt} [y/n] (default: ${default}): " response
         response="${response:-$default}"
-        
+
         case "${response,,}" in  # Convert to lowercase
             y|yes)
                 return 0
@@ -555,27 +555,27 @@ confirm() {
 retry_command() {
     local attempt=1
     local exit_code=0
-    
+
     while [[ $attempt -le $MAX_RETRIES ]]; do
         log_debug "Attempt ${attempt}/${MAX_RETRIES}: $*"
-        
+
         if "$@"; then
             log_debug "Command succeeded on attempt ${attempt}"
             return 0
         fi
-        
+
         exit_code=$?
         log_warn "Command failed on attempt ${attempt} with exit code ${exit_code}"
-        
+
         if [[ $attempt -lt $MAX_RETRIES ]]; then
             local backoff=$((2 ** (attempt - 1)))  # Exponential backoff
             log_info "Retrying in ${backoff} seconds..."
             sleep "$backoff"
         fi
-        
+
         ((attempt++))
     done
-    
+
     log_error "Command failed after ${MAX_RETRIES} attempts: $*"
     return 1
 }
@@ -593,15 +593,15 @@ show_spinner() {
     local message="${2:-Processing}"
     local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
     local i=0
-    
+
     [[ "$QUIET" == "true" ]] && return 0
-    
+
     while kill -0 "$pid" 2>/dev/null; do
         i=$(( (i+1) % ${#spin} ))
         printf "\r${CYAN}%s${NC} %s" "${spin:$i:1}" "$message"
         sleep 0.1
     done
-    
+
     printf "\r%*s\r" $((${#message} + 3)) ""  # Clear line
 }
 
@@ -617,9 +617,9 @@ show_progress() {
     local bar_length=50
     local filled_length=$((progress * bar_length / 100))
     local bar=""
-    
+
     [[ "$QUIET" == "true" ]] && return 0
-    
+
     # Build progress bar
     for ((i=0; i<bar_length; i++)); do
         if [[ $i -lt $filled_length ]]; then
@@ -628,9 +628,9 @@ show_progress() {
             bar+="░"
         fi
     done
-    
+
     printf "\r${message}: [${bar}] ${progress}%%"
-    
+
     [[ $progress -eq 100 ]] && echo ""  # New line when complete
 }
 
@@ -641,17 +641,17 @@ show_progress() {
 # Safe file read with validation
 safe_read_file() {
     local file="$1"
-    
+
     if [[ ! -f "$file" ]]; then
         log_error "File not found: $file"
         return 1
     fi
-    
+
     if [[ ! -r "$file" ]]; then
         log_error "Cannot read file: $file"
         return 1
     fi
-    
+
     cat "$file"
 }
 
@@ -660,7 +660,7 @@ safe_write_file() {
     local file="$1"
     local content="$2"
     local backup_file="${file}.backup.$(date +%Y%m%d-%H%M%S)"
-    
+
     # Backup existing file
     if [[ -f "$file" ]]; then
         cp "$file" "$backup_file" || {
@@ -669,20 +669,20 @@ safe_write_file() {
         }
         log_debug "Created backup: $backup_file"
     fi
-    
+
     # Write new content
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "[DRY RUN] Would write to: $file"
         return 0
     fi
-    
+
     echo "$content" > "$file" || {
         log_error "Failed to write file: $file"
         # Restore backup if write failed
         [[ -f "$backup_file" ]] && mv "$backup_file" "$file"
         return 1
     }
-    
+
     log_info "Successfully wrote file: $file"
     return 0
 }
@@ -701,25 +701,25 @@ safe_write_file() {
 #######################################
 process_input() {
     local input="$1"
-    
+
     log_info "Processing input: $input"
-    
+
     # Validate input
     if [[ -z "$input" ]]; then
         log_error "Input cannot be empty"
         return 1
     fi
-    
+
     # Show progress for long operation
     {
         # Actual processing logic here
         sleep 2  # Simulated work
-        
+
     } &
     local pid=$!
     show_spinner "$pid" "Processing input"
     wait "$pid"
-    
+
     log_info "Processing completed successfully"
     return 0
 }
@@ -747,22 +747,22 @@ process_input() {
 example_function() {
     local first_arg="$1"
     local second_arg="${2:-default_value}"
-    
+
     log_debug "Called ${FUNCNAME[0]} with args: $*"
-    
+
     # Validate arguments
     if [[ -z "$first_arg" ]]; then
         log_error "${FUNCNAME[0]}: First argument is required"
         return 1
     fi
-    
+
     # Business logic here
     log_info "Processing: $first_arg"
-    
+
     if [[ "$VERBOSE" == "true" ]]; then
         log_info "Using second argument: $second_arg"
     fi
-    
+
     # Return success
     return 0
 }
@@ -784,32 +784,32 @@ example_function() {
 parse_arguments() {
     # Store positional arguments
     local positional_args=()
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -h|--help)
                 usage
                 ;;
-            
+
             -v|--verbose)
                 VERBOSE=true
                 LOG_LEVEL="DEBUG"
                 log_debug "Verbose mode enabled"
                 shift
                 ;;
-            
+
             -d|--dry-run)
                 DRY_RUN=true
                 log_info "Dry run mode enabled (no changes will be made)"
                 shift
                 ;;
-            
+
             -q|--quiet)
                 QUIET=true
                 log_debug "Quiet mode enabled"
                 shift
                 ;;
-            
+
             -t|--timeout)
                 if [[ -n "${2:-}" ]]; then
                     TIMEOUT="$2"
@@ -820,25 +820,25 @@ parse_arguments() {
                     exit 2
                 fi
                 ;;
-            
+
             --version)
                 echo "${SCRIPT_NAME} version ${SCRIPT_VERSION}"
                 exit 0
                 ;;
-            
+
             --)
                 # End of options marker
                 shift
                 positional_args+=("$@")
                 break
                 ;;
-            
+
             -*)
                 log_error "Unknown option: $1"
                 echo "Try '${SCRIPT_NAME} --help' for more information"
                 exit 2
                 ;;
-            
+
             *)
                 # Positional argument
                 positional_args+=("$1")
@@ -846,13 +846,13 @@ parse_arguments() {
                 ;;
         esac
     done
-    
+
     # Restore positional arguments
     set -- "${positional_args[@]}"
-    
+
     # Export for use in main
     POSITIONAL_ARGS=("$@")
-    
+
     log_debug "Parsed ${#POSITIONAL_ARGS[@]} positional arguments"
     return 0
 }
@@ -871,45 +871,45 @@ parse_arguments() {
 #######################################
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     # Initialize logging
     init_logging || {
         echo "ERROR: Failed to initialize logging" >&2
         exit 1
     }
-    
+
     # Parse command-line arguments
     parse_arguments "$@"
-    
+
     # Validate prerequisites
     validate_prerequisites || {
         log_error "Prerequisites validation failed"
         exit 3
     }
-    
+
     # Validate arguments
     validate_arguments "${POSITIONAL_ARGS[@]}" || {
         log_error "Argument validation failed"
         exit 2
     }
-    
+
     log_info "Configuration:"
     log_info "  Verbose: $VERBOSE"
     log_info "  Dry Run: $DRY_RUN"
     log_info "  Timeout: ${TIMEOUT}s"
     log_info "  Log Level: $LOG_LEVEL"
-    
+
     # Main processing
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "=== DRY RUN MODE - No changes will be made ==="
     fi
-    
+
     # Execute main business logic
     process_input "${POSITIONAL_ARGS[0]}" || {
         log_error "Processing failed"
         exit 1
     }
-    
+
     log_info "Script completed successfully"
     return 0
 }
@@ -1000,11 +1000,11 @@ local should_retry=true
 # Use 4 spaces for indentation (not tabs)
 function example() {
     local var="value"
-    
+
     if [[ condition ]]; then
         # 4 spaces
         command here
-        
+
         if [[ nested ]]; then
             # 8 spaces
             nested command
@@ -1017,13 +1017,13 @@ function process() {
     # Group related operations
     local input="$1"
     local output=""
-    
+
     # Blank line before new logical section
     validate_input "$input" || return 1
-    
+
     # Blank line between major operations
     output=$(transform_input "$input")
-    
+
     # Blank line before return
     echo "$output"
     return 0
@@ -1186,7 +1186,7 @@ done
 function function_name() {
     local arg1="$1"
     local arg2="${2:-default}"
-    
+
     # Function body
     return 0
 }
@@ -1220,13 +1220,13 @@ function_name() {
 function process_user_data() {
     local user_id="$1"
     local action="${2:-read}"
-    
+
     # Validation
     [[ -z "$user_id" ]] && return 1
-    
+
     # Processing
     log_info "Processing user: $user_id (action: $action)"
-    
+
     # Implementation
     case "$action" in
         read)
@@ -1243,7 +1243,7 @@ function process_user_data() {
             return 2
             ;;
     esac
-    
+
     return 0
 }
 
@@ -1339,17 +1339,17 @@ readonly EXIT_SIGNAL=128         # Base for signals (128 + signal_number)
 # Use meaningful exit codes
 function check_file() {
     local file="$1"
-    
+
     if [[ ! -e "$file" ]]; then
         log_error "File not found: $file"
         return $EXIT_NOT_FOUND
     fi
-    
+
     if [[ ! -r "$file" ]]; then
         log_error "Permission denied: $file"
         return $EXIT_PERMISSION_DENIED
     fi
-    
+
     return $EXIT_SUCCESS
 }
 
@@ -1394,13 +1394,13 @@ mkdir -p "$dir" || { log_error "Cannot create directory"; exit 1; }
 function safe_divide() {
     local numerator=$1
     local denominator=$2
-    
+
     # Validate input (DFF)
     if [[ $denominator -eq 0 ]]; then
         log_error "Division by zero"
         return 1
     fi
-    
+
     echo $((numerator / denominator))
     return 0
 }
@@ -1436,7 +1436,7 @@ Every script must have a comprehensive header:
 #   Implements zero-downtime deployment strategy.
 #
 # Usage: ./deploy.sh [OPTIONS] ENVIRONMENT
-#   
+#
 #   ENVIRONMENT:
 #     staging       Deploy to staging environment
 #     production    Deploy to production (requires approval)
@@ -1560,25 +1560,25 @@ function process_payment() {
     local amount="$2"
     local payment_method="$3"
     local customer_id="$4"
-    
+
     log_info "Processing payment: txn=$transaction_id, amount=$amount, method=$payment_method"
-    
+
     # Validation (DFF: fail fast)
     validate_transaction_input "$transaction_id" "$amount" "$payment_method" "$customer_id" || {
         log_error "Payment validation failed"
         return 1
     }
-    
+
     # Process with retry logic (DFF: handle transient failures)
     local result
     result=$(retry_command call_payment_gateway "$transaction_id" "$amount" "$payment_method") || {
         log_error "Payment processing failed after retries"
         return 2
     }
-    
+
     # Audit logging
     log_payment_audit "$transaction_id" "$result"
-    
+
     # Return result
     echo "$result"
     return 0
@@ -1674,13 +1674,13 @@ uc=10                      # Unclear
 # Validate inputs
 function process() {
     local input="$1"
-    
+
     # Validate before processing (DFF)
     if [[ -z "$input" ]]; then
         log_error "Input is required"
         return 1
     fi
-    
+
     # Process
 }
 
@@ -1710,30 +1710,30 @@ trap cleanup_on_error ERR  # Cleanup on error
 #######################################
 function load_config() {
     local config_file="$1"
-    
+
     if [[ ! -f "$config_file" ]]; then
         log_error "Config file not found: $config_file"
         return 1
     fi
-    
+
     log_info "Loading configuration from: $config_file"
-    
+
     # Load config, ignoring comments and empty lines
     while IFS='=' read -r key value; do
         # Skip comments and empty lines
         [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
-        
+
         # Remove quotes from value
         value="${value%\"}"
         value="${value#\"}"
         value="${value%\'}"
         value="${value#\'}"
-        
+
         # Export as environment variable
         export "$key=$value"
         log_debug "Loaded config: $key=$value"
     done < "$config_file"
-    
+
     return 0
 }
 ```
@@ -1751,25 +1751,25 @@ function load_config() {
 function process_file_line_by_line() {
     local input_file="$1"
     local line_number=0
-    
+
     # Validate file exists
     [[ ! -f "$input_file" ]] && return 1
-    
+
     # Process line by line (preserves spaces and special chars)
     while IFS= read -r line || [[ -n "$line" ]]; do
         ((line_number++))
-        
+
         # Skip empty lines and comments
         [[ -z "$line" || "$line" =~ ^#.*$ ]] && continue
-        
+
         # Process line
         log_debug "Processing line $line_number: $line"
-        
+
         # Your processing logic here
         echo "$line" | process_line
-        
+
     done < "$input_file"
-    
+
     log_info "Processed $line_number lines from $input_file"
     return 0
 }
@@ -1791,23 +1791,23 @@ function process_parallel() {
     local items=("$@")
     local max_jobs="${MAX_PARALLEL_JOBS:-4}"
     local failed_jobs=0
-    
+
     log_info "Processing ${#items[@]} items with $max_jobs parallel jobs"
-    
+
     # Process items in parallel
     for item in "${items[@]}"; do
         # Wait if too many background jobs
         while [[ $(jobs -r | wc -l) -ge $max_jobs ]]; do
             sleep 0.1
         done
-        
+
         # Start job in background
         (
             log_info "Processing: $item"
             process_single_item "$item" || exit 1
         ) &
     done
-    
+
     # Wait for all background jobs
     for job in $(jobs -p); do
         if ! wait "$job"; then
@@ -1815,12 +1815,12 @@ function process_parallel() {
             log_error "Job failed: $job"
         fi
     done
-    
+
     if [[ $failed_jobs -gt 0 ]]; then
         log_error "Failed jobs: $failed_jobs"
         return 1
     fi
-    
+
     log_info "All jobs completed successfully"
     return 0
 }
@@ -1844,7 +1844,7 @@ function api_call() {
     local method="$1"
     local url="$2"
     local body="${3:-}"
-    
+
     local curl_args=(
         --silent
         --show-error
@@ -1855,7 +1855,7 @@ function api_call() {
         --header "Authorization: Bearer ${API_KEY}"
         --header "Content-Type: application/json"
     )
-    
+
     # Add method and body for POST/PUT
     case "$method" in
         POST|PUT)
@@ -1873,38 +1873,38 @@ function api_call() {
             return 1
             ;;
     esac
-    
+
     log_debug "API call: $method $url"
-    
+
     # Make API call with error handling
     local response
     local http_code
     local temp_file
     temp_file=$(mktemp)
-    
+
     # Capture both response and HTTP status code
     http_code=$(curl "${curl_args[@]}" \
         --write-out "%{http_code}" \
         --output "$temp_file" \
         "$url")
-    
+
     local curl_exit=$?
     response=$(<"$temp_file")
     rm -f "$temp_file"
-    
+
     # Check for curl errors
     if [[ $curl_exit -ne 0 ]]; then
         log_error "Curl failed with exit code: $curl_exit"
         return 1
     fi
-    
+
     # Check HTTP status code
     if [[ "$http_code" -ge 400 ]]; then
         log_error "API returned error: HTTP $http_code"
         log_error "Response: $response"
         return 1
     fi
-    
+
     # Output response
     echo "$response"
     return 0
@@ -1923,12 +1923,12 @@ function api_call() {
 #######################################
 function acquire_lock() {
     readonly LOCK_FILE="/tmp/${SCRIPT_NAME}.lock"
-    
+
     # Check if another instance is running
     if [[ -f "$LOCK_FILE" ]]; then
         local lock_pid
         lock_pid=$(<"$LOCK_FILE")
-        
+
         # Check if process is still running
         if kill -0 "$lock_pid" 2>/dev/null; then
             log_error "Another instance is already running (PID: $lock_pid)"
@@ -1938,13 +1938,13 @@ function acquire_lock() {
             rm -f "$LOCK_FILE"
         fi
     fi
-    
+
     # Create lock file with current PID
     echo "$$" > "$LOCK_FILE" || {
         log_error "Failed to create lock file"
         return 1
     }
-    
+
     log_debug "Lock acquired: $LOCK_FILE"
     return 0
 }
@@ -1973,23 +1973,23 @@ trap 'release_lock; cleanup' EXIT
 # Parse JSON with jq
 function parse_json_response() {
     local json="$1"
-    
+
     # Extract fields
     local status
     status=$(echo "$json" | jq -r '.status')
-    
+
     local message
     message=$(echo "$json" | jq -r '.message')
-    
+
     local items
     items=$(echo "$json" | jq -r '.items[]')
-    
+
     # Check for null
     if [[ "$status" == "null" ]]; then
         log_error "Invalid JSON response"
         return 1
     fi
-    
+
     echo "Status: $status"
     echo "Message: $message"
     echo "Items: $items"
@@ -1999,7 +1999,7 @@ function parse_json_response() {
 function build_json_request() {
     local name="$1"
     local value="$2"
-    
+
     # Use jq to build JSON safely (handles escaping)
     jq -n \
         --arg name "$name" \
@@ -2025,7 +2025,7 @@ tomorrow_macos=$(date -v+1d +%Y-%m-%d)  # macOS date
 # Portable date function
 function add_days() {
     local days=$1
-    
+
     if date --version &>/dev/null; then
         # GNU date (Linux)
         date -d "+${days} days" +%Y-%m-%d
@@ -2039,14 +2039,14 @@ function add_days() {
 function measure_time() {
     local start_time
     start_time=$(date +%s)
-    
+
     # Execute command
     "$@"
-    
+
     local end_time
     end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
+
     log_info "Execution time: ${duration}s"
     return 0
 }
@@ -2060,16 +2060,16 @@ function process_with_progress() {
     local items=("$@")
     local total=${#items[@]}
     local current=0
-    
+
     for item in "${items[@]}"; do
         ((current++))
         local progress=$((current * 100 / total))
-        
+
         show_progress "$progress" "Processing items"
-        
+
         process_single_item "$item"
     done
-    
+
     echo ""  # New line after progress
 }
 ```
@@ -2086,7 +2086,7 @@ function process_with_progress() {
 setup() {
     # Source script to test
     source "${BATS_TEST_DIRNAME}/../script.sh"
-    
+
     # Create temporary directory
     TEST_TEMP_DIR="$(mktemp -d)"
 }
@@ -2120,10 +2120,10 @@ teardown() {
         touch "/tmp/first_attempt"
         return 1
     }
-    
+
     run retry_command flaky_command
     [ "$status" -eq 0 ]
-    
+
     rm -f "/tmp/first_attempt"
 }
 ```
@@ -2138,7 +2138,7 @@ set -euo pipefail
 # Test full script execution
 function test_successful_execution() {
     echo "Test: Successful execution"
-    
+
     # Run script with test input
     if ./script.sh --dry-run test-input.txt; then
         echo "✅ PASS: Script executed successfully"
@@ -2150,7 +2150,7 @@ function test_successful_execution() {
 
 function test_handles_missing_file() {
     echo "Test: Handle missing file"
-    
+
     # Expect failure
     if ./script.sh nonexistent.txt 2>/dev/null; then
         echo "❌ FAIL: Should have failed with missing file"
@@ -2163,10 +2163,10 @@ function test_handles_missing_file() {
 # Run all tests
 function run_tests() {
     local failed=0
-    
+
     test_successful_execution || ((failed++))
     test_handles_missing_file || ((failed++))
-    
+
     echo ""
     if [[ $failed -eq 0 ]]; then
         echo "✅ All tests passed"
@@ -2202,13 +2202,13 @@ if [[ -f "$HOME/.secrets" ]]; then
     # Check permissions (should be 600)
     local perms
     perms=$(stat -c %a "$HOME/.secrets" 2>/dev/null || stat -f %A "$HOME/.secrets")
-    
+
     if [[ "$perms" != "600" ]]; then
         log_error "Insecure permissions on secrets file: $perms"
         log_error "Fix with: chmod 600 $HOME/.secrets"
         exit 5
     fi
-    
+
     source "$HOME/.secrets"
 fi
 
@@ -2223,32 +2223,32 @@ log_info "API call to ${API_ENDPOINT}"  # ✅ Don't log API_KEY
 # Sanitize user input to prevent injection
 function sanitize_input() {
     local input="$1"
-    
+
     # Remove dangerous characters
     input="${input//[^a-zA-Z0-9._-]/}"
-    
+
     # Limit length
     input="${input:0:255}"
-    
+
     echo "$input"
 }
 
 # Validate input format
 function validate_filename() {
     local filename="$1"
-    
+
     # Check for path traversal attempts
     if [[ "$filename" =~ \.\. ]]; then
         log_error "Path traversal detected in filename"
         return 1
     fi
-    
+
     # Check for absolute paths (if not allowed)
     if [[ "$filename" =~ ^/ ]]; then
         log_error "Absolute paths not allowed"
         return 1
     fi
-    
+
     # Valid
     return 0
 }
@@ -2311,4 +2311,3 @@ echo "${path##*.}"     # Extension: txt
 **Version:** 1.0.0 | **Last Modified:** 2025-11-14 | **Author:** Amr Abdel-Motaleb
 
 **Purpose:** Comprehensive bash scripting standards for robust, maintainable, production-ready scripts across all project types. Embodies DFF (comprehensive error handling), DRY (reusable functions), and KIS (clear, simple logic) principles.
-

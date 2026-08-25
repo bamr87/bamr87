@@ -55,12 +55,14 @@ These principles reduce common LLM coding mistakes. Apply them to every task.
 **Touch only what you must. Clean up only your own mess.**
 
 When editing existing code:
+
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it — don't delete it.
 
 When your changes create orphans:
+
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
@@ -72,13 +74,14 @@ When your changes create orphans:
 
 Transform tasks into verifiable goals:
 
-| Instead of... | Transform to... |
-|---------------|-----------------|
+| Instead of...    | Transform to...                                       |
+| ---------------- | ----------------------------------------------------- |
 | "Add validation" | "Write tests for invalid inputs, then make them pass" |
-| "Fix the bug" | "Write a test that reproduces it, then make it pass" |
-| "Refactor X" | "Ensure tests pass before and after" |
+| "Fix the bug"    | "Write a test that reproduces it, then make it pass"  |
+| "Refactor X"     | "Ensure tests pass before and after"                  |
 
 For multi-step tasks, state a brief plan:
+
 ```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
@@ -106,6 +109,7 @@ Follow these layered boundaries when building features:
 ```
 
 **Rules:**
+
 - Dependencies point inward (outer layers depend on inner layers)
 - Domain layer has no external dependencies
 - Infrastructure implements interfaces defined in inner layers
@@ -116,7 +120,7 @@ Follow these layered boundaries when building features:
 ## SDK Quick Reference
 
 | Package | Purpose | Install |
-|---------|---------|---------|
+| --- | --- | --- |
 | `azure-ai-projects` | Foundry project client, agents, evals, connections | `pip install azure-ai-projects` |
 | `azure-ai-agents` | Standalone agents client (use via projects) | `pip install azure-ai-agents` |
 | `azure-search-documents` | Azure AI Search SDK | `pip install azure-search-documents` |
@@ -149,6 +153,7 @@ AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4o-mini
 ## Skills
 
 Skills are domain-specific knowledge packages in `.github/skills/`. Each has a `SKILL.md` with:
+
 - **YAML frontmatter** (`name`, `description`) — triggers skill loading
 - **Markdown body** — loaded only when skill activates
 
@@ -166,7 +171,7 @@ npx skills add microsoft/skills
 > Location: `.github/skills/` • 133 skills • See [README.md#skill-catalog](README.md#skill-catalog)
 
 | Language | Skills | Suffix | Examples |
-|----------|--------|--------|----------|
+| --- | --- | --- | --- |
 | **Core** | 6 | — | `mcp-builder`, `skill-creator`, `copilot-sdk` |
 | **Python** | 41 | `-py` | `azure-ai-projects-py`, `azure-cosmos-py`, `azure-ai-ml-py` |
 | **.NET** | 29 | `-dotnet` | `azure-ai-projects-dotnet`, `azure-resource-manager-cosmosdb-dotnet`, `azure-security-keyvault-keys-dotnet` |
@@ -182,6 +187,7 @@ Only load skills relevant to the current task. Loading all skills causes context
 > **Detailed guide:** Load the `/skill-creator` skill for comprehensive instructions.
 
 **Prerequisites:** User MUST provide SDK context:
+
 - SDK package name (e.g., `azure-ai-agents`)
 - Documentation URL or GitHub repository
 - Target language (py/dotnet/ts/java)
@@ -189,12 +195,14 @@ Only load skills relevant to the current task. Loading all skills causes context
 **Quick workflow:**
 
 1. **Create skill** in `.github/skills/<skill-name>/SKILL.md`
+
    ```
    # Naming: azure-<service>-<language>
    # Example: azure-ai-agents-py
    ```
 
 2. **Categorize with symlink** in `skills/<language>/<category>/`
+
    ```bash
    cd skills/python/foundry
    ln -s ../../../.github/skills/azure-ai-agents-py agents
@@ -205,6 +213,7 @@ Only load skills relevant to the current task. Loading all skills causes context
    - `tests/scenarios/<skill>/scenarios.yaml` — test scenarios
 
 4. **Verify**
+
    ```bash
    cd tests && pnpm harness <skill-name> --mock --verbose
    ```
@@ -213,15 +222,15 @@ Only load skills relevant to the current task. Loading all skills causes context
 
 **Product area categories:**
 
-| Category | Skills |
-|----------|--------|
-| `foundry` | AI agents, projects, inference, search |
-| `data` | Storage, Cosmos DB, Tables |
-| `messaging` | Event Hubs, Service Bus, Event Grid |
-| `monitoring` | OpenTelemetry, App Insights |
-| `identity` | Authentication, credentials |
-| `security` | Key Vault |
-| `integration` | API Management, App Configuration |
+| Category      | Skills                                 |
+| ------------- | -------------------------------------- |
+| `foundry`     | AI agents, projects, inference, search |
+| `data`        | Storage, Cosmos DB, Tables             |
+| `messaging`   | Event Hubs, Service Bus, Event Grid    |
+| `monitoring`  | OpenTelemetry, App Insights            |
+| `identity`    | Authentication, credentials            |
+| `security`    | Key Vault                              |
+| `integration` | API Management, App Configuration      |
 
 ---
 
@@ -232,27 +241,27 @@ Pre-configured Model Context Protocol servers in `.vscode/mcp.json` provide addi
 ### Documentation & Search
 
 | MCP | Purpose |
-|-----|---------|
+| --- | --- |
 | `microsoft-docs` | **Search Microsoft Learn** — Official Azure/Foundry docs. Use this FIRST. |
 | `context7` | Indexed Foundry documentation with semantic search (updated daily via GitHub workflow) |
 | `deepwiki` | Ask questions about GitHub repositories |
 
 ### Development Tools
 
-| MCP | Purpose |
-|-----|---------|
-| `github` | GitHub API operations |
+| MCP          | Purpose                        |
+| ------------ | ------------------------------ |
+| `github`     | GitHub API operations          |
 | `playwright` | Browser automation and testing |
-| `terraform` | Infrastructure as code |
-| `eslint` | JavaScript/TypeScript linting |
+| `terraform`  | Infrastructure as code         |
+| `eslint`     | JavaScript/TypeScript linting  |
 
 ### Utilities
 
-| MCP | Purpose |
-|-----|---------|
+| MCP                  | Purpose                                     |
+| -------------------- | ------------------------------------------- |
 | `sequentialthinking` | Step-by-step reasoning for complex problems |
-| `memory` | Persistent memory across sessions |
-| `markitdown` | Convert documents to markdown |
+| `memory`             | Persistent memory across sessions           |
+| `markitdown`         | Convert documents to markdown               |
 
 **Usage:** MCPs are available when configured in your editor. Use `microsoft-docs` to search official documentation before implementing Azure SDK code.
 
@@ -291,7 +300,7 @@ Before completing any code change:
 service = ProjectService()
 expected = Project(id="123", name="test")
 
-# Act  
+# Act
 result = await service.get_project("123")
 
 # Assert
@@ -299,6 +308,7 @@ assert result == expected
 ```
 
 For Azure SDK tests:
+
 - Use `pytest-asyncio` for async tests
 - Mock Azure clients at the service boundary
 - Test both success and error paths

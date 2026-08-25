@@ -8,13 +8,11 @@ description: "15+ years across enterprise architecture, ERP, and financial syste
 
 ## 🔷 AESSE Investments — ERP Architect (2025–Present)
 
-Leading enterprise architecture for polymers and automotive manufacturing across North
-America, focusing on ERP governance, technical oversight, and strategic roadmap development.
+Leading enterprise architecture for polymers and automotive manufacturing across North America, focusing on ERP governance, technical oversight, and strategic roadmap development.
 
 ## 🔷 BASH Consulting LLC — Solutions Architect (2020–Present)
 
-Providing comprehensive IT/Finance consulting with a mission-driven focus on employee
-empowerment and sustainable technology.
+Providing comprehensive IT/Finance consulting with a mission-driven focus on employee empowerment and sustainable technology.
 
 **Key Achievements**
 
@@ -27,8 +25,7 @@ empowerment and sustainable technology.
 
 ## 🔷 Valmont Industries — Sr. Manager Financial Systems (2022–2023)
 
-Led global accounting systems strategy for a multi-billion dollar agriculture and
-infrastructure manufacturer.
+Led global accounting systems strategy for a multi-billion dollar agriculture and infrastructure manufacturer.
 
 - ✅ **Compliance & Localization**: Designed and implemented a Mexico localization compliance solution with deep IFS integration.
 - ✅ **System Centralization**: Drove 3 major centralization projects for BlackLine Cash App, SAP Concur, and BlackLine GL, standardizing processes across the enterprise.

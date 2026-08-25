@@ -1,0 +1,160 @@
+name: standardize-fanout
+
+# Downward propagation: opens standardization PRs INTO submodule repos, seeding
+# baseline artifacts (.editorconfig, the reusable standard-ci caller, and — on
+# request — the agent-context kit: a CLAUDE.md scaffold, the @claude OAuth
+# workflow, and a minimal .claude/settings.json baseline). This is the
+# complement to update-submodules.yml (which only bumps pointers UP). The
+# clone→seed→commit→PR engine is shared with schema-fanout: tools/fanout.sh
+# (dry-run by default, PRs only, skips external upstreams, additive-only
+# seeding; `upgrade` additionally refreshes claude.yml copies that are
+# byte-identical to the archived 0.1.0 seed — hand-modified copies are
+# never touched).
+#
+# SAFETY: dispatch-only, dry-run by default, opens PRs (never pushes to a
+# default branch). Requires FLEET_TOKEN (legacy FANOUT_TOKEN still honoured)
+# — a fine-grained PAT
+# with contents:write + pull-requests:write + workflows:write on the target
+# repos (the ci/claude artifacts push .github/workflows/* files, which GitHub
+# refuses without the Workflows permission; the default GITHUB_TOKEN cannot
+# push to other repositories at all).
+#
+# agent_fill (single target, non-dry only): after seeding, a Claude Code OAuth
+# pass on the kit branch fills the CLAUDE.md scaffold TODOs from the repo's
+# README/manifests — the same pattern schema-fanout's agent_fill uses.
+# Needs CLAUDE_CODE_OAUTH_TOKEN (ANTHROPIC_API_KEY fallback); see
+# docs/AI-INTEGRATION.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Submodule name, or 'all'"
+        type: string
+        default: "all"
+      artifacts:
+        description: "Comma-separated: editorconfig,ci,agent-context,claude,claude-settings,claude-guardrails,claude-agent-auditor"
+        type: string
+        default: "editorconfig,ci"
+      dry_run:
+        description: "Build branches but don't push/PR"
+        type: boolean
+        default: true
+      upgrade:
+        description: "Also refresh machine-seeded claude.yml copies stuck on kit 0.1.0 (byte-identical check; hand-modified copies untouched)"
+        type: boolean
+        default: false
+      agent_fill:
+        description: "After seeding, run Claude Code (OAuth) to fill CLAUDE.md scaffold TODOs — single target only"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standardize-fanout
+  cancel-in-progress: false
+
+jobs:
+  fanout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      slug: ${{ steps.resolve.outputs.slug }}
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v7
+
+      # agent_fill must not assume repo name == submodule dir name — resolve
+      # the slug from the .gitmodules URL, exactly like the engine does.
+      - name: Resolve target repo slug
+        id: resolve
+        if: ${{ inputs.target != 'all' }}
+        run: |
+          set -euo pipefail
+          sect="$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
+                  | awk -v p="projects/${{ inputs.target }}" '$2==p{print $1}' \
+                  | sed 's/^submodule\.//; s/\.path$//')"
+          if [ -z "$sect" ]; then
+            echo "::error::no submodule at projects/${{ inputs.target }}"; exit 1
+          fi
+          url="$(git config -f .gitmodules --get "submodule.${sect}.url")"
+          echo "slug=bamr87/$(basename "${url%.git}")" >> "$GITHUB_OUTPUT"
+
+      - name: Open standardization PRs
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          TARGET: ${{ inputs.target }}
+          ARTIFACTS: ${{ inputs.artifacts }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          UPGRADE: ${{ inputs.upgrade }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
+            exit 1
+          fi
+          FLAGS=()
+          if [ "$DRY_RUN" != "true" ]; then FLAGS+=(--apply); fi
+          if [ "$UPGRADE" = "true" ]; then FLAGS+=(--upgrade); fi
+          tools/fanout.sh --kit standardize --target "$TARGET" --artifacts "$ARTIFACTS" ${FLAGS[@]+"${FLAGS[@]}"}
+
+  # Claude Code fills the CLAUDE.md scaffold TODOs on the kit branch, then
+  # pushes to the already-open PR. Runs only for a real (non-dry) single-target
+  # dispatch with agent_fill. Auth: OAuth token preferred, API key fallback.
+  agent-fill:
+    needs: fanout
+    if: ${{ inputs.agent_fill && inputs.target != 'all' && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write   # claude-code-action's OIDC token exchange
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Require Claude auth
+        if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
+        run: |
+          echo "::error::agent_fill needs CLAUDE_CODE_OAUTH_TOKEN (preferred; from 'claude setup-token') or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          exit 1
+
+      - name: Checkout target kit branch
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.fanout.outputs.slug }}
+          ref: chore/standardize-baseline
+          token: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+
+      - name: Fill CLAUDE.md scaffold with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          prompt: |
+            This repository's CLAUDE.md is an unfilled agent-context scaffold
+            (TODO placeholders for the description and the stack/commands).
+
+            Your task, and nothing else:
+            1. Replace the description TODO with one accurate paragraph — what
+               this project is and who it serves — derived from the repo's
+               README, manifests (package.json / requirements / gemspec /
+               Makefile), and code layout. Never invent facts.
+            2. Fill the "Stack & commands" block with the real install / dev /
+               test / lint commands verified against those manifests; delete
+               rows that don't apply.
+            3. Keep the Conventions and Fleet context sections as they are.
+            Do not modify any file other than CLAUDE.md.
+          claude_args: "--max-turns 15"
+
+      - name: Push agent pass to the PR branch
+        run: |
+          set -euo pipefail
+          git add -A
+          if git -c user.name=bamr87-bot -c user.email=10567847+bamr87@users.noreply.github.com \
+               commit -m "docs(agent-context): fill CLAUDE.md scaffold (Claude agent pass)"; then
+            git push origin chore/standardize-baseline
+          else
+            echo "agent pass produced no changes"
+          fi

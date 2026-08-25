@@ -15,6 +15,18 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Lockfiles — never committed: fleet ALWAYS-LATEST dependency policy
+# (_data/fleet.yml `dependencies:` + docs/DEPENDENCIES.md)
+package-lock.json
+npm-shrinkwrap.json
+pnpm-lock.yaml
+yarn.lock
+Gemfile.lock
+poetry.lock
+Pipfile.lock
+uv.lock
+composer.lock
+
 # Build outputs
 site/
 dist/
@@ -37,7 +49,16 @@ env/
 .virtualenv/
 
 # IDE & Editors
+# .vscode/ is ignored by default, but this repo intentionally tracks its shared
+# workspace config (notably the raised git.detectSubmodulesLimit that the ~40
+# submodules require). Without these negations, new files added here are
+# silently invisible to git.
 .vscode/
+!.vscode/README.md
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
@@ -163,3 +184,23 @@ _site/
 .sass-cache/
 _data/project_health.yml
 _data/project_health_meta.yml
+_data/ai_activity.yml
+# Ephemeral agent work order (remediate triage → the fleet-pulse doctor agent).
+# Generated per run, never committed. The retired actions-review and
+# daily-analysis work orders were removed with their generators (2026-08-09).
+remediation-workorder.md
+# Ephemeral agent work orders (issue-pipeline scan → the tier 1/2/3 agents).
+# Generated per run, uploaded as an artifact, never committed.
+issue-workorder-t*.md
+# Evidence sandboxes built by tools/issue-evidence.sh: a full clone plus its
+# venv/node_modules per issue. Uploaded as a workflow artifact; never committed.
+.evidence/
+
+# Playwright MCP browser artifacts (screenshots, snapshots, downloads)
+.playwright-mcp/
+
+# Claude Code machine-local files (never commit: local settings, session worktrees,
+# ephemeral dash screenshots from the run-dash skill)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/skills/run-dash/*.png

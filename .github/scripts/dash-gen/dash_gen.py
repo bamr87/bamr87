@@ -11,6 +11,26 @@ Subcommands:
   readme   Regenerate ONLY the <!-- AUTO:projects --> span of the profile README.md
            from the registry's static facts (deterministic; safe to commit).
 
+  cv       Project the registry into bamr87/cv's data contract: write the
+           committed _data/cv_portfolio.json proposal (CVData Project[]/Skill[]
+           shapes) that the sync-cv loop merges into that repo's data/cv.json.
+           Deterministic; implemented in cv_fragment.py.
+
+  ai       Shadow-price local Claude Code usage per repo (scans ~/.claude/projects
+           JSONL ledgers, persists a daily ledger, writes _data/ai_activity.yml).
+           LOCAL-ONLY and ephemeral — not part of `all`, never runs in CI.
+           Implemented in ai_activity.py.
+
+  remediate Merge the fleet's failing + expensive workflow signals into ONE
+           ranked, deduped, capped fix queue and emit the work order that
+           drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
+
+  issues   Classify every open fleet issue into the three-tier issue pipeline
+           (intake → implement → complete) by its label state, score
+           completeness/priority/size/autonomy, and emit one capped work order
+           per tier plus the committed _data/issue_pipeline.yml snapshot.
+           Drives issue-pipeline.yml. Implemented in issue_pipeline.py.
+
   all      Run health then readme.
 
 The single source of truth is dash/_data/projects.yml. This script never invents
@@ -29,6 +49,17 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+import ai_activity
+import ai_usage_collector
+import actions_analytics
+import cv_fragment
+import daily_report
+import engagements
+import fleet_triage
+import issue_pipeline
+import reconcile
+import remediation
 
 try:
     import yaml
@@ -394,6 +425,10 @@ def cmd_readme(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cv(args: argparse.Namespace) -> int:
+    return cv_fragment.write_fragment(load_registry(), REPO_ROOT, check=args.check)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="dash-gen", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -404,6 +439,70 @@ def main(argv: list[str] | None = None) -> int:
     p_readme = sub.add_parser("readme", help="regenerate README AUTO:projects span")
     p_readme.add_argument("--check", action="store_true", help="fail if stale; do not write")
     p_readme.set_defaults(func=cmd_readme)
+
+    p_cv = sub.add_parser(
+        "cv", help="project the registry into bamr87/cv's contract -> cv_portfolio.json (committed)"
+    )
+    p_cv.add_argument("--check", action="store_true", help="fail if stale; do not write")
+    p_cv.set_defaults(func=cmd_cv)
+
+    p_ai = sub.add_parser(
+        "ai", help="shadow-price local Claude Code usage -> ai_activity.yml (local-only)"
+    )
+    ai_activity.add_arguments(p_ai)
+
+    p_ai_usage = sub.add_parser(
+        "ai-usage",
+        help="fleet Claude Code usage ledger -> ai_usage.yml (committed, daily-refreshed)",
+    )
+    ai_usage_collector.add_arguments(p_ai_usage)
+
+    p_actions = sub.add_parser(
+        "actions", help="GitHub Actions usage analytics -> actions_usage.yml (daily-refreshed)"
+    )
+    actions_analytics.add_arguments(p_actions)
+
+    p_daily = sub.add_parser(
+        "daily",
+        help="prior-day fleet activity digest (the fix queue is `remediate`)",
+    )
+    daily_report.add_arguments(p_daily)
+
+    p_triage = sub.add_parser(
+        "triage",
+        help="fleet-wide open issues/PRs/CI snapshot -> fleet_triage.yml (committed, daily-refreshed)",
+    )
+    fleet_triage.add_arguments(p_triage)
+
+    p_remediate = sub.add_parser(
+        "remediate",
+        help="merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse.yml)",
+    )
+    remediation.add_arguments(p_remediate)
+
+    p_issues = sub.add_parser(
+        "issues",
+        help="three-tier issue pipeline queues -> issue_pipeline.yml + per-tier work orders",
+    )
+    issue_pipeline.add_arguments(p_issues)
+
+    p_reconcile = sub.add_parser(
+        "reconcile",
+        help="reconcile the registry + .gitmodules against GitHub reality (renames/deletions/urls)",
+    )
+    reconcile.add_arguments(p_reconcile)
+
+    p_estimate = sub.add_parser(
+        "estimate",
+        help="draft client-engagement estimates from open issues -> engagements.yml (committed)",
+    )
+    engagements.add_estimate_arguments(p_estimate)
+
+    p_ledger = sub.add_parser(
+        "ledger",
+        help="accrue engagement actuals from usage evidence + recompute variance -> engagements.yml",
+    )
+    engagements.add_ledger_arguments(p_ledger)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

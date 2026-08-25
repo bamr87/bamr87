@@ -1,0 +1,62 @@
+# =============================================================================
+# _data/engagement_rates.yml — THE RATE CARD (engagement estimation config)
+# =============================================================================
+# Hand-edited tunables consumed by .github/scripts/dash-gen/engagements.py
+# (estimator-v1 + the actuals ledger). Change a rate here and every estimate
+# becomes reproducible under the new card — the estimate is a deterministic
+# function of (work-item facts, this file, per-repo calibration history).
+# See docs/ESTIMATION.md for the model.
+#
+# The division of labor the numbers encode: AI performs the implementation;
+# the human is the BROKER — builds context/environment, defines goals and
+# acceptance, guides, validates. Broker time is priced at broker_rate_usd_hr;
+# AI effort at Anthropic API list prices (ai_activity.PRICING); platform time
+# at the GitHub-hosted runner rate. `traditional_hours` is the pre-AI
+# consulting comparison that yields each engagement's leverage ratio.
+# =============================================================================
+
+currency: USD
+
+human:
+  broker_rate_usd_hr: 150.0        # context building, requirements, validation
+  traditional_rate_usd_hr: 150.0   # rate used for the pre-AI comparison quote
+
+platform:
+  ci_usd_per_min: 0.008            # GitHub-hosted 2-core Linux runner list price
+
+ai:
+  default_model: claude-opus-4-8   # must exist in ai_activity.PRICING
+  cache_read_share_pct: 80         # share of input tokens served from cache
+
+# T-shirt tiers: the expected effort profile per complexity class.
+#   ai_sessions/ai_turns     agent effort shape
+#   input_ktok/output_ktok   token profile priced at API list rates
+#   broker_hours             human brokerage (context, goals, validation)
+#   ci_minutes               expected pipeline time
+#   traditional_hours        what the same scope costs in pre-AI consulting
+tiers:
+  xs: { ai_sessions: 1, ai_turns: 10,  input_ktok: 40,   output_ktok: 15,  broker_hours: 0.25, ci_minutes: 4,  traditional_hours: 4 }
+  s:  { ai_sessions: 1, ai_turns: 25,  input_ktok: 120,  output_ktok: 40,  broker_hours: 0.5,  ci_minutes: 8,  traditional_hours: 8 }
+  m:  { ai_sessions: 2, ai_turns: 60,  input_ktok: 350,  output_ktok: 110, broker_hours: 1.5,  ci_minutes: 20, traditional_hours: 24 }
+  l:  { ai_sessions: 4, ai_turns: 140, input_ktok: 900,  output_ktok: 280, broker_hours: 4.0,  ci_minutes: 45, traditional_hours: 80 }
+  xl: { ai_sessions: 8, ai_turns: 320, input_ktok: 2200, output_ktok: 650, broker_hours: 10.0, ci_minutes: 90, traditional_hours: 200 }
+
+# Contingency percentage applied to the subtotal, by estimate confidence.
+contingency_pct:
+  high: 10
+  medium: 25
+  low: 50
+
+# Work-item type -> starting tier + confidence (estimator-v1 classification
+# comes from labels first, then title patterns; see engagements.py).
+types:
+  bug:      { base_tier: s,  confidence: medium }
+  feature:  { base_tier: m,  confidence: medium }
+  docs:     { base_tier: xs, confidence: high }
+  deps:     { base_tier: xs, confidence: high }
+  ci:       { base_tier: s,  confidence: medium }
+  security: { base_tier: s,  confidence: medium }
+  epic:     { base_tier: xl, confidence: low }
+  chore:    { base_tier: xs, confidence: high }
+  question: { base_tier: xs, confidence: high }
+  unknown:  { base_tier: m,  confidence: low }

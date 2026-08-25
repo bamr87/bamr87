@@ -1,0 +1,135 @@
+name: standard-ci
+
+# Reusable CI gate for bamr87 submodules — the shared "standard" a member repo
+# adopts with a short caller workflow (see templates/standard-ci/ci.yml, dropped
+# in by standardize-fanout.yml). Auto-detects the stack and runs lint + test +
+# build; every step is guarded so a repo only runs what applies to it.
+#
+# Call it from a member repo:
+#   jobs:
+#     ci:
+#       uses: bamr87/bamr87/.github/workflows/standard-ci.yml@main
+#       secrets: inherit
+#
+# TWO GATES, DELIBERATELY
+# -----------------------
+# The fleet has a second, fuller reusable gate — bamr87/.github's `ci.yml`
+# (detect → test/lint/build/docs/commitlint/CodeQL). They are not redundant and
+# this one is not being folded into it:
+#
+#   standard-ci.yml (here)   ONE job. The baseline every repo can afford.
+#   .github/ci.yml           SIX jobs incl. a CodeQL matrix. For release-grade
+#                            repos, adopted via templates/release-pipeline/.
+#
+# Collapsing this into the fuller gate would multiply the fleet's per-push
+# runner count by ~6 across ~40 repos — the exact waste the analytics layer
+# exists to hunt. Pick the gate by tier (_data/standards.yml): `experiment` and
+# `content` repos take this one, `active` repos take the full one.
+#
+# TOOLCHAIN VERSIONS
+# ------------------
+# Resolution order per language: an explicit caller input, else the CALLING
+# repo's `vars.*` variable, else the built-in default. The middle rung is what
+# makes `dash config sync` able to bump a version across the whole fleet from
+# _data/fleet.yml without editing 40 workflows. Inputs default to "" on purpose
+# — a non-empty default would always win and mask the variable.
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: ""
+      python-version:
+        type: string
+        default: ""
+      ruby-version:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  NODE_V: ${{ inputs.node-version || vars.NODE_VERSION || '20' }}
+  PYTHON_V: ${{ inputs.python-version || vars.PYTHON_VERSION || '3.12' }}
+  RUBY_V: ${{ inputs.ruby-version || vars.RUBY_VERSION || '3.3' }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # ---------------------------- Node -----------------------------------
+      - name: Setup Node
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_V }}
+          # Cache ~/.npm between runs. Only enabled when a lockfile exists —
+          # setup-node hard-fails if `cache` is set and it can't find one.
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
+      - name: Install (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Lint / test / build (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          npm run lint --if-present
+          npm test --if-present
+          npm run build --if-present
+
+      # --------------------------- Python ----------------------------------
+      - name: Setup Python
+        if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_V }}
+          # Cache the pip download cache. Only enabled when a file the cache can
+          # key on exists — setup-python errors out on an unmatched dep path.
+          cache: ${{ hashFiles('requirements.txt', 'requirements/*.txt', 'requirements-dev.txt', 'pyproject.toml') != '' && 'pip' || '' }}
+          cache-dependency-path: |
+            requirements.txt
+            requirements/*.txt
+            requirements-dev.txt
+            pyproject.toml
+      - name: Install (pip)
+        if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f pyproject.toml ]; then pip install -e . 2>/dev/null || pip install . 2>/dev/null || true; fi
+          for r in requirements.txt requirements/base.txt requirements-dev.txt requirements-dev.in; do
+            if [ -f "$r" ]; then pip install -r "$r" || true; fi
+          done
+          pip install pytest
+      - name: Test (pytest)
+        if: ${{ hashFiles('pyproject.toml', 'requirements.txt', 'requirements/*.txt', 'setup.py') != '' }}
+        run: |
+          # `run:` uses `bash -eo pipefail`, so the exit status MUST be captured
+          # with `set +e` — a bare `pytest -q; rc=$?` aborts the step on failure
+          # and never reaches the exit-5 handling below.
+          set +e
+          pytest -q
+          rc=$?
+          set -e
+          # exit code 5 = "no tests collected" — not a failure for the gate
+          if [ "$rc" -eq 5 ]; then echo "::notice::no tests collected"; rc=0; fi
+          exit "$rc"
+
+      # ------------------------- Ruby / Jekyll -----------------------------
+      - name: Setup Ruby
+        if: ${{ hashFiles('Gemfile') != '' }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_V }}
+          bundler-cache: true
+      - name: Test / build (ruby)
+        if: ${{ hashFiles('Gemfile') != '' }}
+        run: |
+          if bundle exec rake -T 2>/dev/null | grep -q ' test'; then bundle exec rake test
+          elif [ -d spec ]; then bundle exec rspec
+          elif grep -qi jekyll Gemfile; then bundle exec jekyll build
+          else echo "::notice::no ruby test/build target"; fi

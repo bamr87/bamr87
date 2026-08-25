@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 class ${RESOURCE_NAME.title()}Base(BaseModel):
     """Base model with common fields."""
     # Add ${RESOURCE_FIELDS}
-    
+
     class Config:
         populate_by_name = True
 
@@ -49,7 +49,7 @@ class ${RESOURCE_NAME.title()}(${RESOURCE_NAME.title()}Base):
     id: str
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
-    
+
     class Config:
         from_attributes = True
         populate_by_name = True
@@ -71,7 +71,7 @@ from app.models.${RESOURCE_NAME} import ${RESOURCE_NAME.title()}, ${RESOURCE_NAM
 class ${RESOURCE_NAME.title()}Service:
     def _use_cosmos(self) -> bool:
         return get_container() is not None
-    
+
     async def get_${RESOURCE_NAME}_by_id(
         self, ${RESOURCE_NAME}_id: str
     ) -> Optional[${RESOURCE_NAME.title()}]:
@@ -83,13 +83,13 @@ class ${RESOURCE_NAME.title()}Service:
             )
             return self._doc_to_${RESOURCE_NAME}(docs[0]) if docs else None
         return None
-    
+
     async def create_${RESOURCE_NAME}(
         self, data: ${RESOURCE_NAME.title()}Create, user_id: str
     ) -> ${RESOURCE_NAME.title()}:
         # Implementation
         pass
-    
+
     def _doc_to_${RESOURCE_NAME}(self, doc: dict) -> ${RESOURCE_NAME.title()}:
         return ${RESOURCE_NAME.title()}(**doc)
 ```

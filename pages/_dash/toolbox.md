@@ -7,8 +7,7 @@ permalink: /toolbox/
 
 # 🧰 Toolbox
 
-Everything reusable, in one place. Run any of these from the central CLI:
-`tools/dash run <tool>`, scaffold a new project with `tools/dash new <name>`.
+Everything reusable, in one place. Run any of these from the central CLI: `tools/dash run <tool>`, scaffold a new project with `tools/dash new <name>`.
 
 ## 🔧 Scripts
 

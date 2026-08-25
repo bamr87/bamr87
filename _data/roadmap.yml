@@ -1,0 +1,952 @@
+# =============================================================================
+# _data/roadmap.yml  —  THE FEATURE BACKLOG / ROADMAP (single source of truth)
+# =============================================================================
+# Every feature request captured by the Future-Features pipeline lands here:
+#   - `/future-features <idea>`  (manual entry point — one idea)
+#   - the `feature-scout` sub-agent (automatic — scans the session thread)
+#
+# This file is committed and reviewable. The dash Roadmap surface
+# (pages/_dash/roadmap.md) renders it, and entries optionally mirror to a
+# GitHub issue in the target repo once approved.
+#
+# WORKFLOW
+#   proposed  → drafted by the command/scout, awaiting human review/approval
+#   approved  → accepted into the backlog (next up for scoping)
+#   backlog   → planned, not yet started
+#   in-progress
+#   shipped   → delivered
+#   declined  → reviewed and rejected (kept for the record; set `reason`)
+#
+# Nothing is written here without human approval. The sub-agent only *proposes*;
+# a human approves before the entry is committed.
+#
+# -----------------------------------------------------------------------------
+# Schema (per entry):
+#   id          required  stable id, `FF-NNNN` (monotonic; never reuse)
+#   title       required  short imperative summary
+#   project     required  target project `name` from _data/projects.yml,
+#                         or `bamr87` for the root dash / this monorepo itself
+#   repo_url    required  GitHub repo the feature targets
+#   status      required  proposed | approved | backlog | in-progress | shipped | declined
+#   priority    required  P0 (now) | P1 (soon) | P2 (later) | P3 (someday)
+#   effort      required  S | M | L | XL  (rough t-shirt size)
+#   category    required  feature | enhancement | infra | docs | research | fix
+#   problem     required  the user/maintainer pain, in one or two sentences
+#   proposal    required  the proposed solution / what to build
+#   acceptance  required  list of acceptance criteria (what "done" looks like)
+#   scope       optional  { in: [...], out: [...] }  explicit in/out of scope
+#   risks       optional  list of risks / open questions
+#   source      required  where it came from: `manual`, `scout`, or `session:<id>`
+#   created     required  ISO date (YYYY-MM-DD)
+#   issue_url   optional  GitHub issue URL once mirrored (null until then)
+#   reason      optional  rationale when status is `declined`
+# =============================================================================
+
+- id: FF-0001
+  title: Future-Features pipeline — capture, spec, and backlog feature ideas
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: in-progress
+  priority: P1
+  effort: M
+  category: infra
+  problem: >-
+    Good feature ideas surface mid-conversation while working in a session and
+    are lost when the session ends. There is no consistent way to turn a passing
+    idea into a well-formed, reviewable feature request on the right repo's
+    roadmap.
+  proposal: >-
+    A Future-Features pipeline: a `/future-features` slash command that turns an
+    idea into a full spec and routes it to the correct repo's roadmap, plus a
+    `feature-scout` sub-agent wired to a session hook that scans the thread for
+    latent feature ideas and presents complete specs for human review before
+    anything is backlogged in this file.
+  acceptance:
+    - "`/future-features <idea>` drafts a full spec and, on approval, appends an entry here."
+    - "The target repo is resolved from _data/projects.yml (or `bamr87` for the root)."
+    - "A `feature-scout` sub-agent analyzes the conversation and proposes specs."
+    - "A SessionStart hook makes the workflow active in every Claude Code session."
+    - "A Stop hook nudges the scout when feature-signal language appears (throttled, opt-out)."
+    - "Nothing is committed to this file without explicit human approval."
+  scope:
+    in:
+      - slash command, sub-agent, hooks, this backlog file, dash Roadmap surface
+    out:
+      - automatic GitHub issue creation without approval
+      - cross-repo epics / dependency tracking
+  risks:
+    - Hook noise — mitigated by once-per-session throttling and an opt-out env var.
+    - Mis-routing an idea to the wrong repo — mitigated by a confirmation step.
+  source: manual
+  created: 2026-06-21
+  issue_url: null
+
+- id: FF-0002
+  title: "`tools/dash roadmap` CLI subcommand — list and add roadmap items from the terminal"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: S
+  category: feature
+  problem: >-
+    Capturing or reviewing roadmap items today means hand-editing
+    _data/roadmap.yml or running a full Claude session. There is no quick
+    terminal way to see what's on the roadmap or jot a new item — friction for
+    fast capture and for scripting.
+  proposal: >-
+    Add a `roadmap` subcommand to tools/dash following the existing cmd_* + case
+    dispatch: `tools/dash roadmap [list|add|next-id]`. `list` prints items
+    (filterable by --status/--project); `add` appends a schema-valid entry with
+    the next FF id (status proposed, source manual); reuse python3 + pyyaml.
+  acceptance:
+    - "`tools/dash roadmap list` prints items grouped by status; --status/--project filter."
+    - "`tools/dash roadmap add` appends a valid entry with the next FF-NNNN id, status proposed, source manual, created=today."
+    - "`tools/dash roadmap next-id` prints the next free id."
+    - "Output stays valid YAML, passes the roadmap schema check, and shows in `tools/dash help`."
+    - "Resolves --project to a registry name or `bamr87`; rejects unknown projects helpfully."
+  scope:
+    in:
+      - tools/dash roadmap subcommand (list/add/next-id) + schema validation
+    out:
+      - editing/deleting existing items
+      - GitHub issue sync (stays in /future-features)
+      - a TUI
+  risks:
+    - pyyaml round-trip may reorder keys / drop header comments — append text, don't re-dump.
+    - Keep id allocation consistent with the slash command (single next-id source).
+  source: manual
+  created: 2026-06-21
+  issue_url: null
+
+- id: FF-0003
+  title: "AI cost telemetry via OpenTelemetry — local collector stack with per-prompt drill-down (finance-ai Layer 2)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: L
+  category: infra
+  problem: >-
+    The AI-activity layer (tools/dash ai, .github/scripts/dash-gen/ai_activity.py)
+    is pull-based and daily-grained. It can say what a repo cost per day at list
+    prices, but not which prompt, skill, agent, or MCP server burned the tokens,
+    and there is no live view of spend while a session is running. Request-level
+    questions ("why was Thursday $9?") currently have no answer surface.
+  proposal: >-
+    Opt into Claude Code's native OTel instrumentation and stand up a local,
+    opt-in backend. Add a `telemetry` profile to docker-compose.yml with four
+    services (otel-collector, prometheus, loki, grafana) and provisioned config
+    checked into the repo, plus a documented managed-settings/env template that
+    sets CLAUDE_CODE_ENABLE_TELEMETRY=1 and points OTLP metric/log exporters at
+    the local collector. Ship one provisioned Grafana dashboard implementing the
+    question tiers from finance-ai.md — estimated spend over time, split by model
+    and query_source, cache-read ratio, and session→prompt drill-down via Loki
+    queries on prompt.id. Single machine, single developer, local-only.
+  acceptance:
+    - "`docker compose --profile telemetry up -d` starts otel-collector + prometheus + loki + grafana with provisioned datasources/dashboards committed to the repo."
+    - "A documented settings template (managed settings or ~/.claude/settings.json env block) enables telemetry and targets the local collector; no endpoints or tokens are hard-coded elsewhere."
+    - "claude_code.cost.usage and claude_code.token.usage are queryable in Prometheus; user_prompt/api_request/tool_result events land in Loki and filter by prompt.id."
+    - "The committed Grafana dashboard shows spend over time, per-model/query_source split, cache-read ratio, and links a session to its prompt-level events."
+    - "Local-only is preserved: telemetry services never run in CI and the published dash stays free of spend data."
+    - "docs/DASH.md documents the layer split — ledger scan is retroactive history, OTel is forward-looking drill-down — and that dollar figures remain estimates."
+  scope:
+    in:
+      - docker-compose.yml `telemetry` profile + collector/prometheus/loki/grafana provisioning
+      - managed-settings / env rollout template and docs
+      - one provisioned Grafana dashboard
+    out:
+      - Layer 3 Admin APIs (org-level reporting)
+      - multi-user fleet rollout, auth hardening, cloud backends
+      - replacing the JSONL ledger (OTel only captures forward from enablement)
+      - traces beta (CLAUDE_CODE_ENHANCED_TELEMETRY_BETA) beyond a docs note
+  risks:
+    - Metric cardinality — session-id/account-uuid labels can explode Prometheus series; keep OTEL_METRICS_INCLUDE_SESSION_ID off by default.
+    - Prometheus/Loki volumes grow unbounded without retention limits — set retention in the provisioned config.
+    - The managed-settings path differs per OS (macOS vs Linux container) — document both or prefer the user settings env block.
+    - Four extra containers is heavy for one developer — the compose profile must keep the stack strictly opt-in.
+  source: scout
+  created: 2026-07-06
+  issue_url: null
+
+- id: FF-0004
+  title: "Per-run AI cost ledger and --max-budget-usd guardrails for headless agent invocations"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P1
+  effort: M
+  category: infra
+  problem: >-
+    Headless invocations — the weekly unified-evolution.yml Claude pass and any
+    local `claude -p` scripting — bypass the AI-activity ledger entirely, since
+    CI runners have their own ~/.claude and the local scan never sees them. They
+    also run uncapped in dollar terms; the only guardrail today is
+    `--max-turns 30`. A misbehaving automation run has no budget ceiling and
+    leaves no cost record.
+  proposal: >-
+    Use the per-run accounting Claude Code already emits. Add a wrapper
+    (`tools/dash ai run -- <args>`) that invokes `claude -p --output-format
+    json` with a default --max-budget-usd, parses session_id, usage, and
+    total_cost_usd from the result, and merges a record into a new `runs`
+    section of ~/.claude/ai-activity-ledger.json; render headless runs as their
+    own table on /ai-activity/. In CI, add an explicit --max-budget-usd to
+    claude_args in unified-evolution.yml, write the run's total_cost_usd to the
+    job summary, and upload the raw result JSON as a workflow artifact.
+  acceptance:
+    - "`tools/dash ai run -- <prompt/args>` wraps claude -p, enforces a default budget cap, and appends {timestamp, machine, repo, session_id, models, usage, total_cost_usd, source} to the ledger's runs section."
+    - "unified-evolution.yml passes an explicit --max-budget-usd and a budget abort is loud (job annotation/failure), not silent."
+    - "Each CI evolution run publishes total_cost_usd in the GitHub Actions job summary and uploads the result JSON as an artifact."
+    - "`tools/dash ai` renders headless runs as a distinct table on /ai-activity/, never blended into interactive-session estimates."
+    - "Run records dedupe by session_id so a local headless run is not double-counted by the JSONL scan."
+    - "The run-record schema is documented in .github/scripts/dash-gen/README.md."
+  scope:
+    in:
+      - wrapper subcommand, ledger `runs` section, /ai-activity/ rendering
+      - budget cap + cost surfacing in unified-evolution.yml
+    out:
+      - automatic sync of CI run records into the local ledger (artifact download/import stays manual)
+      - budget enforcement for interactive sessions
+      - a database — the JSON ledger is sufficient at this scale
+  risks:
+    - claude-code-action@v1 may not expose the result JSON directly — verify whether claude_args + its execution log yield total_cost_usd before committing to the CI half.
+    - A budget abort mid-evolution leaves partial work on the branch — pick generous caps and make the abort path explicit.
+    - Cost figures are still estimates on subscription auth; label them as such everywhere they surface.
+  source: scout
+  created: 2026-07-06
+  issue_url: null
+
+- id: FF-0005
+  title: "ccusage reconciliation check and opt-in MCP burn-rate self-awareness for the AI-activity layer"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: S
+  category: enhancement
+  problem: >-
+    The shadow-pricing math in ai_activity.py rests on a hand-maintained PRICING
+    table (last refreshed 2026-06-24), alias resolution, and homegrown dedupe.
+    A new model id, a list-price change, or a dedupe regression would silently
+    skew every number on /ai-activity/ with no signal. Separately, agents have
+    no way to query their own burn rate mid-session, so cost economizing cannot
+    be an in-loop instruction.
+  proposal: >-
+    Two thin additions. (1) `tools/dash ai check` runs a pinned `npx ccusage
+    daily --json` over the same JSONL files and reconciles per-day and per-model
+    totals against the generator's report, warning past a configurable tolerance
+    and itemizing explainable deltas (unpriced models, intro-pricing divergence)
+    — an independent audit of the pricing table and dedupe logic. (2) A
+    documented, opt-in .mcp.json snippet for the ccusage MCP server so an agent
+    can answer "what has this session cost so far" and be instructed to
+    economize (switch models, compact, stop early).
+  acceptance:
+    - "`tools/dash ai check` prints a per-day/per-model delta table versus ccusage and exits non-zero (or warns unmistakably) beyond a configurable tolerance."
+    - "Explainable deltas — unpriced models, known pricing divergences — are itemized separately from unexplained drift."
+    - "The ccusage version is pinned in the check so schema changes fail loudly instead of skewing the comparison."
+    - "A documented .mcp.json snippet adds the ccusage MCP server as an explicit opt-in; it is not enabled by default."
+    - "docs/DASH.md's AI-activity section documents the check cadence and the self-awareness pattern."
+  scope:
+    in:
+      - reconciliation subcommand + tolerance config
+      - opt-in MCP snippet and docs
+    out:
+      - treating ccusage as the source of truth (the ledger stays authoritative)
+      - auto-updating the PRICING table from ccusage output
+      - scheduled/CI reconciliation (the data is local-only)
+  risks:
+    - ccusage is third-party — JSON schema and its own pricing source can change; pinning mitigates but does not eliminate drift.
+    - Day bucketing may differ (timezones) — compare in a fixed timezone or tolerate day-boundary noise.
+    - An always-on MCP server adds session startup overhead and context — keep it opt-in.
+  source: scout
+  created: 2026-07-06
+  issue_url: null
+
+- id: FF-0006
+  title: "Impact verification for actions-review issues — measure before/after waste per filed optimization"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    The Actions AI-reviewer loop (actions_review.py + actions-review.yml) files
+    one optimization issue per worst-offending workflow, but nothing measures
+    whether a filed or resolved issue actually reduced that workflow's waste. The
+    reviewer's own ROI — is the Opus spend buying real minute savings? — is
+    unmeasured, and recommendations that worked can't be told apart from ones that
+    were ignored or made no difference.
+  proposal: >-
+    Add a deterministic follow-up pass (e.g. `tools/dash-gen actions-impact`, or a
+    step after the reviewer) that, for each `actions-review` issue (identified by
+    the hidden `<!-- actions-review key="..." -->` marker), compares the target
+    workflow's current analytics metrics (waste_min, effectiveness_pct, avg_min,
+    total_min) against a baseline captured when the issue was filed, computes a
+    before/after delta, and posts/updates an issue comment (and/or a small
+    committed impact ledger keyed by marker) — e.g. "waste 62m → 8m (-87%) since
+    #NN." Requires persisting the baseline snapshot at issue-creation time (in the
+    issue body next to the marker, or a committed ledger), since actions_usage.yml
+    is overwritten daily. Surface an aggregate "minutes recovered by the reviewer
+    loop" figure on /actions/.
+  acceptance:
+    - "Each actions-review issue records a baseline metric snapshot (waste/effectiveness/avg/total) at creation time, keyed by its marker."
+    - "A follow-up pass recomputes the same metrics from the latest analytics and posts a before/after delta per open/resolved issue."
+    - "Workflows that improved past a threshold are flagged (optionally auto-commented / close-suggested); issues with no improvement after N days are flagged stale/ineffective."
+    - "The /actions/ page shows an aggregate 'minutes recovered since issue filed' for resolved recommendations."
+    - "The measurement runs deterministically without the AI step (impact is computed in code, not by a model)."
+    - "Degrades gracefully when a target workflow was renamed or deleted between baseline and recompute."
+  scope:
+    in:
+      - baseline capture at issue creation, delta-recompute pass, per-issue comment + aggregate /actions/ surfacing
+    out:
+      - automatic issue closing without human confirmation
+      - causal attribution of the improvement to the fix (report it as observational/correlational)
+  risks:
+    - Correlation is not causation — a workflow may improve for unrelated reasons; label deltas as observational.
+    - Baseline needs durable storage (issue-body marker or committed ledger) because actions_usage.yml is overwritten daily.
+    - Workflow rename/deletion breaks the marker→workflow key match — handle missing targets explicitly.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
+
+- id: FF-0007
+  title: "Retain a rolling Actions-analytics history and flag regressions/anomalies day-over-day"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: M
+  category: infra
+  problem: >-
+    actions_analytics writes a single committed snapshot (_data/actions_usage.yml)
+    that is overwritten daily. There is no retained history, so a workflow that
+    suddenly regresses — jumps from 40m to 400m, or whose success rate collapses —
+    is invisible beyond that day's numbers, and nothing proactively surfaces it;
+    you'd only catch it by manually diffing the page.
+  proposal: >-
+    Retain a compact, bounded time series of the per-workflow/per-repo metrics
+    (append a committed history file such as _data/actions_usage_history.yml keyed
+    by date + workflow marker, rolled to a retention window) and add a regression
+    detector to the daily pass that compares the latest window against a trailing
+    baseline, flagging workflows whose total_min/avg_min/waste_min spiked or whose
+    effectiveness/success_rate dropped beyond configurable thresholds. Render
+    regressions as a distinct band on /actions/ and optionally feed a `regressed`
+    flag into the actions-review candidate selection so a fresh regression is
+    prioritized. This history is also the substrate FF-0006 needs for baselines.
+  acceptance:
+    - "The daily pass appends a compact per-workflow metric history that stays committable, small, and bounded to a retention window/rollup."
+    - "A regression check flags workflows whose total_min/avg_min/waste_min rose or whose effectiveness/success_rate fell beyond configurable thresholds vs a trailing baseline."
+    - "Regressions render as a distinct 'newly regressed' section on /actions/ with before/after numbers."
+    - "actions_review.select() can prioritize a `regressed` flag so fresh regressions enter the work order."
+    - "Regression thresholds are tunable constants alongside the existing analytics thresholds."
+    - "History-file growth is bounded and the bound is enforced (verified so the drift gate stays green)."
+  scope:
+    in:
+      - bounded history-retention file, regression detector + thresholds, /actions/ surfacing, optional select() integration
+    out:
+      - external alerting (email/Slack) — page surfacing + feeding the reviewer is enough
+      - a full time-series database (bounded YAML/JSON is sufficient at this scale)
+  risks:
+    - A committed history file can grow unbounded — enforce a retention window/rollup.
+    - Naturally spiky workflows create noise — require a minimum absolute delta plus a percentage.
+    - Window overlap could double-count — key strictly by date.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
+
+- id: FF-0008
+  title: "Let the Actions reviewer open high-confidence mechanical fix PRs into submodules (opt-in)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: L
+  category: feature
+  problem: >-
+    The Actions AI-reviewer only FILES issues; a human must still open every fix
+    PR into the submodule. For a class of high-confidence, mechanical fixes —
+    missing `concurrency: cancel-in-progress`, missing `timeout-minutes`, obvious
+    dependency caching, an over-frequent cron — that round-trip is pure toil, and
+    many issues will sit unactioned.
+  proposal: >-
+    Extend the loop with an opt-in "fix" mode that, for candidates whose
+    recommended change is mechanical and high-confidence, opens ONE draft PR
+    directly into the target submodule — reusing the standardize-fanout /
+    unified-evolution claude-code-action pattern and reading the submodule's branch
+    from .gitmodules/the registry (never assuming main). Each PR links back to its
+    originating actions-review issue and stays strictly gated: an allowlist of
+    change types, a per-run PR cap, draft-only, requires ANTHROPIC_API_KEY plus a
+    dedicated fine-grained PAT with contents/PR write, and dry-run by default.
+    Low-confidence or non-mechanical findings continue to file issues only.
+  acceptance:
+    - "An opt-in mode opens at most a capped number of DRAFT PRs per run, only for an allowlisted set of mechanical fixes (concurrency, timeout-minutes, caching, cron cadence)."
+    - "Each PR targets the correct submodule + branch (read from .gitmodules/registry, not assumed main), references the source actions-review issue, and contains only the scoped change."
+    - "Non-mechanical or low-confidence candidates fall back to issue-only (current behavior)."
+    - "The mode is off by default, requires explicit dispatch/flag, and is skipped when the required secrets are absent."
+    - "PRs dedupe against already-open fix PRs for the same workflow marker."
+    - "docs/DASH.md documents the escalation ladder: measure → file issue → (opt-in) draft fix PR."
+  scope:
+    in:
+      - opt-in fix mode, mechanical-change allowlist, draft PR into the submodule, issue linkage, guardrails
+    out:
+      - auto-merge of the fix PRs
+      - non-mechanical / semantic fixes
+      - touching more than one workflow per PR
+  risks:
+    - Opening PRs across ~36 external submodule repos automatically is high-blast-radius — draft-only, capped, allowlisted, opt-in.
+    - Submodule branch/permission variance — must read the branch from the registry and hold a PAT scoped to the fleet.
+    - A wrong "mechanical" fix (e.g. too-low timeout) could break CI — keep the allowlist conservative and PRs draft for human review.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
+
+- id: FF-0009
+  title: "Surface Actions waste and open actions-review issues on the /monitor/ attention board"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P3
+  effort: S
+  category: enhancement
+  problem: >-
+    Actions waste and the AI reviewer's open `actions-review` issues live only on
+    /actions/ and in the bamr87 issue tracker, disconnected from the /monitor/
+    attention board (which ranks repos by health: CI, issues, PRs, security,
+    activity). A repo bleeding CI minutes or carrying open optimization issues
+    doesn't raise its attention rank or show up where a maintainer triages.
+  proposal: >-
+    Fold Actions signals into the monitor surface: join per-repo Actions waste
+    (from actions_usage.yml `by_repo`) and open actions-review issue counts into
+    the health/attention model so a high-waste or optimization-backlogged repo is
+    reflected on /monitor/, and/or add a compact "Actions attention" strip linking
+    each flagged workflow to its /actions/ row and its optimization issue. Read-only
+    aggregation over existing committed/generated data — no new collection.
+  acceptance:
+    - "The /monitor/ board (or an adjacent strip) shows per-repo Actions waste and open actions-review issue count from existing data files."
+    - "A repo with significant Actions waste or open optimization issues is visibly surfaced (badge/column or a modest attention-rank contribution)."
+    - "Links connect a flagged repo to its /actions/ detail and its open optimization issue(s)."
+    - "No new API calls beyond joining actions_usage.yml with issue counts health already gathers."
+    - "Degrades cleanly when actions_usage.yml is absent."
+  scope:
+    in:
+      - join Actions waste + actions-review issue counts into the monitor surface; cross-links
+    out:
+      - materially rewriting the attention_rank algorithm (a modest signal contribution is fine)
+      - any new data collection beyond existing generated files
+  risks:
+    - Over-weighting Actions waste could drown out health signals — keep it a modest input or a separate strip.
+    - Public-repo minutes are free, so waste is an effort signal, not a dollar signal — label accordingly.
+  source: scout
+  created: 2026-07-13
+  issue_url: null
+
+- id: FF-0010
+  title: "Fleet facts parser — recurse into local composite actions and called reusable workflows"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P1
+  effort: M
+  category: enhancement
+  problem: >-
+    The Fleet Ops facts parser (app/src/fleet/facts.ts) reads only the workflow
+    file itself. Steps that call ./.github/actions/*/action.yml composites or
+    reusable workflows are opaque, and the fleet survey showed roughly 90% of
+    the AI/sink logic (claude-run composites, token chains, gh side effects)
+    hides there in some repos — so facts, alignment audits, and S–D grades
+    materially under-report reality for exactly the repos that matter most.
+  proposal: >-
+    When scanning a repo, additionally fetch local composite action.yml files
+    referenced via `uses: ./...` and same-repo reusable-workflow calls, run
+    them through the same facts extractor, and merge the child facts (auth
+    chain, kill switches, pinning, side effects, provenance headers) into the
+    calling job's facts with provenance tags saying which facts came from a
+    composite. Bound recursion depth, make it cycle-safe, and keep fetches
+    ETag-conditional. Cross-repo reusable workflows resolve when the target
+    repo is already in the roster; otherwise they are marked
+    "external — unresolved" instead of silently ignored.
+  acceptance:
+    - "A step `uses: ./.github/actions/<name>` pulls that action.yml, parses it, and merges its facts (auth, tools, side effects, pinning) into the job's facts."
+    - "Same-repo reusable-workflow calls are resolved and merged the same way; roster-resolvable cross-repo calls resolve one hop."
+    - "Merged facts carry provenance so the cockpit can show which facts came from a composite versus the workflow file."
+    - "Recursion is depth-bounded and cycle-safe; unresolved external targets render an explicit 'unresolved' marker, never silence."
+    - "Fetches are ETag-conditional/cached so a roster scan does not multiply API calls per workflow."
+    - "Alignment-audit rules re-evaluate over merged facts; a test fixture covers a previously-hidden finding (e.g. OAuth-first auth living inside a claude-run composite)."
+  scope:
+    in:
+      - local composite actions, same-repo reusable workflows, one-hop roster-resolvable cross-repo reusable workflows
+    out:
+      - recursing into third-party marketplace actions' source
+      - transitive cross-repo graphs beyond one hop
+  risks:
+    - API-call multiplication on large rosters — fetch only referenced paths and cache aggressively.
+    - Merge semantics need care — a kill switch inside a composite does not necessarily gate the whole workflow; audit rules must distinguish.
+    - Reusable-workflow `with:`/`secrets:` indirection can defeat simple token-chain tracing — degrade to "indirect" rather than guessing.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0011
+  title: "Fleet-audit work orders — sweep open issues for the dedup marker before filing"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P1
+  effort: S
+  category: enhancement
+  problem: >-
+    The audit board's one-click work-order filing embeds a
+    `<!-- gitorio-fleet-audit key="..." -->` marker in the issue body, but
+    dedup only remembers issues filed in the current session (in-memory in
+    app/src/state/fleetops.ts). Reopening the cockpit — or a second operator —
+    can file duplicate work orders into target repos, which is spam in other
+    repos' trackers.
+  proposal: >-
+    Before filing, list the target repo's open issues and scan bodies for a
+    marker with the same key, mirroring the dash's actions-review dedupe. On a
+    hit, skip filing and render the finding as a link to the existing issue
+    (with its state) instead of a file button. Cache the sweep per repo per
+    session so the board does not re-list issues on every render.
+  acceptance:
+    - "Filing first checks the target repo's open issues for a matching marker key and aborts with a link to the existing issue when found."
+    - "The audit board renders already-filed findings as 'filed -> #NN' links, not duplicate file buttons."
+    - "Sweep results are cached per repo per session (conditional requests where possible)."
+    - "Closed marker issues do not block re-filing (a resolved finding can recur), or blocking is an explicit user choice."
+    - "A test covers the marker round-trip: a filed body is detected by the sweep with the same deterministic key."
+  risks:
+    - Issue-list/search rate limits on big rosters — sweep lazily (only for repos with pending findings).
+    - Key stability — the finding key must be deterministic across rescans or dedup silently fails.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0012
+  title: "Persist fleet scan results (ETags, facts, metrics) to localStorage for instant cockpit reopen"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    Fleet snapshots are in-memory only: every cockpit open rescans the whole
+    roster (workflows, facts, runs, audits), which is slow against a ~40-repo
+    hub roster and burns API quota even when nothing changed.
+  proposal: >-
+    Persist per-repo scan results — ETags, parsed facts, computed metrics,
+    audit results, timestamps — to localStorage keyed by owner/repo. Hydrate
+    the cockpit instantly from cache with a visible "cached, revalidating"
+    state, then revalidate in the background with conditional requests
+    (unchanged repos cost 304s). Keep the existing discipline: slugs and data
+    only, never tokens. Version the cache schema and bound its size with
+    eviction so shape changes and quota limits invalidate cleanly.
+  acceptance:
+    - "Reopening the cockpit renders the last snapshot instantly from cache with a visible cached/revalidating indicator."
+    - "Background revalidation uses stored ETags; unchanged repos resolve via 304, changed repos refresh in place."
+    - "No token or secret ever lands in localStorage; only slugs, ETags, and parsed data."
+    - "The cache is schema-versioned and size-bounded with eviction; corrupt or old-version caches fall back to a clean scan."
+    - "A manual hard-refresh control bypasses the cache entirely."
+  risks:
+    - localStorage's ~5MB quota versus 40 repos of facts — store compact derived facts, not raw YAML, and prune.
+    - Stale grades presented as current — the cached state must be visibly labeled until revalidation completes.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0013
+  title: "One-click kill-switch arm/disarm from the fleet Schedule board (confirmed mutation)"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: S
+  category: feature
+  problem: >-
+    The Schedule board shows each factory's *_ENABLED kill switch as
+    armed/disarmed but read-only; flipping one means leaving the cockpit for
+    the repo's Settings > Variables page, even though the GitHub client
+    already implements setVariable (used by the Content tab for the connected
+    repo). The cockpit displays a control panel it cannot operate.
+  proposal: >-
+    Add arm/disarm controls to the Schedule board (and district cards) using
+    the existing repo-variable client methods, gated by an explicit
+    confirmation dialog — it is a mutation on a target repo — that names the
+    repo, the variable, the old and new value, and the consequence. After a
+    toggle, re-read the variable so the board reflects GitHub reality, and
+    surface permission failures clearly.
+  acceptance:
+    - "Each *_ENABLED kill switch on the Schedule board has an arm/disarm control wired to the variables API."
+    - "A confirmation dialog states repo, variable, old -> new value, and consequence; no write happens without it."
+    - "Insufficient PAT scope / 403 shows a clear error and leaves displayed state untouched (state re-read after failure)."
+    - "State is re-read after every toggle; the board never trusts optimistic state alone."
+    - "Controls are disabled in read-only/observe contexts."
+  risks:
+    - Accidental disarm/arm of a production factory — consider a stronger confirm (type the repo name) for arming.
+    - The toggled variable name must match the gate the workflow actually checks (derived from parsed facts, not convention guessing).
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0014
+  title: "Fleet-wide generated-workflow drift board — diff factory--*.yml against blueprints across the roster"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: M
+  category: feature
+  problem: >-
+    Generated factory--*.yml files carry a blueprint hash and MANUAL EDIT
+    markers, and a single-repo drift banner exists, but there is no
+    fleet-wide view. A hand-patched generated workflow diverges silently from
+    its blueprint and its siblings — observed for real: lifehacker's
+    factory-1 rate limiter was hand-patched to exit 0 while factory-2 still
+    exits 1.
+  proposal: >-
+    A Fleet drift board: for each roster repo with a .factory/, recompile each
+    blueprint with the pure compiler and diff against the deployed
+    factory--*.yml (and/or compare the embedded hash), classifying each as
+    in-sync, hand-edited (hash mismatch), or blueprint-stale (fresh compile
+    differs). Group sibling repos generated from the same template whose
+    outputs have skewed apart. Read-only, cache-friendly, no writes.
+  acceptance:
+    - "The board lists, per roster repo, each factory--*.yml with a drift status: in-sync, hand-edited, or blueprint-stale."
+    - "Selecting a drifted workflow shows the diff between deployed YAML and a fresh compile of its blueprint."
+    - "Sibling skew is surfaced: repos sharing a blueprint/template whose generated outputs differ are grouped together."
+    - "Detection is read-only with conditional requests; repos without .factory/ are skipped silently."
+    - "Compiler-version skew is surfaced (old-compiler output flagged as 'stale compiler', not falsely 'hand-edited')."
+  risks:
+    - Compiler evolution creates false stale positives on old deployments — the status taxonomy must distinguish compiler drift from hand edits.
+    - Diff noise from headers/hashes — normalize before diffing.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0015
+  title: "Billable-cost model — runner-pricing table turning wall-clock minutes into dollars"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    The fleet metrics port (app/src/fleet/metrics.ts, mirroring the dash's
+    actions-analytics formulas) prices cost as raw wall-clock minutes: a
+    macOS-runner minute counts the same as a Linux one, and public (free
+    minutes) versus private (billed) repos are indistinguishable. "Compute
+    burned" cannot be read as dollars, which private-repo fleets actually pay.
+  proposal: >-
+    Add a versioned runner-pricing table (linux/windows/macos multipliers and
+    per-minute rates, optional larger-runner entries) applied per job from its
+    runs-on labels, with an explicit unknown-runner fallback. Classify roster
+    repos public (label dollar figures as notional/included) versus private
+    (billable). Surface both minutes and estimated dollars on the HUD,
+    district cards, and leaderboards. Keep the table a documented standalone
+    constant so the dash's Python analytics can adopt the identical table
+    later.
+  acceptance:
+    - "Per-job cost applies the runner-OS rate/multiplier from a single documented pricing table; repo and fleet totals show minutes and estimated dollars."
+    - "Public repos label dollars as 'included minutes — notional'; private repos label them billable."
+    - "Runner OS derives from runs-on labels with an explicit default-rate fallback for unknown/self-hosted runners."
+    - "The pricing table is versioned, carries a source link to GitHub's pricing doc and a last-reviewed date."
+    - "Leaderboards can rank by dollars or minutes; the new formulas are unit-tested."
+  scope:
+    in:
+      - pricing table, per-job OS resolution, public/private labeling, HUD/cards/leaderboard surfacing
+    out:
+      - querying the GitHub billing API for real entitlements/included-minute balances
+      - upstreaming the table into the dash's actions_analytics.py (candidate follow-up item)
+  risks:
+    - GitHub pricing changes silently — the review date makes staleness visible but not impossible.
+    - Self-hosted runners bill $0 on GitHub but cost real money — label as self-hosted, do not guess a rate.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0016
+  title: "Auto-remediation draft PRs for mechanical fleet-audit findings (opt-in)"
+  project: gitorio
+  repo_url: https://github.com/bamr87/gitorio
+  status: approved
+  priority: P3
+  effort: L
+  category: feature
+  problem: >-
+    Mechanical audit findings — missing concurrency block, missing
+    timeout-minutes, floating @main pins — are filed as issues a human must
+    still turn into PRs. For deterministic single-block YAML edits that
+    round-trip is pure toil, issues rot unactioned, and the cockpit's
+    "maintain" loop stays open-ended.
+  proposal: >-
+    For an allowlisted set of mechanical rules, generate the exact YAML patch
+    client-side and open a DRAFT PR in the target repo (branch + contents API
+    + PR — machinery gitorio's deploy path already has) as an alternative to
+    filing an issue. Strictly gated: per-action opt-in with a diff preview and
+    confirm, draft-only, one finding per PR, a dedup marker in the PR body
+    (extending the FF-0011 sweep to PRs), a per-session cap, and never
+    patching generated factory--*.yml directly — those route to the blueprint
+    or refuse with an explanation.
+  acceptance:
+    - "Allowlisted mechanical findings offer 'Open fix PR' beside 'File issue'; the draft PR contains only the scoped change on a fresh branch."
+    - "PR bodies carry a dedup marker; an open fix PR for the same finding key suppresses duplicates."
+    - "Generated factory--*.yml files are never patched directly — the flow routes to the blueprint or refuses, explaining why."
+    - "Edits are surgical (formatting/comments preserved) and shown as a diff before an explicit confirm."
+    - "Branch name, commit message, and PR body follow a documented convention linking the audit rule."
+    - "A per-session PR cap is enforced; 403/protected-branch failures surface clearly."
+  scope:
+    in:
+      - allowlist (concurrency, timeout-minutes, action pinning), draft PR flow, dedup marker, caps
+    out:
+      - auto-merge of any fix PR
+      - semantic/non-mechanical fixes
+      - patching generated files
+  risks:
+    - YAML round-trip fidelity — naive parse/re-dump destroys comments and formatting; needs a surgical text-level edit.
+    - Overlap with the dash's FF-0008 reviewer fix-PR loop — the two must not double-file on the same repos; markers should be mutually detectable.
+    - A wrong mechanical value (e.g. too-low timeout) can break CI — conservative defaults and draft-only are mandatory.
+  source: scout
+  created: 2026-07-17
+  issue_url: null
+
+- id: FF-0017
+  title: "Kit-version drift visibility — dash audit column + fanout dry-run report, and scaffold-aware AGT status"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P1
+  effort: S
+  category: enhancement
+  problem: >-
+    Seeded agent-context kit files now carry a `kit: agent-context vX.Y.Z` stamp
+    (kit 0.3.0), but nothing reports version drift — which is exactly the blind
+    spot that left 36 of 37 fleet repos stranded on the 0.1.0 claude.yml for
+    weeks with no surface showing it. Separately, `dash audit` counts an
+    unfilled TODO-scaffold CLAUDE.md as satisfying agent_context (green AGT),
+    overstating fleet conformance.
+  proposal: >-
+    Teach tools/audit-standards.sh (dash audit) to parse the kit stamp from
+    seeded files (claude.yml, .claude/settings.json, machine-seeded CLAUDE.md)
+    and render a per-repo kit-version annotation, flagging repos behind
+    templates/agent-context/VERSION. Add a fanout.sh dry-run summary that
+    prints, per target, current vs latest kit version and whether --upgrade
+    would apply (byte-identical machine-seeded copy) or skip (hand-modified).
+    Downgrade unfilled scaffolds: a CLAUDE.md matching the kit's TODO-scaffold
+    fingerprint renders amber (present-but-scaffold) in the AGT column instead
+    of green.
+  acceptance:
+    - "`tools/dash audit` shows each repo's agent-context kit version parsed from stamps and visibly flags versions older than templates/agent-context/VERSION."
+    - "`tools/fanout.sh --upgrade` without --apply prints per-target: current version, latest version, and upgradeable vs hand-modified (skipped)."
+    - "A CLAUDE.md still matching the unfilled kit scaffold fingerprint renders amber/scaffold in AGT, not green; a filled one stays green."
+    - "Unstamped pre-0.3.0 seeded files render as 'unstamped (≤0.1.0)', never as parse errors."
+    - "The audit legend and the relevant docs (docs/DASH.md or the audit's own header) document the new column and the amber state."
+  scope:
+    in:
+      - stamp parsing in audit-standards.sh, fanout dry-run version report, scaffold fingerprint check
+    out:
+      - auto-upgrading stale repos (that stays an explicit --upgrade --apply dispatch)
+      - version tracking for non-kit .claude content (repo-local layers are unversioned by design)
+  risks:
+    - Stamp parsing must tolerate hand-edited files — treat unparseable stamps as 'modified', never fail the audit.
+    - Scaffold detection keyed on a template fingerprint, not the mere word TODO, to avoid false-amber on legitimately terse CLAUDE.md files.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+# FF-0018 diff-first gate PASSED 2026-08-07 (read-only fork analysis): dispatch.py
+# byte-identical; zer0's triage.py is a STRICT SUPERSET of it-journey's (no
+# conflicting edits, no fix missing from shared code). Plan corrections for the
+# build: (1) batching is shared engine code, NOT an it-journey feature — the two
+# config-gated features are verify-close + the protected/skip lane (both zer0);
+# the kit engine is zer0's file essentially as-is. (2) De-hardcode the
+# "backlog-managed" policy string from verify_candidate (zer0 triage.py:380) —
+# key off action=="skip" or a verify.exclude config list. (3) Fold in: cmd_status
+# + dispatch "skipped"-batch filtering bugs, dead budget.yml policy: block,
+# unread labels.verified key, zer0's job-level autopilot:go gate filter (adopt
+# fleet-wide), it-journey's SHA-pinned actions (adopt fleet-wide), promote
+# GH_FETCH_LIMIT + bot heuristics to config. (4) test_verify_close.py is wired
+# into NOTHING — kit CI must run the suite; add engine tests for the
+# human-close-downgrade guardrail, any_of semantics, verify_candidate exclusions,
+# skip batching, caps, dispatch decide()/plan_is_stale, is_bot_author/infer_area.
+- id: FF-0018
+  title: "issue-autopilot hub kit — extract the duplicated issue-triage engine into templates/, policy stays per-repo"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P1
+  effort: L
+  category: infra
+  problem: >-
+    it-journey and zer0-mistakes each maintain a fork of the same ~1,000-line
+    issue-triage engine (scripts/issues/triage.py + dispatch.py) that is 92%
+    token-identical, plus near-identical issue-triage SKILL.md files and
+    issue-triager/issue-resolver agent skeletons. Every improvement is
+    hand-ported, and the forks have already drifted: zer0-mistakes grew an
+    issue-verifier (verify_close.py), it-journey grew batching — neither
+    reached the other.
+  proposal: >-
+    Create templates/issue-autopilot/ in the hub: the canonical engine
+    (triage.py, dispatch.py, verify_close.py), the issue-triage SKILL.md, the
+    triager/resolver/verifier agent skeletons, and a VERSION file with the same
+    `kit: issue-autopilot vX.Y.Z` stamp convention as agent-context. Converge
+    the forks by upstreaming both divergences into the kit as features gated by
+    .issues/config.yml flags (verify-close on/off, batch size). Per-repo policy
+    lives ONLY in .issues/config.yml, which the kit never seeds over. Seed and
+    re-sync via tools/fanout.sh / standardize-fanout.yml as an explicitly
+    requested, opt-in artifact set (dry-run default, additive-only, --upgrade
+    refreshes byte-identical machine-seeded copies only).
+  acceptance:
+    - "templates/issue-autopilot/ contains engine + SKILL.md + agent skeletons + VERSION, all carrying the kit stamp."
+    - "Fork-exclusive features (zer0's verify-close, it-journey's batching) exist in the kit engine, gated by .issues/config.yml flags."
+    - "fanout.sh seeds the kit as an opt-in artifact set: dry-run default, additive-only, never touches .issues/config.yml, --upgrade only replaces byte-identical machine-seeded copies."
+    - "it-journey and zer0-mistakes each adopt via one PR replacing their fork with the kit + their local config, with behavior parity on their existing triage runs."
+    - "The policy boundary (engine in kit, policy in .issues/config.yml) is documented in the kit's VERSION/README."
+    - "The agent-context kit's 'never fan out skills/agents' position is amended to name dedicated opt-in kits as the sanctioned exception."
+  scope:
+    in:
+      - kit extraction, fork convergence, fanout wiring, two adoption PRs
+    out:
+      - fanning the kit to repos that never had the engine (opt-in only, on request)
+      - changing either repo's triage policy or labels
+  risks:
+    - The 8% fork divergence may hide semantic conflicts beyond verifier/batching — diff both forks against the common ancestor before writing the canonical engine.
+    - A shared engine re-creates the stranded-version problem at higher stakes — depends on FF-0017-style version drift visibility covering this kit too.
+    - Behavior parity is hard to prove without tests — port zer0's test_verify_close.py into the kit and add engine-level tests before the adoption PRs.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+- id: FF-0019
+  title: "Theme-canary reporting contract — publish the canonical upstream bug-intake protocol for downstream theme-scouts"
+  project: zer0-mistakes
+  repo_url: https://github.com/bamr87/zer0-mistakes
+  status: approved
+  priority: P2
+  effort: M
+  category: feature
+  problem: >-
+    Two downstream consumers of the theme (it-journey, lifehacker.dev) each
+    independently invented a 'theme-scout' agent that files theme bugs upstream
+    into bamr87/zer0-mistakes — with different designs (deterministic crawler
+    vs manual heuristics), different labels, dedupe conventions, caps, and
+    evidence formats. The upstream repo has no say in its own intake: duplicate
+    or unactionable reports are only prevented by each consumer's private
+    convention.
+  proposal: >-
+    zer0-mistakes publishes the canonical reporting contract and owns the
+    intake furniture. A committed contract doc defines: required labels (e.g.
+    theme-canary + a from-<consumer> label), a hidden deterministic dedupe
+    marker and the exact issue search a consumer must run before filing, a
+    per-consumer per-run filing cap, and the required evidence format (theme
+    version/commit, page URL, rendered-vs-expected, minimal repro). The repo
+    gains the labels and an issue form matching the evidence format. Consumers
+    keep only local evidence-gathering and rewire their scouts to the contract
+    (follow-up PRs in their own repos).
+  acceptance:
+    - "A committed contract doc in zer0-mistakes defines labels, dedupe marker + pre-filing search, per-run cap, and evidence format."
+    - "The labels exist on the repo and an issue form enforces the evidence format."
+    - "The dedupe marker key is deterministic for the same finding, so the mandated search reliably surfaces prior reports (open or closed)."
+    - "The contract records the theme version/commit the bug was observed on, making fixed-in-release triage mechanical."
+    - "Adoption follow-ups are filed in it-journey and lifehacker.dev to rewire their theme-scouts to the contract (tracked there, out of this item's scope)."
+  scope:
+    in:
+      - contract doc, labels, issue form, dedupe/cap/evidence specification
+    out:
+      - implementing or standardizing the consumers' evidence-gathering machinery (crawler vs heuristics stays a consumer choice)
+      - any automation that auto-closes or auto-triages incoming canary issues
+  risks:
+    - Overfitting the contract to one consumer's existing design — derive it from both scouts' current behavior, taking the stricter rule where they differ.
+    - The cap is per consumer, so total intake still scales with consumer count — revisit if more sites adopt the theme.
+    - Upstream cannot force adoption in consumer repos — the contract must be strictly better than each scout's status quo to win the rewire.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+- id: FF-0020
+  title: "Parameterized agent-auditor template in the agent-context kit (opt-in artifact)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: S
+  category: enhancement
+  problem: >-
+    it-journey (.claude/agents/agent-auditor.md) and lifehacker.dev
+    (agent-reviewer.md) independently reinvented the same meta-auditor role —
+    periodic drift/least-privilege audit of the repo's .claude agents and
+    skills, one PR per audit, never weakens a guardrail — with only 0.23
+    Jaccard text similarity between them. zer0-mistakes, the largest roster at
+    15 agents, has no auditor at all.
+  proposal: >-
+    Ship one parameterized template in the agent-context kit
+    (templates/agent-context/agent-auditor.template.md) carrying the kit stamp.
+    Fixed invariants live in the template: least-privilege review of every
+    agent/skill, exactly one PR per audit, never weaken an existing guardrail,
+    honesty about uncertainty. Repo specifics (name, roster location, cadence,
+    review focus) are placeholders substituted by fanout.sh. Seed as a NEW
+    opt-in fanout artifact (e.g. `claude-agent-auditor`), never in the default
+    artifact set, additive-only — skipped wherever an auditor-role agent
+    already exists. Amend the kit VERSION's declared position to carve out
+    explicitly-requested agent templates.
+  acceptance:
+    - "The template exists in templates/agent-context/, kit-stamped, with invariants fixed and repo specifics parameterized."
+    - "A new opt-in fanout artifact seeds .claude/agents/agent-auditor.md only when no auditor-role agent exists; additive-only, dry-run default."
+    - "zer0-mistakes (the motivating gap) is seeded via the standard fanout PR flow."
+    - "it-journey's and lifehacker.dev's bespoke auditors are left untouched (hand-authored files are never upgraded); adopting the template there is their own optional follow-up."
+    - "The kit VERSION changelog and the 0.3.0 'never fan out agents' position are amended to name this opt-in exception."
+  scope:
+    in:
+      - the template, the opt-in fanout artifact, the zer0-mistakes seeding PR, the VERSION amendment
+    out:
+      - replacing the two existing bespoke auditors
+      - any default-set seeding
+  risks:
+    - A template generic enough for 40 repos risks being too vague to audit anything — keep the invariants strong and the parameters few.
+    - Overlap with FF-0021 — if both are approved, ship them as one kit version bump (0.4.0) with a single position amendment.
+  source: scout
+  created: 2026-08-06
+  issue_url: null
+
+- id: FF-0021
+  title: "Canonical shared guardrails doc (quarantine.md) as an opt-in agent-context kit artifact"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P2
+  effort: S
+  category: enhancement
+  problem: >-
+    lifehacker.dev factored its agent guardrail boilerplate (untrusted-input
+    fence, honesty rule, never-merge) into .claude/skills/_shared/quarantine.md,
+    but the same boilerplate is restated inline in 8-31 agent files per repo
+    across the Jekyll trio (it-journey, zer0-mistakes, lifehacker.dev). A
+    wording fix in one copy never reaches the others, and inline restatements
+    have already diverged.
+  proposal: >-
+    Promote the guardrails doc into the agent-context kit
+    (templates/agent-context/quarantine.template.md, seeded to
+    .claude/skills/_shared/quarantine.md), kit-stamped, as a new opt-in fanout
+    artifact (e.g. `claude-guardrails`). The canonical text reconciles
+    lifehacker's doc with the inline variants — where wordings differ, the
+    strictest wins. Document a one-line citation pattern so agents reference
+    the doc instead of restating it; consumer repos deduplicate their inline
+    boilerplate in local follow-up PRs.
+  acceptance:
+    - "The kit ships the canonical guardrails doc, kit-stamped, seeded additive-only to .claude/skills/_shared/quarantine.md as an opt-in artifact."
+    - "Seeding skips repos with an existing _shared/quarantine.md; --upgrade refreshes only byte-identical machine-seeded copies."
+    - "The canonical text is verified against every inline variant it replaces — no guardrail is weakened (diff before delete)."
+    - "A documented one-line citation pattern replaces inline restatement, and at least one consumer repo lands a dedup PR proving it."
+    - "The kit VERSION changelog and position statement are amended (shared with FF-0020 if both ship as kit 0.4.0)."
+  scope:
+    in:
+      - the canonical doc, the opt-in fanout artifact, the citation pattern
+    out:
+      - performing every consumer repo's inline dedup (their own follow-up PRs)
+      - weakening or rewording guardrails beyond strictest-wins reconciliation
+  risks:
+    - A pointer is weaker than inline text if an agent never loads the doc — the citation pattern must make the doc load-bearing (referenced from the skill preamble, not a footnote).
+    - Consolidating differently-worded guardrails risks silently weakening one — the strictest-wording rule must be checked variant by variant.
+  source: scout
+  created: 2026-08-06
+  issue_url: null

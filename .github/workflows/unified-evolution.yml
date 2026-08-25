@@ -1,417 +1,125 @@
-name: 🌱 Unified AI Evolution Pipeline
+name: 🌱 AI Evolution Pass
+
+# The CI counterpart of the local self-evolution loop (`/evolve` → triage-attention
+# → evolve-project → refresh-portfolio). Dispatch-only: no unattended AI writes on
+# a schedule. Trigger deliberately via `tools/dash evolve` or the Actions UI.
+#
+# Auth: CLAUDE_CODE_OAUTH_TOKEN preferred, ANTHROPIC_API_KEY fallback — the house
+# convention at every claude-code-action call site (docs/AI-INTEGRATION.md).
+#
+# REWRITTEN 2026-08-09, 424 lines → this.
+# ------------------------------------
+# The previous version was the last survivor of a generic `unified-*.yml` suite
+# built for a single-app repo. It carried six jobs — analyze-repository,
+# generate-evolution-prompt, execute-evolution, dry-run-preview,
+# create-evolution-pr, evolution-metrics — that shell-scripted a "repository
+# analysis" and hand-assembled a prompt for a tree that has no application code
+# (every project is a submodule). Five of the six jobs existed to marshal inputs
+# into, and metrics out of, the one step that does the work: the Claude Code call.
+#
+# It was also the sole documented exemption in the drift gate's actionlint sweep
+# (drift-check.yml), carried because it had pre-existing findings nobody wanted to
+# fix. A workflow that a gate has to be taught to ignore is a workflow the gate is
+# telling you about. The capability is kept; the scaffolding around it is not, and
+# the actionlint exemption is removed with it.
 
 on:
-  schedule:
-    - cron: '0 6 * * 1'   # weekly Monday 06:00 UTC (defaults to minimal intensity)
   workflow_dispatch:
     inputs:
-      evolution_type:
-        description: 'Type of evolution to perform'
+      focus:
+        description: "What to improve (free text — e.g. 'docs accuracy in tools/', 'error handling in dash-gen')"
         required: false
-        default: 'consistency'
-        type: choice
-        options:
-          - consistency
-          - error_fixing
-          - documentation
-          - code_quality
-          - security_updates
-          - performance
-          - feature_enhancement
-          - refactoring
-          - testing
-          - all
-      intensity:
-        description: 'Evolution intensity level'
-        required: false
-        default: 'minimal'
-        type: choice
-        options:
-          - minimal
-          - moderate
-          - comprehensive
-      scope:
-        description: 'Scope of evolution'
-        required: false
-        default: 'auto'
-        type: choice
-        options:
-          - auto
-          - frontend
-          - backend
-          - infrastructure
-          - documentation
-          - testing
-          - all
+        default: "consistency and accuracy across hub docs and tooling"
+        type: string
       dry_run:
-        description: 'Run in simulation mode without making changes'
+        description: "Analyze and report only — make no commits"
         required: false
         default: false
         type: boolean
-      create_pr:
-        description: 'Create pull request with evolution changes'
-        required: false
-        default: true
-        type: boolean
-      ai_provider:
-        description: 'AI provider to use'
-        required: false
-        default: 'openai'
-        type: choice
-        options:
-          - openai
-          - anthropic
-          - gemini
-          - auto
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  packages: read
+  contents: read
 
-env:
-  EVOLUTION_TYPE: ${{ github.event.inputs.evolution_type || 'consistency' }}
-  INTENSITY: ${{ github.event.inputs.intensity || 'minimal' }}
-  SCOPE: ${{ github.event.inputs.scope || 'auto' }}
-  DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-  CREATE_PR: ${{ github.event.inputs.create_pr || 'true' }}
-  AI_PROVIDER: ${{ github.event.inputs.ai_provider || 'openai' }}
-  EVOLUTION_VERSION: "2.0.0"
+concurrency:
+  group: evolution-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  # Analyze repository and determine evolution needs
-  analyze-repository:
-    name: 🔍 Analyze Repository & Plan Evolution
+  evolve:
     runs-on: ubuntu-latest
-    outputs:
-      needs_evolution: ${{ steps.analysis.outputs.needs_evolution }}
-      evolution_plan: ${{ steps.analysis.outputs.evolution_plan }}
-      priority_areas: ${{ steps.analysis.outputs.priority_areas }}
-      risk_level: ${{ steps.analysis.outputs.risk_level }}
-      estimated_effort: ${{ steps.analysis.outputs.estimated_effort }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Setup analysis environment
-        run: |
-          pip install pyyaml requests nltk
-          # Install any other analysis tools
-
-      - name: Analyze repository health
-        id: analysis
-        run: |
-          # Run comprehensive repository analysis
-          python -c "
-          import os
-          import json
-          from datetime import datetime
-
-          # Basic repository metrics
-          repo_stats = {
-              'needs_evolution': 'true',
-              'evolution_plan': [],
-              'priority_areas': [],
-              'risk_level': 'low',
-              'estimated_effort': 'minimal'
-          }
-
-          # Check for common issues
-          issues = []
-
-          # Check for outdated dependencies
-          if os.path.exists('package.json'):
-              issues.append('dependency_update')
-
-          # Check for missing tests
-          if not os.path.exists('tests') and not os.path.exists('spec'):
-              issues.append('missing_tests')
-
-          # Check for documentation
-          if not os.path.exists('README.md'):
-              issues.append('missing_docs')
-
-          # Check for linting issues (simplified)
-          if os.path.exists('.eslintrc'):
-              issues.append('code_quality')
-
-          # Determine evolution plan based on type and issues
-          evolution_type = os.environ.get('EVOLUTION_TYPE', 'consistency')
-
-          if evolution_type == 'all':
-              repo_stats['evolution_plan'] = ['consistency', 'error_fixing', 'documentation', 'code_quality']
-          else:
-              repo_stats['evolution_plan'] = [evolution_type]
-
-          repo_stats['priority_areas'] = issues[:3]  # Top 3 issues
-
-          # Determine risk and effort based on intensity
-          intensity = os.environ.get('INTENSITY', 'minimal')
-          if intensity == 'comprehensive':
-              repo_stats['risk_level'] = 'high'
-              repo_stats['estimated_effort'] = 'high'
-          elif intensity == 'moderate':
-              repo_stats['risk_level'] = 'medium'
-              repo_stats['estimated_effort'] = 'medium'
-          else:
-              repo_stats['risk_level'] = 'low'
-              repo_stats['estimated_effort'] = 'low'
-
-          # Output results
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              for key, value in repo_stats.items():
-                  if isinstance(value, list):
-                      f.write(f'{key}={{\"{\",\".join(value)}\"}}\n')
-                  else:
-                      f.write(f'{key}={value}\n')
-          "
-
-  # Generate evolution prompt and plan
-  generate-evolution-prompt:
-    name: 🤖 Generate Evolution Strategy
-    needs: analyze-repository
-    if: needs.analyze-repository.outputs.needs_evolution == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      evolution_prompt: ${{ steps.prompt.outputs.evolution_prompt }}
-      evolution_tasks: ${{ steps.prompt.outputs.evolution_tasks }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Generate AI-powered evolution prompt
-        id: prompt
-        run: |
-          # Generate detailed evolution prompt based on analysis
-          cat > evolution_prompt.txt << 'EOF'
-          You are an expert software engineer tasked with evolving this codebase.
-
-          ## Repository Analysis
-          - Evolution Type: ${EVOLUTION_TYPE}
-          - Intensity: ${INTENSITY}
-          - Scope: ${SCOPE}
-          - Priority Areas: ${{ needs.analyze-repository.outputs.priority_areas }}
-          - Risk Level: ${{ needs.analyze-repository.outputs.risk_level }}
-
-          ## Evolution Goals
-          Based on the analysis above, please perform the following evolution tasks:
-
-          1. **Code Quality Improvements**: Fix linting issues, improve code structure
-          2. **Documentation Updates**: Update README, add missing docs
-          3. **Dependency Management**: Update outdated dependencies safely
-          4. **Error Handling**: Add proper error handling where missing
-          5. **Performance Optimizations**: Identify and fix performance bottlenecks
-          6. **Security Enhancements**: Address security vulnerabilities
-          7. **Testing Improvements**: Add missing tests, improve coverage
-
-          ## Constraints
-          - Maintain backward compatibility
-          - Follow existing code patterns and conventions
-          - Ensure all changes are well-tested
-          - Provide clear commit messages
-          - Risk Level: ${{ needs.analyze-repository.outputs.risk_level }}
-
-          Please analyze the codebase and provide specific, actionable improvements.
-          EOF
-
-          # Store the prompt for the next step
-          {
-            echo 'evolution_prompt<<EOF'
-            cat evolution_prompt.txt
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-
-          # Define specific tasks based on evolution type
-          tasks='code_quality,documentation,dependencies'
-          case "${EVOLUTION_TYPE}" in
-            'consistency')
-              tasks='code_quality,documentation,dependencies'
-              ;;
-            'error_fixing')
-              tasks='error_handling,logging,validation'
-              ;;
-            'documentation')
-              tasks='readme_update,code_docs,api_docs'
-              ;;
-            'code_quality')
-              tasks='linting,formatting,structure'
-              ;;
-            'security_updates')
-              tasks='security_audit,vulnerability_fix,secure_defaults'
-              ;;
-            'performance')
-              tasks='optimization,caching,profiling'
-              ;;
-            'testing')
-              tasks='unit_tests,integration_tests,coverage'
-              ;;
-            'all')
-              tasks='code_quality,documentation,dependencies,error_handling,security,performance,testing'
-              ;;
-          esac
-
-          echo "evolution_tasks=$tasks" >> $GITHUB_OUTPUT
-
-  # Execute evolution tasks
-  execute-evolution:
-    name: 🚀 Execute Evolution Tasks
-    needs: [analyze-repository, generate-evolution-prompt]
-    if: ${{ needs.analyze-repository.outputs.needs_evolution == 'true' && (github.event.inputs.dry_run || 'false') != 'true' }}
-    runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
-      issues: write
-
+      id-token: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      # Real AI execution via Claude Code (replaces the former provider stubs).
-      # The generated prompt scopes the work to the requested evolution type/tasks.
-      - name: Run Claude Code evolution
+      # Fail loudly rather than burning a runner on a no-op: this workflow is
+      # dispatched deliberately, so missing auth is an error, not a skip.
+      - name: Require Claude auth
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$OAUTH" ] && [ -z "$APIKEY" ]; then
+            echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (preferred) or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+            exit 1
+          fi
+
+      - name: Run Claude Code evolution pass
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ needs.generate-evolution-prompt.outputs.evolution_prompt }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           claude_args: "--max-turns 30"
+          prompt: |
+            You are running the hub's self-evolution pass on bamr87/bamr87 — the
+            control plane for a fleet of ~35 submodule repos. Read CLAUDE.md first;
+            it is authoritative for conventions.
 
-      # Persist changes to a branch so create-evolution-pr can open the PR.
-      - name: Commit & push evolution changes
-        run: |
-          if [[ -n $(git status --porcelain) ]]; then
-            git config --global user.name "AI Evolution Bot"
-            git config --global user.email "ai-evolution@users.noreply.github.com"
-            git checkout -b "ai-evolution/${{ github.run_id }}"
-            git add .
-            git commit -m "🤖 AI Evolution: ${EVOLUTION_TYPE} (${INTENSITY})" \
-              -m "Tasks: ${{ needs.generate-evolution-prompt.outputs.evolution_tasks }}" \
-              -m "Risk Level: ${{ needs.analyze-repository.outputs.risk_level }}" \
-              -m "Generated by AI evolution pipeline v${EVOLUTION_VERSION} (Claude Code)"
-            git push origin "ai-evolution/${{ github.run_id }}"
-          else
-            echo "No changes produced by evolution run."
-          fi
+            FOCUS FOR THIS RUN: ${{ inputs.focus }}
+            DRY RUN: ${{ inputs.dry_run }}
 
-  # Dry run - preview evolution
-  dry-run-preview:
-    name: 👁️ Dry Run - Preview Evolution
-    needs: [analyze-repository, generate-evolution-prompt]
-    if: ${{ needs.analyze-repository.outputs.needs_evolution == 'true' && (github.event.inputs.dry_run || 'false') == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Display evolution preview
-        run: |
-          echo "## 👁️ Evolution Preview (Dry Run)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Evolution Type:** ${EVOLUTION_TYPE}" >> $GITHUB_STEP_SUMMARY
-          echo "**Intensity:** ${INTENSITY}" >> $GITHUB_STEP_SUMMARY
-          echo "**Scope:** ${SCOPE}" >> $GITHUB_STEP_SUMMARY
-          echo "**Risk Level:** ${{ needs.analyze-repository.outputs.risk_level }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Estimated Effort:** ${{ needs.analyze-repository.outputs.estimated_effort }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Planned Tasks:**" >> $GITHUB_STEP_SUMMARY
-          IFS=',' read -ra TASKS <<< "${{ needs.generate-evolution-prompt.outputs.evolution_tasks }}"
-          for task in "${TASKS[@]}"; do
-            echo "- $task" >> $GITHUB_STEP_SUMMARY
-          done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Priority Areas:** ${{ needs.analyze-repository.outputs.priority_areas }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "_This is a dry run. No changes will be made._" >> $GITHUB_STEP_SUMMARY
+            Scope, in order of preference:
+            1. Read _data/fleet_triage.yml and _data/actions_usage.yml if present —
+               they are the fleet's live attention signals.
+            2. Make ONE focused, surgical improvement in the hub tree. Hub only:
+               everything under projects/ is a separate repo and MUST NOT be
+               edited from here (see the submodule workflow in SUBMODULES.md).
+            3. Prefer correctness and accuracy fixes over new abstractions. Do not
+               add a feature nobody asked for.
 
-  # Create evolution pull request
-  create-evolution-pr:
-    name: 📝 Create Evolution PR
-    needs: [analyze-repository, generate-evolution-prompt, execute-evolution]
-    if: ${{ (github.event.inputs.create_pr || 'true') == 'true' && (github.event.inputs.dry_run || 'false') != 'true' && needs.analyze-repository.outputs.needs_evolution == 'true' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Open PR from the evolution branch
+            Verify before finishing: `tools/check-drift.sh --report` must stay
+            green, and any shell you touch must pass
+            `shellcheck --severity=warning`.
+
+            If DRY RUN is true, make NO file changes — write your findings and the
+            change you would have made to the job summary instead.
+
+      - name: Open a pull request with the changes
+        if: ${{ !inputs.dry_run }}
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          branch="ai-evolution/${{ github.run_id }}"
-          # execute-evolution only pushes this branch when Claude produced changes.
-          if ! git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}.git" "$branch" >/dev/null 2>&1; then
-            echo "No evolution branch ($branch) — nothing to open."
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "::notice::Evolution pass produced no changes."
             exit 0
           fi
-          draft_flag=""
-          [[ "${{ needs.analyze-repository.outputs.risk_level }}" == "high" ]] && draft_flag="--draft"
-          gh pr create \
-            --repo "${{ github.repository }}" \
-            --base main \
-            --head "$branch" \
-            --title "🤖 AI Evolution: ${EVOLUTION_TYPE} (${INTENSITY})" \
-            --body "Automated improvements from the AI evolution pipeline (Claude Code).
+          BRANCH="ai-evolution/${{ github.run_id }}"
+          git config user.name "bamr87-bot"
+          git config user.email "10567847+bamr87@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore(evolve): AI evolution pass" -m "Focus: ${{ inputs.focus }}"
+          git push origin "$BRANCH"
+          gh pr create --base "${{ github.ref_name }}" --head "$BRANCH" \
+            --title "chore(evolve): AI evolution pass" \
+            --body "Automated evolution pass (run ${{ github.run_id }}).
 
-          - **Type:** ${EVOLUTION_TYPE}
-          - **Intensity:** ${INTENSITY}
-          - **Scope:** ${SCOPE}
-          - **Risk Level:** ${{ needs.analyze-repository.outputs.risk_level }}
-          - **Tasks:** ${{ needs.generate-evolution-prompt.outputs.evolution_tasks }}
-          - **Priority Areas:** ${{ needs.analyze-repository.outputs.priority_areas }}
+          **Focus:** ${{ inputs.focus }}
 
-          Generated by Unified AI Evolution Pipeline v${EVOLUTION_VERSION} · Run ID: ${{ github.run_id }}" \
-            --label "ai-evolution" --label "automated" --label "${{ needs.analyze-repository.outputs.risk_level }}-risk" \
-            $draft_flag
-
-  # Evolution metrics and reporting
-  evolution-metrics:
-    name: 📊 Evolution Metrics & Reporting
-    needs: [analyze-repository, execute-evolution, create-evolution-pr]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Generate evolution report
-        run: |
-          echo "## 🌱 Evolution Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Evolution Type | ${EVOLUTION_TYPE} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Intensity | ${INTENSITY} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Scope | ${SCOPE} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Risk Level | ${{ needs.analyze-repository.outputs.risk_level }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Needs Evolution | ${{ needs.analyze-repository.outputs.needs_evolution }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Tasks Executed | ${{ needs.generate-evolution-prompt.outputs.evolution_tasks }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| PR Created | ${{ needs.create-evolution-pr.result != 'skipped' && needs.create-evolution-pr.result || 'No' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dry Run | ${DRY_RUN} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Evolution Pipeline Version:** ${EVOLUTION_VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-
-      - name: Update evolution metrics
-        if: env.DRY_RUN != 'true'
-        run: |
-          # Store evolution metrics for future analysis
-          mkdir -p .evolution-metrics
-          cat > .evolution-metrics/${{ github.run_id }}.json << EOF
-          {
-            "run_id": "${{ github.run_id }}",
-            "timestamp": "$(date -Iseconds)",
-            "evolution_type": "${EVOLUTION_TYPE}",
-            "intensity": "${INTENSITY}",
-            "scope": "${SCOPE}",
-            "risk_level": "${{ needs.analyze-repository.outputs.risk_level }}",
-            "needs_evolution": "${{ needs.analyze-repository.outputs.needs_evolution }}",
-            "tasks_executed": "${{ needs.generate-evolution-prompt.outputs.evolution_tasks }}",
-            "pr_created": "${{ needs.create-evolution-pr.result != 'skipped' }}",
-            "dry_run": "${DRY_RUN}",
-            "version": "${EVOLUTION_VERSION}"
-          }
-          EOF
+          Opened by \`.github/workflows/unified-evolution.yml\`, dispatched via \`tools/dash evolve\`. Review as you would any PR — this branch is machine-authored and nothing here is merged automatically."

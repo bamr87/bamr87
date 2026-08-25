@@ -98,6 +98,7 @@ cat .gitignore | grep -E '\.env|node_modules|__pycache__|\.pyc|dist/|build/' || 
 ```
 
 **If secrets are detected:**
+
 1. **STOP immediately** — do not proceed with the commit
 2. Remove the secret from the file
 3. Use environment variables or a secrets manager instead
@@ -141,25 +142,25 @@ git reset HEAD <file-to-unstage>
 
 **Type Reference:**
 
-| Type       | Purpose                              | Triggers Version Bump |
-|------------|--------------------------------------|-----------------------|
-| `feat`     | New feature                          | MINOR                 |
-| `fix`      | Bug fix                              | PATCH                 |
-| `docs`     | Documentation only                   | —                     |
-| `style`    | Formatting, whitespace (no logic)    | —                     |
-| `refactor` | Code restructuring (no behavior)     | —                     |
-| `perf`     | Performance improvement              | PATCH                 |
-| `test`     | Adding or updating tests             | —                     |
-| `build`    | Build system or dependency changes   | —                     |
-| `ci`       | CI/CD configuration changes          | —                     |
-| `chore`    | Maintenance tasks                    | —                     |
-| `revert`   | Reverting a previous commit          | —                     |
+| Type       | Purpose                            | Triggers Version Bump |
+| ---------- | ---------------------------------- | --------------------- |
+| `feat`     | New feature                        | MINOR                 |
+| `fix`      | Bug fix                            | PATCH                 |
+| `docs`     | Documentation only                 | —                     |
+| `style`    | Formatting, whitespace (no logic)  | —                     |
+| `refactor` | Code restructuring (no behavior)   | —                     |
+| `perf`     | Performance improvement            | PATCH                 |
+| `test`     | Adding or updating tests           | —                     |
+| `build`    | Build system or dependency changes | —                     |
+| `ci`       | CI/CD configuration changes        | —                     |
+| `chore`    | Maintenance tasks                  | —                     |
+| `revert`   | Reverting a previous commit        | —                     |
 
 **Commit Message Rules:**
 
 1. **Subject line**: Max 50 characters, imperative mood ("add" not "added"), no period at end
 2. **Scope**: Optional but recommended — identifies the module/component affected
-3. **Body**: Wrap at 72 characters, explain *what* and *why* (not *how*)
+3. **Body**: Wrap at 72 characters, explain _what_ and _why_ (not _how_)
 4. **Footer**: Reference issues (`Fixes #123`, `Closes #456`), note breaking changes
 5. **Breaking changes**: Add `BREAKING CHANGE:` footer with migration instructions
 
@@ -229,12 +230,14 @@ git diff origin/$(git branch --show-current)..HEAD --stat
 ```
 
 **If tests or lint fail:**
+
 1. **STOP** — do not push broken code
 2. Fix the issues
 3. Amend the commit if needed: `git commit --amend`
 4. Re-run validation
 
 **If there are upstream changes:**
+
 1. Pull and rebase: `git pull --rebase origin <branch>`
 2. Resolve any conflicts
 3. Re-run tests after rebase

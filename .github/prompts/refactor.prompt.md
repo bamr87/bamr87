@@ -30,6 +30,7 @@ When a user invokes `/refactor`, guide them through safe refactoring following p
 **Code Location**: [File and line numbers]
 
 **Issues Identified**:
+
 - [ ] **Complexity**: Cyclomatic complexity = [X] (target: < 10)
 - [ ] **Length**: [Y] lines (target: < 50)
 - [ ] **Duplication**: [Z] duplicate code blocks (DRY violation)
@@ -38,6 +39,7 @@ When a user invokes `/refactor`, guide them through safe refactoring following p
 - [ ] **Coupling**: High coupling to [components]
 
 **Metrics Before**:
+
 - Lines of code: [X]
 - Cyclomatic complexity: [Y]
 - Test coverage: [Z]%
@@ -48,16 +50,19 @@ When a user invokes `/refactor`, guide them through safe refactoring following p
 **Type**: [Extract Method | Extract Class | Simplify Conditionals | Remove Duplication | etc.]
 
 **Specific Changes**:
+
 1. [Change 1 with rationale]
 2. [Change 2 with rationale]
 3. [Change 3 with rationale]
 
 **Principles Applied**:
+
 - **DFF**: Maintain/improve error handling
 - **DRY**: Remove duplication through extraction
 - **KIS**: Simplify logic flow
 
 **Risk Assessment**:
+
 - **Reversibility**: [Easy/Medium/Hard to undo]
 - **Blast Radius**: [What could break]
 - **Test Coverage**: [Existing tests as safety net]
@@ -81,7 +86,7 @@ def process_order(order):
         raise ValueError("No address")
     if not order.payment_method:
         raise ValueError("No payment")
-    
+
     # Payment processing
     if order.payment_method == "credit_card":
         # 20 lines of credit card processing
@@ -89,16 +94,16 @@ def process_order(order):
     elif order.payment_method == "paypal":
         # 20 lines of PayPal processing
         pass
-    
+
     # Inventory check
     for item in order.items:
         # 10 lines per item
         pass
-    
+
     # Shipping calculation
     # 30 lines of shipping logic
     pass
-    
+
     # Finalization
     # 20 lines of cleanup
     pass
@@ -108,7 +113,7 @@ def process_order(order):
 def process_order(order):
     """
     Process order through validation, payment, inventory, and shipping.
-    
+
     Now follows KIS principle with clear, single-purpose steps.
     Each extracted method can be tested independently (TDD).
     """
@@ -132,7 +137,7 @@ def validate_order(order):
 def process_payment(order):
     """
     Process payment based on method (DFF: error handling per method)
-    
+
     Extracted for:
     - Single responsibility
     - Easy testing
@@ -143,11 +148,11 @@ def process_payment(order):
         "paypal": process_paypal_payment,
         "bank_transfer": process_bank_transfer_payment,
     }
-    
+
     processor = payment_processors.get(order.payment_method)
     if not processor:
         raise ValueError(f"Unsupported payment method: {order.payment_method}")
-    
+
     return processor(order)
 
 
@@ -186,82 +191,78 @@ def finalize_order(order):
 ```typescript
 // Before: Complex conditionals
 class PaymentProcessor {
-    process(payment: Payment): Result {
-        if (payment.method === 'credit_card') {
-            // 50 lines of credit card logic
-            if (payment.card.type === 'visa') {
-                // Visa-specific
-            } else if (payment.card.type === 'mastercard') {
-                // Mastercard-specific
-            }
-        } else if (payment.method === 'paypal') {
-            // 50 lines of PayPal logic
-        } else if (payment.method === 'bank_transfer') {
-            // 50 lines of bank transfer logic
-        }
+  process(payment: Payment): Result {
+    if (payment.method === 'credit_card') {
+      // 50 lines of credit card logic
+      if (payment.card.type === 'visa') {
+        // Visa-specific
+      } else if (payment.card.type === 'mastercard') {
+        // Mastercard-specific
+      }
+    } else if (payment.method === 'paypal') {
+      // 50 lines of PayPal logic
+    } else if (payment.method === 'bank_transfer') {
+      // 50 lines of bank transfer logic
     }
+  }
 }
-
 
 // After: Polymorphism (DRY, KIS)
 interface PaymentMethodProcessor {
-    process(payment: Payment): Promise<Result>;
-    validate(payment: Payment): boolean;
+  process(payment: Payment): Promise<Result>;
+  validate(payment: Payment): boolean;
 }
-
 
 class CreditCardProcessor implements PaymentMethodProcessor {
-    async process(payment: Payment): Promise<Result> {
-        // Focused credit card logic
-        this.validate(payment);
-        // Process with credit card gateway
-        return result;
-    }
-    
-    validate(payment: Payment): boolean {
-        // Credit card specific validation
-        return isValid;
-    }
-}
+  async process(payment: Payment): Promise<Result> {
+    // Focused credit card logic
+    this.validate(payment);
+    // Process with credit card gateway
+    return result;
+  }
 
+  validate(payment: Payment): boolean {
+    // Credit card specific validation
+    return isValid;
+  }
+}
 
 class PayPalProcessor implements PaymentMethodProcessor {
-    async process(payment: Payment): Promise<Result> {
-        // Focused PayPal logic
-        this.validate(payment);
-        // Process with PayPal API
-        return result;
-    }
-    
-    validate(payment: Payment): boolean {
-        // PayPal specific validation
-        return isValid;
-    }
+  async process(payment: Payment): Promise<Result> {
+    // Focused PayPal logic
+    this.validate(payment);
+    // Process with PayPal API
+    return result;
+  }
+
+  validate(payment: Payment): boolean {
+    // PayPal specific validation
+    return isValid;
+  }
 }
 
-
 class PaymentProcessor {
-    private processors: Map<string, PaymentMethodProcessor>;
-    
-    constructor() {
-        // Strategy pattern: select processor by method
-        this.processors = new Map([
-            ['credit_card', new CreditCardProcessor()],
-            ['paypal', new PayPalProcessor()],
-            ['bank_transfer', new BankTransferProcessor()],
-        ]);
+  private processors: Map<string, PaymentMethodProcessor>;
+
+  constructor() {
+    // Strategy pattern: select processor by method
+    this.processors = new Map([
+      ['credit_card', new CreditCardProcessor()],
+      ['paypal', new PayPalProcessor()],
+      ['bank_transfer', new BankTransferProcessor()],
+    ]);
+  }
+
+  async process(payment: Payment): Promise<Result> {
+    // KIS: Simple delegation
+    const processor = this.processors.get(payment.method);
+
+    if (!processor) {
+      throw new Error(`Unsupported payment method: ${payment.method}`);
     }
-    
-    async process(payment: Payment): Promise<Result> {
-        // KIS: Simple delegation
-        const processor = this.processors.get(payment.method);
-        
-        if (!processor) {
-            throw new Error(`Unsupported payment method: ${payment.method}`);
-        }
-        
-        return processor.process(payment);
-    }
+
+    return processor.process(payment);
+  }
 }
 ```
 
@@ -345,34 +346,42 @@ const newUser = createUser({
 ### Code Smells to Refactor
 
 **1. Long Method** (> 50 lines)
+
 - **Refactoring**: Extract Method
 - **Goal**: Break into smaller, focused functions
 
 **2. Large Class** (> 300 lines)
+
 - **Refactoring**: Extract Class, Single Responsibility
 - **Goal**: Split into cohesive, focused classes
 
 **3. Long Parameter List** (> 4 parameters)
+
 - **Refactoring**: Introduce Parameter Object
 - **Goal**: Group related parameters
 
 **4. Duplicate Code** (DRY violation)
+
 - **Refactoring**: Extract Method/Class
 - **Goal**: Single source of truth
 
 **5. Complex Conditionals** (deeply nested)
+
 - **Refactoring**: Guard Clauses, Polymorphism, Strategy Pattern
 - **Goal**: Simplify and clarify logic
 
 **6. Magic Numbers**
+
 - **Refactoring**: Replace with Named Constants
 - **Goal**: Self-documenting code
 
 **7. Poor Naming**
+
 - **Refactoring**: Rename Variables/Functions
 - **Goal**: Clear, descriptive names
 
 **8. God Class/Function** (does everything)
+
 - **Refactoring**: Extract Classes/Functions
 - **Goal**: Single Responsibility Principle
 
@@ -382,18 +391,21 @@ const newUser = createUser({
 ## Safety Checklist (Before Each Refactoring)
 
 ### Preparation
+
 - [ ] All existing tests pass
 - [ ] Test coverage >70% for code to refactor
 - [ ] Version control is clean (committed changes)
 - [ ] Have fast test suite for rapid feedback
 
 ### During Refactoring
+
 - [ ] Make one small change at a time
 - [ ] Run tests after each change
 - [ ] Commit after each successful refactoring
 - [ ] Maintain identical behavior (no feature changes)
 
 ### Validation
+
 - [ ] All tests still pass
 - [ ] No new linter warnings
 - [ ] Code coverage maintained or improved
@@ -401,6 +413,7 @@ const newUser = createUser({
 - [ ] Performance not degraded
 
 ### Documentation
+
 - [ ] Update comments if logic changed
 - [ ] Update docstrings if interface changed
 - [ ] Create/update ADR if architecture changed
@@ -414,93 +427,87 @@ const newUser = createUser({
 
 ## Current State Analysis
 
-**Code**: [File:lines]
-**Issues**:
+**Code**: [File:lines] **Issues**:
+
 - Complexity: [X] (target: < 10)
 - Length: [Y] lines (target: < 50)
 - Duplication: [Z] instances (DRY violation)
 
 **Code Smells**:
+
 1. [Smell 1]: [Description]
 2. [Smell 2]: [Description]
 
 ## Proposed Refactoring
 
-**Type**: [Refactoring pattern name]
-**Goal**: [What we're achieving]
-**Principles**: DFF ✅ DRY ✅ KIS ✅
+**Type**: [Refactoring pattern name] **Goal**: [What we're achieving] **Principles**: DFF ✅ DRY ✅ KIS ✅
 
 ### Before (Current)
 
-\`\`\`[language]
-// Current problematic code
-current_code_here
-\`\`\`
+\`\`\`[language] // Current problematic code current_code_here \`\`\`
 
 **Problems**:
+
 - [Problem 1]
 - [Problem 2]
 
 ### After (Refactored)
 
-\`\`\`[language]
-// Improved code
-refactored_code_here
-\`\`\`
+\`\`\`[language] // Improved code refactored_code_here \`\`\`
 
 **Improvements**:
+
 - [Improvement 1]: [Metric before → after]
 - [Improvement 2]: [Metric before → after]
 
 **Why This is Better**:
+
 1. [Reason 1]
 2. [Reason 2]
 
 ## Tests Required
 
 ### Existing Tests
+
 - [ ] Verify all existing tests still pass
 - [ ] Tests: [List critical tests]
 
 ### New Tests
+
 - [ ] Add test for extracted function
 - [ ] Add test for edge case
 - [ ] Add test for error handling (DFF)
 
 ## Step-by-Step Refactoring
 
-1. **Ensure Test Coverage**
-   \`\`\`bash
+1. **Ensure Test Coverage** \`\`\`bash
+
    # Verify tests exist and pass
-   pytest tests/test_component.py -v
-   \`\`\`
 
-2. **First Refactoring** (smallest change)
-   \`\`\`[language]
+   pytest tests/test_component.py -v \`\`\`
+
+2. **First Refactoring** (smallest change) \`\`\`[language]
+
    # Make minimal change
-   \`\`\`
-   
-3. **Run Tests**
-   \`\`\`bash
-   pytest tests/test_component.py
+
    \`\`\`
 
-4. **Commit**
-   \`\`\`bash
-   git add file.py
-   git commit -m "refactor: extract validation logic"
-   \`\`\`
+3. **Run Tests** \`\`\`bash pytest tests/test_component.py \`\`\`
+
+4. **Commit** \`\`\`bash git add file.py git commit -m "refactor: extract validation logic" \`\`\`
 
 5. **Repeat** for next small change
 
 ## Metrics
 
 **Before Refactoring**:
+
 - Complexity: [X]
 - Lines: [Y]
 - Test coverage: [Z]%
 
 **After Refactoring**:
+
 - Complexity: [A] (↓ [X-A])
 - Lines: [B] (↓ [Y-B])
 - Test coverage: [C]% (↑ [C-Z]%)
@@ -537,23 +544,23 @@ def process_user(user):
 def process_user(user):
     """
     Process user action with validation guards.
-    
+
     Uses guard clauses for clarity (KIS principle).
     Each validation fails fast (DFF principle).
     """
     # Guard clauses check conditions early
     if user is None:
         return error("User not found")
-    
+
     if not user.is_active:
         return error("User not active")
-    
+
     if not user.has_permission("edit"):
         return error("No permission")
-    
+
     if not user.email_verified:
         return error("Email not verified")
-    
+
     # Main logic is clear and unindented
     return perform_action(user)
 ```
@@ -640,18 +647,18 @@ def calculate_discount(user, order):
 # After: Strategy pattern (KIS)
 class DiscountCalculator:
     """Calculate discount based on clear business rules (KIS)"""
-    
+
     def calculate(self, user, order):
         """Main calculation with clear logic flow"""
         if not user.is_premium:
             return self._standard_discount(order)
-        
+
         return self._premium_discount(user, order)
-    
+
     def _standard_discount(self, order):
         """Standard user discount (KIS: simple rule)"""
         return 0.05 if order.total > 100 else 0.0
-    
+
     def _premium_discount(self, user, order):
         """Premium user discount (KIS: table-driven)"""
         # Clear business rules in table
@@ -662,12 +669,12 @@ class DiscountCalculator:
             (False, 5): 0.15,  # Low order, long member
             (False, 0): 0.05,  # Low order, any member
         }
-        
+
         is_high_order = order.total > 100
         tier = self._member_tier(user.years_member)
-        
+
         return discount_table.get((is_high_order, tier), 0.0)
-    
+
     def _member_tier(self, years):
         """Categorize membership tier (DRY: reusable)"""
         if years > 5:
@@ -686,33 +693,40 @@ class DiscountCalculator:
 ## 📋 PLAN: Analysis
 
 **Current State**:
+
 - Complexity: [X]
 - Issues: [List code smells]
 
 **Refactoring Strategy**:
+
 - Pattern: [Pattern name]
 - Changes: [What will change]
 
 ## 🔨 DO: Refactoring
 
 ### Before
+
 [Current code]
 
 ### After
+
 [Refactored code]
 
 ### Improvements
+
 - [Improvement 1]
 - [Improvement 2]
 
 ## ✅ CHECK: Validation
 
 **Tests**:
+
 - [ ] All existing tests pass
 - [ ] New tests added
 - [ ] Coverage maintained
 
 **Metrics**:
+
 - Complexity: [X] → [A]
 - Lines: [Y] → [B]
 - Coverage: [Z]% → [C]%
@@ -720,13 +734,16 @@ class DiscountCalculator:
 ## 🔄 ACT: Next Steps
 
 **This Refactoring**:
+
 - Status: Complete
 - Benefit: [Quantified improvement]
 
 **Next Iteration**:
+
 - [Next small refactoring to do]
 
 **When to Stop**:
+
 - [Diminishing returns indicator]
 ```
 
@@ -735,14 +752,15 @@ class DiscountCalculator:
 When user invokes `/refactor`, follow this flow:
 
 1. **Identify Refactoring Target**:
+
    ```
    I'll help you safely refactor code following Kaizen principles.
-   
+
    What needs refactoring?
    - Code location: [File and function/class]
    - What's the problem: [Description]
    - Existing tests: [Yes/No]
-   
+
    What would you like to improve?
    - [ ] Reduce complexity
    - [ ] Remove duplication (DRY)
@@ -774,12 +792,12 @@ When user invokes `/refactor`, follow this flow:
 5. **Validate and Continue**:
    ```
    Refactoring complete! ♻️
-   
+
    Results:
    - Complexity: [Before] → [After]
    - Maintainability: Improved
    - All tests: Passing ✅
-   
+
    Continue refactoring?
    - [ ] Yes, next improvement: [What]
    - [ ] No, this is good enough
@@ -793,4 +811,3 @@ When user invokes `/refactor`, follow this flow:
 Invoke me with `/refactor` and let's make code better, one small change at a time!
 
 **Remember**: Refactoring is NOT adding features. It's improving design while maintaining behavior.
-

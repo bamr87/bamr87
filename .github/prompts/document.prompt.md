@@ -37,14 +37,17 @@ Brief one-sentence description of what the project does.
 ## Technology Stack
 
 **Backend:**
+
 - [Framework] - [Purpose]
 - [Database] - [Purpose]
 
 **Frontend:**
+
 - [Framework] - [Purpose]
 - [Styling] - [Purpose]
 
 **Infrastructure:**
+
 - [Container Platform] - [Purpose]
 - [CI/CD] - [Purpose]
 
@@ -59,41 +62,50 @@ Brief one-sentence description of what the project does.
 ### Quick Start
 
 \`\`\`bash
+
 # Clone repository
-git clone https://github.com/user/repo.git
-cd repo
+
+git clone https://github.com/user/repo.git cd repo
 
 # Install dependencies
-npm install  # or pip install -r requirements.txt
+
+npm install # or pip install -r requirements.txt
 
 # Configure environment
+
 cp .env.example .env
+
 # Edit .env with your configuration
 
 # Run development server
-npm run dev  # or python manage.py runserver
+
+npm run dev # or python manage.py runserver
 
 # Access application
-open http://localhost:3000
-\`\`\`
+
+open http://localhost:3000 \`\`\`
 
 ### Development Setup
 
 **Using Docker (Recommended):**
 
 \`\`\`bash
+
 # Start all services
+
 docker-compose up -d
 
 # Run migrations (if applicable)
+
 docker-compose exec app python manage.py migrate
 
 # Create admin user (if applicable)
+
 docker-compose exec app python manage.py createsuperuser
 
 # View logs
-docker-compose logs -f app
-\`\`\`
+
+docker-compose logs -f app \`\`\`
 
 **Local Development:**
 
@@ -104,48 +116,41 @@ docker-compose logs -f app
 ### Basic Usage
 
 \`\`\`[language]
+
 # Example showing the most common use case
+
 import library
 
-result = library.function(parameter)
-print(result)
-\`\`\`
+result = library.function(parameter) print(result) \`\`\`
 
-**Expected Output:**
-\`\`\`
-Output showing what users should see
-\`\`\`
+**Expected Output:** \`\`\` Output showing what users should see \`\`\`
 
 ### Advanced Usage
 
 \`\`\`[language]
+
 # Example showing advanced features
-advanced_example_here
-\`\`\`
+
+advanced_example_here \`\`\`
 
 ## Configuration
 
 ### Environment Variables
 
 Required:
+
 - `DATABASE_URL`: Database connection string
 - `SECRET_KEY`: Application secret key
 - `API_KEY`: External service API key
 
 Optional:
+
 - `DEBUG`: Enable debug mode (default: `false`)
 - `LOG_LEVEL`: Logging verbosity (default: `info`)
 
 ### Configuration Files
 
-**`.env` file:**
-\`\`\`bash
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
-SECRET_KEY=your-secret-key-here
-API_KEY=your-api-key-here
-DEBUG=false
-LOG_LEVEL=info
-\`\`\`
+**`.env` file:** \`\`\`bash DATABASE_URL=postgresql://user:pass@localhost:5432/db SECRET_KEY=your-secret-key-here API_KEY=your-api-key-here DEBUG=false LOG_LEVEL=info \`\`\`
 
 ## API Documentation
 
@@ -154,11 +159,13 @@ LOG_LEVEL=info
 ### Endpoints
 
 **GET /api/resource**
+
 - Description: List all resources
 - Authentication: Required
 - Response: JSON array of resources
 
 **POST /api/resource**
+
 - Description: Create new resource
 - Authentication: Required
 - Request Body: `{ "field": "value" }`
@@ -167,27 +174,32 @@ LOG_LEVEL=info
 ## Testing
 
 \`\`\`bash
+
 # Run all tests
-npm test  # or pytest
+
+npm test # or pytest
 
 # Run with coverage
-npm run test:coverage  # or pytest --cov
+
+npm run test:coverage # or pytest --cov
 
 # Run specific test file
-npm test path/to/test.js  # or pytest tests/test_file.py
-\`\`\`
+
+npm test path/to/test.js # or pytest tests/test_file.py \`\`\`
 
 ## Deployment
 
 ### Production Deployment
 
 \`\`\`bash
+
 # Build for production
-npm run build  # or docker build
+
+npm run build # or docker build
 
 # Deploy
-[deployment commands]
-\`\`\`
+
+[deployment commands] \`\`\`
 
 ### Environment-Specific Notes
 
@@ -200,11 +212,13 @@ npm run build  # or docker build
 ### Common Issues
 
 **Issue 1: [Problem Description]**
+
 - **Symptom**: [How it manifests]
 - **Cause**: [Why it happens]
 - **Solution**: [How to fix]
 
 **Issue 2: [Another Problem]**
+
 - **Symptom**: [Observable behavior]
 - **Diagnosis**: [How to identify]
 - **Resolution**: [Step-by-step fix]
@@ -245,24 +259,16 @@ Clear explanation of what this directory contains and its role in the project.
 
 ## Directory Structure
 
-\`\`\`text
-directory/
-├── file1.ext           # Description of file1
-├── file2.ext           # Description of file2
-├── subdirectory/       # Description of subdirectory
-│   ├── nested1.ext     # Description
-│   └── nested2.ext     # Description
-└── README.md           # This file
-\`\`\`
+\`\`\`text directory/ ├── file1.ext # Description of file1 ├── file2.ext # Description of file2 ├── subdirectory/ # Description of subdirectory │ ├── nested1.ext # Description │ └── nested2.ext # Description └── README.md # This file \`\`\`
 
 ## Contents Overview
 
 ### Files
 
-| File | Purpose | Last Updated |
-|------|---------|--------------|
-| `file1.ext` | [What it does] | YYYY-MM-DD |
-| `file2.ext` | [What it does] | YYYY-MM-DD |
+| File        | Purpose        | Last Updated |
+| ----------- | -------------- | ------------ |
+| `file1.ext` | [What it does] | YYYY-MM-DD   |
+| `file2.ext` | [What it does] | YYYY-MM-DD   |
 
 ### Subdirectories
 
@@ -273,16 +279,18 @@ directory/
 ### Example 1: [Common Use Case]
 
 \`\`\`bash
+
 # Commands or code showing usage
-command here
-\`\`\`
+
+command here \`\`\`
 
 ### Example 2: [Another Use Case]
 
 \`\`\`[language]
+
 # Code example
-code_here
-\`\`\`
+
+code_here \`\`\`
 
 ## Dependencies
 
@@ -325,10 +333,8 @@ code_here
 
 ### Using the API Key
 
-\`\`\`bash
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-  https://api.example.com/v1/endpoint
-\`\`\`
+\`\`\`bash curl -H "Authorization: Bearer YOUR_API_KEY" \
+https://api.example.com/v1/endpoint \`\`\`
 
 ## Endpoints
 
@@ -339,69 +345,34 @@ List all resources with optional filtering.
 **Request:**
 
 Headers:
+
 - `Authorization: Bearer <token>` (required)
 - `Content-Type: application/json`
 
 Query Parameters:
+
 - `page` (integer, optional): Page number (default: 1)
 - `limit` (integer, optional): Items per page (default: 20, max: 100)
 - `filter` (string, optional): Filter criteria
 
 **Response:**
 
-Success (200):
-\`\`\`json
-{
-  "data": [
-    {
-      "id": "123",
-      "name": "Resource Name",
-      "created_at": "2025-01-01T00:00:00Z"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 100
-  }
-}
-\`\`\`
+Success (200): \`\`\`json { "data": [ { "id": "123", "name": "Resource Name", "created_at": "2025-01-01T00:00:00Z" } ], "pagination": { "page": 1, "limit": 20, "total": 100 } } \`\`\`
 
-Error (400):
-\`\`\`json
-{
-  "error": "Invalid filter format",
-  "code": "INVALID_FILTER"
-}
-\`\`\`
+Error (400): \`\`\`json { "error": "Invalid filter format", "code": "INVALID_FILTER" } \`\`\`
 
-Error (401):
-\`\`\`json
-{
-  "error": "Authentication required",
-  "code": "AUTH_REQUIRED"
-}
-\`\`\`
+Error (401): \`\`\`json { "error": "Authentication required", "code": "AUTH_REQUIRED" } \`\`\`
 
 **Example:**
 
-\`\`\`bash
-curl -X GET "https://api.example.com/v1/resources?page=1&limit=10" \
-  -H "Authorization: Bearer YOUR_TOKEN"
-\`\`\`
+\`\`\`bash curl -X GET "https://api.example.com/v1/resources?page=1&limit=10" \
+-H "Authorization: Bearer YOUR_TOKEN" \`\`\`
 
-\`\`\`python
-import requests
+\`\`\`python import requests
 
-response = requests.get(
-    "https://api.example.com/v1/resources",
-    headers={"Authorization": "Bearer YOUR_TOKEN"},
-    params={"page": 1, "limit": 10}
-)
+response = requests.get( "https://api.example.com/v1/resources", headers={"Authorization": "Bearer YOUR_TOKEN"}, params={"page": 1, "limit": 10} )
 
-data = response.json()
-print(data["data"])
-\`\`\`
+data = response.json() print(data["data"]) \`\`\`
 
 ### POST /api/resources
 
@@ -410,80 +381,39 @@ Create a new resource.
 **Request:**
 
 Headers:
+
 - `Authorization: Bearer <token>` (required)
 - `Content-Type: application/json`
 
-Body:
-\`\`\`json
-{
-  "name": "Resource Name",
-  "description": "Resource description",
-  "attributes": {
-    "key": "value"
-  }
-}
-\`\`\`
+Body: \`\`\`json { "name": "Resource Name", "description": "Resource description", "attributes": { "key": "value" } } \`\`\`
 
 **Response:**
 
-Success (201):
-\`\`\`json
-{
-  "id": "123",
-  "name": "Resource Name",
-  "description": "Resource description",
-  "created_at": "2025-01-01T00:00:00Z",
-  "attributes": {
-    "key": "value"
-  }
-}
-\`\`\`
+Success (201): \`\`\`json { "id": "123", "name": "Resource Name", "description": "Resource description", "created_at": "2025-01-01T00:00:00Z", "attributes": { "key": "value" } } \`\`\`
 
-Error (400):
-\`\`\`json
-{
-  "error": "Validation failed",
-  "code": "VALIDATION_ERROR",
-  "details": {
-    "name": ["This field is required"],
-    "description": ["Must be at least 10 characters"]
-  }
-}
-\`\`\`
+Error (400): \`\`\`json { "error": "Validation failed", "code": "VALIDATION_ERROR", "details": { "name": ["This field is required"], "description": ["Must be at least 10 characters"] } } \`\`\`
 
 **Example:**
 
-\`\`\`bash
-curl -X POST "https://api.example.com/v1/resources" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "New Resource",
-    "description": "This is a new resource"
-  }'
-\`\`\`
+\`\`\`bash curl -X POST "https://api.example.com/v1/resources" \
+-H "Authorization: Bearer YOUR_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{ "name": "New Resource", "description": "This is a new resource" }' \`\`\`
 
 ## Rate Limiting
 
 - **Limit**: 100 requests per minute
-- **Headers**: 
+- **Headers**:
   - `X-RateLimit-Limit`: Total limit
   - `X-RateLimit-Remaining`: Remaining requests
   - `X-RateLimit-Reset`: Unix timestamp when limit resets
 
-**Rate Limit Exceeded (429):**
-\`\`\`json
-{
-  "error": "Rate limit exceeded",
-  "code": "RATE_LIMIT",
-  "retry_after": 60
-}
-\`\`\`
+**Rate Limit Exceeded (429):** \`\`\`json { "error": "Rate limit exceeded", "code": "RATE_LIMIT", "retry_after": 60 } \`\`\`
 
 ## Error Codes
 
 | Code | HTTP Status | Description | Solution |
-|------|-------------|-------------|----------|
+| --- | --- | --- | --- |
 | `AUTH_REQUIRED` | 401 | Missing authentication | Include Authorization header |
 | `FORBIDDEN` | 403 | Insufficient permissions | Check access rights |
 | `NOT_FOUND` | 404 | Resource not found | Verify resource ID |
@@ -523,6 +453,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for API version history and breaking changes.
 ### Learning Objectives
 
 By the end of this tutorial, you will:
+
 - [ ] Understand [concept 1]
 - [ ] Be able to [skill 1]
 - [ ] Know how to [task 1]
@@ -531,10 +462,12 @@ By the end of this tutorial, you will:
 ### Prerequisites
 
 **Knowledge Requirements:**
+
 - Understanding of [prerequisite topic]
 - Familiarity with [tool/concept]
 
 **System Requirements:**
+
 - [Tool] installed ([version]+)
 - [Access] to [resource]
 - [Account] on [platform]
@@ -552,26 +485,26 @@ By the end of this tutorial, you will:
 **Implementation**:
 
 \`\`\`[language]
+
 # Commands or code with educational comments
-command_here  # What this does and why it's necessary
-another_command  # Explain the purpose and expected result
-\`\`\`
+
+command_here # What this does and why it's necessary another_command # Explain the purpose and expected result \`\`\`
 
 **Expected Result**:
 
 [Describe what the user should see or experience]
 
-\`\`\`text
-Expected output showing exactly what appears
-\`\`\`
+\`\`\`text Expected output showing exactly what appears \`\`\`
 
 **Troubleshooting**:
 
 If you see [error message]:
+
 - **Cause**: [Why this happens]
 - **Solution**: [How to fix it]
 
 If [unexpected behavior]:
+
 - **Check**: [What to verify]
 - **Fix**: [How to resolve]
 
@@ -590,11 +523,13 @@ If [unexpected behavior]:
 Test that everything works correctly:
 
 \`\`\`bash
+
 # Validation commands
-test_command_here
-\`\`\`
+
+test_command_here \`\`\`
 
 **Success Indicators**:
+
 - [ ] [Observable outcome 1]
 - [ ] [Observable outcome 2]
 - [ ] [Metric or measurement]
@@ -617,11 +552,13 @@ Answer these to confirm understanding:
 **Challenge**: [Specific task to complete]
 
 **Success Criteria**:
+
 - [ ] [Measurable outcome]
 - [ ] [Quality standard]
 - [ ] [Functionality requirement]
 
 **Hints**:
+
 - [Hint 1 if they get stuck]
 - [Hint 2 for common issues]
 
@@ -632,6 +569,7 @@ Answer these to confirm understanding:
 **Challenge**: [More sophisticated task]
 
 **Success Criteria**:
+
 - [ ] [Complex requirement]
 - [ ] [Integration requirement]
 - [ ] [Performance or quality standard]
@@ -649,29 +587,35 @@ Answer these to confirm understanding:
 Apply what you learned:
 
 **Beginner Project**: [Simple application idea]
+
 - [Requirement 1]
 - [Requirement 2]
 
 **Intermediate Project**: [More complex idea]
+
 - [Requirement 1]
 - [Requirement 2]
 
 **Advanced Project**: [Sophisticated idea]
+
 - [Requirement 1]
 - [Requirement 2]
 
 ## Resources
 
 ### Official Documentation
+
 - [Tool Documentation](link)
 - [Framework Guide](link)
 
 ### Community Resources
+
 - [Stack Overflow Tag](link)
 - [Discord/Slack Community](link)
 - [GitHub Discussions](link)
 
 ### Additional Tutorials
+
 - [Related Tutorial 1](link)
 - [Related Tutorial 2](link)
 
@@ -684,6 +628,7 @@ Apply what you learned:
 ### Getting Help
 
 If you're stuck:
+
 1. Review the [Troubleshooting section](#troubleshooting)
 2. Check [official documentation](link)
 3. Ask in [community forum](link)
@@ -705,46 +650,46 @@ If you're stuck:
 def function_name(param1: Type1, param2: Type2, param3: Optional[Type3] = None) -> ReturnType:
     """
     One-line summary of what the function does.
-    
+
     More detailed explanation if needed, describing the purpose,
     algorithm, or any important context. Explain the "why" not
     just the "what."
-    
+
     Args:
         param1: Description of first parameter and its constraints
         param2: Description of second parameter
         param3: Optional parameter description (default: None)
-    
+
     Returns:
         Description of return value, including structure if complex
-    
+
     Raises:
         ValueError: When param1 is invalid or out of range
         RuntimeError: When processing fails due to external factors
         CustomError: Specific error condition description
-    
+
     Example:
         >>> result = function_name("value1", 42)
         >>> print(result.status)
         'success'
-        
+
         >>> # Handling optional parameters
         >>> result = function_name("value", 42, param3="optional")
-    
+
     Note:
         Any important notes about usage, performance considerations,
         or gotchas that developers should be aware of.
-    
+
     See Also:
         related_function(): Related functionality
         OtherClass: Related class
     """
     # Implementation with educational comments
-    
+
     # Explain WHY, not WHAT for complex logic
     # Good: "Using exponential backoff to handle rate limits"
     # Bad: "Sleep for 2^attempt seconds"
-    
+
     pass
 ```
 
@@ -753,44 +698,44 @@ def function_name(param1: Type1, param2: Type2, param3: Optional[Type3] = None) 
 ```javascript
 /**
  * One-line summary of what the function does
- * 
+ *
  * More detailed explanation if needed. Describe purpose, algorithm,
  * or important context. Focus on WHY and WHEN to use this.
- * 
+ *
  * @param {string} param1 - Description of first parameter
  * @param {number} param2 - Description of second parameter
  * @param {Object} [options] - Optional configuration object
  * @param {boolean} [options.flag] - Optional flag (default: false)
  * @param {number} [options.timeout] - Timeout in ms (default: 5000)
- * 
+ *
  * @returns {Promise<Result>} Description of return value
- * 
+ *
  * @throws {ValidationError} When param1 is invalid
  * @throws {ProcessingError} When processing fails
- * 
+ *
  * @example
  * // Basic usage
  * const result = await functionName('value', 42);
  * console.log(result.status); // 'success'
- * 
+ *
  * @example
  * // With options
  * const result = await functionName('value', 42, {
  *   flag: true,
  *   timeout: 10000
  * });
- * 
+ *
  * @see {@link relatedFunction} for related functionality
  * @see {@link https://docs.example.com} for more details
  */
 async function functionName(param1, param2, options = {}) {
-    // Implementation with clear comments
-    
-    // Explain non-obvious decisions
-    // Good: "Validate before processing to fail fast (DFF principle)"
-    // Bad: "Check input"
-    
-    return result;
+  // Implementation with clear comments
+
+  // Explain non-obvious decisions
+  // Good: "Validate before processing to fail fast (DFF principle)"
+  // Bad: "Check input"
+
+  return result;
 }
 ```
 
@@ -800,12 +745,15 @@ async function functionName(param1, param2, options = {}) {
 
 ```markdown
 # Good: Descriptive alt text
+
 ![Architecture diagram showing request flow from client through API gateway, to microservices (auth, data, processing), then to database and external APIs, with response path back to client](./architecture-diagram.png)
 
 # Bad: Generic alt text
+
 ![diagram](./architecture-diagram.png)
 
 # Decorative images: Empty alt text
+
 ![](./decorative-border.png)
 ```
 
@@ -827,7 +775,9 @@ More detailed content.
 Use sparingly, only when absolutely needed.
 
 # ❌ INCORRECT: Skipping levels
+
 # Main Title (H1)
+
 ### Subsection (H3) - Skipped H2!
 ```
 
@@ -835,13 +785,12 @@ Use sparingly, only when absolutely needed.
 
 ```markdown
 # Good: Descriptive link text
-[Read the installation guide](./installation.md)
-[View API documentation](https://api.docs.example.com)
-Learn more about [Docker containerization](./docker-guide.md)
+
+[Read the installation guide](./installation.md) [View API documentation](https://api.docs.example.com) Learn more about [Docker containerization](./docker-guide.md)
 
 # Bad: Generic link text
-[Click here](./installation.md) for installation
-Read more [here](https://api.docs.example.com)
+
+[Click here](./installation.md) for installation Read more [here](https://api.docs.example.com)
 ```
 
 ## Documentation Quality Checklist
@@ -849,6 +798,7 @@ Read more [here](https://api.docs.example.com)
 Before finalizing documentation:
 
 ### Content Quality
+
 - [ ] Information is accurate and up-to-date
 - [ ] Language is clear and appropriate for audience
 - [ ] No spelling or grammar errors
@@ -857,6 +807,7 @@ Before finalizing documentation:
 - [ ] Code blocks specify language for syntax highlighting
 
 ### Structure & Organization
+
 - [ ] Logical flow of information
 - [ ] Proper heading hierarchy (no skipped levels)
 - [ ] Effective use of sections and subsections
@@ -864,6 +815,7 @@ Before finalizing documentation:
 - [ ] Table of contents for long documents
 
 ### Technical Accuracy
+
 - [ ] Code examples are functional
 - [ ] Commands work as documented
 - [ ] File paths are correct
@@ -871,6 +823,7 @@ Before finalizing documentation:
 - [ ] Links are valid and accessible
 
 ### Accessibility
+
 - [ ] Descriptive alt text for images
 - [ ] Proper heading hierarchy for screen readers
 - [ ] Descriptive link text (no "click here")
@@ -878,6 +831,7 @@ Before finalizing documentation:
 - [ ] Color-independent information
 
 ### Completeness
+
 - [ ] All promised sections are present
 - [ ] No TODO or placeholder text
 - [ ] Contact/support information included
@@ -889,9 +843,10 @@ Before finalizing documentation:
 When user invokes `/document`, follow this flow:
 
 1. **Identify Documentation Need**:
+
    ```
    I'll help you create comprehensive documentation.
-   
+
    What type of documentation do you need?
    - [ ] Project README (main repository documentation)
    - [ ] Directory README (document a specific directory)
@@ -901,7 +856,7 @@ When user invokes `/document`, follow this flow:
    - [ ] Architecture Documentation (system design)
    - [ ] Contributing Guidelines
    - [ ] Other: [specify]
-   
+
    What's the context?
    - Target audience: [beginners/developers/users]
    - Project type: [web app/library/CLI/etc.]
@@ -929,7 +884,7 @@ When user invokes `/document`, follow this flow:
 5. **Offer Enhancements**:
    ```
    Documentation created! 📚
-   
+
    Would you like me to:
    - [ ] Add more examples?
    - [ ] Create visual diagrams?
@@ -944,6 +899,7 @@ When user invokes `/document`, follow this flow:
 ### Tools to Suggest
 
 **Validation:**
+
 ```bash
 # Markdown linting
 markdownlint README.md docs/**/*.md
@@ -956,6 +912,7 @@ cspell "**/*.md"
 ```
 
 **Generation:**
+
 ```bash
 # Python API docs
 sphinx-apidoc -o docs/api src/
@@ -1008,4 +965,3 @@ Help learners confirm understanding:
 Invoke me with `/document` and let's build documentation that truly helps!
 
 **Remember**: Good documentation is clear, accurate, accessible, and practical.
-

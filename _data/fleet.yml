@@ -1,0 +1,441 @@
+# =============================================================================
+# _data/fleet.yml — the fleet's central control-plane configuration
+# =============================================================================
+# ONE file for the settings that were previously copy-pasted inline across a
+# dozen workflows: toolchain versions, schedule cadences, remediation caps, and
+# the token/variable contract every repo is held to.
+#
+# Consumed by:
+#   - tools/fleet-config.py        — reader + `dash config` / `dash secrets`
+#   - .github/workflows/fleet-pulse.yml — cadence + caps for the daily loop
+#   - .github/scripts/dash-gen/remediation.py — ranking + cap defaults
+#
+# WHY A FILE INSTEAD OF ORG SETTINGS
+# ----------------------------------
+# `bamr87` is a personal account, not an organization, so GitHub's org-level
+# secrets/variables and shared rulesets are unavailable — there is no server-side
+# place to centralize. The workable equivalent is: declare the contract here (in
+# version control, reviewable, diffable), and use tooling to PROJECT it onto the
+# fleet (`dash config sync`) and AUDIT the result (`dash secrets`). Secret VALUES
+# never live here — only their names, purpose, and required placement.
+# =============================================================================
+
+# --------------------------------------------------------------------------- #
+# Toolchain — the versions every reusable CI workflow defaults to.
+# Bump here, not in each workflow's `inputs.default`.
+# --------------------------------------------------------------------------- #
+toolchain:
+  node: "20"
+  python: "3.12"
+  ruby: "3.3"
+
+# --------------------------------------------------------------------------- #
+# Dependencies — the fleet-wide version policy: ALWAYS LATEST.
+#
+# Decision (2026-08): every repo installs whatever is newest at build time.
+# No exact pins, no version ceilings, no committed lockfiles. Breakage is
+# expected to surface in standard CI and flow through the daily fleet-pulse
+# loop (triage → doctor draft PR) instead of being prevented by pinning.
+# Accepted tradeoffs, on the record: builds are not reproducible, and a bad
+# (or malicious) upstream release reaches CI the day it ships — the fleet
+# trades both for zero update maintenance.
+#
+# Applied by: tools/unpin-deps.sh (one repo), the deps-latest kit in
+# tools/fanout.sh + deps-fanout.yml (fleet-wide PRs), and the hub's own tree.
+# Full policy: docs/DEPENDENCIES.md
+# --------------------------------------------------------------------------- #
+dependencies:
+  strategy: latest
+  lockfiles: never-commit           # local ephemera only — gitignored fleet-wide
+  lockfile_patterns:
+    - package-lock.json
+    - npm-shrinkwrap.json
+    - pnpm-lock.yaml
+    - yarn.lock
+    - Gemfile.lock
+    - poetry.lock
+    - Pipfile.lock
+    - uv.lock
+    - composer.lock
+  exceptions:
+    github_actions: major-tag       # `uses:` needs a ref; @vN floats minor/patch, hub dependabot bumps majors
+    pre_commit: pinned-rev          # `rev:` is mandatory in .pre-commit-config.yaml; refresh via `pre-commit autoupdate`
+    toolchain: fleet-config         # node/python/ruby versions stay governed by `toolchain:` above, not per-repo pins
+
+# --------------------------------------------------------------------------- #
+# Hub identity
+# --------------------------------------------------------------------------- #
+hub:
+  repo: bamr87/bamr87
+  shared: bamr87/.github          # reusable workflows + community health files
+  default_branch: main
+  bot_name: bamr87-bot
+  bot_email: "10567847+bamr87@users.noreply.github.com"
+
+# --------------------------------------------------------------------------- #
+# Daily loop cadence (UTC). The pipeline is ONE workflow now, so these are the
+# stages within it rather than separate cron entries racing each other.
+# --------------------------------------------------------------------------- #
+schedule:
+  fleet_pulse: "0 6 * * *"        # gather → publish → remediate
+  build_dash: "0 7 * * *"         # republish the site after the data lands
+  issue_pipeline: "0 8 * * *"     # intake → implement → complete (see issue_pipeline:)
+  refresh_dash: "0 4 * * *"       # README AUTO span refresh PR
+  reconcile_registry: "0 5 * * *" # registry ↔ GitHub reconciliation
+  update_submodules: "0 3 * * 0"  # weekly pointer bump PR
+  rotate_tokens: "0 2 * * 1"      # weekly credential rotation (see rotation:)
+
+# --------------------------------------------------------------------------- #
+# Remediation — the auto-fix loop's guardrails.
+#
+# These are deliberately conservative. The loop opens DRAFT PRs and the caps
+# bound blast radius: an agent that misreads a signal can waste a review, not a
+# weekend.
+# --------------------------------------------------------------------------- #
+remediation:
+  # Bounded by what the doctor agent can actually WORK, not by what looks
+  # ambitious: each candidate costs it ~40 turns out of a 160-turn budget
+  # (`--max-turns` in fleet-pulse.yml). At 6 the agent exhausted its turns and
+  # the whole day's remediation was lost — a queue nobody can finish delivers
+  # fewer fixes than a shorter one. Raise this and raise `--max-turns` with it;
+  # test_fleet_pulse_doctor.py fails the pair if you don't.
+  max_candidates: 4               # total candidates acted on per run
+  max_cross_repo: 3               # of those, how many may become submodule PRs
+  min_runs: 3                     # ignore workflows with fewer runs in the window
+  min_priority: 10.0              # unflagged workflows at/above this are eligible
+  slow_avg_min: 10                # avg minutes/run that counts as "long-running"
+  slow_p95_min: 20                # p95 minutes/run that counts as "long-running"
+  window_days: 14                 # analytics window
+  # Signals ranked highest-first. A workflow matching several is ranked by its
+  # strongest and reported with all of them.
+  severity:
+    failing: 100                  # currently red on its default branch
+    high-cost-low-value: 80       # most minutes end in non-success
+    flaky: 60
+    slow: 40
+    cancel-heavy: 20
+    cron-heavy: 10
+
+# --------------------------------------------------------------------------- #
+# Issue pipeline — the three-tier loop that turns an open issue into a
+# merge-ready pull request. Counterpart to `remediation:` above: that one fixes
+# broken WORKFLOWS, this one resolves ISSUES.
+#
+#   T1 intake     enrich, gather evidence in an isolated virtual environment,
+#                 label, prioritize, assign an owner  → `agent:ready`
+#   T2 implement  branch, implement, open a DRAFT PR  → `agent:in-pr`
+#   T3 complete   drive CI green, tests + docs, mark ready for review
+#
+# Stage lives in LABELS, not in a database: a human re-queues, skips, or stops
+# any issue by editing one label, and a lost run resumes from current state
+# instead of dying with the event that would have chained it.
+#
+# Consumed by:
+#   - .github/scripts/dash-gen/issue_pipeline.py  — queues, caps, taxonomy
+#   - .github/workflows/issue-pipeline.yml        — the three agent tiers
+#   - tools/issue-evidence.sh                     — evidence timeout
+# Full doc: docs/ISSUE-PIPELINE.md
+# --------------------------------------------------------------------------- #
+issue_pipeline:
+  enabled: true
+  hub: bamr87/bamr87
+  branch_prefix: agent/issue      # T2 branches; also how T3 recognises its own PRs
+
+  # Per-run blast radius. Deliberately small: every tier costs Claude tokens and
+  # every T2 candidate becomes a pull request somebody has to look at.
+  tiers:
+    intake:
+      max_issues: 8               # issues enriched per run, fleet-wide
+      max_per_repo: 3             # …so one noisy backlog can't consume the run
+    implement:
+      max_issues: 3               # draft PRs opened per run
+      max_cross_repo: 2           # of those, how many may land outside the hub
+    complete:
+      max_prs: 4                  # pipeline PRs driven toward mergeable per run
+
+  # The virtual environment T1 reproduces issues in (tools/issue-evidence.sh).
+  # This is the expensive half of intake — one clone + toolchain install + test
+  # run per issue — so it is capped separately and cached by TTL.
+  evidence:
+    enabled: true
+    max_runs: 6                   # evidence bundles built per run
+    ttl_days: 7                   # a bundle newer than this is reused, not rebuilt
+    timeout_minutes: 8            # per PHASE (clone/install/lint/test/build), not per bundle;
+                                  # the workflow step's own timeout is the hard ceiling
+    screenshots: true             # capture a page screenshot for web stacks
+
+  readiness:
+    min_score: 70                 # 100 − gap weights; below this T1 must not pass it on
+
+  # What may proceed unattended, and what stops one step short of asking for a
+  # merge. `assisted` still gets a full implementation and a PR — it just never
+  # gets marked ready-for-review by an agent.
+  autonomy:
+    default: auto
+    never_merge: true             # no tier may ever merge. Not configurable in practice.
+    assisted_types: [security]    # a security fix always gets human eyes
+    assisted_sizes: [size:xl]     # too big to land unattended — split it instead
+    assisted_priorities: []       # e.g. [P0] to force review on urgent work
+
+  # Suggested assignee. `bamr87` is a personal account with no teams, so this is
+  # a routing table rather than a lookup — override per category or per repo as
+  # collaborators appear.
+  owners:
+    default: bamr87
+    by_category: {}               # e.g. docs: some-writer
+    by_repo: {}                   # e.g. bamr87/it-journey: someone
+
+  # The taxonomy every tier applies. Created/refreshed in each target repo by
+  # `dash issues --sync-labels --apply` — `gh issue edit --add-label` fails the
+  # WHOLE call on one unknown label, so a missing label costs an issue its
+  # entire triage.
+  labels:
+    state:
+      queued: agent:queued
+      ready: agent:ready
+      blocked: agent:blocked
+      in_pr: agent:in-pr
+      done: agent:done
+      hold: agent:hold            # human brake: excluded from every tier
+      human_review: human-review  # human brake: PR is never auto-advanced
+    types: [bug, feature, docs, chore, ci, refactor, test, security, question]
+    priorities: [P0, P1, P2, P3]
+    sizes: [size:xs, size:s, size:m, size:l, size:xl]
+
+# --------------------------------------------------------------------------- #
+# Token contract — WHICH secret does WHAT, and where it must exist.
+#
+# `scope: hub` secrets live on bamr87/bamr87 only. `scope: fleet` secrets are
+# expected on every non-external registry repo (audited by `dash secrets`).
+# Values are never stored here.
+#
+# Each entry may carry a `rotation:` policy read by `dash secrets rotate` and
+# the weekly `token-rotation.yml` workflow — see the `rotation:` block below for
+# what the knobs mean and what the loop can and cannot do unattended.
+# --------------------------------------------------------------------------- #
+tokens:
+  - name: CLAUDE_CODE_OAUTH_TOKEN
+    scope: fleet
+    required: true
+    purpose: >-
+      Preferred Claude auth for every claude-code-action call site (house
+      convention: OAuth first). Produced by `claude setup-token`.
+    used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
+              unified-evolution.yml, schema-fanout.yml]
+    rotation:
+      enabled: true
+      # `claude setup-token` mints a ONE-YEAR credential, so the value itself is
+      # not the weekly event — distribution and freshness are. 45 days is the
+      # propagation heartbeat: any repo whose copy is older than this gets
+      # rewritten, which is what pulls a newly-registered repo into line and
+      # what re-heals a secret someone deleted by hand.
+      # A repo is ALSO stale when its copy predates the hub's, whatever its
+      # age. That is the rule that makes a human updating the hub's token
+      # actually reach the fleet: without it, every repo written inside this
+      # window keeps the OLD credential and the fleet ends up split across two.
+      # Real case, 2026-08-24: the hub was updated at 22:26Z and three repos —
+      # zer0-mistakes (1d), githubai (4d), irony-works (16d) — were classified
+      # current by age and would have been skipped.
+      max_age_days: 45
+      # A hard deadline measured against the credential's own one-year life.
+      # Past this the loop asks a human to re-mint (it cannot do it itself
+      # unless `refresh:` below is provisioned).
+      lifetime_days: 365
+      renew_before_days: 30
+      # Accepted value shapes. A rotation that would write something not
+      # matching one of these is refused before any repo is touched — the fleet
+      # has 41 call sites and a malformed credential breaks all of them at once.
+      value_prefixes: ["sk-ant-oat", "sk-ant-oa"]
+      refresh:
+        # UNOFFICIAL and therefore opt-in: Anthropic documents no programmatic
+        # way to re-mint a `claude setup-token` credential (the documented
+        # zero-rotation path is Workload Identity Federation — see
+        # docs/TOKEN-ROTATION.md). The OAuth refresh grant below is derived
+        # from the CLI's own login flow and can change without notice, so the
+        # loop treats a failure here as "ask a human", never as an error that
+        # costs the fan-out. Provision CLAUDE_CODE_OAUTH_REFRESH_TOKEN on the
+        # hub to turn it on; leave it unset to run propagate-and-alert only.
+        secret: CLAUDE_CODE_OAUTH_REFRESH_TOKEN
+        client_id: 9d1c250a-e61b-44d9-88ed-5944d1962f5e
+        # Tried in order. Anthropic moved the token endpoint to platform.*;
+        # console.* is kept as the fallback for older tenants.
+        endpoints:
+          - https://platform.claude.com/v1/oauth/token
+          - https://console.anthropic.com/v1/oauth/token
+
+  - name: CLAUDE_CODE_OAUTH_REFRESH_TOKEN
+    scope: hub
+    required: false
+    purpose: >-
+      OAuth refresh credential that lets the weekly rotation mint a fresh
+      CLAUDE_CODE_OAUTH_TOKEN without a browser. Optional: without it the loop
+      still propagates and audits, it just cannot re-mint. Rotates itself — the
+      grant returns a new refresh token, which the loop writes straight back to
+      the hub.
+    used_by: [token-rotation.yml]
+    rotation:
+      enabled: false      # rotated as a side effect of the grant, not on its own
+
+  - name: ANTHROPIC_API_KEY
+    scope: fleet
+    required: false
+    purpose: Fallback Claude auth, used only when the OAuth token is absent.
+    used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
+              unified-evolution.yml, schema-fanout.yml]
+    rotation:
+      # The loop cannot RE-ISSUE a console key — that is a human action in the
+      # Anthropic console — but it can and should PROPAGATE whatever the hub
+      # holds, exactly like the OAuth token. `enabled` means "this loop keeps
+      # the fleet's copies in line with the hub's", not "this loop can mint".
+      # The hub does not currently hold one; while that is true every run
+      # simply reports it as unavailable and moves on, and because
+      # `required: false` that is not an attention item.
+      enabled: true
+      max_age_days: 45
+      value_prefixes: ["sk-ant-api"]
+
+  - name: FLEET_TOKEN
+    scope: hub
+    required: true
+    purpose: >-
+      Fine-grained PAT the control plane uses to see and act on the whole fleet.
+      Needs actions:read + contents:read + issues:read/write +
+      pull_requests:read/write on the fleet, plus contents:write +
+      workflows:write on repos the fan-outs and the remediation loop may open
+      PRs against, plus secrets:write on every fleet repo for the weekly
+      rotation (writing an Actions secret is an admin-level operation — without
+      it `token-rotation.yml` can audit ages but not fix them). Supersedes the
+      three separate PATs below.
+    replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN, FANOUT_TOKEN]
+    rotation:
+      enabled: false      # GitHub PAT; re-issue in GitHub settings and re-seed
+
+  # Legacy PATs — still honoured as fallbacks so nothing breaks mid-migration.
+  # Remove from the repo once FLEET_TOKEN is provisioned and verified.
+  - name: ACTIONS_ANALYTICS_TOKEN
+    scope: hub
+    required: false
+    deprecated: true
+    purpose: Legacy — read fleet Actions data. Folded into FLEET_TOKEN.
+  - name: DAILY_ANALYSIS_TOKEN
+    scope: hub
+    required: false
+    deprecated: true
+    purpose: Legacy — read fleet runs/issues for the daily analysis. Folded into FLEET_TOKEN.
+  - name: FANOUT_TOKEN
+    scope: hub
+    required: false
+    deprecated: true
+    purpose: Legacy — push branches + open PRs in submodules. Folded into FLEET_TOKEN.
+
+# --------------------------------------------------------------------------- #
+# Rotation — the weekly credential loop's guardrails.
+#
+# Counterpart to `remediation:` (broken workflows) and `issue_pipeline:` (open
+# issues): this one keeps the fleet's CREDENTIALS current. Driven by
+# .github/workflows/token-rotation.yml (weekly, `schedule.rotate_tokens`) and
+# runnable by hand as `dash secrets rotate`.
+#
+# WHAT THE LOOP CAN AND CANNOT DO
+# -------------------------------
+# `claude setup-token` opens a browser and prints a one-year credential; it
+# saves nothing and has no headless equivalent. So "rotate weekly" decomposes
+# into three jobs, only two of which are unconditionally automatable:
+#
+#   1. PROPAGATE  push the canonical value to every fleet repo whose copy is
+#                 missing or older than `max_age_days`. Always runs. This is
+#                 what enrols a newly-registered repo and re-heals a secret
+#                 someone deleted, without anyone remembering to.
+#   2. AUDIT      record each repo's secret age from GitHub's own `updated_at`
+#                 into the ledger below. Always runs. Values are never read —
+#                 the secrets API returns names and timestamps only.
+#   3. RE-MINT    obtain a genuinely NEW credential. Only possible when the
+#                 optional refresh grant is provisioned (see the token entry
+#                 above); otherwise the loop opens ONE tracking issue asking a
+#                 human to run `claude setup-token`, and keeps propagating the
+#                 current value meanwhile.
+#
+# The zero-rotation alternative is Workload Identity Federation, which trades
+# the stored credential for an OIDC exchange per run. It needs an Anthropic
+# organization console, which a personal account does not have — the same
+# constraint that made `_data/fleet.yml` necessary in the first place.
+# Full doc: docs/TOKEN-ROTATION.md
+# --------------------------------------------------------------------------- #
+rotation:
+  enabled: true
+
+  # Order matters and is not negotiable: the hub is written and verified FIRST,
+  # and a failure there aborts the fan-out. A bad credential on one repo is an
+  # incident; a bad credential on all 41 is an outage, and the hub is the repo
+  # whose own automation would have to fix it.
+  hub_first: true
+
+  # Rewrite only what is missing or past `max_age_days`. A freshly MINTED value
+  # overrides this and goes everywhere — a rotation that reached half the fleet
+  # is worse than one that reached none.
+  only_stale: true
+
+  # Blast radius per run. `max_repos: 0` means "no cap" — the whole point is
+  # fleet-wide consistency, and a partial rotation leaves call sites split
+  # across two credentials. Raise `max_failures` tolerance rather than capping.
+  max_repos: 0
+  max_failures: 5             # abort the remaining writes past this many failures
+
+  # Unreachable repos (no admin on them, or private and out of the token's
+  # scope) are reported, not fatal. `dash secrets` already distinguishes
+  # "cannot see" from "not there"; rotation inherits that distinction.
+  fail_on_unreachable: false
+
+  # When a credential is past `renew_before_days` of its `lifetime_days` and
+  # cannot be re-minted unattended, open ONE hub issue (deduped by marker,
+  # updated in place) rather than failing the run.
+  issue:
+    enabled: true
+    repo: bamr87/bamr87
+    labels: [automation, security, tokens]
+    marker: token-rotation   # hidden dedupe marker, same convention as fleet-doctor
+
+  # Repository VARIABLES ride the same weekly pass as the secrets.
+  #
+  # They are the half of the contract that CAN be read back: GitHub returns a
+  # variable's value, so the hub's own settings are the live source of truth and
+  # the fleet is compared against them by VALUE, not by age. A repo is written
+  # when its value differs from the hub's or is absent — so a no-op week writes
+  # nothing, and a variable corrected on the hub reaches the fleet within a week
+  # instead of whenever somebody remembers `dash config sync --apply`.
+  #
+  # `variables:` at the bottom of this file declares WHICH names are canonical
+  # and carries a fallback value for each; bamr87/bamr87 holds the authoritative
+  # value. That is deliberately the same split the secrets half uses — the
+  # contract is in version control, the values are in the hub — and it is why a
+  # value can be fixed in one place and land everywhere.
+  variables:
+    enabled: true
+    source: hub             # hub's live value wins; `variables:` below is the fallback
+    warn_on_fallback: true  # say so when the hub lacks a declared variable
+
+  # Values-free record of what happened, published like every other generated
+  # signal. Names, ages, and outcomes only — never a credential. Variables are
+  # not secret, so the ledger records their values.
+  ledger: _data/token_rotation.yml
+
+# --------------------------------------------------------------------------- #
+# Canonical repository VARIABLES (not secrets).
+#
+# This block declares WHICH variables are canonical fleet-wide and carries a
+# fallback value for each. The authoritative value lives on the hub
+# (bamr87/bamr87's own repository variables) — the same split the token contract
+# above uses, where the contract is in version control and the values are in the
+# hub. `token-rotation.yml` reads the hub's live values weekly and propagates
+# them; `dash config sync --apply` does the same on demand. A name declared here
+# but absent from the hub falls back to the value below, and the run says so.
+#
+# This is what makes a per-repo workflow able to say `${{ vars.NODE_VERSION }}`
+# instead of hardcoding a version that then drifts across 40 repos.
+# --------------------------------------------------------------------------- #
+variables:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  RUBY_VERSION: "3.3"
+  FLEET_HUB: bamr87/bamr87
+  FLEET_CI_WORKFLOW: bamr87/.github/.github/workflows/ci.yml@main

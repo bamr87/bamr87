@@ -1,0 +1,22 @@
+kit: prose
+version: 0.2.0
+source: bamr87/bamr87 templates/prose/
+seeded-by: tools/fanout.sh --kit prose
+files: markdown-oneline.yml, archive/markdown-oneline-0.1.0.yml (vendors tools/unwrap-prose.py)
+updated: 2026-08-09
+changelog: |
+  0.2.0 — markdown-oneline.yml floats actions/checkout and actions/setup-python
+  to @v7. The fleet was ALREADY there: a mechanical action bump reached the 30
+  deployed copies while this template stayed pinned at checkout@v4 /
+  setup-python@v5, so any re-fanout would have silently downgraded 30 repos two
+  major versions. archive/markdown-oneline-0.1.0.yml preserves the v4/v5 shape
+  so `--upgrade` recognizes the two repos still on it (wtd, zpl-viewer) as
+  machine-seeded and refreshes them, while hand-modified copies (it-journey
+  adds generated-path excludes) are left alone.
+  0.1.0 — initial kit: the Liquid-safe one-paragraph-per-line CI gate.
+notes: |
+  Deliberately NOT stamped with a `# kit:` comment the way agent-context is.
+  Identity is established by byte-comparison against this template and the
+  archive/ shapes, so bumping the kit costs the fleet nothing until the payload
+  itself actually changes. Adding a stamp would mark all 30 current copies
+  hand-modified and force a no-op PR into every repo.

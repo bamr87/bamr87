@@ -9,14 +9,16 @@ sidebar:
 
 # 📊 Dashboard
 
-A single place to **manage**, **view**, **run**, and **evolve** the project
-portfolio — backed by a machine-readable registry, a live monitoring board, and
-an AI orchestration layer.
+A single place to **manage**, **view**, **run**, and **evolve** the project portfolio — backed by a machine-readable registry, a live monitoring board, and an AI orchestration layer.
 
 <div class="row text-center my-4">
   <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/projects/' | relative_url }}">🎨 Portfolio</a></div>
   <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/monitor/' | relative_url }}">🩺 Monitor</a></div>
+  <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/roadmap/' | relative_url }}">🗺️ Roadmap</a></div>
   <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/toolbox/' | relative_url }}">🧰 Toolbox</a></div>
+  <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/cockpit/' | relative_url }}">💰 Cost Cockpit</a></div>
+  <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/ai-usage/' | relative_url }}">🧮 AI Usage</a></div>
+  <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/ai-activity/' | relative_url }}">🤖 AI Activity</a></div>
   <div class="col-md-3 col-6 mb-3"><a class="btn btn-outline-primary w-100" href="{{ '/resume/' | relative_url }}">📄 Resume</a></div>
 </div>
 
