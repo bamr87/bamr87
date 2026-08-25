@@ -98,9 +98,25 @@ gate.
 - **Code decides what's actionable, not the AI.** Selection, merging, dedupe,
   ranking, and caps all run in `remediation.py`. The AI only investigates and
   authors on a pre-vetted, capped list — it cannot spam the fleet.
-- **Caps** come from `_data/fleet.yml` → `remediation.max_candidates` (default 6)
+- **Caps** come from `_data/fleet.yml` → `remediation.max_candidates` (default 4)
   and `max_cross_repo` (default 3). The cross-repo sub-cap stops a burst of
   submodule failures from starving hub fixes that could land the same day.
+- **The cap is paid for out of a turn budget.** `doctor` runs the agent with
+  `--max-turns 160`, and one candidate costs ~40 turns: 2 reads to diagnose it
+  (run log + workflow definition) and 7 to author the fix (clone, branch, read,
+  edit, commit, push, `gh pr create`), plus margin for a wrong first guess. The
+  cap and the budget are therefore one number, stated in two files — the
+  workflow's `--limit` fallback shadows the registry value, so both move
+  together or neither does. `.github/scripts/dash-gen/test_fleet_pulse_doctor.py`
+  fails if they drift, or if the budget stops covering the cap. Set at 6 with a
+  120-turn budget, the agent exhausted its turns mid-queue and the run produced
+  **nothing** — an unfinishable queue delivers fewer fixes than a shorter one.
+- **The agent's allowlist has to cover its own prompt.** The prompt tells it to
+  read `gh run view --log-failed`; a pipeline is permission-matched per segment,
+  so `Bash(gh:*)` does not cover the filter on the right of the `|`. The
+  log-triage filters (`grep`, `head`, `tail`, `wc`, `jq`, …) are in
+  `--allowedTools` for that reason, and the same test asserts it — a prompt that
+  instructs a command nobody granted turns the budget into denials, silently.
 - **Dedupe is marker-based.** Every PR/issue body starts with
   `<!-- fleet-doctor key="owner/repo:path" -->`. Markers from the two retired
   loops (`actions-review`, `daily-analysis`) are honoured too, so open tickets

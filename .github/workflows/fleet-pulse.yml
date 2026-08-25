@@ -53,7 +53,7 @@ on:
       max_candidates:
         description: "Max workflows to remediate this run"
         type: string
-        default: "6"
+        default: "4"
       dry_run:
         description: "Gather + publish data, but do not run the fixer"
         type: boolean
@@ -176,11 +176,16 @@ jobs:
       # Runs AFTER publishing so the queue is built from exactly the data that
       # was just recorded, and so a publish failure can't silently change what
       # the fixer sees.
+      # Keep this fallback equal to `remediation.max_candidates` in
+      # _data/fleet.yml: the explicit `--limit` SHADOWS the registry value, so
+      # editing only one of them makes the declared contract a lie. Both are
+      # asserted by test_fleet_pulse_doctor.py, together with the doctor turn
+      # budget they have to be paid for out of.
       - name: Build remediation queue
         id: remediate
         run: |
           tools/dash-gen remediate \
-            --limit "${{ inputs.max_candidates || '6' }}" \
+            --limit "${{ inputs.max_candidates || '4' }}" \
             --out remediation-workorder.md
 
       - name: Show remediation queue
@@ -285,10 +290,25 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+          # BUDGET, and why it is what it is. Step 2 of the prompt costs 2 reads
+          # per candidate (run log + workflow definition) and Step 3b costs 7
+          # more (clone, branch, read, edit, commit, push, `gh pr create`) — an
+          # 11-turn floor with zero margin. The run that died on `error_max_turns`
+          # averaged ~24 turns across 5 candidates and still did not finish. 160
+          # turns against a cap of 4 is 40 each: the observed cost plus margin
+          # for one wrong guess. Raising the cap without raising this re-creates
+          # the failure, which is why test_fleet_pulse_doctor.py asserts the
+          # arithmetic.
+          #
+          # ALLOWLIST: the filters are not conveniences. Step 2 instructs a
+          # `gh run view --log-failed` read, which emits thousands of lines and
+          # is unusable without a pipe — and a pipeline is matched per segment,
+          # so `Bash(gh:*)` does NOT cover the command on the right of the `|`.
+          # Without them the agent burned 36 of 121 turns on DENIED calls.
           claude_args: >-
             --model opus
-            --max-turns 120
-            --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Read,Grep,Glob,Edit,Write"
+            --max-turns 160
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(jq:*),Bash(echo:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are the **fleet doctor** (Opus) for the bamr87 monorepo dash, the
             control plane for ~40 submodule repos. A deterministic triage step has
@@ -309,6 +329,10 @@ jobs:
             - Read the failing run's log:
               `gh run view -R <owner>/<repo> <run_id> --log-failed`
               (fall back to `gh run view -R <owner>/<repo> <run_id>` if logs 404).
+              That dump is thousands of lines — do NOT read it whole. Filter it
+              (`... --log-failed | grep -nE 'error|Error|failed|##\[error\]' | tail -n 100`)
+              or redirect it to a file and search that with Grep. Your turn
+              budget is finite and one unfiltered dump can cost the queue.
             - Read the workflow definition:
               `gh api repos/<owner>/<repo>/contents/<path> -H "Accept: application/vnd.github.raw"`
             - For `slow` candidates, inspect the slowest run's per-step timings to
