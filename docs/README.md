@@ -1,92 +1,89 @@
 ---
 title: Documentation Index
-description: Entry point for people working on this repository, as opposed to reading the profile README.
+author: Amr Abdel-Motaleb
+description: Navigation hub for the guides and reference material in this repository.
+updated: 2026-08-26
 ---
 
-# Documentation
+# Documentation Index
 
-Welcome. The [root `README.md`](../README.md) of this repository doubles as a GitHub **profile** page, so it is written for visitors rather than contributors. This page is the entry point for anyone who wants to work *on* the repository.
+This page exists for one reason: to make the documentation that already lives in
+this repository easy to find. The root [`README.md`](../README.md) is a GitHub
+profile README — it introduces the person, not the repository — so the guides
+sitting next to it are easy to miss.
 
-> **Note on this index:** it is built from the repository's top-level file listing. Each entry below names a file that exists and describes what it is *expected* to cover based on its name and conventional usage. Where a document's contents have not been summarised here, open the file itself — it is the authoritative source.
+> **A note on accuracy.** Entries marked _(summary unverified)_ describe a file
+> whose contents have not been confirmed by whoever last edited this index. The
+> link is correct; the one-line description is an educated guess based on the
+> filename and on repository conventions. If you open one of these files and the
+> description is wrong, please fix it here — that is the whole point of the
+> marker.
 
-## Start here
+---
 
-| Document | What it is for |
-| --- | --- |
-| [`CONTRIBUTING.md`](../CONTRIBUTING.md) | Contribution guidelines — read this before opening a pull request. Treat it as the authoritative source for setup, workflow and review expectations. |
-| [`SUBMODULES.md`](../SUBMODULES.md) | Guidance for the Git submodules used by this repository. A `.gitmodules` file is present at the root, so a fresh clone is likely to need submodule initialisation before it is complete. |
-| [`SCHEMA.md`](../SCHEMA.md) | The content/front-matter schema used across the repository. |
-
-## Working with automation and agents
-
-This repository carries several files that describe how automated tooling and AI assistants are expected to behave in it:
-
-| File | What it is for |
-| --- | --- |
-| [`AGENTS.md`](../AGENTS.md) | Conventions and instructions for agents operating on this repository. |
-| [`CLAUDE.md`](../CLAUDE.md) | Project-specific guidance for Claude / Claude Code sessions. |
-| [`fleet.manifest.yml`](../fleet.manifest.yml) | Manifest describing the automation fleet configured for this repository. |
-| `.claude/`, `.mcp.json` | Assistant and Model Context Protocol configuration. |
-
-## Build, tooling and environment
-
-These exist at the repository root. **Do not assume the commands** — check `CONTRIBUTING.md` and the files themselves for the invocations this project actually supports.
-
-| File or directory | What it is |
-| --- | --- |
-| `Gemfile` | Ruby dependencies. Together with `_config.yml` / `_config_dev.yml` this indicates a Jekyll-based site. |
-| `_config.yml`, `_config_dev.yml` | Jekyll site configuration (production and development variants). |
-| `Rakefile` | Rake tasks for the repository. Run `rake -T` to list what is available. |
-| `docker-compose.yml` | Container definitions for local development. |
-| `.devcontainer/` | VS Code Dev Container definition. |
-| `.github/` | GitHub Actions workflows and repository metadata. |
-| `.pre-commit-config.yaml`, `.husky/` | Pre-commit and Git hook configuration. |
-| `.editorconfig`, `.prettierrc`, `.prettierignore` | Formatting configuration. Please keep these settings rather than reformatting to personal preference. |
-| `.env.example` | Template for local environment variables. Copy it, fill it in, and never commit the result — see `.gitignore`. |
-| `home.code-workspace`, `.vscode/` | VS Code workspace and editor settings. |
-
-## Repository layout
-
-Top-level directories, with the role suggested by their name and by the Jekyll configuration at the root:
-
-- `docs/` — this documentation set.
-- `pages/` — site pages.
-- `projects/` — project entries.
-- `templates/` — reusable templates.
-- `tools/` — scripts and utilities.
-- `assets/` — static assets (images, styles, scripts).
-- `_data/` — Jekyll data files.
-- `_reports/` — generated reports.
-
-The repository is also home to shell environment files (`.zshrc`, `.zprofile`, `.gitconfig`), which is consistent with it being described as a monorepo with Shell as its primary language.
-
-## Inside this directory
-
-The operator docs for the dash machinery live here — one `UPPERCASE-TOPIC.md` per concern (see this directory's [`SCHEMA.md`](SCHEMA.md) for the structural contract) — plus a few lowercase newcomer guides.
+## Guides at the repository root
 
 | Document | What it covers |
 | --- | --- |
-| [`DASH.md`](DASH.md) | The dash architecture — registry, surfaces, monitoring, drift gates, and the self-evolution loop. Start here for the machinery. |
-| [`DEVELOPMENT.md`](DEVELOPMENT.md) | Local setup for the hub — containers, the everyday loop, and the pre-PR checklist. |
-| [`AI-INTEGRATION.md`](AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth and the secrets matrix, loops, fleet propagation. |
-| [`DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`) — measure, rank, remediate. |
-| [`ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR. |
-| [`TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
-| [`ESTIMATION.md`](ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
-| [`STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline the fleet is held to. |
-| [`RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
-| [`DEPENDENCIES.md`](DEPENDENCIES.md) | The always-latest dependency policy. |
-| [`SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
-| [`WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
-| [`quickstart.md`](quickstart.md) | Get a first clone running locally. |
-| [`prerequisites.md`](prerequisites.md) | What to install before the quick start. |
-| [`local-development.md`](local-development.md) | Clone, configure and run the site locally (Docker or Bundler + Jekyll). |
-| [`repository-layout.md`](repository-layout.md) | Contributor-facing map of the monorepo. |
-| [`automation-and-agents.md`](automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |
-| [`SCHEMA.md`](SCHEMA.md) | This directory's Pyramid Schema contract — what lives here and where a new doc goes. |
+| [`README.md`](../README.md) | Profile README: introduction, philosophy, technical stack, professional experience, and consulting services. |
+| [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to contribute to this repository. _(summary unverified)_ |
+| [`SCHEMA.md`](../SCHEMA.md) | Schema reference for the structured content in this repository — likely the front matter and/or the data files under `_data/`. _(summary unverified)_ |
+| [`SUBMODULES.md`](../SUBMODULES.md) | Working with the Git submodules this repository pulls in. The repository does track submodules — see [`.gitmodules`](../.gitmodules). _(summary unverified)_ |
+| [`AGENTS.md`](../AGENTS.md) | Instructions for AI coding agents working in this repository, following the conventional `AGENTS.md` location. _(summary unverified)_ |
+| [`CLAUDE.md`](../CLAUDE.md) | Instructions specific to Claude Code. Related configuration lives in [`.claude/`](../.claude) and [`.mcp.json`](../.mcp.json). _(summary unverified)_ |
 
-When you add, rename or remove a file here, update its row in the same change so the index stays complete.
+---
 
-## Contributing to these docs
+## Repository layout
 
-Documentation changes are welcome and follow the same process as code changes — see [`CONTRIBUTING.md`](../CONTRIBUTING.md). If you add a document under `docs/`, please link it from this index so it stays discoverable.
+A map of the top-level directories, to orient a newcomer. Descriptions marked
+_(unverified)_ are inferred from directory names and sibling files rather than
+from the contents themselves.
+
+| Path | Notes |
+| --- | --- |
+| [`docs/`](.) | This directory. Longer-form documentation, including this index. |
+| `pages/` | Site pages. _(unverified)_ |
+| `projects/` | Project content. _(unverified)_ |
+| `templates/` | Reusable templates. _(unverified)_ |
+| `tools/` | Scripts and tooling. The repository's primary language is Shell. _(unverified)_ |
+| `assets/` | Static assets for the site. _(unverified)_ |
+| `_data/` | Structured data files consumed by the site build. See [`SCHEMA.md`](../SCHEMA.md). _(unverified)_ |
+| `_reports/` | Generated reports. _(unverified)_ |
+| `.github/` | GitHub configuration: workflows, issue templates, and similar. _(unverified)_ |
+| `.devcontainer/` | Dev Container definition for a reproducible development environment. _(unverified)_ |
+| `.vscode/` | Shared editor settings. See also [`home.code-workspace`](../home.code-workspace). _(unverified)_ |
+| `.husky/` | Git hook definitions. _(unverified)_ |
+| `.claude/` | Claude Code configuration. See [`CLAUDE.md`](../CLAUDE.md). _(unverified)_ |
+
+---
+
+## Configuration files worth knowing about
+
+These are not documentation, but they answer the "how does this thing build and
+run?" question that usually comes right after "where are the docs?".
+
+| File | Notes |
+| --- | --- |
+| [`_config.yml`](../_config.yml) / [`_config_dev.yml`](../_config_dev.yml) | Jekyll site configuration — a production config and a development override. _(unverified)_ |
+| [`Gemfile`](../Gemfile) | Ruby dependencies for the site build. |
+| [`Rakefile`](../Rakefile) | Rake tasks for this repository. _(unverified)_ |
+| [`docker-compose.yml`](../docker-compose.yml) | Container setup for local development. _(unverified)_ |
+| [`.env.example`](../.env.example) | Template for the environment variables the project expects. Copy it and fill it in rather than editing it directly. |
+| [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) | Pre-commit hook configuration. |
+| [`.prettierrc`](../.prettierrc) / [`.prettierignore`](../.prettierignore) | Prettier formatting configuration. |
+| [`.editorconfig`](../.editorconfig) | Editor defaults shared across contributors. |
+| [`fleet.manifest.yml`](../fleet.manifest.yml) | Manifest describing automated agent work on this repository. _(unverified)_ |
+
+> This index deliberately contains no build, test, or run commands. For those,
+> follow [`CONTRIBUTING.md`](../CONTRIBUTING.md), which is the authoritative
+> source; duplicating commands here would only create a second place for them to
+> go stale.
+
+---
+
+## Keeping this index honest
+
+When you add a guide to the repository root or to `docs/`, add a row here too.
+When you open a file marked _(summary unverified)_ and find the description
+inaccurate, correct it and drop the marker.
