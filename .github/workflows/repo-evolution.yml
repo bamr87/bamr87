@@ -1,196 +1,484 @@
-name: 🌿 Per-Repo AI Evolution
+name: 🌿 Repo Evolution
 
-# Reusable workflow that runs a focused Claude Code improvement pass against a SINGLE
-# upstream repository and opens a DRAFT pull request there. Driven by
-# .github/workflows/evolution-scheduler.yml (weekly matrix) or dispatched manually.
+# The weekly PROACTIVE loop. Sibling of the three reactive ones: fleet-pulse
+# fixes broken WORKFLOWS, issue-pipeline resolves filed ISSUES, token-rotation
+# keeps CREDENTIALS current — this one improves what nobody filed a ticket for
+# (documentation accuracy, onboarding, clarity, small correctness gaps) in each
+# submodule's OWN upstream repository, as a draft pull request there.
 #
-# Requires secrets (the hub's token contract — _data/fleet.yml, docs/AI-INTEGRATION.md):
-#   CLAUDE_CODE_OAUTH_TOKEN — Claude Code (preferred; ANTHROPIC_API_KEY is the fallback)
-#   FLEET_TOKEN             — the control-plane PAT with `repo` scope on the TARGET
-#                             repositories (GITHUB_TOKEN cannot push/PR to other repos,
-#                             and fires no workflow events for refs it pushes)
+#   plan     DETERMINISTIC. `dash-gen targets` selects the repos (registry
+#            `auto_evolve: true`, submodule, owned upstream, not archived),
+#            skips any whose previous pass is still open for review, caps the
+#            run per _data/fleet.yml, and writes each survivor a BRIEF built
+#            from the registry and the fleet's current signals for that repo
+#            (_data/fleet_triage.yml). No AI, no judgement calls.
+#   evolve   One matrix job per target. Checks the repo out, hands an Opus
+#            Claude Code agent the brief, and — only if the tree changed —
+#            commits as bamr87-bot, pushes an `ai-evolution/<date>-<run>`
+#            branch, and opens a DRAFT PR carrying the brief's hidden marker.
+#            The agent never commits, pushes, or opens anything itself: the
+#            checkout keeps no credentials, so it cannot.
+#
+# WHY IT IS ALLOWED TO RUN ON A SCHEDULE
+# --------------------------------------
+# unified-evolution.yml is dispatch-only because an undirected "improve the
+# repo" pass on a cron is speculative work with no natural bound. This loop is
+# bounded the way the other scheduled agents are: the target set is declared
+# in the registry, the brief is built from observed signals, the caps live in
+# _data/fleet.yml, one open PR per repo is the backpressure, and nothing
+# reaches a default branch without a human. The lane rules in the prompt keep
+# it from colliding with the doctor (failing workflows) and the issue pipeline
+# (open issues) — they are told to it as context, not handed to it as work.
+#
+# TOKENS (full contract in _data/fleet.yml)
+#   FLEET_TOKEN  REQUIRED. Cross-repo checkout, push, labels, and the draft PR;
+#                also why the PR gets CI — GitHub fires no workflow events for
+#                refs pushed with GITHUB_TOKEN. Probed with `gh api user`,
+#                never merely presence-checked: a present-but-expired PAT has
+#                silently degraded this fleet's automation before. Without a
+#                working token the run fails BEFORE any Claude spend — a pass
+#                that cannot be delivered is money burned.
+#   CLAUDE_CODE_OAUTH_TOKEN  preferred Claude auth; ANTHROPIC_API_KEY fallback.
+#
+# Docs: docs/EVOLUTION.md · brief template: .github/evolution/ · tests:
+# .github/scripts/dash-gen/test_evolution.py (asserts this file against
+# _data/fleet.yml: cron, wiring, allowlist, draft-only, no lockfiles).
 
 on:
-  workflow_call:
-    inputs:
-      repo_name: { required: true,  type: string }
-      repo_url:  { required: true,  type: string }
-      branch:    { required: true,  type: string }
-      category:  { required: false, type: string, default: dev-tools }
-      stack:     { required: false, type: string, default: "" }
-      dry_run:   { required: false, type: boolean, default: false }
-    secrets:
-      CLAUDE_CODE_OAUTH_TOKEN: { required: false }
-      ANTHROPIC_API_KEY:       { required: false }
-      FLEET_TOKEN:             { required: true }
+  schedule:
+    - cron: '0 9 * * 1'   # weekly, Monday 09:00 UTC — after the daily 06:00/08:00 agent loops
   workflow_dispatch:
     inputs:
-      repo_name:
-        description: 'Registry name of the repo to evolve (must have auto_evolve: true)'
-        required: true
+      target:
+        description: "Registry name of one opted-in submodule, or 'all'"
         type: string
+        default: all
+      focus:
+        description: "Optional steer for this run (free text, quoted into every brief)"
+        type: string
+        default: ""
+      force:
+        description: "Run even where the previous evolution PR is still open"
+        type: boolean
+        default: false
       dry_run:
-        description: 'Run Claude but do not push/open a PR'
-        required: false
+        description: "Run the agent and report the diff, but push nothing and open no PR"
         type: boolean
         default: false
 
 permissions:
   contents: read
 
+concurrency:
+  group: repo-evolution
+  cancel-in-progress: false
+
 jobs:
-  evolve:
-    name: 🌿 Evolve ${{ inputs.repo_name }}
+  # ========================================================================= #
+  # 1. PLAN — deterministic: select, dedupe, cap, brief.
+  # ========================================================================= #
+  plan:
+    name: Plan targets & briefs
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: read
-      id-token: write
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+      max_parallel: ${{ steps.plan.outputs.max_parallel }}
+      max_turns: ${{ steps.plan.outputs.max_turns }}
+      branch_prefix: ${{ steps.plan.outputs.branch_prefix }}
+      label: ${{ steps.plan.outputs.label }}
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
     steps:
-      # 1. Check out THIS repo (the framework) to read prompts + resolve the target.
-      - name: Checkout framework
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      # Fail loudly rather than burning a runner on a no-op: missing auth is an
-      # error, not a skip (house convention, docs/AI-INTEGRATION.md).
+      - uses: ./.github/actions/setup/dash-gen
+
+      # Fail loudly rather than burning a runner on a no-op: this loop is
+      # pointless without Claude, and a scheduled skip would go unnoticed.
       - name: Require Claude auth
-        env:
-          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
         run: |
-          if [ -z "$OAUTH" ] && [ -z "$APIKEY" ]; then
-            echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (preferred) or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          echo "::error::No Claude auth. Set CLAUDE_CODE_OAUTH_TOKEN (preferred) or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          exit 1
+
+      # A secret can be SET and still be dead. Probe it for real, and stop here
+      # if it fails: every downstream step (checkout, push, PR) needs it, so a
+      # bad token would spend the Claude budget and then throw the work away.
+      - name: Probe fleet write token
+        run: |
+          if [ -z "${FLEET_WRITE_TOKEN}" ]; then
+            echo "::error::FLEET_TOKEN is required — a fine-grained PAT with contents + pull-requests + workflows write on the target repos (see _data/fleet.yml). Nothing can be delivered without it."
             exit 1
           fi
+          if ! login="$(GH_TOKEN="${FLEET_WRITE_TOKEN}" gh api user --jq .login 2>/dev/null)"; then
+            echo "::error::FLEET_TOKEN is set but rejected by the API (expired or revoked). Rotate it — see docs/TOKEN-ROTATION.md."
+            exit 1
+          fi
+          echo "Fleet write token OK (acts as ${login})."
 
-      - name: Resolve target + assemble prompt
-        id: prep
+      # Inputs travel through the environment, never inline in the script:
+      # `focus` is free text typed by whoever dispatched the run.
+      - name: Build the plan
+        id: plan
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          TARGET: ${{ inputs.target || 'all' }}
+          FOCUS: ${{ inputs.focus }}
+          FORCE: ${{ inputs.force }}
         run: |
           set -euo pipefail
-          pip install -q -r .github/scripts/dash-gen/requirements.txt
-
-          # Resolve target fields. workflow_call passes them directly; workflow_dispatch
-          # provides only repo_name, so look the rest up in the registry.
-          REPO_NAME='${{ inputs.repo_name }}'
-          REPO_URL='${{ inputs.repo_url }}'
-          BRANCH='${{ inputs.branch }}'
-          CATEGORY='${{ inputs.category }}'
-          STACK='${{ inputs.stack }}'
-
-          if [[ -z "$REPO_URL" ]]; then
-            eval "$(python3 - "$REPO_NAME" <<'PY'
-          import sys, json
-          from pathlib import Path
-          sys.path.insert(0, ".github/scripts/dash-gen")
-          import dash_gen
-          name = sys.argv[1]
-          match = next((p for p in dash_gen.load_registry()
-                        if p["name"] == name and p.get("auto_evolve") and p.get("submodule_path")), None)
-          if not match:
-              sys.stderr.write(f"'{name}' is not an auto_evolve submodule in the registry\n")
-              sys.exit(1)
-          print(f'REPO_URL={match["repo_url"]}')
-          print(f'BRANCH={match.get("branch") or "main"}')
-          print(f'CATEGORY={match.get("category","dev-tools")}')
-          print(f'STACK={",".join(match.get("stack",[]))}')
-          PY
-          )"
-          fi
-
-          # owner/repo (nwo) from the URL.
-          NWO="$(echo "$REPO_URL" | sed -E 's#https?://github.com/##; s#\.git$##')"
-
-          # Assemble the prompt: base template + category appendix, with substitutions.
-          PROMPT_FILE="$RUNNER_TEMP/evolution_prompt.txt"
+          args=(targets --target "$TARGET" --out-dir evolution-workorders)
+          [ -n "$FOCUS" ] && args+=(--focus "$FOCUS")
+          [ "$FORCE" = "true" ] && args+=(--no-dedupe)
+          tools/dash-gen "${args[@]}" > plan.json
           {
-            sed -e "s|{{REPO_NAME}}|$REPO_NAME|g" \
-                -e "s|{{BRANCH}}|$BRANCH|g" \
-                -e "s|{{CATEGORY}}|$CATEGORY|g" \
-                -e "s|{{STACK}}|${STACK:-unknown}|g" \
-                .github/evolution/evolve-prompt.md
+            echo "matrix=$(jq -c '{include: .include}' plan.json)"
+            echo "count=$(jq -r '.count' plan.json)"
+            echo "max_parallel=$(jq -r '.max_parallel // 2' plan.json)"
+            echo "max_turns=$(jq -r '.max_turns // 60' plan.json)"
+            echo "branch_prefix=$(jq -r '.branch_prefix // "ai-evolution"' plan.json)"
+            echo "label=$(jq -r '.label // "ai-evolution"' plan.json)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Show the plan
+        if: always()
+        run: |
+          [ -f plan.json ] || exit 0
+          {
+            echo "### 🌿 Repo evolution — plan"
             echo ""
-            cat ".github/evolution/categories/$CATEGORY.md" 2>/dev/null || true
-          } > "$PROMPT_FILE"
+            echo "| Target | Upstream | Branch | Category | Dedupe |"
+            echo "| --- | --- | --- | --- | --- |"
+            jq -r '.include[] | "| \(.name) | \(.nwo) | `\(.branch)` | \(.category) | \(.dedupe) |"' plan.json
+            echo ""
+            if [ "$(jq -r '.skipped | length' plan.json)" != "0" ]; then
+              echo "**Skipped (previous pass still open — one evolution PR per repo at a time; dispatch with \`force\` to override):**"
+              jq -r '.skipped[] | "- \(.name): \(.reason)"' plan.json
+              echo ""
+            fi
+            if [ "$(jq -r '.dropped | length' plan.json)" != "0" ]; then
+              echo "**Not selected:**"
+              jq -r '.dropped[] | "- \(.name): \(.reason)"' plan.json
+              echo ""
+            fi
+            focus="$(jq -r '.focus' plan.json)"
+            [ -n "$focus" ] && echo "**Focus:** ${focus}"
+            echo ""
+            echo "- Caps: \`max_parallel=$(jq -r .max_parallel plan.json)\`, \`max_turns=$(jq -r .max_turns plan.json)\` (from \`_data/fleet.yml\` → \`evolution:\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          # Export resolved values for later steps.
-          {
-            echo "repo_name=$REPO_NAME"
-            echo "repo_url=$REPO_URL"
-            echo "branch=$BRANCH"
-            echo "category=$CATEGORY"
-            echo "nwo=$NWO"
-            echo "prompt_file=$PROMPT_FILE"
-          } >> "$GITHUB_OUTPUT"
-
-          # Stash the prompt as a multiline output for claude-code-action.
-          {
-            echo 'prompt<<__EVOLVE_EOF__'
-            cat "$PROMPT_FILE"
-            echo '__EVOLVE_EOF__'
-          } >> "$GITHUB_OUTPUT"
-
-      # 2. Check out the TARGET repo over the workspace (clean overwrites the framework).
-      - name: Checkout target repo
-        uses: actions/checkout@v4
+      - name: Upload briefs
+        if: ${{ steps.plan.outputs.count != '0' }}
+        uses: actions/upload-artifact@v7
         with:
-          repository: ${{ steps.prep.outputs.nwo }}
-          ref: ${{ steps.prep.outputs.branch }}
-          token: ${{ secrets.FLEET_TOKEN }}
-          fetch-depth: 0
-          persist-credentials: true
+          name: evolution-workorders
+          path: evolution-workorders/
+          retention-days: 14
+          if-no-files-found: error
 
-      # 3. Run Claude Code against the target working tree.
-      - name: Run Claude Code evolution
+  # ========================================================================= #
+  # 2. EVOLVE — one job per target.
+  # ========================================================================= #
+  evolve:
+    name: 🌿 ${{ matrix.name }}
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write         # OIDC for claude-code-action OAuth
+    strategy:
+      fail-fast: false        # one repo's failure must not strand the rest
+      max-parallel: ${{ fromJson(needs.plan.outputs.max_parallel) }}
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      NAME: ${{ matrix.name }}
+      NWO: ${{ matrix.nwo }}
+      BASE: ${{ matrix.branch }}
+      BRIEF: .evolution/${{ matrix.brief }}
+    steps:
+      # The target repo IS the workspace. persist-credentials:false is the
+      # structural half of "the agent never pushes": there is no credential in
+      # the tree for it to use. The publish step below configures its own.
+      - name: Checkout ${{ matrix.nwo }}
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ matrix.nwo }}
+          ref: ${{ matrix.branch }}
+          token: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The brief lands inside the checkout (so the Read tool needs no extra
+      # permissions) but is excluded from git, so `git add -A` can never
+      # commit it into the target repo.
+      - name: Download the brief
+        uses: actions/download-artifact@v8
+        with:
+          name: evolution-workorders
+          path: .evolution
+      - name: Hide the brief from git
+        run: mkdir -p .git/info && printf '/.evolution/\n' >> .git/info/exclude
+
+      - name: Evolve
+        id: evolve
         uses: anthropics/claude-code-action@v1
+        env:
+          # Read-only use, enforced by the allowlist below (view/list/diff
+          # subcommands only). Gives the agent the listed issues/PRs on
+          # private targets, which GITHUB_TOKEN could not see.
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
-          prompt: ${{ steps.prep.outputs.prompt }}
-          claude_args: "--max-turns 30"
+          # BUDGET: one repo per job, so max_turns is per repo. It is read from
+          # _data/fleet.yml through the plan so the number is stated once.
+          #
+          # ALLOWLIST: no `git push`, `git checkout`, `gh pr create`, or any
+          # writing `gh` verb — publishing is the workflow's job, not the
+          # agent's. Read/verify commands are granted explicitly because a
+          # piped command is matched per segment (`Bash(git:*)` would not
+          # cover the `grep` on the right of a pipe), and a denied call still
+          # costs a turn.
+          claude_args: >-
+            --model opus
+            --max-turns ${{ needs.plan.outputs.max_turns }}
+            --allowedTools "Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git grep:*),Bash(git ls-files:*),Bash(git blame:*),Bash(git restore:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr diff:*),Bash(gh run view:*),Bash(gh run list:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(jq:*),Bash(diff:*),Bash(echo:*),Bash(mkdir:*),Bash(cd:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(python:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(gem:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Read,Grep,Glob,Edit,Write"
+          prompt: |
+            You are the fleet's **evolution agent** (Opus) for ONE repository:
+            `${{ matrix.nwo }}` (registry name `${{ matrix.name }}`, branch
+            `${{ matrix.branch }}`). This checkout IS that repository. A
+            deterministic plan step has already chosen it and written your
+            brief; the loop that runs you belongs to the bamr87/bamr87 hub.
 
-      # 4. Commit any changes to a branch and open a DRAFT PR in the target repo.
-      - name: Open draft PR in target repo
+            ## Step 1 — read the brief
+            Read `.evolution/${{ matrix.brief }}` with the Read tool. It carries
+            the repository's registry facts, the fleet's CURRENT SIGNALS for it
+            (attention level, failing workflows, open issues and PRs), the
+            operator's focus for this run, the goals in priority order, and the
+            category emphasis. Follow it. Do not edit or delete it.
+
+            ## Step 2 — orient (README-First)
+            Read `README.md`, then `CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md`
+            and the root `SCHEMA.md` if they exist — house rules there override
+            this prompt. Skim the tree and the most important source files so you
+            understand what the project does before you change anything. Where a
+            listed issue or PR touches an area you intend to change, read it
+            (`gh issue view <n> -R ${{ matrix.nwo }}`, `gh pr view <n> -R ${{ matrix.nwo }}`)
+            so you do not undo or duplicate work in flight.
+
+            ## Step 3 — improve
+            Make a SMALL number of high-leverage, obviously-correct improvements,
+            in the brief's priority order: documentation accuracy → clarity →
+            functionality. Prefer several precise fixes over one sweeping change.
+            Verify with the repository's own lint and tests when it has them
+            (`npm test`, `pytest`, `shellcheck`, `make`, whatever the repo uses)
+            and check `git status` / `git diff` before you finish. Leave the tree
+            clean: no scratch files, build output, or lockfiles.
+
+            ## Step 4 — report
+            Your FINAL message becomes the pull-request body, so write it for the
+            reviewer, in this order:
+            1. **What changed** — one line per change, with the file.
+            2. **Why** — the signal, gap, or focus item each change answers.
+            3. **Verification** — the exact commands you ran and their results.
+            4. **Not done** — anything you saw that needs a human or a bigger
+               change than this pass allows. Be specific; this is the most
+               valuable section.
+            If you changed nothing, say exactly that and why — an empty pass is
+            a valid result and better than a low-value or risky change.
+
+            ## Lanes — do not collide with the loops already on this repo
+            - A **failing workflow** listed in the brief belongs to the fleet
+              doctor (fleet-pulse). Do not edit that workflow file.
+            - An **open issue** listed in the brief belongs to the issue
+              pipeline. Do not implement it; you may fix documentation around it.
+            - An **open PR** is someone's work in flight. Do not rebase, close,
+              or re-do it.
+
+            ## Rules
+            - The workflow opens the DRAFT PR after you finish. You never commit,
+              push, tag, or open anything yourself, and you stay on the
+              checked-out branch. Nothing here reaches a default branch without
+              a human.
+            - Surgical: no broad refactors, directory moves, formatting sweeps,
+              public-API or schema changes, dependency additions or bumps, and
+              never touch versions, releases, licenses, credentials, or `.git*`
+              plumbing.
+            - Fleet dependency policy is ALWAYS-LATEST: never add a lockfile and
+              never pin or cap a version.
+            - Never add `continue-on-error`, `as any`, `@ts-ignore`,
+              `# type: ignore`, an empty exception handler, or delete or weaken a
+              test to make something pass.
+            - If the repo carries `SCHEMA.md` contracts, any add/remove/rename
+              updates the nearest one in the same change. If it has a
+              `markdown-oneline` gate, keep one paragraph per line in markdown.
+            - README-Last: when behaviour or layout changes, the nearest
+              `README.md` changes with it.
+            - Be specific and technical everywhere. No boilerplate.
+
+      # `claude-code-action` surfaces a rejected credential as a bare
+      # `is_error: true` with NO message. A credential rejected at the first
+      # API call bills nothing, so `total_cost_usd == 0` AND an empty
+      # `modelUsage` means the model was never reached — as opposed to a real
+      # agent failure, which always has usage against it. Same classifier as
+      # fleet-pulse and issue-pipeline; it is what turns "Claude execution
+      # failed" into "rotate CLAUDE_CODE_OAUTH_TOKEN".
+      - name: Diagnose Claude failure
+        if: ${{ failure() && env.HAS_CLAUDE_AUTH == 'true' }}
+        env:
+          TIER: Repo evolution — ${{ matrix.name }}
+        run: |
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          result=""
+          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+          if [ -z "$result" ]; then
+            echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
+            exit 0
+          fi
+          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
+          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
+          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
+          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+            {
+              echo "### 🌿 ${TIER} — Claude credential rejected"
+              echo ""
+              echo "No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
+              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
+              echo ""
+              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
+          fi
+
+      - name: Report dry run
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          {
+            echo "### 🌿 ${NAME} — dry run (nothing pushed)"
+            echo ""
+            if [ -z "$(git status --porcelain)" ]; then
+              echo "The agent made no changes."
+            else
+              echo '```'
+              git status --short
+              echo ""
+              git diff --stat
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The ONLY place anything leaves the runner. Credentials are configured
+      # here and nowhere else; the commit is the bot's; the PR is a draft in
+      # the TARGET repo with the brief's marker as its first line.
+      - name: Open draft PR
+        id: publish
         if: ${{ inputs.dry_run != true }}
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
-          NWO: ${{ steps.prep.outputs.nwo }}
-          BASE: ${{ steps.prep.outputs.branch }}
-          REPO_NAME: ${{ steps.prep.outputs.repo_name }}
-          CATEGORY: ${{ steps.prep.outputs.category }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          PREFIX: ${{ needs.plan.outputs.branch_prefix }}
+          LABEL: ${{ needs.plan.outputs.label }}
+          MARKER: ${{ matrix.marker }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          if [[ -z "$(git status --porcelain)" ]]; then
-            echo "No changes produced for $REPO_NAME — nothing to open." >> "$GITHUB_STEP_SUMMARY"
+          note() { echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+
+          # The agent has no way to push, but it could still have moved HEAD.
+          # A PR from the wrong base is worse than no PR.
+          cur="$(git rev-parse --abbrev-ref HEAD)"
+          if [ "$cur" != "$BASE" ]; then
+            echo "::error::${NAME}: checkout is on '${cur}', expected '${BASE}' — refusing to open a PR from it."
+            exit 1
+          fi
+
+          # Fleet policy is ALWAYS-LATEST and lockfiles are never committed
+          # (_data/fleet.yml → dependencies.lockfile_patterns). A verify step
+          # may have produced one; it must not ride along.
+          git ls-files --others --exclude-standard \
+            | grep -E '(^|/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|Gemfile\.lock|poetry\.lock|Pipfile\.lock|uv\.lock|composer\.lock)$' \
+            | while IFS= read -r f; do rm -f -- "$f"; echo "dropped untracked lockfile: $f"; done || true
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "${NAME}: the agent made no changes — nothing to open."
+            note "### 🌿 ${NAME}"
+            note ""
+            note "No changes — no pull request opened."
+            echo "opened=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          BR="ai-evolution/$(date -u +%Y%m%d)-${{ github.run_id }}"
+          BR="${PREFIX}/$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
+          git config credential.helper '!gh auth git-credential'
           git config user.name  "bamr87-bot"
           git config user.email "10567847+bamr87@users.noreply.github.com"
-          git checkout -b "$BR"
+          git checkout -q -b "$BR"
           git add -A
-          git commit -m "chore(evolve): automated documentation/clarity/functionality pass" \
-                     -m "Focused AI improvement pass for $REPO_NAME ($CATEGORY)." \
-                     -m "Generated by the bamr87 per-repo evolution framework. Review carefully."
-          git push origin "$BR"
+          git commit -q -m "chore(evolve): weekly AI improvement pass" \
+            -m "Documentation, clarity, and functionality pass from the bamr87/bamr87 repo-evolution loop (run ${GITHUB_RUN_ID}). Draft for human review; nothing merges automatically."
+          git push -q -u origin "$BR"
 
-          gh pr create \
-            --repo "$NWO" \
-            --base "$BASE" \
-            --head "$BR" \
-            --title "🌿 AI Evolution: documentation, functionality & clarity pass" \
-            --body "Automated improvement pass from the [bamr87 per-repo evolution framework](https://github.com/bamr87/bamr87/blob/main/docs/EVOLUTION.md).
+          # The agent's final message is the reviewer-facing body. The
+          # execution log is the same file the failure classifier reads.
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          summary=""
+          if [ -f "$log" ]; then
+            summary="$(jq -r '[.. | objects | select(.type? == "result")] | last | .result // ""' "$log" 2>/dev/null || true)"
+          fi
+          [ -n "$summary" ] || summary="_The agent left no summary — review the diff._"
 
-          - **Repo:** \`$REPO_NAME\` (\`$CATEGORY\`)
-          - **Goals:** documentation, functionality, clarity
-          - **Source run:** bamr87/bamr87 run \`${{ github.run_id }}\`
+          body="${RUNNER_TEMP}/pr-body.md"
+          {
+            echo "$MARKER"
+            echo ""
+            echo "$summary"
+            echo ""
+            echo "---"
+            echo "Draft opened by the [bamr87/bamr87 repo-evolution loop](https://github.com/bamr87/bamr87/blob/main/docs/EVOLUTION.md) — [run](${RUN_URL}); the brief the agent worked from is attached to that run as \`evolution-workorders\`. Machine-authored: review it as you would any contribution. Nothing here merges automatically, and no new pass is opened for this repository while this one is open."
+          } > "$body"
 
-          ⚠️ Generated by Claude Code — **review carefully before merging.** This is a draft." \
-            --label "ai-evolution" \
-            --draft
+          # A missing label makes `gh pr create` hard-fail over a cosmetic
+          # detail; create on demand, same as publish-data.
+          gh label create "$LABEL" -R "$NWO" --color 0E8A16 \
+            --description "Draft improvement PR from the bamr87 repo-evolution loop" --force >/dev/null 2>&1 || true
+          gh label create automation -R "$NWO" --color BFD4F2 \
+            --description "Automated / bot-generated" --force >/dev/null 2>&1 || true
 
-      - name: Dry-run notice
-        if: ${{ inputs.dry_run == true }}
+          # Match the URL out of the full output rather than taking `tail -1`:
+          # gh prints notices and hints around it.
+          out="$(gh pr create -R "$NWO" --draft --base "$BASE" --head "$BR" \
+                   --title "chore(evolve): AI improvement pass — $(date -u +%Y-%m-%d)" \
+                   --body-file "$body" --label "$LABEL" --label automation 2>&1)" || true
+          url="$(printf '%s\n' "$out" | grep -Eom1 'https://[^[:space:]]+/pull/[0-9]+' || true)"
+          if [ -z "$url" ]; then
+            echo "::error::${NAME}: branch ${BR} was pushed but the pull request could not be opened."
+            printf '%s\n' "$out" | sed 's/^/  | /'
+            exit 1
+          fi
+          echo "Opened draft PR: $url"
+          echo "opened=true" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$url" >> "$GITHUB_OUTPUT"
+          note "### 🌿 ${NAME}"
+          note ""
+          note "- Draft PR: ${url}"
+          note "- Branch: \`${BR}\` → \`${BASE}\`"
+          note ""
+          note '```'
+          git diff --stat "${BASE}...HEAD" >> "$GITHUB_STEP_SUMMARY"
+          note '```'
+
+      - name: Summary
+        if: always()
         run: |
-          echo "## 👁️ Dry run for ${{ steps.prep.outputs.repo_name }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Claude ran against \`${{ steps.prep.outputs.nwo }}\` but no PR was opened." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "- ${NAME} (\`${NWO}\` @ \`${BASE}\`): evolve=\`${{ steps.evolve.outcome }}\`, publish=\`${{ steps.publish.outcome }}\`, opened=\`${{ steps.publish.outputs.opened || 'n/a' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

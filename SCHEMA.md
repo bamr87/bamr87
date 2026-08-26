@@ -17,7 +17,7 @@ coverage: listed
 
 | entry | kind | purpose | rules |
 |---|---|---|---|
-| `.github/` | dir | Actions control plane: drift gate, unified CI/CD/evolution, fan-outs | terminal |
+| `.github/` | dir | Actions control plane: drift gate, the daily/weekly loops, fan-outs, evolution prompts | terminal |
 | `_data/` | dir | Registries powering every dash surface — projects.yml is the source of truth | required |
 | `_reports/` | dir | Committed automation records — the daily repo-activity digests | generated |
 | `_site/` | dir | Jekyll build output | generated |
@@ -43,6 +43,7 @@ coverage: listed
 | `home.code-workspace` | file | VS Code multi-root workspace | |
 | `index.md` | file | Dash site landing page | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
+| `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |
 
 ## Placement
 

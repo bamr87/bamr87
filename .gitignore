@@ -192,6 +192,9 @@ remediation-workorder.md
 # Ephemeral agent work orders (issue-pipeline scan → the tier 1/2/3 agents).
 # Generated per run, uploaded as an artifact, never committed.
 issue-workorder-t*.md
+# Per-repo briefs written by `dash-gen targets` for repo-evolution.yml; the
+# workflow ships them as an artifact, never as a commit.
+evolution-workorders/
 # Evidence sandboxes built by tools/issue-evidence.sh: a full clone plus its
 # venv/node_modules per issue. Uploaded as a workflow artifact; never committed.
 .evidence/

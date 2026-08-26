@@ -38,11 +38,11 @@
 #                            via _data/standards.yml; set only to override.
 #                            The standardization baseline per tier lives in
 #                            _data/standards.yml; the audit is `tools/dash audit`.
-#   auto_evolve    bool      opt-in to the per-repo AI evolution framework
-#                            (.github/workflows/evolution-scheduler.yml). When true, the
-#                            weekly scheduler runs Claude against this repo and opens a
-#                            DRAFT PR upstream. Only set on repos you own + can PR to.
-#                            Defaults to false/absent. See docs/EVOLUTION.md.
+#   auto_evolve    bool      opt-in to the weekly repo-evolution loop
+#                            (.github/workflows/repo-evolution.yml): a Claude Code pass
+#                            opens a DRAFT PR in this repo's own upstream. Submodules
+#                            only — the planner refuses external upstreams and archived
+#                            repos even when set. Default false. See docs/EVOLUTION.md.
 # =============================================================================
 
 # ---------------------------------------------------------------------------

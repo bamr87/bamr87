@@ -41,9 +41,9 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
   ${c_bold}dash adopt-release <repo>${c_off} scaffold the release-please pipeline (--all for active repos)
   ${c_bold}dash protect <repo>${c_off}    require the CI gate on a repo's default branch (--all)
-  ${c_bold}dash evolve${c_off}            evolve the monorepo itself (unified-evolution.yml)
-  ${c_bold}dash evolve --repo <name>${c_off}  evolve one upstream submodule (draft PR upstream)
-  ${c_bold}dash evolve --all${c_off}      weekly fan-out across all auto_evolve submodules
+  ${c_bold}dash evolve${c_off}            evolve the monorepo itself (unified-evolution.yml, dispatch-only)
+  ${c_bold}dash evolve --repo <name>${c_off}  run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo)
+  ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
@@ -139,20 +139,22 @@ cmd_evolve() {
     echo "gh CLI required to trigger evolution workflows" >&2
     return 1
   fi
+  # Two evolution layers. Bare `dash evolve` is the hub's own dispatch-only
+  # pass; `--repo` / `--all` dispatch the weekly repo-evolution loop, whose
+  # plan step decides what actually runs (registry opt-in, owned upstream, not
+  # archived, no evolution PR still open). Extra args pass through to `gh
+  # workflow run` — e.g. `-f dry_run=true`, `-f force=true`, `-f focus='...'`.
   case "${1:-}" in
     --repo)
       shift
-      local repo="${1:?usage: dash evolve --repo <name> [-f dry_run=true]}"; shift || true
-      # per-repo pass against a single upstream submodule (draft PR upstream)
-      gh workflow run repo-evolution.yml -f "repo_name=${repo}" "$@"
+      local repo="${1:?usage: dash evolve --repo <name> [-f dry_run=true] [-f force=true] [-f focus=...]}"; shift || true
+      gh workflow run repo-evolution.yml -f "target=${repo}" "$@"
       ;;
     --all)
       shift
-      # weekly fan-out across every auto_evolve submodule
-      gh workflow run evolution-scheduler.yml "$@"
+      gh workflow run repo-evolution.yml -f "target=all" "$@"
       ;;
     *)
-      # default: evolve the monorepo itself
       gh workflow run unified-evolution.yml "$@"
       ;;
   esac
