@@ -56,6 +56,7 @@ import actions_analytics
 import cv_fragment
 import daily_report
 import engagements
+import evolution
 import fleet_triage
 import issue_pipeline
 import reconcile
@@ -479,6 +480,12 @@ def main(argv: list[str] | None = None) -> int:
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")
     p_all.set_defaults(func=lambda a: (cmd_health(a) or cmd_readme(a)))
+
+    p_targets = sub.add_parser(
+        "targets",
+        help="weekly repo-evolution plan: select opted-in submodules, skip open passes, write briefs -> JSON matrix (feeds repo-evolution.yml)",
+    )
+    evolution.add_arguments(p_targets)
 
     args = parser.parse_args(argv)
     return args.func(args)

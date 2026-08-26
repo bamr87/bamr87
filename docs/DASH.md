@@ -44,7 +44,8 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | Auto-fix bots | Scheduled PRs | `update-submodules.yml`, `refresh-dash.yml`, `dependabot.yml` |
 | AI layer | Skills, commands, MCP | `.claude/`, `.mcp.json` |
 | Future-Features | Capture feature ideas → roadmap | `_data/roadmap.yml`, `/future-features`, `feature-scout` agent + session hooks (`.claude/`) |
-| Self-evolution | Dispatch-only AI pass (`tools/dash evolve`) | `.github/workflows/unified-evolution.yml` (Claude Code) |
+| Self-evolution | Dispatch-only AI pass on the monorepo (`tools/dash evolve`) | `.github/workflows/unified-evolution.yml` (Claude Code) |
+| Repo evolution | Weekly signal-led AI improvement pass in each opted-in submodule's own repo (draft PRs, never merges) | `.github/workflows/repo-evolution.yml` (`plan` = `dash-gen targets` → matrix `evolve`), briefs from `.github/evolution/`, caps in `_data/fleet.yml` ([`docs/EVOLUTION.md`](EVOLUTION.md)) |
 
 ## The dash CLI
 
@@ -65,11 +66,14 @@ tools/dash run <tool>     # run a projects/scripts/ submodule tool (forkme, stas
 tools/dash new <name>     # scaffold + register a new project
 tools/dash adopt-release <repo>  # scaffold the release-please pipeline (--all)
 tools/dash protect <repo> # require the CI gate on a repo's default branch (--all)
-tools/dash evolve         # trigger the AI evolution workflow
+tools/dash evolve         # evolve the monorepo itself (unified-evolution.yml, dispatch-only)
+tools/dash evolve --repo <name>  # run the repo-evolution loop on one opted-in submodule (draft PR in its own repo)
+tools/dash evolve --all   # run it on every auto_evolve submodule (the weekly run, now)
 tools/dash ai             # shadow-priced Claude Code usage per repo (local-only)
 tools/dash doctor         # environment checks (setup.sh --dry-run)
 tools/dash test           # run the aggregate test suite
 tools/dash gen all        # run the generator (health + README)
+tools/dash gen targets    # plan the repo-evolution run: JSON matrix + briefs in evolution-workorders/ (--no-dedupe offline)
 ```
 
 ## Monitoring & "needs attention"
@@ -118,8 +122,16 @@ Live monitoring data (`project_health.yml`) is network-derived, **ephemeral**, a
 
 `triage-attention` reads the Monitor signals → `sync-project-docs` updates the registry → `evolve-project` makes a focused improvement → `refresh-portfolio` regenerates → PR to `main` → gates verify → human merges → dash republishes. The CI counterpart is `unified-evolution.yml` (**dispatch-only** — trigger via `tools/dash evolve`; via `anthropics/claude-code-action`; auth: `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [AI-INTEGRATION.md](AI-INTEGRATION.md)). So "which repos need attention" both shows on the frontend and steers what the AI works on next.
 
+Beyond the monorepo, the weekly **repo-evolution loop** carries the same idea to the
+individual upstream repos: `repo-evolution.yml`'s deterministic `plan` job (`dash-gen targets`)
+selects every owned, non-archived submodule with `auto_evolve: true`, skips any whose previous
+pass is still open, and writes each a brief from the registry and the triage snapshot; its
+matrix `evolve` job runs one Opus agent per repo and opens a **draft PR in that repo**. The
+brief material lives in `.github/evolution/`, the caps in `_data/fleet.yml`. Full details in
+[`docs/EVOLUTION.md`](EVOLUTION.md).
+
 ## One-time setup
 
 1. Repo **Settings → Pages → Source = "GitHub Actions"** (the dash deploys via `build-dash.yml`, the sole Pages surface; the old MkDocs `build-docs.yml` has been removed).
-2. Provision Claude auth for the AI workflows (`claude.yml`, `fleet-pulse.yml` `doctor`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`): `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87` (preferred; `ANTHROPIC_API_KEY` is the fallback). Full secrets matrix: [AI-INTEGRATION.md](AI-INTEGRATION.md).
+2. Provision Claude auth for the AI workflows (`claude.yml`, `fleet-pulse.yml` `doctor`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`): `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87` (preferred; `ANTHROPIC_API_KEY` is the fallback). Full secrets matrix: [AI-INTEGRATION.md](AI-INTEGRATION.md). `repo-evolution.yml` uses the same Claude auth plus `FLEET_TOKEN` (probed, not presence-checked) to check out and open draft PRs in the target repos — see [EVOLUTION.md](EVOLUTION.md).
 3. `pip install -r .github/scripts/dash-gen/requirements.txt` and `gh auth login` for local `tools/dash-gen health`.

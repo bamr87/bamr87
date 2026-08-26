@@ -84,6 +84,7 @@ schedule:
   reconcile_registry: "0 5 * * *" # registry ↔ GitHub reconciliation
   update_submodules: "0 3 * * 0"  # weekly pointer bump PR
   rotate_tokens: "0 2 * * 1"      # weekly credential rotation (see rotation:)
+  repo_evolution: "0 9 * * 1"     # weekly proactive per-repo improvement pass (see evolution:)
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -203,6 +204,59 @@ issue_pipeline:
     sizes: [size:xs, size:s, size:m, size:l, size:xl]
 
 # --------------------------------------------------------------------------- #
+# Repo evolution — the weekly PROACTIVE loop's guardrails.
+#
+# Fourth sibling of `remediation:` (broken workflows), `issue_pipeline:` (filed
+# issues), and `rotation:` (credentials). Those three REACT to a signal; this
+# one improves what nobody filed a ticket for — documentation accuracy,
+# onboarding, clarity, small correctness gaps — in each opted-in submodule's
+# own upstream repo, as a DRAFT pull request there. Driven by
+# .github/workflows/repo-evolution.yml (`schedule.repo_evolution`), planned by
+# `dash-gen targets` (.github/scripts/dash-gen/evolution.py), runnable by hand
+# as `dash evolve --repo <name>` / `--all`.
+#
+# WHY A SCHEDULED AI LOOP IS ACCEPTABLE HERE
+# ------------------------------------------
+# unified-evolution.yml stays dispatch-only because an unbounded "improve the
+# repo" pass on a cron is speculative. This one is bounded the way the other
+# scheduled agents are: the target set is declared per repo in the registry
+# (`auto_evolve: true`), the planner refuses external upstreams and archived
+# repos whatever the registry says, the brief is built from the fleet's
+# observed signals (_data/fleet_triage.yml) rather than from imagination, the
+# caps below bound each run, one open PR per repo is the backpressure, and
+# nothing reaches a default branch without a human. Full doc: docs/EVOLUTION.md
+# --------------------------------------------------------------------------- #
+evolution:
+  enabled: true
+
+  # One open evolution PR per repository at a time. A repo whose previous pass
+  # is still open for review is skipped — recognised by the branch prefix OR
+  # the hidden marker in the PR body, so a renamed branch cannot fool it. One
+  # unreviewed draft is a proposal; a stack of them is noise, and the doctor
+  # loop already learned that a loop which re-files every cycle turns a queue
+  # into spam. Dispatch with `force` to override for one run.
+  skip_when_open_pr: true
+  branch_prefix: ai-evolution     # PR branches: ai-evolution/<date>-<run id>
+  marker: repo-evolution          # `<!-- repo-evolution key="owner/repo" -->`, first line of every PR body
+  label: ai-evolution             # created on demand in the target repo
+
+  # Blast radius per run. Deliberately small: every target is one Opus agent
+  # and one pull request somebody has to read. Opt-ins beyond `max_targets`
+  # are reported and dropped, never silently truncated.
+  max_targets: 6                  # repos evolved per run
+  max_parallel: 2                 # concurrent agents — the three Claude loops share one OAuth account's rate limit
+  # Per repo (one repo per matrix job): orient (README, CLAUDE.md, tree), read
+  # the listed issues/PRs that touch the change, edit, verify with the repo's
+  # own lint/tests, report. Wired into `--max-turns` through the plan so this
+  # is the only place the number is stated; test_evolution.py asserts the wiring.
+  max_turns: 60
+
+  # How much of the triage snapshot each brief quotes. The rest is a link.
+  signals:
+    max_issues: 8
+    max_prs: 5
+
+# --------------------------------------------------------------------------- #
 # Token contract — WHICH secret does WHAT, and where it must exist.
 #
 # `scope: hub` secrets live on bamr87/bamr87 only. `scope: fleet` secrets are
@@ -221,7 +275,7 @@ tokens:
       Preferred Claude auth for every claude-code-action call site (house
       convention: OAuth first). Produced by `claude setup-token`.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, schema-fanout.yml]
+              unified-evolution.yml, schema-fanout.yml, repo-evolution.yml]
     rotation:
       enabled: true
       # `claude setup-token` mints a ONE-YEAR credential, so the value itself is
@@ -281,7 +335,7 @@ tokens:
     required: false
     purpose: Fallback Claude auth, used only when the OAuth token is absent.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, schema-fanout.yml]
+              unified-evolution.yml, schema-fanout.yml, repo-evolution.yml]
     rotation:
       # The loop cannot RE-ISSUE a console key — that is a human action in the
       # Anthropic console — but it can and should PROPAGATE whatever the hub
@@ -301,8 +355,8 @@ tokens:
       Fine-grained PAT the control plane uses to see and act on the whole fleet.
       Needs actions:read + contents:read + issues:read/write +
       pull_requests:read/write on the fleet, plus contents:write +
-      workflows:write on repos the fan-outs and the remediation loop may open
-      PRs against, plus secrets:write on every fleet repo for the weekly
+      workflows:write on repos the fan-outs, the remediation loop, and the
+      weekly evolution loop may open PRs against, plus secrets:write on every fleet repo for the weekly
       rotation (writing an Actions secret is an admin-level operation — without
       it `token-rotation.yml` can audit ages but not fix them). Supersedes the
       three separate PATs below.

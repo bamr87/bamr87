@@ -1,5 +1,5 @@
 # =============================================================================
-# dash/_data/projects.yml  —  THE PROJECT REGISTRY (single source of truth)
+# _data/projects.yml  —  THE PROJECT REGISTRY (single source of truth)
 # =============================================================================
 # Every dash surface reads from this file:
 #   - Jekyll Portfolio/Dashboard/Monitor pages (site.data.projects)
@@ -38,6 +38,11 @@
 #                            via _data/standards.yml; set only to override.
 #                            The standardization baseline per tier lives in
 #                            _data/standards.yml; the audit is `tools/dash audit`.
+#   auto_evolve    bool      opt-in to the weekly repo-evolution loop
+#                            (.github/workflows/repo-evolution.yml): a Claude Code pass
+#                            opens a DRAFT PR in this repo's own upstream. Submodules
+#                            only — the planner refuses external upstreams and archived
+#                            repos even when set. Default false. See docs/EVOLUTION.md.
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -59,6 +64,7 @@
   status: maintenance
   featured: false
   maintained: true
+  auto_evolve: true
   live_url: null
   docs_url: null
   schema:
@@ -76,6 +82,7 @@
   status: active
   featured: true
   maintained: true
+  auto_evolve: true
   live_url: null
   docs_url: null
   schema:
@@ -93,6 +100,7 @@
   status: active
   featured: true
   maintained: true
+  auto_evolve: true
   live_url: null
   docs_url: null
   schema:

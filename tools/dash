@@ -41,11 +41,13 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash new <name> [args]${c_off}  scaffold a new project and register it
   ${c_bold}dash adopt-release <repo>${c_off} scaffold the release-please pipeline (--all for active repos)
   ${c_bold}dash protect <repo>${c_off}    require the CI gate on a repo's default branch (--all)
-  ${c_bold}dash evolve [args]${c_off}     trigger the AI evolution workflow
+  ${c_bold}dash evolve${c_off}            evolve the monorepo itself (unified-evolution.yml, dispatch-only)
+  ${c_bold}dash evolve --repo <name>${c_off}  run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo)
+  ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|remediate|issues|reconcile|estimate|ledger|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|remediate|issues|reconcile|estimate|ledger|targets|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -133,12 +135,29 @@ cmd_new() {
 }
 
 cmd_evolve() {
-  if command -v gh >/dev/null; then
-    gh workflow run unified-evolution.yml "$@"
-  else
-    echo "gh CLI required to trigger unified-evolution.yml" >&2
+  if ! command -v gh >/dev/null; then
+    echo "gh CLI required to trigger evolution workflows" >&2
     return 1
   fi
+  # Two evolution layers. Bare `dash evolve` is the hub's own dispatch-only
+  # pass; `--repo` / `--all` dispatch the weekly repo-evolution loop, whose
+  # plan step decides what actually runs (registry opt-in, owned upstream, not
+  # archived, no evolution PR still open). Extra args pass through to `gh
+  # workflow run` — e.g. `-f dry_run=true`, `-f force=true`, `-f focus='...'`.
+  case "${1:-}" in
+    --repo)
+      shift
+      local repo="${1:?usage: dash evolve --repo <name> [-f dry_run=true] [-f force=true] [-f focus=...]}"; shift || true
+      gh workflow run repo-evolution.yml -f "target=${repo}" "$@"
+      ;;
+    --all)
+      shift
+      gh workflow run repo-evolution.yml -f "target=all" "$@"
+      ;;
+    *)
+      gh workflow run unified-evolution.yml "$@"
+      ;;
+  esac
 }
 
 cmd_audit()  { "${TOOLS}/audit-standards.sh" "$@"; }

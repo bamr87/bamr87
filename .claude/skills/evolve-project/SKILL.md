@@ -7,6 +7,8 @@ description: Run a focused improvement pass on a single project (code quality, d
 
 This is the per-repo action step of the self-evolution loop; `/evolve` is the loop's entry point (it chains triage-attention → sync-project-docs → this skill → refresh-portfolio).
 
+It is also the **manual** counterpart to the weekly repo-evolution loop (`.github/workflows/repo-evolution.yml`, [`docs/EVOLUTION.md`](../../../docs/EVOLUTION.md)). For consistency, aim at the same goals: read `.github/evolution/evolve-prompt.md` (documentation → clarity → functionality, and the method) plus the matching `.github/evolution/categories/<category>.md`, and preview the brief the loop would hand its agent with `tools/dash gen targets --target <name> --no-dedupe` (it quotes the repo's current triage signals). The persona mapping below adds focus on top. Stay in the same lanes the loop does: a failing workflow is the fleet doctor's, an open issue is the issue pipeline's.
+
 ## Steps
 
 1. Pick the project and the evolution type. The `.github/agents/*.md` files are **portable Copilot persona templates** (per `.github/docs/toolkit-retention-map.md`), not Claude subagents — **read** the matching one as guidance, don't try to Task-launch it. Map type → guidance / native tool:
