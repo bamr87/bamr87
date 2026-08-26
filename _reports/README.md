@@ -1,17 +1,10 @@
 # Reports
 
-Generated, committed records produced by the dash's automation. This directory is
-`generated` in the SCHEMA pyramid — the files here are written by tooling, not by
-hand.
+Generated, committed records produced by the dash's automation. This directory is `generated` in the SCHEMA pyramid — the files here are written by tooling, not by hand.
 
 ## Daily repo activity
 
-`daily/<date>.md` — one per day, written by the **daily-repo-analysis** workflow
-(`.github/scripts/dash-gen/daily_report.py`). Each is a digest of the prior day's
-commits, pull requests, issues, releases, and **CI failures** across every repo in
-the registry. The same run also hands the failures to an Opus Claude Code agent,
-which opens draft PRs (hub-fixable) or files `daily-analysis` issues
-(submodule / cross-repo).
+`daily/<date>.md` — one per day, written by the **daily-repo-analysis** workflow (`.github/scripts/dash-gen/daily_report.py`). Each is a digest of the prior day's commits, pull requests, issues, releases, and **CI failures** across every repo in the registry. The same run also hands the failures to an Opus Claude Code agent, which opens draft PRs (hub-fixable) or files `daily-analysis` issues (submodule / cross-repo).
 
 See [`docs/DAILY-ANALYSIS.md`](../docs/DAILY-ANALYSIS.md) for the full pipeline.
 

@@ -9,22 +9,12 @@ sidebar:
 
 # 💼 Engagements — estimates vs actuals
 
-Every registry project is a **client**; every entry is a **statement of work** produced by
-`tools/dash estimate` (deterministic estimator-v1 over open issues, priced by the
-[rate card](https://github.com/bamr87/bamr87/blob/main/_data/engagement_rates.yml)) and settled by
-`tools/dash ledger` (actuals accrued from auditable evidence — `claude-code-action` CI runs,
-Claude-attributed commits and PRs — into `_data/engagements.yml`). Each estimate decomposes along
-the AI-era division of labor: **AI** performs the implementation, the **human broker** builds
-context, defines goals, and validates, the **platform** runs the pipelines. The `traditional`
-column is what the same scope would have cost at pre-AI consulting hours — its ratio to the
-estimate is the engagement's **leverage**. Model and lifecycle:
-[docs/ESTIMATION.md](https://github.com/bamr87/bamr87/blob/main/docs/ESTIMATION.md).
+Every registry project is a **client**; every entry is a **statement of work** produced by `tools/dash estimate` (deterministic estimator-v1 over open issues, priced by the [rate card](https://github.com/bamr87/bamr87/blob/main/_data/engagement_rates.yml)) and settled by `tools/dash ledger` (actuals accrued from auditable evidence — `claude-code-action` CI runs, Claude-attributed commits and PRs — into `_data/engagements.yml`). Each estimate decomposes along the AI-era division of labor: **AI** performs the implementation, the **human broker** builds context, defines goals, and validates, the **platform** runs the pipelines. The `traditional` column is what the same scope would have cost at pre-AI consulting hours — its ratio to the estimate is the engagement's **leverage**. Model and lifecycle: [docs/ESTIMATION.md](https://github.com/bamr87/bamr87/blob/main/docs/ESTIMATION.md).
 
 {% assign e = site.data.engagements %}
 {% if e == nil %}
 <div class="alert alert-info">
-No engagement ledger yet. Run <code>tools/dash estimate</code> (drafts estimates from the
-committed triage snapshot) then <code>tools/dash ledger</code>, which write
+No engagement ledger yet. Run <code>tools/dash estimate</code> (drafts estimates from the committed triage snapshot) then <code>tools/dash ledger</code>, which write
 <code>_data/engagements.yml</code> — the file this page renders.
 </div>
 {% else %}
@@ -46,8 +36,7 @@ Status counts:
 <span class="badge bg-success">delivered {{ e.summary.counts.delivered }}</span>
 <span class="badge bg-primary">reconciled {{ e.summary.counts.reconciled }}</span>
 <span class="badge bg-light text-dark border">cancelled {{ e.summary.counts.cancelled }}</span>
-— estimates are <b>proposals</b>: nothing accrues actuals until a human approves
-(<code>tools/dash ledger --set-status ENG-NNNN=approved</code>).
+— estimates are <b>proposals</b>: nothing accrues actuals until a human approves (<code>tools/dash ledger --set-status ENG-NNNN=approved</code>).
 </p>
 
 ## Clients
@@ -70,8 +59,7 @@ Status counts:
 ## Engagements
 
 <p class="text-muted small">Est. = AI implementation + human brokerage + platform + confidence
-contingency. Lev. = traditional-consulting quote ÷ estimate. Every actual links to its evidence
-(run, commit, PR) inside <code>_data/engagements.yml</code>.</p>
+contingency. Lev. = traditional-consulting quote ÷ estimate. Every actual links to its evidence (run, commit, PR) inside <code>_data/engagements.yml</code>.</p>
 
 <div class="table-responsive"><table class="table table-sm table-hover align-middle">
 <thead><tr>
@@ -111,14 +99,11 @@ contingency. Lev. = traditional-consulting quote ÷ estimate. Every actual links
 <div class="col-md-7" markdown="1">
 
 1. **Estimate** — `tools/dash estimate` classifies an open issue (labels, title, per-repo cost
-   history) into a tier and prices it from the rate card: AI tokens at API list rates, broker
-   hours at the card rate, CI minutes at runner rates, plus a confidence-based contingency.
-   Same inputs, same estimate — the quote is reproducible, not negotiable.
+history) into a tier and prices it from the rate card: AI tokens at API list rates, broker hours at the card rate, CI minutes at runner rates, plus a confidence-based contingency. Same inputs, same estimate — the quote is reproducible, not negotiable.
 2. **Approve** — the broker reviews the plan (approach, deliverables, acceptance), adjusts, and
    signs: `--set-status ENG-NNNN=approved`. Only then does the meter start.
 3. **Execute** — the AI implements (sessions, CI runs, PRs). The daily
-   [`fleet-pulse` refresh](https://github.com/bamr87/bamr87/blob/main/.github/workflows/fleet-pulse.yml)
-   harvests the evidence; `tools/dash ledger` accrues it to the engagement, deduped by URL.
+[`fleet-pulse` refresh](https://github.com/bamr87/bamr87/blob/main/.github/workflows/fleet-pulse.yml) harvests the evidence; `tools/dash ledger` accrues it to the engagement, deduped by URL.
 4. **Deliver & reconcile** — on `delivered`, variance closes the loop: estimate vs actual,
    band (±10% = on), and the *actual* leverage against the traditional quote.
 
@@ -136,6 +121,5 @@ contingency. Lev. = traditional-consulting quote ÷ estimate. Every actual links
 </div>
 
 <p class="small text-muted">Updated {{ e.summary.updated_at }} ·
-source <code>.github/scripts/dash-gen/engagements.py</code> ·
-register <code>_data/engagements.yml</code> · rate card <code>_data/engagement_rates.yml</code></p>
+source <code>.github/scripts/dash-gen/engagements.py</code> · register <code>_data/engagements.yml</code> · rate card <code>_data/engagement_rates.yml</code></p>
 {% endif %}

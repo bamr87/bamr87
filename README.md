@@ -13,10 +13,7 @@ updated: 2026-04-25
 
 I build sustainable enterprise systems and empower internal teams, transforming technology from a cost center into a strategic advantage.
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/amrabdel)
-[![Portfolio](https://img.shields.io/badge/Portfolio-bashconsultants.com-green?style=for-the-badge&logo=googlechrome)](https://bashconsultants.com)
-[![Email](https://img.shields.io/badge/Email-amr.abdel%40gmail.com-red?style=for-the-badge&logo=gmail)](mailto:amr.abdel@gmail.com)
-[![CV](https://img.shields.io/badge/CV-Download-orange?style=for-the-badge&logo=adobeacrobatreader)](https://github.com/bamr87/cv/blob/main/cv.pdf)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/amrabdel) [![Portfolio](https://img.shields.io/badge/Portfolio-bashconsultants.com-green?style=for-the-badge&logo=googlechrome)](https://bashconsultants.com) [![Email](https://img.shields.io/badge/Email-amr.abdel%40gmail.com-red?style=for-the-badge&logo=gmail)](mailto:amr.abdel@gmail.com) [![CV](https://img.shields.io/badge/CV-Download-orange?style=for-the-badge&logo=adobeacrobatreader)](https://github.com/bamr87/cv/blob/main/cv.pdf)
 
 </div>
 
@@ -351,9 +348,7 @@ cd projects/README && mkdocs serve
 
 ## 🎓 Education
 
-**Bachelor of Science (BS), Finance**
-*Northern Illinois University*
-Focus: Corporate Finance
+**Bachelor of Science (BS), Finance** *Northern Illinois University* Focus: Corporate Finance
 
 ---
 
@@ -361,8 +356,7 @@ Focus: Corporate Finance
 
 <div align="center">
 
-![GitHub Stats](https://github-readme-stats.vercel.app/api?username=bamr87&show_icons=true&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff&icon_color=58a6ff)
-![Top Languages](https://github-readme-stats.vercel.app/api/top-langs/?username=bamr87&layout=compact&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff)
+![GitHub Stats](https://github-readme-stats.vercel.app/api?username=bamr87&show_icons=true&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff&icon_color=58a6ff) ![Top Languages](https://github-readme-stats.vercel.app/api/top-langs/?username=bamr87&layout=compact&theme=dark&hide_border=true&bg_color=0d1117&title_color=58a6ff)
 
 </div>
 

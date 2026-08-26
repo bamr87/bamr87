@@ -1,7 +1,6 @@
 # `resolve-fleet-token`
 
-Pick the first GitHub token that **works**, not the first one that happens to be
-non-empty.
+Pick the first GitHub token that **works**, not the first one that happens to be non-empty.
 
 ## Why
 
@@ -13,18 +12,14 @@ env:
 ```
 
 `||` selects the first non-empty operand and performs no validity check. That is
-fine when every candidate is equally capable, but it fails quietly in two common
-situations:
+fine when every candidate is equally capable, but it fails quietly in two common situations:
 
 - an **expired or revoked PAT** is still a non-empty string, so it wins the
   `||` chain and then returns `401` on the first real API call;
 - the job-scoped **`GITHUB_TOKEN` is repo-scoped**, so against a *foreign*
-  repository it returns `404 Not Found`, not `403 Forbidden`. The failure looks
-  like "that repo/issue doesn't exist" rather than "you aren't allowed", which
-  sends debugging in the wrong direction.
+repository it returns `404 Not Found`, not `403 Forbidden`. The failure looks like "that repo/issue doesn't exist" rather than "you aren't allowed", which sends debugging in the wrong direction.
 
-This action probes each candidate with an idempotent
-`GET /repos/{owner}/{repo}` and hands back the first one that returns `200`.
+This action probes each candidate with an idempotent `GET /repos/{owner}/{repo}` and hands back the first one that returns `200`.
 
 ## Usage
 
@@ -43,8 +38,7 @@ This action probes each candidate with an idempotent
     GH_TOKEN: ${{ steps.token.outputs.token }}
 ```
 
-Set `probe-repo` to the repository the job actually intends to touch. Probing
-the current repository proves nothing about cross-repo access.
+Set `probe-repo` to the repository the job actually intends to touch. Probing the current repository proves nothing about cross-repo access.
 
 To branch instead of failing:
 
@@ -86,8 +80,7 @@ To branch instead of failing:
 ## When *not* to use it
 
 For **same-repo** work, keep the plain `||` fallback. `GITHUB_TOKEN` is
-genuinely sufficient there, and adding a network round-trip per job to confirm
-something the platform already guarantees is not worth the latency.
+genuinely sufficient there, and adding a network round-trip per job to confirm something the platform already guarantees is not worth the latency.
 
 ## Safety notes
 

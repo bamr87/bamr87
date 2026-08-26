@@ -16,8 +16,7 @@ updated: 2026-08-24
 
 The repository root `README.md` is a **GitHub profile README** — it renders on
 <https://github.com/bamr87> and describes the author, not the codebase. That is
-intentional, but it means a person who clones this repository has nowhere
-obvious to start.
+intentional, but it means a person who clones this repository has nowhere obvious to start.
 
 This page is that starting point. It answers:
 
@@ -27,8 +26,7 @@ This page is that starting point. It answers:
 
 ## Read these first
 
-This repository already carries a fair amount of documentation. This page is a
-**map**, not a replacement — when a topic has a dedicated file, go there.
+This repository already carries a fair amount of documentation. This page is a **map**, not a replacement — when a topic has a dedicated file, go there.
 
 | Document | Read it when |
 |---|---|
@@ -42,13 +40,9 @@ This repository already carries a fair amount of documentation. This page is a
 
 ## What this repository is
 
-A **monorepo** built around a [Jekyll](https://jekyllrb.com/) static site, with
-Git submodules pulling in related projects, plus the author's shell/dotfile and
-tooling configuration.
+A **monorepo** built around a [Jekyll](https://jekyllrb.com/) static site, with Git submodules pulling in related projects, plus the author's shell/dotfile and tooling configuration.
 
-The evidence for "Jekyll site" is in the root: a `Gemfile`, `_config.yml`,
-`_config_dev.yml`, `_data/`, `assets/`, `pages/`, and an `index.md` entry page —
-the standard Jekyll shape.
+The evidence for "Jekyll site" is in the root: a `Gemfile`, `_config.yml`, `_config_dev.yml`, `_data/`, `assets/`, `pages/`, and an `index.md` entry page — the standard Jekyll shape.
 
 ## Layout
 
@@ -98,9 +92,7 @@ There appear to be **three** supported paths. Pick one.
 
 ### 1. Dev container (recommended if you use VS Code or Codespaces)
 
-The repository ships a `.devcontainer/` definition, which means the toolchain is
-already pinned for you: open the folder in VS Code and choose *Reopen in
-Container*, or start a Codespace from the GitHub UI.
+The repository ships a `.devcontainer/` definition, which means the toolchain is already pinned for you: open the folder in VS Code and choose *Reopen in Container*, or start a Codespace from the GitHub UI.
 
 > ⚠️ **Needs verification:** base image, forwarded ports, and whether a
 > post-create step already runs dependency installation and submodule
@@ -123,8 +115,7 @@ A `docker-compose.yml` exists at the root.
 
 ### 3. Native Ruby toolchain
 
-With a `Gemfile` and a `Rakefile` present, dependencies are managed by Bundler
-and tasks are likely exposed through Rake.
+With a `Gemfile` and a `Rakefile` present, dependencies are managed by Bundler and tasks are likely exposed through Rake.
 
 > ⚠️ **Needs verification:** required Ruby version (check for a `.ruby-version`
 > or the `ruby` directive in `Gemfile`), the install command, and the
@@ -138,14 +129,9 @@ and tasks are likely exposed through Rake.
 
 ### Submodules
 
-This repository uses Git submodules (`.gitmodules`). A plain `git clone` will
-leave submodule directories empty, and a site build may then fail or silently
-omit content.
+This repository uses Git submodules (`.gitmodules`). A plain `git clone` will leave submodule directories empty, and a site build may then fail or silently omit content.
 
-[`SUBMODULES.md`](../SUBMODULES.md) is the authoritative reference for which
-submodules exist and how to work with them — read it before your first clone,
-and consult it again when a submodule directory looks unexpectedly empty or a
-diff shows a bare pointer change.
+[`SUBMODULES.md`](../SUBMODULES.md) is the authoritative reference for which submodules exist and how to work with them — read it before your first clone, and consult it again when a submodule directory looks unexpectedly empty or a diff shows a bare pointer change.
 
 ## Tests and checks
 
@@ -163,8 +149,7 @@ In the meantime, before opening a pull request:
 
 1. Make sure the site builds locally by whichever path you used above.
 2. Let the configured hooks run — `.pre-commit-config.yaml` and `.husky/` are
-   both present, so formatting and lint checks are expected to fire on commit.
-   Do not bypass them without saying so in your PR description.
+both present, so formatting and lint checks are expected to fire on commit. Do not bypass them without saying so in your PR description.
 3. Follow the process in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## Where to put a change
@@ -182,7 +167,4 @@ In the meantime, before opening a pull request:
 
 ## Improving this page
 
-Every ⚠️ marker above is an open question. If you resolve one — by reading the
-file, or by running the command successfully — please replace the marker with
-the verified answer in the same pull request as your other work. The goal is for
-this page to have zero ⚠️ markers.
+Every ⚠️ marker above is an open question. If you resolve one — by reading the file, or by running the command successfully — please replace the marker with the verified answer in the same pull request as your other work. The goal is for this page to have zero ⚠️ markers.
