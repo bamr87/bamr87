@@ -1,31 +1,16 @@
 # Dependabot configuration
-# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# Only the `github-actions` ecosystem is enabled here. If other ecosystems
-# (npm, bundler, pip, docker, ...) become relevant, add them as additional
-# entries under `updates:` rather than replacing this one.
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# The github-actions ecosystem uses `directory: "/"`, which tells Dependabot to
+# scan every workflow under .github/workflows/. When an action is pinned to a
+# full commit SHA, Dependabot bumps the SHA and the trailing `# vX.Y.Z` version
+# comment together in the same pull request, so pinning does not mean the
+# dependency goes stale.
 version: 2
-
 updates:
-  # Keeps the actions used by workflows in .github/workflows up to date.
-  # For the github-actions ecosystem, `directory` is the repository root.
-  #
-  # When an action is pinned to a commit SHA, e.g.
-  #   uses: actions/checkout@<sha> # v4.1.2
-  # Dependabot updates both the SHA and the trailing version comment, which is
-  # what keeps SHA pinning maintainable over time.
   - package-ecosystem: "github-actions"
-    # "/" covers every workflow under .github/workflows.
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
     open-pull-requests-limit: 5
-    commit-message:
-      prefix: "ci"
-      include: "scope"
-    groups:
-      # Bundle all action bumps into a single pull request per run.
-      github-actions:
-        patterns:
-          - "*"
