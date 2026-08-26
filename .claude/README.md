@@ -19,7 +19,7 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/actions-triage/` | Explain the worst Actions workflows from `_data/actions_usage.yml`; drive a direct fix or dispatch `fleet-pulse.yml` (its `doctor` job is the AI fix pass) |
 | `skills/issue-pipeline/` | Read the three-tier issue queues from `_data/issue_pipeline.yml`, build an issue's evidence bundle in an isolated virtual environment, and dispatch the intake/implement/complete tiers of `issue-pipeline.yml` |
 | `skills/estimate-issue/` | Deep-analyze a GitHub issue into a client-engagement estimate in `_data/engagements.yml` (refines the `dash estimate` draft; approval stays human) |
-| `skills/evolve-project/` | Focused per-project improvement pass (reads `.github/agents` personas as guidance) |
+| `skills/evolve-project/` | Focused per-project improvement pass (reads `.github/agents` personas as guidance; shares its goals file `.github/evolution/evolve-prompt.md` with the weekly `repo-evolution.yml` loop) |
 | `skills/run-dash/` | Orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
 | `commands/dash-status.md` | `/dash-status` — read-only status |
 | `commands/evolve.md` | `/evolve` — run the self-evolution loop |

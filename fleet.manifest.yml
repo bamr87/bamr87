@@ -6,7 +6,8 @@ spec_version: fleet/v1
 repo: bamr87/bamr87
 provenance: derived
 summary: The dash — control plane for ~40 submodule repos. Runs the daily fleet-pulse
-  loop, the three-tier issue pipeline, registry reconciliation, and the standardization fan-outs.
+  loop, the three-tier issue pipeline, the weekly repo-evolution pass, registry reconciliation,
+  and the standardization fan-outs.
 lanes:
 - id: build-dash
   kind: other
@@ -115,6 +116,23 @@ lanes:
   - GITHUB_TOKEN
   guardrails:
     never_merges: true
+- id: repo-evolution
+  kind: maintenance
+  harness: claude-code-action
+  implementation: .github/workflows/repo-evolution.yml
+  description: 🌿 Repo Evolution
+  triggers:
+  - kind: schedule
+    cron: 0 9 * * 1
+  - kind: dispatch
+  switch: null
+  uses_tokens:
+  - ANTHROPIC_API_KEY
+  - CLAUDE_CODE_OAUTH_TOKEN
+  - FANOUT_TOKEN
+  - FLEET_TOKEN
+  guardrails:
+    never_merges: true
 - id: schema-fanout
   kind: fanout
   harness: claude-code-action
@@ -177,6 +195,7 @@ tokens:
   - claude
   - fleet-pulse
   - issue-pipeline
+  - repo-evolution
   - schema-fanout
   - standardize-fanout
   - unified-evolution
@@ -188,6 +207,7 @@ tokens:
   - claude
   - fleet-pulse
   - issue-pipeline
+  - repo-evolution
   - schema-fanout
   - standardize-fanout
   - unified-evolution
@@ -203,6 +223,7 @@ tokens:
   used_by:
   - fleet-pulse
   - issue-pipeline
+  - repo-evolution
   - schema-fanout
   - standardize-fanout
 - name: FLEET_TOKEN
@@ -213,6 +234,7 @@ tokens:
   - fleet-pulse
   - issue-pipeline
   - reconcile-registry
+  - repo-evolution
   - schema-fanout
   - standardize-fanout
   - unified-evolution

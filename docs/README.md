@@ -72,6 +72,7 @@ The operator docs for the dash machinery live here — one `UPPERCASE-TOPIC.md` 
 | [`DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`) — measure, rank, remediate. |
 | [`ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR. |
 | [`TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
+| [`EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo. |
 | [`ESTIMATION.md`](ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
 | [`STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline the fleet is held to. |
 | [`RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
