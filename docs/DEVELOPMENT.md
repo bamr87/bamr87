@@ -63,7 +63,7 @@ tools/check-drift.sh --report  # explain every drift finding
 - `tools/check-drift.sh` must be green — it gates every PR. `/drift-report` explains failures in plain language.
 - Shell changes: `shellcheck --severity=warning`.
 - Workflow changes: `actionlint` (the drift gate runs it over every workflow, with no exemptions).
-- Markdown: one paragraph per line. Fix with `python3 tools/unwrap-prose.py --write` — or run `tools/install-prose-hook.sh` once and a global post-commit hook fixes and amends it automatically in every repo (hub and submodules alike) before anything is pushed.
+- Markdown: one paragraph per line. You should never have to think about this: CI self-heals it on a pull request (the `markdown-oneline` gate unwraps the prose and pushes the fix to your branch), and running `tools/install-prose-hook.sh` once installs a global `pre-commit` hook that fixes it in every repo before the commit exists — so the gate stays green without a build. To fix by hand: `python3 tools/unwrap-prose.py --write`.
 - Structure changes: update the directory's `SCHEMA.md` in the same commit, then `python3 tools/schema_lint.py check .`.
 
 ## Docs sites
