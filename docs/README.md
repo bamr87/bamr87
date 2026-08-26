@@ -60,6 +60,33 @@ Top-level directories, with the role suggested by their name and by the Jekyll c
 
 The repository is also home to shell environment files (`.zshrc`, `.zprofile`, `.gitconfig`), which is consistent with it being described as a monorepo with Shell as its primary language.
 
+## Inside this directory
+
+The operator docs for the dash machinery live here — one `UPPERCASE-TOPIC.md` per concern (see this directory's [`SCHEMA.md`](SCHEMA.md) for the structural contract) — plus a few lowercase newcomer guides.
+
+| Document | What it covers |
+| --- | --- |
+| [`DASH.md`](DASH.md) | The dash architecture — registry, surfaces, monitoring, drift gates, and the self-evolution loop. Start here for the machinery. |
+| [`DEVELOPMENT.md`](DEVELOPMENT.md) | Local setup for the hub — containers, the everyday loop, and the pre-PR checklist. |
+| [`AI-INTEGRATION.md`](AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth and the secrets matrix, loops, fleet propagation. |
+| [`DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`) — measure, rank, remediate. |
+| [`ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR. |
+| [`TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
+| [`ESTIMATION.md`](ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
+| [`STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline the fleet is held to. |
+| [`RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
+| [`DEPENDENCIES.md`](DEPENDENCIES.md) | The always-latest dependency policy. |
+| [`SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
+| [`WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
+| [`quickstart.md`](quickstart.md) | Get a first clone running locally. |
+| [`prerequisites.md`](prerequisites.md) | What to install before the quick start. |
+| [`local-development.md`](local-development.md) | Clone, configure and run the site locally (Docker or Bundler + Jekyll). |
+| [`repository-layout.md`](repository-layout.md) | Contributor-facing map of the monorepo. |
+| [`automation-and-agents.md`](automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |
+| [`SCHEMA.md`](SCHEMA.md) | This directory's Pyramid Schema contract — what lives here and where a new doc goes. |
+
+When you add, rename or remove a file here, update its row in the same change so the index stays complete.
+
 ## Contributing to these docs
 
 Documentation changes are welcome and follow the same process as code changes — see [`CONTRIBUTING.md`](../CONTRIBUTING.md). If you add a document under `docs/`, please link it from this index so it stays discoverable.
