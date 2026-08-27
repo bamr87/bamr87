@@ -13,10 +13,7 @@ status: draft
 
 ## What this repository is
 
-`bamr87/bamr87` is a monorepo that doubles as the owner's GitHub profile
-repository. The root `README.md` renders as the profile page; the rest of the
-tree (`pages/`, `projects/`, `docs/`, `templates/`, `tools/`, `_data/`,
-`assets/`) holds the monorepo's actual content and automation.
+`bamr87/bamr87` is a monorepo that doubles as the owner's GitHub profile repository. The root `README.md` renders as the profile page; the rest of the tree (`pages/`, `projects/`, `docs/`, `templates/`, `tools/`, `_data/`, `assets/`) holds the monorepo's actual content and automation.
 
 The root configuration files imply a stack with four distinct layers:
 
@@ -38,10 +35,7 @@ Each layer is inventoried below.
 | `_config.yml` | [Jekyll](https://jekyllrb.com/) | Jekyll's primary site configuration. Its presence alongside `index.md`, `_data/`, `assets/` and underscore-prefixed directories is the main evidence that the site is built with Jekyll. |
 | `_config_dev.yml` | Jekyll | A second configuration profile, conventionally layered *on top of* `_config.yml` for local development. |
 
-Jekyll supports being given more than one config file, with later files
-overriding earlier ones — which is the usual reason a `_config_dev.yml` exists
-alongside `_config.yml`. **How this repository actually combines the two is not
-yet documented here** (`TODO`).
+Jekyll supports being given more than one config file, with later files overriding earlier ones — which is the usual reason a `_config_dev.yml` exists alongside `_config.yml`. **How this repository actually combines the two is not yet documented here** (`TODO`).
 
 ---
 
@@ -54,17 +48,13 @@ yet documented here** (`TODO`).
 | `.env.example` | environment variables | A template for a local, untracked `.env`. Copy it and fill it in before starting the containers. The variables it declares are not documented here (`TODO`). |
 | `home.code-workspace` | VS Code | A multi-root workspace file — consistent with a monorepo that also uses git submodules. |
 
-Because both a Compose file and a Dev Container definition exist, there are
-probably **two supported ways to get a working environment** (open in a dev
-container, or bring up Compose by hand), plus a third native path via Bundler.
-Which one the maintainer considers canonical is not yet recorded (`TODO`).
+Because both a Compose file and a Dev Container definition exist, there are probably **two supported ways to get a working environment** (open in a dev container, or bring up Compose by hand), plus a third native path via Bundler. Which one the maintainer considers canonical is not yet recorded (`TODO`).
 
 ---
 
 ## Layer 3 — Git hooks and formatting
 
-This repository carries **two** hook managers, which is unusual and worth
-understanding before you commit:
+This repository carries **two** hook managers, which is unusual and worth understanding before you commit:
 
 | File / directory | Tool it belongs to | What it means here |
 | --- | --- | --- |
@@ -74,9 +64,7 @@ understanding before you commit:
 | `.prettierignore` | Prettier | Paths excluded from formatting. |
 | `.editorconfig` | [EditorConfig](https://editorconfig.org/) | Editor-level whitespace/charset settings, applied automatically by most editors. |
 
-The presence of `.prettierrc` implies a Node.js toolchain, but **no
-`package.json` appears in the root listing.** That is worth resolving — Husky
-normally expects one — and is recorded as an open question below.
+The presence of `.prettierrc` implies a Node.js toolchain, but **no `package.json` appears in the root listing.** That is worth resolving — Husky normally expects one — and is recorded as an open question below.
 
 ---
 
@@ -98,8 +86,7 @@ normally expects one — and is recorded as an open question below.
 
 ## Unverified — needs confirmation
 
-Everything below is an open question. Answering these turns this map into a
-usable getting-started guide. Each item names the exact file to read.
+Everything below is an open question. Answering these turns this map into a usable getting-started guide. Each item names the exact file to read.
 
 ### Commands
 

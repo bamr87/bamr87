@@ -13,23 +13,16 @@ A newcomer's map of what lives at the root of this repository and why.
 
 ## The short version
 
-This repository wears two hats at once, which is the main thing that confuses
-first-time readers:
+This repository wears two hats at once, which is the main thing that confuses first-time readers:
 
 1. **A Jekyll site.** `_config.yml`, `Gemfile`, `index.md`, `_data/`, `pages/`
-   and `assets/` are the ingredients of a static site. Even `README.md` opens
-   with YAML front matter (`title:`, `author:`, `class:`, `updated:`), so it is
-   both the GitHub profile README *and* site content.
+and `assets/` are the ingredients of a static site. Even `README.md` opens with YAML front matter (`title:`, `author:`, `class:`, `updated:`), so it is both the GitHub profile README *and* site content.
 2. **A monorepo with automation around it.** `projects/`, `templates/`,
-   `tools/`, `_reports/`, `fleet.manifest.yml`, `.mcp.json`, `AGENTS.md` and
-   `CLAUDE.md` are about building, orchestrating and agent-driven workflows —
-   not about the site's HTML.
+`tools/`, `_reports/`, `fleet.manifest.yml`, `.mcp.json`, `AGENTS.md` and `CLAUDE.md` are about building, orchestrating and agent-driven workflows — not about the site's HTML.
 
-Everything else at the root is developer-environment plumbing: linting,
-formatting, hooks, containers, editor settings.
+Everything else at the root is developer-environment plumbing: linting, formatting, hooks, containers, editor settings.
 
-**`README.md` is a personal profile page, not a build guide.** Don't look there
-for setup instructions.
+**`README.md` is a personal profile page, not a build guide.** Don't look there for setup instructions.
 
 ---
 
@@ -43,8 +36,7 @@ for setup instructions.
 | Understand the git submodules and how to initialise them | `SUBMODULES.md` |
 | Understand how AI agents are expected to work in this repo | `AGENTS.md`, `CLAUDE.md` |
 
-(These files exist at the root — **verified** from the listing. Their contents
-are summarised here only by what their names claim; open them for the detail.)
+(These files exist at the root — **verified** from the listing. Their contents are summarised here only by what their names claim; open them for the detail.)
 
 ---
 
@@ -119,13 +111,9 @@ are summarised here only by what their names claim; open them for the detail.)
 
 ## Getting set up — **not yet documented here**
 
-This page deliberately contains **no install, build, serve or test commands**.
-The author of this page could not read `Gemfile`, `Rakefile`, `_config.yml`,
-`docker-compose.yml` or `.devcontainer/`, and writing commands that were never
-verified is worse than writing none.
+This page deliberately contains **no install, build, serve or test commands**. The author of this page could not read `Gemfile`, `Rakefile`, `_config.yml`, `docker-compose.yml` or `.devcontainer/`, and writing commands that were never verified is worse than writing none.
 
-Until this section is filled in, the authoritative sources are, in rough order
-of usefulness:
+Until this section is filled in, the authoritative sources are, in rough order of usefulness:
 
 1. `.devcontainer/` — if a dev container is defined, opening the repo in it is
    usually the shortest path to a working environment.
@@ -137,8 +125,7 @@ of usefulness:
 
 ### TODO for a maintainer
 
-Replace this section with the real commands, copied verbatim from the files
-above:
+Replace this section with the real commands, copied verbatim from the files above:
 
 The repository root `README.md` is a **GitHub profile README** — it renders on
 <https://github.com/bamr87> and describes the author, not the codebase. That is
