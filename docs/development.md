@@ -12,19 +12,13 @@ description: Contributor-facing entry point for the bamr87/bamr87 monorepo.
 
 ## Start here (and not in the root README)
 
-The `README.md` at the root of this repository is a **GitHub profile README**.
-Its front matter reads `title: Amr Abdel-Motaleb - Solutions Architect & ERP
-Specialist`, and its audience is people visiting the `bamr87` GitHub profile —
-not people cloning the repository.
+The `README.md` at the root of this repository is a **GitHub profile README**. Its front matter reads `title: Amr Abdel-Motaleb - Solutions Architect & ERP Specialist`, and its audience is people visiting the `bamr87` GitHub profile — not people cloning the repository.
 
-This page is the counterpart: the entry point for anyone who wants to run,
-build, or change the code.
+This page is the counterpart: the entry point for anyone who wants to run, build, or change the code.
 
 ## Repository map
 
-The repository is described in its own metadata as a **monorepo**, primary
-language **Shell**, default branch **`main`**. Here is what lives at the top
-level.
+The repository is described in its own metadata as a **monorepo**, primary language **Shell**, default branch **`main`**. Here is what lives at the top level.
 
 ### Documentation
 
@@ -75,28 +69,22 @@ level.
 | `.mcp.json` | Model Context Protocol server configuration | `.mcp.json` |
 | `.claude/` | Claude agent configuration | `.claude/` |
 
-The combination of `Gemfile`, `_config.yml`, `_config_dev.yml`, `_data/`,
-`index.md` and `assets/` is the conventional layout of a **Jekyll** site. Treat
-that as a strong inference rather than a confirmed fact until `_config.yml` is
-checked.
+The combination of `Gemfile`, `_config.yml`, `_config_dev.yml`, `_data/`, `index.md` and `assets/` is the conventional layout of a **Jekyll** site. Treat that as a strong inference rather than a confirmed fact until `_config.yml` is checked.
 
 ## Getting a local checkout
 
 1. Clone the repository.
 2. **Submodules.** `.gitmodules` is present, so a plain clone will not fetch
-   everything. See [`SUBMODULES.md`](../SUBMODULES.md) for the procedure this
-   repository expects.
+everything. See [`SUBMODULES.md`](../SUBMODULES.md) for the procedure this repository expects.
 3. **Environment variables.** `.env.example` exists; copy it to the filename
-   your tooling expects and fill in the values. **TODO:** document which
-   variables are required and what they do.
+your tooling expects and fill in the values. **TODO:** document which variables are required and what they do.
 
 ### Three ways to get an environment
 
 This repository ships configuration for all three, so pick whichever suits you:
 
 - **Dev Container** — open the repository in VS Code or GitHub Codespaces and
-  reopen in the container defined by `.devcontainer/`. This is usually the
-  lowest-friction option because the toolchain is pinned for you.
+reopen in the container defined by `.devcontainer/`. This is usually the lowest-friction option because the toolchain is pinned for you.
 - **Docker Compose** — `docker-compose.yml` defines a containerised stack.
   **TODO:** name the services and the port the site is served on.
 - **Native** — install Ruby and run Bundler against the `Gemfile`.
@@ -104,9 +92,7 @@ This repository ships configuration for all three, so pick whichever suits you:
 
 ## Common tasks
 
-**TODO — fill in from `Rakefile`, `docker-compose.yml` and `.pre-commit-config.yaml`.**
-These are intentionally left blank so that nobody copies a command that was
-never run against this repository.
+**TODO — fill in from `Rakefile`, `docker-compose.yml` and `.pre-commit-config.yaml`.** These are intentionally left blank so that nobody copies a command that was never run against this repository.
 
 | Task | Command |
 | --- | --- |
@@ -117,25 +103,20 @@ never run against this repository.
 | Run the linters / formatters | _TODO_ |
 | Run the test suite | _TODO_ |
 
-Until the table is filled in, `Rakefile` is the best single place to discover
-what automation already exists.
+Until the table is filled in, `Rakefile` is the best single place to discover what automation already exists.
 
 ## Checks that run before your commit lands
 
 Two hook systems are configured at the root:
 
 - **`pre-commit`** (`.pre-commit-config.yaml`) — Python-ecosystem hook manager.
-  Hooks defined here run against staged files. Install the hooks locally so you
-  find failures before CI does.
+Hooks defined here run against staged files. Install the hooks locally so you find failures before CI does.
 - **Husky** (`.husky/`) — git hooks driven by the JavaScript ecosystem, likely
   paired with the Prettier configuration (`.prettierrc`, `.prettierignore`).
 
-**TODO:** confirm how the two are meant to coexist, and which one owns
-formatting. Note that `.husky/` and `.prettierrc` normally accompany a
-`package.json`, which is not present at the repository root — worth clarifying.
+**TODO:** confirm how the two are meant to coexist, and which one owns formatting. Note that `.husky/` and `.prettierrc` normally accompany a `package.json`, which is not present at the repository root — worth clarifying.
 
-CI workflows live in `.github/workflows/`; those are the authoritative checks
-for a pull request.
+CI workflows live in `.github/workflows/`; those are the authoritative checks for a pull request.
 
 ## Where to go next
 
@@ -147,6 +128,4 @@ for a pull request.
 
 ## Improving this page
 
-If you fill in one of the TODOs above, please do it by reading the config file
-named alongside it and pasting the command you actually ran. A guide that is
-blank in places is more useful than one that is confidently wrong.
+If you fill in one of the TODOs above, please do it by reading the config file named alongside it and pasting the command you actually ran. A guide that is blank in places is more useful than one that is confidently wrong.
