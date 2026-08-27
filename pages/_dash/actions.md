@@ -58,7 +58,7 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
 
 ## Cost vs. effectiveness
 
-<p class="small text-muted">Each dot is a workflow: <strong>x = minutes consumed</strong> (√-scaled), <strong>y = effectiveness</strong> (% of minutes ending in success), <strong>size = run count</strong>. The shaded corner (high cost, low value) is where to look first.</p>
+<p class="small text-muted">Each dot is a workflow: <strong>x = minutes consumed</strong> (√-scaled), <strong>y = effectiveness</strong> (% of minutes ending in success), <strong>size = run count</strong>. The shaded corner (high cost, low value) is where to look first. Workflows with <strong>no verdicts</strong> in the window — every run skipped by an <code>if:</code> gate — have no effectiveness to plot and are omitted; they show as <span class="text-muted">—</span> in the table below rather than 0%.</p>
 <div style="overflow-x:auto"><canvas id="quadrant" width="900" height="440" style="max-width:100%"></canvas></div>
 <div id="quadrant-tip" class="small text-muted"></div>
 
@@ -96,8 +96,13 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
       <td class="text-end">{{ w.total_min | round }}</td>
       <td class="text-end">{{ w.avg_min | round: 1 }}</td>
       <td class="text-end">{{ w.p95_min | round: 1 }}</td>
-      <td class="text-end">{{ w.success_rate_pct }}%</td>
-      <td class="text-end {% if w.effectiveness_pct < 55 %}text-danger fw-bold{% endif %}">{{ w.effectiveness_pct }}%</td>
+      {%- comment -%}
+      A null rate means the window held NO verdicts (every run skipped by an
+      `if:` gate) — that is "no data", not "0% success". Liquid treats 0.0 as
+      truthy, so `{% if %}` separates the two correctly.
+      {%- endcomment -%}
+      <td class="text-end">{% if w.success_rate_pct %}{{ w.success_rate_pct }}%{% else %}<span class="text-muted" title="no runs reached a verdict in this window">—</span>{% endif %}</td>
+      <td class="text-end {% if w.effectiveness_pct and w.effectiveness_pct < 55 %}text-danger fw-bold{% endif %}">{% if w.effectiveness_pct %}{{ w.effectiveness_pct }}%{% else %}<span class="text-muted" title="no runs reached a verdict in this window">—</span>{% endif %}</td>
       <td class="text-end">{{ w.waste_min | round }}m</td>
       <td>
         {% for f in w.flags %}{% case f %}
@@ -134,10 +139,14 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
 
 <script>
 (function () {
-  var WF = {{ a.workflows | jsonify }};
-  if (!Array.isArray(WF) || !WF.length) return;
+  var ALL = {{ a.workflows | jsonify }};
+  if (!Array.isArray(ALL) || !ALL.length) return;
+  // The quadrant plots effectiveness. A workflow with no verdicts has none —
+  // and `null / 100 === 0` in JS, so leaving it in would draw it at 0% and
+  // reproduce on the chart the exact confusion the null was added to remove.
+  var WF = ALL.filter(function (w) { return w.effectiveness_pct !== null; });
 
-/* ---- cost-vs-effectiveness quadrant (canvas) ---- */ var cv = document.getElementById('quadrant'); if (cv && cv.getContext) {
+/* ---- cost-vs-effectiveness quadrant (canvas) ---- */ var cv = document.getElementById('quadrant'); if (cv && cv.getContext && WF.length) {
     var ctx = cv.getContext('2d'), W = cv.width, H = cv.height,
         padL = 48, padR = 16, padT = 16, padB = 34;
     var maxMin = Math.max.apply(null, WF.map(function (w) { return w.total_min; })) || 1;

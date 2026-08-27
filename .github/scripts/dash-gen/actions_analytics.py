@@ -19,6 +19,11 @@ failures: `success_rate_pct` and the failing/flaky flags look only at runs that
 reached a verdict. Conflating the two made every workflow with a working
 `concurrency: cancel-in-progress` guard read as broken.
 
+For the same reason a workflow with NO verdicts in the window — every run
+skipped by an `if:` gate — reports `success_rate_pct` / `effectiveness_pct` as
+`None`, not `0.0`: "no data" and "failed every run" are different states and
+must not render identically.
+
 Auth: a token from GH_TOKEN / GITHUB_TOKEN, else `gh auth token`. Network / rate
 -limit failures degrade gracefully (a repo that can't be read is skipped, not fatal).
 """
@@ -51,6 +56,11 @@ MIN_WASTE_MIN = 4.0        # ignore trivial waste below this when flagging
 
 # Non-success terminal conclusions whose minutes count as waste.
 WASTE_CONCLUSIONS = {"failure", "cancelled", "timed_out", "startup_failure"}
+
+# Conclusions that say nothing about whether the workflow works. A run whose
+# `if:` gate declined is the system behaving correctly at ~zero cost, so it must
+# not be the run that decides "is this workflow currently broken?".
+NON_VERDICT_CONCLUSIONS = {"skipped", "neutral", "action_required", "stale"}
 
 # Workflow-type classification. First matching rule wins; matched against
 # "<name> <path>" lowercased. Purpose-specific types precede the generic "ci".
@@ -169,6 +179,7 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
                 "conclusion": run.conclusion or "unknown",
                 "minutes": dur,
                 "day": created.date().isoformat() if created else None,
+                "created_at": created.isoformat() if created else None,
             })
     except GithubException:
         pass
@@ -181,7 +192,8 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
 def new_bucket() -> dict:
     return {"runs": 0, "total_min": 0.0, "success_min": 0.0, "waste_min": 0.0,
             "success": 0, "failure": 0, "cancelled": 0, "other": 0,
-            "durations": [], "events": {}}
+            "durations": [], "events": {},
+            "last_conclusion": None, "last_at": None}
 
 
 def fold(bucket: dict, rec: dict) -> None:
@@ -191,6 +203,15 @@ def fold(bucket: dict, rec: dict) -> None:
     bucket["total_min"] += m
     bucket["durations"].append(m)
     bucket["events"][rec["event"]] = bucket["events"].get(rec["event"], 0) + 1
+    # Newest run that actually reached a verdict. Compared by timestamp rather
+    # than trusting the caller's ordering, so this stays correct if records are
+    # ever folded out of order. `created_at` is a uniform UTC isoformat string,
+    # so a lexicographic compare is a chronological one.
+    if c not in NON_VERDICT_CONCLUSIONS:
+        at = rec.get("created_at") or ""
+        if bucket["last_at"] is None or at > bucket["last_at"]:
+            bucket["last_at"] = at
+            bucket["last_conclusion"] = c
     if c == "success":
         bucket["success_min"] += m
         bucket["success"] += 1
@@ -208,12 +229,66 @@ def pct(part: float, whole: float) -> float:
     return round(100 * part / whole, 1) if whole else 0.0
 
 
+def pct_or_none(part: float, whole: float) -> float | None:
+    """`pct`, except an EMPTY denominator reads as "no data" instead of 0%.
+
+    `pct(0, 0) == 0.0` is the wrong answer for a rate: a workflow whose runs all
+    got skipped has no verdicts at all, and publishing "0.0% success" next to
+    "0 failures" made it indistinguishable on the dash from one that failed
+    every run (bamr87/bamr87#92). `None` renders as "—".
+    """
+    return round(100 * part / whole, 1) if whole else None
+
+
 def p95(values: list[float]) -> float:
     if not values:
         return 0.0
     s = sorted(values)
     idx = min(len(s) - 1, int(round(0.95 * (len(s) - 1))))
     return round(s[idx], 2)
+
+
+def workflow_record(b: dict, *, repo: str, repo_url: str | None,
+                    external: bool, weeks: float) -> dict:
+    """One workflow's aggregated row, from its folded bucket."""
+    # Runs that reached a verdict. With none, the rates below are UNKNOWN, not
+    # zero — see pct_or_none.
+    decided = b["success"] + b["failure"]
+    return {
+        "repo": repo, "repo_url": repo_url, "external": external,
+        "workflow": b["_name"], "type": classify_type(b["_name"], b["_path"]),
+        "path": b["_path"],
+        "runs": b["runs"],
+        "total_min": round(b["total_min"], 1),
+        "avg_min": round(b["total_min"] / b["runs"], 2) if b["runs"] else 0.0,
+        "p95_min": p95(b["durations"]),
+        "waste_min": round(b["waste_min"], 1),
+        "runs_per_week": round(b["runs"] / weeks, 1),
+        "success": b["success"], "failure": b["failure"], "cancelled": b["cancelled"],
+        # Cancelled runs are EXCLUDED from the denominator: a superseded
+        # run reached no verdict, so counting it as "not a success" made
+        # `success_rate_pct` measure churn instead of correctness, and
+        # the sub-50% result then tripped the `failing` flag on
+        # workflows with zero actual failures. Cancelled MINUTES still
+        # count as waste (they were really burned) — see waste_min — and
+        # the churn itself stays visible as cancel_pct / `cancel-heavy`.
+        "success_rate_pct": pct_or_none(b["success"], decided),
+        "cancel_pct": pct(b["cancelled"], decided + b["cancelled"]),
+        "effectiveness_pct": (None if not decided
+                              else pct(b["success_min"], b["total_min"]) if b["total_min"]
+                              else 100.0),
+        "sched_pct": pct(b["events"].get("schedule", 0), b["runs"]),
+        # Share of runs a human triggered by hand. Debugging sessions are
+        # expected to fail and to burn minutes; the remediation queue uses this
+        # to keep that cost out of the fleet's standing-waste signals.
+        "dispatch_pct": pct(b["events"].get("workflow_dispatch", 0), b["runs"]),
+        # The verdict that stands TODAY. A later green run supersedes earlier
+        # red ones — without this the queue cannot tell a workflow that is
+        # broken from one that was fixed fifteen minutes later.
+        "last_conclusion": b["last_conclusion"],
+        "last_run_at": b["last_at"],
+        "events": b["events"],
+    }
 
 
 def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
@@ -261,31 +336,8 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
                 fold(agg.setdefault(key, new_bucket()), rec)
 
         for wid, b in wf_buckets.items():
-            wtype = classify_type(b["_name"], b["_path"])
-            sched = b["events"].get("schedule", 0)
-            workflows.append({
-                "repo": name, "repo_url": repo_url, "external": external,
-                "workflow": b["_name"], "type": wtype, "path": b["_path"],
-                "runs": b["runs"],
-                "total_min": round(b["total_min"], 1),
-                "avg_min": round(b["total_min"] / b["runs"], 2) if b["runs"] else 0.0,
-                "p95_min": p95(b["durations"]),
-                "waste_min": round(b["waste_min"], 1),
-                "runs_per_week": round(b["runs"] / weeks, 1),
-                "success": b["success"], "failure": b["failure"], "cancelled": b["cancelled"],
-                # Cancelled runs are EXCLUDED from the denominator: a superseded
-                # run reached no verdict, so counting it as "not a success" made
-                # `success_rate_pct` measure churn instead of correctness, and
-                # the sub-50% result then tripped the `failing` flag on
-                # workflows with zero actual failures. Cancelled MINUTES still
-                # count as waste (they were really burned) — see waste_min — and
-                # the churn itself stays visible as cancel_pct / `cancel-heavy`.
-                "success_rate_pct": pct(b["success"], b["success"] + b["failure"]),
-                "cancel_pct": pct(b["cancelled"], b["success"] + b["failure"] + b["cancelled"]),
-                "effectiveness_pct": pct(b["success_min"], b["total_min"]) if b["total_min"] else 100.0,
-                "sched_pct": pct(sched, b["runs"]),
-                "events": b["events"],
-            })
+            workflows.append(workflow_record(b, repo=name, repo_url=repo_url,
+                                             external=external, weeks=weeks))
 
         # workflows that exist but never ran in the window (dead weight)
         ran = set(wf_buckets)
@@ -326,8 +378,9 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         # verdicts at all, and pct(0, 0) == 0.0 would otherwise read as "0%
         # success" and flag it `failing` despite zero failures.
         decided = w["success"] + w["failure"]
-        if (w["total_min"] >= median_min and w["effectiveness_pct"] < LOW_EFFECTIVENESS
-                and w["waste_min"] >= MIN_WASTE_MIN):
+        eff = w["effectiveness_pct"]
+        if (eff is not None and w["total_min"] >= median_min
+                and eff < LOW_EFFECTIVENESS and w["waste_min"] >= MIN_WASTE_MIN):
             flags.append("high-cost-low-value")
         if decided >= 3 and w["success_rate_pct"] < 50:
             flags.append("failing")
@@ -340,8 +393,11 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         if w["runs"] >= 5 and w["sched_pct"] > CRON_HEAVY_PCT:
             flags.append("cron-heavy")
         w["flags"] = flags
-        # priority: minutes wasted, then raw consumption — the "high running, low effective" rank
-        w["priority"] = round(w["waste_min"] + w["total_min"] * (1 - w["effectiveness_pct"] / 100), 1)
+        # priority: minutes wasted, then raw consumption — the "high running, low effective" rank.
+        # With no verdicts there is no effectiveness to discount by, so only the
+        # minutes actually burned (cancelled runs) count.
+        w["priority"] = round(
+            w["waste_min"] + w["total_min"] * (1 - (eff if eff is not None else 100.0) / 100), 1)
 
     workflows.sort(key=lambda w: (w["priority"], w["total_min"]), reverse=True)
 
@@ -395,7 +451,9 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
                  "Waste = minutes on failed/cancelled/timed-out runs. "
                  "Success rate counts only runs that reached a verdict "
                  "(success + failure); cancelled runs were superseded, not broken, "
-                 "and show up as cancel_pct / the cancel-heavy flag instead."),
+                 "and show up as cancel_pct / the cancel-heavy flag instead. "
+                 "A workflow with NO verdicts in the window (every run skipped) "
+                 "reports null rates — 'no data', not 0%."),
     }
 
 
@@ -426,8 +484,10 @@ def print_report(rep: dict) -> None:
         if x["priority"] <= 0:
             break
         flags = f"  [{', '.join(x['flags'])}]" if x["flags"] else ""
+        eff = ("  — eff" if x["effectiveness_pct"] is None
+               else f"{x['effectiveness_pct']:>3.0f}% eff")
         w(f"  {x['repo']}/{x['workflow']}\n"
-          f"      {x['total_min']:>6.0f}m  {x['effectiveness_pct']:>3.0f}% eff  "
+          f"      {x['total_min']:>6.0f}m  {eff}  "
           f"{x['runs']:>3} runs  {x['waste_min']:>5.0f}m wasted{flags}\n")
     if rep["inactive"]:
         w(f"\n{len(rep['inactive'])} workflow(s) defined but idle this window "
