@@ -262,9 +262,21 @@ seed_prose() {
   seed_workflow_artifact "markdown-oneline.yml" .github/workflows/markdown-oneline.yml \
     "$HUB/templates/prose/markdown-oneline.yml" "$name" "$def" "$PROSE_VERSION"
   # 3. one-time fix: unwrap wrapped prose in every tracked markdown file, leaving
-  #    lint-gated SCHEMA.md contracts and release-please CHANGELOGs untouched
-  python3 tools/unwrap-prose.py --write \
-    --exclude '(^|/)SCHEMA\.md$' --exclude '(^|/)CHANGELOG\.md$' >/dev/null 2>&1 || true
+  #    lint-gated SCHEMA.md contracts and release-please CHANGELOGs untouched.
+  #    Honour the repo's OWN gate excludes when it declares any: seeding with the
+  #    defaults rewrote 24 machine-authored quest reports in it-journey, which
+  #    exempts exactly those paths — a PR its own gate would never have asked for,
+  #    against files the quest loop regenerates wrapped anyway.
+  local ex pat
+  ex=(--exclude '(^|/)SCHEMA\.md$' --exclude '(^|/)CHANGELOG\.md$')
+  if [[ -f .github/workflows/markdown-oneline.yml ]] \
+     && grep -q -- "--exclude '" .github/workflows/markdown-oneline.yml; then
+    ex=()
+    while IFS= read -r pat; do ex+=(--exclude "$pat"); done \
+      < <(grep -o -- "--exclude '[^']*'" .github/workflows/markdown-oneline.yml \
+          | sed "s/^--exclude '//; s/'$//")
+  fi
+  python3 tools/unwrap-prose.py --write "${ex[@]}" >/dev/null 2>&1 || true
 }
 
 run_one() {
