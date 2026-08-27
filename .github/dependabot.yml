@@ -1,16 +1,22 @@
-# Dependabot configuration
+# Dependabot configuration.
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-#
-# The github-actions ecosystem uses `directory: "/"`, which tells Dependabot to
-# scan every workflow under .github/workflows/. When an action is pinned to a
-# full commit SHA, Dependabot bumps the SHA and the trailing `# vX.Y.Z` version
-# comment together in the same pull request, so pinning does not mean the
-# dependency goes stale.
+# Keeping GitHub Actions up to date matters most when actions are pinned to
+# commit SHAs: the pin freezes the version, and Dependabot is what moves it
+# forward (including for security fixes).
 version: 2
+
 updates:
+  # For the github-actions ecosystem, "/" means "scan .github/workflows/"
+  # relative to the repository root, which covers every workflow in the repo.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Batch action bumps into one PR per run to keep review overhead low.
+    # Delete this block if you'd rather review each action separately.
+    groups:
+      actions:
+        patterns:
+          - "*"
