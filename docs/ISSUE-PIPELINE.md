@@ -1,8 +1,6 @@
 # Issue Pipeline
 
-The loop that turns an **open issue** into a **merge-ready pull request**, in
-three tiers. Sibling of the [daily fleet-pulse loop](DAILY-ANALYSIS.md): that one
-fixes broken *workflows*, this one resolves *issues*.
+The loop that turns an **open issue** into a **merge-ready pull request**, in three tiers. Sibling of the [daily fleet-pulse loop](DAILY-ANALYSIS.md): that one fixes broken *workflows*, this one resolves *issues*.
 
 | | | |
 | --- | --- | --- |
@@ -20,35 +18,24 @@ fixes broken *workflows*, this one resolves *issues*.
 Every open issue that is not already in the pipeline gets:
 
 1. **A real reproduction.** [`tools/issue-evidence.sh`](../tools/issue-evidence.sh)
-   clones the repo into an isolated sandbox, installs its toolchain (its own
-   `venv` / `node_modules` / `vendor/bundle`), and runs the project's own lint,
-   test, and build. Output, timings, and exit codes are captured per phase.
+clones the repo into an isolated sandbox, installs its toolchain (its own `venv` / `node_modules` / `vendor/bundle`), and runs the project's own lint, test, and build. Output, timings, and exit codes are captured per phase.
 2. **Structured content to pass on** — the thing that makes tiers 2 and 3 cheap:
-   log excerpts trimmed to the failing lines, a screenshot for stacks that
-   render one, an environment table (toolchain versions, commit SHA, OS), and a
-   list of candidate files ranked by how many of the issue's terms they contain.
+log excerpts trimmed to the failing lines, a screenshot for stacks that render one, an environment table (toolchain versions, commit SHA, OS), and a list of candidate files ranked by how many of the issue's terms they contain.
 3. **A rewritten body** in the house template — context, reproduction, expected
-   vs actual, scope, mechanically checkable acceptance criteria, references —
-   with the reporter's original words preserved verbatim in a collapsed section.
+vs actual, scope, mechanically checkable acceptance criteria, references — with the reporter's original words preserved verbatim in a collapsed section.
 4. **Labels**: type, priority, size, plus an assignee.
 5. **A decision**: `agent:ready` (tier 2 may implement it) or `agent:blocked`
    with one specific question and a recommendation.
 
 ### Tier 2 — implement
 
-Takes an `agent:ready` issue, implements it on `agent/issue-<n>`, and opens a
-**draft** PR — in the hub, or in the submodule that owns the code. Tests and docs
-are part of the change, not a follow-up: the PR body must show the test failing
-before and passing after. The issue moves to `agent:in-pr`.
+Takes an `agent:ready` issue, implements it on `agent/issue-<n>`, and opens a **draft** PR — in the hub, or in the submodule that owns the code. Tests and docs are part of the change, not a follow-up: the PR body must show the test failing before and passing after. The issue moves to `agent:in-pr`.
 
 ### Tier 3 — complete
 
-Drives a pipeline PR to genuinely mergeable: CI green (root cause fixed, never
-`continue-on-error`), tests covering the change, docs and `SCHEMA.md` rows
-current, body accurate. Then `gh pr ready` and the issue moves to `agent:done`.
+Drives a pipeline PR to genuinely mergeable: CI green (root cause fixed, never `continue-on-error`), tests covering the change, docs and `SCHEMA.md` rows current, body accurate. Then `gh pr ready` and the issue moves to `agent:done`.
 
-**It never merges.** Handing over a green, reviewable PR is the end of the
-pipeline.
+**It never merges.** Handing over a green, reviewable PR is the end of the pipeline.
 
 ## State lives in labels
 
@@ -64,8 +51,7 @@ new ───▶│ (no tag) │ ───────────────�
         └───────────────┘             └───────────────┘                  └────────────┘
 ```
 
-Stage is **derived from labels**, so every run reconciles current state instead
-of replaying events. That is deliberate:
+Stage is **derived from labels**, so every run reconciles current state instead of replaying events. That is deliberate:
 
 - a cancelled run, a missed webhook, or a token that stopped firing downstream
   events costs one cycle of latency, not a stuck issue;
@@ -73,8 +59,7 @@ of replaying events. That is deliberate:
   no commit;
 - the pipeline is idempotent, so re-running it is always safe.
 
-This repo has already lost three weeks of fleet data to a silently broken
-`workflow_run` chain. The sweep design is the direct answer to that.
+This repo has already lost three weeks of fleet data to a silently broken `workflow_run` chain. The sweep design is the direct answer to that.
 
 ### The two human brakes
 
@@ -83,13 +68,9 @@ This repo has already lost three weeks of fleet data to a silently broken
 | `agent:hold` | The issue is excluded from **every** tier. Nothing touches it. |
 | `human-review` | Tiers 1 and 2 run in full; tier 3 finishes all the work and then **leaves the PR as a draft** with a comment, instead of marking it ready. |
 
-`human-review` is the tag referenced by "assuming human review is not required
-via tag": without it a completed PR is marked ready for review automatically;
-with it, a person makes that call.
+`human-review` is the tag referenced by "assuming human review is not required via tag": without it a completed PR is marked ready for review automatically; with it, a person makes that call.
 
-Some issues get `human-review` behaviour without the label — `assisted` autonomy
-is forced for `security` types and `size:xl` issues (configurable under
-`issue_pipeline.autonomy`).
+Some issues get `human-review` behaviour without the label — `assisted` autonomy is forced for `security` types and `size:xl` issues (configurable under `issue_pipeline.autonomy`).
 
 ## What is deterministic vs what the AI decides
 
@@ -104,20 +85,16 @@ Everything selective happens in Python, before any model runs:
 | caps and the cross-repo sub-cap | the root cause of a red check |
 | marker-based dedupe | |
 
-The agents act on a pre-vetted, capped, deduped list — the same guarantee that
-keeps the remediation loop from spamming the fleet. An agent that misreads a
-signal wastes a review, not a weekend.
+The agents act on a pre-vetted, capped, deduped list — the same guarantee that keeps the remediation loop from spamming the fleet. An agent that misreads a signal wastes a review, not a weekend.
 
 ### Scoring
 
 - **Priority** — a base per type, plus severity keywords, plus a bump when the
-  repo's CI is already red (from `_data/fleet_triage.yml`), plus repo status,
-  engagement, and a capped age factor → `P0`–`P3`.
+repo's CI is already red (from `_data/fleet_triage.yml`), plus repo status, engagement, and a capped age factor → `P0`–`P3`.
 - **Readiness** — `100 − Σ gap weights`. Below `readiness.min_score` (70), tier 1
   must not pass the issue on.
 - **Gaps** carry `by: agent` (closable from the code and the evidence) or
-  `by: human` (a product decision no evidence resolves). A remaining `human` gap
-  is precisely what makes an issue `agent:blocked` rather than `agent:ready`.
+`by: human` (a product decision no evidence resolves). A remaining `human` gap is precisely what makes an issue `agent:blocked` rather than `agent:ready`.
 
 ## Caps and cost
 
@@ -136,13 +113,9 @@ From [`_data/fleet.yml`](../_data/fleet.yml):
 
 ## Latency, stated plainly
 
-Tier 2 **re-scans** at the start of its job, so an issue enriched by tier 1 can
-be implemented in the *same* run.
+Tier 2 **re-scans** at the start of its job, so an issue enriched by tier 1 can be implemented in the *same* run.
 
-Tier 3 works from the queue `scan` built at the start of the run, because a PR
-opened minutes ago has no settled CI to read. **A PR opened by tier 2 therefore
-gets its tier 3 pass on the next run.** To finish one sooner, dispatch the
-workflow with `tiers: 3` once its checks have gone green.
+Tier 3 works from the queue `scan` built at the start of the run, because a PR opened minutes ago has no settled CI to read. **A PR opened by tier 2 therefore gets its tier 3 pass on the next run.** To finish one sooner, dispatch the workflow with `tiers: 3` once its checks have gone green.
 
 ## Tokens
 
@@ -151,11 +124,7 @@ workflow with `tiers: 3` once its checks have gone green.
 | `CLAUDE_CODE_OAUTH_TOKEN` | all three agent tiers (OAuth-first house convention; `ANTHROPIC_API_KEY` is the fallback) |
 | `FLEET_TOKEN` | cross-repo PRs — **and** any PR whose CI must actually run |
 
-GitHub does not fire workflow events for refs pushed with `GITHUB_TOKEN`, so a
-PR opened with it arrives **with no checks** and tier 3 has nothing to read. The
-workflow probes `FLEET_TOKEN` for real (`gh api user`) rather than checking that
-it is merely set — a set-but-expired token has silently degraded this fleet's
-automation before — and reports the degradation in the run summary.
+GitHub does not fire workflow events for refs pushed with `GITHUB_TOKEN`, so a PR opened with it arrives **with no checks** and tier 3 has nothing to read. The workflow probes `FLEET_TOKEN` for real (`gh api user`) rather than checking that it is merely set — a set-but-expired token has silently degraded this fleet's automation before — and reports the degradation in the run summary.
 
 ## Operating it
 
@@ -178,9 +147,7 @@ open .evidence/it-journey-42/evidence.md
 python3 .github/scripts/dash-gen/test_issue_pipeline.py
 ```
 
-Dispatch inputs: `tiers` (`all`/`1`/`2`/`3`/`1-2`/`2-3`), `repos`, the three cap
-overrides, `sync_labels` (fleet-wide taxonomy refresh), and `dry_run` (scan and
-publish the queues, run no agent).
+Dispatch inputs: `tiers` (`all`/`1`/`2`/`3`/`1-2`/`2-3`), `repos`, the three cap overrides, `sync_labels` (fleet-wide taxonomy refresh), and `dry_run` (scan and publish the queues, run no agent).
 
 ## Safety properties
 
@@ -189,18 +156,13 @@ publish the queues, run no agent).
 - **Nothing under `projects/` is ever edited** — those are submodule working
   trees. Cross-repo work happens in a scratch clone.
 - **Issue text is never executed.** Anyone can open an issue and the runner holds
-  a fleet token, so `issue-evidence.sh` *extracts and reports* candidate repro
-  commands but only runs what a caller passes via `--cmd`. The issue body reaches
-  the harness through a file, never through argv.
+a fleet token, so `issue-evidence.sh` *extracts and reports* candidate repro commands but only runs what a caller passes via `--cmd`. The issue body reaches the harness through a file, never through argv.
 - **Credentials are scrubbed** from every log the harness writes, and the clone
-  command is redacted before it is echoed — the logs are published as artifacts
-  and quoted into issue comments.
+command is redacted before it is echoed — the logs are published as artifacts and quoted into issue comments.
 - **Generated surfaces are off-limits** to tier 2 and 3 (`_site/`, `_reports/`,
-  `_data/*_usage.yml`, `_data/fleet_triage.yml`, `_data/issue_pipeline.yml`, the
-  README AUTO span, `projects/SCHEMA.md`).
+`_data/*_usage.yml`, `_data/fleet_triage.yml`, `_data/issue_pipeline.yml`, the README AUTO span, `projects/SCHEMA.md`).
 - **No bare `git push` to a protected branch** — the snapshot publishes through
-  [`utilities/publish-data`](../.github/actions/utilities/publish-data/action.yml),
-  which falls back to a pull request.
+[`utilities/publish-data`](../.github/actions/utilities/publish-data/action.yml), which falls back to a pull request.
 - **Turn the whole thing off** with `issue_pipeline.enabled: false` in
   `_data/fleet.yml`.
 

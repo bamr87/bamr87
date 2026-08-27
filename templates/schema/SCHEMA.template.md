@@ -29,8 +29,4 @@ coverage: listed
 - {{What must never appear or happen here.}}
 
 <!--
-Propagation checklist (delete after filling in):
-[ ] Registered this directory in the PARENT's Structure table
-[ ] Replaced every {{placeholder}}
-[ ] `schema_lint.py check` passes from repo root
--->
+Propagation checklist (delete after filling in): [ ] Registered this directory in the PARENT's Structure table [ ] Replaced every {{placeholder}} [ ] `schema_lint.py check` passes from repo root -->

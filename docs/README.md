@@ -7,10 +7,7 @@ updated: 2026-08-26
 
 # Documentation Index
 
-This page exists for one reason: to make the documentation that already lives in
-this repository easy to find. The root [`README.md`](../README.md) is a GitHub
-profile README — it introduces the person, not the repository — so the guides
-sitting next to it are easy to miss.
+This page exists for one reason: to make the documentation that already lives in this repository easy to find. The root [`README.md`](../README.md) is a GitHub profile README — it introduces the person, not the repository — so the guides sitting next to it are easy to miss.
 
 > **A note on accuracy.** Entries marked _(summary unverified)_ describe a file
 > whose contents have not been confirmed by whoever last edited this index. The
@@ -36,9 +33,7 @@ sitting next to it are easy to miss.
 
 ## Repository layout
 
-A map of the top-level directories, to orient a newcomer. Descriptions marked
-_(unverified)_ are inferred from directory names and sibling files rather than
-from the contents themselves.
+A map of the top-level directories, to orient a newcomer. Descriptions marked _(unverified)_ are inferred from directory names and sibling files rather than from the contents themselves.
 
 | Path | Notes |
 | --- | --- |
@@ -60,8 +55,7 @@ from the contents themselves.
 
 ## Configuration files worth knowing about
 
-These are not documentation, but they answer the "how does this thing build and
-run?" question that usually comes right after "where are the docs?".
+These are not documentation, but they answer the "how does this thing build and run?" question that usually comes right after "where are the docs?".
 
 | File | Notes |
 | --- | --- |
@@ -110,7 +104,4 @@ When you add, rename or remove a file here, update its row in the same change so
 
 ## Contributing to these docs
 
-Documentation changes are welcome and follow the same process as code changes — see [`CONTRIBUTING.md`](../CONTRIBUTING.md). If you add a document under `docs/`, please link it from this index so it stays discoverable.
-When you add a guide to the repository root or to `docs/`, add a row here too.
-When you open a file marked _(summary unverified)_ and find the description
-inaccurate, correct it and drop the marker.
+Documentation changes are welcome and follow the same process as code changes — see [`CONTRIBUTING.md`](../CONTRIBUTING.md). If you add a document under `docs/`, please link it from this index so it stays discoverable. When you add a guide to the repository root or to `docs/`, add a row here too. When you open a file marked _(summary unverified)_ and find the description inaccurate, correct it and drop the marker.

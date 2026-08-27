@@ -122,13 +122,7 @@ Live monitoring data (`project_health.yml`) is network-derived, **ephemeral**, a
 
 `triage-attention` reads the Monitor signals → `sync-project-docs` updates the registry → `evolve-project` makes a focused improvement → `refresh-portfolio` regenerates → PR to `main` → gates verify → human merges → dash republishes. The CI counterpart is `unified-evolution.yml` (**dispatch-only** — trigger via `tools/dash evolve`; via `anthropics/claude-code-action`; auth: `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [AI-INTEGRATION.md](AI-INTEGRATION.md)). So "which repos need attention" both shows on the frontend and steers what the AI works on next.
 
-Beyond the monorepo, the weekly **repo-evolution loop** carries the same idea to the
-individual upstream repos: `repo-evolution.yml`'s deterministic `plan` job (`dash-gen targets`)
-selects every owned, non-archived submodule with `auto_evolve: true`, skips any whose previous
-pass is still open, and writes each a brief from the registry and the triage snapshot; its
-matrix `evolve` job runs one Opus agent per repo and opens a **draft PR in that repo**. The
-brief material lives in `.github/evolution/`, the caps in `_data/fleet.yml`. Full details in
-[`docs/EVOLUTION.md`](EVOLUTION.md).
+Beyond the monorepo, the weekly **repo-evolution loop** carries the same idea to the individual upstream repos: `repo-evolution.yml`'s deterministic `plan` job (`dash-gen targets`) selects every owned, non-archived submodule with `auto_evolve: true`, skips any whose previous pass is still open, and writes each a brief from the registry and the triage snapshot; its matrix `evolve` job runs one Opus agent per repo and opens a **draft PR in that repo**. The brief material lives in `.github/evolution/`, the caps in `_data/fleet.yml`. Full details in [`docs/EVOLUTION.md`](EVOLUTION.md).
 
 ## One-time setup
 

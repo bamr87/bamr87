@@ -18,8 +18,7 @@ Files GitHub reads directly for this repository:
 Reusable automation that is portable across repositories:
 
 - `actions/**` **only while a workflow in this repo calls it** — portability is not
-  the retention test, use is. Seven never-called actions were deleted on
-  2026-08-09; see `.github/actions/README.md`.
+the retention test, use is. Seven never-called actions were deleted on 2026-08-09; see `.github/actions/README.md`.
 - `scripts/*` when called by a workflow or documented as a reusable helper
 - `config/*` when values are parameterized rather than project-specific
 

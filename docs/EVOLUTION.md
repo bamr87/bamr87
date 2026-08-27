@@ -1,12 +1,6 @@
 # Repo Evolution
 
-The fleet's weekly **proactive** loop. The three loops it sits beside all *react* to a
-signal — [`fleet-pulse`](DAILY-ANALYSIS.md) fixes broken *workflows*,
-[`issue-pipeline`](ISSUE-PIPELINE.md) resolves filed *issues*,
-[`token-rotation`](TOKEN-ROTATION.md) keeps *credentials* current. This one improves what
-nobody filed a ticket for — documentation accuracy, onboarding, clarity, small correctness
-gaps — in each opted-in submodule's **own upstream repository**, delivered as a **draft pull
-request there**.
+The fleet's weekly **proactive** loop. The three loops it sits beside all *react* to a signal — [`fleet-pulse`](DAILY-ANALYSIS.md) fixes broken *workflows*, [`issue-pipeline`](ISSUE-PIPELINE.md) resolves filed *issues*, [`token-rotation`](TOKEN-ROTATION.md) keeps *credentials* current. This one improves what nobody filed a ticket for — documentation accuracy, onboarding, clarity, small correctness gaps — in each opted-in submodule's **own upstream repository**, delivered as a **draft pull request there**.
 
 | | | |
 | --- | --- | --- |
@@ -52,53 +46,34 @@ triage    │  │             focus + goals +      │artifact│  · workflow 
 `dash-gen targets` runs before any model does, and everything selective happens there:
 
 - **Select.** A registry entry qualifies only if it opted in (`auto_evolve: true`), is a
-  submodule, its upstream is owned by the hub's owner, and it is not `status: archived`. The
-  owner guard is the same one [`tools/fanout.sh`](../tools/fanout.sh) applies — an external
-  mirror such as `microsoft/skills` must never receive a pull request from us, whatever the
-  registry says.
+submodule, its upstream is owned by the hub's owner, and it is not `status: archived`. The owner guard is the same one [`tools/fanout.sh`](../tools/fanout.sh) applies — an external mirror such as `microsoft/skills` must never receive a pull request from us, whatever the registry says.
 - **Dedupe.** A repo whose previous evolution PR is still open is skipped, recognised by the
-  `ai-evolution/` branch prefix **or** the hidden marker in its body
-  (`<!-- repo-evolution key="owner/repo" -->`), so a renamed branch cannot fool it. One
-  unreviewed draft is a proposal; a stack of them is noise. `force` overrides for one run.
+`ai-evolution/` branch prefix **or** the hidden marker in its body (`<!-- repo-evolution key="owner/repo" -->`), so a renamed branch cannot fool it. One unreviewed draft is a proposal; a stack of them is noise. `force` overrides for one run.
 - **Cap.** `evolution.max_targets` bounds the run; anything dropped is listed in the run
   summary, never silently truncated.
 - **Brief.** One `evolution-workorders/evolution-workorder-<name>.md` per survivor, uploaded as
   the `evolution-workorders` artifact. See [Reading the brief](#reading-the-brief).
 
-The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-expired PAT has
-silently degraded this fleet before) and requires Claude auth, and fails *before* any agent
-runs when either is missing — a pass that cannot be delivered is money burned.
+The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-expired PAT has silently degraded this fleet before) and requires Claude auth, and fails *before* any agent runs when either is missing — a pass that cannot be delivered is money burned.
 
 ### 2. Evolve — one job per repo
 
-Each matrix job checks the target repository out at its declared branch, downloads its brief
-into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus
-Claude Code agent with a prompt whose hard rules are fixed in the workflow:
+Each matrix job checks the target repository out at its declared branch, downloads its brief into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus Claude Code agent with a prompt whose hard rules are fixed in the workflow:
 
 - the agent reads the brief, then orients README-First (`README.md`, `CLAUDE.md`,
   `AGENTS.md`, `CONTRIBUTING.md`, `SCHEMA.md` — house rules there override the prompt);
 - it makes a **small number** of high-leverage, obviously-correct changes in the brief's
-  priority order — documentation → clarity → functionality — verifies with the repo's own
-  lint/tests, and leaves the tree clean;
+priority order — documentation → clarity → functionality — verifies with the repo's own lint/tests, and leaves the tree clean;
 - its **final message becomes the PR body** (what changed / why / verification / not done);
 - it **never commits, pushes, or opens anything**. The checkout keeps no credentials, the
   allowlist grants only read/verify commands (`git status|diff|log`, `gh issue|pr view`, the
   test runners — no `git push`, no `gh pr create`), and publishing is the workflow's step.
 
-Then the workflow — and only the workflow — commits as `bamr87-bot`, pushes
-`ai-evolution/<yyyymmdd>-<run id>`, and opens a **draft** PR in the target repo with the
-brief's marker as the first line of the body, the agent's report, and a link back to the run.
-It refuses to publish if the agent moved `HEAD` off the base branch, and it drops any lockfile
-a verify step produced ([always-latest policy](DEPENDENCIES.md)). No changes → no branch, no
-PR, one summary line.
+Then the workflow — and only the workflow — commits as `bamr87-bot`, pushes `ai-evolution/<yyyymmdd>-<run id>`, and opens a **draft** PR in the target repo with the brief's marker as the first line of the body, the agent's report, and a link back to the run. It refuses to publish if the agent moved `HEAD` off the base branch, and it drops any lockfile a verify step produced ([always-latest policy](DEPENDENCIES.md)). No changes → no branch, no PR, one summary line.
 
 ### Lanes — why it does not collide with the other loops
 
-The brief *tells* the agent about the repo's failing workflows and open issues and PRs, and
-the prompt *forbids* acting on them: a failing workflow belongs to the fleet doctor, an open
-issue to the issue pipeline, an open PR to whoever opened it. The signals are context — where
-the repo hurts — not work. What is left is exactly this loop's lane: the improvements nobody
-filed.
+The brief *tells* the agent about the repo's failing workflows and open issues and PRs, and the prompt *forbids* acting on them: a failing workflow belongs to the fleet doctor, an open issue to the issue pipeline, an open PR to whoever opened it. The signals are context — where the repo hurts — not work. What is left is exactly this loop's lane: the improvements nobody filed.
 
 ## Reading the brief
 
@@ -131,9 +106,7 @@ Edit **only** the registry, [`_data/projects.yml`](../_data/projects.yml):
   auto_evolve: true        # ← opt in / out here
 ```
 
-The planner still refuses external upstreams and archived repos, so a stray opt-in is reported
-in the run summary rather than acted on. Today's opt-ins: `cv-builder-pro`, `README`,
-`scripts`.
+The planner still refuses external upstreams and archived repos, so a stray opt-in is reported in the run summary rather than acted on. Today's opt-ins: `cv-builder-pro`, `README`, `scripts`.
 
 ## Running it by hand
 
@@ -150,9 +123,7 @@ Or from the Actions tab: **🌿 Repo Evolution** → *Run workflow*.
 
 ## Configuration
 
-All in [`_data/fleet.yml`](../_data/fleet.yml), read by the planner and wired into the
-workflow through the plan job's outputs so each number is stated once
-(`test_evolution.py` asserts the wiring):
+All in [`_data/fleet.yml`](../_data/fleet.yml), read by the planner and wired into the workflow through the plan job's outputs so each number is stated once (`test_evolution.py` asserts the wiring):
 
 | Key | Default | What it bounds |
 | --- | --- | --- |
@@ -167,24 +138,20 @@ workflow through the plan job's outputs so each number is stated once
 
 ## Tokens
 
-Both are part of the [token contract](../_data/fleet.yml) and already live on `bamr87/bamr87`
-(`tools/dash secrets` audits them):
+Both are part of the [token contract](../_data/fleet.yml) and already live on `bamr87/bamr87` (`tools/dash secrets` audits them):
 
 | Secret | Role here |
 | --- | --- |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude auth, OAuth-first at every call site; `ANTHROPIC_API_KEY` is the fallback ([AI-INTEGRATION.md](AI-INTEGRATION.md)). |
 | `FLEET_TOKEN` | **Required.** Cross-repo checkout, push, labels, the draft PR — and the reason the PR gets CI: GitHub fires no workflow events for refs pushed with `GITHUB_TOKEN`. Probed, never presence-checked. |
 
-The agent step receives `FLEET_TOKEN` only for read-only `gh` verbs (`issue view`, `pr view`,
-`run view`, …) so it can read a listed issue on a private target; the allowlist grants no
-writing verb.
+The agent step receives `FLEET_TOKEN` only for read-only `gh` verbs (`issue view`, `pr view`, `run view`, …) so it can read a listed issue on a private target; the allowlist grants no writing verb.
 
 ## Where its output shows up
 
 - The draft PRs, labelled `ai-evolution` + `automation`, in each target repository.
 - Every run and every PR carrying the Claude marker is harvested into the fleet's
-  [`/ai-usage/`](https://bamr87.github.io/bamr87/ai-usage/) ledger by the daily pulse — no
-  separate ledger is kept.
+[`/ai-usage/`](https://bamr87.github.io/bamr87/ai-usage/) ledger by the daily pulse — no separate ledger is kept.
 - The briefs, as the `evolution-workorders` artifact on the run (14 days).
 
 ## Safety model
@@ -192,10 +159,8 @@ writing verb.
 - **Draft PRs only, opened by the workflow.** The agent has no credential to push with and no
   publishing command on its allowlist. Nothing merges automatically.
 - **Signal-led, not speculative.** The brief is built from the committed triage snapshot;
-  the agent is told to prefer many precise fixes over one rewrite and that *no change* is a
-  valid result.
+the agent is told to prefer many precise fixes over one rewrite and that *no change* is a valid result.
 - **Bounded.** Registry opt-in per repo, owner + archived guards, caps in `fleet.yml`, one
   open PR per repo, `fail-fast: false` so one repo's failure strands nothing else.
 - **Observable.** The credential-rejected classifier (zero billed turns + empty
-  `modelUsage`) names the secret to rotate instead of reporting "Claude execution failed";
-  every exclusion the planner makes is listed in the run summary.
+`modelUsage`) names the secret to rotate instead of reporting "Claude execution failed"; every exclusion the planner makes is listed in the run summary.

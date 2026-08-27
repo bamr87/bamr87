@@ -20,9 +20,7 @@ This page walks a newcomer from a fresh clone to a running local copy.
 
 ## What this repository is
 
-`bamr87/bamr87` is a **monorepo** — a GitHub profile repository that also acts as the
-home for a collection of projects and site content. Signals of its shape, all visible
-in the repository root:
+`bamr87/bamr87` is a **monorepo** — a GitHub profile repository that also acts as the home for a collection of projects and site content. Signals of its shape, all visible in the repository root:
 
 | Evidence | What it suggests |
 |---|---|
@@ -34,8 +32,7 @@ in the repository root:
 | `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.mcp.json`, `fleet.manifest.yml` | Automation/agent tooling conventions |
 | `SCHEMA.md`, `_data/`, `templates/`, `tools/` | Structured data, templates, and helper scripts |
 
-The repository's primary language is reported as **Shell**, and the default branch is
-**`main`**.
+The repository's primary language is reported as **Shell**, and the default branch is **`main`**.
 
 ---
 
@@ -65,8 +62,7 @@ cd bamr87
 
 ## 2. Initialise submodules
 
-A `.gitmodules` file exists at the repository root, so a plain clone will leave
-submodule directories empty. Either clone recursively:
+A `.gitmodules` file exists at the repository root, so a plain clone will leave submodule directories empty. Either clone recursively:
 
 ```bash
 git clone --recurse-submodules https://github.com/bamr87/bamr87.git
@@ -121,10 +117,7 @@ Before running anything else, ask the repository what it supports:
 rake -T
 ```
 
-`rake -T` lists every documented Rake task with its description. Because a `Rakefile`
-exists at the repository root, **this is the most reliable way to find the real,
-current commands for this project** — more reliable than this page. No specific task
-name is claimed in this document, precisely because none has been verified.
+`rake -T` lists every documented Rake task with its description. Because a `Rakefile` exists at the repository root, **this is the most reliable way to find the real, current commands for this project** — more reliable than this page. No specific task name is claimed in this document, precisely because none has been verified.
 
 Also worth reading:
 
@@ -134,9 +127,7 @@ Also worth reading:
 
 ## 6. Serve the site locally
 
-The repository contains both `_config.yml` and `_config_dev.yml`, which is the
-standard Jekyll pattern of layering a development override on top of the production
-configuration:
+The repository contains both `_config.yml` and `_config_dev.yml`, which is the standard Jekyll pattern of layering a development override on top of the production configuration:
 
 ```bash
 bundle exec jekyll serve --config _config.yml,_config_dev.yml
@@ -151,8 +142,7 @@ bundle exec jekyll serve --config _config.yml,_config_dev.yml
 
 ### Container-based alternative
 
-A `docker-compose.yml` and a `.devcontainer/` directory are both present, so a
-container path exists and avoids installing Ruby locally.
+A `docker-compose.yml` and a `.devcontainer/` directory are both present, so a container path exists and avoids installing Ruby locally.
 
 - **Dev Container:** open the folder in VS Code and choose *Reopen in Container*.
 - **Docker Compose:** the entry point is likely `docker compose up`.
@@ -195,9 +185,7 @@ Top-level directories and what the surrounding files suggest they hold:
 | `.github/` | GitHub configuration and CI workflows |
 | `.claude/`, `.mcp.json` | Agent/automation tooling configuration; see [`AGENTS.md`](../AGENTS.md) and [`CLAUDE.md`](../CLAUDE.md) |
 
-Key root files: `README.md` (the profile page), `CONTRIBUTING.md`, `SUBMODULES.md`,
-`SCHEMA.md`, `AGENTS.md`, `CLAUDE.md`, `Rakefile`, `Gemfile`, `fleet.manifest.yml`,
-`home.code-workspace`.
+Key root files: `README.md` (the profile page), `CONTRIBUTING.md`, `SUBMODULES.md`, `SCHEMA.md`, `AGENTS.md`, `CLAUDE.md`, `Rakefile`, `Gemfile`, `fleet.manifest.yml`, `home.code-workspace`.
 
 ---
 
