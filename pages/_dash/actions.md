@@ -141,10 +141,7 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
 (function () {
   var ALL = {{ a.workflows | jsonify }};
   if (!Array.isArray(ALL) || !ALL.length) return;
-  // The quadrant plots effectiveness. A workflow with no verdicts has none —
-  // and `null / 100 === 0` in JS, so leaving it in would draw it at 0% and
-  // reproduce on the chart the exact confusion the null was added to remove.
-  var WF = ALL.filter(function (w) { return w.effectiveness_pct !== null; });
+// The quadrant plots effectiveness. A workflow with no verdicts has none — // and `null / 100 === 0` in JS, so leaving it in would draw it at 0% and // reproduce on the chart the exact confusion the null was added to remove. var WF = ALL.filter(function (w) { return w.effectiveness_pct !== null; });
 
 /* ---- cost-vs-effectiveness quadrant (canvas) ---- */ var cv = document.getElementById('quadrant'); if (cv && cv.getContext && WF.length) {
     var ctx = cv.getContext('2d'), W = cv.width, H = cv.height,
