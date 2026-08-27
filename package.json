@@ -1,0 +1,16 @@
+{
+  "name": "bamr87",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repository tooling: formatting via Prettier.",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "3.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
