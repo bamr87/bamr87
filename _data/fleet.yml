@@ -9,6 +9,7 @@
 #   - tools/fleet-config.py        — reader + `dash config` / `dash secrets`
 #   - .github/workflows/fleet-pulse.yml — cadence + caps for the daily loop
 #   - .github/scripts/dash-gen/remediation.py — ranking + cap defaults
+#   - .github/scripts/dash-gen/harness.py   — scorecard thresholds + trip wires
 #
 # WHY A FILE INSTEAD OF ORG SETTINGS
 # ----------------------------------
@@ -255,6 +256,47 @@ evolution:
   signals:
     max_issues: 8
     max_prs: 5
+
+# --------------------------------------------------------------------------- #
+# Harness — the six-layer harness health scorecard + trip wires.
+#
+# The control plane's self-observation contract (docs/HARNESS.md). The four
+# loops above REACT (doctor), RESOLVE (issues), ROTATE (credentials), and
+# IMPROVE (evolution); this block watches the AGGREGATE: is the whole harness
+# still healthy, and would we know within a day if a signal stopped flowing?
+# Computed offline by `dash-gen harness` (.github/scripts/dash-gen/harness.py)
+# from the committed fleet signals, published daily by fleet-pulse.yml's pulse
+# job into _data/harness_health.yml. A tripped wire is an ATTENTION item — the
+# loops above own the fixes; this is the alarm panel.
+# --------------------------------------------------------------------------- #
+harness:
+  # Scorecard pass/fail lines. Only the metrics with a declared threshold are
+  # judged; the rest are informational trends. "Completion" is the playbook's
+  # real metric: verified runs over started runs, fleet-wide.
+  scorecard:
+    completion_rate_min_pct: 80   # fleet workflow success rate below this = warn
+    effectiveness_min_pct: 70     # minutes ending in success, as a share of all minutes
+
+  # Aggregate-drift alarms. Each wire exists because its failure mode has a
+  # named precedent or a bounded blast radius worth watching (docs/HARNESS.md
+  # maps each to the playbook's trip-wire table).
+  trip_wires:
+    # The observability layer watching itself: the pre-fleet-pulse data loops
+    # died silently for THREE WEEKS (a ruleset rejected their closing push and
+    # nothing said so). This wire makes that class of failure loud within days.
+    # token_rotation gets 10 days of slack in the generator — it is weekly.
+    stale_data_days: 3
+    pass_rate_floor_pct: 75       # fleet-wide quality regression
+    waste_ceiling_pct: 30         # non-success minutes / total minutes
+    # A workflow averaging this multiple of the fleet MEDIAN run time is a
+    # runaway. Median, not mean: one runaway must not raise the baseline that
+    # would have flagged it. The absolute floor stops a fleet of sub-minute
+    # workflows from tripping this wire on every ordinary CI run.
+    cost_spike_multiplier: 3.0
+    cost_spike_min_runs: 3        # ignore workflows with fewer runs in the window
+    cost_spike_min_avg_min: 5.0   # …and anything cheaper than this on average
+    standing_failures_max: 30     # red-workflow backlog beyond what the doctor's caps can drain
+    credential_grace_days: 15     # past max_age_days + this, a credential is an alarm, not a chore
 
 # --------------------------------------------------------------------------- #
 # Token contract — WHICH secret does WHAT, and where it must exist.
