@@ -105,7 +105,10 @@ def transform(text: str) -> str:
                     break
             continue
 
-        if BLANK.match(line) or starts_atomic(line):
+        # A lone setext underline (`=`, `---`) with no heading text above it is
+        # kept on its own line: merging it into the next paragraph would
+        # erase the boundary and make a second pass change the file again.
+        if BLANK.match(line) or starts_atomic(line) or SETEXT.match(line):
             out.append(line)
             i += 1
             continue
@@ -182,6 +185,13 @@ def main() -> int:
             print(f"skip {path}: {e}", file=sys.stderr)
             continue
         updated = transform(original)
+        # Belt and braces: converge before comparing, so `--write` always
+        # produces a file that `--check` accepts.
+        for _ in range(8):
+            again = transform(updated)
+            if again == updated:
+                break
+            updated = again
         if updated == original:
             continue
         changed.append(path)

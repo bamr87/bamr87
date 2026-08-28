@@ -22,7 +22,6 @@ coverage: listed
 | `README/` | dir | Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js). | terminal |
 | `ai-seed/` | dir | AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human… | terminal |
 | `aieo/` | dir | AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI). | terminal |
-| `amrs-project/` | dir | AMRS — modular Django accounting & financial management system with REST APIs. Accounting core port… | terminal |
 | `bamr87.github.io/` | dir | Personal profile and portfolio website. | terminal |
 | `barodybroject/` | dir | Full-stack responsive web app with OpenAI integrations and CMS functionality. | terminal |
 | `bashconsultants/` | dir | BASH Consulting — Denver-based IT consulting firm website. | terminal |
@@ -42,7 +41,6 @@ coverage: listed
 | `lifehacker.dev/` | dir | Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages. | terminal |
 | `scripts/` | dir | Development and automation utilities for project setup, GitHub workflows, and local tooling. | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |
-| `skills-github-pages/` | dir | Clone of the GitHub Skills "GitHub Pages" interactive course. | terminal |
 | `vs-sonic-pi/` | dir | VS Code extension for writing and performing Sonic Pi music from the editor. | terminal |
 | `vscode-front-matter/` | dir | zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a… | terminal |
 | `wargames/` | dir | Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey. | terminal |

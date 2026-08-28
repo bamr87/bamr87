@@ -242,7 +242,6 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[githubai](https://github.com/bamr87/githubai)**: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
 - **[edgar-data-parse](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
 - **[drsai](https://github.com/bamr87/drsai)**: Dr. Seuss-style AI poetry generator.
-- **[amrs-project](https://github.com/bamr87/amrs-project)**: AMRS — modular Django accounting & financial management system with REST APIs. Accounting core ported to djangoerp; new accounting-domain work goes there. Still runs standalone and still owns the unported `edgar` app.
 - **[djangoerp](https://github.com/bamr87/djangoerp)**: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
 
 ### 🛠️ Developer Tools & Experiments
@@ -258,9 +257,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
 - **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
-- **[skills-github-pages](https://github.com/bamr87/skills-github-pages)**: Clone of the GitHub Skills "GitHub Pages" interactive course.
 - **[SCHEMA](https://github.com/bamr87/SCHEMA)**: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
-- **[bash-cms](https://github.com/bamr87/bash-cms)**: Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).
 - **[git-with-the-program](https://github.com/bamr87/git-with-the-program)**: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
 - **[archify](https://github.com/tt-a1i/archify)**: Agent skill that compiles typed JSON IR into validated, self-contained HTML system diagrams — the hub vendors it to illustrate the harness and its loops (diagrams/, /harness/). Live at [https://tt-a1i.github.io/archify/](https://tt-a1i.github.io/archify/).
 
