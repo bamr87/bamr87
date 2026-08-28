@@ -17,6 +17,7 @@ coverage: listed
 
 | entry | kind | purpose | rules |
 |---|---|---|---|
+| `README.md` | file | What lives here and how to regenerate it | required |
 | `*.json` | pattern | archify JSON IR — the source of truth for each diagram | required |
 | `*.html` | pattern | Delivered self-contained diagram (validated, deterministic) | generated |
 
