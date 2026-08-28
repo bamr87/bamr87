@@ -15,6 +15,20 @@ dash already collects but previously acted on in two disconnected loops:
             Cost / effectiveness / waste per workflow, with flags for slow,
             flaky, high-cost-low-value, cancel-heavy, cron-heavy.
 
+The expensive signal is averaged over a 14-day window, which has no memory of
+ORDER and no notion of who pressed the button — so two guards filter it before a
+candidate is admitted (both configured in _data/fleet.yml → remediation:):
+
+  supersede_on_success      a workflow whose latest non-skipped run was GREEN is
+                            not currently broken; drop failing/flaky.
+  interactive_dispatch_pct  a workflow mostly triggered by hand is being
+                            debugged, not haemorrhaging fleet minutes; drop the
+                            cost signals and the priority fallback.
+
+Without them, three `workflow_dispatch` runs five minutes apart ending green
+score 33% success and take a remediation slot — which is what happened to a
+healthy, switched-off workflow in bamr87/irony-works (bamr87/bamr87#92).
+
 Merging matters: the worst offenders are usually BOTH — a workflow that is red
 AND burning 77 minutes a run is one problem, and filing two issues about it (as
 the old split loops did — actions-review filed one, daily-repo-analysis filed
@@ -80,6 +94,14 @@ DEFAULT_SEVERITY = {
     "cron-heavy": 10,
 }
 
+# Signals about whether the workflow WORKS. A later green run settles them: the
+# workflow is not broken now, whatever the window's average says.
+CORRECTNESS_SIGNALS = {"failing", "flaky"}
+
+# Signals about what the workflow COSTS. A hand-driven debugging session inflates
+# all three — failing dispatch runs are what building something looks like.
+COST_SIGNALS = {"high-cost-low-value", "slow", "cancel-heavy"}
+
 
 # --------------------------------------------------------------------------- #
 # config
@@ -101,6 +123,8 @@ def load_config(path: Path) -> dict:
         "min_priority": cfg.get("min_priority", 10.0),
         "slow_avg_min": cfg.get("slow_avg_min", 10),
         "slow_p95_min": cfg.get("slow_p95_min", 20),
+        "supersede_on_success": cfg.get("supersede_on_success", True),
+        "interactive_dispatch_pct": cfg.get("interactive_dispatch_pct", 60),
         "severity": sev,
     }
 
@@ -266,6 +290,40 @@ def is_long_running(w: dict, cfg: dict) -> bool:
             or (w.get("p95_min") or 0) >= cfg["slow_p95_min"])
 
 
+def is_superseded(w: dict, cfg: dict) -> bool:
+    """Did a later green run settle this workflow's failures?
+
+    The window's success RATE has no memory of order, so three runs five minutes
+    apart ending green score 33% and read as `failing` — which is the signature
+    of a fixed bug, not a standing one. `last_conclusion` is the verdict that
+    stands today; the triage signal already works this way (it reads each
+    workflow's latest completed conclusion), and this brings the usage signal
+    into line. Absent from snapshots written before it existed, in which case
+    nothing is suppressed and the previous behaviour holds.
+    """
+    return bool(cfg["supersede_on_success"]) and w.get("last_conclusion") == "success"
+
+
+def is_interactive(w: dict, cfg: dict) -> bool:
+    """Is this workflow's cost profile dominated by hand-triggered runs?
+
+    `workflow_dispatch` runs during active development are EXPECTED to fail and
+    to burn minutes — that is what debugging looks like, and averaging them in
+    alongside scheduled and pull-request runs makes any repo under active work
+    read as sick. The event breakdown is already in the analytics record, so the
+    discount costs no extra API calls. Falls back to `events` for snapshots
+    written before `dispatch_pct`.
+    """
+    share = w.get("dispatch_pct")
+    if share is None:
+        events = w.get("events") or {}
+        total = sum(events.values())
+        if not total:
+            return False
+        share = 100.0 * events.get("workflow_dispatch", 0) / total
+    return share >= cfg["interactive_dispatch_pct"]
+
+
 def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
     severity = cfg["severity"]
@@ -284,14 +342,37 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
         if not nwo.startswith(f"{owner}/"):
             continue
 
-        signals = {f for f in (w.get("flags") or []) if f in severity}
+        raw = {f for f in (w.get("flags") or []) if f in severity}
+        signals = set(raw)
+
+        # Two false-positive guards, applied to the flags the analytics module
+        # computed over the whole window. Neither weakens a real signal: they
+        # only discard the ones the window's *averaging* manufactured.
+        superseded = is_superseded(w, cfg)
+        interactive = is_interactive(w, cfg)
+        suppressed = set()
+        if superseded:
+            suppressed |= raw & CORRECTNESS_SIGNALS
+        if interactive:
+            suppressed |= raw & COST_SIGNALS
+        signals -= suppressed
+
         # The analytics module flags `slow` relative to the fleet; the fleet
         # config sets an ABSOLUTE bar too, so "long-running" means the same
-        # thing here as it does to a human reading the dash.
-        if is_long_running(w, cfg):
+        # thing here as it does to a human reading the dash. Skipped for
+        # interactive workflows for the same reason their cost flags are.
+        if is_long_running(w, cfg) and not interactive:
             signals.add("slow")
-        if not signals and (w.get("priority") or 0) < cfg["min_priority"]:
-            continue
+        if not signals:
+            # Nothing left to fix. When a guard actually FIRED we have
+            # positively established the workflow is healthy or hand-driven,
+            # so the priority fallback below is skipped — that fallback is
+            # precisely what queued a green, switched-off workflow on the
+            # strength of a human's debugging minutes (bamr87/bamr87#92).
+            if suppressed or interactive:
+                continue
+            if (w.get("priority") or 0) < cfg["min_priority"]:
+                continue
 
         key = marker_key(nwo, path, w.get("workflow", ""))
         out[key] = {
@@ -314,6 +395,8 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
                 "success_rate_pct": w.get("success_rate_pct"),
                 "runs_per_week": w.get("runs_per_week"),
                 "sched_pct": w.get("sched_pct"),
+                "dispatch_pct": w.get("dispatch_pct"),
+                "last_conclusion": w.get("last_conclusion"),
                 "type": w.get("type"),
             },
         }
@@ -451,10 +534,16 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
                      f"{usage_rec.get('runs')} runs · {usage_rec.get('total_min')}m total · "
                      f"{usage_rec.get('avg_min')}m avg · {usage_rec.get('p95_min')}m p95 · "
                      f"{usage_rec.get('waste_min')}m wasted · "
-                     f"{usage_rec.get('effectiveness_pct')}% effective · "
-                     f"{usage_rec.get('success_rate_pct')}% success · "
-                     f"{usage_rec.get('runs_per_week')}/wk · "
-                     f"{usage_rec.get('sched_pct')}% scheduled")
+                     + (f"{usage_rec.get('effectiveness_pct')}% effective · "
+                        if usage_rec.get("effectiveness_pct") is not None
+                        else "effectiveness unknown · ")
+                     + (f"{usage_rec.get('success_rate_pct')}% success · "
+                        if usage_rec.get("success_rate_pct") is not None
+                        else "no verdicts · ")
+                     + f"{usage_rec.get('runs_per_week')}/wk · "
+                     f"{usage_rec.get('sched_pct')}% scheduled · "
+                     f"{usage_rec.get('dispatch_pct')}% hand-dispatched · "
+                     f"latest verdict `{usage_rec.get('last_conclusion') or 'none'}`")
         L.append(f"- **Read the workflow:** "
                  f"`gh api repos/{c['nwo']}/contents/{c['path']} "
                  f'-H "Accept: application/vnd.github.raw"`')

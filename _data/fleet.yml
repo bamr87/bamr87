@@ -108,6 +108,14 @@ remediation:
   slow_avg_min: 10                # avg minutes/run that counts as "long-running"
   slow_p95_min: 20                # p95 minutes/run that counts as "long-running"
   window_days: 14                 # analytics window
+  # False-positive guards. Both exist because one remediation slot — of four,
+  # and of only three cross-repo ones — was spent on a workflow that was
+  # healthy, switched off, and had been green since fifteen minutes after the
+  # failures that flagged it (bamr87/bamr87#92).
+  supersede_on_success: true      # latest non-skipped run green ⇒ drop failing/flaky
+  interactive_dispatch_pct: 60    # ≥ this % of runs hand-dispatched ⇒ its cost is a
+                                  # debugging session, not standing fleet spend, so the
+                                  # cost signals (and the priority fallback) don't apply
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:

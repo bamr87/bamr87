@@ -58,6 +58,21 @@ is red. This is *standing* state, so a workflow broken for three weeks stays on 
 
 Candidates are keyed on `owner/repo:workflow-path`, so a workflow that is *both* red and slow is **one** entry with both signals — not two tickets, which is how the previous split loops turned a queue into noise. Each is then classified `hub` (fixable in this checkout) or `submodule` (needs a cross-repo PR), ranked by severity then wasted minutes, de-duplicated against open issues **and** open PRs in both the hub and the target repo, and capped.
 
+#### Two guards on the expensive signal
+
+The failing signal reads each workflow's *latest* conclusion, so it is already point-in-time. The expensive signal is an **average over the 14-day window**, which knows neither the order of runs nor who started them — and both blind spots manufacture candidates. Each guard is a switch in `_data/fleet.yml` → `remediation:`:
+
+| guard | key | what it drops | why |
+| --- | --- | --- | --- |
+| **superseded by success** | `supersede_on_success` (default `true`) | `failing`, `flaky` | A workflow whose latest non-skipped run was **green** is not broken *now*. Three runs five and nine minutes apart — fail, fail, success — average to 33% and read as `failing`, but that is the signature of a bug being **fixed**, not a standing one. |
+| **interactive dispatch** | `interactive_dispatch_pct` (default `60`) | `high-cost-low-value`, `slow`, `cancel-heavy`, and the `min_priority` fallback | Runs a human triggered by hand are *expected* to fail and to burn minutes — that is what building something looks like. Averaging them in beside scheduled and PR runs makes any repo under active development read as sick. The event breakdown is already in the analytics record, so the discount costs no extra API calls. |
+
+Neither guard weakens a real signal. A green workflow that is genuinely expensive keeps its cost flags; a red one keeps `failing` however it is triggered; and a standing failure coming from the triage side is never touched. Snapshots written before the two supporting fields (`last_conclusion`, `dispatch_pct`) existed simply behave as they did before.
+
+`actions_analytics` also reports `success_rate_pct` / `effectiveness_pct` as **null** for a workflow with no verdicts at all — every run skipped by an `if:` gate. `pct(0, 0) == 0.0` published "0.0% success" next to "0 failures", rendering a *no data* state through the *has data* path: on `/actions/` it was indistinguishable from a workflow that failed every run. Null renders as `—`, and such workflows are omitted from the cost-vs-effectiveness quadrant rather than plotted at zero.
+
+Both changes came out of [#92](https://github.com/bamr87/bamr87/issues/92), where a healthy, switched-off workflow in `bamr87/irony-works` — green since fifteen minutes after the failures that flagged it — took one of the four remediation slots, and one of only three cross-repo ones.
+
 ### 3. Fix
 
 `doctor` is a `needs: pulse` job — not a separate `workflow_run` workflow — so it runs off the same checkout and cannot be skipped by an upstream publish problem.
