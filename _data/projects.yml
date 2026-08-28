@@ -564,28 +564,6 @@
     status: none
 
 # --- Accounting / finance Django experiments -------------------------------
-- name: amrs-project
-  slug: amrs-project
-  submodule_path: projects/amrs-project
-  branch: main
-  repo_url: https://github.com/bamr87/amrs-project
-  # NOT archived, despite the consolidation. Its README is explicit: the accounting
-  # core was ported into djangoerp (djangoerp#7) but "this repo is unchanged and
-  # keeps running standalone; nothing here has been deleted or archived", and the
-  # `edgar` app was never ported. Open question worth settling: `edgar` here,
-  # `sec_edgar` in fredgar-ai, and the EDGAR work in edgar-data-parse are three
-  # implementations of one integration.
-  description: AMRS — modular Django accounting & financial management system with REST APIs. Accounting core ported to djangoerp; new accounting-domain work goes there. Still runs standalone and still owns the unported `edgar` app.
-  stack: [django, python, drf, postgres]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-
 - name: djangoerp
   slug: djangoerp
   submodule_path: projects/djangoerp
@@ -679,35 +657,6 @@
     status: none
   license: MIT
 
-- name: skills-github-pages
-  slug: skills-github-pages
-  submodule_path: projects/skills-github-pages
-  branch: main
-  repo_url: https://github.com/bamr87/skills-github-pages
-  description: Clone of the GitHub Skills "GitHub Pages" interactive course.
-  stack: [github-actions, markdown]
-  category: dev-tools
-  status: archived
-  featured: false
-  maintained: false
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
-# ---------------------------------------------------------------------------
-# External repositories (surfaced in the dash; not git submodules).
-# Add entries here with submodule_path: null.
-#
-# Registration is how a repo becomes VISIBLE to the dash, the reconciler, and
-# the engagement ledger. Being unregistered is not neutral — it is invisible.
-# The 2026-08-09 audit found four live bamr87 repos in neither .gitmodules nor
-# this file, one of them (irony-works) under active daily development. They are
-# registered below as external rather than as submodules: the fleet's problem is
-# too much duplicated weight, not too few tracked directories, so a repo earns a
-# submodule checkout only when the hub actually needs to build or fan out into it.
-# ---------------------------------------------------------------------------
 - name: .github
   slug: dot-github
   submodule_path: null      # org-level repo; a hidden dir under projects/ would be fragile
@@ -744,20 +693,6 @@
   description: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
   stack: [javascript, markdown, ai]
   category: docs
-  status: active
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
-- name: bash-cms
-  slug: bash-cms
-  submodule_path: null
-  branch: main
-  repo_url: https://github.com/bamr87/bash-cms
-  description: Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).
-  stack: [typescript, vscode, mcp]
-  category: dev-tools
   status: active
   featured: false
   maintained: true

@@ -154,7 +154,7 @@ Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/pro
 | `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
 | `projects/skills/` | `microsoft/skills` (external) | `main` | Skills, prompts, MCP configs |
 
-**Branches:** all track `main` except `sonic-pi` (`dev`, upstream fork with no `main`). Read the branch from `.gitmodules`.
+**Branches:** all track `main`. Read the branch from `.gitmodules`.
 
 ### Container Development
 

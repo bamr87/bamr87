@@ -121,15 +121,20 @@ jobs:
           import json
           print(json.load(open("/tmp/reconcile.json"))["issue_body"])
           PY
-          EXISTING="$(gh issue list --state open --label registry-drift \
-                        --search "$TITLE in:title" --json number --jq '.[0].number')"
+          # The label is created on demand: when it did not exist, the labelled
+          # create failed, the unlabelled fallback ran, and the labelled search
+          # below never matched — one fresh duplicate every night (27 by 08-28).
+          gh label create registry-drift --force \
+            --description "Registry ↔ GitHub drift needing a human decision" \
+            --color d93f0b >/dev/null 2>&1 || true
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" \
+                        --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')"
           if [ -n "$EXISTING" ]; then
             gh issue edit "$EXISTING" --body-file /tmp/issue_body.md
             echo "updated issue #$EXISTING"
           else
             gh issue create --title "$TITLE" --body-file /tmp/issue_body.md \
-              --label registry-drift || \
-            gh issue create --title "$TITLE" --body-file /tmp/issue_body.md
+              --label registry-drift
           fi
 
       - name: Summary

@@ -103,14 +103,6 @@
 	path = projects/djangoerp
 	url = https://github.com/bamr87/djangoerp.git
 	branch = main
-[submodule "projects/amrs-project"]
-	path = projects/amrs-project
-	url = https://github.com/bamr87/amrs-project.git
-	branch = main
-[submodule "projects/skills-github-pages"]
-	path = projects/skills-github-pages
-	url = https://github.com/bamr87/skills-github-pages.git
-	branch = main
 [submodule "projects/vscode-front-matter"]
 	path = projects/vscode-front-matter
 	url = https://github.com/bamr87/zer0-CMS.git

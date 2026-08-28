@@ -17,7 +17,7 @@ A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (c
 | `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
 | `projects/skills/` | `microsoft/skills` (external) | `main`, `update = merge` | Markdown skills, MCP |
 
-**Branch exceptions** (all submodules track `main` except one): `sonic-pi` tracks **`dev`** (fork of `sonic-pi-net/sonic-pi`, whose upstream has no `main`); `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` / the registry — never assume.
+**Branch exceptions**: every submodule tracks `main` (the former `sonic-pi` fork that tracked `dev` is gone — `bamr87/sonic-pi` no longer exists; only `vs-sonic-pi`, on `main`, remains); `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` / the registry — never assume.
 
 `tools/`, `docs/`, `.github/`, `_data/`, and `pages/` are part of the **root** repo (not submodules).
 
@@ -37,7 +37,7 @@ git add projects/cv-builder-pro && git commit -m "chore: update cv submodule"   
 
 Consequences:
 
-- Branches: all track `main` except `sonic-pi` (`dev`, upstream fork). Read the branch from `.gitmodules`; don't assume.
+- Branches: all track `main`. Read the branch from `.gitmodules`; don't assume.
 - `projects/skills/` belongs to `microsoft/skills`; you generally consume it, not modify it.
 - Don't bundle changes across multiple submodules into one PR.
 - After pulling, run `git submodule update --init --recursive` if a submodule looks empty or stale.

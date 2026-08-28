@@ -832,8 +832,13 @@ def render_t1(q: list[dict], cfg: dict, counts: dict) -> str:
                   f"  ```", ""]
         else:
             e = c.get("evidence") or {}
-            L += [f"- **Evidence:** already attached "
-                  f"({e.get('age_days')}d old) — {e.get('url')}", ""]
+            if e.get("url"):
+                age = e.get("age_days")
+                when = f"{age}d old" if age is not None else "age unknown"
+                L += [f"- **Evidence:** already attached ({when}) — {e['url']}", ""]
+            else:
+                L += ["- **Evidence:** not required for this issue (no bundle "
+                      "recorded) — gather it by hand if the gaps below need it.", ""]
         L += ["- **Gaps to close** (`agent` = you close it; `human` = ask, then "
               "apply `agent:blocked`):", ""]
         for g in c["gaps"]:

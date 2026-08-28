@@ -78,7 +78,7 @@ Publishing only runs when the ecosystem is detected **and** its credential exist
 | npm | `NPM_TOKEN` | `gh secret set NPM_TOKEN -R bamr87/<repo>` (published with provenance) |
 | PyPI | none | configure **trusted publishing** (OIDC) for the repo on pypi.org |
 | GHCR | none | uses the built-in `GITHUB_TOKEN` |
-| Release-PR triggers CI | `RELEASE_PLEASE_TOKEN` (optional PAT) | so the release PR runs the CI gate |
+| Release-PR triggers CI | `RELEASE_PLEASE_TOKEN` (PAT) | so the release PR runs the CI gate. **Mandatory** on any repo whose Actions setting `can_approve_pull_request_reviews` is off — there `GITHUB_TOKEN` cannot open the release PR at all (`GitHub Actions is not permitted to create or approve pull requests`), so without it no release is ever cut (fredgar-ai, bamr87/bamr87#97) |
 
 ## Branch protection
 

@@ -19,7 +19,7 @@ tools/dash status                 # registry + drift summary
 
 ### Branch conventions
 
-All submodules track `main` except `sonic-pi`, which tracks `dev` (fork of `sonic-pi-net/sonic-pi`; upstream has no `main`). `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` — never assume.
+All submodules track `main` (the former `sonic-pi` fork that tracked `dev` no longer exists; `vs-sonic-pi` is on `main`). `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` — never assume.
 
 ## Cloning and updating
 
