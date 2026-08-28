@@ -777,3 +777,18 @@
   maintained: true
   live_url: null
   docs_url: null
+
+- name: archify
+  slug: archify
+  submodule_path: null      # third-party skill, vendored into .claude/skills/archify (not a bamr87 repo)
+  branch: main
+  repo_url: https://github.com/tt-a1i/archify
+  description: Agent skill that compiles typed JSON IR into validated, self-contained HTML system diagrams — the hub vendors it to illustrate the harness and its loops (diagrams/, /harness/).
+  stack: [javascript, agents, diagrams]
+  category: dev-tools
+  status: maintenance
+  featured: false
+  maintained: true
+  live_url: https://tt-a1i.github.io/archify/
+  docs_url: https://tt-a1i.github.io/archify/guide.html
+  license: MIT

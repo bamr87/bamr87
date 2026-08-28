@@ -6,15 +6,13 @@ updated: 2026-08-26
 
 # Repository Map
 
-This repository is a **monorepo**. The root `README.md` is a GitHub *profile* README — it
-introduces the author, not the codebase — so this page exists to answer a different question:
+This repository is a **monorepo**. The root `README.md` is a GitHub *profile* README — it introduces the author, not the codebase — so this page exists to answer a different question:
 
 > "I want to change something. Which directory do I open?"
 
 ## How to read this page
 
-Each entry below is present in the repository root. The **Status** column tells you how much
-trust to place in the description:
+Each entry below is present in the repository root. The **Status** column tells you how much trust to place in the description:
 
 | Marker | Meaning |
 | --- | --- |
@@ -22,8 +20,7 @@ trust to place in the description:
 | 🔍 **Inferred** | The entry exists; the description follows from naming convention and from other files in this repo, but the contents were not read. |
 | ⚠️ **Unverified** | The entry exists, but its purpose is a placeholder awaiting a maintainer. **Do not rely on this row.** |
 
-If you correct a row, please also drop its marker down to ✅ — that is the whole maintenance
-burden of this page.
+If you correct a row, please also drop its marker down to ✅ — that is the whole maintenance burden of this page.
 
 ---
 
@@ -73,8 +70,7 @@ The root holds several Markdown files that are worth knowing about before you co
 
 ## Tooling, environment, and hooks
 
-These exist to keep contributions consistent. You rarely need to edit them, but it helps to
-know why a commit was rejected.
+These exist to keep contributions consistent. You rarely need to edit them, but it helps to know why a commit was rejected.
 
 | Path | What it is | Status |
 | --- | --- | --- |
@@ -100,22 +96,17 @@ know why a commit was rejected.
 | `.zshrc`, `.zprofile` | Zsh shell configuration, tracked in the repository. |
 | `.gitconfig` | Git configuration, tracked in the repository. |
 
-These are unusual to find in a project repository and are a strong hint that this monorepo
-doubles as a **dotfiles / home-environment repository** (the `home.code-workspace` filename
-points the same way). ⚠️ This reading is an inference and should be confirmed by a maintainer.
+These are unusual to find in a project repository and are a strong hint that this monorepo doubles as a **dotfiles / home-environment repository** (the `home.code-workspace` filename points the same way). ⚠️ This reading is an inference and should be confirmed by a maintainer.
 
 ---
 
 ## Working with submodules
 
-`.gitmodules` is present, which means a plain `git clone` will leave some directories empty.
-Refer to **`SUBMODULES.md`** for the project's own instructions — this page intentionally does
-not restate clone or update commands, because those were not verified against that file.
+`.gitmodules` is present, which means a plain `git clone` will leave some directories empty. Refer to **`SUBMODULES.md`** for the project's own instructions — this page intentionally does not restate clone or update commands, because those were not verified against that file.
 
 ## Open questions for maintainers
 
-The following could not be determined from the repository listing alone. Answering them here
-would make this page complete:
+The following could not be determined from the repository listing alone. Answering them here would make this page complete:
 
 1. What is the actual purpose and content convention of `pages/`, `projects/`, `templates/`,
    `tools/`, and `_reports/`?
@@ -124,11 +115,9 @@ would make this page complete:
    the agent fleet?
 4. How is `_config_dev.yml` applied relative to `_config.yml`?
 5. What are the canonical commands to install dependencies, serve the site locally, and run
-   checks? (Candidates live in `Gemfile`, `Rakefile`, and `docker-compose.yml`, but were not
-   verified — no commands are asserted here rather than risk publishing one that fails.)
+checks? (Candidates live in `Gemfile`, `Rakefile`, and `docker-compose.yml`, but were not verified — no commands are asserted here rather than risk publishing one that fails.)
 6. Are Husky and pre-commit both active, or is one superseded?
 
 ## Contributing to this page
 
-This map is only useful if it stays true. If you add or rename a top-level directory, please
-add or update its row in the same change.
+This map is only useful if it stays true. If you add or rename a top-level directory, please add or update its row in the same change.

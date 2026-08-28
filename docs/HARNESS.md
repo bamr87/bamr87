@@ -174,7 +174,7 @@ Existing precedents to imitate (each one incident → strongest layer): the bare
 
 Phase 2 (worth doing next, each one small):
 
-- **Dash surface**: render `_data/harness_health.yml` at `/harness/` in `pages/_dash/`, alongside `/triage/` and `/actions/` — the scorecard with trend arrows, the wire panel with tripped state.
+- ~~**Dash surface**~~ — done 2026-08-27: [`pages/_dash/harness.md`](../pages/_dash/harness.md) renders `_data/harness_health.yml` at `/harness/` (scorecard, wire panel with tripped state) and embeds the diagrams below.
 - **Enforced cost budget (checklist #7)**: a per-run token ceiling for the Claude loops, read from `fleet.yml` and passed to `claude-code-action`, closing the gap between shadow-priced tracking and mid-run enforcement.
 - **Guide hygiene cadence**: fold a monthly guide review into the repo-evolution loop's hub pass — prune rules that sensors now enforce, reconcile contradictions, verify each standing rule still traces to a live constraint.
 - **Wire → doctor handoff**: let a tripped `cost-spike`/`standing-failures` wire annotate the remediation queue's ranking, so the alarm and the fix queue converge on the same candidates (today they compute independently from the same data).
@@ -192,6 +192,27 @@ The hub is a multi-agent system by construction, and the playbook's extensions m
 | Routing policy | Each loop's plan step; severity ranking; per-tier caps |
 | Independent verifier | The producing agent never judges its own PR: CI, the drift gate, and a human review every merge (`never_merge`) |
 | Escalation protocol | Brake labels, fallback issues, deduped markers |
+
+## Illustrated — the diagrams in `diagrams/`
+
+The architecture and its four loops are drawn as **typed, validated diagrams** rather than hand-made pictures: each is a small JSON specification in [`diagrams/`](../diagrams/) that the vendored [archify](https://github.com/tt-a1i/archify) skill ([`.claude/skills/archify/`](../.claude/skills/archify/), MIT) compiles into a self-contained interactive HTML file. Archify is itself a harness-shaped tool — the agent produces a typed IR, a deterministic compiler validates it against a schema plus composition rules (label collisions, edges through nodes, desktop readability) and refuses to emit an artifact until every check passes — which is why it was chosen to illustrate this one. The delivered HTML is committed beside its source and served at `/diagrams/`; the dash embeds all five on [`/harness/`](../pages/_dash/harness.md).
+
+| Diagram | Type | What it shows |
+| --- | --- | --- |
+| [`harness-layers.architecture`](../diagrams/harness-layers.architecture.json) | architecture | The six layers as components of the hub, the model and the human outside the boundary, and which layer feeds which |
+| [`fleet-pulse.workflow`](../diagrams/fleet-pulse.workflow.json) | workflow | The daily loop as lanes: deterministic `pulse` gather → one `publish-data` commit → `remediate` queue → token probe → `doctor` agent → draft PR, with the fallback issue in the exception lane |
+| [`fleet-signals.dataflow`](../diagrams/fleet-signals.dataflow.json) | dataflow | How GitHub signals become committed `_data/*.yml` and then split into the fix queue (for the doctor) and the scorecard (for people) |
+| [`issue-pipeline.lifecycle`](../diagrams/issue-pipeline.lifecycle.json) | lifecycle | The label state machine — `agent:queued` → T1 → `agent:ready` → T2 → T3 → human merge — with `agent:hold`, `human-review`, and `agent:blocked` as the non-terminal gates |
+| [`repo-evolution.sequence`](../diagrams/repo-evolution.sequence.json) | sequence | The weekly cross-repo loop: plan (registry read, token probe, backpressure) before any agent runs; a credential-free checkout; the workflow, not the agent, opens the draft PR in the submodule's own upstream |
+
+Regenerate after editing a source (validation is showcase-strict; a non-zero exit means the diagram was not accepted):
+
+```bash
+tools/render-diagrams.sh            # validate + deliver every diagrams/*.json → *.html
+tools/render-diagrams.sh --check    # validate only
+```
+
+To author a new one, ask Claude Code to *"use archify to draw …"* — the skill's fast path reads one schema and one example, writes the candidate, and repairs it against the validator's diagnostics.
 
 ## Operating it
 

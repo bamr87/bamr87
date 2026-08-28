@@ -1,0 +1,4 @@
+# Vendored third-party skill — its docs keep upstream formatting.
+.claude/skills/archify/
+# Submodules lint themselves.
+projects/
