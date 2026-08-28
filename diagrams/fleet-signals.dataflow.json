@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Fleet signals — from GitHub to the alarm panel",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      760
+    ],
+    "views": [
+      {
+        "id": "gather",
+        "label": "Gather",
+        "focus": [
+          "repos",
+          "actions",
+          "gen_triage",
+          "gen_actions",
+          "ledgers"
+        ],
+        "note": "Two deterministic generators read GitHub and write committed YAML."
+      },
+      {
+        "id": "derive",
+        "label": "Derive",
+        "focus": [
+          "ledgers",
+          "remediate",
+          "harness"
+        ],
+        "note": "The fix queue and the scorecard are both computed offline from the same committed files."
+      },
+      {
+        "id": "surface",
+        "label": "Surface",
+        "focus": [
+          "remediate",
+          "harness",
+          "doctor",
+          "dash"
+        ],
+        "note": "One output feeds an agent; the other feeds people."
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "Fleet"
+    },
+    {
+      "label": "Gather"
+    },
+    {
+      "label": "Store"
+    },
+    {
+      "label": "Derive"
+    },
+    {
+      "label": "Surface"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "repos",
+      "type": "external",
+      "label": "Fleet repos",
+      "sublabel": "issues · PRs · CI",
+      "stage": 0,
+      "row": 0,
+      "tag": "~40"
+    },
+    {
+      "id": "actions",
+      "type": "cloud",
+      "label": "Actions API",
+      "sublabel": "run history",
+      "stage": 0,
+      "row": 2,
+      "tag": "PyGithub"
+    },
+    {
+      "id": "gen_triage",
+      "type": "backend",
+      "label": "dash-gen triage",
+      "sublabel": "open-state snapshot",
+      "stage": 1,
+      "row": 0
+    },
+    {
+      "id": "gen_actions",
+      "type": "backend",
+      "label": "dash-gen actions",
+      "sublabel": "minutes · waste",
+      "stage": 1,
+      "row": 2
+    },
+    {
+      "id": "ledgers",
+      "type": "database",
+      "label": "_data/*.yml",
+      "sublabel": "committed, diffable",
+      "stage": 2,
+      "row": 1,
+      "tag": "memory"
+    },
+    {
+      "id": "remediate",
+      "type": "backend",
+      "label": "dash-gen remediate",
+      "sublabel": "failing + expensive",
+      "stage": 3,
+      "row": 0,
+      "tag": "capped"
+    },
+    {
+      "id": "harness",
+      "type": "security",
+      "label": "dash-gen harness",
+      "sublabel": "scorecard + trip wires",
+      "stage": 3,
+      "row": 2,
+      "tag": "offline"
+    },
+    {
+      "id": "doctor",
+      "type": "backend",
+      "label": "Doctor agent",
+      "sublabel": "draft PR per candidate",
+      "stage": 4,
+      "row": 0,
+      "tag": "Opus"
+    },
+    {
+      "id": "dash",
+      "type": "frontend",
+      "label": "Dash site",
+      "sublabel": "/triage · /harness",
+      "stage": 4,
+      "row": 2,
+      "tag": "Jekyll"
+    }
+  ],
+  "flows": [
+    {
+      "id": "open-state",
+      "from": "repos",
+      "to": "gen_triage",
+      "label": "open state",
+      "classification": "issues, PRs, red runs",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        208,
+        207
+      ]
+    },
+    {
+      "id": "run-history",
+      "from": "actions",
+      "to": "gen_actions",
+      "label": "run history",
+      "classification": "minutes per workflow",
+      "variant": "default",
+      "route": "straight",
+      "labelAt": [
+        208,
+        435
+      ]
+    },
+    {
+      "id": "triage-yml",
+      "from": "gen_triage",
+      "to": "ledgers",
+      "label": "fleet_triage.yml",
+      "classification": "daily snapshot",
+      "variant": "emphasis"
+    },
+    {
+      "id": "usage-yml",
+      "from": "gen_actions",
+      "to": "ledgers",
+      "label": "actions_usage.yml",
+      "classification": "daily snapshot",
+      "variant": "default"
+    },
+    {
+      "id": "fix-signals",
+      "from": "ledgers",
+      "to": "remediate",
+      "label": "red + expensive",
+      "classification": "two signals, one queue",
+      "variant": "emphasis"
+    },
+    {
+      "id": "health-signals",
+      "from": "ledgers",
+      "to": "harness",
+      "label": "freshness + rates",
+      "classification": "all four ledgers",
+      "variant": "security"
+    },
+    {
+      "id": "fix-queue",
+      "from": "remediate",
+      "to": "doctor",
+      "label": "fix queue",
+      "classification": "ranked, deduped",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "alarm-panel",
+      "from": "harness",
+      "to": "dash",
+      "label": "harness_health.yml",
+      "classification": "scorecard + wires",
+      "variant": "security",
+      "route": "straight"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Gather",
+      "items": [
+        "Generators are deterministic Python, not an LLM",
+        "Every snapshot carries the generated_at the stale-data wire watches",
+        "One pulse job, one checkout, one commit"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Derive",
+      "items": [
+        "remediate keys on owner/repo:workflow — one candidate per workflow",
+        "harness reads only committed files; reproducible anywhere",
+        "Thresholds and caps are versioned in fleet.yml"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Surface",
+      "items": [
+        "The doctor acts on the queue, bounded by caps",
+        "The dash renders the same YAML for people",
+        "Both can be replayed from git history"
+      ]
+    }
+  ]
+}

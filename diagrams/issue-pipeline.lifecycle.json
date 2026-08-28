@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "issue-pipeline.yml — labels as state",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1000,
+      680
+    ],
+    "views": [
+      {
+        "id": "three-tiers",
+        "label": "The three tiers",
+        "focus": [
+          "queued",
+          "intake",
+          "ready",
+          "in_pr",
+          "done"
+        ],
+        "note": "T1 intake, T2 implement, T3 complete — each run resumes from the current label, so a missed run costs latency, not a stuck issue."
+      },
+      {
+        "id": "human-brakes",
+        "label": "The two human brakes",
+        "focus": [
+          "ready",
+          "hold",
+          "in_pr",
+          "review"
+        ],
+        "note": "agent:hold pauses anything; human-review keeps T3 from marking a PR ready."
+      },
+      {
+        "id": "never-merges",
+        "label": "No tier ever merges",
+        "focus": [
+          "done",
+          "review",
+          "merged"
+        ],
+        "note": "Merge is a human action in every path."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Pipeline stages (labels)"
+    },
+    {
+      "id": "waiting",
+      "label": "Human gates"
+    },
+    {
+      "id": "exceptions",
+      "label": "Blocked + retry"
+    },
+    {
+      "id": "terminal",
+      "label": "Terminal"
+    }
+  ],
+  "states": [
+    {
+      "id": "queued",
+      "type": "start",
+      "label": "agent:queued",
+      "sublabel": "scan picked it up",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "deterministic"
+    },
+    {
+      "id": "intake",
+      "type": "active",
+      "label": "T1 intake",
+      "sublabel": "evidence + template",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "isolated env"
+    },
+    {
+      "id": "ready",
+      "type": "decision",
+      "label": "agent:ready",
+      "sublabel": "autonomy gates pass",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "gate"
+    },
+    {
+      "id": "in_pr",
+      "type": "active",
+      "label": "agent:in-pr",
+      "sublabel": "T2 implement → draft PR",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "FLEET_TOKEN"
+    },
+    {
+      "id": "done",
+      "type": "success",
+      "label": "agent:done",
+      "sublabel": "T3 made it mergeable",
+      "lane": "main",
+      "col": 4,
+      "step": "05",
+      "tag": "ready for review"
+    },
+    {
+      "id": "hold",
+      "type": "waiting",
+      "label": "agent:hold",
+      "sublabel": "human paused it",
+      "lane": "waiting",
+      "col": 0,
+      "tag": "brake"
+    },
+    {
+      "id": "review",
+      "type": "waiting",
+      "label": "human-review",
+      "sublabel": "T3 stops before ready",
+      "lane": "waiting",
+      "col": 1,
+      "tag": "brake"
+    },
+    {
+      "id": "blocked",
+      "type": "failure",
+      "label": "agent:blocked",
+      "sublabel": "evidence or gate failed",
+      "lane": "exceptions",
+      "col": 0,
+      "yOffset": 78,
+      "tag": "retryable"
+    },
+    {
+      "id": "merged",
+      "type": "external",
+      "label": "Merged by a human",
+      "sublabel": "never by a tier",
+      "lane": "terminal",
+      "col": 2,
+      "tag": "terminal"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "intake-blocked",
+      "from": "intake",
+      "to": "blocked",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [
+        [
+          248,
+          385
+        ]
+      ]
+    },
+    {
+      "id": "blocked-requeue",
+      "from": "blocked",
+      "to": "intake",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          402,
+          440
+        ],
+        [
+          180,
+          440
+        ],
+        [
+          180,
+          80
+        ],
+        [
+          248,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "ready-hold",
+      "from": "ready",
+      "to": "hold",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "straight"
+    },
+    {
+      "id": "inpr-review",
+      "from": "in_pr",
+      "to": "review",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "straight"
+    },
+    {
+      "id": "done-merged",
+      "from": "done",
+      "to": "merged",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "straight"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Stage is a label",
+      "items": [
+        "scan derives the stage from labels — no event chain to lose",
+        "Per-tier caps and autonomy gates live in fleet.yml",
+        "Evidence comes from a real clone and toolchain"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Human brakes",
+      "items": [
+        "agent:hold stops any issue with one label edit",
+        "human-review keeps the PR a draft until a person looks",
+        "security types and size:xl are assisted, never autonomous"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Blocked is not failed",
+      "items": [
+        "agent:blocked is retryable once a human unblocks",
+        "CI-bearing PRs use FLEET_TOKEN, never GITHUB_TOKEN",
+        "Every path ends in a human merge"
+      ]
+    }
+  ]
+}

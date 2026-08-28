@@ -1,0 +1,277 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "repo-evolution.yml — a draft PR into a submodule's own upstream",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1000,
+      800
+    ],
+    "column_fit": "spread",
+    "views": [
+      {
+        "id": "plan",
+        "label": "Plan before paying",
+        "focus": [
+          "cron",
+          "plan",
+          "registry",
+          "github"
+        ],
+        "note": "Opt-ins, backpressure, and credential probes all happen before any agent runs."
+      },
+      {
+        "id": "execute",
+        "label": "Bounded execution",
+        "focus": [
+          "evolve",
+          "agent",
+          "upstream"
+        ],
+        "note": "The agent works on a checkout with no persisted credentials; the workflow, not the agent, commits and opens the PR."
+      },
+      {
+        "id": "human",
+        "label": "Human closes the loop",
+        "focus": [
+          "upstream",
+          "human"
+        ],
+        "note": "Draft PR only — merge is a maintainer's decision."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "cron",
+      "type": "external",
+      "label": "Weekly cron",
+      "sublabel": "fleet.yml evolution"
+    },
+    {
+      "id": "plan",
+      "type": "backend",
+      "label": "plan job",
+      "sublabel": "dash-gen targets"
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "_data/",
+      "sublabel": "registry + triage"
+    },
+    {
+      "id": "github",
+      "type": "cloud",
+      "label": "GitHub API",
+      "sublabel": "FLEET_TOKEN"
+    },
+    {
+      "id": "evolve",
+      "type": "backend",
+      "label": "evolve job",
+      "sublabel": "matrix, per repo"
+    },
+    {
+      "id": "agent",
+      "type": "security",
+      "label": "Opus agent",
+      "sublabel": "read-only allowlist"
+    },
+    {
+      "id": "upstream",
+      "type": "cloud",
+      "label": "Upstream repo",
+      "sublabel": "bamr87/<repo>"
+    },
+    {
+      "id": "human",
+      "type": "external",
+      "label": "Maintainer",
+      "sublabel": "reviews"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 375,
+      "label": "Plan (deterministic)"
+    },
+    {
+      "from": 395,
+      "to": 610,
+      "label": "Execute (bounded)"
+    },
+    {
+      "from": 630,
+      "to": 730,
+      "label": "Human review"
+    }
+  ],
+  "messages": [
+    {
+      "id": "dispatch",
+      "from": "cron",
+      "to": "plan",
+      "y": 185,
+      "label": "dispatch",
+      "variant": "default"
+    },
+    {
+      "id": "read-optins",
+      "from": "plan",
+      "to": "registry",
+      "y": 228,
+      "label": "read auto_evolve opt-ins + triage",
+      "variant": "emphasis"
+    },
+    {
+      "id": "targets",
+      "from": "registry",
+      "to": "plan",
+      "y": 265,
+      "label": "candidate repos",
+      "variant": "return"
+    },
+    {
+      "id": "probe",
+      "from": "plan",
+      "to": "github",
+      "y": 305,
+      "label": "probe token · find open evolution PRs",
+      "variant": "security"
+    },
+    {
+      "id": "matrix",
+      "from": "github",
+      "to": "plan",
+      "y": 342,
+      "label": "capped matrix (one open PR per repo)",
+      "variant": "return"
+    },
+    {
+      "id": "fanout",
+      "from": "plan",
+      "to": "evolve",
+      "y": 415,
+      "label": "matrix JSON + brief",
+      "variant": "emphasis"
+    },
+    {
+      "id": "checkout",
+      "from": "evolve",
+      "to": "upstream",
+      "y": 455,
+      "label": "checkout, no persisted credentials",
+      "variant": "dashed"
+    },
+    {
+      "id": "brief",
+      "from": "evolve",
+      "to": "agent",
+      "y": 495,
+      "label": "brief: failing workflows, open issues",
+      "variant": "security"
+    },
+    {
+      "id": "diff",
+      "from": "agent",
+      "to": "evolve",
+      "y": 535,
+      "label": "working-tree diff",
+      "variant": "return"
+    },
+    {
+      "id": "draft-pr",
+      "from": "evolve",
+      "to": "upstream",
+      "y": 580,
+      "label": "commit as bot · draft PR, marker first",
+      "variant": "emphasis"
+    },
+    {
+      "id": "review",
+      "from": "upstream",
+      "to": "human",
+      "y": 655,
+      "label": "draft PR to review",
+      "variant": "dashed"
+    },
+    {
+      "id": "merge",
+      "from": "human",
+      "to": "upstream",
+      "y": 700,
+      "label": "merge (never the agent)",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "plan",
+      "from": 180,
+      "to": 425,
+      "type": "backend"
+    },
+    {
+      "participant": "registry",
+      "from": 223,
+      "to": 270,
+      "type": "database"
+    },
+    {
+      "participant": "github",
+      "from": 300,
+      "to": 347,
+      "type": "cloud"
+    },
+    {
+      "participant": "evolve",
+      "from": 415,
+      "to": 590,
+      "type": "backend"
+    },
+    {
+      "participant": "agent",
+      "from": 490,
+      "to": 540,
+      "type": "security"
+    },
+    {
+      "participant": "upstream",
+      "from": 575,
+      "to": 705,
+      "type": "cloud"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Plan before paying",
+      "items": [
+        "Only owned, non-archived submodule opt-ins",
+        "A still-open previous PR is the backpressure",
+        "Token and Claude auth are probed before any agent"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Bounded execution",
+      "items": [
+        "One agent per repo on a credential-free checkout",
+        "Read-only allowlist; the workflow commits as the bot",
+        "The brief keeps it out of the doctor's and pipeline's lanes"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Across the fleet",
+      "items": [
+        "The PR lands in the submodule's own upstream",
+        "The hub records the new pointer only after a human merges",
+        "test_evolution.py asserts the workflow against fleet.yml"
+      ]
+    }
+  ]
+}

@@ -29,6 +29,8 @@
   description: Focused per-project improvement pass (maps to .github/agents personas).
 - name: run-dash
   description: Orchestration hub — project map, health, per-project work orders; serve/screenshot the dash site.
+- name: archify
+  description: Vendored tt-a1i/archify — typed JSON → validated, interactive HTML diagrams; draws the harness and its loops in diagrams/ (tools/render-diagrams.sh, /harness/).
 
 # --- Reusable from the projects/skills/ submodule ---
 - name: skill-creator

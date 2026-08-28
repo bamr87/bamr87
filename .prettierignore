@@ -21,3 +21,9 @@ projects/*/
 # pre-commit hook. See .pre-commit-config.yaml.
 /index.md
 pages/
+
+# Vendored tt-a1i/archify skill — upstream bytes, refreshed not reformatted —
+# and the diagrams it compiles (JSON sources are frozen by `archify deliver`'s
+# receipt; the HTML is generated). See docs/HARNESS.md.
+.claude/skills/archify/
+diagrams/

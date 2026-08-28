@@ -2,6 +2,12 @@
 # Install: pip install pre-commit && pre-commit install
 # Run manually: pre-commit run --all-files
 
+# Vendored third-party code and generated artifacts keep their upstream bytes:
+# .claude/skills/archify/ is tt-a1i/archify verbatim (refresh it from upstream,
+# never reformat it), and diagrams/*.html is emitted by that renderer's
+# `deliver` (edit the .json source and re-run tools/render-diagrams.sh).
+exclude: ^(\.claude/skills/archify/|diagrams/.*\.html$)
+
 repos:
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks

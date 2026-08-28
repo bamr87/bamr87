@@ -22,6 +22,7 @@ coverage: listed
 | `_reports/` | dir | Committed automation records — the daily repo-activity digests | generated |
 | `_site/` | dir | Jekyll build output | generated |
 | `assets/` | dir | Static site assets (structure owned by the zer0-mistakes theme) | terminal |
+| `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
 | `pages/` | dir | Jekyll content collections for the dash site | required |
 | `projects/` | dir | The fleet: one submodule per project (contract generated from the registry) | required |
@@ -50,6 +51,7 @@ coverage: listed
 - New seedable artifact kit → `templates/<kit>/`, registered in `templates/SCHEMA.md`
 - New gate, generator, or fleet script → `tools/`
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
+- New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`
 - New registry → `_data/`, registered in `_data/SCHEMA.md`
 - New project → `.gitmodules` + `_data/projects.yml`, then `tools/gen-projects-schema.py`
 
