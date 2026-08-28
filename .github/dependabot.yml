@@ -1,16 +1,42 @@
 # Dependabot configuration
 #
-# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Docs:
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# The github-actions ecosystem uses `directory: "/"`, which tells Dependabot to
-# scan every workflow under .github/workflows/. When an action is pinned to a
-# full commit SHA, Dependabot bumps the SHA and the trailing `# vX.Y.Z` version
-# comment together in the same pull request, so pinning does not mean the
-# dependency goes stale.
+# Only one dependabot.yml may exist per repository. To watch additional
+# ecosystems (bundler, npm, pip, ...), add more entries under `updates:`
+# rather than creating a second file.
 version: 2
+
 updates:
+  # Keep the actions used by .github/workflows/*.yml up to date.
+  #
+  # Dependabot handles both reference styles:
+  #   * tag pins   -> uses: actions/checkout@v4
+  #   * SHA pins   -> uses: actions/checkout@<40-char-sha> # v4.2.2
+  #
+  # For SHA pins it reads the trailing `# vX.Y.Z` comment to work out the
+  # current version, and its PRs update BOTH the SHA and that comment.
+  # Keep those version comments intact when pinning actions, otherwise
+  # Dependabot cannot tell what version a bare SHA corresponds to.
   - package-ecosystem: "github-actions"
+    # For github-actions this means the repository root; it covers
+    # .github/workflows/ and .github/actions/.
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    # Keep the first run from opening a PR per action.
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      # Batch all action bumps into a single PR per run.
+      github-actions:
+        patterns:
+          - "*"
