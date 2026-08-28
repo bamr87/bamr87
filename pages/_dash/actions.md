@@ -99,7 +99,10 @@ registry repo and writes <code>_data/actions_usage.yml</code>, which this page r
       {%- comment -%}
       A null rate means the window held NO verdicts (every run skipped by an
       `if:` gate) — that is "no data", not "0% success". Liquid treats 0.0 as
-      truthy, so `{% if %}` separates the two correctly.
+      truthy, so a plain `if` test separates the two correctly. Written without
+      tag delimiters on purpose: Liquid's `comment` block still CONSTRUCTS the
+      tags inside it, so a literal empty if-tag here is a parse error that
+      fails the whole build.
       {%- endcomment -%}
       <td class="text-end">{% if w.success_rate_pct %}{{ w.success_rate_pct }}%{% else %}<span class="text-muted" title="no runs reached a verdict in this window">—</span>{% endif %}</td>
       <td class="text-end {% if w.effectiveness_pct and w.effectiveness_pct < 55 %}text-danger fw-bold{% endif %}">{% if w.effectiveness_pct %}{{ w.effectiveness_pct }}%{% else %}<span class="text-muted" title="no runs reached a verdict in this window">—</span>{% endif %}</td>
