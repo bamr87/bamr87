@@ -262,6 +262,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[SCHEMA](https://github.com/bamr87/SCHEMA)**: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
 - **[bash-cms](https://github.com/bamr87/bash-cms)**: Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).
 - **[git-with-the-program](https://github.com/bamr87/git-with-the-program)**: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
+- **[archify](https://github.com/tt-a1i/archify)**: Agent skill that compiles typed JSON IR into validated, self-contained HTML system diagrams — the hub vendors it to illustrate the harness and its loops (diagrams/, /harness/). Live at [https://tt-a1i.github.io/archify/](https://tt-a1i.github.io/archify/).
 
 ### 🛰️ Dash
 

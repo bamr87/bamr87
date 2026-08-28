@@ -1,0 +1,306 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Six-Layer Harness — bamr87 hub",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "agent-formula",
+        "label": "Agent = Model + Harness",
+        "focus": [
+          "model",
+          "guides",
+          "loops",
+          "permissions",
+          "fleet"
+        ],
+        "note": "The model reasons; the guides and permissions shape every loop before it touches a fleet repo."
+      },
+      {
+        "id": "sense-and-remember",
+        "label": "Sense and remember",
+        "focus": [
+          "fleet",
+          "sensors",
+          "loops",
+          "memory"
+        ],
+        "note": "Sensors verify what the loops produce; the committed ledgers under _data/ are the memory."
+      },
+      {
+        "id": "alarm-panel",
+        "label": "Alarm panel",
+        "focus": [
+          "memory",
+          "observability",
+          "human",
+          "fleet"
+        ],
+        "note": "The scorecard and trip wires raise attention; a human — never an agent — merges."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "model",
+      "type": "external",
+      "label": "Claude Opus",
+      "sublabel": "the model",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        130,
+        60
+      ],
+      "tag": "reasoning"
+    },
+    {
+      "id": "guides",
+      "type": "frontend",
+      "label": "Guides",
+      "sublabel": "CLAUDE.md · AGENTS.md · SCHEMA.md",
+      "pos": [
+        220,
+        110
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "feedforward"
+    },
+    {
+      "id": "permissions",
+      "type": "security",
+      "label": "Permissions",
+      "sublabel": "fleet.yml caps · draft-only",
+      "pos": [
+        220,
+        440
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "never merge"
+    },
+    {
+      "id": "loops",
+      "type": "backend",
+      "label": "Agentic loops",
+      "sublabel": "pulse · issues · tokens · evolve",
+      "pos": [
+        410,
+        300
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "bounded"
+    },
+    {
+      "id": "fleet",
+      "type": "cloud",
+      "label": "Fleet",
+      "sublabel": "~40 project repos",
+      "pos": [
+        640,
+        300
+      ],
+      "size": [
+        130,
+        64
+      ]
+    },
+    {
+      "id": "sensors",
+      "type": "security",
+      "label": "Sensors",
+      "sublabel": "drift gate · schema_lint · CI",
+      "pos": [
+        640,
+        110
+      ],
+      "size": [
+        130,
+        64
+      ],
+      "tag": "feedback"
+    },
+    {
+      "id": "memory",
+      "type": "database",
+      "label": "Memory",
+      "sublabel": "_data/*.yml ledgers",
+      "pos": [
+        640,
+        440
+      ],
+      "size": [
+        130,
+        64
+      ],
+      "tag": "committed"
+    },
+    {
+      "id": "observability",
+      "type": "backend",
+      "label": "Observability",
+      "sublabel": "harness_health.yml",
+      "pos": [
+        860,
+        440
+      ],
+      "size": [
+        130,
+        64
+      ],
+      "tag": "trip wires"
+    },
+    {
+      "id": "human",
+      "type": "external",
+      "label": "Human",
+      "sublabel": "review · merge · brake labels",
+      "pos": [
+        860,
+        110
+      ],
+      "size": [
+        130,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Hub: bamr87/bamr87 (the harness)",
+      "wraps": [
+        "guides",
+        "permissions",
+        "loops",
+        "sensors",
+        "memory",
+        "observability"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "model-reasons",
+      "from": "model",
+      "to": "loops",
+      "label": "reasoning",
+      "variant": "emphasis"
+    },
+    {
+      "id": "guides-shape",
+      "from": "guides",
+      "to": "loops",
+      "label": "rules from incidents",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "caps-bound",
+      "from": "permissions",
+      "to": "loops",
+      "label": "caps + scopes",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "loops-act",
+      "from": "loops",
+      "to": "fleet",
+      "label": "draft PRs · issues",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "fleet-signals",
+      "from": "fleet",
+      "to": "sensors",
+      "label": "CI + gate results",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "sensors-verify",
+      "from": "sensors",
+      "to": "loops",
+      "label": "verify",
+      "variant": "security",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "loops-remember",
+      "from": "loops",
+      "to": "memory",
+      "label": "snapshots",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "memory-scores",
+      "from": "memory",
+      "to": "observability",
+      "label": "scorecard"
+    },
+    {
+      "id": "wires-alert",
+      "from": "observability",
+      "to": "human",
+      "label": "trip wires",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "human-merges",
+      "from": "human",
+      "to": "fleet",
+      "label": "merges",
+      "variant": "dashed",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Guides + Permissions",
+      "items": [
+        "Standing rules in CLAUDE.md, each traced to an incident",
+        "Every cap lives in fleet.yml, asserted by fixture tests",
+        "Draft PRs only; no loop ever merges"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Loops + Sensors",
+      "items": [
+        "A deterministic plan step precedes every agent run",
+        "Drift gate, schema_lint, and CI verify agent output",
+        "Escalation is a label or a fallback issue, never silence"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Memory + Observability",
+      "items": [
+        "The filesystem is the memory: committed YAML",
+        "dash harness scores the fleet offline from those files",
+        "A tripped wire is attention; the loops own the fix"
+      ]
+    }
+  ]
+}

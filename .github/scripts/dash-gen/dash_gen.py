@@ -58,6 +58,7 @@ import daily_report
 import engagements
 import evolution
 import fleet_triage
+import harness
 import issue_pipeline
 import reconcile
 import remediation
@@ -446,6 +447,12 @@ def main(argv: list[str] | None = None) -> int:
         help="fleet-wide open issues/PRs/CI snapshot -> fleet_triage.yml (committed, daily-refreshed)",
     )
     fleet_triage.add_arguments(p_triage)
+
+    p_harness = sub.add_parser(
+        "harness",
+        help="six-layer harness scorecard + trip wires -> harness_health.yml (committed, daily-refreshed)",
+    )
+    harness.add_arguments(p_harness)
 
     p_remediate = sub.add_parser(
         "remediate",

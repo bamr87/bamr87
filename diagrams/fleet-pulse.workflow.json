@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "fleet-pulse.yml — the daily loop",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "gather-and-publish",
+        "label": "Gather and publish",
+        "focus": [
+          "cron",
+          "gather",
+          "harness",
+          "publish"
+        ],
+        "note": "One checkout gathers every signal, scores the harness, and lands everything in ONE commit via publish-data."
+      },
+      {
+        "id": "fix-queue",
+        "label": "The fix queue",
+        "focus": [
+          "gather",
+          "remediate",
+          "agent",
+          "pr"
+        ],
+        "note": "Failing + expensive workflows merge into one ranked, capped queue before an agent sees it; the token is probed, not presence-checked."
+      },
+      {
+        "id": "escalation",
+        "label": "Escalation",
+        "focus": [
+          "agent",
+          "pr",
+          "issue"
+        ],
+        "note": "When the doctor cannot fix, it files a hub issue instead of failing silently."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "trigger",
+      "label": "Trigger"
+    },
+    {
+      "id": "pulse",
+      "label": "pulse job — gather (deterministic)"
+    },
+    {
+      "id": "memory",
+      "label": "Memory (_data/)"
+    },
+    {
+      "id": "plan",
+      "label": "pulse job — plan"
+    },
+    {
+      "id": "doctor",
+      "label": "doctor job (Opus agent)"
+    },
+    {
+      "id": "escalation",
+      "label": "Escalation",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "sense",
+      "label": "Sense",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "derive",
+      "label": "Derive + publish",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "act",
+      "label": "Act (bounded)",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "cron",
+    "gather",
+    "remediate",
+    "agent",
+    "pr"
+  ],
+  "nodes": [
+    {
+      "id": "cron",
+      "lane": "trigger",
+      "col": 0,
+      "type": "external",
+      "label": "Daily cron",
+      "sublabel": "fleet.yml cadence"
+    },
+    {
+      "id": "gather",
+      "lane": "pulse",
+      "col": 1,
+      "type": "backend",
+      "label": "Gather",
+      "sublabel": "actions · triage",
+      "tag": "PyGithub"
+    },
+    {
+      "id": "harness",
+      "lane": "pulse",
+      "col": 3,
+      "type": "security",
+      "label": "Scorecard",
+      "sublabel": "trip wires",
+      "tag": "offline"
+    },
+    {
+      "id": "publish",
+      "lane": "memory",
+      "col": 4,
+      "type": "database",
+      "label": "publish-data",
+      "sublabel": "→ _data/*.yml",
+      "tag": "one commit"
+    },
+    {
+      "id": "remediate",
+      "lane": "plan",
+      "col": 3,
+      "type": "backend",
+      "label": "Remediate",
+      "sublabel": "one fix queue",
+      "tag": "capped"
+    },
+    {
+      "id": "agent",
+      "lane": "doctor",
+      "col": 4,
+      "type": "backend",
+      "label": "Doctor agent",
+      "sublabel": "reads run logs",
+      "tag": "--max-turns"
+    },
+    {
+      "id": "pr",
+      "lane": "doctor",
+      "col": 5,
+      "type": "cloud",
+      "label": "Draft PR",
+      "sublabel": "hub or submodule"
+    },
+    {
+      "id": "issue",
+      "lane": "escalation",
+      "col": 5,
+      "type": "security",
+      "label": "Fallback issue",
+      "sublabel": "no fix found"
+    }
+  ],
+  "edges": [
+    {
+      "id": "cron-gather",
+      "from": "cron",
+      "to": "gather",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "id": "gather-harness",
+      "from": "gather",
+      "to": "harness",
+      "label": "signals",
+      "variant": "emphasis"
+    },
+    {
+      "id": "harness-publish",
+      "from": "harness",
+      "to": "publish",
+      "label": "commit",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop",
+      "labelSegment": 1,
+      "labelDy": 11
+    },
+    {
+      "id": "gather-remediate",
+      "from": "gather",
+      "to": "remediate",
+      "label": "red + expensive",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop",
+      "labelSegment": 1
+    },
+    {
+      "id": "remediate-agent",
+      "from": "remediate",
+      "to": "agent",
+      "label": "token probed",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop",
+      "labelSegment": 1,
+      "labelDy": 11
+    },
+    {
+      "id": "agent-pr",
+      "from": "agent",
+      "to": "pr",
+      "label": "fix",
+      "variant": "emphasis"
+    },
+    {
+      "id": "agent-issue",
+      "from": "agent",
+      "to": "issue",
+      "label": "cannot fix",
+      "variant": "security",
+      "role": "error",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop",
+      "labelSegment": 1,
+      "labelDy": 11
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One job, one commit",
+      "items": [
+        "Four predecessors died silently on a bare git push",
+        "publish-data commits once, falls back to a PR",
+        "needs: pulse replaces the skipped workflow_run"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Deterministic first",
+      "items": [
+        "Every signal is gathered by code, not an agent",
+        "Red and expensive workflows become one keyed queue",
+        "fleet.yml caps are paired to --max-turns"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Bounded action",
+      "items": [
+        "FLEET_TOKEN is probed with a real API call",
+        "Output is a draft PR in the hub or the owning repo",
+        "No fix → a hub issue, so nothing fails quietly"
+      ]
+    }
+  ]
+}

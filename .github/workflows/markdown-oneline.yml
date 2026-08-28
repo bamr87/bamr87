@@ -53,7 +53,8 @@ jobs:
         id: fix
         run: |
           python3 tools/unwrap-prose.py --write \
-            --exclude '(^|/)SCHEMA\.md$' --exclude '(^|/)CHANGELOG\.md$'
+            --exclude '(^|/)SCHEMA\.md$' --exclude '(^|/)CHANGELOG\.md$' \
+            --exclude '^\.claude/skills/archify/'
           if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else

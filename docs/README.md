@@ -87,6 +87,7 @@ These are not documentation, but they answer the "how does this thing build and 
 | [`ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR. |
 | [`TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
 | [`EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo. |
+| [`HARNESS.md`](HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane — layer mapping, ratchet routing rule, health scorecard + trip wires, readiness audit, roadmap. |
 | [`ESTIMATION.md`](ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
 | [`STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline the fleet is held to. |
 | [`RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |

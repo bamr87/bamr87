@@ -127,6 +127,16 @@ jobs:
         continue-on-error: true
         run: tools/dash-gen triage
 
+      # Runs LAST among the gather steps because it is the layer that watches
+      # the others: it reads the snapshots just written (plus the committed
+      # rotation ledger) and computes the harness scorecard + trip wires.
+      # Offline and deterministic — a degraded signal above trips its
+      # stale-data wire here rather than failing this step.
+      - name: Harness scorecard + trip wires
+        id: g_harness
+        continue-on-error: true
+        run: tools/dash-gen harness
+
       - name: Gather summary
         run: |
           {
@@ -139,6 +149,7 @@ jobs:
             echo "| Engagement actuals | ${{ steps.g_ledger.outcome }} |"
             echo "| Activity digest | ${{ steps.g_daily.outcome }} |"
             echo "| Triage snapshot | ${{ steps.g_triage.outcome }} |"
+            echo "| Harness scorecard | ${{ steps.g_harness.outcome }} (${{ steps.g_harness.outputs.tripped_count || '?' }} trip wires tripped) |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- publish --------------------------------------------------------
@@ -157,6 +168,7 @@ jobs:
             - `_data/actions_usage.yml` — Actions cost / effectiveness / waste
             - `_data/ai_usage.yml`, `_data/engagements.yml` — Claude usage + engagement actuals
             - `_data/fleet_triage.yml` — fleet open-state snapshot (the `/triage/` portal)
+            - `_data/harness_health.yml` — harness scorecard + trip wires (docs/HARNESS.md)
             - `_reports/daily/` — the prior-day activity digest
 
             Delivered as a pull request because a direct push to the default
