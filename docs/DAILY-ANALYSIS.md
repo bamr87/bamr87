@@ -58,20 +58,33 @@ is red. This is *standing* state, so a workflow broken for three weeks stays on 
 
 Candidates are keyed on `owner/repo:workflow-path`, so a workflow that is *both* red and slow is **one** entry with both signals — not two tickets, which is how the previous split loops turned a queue into noise. Each is then classified `hub` (fixable in this checkout) or `submodule` (needs a cross-repo PR), ranked by severity then wasted minutes, de-duplicated against open issues **and** open PRs in both the hub and the target repo, and capped.
 
-#### Two guards on the expensive signal
+#### Three guards on the queue
 
-The failing signal reads each workflow's *latest* conclusion, so it is already point-in-time. The expensive signal is an **average over the 14-day window**, which knows neither the order of runs nor who started them — and both blind spots manufacture candidates. Each guard is a switch in `_data/fleet.yml` → `remediation:`:
+The failing signal reads each workflow's *latest* conclusion, so it is already point-in-time. The expensive signal is an **average over the 14-day window**, which knows neither the order of runs nor who started them — and both blind spots manufacture candidates. A third blind spot is shared by both signals: each records *what* the latest verdict was and neither asks *when* it was reached. Each guard is a switch in `_data/fleet.yml` → `remediation:`:
 
-| guard | key | what it drops | why |
+| guard | key | what it does | why |
 | --- | --- | --- | --- |
-| **superseded by success** | `supersede_on_success` (default `true`) | `failing`, `flaky` | A workflow whose latest non-skipped run was **green** is not broken *now*. Three runs five and nine minutes apart — fail, fail, success — average to 33% and read as `failing`, but that is the signature of a bug being **fixed**, not a standing one. |
-| **interactive dispatch** | `interactive_dispatch_pct` (default `60`) | `high-cost-low-value`, `slow`, `cancel-heavy`, and the `min_priority` fallback | Runs a human triggered by hand are *expected* to fail and to burn minutes — that is what building something looks like. Averaging them in beside scheduled and PR runs makes any repo under active development read as sick. The event breakdown is already in the analytics record, so the discount costs no extra API calls. |
+| **superseded by success** | `supersede_on_success` (default `true`) | drops `failing`, `flaky` | A workflow whose latest non-skipped run was **green** is not broken *now*. Three runs five and nine minutes apart — fail, fail, success — average to 33% and read as `failing`, but that is the signature of a bug being **fixed**, not a standing one. |
+| **interactive dispatch** | `interactive_dispatch_pct` (default `60`) | drops `high-cost-low-value`, `slow`, `cancel-heavy`, and the `min_priority` fallback | Runs a human triggered by hand are *expected* to fail and to burn minutes — that is what building something looks like. Averaging them in beside scheduled and PR runs makes any repo under active development read as sick. The event breakdown is already in the analytics record, so the discount costs no extra API calls. |
+| **stale red** | `stale_after_days` (default `7`, `0` disables) | **de-prioritises** — never drops | A workflow triggered rarely (`issues: opened`, `workflow_dispatch`, a weekly cron) cannot clear its own red: the only thing that would is a fresh green run nothing is going to produce, so a resolved incident holds one of four slots *forever*. Applies to **both** signals. The timestamp was already on each of them and carried for display only, so this costs no extra API call. |
 
-Neither guard weakens a real signal. A green workflow that is genuinely expensive keeps its cost flags; a red one keeps `failing` however it is triggered; and a standing failure coming from the triage side is never touched. Snapshots written before the two supporting fields (`last_conclusion`, `dispatch_pct`) existed simply behave as they did before.
+##### Why the third guard down-ranks instead of dropping
+
+The asymmetry is deliberate, and it is the rule the first two already follow:
+
+> Suppress a signal only on **positive evidence of health**. Down-rank it on **absence of evidence**.
+
+`supersede_on_success` may suppress outright because a later green run *proves* the workflow works. Staleness proves nothing — a `workflow_dispatch`-only deploy that has been broken for three weeks is stale **and** genuinely broken, and suppressing it would silently delete real coverage. So a stale candidate stays in the queue, is annotated with its age (`latest run 2026-08-21 (8d ago, no run since)`), and merely sorts below every live candidate of the same severity, where `max_candidates` pushes it off today's run without losing it. It resurfaces the moment nothing more urgent is queued.
+
+Freshness is its own component of the sort key rather than a penalty subtracted from the score, because the score's spend term is unbounded — a large enough `waste_min` would otherwise buy a stale candidate its rank back.
+
+The two signals timestamp runs in **different formats** (`actions_usage.yml` writes ISO-8601 with an offset, `fleet_triage.yml` writes `"%Y-%m-%d %H:%M UTC"`, and PyYAML resolves an unquoted stamp to a `datetime`), so `parse_run_time()` reads all three. A missing or unparseable timestamp is treated as **fresh**: a guard that cannot read a clock must never invent staleness.
+
+No guard weakens a real signal. A green workflow that is genuinely expensive keeps its cost flags; a red one keeps `failing` however it is triggered; a standing failure coming from the triage side is never suppressed; and a stale one is ranked down, not removed. Snapshots written before the supporting fields (`last_conclusion`, `dispatch_pct`, `last_run_at`) existed simply behave as they did before.
 
 `actions_analytics` also reports `success_rate_pct` / `effectiveness_pct` as **null** for a workflow with no verdicts at all — every run skipped by an `if:` gate. `pct(0, 0) == 0.0` published "0.0% success" next to "0 failures", rendering a *no data* state through the *has data* path: on `/actions/` it was indistinguishable from a workflow that failed every run. Null renders as `—`, and such workflows are omitted from the cost-vs-effectiveness quadrant rather than plotted at zero.
 
-Both changes came out of [#92](https://github.com/bamr87/bamr87/issues/92), where a healthy, switched-off workflow in `bamr87/irony-works` — green since fifteen minutes after the failures that flagged it — took one of the four remediation slots, and one of only three cross-repo ones.
+The first two came out of [#92](https://github.com/bamr87/bamr87/issues/92), where a healthy, switched-off workflow in `bamr87/irony-works` — green since fifteen minutes after the failures that flagged it — took one of the four remediation slots, and one of only three cross-repo ones. The third came out of [#200](https://github.com/bamr87/bamr87/issues/200): `bamr87/gitorio`'s `Factory: Gitorio Factory 1`, red from a model-side outage that lifted on 2026-08-25 and never re-triggered because it fires on `issues: opened`. It was ranked **3rd of 49** — inside the cap — every morning. Adding the guard moved it to 15th and surfaced three more stale reds behind it, idle for 11, 38, and 43 days.
 
 ### 3. Fix
 
