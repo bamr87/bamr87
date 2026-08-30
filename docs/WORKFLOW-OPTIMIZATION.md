@@ -119,10 +119,37 @@ The single most consequential finding, and the reason several entries above need
 
 Fixed in `.github/scripts/dash-gen/`:
 
-- `success_rate_pct` now counts only runs that reached a verdict (`success + failure`). Cancelled **minutes** still count in `waste_min` — they were really burned — and the churn stays visible as the new `cancel_pct` field and the existing `cancel-heavy` flag.
+- `success_rate_pct` now counts only runs that reached a verdict (`success + failure`). Cancelled **minutes** still count in `waste_min` — they were really burned — and the churn stays visible as the new `cancel_pct` field and the existing `cancel-heavy` flag. **[Superseded — see *Measurement: the cost was wrong too* below.](#measurement-the-cost-was-wrong-too)** The "they were really burned" premise is false for a run that never started a job.
 - The `failing`/`flaky` flags gate on decided runs, not completed ones. Without this the fix is incomplete: `pct(0, 0)` returns `0.0`, so a workflow with only cancellations would still have read as "0% success" and stayed flagged.
 - `cancel-heavy` no longer pulls failing-run evidence in `actions_review.py` — cancelled runs produce no failure logs.
 - The reviewer's suggested angle for `cancel-heavy` no longer says "add `concurrency: cancel-in-progress: true`". That was self-contradictory: a high cancel share usually means the guard is already there and working. The advice is now to start fewer runs, not to cancel more.
+
+## Measurement: the cost was wrong too
+
+The success-rate correction above left the *minutes* half of the same metric unfixed, and it failed the same way — by pricing a state that reached no verdict ([#204](https://github.com/bamr87/bamr87/issues/204)).
+
+**Cancelled runs were priced by wall clock.** GitHub stamps `run_started_at` when a run is *created* and `updated_at` when it is cancelled, so the entire time a run spends **waiting** — queued behind a runner, or parked in `action_required` pending maintainer approval — sits inside the span `duration_min()` measures. The billing API is unambiguous that this costs nothing:
+
+```console
+$ gh api repos/bamr87/zer0-mistakes/actions/runs/32985965128/timing
+{"billable":{},"run_duration_ms":270834000}
+```
+
+`billable` is **empty**: 4,513.9 wall-clock minutes, **0 billable**. That single run was 99.5% of `evidence-gate.yml`'s reported 4,536.4m — visible in the record as a mean 17× *above* its own p95, the signature of one outlier — and it took the #1 slot of a 4-item remediation queue from a workflow that was actually broken. `timeout-minutes: 5` cannot bound it: that clock starts when a job begins, and none did.
+
+Cancelled minutes now enter neither `total_min` nor `waste_min`. Cancelled **runs** still count, so `cancel_pct` and `cancel-heavy` are unaffected — the churn was always the real signal, the minutes never were. `avg_min`/`p95_min` divide by the new `timed_runs` (the metered subset), so a cancel-heavy workflow reads as churning rather than as fast.
+
+**The `totals` block mixed two populations.** `total_min` summed `owned` workflows; `waste_min`, `runs`, `success` and `failure` summed *all* of them, external mirrors included. A share computed against a denominator that excludes its own numerator's contributors is not a percentage, and the published headline said so out loud:
+
+| | as published | fix A only | fix B only | both |
+| --- | ---: | ---: | ---: | ---: |
+| `total_min` | 37,119.3 | 32,605.4 | 37,119.3 | 32,605.4 |
+| `waste_min` | 45,211.1 | 40,697.2 | 34,414.2 | 29,900.3 |
+| `effectiveness_pct` | **−21.8%** | **−24.8%** | **+7.3%** | **+8.3%** |
+
+The negative sign was entirely the population mismatch — 10,796.9m of mirror waste charged to an owned-only denominator, dominated by `tt-a1i/archify` → `CI` at 10,753.1m, 2.4× the outlier the issue was filed about. Fixing the queue-time bug *alone* would have moved the headline further negative. Every total is now summed over `owned`, matching `share_pct` and the optimization flags. `totals.workflows` stays a count of all rendered rows; it labels the drill-down table, not a consumption aggregate.
+
+Guarded by `python3 .github/scripts/dash-gen/test_actions_analytics.py`.
 
 ## Verification
 

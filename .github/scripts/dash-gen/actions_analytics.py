@@ -14,10 +14,19 @@ while producing little? It groups consumption by workflow *type* and surfaces
 "high running, low effective" workflows quantitatively (cost = wall-clock minutes,
 value = share of minutes that end in success; waste = minutes on non-success runs).
 
-Cancelled runs are counted as waste (the minutes were really burned) but NOT as
-failures: `success_rate_pct` and the failing/flaky flags look only at runs that
-reached a verdict. Conflating the two made every workflow with a working
-`concurrency: cancel-in-progress` guard read as broken.
+Cancelled runs contribute NO minutes — neither to `total_min` nor to `waste_min`.
+Their wall clock is not a cost signal: GitHub stamps `run_started_at` when a run
+is created and `updated_at` when it is cancelled, so a run that merely WAITED
+(queued, or parked in `action_required` awaiting approval) reports the whole wait
+as duration while billing nothing at all. They are also not failures:
+`success_rate_pct` and the failing/flaky flags look only at runs that reached a
+verdict. Conflating either made a working `concurrency: cancel-in-progress`
+guard read as broken *and* expensive — see UNMETERED_CONCLUSIONS.
+
+Fleet TOTALS are computed over bamr87-owned workflows only, the same population
+`share_pct` and the optimization flags already used. Mixing external mirrors into
+one half of a ratio and not the other is what published a waste figure larger
+than the consumption it was a share of.
 
 For the same reason a workflow with NO verdicts in the window — every run
 skipped by an `if:` gate — reports `success_rate_pct` / `effectiveness_pct` as
@@ -55,7 +64,23 @@ CRON_HEAVY_PCT = 60        # scheduled share above this is "cron-heavy"
 MIN_WASTE_MIN = 4.0        # ignore trivial waste below this when flagging
 
 # Non-success terminal conclusions whose minutes count as waste.
-WASTE_CONCLUSIONS = {"failure", "cancelled", "timed_out", "startup_failure"}
+WASTE_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
+
+# Conclusions whose wall clock is NOT a cost signal, so their minutes enter
+# neither `total_min` nor `waste_min`.
+#
+# GitHub stamps `run_started_at` at creation and `updated_at` at cancellation,
+# which puts the ENTIRE wait inside the span this module measures — while
+# `/actions/runs/{id}/timing` reports `billable: {}` for a run that never
+# started a job. One cancelled run in bamr87/zer0-mistakes therefore booked
+# 4,513.9 phantom minutes: 99.5% of its workflow's reported cost, enough to
+# push a correctly-functioning gate to the top of the remediation queue
+# (bamr87/bamr87#204). `timeout-minutes` cannot bound this — that clock starts
+# when a job begins, and none did.
+#
+# Cancelled runs still count as RUNS, so `cancel_pct` and the `cancel-heavy`
+# flag are unchanged; only their minutes are dropped.
+UNMETERED_CONCLUSIONS = {"cancelled"}
 
 # Conclusions that say nothing about whether the workflow works. A run whose
 # `if:` gate declined is the system behaving correctly at ~zero cost, so it must
@@ -190,7 +215,7 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
 # aggregation
 # --------------------------------------------------------------------------- #
 def new_bucket() -> dict:
-    return {"runs": 0, "total_min": 0.0, "success_min": 0.0, "waste_min": 0.0,
+    return {"runs": 0, "timed_runs": 0, "total_min": 0.0, "success_min": 0.0, "waste_min": 0.0,
             "success": 0, "failure": 0, "cancelled": 0, "other": 0,
             "durations": [], "events": {},
             "last_conclusion": None, "last_at": None}
@@ -200,9 +225,15 @@ def fold(bucket: dict, rec: dict) -> None:
     m = rec["minutes"]
     c = rec["conclusion"]
     bucket["runs"] += 1
-    bucket["total_min"] += m
-    bucket["durations"].append(m)
     bucket["events"][rec["event"]] = bucket["events"].get(rec["event"], 0) + 1
+    # An unmetered run counts as a RUN but contributes no minutes anywhere —
+    # not to the total, not to waste, and not to the duration sample that feeds
+    # avg/p95. Its wall clock is wait time, not consumption.
+    metered = c not in UNMETERED_CONCLUSIONS
+    if metered:
+        bucket["timed_runs"] += 1
+        bucket["total_min"] += m
+        bucket["durations"].append(m)
     # Newest run that actually reached a verdict. Compared by timestamp rather
     # than trusting the caller's ordering, so this stays correct if records are
     # ever folded out of order. `created_at` is a uniform UTC isoformat string,
@@ -215,12 +246,12 @@ def fold(bucket: dict, rec: dict) -> None:
     if c == "success":
         bucket["success_min"] += m
         bucket["success"] += 1
+    elif c == "cancelled":
+        # Counted, never priced — see UNMETERED_CONCLUSIONS.
+        bucket["cancelled"] += 1
     elif c in WASTE_CONCLUSIONS:
         bucket["waste_min"] += m
-        if c == "cancelled":
-            bucket["cancelled"] += 1
-        else:
-            bucket["failure"] += 1
+        bucket["failure"] += 1
     else:
         bucket["other"] += 1
 
@@ -259,8 +290,15 @@ def workflow_record(b: dict, *, repo: str, repo_url: str | None,
         "workflow": b["_name"], "type": classify_type(b["_name"], b["_path"]),
         "path": b["_path"],
         "runs": b["runs"],
+        # Runs that contributed minutes. `runs - timed_runs` are the unmetered
+        # (cancelled) ones; publishing both keeps `avg_min` reconcilable against
+        # `total_min` by a reader with a calculator.
+        "timed_runs": b["timed_runs"],
         "total_min": round(b["total_min"], 1),
-        "avg_min": round(b["total_min"] / b["runs"], 2) if b["runs"] else 0.0,
+        # Averaged over METERED runs only. Dividing real minutes by a count that
+        # includes zero-cost cancellations would make a cancel-heavy workflow
+        # read as fast rather than as churning.
+        "avg_min": round(b["total_min"] / b["timed_runs"], 2) if b["timed_runs"] else 0.0,
         "p95_min": p95(b["durations"]),
         "waste_min": round(b["waste_min"], 1),
         "runs_per_week": round(b["runs"] / weeks, 1),
@@ -269,9 +307,10 @@ def workflow_record(b: dict, *, repo: str, repo_url: str | None,
         # run reached no verdict, so counting it as "not a success" made
         # `success_rate_pct` measure churn instead of correctness, and
         # the sub-50% result then tripped the `failing` flag on
-        # workflows with zero actual failures. Cancelled MINUTES still
-        # count as waste (they were really burned) — see waste_min — and
-        # the churn itself stays visible as cancel_pct / `cancel-heavy`.
+        # workflows with zero actual failures. Their MINUTES are excluded
+        # too — a cancelled run's wall clock is however long it WAITED, and
+        # the billing API charges nothing for it (UNMETERED_CONCLUSIONS).
+        # The churn itself stays visible as cancel_pct / `cancel-heavy`.
         "success_rate_pct": pct_or_none(b["success"], decided),
         "cancel_pct": pct(b["cancelled"], decided + b["cancelled"]),
         "effectiveness_pct": (None if not decided
@@ -418,13 +457,19 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         key=lambda r: r["date"],
     )
 
-    tot_runs = sum(w["runs"] for w in workflows)
-    tot_success = sum(w["success"] for w in workflows)
+    # Every fleet total is summed over `owned` — the SAME population as
+    # `grand_min` above, as `share_pct`, and as the optimization flags. Summing
+    # waste over all workflows while the denominator excluded external mirrors
+    # published `waste_min: 45211.1` against `total_min: 37119.3` — a share
+    # larger than its whole, rendering as -21.8% effective (bamr87/bamr87#204).
+    # 10,796.9m of that came from mirrors whose spend is not ours to optimize.
+    tot_runs = sum(w["runs"] for w in owned)
+    tot_success = sum(w["success"] for w in owned)
     # Failures only — cancelled runs reached no verdict and are excluded from
-    # the success rate, matching the per-workflow record. Their MINUTES still
-    # count in waste_min.
-    tot_fail = sum(w["failure"] for w in workflows)
-    tot_waste = round(sum(w["waste_min"] for w in workflows), 1)
+    # the success rate, matching the per-workflow record. Their minutes are not
+    # in waste_min either; they are never priced.
+    tot_fail = sum(w["failure"] for w in owned)
+    tot_waste = round(sum(w["waste_min"] for w in owned), 1)
 
     return {
         "generated_at": now.strftime("%Y-%m-%d %H:%M UTC"),
@@ -432,6 +477,9 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         "repos_scanned": scanned,
         "totals": {
             "runs": tot_runs,
+            # A row count of the drill-down table below, which lists external
+            # mirrors too — not a consumption aggregate, so it is deliberately
+            # the one entry here spanning both populations.
             "workflows": len(workflows),
             "repos_with_activity": len(by_repo),
             "total_min": round(grand_min, 1),
@@ -446,14 +494,18 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         "by_day": day_rows,
         "workflows": workflows,
         "inactive": sorted(inactive, key=lambda x: (x["repo"], x["workflow"])),
-        "note": ("Cost = wall-clock run minutes (run_started_at → updated_at), a proxy for "
-                 "billable minutes. Value = share of minutes ending in success. "
-                 "Waste = minutes on failed/cancelled/timed-out runs. "
+        "note": ("Cost = wall-clock run minutes (run_started_at → updated_at) of runs that "
+                 "actually executed. Cancelled runs are counted but NOT priced: their span "
+                 "is however long they waited to start, and GitHub bills none of it. "
+                 "Value = share of minutes ending in success. "
+                 "Waste = minutes on failed/timed-out runs. "
                  "Success rate counts only runs that reached a verdict "
                  "(success + failure); cancelled runs were superseded, not broken, "
                  "and show up as cancel_pct / the cancel-heavy flag instead. "
                  "A workflow with NO verdicts in the window (every run skipped) "
-                 "reports null rates — 'no data', not 0%."),
+                 "reports null rates — 'no data', not 0%. "
+                 "Fleet totals cover bamr87-owned workflows only; external mirrors are "
+                 "listed per-workflow but excluded from every aggregate."),
     }
 
 
