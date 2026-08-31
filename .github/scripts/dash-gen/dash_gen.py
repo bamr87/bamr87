@@ -59,6 +59,7 @@ import engagements
 import evolution
 import fleet_triage
 import harness
+import harness_registry
 import issue_pipeline
 import reconcile
 import remediation
@@ -453,6 +454,13 @@ def main(argv: list[str] | None = None) -> int:
         help="six-layer harness scorecard + trip wires -> harness_health.yml (committed, daily-refreshed)",
     )
     harness.add_arguments(p_harness)
+
+    p_harnesses = sub.add_parser(
+        "harnesses",
+        help="fleet AI-harness + schedule inventory -> harness_registry.yml "
+             "(committed, daily-refreshed; --gaps prints fan-out targets)",
+    )
+    harness_registry.add_arguments(p_harnesses)
 
     p_remediate = sub.add_parser(
         "remediate",
