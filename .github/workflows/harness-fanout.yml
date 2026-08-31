@@ -1,0 +1,132 @@
+name: harness-fanout
+
+# Mass deploy / mass UPDATE of the fleet's AI harnesses, driven by the central
+# inventory. Third fan-out, same engine (tools/fanout.sh, standardize kit,
+# agent-context artifacts) — what it adds over dispatching standardize-fanout
+# by hand is the PLAN step: `target: gaps` (the default) reads the committed
+# _data/harness_registry.yml (built daily by fleet-pulse.yml's pulse job,
+# graded against fleet.yml `harnesses:`) and targets exactly the repos the
+# inventory says are missing a kit-deployable baseline artifact or are running
+# a machine-seeded harness behind the current kit version. Deploying to what
+# the data says needs it, instead of to "all", is the point.
+#
+# Inherits every fanout.sh guarantee: DRY-RUN BY DEFAULT, PRs only (never a
+# default-branch push), external upstreams skipped, additive-only seeding, and
+# --upgrade touching ONLY copies byte-identical to an archived machine-seeded
+# shape — hand-modified harnesses are never rewritten. A missing OAuth secret
+# is deliberately NOT a deploy target here: credentials are token-rotation.yml's
+# lane (hub-first, abort-on-hub-failure), not a file fan-out's.
+#
+# SAFETY: dispatch-only. Requires FLEET_TOKEN (legacy FANOUT_TOKEN honoured) —
+# fine-grained PAT with contents + pull-requests + workflows write on the
+# targets (the claude artifact pushes .github/workflows/claude.yml, which
+# GitHub refuses without the Workflows permission).
+# Full doc: docs/HARNESS-OPS.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Submodule name, 'all', or 'gaps' (repos the committed inventory grades as missing/upgradeable)"
+        type: string
+        default: "gaps"
+      artifacts:
+        description: "Comma-separated agent-context kit artifacts: claude,agent-context,claude-settings,claude-guardrails,claude-agent-auditor"
+        type: string
+        default: "claude"
+      dry_run:
+        description: "Build branches but don't push/PR"
+        type: boolean
+        default: true
+      upgrade:
+        description: "Also refresh machine-seeded copies byte-identical to an archived kit shape (hand-modified copies untouched)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-fanout
+  cancel-in-progress: false
+
+jobs:
+  # Deterministic: resolve WHICH repos get a PR before any clone happens, from
+  # the committed inventory — the same plan-before-execute shape as every other
+  # loop (docs/HARNESS.md, Layer 3).
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+        if: ${{ inputs.target == 'gaps' }}
+
+      - name: Resolve deploy targets
+        id: plan
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          targets=()
+          if [ "$TARGET" = "gaps" ]; then
+            if [ ! -f _data/harness_registry.yml ]; then
+              echo "::warning::no committed _data/harness_registry.yml — run fleet-pulse (or \`dash harnesses\`) first; nothing to deploy."
+            else
+              while IFS= read -r r; do
+                [ -n "$r" ] && targets+=("$r")
+              done < <(tools/dash-gen harnesses --gaps)
+            fi
+          else
+            targets=("$TARGET")
+          fi
+          echo "targets=${targets[*]:-}" >> "$GITHUB_OUTPUT"
+          echo "count=${#targets[@]}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### 🧬 Harness fan-out plan"
+            echo ""
+            echo "- Input target: \`$TARGET\` → ${#targets[@]} deploy target(s)"
+            for r in ${targets[@]+"${targets[@]}"}; do echo "  - \`$r\`"; done
+            echo "- Artifacts: \`${{ inputs.artifacts }}\` · dry-run: \`${{ inputs.dry_run }}\` · upgrade: \`${{ inputs.upgrade }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: plan
+    if: ${{ needs.plan.outputs.count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Open harness PRs
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          TARGETS: ${{ needs.plan.outputs.targets }}
+          ARTIFACTS: ${{ inputs.artifacts }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          UPGRADE: ${{ inputs.upgrade }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
+            exit 1
+          fi
+          FLAGS=()
+          if [ "$DRY_RUN" != "true" ]; then FLAGS+=(--apply); fi
+          if [ "$UPGRADE" = "true" ]; then FLAGS+=(--upgrade); fi
+          failed=0
+          read -r -a target_list <<< "$TARGETS"
+          for t in "${target_list[@]}"; do
+            if ! tools/fanout.sh --kit standardize --target "$t" --artifacts "$ARTIFACTS" ${FLAGS[@]+"${FLAGS[@]}"}; then
+              echo "::warning::${t}: fan-out failed — continuing with remaining targets"
+              failed=$((failed + 1))
+            fi
+          done
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::${failed} target(s) failed — see warnings above"
+            exit 1
+          fi
