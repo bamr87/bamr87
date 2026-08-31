@@ -584,9 +584,17 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          # Turn budget must be sized against `timeout-minutes: 90`, not guessed:
+          # T2 implements up to `tiers.implement.max_issues` (3) issues end to end
+          # — read, edit, test, docs, commit, push, PR — so ~66 turns per issue at
+          # 200. Run 33301167779 hit the ceiling at 201 turns having used only
+          # 29 of its 90 minutes, i.e. the TURN limit bound at a third of the time
+          # limit and the job failed with work still in flight. At the observed
+          # ~8.7s/turn, 400 turns ≈ 58 min, which fits inside 90 with headroom for
+          # checkout/setup/post steps and lets the job timeout be the real ceiling.
           claude_args: >-
             --model opus
-            --max-turns 200
+            --max-turns 400
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(tools/:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are **tier 2** of the bamr87 fleet's issue pipeline:
@@ -763,9 +771,14 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          # Same sizing as T2, and T3 is the more turn-hungry of the two: its loop
+          # is "read checks -> read failing log -> fix -> push -> re-check" over up
+          # to `tiers.complete.max_prs` (4) PRs, where each CI round trip costs
+          # turns it cannot control. It hit the same 201-turn ceiling in run
+          # 33301167779 with an hour of its 90-minute budget unused.
           claude_args: >-
             --model opus
-            --max-turns 200
+            --max-turns 400
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(tools/:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are **tier 3** of the bamr87 fleet's issue pipeline: COMPLETION.
