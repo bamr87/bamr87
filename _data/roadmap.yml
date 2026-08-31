@@ -950,3 +950,47 @@
   source: scout
   created: 2026-08-06
   issue_url: null
+
+- id: FF-0024
+  title: Fleet Studio counterpart — the harness inventory as GitFactory's consumed fleet model
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: approved
+  priority: P1
+  effort: S
+  category: enhancement
+  problem: >-
+    GitFactory's Fleet Studio (bamr87/gitorio specs/012-fleet-studio, PR #86)
+    consumes this repo's committed _data/harness_registry.yml as its fleet
+    roster and contract source — the read seam of the operator's "one
+    full-stack application that reads/writes the fleet's workflows" vision.
+    Today that file is an internal generated surface with no declared
+    stability or schema marker, and the inventory does not record which repos
+    are blueprint-managed (.factory/), so the studio cannot distinguish
+    factory-managed from foreign workflows and a generator refactor could
+    silently break its only external consumer.
+  proposal: >-
+    Treat _data/harness_registry.yml as a consumed interface: stamp a
+    schema/version marker into the generator's output (harness_registry.py)
+    and state the stability contract in docs/HARNESS-OPS.md; extend the scan
+    to record .factory/blueprint.json presence per repo (the root-listing
+    fetch already exists, so it costs no extra API call) and render it on the
+    /harnesses/ deployment matrix alongside the fleet.manifest.yml marker;
+    cover the marker and the new field with the existing fixture tests.
+  acceptance:
+    - harness_registry.yml carries a schema marker (e.g. registry_schema: 1) written by the generator and asserted by test_harness_registry.py.
+    - docs/HARNESS-OPS.md documents the file as consumed by GitFactory (gitorio specs/012) with a compatibility note — additive changes free, renames/removals bump the marker.
+    - Each scanned repo row records factory (bool) from .factory/blueprint.json presence, with no additional API request per repo.
+    - The /harnesses/ deployment matrix shows the factory marker beside the existing manifest marker.
+  scope:
+    in:
+      - generator marker + factory detection + fixture tests + docs note + board column
+    out:
+      - any GitFactory-side work (tracked in bamr87/gitorio specs/012-fleet-studio)
+      - writing fleet.yml contract changes from the app (explicitly out of scope in that spec)
+  risks:
+    - Coordinate the marker's shape with gitorio spec OQ-2 so both sides agree before either ships.
+    - The consumer contract must not freeze the file — additive-only compatibility keeps the daily generator free to grow.
+  source: session:0117dhy8cFVjQsA2ViC7f1T1
+  created: 2026-08-31
+  issue_url: null
