@@ -46,9 +46,10 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash evolve --repo <name>${c_off}  run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo)
   ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
+  ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|harness|remediate|issues|reconcile|estimate|ledger|targets|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-check|ai-usage|actions|daily|triage|harness|remediate|issues|reconcile|estimate|ledger|targets|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -211,7 +212,16 @@ cmd_protect() {
   fi
 }
 
-cmd_ai()     { "${TOOLS}/dash-gen" ai "$@"; }
+cmd_ai() {
+  # `dash ai` shadow-prices local Claude Code usage; `dash ai check` audits
+  # that ledger against ccusage. Same case-dispatch shape as cmd_secrets below
+  # — the bare verb must keep behaving exactly as it did before the subcommand
+  # existed, so anything unrecognised falls through to `dash-gen ai`.
+  case "${1:-}" in
+    check) shift; "${TOOLS}/dash-gen" ai-check "$@" ;;
+    *) "${TOOLS}/dash-gen" ai "$@" ;;
+  esac
+}
 cmd_actions() { "${TOOLS}/dash-gen" actions "$@"; }
 cmd_daily() { "${TOOLS}/dash-gen" daily "$@"; }
 cmd_triage() { "${TOOLS}/dash-gen" triage "$@"; }

@@ -96,6 +96,55 @@ Thresholds live in [`_data/health_thresholds.yml`](../_data/health_thresholds.ym
 
 Costs are **estimates** (tokens × list prices; unknown models are flagged, not guessed). Local-only by design: it never runs in CI, and the published dash shows a "run `tools/dash ai` locally" notice instead of your spend.
 
+### Reconciliation (`tools/dash ai check`)
+
+Those three inputs — the `PRICING` table, `MODEL_ALIASES`, and the dedupe — are all hand-maintained, and they write a **gitignored** file nobody diffs. There is no CI gate that could catch drift, because the data does not exist on a runner. So the audit is the only mechanism available, and without it the table quietly lost `claude-opus-5` for two months and reported the most expensive model in the lineup as **free** ([#130](https://github.com/bamr87/bamr87/issues/130)).
+
+`tools/dash ai check` ([`ai_reconcile.py`](../.github/scripts/dash-gen/ai_reconcile.py)) re-reads the same `~/.claude` transcripts through **ccusage** — an independent third-party reader — and compares per `(day, model)`:
+
+- **tokens** (input / output / cache-write / cache-read). Same source, so they must agree. This half is the point: a **dedupe regression** changes token counts while leaving the model set and the price identical, so a cost-only comparison cannot see it at all.
+- **cost** — ours at list prices, ccusage's from its own price source. A gap here means the pricing table or an alias has drifted.
+
+ccusage is a cross-check, never the source of truth: the ledger stays authoritative, and the check never writes to it or edits `PRICING`.
+
+Deltas are split into **explainable** (itemized, exit 0) and **unexplained** (exit 1 past tolerance):
+
+| reason | what it means |
+| --- | --- |
+| `unpriced-model` | no `PRICING` row, so we bill $0 while ccusage reports real cost. **Cost only** — a token gap on an unpriced model is still drift. |
+| `intro-pricing` | `ai_activity.INTRO_PRICING_UNTIL` says we deliberately use list price where ccusage billed the intro rate (`claude-sonnet-5`, through 2026-08-31). Cost only, and it expires. |
+| `day-boundary` | an adjacent day carries an opposing delta that cancels this one — a timezone/bucketing difference, not a lost record. |
+
+Two scoping rules keep it from crying wolf: **today is excluded** (`--include-today` opts back in), because the ledger is a snapshot and ccusage is read seconds later, so a day still being written can never reconcile; and the window is clamped to the range ccusage observed, since Claude Code prunes transcripts after ~30 days while the ledger keeps that history.
+
+**Cadence:** on demand, and after touching `PRICING`, `MODEL_ALIASES`, or the scan's dedupe. Never in CI. **Offline-safe:** ccusage absent, offline, or emitting a changed schema prints a `SKIP` with the reason and exits **zero** — a skip is never reported as a clean bill of health. The ccusage version is **pinned** in [`_data/fleet.yml`](../_data/fleet.yml) → `ai_reconcile:` (with the tolerances) so a schema change fails loudly instead of skewing the comparison.
+
+```console
+$ tools/dash ai && tools/dash ai check
+ai check — ledger vs ccusage@20.0.20
+  machine <host> · 2026-08-24 … 2026-08-30 (7d) · 9 (day, model) pair(s)
+...
+EXPLAINABLE (1)
+  2026-08-30 claude-sonnet-5  cost  $12.4000  $8.2700  -$4.1300  intro-pricing
+UNEXPLAINED (0)
+OK — reconciled within tolerance (cost 2.0% / $0.01, tokens 1.0%).
+```
+
+### Burn-rate self-awareness (opt-in MCP)
+
+The same data can be exposed to an agent **mid-session**, so "what has this run cost so far" is answerable and cost economizing can become an in-loop instruction (switch model, compact, stop early) rather than a post-hoc review.
+
+This is **opt-in and inert by default** — an always-on MCP server costs session startup and context on every run, for a question most runs never ask. `.mcp.json` carries the entry under the `_optionalServers` key, which Claude Code ignores (it reads only `mcpServers`), so a fresh clone starts nothing extra. To enable it, move the entry into `mcpServers` **in your own checkout** and don't commit that:
+
+```json
+"ccusage": {
+  "command": "npx",
+  "args": ["-y", "@ccusage/mcp@18.0.11"]
+}
+```
+
+**Caveat, verified 2026-08-31:** upstream deprecated `@ccusage/mcp` in favour of `npx ccusage`, but `ccusage@20` has no MCP surface at all (`ccusage mcp` → `Unknown command 'mcp'`), so `18.0.11` is the last version that exposes one. It responds to an MCP `initialize` over stdio and works, but treat it as a convenience: **`dash ai check` is the maintained audit path**, and it pins ccusage separately in `_data/fleet.yml`.
+
 ## Actions optimization loop (analytics → ranked queue → fixes)
 
 The Actions layer doesn't just _report_ waste — it closes the loop, and it does so inside the ONE daily workflow, `fleet-pulse.yml`:

@@ -21,6 +21,11 @@ Subcommands:
            LOCAL-ONLY and ephemeral — not part of `all`, never runs in CI.
            Implemented in ai_activity.py.
 
+  ai-check Audit that ledger against ccusage — a third-party reader of the same
+           transcripts — per (day, model), on tokens as well as cost, so a
+           pricing-table, alias, or DEDUPE regression stops being silent.
+           Reached as `dash ai check`. Implemented in ai_reconcile.py.
+
   remediate Merge the fleet's failing + expensive workflow signals into ONE
            ranked, deduped, capped fix queue and emit the work order that
            drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
@@ -51,6 +56,7 @@ import sys
 from pathlib import Path
 
 import ai_activity
+import ai_reconcile
 import ai_usage_collector
 import actions_analytics
 import cv_fragment
@@ -424,6 +430,12 @@ def main(argv: list[str] | None = None) -> int:
         "ai", help="shadow-price local Claude Code usage -> ai_activity.yml (local-only)"
     )
     ai_activity.add_arguments(p_ai)
+
+    p_ai_check = sub.add_parser(
+        "ai-check",
+        help="reconcile the ai-activity ledger against ccusage (local-only; `dash ai check`)",
+    )
+    ai_reconcile.add_arguments(p_ai_check)
 
     p_ai_usage = sub.add_parser(
         "ai-usage",
