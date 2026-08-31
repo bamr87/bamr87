@@ -1,22 +1,19 @@
 # VS Code Launch Configurations
 
-This folder includes `launch.json` with a unified set of debugging configurations for this workspace.
+`launch.json` wraps the same local control-plane stack documented in [`docs/HARNESS-OPS.md`](../docs/HARNESS-OPS.md) ("The two planes") — every configuration is a debugger around a `tools/` entrypoint or the Docker compose services, so VS Code, the CLI, and CI all execute the same code.
 
-Included groups:
+Groups (as they appear in the Run and Debug dropdown):
 
-- Docker-first configurations for browser debugging with Microsoft Edge (`msedge`) and server processes.
+- **1-view** — the Jekyll dash in Docker: launch Edge against `localhost:<port>` with compose brought up/stopped around the session (`Docker: Compose Up (Detached)` / `Docker: Compose Stop` from `tasks.json`), attach to a running browser, or force-rebuild the containers first.
+- **2-generators** — `dash-gen` under debugpy: a subcommand picker mirroring `tools/dash gen <cmd>`, plus dedicated entries for the AI-harness inventory (`harnesses` live scan, `--offline` reuse of the committed scan, and `--gaps` fan-out targeting). Live gathers use your `gh` auth (`GH_TOKEN`/`GITHUB_TOKEN`); every generator degrades rather than dies without it.
+- **3-verify** — debug the open dash-gen fixture test directly (`test_*.py` are dependency-light plain scripts, not pytest).
+- **4-docs** — MkDocs serve/build for the **README submodule** (`projects/README/`), which owns the MkDocs site; the hub's own `mkdocs.yml` was removed.
 
-- Python/Django debug configurations for Docker-run services.
+Inputs:
 
-- PostHog-specific configurations (Frontend, Backend, Celery, Plugin Server, Temporal Worker) merged from `posthog/.vscode/launch.json`.
+- `portNumber`: compose port map — 4000 Jekyll dash (default), 5000 CV Builder, 5173 Vite HMR, 8000 MkDocs.
+- `dashGenCommand`: the `dash-gen` subcommand list (see [`.github/scripts/dash-gen/README.md`](../.github/scripts/dash-gen/README.md)).
 
-- Inputs:
-  - `portNumber`: select the application port (4000, 4002, 8000, 3000).
-  - `pickVersion`: used by frontend Jest debug to pick a Node version extension.
-  - `temporalTaskQueue`: select a temporal task queue for the Temporal worker.
+The pre-2026 Django and PostHog configurations that used to live here targeted repositories this one doesn't contain (and the file had become structurally invalid JSON); recover them from git history if ever wanted.
 
-Compounds:
-
-- `PostHog` compound runs Backend, Celery, Frontend, Plugin Server, and Temporal Worker together — aligned to the PostHog development flow.
-
-Last modified: 2025-11-15
+Last modified: 2026-08-31

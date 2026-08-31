@@ -1,655 +1,196 @@
 {
-  // ==================================================
-  // UNIFIED VS CODE LAUNCH CONFIGURATION - Docker-First
-  // ==================================================
-  // Optimized for it-journey, zer0-mistakes, barodybroject
-  // Last Updated: 2025-10-26
-  
+  // ==========================================================================
+  // Launch configurations for the bamr87 dash — the local control plane.
+  //
+  // Mirrors the stack documented in docs/HARNESS-OPS.md ("The two planes"):
+  //   VIEW        the Jekyll dash in Docker on :4000 (msedge debug)
+  //   MONITOR/    the dash-gen generators (debugpy) — harness inventory,
+  //   ORCHESTRATE triage, actions, remediation queue, issue pipeline, …
+  //   VERIFY      the dash-gen fixture tests (plain scripts, not pytest)
+  //   DOCS        MkDocs, which lives in the README submodule (the hub's own
+  //               mkdocs.yml was deleted; see CLAUDE.md)
+  //
+  // Task hooks (preLaunchTask/postDebugTask) reference .vscode/tasks.json.
+  // Everything here wraps the same tools/ entrypoints CI runs — see
+  // tools/dash for the CLI equivalents. The pre-2026 Django/PostHog configs
+  // (foreign to this repo, and structurally broken) live in git history.
+  // ==========================================================================
   "version": "0.2.0",
   "configurations": [
-    
-    // ==========================================
-    // DOCKER DEVELOPMENT CONFIGURATIONS
-    // ==========================================
+    // ------------------------------------------------------------------ VIEW
     {
-      "name": "🐳 Debug Docker Application",
+      "name": "🛰️ Dash: Debug Site in Browser (Docker)",
       "type": "msedge",
       "request": "launch",
       "url": "http://localhost:${input:portNumber}",
       "webRoot": "${workspaceFolder}",
       "preLaunchTask": "Docker: Compose Up (Detached)",
       "postDebugTask": "Docker: Compose Stop",
-      "runtimeArgs": [
-        "--remote-debugging-port=9222",
-        "--disable-web-security",
-        "--disable-features=VizDisplayCompositor"
-      ],
+      "runtimeArgs": ["--remote-debugging-port=9222"],
       "sourceMaps": true,
       "smartStep": true,
       "skipFiles": ["<node_internals>/**"],
       "internalConsoleOptions": "openOnSessionStart",
-      "trace": {
-        "stdio": true,
-        "logFile": "${workspaceFolder}/logs/debug-trace.log"
-      }
+      "presentation": { "group": "1-view" }
     },
-
     {
-      "name": "🔗 Attach to Running Docker App",
-      "type": "msedge", 
+      "name": "🔗 Dash: Attach to Running Browser",
+      "type": "msedge",
       "request": "attach",
       "port": 9222,
       "webRoot": "${workspaceFolder}",
       "sourceMaps": true,
       "smartStep": true,
       "skipFiles": ["<node_internals>/**"],
-      "internalConsoleOptions": "openOnSessionStart",
-      "urlFilter": "localhost:*"
+      "urlFilter": "localhost:*",
+      "presentation": { "group": "1-view" }
     },
-
     {
-      "name": "🔄 Docker Rebuild & Debug",
+      "name": "🔄 Dash: Rebuild Containers & Debug",
       "type": "msedge",
-      "request": "launch", 
+      "request": "launch",
       "url": "http://localhost:${input:portNumber}",
       "webRoot": "${workspaceFolder}",
       "preLaunchTask": "Docker: Rebuild (Force)",
       "postDebugTask": "Docker: Compose Down",
-      "runtimeArgs": [
-        "--remote-debugging-port=9222",
-        "--disable-web-security",
-        "--auto-open-devtools-for-tabs"
-      ],
+      "runtimeArgs": ["--remote-debugging-port=9222"],
       "sourceMaps": true,
       "smartStep": true,
-      "internalConsoleOptions": "openOnSessionStart"
+      "internalConsoleOptions": "openOnSessionStart",
+      "presentation": { "group": "1-view" }
     },
 
-    // ==========================================
-    // PYTHON/DJANGO CONFIGURATIONS
-    // ==========================================
+    // --------------------------------------------- MONITOR / ORCHESTRATE
+    // All generators run through the one dispatcher; auth comes from your
+    // gh login (GH_TOKEN/GITHUB_TOKEN) and every generator degrades rather
+    // than dies without it.
     {
-      "name": "🐍 Python/Django in Docker",
+      "name": "🧭 dash-gen: run a generator…",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/src/manage.py",
-      "args": ["runserver", "0.0.0.0:8000"],
-      "django": true,
-      "autoStartBrowser": true,
+      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
+      "args": ["${input:dashGenCommand}"],
       "console": "integratedTerminal",
       "justMyCode": false,
-      "preLaunchTask": "Docker: Compose Up (Detached)",
-      "postDebugTask": "Docker: Compose Stop"
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "2-generators" }
     },
-
     {
-      "name": "🧪 Python Tests in Docker",
+      "name": "🛠️ Harness Inventory: live fleet scan",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/src/manage.py",
-      "args": ["test"],
-      "django": true,
+      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
+      "args": ["harnesses"],
       "console": "integratedTerminal",
-      "justMyCode": false
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "2-generators" }
+    },
+    {
+      "name": "🛠️ Harness Inventory: offline (reuse committed scan)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
+      "args": ["harnesses", "--offline"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "2-generators" }
+    },
+    {
+      "name": "🛠️ Harness Inventory: fan-out gap targets",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
+      "args": ["harnesses", "--gaps"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "2-generators" }
     },
 
-    // ==========================================
-    // MKDOCS DOCUMENTATION CONFIGURATIONS
-    // ==========================================
+    // ---------------------------------------------------------------- VERIFY
+    // The dash-gen fixture tests are dependency-light plain scripts
+    // (python3 test_x.py), so debug the open file directly — no pytest.
     {
-      "name": "📚 MkDocs: Serve Documentation",
+      "name": "🧪 dash-gen: Debug Current Fixture Test",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "3-verify" }
+    },
+
+    // ------------------------------------------------------------------ DOCS
+    {
+      "name": "📚 MkDocs: Serve (README submodule)",
       "type": "debugpy",
       "request": "launch",
       "module": "mkdocs",
       "args": ["serve", "--dev-addr=127.0.0.1:8000"],
       "console": "integratedTerminal",
       "justMyCode": false,
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      },
-      "autoStartBrowser": false,
-      "presentation": {
-        "group": "docs"
-      }
+      "cwd": "${workspaceFolder}/projects/README",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "4-docs" }
     },
-
     {
-      "name": "📚 MkDocs: Serve with Auto-Browser",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "mkdocs",
-      "args": ["serve", "--dev-addr=127.0.0.1:8000"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      },
-      "autoStartBrowser": true,
-      "serverReadyAction": {
-        "pattern": "Serving on (http://[^\\s]+)",
-        "uriFormat": "%s",
-        "action": "openExternally"
-      },
-      "presentation": {
-        "group": "docs"
-      }
-    },
-
-    {
-      "name": "🔨 MkDocs: Build Documentation",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "mkdocs",
-      "args": ["build", "--clean"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      },
-      "presentation": {
-        "group": "docs"
-      }
-    },
-
-    {
-      "name": "🔨 MkDocs: Build Strict (Fail on Warnings)",
+      "name": "🔨 MkDocs: Build Strict (README submodule)",
       "type": "debugpy",
       "request": "launch",
       "module": "mkdocs",
       "args": ["build", "--strict", "--clean"],
       "console": "integratedTerminal",
       "justMyCode": false,
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      },
-      "presentation": {
-        "group": "docs"
-      }
-    },
-
-    {
-      "name": "🚀 MkDocs: Deploy to GitHub Pages",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "mkdocs",
-      "args": ["gh-deploy", "--force"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      },
-      "presentation": {
-        "group": "docs"
-      }
-    },
-
-    // ==========================================
-    // MOBILE & RESPONSIVE TESTING
-    // ==========================================
-    {
-      "name": "📱 Mobile Debug (Docker)",
-      "type": "msedge",
-      "request": "launch",
-      "url": "http://localhost:${input:portNumber}",
-      "webRoot": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Compose Up (Detached)",
-      "postDebugTask": "Docker: Compose Stop",
-      "runtimeArgs": [
-        "--remote-debugging-port=9222",
-        "--device-scale-factor=2",
-        "--force-device-scale-factor=2",
-        "--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
-      ],
-      "sourceMaps": true,
-      "smartStep": true,
-      "internalConsoleOptions": "openOnSessionStart"
-    },
-
-    // ==========================================
-    // PERFORMANCE DEBUGGING
-    // ==========================================
-    {
-      "name": "🎯 Performance Debug (Docker)",
-      "type": "msedge",
-      "request": "launch",
-      "url": "http://localhost:${input:portNumber}",
-      "webRoot": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Compose Up (Detached)",
-      "postDebugTask": "Docker: Compose Stop",
-      "runtimeArgs": [
-        "--remote-debugging-port=9222",
-        "--enable-logging=stderr",
-        "--log-level=0",
-        "--enable-features=NetworkService,NetworkServiceLogging"
-      ],
-      "sourceMaps": true,
-      "smartStep": true,
-      "internalConsoleOptions": "openOnSessionStart",
-      "trace": {
-        "stdio": true,
-        "logFile": "${workspaceFolder}/logs/performance-debug.log"
-      }
+      "cwd": "${workspaceFolder}/projects/README",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "4-docs" }
     }
   ],
 
-  // ==========================================
-  // INPUT VARIABLES
-  // ==========================================
   "inputs": [
     {
+      // The compose port map (docker-compose.yml): 4000 Jekyll dash,
+      // 5000 CV Builder, 5173 Vite HMR, 8000 MkDocs.
       "id": "portNumber",
-      "description": "Application port number",
+      "description": "Application port (4000 dash · 5000 CV · 5173 HMR · 8000 MkDocs)",
       "type": "pickString",
-      "options": [
-        "4000",
-        "4002", 
-        "8000",
-        "3000"
-      ],
-      "default": "4000"
-    }
-  ]
-  ,
-  // ==========================================
-  // PostHog-specific configurations merged
-  // ==========================================
-  // PostHog configs (moved into the top-level `configurations` array below)
-    // PostHog configurations (preserve original file ordering & grouping)
-    {
-      "name": "Frontend",
-      "command": "bin/start-frontend",
-      "request": "launch",
-      "type": "node-terminal",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "main"
-      },
-      "skipFiles": ["${workspaceFolder}/node_modules/kea-typegen/**/*.js"]
-    },
-    {
-      "name": "Frontend (no typegen)",
-      "command": "bin/start-frontend",
-      "request": "launch",
-      "type": "node-terminal",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "main"
-      },
-      "skipFiles": ["${workspaceFolder}/node_modules/kea-typegen/**/*.js"],
-      "env": {
-        "SKIP_TYPEGEN": "1"
-      }
-    },
-    {
-      "name": "Frontend (https)",
-      "command": "bin/start-frontend",
-      "request": "launch",
-      "type": "node-terminal",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "main"
-      },
-      "env": {
-        "LOCAL_HTTPS": "1",
-        "JS_URL": "https://secure.posthog.dev"
-      }
-    },
-    {
-      "name": "Backend",
-      "consoleName": "Backend",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/manage.py",
-      "args": ["runserver"],
-      "django": true,
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "posthog.settings",
-        "DEBUG": "1",
-        "CLICKHOUSE_SECURE": "False",
-        "KAFKA_HOSTS": "localhost",
-        "DATABASE_URL": "postgres://posthog:posthog@localhost:5432/posthog",
-        "SKIP_SERVICE_VERSION_REQUIREMENTS": "1",
-        "PRINT_SQL": "1",
-        "BILLING_SERVICE_URL": "https://billing.dev.posthog.dev",
-        "CLOUD_DEPLOYMENT": "dev"
-      },
-      "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "main"
-      }
-    },
-    {
-      "name": "Backend (with local billing)",
-      "consoleName": "Backend",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/manage.py",
-      "args": ["runserver"],
-      "django": true,
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "posthog.settings",
-        "DEBUG": "1",
-        "CLICKHOUSE_SECURE": "False",
-        "KAFKA_HOSTS": "localhost",
-        "DATABASE_URL": "postgres://posthog:posthog@localhost:5432/posthog",
-        "SKIP_SERVICE_VERSION_REQUIREMENTS": "1",
-        "PRINT_SQL": "1",
-        "BILLING_SERVICE_URL": "http://localhost:8100/",
-        "CLOUD_DEPLOYMENT": "dev"
-      },
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "main"
-      }
-    },
-    {
-      "name": "Celery Threaded Pool",
-      "consoleName": "Celery Threaded Pool",
-      "type": "debugpy",
-      "justMyCode": true,
-      "autoReload": {
-        "enable": true,
-        "include": ["posthog/**/*.py"]
-      },
-      "request": "launch",
-      "program": "${workspaceFolder}/manage.py",
-      "args": ["run_autoreload_celery", "--type=worker"],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "SKIP_ASYNC_MIGRATIONS_SETUP": "1",
-        "DEBUG": "1",
-        "BILLING_SERVICE_URL": "https://billing.dev.posthog.dev",
-        "SKIP_SERVICE_VERSION_REQUIREMENTS": "1"
-      },
-      "presentation": {
-        "group": "main"
-      }
-    },
-    {
-      "name": "Celery Beat",
-      "consoleName": "Celery Beat",
-      "type": "debugpy",
-      "justMyCode": true,
-      "autoReload": {
-        "enable": true,
-        "include": ["posthog/**/*.py"]
-      },
-      "request": "launch",
-      "program": "${workspaceFolder}/manage.py",
-      "args": ["run_autoreload_celery", "--type=beat"],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "SKIP_ASYNC_MIGRATIONS_SETUP": "1",
-        "DEBUG": "1",
-        "BILLING_SERVICE_URL": "https://billing.dev.posthog.dev",
-        "SKIP_SERVICE_VERSION_REQUIREMENTS": "1"
-      },
-      "presentation": {
-        "group": "main"
-      }
-    },
-    {
-      "name": "Plugin Server",
-      "command": "bin/turbo --env-mode=loose --filter=@posthog/plugin-server start",
-      "request": "launch",
-      "type": "node-terminal",
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "CLICKHOUSE_SECURE": "False",
-        "DATABASE_URL": "postgres://posthog:posthog@localhost:5432/posthog",
-        "KAFKA_HOSTS": "localhost:9092",
-        "WORKER_CONCURRENCY": "2",
-        "OBJECT_STORAGE_ENABLED": "True",
-        "HOG_HOOK_URL": "http://localhost:3300/hoghook"
-      },
-      "presentation": {
-        "group": "main"
-      },
-      "envFile": "${workspaceFolder}/.env"
-    },
-    {
-      "name": "Temporal Worker",
-      "consoleName": "Temporal Worker",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/manage.py",
-      "args": ["start_temporal_worker", "--task-queue", "${input:temporalTaskQueue}"],
-      "django": true,
-      "justMyCode": false,
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "posthog.settings",
-        "DEBUG": "1",
-        "CLICKHOUSE_SECURE": "False",
-        "KAFKA_HOSTS": "localhost",
-        "DATABASE_URL": "postgres://posthog:posthog@localhost:5432/posthog",
-        "SKIP_SERVICE_VERSION_REQUIREMENTS": "1",
-        "PRINT_SQL": "1"
-      },
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "main"
-      }
-    },
-    {
-      "name": "Backend (Attach to bin/start)",
-      "type": "debugpy",
-      "request": "attach",
-      "connect": {
-        "host": "localhost",
-        "port": 5678
-      },
-      "pathMappings": [
-        {
-          "localRoot": "${workspaceFolder}",
-          "remoteRoot": "${workspaceFolder}"
-        }
-      ],
-      "justMyCode": false
-    },
-    {
-      "name": "Pytest: Current File",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "pytest",
-      "args": ["${file}", "-vvv"],
-      "console": "integratedTerminal",
-      "justMyCode": true,
-      "envFile": "${workspaceFolder}/.env"
-    },
-    {
-      "name": "Frontend: Debug Jest Tests",
-      "type": "node-terminal",
-      "command": "pnpm test:unit --runInBand",
-      "request": "launch",
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "(lldb) Attach",
-      "type": "cppdbg",
-      "request": "attach",
-      "program": "/Users/twixes/.pyenv/versions/3.10.10/envs/posthog-3.10/bin/python",
-      "MIMode": "lldb"
-    },
-    {
-      "name": "Python C++ Debugger: Current File",
-      "type": "pythoncpp",
-      "request": "launch",
-      "pythonConfig": "custom",
-      "pythonLaunchName": "Pytest: Current File",
-      "cppConfig": "custom",
-      "cppAttachName": "(lldb) Attach"
-    },
-    {
-      "name": "Python: Debug Tests",
-      "type": "python",
-      "request": "launch",
-      "program": "${file}",
-      "purpose": ["debug-test"],
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
-      "type": "node",
-      "request": "launch",
-      "name": "Jest Current File",
-      "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
-      "args": ["--detectOpenHandles", "${relativeFile}"],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "runtimeExecutable": "${env:HOME}/.nvm/versions/node/${input:pickVersion}/bin/node"
-    },
-    {
-      "name": "Python Debugger: Django Migrations",
-      "type": "debugpy",
-      "request": "launch",
-      "args": ["migrate", "posthog"],
-      "django": true,
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "posthog.settings",
-        "DEBUG": "1",
-        "CLICKHOUSE_SECURE": "False",
-        "KAFKA_HOSTS": "localhost",
-        "DATABASE_URL": "postgres://posthog:posthog@localhost:5432/posthog",
-        "SKIP_SERVICE_VERSION_REQUIREMENTS": "1",
-        "PRINT_SQL": "1",
-        "BILLING_SERVICE_URL": "http://localhost:8100/",
-        "CLOUD_DEPLOYMENT": "dev"
-      },
-      "autoStartBrowser": false,
-      "program": "${workspaceFolder}/manage.py"
-    },
-    {
-      "name": "Dagster: Debug Dagit UI",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "dagster",
-      "justMyCode": true,
-      "subProcess": true,
-      "envFile": "${workspaceFolder}/.env",
-      "args": ["dev", "--workspace", "${workspaceFolder}/.dagster_home/workspace.yaml"],
-      "env": {
-        "DAGSTER_HOME": "${workspaceFolder}/.dagster_home",
-        "DAGSTER_UI_PORT": "3030",
-        "DEBUG": "1"
-      }
-    }
-  ],
-  "inputs": [
-    {
-      "id": "portNumber",
-      "description": "Application port number",
-      "type": "pickString",
-      "options": [
-        "4000",
-        "4002",
-        "8000",
-        "3000"
-      ],
+      "options": ["4000", "5000", "5173", "8000"],
       "default": "4000"
     },
     {
-      "id": "pickVersion",
-      "type": "command",
-      "command": "extension.node-version"
-    },
-    {
-      "id": "temporalTaskQueue",
+      // Mirrors `tools/dash gen <cmd>`. `harnesses`/`harness`/`remediate`/
+      // `targets`/`estimate`/`ledger` work offline from committed _data/;
+      // the rest gather live signals and want a GitHub token.
+      "id": "dashGenCommand",
+      "description": "dash-gen subcommand (see .github/scripts/dash-gen/README.md)",
       "type": "pickString",
-      "description": "Task queue name",
       "options": [
-        "general-purpose-task-queue",
-        "max-ai-task-queue",
-        "batch-exports-task-queue",
-        "data-warehouse-task-queue",
-        "data-warehouse-compaction-task-queue",
-        "data-modeling-task-queue",
-        "tasks-task-queue",
-        "billing-task-queue",
-        "video-export-task-queue",
-        "session-replay-task-queue"
+        "harnesses",
+        "harness",
+        "triage",
+        "actions",
+        "ai-usage",
+        "daily",
+        "remediate",
+        "issues",
+        "reconcile",
+        "health",
+        "readme",
+        "cv",
+        "estimate",
+        "ledger",
+        "targets",
+        "ai"
       ],
-      "default": "general-purpose-task-queue"
-    }
-  ],
-  "compounds": [
-    {
-      "name": "PostHog",
-      "configurations": [
-        "Backend",
-        "Celery Threaded Pool",
-        "Celery Beat",
-        "Frontend",
-        "Plugin Server",
-        "Temporal Worker"
-      ],
-      "stopAll": true,
-      "presentation": {
-        "group": "compound"
-      }
-    },
-    {
-      "name": "PostHog (no typegen)",
-      "configurations": [
-        "Backend",
-        "Celery Threaded Pool",
-        "Celery Beat",
-        "Frontend (no typegen)",
-        "Plugin Server",
-        "Temporal Worker"
-      ],
-      "stopAll": true,
-      "presentation": {
-        "group": "compound"
-      }
-    },
-    {
-      "name": "PostHog (https)",
-      "configurations": [
-        "Backend",
-        "Celery Threaded Pool",
-        "Celery Beat",
-        "Frontend (https)",
-        "Plugin Server",
-        "Temporal Worker"
-      ],
-      "stopAll": true,
-      "presentation": {
-        "group": "compound"
-      }
-    },
-    {
-      "name": "PostHog (local billing)",
-      "configurations": [
-        "Backend (with local billing)",
-        "Celery Threaded Pool",
-        "Frontend",
-        "Plugin Server",
-        "Temporal Worker"
-      ],
-      "stopAll": true,
-      "presentation": {
-        "group": "compound"
-      }
+      "default": "harnesses"
     }
   ]
 }
