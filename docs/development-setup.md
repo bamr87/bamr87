@@ -44,15 +44,13 @@ git clone --recurse-submodules https://github.com/bamr87/bamr87.git
 cd bamr87
 ```
 
-**Already cloned without the flag?** You do not need to start over. From inside the
-repository run:
+**Already cloned without the flag?** You do not need to start over. From inside the repository run:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-Verify it worked before continuing. Every line of the following output should begin with a
-commit SHA; a leading `-` means that submodule is still uninitialised:
+Verify it worked before continuing. Every line of the following output should begin with a commit SHA; a leading `-` means that submodule is still uninitialised:
 
 ```bash
 git submodule status
@@ -67,15 +65,13 @@ Do not proceed until there are no `-` prefixes.
 
 ### 2. Configure your environment
 
-The repository ships an [`.env.example`](../.env.example) template. Copy it and fill in
-any values you need:
+The repository ships an [`.env.example`](../.env.example) template. Copy it and fill in any values you need:
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` is intended to stay local — check [`.gitignore`](../.gitignore) before committing
-anything that looks like a secret.
+`.env` is intended to stay local — check [`.gitignore`](../.gitignore) before committing anything that looks like a secret.
 
 ### 3. Install dependencies
 
@@ -83,17 +79,13 @@ anything that looks like a secret.
 bundle install
 ```
 
-If this step fails with "file not found" errors pointing at a submodule directory, go back
-to step 1 — an incomplete submodule checkout is the most common cause.
+If this step fails with "file not found" errors pointing at a submodule directory, go back to step 1 — an incomplete submodule checkout is the most common cause.
 
 ### 4. Run the site locally
 
-The repository is a static site: it has [`_config.yml`](../_config.yml), a development
-override at [`_config_dev.yml`](../_config_dev.yml), an [`index.md`](../index.md), and
-`pages/` and `assets/` directories.
+The repository is a static site: it has [`_config.yml`](../_config.yml), a development override at [`_config_dev.yml`](../_config_dev.yml), an [`index.md`](../index.md), and `pages/` and `assets/` directories.
 
-There is also a [`Rakefile`](../Rakefile). List the available tasks — the local serve
-command is most likely one of them:
+There is also a [`Rakefile`](../Rakefile). List the available tasks — the local serve command is most likely one of them:
 
 ```bash
 bundle exec rake -T
@@ -102,17 +94,11 @@ bundle exec rake -T
 > **TODO (maintainers):** replace this note with the canonical local-serve command,
 > including how `_config.yml` and `_config_dev.yml` are meant to be combined.
 
-Alternatively, use the containerised path via [`docker-compose.yml`](../docker-compose.yml)
-or open the project in the [`.devcontainer/`](../.devcontainer) configuration from VS Code.
+Alternatively, use the containerised path via [`docker-compose.yml`](../docker-compose.yml) or open the project in the [`.devcontainer/`](../.devcontainer) configuration from VS Code.
 
 ### 5. Enable the repository's hooks and linters
 
-This repository configures pre-commit tooling
-([`.pre-commit-config.yaml`](../.pre-commit-config.yaml), [`.husky/`](../.husky)) and
-formatting/linting rules ([`.prettierrc`](../.prettierrc),
-[`.markdownlintignore`](../.markdownlintignore), [`.editorconfig`](../.editorconfig)).
-See [`CONTRIBUTING.md`](../CONTRIBUTING.md) for the project's contribution rules before
-opening a pull request.
+This repository configures pre-commit tooling ([`.pre-commit-config.yaml`](../.pre-commit-config.yaml), [`.husky/`](../.husky)) and formatting/linting rules ([`.prettierrc`](../.prettierrc), [`.markdownlintignore`](../.markdownlintignore), [`.editorconfig`](../.editorconfig)). See [`CONTRIBUTING.md`](../CONTRIBUTING.md) for the project's contribution rules before opening a pull request.
 
 ---
 
@@ -127,8 +113,7 @@ Submodules are the part of this repository most likely to surprise you. The ment
 
 ### Pulling changes from teammates
 
-A `git pull` updates the pointers but does **not** update the submodule working trees.
-After every pull:
+A `git pull` updates the pointers but does **not** update the submodule working trees. After every pull:
 
 ```bash
 git pull
@@ -141,8 +126,7 @@ To make git do this automatically for the rest of time, set this once per clone:
 git config submodule.recurse true
 ```
 
-With `submodule.recurse` enabled, `git pull`, `git checkout` and `git switch` will update
-submodules for you.
+With `submodule.recurse` enabled, `git pull`, `git checkout` and `git switch` will update submodules for you.
 
 ### Seeing what state you are in
 
@@ -152,14 +136,11 @@ git submodule foreach 'git status --short'   # working-tree status inside each o
 git diff --submodule                          # what pointer changes are staged/unstaged
 ```
 
-In `git status`, a submodule listed as `modified: some/path (new commits)` means the
-pointer has moved. `(modified content)` means there are uncommitted edits *inside* the
-submodule.
+In `git status`, a submodule listed as `modified: some/path (new commits)` means the pointer has moved. `(modified content)` means there are uncommitted edits *inside* the submodule.
 
 ### Making a change inside a submodule
 
-By default a freshly-initialised submodule is in **detached HEAD** state. Commits made
-there are not on any branch and are easy to lose. Always check out a branch first:
+By default a freshly-initialised submodule is in **detached HEAD** state. Commits made there are not on any branch and are easy to lose. Always check out a branch first:
 
 ```bash
 cd path/to/submodule
@@ -182,9 +163,7 @@ git commit -m "Bump path/to/submodule to latest main"
 git push
 ```
 
-**Order matters.** If you push the parent repository's pointer before pushing the
-submodule's commit, everyone else — and CI — will try to check out a commit that does not
-exist on the remote and the build will break. To have git guard against this for you:
+**Order matters.** If you push the parent repository's pointer before pushing the submodule's commit, everyone else — and CI — will try to check out a commit that does not exist on the remote and the build will break. To have git guard against this for you:
 
 ```bash
 git push --recurse-submodules=check
@@ -200,10 +179,7 @@ git add path/to/submodule
 git commit -m "Update path/to/submodule"
 ```
 
-Omit the path to do this for every submodule at once. Note that `--remote` follows the
-branch recorded in `.gitmodules` (defaulting to the remote's default branch), which is
-different from plain `git submodule update`, which restores the pointer already recorded
-in the parent repository.
+Omit the path to do this for every submodule at once. Note that `--remote` follows the branch recorded in `.gitmodules` (defaulting to the remote's default branch), which is different from plain `git submodule update`, which restores the pointer already recorded in the parent repository.
 
 ### Adding a new submodule
 
@@ -212,8 +188,7 @@ git submodule add <repository-url> path/to/submodule
 git commit -m "Add path/to/submodule"
 ```
 
-This writes a new entry into [`.gitmodules`](../.gitmodules). Please also add the new
-submodule to [`SUBMODULES.md`](../SUBMODULES.md) so the reference stays complete.
+This writes a new entry into [`.gitmodules`](../.gitmodules). Please also add the new submodule to [`SUBMODULES.md`](../SUBMODULES.md) so the reference stays complete.
 
 ### Removing a submodule
 
@@ -226,9 +201,7 @@ git commit -m "Remove path/to/submodule"
 
 ### Continuous integration
 
-If a workflow in [`.github/`](../.github) builds anything that lives inside a submodule, its
-checkout step must opt in — GitHub's `actions/checkout` does **not** fetch submodules by
-default:
+If a workflow in [`.github/`](../.github) builds anything that lives inside a submodule, its checkout step must opt in — GitHub's `actions/checkout` does **not** fetch submodules by default:
 
 ```yaml
 - uses: actions/checkout@v4
@@ -255,9 +228,7 @@ A build that works locally but fails in CI with missing files is very often this
 
 ## Unverified — maintainers, please confirm
 
-This guide was drafted from the repository's file listing. The following points were
-inferred from the presence of a file rather than from reading it, and should be corrected
-or confirmed:
+This guide was drafted from the repository's file listing. The following points were inferred from the presence of a file rather than from reading it, and should be corrected or confirmed:
 
 - That `bundle install` is the correct dependency-install command (inferred from `Gemfile`).
 - The correct local-serve command and how `_config.yml` and `_config_dev.yml` combine
@@ -266,8 +237,7 @@ or confirmed:
 - Which `rake` task, if any, is the canonical entry point.
 - Whether the existing workflows under `.github/` already set `submodules: recursive`.
 - Whether the submodule workflow above matches what [`SUBMODULES.md`](../SUBMODULES.md)
-  already documents; if the two disagree, `SUBMODULES.md` wins and this page should be
-  corrected.
+already documents; if the two disagree, `SUBMODULES.md` wins and this page should be corrected.
 
 ## Related documents
 
