@@ -39,9 +39,12 @@ git submodule update --init --recursive
 ```bash
 docker compose up -d devenv
 docker compose exec devenv bash
+docker compose up -d console           # the Harness Console — http://127.0.0.1:4001 (or: tools/dash console)
 docker compose --profile admin up -d   # adds pgAdmin
 docker compose down -v                 # stop and wipe volumes
 ```
+
+The `console` service is the local control plane's **front end**: it renders every committed fleet signal, runs the allowlisted `tools/dash` operations as jobs with live logs, dispatches the control-plane workflows, and edits the `harnesses:` contract — dry-run by default, confirm-gated for anything that writes to GitHub, never a commit. Its credentials come from `.env` (`FLEET_TOKEN` / `GH_TOKEN` / the Claude tokens, by name). See [HARNESS-OPS.md](HARNESS-OPS.md) and [`tools/console/README.md`](../tools/console/README.md).
 
 Copy `.env.example` → `.env` before the first run. Ports and services are tabulated in [DASH.md](DASH.md) — that table is maintained in exactly one place.
 

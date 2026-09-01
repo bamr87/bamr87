@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Console</title>
+<style>
+  /* Palette roles (dataviz reference instance): light on :root, dark under both
+     the OS media query and an explicit data-theme toggle. */
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,0.10); --accent: #2a78d6; --accent-track: #cde2fb;
+    --good: #0ca30c; --good-text: #006300; --warning: #fab219; --warning-track: #fdeec6;
+    --serious: #ec835a; --critical: #d03b3b; --critical-track: #f6d2d2;
+    --series-2: #eb6834; --series-3: #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
+      --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
+      --series-2: #d95926; --series-3: #199e70;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
+    --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
+    --series-2: #d95926; --series-3: #199e70;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: var(--accent); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  header { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--grid); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header .meta { color: var(--ink-2); font-size: 12.5px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .chip { display: inline-flex; gap: 5px; align-items: center; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; background: var(--surface); color: var(--ink-2); }
+  .chip.ok { border-color: var(--good); } .chip.bad { border-color: var(--critical); }
+  nav { display: flex; gap: 2px; padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--grid); overflow-x: auto; }
+  nav button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; color: var(--ink-2); cursor: pointer; font-size: 13.5px; white-space: nowrap; }
+  nav button.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  main { padding: 18px 20px 60px; max-width: 1500px; margin: 0 auto; }
+  section[hidden] { display: none; }
+  h2 { font-size: 15px; margin: 22px 0 10px; font-weight: 650; }
+  h2:first-child { margin-top: 0; }
+  .sub { color: var(--ink-2); font-size: 12.5px; margin: -4px 0 10px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .tile .label { color: var(--ink-2); font-size: 12.5px; }
+  .tile .value { font-size: 26px; font-weight: 600; margin: 2px 0; }
+  .tile .delta { font-size: 12px; color: var(--ink-2); }
+  .hero { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  .hero .value { font-size: 52px; font-weight: 600; line-height: 1; }
+  .hero .label { color: var(--ink-2); }
+  .meter { height: 8px; border-radius: 4px; background: var(--accent-track); overflow: hidden; margin-top: 8px; }
+  .meter > i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .meter.warn { background: var(--warning-track); } .meter.warn > i { background: var(--warning); }
+  .meter.crit { background: var(--critical-track); } .meter.crit > i { background: var(--critical); }
+  .status { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+  .status.good { color: var(--good-text); border-color: var(--good); }
+  .status.warn { color: var(--ink); border-color: var(--warning); background: var(--warning-track); }
+  .status.crit { color: var(--ink); border-color: var(--critical); background: var(--critical-track); }
+  .status.info { color: var(--ink-2); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--grid); vertical-align: top; font-size: 13px; }
+  th { color: var(--ink-2); font-weight: 600; font-size: 12px; background: var(--surface); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.flag td { background: color-mix(in srgb, var(--warning-track) 45%, var(--surface)); }
+  tr.bad td { background: color-mix(in srgb, var(--critical-track) 45%, var(--surface)); }
+  .wrap { overflow-x: auto; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+  button.btn { background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; padding: 6px 11px; cursor: pointer; font-size: 13px; }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.btn.danger { border-color: var(--critical); color: var(--critical); }
+  button.btn:disabled { opacity: .5; cursor: not-allowed; }
+  input[type=text], input[type=number], select { background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; font-size: 13px; }
+  label.inl { display: inline-flex; gap: 5px; align-items: center; font-size: 13px; color: var(--ink-2); }
+  pre.log { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; max-height: 520px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
+  .split { display: grid; gap: 16px; grid-template-columns: minmax(280px, 1fr) minmax(360px, 2fr); }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+  .ops .op { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--grid); }
+  .ops .op:last-child { border-bottom: 0; }
+  .ops .op .t { flex: 1; } .ops .op .t b { font-weight: 600; } .ops .op .t small { display: block; color: var(--ink-2); }
+  .hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
+  .hours div { text-align: center; font-size: 11px; color: var(--ink-2); }
+  .hours .bar { height: 46px; display: flex; align-items: flex-end; }
+  .hours .bar i { display: block; width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; }
+  .hours .bar i.crit { background: var(--critical); }
+  .muted { color: var(--muted); }
+  .toast { position: fixed; right: 18px; bottom: 18px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.15); max-width: 460px; z-index: 9; }
+  .toast.err { border-left-color: var(--critical); }
+  details summary { cursor: pointer; color: var(--ink-2); }
+  form.contract label { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--grid); }
+  form.contract label span small { display: block; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠️ Harness Console</h1>
+  <div class="meta" id="meta">loading…</div>
+  <div style="margin-left:auto; display:flex; gap:8px; align-items:center">
+    <button class="btn" id="refresh" title="Re-read the committed state">↻ Refresh</button>
+    <button class="btn" id="theme" title="Toggle theme">◐</button>
+    <a class="btn" href="/docs" target="_blank" rel="noopener" style="text-decoration:none">API</a>
+  </div>
+</header>
+<nav id="nav">
+  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="harnesses">Harnesses</button>
+  <button data-tab="schedules">Schedules</button>
+  <button data-tab="loops">Loops</button>
+  <button data-tab="costs">Costs</button>
+  <button data-tab="fleet">Fleet</button>
+  <button data-tab="contract">Contract</button>
+  <button data-tab="jobs">Jobs</button>
+</nav>
+<main>
+  <section id="tab-overview"></section>
+  <section id="tab-harnesses" hidden></section>
+  <section id="tab-schedules" hidden></section>
+  <section id="tab-loops" hidden></section>
+  <section id="tab-costs" hidden></section>
+  <section id="tab-fleet" hidden></section>
+  <section id="tab-contract" hidden></section>
+  <section id="tab-jobs" hidden></section>
+</main>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+'use strict';
+// ------------------------------------------------------------------ helpers
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = (n, d = 1) => (n === null || n === undefined || n === '') ? '—' : (typeof n === 'number' ? (Number.isInteger(n) ? n.toLocaleString() : n.toFixed(d)) : esc(n));
+const usd = n => (n === null || n === undefined) ? '—' : '$' + Number(n).toFixed(2);
+const pct = (a, b) => (b ? Math.round(100 * a / b) : 0);
+const sev = ratio => ratio >= 1 ? 'crit' : ratio >= 0.7 ? 'warn' : '';
+const status = (kind, text) => `<span class="status ${kind}">${kind === 'good' ? '✓' : kind === 'warn' ? '⚠' : kind === 'crit' ? '✖' : '●'} ${esc(text)}</span>`;
+const meter = (value, cap, extra = '') => `<div class="meter ${sev(cap ? value / cap : 0)} ${extra}"><i style="width:${Math.min(100, cap ? 100 * value / cap : 0)}%"></i></div>`;
+let TOKEN = localStorage.getItem('console_token') || '';
+let STATE = null, OPS = [], CAPS = null, JOBS = [], ACTIVE = 'overview', POLL = null, CURRENT_JOB = null;
+
+function toast(msg, err = false) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.hidden = false;
+  clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, err ? 7000 : 3500);
+}
+async function api(path, opts = {}) {
+  const headers = Object.assign({'Content-Type': 'application/json'}, opts.headers || {});
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  const r = await fetch(path, Object.assign({}, opts, { headers }));
+  if (r.status === 401) {
+    const t = prompt('This console requires its bearer token (DASH_CONSOLE_TOKEN):');
+    if (t) { TOKEN = t; localStorage.setItem('console_token', t); return api(path, opts); }
+    throw new Error('console token required');
+  }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || (r.status + ' ' + r.statusText));
+  return body;
+}
+
+// ------------------------------------------------------------------ data
+async function loadAll() {
+  try {
+    [STATE, OPS, CAPS, JOBS] = await Promise.all([api('/api/state'), api('/api/ops'), api('/api/capabilities'), api('/api/jobs')]);
+    renderMeta();
+    // Deep links: /#harnesses opens that tab (also what the screenshots use).
+    const want = location.hash.replace('#', ''), btn = want && $(`#nav button[data-tab="${want}"]`);
+    if (btn && want !== ACTIVE) { btn.click(); } else { renderTab(ACTIVE); }
+  } catch (e) { toast('load failed: ' + e.message, true); }
+}
+function renderMeta() {
+  const g = STATE.git || {}, c = CAPS || {}, tok = c.env_tokens || {};
+  const tokens = Object.entries(tok).filter(([, v]) => v).map(([k]) => k);
+  $('#meta').innerHTML = [
+    `<span class="chip" title="git branch / head">⎇ ${esc(g.branch || '?')} <code>${esc(g.head || '')}</code></span>`,
+    `<span class="chip ${g.dirty_count ? '' : 'ok'}" title="uncommitted files — the console never commits; review and commit the generated data yourself">${g.dirty_count ? '✎ ' + g.dirty_count + ' uncommitted' : '✓ clean tree'}</span>`,
+    `<span class="chip ${c.gh_authenticated ? 'ok' : 'bad'}" title="gh auth status">${c.gh_authenticated ? '✓ gh authenticated' : '✖ gh not authenticated'}</span>`,
+    `<span class="chip" title="credential names present in this process environment (values never shown)">🔑 ${tokens.length ? tokens.join(', ') : 'no tokens in env'}</span>`,
+    `<span class="chip" title="snapshot time">${esc(STATE.generated_at)}</span>`,
+  ].join('');
+}
+
+// ------------------------------------------------------------------ tabs
+$('#nav').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  ACTIVE = b.dataset.tab; history.replaceState(null, '', '#' + ACTIVE);
+  document.querySelectorAll('#nav button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('main section').forEach(s => s.hidden = s.id !== 'tab-' + ACTIVE);
+  renderTab(ACTIVE);
+});
+function renderTab(tab) {
+  if (!STATE) return;
+  ({ overview: renderOverview, harnesses: renderHarnesses, schedules: renderSchedules, loops: renderLoops,
+     costs: renderCosts, fleet: renderFleet, contract: renderContract, jobs: renderJobs })[tab]();
+}
+
+// ------------------------------------------------------------------ overview
+function renderOverview() {
+  const hr = STATE.harnesses || {}, t = hr.totals || {}, tp = hr.throughput || {}, tr = (hr.trends || {}).ai_cost_usd || {};
+  const h = STATE.health || {}, wires = h.trip_wires || [], tripped = wires.filter(w => w.tripped).length;
+  const tri = STATE.triage.totals || {}, pipe = STATE.pipeline.totals || {};
+  const baseTotal = (t.baseline_ok || 0) + (t.baseline_gaps || 0);
+  const attention = hr.attention || [];
+  $('#tab-overview').innerHTML = `
+    <div class="card hero">
+      <div><div class="value">${fmt(t.attention ?? attention.length)}</div><div class="label">attention items across the fleet's AI harnesses</div></div>
+      <div class="muted" style="max-width:640px">Every finding names its lever. Nothing here writes to a fleet repo by itself — deploys are dry-run PRs unless you confirm <b>apply</b>, and the console never commits: review the generated data in git and commit it yourself.</div>
+    </div>
+    <h2>Fleet at a glance</h2>
+    <div class="grid">
+      <div class="card tile"><div class="label">AI workflows</div><div class="value">${fmt(t.ai_workflows)}</div><div class="delta">in ${fmt(t.repos_with_ai)} / ${fmt(t.repos_scanned)} repos · scan ${esc((hr.scan || {}).mode || 'none')}</div></div>
+      <div class="card tile"><div class="label">Scheduled AI runs / day (est.)</div><div class="value">${fmt(tp.est_scheduled_ai_per_day)}</div><div class="delta">cap ${fmt(tp.cap_fleet)} · observed ${fmt(tp.observed_ai_runs_per_day)}/day all triggers</div>${meter(tp.est_scheduled_ai_per_day || 0, tp.cap_fleet || 1)}</div>
+      <div class="card tile"><div class="label">Projected monthly Claude spend</div><div class="value">${usd(tr.projected_monthly)}</div><div class="delta">ceiling ${usd(tr.budget_monthly)} · WoW ${tr.wow_delta_pct == null ? '—' : tr.wow_delta_pct + '%'} · ${esc(tr.status || '')}</div>${meter(tr.projected_monthly || 0, tr.budget_monthly || 1)}</div>
+      <div class="card tile"><div class="label">Repos at harness baseline</div><div class="value">${fmt(t.baseline_ok)} / ${baseTotal}</div><div class="delta">${fmt(t.kit_upgradeable)} machine seeds upgradeable</div>${meter(t.baseline_ok || 0, baseTotal || 1, 'good')}</div>
+      <div class="card tile"><div class="label">Trip wires tripped</div><div class="value">${tripped} / ${wires.length}</div><div class="delta">hub scorecard · ${esc(h.generated_at || 'no data')}</div></div>
+      <div class="card tile"><div class="label">Standing failures</div><div class="value">${fmt(tri.failing_workflows)}</div><div class="delta">${fmt(tri.repos_red)} repos red · ${fmt(tri.open_issues)} issues · ${fmt(tri.open_prs)} PRs open</div></div>
+      <div class="card tile"><div class="label">Issue pipeline</div><div class="value">${fmt(pipe.pipeline_prs)}</div><div class="delta">agent PRs open · stages ${esc(JSON.stringify(pipe.stages || {}))}</div></div>
+    </div>
+    <h2>Attention queue</h2>
+    <div class="sub">Ranked strongest first from <code>_data/harness_registry.yml</code>. <b>Act</b> pre-fills the matching operation on the Jobs tab.</div>
+    <div class="wrap"><table><thead><tr><th class="num">sev</th><th>kind</th><th>repo</th><th>finding</th><th>lever</th><th></th></tr></thead><tbody>
+      ${attention.length ? attention.map(a => `<tr class="${a.severity >= 80 ? 'bad' : a.severity >= 60 ? 'flag' : ''}"><td class="num">${a.severity}</td><td><code>${esc(a.kind)}</code></td><td>${a.repo ? '<code>' + esc(a.repo) + '</code>' : '<span class="muted">fleet</span>'}</td><td>${esc(a.summary)}</td><td class="muted">${esc(a.action)}</td><td>${actButton(a)}</td></tr>`).join('') : '<tr><td colspan="6">' + status('good', 'nothing needs attention') + '</td></tr>'}
+    </tbody></table></div>
+    <h2>Signal freshness</h2>
+    <div class="grid">${Object.entries(STATE.sources).map(([k, v]) => `<div class="card tile"><div class="label"><code>${esc(k)}</code></div><div class="value" style="font-size:18px">${v.present ? (v.age_days == null ? 'present' : v.age_days + 'd old') : 'missing'}</div><div class="delta">${v.present ? status(v.age_days == null ? 'info' : v.age_days > 3 ? 'warn' : 'good', esc(v.generated_at || 'no stamp')) : status('crit', 'not generated yet')}</div></div>`).join('')}</div>`;
+  $('#tab-overview').querySelectorAll('button[data-act]').forEach(b => b.onclick = () => prefill(JSON.parse(b.dataset.act)));
+}
+function actButton(a) {
+  const map = {
+    'coverage-gap': { op: 'deploy-gaps', params: {} }, 'kit-drift': { op: 'deploy-gaps', params: { upgrade: true } },
+    'auth-drift': { op: 'deploy-gaps', params: { upgrade: true } }, 'harness-failing': { op: 'remediate', params: {} },
+    'budget-breach': { tab: 'contract' }, 'cost-trend': { tab: 'costs' }, 'throughput-fleet': { tab: 'schedules' },
+    'throughput-repo': { tab: 'schedules' }, 'schedule-collision': { tab: 'schedules' },
+  };
+  const m = map[a.kind]; if (!m) return '';
+  if (a.kind === 'coverage-gap' && /oauth/.test(a.summary)) return `<button class="btn" data-act='${JSON.stringify({ op: 'secrets-plan', params: {} })}'>plan rotation</button>`;
+  return `<button class="btn" data-act='${JSON.stringify(m)}'>${m.tab ? 'open ' + m.tab : 'act'}</button>`;
+}
+function prefill(m) {
+  if (m.tab) { $(`#nav button[data-tab="${m.tab}"]`).click(); return; }
+  $('#nav button[data-tab="jobs"]').click();
+  const sel = $('#op-select'); if (sel) { sel.value = m.op; sel.dispatchEvent(new Event('change')); }
+  Object.entries(m.params || {}).forEach(([k, v]) => { const el = $(`#p-${k}`); if (el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v; } });
+}
+
+// ------------------------------------------------------------------ harnesses
+function renderHarnesses() {
+  const hr = STATE.harnesses || {}, repos = hr.repos || [], c = hr.contract || {};
+  const gaps = repos.filter(r => !(r.coverage || {}).exempt && !(r.coverage || {}).ok);
+  $('#tab-harnesses').innerHTML = `
+    <div class="toolbar">
+      <button class="btn primary" data-run='{"op":"harnesses"}'>↻ Refresh inventory (live scan)</button>
+      <button class="btn" data-run='{"op":"harnesses-offline"}'>↻ Offline analytics</button>
+      <button class="btn" data-run='{"op":"gaps"}'>List gap repos</button>
+      <span class="muted">·</span>
+      <label class="inl">artifacts <input id="h-artifacts" type="text" value="claude" size="26"></label>
+      <label class="inl"><input id="h-upgrade" type="checkbox"> upgrade machine seeds</label>
+      <label class="inl"><input id="h-apply" type="checkbox"> <b>apply</b> (open the PRs)</label>
+      <button class="btn" id="h-deploy">🚀 Deploy kit to gap repos</button>
+      <button class="btn" id="h-dispatch">☁ Dispatch harness-fanout in CI</button>
+    </div>
+    <div class="sub">Contract kit <code>${esc(c.kit)} v${esc(c.kit_version)}</code> · baseline: ${Object.entries(c.baseline || {}).filter(([, v]) => v).map(([k]) => '<code>' + esc(k.replace('require_', '')) + '</code>').join(' ')} · exempt: ${(c.exempt || []).length ? c.exempt.map(esc).join(', ') : 'none'} · <b>${gaps.length}</b> repos with gaps, <b>${fmt((hr.totals || {}).kit_upgradeable)}</b> upgradeable seeds</div>
+    <div class="toolbar"><input id="h-filter" type="text" placeholder="filter repo / workflow / kind…" size="34"><label class="inl"><input id="h-gaps-only" type="checkbox"> gaps only</label><label class="inl"><input id="h-ai-only" type="checkbox" checked> repos with AI harnesses or gaps only</label></div>
+    <div class="wrap"><table><thead><tr><th>repo</th><th>harness workflows</th><th>auth</th><th>kit</th><th>context</th><th>OAuth secret</th><th class="num">sched AI/d</th><th class="num">AI cost (win)</th><th>baseline</th></tr></thead><tbody id="h-rows"></tbody></table></div>`;
+  const draw = () => {
+    const q = $('#h-filter').value.toLowerCase(), gapsOnly = $('#h-gaps-only').checked, aiOnly = $('#h-ai-only').checked;
+    $('#h-rows').innerHTML = repos.filter(r => {
+      const cov = r.coverage || {};
+      if (gapsOnly && (cov.ok || cov.exempt)) return false;
+      if (aiOnly && !(r.harnesses || []).length && (cov.ok || cov.exempt)) return false;
+      const hay = [r.repo, ...(r.harnesses || []).map(h => h.path + ' ' + h.kind + ' ' + (h.model || ''))].join(' ').toLowerCase();
+      return !q || hay.includes(q);
+    }).map(r => {
+      const cov = r.coverage || {}, hs = r.harnesses || [];
+      const cls = cov.exempt ? '' : cov.ok ? '' : 'flag';
+      return `<tr class="${cls}"><td><a href="https://github.com/${esc(r.nwo)}" target="_blank" rel="noopener"><code>${esc(r.repo)}</code></a>${r.manifest ? ' <span title="declares fleet.manifest.yml">📜</span>' : ''}${r.external ? ' <span class="muted">external</span>' : ''}${r.archived ? ' <span class="muted">archived</span>' : ''}</td>
+        <td>${hs.length ? hs.map(h => `<div>${h.kind === 'mention-handler' ? '💬' : h.kind === 'scheduled-agent' ? '⏰' : '⚙️'} <code>${esc(h.path.replace('.github/workflows/', ''))}</code>${h.model ? ' <span class="muted">' + esc(h.model) + (h.max_turns ? '/' + h.max_turns + 't' : '') + '</span>' : ''}${h.last_conclusion === 'failure' ? ' ' + status('crit', 'failing') : ''}</div>`).join('') : '<span class="muted">—</span>'}</td>
+        <td>${hs.map(h => `<div>${/oauth/.test(h.auth || '') ? status('good', h.auth) : status('crit', h.auth || 'none')}</div>`).join('')}</td>
+        <td>${hs.map(h => `<div>${h.kit_status === 'current' ? status('good', 'v' + h.kit) : h.kit_status === 'upgradeable' ? status('warn', 'v' + h.kit + ' ↑') : '<span class="muted">' + esc(h.kit_status) + '</span>'}</div>`).join('')}</td>
+        <td>${r.agent_context ? '<code>' + esc(r.agent_context) + '</code>' : '<span class="muted">—</span>'}</td>
+        <td>${['ok', 'hub'].includes(r.oauth_secret) ? status('good', r.oauth_secret) : r.oauth_secret === 'stale' ? status('warn', 'stale') : r.oauth_secret === 'missing' ? status('crit', 'missing') : '<span class="muted">' + esc(r.oauth_secret) + '</span>'}</td>
+        <td class="num">${fmt(r.est_scheduled_ai_per_day)}</td><td class="num">${r.ai_usage && r.ai_usage.cost_usd != null ? usd(r.ai_usage.cost_usd) : '—'}</td>
+        <td>${cov.exempt ? status('info', 'exempt') : cov.ok ? status('good', 'ok') : (cov.missing || []).map(m => status('warn', m)).join(' ')}</td></tr>`;
+    }).join('') || '<tr><td colspan="9" class="muted">no rows match</td></tr>';
+  };
+  ['#h-filter', '#h-gaps-only', '#h-ai-only'].forEach(s => $(s).addEventListener('input', draw)); draw();
+  $('#h-deploy').onclick = () => runOp('deploy-gaps', { artifacts: $('#h-artifacts').value, upgrade: $('#h-upgrade').checked, apply: $('#h-apply').checked });
+  $('#h-dispatch').onclick = () => runOp('dispatch', { workflow: 'harness-fanout', fields: { target: 'gaps', artifacts: $('#h-artifacts').value, dry_run: !$('#h-apply').checked, upgrade: $('#h-upgrade').checked } });
+  bindRunButtons('#tab-harnesses');
+}
+
+// ------------------------------------------------------------------ schedules
+function cronHours(cron) {
+  const f = String(cron || '').split(/\s+/); if (f.length !== 5) return [];
+  const h = f[1]; if (h === '*' || h.startsWith('*/')) return [...Array(24).keys()];
+  const out = []; h.split(',').forEach(p => { const m = p.match(/^(\d+)(?:-(\d+))?$/); if (!m) return; const a = +m[1], b = m[2] ? +m[2] : a; for (let i = a; i <= b && i < 24; i++) out.push(i); }); return out;
+}
+function renderSchedules() {
+  const hr = STATE.harnesses || {}, tp = hr.throughput || {}, sched = hr.schedule || [];
+  const load = Array(24).fill(0), loadAll = Array(24).fill(0);
+  sched.forEach(s => cronHours(s.cron).forEach(h => { loadAll[h]++; if (s.ai) load[h]++; }));
+  const cap = tp.cap_per_utc_hour || 3;
+  $('#tab-schedules').innerHTML = `
+    <div class="grid">
+      <div class="card tile"><div class="label">Estimated scheduled AI runs / day</div><div class="value">${fmt(tp.est_scheduled_ai_per_day)} <span class="muted" style="font-size:14px">/ ${fmt(tp.cap_fleet)}</span></div>${meter(tp.est_scheduled_ai_per_day || 0, tp.cap_fleet || 1)}<div class="delta">per-repo cap ${fmt(tp.cap_per_repo)} · ${fmt(tp.cap_per_utc_hour)} AI crons per UTC hour</div></div>
+      <div class="card tile"><div class="label">Observed AI runs / day (all triggers)</div><div class="value">${fmt(tp.observed_ai_runs_per_day)}</div><div class="delta">from ai_usage.yml — mention/PR traffic rides on top of the scheduled floor</div></div>
+      <div class="card tile"><div class="label">Repos over per-repo cap</div><div class="value">${(tp.repos_over_cap || []).length}</div><div class="delta">${(tp.repos_over_cap || []).map(v => '<code>' + esc(v.repo) + '</code> ' + v.est_per_day + '/d').join(', ') || 'none'}</div></div>
+      <div class="card tile"><div class="label">UTC-hour collisions</div><div class="value">${(tp.hour_collisions || []).length}</div><div class="delta">${(tp.hour_collisions || []).map(c => c.utc_hour + ' × ' + c.count).join(', ') || 'none'}</div></div>
+    </div>
+    <h2>AI crons by UTC hour</h2>
+    <div class="sub">Single-shot crons counted at their hour; hourly agents spread across all 24. Bars above the per-hour cap (${cap}) are marked ✖.</div>
+    <div class="card"><div class="hours">${load.map((n, h) => `<div><div class="bar" title="${n} AI cron(s), ${loadAll[h]} total at ${String(h).padStart(2, '0')}:00 UTC"><i class="${n > cap ? 'crit' : ''}" style="height:${Math.max(2, Math.min(100, 100 * n / Math.max(cap + 1, ...load)))}%"></i></div><div>${String(h).padStart(2, '0')}${n > cap ? '✖' : ''}</div></div>`).join('')}</div></div>
+    ${(tp.hour_collisions || []).map(c => `<div class="card" style="margin-top:10px">${status('crit', c.utc_hour + ' UTC — ' + c.count + ' AI crons')} ${c.entries.map(e => '<code>' + esc(e) + '</code>').join(' ')} <span class="muted">— stagger one; the Claude loops share one OAuth account's rate limit.</span></div>`).join('')}
+    <h2>Fleet schedule calendar</h2>
+    <div class="toolbar"><input id="s-filter" type="text" placeholder="filter repo / workflow / cron…" size="34"><label class="inl"><input id="s-ai" type="checkbox"> AI crons only</label></div>
+    <div class="wrap"><table><thead><tr><th></th><th>repo</th><th>workflow</th><th>cron</th><th>schedule</th><th class="num">est/day</th></tr></thead><tbody id="s-rows"></tbody></table></div>`;
+  const draw = () => {
+    const q = $('#s-filter').value.toLowerCase(), ai = $('#s-ai').checked;
+    $('#s-rows').innerHTML = sched.filter(s => (!ai || s.ai) && (!q || (s.repo + ' ' + s.workflow + ' ' + s.cron + ' ' + s.human).toLowerCase().includes(q)))
+      .map(s => `<tr><td>${s.ai ? '🤖' : ''}</td><td><code>${esc(s.repo)}</code></td><td>${esc(s.workflow)}</td><td><code>${esc(s.cron)}</code></td><td>${esc(s.human)}</td><td class="num">${s.est_per_day == null ? '?' : s.est_per_day}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">no crons</td></tr>';
+  };
+  ['#s-filter', '#s-ai'].forEach(s => $(s).addEventListener('input', draw)); draw();
+}
+
+// ------------------------------------------------------------------ loops
+function renderLoops() {
+  const opsById = Object.fromEntries(OPS.map(o => [o.id, o]));
+  $('#tab-loops').innerHTML = `<div class="sub">The control plane's loops: cadence from <code>_data/fleet.yml</code> <code>schedule:</code>, liveness from the age of each loop's committed outputs. <b>Run locally</b> executes the same tools/ entrypoint CI runs; <b>Dispatch</b> triggers the workflow in GitHub Actions (confirm-gated).</div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">${STATE.loops.map(l => {
+      const stale = l.stalest_output_days, fresh = l.outputs.length ? (l.missing_outputs.length ? status('crit', 'missing: ' + l.missing_outputs.join(', ')) : stale == null ? status('info', 'no stamp') : stale > 3 ? status('warn', 'stalest output ' + stale + 'd') : status('good', 'outputs ' + stale + 'd old')) : status('info', 'no committed output');
+      const wfHas = Object.keys(dispatchInputs(l.workflow)).length;
+      return `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(l.title)}</b>${fresh}</div>
+        <div class="muted" style="margin:4px 0 8px"><code>${esc(l.workflow)}.yml</code> · ${esc(l.cron_human)}${l.cron ? ' <code>' + esc(l.cron) + '</code>' : ''} · <a href="https://github.com/bamr87/bamr87/blob/main/${esc(l.doc)}" target="_blank" rel="noopener">doc</a> · <a href="https://github.com/bamr87/bamr87/actions/workflows/${esc(l.workflow)}.yml" target="_blank" rel="noopener">runs ↗</a></div>
+        <div class="toolbar" style="margin:0">${l.local_ops.filter(o => opsById[o]).map(o => `<button class="btn" data-run='${JSON.stringify({ op: o })}' title="${esc(opsById[o].desc)}">▶ ${esc(opsById[o].title.split(' (')[0])}</button>`).join('')}
+        <button class="btn" data-run='${JSON.stringify({ op: 'dispatch', params: { workflow: l.workflow, fields: dispatchInputs(l.workflow) } })}' title="${wfHas ? 'dry-run inputs pre-set' : 'no inputs'}">☁ Dispatch in CI</button></div></div>`;
+    }).join('')}</div>`;
+  bindRunButtons('#tab-loops');
+}
+function dispatchInputs(wf) {
+  return ({ 'harness-fanout': { target: 'gaps', dry_run: true }, 'fleet-pulse': { dry_run: true }, 'repo-evolution': { target: 'all', dry_run: true },
+            'standardize-fanout': { target: 'all', dry_run: true }, 'schema-fanout': { target: 'all', dry_run: true } })[wf] || {};
+}
+
+// ------------------------------------------------------------------ costs
+function renderCosts() {
+  const tr = (STATE.harnesses || {}).trends || {}, u = STATE.usage || {};
+  const card = (key, label, unit, isUsd) => { const t = tr[key] || {}; const f = v => isUsd ? usd(v) : fmt(v, 0) + ' ' + unit;
+    return `<div class="card"><div style="display:flex;justify-content:space-between"><b>${label}</b>${t.status === 'breach' ? status('crit', 'over ceiling') : t.status === 'growing' ? status('warn', 'growing') : t.status === 'ok' ? status('good', 'ok') : status('info', t.status || 'no data')}</div>
+      <table style="margin-top:8px;border:0"><tr><td>Window total</td><td class="num">${f(t.window_total)}</td></tr><tr><td>Last 7d / prior 7d</td><td class="num">${f(t.last7)} / ${f(t.prior7)}</td></tr><tr><td>Week-over-week</td><td class="num">${t.wow_delta_pct == null ? '—' : t.wow_delta_pct + '%'}</td></tr><tr><td><b>Projected monthly</b></td><td class="num"><b>${f(t.projected_monthly)}</b> vs ${f(t.budget_monthly)}</td></tr></table>${meter(t.projected_monthly || 0, t.budget_monthly || 1)}</div>`; };
+  const days = (rows, dk, vk) => `<div class="wrap"><table><thead><tr><th>day</th><th class="num">runs</th><th class="num">${vk}</th></tr></thead><tbody>${(rows || []).slice(-14).map(r => `<tr><td>${esc(r[dk])}</td><td class="num">${fmt(r.runs)}</td><td class="num">${fmt(r[vk], 2)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">no data</td></tr>'}</tbody></table></div>`;
+  $('#tab-costs').innerHTML = `<div class="sub">Projection = last-7-day daily average × 30.44, from the committed ledgers. Ceilings and the growth threshold are <code>harnesses.budget</code> — edit them on the Contract tab. Deeper attribution: <a href="https://bamr87.github.io/bamr87/ai-usage/" target="_blank" rel="noopener">/ai-usage/</a>, <a href="https://bamr87.github.io/bamr87/actions/" target="_blank" rel="noopener">/actions/</a>.</div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(360px,1fr))">${card('ai_cost_usd', 'Claude CI spend', 'USD', true)}${card('actions_minutes', 'Actions minutes', 'min', false)}</div>
+    <div class="toolbar" style="margin-top:12px"><button class="btn" data-run='{"op":"ai-usage"}'>↻ Refresh Claude ledger</button><button class="btn" data-run='{"op":"actions"}'>↻ Refresh Actions analytics</button><button class="btn" data-run='{"op":"harnesses-offline"}'>↻ Recompute trends</button></div>
+    <div class="split"><div><h2>Claude spend by day (${fmt((u.ai || {}).window_days)}d window)</h2>${days((u.ai || {}).by_day, 'day', 'cost_usd')}</div><div><h2>Actions minutes by day (${fmt((u.actions || {}).window_days)}d window)</h2>${days((u.actions || {}).by_day, 'date', 'total_min')}</div></div>`;
+  bindRunButtons('#tab-costs');
+}
+
+// ------------------------------------------------------------------ fleet
+function renderFleet() {
+  const reg = STATE.registry.projects || [], inbox = STATE.triage.inbox || [], rot = STATE.rotation.tokens || [];
+  $('#tab-fleet').innerHTML = `<div class="toolbar"><button class="btn" data-run='{"op":"status"}'>▶ dash status</button><button class="btn" data-run='{"op":"audit"}'>▶ standardization audit</button><button class="btn" data-run='{"op":"triage"}'>↻ triage snapshot</button><button class="btn" data-run='{"op":"secrets-audit"}'>▶ secrets audit</button><button class="btn" data-run='{"op":"reconcile"}'>▶ reconcile registry</button></div>
+    <div class="split"><div><h2>Registry (${reg.length})</h2><div class="wrap"><table><thead><tr><th>project</th><th>category</th><th>status</th><th>submodule</th><th>evolve</th></tr></thead><tbody>${reg.map(p => `<tr><td><a href="${esc(p.repo_url)}" target="_blank" rel="noopener"><code>${esc(p.name)}</code></a></td><td>${esc(p.category)}</td><td>${esc(p.status)}</td><td>${p.submodule ? '✓' : ''}</td><td>${p.auto_evolve ? '✓' : ''}</td></tr>`).join('')}</tbody></table></div></div>
+    <div><h2>Triage inbox (top ${inbox.length})</h2><div class="sub">${esc(STATE.triage.generated_at || 'no snapshot')}</div><div class="wrap"><table><thead><tr><th>repo</th><th>item</th></tr></thead><tbody>${inbox.map(i => `<tr><td><code>${esc(i.repo || i.name || '')}</code></td><td>${esc(i.title || i.summary || i.reason || JSON.stringify(i)).slice(0, 160)}${i.url ? ' <a href="' + esc(i.url) + '" target="_blank" rel="noopener">↗</a>' : ''}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">empty</td></tr>'}</tbody></table></div>
+    <h2>Credentials (ages only)</h2><div class="wrap"><table><thead><tr><th>secret</th><th>scope</th><th class="num">oldest age (d)</th><th class="num">max age</th><th>counts</th></tr></thead><tbody>${rot.map(t => `<tr class="${t.oldest_age_days > t.max_age_days ? 'flag' : ''}"><td><code>${esc(t.name)}</code></td><td>${esc(t.scope)}</td><td class="num">${fmt(t.oldest_age_days)}</td><td class="num">${fmt(t.max_age_days)}</td><td class="muted">${esc(JSON.stringify(t.counts || {}))}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">no ledger</td></tr>'}</tbody></table></div></div></div>`;
+  bindRunButtons('#tab-fleet');
+}
+
+// ------------------------------------------------------------------ contract
+async function renderContract() {
+  let c; try { c = await api('/api/contract'); } catch (e) { $('#tab-contract').innerHTML = status('crit', e.message); return; }
+  const h = c.harnesses || {}, get = k => k.split('.').reduce((o, p) => (o || {})[p], h);
+  const field = k => { const v = get(k); const id = 'c-' + k.replace(/\./g, '-');
+    if (typeof v === 'boolean') return `<input type="checkbox" id="${id}" data-key="${k}" ${v ? 'checked' : ''}>`;
+    if (Array.isArray(v)) return `<input type="text" id="${id}" data-key="${k}" value="${esc(v.join(','))}" placeholder="comma-separated repo names" size="30">`;
+    return `<input type="number" id="${id}" data-key="${k}" value="${esc(v)}" step="any" style="width:130px">`; };
+  const help = { 'baseline.require_mention_handler': 'a claude-code-action workflow answering @claude', 'baseline.require_agent_context': 'CLAUDE.md / AGENTS.md / copilot-instructions / .cursorrules', 'baseline.require_oauth_secret': 'CLAUDE_CODE_OAUTH_TOKEN present per the rotation ledger',
+    'throughput.max_scheduled_ai_per_day_fleet': 'estimated cron-driven AI workflow runs/day, fleet-wide', 'throughput.max_scheduled_ai_per_day_repo': 'per repo', 'throughput.max_ai_crons_per_utc_hour': 'distinct AI crons sharing one UTC hour',
+    'budget.monthly_ai_usd': 'projected monthly Claude CI spend ceiling', 'budget.monthly_actions_minutes': 'projected monthly Actions minutes ceiling', 'budget.trend_warn_pct': 'week-over-week growth beyond this is flagged',
+    'inventory.max_workflow_files': 'workflow files parsed per repo', 'inventory.schedule_limit': 'rows in the fleet schedule calendar', 'attention_max': 'findings surfaced per run', 'exempt': 'repo names excused from the baseline' };
+  $('#tab-contract').innerHTML = `<div class="sub">The <code>harnesses:</code> block of <code>_data/fleet.yml</code>. Saving edits the working tree with comments preserved and shows the git diff — <b>the commit (and the PR) stays with you</b>; nothing here reaches a fleet repo. Other blocks (schedule, caps, tokens) are read-only here: edit them in the file.</div>
+    ${CAPS && CAPS.contract_editing === false ? status('warn', 'ruamel.yaml missing — editing disabled (pip install ruamel.yaml)') : ''}
+    <div class="split"><form class="contract card" id="contract-form">${c.editable.map(k => `<label><span><code>${esc(k)}</code><small>${esc(help[k] || '')}</small></span>${field(k)}</label>`).join('')}
+      <div class="toolbar" style="margin:12px 0 0"><button class="btn primary" type="submit">Save to fleet.yml</button><button class="btn" type="button" id="c-recompute" title="re-grade the committed inventory against the new contract">then ↻ recompute (offline)</button></div></form>
+      <div><h2>Read-only reference</h2><div class="card"><b>Schedule (UTC)</b><table style="margin-top:6px;border:0">${Object.entries(STATE.contract.schedule || {}).map(([k, v]) => `<tr><td><code>${esc(k)}</code></td><td><code>${esc(v)}</code></td></tr>`).join('')}</table></div>
+      <div class="card" style="margin-top:10px"><b>Caps</b><table style="margin-top:6px;border:0"><tr><td>remediation.max_candidates</td><td class="num">${fmt((STATE.contract.remediation || {}).max_candidates)}</td></tr><tr><td>issue_pipeline.tiers</td><td class="muted">${esc(JSON.stringify(STATE.contract.issue_pipeline_tiers))}</td></tr><tr><td>evolution</td><td class="muted">${esc(JSON.stringify(STATE.contract.evolution))}</td></tr></table></div>
+      <div class="card" style="margin-top:10px"><b>Token contract</b> <span class="muted">(names and placement — never values)</span><table style="margin-top:6px;border:0">${(STATE.tokens || []).map(t => `<tr><td><code>${esc(t.name)}</code>${t.deprecated ? ' <span class="muted">deprecated</span>' : ''}</td><td>${esc(t.scope)}${t.required ? ' · required' : ''}</td></tr>`).join('')}</table></div>
+      <pre class="log" id="c-diff" hidden></pre></div></div>`;
+  $('#contract-form').onsubmit = async e => { e.preventDefault(); const changes = {};
+    $('#contract-form').querySelectorAll('[data-key]').forEach(el => { changes[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value; });
+    try { const r = await api('/api/contract', { method: 'PUT', body: JSON.stringify({ changes }) }); const d = $('#c-diff'); d.hidden = false; d.textContent = Object.keys(r.applied).length ? (r.diff || '(no diff — values unchanged?)') : 'nothing changed'; toast(Object.keys(r.applied).length ? 'saved: ' + Object.keys(r.applied).join(', ') : 'no changes'); STATE = await api('/api/state'); renderMeta(); }
+    catch (err) { toast(err.message, true); } };
+  $('#c-recompute').onclick = () => runOp('harnesses-offline', {});
+}
+
+// ------------------------------------------------------------------ jobs
+function renderJobs() {
+  const groups = ['observe', 'plan', 'verify', 'deploy'];
+  $('#tab-jobs').innerHTML = `<div class="split"><div class="card ops"><h2>Run an operation</h2>
+    <select id="op-select">${groups.map(g => `<optgroup label="${g}">${OPS.filter(o => o.group === g).map(o => `<option value="${o.id}">${esc(o.title)}</option>`).join('')}</optgroup>`).join('')}</select>
+    <div id="op-params" style="margin:10px 0"></div><div class="toolbar"><button class="btn primary" id="op-run">▶ Run</button><span class="muted" id="op-desc"></span></div>
+    <details style="margin-top:14px"><summary>Every allowlisted operation</summary>${OPS.map(o => `<div class="op"><div class="t"><b>${esc(o.title)}</b> <code>${esc(o.id)}</code>${o.remote_write ? ' ' + status('warn', 'can write to GitHub') : ''}${o.needs_token ? ' <span class="muted">needs gh auth</span>' : ''}<small>${esc(o.desc)}</small></div><button class="btn" data-run='${JSON.stringify({ op: o.id })}'>▶</button></div>`).join('')}</details></div>
+    <div><h2>Jobs</h2><div class="wrap"><table><thead><tr><th>status</th><th>operation</th><th>started</th><th class="num">exit</th><th></th></tr></thead><tbody id="jobs-rows"></tbody></table></div>
+    <h2 id="log-title">Log</h2><pre class="log" id="log">select a job</pre></div></div>`;
+  const sel = $('#op-select');
+  const paramsFor = id => { const o = OPS.find(x => x.id === id) || {}; $('#op-desc').textContent = o.desc || '';
+    const p = o.params || []; $('#op-params').innerHTML = p.map(k => ({
+      days: `<label class="inl">days <input id="p-days" type="number" min="1" max="90" value="14" style="width:80px"></label>`,
+      target: `<label class="inl">target <input id="p-target" type="text" placeholder="submodule name" size="22"></label>`,
+      artifacts: `<label class="inl">artifacts <input id="p-artifacts" type="text" value="claude" size="24"></label>`,
+      upgrade: `<label class="inl"><input id="p-upgrade" type="checkbox"> upgrade machine seeds</label>`,
+      apply: `<label class="inl"><input id="p-apply" type="checkbox"> <b>apply</b> (write to GitHub)</label>`,
+      key: `<label class="inl">key <input id="p-key" type="text" placeholder="harnesses.budget" size="24"></label>`,
+      workflow: `<label class="inl">workflow <select id="p-workflow">${['harness-fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution', 'standardize-fanout', 'schema-fanout', 'build-dash', 'reconcile-registry', 'refresh-dash', 'update-submodules'].map(w => `<option>${w}</option>`).join('')}</select></label>`,
+      fields: `<label class="inl">inputs <input id="p-fields" type="text" placeholder="key=value,key=value" size="34"></label>`,
+    })[k] || '').join(' '); };
+  sel.onchange = () => paramsFor(sel.value); paramsFor(sel.value);
+  $('#op-run').onclick = () => { const id = sel.value, params = {};
+    ['days', 'target', 'artifacts', 'key', 'workflow'].forEach(k => { const el = $('#p-' + k); if (el && el.value !== '') params[k] = el.value; });
+    ['upgrade', 'apply'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
+    const f = $('#p-fields'); if (f && f.value.trim()) { params.fields = {}; f.value.split(',').forEach(kv => { const [k, ...v] = kv.split('='); if (k.trim()) params.fields[k.trim()] = v.join('=').trim(); }); }
+    runOp(id, params); };
+  bindRunButtons('#tab-jobs'); drawJobs();
+}
+function drawJobs() {
+  const rows = $('#jobs-rows'); if (!rows) return;
+  rows.innerHTML = JOBS.map(j => `<tr class="${j.status === 'failed' ? 'bad' : ''}"><td>${j.status === 'succeeded' ? status('good', 'succeeded') : j.status === 'failed' ? status('crit', 'failed') : j.status === 'cancelled' ? status('warn', 'cancelled') : status('info', j.status)}</td><td><b>${esc(j.title)}</b>${j.remote_write ? ' ' + status('warn', 'remote') : ''}<br><code class="muted">${esc(j.argv.map(a => a.replace(/^.*\/tools\//, 'tools/')).join(' '))}</code></td><td class="muted">${j.started ? new Date(j.started).toLocaleTimeString() : '—'}</td><td class="num">${j.exit_code ?? ''}</td><td><button class="btn" data-log="${j.id}">log</button>${j.status === 'running' ? ` <button class="btn danger" data-cancel="${j.id}">✖</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">no jobs yet</td></tr>';
+  rows.querySelectorAll('[data-log]').forEach(b => b.onclick = () => watch(b.dataset.log));
+  rows.querySelectorAll('[data-cancel]').forEach(b => b.onclick = async () => { try { await api(`/api/jobs/${b.dataset.cancel}/cancel`, { method: 'POST' }); toast('cancel requested'); } catch (e) { toast(e.message, true); } });
+}
+function bindRunButtons(scope) { document.querySelectorAll(scope + ' button[data-run]').forEach(b => b.onclick = () => { const r = JSON.parse(b.dataset.run); runOp(r.op, r.params || {}); }); }
+async function runOp(op, params) {
+  const o = OPS.find(x => x.id === op) || {};
+  const remote = o.remote_write && (params.apply === true || op === 'dispatch');
+  if (remote) {
+    const detail = op === 'dispatch' ? `Dispatch ${params.workflow}.yml in GitHub Actions with ${JSON.stringify(params.fields || {})}` : `${o.title} — WITH --apply: this opens pull requests / writes secrets in fleet repos.`;
+    if (!confirm(detail + '\n\nContinue?')) return;
+  }
+  if (o.needs_token && CAPS && CAPS.gh_authenticated === false && !confirm('gh is not authenticated in the console’s environment — this operation will probably degrade or fail. Run anyway?')) return;
+  try {
+    const job = await api('/api/jobs', { method: 'POST', body: JSON.stringify({ op, params, confirm: !!remote }) });
+    toast('started: ' + job.title);
+    if (ACTIVE !== 'jobs') $('#nav button[data-tab="jobs"]').click();
+    JOBS = await api('/api/jobs'); drawJobs(); watch(job.id);
+  } catch (e) { toast(e.message, true); }
+}
+function watch(id) {
+  clearInterval(POLL); CURRENT_JOB = id; let offset = 0; const log = $('#log'); if (!log) return; log.textContent = '';
+  const tick = async () => { try { const t = await api(`/api/jobs/${id}?offset=${offset}`); if (t.text) { log.textContent += t.text; offset = t.offset; log.scrollTop = log.scrollHeight; }
+      $('#log-title').textContent = `Log — ${t.job.title} (${t.job.status})`;
+      if (t.done) { clearInterval(POLL); POLL = null; JOBS = await api('/api/jobs'); drawJobs(); if (t.job.status === 'succeeded') { STATE = await api('/api/state'); renderMeta(); if (ACTIVE !== 'jobs') renderTab(ACTIVE); } } }
+    catch (e) { clearInterval(POLL); toast(e.message, true); } };
+  tick(); POLL = setInterval(tick, 1000);
+}
+
+// ------------------------------------------------------------------ boot
+$('#refresh').onclick = loadAll;
+$('#theme').onclick = () => { const r = document.documentElement; const cur = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); r.dataset.theme = cur === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('console_theme', r.dataset.theme); } catch (e) {} };
+try { const t = localStorage.getItem('console_theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+loadAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Harness Console — always-latest (fleet policy: no pins, no lockfiles).
+# The generators the console runs need dash-gen's dependencies too.
+-r ../../.github/scripts/dash-gen/requirements.txt
+fastapi
+uvicorn
+ruamel.yaml

@@ -37,6 +37,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
+  ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
   ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
@@ -103,6 +104,19 @@ cmd_serve() {
   else
     echo "Docker not available; serving natively."
     cd "$ROOT" && bundle install && bundle exec jekyll serve -c _config.yml,_config_dev.yml
+  fi
+}
+
+# The Harness Console: the credentialed, write-capable front end of the local
+# stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
+# via tools/console/run.sh; --docker starts the compose service instead.
+cmd_console() {
+  if [[ "${1:-}" == "--docker" ]]; then
+    shift
+    cd "$ROOT" && docker compose up -d console "$@"
+    echo "console: http://127.0.0.1:${CONSOLE_PORT:-4001}/  (docker compose logs -f console)"
+  else
+    "${TOOLS}/console/run.sh" "$@"
   fi
 }
 
@@ -317,6 +331,7 @@ main() {
     estimate) cmd_estimate "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     serve)   cmd_serve "$@" ;;
+    console) cmd_console "$@" ;;
     sync)    cmd_sync "$@" ;;
     foreach) cmd_foreach "$@" ;;
     run)     cmd_run "$@" ;;

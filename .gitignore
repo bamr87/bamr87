@@ -44,6 +44,7 @@ _site/
 # Virtual Environments
 .venv/
 venv/
+.venv-console/
 ENV/
 env/
 .virtualenv/

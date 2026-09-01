@@ -6,6 +6,7 @@ Groups (as they appear in the Run and Debug dropdown):
 
 - **1-view** — the Jekyll dash in Docker: launch Edge against `localhost:<port>` with compose brought up/stopped around the session (`Docker: Compose Up (Detached)` / `Docker: Compose Stop` from `tasks.json`), attach to a running browser, or force-rebuild the containers first.
 - **2-generators** — `dash-gen` under debugpy: a subcommand picker mirroring `tools/dash gen <cmd>`, plus dedicated entries for the AI-harness inventory (`harnesses` live scan, `--offline` reuse of the committed scan, and `--gaps` fan-out targeting). Live gathers use your `gh` auth (`GH_TOKEN`/`GITHUB_TOKEN`); every generator degrades rather than dies without it.
+- **2-generators** also carries **🎛️ Harness Console** — the local control plane's FastAPI front end under uvicorn with reload (`tools/console/`, opens http://127.0.0.1:4001/).
 - **3-verify** — debug the open dash-gen fixture test directly (`test_*.py` are dependency-light plain scripts, not pytest).
 - **4-docs** — MkDocs serve/build for the **README submodule** (`projects/README/`), which owns the MkDocs site; the hub's own `mkdocs.yml` was removed.
 

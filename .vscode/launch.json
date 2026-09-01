@@ -113,6 +113,27 @@
       "presentation": { "group": "2-generators" }
     },
 
+    // --------------------------------------------------------------- CONSOLE
+    // The Harness Console — the local control plane's front end (FastAPI).
+    // Debug the server in-process; the page is at http://127.0.0.1:4001/.
+    {
+      "name": "🎛️ Harness Console (uvicorn, reload)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app:app", "--host", "127.0.0.1", "--port", "4001", "--reload", "--reload-dir", "${workspaceFolder}/tools/console"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/tools/console",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "serverReadyAction": {
+        "pattern": "Uvicorn running on (https?://[^\\s]+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "2-generators" }
+    },
+
     // ---------------------------------------------------------------- VERIFY
     // The dash-gen fixture tests are dependency-light plain scripts
     // (python3 test_x.py), so debug the open file directly — no pytest.

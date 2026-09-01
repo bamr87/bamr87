@@ -5,6 +5,7 @@
 # Usage:
 #   docker compose up -d                     # Start all services
 #   docker compose up -d devenv              # Start dev environment only
+#   docker compose up -d console             # Harness Console on http://127.0.0.1:4001
 #   docker compose up -d wiki db             # Start wiki stack only
 #   docker compose --profile admin up -d     # Include admin tools (pgAdmin)
 #   docker compose exec devenv bash          # Open shell in dev container
@@ -52,6 +53,51 @@ services:
       - dev-network
     restart: unless-stopped
     command: sleep infinity
+
+  # --------------------------------------------------------------------------
+  # Harness Console - the local control plane's front end
+  #
+  # Same image as devenv (python + gh + git are already in it), different
+  # command: tools/console/run.sh serves the FastAPI console on :4001. It wraps
+  # the allowlisted tools/dash operations as jobs with live logs, renders every
+  # committed fleet signal, and edits the fleet.yml harness contract — the
+  # credentialed, WRITE-capable counterpart of the read-only Pages boards
+  # (docs/HARNESS-OPS.md, "The two planes"). Credentials come only from .env
+  # (GH_TOKEN / FLEET_TOKEN / Claude tokens are passed through by NAME); the
+  # port is published on loopback only. Set DASH_CONSOLE_TOKEN to require a
+  # bearer token on the API when you expose it beyond localhost.
+  # --------------------------------------------------------------------------
+  console:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    container_name: bamr87-console
+    volumes:
+      - .:/workspace:cached
+      - venv-console:/workspace/.venv-console
+    working_dir: /workspace
+    ports:
+      - "127.0.0.1:${CONSOLE_PORT:-4001}:4001"
+    environment:
+      - CONSOLE_HOST=0.0.0.0
+      - CONSOLE_PORT=4001
+      - PYTHONDONTWRITEBYTECODE=1
+      - GH_TOKEN=${GH_TOKEN:-${FLEET_TOKEN:-${GITHUB_TOKEN:-}}}
+      - FLEET_TOKEN=${FLEET_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - DASH_CONSOLE_TOKEN=${DASH_CONSOLE_TOKEN:-}
+    networks:
+      - dev-network
+    restart: unless-stopped
+    command: tools/console/run.sh
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:4001/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
 
   # --------------------------------------------------------------------------
   # MkDocs - Documentation site (Material theme)
@@ -176,6 +222,8 @@ services:
 # ============================================================================
 volumes:
   node-modules:
+    driver: local
+  venv-console:
     driver: local
   venv-docs:
     driver: local
