@@ -14,17 +14,12 @@ status: draft
 
 ## Why this file exists (and not the root README)
 
-The `README.md` at the root of this repository is a **GitHub profile README**. It
-renders on <https://github.com/bamr87> and is written for that audience — it opens
-with `title: Amr Abdel-Motaleb - Solutions Architect & ERP Specialist`, carries
-badge rows and résumé sections, and says of itself:
+The `README.md` at the root of this repository is a **GitHub profile README**. It renders on <https://github.com/bamr87> and is written for that audience — it opens with `title: Amr Abdel-Motaleb - Solutions Architect & ERP Specialist`, carries badge rows and résumé sections, and says of itself:
 
 > Yes, this is a profile README - but it is also a living map of the projects and
 > systems I actively maintain.
 
-But this repository is also a **monorepo** with a real toolchain at its root:
-`Gemfile`, `Rakefile`, `_config.yml`, `docker-compose.yml`, `.devcontainer/`,
-`.husky/`, `.pre-commit-config.yaml`, `.github/`.
+But this repository is also a **monorepo** with a real toolchain at its root: `Gemfile`, `Rakefile`, `_config.yml`, `docker-compose.yml`, `.devcontainer/`, `.husky/`, `.pre-commit-config.yaml`, `.github/`.
 
 Those two audiences don't mix well in one file, so:
 
@@ -34,9 +29,7 @@ Those two audiences don't mix well in one file, so:
 
 ## Repository map
 
-Everything at the repository root, and what it is. Entries whose purpose is
-inferred from the filename rather than read from the file are marked *(inferred)*
-— correct them as you verify them.
+Everything at the repository root, and what it is. Entries whose purpose is inferred from the filename rather than read from the file are marked *(inferred)* — correct them as you verify them.
 
 ### Documentation and entry points
 
@@ -96,8 +89,7 @@ inferred from the filename rather than read from the file are marked *(inferred)
 
 ## Getting the source
 
-This repository contains a `.gitmodules` file, so a plain `git clone` will leave
-submodule directories empty. The standard git incantation is:
+This repository contains a `.gitmodules` file, so a plain `git clone` will leave submodule directories empty. The standard git incantation is:
 
 ```bash
 git clone --recurse-submodules https://github.com/bamr87/bamr87.git
@@ -121,49 +113,37 @@ There appear to be three supported paths. Pick one.
 
 ### 1. Dev container (VS Code / GitHub Codespaces)
 
-A `.devcontainer/` directory is present, so opening the repository in VS Code with
-the Dev Containers extension (or in a Codespace) should offer to build and reopen
-in the container.
+A `.devcontainer/` directory is present, so opening the repository in VS Code with the Dev Containers extension (or in a Codespace) should offer to build and reopen in the container.
 
-**TODO (unverified):** record the base image, the installed features, and any
-`postCreateCommand` from `.devcontainer/devcontainer.json`, so contributors know
-what the container gives them for free.
+**TODO (unverified):** record the base image, the installed features, and any `postCreateCommand` from `.devcontainer/devcontainer.json`, so contributors know what the container gives them for free.
 
 ### 2. Docker Compose
 
 A `docker-compose.yml` is present at the root.
 
-**TODO (unverified):** document the service names, exposed ports and mounted
-volumes, and the exact `docker compose` invocation used to bring the site up.
-Copy these from `docker-compose.yml` rather than assuming defaults.
+**TODO (unverified):** document the service names, exposed ports and mounted volumes, and the exact `docker compose` invocation used to bring the site up. Copy these from `docker-compose.yml` rather than assuming defaults.
 
 ### 3. Local Ruby toolchain
 
 The root has a `Gemfile` and a `Rakefile`.
 
-**TODO (unverified):** record the required Ruby version (check `Gemfile` and any
-`.ruby-version`), the bundler install step, and any system prerequisites.
+**TODO (unverified):** record the required Ruby version (check `Gemfile` and any `.ruby-version`), the bundler install step, and any system prerequisites.
 
 ### Environment variables
 
-Copy `.env.example` to `.env` and fill in the values before running anything that
-needs credentials:
+Copy `.env.example` to `.env` and fill in the values before running anything that needs credentials:
 
 ```bash
 cp .env.example .env
 ```
 
-**TODO (unverified):** list which variables in `.env.example` are required versus
-optional, and what each one is for. `.env` must stay untracked — confirm it is
-covered by `.gitignore`.
+**TODO (unverified):** list which variables in `.env.example` are required versus optional, and what each one is for. `.env` must stay untracked — confirm it is covered by `.gitignore`.
 
 ## Building, serving and testing
 
 **TODO (unverified) — this is the most important gap in this guide.**
 
-The `Rakefile` is the task runner for this repository, and `.github/` should
-contain the workflows that run in CI. Between them they define the real,
-authoritative commands. Please fill in this section by:
+The `Rakefile` is the task runner for this repository, and `.github/` should contain the workflows that run in CI. Between them they define the real, authoritative commands. Please fill in this section by:
 
 1. Running `rake -T` (or reading the `Rakefile`) and listing the tasks a
    contributor actually needs: build, serve locally, test, lint, clean.
@@ -172,8 +152,7 @@ authoritative commands. Please fill in this section by:
 3. Explaining when `_config_dev.yml` is used instead of (or in addition to)
    `_config.yml`.
 
-Do not guess these commands from the presence of a `Gemfile` — copy them from the
-files.
+Do not guess these commands from the presence of a `Gemfile` — copy them from the files.
 
 ## Code quality and git hooks
 
@@ -187,30 +166,21 @@ Several quality gates are configured at the root:
 - **`.editorconfig`** — baseline whitespace and encoding rules; most editors apply
   this automatically.
 
-**TODO (unverified):** document the one-time hook installation step, list which
-hooks run at which stage, and state how to run the linters manually (e.g. across
-all files) so a contributor can fix issues before committing.
+**TODO (unverified):** document the one-time hook installation step, list which hooks run at which stage, and state how to run the linters manually (e.g. across all files) so a contributor can fix issues before committing.
 
-**Open inconsistency:** `.husky/` and `.prettierrc` normally accompany a Node.js
-project with a `package.json`, but no `package.json` appears at the repository
-root. Either it lives in a subdirectory, or the Node tooling is installed some
-other way. Please clarify — a newcomer will hit this immediately.
+**Open inconsistency:** `.husky/` and `.prettierrc` normally accompany a Node.js project with a `package.json`, but no `package.json` appears at the repository root. Either it lives in a subdirectory, or the Node tooling is installed some other way. Please clarify — a newcomer will hit this immediately.
 
 ## Automation and agent configuration
 
-This repository carries configuration for AI/automation tooling:
-`AGENTS.md`, `CLAUDE.md`, `.claude/`, `.mcp.json` and `fleet.manifest.yml`.
+This repository carries configuration for AI/automation tooling: `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.mcp.json` and `fleet.manifest.yml`.
 
-If you are contributing by hand, you can ignore these. If you are configuring or
-debugging automation, start with `AGENTS.md`.
+If you are contributing by hand, you can ignore these. If you are configuring or debugging automation, start with `AGENTS.md`.
 
-**TODO (unverified):** summarise what `fleet.manifest.yml` controls and who
-consumes it.
+**TODO (unverified):** summarise what `fleet.manifest.yml` controls and who consumes it.
 
 ## Open questions for maintainers
 
-Collected here so they're easy to close out. Each one is a gap that a newcomer
-will hit:
+Collected here so they're easy to close out. Each one is a gap that a newcomer will hit:
 
 1. What are the tasks in the `Rakefile`? (blocks the entire build/test section)
 2. What does CI run — which workflows exist under `.github/workflows/`?
