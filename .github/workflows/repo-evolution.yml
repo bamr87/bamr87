@@ -425,7 +425,25 @@ jobs:
           git add -A
           git commit -q -m "chore(evolve): weekly AI improvement pass" \
             -m "Documentation, clarity, and functionality pass from the bamr87/bamr87 repo-evolution loop (run ${GITHUB_RUN_ID}). Draft for human review; nothing merges automatically."
-          git push -q -u origin "$BR"
+
+          # Push to the repo this job is FOR, not to whatever `origin` happens to
+          # point at by now. In run 33376132003 the scripts job checked out
+          # bamr87/scripts (`git remote add origin https://github.com/bamr87/scripts`,
+          # confirmed in the log), the agent finished clean — and this push still
+          # went to `https://github.com/bamr87/bamr87.git/` and was rejected
+          # ("Invalid username or token"), throwing away a completed pass. Between
+          # the checkout and here, only `claude-code-action` touches the workspace,
+          # and bamr87/bamr87 is exactly `github.repository` — an ambient default
+          # this cross-repo checkout must not inherit. Re-asserting the target
+          # costs nothing and makes the step depend on `NWO` alone.
+          git remote set-url origin "https://github.com/${NWO}"
+          if ! git push -q -u origin "$BR"; then
+            echo "::error::${NAME}: pushing ${BR} to ${NWO} failed — the agent's work is committed locally but undelivered."
+            echo "remotes and any url rewrites in effect:"
+            git remote -v | sed 's/^/  | /'
+            git config --get-regexp 'url\..*\.insteadof' | sed 's/^/  | /' || echo "  | (no insteadOf rewrites)"
+            exit 1
+          fi
 
           # The agent's final message is the reviewer-facing body. The
           # execution log is the same file the failure classifier reads.
