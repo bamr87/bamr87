@@ -5,13 +5,9 @@ description: A map of every top-level file and directory in this repository and 
 
 # Repository Layout
 
-This repository is a **monorepo**: the root holds a Jekyll-style site, agent and
-automation configuration, shell/dotfile artifacts, and several content
-directories side by side. That mix is useful once you know it, but it is
-disorienting on a first visit.
+This repository is a **monorepo**: the root holds a Jekyll-style site, agent and automation configuration, shell/dotfile artifacts, and several content directories side by side. That mix is useful once you know it, but it is disorienting on a first visit.
 
-This page exists to answer one question: *what is that thing in the root, and
-why is it there?* Every top-level entry is listed below.
+This page exists to answer one question: *what is that thing in the root, and why is it there?* Every top-level entry is listed below.
 
 > **How to read this page.** Entries marked ⚠️ are **inferred from the file or
 > directory name and common convention**, not confirmed by reading the file. If
@@ -40,11 +36,7 @@ The root splits into four themes:
 
 ## 1. The site
 
-The root looks like a **Jekyll** static site: a `_config.yml`, a `_data/`
-directory, an `index.md` entry page, and a `Gemfile` for Ruby dependencies are
-the canonical Jekyll signature, and the author's `README.md` lists Jekyll among
-the tools they work with. ⚠️ *This has not been confirmed by reading `Gemfile`;
-check that the `jekyll` gem is declared there before relying on it.*
+The root looks like a **Jekyll** static site: a `_config.yml`, a `_data/` directory, an `index.md` entry page, and a `Gemfile` for Ruby dependencies are the canonical Jekyll signature, and the author's `README.md` lists Jekyll among the tools they work with. ⚠️ *This has not been confirmed by reading `Gemfile`; check that the `jekyll` gem is declared there before relying on it.*
 
 | Entry | Type | Purpose |
 | --- | --- | --- |
@@ -66,8 +58,7 @@ check that the `jekyll` gem is declared there before relying on it.*
 
 ## 2. Agents and automation
 
-This repository is set up to be worked on by AI agents as well as humans, and
-several root entries exist purely to tell those agents how to behave.
+This repository is set up to be worked on by AI agents as well as humans, and several root entries exist purely to tell those agents how to behave.
 
 | Entry | Type | Purpose |
 | --- | --- | --- |
@@ -147,20 +138,14 @@ several root entries exist purely to tell those agents how to behave.
 ## Orientation tips for a newcomer
 
 1. **Read [`CONTRIBUTING.md`](../CONTRIBUTING.md) first** for the contribution
-   workflow, and [`AGENTS.md`](../AGENTS.md) if you are (or are directing) an
-   automated agent.
+workflow, and [`AGENTS.md`](../AGENTS.md) if you are (or are directing) an automated agent.
 2. **Clone with submodules.** `.gitmodules` is present, so a plain clone will
-   leave some directories empty. [`SUBMODULES.md`](../SUBMODULES.md) is the
-   authority on how to initialise them.
+leave some directories empty. [`SUBMODULES.md`](../SUBMODULES.md) is the authority on how to initialise them.
 3. **Check `_reports/` before editing it.** Generated output should be
    regenerated, not hand-edited.
 4. **Get build and run commands from the tooling, not from memory.** `Rakefile`,
-   `docker-compose.yml`, `.devcontainer/`, and the workflows in `.github/` are
-   the sources of truth for how this project is built and checked.
+`docker-compose.yml`, `.devcontainer/`, and the workflows in `.github/` are the sources of truth for how this project is built and checked.
 
 ## Keeping this page honest
 
-When you add a new top-level file or directory, add a row here too. A layout map
-that has silently drifted out of date is more harmful than no map at all — and
-if you confirm one of the ⚠️ entries above, please remove the marker and state
-the fact plainly.
+When you add a new top-level file or directory, add a row here too. A layout map that has silently drifted out of date is more harmful than no map at all — and if you confirm one of the ⚠️ entries above, please remove the marker and state the fact plainly.
