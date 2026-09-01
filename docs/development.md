@@ -3,15 +3,11 @@
 This repository serves two purposes at once:
 
 1. It is **`bamr87/bamr87`**, the GitHub *profile* repository — so `README.md` at the
-   root renders on the owner's profile page and reads as a personal/professional
-   introduction rather than as project documentation.
+root renders on the owner's profile page and reads as a personal/professional introduction rather than as project documentation.
 2. It is also a **working project**: the root of the repository contains a `Gemfile`,
-   a `Rakefile`, a `docker-compose.yml`, a `.devcontainer/` directory, site
-   configuration (`_config.yml`, `_config_dev.yml`), content (`index.md`, `pages/`,
-   `_data/`) and assets (`assets/`).
+a `Rakefile`, a `docker-compose.yml`, a `.devcontainer/` directory, site configuration (`_config.yml`, `_config_dev.yml`), content (`index.md`, `pages/`, `_data/`) and assets (`assets/`).
 
-Because the top-level `README.md` is dedicated to purpose (1), this page is the entry
-point for purpose (2).
+Because the top-level `README.md` is dedicated to purpose (1), this page is the entry point for purpose (2).
 
 > **Status of this page.** It was written from the repository's file listing. It tells
 > you *where to look* for each concern and is deliberately conservative about exact
@@ -36,15 +32,9 @@ Everything below is present at the repository root.
 | `_config_dev.yml` | Development overrides, layered on top of `_config.yml`. |
 | `.env.example` | Template for environment variables. Copy it to `.env` and fill in local values; `.env` itself is expected to stay untracked. |
 
-The combination of `Gemfile` + `_config.yml` + `_config_dev.yml` + `index.md` +
-`pages/` + `assets/` is the conventional layout of a **Jekyll** static site, and the
-profile README lists Jekyll among the owner's tools. Treat this as a strong inference
-rather than a confirmed fact until `_config.yml` is checked.
+The combination of `Gemfile` + `_config.yml` + `_config_dev.yml` + `index.md` + `pages/` + `assets/` is the conventional layout of a **Jekyll** static site, and the profile README lists Jekyll among the owner's tools. Treat this as a strong inference rather than a confirmed fact until `_config.yml` is checked.
 
-**⚠️ Unverified — commands.** The exact commands for installing dependencies, serving
-the site locally, and building for production have not been confirmed against the
-`Rakefile`, `Gemfile` or `docker-compose.yml`. Please add them here, for example the
-real `rake` task names, the Compose service name and the port it publishes.
+**⚠️ Unverified — commands.** The exact commands for installing dependencies, serving the site locally, and building for production have not been confirmed against the `Rakefile`, `Gemfile` or `docker-compose.yml`. Please add them here, for example the real `rake` task names, the Compose service name and the port it publishes.
 
 ### Content
 
@@ -72,19 +62,15 @@ real `rake` task names, the Compose service name and the port it publishes.
 | `.github/` | GitHub configuration, including any CI workflows. Check here for the checks a pull request must pass. |
 | `tools/` | Repository scripts and utilities. |
 
-If a change is rejected by a hook or by CI, the configuration file above is where the
-rule lives.
+If a change is rejected by a hook or by CI, the configuration file above is where the rule lives.
 
 ### Submodules
 
-This repository uses git submodules — `.gitmodules` is present at the root. A plain
-`git clone` will leave submodule directories empty.
+This repository uses git submodules — `.gitmodules` is present at the root. A plain `git clone` will leave submodule directories empty.
 
-See **[SUBMODULES.md](../SUBMODULES.md)** for how they are wired up and how to update
-them.
+See **[SUBMODULES.md](../SUBMODULES.md)** for how they are wired up and how to update them.
 
-**⚠️ Unverified — which submodules are required for a local build**, and whether the
-clone must be recursive, has not been confirmed. `SUBMODULES.md` is the authority.
+**⚠️ Unverified — which submodules are required for a local build**, and whether the clone must be recursive, has not been confirmed. `SUBMODULES.md` is the authority.
 
 ### Agent and workspace configuration
 
@@ -102,8 +88,7 @@ clone must be recursive, has not been confirmed. `SUBMODULES.md` is the authorit
 ## Getting started
 
 1. **Set up your environment** — see [first-time-setup.md](first-time-setup.md).
-   *(⚠️ Unverified: confirm this path exists; if the setup guide lives elsewhere in
-   `docs/`, fix this link.)*
+*(⚠️ Unverified: confirm this path exists; if the setup guide lives elsewhere in `docs/`, fix this link.)*
 2. **Clone with submodules**, per [SUBMODULES.md](../SUBMODULES.md).
 3. **Copy `.env.example` to `.env`** and fill in any local values.
 4. **Choose a runtime**: the `.devcontainer/` definition or `docker-compose.yml` avoid
