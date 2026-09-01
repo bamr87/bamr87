@@ -258,7 +258,18 @@ evolution:
   # the listed issues/PRs that touch the change, edit, verify with the repo's
   # own lint/tests, report. Wired into `--max-turns` through the plan so this
   # is the only place the number is stated; test_evolution.py asserts the wiring.
-  max_turns: 60
+  #
+  # 60 was too tight and the whole pass was the thing it cost. In run
+  # 33376132003, two of three targets died on this cap: cv-builder-pro was cut
+  # off mid-work at 61 turns ($3.51 billed, discarded), and README FINISHED —
+  # `is_error: false` — but the action still failed it, because it reported 63
+  # turns against a maximum of 60 ($2.85 billed, discarded). Note what that
+  # second case means: the agent can overshoot the cap by a few turns and still
+  # report success, so the cap needs headroom rather than precision. A pass that
+  # is billed and then thrown away is the worst outcome this loop has.
+  # The real ceiling stays `timeout-minutes: 45` on the evolve job — those two
+  # runs used ~9 and ~5.5 minutes, so 120 turns is nowhere near it.
+  max_turns: 120
 
   # How much of the triage snapshot each brief quotes. The rest is a link.
   signals:

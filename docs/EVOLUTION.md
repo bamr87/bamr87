@@ -133,7 +133,7 @@ All in [`_data/fleet.yml`](../_data/fleet.yml), read by the planner and wired in
 | `evolution.branch_prefix` / `marker` / `label` | `ai-evolution` / `repo-evolution` / `ai-evolution` | how a pass is recognised and labelled |
 | `evolution.max_targets` | `6` | repos per run |
 | `evolution.max_parallel` | `2` | concurrent agents (the Claude loops share one OAuth account) |
-| `evolution.max_turns` | `60` | per repo — orient, read, edit, verify, report |
+| `evolution.max_turns` | `120` | per repo — orient, read, edit, verify, report (60 cut off 2 of 3 targets in run 33376132003; the job's `timeout-minutes: 45` is the real ceiling) |
 | `evolution.signals.max_issues` / `max_prs` | `8` / `5` | how much of the triage snapshot a brief quotes |
 
 ## Tokens
