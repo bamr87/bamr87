@@ -258,7 +258,16 @@ evolution:
   # the listed issues/PRs that touch the change, edit, verify with the repo's
   # own lint/tests, report. Wired into `--max-turns` through the plan so this
   # is the only place the number is stated; test_evolution.py asserts the wiring.
-  max_turns: 60
+  #
+  # 120, not 60. Run #1 (2026-08-31) measured what that program actually costs:
+  # scripts 46 turns, cv-builder-pro 61, README 63. A cap of 60 sat at the
+  # MEDIAN of real demand, so two of three targets were billed in full
+  # ($3.51 + $2.85) and produced no pull request — one exhausted at the cap,
+  # one finished and had its result rejected for overshooting it. Set above the
+  # observed ceiling of 63 with headroom for a repo larger than any of the
+  # three, not at it. See bamr87/bamr87#214; `Salvage a successful overshoot`
+  # in repo-evolution.yml is the backstop for the day this bound is hit anyway.
+  max_turns: 120
 
   # How much of the triage snapshot each brief quotes. The rest is a link.
   signals:

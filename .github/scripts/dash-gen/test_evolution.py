@@ -380,6 +380,35 @@ def test_workflow_contract() -> None:
           "needs.plan.outputs.branch_prefix" in str(pub["env"].get("PREFIX"))
           and "needs.plan.outputs.label" in str(pub["env"].get("LABEL")))
     check("a moved HEAD refuses to publish", "git rev-parse --abbrev-ref HEAD" in run and "exit 1" in run)
+    # The `Evolve` action derives its repository from `github.repository` (the
+    # hub) and revokes its own token inside the step, so it leaves the checkout
+    # pointing at bamr87/bamr87 with a dead credential. Run #1's `scripts` job
+    # pushed there and failed; a push that SUCCEEDED would have put a
+    # submodule's changes on the hub. The publish step must re-derive the
+    # remote from $NWO and refuse anything else. (bamr87/bamr87#214)
+    check("the publish remote is re-derived from $NWO, never the inherited origin",
+          'git remote set-url origin "$REMOTE"' in run and 'REMOTE="${SERVER}/${NWO}"' in run)
+    check("an auth header left by the agent step is cleared before pushing",
+          ".extraheader" in run)
+    check("a publish remote that is not $NWO refuses to push",
+          "git remote get-url origin" in run
+          and 'refusing to push' in run)
+    check("the push targets the explicit URL, not the remote name",
+          'git push -q "$REMOTE"' in run and "git push -q -u origin" not in run)
+
+    # A turn count that overshoots --max-turns fails the step even when the
+    # agent reported success, which skipped `Open draft PR` and discarded
+    # finished, billed work on run #1's README job.
+    # Tolerant lookup, unlike step(): a missing step must be reported as a
+    # failed check alongside the others, not abort the run before they print.
+    salv = next((s for s in evolve["steps"] if s.get("name") == "Salvage a successful overshoot"), {})
+    check("a successful result that overshot the turn cap is detected",
+          "steps.evolve.outcome == 'failure'" in str(salv.get("if"))
+          and ".subtype" in salv["run"] and ".is_error" in salv["run"])
+    check("a salvaged success still reaches the publish step",
+          "steps.salvage.outputs.succeeded == 'true'" in str(pub.get("if")))
+    check("max_turns is above the ceiling observed in run #1 (63 turns)",
+          int(fleet["evolution"]["max_turns"]) > 63)
     check("commits as the bot identity", "bamr87-bot" in run and "10567847+bamr87@users.noreply.github.com" in run)
     for pat in (fleet.get("dependencies") or {}).get("lockfile_patterns") or []:
         # The step greps the literal filename with only the dot escaped; re.escape
