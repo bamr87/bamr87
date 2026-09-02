@@ -49,6 +49,28 @@ The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](..
 | `archive/claude-0.1.0*.yml` | byte-exact archived machine-seed shapes (pristine 0.1.0, and 0.1.0 + the fleet-wide checkout@v7 bump); `fanout.sh --upgrade` refreshes a target's claude.yml only when it matches one of these — hand-modified copies are never touched |
 | `VERSION` | kit provenance + changelog + the declared fleet `.claude/` position |
 
+## `conformance/`
+
+The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../specs/CONFORMANCE.md)) — a thin caller of the hub's reusable [`fleet-conformance.yml`](../.github/workflows/fleet-conformance.yml), seeded by `tools/fanout.sh --kit standardize --artifacts conformance`. Advisory (`gate: false`) until the repo's MUST rows pass. See [`conformance/README.md`](conformance/README.md).
+
+| File | Purpose |
+| --- | --- |
+| `conformance.yml` | caller → `fleet-conformance.yml@main` (`__DEFAULT_BRANCH__` substituted); inputs `kinds`, `tier`, `gate`, `hub-ref` |
+| `VERSION` | Kit provenance + changelog |
+
+## `feedback/`
+
+The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract; not yet wired into `tools/fanout.sh` (roadmap).
+
+| File | Purpose |
+| --- | --- |
+| `package.json` | npm manifest `@bamr87/fleet-feedback` — published by `publish-kits.yml` so always-latest consumers get updates by dependency |
+| `fleet-feedback.js` | `<fleet-feedback>` — zero-dependency web component: console/error capture, request-type dialog, prefilled-issue URL with a 7000-char budget and clipboard fallback, optional proxy mode |
+| `feedback_types.yml` | Request-type taxonomy; type labels map onto the fleet issue-pipeline label set |
+| `page_feedback.yml` | No-JS twin: GitHub issue form with the same sections (→ `.github/ISSUE_TEMPLATE/`) |
+| `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `django.html` (Django; ERB equivalent for Rails) |
+| `VERSION` | Kit provenance + changelog |
+
 ## `prose/`
 
 The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/markdown-oneline`):

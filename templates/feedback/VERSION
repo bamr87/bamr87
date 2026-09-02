@@ -1,0 +1,23 @@
+kit: feedback
+version: 0.1.0
+source: bamr87/bamr87 templates/feedback/
+seeded-by: tools/fanout.sh --kit feedback (to be wired; see specs/CONFORMANCE.md adoption step 6)
+files: fleet-feedback.js, feedback_types.yml, page_feedback.yml, adapters/jekyll.html, adapters/FeedbackButton.tsx, adapters/django.html
+spec: specs/FEEDBACK.md (UPS-FB)
+updated: 2026-09-01
+changelog: |
+  0.1.0 — initial extraction of the zer0-mistakes page-feedback widget into a
+  framework-agnostic web component. Same issue contract (title tag, section
+  order, 7000-char URL budget with logs → directive → environment trimming,
+  clipboard fallback, hidden marker), same taxonomy, but type labels now map
+  onto the fleet issue-pipeline label set (bug/feature/docs/question) so
+  widget-filed issues are pipeline-eligible on the next scan. Adapters for
+  Jekyll (non-theme sites), React, and Django/Rails. Zero dependencies.
+notes: |
+  - Vendor fleet-feedback.js into the repo (assets/js, public/, static/js);
+    never hot-link the hub.
+  - Every label in feedback_types.yml MUST exist in the target repo:
+    `gh label list`. GitHub silently drops unknown labels from prefilled URLs.
+  - The zer0-mistakes theme keeps its richer Liquid widget; the theme change
+    that makes it work on remote_theme consumers (built-in taxonomy fallback,
+    UPS-FB-31) is tracked on the roadmap.

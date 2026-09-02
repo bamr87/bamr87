@@ -23,7 +23,7 @@
 #
 # Usage:
 #   tools/fanout.sh --kit standardize --target <name|all> [--apply] [--upgrade]
-#                   [--artifacts editorconfig,ci,agent-context,claude,claude-settings,
+#                   [--artifacts editorconfig,ci,conformance,agent-context,claude,claude-settings,
 #                    claude-guardrails,claude-agent-auditor]
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
@@ -34,6 +34,8 @@
 #                editorconfig,ci):
 #                  editorconfig    copy the hub's .editorconfig
 #                  ci              templates/standard-ci/ci.yml caller
+#                  conformance     templates/conformance/conformance.yml caller
+#                                  (in-repo Universal Project Standard gate)
 #                  agent-context   templates/agent-context/CLAUDE.template.md,
 #                                  only when the repo has NO agent-context file
 #                  claude          templates/agent-context/claude.yml
@@ -107,6 +109,7 @@ kit_version() {  # $1 = kit dir under templates/
 AC_VERSION="$(kit_version agent-context)"
 PROSE_VERSION="$(kit_version prose)"
 CI_VERSION="$(kit_version standard-ci)"
+CONF_VERSION="$(kit_version conformance)"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -202,6 +205,10 @@ seed_standardize() {
   case ",$ARTIFACTS," in *,ci,*)
     seed_workflow_artifact "ci.yml" .github/workflows/ci.yml \
       "$HUB/templates/standard-ci/ci.yml" "$name" "$def" "$CI_VERSION" ;;
+  esac
+  case ",$ARTIFACTS," in *,conformance,*)
+    seed_workflow_artifact "conformance.yml" .github/workflows/conformance.yml \
+      "$HUB/templates/conformance/conformance.yml" "$name" "$def" "$CONF_VERSION" ;;
   esac
   case ",$ARTIFACTS," in *,agent-context,*)
     if [[ ! -f CLAUDE.md && ! -f AGENTS.md && ! -f .github/copilot-instructions.md && ! -f .cursorrules ]]; then

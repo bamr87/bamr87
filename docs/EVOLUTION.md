@@ -60,6 +60,7 @@ The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-exp
 
 Each matrix job checks the target repository out at its declared branch, downloads its brief into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus Claude Code agent with a prompt whose hard rules are fixed in the workflow:
 
+- the brief's **Conformance gaps** section (from `_data/conformance.yml`, written by `dash spec fleet --write`) is the agent's adoption lane: failing Universal Project Standard rows, MUST first, each pointing at its spec file and a reference implementation in `_data/references.yml`;
 - the agent reads the brief, then orients README-First (`README.md`, `CLAUDE.md`,
   `AGENTS.md`, `CONTRIBUTING.md`, `SCHEMA.md` — house rules there override the prompt);
 - it makes a **small number** of high-leverage, obviously-correct changes in the brief's
@@ -70,6 +71,10 @@ priority order — documentation → clarity → functionality — verifies with
   test runners — no `git push`, no `gh pr create`), and publishing is the workflow's step.
 
 Then the workflow — and only the workflow — commits as `bamr87-bot`, pushes `ai-evolution/<yyyymmdd>-<run id>`, and opens a **draft** PR in the target repo with the brief's marker as the first line of the body, the agent's report, and a link back to the run. It refuses to publish if the agent moved `HEAD` off the base branch, and it drops any lockfile a verify step produced ([always-latest policy](DEPENDENCIES.md)). No changes → no branch, no PR, one summary line.
+
+**The publish step re-derives its own remote and never trusts `origin`.** `claude-code-action` resolves its repository from `github.repository` — the *hub*, not the checkout — and revokes its own installation token before the step ends, so it leaves the tree pointing at `bamr87/bamr87` with a dead credential. Run #1's `scripts` job checked out `bamr87/scripts` and pushed to `bamr87/bamr87.git`; the push failed on `Invalid username or token`, which was the lucky outcome — one that *succeeded* would have put a submodule's changes on the hub. So the step sets `origin` from `$NWO`, clears any `http.<server>/.extraheader` the agent step left behind, hard-fails with a named `::error::` if the remote is anything but `$NWO`, and pushes to the explicit URL rather than the remote name. `test_evolution.py` asserts all four ([#214](https://github.com/bamr87/bamr87/issues/214)).
+
+**A finished agent is never thrown away for overshooting the cap.** `claude-code-action` fails the step when the turn count exceeds `--max-turns` *even when the agent reported success* — run #1's `README` job was billed $2.85 for completed work that `Open draft PR` then never saw, because a failed step skips the rest of the job. The `Salvage a successful overshoot` step reads the agent's own verdict out of `claude-execution-output.json` (`subtype == "success"` **and** `is_error == false`; a genuine turn exhaustion reports neither), warns, and lets the publish step run anyway. Raising `max_turns` makes the case rarer; only this makes it non-destructive.
 
 ### Lanes — why it does not collide with the other loops
 
@@ -133,7 +138,7 @@ All in [`_data/fleet.yml`](../_data/fleet.yml), read by the planner and wired in
 | `evolution.branch_prefix` / `marker` / `label` | `ai-evolution` / `repo-evolution` / `ai-evolution` | how a pass is recognised and labelled |
 | `evolution.max_targets` | `6` | repos per run |
 | `evolution.max_parallel` | `2` | concurrent agents (the Claude loops share one OAuth account) |
-| `evolution.max_turns` | `60` | per repo — orient, read, edit, verify, report |
+| `evolution.max_turns` | `120` | per repo — orient, read, edit, verify, report. Run #1 (2026-08-31) measured that program at **46 / 61 / 63** turns (`scripts` / `cv-builder-pro` / `README`); the old cap of `60` sat at the median of real demand, so two of three targets were billed in full and produced no PR. Set above the observed ceiling, not at it. |
 | `evolution.signals.max_issues` / `max_prs` | `8` / `5` | how much of the triage snapshot a brief quotes |
 
 ## Tokens

@@ -31,6 +31,11 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `unpin-deps.sh` | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-latest` fan-out kit runs it per clone) — see [docs/DEPENDENCIES.md](../docs/DEPENDENCIES.md) |
 | `schema_lint.py` | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
 | `gen-projects-schema.py` | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
+| `render-diagrams.sh` | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
+| `unwrap-prose.py` | Liquid-safe one-paragraph-per-line unwrapper for markdown prose (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
+| `conformance.py` | **Executable Universal Project Standard checker** (`dash spec`): `check [path]` runs the machine-checkable rows of `_data/specs.yml` against one repo (kinds detected from the tree or `--kinds`; `--gate` fails on MUST); `fleet --write` snapshots every submodule → `_data/conformance.yml` (the repo-evolution brief's adoption lane); the reusable `fleet-conformance.yml` runs the same checker in each repo's CI |
+| `gen-catalog.py` | Regenerates the root `CATALOG.md` — the master index of specs, kits, references, registries, tools, workflows, AI layer, docs, dash surfaces, diagrams — from disk + each directory's README/SCHEMA tables (`--check` gates staleness) |
+| `gen-specs-data.py` | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
 | `seed-schema.sh` | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 
 ## Architecture
