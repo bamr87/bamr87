@@ -79,7 +79,7 @@ DEFAULTS: dict = {
     "label": "ai-evolution",           # created on demand in the target repo
     "max_targets": 6,                  # repos evolved per run; the rest are logged and dropped
     "max_parallel": 2,                 # concurrent Claude passes
-    "max_turns": 60,                   # per repo — one repo per job
+    "max_turns": 120,                  # per repo — one repo per job; above the 63 observed in run #1
     "skip_when_open_pr": True,         # one open evolution PR per repo at a time
     "signals": {"max_issues": 8, "max_prs": 5},
 }
