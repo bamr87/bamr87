@@ -53,6 +53,11 @@ DASH = str(TOOLS / "dash")
 DASH_GEN = str(TOOLS / "dash-gen")
 DASH_GEN_DIR = REPO_ROOT / ".github" / "scripts" / "dash-gen"
 JOB_DIR = Path(os.environ.get("DASH_CONSOLE_JOBS") or (Path(tempfile.gettempdir()) / "dash-console"))
+# The local data lake (dash-gen lake) and the Phoenix trace store it exports
+# to — the other two services of the local stack (docs/HARNESS-OPS.md).
+LAKE_DIR = Path(os.environ.get("DASH_LAKE_DIR") or (REPO_ROOT / ".dash-lake"))
+PHOENIX_COLLECTOR = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT") or "http://127.0.0.1:6006"
+PHOENIX_UI = os.environ.get("PHOENIX_UI_URL") or PHOENIX_COLLECTOR
 
 NAME_RX = re.compile(r"^[A-Za-z0-9._-]{1,64}$")          # repo / submodule names
 KEY_RX = re.compile(r"^[a-z_][a-z0-9_.]{0,80}$")          # dotted fleet.yml keys
@@ -295,6 +300,8 @@ def capabilities() -> dict:
     # find_spec, not a bare import: `import ruamel.yaml` would rebind the local
     # name to the module object and leak it into the JSON response.
     has_ruamel = importlib.util.find_spec("ruamel.yaml") is not None
+    has_otel = all(importlib.util.find_spec(m) is not None
+                   for m in ("opentelemetry.sdk", "opentelemetry.exporter.otlp.proto.http"))
     return {
         "tools": tools,
         "gh_authenticated": gh_auth,
@@ -303,7 +310,45 @@ def capabilities() -> dict:
         "console_token_required": bool(os.environ.get("DASH_CONSOLE_TOKEN")),
         "python": sys.version.split()[0],
         "job_dir": str(JOB_DIR),
+        "lake_dir": str(LAKE_DIR),
+        "lake_present": (LAKE_DIR / "fleet.sqlite").exists(),
+        "otel_exporter": has_otel,
+        "phoenix": {"collector": PHOENIX_COLLECTOR, "ui": PHOENIX_UI},
     }
+
+
+# --------------------------------------------------------------------------- #
+# LAKE — the local data lake + trace export, read through dash-gen's module
+# --------------------------------------------------------------------------- #
+def _lake_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import fleet_lake  # noqa: WPS433
+    return fleet_lake
+
+
+def lake_status(probe: bool = True) -> dict:
+    """The /api/lake document: what the lake holds and whether Phoenix answers.
+    Degrades to a 'not present' document rather than a 500."""
+    try:
+        return _lake_module().status_dict(LAKE_DIR, probe=probe, collector=PHOENIX_COLLECTOR, ui=PHOENIX_UI)
+    except Exception as exc:  # the module is optional at import time
+        return {"present": False, "lake_dir": str(LAKE_DIR), "error": f"{exc.__class__.__name__}: {exc}",
+                "tables": {}, "repos": [], "agent_runs": {"count": 0}, "exports": {"count": 0},
+                "phoenix": {"collector": PHOENIX_COLLECTOR, "ui": PHOENIX_UI, "reachable": None}}
+
+
+def lake_runs(limit: int = 50) -> list[dict]:
+    try:
+        return _lake_module().recent_runs(LAKE_DIR, limit=limit)
+    except Exception:
+        return []
+
+
+def lake_lines() -> list[dict]:
+    try:
+        return _lake_module().lines(LAKE_DIR)
+    except Exception:
+        return []
 
 
 # --------------------------------------------------------------------------- #
@@ -382,6 +427,33 @@ def _config_show(params: dict) -> list[str]:
     return argv
 
 
+def _choice(params: dict, key: str, allowed: tuple[str, ...], default: str) -> str:
+    v = str(params.get(key) or default).strip()
+    if v not in allowed:
+        raise ValueError(f"{key} must be one of {allowed}")
+    return v
+
+
+def _lake_sync(params: dict) -> list[str]:
+    argv = [DASH_GEN, "lake", "sync", "--days", _days({"days": params.get("days", 7)})]
+    if str(params.get("target") or "").strip():
+        argv += ["--repo", _name(params)]
+    argv += ["--jobs", _choice(params, "jobs", ("ai", "all", "none"), "ai")]
+    argv += ["--logs", _choice(params, "logs", ("ai", "all", "none"), "ai")]
+    return argv
+
+
+def _lake_export(params: dict) -> list[str]:
+    argv = [DASH_GEN, "lake", "export", "--days", _days({"days": params.get("days", 7)})]
+    if _flag(params, "local"):
+        argv.append("--local")
+    if _flag(params, "dry_run"):
+        argv.append("--dry-run")
+    if _flag(params, "force"):
+        argv.append("--force")
+    return argv
+
+
 # id → (title, group, argv builder, needs_token, remote_write(params) -> bool, description)
 OPS: dict[str, dict] = {
     # observe ----------------------------------------------------------------
@@ -451,6 +523,20 @@ OPS: dict[str, dict] = {
                         desc="Errors and warnings fail, exactly as in CI."),
     "tests": dict(title="Control-plane fixture tests", group="verify", argv=_tests, needs_token=False,
                   desc="Every dash-gen and console test_*.py on a bare interpreter."),
+    # lake (the local data lake + traces — writes only to disk and to Phoenix) ---
+    "lake-sync": dict(title="Lake: extract GitHub data into the local lake", group="lake",
+                      argv=_lake_sync, needs_token=True,
+                      desc="dash-gen lake sync — runs → jobs → steps, run logs + claude-code-action facts, "
+                           "issues, workflow files, .factory/** → .dash-lake/fleet.sqlite (gitignored).",
+                      params=["days", "target", "jobs", "logs"]),
+    "lake-status": dict(title="Lake: status", group="lake",
+                        argv=lambda p: [DASH_GEN, "lake", "status"], needs_token=False,
+                        desc="Tables, freshness, per-repo counts, the export ledger, Phoenix reachability."),
+    "lake-export": dict(title="Lake: export traces to Phoenix", group="lake",
+                        argv=_lake_export, needs_token=False,
+                        desc="OpenInference spans for the lake's agent runs (and this machine's Claude Code "
+                             "sessions with local) → Phoenix over OTLP/HTTP. Dry run writes export-preview.json.",
+                        params=["days", "local", "dry_run", "force"]),
     # deploy (writes to GitHub — confirm-gated, serialized) ---------------------
     "deploy-gaps": dict(title="Deploy the agent-context kit to gap repos", group="deploy",
                         argv=lambda p: _deploy(p, "gaps"), needs_token=True,

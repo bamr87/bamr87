@@ -36,6 +36,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash config [show|audit|sync]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
+  ${c_bold}dash lake [sync|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -50,7 +51,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|harness|harnesses|remediate|issues|reconcile|estimate|ledger|targets|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|harness|harnesses|lake|remediate|issues|reconcile|estimate|ledger|targets|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -307,6 +308,11 @@ cmd_config() {
 }
 cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
 cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
+# The local data lake + trace export (local stack; docs/HARNESS-OPS.md):
+#   dash lake sync    extract GitHub runs/jobs/steps/logs/issues/workflows/.factory → .dash-lake/
+#   dash lake status  what the lake holds + Phoenix reachability
+#   dash lake export  OpenInference traces → Phoenix (docker compose up -d phoenix)
+cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
 cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
@@ -330,6 +336,7 @@ main() {
     config)  cmd_config "$@" ;;
     estimate) cmd_estimate "$@" ;;
     ledger)  cmd_ledger "$@" ;;
+    lake)    cmd_lake "$@" ;;
     serve)   cmd_serve "$@" ;;
     console) cmd_console "$@" ;;
     sync)    cmd_sync "$@" ;;

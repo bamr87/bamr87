@@ -26,8 +26,9 @@ from pydantic import BaseModel, Field
 import core
 
 STATIC = Path(__file__).resolve().parent / "static"
-app = FastAPI(title="bamr87 Harness Console", version="0.1.0",
-              description="Local control plane for the fleet's AI harnesses and schedules.")
+app = FastAPI(title="bamr87 Harness Console", version="0.2.0",
+              description="Local control plane for the fleet's AI harnesses and schedules — "
+                          "with the local data lake and Phoenix traces.")
 jobs = core.JobManager()
 
 
@@ -101,6 +102,23 @@ def cancel_job(job_id: str) -> dict:
         raise HTTPException(status_code=404, detail="no such job")
 
 
+@app.get("/api/lake", dependencies=[Depends(require_token)])
+def lake(probe: bool = Query(default=True)) -> dict:
+    """The local data lake + Phoenix reachability (dash-gen lake status --json)."""
+    return core.lake_status(probe)
+
+
+@app.get("/api/lake/runs", dependencies=[Depends(require_token)])
+def lake_runs(limit: int = Query(default=50, ge=1, le=500)) -> list[dict]:
+    return core.lake_runs(limit)
+
+
+@app.get("/api/lake/lines", dependencies=[Depends(require_token)])
+def lake_lines() -> list[dict]:
+    """Every workflow in the lake with its GitFactory provenance and kill switch."""
+    return core.lake_lines()
+
+
 @app.get("/api/contract", dependencies=[Depends(require_token)])
 def contract() -> dict:
     return core.read_contract()
@@ -124,6 +142,7 @@ def index() -> FileResponse:
 @app.get("/api", include_in_schema=False)
 def api_root() -> JSONResponse:
     return JSONResponse({"routes": ["/api/state", "/api/capabilities", "/api/ops", "/api/jobs",
+                                    "/api/lake", "/api/lake/runs", "/api/lake/lines",
                                     "/api/contract", "/docs"]})
 
 

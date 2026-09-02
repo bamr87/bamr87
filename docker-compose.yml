@@ -6,6 +6,7 @@
 #   docker compose up -d                     # Start all services
 #   docker compose up -d devenv              # Start dev environment only
 #   docker compose up -d console             # Harness Console on http://127.0.0.1:4001
+#   docker compose up -d phoenix             # Phoenix traces UI on http://127.0.0.1:6006
 #   docker compose up -d wiki db             # Start wiki stack only
 #   docker compose --profile admin up -d     # Include admin tools (pgAdmin)
 #   docker compose exec devenv bash          # Open shell in dev container
@@ -88,6 +89,9 @@ services:
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - DASH_CONSOLE_TOKEN=${DASH_CONSOLE_TOKEN:-}
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006     # traces go to the sibling service
+      - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}  # what the console links to
+      - DASH_LAKE_DIR=/workspace/.dash-lake
     networks:
       - dev-network
     restart: unless-stopped
@@ -98,6 +102,30 @@ services:
       timeout: 5s
       retries: 3
       start_period: 90s
+
+  # --------------------------------------------------------------------------
+  # Phoenix - LLM observability (Arize Phoenix): traces of every agent run
+  #
+  # The local stack's TRACEABILITY store. `tools/dash lake export` turns the
+  # fleet's ingested GitHub runs (workflow → jobs → steps → Claude turns and
+  # tool calls, with tokens and cost) and this machine's Claude Code sessions
+  # into OpenInference spans and ships them here over OTLP/HTTP; the UI on
+  # :6006 gives trace trees, latency, token and cost breakdowns per project.
+  # SQLite-backed (PHOENIX_WORKING_DIR volume); loopback-only ports.
+  # --------------------------------------------------------------------------
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: bamr87-phoenix
+    ports:
+      - "127.0.0.1:${PHOENIX_PORT:-6006}:6006"        # UI + OTLP/HTTP (/v1/traces)
+      - "127.0.0.1:${PHOENIX_GRPC_PORT:-4317}:4317"   # OTLP/gRPC
+    environment:
+      - PHOENIX_WORKING_DIR=/mnt/data
+    volumes:
+      - phoenix-data:/mnt/data
+    networks:
+      - dev-network
+    restart: unless-stopped
 
   # --------------------------------------------------------------------------
   # MkDocs - Documentation site (Material theme)
@@ -224,6 +252,8 @@ volumes:
   node-modules:
     driver: local
   venv-console:
+    driver: local
+  phoenix-data:
     driver: local
   venv-docs:
     driver: local

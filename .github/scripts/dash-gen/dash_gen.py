@@ -31,6 +31,13 @@ Subcommands:
            per tier plus the committed _data/issue_pipeline.yml snapshot.
            Drives issue-pipeline.yml. Implemented in issue_pipeline.py.
 
+  lake     The LOCAL data lake of the local stack: `sync` extracts what GitHub
+           holds (runs → jobs → steps, run logs, claude-code-action facts,
+           issues, workflow files, .factory/** blueprints) into
+           .dash-lake/fleet.sqlite; `status` reports it; `export` turns agent
+           runs and local Claude Code sessions into OpenInference traces for
+           Phoenix. Gitignored, never committed. Implemented in fleet_lake.py.
+
   all      Run health then readme.
 
 The single source of truth is dash/_data/projects.yml. This script never invents
@@ -57,6 +64,7 @@ import cv_fragment
 import daily_report
 import engagements
 import evolution
+import fleet_lake
 import fleet_triage
 import harness
 import harness_registry
@@ -461,6 +469,14 @@ def main(argv: list[str] | None = None) -> int:
              "(committed, daily-refreshed; --gaps prints fan-out targets)",
     )
     harness_registry.add_arguments(p_harnesses)
+
+    p_lake = sub.add_parser(
+        "lake",
+        help="the local data lake: `sync` extracts GitHub runs/jobs/steps/logs/issues/workflows/"
+             ".factory into .dash-lake/fleet.sqlite, `status` reports it, `export` ships "
+             "OpenInference traces to Phoenix (local-only; never committed)",
+    )
+    fleet_lake.add_arguments(p_lake)
 
     p_remediate = sub.add_parser(
         "remediate",

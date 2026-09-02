@@ -13,11 +13,11 @@ coverage: listed
 |---|---|---|---|
 | `README.md` | file | How to run the console (native venv or compose), what it can and cannot do | required |
 | `core.py` | file | Pure logic: committed-state loader, the operation ALLOWLIST, the job manager, the comment-preserving contract editor (no web framework — testable on PyYAML alone) | required |
-| `app.py` | file | FastAPI routes over core.py (`/api/state`, `/api/ops`, `/api/jobs`, `/api/contract`, `/api/capabilities`) + the static page; optional bearer-token guard | required |
+| `app.py` | file | FastAPI routes over core.py (`/api/state`, `/api/ops`, `/api/jobs`, `/api/contract`, `/api/capabilities`, `/api/lake` + `/api/lake/runs` + `/api/lake/lines` for the data lake) + the static page; optional bearer-token guard | required |
 | `run.sh` | file | Bootstraps `.venv-console` at latest and execs uvicorn (`tools/dash console`, the compose `console` service) | required |
-| `requirements.txt` | file | Always-latest deps: dash-gen's requirements + fastapi, uvicorn, ruamel.yaml | required |
+| `requirements.txt` | file | Always-latest deps: dash-gen's requirements + fastapi, uvicorn, ruamel.yaml, the OpenTelemetry SDK + OTLP/HTTP exporter (lake export) | required |
 | `test_console.py` | file | Fixture tests — allowlist refusals, argv shapes, confirm gate, job manager, state degradation, contract round-trip | required |
-| `static/` | dir | The single-page front end (`index.html`: overview, harnesses, schedules, loops, costs, fleet, contract, jobs) | terminal |
+| `static/` | dir | The single-page front end (`index.html`: overview, harnesses, schedules, loops, costs, traces — the lake + Phoenix — fleet, contract, jobs) | terminal |
 
 ## Placement
 

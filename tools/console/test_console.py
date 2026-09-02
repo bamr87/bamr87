@@ -92,6 +92,33 @@ def test_dispatch_validates_workflow_and_inputs():
         raise AssertionError(f"accepted {params}")
 
 
+def test_lake_ops_argv_shapes_and_status_document():
+    argv, remote = core.build_argv("lake-sync", {"days": "3", "target": "alpha", "jobs": "all", "logs": "none"})
+    assert argv[1:] == ["lake", "sync", "--days", "3", "--repo", "alpha", "--jobs", "all", "--logs", "none"], argv
+    assert remote is False  # the lake writes to disk, never to GitHub
+    argv, _ = core.build_argv("lake-sync", {})
+    assert argv[-7:] == ["sync", "--days", "7", "--jobs", "ai", "--logs", "ai"], argv
+    for bad in ({"jobs": "everything"}, {"target": "a/b"}, {"logs": "all; rm -rf /"}, {"days": 0}):
+        try:
+            core.build_argv("lake-sync", bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted {bad}")
+    argv, remote = core.build_argv("lake-export", {"local": True, "dry_run": True, "force": "1"})
+    assert argv[1:] == ["lake", "export", "--days", "7", "--local", "--dry-run", "--force"], argv
+    assert remote is False
+    argv, _ = core.build_argv("lake-status", {})
+    assert argv[1:] == ["lake", "status"]
+    import json
+    s = core.lake_status(probe=False)
+    assert "present" in s and s["phoenix"]["collector"] and "lake_dir" in s
+    json.dumps(s)
+    json.dumps(core.lake_runs(5))
+    json.dumps(core.lake_lines())
+    caps = core.capabilities()
+    assert isinstance(caps["otel_exporter"], bool) and caps["phoenix"]["collector"] and isinstance(caps["lake_present"], bool)
+
+
 def test_job_manager_runs_confirms_and_tails():
     tmp = Path(tempfile.mkdtemp())
     try:

@@ -40,11 +40,14 @@ git submodule update --init --recursive
 docker compose up -d devenv
 docker compose exec devenv bash
 docker compose up -d console           # the Harness Console — http://127.0.0.1:4001 (or: tools/dash console)
+docker compose up -d phoenix           # Phoenix traces — http://127.0.0.1:6006 (tools/dash lake export ships traces to it)
 docker compose --profile admin up -d   # adds pgAdmin
 docker compose down -v                 # stop and wipe volumes
 ```
 
 The `console` service is the local control plane's **front end**: it renders every committed fleet signal, runs the allowlisted `tools/dash` operations as jobs with live logs, dispatches the control-plane workflows, and edits the `harnesses:` contract — dry-run by default, confirm-gated for anything that writes to GitHub, never a commit. Its credentials come from `.env` (`FLEET_TOKEN` / `GH_TOKEN` / the Claude tokens, by name). See [HARNESS-OPS.md](HARNESS-OPS.md) and [`tools/console/README.md`](../tools/console/README.md).
+
+The `phoenix` service is the local stack's trace store ([Arize Phoenix](https://github.com/Arize-ai/phoenix)): `tools/dash lake sync` extracts the fleet's GitHub records (runs, jobs, steps, run logs, issues, workflow files, `.factory/` blueprints) into the gitignored `.dash-lake/fleet.sqlite`, and `tools/dash lake export [--local]` turns the agent runs — and, optionally, this machine's Claude Code sessions — into OpenInference traces you browse at :6006. The console's **Traces** tab drives both.
 
 Copy `.env.example` → `.env` before the first run. Ports and services are tabulated in [DASH.md](DASH.md) — that table is maintained in exactly one place.
 

@@ -4,3 +4,6 @@
 fastapi
 uvicorn
 ruamel.yaml
+# `dash-gen lake export` — OpenInference spans over OTLP/HTTP to the Phoenix service
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http

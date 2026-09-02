@@ -11,6 +11,8 @@ docker compose up -d console    # same thing
 CONSOLE_RELOAD=1 tools/dash console   # auto-reload while editing app.py / core.py
 ```
 
+The console is one of the local stack's three services; `docker compose up -d phoenix` starts the trace store it links to (http://127.0.0.1:6006), and `tools/dash lake sync` fills the data lake the Traces tab reads (see [docs/HARNESS-OPS.md](../../docs/HARNESS-OPS.md), "The local stack").
+
 Credentials are inherited from the process environment (`gh auth login`, or `GH_TOKEN` / `FLEET_TOKEN` / the Claude tokens in `.env` for the compose service). The console only ever reports which credential **names** are present. Set `DASH_CONSOLE_TOKEN` to require `Authorization: Bearer …` on the API when the console is reachable beyond localhost.
 
 ## What it does
@@ -22,6 +24,7 @@ Credentials are inherited from the process environment (`gh auth login`, or `GH_
 | Schedules | throughput vs caps, AI crons by UTC hour with collisions, the fleet calendar | — (retune a cron or a cap; findings name which) |
 | Loops | every control-plane loop with cadence + output freshness | run the loop's local half, dispatch it in CI |
 | Costs | Claude spend + Actions minutes trends, week-over-week, projected monthly vs budget, by-day tables | refresh the ledgers |
+| Traces | **the local stack**: the data lake (`.dash-lake/fleet.sqlite` — size, last sync, per-repo runs/AI runs/workflows/issues, agent spend and models parsed from run logs), Phoenix reachability + export ledger, the newest agent runs with their trace ids, and the **Lines** view (every workflow in GitFactory's vocabulary: `blueprint@hash` provenance, `vars.*_ENABLED` gate, triggers/crons, model, auth, last verdict) | **sync** the lake from GitHub, **export** traces to Phoenix (dry run by default; local Claude Code sessions optional), open Phoenix |
 | Fleet | registry, triage inbox, credential ages | status / audit / triage / secrets audit / reconcile |
 | Contract | the `harnesses:` block of `_data/fleet.yml` as a form; read-only schedule, caps, token contract | **save** (comments preserved) → git diff shown; the commit stays with you |
 | Jobs | every job with live log tailing and cancel | run any allowlisted operation with its parameters |
@@ -31,7 +34,8 @@ Credentials are inherited from the process environment (`gh auth login`, or `GH_
 - Run anything outside the allowlist in `core.py` (`OPS`): parameters are validated by regex/range and become argv elements, never a shell string.
 - Write to GitHub without an explicit confirm (`apply`, `dispatch`) — and only one such job runs at a time.
 - Commit, push, or merge. Generated data lands in the working tree; you review it in git.
+- Publish the lake. `.dash-lake/` is gitignored (it holds run logs); traces go only to the Phoenix endpoint you configured, and `PHOENIX_API_KEY`, when set, is forwarded and never shown.
 
 ## Files
 
-`core.py` (logic, tested by `test_console.py` on PyYAML alone) · `app.py` (FastAPI routes) · `static/index.html` (the page) · `run.sh` · `requirements.txt` (always-latest).
+`core.py` (logic, tested by `test_console.py` on PyYAML alone) · `app.py` (FastAPI routes, including `/api/lake`, `/api/lake/runs`, `/api/lake/lines`) · `static/index.html` (the page) · `run.sh` · `requirements.txt` (always-latest; carries the OpenTelemetry SDK + OTLP/HTTP exporter for `lake export`).

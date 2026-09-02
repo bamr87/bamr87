@@ -114,6 +114,7 @@
   <button data-tab="schedules">Schedules</button>
   <button data-tab="loops">Loops</button>
   <button data-tab="costs">Costs</button>
+  <button data-tab="traces">Traces</button>
   <button data-tab="fleet">Fleet</button>
   <button data-tab="contract">Contract</button>
   <button data-tab="jobs">Jobs</button>
@@ -124,6 +125,7 @@
   <section id="tab-schedules" hidden></section>
   <section id="tab-loops" hidden></section>
   <section id="tab-costs" hidden></section>
+  <section id="tab-traces" hidden></section>
   <section id="tab-fleet" hidden></section>
   <section id="tab-contract" hidden></section>
   <section id="tab-jobs" hidden></section>
@@ -195,7 +197,7 @@ $('#nav').addEventListener('click', e => {
 function renderTab(tab) {
   if (!STATE) return;
   ({ overview: renderOverview, harnesses: renderHarnesses, schedules: renderSchedules, loops: renderLoops,
-     costs: renderCosts, fleet: renderFleet, contract: renderContract, jobs: renderJobs })[tab]();
+     costs: renderCosts, traces: renderTraces, fleet: renderFleet, contract: renderContract, jobs: renderJobs })[tab]();
 }
 
 // ------------------------------------------------------------------ overview
@@ -359,6 +361,70 @@ function renderCosts() {
   bindRunButtons('#tab-costs');
 }
 
+// ------------------------------------------------------------------ traces (the local stack: lake + Phoenix)
+async function renderTraces() {
+  const el = $('#tab-traces');
+  el.innerHTML = '<div class="muted">reading the lake…</div>';
+  let lake, runs, lines;
+  try { [lake, runs, lines] = await Promise.all([api('/api/lake'), api('/api/lake/runs?limit=60'), api('/api/lake/lines')]); }
+  catch (e) { el.innerHTML = status('crit', e.message); return; }
+  const px = lake.phoenix || {}, t = lake.tables || {}, ls = lake.last_sync || {}, ag = lake.agent_runs || {}, ex = lake.exports || {}, repos = lake.repos || [];
+  const reach = px.reachable === true ? status('good', 'reachable') : px.reachable === false ? status('crit', 'not reachable') : status('info', 'not probed');
+  el.innerHTML = `
+    <div class="card"><b>The local stack</b> <span class="muted">— three services on this machine, one code path with CI (docs/HARNESS-OPS.md).</span>
+      <pre class="log" style="margin-top:8px;max-height:none">GitHub  (runs · jobs · steps · run logs · issues · workflow files · .factory/ blueprints · fleet.manifest.yml)
+   │   tools/dash lake sync          PyGithub, windowed, idempotent upserts — no token, no sync
+   ▼
+.dash-lake/fleet.sqlite  ◀── this console reads it (/api/lake)   ◀── tools/dash lake status   (gitignored; holds logs)
+   │   tools/dash lake export        OpenInference spans over OTLP/HTTP, deterministic trace ids, export ledger
+   ▼
+Phoenix :6006   traces: workflow → job → step → Claude agent (model · turns · cost) → tool calls; --local adds this machine's Claude Code sessions
+
+Harness Console :4001 (this)   ·   Jekyll dash :4000 (read-only twin)   ·   GitHub Actions = the cloud plane running the same tools/ entrypoints</pre></div>
+    <div class="toolbar" style="margin-top:12px">
+      <label class="inl">days <input id="l-days" type="number" min="1" max="90" value="7" style="width:70px"></label>
+      <label class="inl">repo <input id="l-target" type="text" placeholder="all owned repos" size="18"></label>
+      <button class="btn primary" id="l-sync">⬇ Sync lake from GitHub</button>
+      <button class="btn" data-run='{"op":"lake-status"}'>▶ Status</button>
+      <span class="muted">·</span>
+      <label class="inl"><input id="l-local" type="checkbox" checked> local Claude Code sessions</label>
+      <label class="inl"><input id="l-dry" type="checkbox" checked> dry run</label>
+      <label class="inl"><input id="l-force" type="checkbox"> force</label>
+      <button class="btn" id="l-export">🔭 Export traces to Phoenix</button>
+      <a class="btn" href="${esc(px.ui || '#')}" target="_blank" rel="noopener" style="text-decoration:none">Open Phoenix ↗</a>
+    </div>
+    <div class="grid">
+      <div class="card tile"><div class="label">Lake</div><div class="value" style="font-size:18px">${lake.present ? (lake.size_bytes / 1e6).toFixed(1) + ' MB' : 'not built yet'}</div><div class="delta"><code>${esc(lake.db_path || lake.lake_dir)}</code>${lake.error ? ' ' + status('crit', lake.error) : ''}</div></div>
+      <div class="card tile"><div class="label">Last sync</div><div class="value" style="font-size:18px">${ls.finished_at ? esc(ls.finished_at) : '—'}</div><div class="delta">${ls.window_days ? ls.window_days + 'd window · ' + ls.repos + ' repos · ' + esc(ls.note || '') : 'sync to fill it'}</div></div>
+      <div class="card tile"><div class="label">Runs · AI runs · agent runs parsed</div><div class="value">${fmt(t.runs)} <span class="muted" style="font-size:14px">· ${fmt(repos.reduce((a, r) => a + (r.ai_runs || 0), 0))} · ${fmt(ag.count)}</span></div><div class="delta">${fmt(t.jobs)} jobs · ${fmt(t.steps)} steps · ${fmt(t.logs)} log entries</div></div>
+      <div class="card tile"><div class="label">Agent spend in the lake</div><div class="value">${usd(ag.cost_usd)}</div><div class="delta">${fmt(ag.turns)} turns · ${esc(Object.entries(ag.models || {}).map(([m, n]) => m + '×' + n).join(', ') || '—')}</div></div>
+      <div class="card tile"><div class="label">Issues · workflows · .factory files</div><div class="value" style="font-size:18px">${fmt(t.issues)} · ${fmt(t.workflows)} · ${fmt(t.factory_files)}</div><div class="delta">${fmt(repos.filter(r => r.factory).length)} GitFactory-managed repos in the lake</div></div>
+      <div class="card tile"><div class="label">Phoenix</div><div class="value" style="font-size:18px">${reach}</div><div class="delta"><code>${esc(px.collector)}</code> · ${fmt(ex.count)} traces / ${fmt(ex.spans)} spans exported${ex.last ? ' · last ' + esc(ex.last) : ''}${CAPS && CAPS.otel_exporter === false ? ' · ' + status('warn', 'OTel exporter not installed (dry run still works)') : ''}</div></div>
+    </div>
+    <h2>Repos in the lake</h2>
+    <div class="wrap"><table><thead><tr><th>repo</th><th class="num">runs</th><th class="num">AI runs</th><th class="num">workflows</th><th class="num">open issues</th><th>last run</th><th>synced</th></tr></thead><tbody>
+      ${repos.map(r => `<tr><td><code>${esc(r.nwo)}</code>${r.factory ? ' <span title="GitFactory-managed: .factory/ blueprints">⚙</span>' : ''}${r.manifest ? ' <span title="declares fleet.manifest.yml">📜</span>' : ''}${r.archived ? ' <span class="muted">archived</span>' : ''}</td><td class="num">${fmt(r.runs)}</td><td class="num">${fmt(r.ai_runs)}</td><td class="num">${fmt(r.workflows)}</td><td class="num">${fmt(r.open_issues)}</td><td class="muted">${esc(r.last_run || '—')}</td><td class="muted">${esc(r.synced_at || '')}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">empty — sync first (needs gh auth)</td></tr>'}
+    </tbody></table></div>
+    <h2>Agent runs (newest first)</h2>
+    <div class="sub">One trace per run: workflow → jobs → steps → the Claude step (model, turns, cost from the run log) → tool calls when the action ran with <code>show_full_output</code>. Exported rows show their Phoenix trace id.</div>
+    <div class="wrap"><table><thead><tr><th>repo</th><th>workflow</th><th>event</th><th>conclusion</th><th>model</th><th class="num">turns</th><th class="num">cost</th><th class="num">min</th><th>trace</th></tr></thead><tbody>
+      ${runs.map(r => `<tr class="${r.conclusion === 'failure' ? 'bad' : ''}"><td><code>${esc(r.nwo)}</code></td><td><a href="${esc(r.html_url)}" target="_blank" rel="noopener">${esc(r.workflow_name)}</a></td><td>${esc(r.event)}</td><td>${r.conclusion === 'success' ? status('good', 'success') : r.conclusion === 'failure' ? status('crit', 'failure') : status('info', r.conclusion || r.status)}</td><td>${esc(r.model || '—')}</td><td class="num">${fmt(r.num_turns)}</td><td class="num">${r.cost_usd == null ? '—' : usd(r.cost_usd)}</td><td class="num">${r.duration_ms == null ? '—' : (r.duration_ms / 60000).toFixed(1)}</td><td>${r.trace_id ? '<code title="exported ' + esc(r.exported_at) + '">' + esc(r.trace_id.slice(0, 12)) + '…</code>' : '<span class="muted">not exported</span>'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">no agent runs in the lake yet</td></tr>'}
+    </tbody></table></div>
+    <h2>Lines</h2>
+    <div class="sub">Every workflow in the lake in GitFactory's vocabulary: a <b>line</b> compiled from a blueprint (⚙ header → <code>blueprint@hash</code>, ✓ when that blueprint is mirrored in the lake), its <b>gate</b> (a <code>vars.*_ENABLED</code> kill switch), triggers and crons, and its latest verdict. Hand-built workflows are the adoption candidates (gitorio specs/012).</div>
+    <div class="toolbar"><input id="l-filter" type="text" placeholder="filter repo / path / kind…" size="34"><label class="inl"><input id="l-ai" type="checkbox" checked> AI lines only</label></div>
+    <div class="wrap"><table><thead><tr><th>repo</th><th>workflow</th><th>kind</th><th>line</th><th>gate</th><th>triggers / crons</th><th>model</th><th>auth</th><th>last</th><th class="num">runs</th></tr></thead><tbody id="l-lines"></tbody></table></div>`;
+  const parse = s => { try { return JSON.parse(s || '[]'); } catch (e) { return []; } };
+  const draw = () => { const q = $('#l-filter').value.toLowerCase(), ai = $('#l-ai').checked;
+    $('#l-lines').innerHTML = lines.filter(w => (!ai || w.ai) && (!q || (w.nwo + ' ' + w.path + ' ' + (w.kind || '')).toLowerCase().includes(q))).map(w => {
+      const trig = parse(w.triggers), crons = parse(w.crons);
+      return `<tr><td><code>${esc(w.nwo)}</code></td><td><code>${esc(w.path.replace('.github/workflows/', ''))}</code></td><td>${w.ai ? (w.kind === 'mention-handler' ? '💬 ' : w.kind === 'scheduled-agent' ? '⏰ ' : '⚙️ ') + esc(w.kind) : '<span class="muted">non-AI</span>'}</td><td>${w.factory_blueprint ? '⚙ <code>' + esc(w.factory_blueprint.replace('.factory/', '')) + '@' + esc(w.factory_hash || '?') + '</code>' + (w.blueprint_in_lake ? ' ✓' : '') : '<span class="muted">hand-built</span>'}</td><td>${w.switch ? status('good', w.switch) : (w.kind === 'scheduled-agent' ? status('warn', 'no switch') : '<span class="muted">—</span>')}</td><td>${trig.map(esc).join(', ')}${crons.length ? ' <code>' + crons.map(esc).join(' | ') + '</code>' : ''}</td><td>${esc(w.model || '—')}${w.max_turns ? '/' + w.max_turns + 't' : ''}</td><td>${w.ai ? (/oauth/.test(w.auth || '') ? status('good', w.auth) : status('crit', w.auth || 'none')) : ''}</td><td>${w.last_conclusion === 'success' ? status('good', 'success') : w.last_conclusion === 'failure' ? status('crit', 'failure') : '<span class="muted">' + esc(w.last_conclusion || '—') + '</span>'}</td><td class="num">${fmt(w.runs)}</td></tr>`; }).join('') || '<tr><td colspan="10" class="muted">no lines match — sync first</td></tr>'; };
+  ['#l-filter', '#l-ai'].forEach(s => $(s).addEventListener('input', draw)); draw();
+  $('#l-sync').onclick = () => runOp('lake-sync', { days: $('#l-days').value, target: $('#l-target').value.trim() });
+  $('#l-export').onclick = () => runOp('lake-export', { days: $('#l-days').value, local: $('#l-local').checked, dry_run: $('#l-dry').checked, force: $('#l-force').checked });
+  bindRunButtons('#tab-traces');
+}
+
 // ------------------------------------------------------------------ fleet
 function renderFleet() {
   const reg = STATE.registry.projects || [], inbox = STATE.triage.inbox || [], rot = STATE.rotation.tokens || [];
@@ -398,7 +464,7 @@ async function renderContract() {
 
 // ------------------------------------------------------------------ jobs
 function renderJobs() {
-  const groups = ['observe', 'plan', 'verify', 'deploy'];
+  const groups = ['observe', 'plan', 'verify', 'lake', 'deploy'];
   $('#tab-jobs').innerHTML = `<div class="split"><div class="card ops"><h2>Run an operation</h2>
     <select id="op-select">${groups.map(g => `<optgroup label="${g}">${OPS.filter(o => o.group === g).map(o => `<option value="${o.id}">${esc(o.title)}</option>`).join('')}</optgroup>`).join('')}</select>
     <div id="op-params" style="margin:10px 0"></div><div class="toolbar"><button class="btn primary" id="op-run">▶ Run</button><span class="muted" id="op-desc"></span></div>
@@ -416,11 +482,16 @@ function renderJobs() {
       key: `<label class="inl">key <input id="p-key" type="text" placeholder="harnesses.budget" size="24"></label>`,
       workflow: `<label class="inl">workflow <select id="p-workflow">${['harness-fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution', 'standardize-fanout', 'schema-fanout', 'build-dash', 'reconcile-registry', 'refresh-dash', 'update-submodules'].map(w => `<option>${w}</option>`).join('')}</select></label>`,
       fields: `<label class="inl">inputs <input id="p-fields" type="text" placeholder="key=value,key=value" size="34"></label>`,
+      jobs: `<label class="inl">jobs+steps for <select id="p-jobs"><option>ai</option><option>all</option><option>none</option></select> runs</label>`,
+      logs: `<label class="inl">logs for <select id="p-logs"><option>ai</option><option>all</option><option>none</option></select> runs</label>`,
+      local: `<label class="inl"><input id="p-local" type="checkbox"> include this machine's Claude Code sessions</label>`,
+      dry_run: `<label class="inl"><input id="p-dry_run" type="checkbox" checked> dry run (preview only)</label>`,
+      force: `<label class="inl"><input id="p-force" type="checkbox"> force (resend exported traces)</label>`,
     })[k] || '').join(' '); };
   sel.onchange = () => paramsFor(sel.value); paramsFor(sel.value);
   $('#op-run').onclick = () => { const id = sel.value, params = {};
-    ['days', 'target', 'artifacts', 'key', 'workflow'].forEach(k => { const el = $('#p-' + k); if (el && el.value !== '') params[k] = el.value; });
-    ['upgrade', 'apply'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
+    ['days', 'target', 'artifacts', 'key', 'workflow', 'jobs', 'logs'].forEach(k => { const el = $('#p-' + k); if (el && el.value !== '') params[k] = el.value; });
+    ['upgrade', 'apply', 'local', 'dry_run', 'force'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
     const f = $('#p-fields'); if (f && f.value.trim()) { params.fields = {}; f.value.split(',').forEach(kv => { const [k, ...v] = kv.split('='); if (k.trim()) params.fields[k.trim()] = v.join('=').trim(); }); }
     runOp(id, params); };
   bindRunButtons('#tab-jobs'); drawJobs();

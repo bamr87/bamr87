@@ -88,7 +88,7 @@ These are not documentation, but they answer the "how does this thing build and 
 | [`TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
 | [`EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo. |
 | [`HARNESS.md`](HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane — layer mapping, ratchet routing rule, health scorecard + trip wires, readiness audit, roadmap. |
-| [`HARNESS-OPS.md`](HARNESS-OPS.md) | Central management of the fleet's AI harnesses and schedules — the `harnesses:` contract, the daily inventory (`dash harnesses` → `/harnesses/`), mass deploy/update via harness-fanout, throughput caps, cost trend forecasting, and the local-Docker vs cloud/enterprise processing planes. |
+| [`HARNESS-OPS.md`](HARNESS-OPS.md) | Central management of the fleet's AI harnesses and schedules — the `harnesses:` contract, the daily inventory (`dash harnesses` → `/harnesses/`), mass deploy/update via harness-fanout, throughput caps, cost trend forecasting, the local-Docker vs cloud/enterprise processing planes, and **the local stack**: the Harness Console, the data lake (`dash lake`) that extracts GitHub's records for local management, Phoenix traces, and the GitFactory seam (`.factory/` lines, gates, the consumed inventory). |
 | [`ESTIMATION.md`](ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
 | [`STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline the fleet is held to. |
 | [`RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |

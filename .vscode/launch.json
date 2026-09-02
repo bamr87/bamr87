@@ -2,10 +2,12 @@
   // ==========================================================================
   // Launch configurations for the bamr87 dash — the local control plane.
   //
-  // Mirrors the stack documented in docs/HARNESS-OPS.md ("The two planes"):
+  // Mirrors the stack documented in docs/HARNESS-OPS.md ("The local stack"):
   //   VIEW        the Jekyll dash in Docker on :4000 (msedge debug)
   //   MONITOR/    the dash-gen generators (debugpy) — harness inventory,
   //   ORCHESTRATE triage, actions, remediation queue, issue pipeline, …
+  //   CONSOLE     the Harness Console (FastAPI) on :4001
+  //   LAKE        the local data lake (SQLite) + trace export to Phoenix :6006
   //   VERIFY      the dash-gen fixture tests (plain scripts, not pytest)
   //   DOCS        MkDocs, which lives in the README submodule (the hub's own
   //               mkdocs.yml was deleted; see CLAUDE.md)
@@ -131,6 +133,48 @@
         "uriFormat": "%s",
         "action": "openExternally"
       },
+      "presentation": { "group": "2-generators" }
+    },
+
+    // ------------------------------------------------------------------ LAKE
+    // The local data lake + Phoenix traces (docs/HARNESS-OPS.md, "The local
+    // stack"). `lake` takes a sub-subcommand, so it gets its own entries
+    // rather than a slot in the dashGenCommand picker. Sync needs gh auth;
+    // export needs `docker compose up -d phoenix` unless --dry-run.
+    {
+      "name": "🌊 Lake: sync (extract GitHub → .dash-lake/fleet.sqlite)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
+      "args": ["lake", "sync", "--days", "7"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "2-generators" }
+    },
+    {
+      "name": "🌊 Lake: status",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
+      "args": ["lake", "status"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "2-generators" }
+    },
+    {
+      "name": "🔭 Lake: export traces to Phoenix (dry run, incl. local sessions)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
+      "args": ["lake", "export", "--local", "--dry-run"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "env": { "PYTHONUNBUFFERED": "1" },
       "presentation": { "group": "2-generators" }
     },
 
