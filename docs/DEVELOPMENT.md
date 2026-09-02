@@ -119,7 +119,7 @@ A `.devcontainer/` directory is present, so opening the repository in VS Code wi
 
 ### 2. Docker Compose
 
-A `docker-compose.yml` is present at the root. `devenv` is the primary workspace container (the repo is mounted at `/workspace`); the rest are optional.
+A `docker-compose.yml` is present at the root; `devenv` is the primary workspace container (the repo is mounted at `/workspace`) and every other service is optional.
 
 ```bash
 docker compose up -d devenv

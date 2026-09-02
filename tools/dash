@@ -274,7 +274,6 @@ harnesses_deploy() {
       ${apply[@]+"${apply[@]}"} ${upgrade[@]+"${upgrade[@]}"}
   done
 }
-
 cmd_spec() {
   # `dash spec check [path] [--kinds …] [--gate]` — one repo against the UPS;
   # `dash spec fleet [--write]` — every checked-out submodule → _data/conformance.yml
@@ -342,7 +341,6 @@ main() {
     remediate) cmd_remediate "$@" ;;
     harness) cmd_harness "$@" ;;
     harnesses) cmd_harnesses "$@" ;;
-
     spec)    cmd_spec "$@" ;;
     issues)  cmd_issues "$@" ;;
     evidence) cmd_evidence "$@" ;;
