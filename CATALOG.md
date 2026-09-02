@@ -140,6 +140,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | --- | --- | --- | --- |
 | [`build-dash.yml`](.github/workflows/build-dash.yml) | 🛰️ Build & Deploy Dash | push `main` (dash paths), daily 07:00, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. |
 | [`claude.yml`](.github/workflows/claude.yml) | Claude | `@claude` mention (issues/PRs) | Claude Code responds to `@claude` mentions in this repo. |
+| [`conformance.yml`](.github/workflows/conformance.yml) | Conformance | PR, push `main` | The hub's own caller of `fleet-conformance.yml`, referenced from the same checkout (`hub-ref` = the PR head), so any change to the spec, the checker, or the reusable wor… |
 | [`deps-fanout.yml`](.github/workflows/deps-fanout.yml) | deps-fanout | — | Downward propagation of the fleet's ALWAYS-LATEST dependency policy (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md): opens PRs INTO submodule repos that strip ex… |
 | [`drift-check.yml`](.github/workflows/drift-check.yml) | 🚧 Drift Check | push `main`, PR, dispatch | Fast offline+API gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, missing top-level READMEs, **SCHEMA.md pyramid (h)**; a… |
 | [`fleet-conformance.yml`](.github/workflows/fleet-conformance.yml) | fleet-conformance (reusable) | `workflow_call` (reusable) | **The in-repo Universal Project Standard gate.** Checks out the hub beside the caller and runs `tools/conformance.py` (static, offline) so every repo is measured by the… |

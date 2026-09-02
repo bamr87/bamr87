@@ -37,7 +37,7 @@ LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn
 TEXT_EXT = {".md", ".html", ".tsx", ".jsx", ".ts", ".js", ".py", ".rb", ".erb", ".liquid", ".yml", ".yaml",
             ".json", ".css", ".scss", ".toml", ".cfg", ".txt", ".sh"}
 SKIP_DIRS = {".git", "node_modules", "_site", "site", "dist", "build", ".venv", "venv", "vendor", "__pycache__",
-             ".next", "coverage", "assets/vendor"}
+             ".next", "coverage", "assets/vendor", ".fleet-hub"}
 
 
 # --------------------------------------------------------------------------- #
@@ -72,9 +72,15 @@ class Repo:
     def files(self, exts: set[str] | None = None, max_files: int = 6000) -> list[Path]:
         if self._files is None:
             acc: list[Path] = []
-            for p in self.path.rglob("*"):
+            nested: list[Path] = []  # nested repos (submodules, vendored checkouts) are not this repo
+            for p in sorted(self.path.rglob("*")):
                 rel = p.relative_to(self.path)
                 if any(part in SKIP_DIRS for part in rel.parts) or str(rel).startswith("assets/vendor"):
+                    continue
+                if any(str(rel).startswith(str(n) + "/") for n in nested):
+                    continue
+                if p.is_dir() and p != self.path and (p / ".git").exists():
+                    nested.append(rel)
                     continue
                 if p.is_file():
                     acc.append(p)
@@ -119,7 +125,7 @@ class Repo:
 
     def zer0_theme(self) -> bool:
         c = self.jekyll_config()
-        return bool(re.search(r"remote_theme:\s*bamr87/zer0-mistakes|theme:\s*jekyll-theme-zer0", c))
+        return bool(re.search(r"""remote_theme\s*:\s*["']?bamr87/zer0-mistakes|(?<![a-z_])theme\s*:\s*["']?jekyll-theme-zer0""", c))
 
     def is_theme_repo(self) -> bool:
         return bool(self.glob1("*.gemspec")) and "zer0" in (self.glob1("*.gemspec") or "")
