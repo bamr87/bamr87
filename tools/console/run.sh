@@ -12,6 +12,8 @@
 #   CONSOLE_PORT   default 4001
 #   CONSOLE_RELOAD 1 to auto-reload on edits (development)
 #   DASH_CONSOLE_TOKEN  optional bearer token required on /api/* when set
+#   DASH_CONSOLE_ALLOWED_HOSTS  extra Host values to answer to (comma-separated);
+#                  loopback names only by default — the DNS-rebinding guard
 #
 # Usage: tools/console/run.sh            (or: tools/dash console)
 # ============================================================================

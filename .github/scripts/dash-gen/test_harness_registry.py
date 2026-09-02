@@ -305,12 +305,12 @@ def test_coverage_grades_gaps_and_excuses_external_archived_exempt():
 
 def test_gaps_are_fanout_deployable_only():
     rows = [
-        repo_row(name="needs-handler"),                       # missing mention-handler
+        repo_row(name="needs-handler", submodule=True),       # missing mention-handler
         repo_row(name="secret-only", harnesses=[harness_row()],
-                 oauth_secret="missing"),                     # token-rotation's lane
-        repo_row(name="stale-kit",
+                 oauth_secret="missing", submodule=True),     # token-rotation's lane
+        repo_row(name="stale-kit", submodule=True,
                  harnesses=[harness_row(kit="0.1.0", kit_status="upgradeable")]),
-        repo_row(name="fine", harnesses=[harness_row()]),
+        repo_row(name="fine", harnesses=[harness_row()], submodule=True),
     ]
     for r in rows:
         hr.evaluate_coverage(r, CFG)
@@ -320,6 +320,45 @@ def test_gaps_are_fanout_deployable_only():
     try:
         assert hr.fanout_gaps(path) == ["needs-handler", "stale-kit"]
         assert hr.fanout_gaps(Path("/nonexistent/registry.yml")) == []
+    finally:
+        path.unlink()
+
+
+def test_gaps_exclude_repos_the_fanout_cannot_target():
+    """fanout.sh resolves --target through .gitmodules and skips anything not
+    there. Emitting a non-submodule registry entry made `dash harnesses deploy
+    --gaps` print `skip X: not in .gitmodules` for every target and exit 0 — a
+    deploy lever that silently did nothing."""
+    rows = [
+        repo_row(name="sub-gap", submodule=True),        # deployable
+        repo_row(name="loose-gap", submodule=False),     # registry-only repo
+    ]
+    for r in rows:
+        hr.evaluate_coverage(r, CFG)
+    assert all(r["coverage"]["missing"] for r in rows), "fixture must have gaps"
+    with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as fh:
+        yaml.safe_dump({"repos": rows}, fh)
+        path = Path(fh.name)
+    try:
+        assert hr.fanout_gaps(path) == ["sub-gap"]
+        # the excluded one is reported, not dropped on the floor
+        kinds = {a["kind"]: a for a in hr.build_attention(rows, hr.build_throughput(rows, CFG, {}), {}, CFG)}
+        assert "gap-not-deployable" in kinds, sorted(kinds)
+        assert kinds["gap-not-deployable"]["repo"] == "loose-gap"
+    finally:
+        path.unlink()
+
+
+def test_submodule_names_reads_the_registry():
+    with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as fh:
+        yaml.safe_dump({"projects": [
+            {"name": "a", "submodule_path": "projects/a"},
+            {"name": "b"},                       # registry-only repo
+            {"name": "c", "submodule_path": ""},  # empty is not a path
+        ]}, fh)
+        path = Path(fh.name)
+    try:
+        assert hr.submodule_names(path) == {"a"}
     finally:
         path.unlink()
 
@@ -459,6 +498,31 @@ def test_rotation_secret_states_maps_nwo_to_state():
     states = hr.rotation_secret_states(rotation)
     assert states == {"bamr87/a": "ok", "bamr87/b": "missing"}
     assert hr.rotation_secret_states({}) == {}
+
+
+def test_fleet_throughput_total_is_order_independent():
+    """The fleet estimate is a float sum at a rounding knife-edge: the real
+    fleet's per-repo loads total 10.605, which plain left-to-right addition
+    rounds to 10.6 or 10.61 depending on repo order — churning the committed
+    _data/harness_registry.yml on every daily refresh. fsum pins it."""
+    loads = [0.429, 0.176, 2.143, 0.143, 4.143, 2.143, 1.428]
+    cfg = {"throughput": {"max_scheduled_ai_per_day_fleet": 30,
+                          "max_scheduled_ai_per_day_repo": 8,
+                          "max_ai_crons_per_utc_hour": 3}}
+    seen = set()
+    for shift in range(len(loads)):
+        order = loads[shift:] + loads[:shift]
+        repos = [{"repo": f"r{i}", "est_scheduled_ai_per_day": v, "scheduled": []}
+                 for i, v in enumerate(order)]
+        seen.add(hr.build_throughput(repos, cfg, {})["est_scheduled_ai_per_day"])
+    assert len(seen) == 1, f"fleet total varies with repo order: {sorted(seen)}"
+
+
+def test_repo_schedule_load_is_order_independent():
+    crons = ["0 6 * * *", "17 3 * * 1", "0 */4 * * *", "30 2 1 * *"]
+    a = hr.repo_schedule_load({"harnesses": [{"crons": crons}]})
+    b = hr.repo_schedule_load({"harnesses": [{"crons": list(reversed(crons))}]})
+    assert a == b, f"{a} != {b}"
 
 
 # --------------------------------------------------------------------------- #

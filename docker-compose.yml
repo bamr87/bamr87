@@ -89,6 +89,7 @@ services:
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - DASH_CONSOLE_TOKEN=${DASH_CONSOLE_TOKEN:-}
+      - DASH_CONSOLE_ALLOWED_HOSTS=${DASH_CONSOLE_ALLOWED_HOSTS:-}
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006     # traces go to the sibling service
       - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}  # what the console links to
       - DASH_LAKE_DIR=/workspace/.dash-lake

@@ -70,6 +70,12 @@ jobs:
         id: plan
         env:
           TARGET: ${{ inputs.target }}
+          # Via env, never inlined into the script: a workflow_dispatch string
+          # interpolated into `run:` is evaluated by the shell before it runs
+          # (the deploy job below already does this — the summary must too).
+          ARTIFACTS: ${{ inputs.artifacts }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          UPGRADE: ${{ inputs.upgrade }}
         run: |
           set -euo pipefail
           targets=()
@@ -91,7 +97,7 @@ jobs:
             echo ""
             echo "- Input target: \`$TARGET\` → ${#targets[@]} deploy target(s)"
             for r in ${targets[@]+"${targets[@]}"}; do echo "  - \`$r\`"; done
-            echo "- Artifacts: \`${{ inputs.artifacts }}\` · dry-run: \`${{ inputs.dry_run }}\` · upgrade: \`${{ inputs.upgrade }}\`"
+            echo "- Artifacts: \`$ARTIFACTS\` · dry-run: \`$DRY_RUN\` · upgrade: \`$UPGRADE\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:

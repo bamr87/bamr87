@@ -9,6 +9,13 @@ console`; open http://127.0.0.1:4001/. Interactive API docs at /docs.
 Security posture: loopback by default; an optional shared secret
 (DASH_CONSOLE_TOKEN) is required as `Authorization: Bearer …` on every /api
 route when set — the knob for running the console anywhere but localhost.
+Binding to loopback is not on its own enough: a page on any site can make the
+browser resolve its own hostname to 127.0.0.1 (DNS rebinding) and then speak
+to this origin as same-origin, which for a console that can dispatch
+workflows and run --apply fan-outs with the operator's FLEET_TOKEN is a real
+lever. So every request's Host header is checked against a loopback allowlist
+(extend it with DASH_CONSOLE_ALLOWED_HOSTS when fronting the console with a
+proxy or a real hostname).
 The console never holds GitHub or Claude credentials itself; jobs inherit the
 process environment exactly like a terminal would, and the UI only ever sees
 which credential NAMES are present.
@@ -16,9 +23,10 @@ which credential NAMES are present.
 from __future__ import annotations
 
 import os
+import secrets as _secrets
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -31,12 +39,32 @@ app = FastAPI(title="bamr87 Harness Console", version="0.2.0",
                           "with the local data lake and Phoenix traces.")
 jobs = core.JobManager()
 
+# Hosts this console answers to. Loopback names only by default; a deployment
+# behind a proxy or on a real hostname names itself in DASH_CONSOLE_ALLOWED_HOSTS
+# (comma-separated) — and should also set DASH_CONSOLE_TOKEN.
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"} | {
+    h.strip().lower() for h in (os.environ.get("DASH_CONSOLE_ALLOWED_HOSTS") or "").split(",") if h.strip()
+}
+
+
+@app.middleware("http")
+async def guard_host(request: Request, call_next):
+    """Reject a rebound hostname before any route sees it (see module docstring)."""
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip().lower()
+    if host and host not in ALLOWED_HOSTS:
+        return JSONResponse(status_code=421, content={
+            "detail": f"host '{host}' is not allowed — the console answers on loopback only; "
+                      "set DASH_CONSOLE_ALLOWED_HOSTS to serve another hostname"})
+    return await call_next(request)
+
 
 def require_token(authorization: str | None = Header(default=None)) -> None:
     expected = os.environ.get("DASH_CONSOLE_TOKEN")
     if not expected:
         return
-    if authorization != f"Bearer {expected}":
+    # constant-time: the token is a shared secret, so don't leak its prefix
+    # through comparison timing.
+    if not authorization or not _secrets.compare_digest(authorization, f"Bearer {expected}"):
         raise HTTPException(status_code=401, detail="console token required")
 
 

@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import math
 import os
 import re
 import sys
@@ -468,16 +469,18 @@ def evaluate_coverage(repo: dict, cfg: dict) -> None:
 
 def repo_schedule_load(repo: dict) -> float:
     """Estimated cron-driven AI workflow runs/day for one repo."""
-    total = 0.0
-    for h in repo.get("harnesses") or []:
-        for cron in h.get("crons") or []:
-            total += cron_fires_per_day(cron) or 0.0
-    return round(total, 3)
+    parts = [cron_fires_per_day(cron) or 0.0
+             for h in repo.get("harnesses") or []
+             for cron in h.get("crons") or []]
+    return round(math.fsum(parts), 3)
 
 
 def build_throughput(repos: list[dict], cfg: dict, ai_usage: dict) -> dict:
     caps = cfg["throughput"]
-    fleet_est = round(sum(r.get("est_scheduled_ai_per_day") or 0 for r in repos), 2)
+    # fsum, not sum: the per-repo estimates are floats whose plain left-to-right
+    # total lands on rounding knife-edges (10.605 → 10.6 or 10.61 depending on
+    # repo order), which churned this committed file on every daily refresh.
+    fleet_est = round(math.fsum(r.get("est_scheduled_ai_per_day") or 0 for r in repos), 2)
     over_repo = [
         {"repo": r["repo"], "est_per_day": r["est_scheduled_ai_per_day"],
          "cap": caps["max_scheduled_ai_per_day_repo"]}
@@ -523,7 +526,7 @@ def _series_trend(series: list[tuple[str, float]], budget_monthly: float | None,
     one (day, value) series. Projection = last-7-day daily average × 30.44,
     falling back to the whole window when the series is shorter."""
     days = sorted(series)
-    total = round(sum(v for _, v in days), 2)
+    total = round(math.fsum(v for _, v in days), 2)
     out: dict = {
         "window_total": total,
         "daily_avg": round(total / len(days), 3) if days else None,
@@ -537,8 +540,8 @@ def _series_trend(series: list[tuple[str, float]], budget_monthly: float | None,
     last_day = dt.date.fromisoformat(days[-1][0])
     cut7 = (last_day - dt.timedelta(days=6)).isoformat()
     cut14 = (last_day - dt.timedelta(days=13)).isoformat()
-    last7 = round(sum(v for d, v in days if d >= cut7), 2)
-    prior7 = round(sum(v for d, v in days if cut14 <= d < cut7), 2)
+    last7 = round(math.fsum(v for d, v in days if d >= cut7), 2)
+    prior7 = round(math.fsum(v for d, v in days if cut14 <= d < cut7), 2)
     out["last7"] = last7
     out["prior7"] = prior7
     if prior7 > 0:
@@ -635,6 +638,17 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                     f"baseline artifact missing: {gap}",
                     "dispatch harness-fanout (target: gaps), or `dash harnesses deploy --gaps`",
                     repo=r["repo"])
+        # A gap the kit could close on a repo the fan-out cannot reach: real
+        # work, but `harness-fanout` is the wrong lever and would no-op.
+        if (r.get("coverage") or {}).get("missing") and r.get("submodule") is False:
+            closeable = set((r["coverage"]["missing"])) & {"mention-handler", "agent-context"}
+            if closeable:
+                add(35, "gap-not-deployable",
+                    f"baseline gap the kit could close ({', '.join(sorted(closeable))}) but the "
+                    "repo is not a submodule, so the fan-out cannot target it",
+                    "add it to .gitmodules + the registry's submodule_path (`dash adopt`/onboard-dir), "
+                    "or seed the kit by hand",
+                    repo=r["repo"])
         upgradeable = [h["path"] for h in r.get("harnesses") or []
                        if h.get("kit_status") == "upgradeable"]
         if upgradeable:
@@ -671,6 +685,10 @@ def scan_repo(gh, project: dict, cfg: dict, secret_states: dict[str, str],
         "category": project.get("category"),
         "status": project.get("status"),
         "external": bool(nwo) and not nwo.startswith("bamr87/"),
+        # fanout.sh resolves a --target through .gitmodules, so a registry repo
+        # with no submodule_path cannot be deployed to no matter what its
+        # coverage says. Recorded here so the board and `--gaps` agree.
+        "submodule": bool(project.get("submodule_path")),
         "archived": False,
         "scanned": False,
         "manifest": False,
@@ -797,7 +815,12 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
              actions_usage: dict, scan_mode: str, scanned_at: str | None,
              now: dt.datetime) -> dict:
     join_usage(repos, ai_usage, actions_usage)
+    # Deployability is a registry fact, so stamp it in BOTH modes — a reused
+    # scan predates the field, and without it the board, the attention queue
+    # and `--gaps` would disagree about which gaps the fan-out can close.
+    subs = submodule_names()
     for r in repos:
+        r["submodule"] = r["repo"] in subs
         r["est_scheduled_ai_per_day"] = repo_schedule_load(r)
         evaluate_coverage(r, cfg)
     throughput = build_throughput(repos, cfg, ai_usage)
@@ -865,10 +888,26 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
     }
 
 
-def fanout_gaps(registry_path: Path) -> list[str]:
-    """Repo names the fan-out can actually help: a kit-deployable baseline gap
-    (mention handler / agent context) or an upgradeable machine seed. Secret
-    gaps are token-rotation's lane and are deliberately not deploy targets."""
+def submodule_names(projects_path: Path | None = None) -> set[str]:
+    """Registry entries that are checked-out submodules — the only targets
+    fanout.sh can resolve (it looks a --target up in .gitmodules)."""
+    path = Path(projects_path or actions_analytics.REGISTRY)
+    if not path.exists():
+        return set()
+    try:
+        with path.open() as fh:
+            # the registry is a bare list; load_yaml() is dict-only and would
+            # silently flatten it to {} — hence the direct read.
+            data = yaml.safe_load(fh) or []
+    except yaml.YAMLError:
+        return set()
+    projects = data.get("projects") if isinstance(data, dict) else data
+    return {p["name"] for p in (projects or [])
+            if isinstance(p, dict) and p.get("submodule_path") and p.get("name")}
+
+
+def gap_candidates(registry_path: Path) -> list[dict]:
+    """Every repo whose coverage the KIT could close, deployable or not."""
     data = load_yaml(registry_path)
     out = []
     for r in data.get("repos") or []:
@@ -876,9 +915,27 @@ def fanout_gaps(registry_path: Path) -> list[str]:
         upgradeable = any(
             h.get("kit_status") == "upgradeable" for h in r.get("harnesses") or []
         )
-        if (missing & {"mention-handler", "agent-context"}) or upgradeable:
-            out.append(r.get("repo"))
-    return [r for r in out if r]
+        if r.get("repo") and ((missing & {"mention-handler", "agent-context"}) or upgradeable):
+            out.append(r)
+    return out
+
+
+def fanout_gaps(registry_path: Path, projects_path: Path | None = None) -> list[str]:
+    """Repo names the fan-out can actually help: a kit-deployable baseline gap
+    (mention handler / agent context) or an upgradeable machine seed. Secret
+    gaps are token-rotation's lane and are deliberately not deploy targets.
+
+    NON-SUBMODULE registry entries are excluded. fanout.sh resolves --target
+    through .gitmodules and skips anything absent from it, so emitting one here
+    produced a target list the deploy lever silently no-opped on — the whole
+    `--gaps` run printing `skip X: not in .gitmodules` and exiting 0. Those
+    repos surface as a `gap-not-deployable` attention item instead, which names
+    the lever that CAN close them."""
+    subs = submodule_names(projects_path)
+    # `submodule` is absent from a scan committed before it was recorded, so
+    # fall back to the registry rather than dropping every target.
+    return [r["repo"] for r in gap_candidates(registry_path)
+            if (r["submodule"] if "submodule" in r else r["repo"] in subs)]
 
 
 # --------------------------------------------------------------------------- #

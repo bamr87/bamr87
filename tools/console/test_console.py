@@ -14,7 +14,10 @@ Guards the properties that make the console safe to leave running:
   * the job manager runs a real subprocess, tails its log, and reports the
     exit status; and
   * the contract editor changes ONLY declared knobs, rejects the rest, and
-    preserves every comment in fleet.yml (round-trip) when ruamel is present.
+    preserves every comment in fleet.yml (round-trip) when ruamel is present;
+    and
+  * the HTTP surface refuses a rebound Host, so binding to loopback actually
+    means loopback (skipped unless FastAPI is installed).
 
 Deliberately dependency-light — no server, no network, no pytest. Needs only
 PyYAML (ruamel.yaml enables the round-trip test; absent, it is skipped):
@@ -211,6 +214,32 @@ def test_contract_editor_limits_and_preserves_comments():
         assert again["applied"] == {}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_http_refuses_a_rebound_host():
+    """DNS rebinding is the way a loopback bind stops meaning loopback: a
+    hostile page resolves its own name to 127.0.0.1 and is then same-origin
+    with a console that can dispatch workflows and run --apply fan-outs. The
+    Host allowlist is what closes it."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    # base_url matters: TestClient otherwise sends `Host: testserver`,
+    # which the guard correctly refuses.
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    assert client.get("/api/health").status_code == 200
+    for host in ("evil.attacker.com", "rebind.example"):
+        for call in (lambda: client.get("/api/state", headers={"Host": host}),
+                     lambda: client.post("/api/jobs", json={"op": "status"}, headers={"Host": host})):
+            assert call().status_code == 421, f"{host} was not refused"
+    # loopback names still answer, port suffix and case included
+    for host in ("127.0.0.1:4001", "localhost", "LOCALHOST:4001"):
+        assert client.get("/api/health", headers={"Host": host}).status_code == 200, host
 
 
 # --------------------------------------------------------------------------- #
