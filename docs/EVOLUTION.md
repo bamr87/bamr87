@@ -60,6 +60,7 @@ The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-exp
 
 Each matrix job checks the target repository out at its declared branch, downloads its brief into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus Claude Code agent with a prompt whose hard rules are fixed in the workflow:
 
+- the brief's **Conformance gaps** section (from `_data/conformance.yml`, written by `dash spec fleet --write`) is the agent's adoption lane: failing Universal Project Standard rows, MUST first, each pointing at its spec file and a reference implementation in `_data/references.yml`;
 - the agent reads the brief, then orients README-First (`README.md`, `CLAUDE.md`,
   `AGENTS.md`, `CONTRIBUTING.md`, `SCHEMA.md` — house rules there override the prompt);
 - it makes a **small number** of high-leverage, obviously-correct changes in the brief's

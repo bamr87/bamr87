@@ -16,6 +16,8 @@ coverage: listed
 | `standard-ci/` | dir | Reusable CI gate caller seeded by standardize-fanout | terminal |
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
 | `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
+| `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
+| `feedback/` | dir | Universal feedback widget kit: `<fleet-feedback>` web component + taxonomy + issue form + stack adapters (spec: specs/FEEDBACK.md) | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
 
 ## Placement

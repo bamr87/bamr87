@@ -261,9 +261,12 @@ jobs:
             ## Step 1 — read the brief
             Read `.evolution/${{ matrix.brief }}` with the Read tool. It carries
             the repository's registry facts, the fleet's CURRENT SIGNALS for it
-            (attention level, failing workflows, open issues and PRs), the
-            operator's focus for this run, the goals in priority order, and the
-            category emphasis. Follow it. Do not edit or delete it.
+            (attention level, failing workflows, open issues and PRs), its
+            CONFORMANCE GAPS against the fleet's Universal Project Standard
+            (that section is YOUR lane — failing MUST rows first, each naming its
+            spec file in bamr87/bamr87 `specs/` and a reference implementation to
+            lift), the operator's focus for this run, the goals in priority
+            order, and the category emphasis. Follow it. Do not edit or delete it.
 
             ## Step 2 — orient (README-First)
             Read `README.md`, then `CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md`

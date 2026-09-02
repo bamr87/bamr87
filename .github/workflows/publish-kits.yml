@@ -1,0 +1,79 @@
+name: publish-kits
+
+# Publishes the hub's shared runtime kits as PACKAGES so the fleet receives
+# them by dependency rather than by copy: with the always-latest dependency
+# policy (_data/fleet.yml `dependencies:`), every consumer picks up the newest
+# release on its next build with zero fan-out. Today: every templates/*/
+# package.json → npm (@bamr87/*). Python/Ruby kits join the same job when they
+# exist (specs/CONFORMANCE.md gap list).
+#
+# Runs on push to main when a kit manifest or VERSION changes, and on dispatch.
+# Without NPM_TOKEN the job still builds and inspects the tarball (`npm pack`)
+# so the packaging is verified on every change; only the publish step is
+# skipped. A version that is already on the registry is skipped, not failed,
+# so a doc-only change to a kit never breaks the workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "templates/*/package.json"
+      - "templates/*/VERSION"
+      - ".github/workflows/publish-kits.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Pack only; never publish"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-kits
+  cancel-in-progress: false
+
+env:
+  NODE_V: ${{ vars.NODE_VERSION || '20' }}
+
+jobs:
+  npm:
+    name: npm kits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_V }}
+          registry-url: https://registry.npmjs.org
+
+      - name: Pack and publish every templates/*/package.json
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          for manifest in templates/*/package.json; do
+            dir=$(dirname "$manifest")
+            name=$(node -p "require('./$manifest').name")
+            version=$(node -p "require('./$manifest').version")
+            echo "::group::$name@$version ($dir)"
+            ( cd "$dir" && node --check "$(node -p "require('./package.json').main")" && npm pack --dry-run )
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "dry run — not publishing"
+            elif [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+              echo "::notice::NPM_TOKEN not provisioned — packed only (see _data/fleet.yml tokens)"
+            elif npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "already on the registry — skipped"
+            else
+              ( cd "$dir" && npm publish --access public --provenance )
+              echo "published $name@$version"
+            fi
+            echo "::endgroup::"
+          done
