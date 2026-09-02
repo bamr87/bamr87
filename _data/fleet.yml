@@ -116,6 +116,16 @@ remediation:
   interactive_dispatch_pct: 60    # ≥ this % of runs hand-dispatched ⇒ its cost is a
                                   # debugging session, not standing fleet spend, so the
                                   # cost signals (and the priority fallback) don't apply
+  # The third guard reads the CLOCK, not the verdict. A workflow triggered rarely
+  # (`issues: opened`, `workflow_dispatch`, a weekly cron) cannot clear its own
+  # red: the only thing that would is a fresh green run nothing is going to
+  # produce, so a resolved incident holds a slot forever (bamr87/bamr87#200 —
+  # gitorio Factory 1, red from an outage that lifted four days later, never
+  # re-triggered). Unlike the two above this one only DE-PRIORITISES: staleness is
+  # absence of evidence, not evidence of health, and a dispatch-only deploy broken
+  # for three weeks is stale *and* genuinely broken. Set 0 to switch it off.
+  stale_after_days: 7             # latest run older than this ⇒ sorts below every
+                                  # live candidate of the same severity, never dropped
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:
