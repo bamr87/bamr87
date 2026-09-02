@@ -76,6 +76,19 @@ REGISTRY_FIX = [
     entry("quiet", auto=False),                  # never opted in
 ]
 
+CONF_FIX = {
+    "generated_at": "2026-09-01T00:00:00Z", "spec_version": "1.0", "checker_version": "0.1.0",
+    "repos": [{
+        "name": "alpha", "nwo": "bamr87/alpha", "kinds": ["cli"], "tier": "active",
+        "checked": 20, "passed": 17, "must_failed": 2, "should_failed": 1, "manual": 40,
+        "failing": [
+            {"id": "UPS-REPO-16", "level": "SHOULD", "detail": "no CODEOWNERS", "spec": "specs/REPOSITORY.md"},
+            {"id": "UPS-REPO-14", "level": "MUST", "detail": "no SECURITY.md", "spec": "specs/REPOSITORY.md"},
+            {"id": "UPS-AGENT-03", "level": "MUST", "detail": "CLAUDE.md lacks the kit stamp", "spec": "specs/AGENT-CONTEXT.md"},
+        ],
+    }],
+}
+
 TRIAGE_FIX = {
     "generated_at": "2026-08-25 06:00 UTC",
     "by_repo": [{
@@ -224,6 +237,23 @@ def test_brief() -> None:
 
     t4 = ev.render_brief(alpha, CFG, TRIAGE_FIX, temp_prompt_dir(with_category=False) / "missing", "", "t")
     check("a missing template dir still yields a usable brief", "Brief template" in t4 and lines[0] in t4)
+
+    # Conformance gaps — the Universal Project Standard adoption lane
+    check("no conformance snapshot degrades to a note that points at `dash spec check`",
+          "No conformance snapshot" in text and "dash spec check" in text)
+    t5 = ev.render_brief(alpha, CFG, TRIAGE_FIX, pdir, focus="", now="t", conformance=CONF_FIX)
+    check("the conformance section is rendered with the snapshot provenance",
+          "## Conformance gaps" in t5 and "_data/conformance.yml" in t5 and "UPS 1.0" in t5)
+    check("MUST rows come before SHOULD rows", t5.index("UPS-AGENT-03") < t5.index("UPS-REPO-14") < t5.index("UPS-REPO-16"))
+    check("each failing row names its spec file", "`specs/AGENT-CONTEXT.md`" in t5 and "no SECURITY.md" in t5)
+    check("the section is declared the agent's own lane (unlike the triage signals)",
+          "YOUR lane" in t5 and "_data/references.yml" in t5)
+    check("the conformance section sits between signals and focus",
+          t5.index("## Signals") < t5.index("## Conformance gaps") < t5.index("## Focus for this run"))
+    t6 = ev.render_brief(beta, CFG, TRIAGE_FIX, pdir, focus="", now="t", conformance=CONF_FIX)
+    check("a repo absent from the conformance snapshot is told so", "has no entry for this repository — run" in t6)
+    plan6, briefs6 = ev.build_plan(REGISTRY_FIX, CFG, TRIAGE_FIX, prompt_dir=pdir, gh=None, now="t", conformance=CONF_FIX)
+    check("build_plan threads the snapshot into every brief", any("UPS-AGENT-03" in b for b in briefs6.values()))
 
 
 # --------------------------------------------------------------------------- #

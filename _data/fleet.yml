@@ -416,6 +416,17 @@ tokens:
 
   # Legacy PATs — still honoured as fallbacks so nothing breaks mid-migration.
   # Remove from the repo once FLEET_TOKEN is provisioned and verified.
+  - name: NPM_TOKEN
+    scope: hub
+    required: false
+    purpose: >-
+      Publishes the hub's shared runtime kits (templates/*/package.json →
+      npm @bamr87/*) from publish-kits.yml so always-latest consumers receive
+      them by dependency. Optional: without it the workflow packs and verifies
+      only. Granular npm automation token, publish scope, hub-only.
+    used_by: [publish-kits.yml]
+    rotation:
+      enabled: false
   - name: ACTIONS_ANALYTICS_TOKEN
     scope: hub
     required: false
