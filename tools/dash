@@ -28,6 +28,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash triage${c_off}            fleet-wide open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/ portal)
   ${c_bold}dash reconcile${c_off}         registry + .gitmodules vs GitHub reality (renames/deletions/urls); --apply fixes safe ones
   ${c_bold}dash remediate${c_off}         merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse)
+  ${c_bold}dash spec [check|fleet|kinds]${c_off} Universal Project Standard checker (specs/): \`check [path] [--kinds a,b] [--gate]\` one repo; \`fleet --write\` every submodule → _data/conformance.yml (feeds the repo-evolution brief)
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
   ${c_bold}dash harnesses [gaps|deploy]${c_off} fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); \`gaps\` prints fan-out-deployable gap repos; \`deploy [--gaps|--target N] [--artifacts csv] [--upgrade] [--apply]\` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md)
   ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
@@ -273,6 +274,16 @@ harnesses_deploy() {
       ${apply[@]+"${apply[@]}"} ${upgrade[@]+"${upgrade[@]}"}
   done
 }
+cmd_spec() {
+  # `dash spec check [path] [--kinds …] [--gate]` — one repo against the UPS;
+  # `dash spec fleet [--write]` — every checked-out submodule → _data/conformance.yml
+  # (the file the repo-evolution brief reads); `dash spec kinds [path]`.
+  local sub="${1:-check}"
+  case "$sub" in
+    check|fleet|kinds) shift; python3 "${TOOLS}/conformance.py" "$sub" "$@" ;;
+    *) python3 "${TOOLS}/conformance.py" check "$@" ;;
+  esac
+}
 cmd_issues() { "${TOOLS}/dash-gen" issues "$@"; }
 cmd_evidence() {
   # `dash evidence bamr87/repo 42 [extra flags]` — positional repo + issue, so
@@ -330,6 +341,7 @@ main() {
     remediate) cmd_remediate "$@" ;;
     harness) cmd_harness "$@" ;;
     harnesses) cmd_harnesses "$@" ;;
+    spec)    cmd_spec "$@" ;;
     issues)  cmd_issues "$@" ;;
     evidence) cmd_evidence "$@" ;;
     secrets) cmd_secrets "$@" ;;

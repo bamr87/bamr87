@@ -17,6 +17,15 @@
 - name: MCP config
   path: https://github.com/bamr87/bamr87/blob/main/.mcp.json
   description: Model Context Protocol server configuration (github, memory, sequentialthinking, context7).
+- name: Universal Project Standard
+  path: https://github.com/bamr87/bamr87/tree/main/specs
+  description: The requirement specs every fleet repo is built to (layout, agent context, quality, frontend, feedback, API, operations) by stack kind.
+- name: Feedback widget kit
+  path: https://github.com/bamr87/bamr87/tree/main/templates/feedback
+  description: fleet-feedback web component — "Improve this page" → prefilled GitHub issue, any stack.
+- name: Seedable kits
+  path: https://github.com/bamr87/bamr87/tree/main/templates
+  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback — versioned kits fanned out by tools/fanout.sh.
 - name: Skill template
   path: https://github.com/bamr87/bamr87/tree/main/.claude/skills
   description: Author new skills with the skill-creator skill.

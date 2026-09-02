@@ -117,6 +117,16 @@ remediation:
   interactive_dispatch_pct: 60    # ≥ this % of runs hand-dispatched ⇒ its cost is a
                                   # debugging session, not standing fleet spend, so the
                                   # cost signals (and the priority fallback) don't apply
+  # The third guard reads the CLOCK, not the verdict. A workflow triggered rarely
+  # (`issues: opened`, `workflow_dispatch`, a weekly cron) cannot clear its own
+  # red: the only thing that would is a fresh green run nothing is going to
+  # produce, so a resolved incident holds a slot forever (bamr87/bamr87#200 —
+  # gitorio Factory 1, red from an outage that lifted four days later, never
+  # re-triggered). Unlike the two above this one only DE-PRIORITISES: staleness is
+  # absence of evidence, not evidence of health, and a dispatch-only deploy broken
+  # for three weeks is stale *and* genuinely broken. Set 0 to switch it off.
+  stale_after_days: 7             # latest run older than this ⇒ sorts below every
+                                  # live candidate of the same severity, never dropped
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:
@@ -259,7 +269,16 @@ evolution:
   # the listed issues/PRs that touch the change, edit, verify with the repo's
   # own lint/tests, report. Wired into `--max-turns` through the plan so this
   # is the only place the number is stated; test_evolution.py asserts the wiring.
-  max_turns: 60
+  #
+  # 120, not 60. Run #1 (2026-08-31) measured what that program actually costs:
+  # scripts 46 turns, cv-builder-pro 61, README 63. A cap of 60 sat at the
+  # MEDIAN of real demand, so two of three targets were billed in full
+  # ($3.51 + $2.85) and produced no pull request — one exhausted at the cap,
+  # one finished and had its result rejected for overshooting it. Set above the
+  # observed ceiling of 63 with headroom for a repo larger than any of the
+  # three, not at it. See bamr87/bamr87#214; `Salvage a successful overshoot`
+  # in repo-evolution.yml is the backstop for the day this bound is hit anyway.
+  max_turns: 120
 
   # How much of the triage snapshot each brief quotes. The rest is a link.
   signals:
@@ -472,6 +491,17 @@ tokens:
 
   # Legacy PATs — still honoured as fallbacks so nothing breaks mid-migration.
   # Remove from the repo once FLEET_TOKEN is provisioned and verified.
+  - name: NPM_TOKEN
+    scope: hub
+    required: false
+    purpose: >-
+      Publishes the hub's shared runtime kits (templates/*/package.json →
+      npm @bamr87/*) from publish-kits.yml so always-latest consumers receive
+      them by dependency. Optional: without it the workflow packs and verifies
+      only. Granular npm automation token, publish scope, hub-only.
+    used_by: [publish-kits.yml]
+    rotation:
+      enabled: false
   - name: ACTIONS_ANALYTICS_TOKEN
     scope: hub
     required: false

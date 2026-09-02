@@ -35,6 +35,7 @@ logo                     : "/assets/Amr-Headshot_v3.JPG"
 github_user              : &github_user "bamr87"
 repository_name          : "bamr87"
 branch                   : "main"
+repository               : "bamr87/bamr87"   # owner/name — read by jekyll-seo-tag and the theme's page-feedback widget
 repo_map                 : "/sitemap/"
 
 # Owner / author ---------------------------------------------------------------
@@ -248,5 +249,23 @@ exclude:
   - SCHEMA.md
   - pages/SCHEMA.md
   - templates/
+  - specs/
+  - CATALOG.md
   - _reports/
   - remediation-workorder.md
+
+# Universal feedback widget (theme-provided; spec: specs/FEEDBACK.md UPS-FB-33).
+# Every dash surface gets the "Improve this page" FAB that files a prefilled
+# issue against bamr87/bamr87 — the hub practices what it seeds. Labels the
+# widget applies must exist in the repo (GitHub drops unknown labels silently).
+page_feedback:
+  enabled: true
+  fab: true
+  fab_label: "Improve this page"
+  capture_logs: true
+  log_limit: 40
+  mode: url
+  default_labels: [page-feedback]
+  assignee: ""
+  ai:
+    enabled: false

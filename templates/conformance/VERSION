@@ -1,0 +1,13 @@
+kit: conformance
+version: 0.1.0
+source: bamr87/bamr87 templates/conformance/
+seeded-by: tools/fanout.sh --kit standardize --artifacts conformance (standardize-fanout.yml)
+files: conformance.yml
+spec: specs/CONFORMANCE.md (UPS in-repo gate); checker tools/conformance.py; reusable .github/workflows/fleet-conformance.yml
+updated: 2026-09-01
+changelog: |
+  0.1.0 — initial thin caller of the reusable fleet-conformance.yml workflow.
+  Advisory by default (gate: false); a repo flips it once its MUST rows pass.
+notes: |
+  - Snapshot to archive/ before editing this template so --upgrade can still
+    recognise machine-seeded copies (same rule as the other kits).
