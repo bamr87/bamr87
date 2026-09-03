@@ -85,12 +85,17 @@ Crossing a ceiling → a `budget-breach` attention item; growing faster than `tr
 The local stack is what runs on the bench: **three services and a database**, all fed by the same `tools/` entrypoints CI runs, so nothing here is a second implementation of anything.
 
 ```text
+Claude runs in TWO planes, and each has its own extractor into the one lake:
+
 GitHub  ──  runs · jobs · steps · run logs · issues · workflow files · .factory/ blueprints · fleet.manifest.yml
-   │
-   │  tools/dash lake sync         (PyGithub · windowed · idempotent upserts · no token → nothing extracted, never a crash)
-   ▼
+   │                                                    ~/.claude/projects  ──  session transcripts (JSONL)
+   │  tools/dash lake sync                                 │
+   │  (PyGithub · windowed · idempotent upserts ·          │  tools/dash lake sessions
+   │   no token → nothing extracted, never a crash)        │  (local disk only · no network · mtime-skipped)
+   ▼                                                       ▼
 .dash-lake/fleet.sqlite  ◀──────  Harness Console :4001 reads it (/api/lake), runs every op as a job
    │                     ◀──────  tools/dash lake status
+   │                     ◀──────  tools/dash lake review   (BOTH planes unified · offline · no Phoenix needed)
    │  tools/dash lake export      (OpenInference spans · OTLP/HTTP · deterministic trace ids · export ledger)
    ▼
 Phoenix :6006            traces: workflow → job → step → Claude agent (model · turns · cost) → tool calls
@@ -103,10 +108,12 @@ Jekyll dash :4000 = the read-only twin of the console · GitHub Actions = the cl
 | --- | --- | --- | --- |
 | **Harness Console** | The write-capable front end: every committed signal, the allowlisted `dash` operations as jobs, workflow dispatch, the contract editor, and the **Traces** tab (the lake + Phoenix) — [`tools/console/`](../tools/console/README.md) | `tools/dash console` or `docker compose up -d console` | 4001 |
 | **Data lake** | `.dash-lake/fleet.sqlite` (gitignored — it holds logs): the fleet's GitHub records extracted for local management and deployment — repos, workflow files (classified: kind, auth, kill switch, GitFactory provenance), `.factory/**` + `fleet.manifest.yml`, runs → jobs → steps, run-log entries, the claude-code-action facts parsed from them (model, session id, turns, cost, tool grants), issues/PRs — plus the export ledger | `tools/dash lake sync [--days 7] [--repo NAME] [--jobs ai\|all\|none] [--logs ai\|all\|none]` | — |
+| **Local sessions** | The same lake's `sessions` / `session_turns` / `session_tools` tables: this machine's Claude Code transcripts — one row per session (repo, branch, models, turns, tokens, cost, first prompt), per assistant turn, and per tool call (closed by its `tool_result`, so errors and durations are real). Keyed on the SAME trace key the exporter uses, so a stored session joins to its Phoenix trace | `tools/dash lake sessions [--days 30] [--repo NAME] [--force]` | — |
+| **Review** | The analysis layer over both planes — cost, turns, tool histogram with error counts, CI failures and permission denials, top sessions/runs, and ranked findings. Pure SQL over the lake: no network, no Phoenix, no re-read of `~/.claude` | `tools/dash lake review [--days 30] [--repo NAME] [--json]` | — |
 | **Phoenix** | [Arize Phoenix](https://github.com/Arize-ai/phoenix), the traceability store: trace trees, latency, token and cost breakdowns per project. SQLite-backed in the `phoenix-data` volume; loopback-only ports | `docker compose up -d phoenix` | 6006 (UI + OTLP/HTTP), 4317 (OTLP/gRPC) |
 | **Jekyll dash** | The read-only twin, identical to GitHub Pages | `tools/dash serve` | 4000 |
 
-`dash-gen lake` ([`fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py)) is the module behind the middle two rows: `sync` extracts, `status` reports (`--json` is the console's `/api/lake` document), `export` ships. The lake is **local-only by construction** — `.dash-lake/` is gitignored, the daily pulse never runs it, and nothing in it is published — which is exactly what lets it hold run logs the committed `_data/*.yml` aggregates deliberately leave out.
+`dash-gen lake` ([`fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py)) is the module behind the middle rows: `sync` and `sessions` extract (the CI plane and the local plane), `review` analyzes, `status` reports (`--json` is the console's `/api/lake` document), `export` ships. **Extract before you analyze** — `review` reads only the lake, which is what makes it reproducible, offline, and independent of whether Phoenix is up; `sessions` is separately idempotent (a transcript whose mtime has not moved is skipped, and a resumed session has its turns REPLACED rather than appended, so the rows mirror the transcript instead of accumulating it). `session_facts` and `build_session_spans` parse the same records through the same helpers, so what you review and what you trace can never disagree. The lake is **local-only by construction** — `.dash-lake/` is gitignored, the daily pulse never runs it, and nothing in it is published — which is exactly what lets it hold run logs the committed `_data/*.yml` aggregates deliberately leave out.
 
 ### In GitFactory's vocabulary
 
@@ -129,7 +136,9 @@ The stack deliberately speaks the same language as [bamr87/gitorio](https://gith
 
 ```bash
 docker compose up -d phoenix console      # the trace store + the front end
-tools/dash lake sync --days 7             # extract (gh auth login, or GH_TOKEN)
+tools/dash lake sync --days 7             # extract the CI plane (gh auth login, or GH_TOKEN)
+tools/dash lake sessions                  # extract the local plane (~/.claude transcripts)
+tools/dash lake review                    # analyze both, offline — no Phoenix required
 tools/dash lake export --local --dry-run  # preview: traces, span counts, ids
 tools/dash lake export --local            # ship; then open http://127.0.0.1:6006/projects
 ```
@@ -143,6 +152,8 @@ tools/dash lake export --local            # ship; then open http://127.0.0.1:600
 ```bash
 tools/dash console                        # the front end: view / manage / orchestrate / deploy / traces on :4001
 tools/dash lake sync                      # extract GitHub's records into .dash-lake/fleet.sqlite (local only)
+tools/dash lake sessions                  # extract this machine's Claude Code transcripts into the same lake
+tools/dash lake review                    # analyze both planes: cost, turns, tools, failures, findings
 tools/dash lake status                    # what the lake holds + whether Phoenix answers
 tools/dash lake export --local            # OpenInference traces → Phoenix :6006 (--dry-run to preview)
 tools/dash harnesses                      # rebuild the inventory (offline degrade without a token)

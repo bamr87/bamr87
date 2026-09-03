@@ -74,7 +74,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
 LAKE_DIR_DEFAULT = Path(os.environ.get("DASH_LAKE_DIR") or (REPO_ROOT / ".dash-lake"))
 DB_NAME = "fleet.sqlite"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 PHOENIX_DEFAULT = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT") or "http://127.0.0.1:6006"
 PHOENIX_UI_DEFAULT = os.environ.get("PHOENIX_UI_URL") or PHOENIX_DEFAULT
 CLAUDE_DIR_DEFAULT = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")) / "projects"
@@ -125,15 +125,32 @@ CREATE TABLE IF NOT EXISTS issues (
   created_at TEXT, updated_at TEXT, closed_at TEXT, html_url TEXT, body TEXT, PRIMARY KEY (nwo, number));
 CREATE TABLE IF NOT EXISTS factory_files (
   nwo TEXT, path TEXT, sha TEXT, text TEXT, synced_at TEXT, PRIMARY KEY (nwo, path));
+CREATE TABLE IF NOT EXISTS sessions (
+  key TEXT PRIMARY KEY, session_id TEXT, transcript TEXT, sidechain INTEGER, source TEXT,
+  repo TEXT, cwd TEXT, git_branch TEXT, version TEXT, entrypoint TEXT, user_type TEXT,
+  models TEXT, turns INTEGER, tool_calls INTEGER, tool_errors INTEGER, records INTEGER,
+  input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER, cache_write_tokens INTEGER,
+  cost_usd REAL, started_at TEXT, ended_at TEXT, duration_ms INTEGER,
+  first_prompt TEXT, mtime TEXT, synced_at TEXT);
+CREATE TABLE IF NOT EXISTS session_turns (
+  key TEXT, idx INTEGER, message_id TEXT, model TEXT, cost_usd REAL, tool_calls INTEGER,
+  input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER, cache_write_tokens INTEGER,
+  text TEXT, started_at TEXT, ended_at TEXT, duration_ms INTEGER, PRIMARY KEY (key, idx));
+CREATE TABLE IF NOT EXISTS session_tools (
+  key TEXT, idx INTEGER, seq INTEGER, message_id TEXT, name TEXT, tool_use_id TEXT, input TEXT,
+  started_at TEXT, ended_at TEXT, duration_ms INTEGER, is_error INTEGER,
+  PRIMARY KEY (key, idx, seq));
 CREATE TABLE IF NOT EXISTS exports (
   key TEXT PRIMARY KEY, kind TEXT, trace_id TEXT, spans INTEGER, endpoint TEXT, exported_at TEXT);
 CREATE INDEX IF NOT EXISTS runs_nwo_created ON runs (nwo, created_at);
 CREATE INDEX IF NOT EXISTS runs_ai_created ON runs (ai, created_at);
 CREATE INDEX IF NOT EXISTS jobs_run ON jobs (run_id);
+CREATE INDEX IF NOT EXISTS sessions_repo ON sessions (repo, started_at);
+CREATE INDEX IF NOT EXISTS session_tools_name ON session_tools (name);
 """
 
 TABLES = ["repos", "workflows", "factory_files", "runs", "jobs", "steps", "logs",
-          "agent_runs", "issues", "exports", "syncs"]
+          "agent_runs", "issues", "sessions", "session_turns", "session_tools", "exports", "syncs"]
 
 
 # --------------------------------------------------------------------------- #
@@ -717,6 +734,7 @@ def status_dict(lake_dir: Path | str | None = None, probe: bool = True,
         "size_bytes": db.stat().st_size if db.exists() else 0,
         "schema_version": None, "tables": {}, "last_sync": None, "repos": [],
         "agent_runs": {"count": 0, "cost_usd": 0.0, "turns": 0, "models": {}},
+        "sessions": {"count": 0, "cost_usd": 0.0, "turns": 0, "tool_calls": 0, "last": None},
         "exports": {"count": 0, "last": None, "spans": 0},
         "phoenix": {"collector": collector, "ui": ui,
                     "reachable": phoenix_reachable(collector) if probe else None},
@@ -748,6 +766,14 @@ def status_dict(lake_dir: Path | str | None = None, probe: bool = True,
                              "turns": ag["turns"], "models": {
                                  r["model"] or "unknown": r["n"] for r in conn.execute(
                                      "SELECT model, COUNT(*) AS n FROM agent_runs GROUP BY model")}}
+        try:
+            se = conn.execute("SELECT COUNT(*) AS n, COALESCE(SUM(cost_usd),0) AS cost, "
+                              "COALESCE(SUM(turns),0) AS turns, COALESCE(SUM(tool_calls),0) AS tools, "
+                              "MAX(ended_at) AS last FROM sessions").fetchone()
+            out["sessions"] = {"count": se["n"], "cost_usd": round(se["cost"] or 0, 4),
+                               "turns": se["turns"], "tool_calls": se["tools"], "last": se["last"]}
+        except sqlite3.Error:  # pre-v2 lake, before `lake sessions` existed
+            pass
         ex = conn.execute("SELECT COUNT(*) AS n, MAX(exported_at) AS last, COALESCE(SUM(spans),0) AS spans "
                           "FROM exports").fetchone()
         out["exports"] = {"count": ex["n"], "last": ex["last"], "spans": ex["spans"]}
@@ -811,6 +837,9 @@ def cmd_status(args: argparse.Namespace) -> int:
         a = s["agent_runs"]
         print(f"  agent runs: {a['count']} · ${a['cost_usd']:.2f} · {a['turns']} turns · "
               + ", ".join(f"{m}×{n}" for m, n in a["models"].items()))
+        ss = s["sessions"]
+        print(f"  local sessions: {ss['count']} · ${ss['cost_usd']:.2f} · {ss['turns']} turns · "
+              f"{ss['tool_calls']} tool calls (last {ss['last'] or '—'})")
         e = s["exports"]
         print(f"  exports:  {e['count']} traces / {e['spans']} spans (last {e['last'] or '—'})")
         for r in s["repos"][:60]:
@@ -983,46 +1012,45 @@ def read_session(path: Path) -> list[dict]:
     return out
 
 
-def build_session_spans(records: list[dict], source: str = "") -> list[dict]:
-    """One trace per Claude Code session: session (AGENT) → assistant turn
-    (LLM: model, tokens, cost, text) → tool call (TOOL: name, input; closed
-    by the matching tool_result's timestamp). Real timestamps throughout."""
-    if not records:
-        return []
+def session_identity(records: list[dict], source: str = "") -> tuple[str, str, bool, str]:
+    """(session_id, transcript stem, sidechain?, trace key) for one transcript.
+
+    Sub-agent transcripts sit beside the main one and carry the PARENT's
+    sessionId, so the file stem disambiguates them: same session id (Phoenix
+    groups them), distinct trace key (otherwise two files collide on one
+    trace). The key is the JOIN between a stored session and its trace.
+    """
     stem = Path(source).stem if source else ""
     sid = next((r.get("sessionId") for r in records if r.get("sessionId")), None) or stem
-    # Sub-agent transcripts sit beside the main one and carry the PARENT's
-    # sessionId: same session.id (Phoenix groups them together), distinct
-    # trace key (otherwise two files would collide on one trace).
     sidechain = bool(stem) and stem != sid
-    key = f"session:{sid}" + (f"/{stem}" if sidechain else "")
-    tid = trace_id_for(key)
-    stamps = [to_ns(r.get("timestamp")) for r in records if r.get("timestamp")]
-    stamps = [s for s in stamps if s]
-    if not stamps:
-        return []
-    first = next((r for r in records if r.get("cwd")), records[0])
-    cwd = first.get("cwd")
-    repo = None
-    try:
-        import ai_activity
-        repo = ai_activity.repo_for(cwd) if cwd else None
-    except Exception:
-        repo = Path(cwd).name if cwd else None
-    # tool results close tool spans
-    results: dict[str, int] = {}
+    return sid, stem, sidechain, f"session:{sid}" + (f"/{stem}" if sidechain else "")
+
+
+def tool_results(records: list[dict]) -> dict[str, dict]:
+    """tool_use_id -> {'ts': end time in ns, 'is_error': bool} from the user
+    turns that carry tool_result blocks. A tool call is closed by its result,
+    which is what gives a tool span its real duration."""
+    out: dict[str, dict] = {}
     for r in records:
         if r.get("type") != "user":
             continue
         content = (r.get("message") or {}).get("content")
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("tool_use_id"):
-                    ts = to_ns(r.get("timestamp"))
-                    if ts:
-                        results[block["tool_use_id"]] = ts
-    spans: list[dict] = []
-    total_cost = 0.0
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("tool_use_id"):
+                out[block["tool_use_id"]] = {"ts": to_ns(r.get("timestamp")),
+                                             "is_error": bool(block.get("is_error"))}
+    return out
+
+
+def fold_turns(records: list[dict]) -> tuple[list[str], dict[str, dict]]:
+    """Fold assistant records into one entry per message id, in order.
+
+    A streamed turn arrives as several records sharing a message id; the last
+    usage wins and the content blocks accumulate, so one assistant turn is one
+    unit of cost regardless of how it was streamed to disk.
+    """
     turns: dict[str, dict] = {}
     order: list[str] = []
     for r in records:
@@ -1043,6 +1071,145 @@ def build_session_spans(records: list[dict], source: str = "") -> list[dict]:
         elif isinstance(content, str):
             t["blocks"].append({"type": "text", "text": content})
         t["model"] = msg.get("model") or t.get("model")
+    return order, turns
+
+
+def first_prompt(records: list[dict]) -> str | None:
+    """What the human asked to start the session — the queued prompt when the
+    transcript records one, else the first plain-text user turn (a tool_result
+    is the harness answering itself, never a prompt)."""
+    for r in records:
+        if r.get("type") == "queue-operation" and r.get("content"):
+            return str(r["content"])[:2000]
+    for r in records:
+        if r.get("type") != "user":
+            continue
+        content = (r.get("message") or {}).get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()[:2000]
+        if isinstance(content, list):
+            text = " ".join(b.get("text", "") for b in content
+                            if isinstance(b, dict) and b.get("type") == "text").strip()
+            if text:
+                return text[:2000]
+    return None
+
+
+def _usage_tokens(usage: dict) -> dict:
+    cc = usage.get("cache_creation") or {}
+    write = usage.get("cache_creation_input_tokens")
+    if write is None and cc:
+        write = (cc.get("ephemeral_5m_input_tokens") or 0) + (cc.get("ephemeral_1h_input_tokens") or 0)
+    return {"input_tokens": usage.get("input_tokens") or 0,
+            "output_tokens": usage.get("output_tokens") or 0,
+            "cache_read_tokens": usage.get("cache_read_input_tokens") or 0,
+            "cache_write_tokens": write or 0}
+
+
+def session_facts(records: list[dict], source: str = "", mtime: str | None = None) -> dict | None:
+    """One transcript -> the rows the lake stores: {'session', 'turns', 'tools'}.
+
+    The denormalized twin of build_session_spans: same records, same trace
+    key, same turn folding — shaped for SQL instead of OTLP. This is what
+    makes a local session reviewable OFFLINE, without Phoenix and without
+    re-reading ~/.claude, and joinable to its trace when Phoenix is up.
+    """
+    if not records:
+        return None
+    stamps = [t for t in (to_ns(r.get("timestamp")) for r in records if r.get("timestamp")) if t]
+    if not stamps:
+        return None
+    sid, stem, sidechain, key = session_identity(records, source)
+    results = tool_results(records)
+    order, turns = fold_turns(records)
+    first = next((r for r in records if r.get("cwd")), records[0])
+    cwd = first.get("cwd")
+    try:
+        import ai_activity
+        repo = ai_activity.repo_for(cwd) if cwd else None
+    except Exception:
+        repo = Path(cwd).name if cwd else None
+
+    turn_rows, tool_rows, models = [], [], []
+    totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0}
+    cost_total, tool_errors = 0.0, 0
+    prev_end = min(stamps)
+    for i, mid in enumerate(order):
+        t = turns[mid]
+        usage = t["usage"] or {}
+        model = t.get("model")
+        if model and model not in models:
+            models.append(model)
+        ts = t["ts"] or prev_end
+        text = " ".join(b.get("text", "") for b in t["blocks"] if b.get("type") == "text").strip()
+        blocks = [b for b in t["blocks"] if b.get("type") == "tool_use"]
+        ends = [results.get(b.get("id"), {}).get("ts") for b in blocks]
+        turn_end = max([ts] + [e for e in ends if e]) if blocks else ts
+        cost = _local_cost(model, usage) if usage else None
+        cost_total += cost or 0.0
+        tok = _usage_tokens(usage)
+        for k in totals:
+            totals[k] += tok[k]
+        turn_rows.append({"key": key, "idx": i, "message_id": mid, "model": model, "cost_usd": cost,
+                          "tool_calls": len(blocks), "text": text[:4000] or None,
+                          "started_at": iso(dt.datetime.fromtimestamp(ts / 1e9, dt.timezone.utc)),
+                          "ended_at": iso(dt.datetime.fromtimestamp(max(ts, turn_end) / 1e9, dt.timezone.utc)),
+                          "duration_ms": int(max(0, turn_end - ts) / 1e6), **tok})
+        for j, b in enumerate(blocks):
+            res = results.get(b.get("id")) or {}
+            end = res.get("ts")
+            if res.get("is_error"):
+                tool_errors += 1
+            tool_rows.append({
+                "key": key, "idx": i, "seq": j, "message_id": mid, "name": b.get("name") or "tool",
+                "tool_use_id": b.get("id"),
+                "input": json.dumps(b.get("input"), default=str)[:4000] if b.get("input") is not None else None,
+                "started_at": iso(dt.datetime.fromtimestamp(ts / 1e9, dt.timezone.utc)),
+                "ended_at": iso(dt.datetime.fromtimestamp(end / 1e9, dt.timezone.utc)) if end else None,
+                "duration_ms": int(max(0, end - ts) / 1e6) if end else None,
+                "is_error": 1 if res.get("is_error") else 0})
+        prev_end = max(prev_end, turn_end)
+
+    start_ns, end_ns = min(stamps), max(max(stamps), prev_end)
+    session = {
+        "key": key, "session_id": sid, "transcript": stem or None, "sidechain": 1 if sidechain else 0,
+        "source": source or None, "repo": repo, "cwd": cwd, "git_branch": first.get("gitBranch"),
+        "version": first.get("version"), "entrypoint": first.get("entrypoint"),
+        "user_type": first.get("userType"), "models": json.dumps(models), "turns": len(order),
+        "tool_calls": len(tool_rows), "tool_errors": tool_errors, "records": len(records),
+        "cost_usd": round(cost_total, 6) if cost_total else 0.0,
+        "started_at": iso(dt.datetime.fromtimestamp(start_ns / 1e9, dt.timezone.utc)),
+        "ended_at": iso(dt.datetime.fromtimestamp(end_ns / 1e9, dt.timezone.utc)),
+        "duration_ms": int(max(0, end_ns - start_ns) / 1e6),
+        "first_prompt": first_prompt(records), "mtime": mtime, "synced_at": iso(utcnow()), **totals}
+    return {"session": session, "turns": turn_rows, "tools": tool_rows}
+
+
+def build_session_spans(records: list[dict], source: str = "") -> list[dict]:
+    """One trace per Claude Code session: session (AGENT) → assistant turn
+    (LLM: model, tokens, cost, text) → tool call (TOOL: name, input; closed
+    by the matching tool_result's timestamp). Real timestamps throughout."""
+    if not records:
+        return []
+    sid, stem, sidechain, key = session_identity(records, source)
+    tid = trace_id_for(key)
+    stamps = [to_ns(r.get("timestamp")) for r in records if r.get("timestamp")]
+    stamps = [s for s in stamps if s]
+    if not stamps:
+        return []
+    first = next((r for r in records if r.get("cwd")), records[0])
+    cwd = first.get("cwd")
+    repo = None
+    try:
+        import ai_activity
+        repo = ai_activity.repo_for(cwd) if cwd else None
+    except Exception:
+        repo = Path(cwd).name if cwd else None
+    # tool results close tool spans
+    results = {k: v["ts"] for k, v in tool_results(records).items() if v["ts"]}
+    spans: list[dict] = []
+    total_cost = 0.0
+    order, turns = fold_turns(records)
     prev_end = min(stamps)
     for i, mid in enumerate(order):
         t = turns[mid]
@@ -1280,6 +1447,304 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# sessions — extract this machine's Claude Code transcripts INTO the lake
+# --------------------------------------------------------------------------- #
+def store_session(conn: sqlite3.Connection, facts: dict) -> tuple[int, int]:
+    """Persist one transcript's rows. Idempotent by trace key: a session that
+    was resumed since the last extract has its turns/tools REPLACED rather
+    than appended, so the lake mirrors the transcript instead of accumulating
+    a longer and longer history of it."""
+    key = facts["session"]["key"]
+    upsert(conn, "sessions", facts["session"], ["key"])
+    conn.execute("DELETE FROM session_turns WHERE key=?", (key,))
+    conn.execute("DELETE FROM session_tools WHERE key=?", (key,))
+    for row in facts["turns"]:
+        upsert(conn, "session_turns", row, ["key", "idx"])
+    for row in facts["tools"]:
+        upsert(conn, "session_tools", row, ["key", "idx", "seq"])
+    return len(facts["turns"]), len(facts["tools"])
+
+
+def cmd_sessions(args: argparse.Namespace) -> int:
+    claude_dir = Path(args.claude_dir)
+    if not claude_dir.exists():
+        sys.stderr.write(f"lake sessions: no transcripts at {claude_dir} "
+                         "(set CLAUDE_CONFIG_DIR or pass --claude-dir).\n")
+        return 0 if args.json else 1
+    files = session_files(claude_dir, args.days)
+    if args.limit:
+        files = files[: args.limit]
+    conn = connect(args.lake)
+    sessions = turns = tools = skipped = 0
+    try:
+        for path in files:
+            mtime = iso(dt.datetime.fromtimestamp(path.stat().st_mtime, dt.timezone.utc))
+            if not args.force:
+                row = conn.execute("SELECT mtime FROM sessions WHERE source=?", (str(path),)).fetchone()
+                if row and row["mtime"] == mtime:
+                    skipped += 1
+                    continue  # transcript untouched since the last extract
+            facts = session_facts(read_session(path), str(path), mtime)
+            if not facts:
+                continue
+            if args.repo and facts["session"].get("repo") != args.repo:
+                continue
+            t, tl = store_session(conn, facts)
+            sessions += 1
+            turns += t
+            tools += tl
+        conn.commit()
+    finally:
+        conn.close()
+    out = {"scanned": len(files), "sessions": sessions, "turns": turns,
+           "tool_calls": tools, "skipped": skipped, "claude_dir": str(claude_dir)}
+    if args.json:
+        print(json.dumps(out, indent=2))
+    else:
+        sys.stderr.write(f"lake sessions: {sessions} transcripts → {turns} turns / {tools} tool calls "
+                         f"({skipped} unchanged, {len(files)} scanned in {claude_dir})\n")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# review — the ANALYSIS layer over both planes, offline
+# --------------------------------------------------------------------------- #
+def review(lake_dir: Path | str | None = None, days: int = 30, repo: str | None = None,
+           limit: int = 10) -> dict:
+    """Unify the two planes — local Claude Code sessions and the CI agent runs
+    claude-code-action produced — into one reviewable document.
+
+    Pure SQL over the lake: no network, no Phoenix, no ~/.claude re-read. That
+    is the point of extracting first — the review is reproducible from the
+    lake alone, and answers the questions a trace viewer does not: what did
+    the agents COST, where did the turns go, which tools fail, and what has
+    not been traced yet.
+    """
+    d, db = lake_paths(lake_dir)
+    cutoff = iso(utcnow() - dt.timedelta(days=days))
+    out: dict = {"generated_at": iso(utcnow()), "window_days": days, "repo": repo,
+                 "present": db.exists(), "db_path": str(db),
+                 "local": {}, "ci": {}, "totals": {}, "findings": []}
+    if not db.exists():
+        return out
+    # create=True, deliberately: SCHEMA_SQL is entirely CREATE ... IF NOT EXISTS,
+    # so applying it to a lake that predates the session tables ADDS them (empty)
+    # and is a no-op otherwise. That is what upgrades a v1 lake in place — without
+    # it, `review` on a lake built before `sessions` existed dies on "no such
+    # table: sessions" instead of reporting an empty local plane.
+    conn = connect(d)
+    try:
+        rf = " AND repo=?" if repo else ""
+        rp = [cutoff] + ([repo] if repo else [])
+        s = conn.execute(
+            "SELECT COUNT(*) AS sessions, COALESCE(SUM(turns),0) AS turns, "
+            "COALESCE(SUM(tool_calls),0) AS tool_calls, COALESCE(SUM(tool_errors),0) AS tool_errors, "
+            "COALESCE(SUM(cost_usd),0) AS cost, COALESCE(SUM(input_tokens),0) AS input_tokens, "
+            "COALESCE(SUM(output_tokens),0) AS output_tokens, "
+            "COALESCE(SUM(cache_read_tokens),0) AS cache_read_tokens, "
+            "COALESCE(SUM(cache_write_tokens),0) AS cache_write_tokens, "
+            "COALESCE(SUM(duration_ms),0) AS duration_ms "
+            f"FROM sessions WHERE started_at >= ?{rf}", rp).fetchone()
+        local = dict(s)
+        local["cost_usd"] = round(local.pop("cost") or 0, 4)
+        local["repos"] = [dict(r) for r in conn.execute(
+            "SELECT repo, COUNT(*) AS sessions, COALESCE(SUM(turns),0) AS turns, "
+            "ROUND(COALESCE(SUM(cost_usd),0),4) AS cost_usd "
+            f"FROM sessions WHERE started_at >= ?{rf} GROUP BY repo ORDER BY cost_usd DESC", rp)]
+        local["top_sessions"] = [dict(r) for r in conn.execute(
+            "SELECT key, session_id, repo, git_branch, turns, tool_calls, tool_errors, "
+            "ROUND(cost_usd,4) AS cost_usd, duration_ms, started_at, models, first_prompt "
+            f"FROM sessions WHERE started_at >= ?{rf} ORDER BY cost_usd DESC LIMIT ?",
+            rp + [limit])]
+        local["tools"] = [dict(r) for r in conn.execute(
+            "SELECT t.name, COUNT(*) AS calls, SUM(t.is_error) AS errors, "
+            "ROUND(AVG(t.duration_ms),1) AS avg_ms "
+            "FROM session_tools t JOIN sessions s ON s.key=t.key "
+            f"WHERE s.started_at >= ?{(' AND s.repo=?' if repo else '')} "
+            "GROUP BY t.name ORDER BY calls DESC", rp)]
+        local["models"] = {r["model"] or "unknown": r["n"] for r in conn.execute(
+            "SELECT u.model, COUNT(*) AS n FROM session_turns u JOIN sessions s ON s.key=u.key "
+            f"WHERE s.started_at >= ?{(' AND s.repo=?' if repo else '')} GROUP BY u.model", rp)}
+        local["untraced"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM sessions s LEFT JOIN exports e ON e.key=s.key "
+            f"WHERE s.started_at >= ?{rf} AND e.key IS NULL", rp).fetchone()["n"]
+        out["local"] = local
+
+        cf = " AND r.nwo=?" if repo else ""
+        cp = [cutoff] + ([repo] if repo else [])
+        c = conn.execute(
+            "SELECT COUNT(*) AS agent_runs, COALESCE(SUM(a.cost_usd),0) AS cost, "
+            "COALESCE(SUM(a.num_turns),0) AS turns, COALESCE(SUM(a.permission_denials),0) AS denials, "
+            "COALESCE(SUM(a.is_error),0) AS errors, COALESCE(SUM(a.duration_ms),0) AS duration_ms, "
+            "COALESCE(SUM(a.input_tokens),0) AS input_tokens, "
+            "COALESCE(SUM(a.output_tokens),0) AS output_tokens, "
+            "COALESCE(SUM(a.cache_read_tokens),0) AS cache_read_tokens, "
+            "COALESCE(SUM(a.cache_write_tokens),0) AS cache_write_tokens "
+            "FROM agent_runs a JOIN runs r ON r.id=a.run_id "
+            f"WHERE r.created_at >= ?{cf}", cp).fetchone()
+        ci = dict(c)
+        ci["cost_usd"] = round(ci.pop("cost") or 0, 4)
+        ci["runs"] = conn.execute(
+            f"SELECT COUNT(*) AS n FROM runs r WHERE r.created_at >= ?{cf} AND r.ai=1", cp).fetchone()["n"]
+        ci["failed_runs"] = conn.execute(
+            f"SELECT COUNT(*) AS n FROM runs r WHERE r.created_at >= ?{cf} AND r.ai=1 "
+            "AND r.conclusion IN ('failure','timed_out','startup_failure')", cp).fetchone()["n"]
+        ci["repos"] = [dict(r) for r in conn.execute(
+            "SELECT r.nwo AS repo, COUNT(*) AS runs, COALESCE(SUM(a.num_turns),0) AS turns, "
+            "ROUND(COALESCE(SUM(a.cost_usd),0),4) AS cost_usd "
+            "FROM agent_runs a JOIN runs r ON r.id=a.run_id "
+            f"WHERE r.created_at >= ?{cf} GROUP BY r.nwo ORDER BY cost_usd DESC", cp)]
+        ci["workflows"] = [dict(r) for r in conn.execute(
+            "SELECT r.nwo, r.workflow_name, r.workflow_path, COUNT(*) AS runs, "
+            "ROUND(COALESCE(SUM(a.cost_usd),0),4) AS cost_usd, "
+            "COALESCE(SUM(a.num_turns),0) AS turns, "
+            "SUM(CASE WHEN r.conclusion IN ('failure','timed_out','startup_failure') THEN 1 ELSE 0 END) AS failures "
+            "FROM runs r LEFT JOIN agent_runs a ON a.run_id=r.id "
+            f"WHERE r.created_at >= ? AND r.ai=1{cf} "
+            "GROUP BY r.nwo, r.workflow_path ORDER BY cost_usd DESC", cp)]
+        ci["top_runs"] = [dict(r) for r in conn.execute(
+            "SELECT r.id, r.nwo, r.workflow_name, r.conclusion, r.html_url, r.created_at, "
+            "a.model, a.num_turns, ROUND(a.cost_usd,4) AS cost_usd, a.duration_ms, "
+            "a.permission_denials, a.is_error, a.session_id "
+            "FROM agent_runs a JOIN runs r ON r.id=a.run_id "
+            f"WHERE r.created_at >= ?{cf} ORDER BY a.cost_usd DESC LIMIT ?", cp + [limit])]
+        ci["models"] = {r["model"] or "unknown": r["n"] for r in conn.execute(
+            "SELECT a.model, COUNT(*) AS n FROM agent_runs a JOIN runs r ON r.id=a.run_id "
+            f"WHERE r.created_at >= ?{cf} GROUP BY a.model", cp)}
+        ci["untraced"] = conn.execute(
+            "SELECT COUNT(*) AS n FROM agent_runs a JOIN runs r ON r.id=a.run_id "
+            "LEFT JOIN exports e ON e.key = 'run:' || r.nwo || ':' || r.id "
+            f"WHERE r.created_at >= ?{cf} AND e.key IS NULL", cp).fetchone()["n"]
+        out["ci"] = ci
+    finally:
+        conn.close()
+
+    out["totals"] = {
+        "cost_usd": round((local.get("cost_usd") or 0) + (ci.get("cost_usd") or 0), 4),
+        "turns": (local.get("turns") or 0) + (ci.get("turns") or 0),
+        "traces": (local.get("sessions") or 0) + (ci.get("agent_runs") or 0),
+        "untraced": (local.get("untraced") or 0) + (ci.get("untraced") or 0),
+    }
+    out["findings"] = _findings(out)
+    return out
+
+
+def _findings(doc: dict) -> list[dict]:
+    """Turn the numbers into the handful of statements worth acting on. Purely
+    a function of the document, so the review is deterministic and testable."""
+    f: list[dict] = []
+    local, ci, tot = doc.get("local") or {}, doc.get("ci") or {}, doc.get("totals") or {}
+
+    errs, calls = local.get("tool_errors") or 0, local.get("tool_calls") or 0
+    if calls and errs / calls >= 0.10 and errs >= 5:
+        worst = sorted([t for t in local.get("tools") or [] if (t.get("errors") or 0)],
+                       key=lambda t: -(t["errors"] or 0))[:3]
+        f.append({"severity": "warn", "plane": "local", "title": "local tool calls fail often",
+                  "detail": f"{errs}/{calls} local tool calls ({errs / calls:.0%}) returned an error"
+                            + (" — worst: " + ", ".join(f"{t['name']} ({t['errors']})" for t in worst) if worst else "")})
+
+    if ci.get("errors"):
+        f.append({"severity": "error", "plane": "ci", "title": "CI agent runs ended in error",
+                  "detail": f"{ci['errors']} of {ci.get('agent_runs', 0)} claude-code-action runs reported "
+                            "is_error — read their logs in the lake (`logs` table) before re-dispatching"})
+    if ci.get("failed_runs"):
+        f.append({"severity": "error", "plane": "ci", "title": "AI workflow runs failed",
+                  "detail": f"{ci['failed_runs']} of {ci.get('runs', 0)} AI workflow runs concluded "
+                            "failure/timed_out/startup_failure"})
+    if ci.get("denials"):
+        f.append({"severity": "warn", "plane": "ci", "title": "permission denials in CI",
+                  "detail": f"{ci['denials']} tool-permission denials — the allowlist is narrower than the "
+                            "prompt needs; widen `allowed_tools` or narrow the prompt"})
+
+    for plane, doc_ in (("local", local), ("ci", ci)):
+        read = doc_.get("cache_read_tokens") or 0
+        billed = (doc_.get("input_tokens") or 0) + (doc_.get("cache_write_tokens") or 0)
+        if read + billed > 1_000_000 and read / max(1, read + billed) < 0.5:
+            f.append({"severity": "info", "plane": plane, "title": f"low cache reuse ({plane})",
+                      "detail": f"only {read / max(1, read + billed):.0%} of prompt tokens came from cache "
+                                "— long sessions re-send context that a stable prefix would cache"})
+
+    top = (local.get("top_sessions") or [])[:1]
+    if top and (local.get("cost_usd") or 0) > 0:
+        share = (top[0].get("cost_usd") or 0) / local["cost_usd"]
+        if share >= 0.4 and local.get("sessions", 0) > 2:
+            f.append({"severity": "info", "plane": "local", "title": "cost concentrated in one session",
+                      "detail": f"{share:.0%} of local spend is one session "
+                                f"({top[0].get('repo') or '?'}, {top[0].get('turns')} turns, "
+                                f"${top[0].get('cost_usd')})"})
+
+    try:
+        import ai_activity
+        seen = set(local.get("models") or ()) | set(ci.get("models") or ())
+        unpriced = sorted(m for m in seen
+                          if m and m != "unknown" and ai_activity.normalize_model(m)
+                          and ai_activity.normalize_model(m) not in ai_activity.PRICING)
+        if unpriced:
+            f.append({"severity": "warn", "plane": "both", "title": "models with no price row",
+                      "detail": f"{', '.join(unpriced)} — counted but costed at $0, so every total "
+                                "below understates spend; add a row to ai_activity.PRICING"})
+    except Exception:
+        pass
+
+    if tot.get("untraced"):
+        f.append({"severity": "info", "plane": "both", "title": "traces not shipped to Phoenix",
+                  "detail": f"{tot['untraced']} sessions/runs in the lake have no export ledger entry — "
+                            "`tools/dash lake export --local` to view them at :6006"})
+    if not tot.get("traces"):
+        f.append({"severity": "info", "plane": "both", "title": "lake holds no agent activity in this window",
+                  "detail": "run `tools/dash lake sessions` (local) and `tools/dash lake sync` (CI) first"})
+    return f
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    doc = review(args.lake, days=args.days, repo=args.repo, limit=args.limit)
+    if args.json:
+        print(json.dumps(doc, indent=2, default=str))
+        return 0
+    if not doc["present"]:
+        print(f"lake review: nothing at {doc['db_path']} — run `tools/dash lake sessions` "
+              "and/or `tools/dash lake sync` first.")
+        return 1
+    local, ci, tot = doc["local"], doc["ci"], doc["totals"]
+    scope = f" · repo={doc['repo']}" if doc.get("repo") else ""
+    print(f"Claude activity review — last {doc['window_days']}d{scope}")
+    print(f"  total: ${tot['cost_usd']:.2f} · {tot['turns']} turns · {tot['traces']} traces "
+          f"({tot['untraced']} not yet in Phoenix)")
+    print(f"\n  LOCAL sessions (~/.claude transcripts)")
+    print(f"    {local['sessions']} sessions · {local['turns']} turns · {local['tool_calls']} tool calls "
+          f"({local['tool_errors']} errored) · ${local['cost_usd']:.2f}")
+    print(f"    tokens: in {local['input_tokens']:,} · out {local['output_tokens']:,} · "
+          f"cache r {local['cache_read_tokens']:,} / w {local['cache_write_tokens']:,}")
+    for r in local["repos"][:8]:
+        print(f"      {r['repo'] or '—':<28} {r['sessions']:>3} sessions  {r['turns']:>5} turns  ${r['cost_usd']:.2f}")
+    if local["tools"]:
+        print("    top tools: " + ", ".join(
+            f"{t['name']}×{t['calls']}" + (f"({t['errors']}✗)" if t.get("errors") else "")
+            for t in local["tools"][:8]))
+    print(f"\n  CI agent runs (claude-code-action)")
+    print(f"    {ci['agent_runs']} agent runs of {ci['runs']} AI workflow runs · {ci['turns']} turns · "
+          f"${ci['cost_usd']:.2f} · {ci['failed_runs']} failed · {ci['denials']} denials")
+    for r in ci["repos"][:8]:
+        print(f"      {r['repo']:<28} {r['runs']:>3} runs      {r['turns']:>5} turns  ${r['cost_usd']:.2f}")
+    for w in ci["workflows"][:8]:
+        mark = "✗" if w.get("failures") else " "
+        print(f"      {mark} {w['nwo']}/{w['workflow_path'].split('/')[-1]:<26} "
+              f"{w['runs']:>3} runs ${w['cost_usd'] or 0:.2f}")
+    if local["top_sessions"]:
+        print("\n  most expensive local sessions")
+        for r in local["top_sessions"][:5]:
+            prompt = (r.get("first_prompt") or "").replace("\n", " ")[:58]
+            print(f"    ${r['cost_usd'] or 0:>7.2f}  {r['turns']:>4}t {r['tool_calls']:>4}tc  "
+                  f"{(r['repo'] or '—'):<16} {prompt}")
+    if doc["findings"]:
+        print("\n  findings")
+        for x in doc["findings"]:
+            icon = {"error": "✗", "warn": "!", "info": "·"}.get(x["severity"], "·")
+            print(f"    {icon} [{x['plane']}] {x['title']} — {x['detail']}")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # entry point
 # --------------------------------------------------------------------------- #
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -1307,10 +1772,27 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     p_status.add_argument("--no-probe", action="store_true", help="skip the Phoenix probe")
     p_status.set_defaults(func=cmd_status)
 
+    p_sessions = sub.add_parser("sessions", help="extract this machine's Claude Code transcripts into the lake")
+    p_sessions.add_argument("--claude-dir", default=str(CLAUDE_DIR_DEFAULT), help="~/.claude/projects")
+    p_sessions.add_argument("--days", type=int, default=30, help="only transcripts touched in this window")
+    p_sessions.add_argument("--limit", type=int, default=0, help="max transcripts (0 = no cap)")
+    p_sessions.add_argument("--repo", default=None, help="only sessions attributed to this repo")
+    p_sessions.add_argument("--force", action="store_true", help="re-read transcripts whose mtime is unchanged")
+    p_sessions.add_argument("--json", action="store_true")
+    p_sessions.set_defaults(func=cmd_sessions)
+
+    p_review = sub.add_parser("review", help="analyze local sessions + CI agent runs from the lake (offline)")
+    p_review.add_argument("--days", type=int, default=30)
+    p_review.add_argument("--repo", default=None, help="restrict to one repo")
+    p_review.add_argument("--limit", type=int, default=10, help="rows in each top-N table")
+    p_review.add_argument("--json", action="store_true")
+    p_review.set_defaults(func=cmd_review)
+
     p_export = sub.add_parser("export", help="ship OpenInference traces (agent runs, local sessions) to Phoenix")
     p_export.add_argument("--endpoint", default=None, help=f"Phoenix collector (PHOENIX_COLLECTOR_ENDPOINT; default {PHOENIX_DEFAULT})")
     p_export.add_argument("--project", default=PROJECT_CI_DEFAULT, help="Phoenix project for CI agent runs")
-    p_export.add_argument("--local", action="store_true", help="also export this machine's Claude Code sessions")
+    p_export.add_argument("--local", action="store_true",
+                          help="also export this machine's Claude Code sessions (from ~/.claude transcripts)")
     p_export.add_argument("--local-project", default=PROJECT_LOCAL_DEFAULT, help="Phoenix project for local sessions")
     p_export.add_argument("--claude-dir", default=str(CLAUDE_DIR_DEFAULT), help="~/.claude/projects")
     p_export.add_argument("--no-ci", action="store_true", help="skip the lake's CI runs")

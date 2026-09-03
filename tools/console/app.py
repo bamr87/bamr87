@@ -147,6 +147,14 @@ def lake_lines() -> list[dict]:
     return core.lake_lines()
 
 
+@app.get("/api/lake/review", dependencies=[Depends(require_token)])
+def lake_review(days: int = Query(default=30, ge=1, le=3650),
+                repo: str | None = Query(default=None),
+                limit: int = Query(default=10, ge=1, le=100)) -> dict:
+    """Local Claude Code sessions + CI agent runs, unified and analyzed."""
+    return core.lake_review(days, repo, limit)
+
+
 @app.get("/api/contract", dependencies=[Depends(require_token)])
 def contract() -> dict:
     return core.read_contract()
@@ -171,6 +179,7 @@ def index() -> FileResponse:
 def api_root() -> JSONResponse:
     return JSONResponse({"routes": ["/api/state", "/api/capabilities", "/api/ops", "/api/jobs",
                                     "/api/lake", "/api/lake/runs", "/api/lake/lines",
+                                    "/api/lake/review",
                                     "/api/contract", "/docs"]})
 
 
