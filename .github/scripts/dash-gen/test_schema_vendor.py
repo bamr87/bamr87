@@ -16,6 +16,7 @@ only PyYAML and runs on a bare interpreter:
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
@@ -176,6 +177,42 @@ def main() -> int:
     sv.apply_plan(root, plan, fetch, today="2026-09-03")
     check("nothing to re-vendor leaves VERSION alone",
           (root / sv.VERSION_FILE).read_text() == before)
+
+    # --- how upstream is actually fetched -----------------------------------
+    # Regression guard. The first live run of this loop reported a PUBLIC file
+    # as "upstream unreachable": raw.githubusercontent.com 404s — not 401s —
+    # when handed an Authorization header it does not accept, and the workflow
+    # always sets GH_TOKEN. A weekly job that can never run is the exact failure
+    # this loop exists to catch, so the transport is pinned here.
+    print("fetch transport:")
+    saved = {k: os.environ.pop(k, None) for k in ("GH_TOKEN", "GITHUB_TOKEN")}
+    try:
+        req = sv.content_request("owner/repo", "main", "tools/schema_lint.py")
+        check("never fetches from raw.githubusercontent.com",
+              "raw.githubusercontent.com" not in req.full_url)
+        check("uses the contents API", req.full_url.startswith(
+            "https://api.github.com/repos/owner/repo/contents/"))
+        check("asks for the raw media type",
+              req.get_header("Accept") == "application/vnd.github.raw")
+        check("pins the ref", "ref=main" in req.full_url)
+        # Slashes stay slashes — they are real path segments to the API — but
+        # anything that would break the URL is escaped.
+        check("keeps path separators intact",
+              req.full_url.endswith("/contents/tools/schema_lint.py?ref=main"))
+        check("escapes characters that would break the URL",
+              "a%20b%23c" in sv.content_request("o/r", "main", "a b#c").full_url)
+        check("sends no Authorization when there is no token",
+              req.get_header("Authorization") is None)
+
+        os.environ["GH_TOKEN"] = "t0ken"
+        req = sv.content_request("owner/repo", "main", "DISTRIBUTION.yml")
+        check("sends a Bearer token when one is present",
+              req.get_header("Authorization") == "Bearer t0ken")
+    finally:
+        os.environ.pop("GH_TOKEN", None)
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
 
     # --- normalization parity with upstream's schema_dist -------------------
     print("normalization:")
