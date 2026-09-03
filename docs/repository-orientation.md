@@ -13,9 +13,7 @@ updated: 2026-09-03
    <https://github.com/bamr87>. That file is a bio: background, technical stack,
    professional experience, and consulting services.
 2. **It is also a monorepo.** Behind the profile README sits a working codebase —
-   a static site, shared data and assets, submodules pointing at other projects,
-   schema and catalog documentation, and a fair amount of tooling and automation
-   configuration.
+a static site, shared data and assets, submodules pointing at other projects, schema and catalog documentation, and a fair amount of tooling and automation configuration.
 
 If you arrived expecting only a bio, this page is the map of everything else.
 
@@ -86,28 +84,22 @@ A reasonable reading order:
 1. **[`CONTRIBUTING.md`](../CONTRIBUTING.md)** — start here for the contribution
    workflow and any expectations about branches, commits, and review.
 2. **[`SUBMODULES.md`](../SUBMODULES.md)** — this repository uses git submodules
-   (`.gitmodules`), so a plain `git clone` will leave those directories empty.
-   Read this before wondering why something looks missing.
+(`.gitmodules`), so a plain `git clone` will leave those directories empty. Read this before wondering why something looks missing.
 3. **[`CATALOG.md`](../CATALOG.md)** — an index of what lives where.
 4. **[`SCHEMA.md`](../SCHEMA.md)** — if you are touching anything under `_data/`
    or otherwise structured, the schema is documented here.
 
 ## Building and running
 
-This page deliberately does **not** list build, serve, or test commands, because
-they have not been verified against the repository's actual configuration. The
-authoritative sources are:
+This page deliberately does **not** list build, serve, or test commands, because they have not been verified against the repository's actual configuration. The authoritative sources are:
 
 - `Gemfile` and `Rakefile` for Ruby-based tasks,
 - `docker-compose.yml` and `.devcontainer/` for containerised setups,
 - `.github/` for whatever CI runs on pull requests,
 - `CONTRIBUTING.md` for the maintainer's own instructions.
 
-If you work out the canonical local-development commands, adding them here is a
-welcome contribution.
+If you work out the canonical local-development commands, adding them here is a welcome contribution.
 
 ## A note on editing the profile README
 
-[`README.md`](../README.md) is public-facing on the GitHub account page. Changes
-to it are visible to anyone who visits <https://github.com/bamr87>, so treat
-edits there with more care than edits to files under `docs/`.
+[`README.md`](../README.md) is public-facing on the GitHub account page. Changes to it are visible to anyone who visits <https://github.com/bamr87>, so treat edits there with more care than edits to files under `docs/`.
