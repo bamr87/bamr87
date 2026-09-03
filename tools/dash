@@ -27,15 +27,20 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash daily${c_off}             prior-day fleet activity digest (the fix queue is: dash remediate)
   ${c_bold}dash triage${c_off}            fleet-wide open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/ portal)
   ${c_bold}dash reconcile${c_off}         registry + .gitmodules vs GitHub reality (renames/deletions/urls); --apply fixes safe ones
+  ${c_bold}dash vendor${c_off}            vendored Pyramid Schema kit vs upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files
   ${c_bold}dash remediate${c_off}         merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse)
+  ${c_bold}dash spec [check|fleet|kinds]${c_off} Universal Project Standard checker (specs/): \`check [path] [--kinds a,b] [--gate]\` one repo; \`fleet --write\` every submodule → _data/conformance.yml (feeds the repo-evolution brief)
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
+  ${c_bold}dash harnesses [gaps|deploy]${c_off} fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); \`gaps\` prints fan-out-deployable gap repos; \`deploy [--gaps|--target N] [--artifacts csv] [--upgrade] [--apply]\` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md)
   ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
   ${c_bold}dash evidence <repo> <n>${c_off} build one issue's evidence bundle in an isolated virtual environment
   ${c_bold}dash secrets [sync|rotate|plan]${c_off} per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env); \`rotate --apply\` runs the weekly credential loop (audit ages, mint where possible, propagate hub-first); \`plan\` shows the ages read-only
   ${c_bold}dash config [show|audit|sync]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
+  ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
+  ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
   ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
@@ -49,7 +54,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-check|ai-usage|actions|daily|triage|harness|remediate|issues|reconcile|estimate|ledger|targets|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-check|ai-usage|actions|daily|triage|harness|harnesses|lake|remediate|issues|reconcile|vendor|estimate|ledger|targets|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -103,6 +108,19 @@ cmd_serve() {
   else
     echo "Docker not available; serving natively."
     cd "$ROOT" && bundle install && bundle exec jekyll serve -c _config.yml,_config_dev.yml
+  fi
+}
+
+# The Harness Console: the credentialed, write-capable front end of the local
+# stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
+# via tools/console/run.sh; --docker starts the compose service instead.
+cmd_console() {
+  if [[ "${1:-}" == "--docker" ]]; then
+    shift
+    cd "$ROOT" && docker compose up -d console "$@"
+    echo "console: http://127.0.0.1:${CONSOLE_PORT:-4001}/  (docker compose logs -f console)"
+  else
+    "${TOOLS}/console/run.sh" "$@"
   fi
 }
 
@@ -226,8 +244,58 @@ cmd_actions() { "${TOOLS}/dash-gen" actions "$@"; }
 cmd_daily() { "${TOOLS}/dash-gen" daily "$@"; }
 cmd_triage() { "${TOOLS}/dash-gen" triage "$@"; }
 cmd_reconcile() { "${TOOLS}/dash-gen" reconcile "$@"; }
+cmd_vendor()    { "${TOOLS}/dash-gen" vendor "$@"; }
 cmd_remediate() { "${TOOLS}/dash-gen" remediate "$@"; }
 cmd_harness() { "${TOOLS}/dash-gen" harness "$@"; }
+# The fleet-wide AI-harness inventory (plural — `dash harness` above is the
+# hub's own scorecard). `deploy` reuses the standardize fan-out engine with the
+# agent-context kit artifacts, so it inherits every fanout.sh guarantee:
+# dry-run default, PRs only, external-upstream guard, additive-only seeding,
+# --upgrade only for byte-identical machine seeds.
+cmd_harnesses() {
+  case "${1:-}" in
+    gaps)   shift; "${TOOLS}/dash-gen" harnesses --gaps "$@" ;;
+    deploy) shift; harnesses_deploy "$@" ;;
+    *)      "${TOOLS}/dash-gen" harnesses "$@" ;;
+  esac
+}
+harnesses_deploy() {
+  local artifacts="claude" targets=() use_gaps=0 apply=() upgrade=() t
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --gaps)      use_gaps=1 ;;
+      --target)    targets+=("${2:?--target needs a value}"); shift ;;
+      --artifacts) artifacts="${2:?--artifacts needs a value}"; shift ;;
+      --apply)     apply=(--apply) ;;
+      --upgrade)   upgrade=(--upgrade) ;;
+      *) echo "unknown flag: $1 (usage: dash harnesses deploy [--gaps] [--target <name>]... [--artifacts csv] [--upgrade] [--apply])" >&2; return 2 ;;
+    esac
+    shift
+  done
+  if [[ "$use_gaps" -eq 1 ]]; then
+    while IFS= read -r t; do
+      [[ -n "$t" ]] && targets+=("$t")
+    done < <("${TOOLS}/dash-gen" harnesses --gaps)
+  fi
+  if [[ ${#targets[@]} -eq 0 ]]; then
+    echo "no deploy targets — pass --target <name>, or --gaps after \`dash harnesses\` has produced _data/harness_registry.yml"
+    return 0
+  fi
+  for t in "${targets[@]}"; do
+    "${TOOLS}/fanout.sh" --kit standardize --target "$t" --artifacts "$artifacts" \
+      ${apply[@]+"${apply[@]}"} ${upgrade[@]+"${upgrade[@]}"}
+  done
+}
+cmd_spec() {
+  # `dash spec check [path] [--kinds …] [--gate]` — one repo against the UPS;
+  # `dash spec fleet [--write]` — every checked-out submodule → _data/conformance.yml
+  # (the file the repo-evolution brief reads); `dash spec kinds [path]`.
+  local sub="${1:-check}"
+  case "$sub" in
+    check|fleet|kinds) shift; python3 "${TOOLS}/conformance.py" "$sub" "$@" ;;
+    *) python3 "${TOOLS}/conformance.py" check "$@" ;;
+  esac
+}
 cmd_issues() { "${TOOLS}/dash-gen" issues "$@"; }
 cmd_evidence() {
   # `dash evidence bamr87/repo 42 [extra flags]` — positional repo + issue, so
@@ -263,6 +331,14 @@ cmd_config() {
 }
 cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
 cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
+# The local data lake + trace export (local stack; docs/HARNESS-OPS.md).
+# Two EXTRACT commands, one for each plane Claude runs in, then one analysis:
+#   dash lake sync      CI plane — GitHub runs/jobs/steps/logs/issues/workflows/.factory → .dash-lake/
+#   dash lake sessions  local plane — ~/.claude/projects transcripts → sessions/turns/tool calls
+#   dash lake review    analyze both planes offline (cost, turns, tools, failures, findings)
+#   dash lake status    what the lake holds + Phoenix reachability
+#   dash lake export    OpenInference traces → Phoenix (docker compose up -d phoenix)
+cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
 cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
@@ -277,15 +353,20 @@ main() {
     daily)   cmd_daily "$@" ;;
     triage)  cmd_triage "$@" ;;
     reconcile) cmd_reconcile "$@" ;;
+    vendor) cmd_vendor "$@" ;;
     remediate) cmd_remediate "$@" ;;
     harness) cmd_harness "$@" ;;
+    harnesses) cmd_harnesses "$@" ;;
+    spec)    cmd_spec "$@" ;;
     issues)  cmd_issues "$@" ;;
     evidence) cmd_evidence "$@" ;;
     secrets) cmd_secrets "$@" ;;
     config)  cmd_config "$@" ;;
     estimate) cmd_estimate "$@" ;;
     ledger)  cmd_ledger "$@" ;;
+    lake)    cmd_lake "$@" ;;
     serve)   cmd_serve "$@" ;;
+    console) cmd_console "$@" ;;
     sync)    cmd_sync "$@" ;;
     foreach) cmd_foreach "$@" ;;
     run)     cmd_run "$@" ;;

@@ -36,6 +36,13 @@ Subcommands:
            per tier plus the committed _data/issue_pipeline.yml snapshot.
            Drives issue-pipeline.yml. Implemented in issue_pipeline.py.
 
+  lake     The LOCAL data lake of the local stack: `sync` extracts what GitHub
+           holds (runs → jobs → steps, run logs, claude-code-action facts,
+           issues, workflow files, .factory/** blueprints) into
+           .dash-lake/fleet.sqlite; `status` reports it; `export` turns agent
+           runs and local Claude Code sessions into OpenInference traces for
+           Phoenix. Gitignored, never committed. Implemented in fleet_lake.py.
+
   all      Run health then readme.
 
 The single source of truth is dash/_data/projects.yml. This script never invents
@@ -63,11 +70,14 @@ import cv_fragment
 import daily_report
 import engagements
 import evolution
+import fleet_lake
 import fleet_triage
 import harness
+import harness_registry
 import issue_pipeline
 import reconcile
 import remediation
+import schema_vendor
 
 try:
     import yaml
@@ -466,6 +476,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     harness.add_arguments(p_harness)
 
+    p_harnesses = sub.add_parser(
+        "harnesses",
+        help="fleet AI-harness + schedule inventory -> harness_registry.yml "
+             "(committed, daily-refreshed; --gaps prints fan-out targets)",
+    )
+    harness_registry.add_arguments(p_harnesses)
+
+    p_lake = sub.add_parser(
+        "lake",
+        help="the local data lake: `sync` extracts GitHub runs/jobs/steps/logs/issues/workflows/"
+             ".factory into .dash-lake/fleet.sqlite, `status` reports it, `export` ships "
+             "OpenInference traces to Phoenix (local-only; never committed)",
+    )
+    fleet_lake.add_arguments(p_lake)
+
     p_remediate = sub.add_parser(
         "remediate",
         help="merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse.yml)",
@@ -495,6 +520,12 @@ def main(argv: list[str] | None = None) -> int:
         help="accrue engagement actuals from usage evidence + recompute variance -> engagements.yml",
     )
     engagements.add_ledger_arguments(p_ledger)
+
+    p_vendor = sub.add_parser(
+        "vendor",
+        help="compare the vendored Pyramid Schema kit against upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files",
+    )
+    schema_vendor.add_arguments(p_vendor)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

@@ -62,6 +62,8 @@ LEDGER_DEFAULT = Path(
 # `dash ai check` (ai_reconcile.py) now audits it against ccusage — run that
 # after touching anything below.
 PRICING: dict[str, dict[str, float]] = {
+    "claude-fable-5-1": {"in": 10.0, "out": 50.0},
+    "claude-mythos-5-1": {"in": 10.0, "out": 50.0},
     "claude-fable-5":   {"in": 10.0, "out": 50.0},
     "claude-mythos-5":  {"in": 10.0, "out": 50.0},
     "claude-opus-5":    {"in": 5.0,  "out": 25.0},

@@ -140,7 +140,7 @@ jobs:
             echo "matrix=$(jq -c '{include: .include}' plan.json)"
             echo "count=$(jq -r '.count' plan.json)"
             echo "max_parallel=$(jq -r '.max_parallel // 2' plan.json)"
-            echo "max_turns=$(jq -r '.max_turns // 60' plan.json)"
+            echo "max_turns=$(jq -r '.max_turns // 120' plan.json)"
             echo "branch_prefix=$(jq -r '.branch_prefix // "ai-evolution"' plan.json)"
             echo "label=$(jq -r '.label // "ai-evolution"' plan.json)"
           } >> "$GITHUB_OUTPUT"
@@ -261,9 +261,12 @@ jobs:
             ## Step 1 — read the brief
             Read `.evolution/${{ matrix.brief }}` with the Read tool. It carries
             the repository's registry facts, the fleet's CURRENT SIGNALS for it
-            (attention level, failing workflows, open issues and PRs), the
-            operator's focus for this run, the goals in priority order, and the
-            category emphasis. Follow it. Do not edit or delete it.
+            (attention level, failing workflows, open issues and PRs), its
+            CONFORMANCE GAPS against the fleet's Universal Project Standard
+            (that section is YOUR lane — failing MUST rows first, each naming its
+            spec file in bamr87/bamr87 `specs/` and a reference implementation to
+            lift), the operator's focus for this run, the goals in priority
+            order, and the category emphasis. Follow it. Do not edit or delete it.
 
             ## Step 2 — orient (README-First)
             Read `README.md`, then `CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md`
@@ -360,6 +363,37 @@ jobs:
             echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
           fi
 
+      # `claude-code-action` fails the step when the turn count OVERSHOOTS
+      # --max-turns even where the agent itself finished: run #1's README job
+      # died on "Claude reported a successful result after 63 turns, exceeding
+      # the configured maximum of 60", `Open draft PR` was skipped, and $2.85
+      # of completed work was thrown away. Raising max_turns makes that rarer,
+      # not impossible — the cap is a bound, and a bound can always be hit. The
+      # agent's own verdict is in the execution log, so read it and let the
+      # publish step run. `subtype == "success"` AND `is_error == false` is the
+      # agent saying it finished; a genuine turn exhaustion reports neither.
+      - name: Salvage a successful overshoot
+        id: salvage
+        if: ${{ !cancelled() && steps.evolve.outcome == 'failure' }}
+        env:
+          TIER: Repo evolution — ${{ matrix.name }}
+        run: |
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          ok=false
+          if [ -f "$log" ]; then
+            result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+            if [ -n "$result" ]; then
+              subtype=$(printf '%s' "$result" | jq -r '.subtype // ""')
+              is_error=$(printf '%s' "$result" | jq -r '.is_error // true')
+              turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
+              if [ "$subtype" = "success" ] && [ "$is_error" = "false" ]; then
+                ok=true
+                echo "::warning::${TIER}: the step failed but the agent reported success after ${turns} turn(s) — publishing its work rather than discarding it. Raise \`evolution.max_turns\` in _data/fleet.yml if this recurs."
+              fi
+            fi
+          fi
+          echo "succeeded=${ok}" >> "$GITHUB_OUTPUT"
+
       - name: Report dry run
         if: ${{ inputs.dry_run == true }}
         run: |
@@ -382,7 +416,7 @@ jobs:
       # the TARGET repo with the brief's marker as its first line.
       - name: Open draft PR
         id: publish
-        if: ${{ inputs.dry_run != true }}
+        if: ${{ !cancelled() && inputs.dry_run != true && (steps.evolve.outcome == 'success' || steps.salvage.outputs.succeeded == 'true') }}
         env:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
           PREFIX: ${{ needs.plan.outputs.branch_prefix }}
@@ -418,6 +452,28 @@ jobs:
           fi
 
           BR="${PREFIX}/$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
+
+          # NEVER trust the inherited `origin`. `claude-code-action` derives its
+          # repository from `github.repository` (the HUB, not the checkout) and
+          # leaves the tree's remote/credential state pointing there with an
+          # installation token it has already revoked. In run #1 the `scripts`
+          # job checked out bamr87/scripts and then pushed to
+          # bamr87/bamr87.git, dying on `Invalid username or token` 0.5s after
+          # the action's own `Revoke app token` step. A push that FAILED is the
+          # lucky outcome; one that succeeded would have put a submodule's
+          # changes on the hub. Re-assert the remote from $NWO, drop any auth
+          # header the action left behind, then assert the invariant — the same
+          # shape as the moved-HEAD guard above. See bamr87/bamr87#214.
+          SERVER="${GITHUB_SERVER_URL:-https://github.com}"
+          REMOTE="${SERVER}/${NWO}"
+          git remote set-url origin "$REMOTE"
+          git config --unset-all "http.${SERVER}/.extraheader" 2>/dev/null || true
+          actual="$(git remote get-url origin)"
+          if [ "$actual" != "$REMOTE" ]; then
+            echo "::error::${NAME}: publish remote is '${actual}', expected '${REMOTE}' — refusing to push."
+            exit 1
+          fi
+
           git config credential.helper '!gh auth git-credential'
           git config user.name  "bamr87-bot"
           git config user.email "10567847+bamr87@users.noreply.github.com"
@@ -425,7 +481,9 @@ jobs:
           git add -A
           git commit -q -m "chore(evolve): weekly AI improvement pass" \
             -m "Documentation, clarity, and functionality pass from the bamr87/bamr87 repo-evolution loop (run ${GITHUB_RUN_ID}). Draft for human review; nothing merges automatically."
-          git push -q -u origin "$BR"
+          # Explicit URL, not the remote name: even a re-asserted `origin` is
+          # only as good as the config the previous step left readable.
+          git push -q "$REMOTE" "HEAD:refs/heads/${BR}"
 
           # The agent's final message is the reviewer-facing body. The
           # execution log is the same file the failure classifier reads.

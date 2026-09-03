@@ -112,6 +112,11 @@ run_control_plane_tests() {
         run_step "dash-gen $(basename "$t")" python3 "$t"
     done
     [[ "$found" -eq 1 ]] || skip "no dash-gen tests found"
+    # The Harness Console's core is tested the same way (PyYAML only).
+    for t in "${PROJECT_ROOT}"/tools/console/test_*.py; do
+        [[ -e "$t" ]] || continue
+        run_step "console $(basename "$t")" python3 "$t"
+    done
 }
 
 run_root_checks() {

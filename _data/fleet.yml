@@ -10,6 +10,7 @@
 #   - .github/workflows/fleet-pulse.yml — cadence + caps for the daily loop
 #   - .github/scripts/dash-gen/remediation.py — ranking + cap defaults
 #   - .github/scripts/dash-gen/harness.py   — scorecard thresholds + trip wires
+#   - .github/scripts/dash-gen/harness_registry.py — fleet harness/schedule contract
 #
 # WHY A FILE INSTEAD OF ORG SETTINGS
 # ----------------------------------
@@ -116,6 +117,16 @@ remediation:
   interactive_dispatch_pct: 60    # ≥ this % of runs hand-dispatched ⇒ its cost is a
                                   # debugging session, not standing fleet spend, so the
                                   # cost signals (and the priority fallback) don't apply
+  # The third guard reads the CLOCK, not the verdict. A workflow triggered rarely
+  # (`issues: opened`, `workflow_dispatch`, a weekly cron) cannot clear its own
+  # red: the only thing that would is a fresh green run nothing is going to
+  # produce, so a resolved incident holds a slot forever (bamr87/bamr87#200 —
+  # gitorio Factory 1, red from an outage that lifted four days later, never
+  # re-triggered). Unlike the two above this one only DE-PRIORITISES: staleness is
+  # absence of evidence, not evidence of health, and a dispatch-only deploy broken
+  # for three weeks is stale *and* genuinely broken. Set 0 to switch it off.
+  stale_after_days: 7             # latest run older than this ⇒ sorts below every
+                                  # live candidate of the same severity, never dropped
   # Signals ranked highest-first. A workflow matching several is ranked by its
   # strongest and reported with all of them.
   severity:
@@ -295,7 +306,16 @@ evolution:
   # the listed issues/PRs that touch the change, edit, verify with the repo's
   # own lint/tests, report. Wired into `--max-turns` through the plan so this
   # is the only place the number is stated; test_evolution.py asserts the wiring.
-  max_turns: 60
+  #
+  # 120, not 60. Run #1 (2026-08-31) measured what that program actually costs:
+  # scripts 46 turns, cv-builder-pro 61, README 63. A cap of 60 sat at the
+  # MEDIAN of real demand, so two of three targets were billed in full
+  # ($3.51 + $2.85) and produced no pull request — one exhausted at the cap,
+  # one finished and had its result rejected for overshooting it. Set above the
+  # observed ceiling of 63 with headroom for a repo larger than any of the
+  # three, not at it. See bamr87/bamr87#214; `Salvage a successful overshoot`
+  # in repo-evolution.yml is the backstop for the day this bound is hit anyway.
+  max_turns: 120
 
   # How much of the triage snapshot each brief quotes. The rest is a link.
   signals:
@@ -342,6 +362,61 @@ harness:
     cost_spike_min_avg_min: 5.0   # …and anything cheaper than this on average
     standing_failures_max: 30     # red-workflow backlog beyond what the doctor's caps can drain
     credential_grace_days: 15     # past max_age_days + this, a credential is an alarm, not a chore
+
+# --------------------------------------------------------------------------- #
+# Harnesses — the fleet-wide AI-HARNESS DEPLOYMENT contract.
+#
+# `harness:` above watches the hub's own six layers; THIS block governs the
+# harnesses deployed ACROSS the fleet: which repos must carry the agent-context
+# kit, how much SCHEDULED agent work the fleet may commit itself to, and what
+# the projected spend may grow to before somebody is told. Observed reality is
+# gathered daily by `dash-gen harnesses` (harness_registry.py) into
+# _data/harness_registry.yml — the read-only inventory the /harnesses/ dash
+# page renders and the harness-fanout `gaps` target deploys from.
+# Full doc: docs/HARNESS-OPS.md
+# --------------------------------------------------------------------------- #
+harnesses:
+  # The deployable unit is the agent-context kit (templates/agent-context/):
+  # the @claude mention workflow, the CLAUDE.md scaffold, and the opt-in
+  # .claude artifacts. The CURRENT version is read from that kit's VERSION
+  # file at scan time — never duplicated here, so a kit release can't drift
+  # from the contract that grades the fleet against it.
+  kit: agent-context
+
+  # Baseline every OWNED, non-external, non-archived registry repo is held to.
+  # The inventory grades each repo against these; a gap is an attention item
+  # and a `gaps` fan-out target — never an auto-write.
+  baseline:
+    require_mention_handler: true   # a claude-code-action workflow answering @claude
+    require_agent_context: true     # CLAUDE.md / AGENTS.md / copilot-instructions / .cursorrules
+    require_oauth_secret: true      # CLAUDE_CODE_OAUTH_TOKEN per the rotation ledger
+  exempt: []                        # repo names excused from the baseline
+
+  # Throughput — how much SCHEDULED (cron-driven) agent work the fleet may
+  # standing-commit to, independent of what mention/PR traffic adds on top.
+  # Estimated fires/day are derived from each workflow's cron fields; the
+  # OBSERVED rate comes from ai_usage.yml as a cross-check. Exceeding a cap is
+  # an attention item: the fix is retuning a cron (or this cap), by a human.
+  throughput:
+    max_scheduled_ai_per_day_fleet: 30  # estimated cron-driven AI workflow runs/day, fleet-wide
+    max_scheduled_ai_per_day_repo: 8    # …and per repo, so one repo can't absorb the whole budget
+    max_ai_crons_per_utc_hour: 3        # distinct AI crons sharing one UTC hour — the three Claude
+                                        # loops already share one OAuth account's rate limit
+
+  # Budget — trend + forecast guardrails. The inventory projects a monthly
+  # figure from the committed usage windows (ai_usage.yml spend, actions
+  # minutes); crossing a ceiling — or growing faster than trend_warn_pct
+  # week-over-week — is an attention item, not an enforcement action.
+  budget:
+    monthly_ai_usd: 75              # projected monthly Claude CI spend ceiling
+    monthly_actions_minutes: 120000 # projected monthly Actions minutes ceiling
+    trend_warn_pct: 50              # week-over-week growth beyond this is flagged
+
+  # Inventory bounds (API cost + output size).
+  inventory:
+    max_workflow_files: 40          # workflow files parsed per repo
+    schedule_limit: 120             # rows in the fleet schedule calendar
+  attention_max: 20                 # findings surfaced per run, strongest first
 
 # --------------------------------------------------------------------------- #
 # Token contract — WHICH secret does WHAT, and where it must exist.
@@ -453,6 +528,17 @@ tokens:
 
   # Legacy PATs — still honoured as fallbacks so nothing breaks mid-migration.
   # Remove from the repo once FLEET_TOKEN is provisioned and verified.
+  - name: NPM_TOKEN
+    scope: hub
+    required: false
+    purpose: >-
+      Publishes the hub's shared runtime kits (templates/*/package.json →
+      npm @bamr87/*) from publish-kits.yml so always-latest consumers receive
+      them by dependency. Optional: without it the workflow packs and verifies
+      only. Granular npm automation token, publish scope, hub-only.
+    used_by: [publish-kits.yml]
+    rotation:
+      enabled: false
   - name: ACTIONS_ANALYTICS_TOKEN
     scope: hub
     required: false
