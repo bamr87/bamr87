@@ -71,6 +71,7 @@ import harness_registry
 import issue_pipeline
 import reconcile
 import remediation
+import schema_vendor
 
 try:
     import yaml
@@ -507,6 +508,12 @@ def main(argv: list[str] | None = None) -> int:
         help="accrue engagement actuals from usage evidence + recompute variance -> engagements.yml",
     )
     engagements.add_ledger_arguments(p_ledger)
+
+    p_vendor = sub.add_parser(
+        "vendor",
+        help="compare the vendored Pyramid Schema kit against upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files",
+    )
+    schema_vendor.add_arguments(p_vendor)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

@@ -324,29 +324,49 @@ def test_gaps_are_fanout_deployable_only():
         path.unlink()
 
 
-def test_gaps_exclude_repos_the_fanout_cannot_target():
-    """fanout.sh resolves --target through .gitmodules and skips anything not
-    there. Emitting a non-submodule registry entry made `dash harnesses deploy
-    --gaps` print `skip X: not in .gitmodules` for every target and exit 0 — a
-    deploy lever that silently did nothing."""
+def test_gaps_include_registry_only_repos():
+    """A repo does not need to be MOUNTED to be a fan-out target.
+
+    fanout.sh clones the target fresh, so .gitmodules was only ever supplying a
+    URL; it now falls back to the registry. While it did not, every unmounted
+    repo was a dead end — bamr87/SCHEMA, the upstream of the linter this hub
+    vendors, sat months with no mention handler because nothing could target
+    it. What is still excluded is what the engine still refuses."""
     rows = [
-        repo_row(name="sub-gap", submodule=True),        # deployable
-        repo_row(name="loose-gap", submodule=False),     # registry-only repo
+        repo_row(name="sub-gap", submodule=True),
+        repo_row(name="loose-gap", submodule=False),      # registry-only: now a target
+        repo_row(name="ext-gap", submodule=False, external=True, nwo="other/ext-gap"),
+        repo_row(name="arch-gap", submodule=True, archived=True),
     ]
     for r in rows:
         hr.evaluate_coverage(r, CFG)
-    assert all(r["coverage"]["missing"] for r in rows), "fixture must have gaps"
+    assert all(r["coverage"]["missing"] for r in rows[:2]), "fixture must have gaps"
     with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as fh:
         yaml.safe_dump({"repos": rows}, fh)
         path = Path(fh.name)
     try:
-        assert hr.fanout_gaps(path) == ["sub-gap"]
-        # the excluded one is reported, not dropped on the floor
-        kinds = {a["kind"]: a for a in hr.build_attention(rows, hr.build_throughput(rows, CFG, {}), {}, CFG)}
-        assert "gap-not-deployable" in kinds, sorted(kinds)
-        assert kinds["gap-not-deployable"]["repo"] == "loose-gap"
+        assert hr.fanout_gaps(path) == ["sub-gap", "loose-gap"]
     finally:
         path.unlink()
+
+
+def test_deployability_is_ownership_not_mounting():
+    assert hr.is_deployable(repo_row(name="a", submodule=False)) is True
+    assert hr.is_deployable(repo_row(name="a", external=True)) is False
+    assert hr.is_deployable(repo_row(name="a", archived=True)) is False
+    assert hr.is_deployable({"repo": "a"}) is False      # never scanned, no nwo
+
+
+def test_unreachable_repos_have_no_gap_left_to_report():
+    """The counterpart to the deleted `gap-not-deployable` finding: everything
+    the fan-out still cannot reach is already excused by evaluate_coverage, so
+    the class is empty rather than merely smaller."""
+    rows = [repo_row(name="ext", external=True, nwo="other/ext"),
+            repo_row(name="arch", archived=True)]
+    for r in rows:
+        hr.evaluate_coverage(r, CFG)
+        assert not hr.is_deployable(r)
+        assert not r["coverage"]["missing"], r["repo"]
 
 
 def test_submodule_names_reads_the_registry():
