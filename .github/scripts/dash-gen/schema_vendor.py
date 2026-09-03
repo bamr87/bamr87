@@ -39,6 +39,7 @@ import os
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -116,20 +117,42 @@ def digests(blob: bytes) -> tuple[str, str]:
 # --------------------------------------------------------------------------- #
 # upstream access
 # --------------------------------------------------------------------------- #
-def _raw_url(nwo: str, ref: str, path: str) -> str:
-    return f"https://raw.githubusercontent.com/{nwo}/{ref}/{path}"
+def _authorize(req: urllib.request.Request) -> urllib.request.Request:
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    return req
+
+
+def content_request(nwo: str, ref: str, path: str) -> urllib.request.Request:
+    """A request for one file's bytes, through the Contents API.
+
+    NOT raw.githubusercontent.com, and the reason is a trap worth naming:
+    that host 404s — not 401s — when handed an `Authorization: Bearer` header
+    it does not accept, which the Actions `GITHUB_TOKEN` is. The workflow always
+    sets GH_TOKEN, so the first live run of this loop reported a PUBLIC file as
+    "upstream unreachable", warned, and stopped. A weekly job that can never
+    run is exactly the failure this loop exists to catch, so it must not be the
+    shape of the loop itself.
+
+    `api.github.com/.../contents` with the raw media type accepts a Bearer
+    token and works without one, which also makes a private upstream readable
+    rather than indistinguishable from a deleted one.
+    """
+    url = (f"https://api.github.com/repos/{nwo}/contents/"
+           f"{urllib.parse.quote(path)}?ref={urllib.parse.quote(ref)}")
+    return _authorize(urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github.raw",
+        "User-Agent": "bamr87-dash/schema-vendor",
+    }))
 
 
 def http_fetcher(nwo: str = UPSTREAM_NWO, ref: str = UPSTREAM_REF, timeout: int = 20):
-    """Return fetch(path) -> bytes, reading raw files from GitHub."""
+    """Return fetch(path) -> bytes, reading file contents from GitHub."""
 
     def fetch(path: str) -> bytes:
-        req = urllib.request.Request(_raw_url(nwo, ref, path),
-                                     headers={"User-Agent": "bamr87-dash/schema-vendor"})
-        token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-        if token:
-            req.add_header("Authorization", f"Bearer {token}")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(content_request(nwo, ref, path),
+                                    timeout=timeout) as resp:
             return resp.read()
 
     return fetch
@@ -142,13 +165,10 @@ def head_commit(nwo: str = UPSTREAM_NWO, ref: str = UPSTREAM_REF,
     Provenance only: a missing sha degrades the VERSION stamp, never the
     comparison, which is content-addressed and needs no commit at all.
     """
-    req = urllib.request.Request(
+    req = _authorize(urllib.request.Request(
         f"https://api.github.com/repos/{nwo}/commits/{ref}",
         headers={"Accept": "application/vnd.github+json",
-                 "User-Agent": "bamr87-dash/schema-vendor"})
-    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
+                 "User-Agent": "bamr87-dash/schema-vendor"}))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return (json.load(resp).get("sha") or "")[:7]
