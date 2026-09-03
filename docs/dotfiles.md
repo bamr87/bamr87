@@ -5,8 +5,7 @@ description: What the home-directory dotfiles tracked at the repository root are
 
 # Root dotfiles
 
-This repository tracks three files at its root that share their names with
-home-directory configuration files:
+This repository tracks three files at its root that share their names with home-directory configuration files:
 
 | File | Normally lives at | Read by |
 | --- | --- | --- |
@@ -14,18 +13,11 @@ home-directory configuration files:
 | `.zprofile` | `~/.zprofile` | Zsh, once per login shell |
 | `.gitconfig` | `~/.gitconfig` | Git, as the per-user configuration |
 
-Because the repository root also holds site content (`_config.yml`, `index.md`,
-`pages/`), tooling config (`.editorconfig`, `.prettierrc`,
-`.pre-commit-config.yaml`), and a `Rakefile`, it is easy to misread these three
-files as something the project applies to your machine. This page exists to
-remove that ambiguity.
+Because the repository root also holds site content (`_config.yml`, `index.md`, `pages/`), tooling config (`.editorconfig`, `.prettierrc`, `.pre-commit-config.yaml`), and a `Rakefile`, it is easy to misread these three files as something the project applies to your machine. This page exists to remove that ambiguity.
 
 ## ⚠️ Do not copy or source them blindly
 
-`~/.zshrc`, `~/.zprofile`, and `~/.gitconfig` are *yours*. Copying the versions
-from this repository over them will silently destroy your aliases, your `PATH`
-adjustments, your prompt, and — in the case of `.gitconfig` — your commit
-identity, signing configuration, and credential helper settings.
+`~/.zshrc`, `~/.zprofile`, and `~/.gitconfig` are *yours*. Copying the versions from this repository over them will silently destroy your aliases, your `PATH` adjustments, your prompt, and — in the case of `.gitconfig` — your commit identity, signing configuration, and credential helper settings.
 
 In particular, **do not** run anything of the shape:
 
@@ -35,8 +27,7 @@ cp .zshrc ~/.zshrc
 ln -sf "$PWD/.gitconfig" ~/.gitconfig
 ```
 
-unless you have already backed up the originals and read the incoming files in
-full.
+unless you have already backed up the originals and read the incoming files in full.
 
 ## Intended usage
 
@@ -77,17 +68,13 @@ the files differ.)
 
 ### Adopting parts of them
 
-If you decide you want something from these files, prefer copying the specific
-lines you want into your existing configuration over replacing the whole file.
-If you really do want to adopt a file wholesale, back up first:
+If you decide you want something from these files, prefer copying the specific lines you want into your existing configuration over replacing the whole file. If you really do want to adopt a file wholesale, back up first:
 
 ```sh
 cp ~/.zshrc ~/.zshrc.backup."$(date +%Y%m%d%H%M%S)"
 ```
 
-For Git specifically, you can pull in this repository's settings *without*
-replacing your own file by using an include directive in `~/.gitconfig`, which
-lets your own values continue to take precedence if you place it near the top:
+For Git specifically, you can pull in this repository's settings *without* replacing your own file by using an include directive in `~/.gitconfig`, which lets your own values continue to take precedence if you place it near the top:
 
 ```ini
 [include]
@@ -102,12 +89,10 @@ git config --list --show-origin
 
 ## Related files
 
-These are separate concerns and are *not* home-directory dotfiles, even though
-they sit in the same directory listing:
+These are separate concerns and are *not* home-directory dotfiles, even though they sit in the same directory listing:
 
 - `.editorconfig`, `.prettierrc`, `.prettierignore`, `.markdownlintignore` —
-  per-repository editor and formatter settings, applied automatically by the
-  relevant tools when you work in this checkout.
+per-repository editor and formatter settings, applied automatically by the relevant tools when you work in this checkout.
 - `.pre-commit-config.yaml`, `.husky/` — commit-time hook configuration.
 - `.devcontainer/`, `docker-compose.yml` — containerised development
   environment definitions.
@@ -116,8 +101,7 @@ they sit in the same directory listing:
 
 ## Maintainer checklist
 
-To finish this page, confirm the following and edit the **Intended usage**
-section accordingly:
+To finish this page, confirm the following and edit the **Intended usage** section accordingly:
 
 - [ ] Does any script under `tools/`, any task in the `Rakefile`, or any
       workflow in `.github/` install these files into `$HOME`? If so, document
