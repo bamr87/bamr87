@@ -47,6 +47,7 @@ coverage: listed
 | `index.md` | file | Dash site landing page | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
 | `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |
+| `.dash-lake/` | dir | The local data lake — GitHub runs/jobs/steps/logs/issues/workflow files extracted into SQLite by `dash-gen lake sync`, the source of the Phoenix traces (gitignored; docs/HARNESS-OPS.md) | generated |
 
 ## Placement
 

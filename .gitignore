@@ -44,6 +44,7 @@ _site/
 # Virtual Environments
 .venv/
 venv/
+.venv-console/
 ENV/
 env/
 .virtualenv/
@@ -195,6 +196,8 @@ issue-workorder-t*.md
 # Per-repo briefs written by `dash-gen targets` for repo-evolution.yml; the
 # workflow ships them as an artifact, never as a commit.
 evolution-workorders/
+# local data lake (dash-gen lake): extracted GitHub runs/logs/issues + SQLite; never committed
+.dash-lake/
 # Evidence sandboxes built by tools/issue-evidence.sh: a full clone plus its
 # venv/node_modules per issue. Uploaded as a workflow artifact; never committed.
 .evidence/
