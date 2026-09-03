@@ -290,6 +290,21 @@ def load_state(now: dt.datetime | None = None) -> dict:
 # --------------------------------------------------------------------------- #
 # CAPABILITIES — what this console can reach (names and booleans only)
 # --------------------------------------------------------------------------- #
+def _has_module(name: str) -> bool:
+    """Is this optional dependency importable?
+
+    find_spec, not a bare import: `import ruamel.yaml` would rebind the local
+    name to the module object and leak it into the JSON response. But find_spec
+    on a DOTTED name imports the parent first and RAISES ModuleNotFoundError
+    when the parent is absent — the exact case this probe exists to report — so
+    the miss has to be caught rather than compared against None.
+    """
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, AttributeError, ValueError):
+        return False
+
+
 def capabilities() -> dict:
     tools = {name: shutil.which(name) is not None
              for name in ("git", "gh", "python3", "docker", "actionlint", "shellcheck", "bundle")}
@@ -297,10 +312,8 @@ def capabilities() -> dict:
     if tools["gh"]:
         rc, _ = run_quiet(["gh", "auth", "status"], timeout=20)
         gh_auth = rc == 0
-    # find_spec, not a bare import: `import ruamel.yaml` would rebind the local
-    # name to the module object and leak it into the JSON response.
-    has_ruamel = importlib.util.find_spec("ruamel.yaml") is not None
-    has_otel = all(importlib.util.find_spec(m) is not None
+    has_ruamel = _has_module("ruamel.yaml")
+    has_otel = all(_has_module(m)
                    for m in ("opentelemetry.sdk", "opentelemetry.exporter.otlp.proto.http"))
     return {
         "tools": tools,
@@ -349,6 +362,16 @@ def lake_lines() -> list[dict]:
         return _lake_module().lines(LAKE_DIR)
     except Exception:
         return []
+
+
+def lake_review(days: int = 30, repo: str | None = None, limit: int = 10) -> dict:
+    """The /api/lake/review document: local Claude Code sessions and CI agent
+    runs unified — cost, turns, tools, failures, and the ranked findings."""
+    try:
+        return _lake_module().review(LAKE_DIR, days=days, repo=repo, limit=limit)
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
+                "local": {}, "ci": {}, "totals": {}, "findings": []}
 
 
 # --------------------------------------------------------------------------- #
@@ -443,6 +466,22 @@ def _lake_sync(params: dict) -> list[str]:
     return argv
 
 
+def _lake_sessions(params: dict) -> list[str]:
+    argv = [DASH_GEN, "lake", "sessions", "--days", _days({"days": params.get("days", 30)})]
+    if str(params.get("target") or "").strip():
+        argv += ["--repo", _name(params)]
+    if _flag(params, "force"):
+        argv.append("--force")
+    return argv
+
+
+def _lake_review(params: dict) -> list[str]:
+    argv = [DASH_GEN, "lake", "review", "--days", _days({"days": params.get("days", 30)})]
+    if str(params.get("target") or "").strip():
+        argv += ["--repo", _name(params)]
+    return argv
+
+
 def _lake_export(params: dict) -> list[str]:
     argv = [DASH_GEN, "lake", "export", "--days", _days({"days": params.get("days", 7)})]
     if _flag(params, "local"):
@@ -529,6 +568,16 @@ OPS: dict[str, dict] = {
                       desc="dash-gen lake sync — runs → jobs → steps, run logs + claude-code-action facts, "
                            "issues, workflow files, .factory/** → .dash-lake/fleet.sqlite (gitignored).",
                       params=["days", "target", "jobs", "logs"]),
+    "lake-sessions": dict(title="Lake: extract local Claude Code sessions", group="lake",
+                          argv=_lake_sessions, needs_token=False,
+                          desc="dash-gen lake sessions — this machine's ~/.claude transcripts → sessions, "
+                               "turns and tool calls in the lake. Local disk only; no GitHub, no network.",
+                          params=["days", "target", "force"]),
+    "lake-review": dict(title="Lake: review Claude activity (both planes)", group="lake",
+                        argv=_lake_review, needs_token=False,
+                        desc="dash-gen lake review — local sessions + CI agent runs unified: cost, turns, "
+                             "tool usage, failures, and ranked findings. Reads the lake, offline.",
+                        params=["days", "target"]),
     "lake-status": dict(title="Lake: status", group="lake",
                         argv=lambda p: [DASH_GEN, "lake", "status"], needs_token=False,
                         desc="Tables, freshness, per-repo counts, the export ledger, Phoenix reachability."),

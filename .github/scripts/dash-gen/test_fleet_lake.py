@@ -262,6 +262,116 @@ def test_sqlite_upserts_idempotently_and_ledger_gates_selection():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_session_facts_mirror_the_spans_and_price_the_turns():
+    facts = fl.session_facts(_session_records(), "/x/sess-1.jsonl", mtime="2026-09-01T12:10:00Z")
+    sess, turns, tools = facts["session"], facts["turns"], facts["tools"]
+    # the SAME trace key the exporter uses — a stored session joins to its trace
+    spans = fl.build_session_spans(_session_records(), "/x/sess-1.jsonl")
+    assert sess["key"] == spans[0]["attributes"]["dash.trace_key"] == "session:sess-1"
+    assert sess["session_id"] == "sess-1" and sess["sidechain"] == 0 and sess["repo"]
+    assert sess["turns"] == len(turns) == 2 and sess["tool_calls"] == len(tools) == 1
+    assert sess["git_branch"] == "main" and sess["cwd"] == "/w/repo" and sess["version"] == "2.1.0"
+    assert sess["first_prompt"] == "fix the build" and sess["mtime"] == "2026-09-01T12:10:00Z"
+    # streamed duplicate folded: one turn, the LAST usage winning (output 7, not 5)
+    # (the last usage replaces the first WHOLESALE — that is the streaming shape,
+    # where the final usage message carries the turn's complete totals, so the
+    # first record's cache_read of 100 is superseded by the duplicate's absence)
+    assert turns[0]["message_id"] == "msg_1" and turns[0]["output_tokens"] == 7
+    assert turns[0]["cache_read_tokens"] == 0 and turns[0]["tool_calls"] == 1
+    assert json.loads(sess["models"]) == ["claude-sonnet-5"]
+    assert sess["input_tokens"] == 22 and sess["output_tokens"] == 10   # summed over both turns
+    # a priced model yields a real cost — a $0 total would mean a missing PRICING row
+    assert sess["cost_usd"] > 0 and turns[0]["cost_usd"] > 0
+    # the tool call is closed by its tool_result, 3s later, and did not error
+    assert tools[0]["name"] == "Bash" and tools[0]["duration_ms"] == 3000 and tools[0]["is_error"] == 0
+    assert sess["tool_errors"] == 0
+    assert fl.session_facts([], "/x/y.jsonl") is None and fl.session_facts([{"type": "x"}], "/x/y.jsonl") is None
+    # a sub-agent transcript gets its own row, not a collision with the parent's
+    side = fl.session_facts(_session_records(), "/x/agent-abc.jsonl")
+    assert side["session"]["key"] == "session:sess-1/agent-abc" and side["session"]["sidechain"] == 1
+
+
+def test_tool_result_errors_are_counted():
+    recs = _session_records()
+    for r in recs:
+        content = (r.get("message") or {}).get("content")
+        if isinstance(content, list) and content and content[0].get("type") == "tool_result":
+            content[0]["is_error"] = True
+    facts = fl.session_facts(recs, "/x/sess-1.jsonl")
+    assert facts["session"]["tool_errors"] == 1 and facts["tools"][0]["is_error"] == 1
+
+
+def test_store_session_replaces_rather_than_appends():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        conn = fl.connect(tmp)
+        facts = fl.session_facts(_session_records(), "/x/sess-1.jsonl")
+        for _ in range(2):                      # re-extracting the same transcript
+            fl.store_session(conn, facts)
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM session_turns").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM session_tools").fetchone()[0] == 1
+        # a RESUMED session is shorter-or-longer, never additive: rows mirror the transcript
+        grown = fl.session_facts(_session_records()[:3], "/x/sess-1.jsonl")
+        fl.store_session(conn, grown)
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) FROM session_turns").fetchone()[0] == 1
+        status = fl.status_dict(tmp, probe=False)
+        assert status["sessions"]["count"] == 1 and status["tables"]["session_tools"] == 1
+        json.dumps(status)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_review_unifies_both_planes_and_finds_problems():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        assert fl.review(tmp / "nowhere")["present"] is False
+        conn = fl.connect(tmp)
+        fl.store_session(conn, fl.session_facts(_session_records(), "/x/sess-1.jsonl"))
+        run, jobs, steps = _run_fixture()
+        fl.upsert(conn, "runs", {**run, "head_branch": "main", "head_sha": "a", "run_number": 1,
+                                 "logs_url": "l", "ai": 1, "synced_at": "2026-09-01T08:00:00Z"}, ["id"])
+        fl.record_agent_run(conn, run["id"], run["nwo"], fl.parse_agent_log(DOCTOR_LOG))
+        conn.commit()
+        conn.close()
+        doc = fl.review(tmp, days=36500)
+        assert doc["present"]
+        assert doc["local"]["sessions"] == 1 and doc["local"]["turns"] == 2
+        assert doc["ci"]["agent_runs"] == 1 and doc["ci"]["runs"] == 1
+        # the two planes are summed, not reported separately only
+        assert doc["totals"]["cost_usd"] == round(doc["local"]["cost_usd"] + doc["ci"]["cost_usd"], 4)
+        assert doc["totals"]["turns"] == doc["local"]["turns"] + doc["ci"]["turns"]
+        assert doc["local"]["tools"][0]["name"] == "Bash"
+        assert doc["ci"]["models"] == {"claude-opus-5": 1}
+        # nothing exported yet -> both planes count as untraced, and it is flagged
+        assert doc["totals"]["untraced"] == 2
+        assert any(f["title"] == "traces not shipped to Phoenix" for f in doc["findings"])
+        json.dumps(doc, default=str)
+        # the window actually excludes: a 0-day window sees nothing
+        assert fl.review(tmp, days=0)["totals"]["traces"] == 0
+        # repo filter narrows the local plane to a repo that has no sessions
+        assert fl.review(tmp, days=36500, repo="nope")["local"]["sessions"] == 0
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_findings_flag_unpriced_models_and_ci_failures():
+    import ai_activity
+    # every model the fixtures use must be priced, or every cost total is a lie
+    for m in ("claude-opus-5", "claude-sonnet-5"):
+        assert ai_activity.normalize_model(m) in ai_activity.PRICING, m
+    f = fl._findings({"local": {"models": {"claude-made-up-9": 3}}, "ci": {}, "totals": {}})
+    assert any("claude-made-up-9" in x["detail"] for x in f if x["title"] == "models with no price row")
+    f2 = fl._findings({"local": {}, "ci": {"errors": 2, "agent_runs": 5, "denials": 4,
+                                           "failed_runs": 1, "runs": 5}, "totals": {}})
+    titles = {x["title"] for x in f2}
+    assert "CI agent runs ended in error" in titles and "permission denials in CI" in titles
+    assert "AI workflow runs failed" in titles
+    assert all(x["severity"] in ("error", "warn", "info") for x in f2)
+
+
 def test_owned_projects_excludes_external_and_filters():
     cfg = {"hub_nwo": "bamr87/bamr87"}
     registry = [{"name": "alpha", "repo_url": "https://github.com/bamr87/alpha"},
