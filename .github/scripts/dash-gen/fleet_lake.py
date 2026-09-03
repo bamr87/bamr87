@@ -1527,7 +1527,12 @@ def review(lake_dir: Path | str | None = None, days: int = 30, repo: str | None 
                  "local": {}, "ci": {}, "totals": {}, "findings": []}
     if not db.exists():
         return out
-    conn = connect(d, create=False)
+    # create=True, deliberately: SCHEMA_SQL is entirely CREATE ... IF NOT EXISTS,
+    # so applying it to a lake that predates the session tables ADDS them (empty)
+    # and is a no-op otherwise. That is what upgrades a v1 lake in place — without
+    # it, `review` on a lake built before `sessions` existed dies on "no such
+    # table: sessions" instead of reporting an empty local plane.
+    conn = connect(d)
     try:
         rf = " AND repo=?" if repo else ""
         rp = [cutoff] + ([repo] if repo else [])

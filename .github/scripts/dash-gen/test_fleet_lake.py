@@ -357,6 +357,24 @@ def test_review_unifies_both_planes_and_finds_problems():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_review_survives_a_lake_that_predates_the_session_tables():
+    """A lake built before `lake sessions` existed has no session tables. Review
+    must report an empty local plane, not die on `no such table: sessions`."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        conn = fl.connect(tmp)
+        for t in ("sessions", "session_turns", "session_tools"):
+            conn.execute(f"DROP TABLE {t}")
+        conn.execute("UPDATE meta SET value='1' WHERE key='schema_version'")
+        conn.commit()
+        conn.close()
+        doc = fl.review(tmp, days=36500)          # must not raise
+        assert doc["present"] and doc["local"]["sessions"] == 0
+        assert fl.status_dict(tmp, probe=False)["present"]     # guarded the same way
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_findings_flag_unpriced_models_and_ci_failures():
     import ai_activity
     # every model the fixtures use must be priced, or every cost total is a lie
