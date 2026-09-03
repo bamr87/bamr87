@@ -286,15 +286,85 @@ seed_prose() {
   python3 tools/unwrap-prose.py --write "${ex[@]}" >/dev/null 2>&1 || true
 }
 
+# A fan-out target is a REPO, not a working tree: run_one clones it fresh from
+# GitHub and never reads projects/<name>/. The only thing .gitmodules was ever
+# supplying is the upstream URL — so a fleet repo that is registered but not
+# mounted as a submodule was unreachable for no reason but the lookup.
+#
+# That gap was not theoretical: `dash harnesses` files a standing
+# `gap-not-deployable` finding for exactly this class ("the kit could close
+# this, but the repo is not a submodule"), and bamr87/SCHEMA — the upstream of
+# the linter this hub vendors — sat with no @claude handler and no kit for
+# months because nothing could target it.
+#
+# The registry is the fleet's source of truth (_data/projects.yml), so it is
+# the natural fallback. Every other guarantee is unchanged: still PR-only,
+# still additive, still dry-run by default, still skipping upstreams outside
+# github.com/bamr87.
+registry_url() {
+  "${PYTHON:-python3}" - "$HUB" "$1" <<'PY' 2>/dev/null
+import sys
+try:
+    import yaml
+except ImportError:
+    raise SystemExit(0)
+root, want = sys.argv[1], sys.argv[2]
+try:
+    reg = yaml.safe_load(open(f"{root}/_data/projects.yml")) or []
+except OSError:
+    raise SystemExit(0)
+for p in reg:
+    if not isinstance(p, dict):
+        continue
+    if p.get("name") == want or p.get("slug") == want:
+        print(p.get("repo_url") or "")
+        break
+PY
+}
+
+# Every target for `--target all`: the submodules, plus registry entries that
+# have no submodule_path and are neither archived nor externally owned.
+all_targets() {
+  git config -f "$HUB/.gitmodules" --get-regexp '^submodule\..*\.path$' | awk '{print $2}'
+  "${PYTHON:-python3}" - "$HUB" <<'PY' 2>/dev/null
+import sys
+try:
+    import yaml
+except ImportError:
+    raise SystemExit(0)
+root = sys.argv[1]
+try:
+    reg = yaml.safe_load(open(f"{root}/_data/projects.yml")) or []
+except OSError:
+    raise SystemExit(0)
+for p in reg:
+    if not isinstance(p, dict) or p.get("submodule_path"):
+        continue
+    if p.get("status") == "archived":
+        continue
+    url = p.get("repo_url") or ""
+    name = p.get("name")
+    # The external-upstream guard in run_one would skip these anyway; filtering
+    # here keeps `all` from printing a skip line for every mirror.
+    if name and ("github.com/bamr87/" in url or "github.com:bamr87/" in url):
+        print(f"projects/{name}")
+PY
+}
+
 run_one() {
   local path="$1" name sect url slug def work rc
   name="$(basename "$path")"
   sect="$(git config -f "$HUB/.gitmodules" --get-regexp '^submodule\..*\.path$' \
           | awk -v p="$path" '$2==p{print $1}' | sed 's/^submodule\.//; s/\.path$//')"
-  if [[ -z "$sect" ]]; then
-    echo "skip ${name}: not in .gitmodules"; return 0
+  if [[ -n "$sect" ]]; then
+    url="$(git config -f "$HUB/.gitmodules" --get "submodule.${sect}.url")"
+  else
+    url="$(registry_url "$name")"
+    if [[ -z "$url" ]]; then
+      echo "skip ${name}: in neither .gitmodules nor the registry"; return 0
+    fi
+    echo "note ${name}: not a submodule — target resolved from the registry"
   fi
-  url="$(git config -f "$HUB/.gitmodules" --get "submodule.${sect}.url")"
   case "$url" in
     *github.com/bamr87/*|*github.com:bamr87/*) ;;
     *) echo "skip ${name}: external upstream (${url})"; return 0 ;;
@@ -369,7 +439,7 @@ if [[ "$TARGET" == "all" ]]; then
       echo "::warning::${p}: fan-out failed (exit ${rc}) — continuing with remaining targets"
       FAILED=$((FAILED + 1))
     fi
-  done < <(git config -f "$HUB/.gitmodules" --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
+  done < <(all_targets)
   if [[ "$FAILED" -gt 0 ]]; then
     echo "::error::${FAILED} target(s) failed — see warnings above"
     exit 1

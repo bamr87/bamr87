@@ -638,17 +638,15 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                     f"baseline artifact missing: {gap}",
                     "dispatch harness-fanout (target: gaps), or `dash harnesses deploy --gaps`",
                     repo=r["repo"])
-        # A gap the kit could close on a repo the fan-out cannot reach: real
-        # work, but `harness-fanout` is the wrong lever and would no-op.
-        if (r.get("coverage") or {}).get("missing") and r.get("submodule") is False:
-            closeable = set((r["coverage"]["missing"])) & {"mention-handler", "agent-context"}
-            if closeable:
-                add(35, "gap-not-deployable",
-                    f"baseline gap the kit could close ({', '.join(sorted(closeable))}) but the "
-                    "repo is not a submodule, so the fan-out cannot target it",
-                    "add it to .gitmodules + the registry's submodule_path (`dash adopt`/onboard-dir), "
-                    "or seed the kit by hand",
-                    repo=r["repo"])
+        # `gap-not-deployable` used to live here: a gap the kit could close on a
+        # repo the fan-out could not reach, because fanout.sh resolved --target
+        # through .gitmodules alone and every registry-only repo was a dead end
+        # (that is how bamr87/SCHEMA — the upstream of the linter this hub
+        # vendors — sat months without a mention handler). The engine now falls
+        # back to the registry, which leaves the class EMPTY rather than
+        # smaller: everything still unreachable (external upstream, archived) is
+        # already excused by evaluate_coverage and so has no gap to report. A
+        # finding that cannot fire is worse than no finding, so it is gone.
         upgradeable = [h["path"] for h in r.get("harnesses") or []
                        if h.get("kit_status") == "upgradeable"]
         if upgradeable:
@@ -821,6 +819,7 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
     subs = submodule_names()
     for r in repos:
         r["submodule"] = r["repo"] in subs
+        r["deployable"] = is_deployable(r)
         r["est_scheduled_ai_per_day"] = repo_schedule_load(r)
         evaluate_coverage(r, cfg)
     throughput = build_throughput(repos, cfg, ai_usage)
@@ -889,8 +888,10 @@ def finalize(repos: list[dict], cfg: dict, hub_version: str | None, ai_usage: di
 
 
 def submodule_names(projects_path: Path | None = None) -> set[str]:
-    """Registry entries that are checked-out submodules — the only targets
-    fanout.sh can resolve (it looks a --target up in .gitmodules)."""
+    """Registry entries mounted as submodules of the hub.
+
+    Reported on the board because it says where a repo's working tree lives,
+    NOT because it gates the fan-out — see is_deployable() for that."""
     path = Path(projects_path or actions_analytics.REGISTRY)
     if not path.exists():
         return set()
@@ -904,6 +905,18 @@ def submodule_names(projects_path: Path | None = None) -> set[str]:
     projects = data.get("projects") if isinstance(data, dict) else data
     return {p["name"] for p in (projects or [])
             if isinstance(p, dict) and p.get("submodule_path") and p.get("name")}
+
+
+def is_deployable(row: dict) -> bool:
+    """Can `tools/fanout.sh` open a kit PR against this repo?
+
+    Two conditions, and neither is "is it a submodule": the engine clones the
+    target fresh from GitHub, so a mount buys nothing. It needs an upstream we
+    own (the external-upstream guard refuses anything outside github.com/bamr87)
+    and a repo worth writing to (archived repos are read-only in practice).
+    Registry entries without a submodule_path resolve through the registry.
+    """
+    return bool(row.get("nwo")) and not row.get("external") and not row.get("archived")
 
 
 def gap_candidates(registry_path: Path) -> list[dict]:
@@ -925,17 +938,15 @@ def fanout_gaps(registry_path: Path, projects_path: Path | None = None) -> list[
     (mention handler / agent context) or an upgradeable machine seed. Secret
     gaps are token-rotation's lane and are deliberately not deploy targets.
 
-    NON-SUBMODULE registry entries are excluded. fanout.sh resolves --target
-    through .gitmodules and skips anything absent from it, so emitting one here
-    produced a target list the deploy lever silently no-opped on — the whole
-    `--gaps` run printing `skip X: not in .gitmodules` and exiting 0. Those
-    repos surface as a `gap-not-deployable` attention item instead, which names
-    the lever that CAN close them."""
-    subs = submodule_names(projects_path)
-    # `submodule` is absent from a scan committed before it was recorded, so
-    # fall back to the registry rather than dropping every target.
-    return [r["repo"] for r in gap_candidates(registry_path)
-            if (r["submodule"] if "submodule" in r else r["repo"] in subs)]
+    The filter is DEPLOYABILITY, not submodule membership. It was the latter
+    while fanout.sh resolved --target through .gitmodules alone: emitting an
+    unmounted repo produced a target list the deploy lever silently no-opped
+    on, the whole `--gaps` run printing `skip X: not in .gitmodules` and
+    exiting 0. The engine now falls back to the registry, so those repos are
+    real targets; what stays excluded is what the engine still refuses —
+    external upstreams and archived repos — which surface as a
+    `gap-not-deployable` attention item instead."""
+    return [r["repo"] for r in gap_candidates(registry_path) if is_deployable(r)]
 
 
 # --------------------------------------------------------------------------- #

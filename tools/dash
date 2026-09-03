@@ -27,6 +27,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash daily${c_off}             prior-day fleet activity digest (the fix queue is: dash remediate)
   ${c_bold}dash triage${c_off}            fleet-wide open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/ portal)
   ${c_bold}dash reconcile${c_off}         registry + .gitmodules vs GitHub reality (renames/deletions/urls); --apply fixes safe ones
+  ${c_bold}dash vendor${c_off}            vendored Pyramid Schema kit vs upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files
   ${c_bold}dash remediate${c_off}         merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse)
   ${c_bold}dash spec [check|fleet|kinds]${c_off} Universal Project Standard checker (specs/): \`check [path] [--kinds a,b] [--gate]\` one repo; \`fleet --write\` every submodule → _data/conformance.yml (feeds the repo-evolution brief)
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
@@ -52,7 +53,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|harness|harnesses|lake|remediate|issues|reconcile|estimate|ledger|targets|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-usage|actions|daily|triage|harness|harnesses|lake|remediate|issues|reconcile|vendor|estimate|ledger|targets|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -233,6 +234,7 @@ cmd_actions() { "${TOOLS}/dash-gen" actions "$@"; }
 cmd_daily() { "${TOOLS}/dash-gen" daily "$@"; }
 cmd_triage() { "${TOOLS}/dash-gen" triage "$@"; }
 cmd_reconcile() { "${TOOLS}/dash-gen" reconcile "$@"; }
+cmd_vendor()    { "${TOOLS}/dash-gen" vendor "$@"; }
 cmd_remediate() { "${TOOLS}/dash-gen" remediate "$@"; }
 cmd_harness() { "${TOOLS}/dash-gen" harness "$@"; }
 # The fleet-wide AI-harness inventory (plural — `dash harness` above is the
@@ -341,6 +343,7 @@ main() {
     daily)   cmd_daily "$@" ;;
     triage)  cmd_triage "$@" ;;
     reconcile) cmd_reconcile "$@" ;;
+    vendor) cmd_vendor "$@" ;;
     remediate) cmd_remediate "$@" ;;
     harness) cmd_harness "$@" ;;
     harnesses) cmd_harnesses "$@" ;;
