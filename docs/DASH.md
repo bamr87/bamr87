@@ -134,7 +134,7 @@ OK — reconciled within tolerance (cost 2.0% / $0.01, tokens 1.0%).
 
 The same data can be exposed to an agent **mid-session**, so "what has this run cost so far" is answerable and cost economizing can become an in-loop instruction (switch model, compact, stop early) rather than a post-hoc review.
 
-This is **opt-in and inert by default** — an always-on MCP server costs session startup and context on every run, for a question most runs never ask. `.mcp.json` carries the entry under the `_optionalServers` key, which Claude Code ignores (it reads only `mcpServers`), so a fresh clone starts nothing extra. To enable it, move the entry into `mcpServers` **in your own checkout** and don't commit that:
+This is **opt-in and inert by default** — an always-on MCP server costs session startup and context on every run, for a question most runs never ask. To enable it, add the entry below to `mcpServers` in `.mcp.json` **in your own checkout**, and don't commit that:
 
 ```json
 "ccusage": {
@@ -142,6 +142,14 @@ This is **opt-in and inert by default** — an always-on MCP server costs sessio
   "args": ["-y", "@ccusage/mcp@18.0.11"]
 }
 ```
+
+> **`.mcp.json` does not yet carry this entry.** The intended shape is a sibling
+> `_optionalServers` key holding the block above — Claude Code reads only
+> `mcpServers`, so it stays inert and a fresh clone starts nothing extra. Neither
+> the tier-2 nor the tier-3 agent could write it: `.mcp.json` is permission-gated
+> in this agent harness and the edit was refused both times, and working around a
+> permission decision is not something an agent should do. It is a hand-apply for
+> a human with write access — see [#130](https://github.com/bamr87/bamr87/issues/130).
 
 **Caveat, verified 2026-08-31:** upstream deprecated `@ccusage/mcp` in favour of `npx ccusage`, but `ccusage@20` has no MCP surface at all (`ccusage mcp` → `Unknown command 'mcp'`), so `18.0.11` is the last version that exposes one. It responds to an MCP `initialize` over stdio and works, but treat it as a convenience: **`dash ai check` is the maintained audit path**, and it pins ccusage separately in `_data/fleet.yml`.
 
