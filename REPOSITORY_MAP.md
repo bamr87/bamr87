@@ -1,8 +1,6 @@
 # Repository Map
 
-A newcomer's orientation to this repository. Every path below is present at the
-top level of the repo; the descriptions are short and, where noted, still need a
-maintainer's confirmation.
+A newcomer's orientation to this repository. Every path below is present at the top level of the repo; the descriptions are short and, where noted, still need a maintainer's confirmation.
 
 > **Status:** this file intentionally contains **no build, run, or test
 > commands** yet. See [Still to be documented](#still-to-be-documented) for what
@@ -10,19 +8,13 @@ maintainer's confirmation.
 
 ## What this repository is
 
-`bamr87/bamr87` is a GitHub profile repository that has grown into a monorepo.
-`README.md` renders as the profile page for the `bamr87` GitHub account and
-describes the author, Amr Abdel-Motaleb, a Solutions Architect and ERP
-specialist. GitHub reports the primary language as HTML and the default branch
-as `main`.
+`bamr87/bamr87` is a GitHub profile repository that has grown into a monorepo. `README.md` renders as the profile page for the `bamr87` GitHub account and describes the author, Amr Abdel-Motaleb, a Solutions Architect and ERP specialist. GitHub reports the primary language as HTML and the default branch as `main`.
 
-Alongside the profile content, the repository carries site sources, project
-submodules, tooling, and agent configuration — see the map below.
+Alongside the profile content, the repository carries site sources, project submodules, tooling, and agent configuration — see the map below.
 
 ## Existing documentation
 
-Start here. These files already exist and are the authoritative sources for
-their topics:
+Start here. These files already exist and are the authoritative sources for their topics:
 
 | Document | What it covers |
 | --- | --- |
@@ -36,8 +28,7 @@ their topics:
 
 ## Top-level layout
 
-Descriptions marked *(inferred)* are based on the filename and common
-convention rather than on reading the file; correct them if they are wrong.
+Descriptions marked *(inferred)* are based on the filename and common convention rather than on reading the file; correct them if they are wrong.
 
 ### Site and content
 
@@ -99,14 +90,12 @@ convention rather than on reading the file; correct them if they are wrong.
 
 ## Still to be documented
 
-The following are **not yet documented anywhere in this file**, because the
-exact commands must be read from the files that define them rather than guessed:
+The following are **not yet documented anywhere in this file**, because the exact commands must be read from the files that define them rather than guessed:
 
 - **Local setup and serving the site.** Read `Gemfile` and `_config.yml` /
   `_config_dev.yml` for the toolchain and its version constraints.
 - **Build / serve / test task names.** Read `Rakefile` and record the task names
-  it literally defines. Also check `.github/` workflows, which show how CI
-  invokes the project — a reliable cross-check that a command actually works.
+it literally defines. Also check `.github/` workflows, which show how CI invokes the project — a reliable cross-check that a command actually works.
 - **The container workflow.** Read `docker-compose.yml` for the real service
   name(s) before writing any `docker compose` invocation.
 - **The dev container path.** Read `.devcontainer/` for the Codespaces / VS Code
@@ -117,5 +106,4 @@ exact commands must be read from the files that define them rather than guessed:
 - **Submodule initialisation.** [`SUBMODULES.md`](SUBMODULES.md) likely already
   covers this; link to it rather than duplicating it.
 
-When those are confirmed, replace this section with the verified commands and
-add a short pointer from `README.md` to this file.
+When those are confirmed, replace this section with the verified commands and add a short pointer from `README.md` to this file.
