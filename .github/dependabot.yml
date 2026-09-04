@@ -1,42 +1,41 @@
 # Dependabot configuration
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# Docs:
-# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-#
-# Only one dependabot.yml may exist per repository. To watch additional
-# ecosystems (bundler, npm, pip, ...), add more entries under `updates:`
-# rather than creating a second file.
+# The github-actions ecosystem keeps the actions referenced by the workflows in
+# .github/workflows/ up to date. This matters especially because those actions
+# are pinned to full commit SHAs: a pinned SHA never picks up upstream security
+# or bugfix releases on its own. Dependabot understands SHA pins and bumps both
+# the SHA and the trailing "# vX.Y.Z" comment in a single pull request, which is
+# what makes SHA pinning sustainable instead of a one-off snapshot that rots.
 version: 2
 
 updates:
-  # Keep the actions used by .github/workflows/*.yml up to date.
-  #
-  # Dependabot handles both reference styles:
-  #   * tag pins   -> uses: actions/checkout@v4
-  #   * SHA pins   -> uses: actions/checkout@<40-char-sha> # v4.2.2
-  #
-  # For SHA pins it reads the trailing `# vX.Y.Z` comment to work out the
-  # current version, and its PRs update BOTH the SHA and that comment.
-  # Keep those version comments intact when pinning actions, otherwise
-  # Dependabot cannot tell what version a bare SHA corresponds to.
   - package-ecosystem: "github-actions"
-    # For github-actions this means the repository root; it covers
-    # .github/workflows/ and .github/actions/.
+    # For github-actions, "/" is the entry point Dependabot uses to discover
+    # every workflow file under .github/workflows/.
+    #
+    # If composite actions are ever added to this repository (e.g. under
+    # .github/actions/<name>/action.yml), replace the single `directory` key
+    # above with:
+    #
+    #   directories:
+    #     - "/"
+    #     - "/.github/actions/*"
+    #
+    # Only add those paths once the directories actually exist; Dependabot
+    # reports a configuration error for directories it cannot find.
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-    # Keep the first run from opening a PR per action.
+      time: "09:00"
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "github-actions"
     commit-message:
       prefix: "ci"
       include: "scope"
+    # Batch action bumps into a single pull request per run instead of one PR
+    # per action, to keep review load low.
     groups:
-      # Batch all action bumps into a single PR per run.
       github-actions:
         patterns:
           - "*"
