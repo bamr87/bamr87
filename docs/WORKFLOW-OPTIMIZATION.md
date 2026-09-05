@@ -129,3 +129,62 @@ Fixed in `.github/scripts/dash-gen/`:
 `tools/check-drift.sh` passes. The three `SCHEMA.md` warnings it reports (`_data`, `templates`) pre-date these changes and are unrelated to workflows. All edited YAML parses.
 
 `actionlint` could not be run locally in the authoring environment (the download is network-restricted); it runs in CI via `drift-check.yml`. That is why the legacy `unified-evolution.yml` exemption was kept rather than removed on the assumption it now passes.
+
+## 2026-09-05 audit — the sensor was the problem
+
+A second fleet-wide pass, this time with the local data lake, Phoenix traces, GitHub's billing meter and a live scan of every repo behind it (`tools/dash lake sync`, `dash harnesses`, `dash actions`, `/users/bamr87/settings/billing/usage`). Snapshot: 39 registry repos (27 public, 12 private), 267 workflows, 724 runs in the 7-day window, 16 scheduled AI crons, 219 open PRs.
+
+### What the numbers actually said
+
+| Signal as published | What was true | Why |
+| --- | --- | --- |
+| `budget-breach` sev 90: **287k–384k** Actions min/month vs a 120k ceiling | GitHub billed **21.9k** in August, **26.6k** in July, **6.2k** for 1–5 Sep — every month at **$0 net** | `actions_analytics` priced `run_started_at → updated_at`. Two `bashconsultants` runs parked in `action_required` reported 6,413 min each (107 h — past GitHub's own 72 h limit); every `it-journey` workflow carried one ~4,080-min outlier; and `tt-a1i/archify`, an **external** upstream, contributed 21,807 min (25% of the "fleet") that is not this account's spend |
+| `waste-ceiling` tripped: waste 158% of total | waste cannot exceed consumption | same proxy, summed over a different population than its denominator |
+| `cost-spike` tripped | downstream of the same number | — |
+| 4 "failing" scheduled agents (`bashconsultants` ×3, `gitorio` factory-1) | the agents **finished**: `Claude reported a successful result after 43 turns, exceeding the configured maximum of 40` / `after 9 turns … maximum of 8` | turn caps with zero margin; the hub already solved this for repo-evolution with a salvage step (#217) |
+| 4 AI crons collide at 06:00 UTC | real: fleet-pulse (daily), lifehacker Issue Factory 1 (Mon–Fri), gitorio Factory 3 (Mon), githubai Maintenance (Mon 06:17) — one OAuth rate limit | every hub cron sat on `:00`, the minute GitHub delays most; the fleet's own repos already use `:17/:23/:37/:47` |
+| 9 scheduled agents with no kill switch | 3 of them are the hub's own loops | the convention existed in `wtd`, `ai-seed`, `lifehacker.dev`, `it-journey` — the hub did not practise it |
+| 3 coverage gaps | `.github` is the org-defaults + `workflow-templates` repo, not a project | it belongs in `harnesses.exempt`; `git-with-the-program` and `irony-works` are real gaps |
+| 10 near-duplicate `docs:` drafts open on the hub | all on `wtd/*` branches | `wtd` — registry status *archived* — runs a 4-hourly agent loop (42 runs/week, `WTD_FLEET_ENABLED=true`) that keeps re-drafting orientation docs nobody merges |
+| 157 skipped `Claude` runs in 7 days | mention handlers firing on bot comments and skipping at the `if:` | ~0 minutes; noise in every run count, which the proxy fix now treats as non-verdict |
+
+The compounding fact: the fleet's own doctor had **already diagnosed the metric** and opened #206 (30 Aug) and #231 (3 Sep) — two overlapping fixes for one defect from two issues the pipeline did not recognise as the same — plus #209 and #217 for the turn caps. All four sat unreviewed. The loops generate fixes faster than one human merges them, so the highest-value change was not another fix but making the queue *believable*: a sensor that lies at the top of the attention list costs every finding below it.
+
+### Changed in the hub (this pass)
+
+- **Cost is read from the meter.** `dash-gen actions` fetches GitHub's billing usage (one request), publishes it as `actions_usage.yml` `billing:` (per month, per repo, gross/net), and the harness budget wire prices **that** — run-rate once a week of the month exists, else last full month, growth month-over-month. The wall-clock proxy stays for ranking, now bounded as #231 proposed (merged into this branch: `MAX_RUN_MIN`, zero-job runs cost 0, fleet totals over owned workflows only). Ceiling re-based from 120,000 to **40,000 billed minutes** — Jun–Aug ran 21–27k.
+- **Every hub cron moved off the hour and into one declared map** (`fleet.yml` `schedule:`): housekeeping at `:07` (rotation 02, submodules 03, README 04, reconcile 05), the daily agent chain at `:37` (pulse 05, build 06, issue-pipeline 07), weeklies at `:07`/`:37` (schema-vendor Mon 08, evolution Mon 10). Fleet-pulse leaving 06:00 clears the collision without touching any fleet repo. `update_submodules` said weekly in the contract and ran daily — the contract now matches the workflow, and `schema_vendor` is declared at all.
+- **Kill switches on the three scheduled agent loops** — `FLEET_PULSE_ENABLED`, `ISSUE_PIPELINE_ENABLED`, `REPO_EVOLUTION_ENABLED` — default-ON (`!= 'false'`) because they were added to loops already in service, bypassed by `workflow_dispatch` so a switched-off loop stays testable.
+- **The hub's `claude.yml` is stamped** `kit: agent-context v0.4.0`; it was byte-identical to the kit apart from that line, so it is now a recognisable machine seed like the 30 fleet copies.
+- **`.github` exempted** from the harness baseline.
+- **Three new sensors** so none of this regresses silently: `test_schedule.py` (cron ↔ contract parity both ways, never on the hour, switch present and dispatch-bypassing) and `test_actions_billing.py` plus a budget-wire test in `test_harness_registry.py` (the meter prices, the proxy ranks, an errored meter falls back and says so).
+
+### Fleet changes (opened as PRs)
+
+- `bashconsultants` — content-review / content-gardener / preacher: `--max-turns 40 → 80` (observed 43) and a `CONTENT_AGENTS_ENABLED` switch on the existing gate step.
+- `githubai` — `claude-maintenance`: `CLAUDE_MAINTENANCE_ENABLED` switch beside its config-file toggle.
+- `gitorio` — `.factory/blueprint.json` `maxTurns` 8 → 24, 12 → 30, 25 → 50, with the generated `factory--*.yml` lines updated in lockstep (the factory re-renders the hash on its next pass; lifehacker's factory lines already carry a `gate` job, so a re-render with the current GitFactory gains the switch too).
+- `git-with-the-program`, `irony-works` — the agent-context kit (`claude.yml` + `CLAUDE.md`).
+
+### Recommended, deliberately not mass-edited
+
+These are repo-owned pipelines with their own gates; the evidence is here, the decision stays with the repo.
+
+- **`wtd`**: set `WTD_FLEET_ENABLED=false` and close the ten `wtd/*` drafts, or un-archive it in the registry — an archived project should not run the fleet's noisiest agent loop. `fleet-pulse` reads real logs; `wtd` files tickets from metadata.
+- **`lifehacker.dev`** (21,323 of August's 21,891 billed minutes): `auto-update` and `auto-merge` fire on `workflow_run` *and* a 4-hourly cron (132 runs/week each); the cron half is redundant with the event half. 26 workflows, 15 of them cron-driven.
+- **`it-journey`** (33 workflows, 11 on every PR, five of them agentic with 39–56% success): consolidate the PR-time checks behind one workflow with `paths:` filters; the AI reviews belong on `workflow_dispatch` or a label, not every PR.
+- **`zer0-mistakes`** (28 workflows; seven fire on every push *and* PR, 18–26% cancelled): the same `paths:` and `cancel-in-progress` treatment, plus a second run of the July audit above.
+- **Merge throughput**: 219 open PRs, 100 dependabot, 94 stale, 74 drafts. Merge #231's successor (this PR), close #206 as superseded, and let the issue-pipeline's dedupe key on root cause, not issue number.
+
+### Verification
+
+`python3 .github/scripts/dash-gen/test_schedule.py`, `test_actions_billing.py`, `test_harness_registry.py`, `test_actions_analytics.py` (26 checks from #231) all pass, and every patched workflow parses. A live `dash-gen actions --days 7` on the branch, then `dash harnesses --offline` + `dash harness`, before → after:
+
+| | before | after |
+| --- | --- | --- |
+| proxy totals (7d) | 3,336 runs · 84,864 min · waste 134,402 · effectiveness **−58.4%** | 2,986 runs · 3,881 min · waste 692 · effectiveness **82.2%** |
+| Actions budget | proxy 287,369 min/mo vs 120,000 → **breach** | billed 21,891 (Aug) vs 40,000 → **ok**; Sep run-rate 38,160 after 5 days, not yet trusted |
+| attention items | 15, led by `budget-breach` sev 90 | 12 — `budget-breach` and both `.github` coverage gaps gone |
+| trip wires | waste-ceiling, cost-spike, credential-overdue | cost-spike, credential-overdue |
+
+What remains is either **scan-derived** — `schedule-collision` and the hub's `switch-missing` read the workflows as GitHub has them, so they clear on the first live inventory after this merges — or **fleet-owned**: the four `harness-failing` rows and the two real coverage gaps are the fleet PRs above. `credential-overdue` is `ANTHROPIC_API_KEY` at 78 days against a 45-day policy + 15 grace: a human re-mint (`docs/TOKEN-ROTATION.md`). `cost-spike` compares against a fleet median of ~1 minute, so any genuine build trips it; its thresholds want re-basing once a month of billed data exists.

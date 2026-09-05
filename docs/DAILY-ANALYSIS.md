@@ -7,7 +7,7 @@ One workflow does all of it: [`fleet-pulse.yml`](../.github/workflows/fleet-puls
 ## The loop
 
 ```text
-              ┌───────────────────── daily 06:00 UTC · fleet-pulse.yml ─────────────────────┐
+              ┌───────────────────── daily 05:37 UTC · fleet-pulse.yml ─────────────────────┐
               │                                                                              │
               │   job: pulse                                    job: doctor  (needs: pulse)  │
               │  ┌────────────────────────────────┐            ┌────────────────────────┐   │
@@ -151,7 +151,7 @@ tools/dash remediate                        # respects _data/fleet.yml caps
 tools/dash remediate --limit 3              # override the cap
 tools/dash remediate --no-dedupe            # skip the open-issue/PR check (offline)
 
-# In CI — scheduled daily 06:00 UTC, or on demand:
+# In CI — scheduled daily 05:37 UTC, or on demand:
 #   Actions ▸ 🩺 Fleet Pulse ▸ Run workflow
 #   inputs: days, max_candidates, dry_run (data only, no fixer), skip_publish
 ```

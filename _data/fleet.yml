@@ -75,18 +75,33 @@ hub:
   bot_email: "10567847+bamr87@users.noreply.github.com"
 
 # --------------------------------------------------------------------------- #
-# Daily loop cadence (UTC). The pipeline is ONE workflow now, so these are the
-# stages within it rather than separate cron entries racing each other.
+# Loop cadence (UTC) — the hub's SCHEDULE MAP. Every hub workflow that carries
+# a `schedule:` is declared here with the SAME cron; test_schedule.py fails on
+# any divergence in either direction (update_submodules once said weekly here
+# and ran daily for months).
+#
+# Two placement rules, both asserted by that test:
+#   * never on the hour. GitHub delays and drops :00 schedules under load,
+#     and 06:00 was where four AI crons collided (2026-09 review). Hub
+#     housekeeping fires at :07, the daily agent chain at :37.
+#   * the hub owns 02:00–10:59. Fleet repos should place their own AI crons
+#     from 11:00 UTC onward, off the hour — harnesses.throughput caps AI crons
+#     per UTC hour at 3, and the hub's chain already takes one slot in each
+#     of 05, 07 and (Mondays) 10.
+#
+# The daily chain is ordered by data flow: pulse publishes → build-dash
+# republishes the site → issue-pipeline reads the fresh triage snapshot.
 # --------------------------------------------------------------------------- #
 schedule:
-  fleet_pulse: "0 6 * * *"        # gather → publish → remediate
-  build_dash: "0 7 * * *"         # republish the site after the data lands
-  issue_pipeline: "0 8 * * *"     # intake → implement → complete (see issue_pipeline:)
-  refresh_dash: "0 4 * * *"       # README AUTO span refresh PR
-  reconcile_registry: "0 5 * * *" # registry ↔ GitHub reconciliation
-  update_submodules: "0 3 * * 0"  # weekly pointer bump PR
-  rotate_tokens: "0 2 * * 1"      # weekly credential rotation (see rotation:)
-  repo_evolution: "0 9 * * 1"     # weekly proactive per-repo improvement pass (see evolution:)
+  rotate_tokens: "7 2 * * 1"      # weekly credential rotation (see rotation:)
+  update_submodules: "7 3 * * *"  # daily pointer bump (published directly, [skip ci])
+  refresh_dash: "7 4 * * *"       # README AUTO span refresh PR
+  reconcile_registry: "7 5 * * *" # registry ↔ GitHub reconciliation
+  fleet_pulse: "37 5 * * *"       # gather → publish → remediate (THE daily loop)
+  build_dash: "37 6 * * *"        # republish the site after the data lands
+  issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:)
+  schema_vendor: "7 8 * * 1"      # weekly hub↔upstream SCHEMA kit parity PR
+  repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -353,7 +368,8 @@ harnesses:
     require_mention_handler: true   # a claude-code-action workflow answering @claude
     require_agent_context: true     # CLAUDE.md / AGENTS.md / copilot-instructions / .cursorrules
     require_oauth_secret: true      # CLAUDE_CODE_OAUTH_TOKEN per the rotation ledger
-  exempt: []                        # repo names excused from the baseline
+  exempt: [".github"]              # repo names excused from the baseline — bamr87/.github holds the
+                                    # org defaults + workflow-templates; nobody @claude's it
 
   # Throughput — how much SCHEDULED (cron-driven) agent work the fleet may
   # standing-commit to, independent of what mention/PR traffic adds on top.
@@ -366,14 +382,18 @@ harnesses:
     max_ai_crons_per_utc_hour: 3        # distinct AI crons sharing one UTC hour — the three Claude
                                         # loops already share one OAuth account's rate limit
 
-  # Budget — trend + forecast guardrails. The inventory projects a monthly
-  # figure from the committed usage windows (ai_usage.yml spend, actions
-  # minutes); crossing a ceiling — or growing faster than trend_warn_pct
-  # week-over-week — is an attention item, not an enforcement action.
+  # Budget — trend + forecast guardrails. Claude spend projects from the
+  # committed ai_usage.yml window. Actions minutes come from GitHub's OWN
+  # billing usage API (actions_usage.yml `billing:`) whenever it is present:
+  # the wall-clock proxy ranks workflows but cannot price them — it reported
+  # 287k min/month against ~24k actually billed, and put a phantom breach at
+  # the top of the attention queue (2026-09 review, docs/WORKFLOW-OPTIMIZATION.md).
+  # Crossing a ceiling — or growing faster than trend_warn_pct — is an
+  # attention item, not an enforcement action.
   budget:
     monthly_ai_usd: 75              # projected monthly Claude CI spend ceiling
-    monthly_actions_minutes: 120000 # projected monthly Actions minutes ceiling
-    trend_warn_pct: 50              # week-over-week growth beyond this is flagged
+    monthly_actions_minutes: 40000  # BILLED minutes/month ceiling — Jun–Aug 2026 ran 21–27k, all inside the included quota ($0 net)
+    trend_warn_pct: 50              # growth beyond this is flagged (week-over-week for spend, month-over-month for billed minutes)
 
   # Inventory bounds (API cost + output size).
   inventory:

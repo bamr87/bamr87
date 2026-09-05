@@ -76,6 +76,11 @@ WASTE_CONCLUSIONS = {"failure", "cancelled", "timed_out", "startup_failure"}
 # a backstop, not the primary filter: it bounds the blast radius of the next
 # stuck-run variant `cost_min` does not anticipate (bamr87/bamr87#229).
 MAX_RUN_MIN = 360.0
+AVG_DAYS_PER_MONTH = 30.44
+# GitHub's enhanced-billing usage endpoint: the account's METERED Actions
+# minutes, per repo and per month, in one request. It is the only number here
+# that is not a proxy — see collect_billing().
+BILLING_ENDPOINT = "/users/{login}/settings/billing/usage"
 
 # Conclusions that say nothing about whether the workflow works. A run whose
 # `if:` gate declined is the system behaving correctly at ~zero cost, so it must
@@ -205,6 +210,72 @@ def cost_min(run, dur: float) -> float:
 # --------------------------------------------------------------------------- #
 # per-repo collection
 # --------------------------------------------------------------------------- #
+def summarize_billing(items: list, today: dt.date) -> dict:
+    """Fold billing usage items into what the harness budget wire reads.
+
+    The wall-clock proxy above can RANK workflows but it cannot price them:
+    a run parked in `action_required` for four days reports four days, and an
+    external mirror's CI (tt-a1i/archify, 25% of the 2026-09 "fleet" minutes)
+    is not this account's spend at all. GitHub's own meter has neither
+    problem, so it — not the proxy — is what `harnesses.budget` is judged
+    against. Public-repo minutes are free (netAmount 0) but still metered,
+    which is exactly right: load, not dollars, is what the ceiling bounds.
+
+    Projection: this month's run-rate once a week of it exists, otherwise the
+    last full month (a 3-day run-rate is noise). The consumer applies that rule
+    from the fields below so the choice is visible in the data.
+    """
+    months: dict[str, dict] = {}
+    by_repo: dict[str, dict[str, float]] = {}
+    for it in items or []:
+        if it.get("product") != "actions" or it.get("unitType") != "Minutes":
+            continue
+        month = str(it.get("date") or "")[:7]
+        if len(month) != 7:
+            continue
+        b = months.setdefault(month, {"minutes": 0.0, "gross_usd": 0.0, "net_usd": 0.0})
+        q = float(it.get("quantity") or 0)
+        b["minutes"] += q
+        b["gross_usd"] += float(it.get("grossAmount") or 0)
+        b["net_usd"] += float(it.get("netAmount") or 0)
+        repo = it.get("repositoryName") or "(account)"
+        by_repo.setdefault(month, {})[repo] = by_repo.setdefault(month, {}).get(repo, 0.0) + q
+    this_month = today.strftime("%Y-%m")
+    previous = max((m for m in months if m < this_month), default=None)
+    cur = months.get(this_month, {}).get("minutes", 0.0)
+    elapsed = today.day
+    return {
+        "source": "GitHub billing usage API (" + BILLING_ENDPOINT + ")",
+        "fetched_at": today.isoformat(),
+        "this_month": this_month,
+        "days_elapsed": elapsed,
+        "minutes_this_month": round(cur, 1),
+        "run_rate_monthly": round(cur / elapsed * AVG_DAYS_PER_MONTH, 1) if elapsed else None,
+        "previous_month": previous,
+        "minutes_previous_month": round(months[previous]["minutes"], 1) if previous else None,
+        "months": {m: {k: round(v, 2) for k, v in b.items()} for m, b in sorted(months.items())},
+        "by_repo_this_month": dict(sorted(by_repo.get(this_month, {}).items(), key=lambda kv: -kv[1])),
+        "by_repo_previous_month": dict(sorted(by_repo.get(previous, {}).items(), key=lambda kv: -kv[1])) if previous else {},
+    }
+
+
+def collect_billing(gh) -> dict:
+    """One request for the account's metered minutes; never raises.
+
+    A token without the billing read scope, or a moved endpoint, yields an
+    `error` field instead of an exception, so the sweep still publishes the
+    proxy and the budget wire falls back to it (and says so).
+    """
+    try:
+        login = gh.get_user().login
+        requester = getattr(gh, "requester", None) or getattr(gh, "_Github__requester")
+        _, data = requester.requestJsonAndCheck("GET", BILLING_ENDPOINT.format(login=login))
+        return summarize_billing(data.get("usageItems") or [], dt.datetime.now(dt.timezone.utc).date())
+    except Exception as exc:  # noqa: BLE001 - the report must publish either way
+        return {"source": "GitHub billing usage API (" + BILLING_ENDPOINT + ")",
+                "error": f"{type(exc).__name__}: {str(exc)[:160]}"}
+
+
 def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tuple[dict, list]:
     """Return ({workflow_id: meta}, [run-record]) for one repo within the window."""
     from github.GithubException import GithubException
@@ -415,7 +486,10 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
                 inactive.append({"repo": name, "workflow": meta["name"],
                                  "path": meta["path"], "state": meta["state"]})
 
-    return finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now)
+    # The meter is fetched here, beside the API session, so finalize() stays a
+    # pure function the fixture tests can call without a client.
+    return finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now,
+                    billing=collect_billing(gh))
 
 
 def summarize(bucket: dict) -> dict:
@@ -429,7 +503,8 @@ def summarize(bucket: dict) -> dict:
     }
 
 
-def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) -> dict:
+def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now,
+             billing: dict | None = None) -> dict:
     owned = [w for w in workflows if not w.get("external")]
     grand_min = sum(w["total_min"] for w in owned) or 1.0
     median_min = statistics.median([w["total_min"] for w in owned]) if owned else 0.0
@@ -524,6 +599,7 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         "by_day": day_rows,
         "workflows": workflows,
         "inactive": sorted(inactive, key=lambda x: (x["repo"], x["workflow"])),
+        "billing": billing,
         "note": ("Cost = wall-clock run minutes (run_started_at → updated_at), a proxy for "
                  "billable minutes, with two bounds: a run that never executed "
                  "(startup_failure, or zero jobs) counts as 0 minutes, and every other "
@@ -538,7 +614,9 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
                  "(success + failure); cancelled runs were superseded, not broken, "
                  "and show up as cancel_pct / the cancel-heavy flag instead. "
                  "A workflow with NO verdicts in the window (every run skipped) "
-                 "reports null rates — 'no data', not 0%."),
+                 "reports null rates — 'no data', not 0%. The `billing` block is GitHub's "
+                 "own metered minutes (billing usage API), per month and per repo: that is "
+                 "what the harness budget wire prices; the proxy above only ranks."),
     }
 
 

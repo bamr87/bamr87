@@ -53,7 +53,7 @@ name: 🧭 Issue Pipeline
 
 on:
   schedule:
-    - cron: '0 8 * * *'   # daily, after build-dash republishes at 07:00
+    - cron: '37 7 * * *'  # daily 07:37 UTC, after build-dash republishes at 06:37
   workflow_dispatch:
     inputs:
       tiers:
@@ -99,6 +99,12 @@ jobs:
   # ========================================================================= #
   scan:
     name: Scan issues & build tier queues
+    # Kill switch (house convention, fleet.yml harnesses:): a scheduled firing
+    # is a no-op once the repo variable ISSUE_PIPELINE_ENABLED is set to 'false' —
+    # disarmed without a commit, and a manual dispatch still runs so the
+    # loop can be exercised while it is off. Default-ON because the switch
+    # was added to a loop already in service; a new loop starts default-OFF.
+    if: ${{ github.event_name != 'schedule' || vars.ISSUE_PIPELINE_ENABLED != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
