@@ -4,6 +4,11 @@
 fastapi
 uvicorn
 ruamel.yaml
+# starlette's TestClient — what test_console.py's DNS-rebinding test drives the
+# app through. Starlette moved this dependency from httpx to httpx2, and since
+# nothing here is pinned, the day it moved the security test stopped running
+# (it raised RuntimeError instead of failing) until this line existed.
+httpx2
 # `dash-gen lake export` — OpenInference spans over OTLP/HTTP to the Phoenix service
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
