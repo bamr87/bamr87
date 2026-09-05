@@ -2,8 +2,8 @@
 # Secret NAMES, AGES, and outcomes only; never a credential value.
 # Variables are not secret, so their VALUES are recorded — this is the
 # only committed record of what the fleet is meant to hold.
-generated_at: 2026-08-31 02:17 UTC
-mode: apply
+generated_at: 2026-09-05 03:56 UTC
+mode: dry-run
 tokens:
 - name: CLAUDE_CODE_OAUTH_TOKEN
   scope: fleet
@@ -11,7 +11,7 @@ tokens:
   minted: false
   max_age_days: 45
   lifetime_days: 365
-  oldest_age_days: 6
+  oldest_age_days: 11
   attention: []
   counts:
     repos: 32
@@ -24,193 +24,193 @@ tokens:
   repos:
   - nwo: bamr87/.github
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:15Z'
     behind_hub: false
     action: none
   - nwo: bamr87/1987
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:15Z'
     behind_hub: false
     action: none
   - nwo: bamr87/README
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:15Z'
     behind_hub: false
     action: none
   - nwo: bamr87/SCHEMA
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:15Z'
     behind_hub: false
     action: none
   - nwo: bamr87/aieo
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:16Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bamr87
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:26:50Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bamr87.github.io
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:16Z'
     behind_hub: false
     action: none
   - nwo: bamr87/barodybroject
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:16Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bashconsultants
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:17Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bashcrawl
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:17Z'
     behind_hub: false
     action: none
   - nwo: bamr87/books
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:17Z'
     behind_hub: false
     action: none
   - nwo: bamr87/cv
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:17Z'
     behind_hub: false
     action: none
   - nwo: bamr87/cv-builder-pro
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:18Z'
     behind_hub: false
     action: none
   - nwo: bamr87/djangoerp
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:18Z'
     behind_hub: false
     action: none
   - nwo: bamr87/drsai
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:18Z'
     behind_hub: false
     action: none
   - nwo: bamr87/fredgar-ai
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:19Z'
     behind_hub: false
     action: none
   - nwo: bamr87/git-with-the-program
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:19Z'
     behind_hub: false
     action: none
   - nwo: bamr87/githubai
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:19Z'
     behind_hub: false
     action: none
   - nwo: bamr87/gitorio
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:20Z'
     behind_hub: false
     action: none
   - nwo: bamr87/irony-works
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:20Z'
     behind_hub: false
     action: none
   - nwo: bamr87/it-journey
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:20Z'
     behind_hub: false
     action: none
   - nwo: bamr87/law-ai
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:21Z'
     behind_hub: false
     action: none
   - nwo: bamr87/lawmode
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:21Z'
     behind_hub: false
     action: none
   - nwo: bamr87/lifehacker.dev
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:21Z'
     behind_hub: false
     action: none
   - nwo: bamr87/scripts
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:21Z'
     behind_hub: false
     action: none
   - nwo: bamr87/vs-sonic-pi
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:22Z'
     behind_hub: false
     action: none
   - nwo: bamr87/wargames
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:22Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-CMS
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:23Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-image-generator
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:23Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-mistakes
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:23Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-pages
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:23Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zpl-viewer
     state: ok
-    age_days: 6
+    age_days: 11
     updated_at: '2026-08-24T22:41:24Z'
     behind_hub: false
     action: none
@@ -220,7 +220,7 @@ tokens:
   minted: false
   max_age_days: 45
   lifetime_days: 365
-  oldest_age_days: 78
+  oldest_age_days: 83
   attention: []
   counts:
     repos: 32
@@ -407,7 +407,7 @@ tokens:
     action: none
   - nwo: bamr87/zer0-mistakes
     state: stale
-    age_days: 78
+    age_days: 83
     updated_at: '2026-06-13T04:35:23Z'
     behind_hub: false
     action: none
