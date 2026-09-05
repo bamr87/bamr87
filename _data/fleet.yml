@@ -138,6 +138,43 @@ remediation:
     cron-heavy: 10
 
 # --------------------------------------------------------------------------- #
+# AI-activity reconciliation — the audit behind `dash ai check`.
+#
+# ai_activity.py shadow-prices local Claude Code usage from a HAND-MAINTAINED
+# pricing table, hand-written aliases, and its own dedupe, and writes a
+# gitignored file nobody diffs. There is no CI signal that could catch drift
+# there, which is why an audit is the only mechanism available: the table
+# silently lost `claude-opus-5` for two months and reported the most expensive
+# model in the lineup as free (bamr87/bamr87#130).
+#
+# `ai_reconcile.py` re-reads the same ~/.claude transcripts through ccusage and
+# compares per (day, model). Local-only, on demand — the data does not exist on
+# a runner, so this never runs in CI.
+#
+# Consumed by: .github/scripts/dash-gen/ai_reconcile.py
+# --------------------------------------------------------------------------- #
+ai_reconcile:
+  # PINNED on purpose: an unpinned ccusage would let a schema change skew the
+  # comparison silently instead of failing loudly. Bump deliberately, and
+  # re-run `dash ai check` after. (This is one of the documented exceptions to
+  # the always-latest dependency policy — see docs/DEPENDENCIES.md.)
+  ccusage_version: "20.0.20"
+  # Short by design. Claude Code prunes transcripts after ~30 days while the
+  # ledger keeps that history, so past the pruning horizon the ledger
+  # legitimately exceeds ccusage and the comparison is noise.
+  window_days: 7
+  # Tokens come from the SAME transcripts on both sides, so they should agree
+  # exactly; the slack is for rounding, not for disagreement. Cost carries more
+  # because the two price sources are independent.
+  token_tolerance_pct: 1.0
+  cost_tolerance_pct: 2.0
+  cost_floor_usd: 0.01            # ignore sub-cent gaps whatever the percentage
+  # How closely an adjacent day's opposing delta must cancel this one before it
+  # counts as a timezone/bucketing difference rather than a lost record.
+  boundary_match_pct: 25.0
+  timeout_seconds: 300            # `npx ccusage` cold-start includes a download
+
+# --------------------------------------------------------------------------- #
 # Issue pipeline — the three-tier loop that turns an open issue into a
 # merge-ready pull request. Counterpart to `remediation:` above: that one fixes
 # broken WORKFLOWS, this one resolves ISSUES.

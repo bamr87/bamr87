@@ -260,7 +260,7 @@
     - An always-on MCP server adds session startup overhead and context — keep it opt-in.
   source: scout
   created: 2026-07-06
-  issue_url: null
+  issue_url: https://github.com/bamr87/bamr87/issues/130
 
 - id: FF-0006
   title: "Impact verification for actions-review issues — measure before/after waste per filed optimization"
