@@ -16,9 +16,14 @@ workflows and run --apply fan-outs with the operator's FLEET_TOKEN is a real
 lever. So every request's Host header is checked against a loopback allowlist
 (extend it with DASH_CONSOLE_ALLOWED_HOSTS when fronting the console with a
 proxy or a real hostname).
-The console never holds GitHub or Claude credentials itself; jobs inherit the
-process environment exactly like a terminal would, and the UI only ever sees
-which credential NAMES are present.
+Credentials: jobs inherit the process environment exactly like a terminal
+would, and every status document reports credential NAMES and presence only —
+never a value or a prefix. The /api/auth routes let the operator hand this
+process a credential (it lives in the environment a job inherits, dies with the
+process, and is written to the gitignored .env only on an explicit confirm) or
+hand a GitHub token to `gh auth login --with-token` over stdin, so the one
+surface meant to be self-sufficient no longer dead-ends at "go find a
+terminal". DASH_CONSOLE_AUTH=off refuses every credential write.
 """
 from __future__ import annotations
 
@@ -34,7 +39,7 @@ from pydantic import BaseModel, Field
 import core
 
 STATIC = Path(__file__).resolve().parent / "static"
-app = FastAPI(title="bamr87 Harness Console", version="0.2.0",
+app = FastAPI(title="bamr87 Harness Console", version="0.3.0",
               description="Local control plane for the fleet's AI harnesses and schedules — "
                           "with the local data lake and Phoenix traces.")
 jobs = core.JobManager()
@@ -76,6 +81,18 @@ class JobRequest(BaseModel):
 
 class ContractUpdate(BaseModel):
     changes: dict
+
+
+class CredentialUpdate(BaseModel):
+    name: str
+    value: str
+    persist: bool = False
+    confirm: bool = False
+
+
+class GithubAuth(BaseModel):
+    action: str = "login"          # login | logout
+    token: str | None = None
 
 
 @app.get("/api/health")
@@ -170,6 +187,66 @@ def update_contract(req: ContractUpdate) -> dict:
         raise HTTPException(status_code=501, detail=str(exc))
 
 
+@app.get("/api/config", dependencies=[Depends(require_token)])
+def config() -> dict:
+    """Every editable knob of _data/fleet.yml with its current value."""
+    return core.read_config()
+
+
+@app.put("/api/config", dependencies=[Depends(require_token)])
+def update_config(req: ContractUpdate) -> dict:
+    """Apply changes to fleet.yml (comments preserved) and return the git diff."""
+    try:
+        return core.update_config(req.changes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
+@app.get("/api/auth", dependencies=[Depends(require_token)])
+def auth() -> dict:
+    """Credential presence + provenance, gh login state, .env facts. No values."""
+    return core.auth_status()
+
+
+@app.put("/api/auth/credential", dependencies=[Depends(require_token)])
+def set_credential(req: CredentialUpdate) -> dict:
+    try:
+        return core.set_credential(req.name, req.value, req.persist, req.confirm)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+
+
+@app.delete("/api/auth/credential/{name}", dependencies=[Depends(require_token)])
+def clear_credential(name: str, purge: bool = Query(default=False)) -> dict:
+    try:
+        return core.clear_credential(name, purge)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+
+
+@app.post("/api/auth/github", dependencies=[Depends(require_token)])
+def auth_github(req: GithubAuth) -> dict:
+    """Sign the gh CLI in with a pasted token (stdin, never argv) or sign it out."""
+    try:
+        if req.action == "logout":
+            return core.gh_logout()
+        if req.action != "login":
+            raise ValueError("action must be 'login' or 'logout'")
+        return core.gh_login(req.token or "")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
@@ -180,7 +257,8 @@ def api_root() -> JSONResponse:
     return JSONResponse({"routes": ["/api/state", "/api/capabilities", "/api/ops", "/api/jobs",
                                     "/api/lake", "/api/lake/runs", "/api/lake/lines",
                                     "/api/lake/review",
-                                    "/api/contract", "/docs"]})
+                                    "/api/contract", "/api/config", "/api/auth",
+                                    "/api/auth/credential", "/api/auth/github", "/docs"]})
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")

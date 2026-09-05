@@ -130,6 +130,20 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
 # Set up workspace directory
 RUN mkdir -p /workspace && chown ${USERNAME}:${USERNAME} /workspace
 
+# Named-volume mount points nested under the /workspace bind mount. Docker
+# seeds a fresh named volume from the IMAGE directory at that path, so these
+# must exist here and be owned by the non-root user — otherwise Docker creates
+# them root-owned on first mount and the container (uid 1000) cannot write to
+# them. That is what left `console` in a restart loop ("Permission denied:
+# /workspace/.venv-console/include") while `bundle-gems`, pre-created below,
+# worked fine. Same reasoning as BUNDLE_PATH; keep in sync with the volume
+# list in docker-compose.yml.
+RUN mkdir -p /workspace/.venv-console \
+             /workspace/.venv-docs \
+             /workspace/projects/README/.venv \
+             /workspace/projects/cv-builder-pro/node_modules \
+    && chown -R ${USERNAME}:${USERNAME} /workspace
+
 # Gems install here (not under /usr/local, which root owns) so `bundle install`
 # works as the non-root user. Backed by the `bundle-gems` named volume in
 # docker-compose.yml — Docker seeds a fresh volume from this image directory,

@@ -210,6 +210,43 @@ def test_session_spans_from_transcript():
     assert side[0]["trace_id"] != root["trace_id"] and side[0]["name"].endswith("(sub-agent)")
 
 
+def test_recent_runs_surfaces_runs_that_actually_ran_the_agent():
+    """The console's "Agent runs" table reads this.
+
+    `runs.ai=1` marks an AI WORKFLOW, not a run that invoked the agent — a
+    mention handler fires and skips on every issue comment. Ordering purely by
+    recency therefore filled the window with skips and pushed every row that
+    had a model/turns/cost out of the one view built to show them.
+    """
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        conn = fl.connect(tmp)
+        base = {"nwo": "bamr87/x", "workflow_name": "Claude", "workflow_path": ".github/workflows/claude.yml",
+                "event": "issue_comment", "status": "completed", "head_branch": "main", "head_sha": "a",
+                "run_number": 1, "logs_url": "l", "ai": 1, "synced_at": "2026-09-01T08:00:00Z",
+                "html_url": "h", "run_attempt": 1}
+        # 3 NEWER skipped runs, and 1 OLDER run that really ran the agent
+        for i, (rid, created, concl) in enumerate([
+                (901, "2026-09-03T00:00:00Z", "skipped"),
+                (902, "2026-09-02T00:00:00Z", "skipped"),
+                (903, "2026-09-01T12:00:00Z", "skipped"),
+                (904, "2026-08-20T00:00:00Z", "success")]):
+            fl.upsert(conn, "runs", {**base, "id": rid, "created_at": created,
+                                     "run_started_at": created, "updated_at": created,
+                                     "conclusion": concl}, ["id"])
+        fl.record_agent_run(conn, 904, "bamr87/x", fl.parse_agent_log(DOCTOR_LOG))
+        conn.commit()
+        conn.close()
+        rows = fl.recent_runs(tmp, limit=2)
+        assert rows, "no runs returned"
+        assert rows[0]["id"] == 904, [r["id"] for r in rows]      # agent run first
+        assert rows[0]["model"] and rows[0]["num_turns"], rows[0]
+        # recency still orders the rest
+        assert rows[1]["id"] == 901, [r["id"] for r in rows]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_sqlite_upserts_idempotently_and_ledger_gates_selection():
     tmp = Path(tempfile.mkdtemp())
     try:
@@ -407,6 +444,34 @@ def test_attribute_cleaning_and_time_helpers():
     assert fl.to_ns("2026-09-01T00:00:00Z") == 1788220800 * 1_000_000_000
     assert fl.to_ns(None) is None and fl.parse_iso("nope") is None
     assert fl.iso("2026-09-01T00:00:00Z") == "2026-09-01T00:00:00Z"
+
+
+def test_otel_probe_answers_instead_of_raising():
+    """`lake export` asks this before shipping, to print an install hint.
+
+    find_spec() on a dotted name imports the parent package, so on an
+    interpreter without opentelemetry the probe RAISED ModuleNotFoundError and
+    the hint never printed — the console surfaced a traceback on every real
+    export instead. It must return a bool either way.
+    """
+    assert isinstance(fl._otel_available(), bool)
+
+
+def test_seven_digit_subsecond_stamps_parse_on_every_interpreter():
+    """claude-code-action logs .NET-style 100ns ticks — SEVEN fractional digits.
+    fromisoformat took only 3 or 6 before Python 3.11, so this used to parse as
+    None on an older interpreter and crash the export in _agent_step."""
+    ns = fl.to_ns("2026-09-01T06:49:38.2932628Z")
+    assert ns == 1788245378293262080, ns                     # truncated to µs, not dropped
+    assert fl.to_ns("2026-09-01T06:49:38.293262Z") == ns     # same instant, 6 digits
+    assert fl.to_ns("2026-09-01T06:49:38.29326289Z") == ns   # 8 digits too
+    # and the crash itself: an unparseable stamp must not take the run down
+    steps = [{"number": 1, "name": "Set up job", "started_at": "not-a-date", "completed_at": None},
+             {"number": 2, "name": "Diagnose", "started_at": "2026-09-01T06:49:18Z",
+              "completed_at": "2026-09-01T07:03:54Z"}]
+    picked = fl._agent_step(steps, {"started_at": "2026-09-01T06:49:38.2932628Z"})
+    assert picked and picked["number"] == 2, picked
+    assert fl._agent_step(steps, {"started_at": "not-a-date"})["number"] == 2
 
 
 # --------------------------------------------------------------------------- #
