@@ -43,7 +43,8 @@ name: 🩺 Fleet Pulse
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # daily 06:00 UTC (build-dash republishes at 07:00)
+    - cron: '37 5 * * *'  # daily 05:37 UTC — off the hour, and out of the 06:00 slot the fleet's own
+                          # Monday agents share (build-dash republishes at 06:37)
   workflow_dispatch:
     inputs:
       days:
@@ -76,6 +77,12 @@ jobs:
   # ========================================================================= #
   pulse:
     name: Gather fleet signals
+    # Kill switch (house convention, fleet.yml harnesses:): a scheduled firing
+    # is a no-op once the repo variable FLEET_PULSE_ENABLED is set to 'false' —
+    # disarmed without a commit, and a manual dispatch still runs so the
+    # loop can be exercised while it is off. Default-ON because the switch
+    # was added to a loop already in service; a new loop starts default-OFF.
+    if: ${{ github.event_name != 'schedule' || vars.FLEET_PULSE_ENABLED != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

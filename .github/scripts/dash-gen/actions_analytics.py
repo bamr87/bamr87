@@ -14,6 +14,19 @@ while producing little? It groups consumption by workflow *type* and surfaces
 "high running, low effective" workflows quantitatively (cost = wall-clock minutes,
 value = share of minutes that end in success; waste = minutes on non-success runs).
 
+The cost proxy is BOUNDED in two ways, because unbounded wall clock is wrong in
+one direction: a run that never reaches a runner bills nothing but keeps accruing
+elapsed time. A run that did not execute — `startup_failure`, or no jobs at all —
+contributes ZERO minutes, and every other run is clamped to MAX_RUN_MIN. Such runs
+still count toward `success_rate_pct` and the failing flag; only their minutes are
+zeroed. Without this, one run parked for 68h at `billable: {}` contributed 4079.9
+phantom minutes and took over the fleet's fix queue (bamr87/bamr87#229).
+
+The fleet `totals` are computed over bamr87-owned workflows only — the same
+population as the by_type / by_repo / by_day rollups. Mixing the two populations
+across a ratio's halves is how this file once published more waste than
+consumption, and a negative effectiveness.
+
 Cancelled runs are counted as waste (the minutes were really burned) but NOT as
 failures: `success_rate_pct` and the failing/flaky flags look only at runs that
 reached a verdict. Conflating the two made every workflow with a working
@@ -56,6 +69,18 @@ MIN_WASTE_MIN = 4.0        # ignore trivial waste below this when flagging
 
 # Non-success terminal conclusions whose minutes count as waste.
 WASTE_CONCLUSIONS = {"failure", "cancelled", "timed_out", "startup_failure"}
+
+# Ceiling on the wall-clock cost proxy, in minutes. GitHub's own per-job limit is
+# 6h, so a *run* reporting more than this is dominated by time it spent parked in
+# a non-terminal state rather than by time it spent on a runner. Clamping here is
+# a backstop, not the primary filter: it bounds the blast radius of the next
+# stuck-run variant `cost_min` does not anticipate (bamr87/bamr87#229).
+MAX_RUN_MIN = 360.0
+AVG_DAYS_PER_MONTH = 30.44
+# GitHub's enhanced-billing usage endpoint: the account's METERED Actions
+# minutes, per repo and per month, in one request. It is the only number here
+# that is not a proxy — see collect_billing().
+BILLING_ENDPOINT = "/users/{login}/settings/billing/usage"
 
 # Conclusions that say nothing about whether the workflow works. A run whose
 # `if:` gate declined is the system behaving correctly at ~zero cost, so it must
@@ -126,6 +151,7 @@ def as_utc(value: dt.datetime | None) -> dt.datetime | None:
 
 
 def duration_min(run) -> float | None:
+    """Raw wall clock for one run. The ELAPSED time, not the cost — see cost_min."""
     start = as_utc(run.run_started_at) or as_utc(run.created_at)
     end = as_utc(run.updated_at)
     if not start or not end:
@@ -133,9 +159,123 @@ def duration_min(run) -> float | None:
     return max(0.0, (end - start).total_seconds() / 60.0)
 
 
+def has_no_jobs(run) -> bool:
+    """True if the run dispatched no job at all, so it billed nothing.
+
+    Costs one API request, which is why `cost_min` asks it only of runs whose wall
+    clock is ALREADY implausible — a handful per sweep rather than one per run.
+    That is the same objection that keeps the per-run `/timing` lookup out of this
+    module, answered by making the expensive question proportional to the outliers
+    instead of to the population.
+
+    A failure that never loaded its workflow file is reported by the API as a plain
+    `failure`, not `startup_failure` (run 33362222262 in bamr87/bamr87#229 is
+    exactly that shape, with `billable: {}`), so the conclusion alone cannot catch
+    it and the job list is the cheapest thing that can.
+    """
+    try:
+        return run.jobs().totalCount == 0
+    except Exception:
+        # Unknown, not zero. Consistent with this module's degrade-gracefully
+        # contract: keep the run and let MAX_RUN_MIN bound it, rather than
+        # zeroing consumption that may well have been real.
+        return False
+
+
+def cost_min(run, dur: float) -> float:
+    """The billable-minutes proxy for one run, from its wall-clock `dur`.
+
+    Wall clock over-reports in exactly one direction: a run that never reached a
+    runner still accrues elapsed time it never billed. GitHub left run 33362222262
+    non-terminal for 68 HOURS against an empty `billable` map — 4079.9 phantom
+    minutes, 99.2% of that workflow's entire reported spend, which then outranked
+    the fleet's real cost in the queue `remediate` sorts on (bamr87/bamr87#229).
+
+    Two corrections, in order:
+
+    * a run that never executed costs **0**, not its wall clock;
+    * everything else is clamped to MAX_RUN_MIN, bounding the next variant.
+
+    Only the MINUTES are zeroed. The run still counts toward `success_rate_pct`
+    and the `failing` flag — a startup failure genuinely is red, and suppressing
+    it there would trade a cost bug for a correctness one.
+    """
+    if (run.conclusion or "") == "startup_failure":
+        return 0.0
+    if dur <= MAX_RUN_MIN:
+        return dur
+    return 0.0 if has_no_jobs(run) else MAX_RUN_MIN
+
+
 # --------------------------------------------------------------------------- #
 # per-repo collection
 # --------------------------------------------------------------------------- #
+def summarize_billing(items: list, today: dt.date) -> dict:
+    """Fold billing usage items into what the harness budget wire reads.
+
+    The wall-clock proxy above can RANK workflows but it cannot price them:
+    a run parked in `action_required` for four days reports four days, and an
+    external mirror's CI (tt-a1i/archify, 25% of the 2026-09 "fleet" minutes)
+    is not this account's spend at all. GitHub's own meter has neither
+    problem, so it — not the proxy — is what `harnesses.budget` is judged
+    against. Public-repo minutes are free (netAmount 0) but still metered,
+    which is exactly right: load, not dollars, is what the ceiling bounds.
+
+    Projection: this month's run-rate once a week of it exists, otherwise the
+    last full month (a 3-day run-rate is noise). The consumer applies that rule
+    from the fields below so the choice is visible in the data.
+    """
+    months: dict[str, dict] = {}
+    by_repo: dict[str, dict[str, float]] = {}
+    for it in items or []:
+        if it.get("product") != "actions" or it.get("unitType") != "Minutes":
+            continue
+        month = str(it.get("date") or "")[:7]
+        if len(month) != 7:
+            continue
+        b = months.setdefault(month, {"minutes": 0.0, "gross_usd": 0.0, "net_usd": 0.0})
+        q = float(it.get("quantity") or 0)
+        b["minutes"] += q
+        b["gross_usd"] += float(it.get("grossAmount") or 0)
+        b["net_usd"] += float(it.get("netAmount") or 0)
+        repo = it.get("repositoryName") or "(account)"
+        by_repo.setdefault(month, {})[repo] = by_repo.setdefault(month, {}).get(repo, 0.0) + q
+    this_month = today.strftime("%Y-%m")
+    previous = max((m for m in months if m < this_month), default=None)
+    cur = months.get(this_month, {}).get("minutes", 0.0)
+    elapsed = today.day
+    return {
+        "source": "GitHub billing usage API (" + BILLING_ENDPOINT + ")",
+        "fetched_at": today.isoformat(),
+        "this_month": this_month,
+        "days_elapsed": elapsed,
+        "minutes_this_month": round(cur, 1),
+        "run_rate_monthly": round(cur / elapsed * AVG_DAYS_PER_MONTH, 1) if elapsed else None,
+        "previous_month": previous,
+        "minutes_previous_month": round(months[previous]["minutes"], 1) if previous else None,
+        "months": {m: {k: round(v, 2) for k, v in b.items()} for m, b in sorted(months.items())},
+        "by_repo_this_month": dict(sorted(by_repo.get(this_month, {}).items(), key=lambda kv: -kv[1])),
+        "by_repo_previous_month": dict(sorted(by_repo.get(previous, {}).items(), key=lambda kv: -kv[1])) if previous else {},
+    }
+
+
+def collect_billing(gh) -> dict:
+    """One request for the account's metered minutes; never raises.
+
+    A token without the billing read scope, or a moved endpoint, yields an
+    `error` field instead of an exception, so the sweep still publishes the
+    proxy and the budget wire falls back to it (and says so).
+    """
+    try:
+        login = gh.get_user().login
+        requester = getattr(gh, "requester", None) or getattr(gh, "_Github__requester")
+        _, data = requester.requestJsonAndCheck("GET", BILLING_ENDPOINT.format(login=login))
+        return summarize_billing(data.get("usageItems") or [], dt.datetime.now(dt.timezone.utc).date())
+    except Exception as exc:  # noqa: BLE001 - the report must publish either way
+        return {"source": "GitHub billing usage API (" + BILLING_ENDPOINT + ")",
+                "error": f"{type(exc).__name__}: {str(exc)[:160]}"}
+
+
 def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tuple[dict, list]:
     """Return ({workflow_id: meta}, [run-record]) for one repo within the window."""
     from github.GithubException import GithubException
@@ -177,7 +317,7 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
                 "path": path,
                 "event": run.event or "unknown",
                 "conclusion": run.conclusion or "unknown",
-                "minutes": dur,
+                "minutes": cost_min(run, dur),
                 "day": created.date().isoformat() if created else None,
                 "created_at": created.isoformat() if created else None,
             })
@@ -346,7 +486,10 @@ def build_report(registry: list[dict], gh, days: int, max_runs: int) -> dict:
                 inactive.append({"repo": name, "workflow": meta["name"],
                                  "path": meta["path"], "state": meta["state"]})
 
-    return finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now)
+    # The meter is fetched here, beside the API session, so finalize() stays a
+    # pure function the fixture tests can call without a client.
+    return finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now,
+                    billing=collect_billing(gh))
 
 
 def summarize(bucket: dict) -> dict:
@@ -360,7 +503,8 @@ def summarize(bucket: dict) -> dict:
     }
 
 
-def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) -> dict:
+def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now,
+             billing: dict | None = None) -> dict:
     owned = [w for w in workflows if not w.get("external")]
     grand_min = sum(w["total_min"] for w in owned) or 1.0
     median_min = statistics.median([w["total_min"] for w in owned]) if owned else 0.0
@@ -418,13 +562,22 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         key=lambda r: r["date"],
     )
 
-    tot_runs = sum(w["runs"] for w in workflows)
-    tot_success = sum(w["success"] for w in workflows)
+    # Every fleet total ranges over `owned`, the SAME population as grand_min
+    # above. Summing these over all `workflows` while the denominator counted
+    # only owned ones published 2091.6h wasted against 1269.3h consumed and an
+    # effectiveness of -64.8% — a figure unreachable when waste is a subset of
+    # consumption. One external mirror (tt-a1i/archify) contributed 50890.7 of
+    # those waste minutes while its 51370.0 consumed minutes were correctly
+    # excluded (bamr87/bamr87#229). External spend is not ours to optimize, so
+    # it belongs in NEITHER half — the same rule the by_type/by_repo/by_day
+    # rollups already follow.
+    tot_runs = sum(w["runs"] for w in owned)
+    tot_success = sum(w["success"] for w in owned)
     # Failures only — cancelled runs reached no verdict and are excluded from
     # the success rate, matching the per-workflow record. Their MINUTES still
     # count in waste_min.
-    tot_fail = sum(w["failure"] for w in workflows)
-    tot_waste = round(sum(w["waste_min"] for w in workflows), 1)
+    tot_fail = sum(w["failure"] for w in owned)
+    tot_waste = round(sum(w["waste_min"] for w in owned), 1)
 
     return {
         "generated_at": now.strftime("%Y-%m-%d %H:%M UTC"),
@@ -446,14 +599,24 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         "by_day": day_rows,
         "workflows": workflows,
         "inactive": sorted(inactive, key=lambda x: (x["repo"], x["workflow"])),
+        "billing": billing,
         "note": ("Cost = wall-clock run minutes (run_started_at → updated_at), a proxy for "
-                 "billable minutes. Value = share of minutes ending in success. "
+                 "billable minutes, with two bounds: a run that never executed "
+                 "(startup_failure, or zero jobs) counts as 0 minutes, and every other "
+                 f"run is capped at {MAX_RUN_MIN:.0f} min — GitHub's own job ceiling — so a run "
+                 "left parked in a non-terminal state cannot report minutes it never "
+                 "billed. Those runs still count against the success rate; only their "
+                 "minutes are zeroed. Value = share of minutes ending in success. "
                  "Waste = minutes on failed/cancelled/timed-out runs. "
+                 "Fleet totals cover bamr87-owned workflows only — the same population "
+                 "on both halves of every ratio, so waste can never exceed consumption. "
                  "Success rate counts only runs that reached a verdict "
                  "(success + failure); cancelled runs were superseded, not broken, "
                  "and show up as cancel_pct / the cancel-heavy flag instead. "
                  "A workflow with NO verdicts in the window (every run skipped) "
-                 "reports null rates — 'no data', not 0%."),
+                 "reports null rates — 'no data', not 0%. The `billing` block is GitHub's "
+                 "own metered minutes (billing usage API), per month and per repo: that is "
+                 "what the harness budget wire prices; the proxy above only ranks."),
     }
 
 

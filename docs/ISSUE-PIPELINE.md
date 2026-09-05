@@ -4,7 +4,7 @@ The loop that turns an **open issue** into a **merge-ready pull request**, in th
 
 | | | |
 | --- | --- | --- |
-| **Workflow** | [`.github/workflows/issue-pipeline.yml`](../.github/workflows/issue-pipeline.yml) | daily 08:00 UTC + dispatch |
+| **Workflow** | [`.github/workflows/issue-pipeline.yml`](../.github/workflows/issue-pipeline.yml) | daily 07:37 UTC + dispatch |
 | **Queue builder** | [`.github/scripts/dash-gen/issue_pipeline.py`](../.github/scripts/dash-gen/issue_pipeline.py) | `dash issues` |
 | **Evidence harness** | [`tools/issue-evidence.sh`](../tools/issue-evidence.sh) | `dash evidence <repo> <n>` |
 | **Config** | [`_data/fleet.yml`](../_data/fleet.yml) → `issue_pipeline:` | caps, taxonomy, autonomy |
