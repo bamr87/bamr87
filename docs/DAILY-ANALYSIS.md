@@ -53,10 +53,28 @@ Then `dash-gen remediate` ([`remediation.py`](../.github/scripts/dash-gen/remedi
 
 - **failing** — from `fleet_triage.yml`: every workflow whose latest completed run
 is red. This is *standing* state, so a workflow broken for three weeks stays on the queue until it's fixed — the class of failure a prior-day-only scan misses.
+  <br>**Tracked branch only.** See [Which runs count as failing](#which-runs-count-as-failing).
 - **expensive** — from `actions_usage.yml`: slow, flaky, cancel-heavy,
   cron-heavy, or high-cost-low-value.
 
 Candidates are keyed on `owner/repo:workflow-path`, so a workflow that is *both* red and slow is **one** entry with both signals — not two tickets, which is how the previous split loops turned a queue into noise. Each is then classified `hub` (fixable in this checkout) or `submodule` (needs a cross-repo PR), ranked by severity then wasted minutes, de-duplicated against open issues **and** open PRs in both the hub and the target repo, and capped.
+
+#### Which runs count as failing
+
+A behavioural contract of the triage snapshot, and not obvious from the data: `fleet_triage.py` reads each workflow's latest completed conclusion **from the repo's tracked branch only**, and **drops pull-request runs entirely** rather than keeping them as a weaker signal.
+
+The tracked branch is the **registry's** declared `branch`, falling back to GitHub's `default_branch` — never a hard-coded `main`, because this fleet deliberately tracks non-default branches, which is the same reason `check-drift.sh` treats branch divergence as advisory rather than gating.
+
+Both filters are needed, and the second is not redundant:
+
+- The branch filter is applied **server-side** (`get_workflow_runs(branch=…)`), which is also what stops PR runs from consuming the 80-run scan budget before a busy repo's `main` runs are reached.
+- GitHub's `branch=` matches a run's **head** branch, so a pull request opened from a *fork's* `main` produces a run with `head_branch: main` that passes the branch filter. Pull-request events are therefore excluded by event as well.
+
+The rationale is that a `pull_request` run failing on an unmerged topic branch is **the gate working** — feedback to that PR's author, not fleet breakage. Reported as `failing` it entered this queue at the top severity weight there is (`100`), spending a capped Opus doctor slot to hand an agent a work order saying *"fix the root cause… do not paper over it"* about a workflow that is green on the tracked branch. Acting on that literally means weakening a working gate: the exact failure the "never make a red workflow look green" rule exists to prevent, arriving through the front door. Fixed at the layer that *produces* the signal rather than with a second downstream filter in `remediation.py`, per [`HARNESS.md`](HARNESS.md)'s ratchet rule (bamr87/bamr87#205).
+
+The filters fail **open**: a run missing `head_branch` or `event` is kept. Dropping every run would report the fleet permanently green, which is strictly worse than the bug being fixed — `test_fleet_triage.py` asserts that converse directly.
+
+Note that `actions_usage.yml` deliberately keeps its unfiltered view: it measures **cost**, and PR runs spend real minutes. Its correctness-flavoured flag (`flaky`) is guarded downstream instead, by `supersede_on_success` below.
 
 #### Three guards on the queue
 
@@ -179,6 +197,7 @@ Without a Claude token the loop degrades to gather + publish — the data still 
 | `.github/scripts/dash-gen/remediation.py` | merges failing + expensive signals into the ranked fix queue |
 | `.github/scripts/dash-gen/daily_report.py` | prior-day gather + digest generator |
 | `.github/scripts/dash-gen/fleet_triage.py` | open-state (issues/PRs/CI) snapshot generator |
+| `.github/scripts/dash-gen/test_fleet_triage.py` | guards the tracked-branch rule above — and its converse |
 | `.github/scripts/dash-gen/actions_analytics.py` | Actions cost / effectiveness / waste analytics |
 | `_data/fleet.yml` | central config: caps, cadences, toolchain, token contract |
 | `_reports/daily/<date>.md` | committed daily digests |
