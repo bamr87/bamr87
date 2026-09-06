@@ -52,11 +52,15 @@ LEDGER_DEFAULT = Path(
 ).expanduser()
 
 # USD per MTok at Anthropic API list prices (source: claude-api skill model
-# table, cached 2026-06-24). Cache writes: 1.25x input (5m TTL) / 2x (1h TTL);
-# cache reads: 0.1x input. Unknown models are counted but priced at 0 and
-# surfaced in `unpriced_models` — add a row here rather than guessing.
-# Note: claude-sonnet-5 has intro pricing ($2/$10) through 2026-08-31; the
-# list price is used so estimates stay comparable over time.
+# table, cached 2026-06-24; claude-opus-5 added 2026-08-31). Cache writes:
+# 1.25x input (5m TTL) / 2x (1h TTL); cache reads: 0.1x input. Unknown models
+# are counted but priced at 0 and surfaced in `unpriced_models` — add a row
+# here rather than guessing.
+#
+# This table is hand-maintained and therefore drifts: it lost `claude-opus-5`
+# for two months, so every local Opus 5 session was counted at $0 (bamr87#130).
+# `dash ai check` (ai_reconcile.py) now audits it against ccusage — run that
+# after touching anything below.
 PRICING: dict[str, dict[str, float]] = {
     "claude-fable-5-1": {"in": 10.0, "out": 50.0},
     "claude-mythos-5-1": {"in": 10.0, "out": 50.0},
@@ -72,10 +76,22 @@ PRICING: dict[str, dict[str, float]] = {
 }
 CACHE_5M_MULT, CACHE_1H_MULT, CACHE_READ_MULT = 1.25, 2.0, 0.1
 
+# Rates this table deliberately does NOT apply, because list price keeps
+# estimates comparable over time — but which ccusage (billing-accurate) does.
+# model -> last date the intro rate was in effect, inclusive. `dash ai check`
+# reads this to itemize the resulting cost delta as EXPLAINABLE rather than
+# drift. claude-sonnet-5's intro rate was $2/$10 against the $3/$15 list.
+INTRO_PRICING_UNTIL: dict[str, str] = {
+    "claude-sonnet-5": "2026-08-31",
+}
+
 # Bare aliases occasionally recorded in place of a full id (resolved to the
-# alias's current target) and dated snapshots (suffix stripped).
+# alias's current target) and dated snapshots (suffix stripped). A STALE alias
+# is worse than a missing PRICING row: a missing row yields an obvious $0, a
+# stale alias a plausible wrong number. Re-point these when a family's current
+# model changes.
 MODEL_ALIASES = {
-    "opus": "claude-opus-4-8",
+    "opus": "claude-opus-5",
     "sonnet": "claude-sonnet-5",
     "haiku": "claude-haiku-4-5",
     "fable": "claude-fable-5",
