@@ -76,6 +76,16 @@ services:
     volumes:
       - .:/workspace:cached
       - venv-console:/workspace/.venv-console
+      # This machine's Claude Code transcripts, READ-ONLY. `dash lake sessions`
+      # and `lake export --local` read them to trace the local plane, and the
+      # console offers both as operations — without this mount those are the
+      # one advertised feature the containerized console cannot perform, and
+      # they fail as a misleading "nothing new to export". Read-only because
+      # the console only ever reads transcripts; :ro also keeps a job from
+      # touching the user's Claude state. The path is optional at the host:
+      # Compose creates an empty dir if it is absent, and the export then says
+      # so rather than pretending it succeeded.
+      - ${CLAUDE_HOME:-~/.claude}:/home/vscode/.claude:ro
     working_dir: /workspace
     ports:
       - "127.0.0.1:${CONSOLE_PORT:-4001}:4001"
@@ -175,7 +185,12 @@ services:
       - dev-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/healthz"]
+      # 127.0.0.1, not localhost: /etc/hosts in this image maps localhost to
+      # ::1 as well, wget tries IPv6 first, and Wiki.js listens on IPv4 only —
+      # so `localhost` here reports "Connection refused" and the container
+      # sits permanently (unhealthy) while it is in fact serving fine. Same
+      # IPv6-loopback trap the devenv port comment above describes.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3

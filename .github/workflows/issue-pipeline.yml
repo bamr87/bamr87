@@ -40,6 +40,14 @@ name: 🧭 Issue Pipeline
 # workflow with `tiers: 3` once its checks have gone green.
 #
 # TOKENS (full contract in _data/fleet.yml)
+# THE RUNNER HAS DOCKER. Tiers 2 and 3 may run a target repo's Docker-based
+# tooling — `docker compose up`, its evidence/snapshot generators — and their
+# allowlists say so. Before this was spelled out, an agent working on a visual
+# repo concluded Docker was "permission-gated", shipped a README where montages
+# and pixel baselines belonged, and left the PR red for three passes
+# (bamr87/zer0-mistakes#454). Artifacts that can only be rendered are part of
+# the change, not a follow-up for a human with a laptop.
+#
 #   FLEET_TOKEN  fine-grained PAT covering the fleet. REQUIRED for anything
 #                cross-repo, and required for PRs whose CI must actually run:
 #                GitHub does not fire workflow events for refs pushed with
@@ -584,10 +592,18 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          # Turn budget must be sized against `timeout-minutes: 90`, not guessed:
+          # T2 implements up to `tiers.implement.max_issues` (3) issues end to end
+          # — read, edit, test, docs, commit, push, PR — so ~66 turns per issue at
+          # 200. Run 33301167779 hit the ceiling at 201 turns having used only
+          # 29 of its 90 minutes, i.e. the TURN limit bound at a third of the time
+          # limit and the job failed with work still in flight. At the observed
+          # ~8.7s/turn, 400 turns ≈ 58 min, which fits inside 90 with headroom for
+          # checkout/setup/post steps and lets the job timeout be the real ceiling.
           claude_args: >-
             --model opus
             --max-turns 200
-            --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(tools/:*),Read,Grep,Glob,Edit,Write"
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(docker:*),Bash(curl:*),Bash(tools/:*),Bash(./test/:*),Bash(test/:*),Bash(./scripts/:*),Bash(scripts/:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are **tier 2** of the bamr87 fleet's issue pipeline:
             IMPLEMENTATION. Tier 1 has already enriched every issue on your queue
@@ -648,6 +664,20 @@ jobs:
             - Run the project's own checks before pushing (`npm test`,
               `pytest`, `shellcheck`, whatever the repo uses). A PR you never
               ran is a PR tier 3 has to fix.
+            - **Visual repos.** If the target repo declares a visual-evidence
+              standard (it has `.github/skills/visual-evidence/SKILL.md`, or its
+              `CLAUDE.md` names one) and your diff touches what a user sees,
+              the PR must ALSO carry what that standard asks for — typically a
+              regression spec, generated before/after evidence, and refreshed
+              pixel baselines. **This runner has Docker; it is not gated.** Run
+              the repo's documented evidence tooling here, on this machine
+              (in zer0-mistakes: `python3 scripts/ci/visual_evidence_autogen.py
+              all --base origin/main`, then `bless --force` ONLY after viewing
+              the diff montage it writes, then `stage`), and commit what it
+              produces. Never type measurements into a README in place of the
+              generated artifacts. If the tooling genuinely fails, commit the
+              spec and generator anyway and say so in the PR body — the repo's
+              own autogen workflow completes it on the PR.
 
             ## Step 5 — commit and open a DRAFT PR
             - Conventional Commits: `fix(scope): …`, `feat(scope): …`,
@@ -763,10 +793,15 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          # Same sizing as T2, and T3 is the more turn-hungry of the two: its loop
+          # is "read checks -> read failing log -> fix -> push -> re-check" over up
+          # to `tiers.complete.max_prs` (4) PRs, where each CI round trip costs
+          # turns it cannot control. It hit the same 201-turn ceiling in run
+          # 33301167779 with an hour of its 90-minute budget unused.
           claude_args: >-
             --model opus
             --max-turns 200
-            --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(tools/:*),Read,Grep,Glob,Edit,Write"
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(docker:*),Bash(curl:*),Bash(tools/:*),Bash(./test/:*),Bash(test/:*),Bash(./scripts/:*),Bash(scripts/:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are **tier 3** of the bamr87 fleet's issue pipeline: COMPLETION.
             Tier 2 opened these pull requests. Your job is to make each one
@@ -801,6 +836,15 @@ jobs:
               loosen an assertion to make it pass. If the failure reproduces on
               the base branch and predates this PR, say so in a comment and stop
               — that is a different problem and not this PR's to hide.
+            - **Red pixel-snapshot or evidence-gate check** (a visual repo):
+              these are PRODUCIBLE artifacts, not code bugs. **This runner has
+              Docker.** Run the repo's documented evidence tooling on the PR
+              branch (zer0-mistakes: `python3 scripts/ci/visual_evidence_autogen.py
+              all --base origin/main`), LOOK at the expected/actual/diff montage
+              it writes, and regenerate the baselines only when the diff is the
+              change the PR describes — then commit the generated evidence
+              folder and `test/visual/snapshots/**`. A diff that is NOT the
+              described change is a regression: fix the code, never bless it.
             - **Merge conflict:** merge the base branch into the PR branch,
               resolve, re-run the checks you can locally, push.
             - **Missing tests:** add the test that proves the fix. Every
