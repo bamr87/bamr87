@@ -31,9 +31,13 @@ vs actual, scope, mechanically checkable acceptance criteria, references — wit
 
 Takes an `agent:ready` issue, implements it on `agent/issue-<n>`, and opens a **draft** PR — in the hub, or in the submodule that owns the code. Tests and docs are part of the change, not a follow-up: the PR body must show the test failing before and passing after. The issue moves to `agent:in-pr`.
 
+**Visual repos.** When the target declares a visual-evidence standard (zer0-mistakes: `.github/skills/visual-evidence/SKILL.md`), the artifacts that standard asks for — generated before/after evidence and refreshed pixel baselines — are part of the change too, and they can only be *rendered*: inside a Playwright Docker image against a live site. **The runner has Docker**, and the tier's allowlist includes `docker`, `node`, `ruby`, `curl` and the repo's `test/` and `scripts/` entry points, so the agent runs the repo's tooling (`python3 scripts/ci/visual_evidence_autogen.py all --base origin/main`) before opening the PR. That is what makes a UI PR green on its **first** CI run. This was learned from [bamr87/zer0-mistakes#454](https://github.com/bamr87/zer0-mistakes/pull/454): an agent that believed Docker was gated shipped a README in place of the montages and left nine stale baselines that three passes could diagnose but none could refresh. The repo side of the fix is zer0-mistakes' `visual-evidence-autogen.yml`, which renders whatever an author could not; the hub side is this allowlist and prompt.
+
 ### Tier 3 — complete
 
 Drives a pipeline PR to genuinely mergeable: CI green (root cause fixed, never `continue-on-error`), tests covering the change, docs and `SCHEMA.md` rows current, body accurate. Then `gh pr ready` and the issue moves to `agent:done`.
+
+A red pixel-snapshot or evidence-gate check on a visual repo is a producible artifact, not a code bug: tier 3 runs the same Docker-based tooling as tier 2, **looks at the expected/actual/diff montage**, and regenerates baselines only when the diff is the change the PR describes. A diff that is not the described change is a regression to fix, never to bless.
 
 **It never merges.** Handing over a green, reviewable PR is the end of the pipeline.
 

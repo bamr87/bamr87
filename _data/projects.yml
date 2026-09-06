@@ -33,6 +33,12 @@
 #                            status: adopted (merged) | pending (PR open) | none
 #                            pr: optional adoption PR URL
 #   license        optional  SPDX id (e.g. MIT, Apache-2.0) or null if none yet
+#   kinds          optional  Universal Project Standard stack kinds this repo is held
+#                            to (site|app|api|lib|cli|ext|content); when absent,
+#                            tools/conformance.py detects them from the tree
+#   spec           optional  UPS adoption (specs/CONFORMANCE.md). Sub-keys:
+#                            version: "1.0" | status: none|pending|adopted |
+#                            audited: ISO date of the last passing audit
 #   tier           optional  standardization tier override (active|experiment|
 #                            content|fork|archived). Normally derived from status
 #                            via _data/standards.yml; set only to override.

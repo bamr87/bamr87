@@ -1,0 +1,25 @@
+{
+  "name": "@bamr87/fleet-feedback",
+  "version": "0.1.0",
+  "description": "Universal 'Improve this page' widget: a zero-dependency <fleet-feedback> web component that files a prefilled GitHub issue with page context, environment, and captured console errors. Spec: bamr87/bamr87 specs/FEEDBACK.md.",
+  "license": "MIT",
+  "author": "bamr87",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bamr87/bamr87.git",
+    "directory": "templates/feedback"
+  },
+  "homepage": "https://github.com/bamr87/bamr87/tree/main/templates/feedback",
+  "keywords": ["feedback", "github-issues", "web-component", "fleet"],
+  "main": "fleet-feedback.js",
+  "browser": "fleet-feedback.js",
+  "exports": {
+    ".": "./fleet-feedback.js",
+    "./react": "./adapters/FeedbackButton.tsx",
+    "./types": "./feedback_types.yml",
+    "./issue-template": "./page_feedback.yml"
+  },
+  "files": ["fleet-feedback.js", "adapters/", "feedback_types.yml", "page_feedback.yml", "README.md", "VERSION"],
+  "sideEffects": true,
+  "publishConfig": { "access": "public" }
+}

@@ -175,6 +175,7 @@ Existing precedents to imitate (each one incident → strongest layer): the bare
 Phase 2 (worth doing next, each one small):
 
 - ~~**Dash surface**~~ — done 2026-08-27: [`pages/_dash/harness.md`](../pages/_dash/harness.md) renders `_data/harness_health.yml` at `/harness/` (scorecard, wire panel with tripped state) and embeds the diagrams below.
+- ~~**Fleet deployment inventory**~~ — done 2026-08-31: the DEPLOYMENT-side counterpart of this scorecard. `dash-gen harnesses` scans every registry repo's harness workflows + crons into `_data/harness_registry.yml` daily, grades them against `_data/fleet.yml` `harnesses:` (baseline coverage, scheduled-throughput caps, budget forecast from trends), renders read-only at [`/harnesses/`](../pages/_dash/harnesses.md), and feeds `harness-fanout.yml`'s `gaps` deploy target. Operations doc: [`docs/HARNESS-OPS.md`](HARNESS-OPS.md).
 - **Enforced cost budget (checklist #7)**: a per-run token ceiling for the Claude loops, read from `fleet.yml` and passed to `claude-code-action`, closing the gap between shadow-priced tracking and mid-run enforcement.
 - **Guide hygiene cadence**: fold a monthly guide review into the repo-evolution loop's hub pass — prune rules that sensors now enforce, reconcile contradictions, verify each standing rule still traces to a live constraint.
 - **Wire → doctor handoff**: let a tripped `cost-spike`/`standing-failures` wire annotate the remediation queue's ranking, so the alarm and the fix queue converge on the same candidates (today they compute independently from the same data).
@@ -223,3 +224,5 @@ python3 .github/scripts/dash-gen/test_harness.py   # the invariants
 ```
 
 The daily refresh rides `fleet-pulse.yml`'s `pulse` job; thresholds are tuned in `_data/fleet.yml` `harness:` (a wire that is always on is noise — prune or retune it the way guide rules are pruned).
+
+This document watches the hub's own layers; managing the harnesses **deployed across the fleet** — inventory, mass deploy/update, throughput caps, cost forecasting, the local/cloud processing planes — is [`docs/HARNESS-OPS.md`](HARNESS-OPS.md) (`dash harnesses`, the `/harnesses/` board, `harness-fanout.yml`).

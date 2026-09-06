@@ -16,6 +16,9 @@ Guards the invariants that decide whether the daily loop is useful or a nuisance
   * a workflow that was FIXED inside the window, and one whose minutes are a
     human's debugging session, must not take a slot from a workflow that is
     actually broken (bamr87/bamr87#92);
+  * a workflow that has not RUN since it went red must not outrank one that is
+    failing today — and must not be dropped either, because staleness is absence
+    of evidence, not evidence of health (bamr87/bamr87#200);
   * "no verdicts" must never be published as "0% success".
 
 Deliberately dependency-light — no network, no gh. Runs either way:
@@ -26,6 +29,7 @@ Deliberately dependency-light — no network, no gh. Runs either way:
 
 from __future__ import annotations
 
+import datetime as dt
 import sys
 from pathlib import Path
 
@@ -46,8 +50,21 @@ CFG = {
     "slow_p95_min": 20,
     "supersede_on_success": True,
     "interactive_dispatch_pct": 60,
+    "stale_after_days": 7,
     "severity": dict(remediation.DEFAULT_SEVERITY),
 }
+
+NOW = dt.datetime.now(dt.timezone.utc)
+
+
+def iso_days_ago(n: float) -> str:
+    """A stamp in `actions_usage.yml`'s format: ISO-8601 with an offset."""
+    return (NOW - dt.timedelta(days=n)).isoformat()
+
+
+def triage_days_ago(n: float) -> str:
+    """A stamp in `fleet_triage.yml`'s format — deliberately NOT the same one."""
+    return (NOW - dt.timedelta(days=n)).strftime(remediation.TRIAGE_TIME_FMT)
 
 
 # --------------------------------------------------------------------------- #
@@ -57,7 +74,11 @@ def triage(*repos) -> dict:
     return {"by_repo": list(repos), "totals": {}, "generated_at": "t"}
 
 
-def repo_rec(nwo, failing=(), external=False, archived=False, private=False) -> dict:
+def repo_rec(nwo, failing=(), external=False, archived=False, private=False,
+             run_at=None) -> dict:
+    # Defaults to a run just now: every fixture below describes a LIVE failure
+    # unless it opts into an age, so the staleness guard changes nothing for them.
+    run_at = run_at or triage_days_ago(0)
     return {
         "nwo": nwo, "name": nwo.split("/")[-1],
         "repo_url": f"https://github.com/{nwo}",
@@ -65,7 +86,7 @@ def repo_rec(nwo, failing=(), external=False, archived=False, private=False) -> 
         "workflows": {"active": 1, "failing": [
             {"workflow": w, "path": p, "conclusion": "failure",
              "run_url": f"https://github.com/{nwo}/actions/runs/{i}",
-             "run_at": "2026-08-01 00:00 UTC"}
+             "run_at": run_at}
             for i, (w, p) in enumerate(failing, 1)
         ]},
     }
@@ -78,7 +99,7 @@ def usage(*workflows) -> dict:
 
 def wf(nwo, name, path, *, runs=10, flags=(), avg=1.0, p95=2.0, waste=0.0,
        total=10.0, priority=0.0, external=None, last_conclusion=None,
-       dispatch_pct=None, events=None) -> dict:
+       dispatch_pct=None, events=None, last_run_at=None) -> dict:
     rec = {
         "repo": nwo.split("/")[-1], "repo_url": f"https://github.com/{nwo}",
         "workflow": name, "path": path, "runs": runs, "flags": list(flags),
@@ -94,6 +115,8 @@ def wf(nwo, name, path, *, runs=10, flags=(), avg=1.0, p95=2.0, waste=0.0,
         rec["dispatch_pct"] = dispatch_pct
     if events is not None:
         rec["events"] = events
+    if last_run_at is not None:
+        rec["last_run_at"] = last_run_at
     return rec
 
 
@@ -225,6 +248,121 @@ def main() -> int:
                  usage(germinate))
     check("a triage-side standing failure is never suppressed by these guards",
           len(both) == 1 and "failing" in both[0]["signals"])
+
+    # --- stale reds (bamr87/bamr87#200) ------------------------------------- #
+    # The live case: bamr87/gitorio `Factory: Gitorio Factory 1`. Three failures
+    # on 2026-08-21 inside a model-side outage that lifted on 08-25 — but the
+    # workflow triggers on `issues: opened`, so nothing has run it since and
+    # nothing CAN clear the red. It was re-queued at full `failing` severity
+    # every morning, holding one of four slots against live failures.
+    print("stale reds:")
+    gpath = ".github/workflows/factory--gitorio-factory-1.yml"
+
+    # (a) ranking — the whole point. Build order puts the stale repo FIRST, so a
+    # ranking that ignores age leaves it first (sorts are stable on ties).
+    aged = build(
+        triage(
+            repo_rec("bamr87/gitorio", failing=[("Factory 1", gpath)],
+                     run_at=triage_days_ago(8)),
+            repo_rec("bamr87/live", failing=[("CI", path)],
+                     run_at=triage_days_ago(0)),
+        ),
+        usage(),
+    )
+    check("a stale red sorts below a live one of the same severity",
+          [c["nwo"] for c in aged] == ["bamr87/live", "bamr87/gitorio"])
+    # …and is DOWN-ranked, not suppressed. Absence of evidence is not evidence of
+    # health: a dispatch-only deploy broken for three weeks is stale AND broken.
+    check("…but is still in the queue, not dropped",
+          any(c["nwo"] == "bamr87/gitorio" for c in aged))
+
+    # (b) the same, through the OTHER signal — usage carries ISO-8601, triage
+    # carries "%Y-%m-%d %H:%M UTC", and the guard has to read both.
+    gitorio = wf("bamr87/gitorio", "Factory: Gitorio Factory 1", gpath,
+                 runs=6, flags=["failing"], avg=0.3, p95=0.5, waste=1.4,
+                 total=2.0, priority=3.8, last_conclusion="failure",
+                 dispatch_pct=0.0, events={"issues": 6},
+                 last_run_at=iso_days_ago(8))
+    # Deliberately CHEAPER than the stale one on the spend tiebreak, so only the
+    # freshness component can put it first.
+    live = wf("bamr87/other", "CI", path, runs=10, flags=["failing"],
+              waste=0.0, total=10.0, last_conclusion="failure",
+              dispatch_pct=0.0, last_run_at=iso_days_ago(0))
+    check("the usage signal's ISO-8601 stamp is read too",
+          [c["nwo"] for c in build(triage(), usage(gitorio, live))]
+          == ["bamr87/other", "bamr87/gitorio"])
+
+    # (c) unknown age is FRESH. A guard that cannot read a clock must never
+    # invent staleness — a false stale silently down-ranks a real failure.
+    for label, raw in (("missing", None), ("`?` placeholder", "?"),
+                       ("malformed", "last tuesday"), ("empty", "")):
+        check(f"a {label} timestamp is treated as fresh",
+              not remediation.is_stale(
+                  {"signals": {"failing"}, "failing_runs": [{"at": raw}],
+                   "usage": None}, CFG))
+    check("a candidate with no timestamp anywhere is fresh",
+          not remediation.is_stale(
+              {"signals": {"failing"}, "failing_runs": [], "usage": None}, CFG))
+
+    # (d) both formats parse, to the same instant, with no local-time drift.
+    utc = dt.timezone.utc
+    check("ISO-8601-with-offset parses (actions_usage.yml)",
+          remediation.parse_run_time("2026-08-21T08:36:19+00:00")
+          == dt.datetime(2026, 8, 21, 8, 36, 19, tzinfo=utc))
+    check("the triage format parses (fleet_triage.yml)",
+          remediation.parse_run_time("2026-08-21 08:36 UTC")
+          == dt.datetime(2026, 8, 21, 8, 36, tzinfo=utc))
+    check("a trailing Z parses",
+          remediation.parse_run_time("2026-08-21T08:36:19Z")
+          == dt.datetime(2026, 8, 21, 8, 36, 19, tzinfo=utc))
+    check("a naive stamp is read as UTC, not as local time",
+          remediation.parse_run_time("2026-08-21T08:36:19")
+          == dt.datetime(2026, 8, 21, 8, 36, 19, tzinfo=utc))
+    # PyYAML resolves an UNQUOTED stamp to a real datetime, so the parser sees a
+    # third shape for the same value depending on how the emitter quoted it.
+    check("a PyYAML-parsed datetime is accepted",
+          remediation.parse_run_time(dt.datetime(2026, 8, 21, 8, 36, 19))
+          == dt.datetime(2026, 8, 21, 8, 36, 19, tzinfo=utc))
+    check("an offset stamp is normalised to UTC",
+          remediation.parse_run_time("2026-08-21T10:36:19+02:00")
+          == dt.datetime(2026, 8, 21, 8, 36, 19, tzinfo=utc))
+
+    # (e) staleness is about the NEWEST evidence, not the first stamp found.
+    check("the newest stamp across both signals wins",
+          not remediation.is_stale(
+              {"signals": {"failing"},
+               "failing_runs": [{"at": triage_days_ago(30)}],
+               "usage": {"last_run_at": iso_days_ago(1)}}, CFG))
+
+    # (f) the knob: threshold and off-switch.
+    eight = {"signals": {"failing"}, "failing_runs": [{"at": iso_days_ago(8)}],
+             "usage": None}
+    six = {"signals": {"failing"}, "failing_runs": [{"at": iso_days_ago(6)}],
+           "usage": None}
+    check("older than stale_after_days is stale", remediation.is_stale(eight, CFG))
+    check("younger than stale_after_days is not",
+          not remediation.is_stale(six, CFG))
+    check("stale_after_days: 0 switches the guard off",
+          not remediation.is_stale(eight, dict(CFG, stale_after_days=0)))
+    check("load_config defaults stale_after_days to 7 when absent",
+          remediation.load_config(Path("/nonexistent/fleet.yml"))[
+              "stale_after_days"] == 7)
+    check("the committed _data/fleet.yml declares the knob",
+          (remediation.load_yaml(remediation.FLEET_DEFAULT).get("remediation")
+           or {}).get("stale_after_days") is not None)
+
+    # (g) the doctor agent must READ the age before spending a slot on it.
+    stale_md = remediation.render(
+        [dict(aged[-1], _where="submodule")], CFG, HUB, usage(), triage(),
+        {"total": 2, "deduped": 0, "retired": 0})
+    check("the rendered entry states the age", "no run since" in stale_md)
+    check("…and names the config key", "stale_after_days" in stale_md)
+    check("…and says it was de-prioritised, not dropped",
+          "not** dropped" in stale_md)
+    live_md = remediation.render(
+        [dict(aged[0], _where="submodule")], CFG, HUB, usage(), triage(),
+        {"total": 2, "deduped": 0, "retired": 0})
+    check("a live candidate carries no stale note", "no run since" not in live_md)
 
     # --- no verdicts ≠ 0% (actions_analytics) ------------------------------- #
     # germinate's committed record read `failure: 0` beside `success_rate_pct:

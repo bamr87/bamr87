@@ -58,8 +58,11 @@ LEDGER_DEFAULT = Path(
 # Note: claude-sonnet-5 has intro pricing ($2/$10) through 2026-08-31; the
 # list price is used so estimates stay comparable over time.
 PRICING: dict[str, dict[str, float]] = {
+    "claude-fable-5-1": {"in": 10.0, "out": 50.0},
+    "claude-mythos-5-1": {"in": 10.0, "out": 50.0},
     "claude-fable-5":   {"in": 10.0, "out": 50.0},
     "claude-mythos-5":  {"in": 10.0, "out": 50.0},
+    "claude-opus-5":    {"in": 5.0,  "out": 25.0},
     "claude-opus-4-8":  {"in": 5.0,  "out": 25.0},
     "claude-opus-4-7":  {"in": 5.0,  "out": 25.0},
     "claude-opus-4-6":  {"in": 5.0,  "out": 25.0},

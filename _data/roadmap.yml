@@ -955,7 +955,7 @@
   title: Fleet Studio counterpart — the harness inventory as GitFactory's consumed fleet model
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
-  status: approved
+  status: shipped
   priority: P1
   effort: S
   category: enhancement

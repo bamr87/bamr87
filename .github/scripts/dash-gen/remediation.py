@@ -29,6 +29,27 @@ Without them, three `workflow_dispatch` runs five minutes apart ending green
 score 33% success and take a remediation slot — which is what happened to a
 healthy, switched-off workflow in bamr87/irony-works (bamr87/bamr87#92).
 
+A third guard reads the clock rather than the verdict:
+
+  stale_after_days          the latest run on record is older than this and
+                            nothing has run since; de-prioritise, never drop.
+
+Both signals above are point-in-time about the VERDICT and timeless about WHEN.
+For a workflow whose trigger is rare (`issues: opened`, `workflow_dispatch`, a
+weekly cron) the only thing that can clear a red is a fresh green run that
+nothing is going to produce — so a resolved incident holds a slot forever
+(bamr87/bamr87#200: gitorio Factory 1, red from a model-side outage that lifted
+on 2026-08-25, never re-triggered). Note the asymmetry with the other two:
+
+    Suppress a signal only on POSITIVE EVIDENCE OF HEALTH.
+    Down-rank it on ABSENCE OF EVIDENCE.
+
+`is_superseded` may suppress outright because a later green run PROVES the
+workflow works. Staleness proves nothing — a `workflow_dispatch`-only deploy
+broken for three weeks is stale AND genuinely broken — so a stale candidate stays
+in the queue and merely sorts below every live one of the same severity, where
+the cap can push it off today's run without deleting the coverage.
+
 Merging matters: the worst offenders are usually BOTH — a workflow that is red
 AND burning 77 minutes a run is one problem, and filing two issues about it (as
 the old split loops did — actions-review filed one, daily-repo-analysis filed
@@ -57,6 +78,7 @@ GITHUB_OUTPUT set it emits `has_candidates`, `candidate_count`, and
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
 import re
@@ -125,6 +147,7 @@ def load_config(path: Path) -> dict:
         "slow_p95_min": cfg.get("slow_p95_min", 20),
         "supersede_on_success": cfg.get("supersede_on_success", True),
         "interactive_dispatch_pct": cfg.get("interactive_dispatch_pct", 60),
+        "stale_after_days": cfg.get("stale_after_days", 7),
         "severity": sev,
     }
 
@@ -324,6 +347,91 @@ def is_interactive(w: dict, cfg: dict) -> bool:
     return share >= cfg["interactive_dispatch_pct"]
 
 
+# --------------------------------------------------------------------------- #
+# guard 3 — staleness (reads the clock, not the verdict)
+# --------------------------------------------------------------------------- #
+# The two signals timestamp their runs DIFFERENTLY and neither is going to change
+# for the other's benefit: actions_usage.yml writes ISO-8601 with an offset
+# (`2026-08-21T08:36:19+00:00`, straight off the API), fleet_triage.yml writes a
+# human-readable `"%Y-%m-%d %H:%M UTC"` for the /triage/ page. PyYAML hands back a
+# real `datetime` for either shape when the stamp was written unquoted, which is a
+# third representation of the same value. Read all of them.
+TRIAGE_TIME_FMT = "%Y-%m-%d %H:%M UTC"
+
+
+def parse_run_time(value) -> dt.datetime | None:
+    """Parse a run timestamp from either signal into an aware UTC datetime.
+
+    Returns None for anything unreadable — a missing key, fleet_triage's `"?"`
+    placeholder for a run with no creation time, or a format neither signal
+    produces. Every caller treats None as FRESH: a guard that cannot read a clock
+    must never invent staleness, because the cost of a false stale is a real
+    failure quietly losing its rank.
+    """
+    if isinstance(value, dt.datetime):
+        parsed = value
+    elif isinstance(value, dt.date):
+        parsed = dt.datetime(value.year, value.month, value.day)
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text or text == "?":
+            return None
+        try:
+            parsed = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                parsed = dt.datetime.strptime(text, TRIAGE_TIME_FMT)
+            except ValueError:
+                return None
+    else:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(dt.timezone.utc)
+
+
+def latest_run_at(cand: dict) -> dt.datetime | None:
+    """Newest run on record for a candidate, across BOTH signals.
+
+    A merged candidate can carry a stamp from either side, and the NEWEST one is
+    what staleness is about — if the usage window saw a run yesterday, an
+    eight-day-old entry in `failing_runs` says nothing about whether the workflow
+    is idle.
+    """
+    stamps = [parse_run_time((cand.get("usage") or {}).get("last_run_at"))]
+    stamps += [parse_run_time(r.get("at")) for r in cand.get("failing_runs") or []]
+    seen = [s for s in stamps if s is not None]
+    return max(seen) if seen else None
+
+
+def run_age_days(cand: dict, now: dt.datetime | None = None) -> float | None:
+    """Days since the candidate's newest recorded run, or None if unknown."""
+    at = latest_run_at(cand)
+    if at is None:
+        return None
+    now = now or dt.datetime.now(dt.timezone.utc)
+    return max(0.0, (now - at).total_seconds() / 86400.0)
+
+
+def is_stale(cand: dict, cfg: dict, now: dt.datetime | None = None) -> bool:
+    """Has this candidate simply not RUN since it went red?
+
+    Both other guards ask what the latest verdict WAS; this one asks how long ago
+    it was reached. Nothing else in the queue does — which is why a rarely
+    triggered workflow's resolved incident is re-queued at full `failing`
+    severity every morning, forever, on the strength of a run from last week.
+
+    The timestamp is already on both signals and was being carried for display
+    only, so this costs no extra API call. Set `stale_after_days: 0` to switch
+    the guard off.
+    """
+    limit = cfg.get("stale_after_days") or 0
+    if limit <= 0:
+        return False
+    age = run_age_days(cand, now)
+    return age is not None and age > limit
+
+
 def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
     severity = cfg["severity"]
@@ -397,6 +505,9 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
                 "sched_pct": w.get("sched_pct"),
                 "dispatch_pct": w.get("dispatch_pct"),
                 "last_conclusion": w.get("last_conclusion"),
+                # Carried for the staleness guard as well as for display: this is
+                # WHEN the verdict above was reached.
+                "last_run_at": w.get("last_run_at"),
                 "type": w.get("type"),
             },
         }
@@ -419,19 +530,26 @@ def merge(failing: dict[str, dict], expensive: dict[str, dict]) -> list[dict]:
     return list(merged.values())
 
 
-def score(cand: dict, cfg: dict) -> float:
-    """Rank by strongest signal, tie-broken by wasted minutes then total spend.
+def score(cand: dict, cfg: dict) -> tuple[float, float, float]:
+    """Rank by strongest signal, then FRESHNESS, then wasted minutes and spend.
 
-    Wasted minutes come second on purpose: a red workflow that runs twice a week
+    Wasted minutes come last on purpose: a red workflow that runs twice a week
     matters more than a green one that is merely expensive, because the red one
     is also blocking whatever it gates.
+
+    Freshness sits between the two as its own component rather than as a penalty
+    subtracted from a single number, so "a stale candidate sorts below every live
+    one of the same severity" holds unconditionally. A penalty would have to be
+    large enough to beat the spend term, which is unbounded — and a big enough
+    `waste_min` would quietly buy a stale candidate its rank back. Ordering
+    within a (severity, freshness) group is exactly what it was before.
     """
     severity = cfg["severity"]
     strongest = max((severity.get(s, 0) for s in cand["signals"]), default=0)
     usage = cand.get("usage") or {}
-    return (strongest * 1000.0
-            + float(usage.get("waste_min") or 0) * 2.0
-            + float(usage.get("total_min") or 0) * 0.1)
+    spend = (float(usage.get("waste_min") or 0) * 2.0
+             + float(usage.get("total_min") or 0) * 0.1)
+    return (float(strongest), 0.0 if is_stale(cand, cfg) else 1.0, spend)
 
 
 def classify(cand: dict, hub: str) -> str:
@@ -518,6 +636,18 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
         L.append("")
         L.append(doctor_marker(c["key"]))
         L.append("")
+
+        if is_stale(c, cfg):
+            at = latest_run_at(c)
+            age = run_age_days(c) or 0.0
+            L.append(f"- **⚠ Stale signal:** latest run {at.strftime('%Y-%m-%d')} "
+                     f"({int(age)}d ago, no run since) — older than "
+                     f"`remediation.stale_after_days` ({cfg['stale_after_days']}d). "
+                     "De-prioritised, **not** dropped: a rarely triggered workflow "
+                     "cannot clear its own red, so this failure may already be "
+                     "resolved — or may have been broken the whole time. Confirm it "
+                     "is still live (re-run it, or trigger it) BEFORE spending the "
+                     "slot on a fix.")
 
         if c["failing_runs"]:
             L.append(f"- **Currently failing** ({len(c['failing_runs'])} recorded):")
