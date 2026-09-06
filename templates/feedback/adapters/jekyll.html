@@ -1,0 +1,35 @@
+{%- comment -%}
+  ===================================================================
+  FLEET-FEEDBACK — Jekyll adapter for the universal feedback widget
+  ===================================================================
+  Path: _includes/custom/body-end.html  (or include from it)
+  Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB). Kit: templates/feedback.
+
+  Renders <fleet-feedback> on every page when site.page_feedback.enabled
+  is true. Sites on the zer0-mistakes theme already get the theme's richer
+  widget from _layouts/root.html; use this adapter on non-theme Jekyll sites
+  (MkDocs users: paste the same two tags into overrides/main.html).
+
+  Requires: assets/js/fleet-feedback.js vendored from the kit.
+  Config (_config.yml):
+    repository: owner/name          # required
+    branch: main
+    page_feedback:
+      enabled: true
+      assignee: copilot             # '' to disable
+      default_labels: [page-feedback]
+  ===================================================================
+{%- endcomment -%}
+{%- if site.page_feedback.enabled -%}
+{%- assign pf_labels = site.page_feedback.default_labels | default: "page-feedback" | join: "," -%}
+<script src="{{ '/assets/js/fleet-feedback.js' | relative_url }}"></script>
+<fleet-feedback
+  repo="{{ site.repository }}"
+  branch="{{ site.branch | default: 'main' }}"
+  source="{{ page.path }}"
+  page-title="{{ page.title | default: site.title | escape }}"
+  labels="{{ pf_labels }}"
+  assignee="{{ site.page_feedback.assignee | default: 'copilot' }}"
+  env="{{ jekyll.environment }}"
+  {%- if site.data.feedback_types %} types="{{ '/feedback-types.json' | relative_url }}"{%- endif %}></fleet-feedback>
+{%- endif -%}

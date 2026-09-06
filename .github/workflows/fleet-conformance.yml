@@ -1,0 +1,112 @@
+name: fleet-conformance
+
+# Reusable Universal Project Standard (UPS) gate — the in-repo half of the
+# spec in bamr87/bamr87 specs/. A member repo adopts it with the short caller in
+# templates/conformance/conformance.yml (artifact `conformance` in
+# standardize-fanout / tools/fanout.sh). It checks out the hub beside the
+# caller's tree and runs tools/conformance.py, so the rules are versioned once
+# and every repo is measured by the same checker the hub uses for
+# _data/conformance.yml.
+#
+# Advisory by default (`gate: false`): failures land in the job summary and a
+# JSON artifact, and the workflow stays green. A repo flips `gate: true` once
+# its MUST rows pass, which is what turns the spec into a PR-blocking check
+# where the code lives. Static and offline: file presence, byte parity, greps —
+# no build, no network beyond the two checkouts.
+#
+# Call it from a member repo:
+#   jobs:
+#     conformance:
+#       uses: bamr87/bamr87/.github/workflows/fleet-conformance.yml@main
+#       with: { kinds: "app,api" }   # optional — detected from the tree when empty
+
+on:
+  workflow_call:
+    inputs:
+      kinds:
+        description: "Comma-separated stack kinds (site,app,api,lib,cli,ext,content); detected when empty"
+        type: string
+        default: ""
+      tier:
+        description: "Standardization tier the repo is held to (active|experiment|content)"
+        type: string
+        default: "active"
+      gate:
+        description: "Fail the job on any MUST failure"
+        type: boolean
+        default: false
+      hub-ref:
+        description: "bamr87/bamr87 ref to take the spec + checker from"
+        type: string
+        default: "main"
+      python-version:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_V: ${{ inputs.python-version || vars.PYTHON_VERSION || '3.12' }}
+
+jobs:
+  conformance:
+    name: UPS conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v7
+
+      - name: Checkout the hub (spec + checker)
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref }}
+          path: .fleet-hub
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_V }}
+
+      - name: Install checker dependency
+        run: python -m pip install --quiet --upgrade pyyaml
+
+      - name: Run the UPS checker
+        id: run
+        env:
+          KINDS: ${{ inputs.kinds }}
+          TIER: ${{ inputs.tier }}
+        run: |
+          set -euo pipefail
+          args=(check . --hub .fleet-hub --tier "$TIER")
+          [ -n "$KINDS" ] && args+=(--kinds "$KINDS")
+          python3 .fleet-hub/tools/conformance.py "${args[@]}" --json > conformance.json
+          python3 .fleet-hub/tools/conformance.py "${args[@]}" | tee conformance.txt
+          must=$(python3 -c 'import json;print(json.load(open("conformance.json"))["must_failed"])')
+          echo "must_failed=$must" >> "$GITHUB_OUTPUT"
+          {
+            echo "## UPS conformance"
+            echo
+            echo '```text'
+            cat conformance.txt
+            echo '```'
+            echo
+            echo "Spec: [bamr87/bamr87 specs/](https://github.com/bamr87/bamr87/tree/${{ inputs.hub-ref }}/specs) · rows without a machine check are counted as manual."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ups-conformance
+          path: |
+            conformance.json
+            conformance.txt
+          retention-days: 14
+
+      - name: Gate on MUST failures
+        if: ${{ inputs.gate && steps.run.outputs.must_failed != '0' }}
+        run: |
+          echo "::error::${{ steps.run.outputs.must_failed }} UPS MUST requirement(s) failing — see the job summary."
+          exit 1

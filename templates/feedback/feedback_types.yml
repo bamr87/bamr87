@@ -1,0 +1,137 @@
+# templates/feedback/feedback_types.yml — the fleet request-type taxonomy for
+# the <fleet-feedback> widget (spec: specs/FEEDBACK.md, UPS-FB-20/21).
+#
+# Copied into a repo as _data/feedback_types.yml (Jekyll) or served as JSON
+# (`types="/feedback-types.json"`). The widget embeds this same list as its
+# built-in fallback, so a repo that ships nothing still gets these types.
+#
+# Schema (per entry):
+#   id           slug — issue title tag, analytics, and the hidden body marker
+#   label        text shown in the type selector
+#   icon         Bootstrap Icons class (Jekyll theme only)
+#   group        "This page" | "The site"
+#   scope        page | site
+#   description  one-line helper under the label
+#   labels       GitHub labels — every one MUST exist in the repo (GitHub drops
+#                unknown labels from a prefilled URL). The type labels map onto
+#                the fleet issue-pipeline taxonomy in _data/fleet.yml
+#                (bug feature docs chore ci refactor test security question)
+#                plus optional area:* labels. The marker label from the
+#                widget's `labels` attribute (default page-feedback) is added.
+#   agent        true → assignee + directive attached; issue is pipeline-eligible
+#   directive    short agent instruction (rides in the URL budget — keep short)
+#   placeholder  textarea placeholder for this type
+
+- id: fix-page
+  label: Report a problem
+  icon: bi-bug
+  group: This page
+  scope: page
+  description: A typo, broken link, wrong information, or something rendering badly
+  labels: [bug]
+  agent: true
+  directive: >-
+    Reproduce and fix the reported defect on the page identified in Page
+    context. Keep the change minimal and surgical; verify with the project build.
+  placeholder: What is wrong, where on the page, and what did you expect instead?
+
+- id: improve-page
+  label: Improve this page
+  icon: bi-stars
+  group: This page
+  scope: page
+  description: Polish the copy, structure, or presentation
+  labels: [docs]
+  agent: true
+  directive: >-
+    Act as a content editor for the page in Page context. Tighten copy, fix
+    grammar, improve heading hierarchy — without changing the core message or
+    breaking links.
+  placeholder: What would make this page clearer, tighter, or more useful?
+
+- id: expand-page
+  label: Add missing detail
+  icon: bi-arrows-angle-expand
+  group: This page
+  scope: page
+  description: Add depth, examples, or a section a reader would expect
+  labels: [docs]
+  agent: true
+  directive: >-
+    Expand the page in Page context with concrete examples, prerequisites, and
+    any expected-but-missing sections. Preserve tone and front matter.
+  placeholder: What is missing? Which examples or sections would help?
+
+- id: update-page
+  label: Flag outdated content
+  icon: bi-arrow-clockwise
+  group: This page
+  scope: page
+  description: Stale versions, dead links, or old screenshots
+  labels: [docs]
+  agent: true
+  directive: >-
+    Audit the page in Page context for stale versions, dead links, and outdated
+    screenshots; refresh them and bump lastmod.
+  placeholder: What is out of date? Paste the stale value or link if you can.
+
+- id: accessibility
+  label: Accessibility issue
+  icon: bi-universal-access
+  group: This page
+  scope: page
+  description: Contrast, keyboard, screen-reader, or focus problems
+  labels: [bug, "area:a11y"]
+  agent: true
+  directive: >-
+    Audit the page in Page context against WCAG 2.1 AA for the reported barrier
+    and propose concrete fixes.
+  placeholder: What barrier did you hit? Which assistive tech or input method?
+
+- id: ui-ux
+  label: UI / UX improvement
+  icon: bi-palette
+  group: The site
+  scope: site
+  description: A design or usability refinement
+  labels: [feature]
+  agent: true
+  directive: >-
+    Propose a token-first UI/UX refinement using the page in Page context as
+    the starting example. Cover responsive behaviour, dark mode, and accessibility.
+  placeholder: What feels off, and how might it look or behave instead?
+
+- id: performance
+  label: Performance
+  icon: bi-speedometer2
+  group: The site
+  scope: site
+  description: Slow load, layout shift, or heavy assets
+  labels: [bug, "area:perf"]
+  agent: true
+  directive: >-
+    Profile the page in Page context (LCP, CLS, INP), identify the bottleneck,
+    and propose fixes.
+  placeholder: What felt slow? On what device / connection?
+
+- id: feature
+  label: Feature request
+  icon: bi-lightbulb
+  group: The site
+  scope: site
+  description: Propose a new capability
+  labels: [feature]
+  agent: false
+  directive: ""
+  placeholder: What should it do, and who benefits?
+
+- id: question
+  label: Ask a question
+  icon: bi-question-circle
+  group: The site
+  scope: site
+  description: Something unclear — not necessarily a bug
+  labels: [question]
+  agent: false
+  directive: ""
+  placeholder: What are you trying to do, and where did you get stuck?

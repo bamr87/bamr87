@@ -1,0 +1,15 @@
+{# templates/includes/fleet-feedback.html — Django / Rails (ERB equivalent) adapter. #}
+{# Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB-32). Include once in base.html before </body>. #}
+{# Requires: static/js/fleet-feedback.js vendored from the kit; settings FLEET_REPO, FLEET_BRANCH. #}
+{% load static %}
+<script src="{% static 'js/fleet-feedback.js' %}"></script>
+<fleet-feedback
+  repo="{{ FLEET_REPO }}"
+  branch="{{ FLEET_BRANCH|default:'main' }}"
+  page-title="{% block feedback_title %}{{ request.resolver_match.view_name }}{% endblock %}"
+  labels="page-feedback"
+  assignee="copilot"
+  env="{% if debug %}development{% else %}production{% endif %}"></fleet-feedback>
+{# Inline, no-JS trigger for the page action bar (progressive enhancement): #}
+<a href="https://github.com/{{ FLEET_REPO }}/issues/new?template=page_feedback.yml&labels=page-feedback"
+   data-fleet-feedback-open data-type="improve-page" target="_blank" rel="noopener noreferrer">Improve this page</a>

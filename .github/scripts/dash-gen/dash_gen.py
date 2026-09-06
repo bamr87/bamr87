@@ -21,6 +21,11 @@ Subcommands:
            LOCAL-ONLY and ephemeral — not part of `all`, never runs in CI.
            Implemented in ai_activity.py.
 
+  ai-check Audit that ledger against ccusage — a third-party reader of the same
+           transcripts — per (day, model), on tokens as well as cost, so a
+           pricing-table, alias, or DEDUPE regression stops being silent.
+           Reached as `dash ai check`. Implemented in ai_reconcile.py.
+
   remediate Merge the fleet's failing + expensive workflow signals into ONE
            ranked, deduped, capped fix queue and emit the work order that
            drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
@@ -30,6 +35,13 @@ Subcommands:
            completeness/priority/size/autonomy, and emit one capped work order
            per tier plus the committed _data/issue_pipeline.yml snapshot.
            Drives issue-pipeline.yml. Implemented in issue_pipeline.py.
+
+  lake     The LOCAL data lake of the local stack: `sync` extracts what GitHub
+           holds (runs → jobs → steps, run logs, claude-code-action facts,
+           issues, workflow files, .factory/** blueprints) into
+           .dash-lake/fleet.sqlite; `status` reports it; `export` turns agent
+           runs and local Claude Code sessions into OpenInference traces for
+           Phoenix. Gitignored, never committed. Implemented in fleet_lake.py.
 
   all      Run health then readme.
 
@@ -51,17 +63,21 @@ import sys
 from pathlib import Path
 
 import ai_activity
+import ai_reconcile
 import ai_usage_collector
 import actions_analytics
 import cv_fragment
 import daily_report
 import engagements
 import evolution
+import fleet_lake
 import fleet_triage
 import harness
+import harness_registry
 import issue_pipeline
 import reconcile
 import remediation
+import schema_vendor
 
 try:
     import yaml
@@ -425,6 +441,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     ai_activity.add_arguments(p_ai)
 
+    p_ai_check = sub.add_parser(
+        "ai-check",
+        help="reconcile the ai-activity ledger against ccusage (local-only; `dash ai check`)",
+    )
+    ai_reconcile.add_arguments(p_ai_check)
+
     p_ai_usage = sub.add_parser(
         "ai-usage",
         help="fleet Claude Code usage ledger -> ai_usage.yml (committed, daily-refreshed)",
@@ -453,6 +475,21 @@ def main(argv: list[str] | None = None) -> int:
         help="six-layer harness scorecard + trip wires -> harness_health.yml (committed, daily-refreshed)",
     )
     harness.add_arguments(p_harness)
+
+    p_harnesses = sub.add_parser(
+        "harnesses",
+        help="fleet AI-harness + schedule inventory -> harness_registry.yml "
+             "(committed, daily-refreshed; --gaps prints fan-out targets)",
+    )
+    harness_registry.add_arguments(p_harnesses)
+
+    p_lake = sub.add_parser(
+        "lake",
+        help="the local data lake: `sync` extracts GitHub runs/jobs/steps/logs/issues/workflows/"
+             ".factory into .dash-lake/fleet.sqlite, `status` reports it, `export` ships "
+             "OpenInference traces to Phoenix (local-only; never committed)",
+    )
+    fleet_lake.add_arguments(p_lake)
 
     p_remediate = sub.add_parser(
         "remediate",
@@ -483,6 +520,12 @@ def main(argv: list[str] | None = None) -> int:
         help="accrue engagement actuals from usage evidence + recompute variance -> engagements.yml",
     )
     engagements.add_ledger_arguments(p_ledger)
+
+    p_vendor = sub.add_parser(
+        "vendor",
+        help="compare the vendored Pyramid Schema kit against upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files",
+    )
+    schema_vendor.add_arguments(p_vendor)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

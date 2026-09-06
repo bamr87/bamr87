@@ -1,0 +1,31 @@
+name: Conformance
+
+# The hub practices what it seeds: this is the same thin caller the
+# `conformance` fan-out artifact drops into member repos
+# (templates/conformance/conformance.yml), except that it references the
+# reusable workflow and the checker from THIS checkout — so a PR that changes
+# the spec, the checker, or fleet-conformance.yml is validated by running it,
+# before it can reach `main` and the fleet. Advisory (gate: false): the hub is
+# a `site`-kind repo that is also the control plane, and its own MUST gaps are
+# listed in specs/CONFORMANCE.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conformance:
+    uses: ./.github/workflows/fleet-conformance.yml
+    with:
+      kinds: site
+      tier: active
+      gate: false
+      hub-ref: ${{ github.event.pull_request.head.sha || github.sha }}

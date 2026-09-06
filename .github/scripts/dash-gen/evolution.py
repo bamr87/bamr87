@@ -30,6 +30,7 @@ The brief (`evolution-workorders/evolution-workorder-<name>.md`):
   2. repository facts from the registry;
   3. the fleet's CURRENT SIGNALS for the repo, read from the committed
      `_data/fleet_triage.yml`: attention level, failing workflows, open issues
+     `_data/conformance.yml`: failing Universal Project Standard rows (the agent's adoption lane)
      and PRs. These make the pass evidence-led instead of speculative, and
      they draw the lane boundary — failing workflows belong to the fleet
      doctor and open issues to the issue pipeline, so the agent is told where
@@ -62,6 +63,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_DEFAULT = REPO_ROOT / "_data" / "projects.yml"
 TRIAGE_DEFAULT = REPO_ROOT / "_data" / "fleet_triage.yml"
+CONFORMANCE_DEFAULT = REPO_ROOT / "_data" / "conformance.yml"
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
 PROMPT_DIR_DEFAULT = REPO_ROOT / ".github" / "evolution"
 OUT_DIR_DEFAULT = REPO_ROOT / "evolution-workorders"
@@ -77,7 +79,7 @@ DEFAULTS: dict = {
     "label": "ai-evolution",           # created on demand in the target repo
     "max_targets": 6,                  # repos evolved per run; the rest are logged and dropped
     "max_parallel": 2,                 # concurrent Claude passes
-    "max_turns": 60,                   # per repo — one repo per job
+    "max_turns": 120,                  # per repo — one repo per job; above the 63 observed in run #1
     "skip_when_open_pr": True,         # one open evolution PR per repo at a time
     "signals": {"max_issues": 8, "max_prs": 5},
 }
@@ -317,6 +319,47 @@ def render_signals(rec: dict | None, triage: dict | None, cfg: dict) -> str:
     return "\n".join(lines)
 
 
+def find_conformance(conf: dict | None, nwo: str) -> dict | None:
+    if not conf:
+        return None
+    for rec in conf.get("repos") or []:
+        if (rec.get("nwo") or "").lower() == nwo.lower():
+            return rec
+    return None
+
+
+def render_conformance(rec: dict | None, conf: dict | None, cfg: dict) -> str:
+    """The Universal Project Standard gaps for this repo — the adoption lane.
+    Unlike the triage signals (other loops' lanes), these ARE for this agent:
+    each failing row names a spec file and, via _data/references.yml, a proven
+    implementation to lift. MUST rows first, capped so the brief stays a brief."""
+    if rec is None:
+        if not conf:
+            return ("No conformance snapshot was available (`_data/conformance.yml` missing) — "
+                    "run `tools/dash spec check .` in the target and act on its MUST rows.")
+        return (f"The conformance snapshot ({conf.get('generated_at', '?')}) has no entry for this "
+                "repository — run `tools/dash spec check .` in the target and act on its MUST rows.")
+    max_rows = int((cfg.get("signals") or {}).get("max_conformance", 8))
+    failing = sorted(rec.get("failing") or [], key=lambda x: (x.get("level") != "MUST", x.get("id", "")))
+    lines = [f"Snapshot: `_data/conformance.yml`, generated {conf.get('generated_at', '?')} "
+             f"(UPS {conf.get('spec_version', '?')}, checker {conf.get('checker_version', '?')}). "
+             f"Kinds `{','.join(rec.get('kinds') or [])}`, tier `{rec.get('tier', '?')}`: "
+             f"{rec.get('passed', 0)}/{rec.get('checked', 0)} machine checks pass, "
+             f"{rec.get('must_failed', 0)} MUST and {rec.get('should_failed', 0)} SHOULD failing, "
+             f"{rec.get('manual', 0)} rows need a human/agent read of the spec.", ""]
+    if not failing:
+        lines.append("- **No failing machine checks** — spend the pass on the manual rows and the goals below.")
+        return "\n".join(lines)
+    lines.append("This is YOUR lane: close as many of these as fit a small, obviously-correct PR, MUST first. "
+                 "Each id is a row in `specs/<file>` in bamr87/bamr87; `_data/references.yml` there names a "
+                 "fleet repo that already implements it — lift, don't invent.")
+    for f in failing[:max_rows]:
+        lines.append(f"  - `{f.get('id')}` ({f.get('level')}) — {f.get('detail')} → `{f.get('spec')}`")
+    if len(failing) > max_rows:
+        lines.append(f"  - … {len(failing) - max_rows} more in the snapshot")
+    return "\n".join(lines)
+
+
 def render_template(text: str, subs: dict[str, str]) -> str:
     for token, value in subs.items():
         text = text.replace(token, value)
@@ -324,7 +367,7 @@ def render_template(text: str, subs: dict[str, str]) -> str:
 
 
 def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str,
-                 focus: str, now: str) -> str:
+                 focus: str, now: str, conformance: dict | None = None) -> str:
     prompt_dir = Path(prompt_dir)
     stack = ", ".join(t.get("stack") or []) or "unknown"
     subs = {
@@ -370,6 +413,10 @@ def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str
         "",
         render_signals(find_signals(triage, t["nwo"]), triage, cfg),
         "",
+        "## Conformance gaps (Universal Project Standard — this run's adoption lane)",
+        "",
+        render_conformance(find_conformance(conformance, t["nwo"]), conformance, cfg),
+        "",
         "## Focus for this run",
         "",
         focus.strip() if focus and focus.strip() else
@@ -388,7 +435,7 @@ def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str
 # --------------------------------------------------------------------------- #
 def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: str = "all",
                focus: str = "", prompt_dir: Path | str = PROMPT_DIR_DEFAULT, gh=_gh_json,
-               now: str | None = None) -> tuple[dict, dict[str, str]]:
+               now: str | None = None, conformance: dict | None = None) -> tuple[dict, dict[str, str]]:
     """The whole deterministic step: select → dedupe → brief. `gh=None` skips
     the open-PR check entirely (offline / `force`)."""
     now = now or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -400,7 +447,7 @@ def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: 
     include: list[dict] = []
     for t in selected:
         fname = f"evolution-workorder-{t['name']}.md"
-        briefs[fname] = render_brief(t, cfg, triage, prompt_dir, focus, now)
+        briefs[fname] = render_brief(t, cfg, triage, prompt_dir, focus, now, conformance)
         include.append({
             "name": t["name"],
             "nwo": t["nwo"],
@@ -440,6 +487,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="project registry (default _data/projects.yml)")
     parser.add_argument("--triage", default=str(TRIAGE_DEFAULT), metavar="PATH",
                         help="fleet triage snapshot for the signals (default _data/fleet_triage.yml)")
+    parser.add_argument("--conformance", default=str(CONFORMANCE_DEFAULT), metavar="PATH",
+                        help="fleet UPS conformance snapshot for the adoption lane (default _data/conformance.yml)")
     parser.add_argument("--config", default=str(FLEET_DEFAULT), metavar="PATH",
                         help="fleet config (default _data/fleet.yml)")
     parser.add_argument("--prompt-dir", default=str(PROMPT_DIR_DEFAULT), metavar="DIR",
@@ -465,9 +514,10 @@ def run(args: argparse.Namespace) -> int:
 
     registry = load_yaml(args.registry) or []
     triage = load_yaml(args.triage) if Path(args.triage).exists() else None
+    conformance = load_yaml(args.conformance) if Path(args.conformance).exists() else None
     plan, briefs = build_plan(registry, cfg, triage, target=args.target, focus=args.focus,
                               prompt_dir=Path(args.prompt_dir),
-                              gh=None if args.no_dedupe else _gh_json)
+                              gh=None if args.no_dedupe else _gh_json, conformance=conformance)
 
     if not args.no_briefs and briefs:
         out = Path(args.out_dir)

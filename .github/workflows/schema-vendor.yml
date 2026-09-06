@@ -1,0 +1,186 @@
+name: 🔺 Schema Vendor Sync
+
+# The upward half of the Pyramid Schema loop.
+#
+# schema-fanout.yml pushes the kit DOWN into submodules. tools/check-drift.sh
+# check (i) compares each submodule's copy against the HUB's. Nothing compared
+# the hub's copy against UPSTREAM — so bamr87/SCHEMA could move, or sit still
+# for months, and every gate in the fleet would still read green while
+# `templates/schema/VERSION` quietly asserted a provenance nobody re-checked.
+# That stamp was maintained by hand, which is to say by memory.
+#
+# This is that check, weekly and content-addressed. It reads upstream's
+# DISTRIBUTION.yml (the manifest bamr87/SCHEMA generates from its own tree) and
+# compares every vendored file against the hub's copy at the parity the
+# manifest declares:
+#
+#   strict (tools/schema_lint.py)  must be byte-identical. Re-vendored
+#                                  automatically and opened as a PR.
+#   text   (template, snippet)     may be reflowed/requoted here — they are,
+#                                  deliberately — but must not differ in
+#                                  substance. Drift is REPORTED as an issue,
+#                                  never auto-written: overwriting would throw
+#                                  away the local adaptation every week.
+#
+# Same routing rule as reconcile-registry.yml: unambiguous machine facts become
+# a PR, judgement calls become an issue. Neither ever pushes to main.
+
+on:
+  schedule:
+    # Mondays 08:00 UTC — after upstream's own weekly self-audit (07:13),
+    # so a week that broke upstream is already visible there when this runs.
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Re-vendor the strict-parity files and open a PR'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schema-vendor
+  cancel-in-progress: false
+
+env:
+  MARKER: '<!-- schema-vendor -->'
+
+jobs:
+  sync:
+    name: Vendored kit vs upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # Report first, so the routing decision is made from a clean read.
+      # Exit 2 is "upstream unreachable", which is not drift and must not be
+      # dressed up as one — a network blip should never open a PR.
+      - name: Compare against upstream
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          python .github/scripts/dash-gen/dash_gen.py vendor --json > /tmp/vendor.json
+          rc=$?
+          set -e
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::upstream bamr87/SCHEMA unreachable — skipping this run"
+            echo "actionable=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d = json.load(open("/tmp/vendor.json"))
+          mech = sum(1 for f in d["findings"]
+                     if f["kind"] in ("drift-strict", "missing-local"))
+          print(f"actionable={d['actionable']}")
+          print(f"mechanical={mech}")
+          print(f"commit={d['commit']}")
+          PY
+          # Render the summary from the JSON already fetched — a second
+          # invocation would mean a second round trip to upstream, and would
+          # exit non-zero on drift under `set -e`.
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d = json.load(open("/tmp/vendor.json"))
+          print(f"## Vendored kit vs `{d['upstream']}` (`{d['commit'] or 'unknown'}`)\n")
+          print("| file | state | detail |")
+          print("| --- | --- | --- |")
+          for f in d["findings"]:
+              print(f"| `{f['local'] or f['upstream']}` | {f['kind']} | {f['detail']} |")
+          PY
+
+      # --- mechanical: re-vendor + PR ------------------------------------
+      - name: Re-vendor the strict-parity files
+        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+        run: python .github/scripts/dash-gen/dash_gen.py vendor --apply || true
+
+      - name: Configure Git
+        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
+        uses: ./.github/actions/setup/configure-git
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create pull request
+        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(schema): re-vendor the Pyramid Schema kit from upstream"
+          title: "chore(schema): re-vendor the Pyramid Schema kit from upstream"
+          body: |
+            Automated re-vendor of the Pyramid Schema kit from
+            [bamr87/SCHEMA](https://github.com/bamr87/SCHEMA)
+            (`${{ steps.detect.outputs.commit }}`), by `dash-gen vendor --apply`.
+
+            Only **strict-parity** payload files are written here — today that
+            is `tools/schema_lint.py`, whose contract is byte-identity: a
+            drifted copy means the fleet is passing a *different* gate from the
+            package it claims to vendor.
+
+            Files the hub adapts on purpose (the seed template and the protocol
+            snippet, reflowed to house style) are **never** overwritten by this
+            loop. Substantive drift in those is raised as an issue instead.
+
+            After merge, re-run the schema fan-out so the submodules pick the
+            new linter up: `schema-fanout.yml`, or
+            `tools/fanout.sh --kit schema --target <name> --apply`.
+          branch: chore/schema-vendor-sync
+          delete-branch: true
+          labels: |
+            schema
+            automated
+
+      # --- judgement calls: issue, never auto-written --------------------
+      - name: File / update tracking issue
+        if: steps.detect.outputs.actionable != '0' && steps.detect.outputs.actionable != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/issue_body.md
+          import json, os
+          d = json.load(open("/tmp/vendor.json"))
+          human = [f for f in d["findings"] if f["kind"] in ("drift-text", "unmapped")]
+          if not human:   # nothing a human must decide; the -s test below stops here
+              raise SystemExit(0)
+          print(os.environ["MARKER"])
+          print()
+          print(f"`dash-gen vendor` found drift in the Pyramid Schema kit that a "
+                f"machine must not resolve, against upstream `{d['upstream']}` "
+                f"(`{d['commit'] or 'unknown'}`).\n")
+          print("| file | finding | why it is not auto-applied |")
+          print("| --- | --- | --- |")
+          for f in human:
+              print(f"| `{f['local'] or f['upstream']}` | {f['kind']} | {f['detail']} |")
+          print()
+          print("Resolve by hand: read upstream's version, port the substance, keep "
+                "the local reflow. Then `dash vendor` should read CURRENT.\n")
+          print(f"[Run log]({os.environ['RUN_URL']})")
+          PY
+          if [ ! -s /tmp/issue_body.md ]; then
+            echo "no judgement-call findings — nothing to file"; exit 0
+          fi
+          TITLE="Pyramid Schema kit needs a hand-reviewed re-vendor"
+          existing="$(gh issue list --state open --search "$MARKER in:body" \
+                      --json number --jq '.[0].number // empty' || true)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file /tmp/issue_body.md
+          else
+            gh issue create --title "$TITLE" --body-file /tmp/issue_body.md \
+              --label schema --label automated
+          fi

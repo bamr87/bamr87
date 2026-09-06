@@ -26,6 +26,10 @@ Tier is assigned by (in precedence order): an explicit `tier:` on the registry e
 
 `required` missing → **fail** (red). `recommended` missing → **warn** (amber). Not-expected → grey.
 
+## Beyond presence: the Universal Project Standard
+
+The tiers above say which files a repo must *have*. [`specs/`](../specs/README.md) (UPS 1.0, machine-readable twin [`_data/specs.yml`](../_data/specs.yml)) says what they must *contain* and what every product must *do*: repository layout and file contracts, agent context, quality gates per stack, the design-token and core-component set every UI ships (including the universal feedback → GitHub issue widget from [`templates/feedback/`](../templates/feedback/)), API/error/health conventions, and configuration/logging/security/data rules. Rows are `MUST`/`SHOULD`/`MAY` and bind by stack kind ([`specs/STACKS.md`](../specs/STACKS.md)); adoption order and the 2026-09 fleet gap list are in [`specs/CONFORMANCE.md`](../specs/CONFORMANCE.md). Check a repo with `tools/dash spec check <path>`, snapshot the fleet with `tools/dash spec fleet --write` (→ `_data/conformance.yml`, read by the weekly repo-evolution brief), and gate it in the repo's own CI with the `conformance` fan-out artifact.
+
 ## The artifacts
 
 | Artifact | Satisfied by |

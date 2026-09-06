@@ -1,0 +1,83 @@
+# _data/references.yml — reference implementations the Universal Project
+# Standard (specs/) lifts from. Hand-edited. Each entry names the fleet repo
+# and path that is the canonical example for a set of UPS requirement ids, so
+# an agent adopting a row goes to a proven implementation, not a blank page.
+# Rendered into CATALOG.md by tools/gen-catalog.py.
+#
+# Schema: name, repo (registry name), path, reference_for (UPS ids), note.
+
+- name: Design tokens + skins
+  repo: zer0-mistakes
+  path: _design-system/tokens/, _sass/tokens/, _sass/theme/_skins.scss
+  reference_for: [UPS-FE-01, UPS-FE-02, UPS-FE-03, UPS-FE-04, UPS-FE-05, UPS-FE-07, UPS-FE-09]
+  note: Portable plain-CSS token twin, named z-index scale, CI-checked sync (SYNC.md + scripts/design-system-check.rb).
+- name: Component contract
+  repo: zer0-mistakes
+  path: _includes/components/README.md
+  reference_for: [UPS-FE-30, UPS-FE-31, UPS-FE-32]
+  note: Doc header, defaults-at-top, naming, one a11y requirement per component, tokens not raw values.
+- name: Page shell + extension hooks
+  repo: zer0-mistakes
+  path: _layouts/root.html, _includes/custom/
+  reference_for: [UPS-FE-10, UPS-FE-11, UPS-FE-35]
+  note: One main landmark, skip link, the four consumer override seams.
+- name: Page-feedback widget (theme original)
+  repo: zer0-mistakes
+  path: _includes/components/page-feedback.html, assets/js/page-feedback.js, _data/feedback_types.yml
+  reference_for: [UPS-FB-01, UPS-FB-03, UPS-FB-04, UPS-FB-06, UPS-FB-20, UPS-FB-23]
+  note: The implementation templates/feedback/ was extracted from; keeps the proxy/AI triage mode.
+- name: Consent + analytics gating
+  repo: zer0-mistakes
+  path: _includes/components/cookie-consent.html, _includes/analytics/posthog.html
+  reference_for: [UPS-FE-24, UPS-OPS-14]
+  note: Consent categories, DNT/GPC, production-only gate.
+- name: UX audit gate
+  repo: law-ai
+  path: frontend/scripts/ux_audit.py, frontend/ui/base.css
+  reference_for: [UPS-FE-50, UPS-FE-52, UPS-FE-60]
+  note: 13 machine-checked rules with an exempt marker; single focus ring; named z-scale.
+- name: AppShell with skip link and route states
+  repo: law-ai
+  path: frontend/components/shell/AppShell.tsx, frontend/app/(app)/
+  reference_for: [UPS-FE-10, UPS-FE-11, UPS-FE-16]
+  note: Labelled landmarks, loading/error/not-found route files, roving tabindex hook.
+- name: State set + HTTP client
+  repo: edgar-data-parse
+  path: frontend/src/components/ui/states.tsx, frontend/src/lib/http.ts, frontend/src/lib/toast.tsx
+  reference_for: [UPS-FE-17, UPS-FE-18, UPS-FE-20, UPS-BE-40, UPS-BE-41, UPS-BE-43]
+  note: Loading/Skeleton/Empty/Error + Query wrapper; ApiError with isAuth/isRateLimit; aria-live toaster.
+- name: Token-literal leak test
+  repo: gitorio
+  path: app/src/theme.test.ts
+  reference_for: [UPS-FE-01]
+  note: Asserts only the token file may contain colour literals.
+- name: Webview token isolation
+  repo: zer0-cms
+  path: media/tokens.css, src/webview/shared/dom.ts
+  reference_for: [UPS-FE-06, UPS-OPS-23]
+  note: Only file allowed to name --vscode-* (CI grep); strict CSP with nonce (see also zpl-viewer).
+- name: Forms with validation
+  repo: cv-builder-pro
+  path: src/components/ui/form.tsx, src/context/AuthContext.tsx
+  reference_for: [UPS-FE-19, UPS-BE-51]
+  note: react-hook-form + zod wiring; Firebase auth behind a Protected route.
+- name: Cross-repo data contract
+  repo: cv-builder-pro
+  path: contract/cv.schema.json, scripts/contract-check.mjs
+  reference_for: [UPS-BE-32]
+  note: Vendored JSON Schema from bamr87/cv with a contract gate on both sides.
+- name: Server-rendered shell with meta block
+  repo: barodybroject
+  path: src/parodynews/templates/base.html
+  reference_for: [UPS-FE-25, UPS-FE-06]
+  note: data-bs-theme auto, og meta block, i18n load; the TODO there is the feedback widget.
+- name: PWA manifest + service worker
+  repo: zer0-image-generator
+  path: web/app/views/pwa/
+  reference_for: [UPS-FE-29]
+  note: The fleet's one installable app.
+- name: Evidence bundle credential scrubbing
+  repo: bamr87
+  path: tools/issue-evidence.sh
+  reference_for: [UPS-OPS-12, UPS-OPS-24]
+  note: Redaction list for token prefixes; never executes commands from issue bodies.
