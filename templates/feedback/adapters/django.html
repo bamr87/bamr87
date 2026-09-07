@@ -1,15 +1,28 @@
 {# templates/includes/fleet-feedback.html — Django / Rails (ERB equivalent) adapter. #}
-{# Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB-32). Include once in base.html before </body>. #}
-{# Requires: static/js/fleet-feedback.js vendored from the kit; settings FLEET_REPO, FLEET_BRANCH. #}
+{# Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB-32). Kit: templates/feedback.  #}
+{#                                                                             #}
+{# Two includes, two places:                                                   #}
+{#   {% include 'includes/fleet-feedback-head.html' %}   in <head>, FIRST       #}
+{#   {% include 'includes/fleet-feedback.html' %}        before </body>         #}
+{# The head half is one line — <script src="{% static 'js/fleet-feedback-capture.js' %}"></script> #}
+{# — and it is what makes load-time errors visible to a report.                 #}
+{#                                                                             #}
+{# Requires: static/js/{fleet-feedback,fleet-feedback-capture}.js vendored from #}
+{# the kit, plus a context processor supplying FLEET_REPO / FLEET_BRANCH /      #}
+{# FLEET_VERSION (settings values, not per-request state).                      #}
 {% load static %}
-<script src="{% static 'js/fleet-feedback.js' %}"></script>
+<script src="{% static 'js/fleet-feedback.js' %}" defer></script>
 <fleet-feedback
   repo="{{ FLEET_REPO }}"
   branch="{{ FLEET_BRANCH|default:'main' }}"
-  page-title="{% block feedback_title %}{{ request.resolver_match.view_name }}{% endblock %}"
+  route="{{ request.resolver_match.view_name|default:request.path }}"
+  page-title="{% block feedback_title %}{{ request.path }}{% endblock %}"
   labels="page-feedback"
   assignee="copilot"
+  app-version="{{ FLEET_VERSION }}"
+  {% if FLEET_FEEDBACK_ENDPOINT %}mode="proxy" endpoint="{{ FLEET_FEEDBACK_ENDPOINT }}"{% endif %}
   env="{% if debug %}development{% else %}production{% endif %}"></fleet-feedback>
 {# Inline, no-JS trigger for the page action bar (progressive enhancement): #}
 <a href="https://github.com/{{ FLEET_REPO }}/issues/new?template=page_feedback.yml&labels=page-feedback"
-   data-fleet-feedback-open data-type="improve-page" target="_blank" rel="noopener noreferrer">Improve this page</a>
+   data-fleet-feedback-open data-type="improve-page"
+   target="_blank" rel="noopener noreferrer">Improve this page</a>

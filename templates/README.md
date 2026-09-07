@@ -60,15 +60,17 @@ The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../s
 
 ## `feedback/`
 
-The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract; not yet wired into `tools/fanout.sh` (roadmap).
+The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract. Fanned out with `tools/fanout.sh --kit feedback` (dispatch: [`feedback-fanout.yml`](../.github/workflows/feedback-fanout.yml)); vendored copies are held to the hub's by drift check (i).
 
 | File | Purpose |
 | --- | --- |
 | `package.json` | npm manifest `@bamr87/fleet-feedback` — published by `publish-kits.yml` so always-latest consumers get updates by dependency |
-| `fleet-feedback.js` | `<fleet-feedback>` — zero-dependency web component: console/error capture, request-type dialog, prefilled-issue URL with a 7000-char budget and clipboard fallback, optional proxy mode |
+| `fleet-feedback.js` | Three layers in one vendored file: the capture buffer, `FleetFeedbackCore` (the issue contract as pure functions), and `<fleet-feedback>` — request-type dialog, prefilled-issue URL with a 7000-char budget and clipboard fallback, optional proxy/postmessage modes |
+| `capture.js` | The console/error ring buffer alone, for `<head>` — byte-identical to the block inside `fleet-feedback.js` |
+| `tests/` | 25 contract tests (`npm test`, `node:test`, no dependencies) — what stops a contract change breaking issues filed from ~25 repositories |
 | `feedback_types.yml` | Request-type taxonomy; type labels map onto the fleet issue-pipeline label set |
 | `page_feedback.yml` | No-JS twin: GitHub issue form with the same sections (→ `.github/ISSUE_TEMPLATE/`) |
-| `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `django.html` (Django; ERB equivalent for Rails) |
+| `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `nextjs.tsx` (App Router `beforeInteractive` capture), `django.html` (Django; ERB equivalent for Rails) |
 | `VERSION` | Kit provenance + changelog |
 
 ## `prose/`

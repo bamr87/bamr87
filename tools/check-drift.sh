@@ -415,12 +415,15 @@ else
   while IFS= read -r line; do bad "$line"; done <<< "$dep_out"
 fi
 
-# --- (i): vendored-tool parity ---------------------------------------------
-# The hub VENDORS two tools into the fleet: tools/unwrap-prose.py (the prose kit
-# payload — it defines what the markdown-oneline gate actually enforces) and
-# tools/schema_lint.py (the schema kit's linter, itself vendored from
-# bamr87/SCHEMA). A vendored copy that drifts is worse than a missing one: the
-# repo still passes a gate, just not the same gate as everyone else.
+# --- (i): vendored-payload parity -------------------------------------------
+# The hub VENDORS three payloads into the fleet: tools/unwrap-prose.py (the
+# prose kit payload — it defines what the markdown-oneline gate actually
+# enforces), tools/schema_lint.py (the schema kit's linter, itself vendored from
+# bamr87/SCHEMA), and templates/feedback/fleet-feedback.js (the feedback kit's
+# widget — it defines the ISSUE CONTRACT every repo files against). A vendored
+# copy that drifts is worse than a missing one: the repo still passes a gate,
+# just not the same gate as everyone else — and a drifted widget files issues
+# the issue pipeline no longer recognises as structured.
 #
 # Nothing detected this before, and it happened three times: schema_lint.py
 # exists in projects/README (independently rewritten, ~600 diff lines) and
@@ -431,30 +434,40 @@ fi
 # Advisory, never gating: a submodule may legitimately be mid-upgrade, and this
 # reads working trees that CI does not check out. Local-only for that reason.
 if [[ -d "$ROOT/projects" ]]; then
-  echo "(i) vendored-tool parity"
+  echo "(i) vendored-payload parity"
   vend_checked=0 vend_drift=0
-  for tool in unwrap-prose.py schema_lint.py; do
-    [[ -f "$ROOT/tools/$tool" ]] || continue
+  # hub source | filename to hunt for | how deep it is buried. The widget sits
+  # under a stack's static assets (assets/js, public, static/js, frontend/public)
+  # — two to three levels deeper than a tools/ script, so one depth does not fit
+  # all three payloads.
+  for spec in \
+    "tools/unwrap-prose.py|unwrap-prose.py|3" \
+    "tools/schema_lint.py|schema_lint.py|3" \
+    "templates/feedback/fleet-feedback.js|fleet-feedback.js|5"; do
+    IFS='|' read -r vsrc vname vdepth <<< "$spec"
+    [[ -f "$ROOT/$vsrc" ]] || continue
     while IFS= read -r copy; do
       [[ -f "$copy" ]] || continue
       vend_checked=$((vend_checked + 1))
-      if ! cmp -s "$ROOT/tools/$tool" "$copy"; then
+      if ! cmp -s "$ROOT/$vsrc" "$copy"; then
         vend_drift=$((vend_drift + 1))
-        warn "${copy#"$ROOT"/} differs from tools/${tool} ($(diff "$ROOT/tools/$tool" "$copy" | grep -c '^[<>]' || true) changed line(s))"
+        warn "${copy#"$ROOT"/} differs from ${vsrc} ($(diff "$ROOT/$vsrc" "$copy" | grep -c '^[<>]' || true) changed line(s))"
       fi
-    done < <(find "$ROOT/projects" -mindepth 2 -maxdepth 3 -name "$tool" -not -path '*/node_modules/*' 2>/dev/null)
+    done < <(find "$ROOT/projects" -mindepth 2 -maxdepth "$vdepth" -name "$vname" \
+               -not -path '*/node_modules/*' -not -path '*/_site/*' 2>/dev/null)
   done
   if [[ $vend_checked -eq 0 ]]; then
     warn "skipped (no submodule copies found — submodules not checked out?)"
   elif [[ $vend_drift -eq 0 ]]; then
     ok "all ${vend_checked} vendored copies match the hub"
   else
-    # Two different remedies, because the two tools are vendored by different
-    # kits: unwrap-prose.py rides the prose fan-out, schema_lint.py is a
-    # re-vendor from bamr87/SCHEMA via the schema kit.
+    # Three different remedies, because each payload rides a different kit:
+    # unwrap-prose.py the prose fan-out, schema_lint.py a re-vendor from
+    # bamr87/SCHEMA via the schema kit, fleet-feedback.js the feedback fan-out.
     warn "${vend_drift}/${vend_checked} vendored copies drifted"
-    warn "  unwrap-prose.py → tools/fanout.sh --kit prose --target <name> --upgrade"
-    warn "  schema_lint.py  → upstream the change to bamr87/SCHEMA first, then re-vendor (templates/schema/VERSION)"
+    warn "  unwrap-prose.py   → tools/fanout.sh --kit prose --target <name> --upgrade"
+    warn "  schema_lint.py    → upstream the change to bamr87/SCHEMA first, then re-vendor (templates/schema/VERSION)"
+    warn "  fleet-feedback.js → tools/fanout.sh --kit feedback --target <name> --upgrade"
   fi
 fi
 

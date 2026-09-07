@@ -28,6 +28,7 @@
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
+#   tools/fanout.sh --kit feedback --target <name|all> [--apply] [--upgrade]
 #
 # Kits:
 #   standardize  branch chore/standardize-baseline; artifacts (default
@@ -60,6 +61,19 @@
 #                tools/unwrap-prose.py, seeds the markdown-oneline CI gate,
 #                and does a one-time unwrap of wrapped prose
 #                (SCHEMA.md/CHANGELOG.md skipped)
+#   feedback     branch feat/page-feedback; vendors the universal feedback
+#                widget (templates/feedback: fleet-feedback.js + capture.js),
+#                seeds the stack's adapter and the no-JS issue form, and — under
+#                --apply — CREATES THE LABELS the taxonomy applies. That last
+#                step is the one place a kit writes to a target outside its PR,
+#                and it is deliberate: GitHub silently drops unknown labels from
+#                a prefilled issue URL, so a widget seeded without them files
+#                unlabelled issues that never enter the issue pipeline. Mounting
+#                the element stays a human one-liner (the PR body carries it) —
+#                every app shell is hand-written and the fan-out is additive.
+#                zer0-mistakes theme consumers are detected and told to set
+#                `page_feedback.enabled: true` instead: the theme already ships
+#                the widget, it is just switched off.
 #   deps-latest  branch chore/deps-latest; converts the repo to the fleet's
 #                ALWAYS-LATEST dependency policy via tools/unpin-deps.sh —
 #                strips exact pins (package.json/requirements*.txt/Gemfile),
@@ -110,6 +124,7 @@ AC_VERSION="$(kit_version agent-context)"
 PROSE_VERSION="$(kit_version prose)"
 CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
+FB_VERSION="$(kit_version feedback)"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -163,8 +178,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|feedback) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|feedback> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -187,6 +202,12 @@ case "$KIT" in
     COMMIT_MSG="style(markdown): one paragraph per line + CI enforcement"
     PR_TITLE="style(markdown): enforce one paragraph per line"
     PR_BODY="Automated by bamr87 prose-fanout (tools/fanout.sh): unwraps soft-wrapped markdown prose so each paragraph is a single line — Liquid/HTML/tables/code/front-matter left byte-for-byte, and SCHEMA.md/CHANGELOG.md skipped. Also vendors tools/unwrap-prose.py and seeds a markdown-oneline CI check. Additive-only. See bamr87/bamr87."
+    ;;
+  feedback)
+    BRANCH="feat/page-feedback"
+    COMMIT_MSG="feat(feedback): adopt the universal page-feedback widget (kit v${FB_VERSION})"
+    PR_TITLE="feat(feedback): universal \"Improve this page\" → GitHub issue widget"
+    PR_BODY="$(printf 'Automated by bamr87 feedback-fanout (tools/fanout.sh --kit feedback): vendors the universal feedback widget so a reader can file a well-formed issue against this repo from any page — request type, description, page context, environment, and the console/error lines that led up to the report.\n\nSeeded (additive — nothing existing is overwritten):\n- the widget + the early capture buffer, vendored into the static assets of this stack\n- `.github/ISSUE_TEMPLATE/page_feedback.yml`, the no-JS twin carrying the same sections\n- the adapter for the detected stack, ready to mount\n\n**One human line is left**: mount the adapter in the shell — the fan-out log names the exact line, and `templates/feedback/README.md` has the detail. The fan-out never edits a hand-written shell.\n\nIssues filed this way carry the `fleet-feedback` marker comment and labels from the fleet taxonomy, so they enter the three-tier issue pipeline on the next scan. Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB).')"
     ;;
   deps-latest)
     BRANCH="chore/deps-latest"
@@ -284,6 +305,158 @@ seed_prose() {
           | sed "s/^--exclude '//; s/'$//")
   fi
   python3 tools/unwrap-prose.py --write "${ex[@]}" >/dev/null 2>&1 || true
+}
+
+# Vendor one kit asset. Same posture as the workflow artifacts: seed when
+# absent, report when it matches, and refresh under --upgrade only when the
+# on-disk copy is byte-identical to the current kit file or to an ARCHIVED one
+# (proof it was machine-seeded and never touched). A hand-modified copy is left
+# alone — someone made that change on purpose, and a widget silently reverted
+# under them is worse than one version behind.
+seed_vendored_asset() {  # $1 dest, $2 kit source, $3 label
+  local dest="$1" src="$2" label="$3" dir base cand
+  dir="$(dirname "$src")/archive"; base="$(basename "$src")"; base="${base%.js}"
+  if [[ ! -f "$dest" ]]; then
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+    echo "${label}: vendored -> ${dest} (kit v${FB_VERSION})"
+    return
+  fi
+  if cmp -s "$dest" "$src"; then echo "${label}: current (kit v${FB_VERSION})"; return; fi
+  for cand in "$dir/$base"-*.js; do
+    [[ -f "$cand" ]] || continue
+    if cmp -s "$dest" "$cand"; then
+      if [[ "$UPGRADE" -eq 1 ]]; then
+        cp "$src" "$dest"; echo "${label}: upgraded machine seed -> kit v${FB_VERSION}"
+      else
+        echo "${label}: upgradeable machine seed (latest kit v${FB_VERSION}; rerun with --upgrade)"
+      fi
+      return
+    fi
+  done
+  echo "${label}: hand-modified — left alone"
+}
+
+# Where a stack keeps files it serves verbatim. Guessing wrong means the widget
+# 404s at runtime with nothing in CI to catch it, so this leans on the marker
+# file of each stack rather than on directory names alone.
+feedback_asset_dir() {
+  if   [[ -d public ]];                       then echo "public"
+  elif [[ -d frontend/public ]];              then echo "frontend/public"
+  elif [[ -d static/js || -d static ]];       then echo "static/js"
+  elif [[ -d assets/js ]];                    then echo "assets/js"
+  elif [[ -f _config.yml || -f mkdocs.yml ]]; then echo "assets/js"
+  elif [[ -d app/assets/javascripts ]];       then echo "app/assets/javascripts"
+  elif [[ -d media ]];                        then echo "media"
+  else echo "public"
+  fi
+}
+
+feedback_stack() {
+  if [[ -f _config.yml ]] && grep -qs 'zer0-mistakes' _config.yml; then echo "zer0-theme"
+  elif [[ -f _config.yml ]];                                          then echo "jekyll"
+  elif [[ -f mkdocs.yml ]];                                           then echo "mkdocs"
+  elif [[ -f manage.py ]] || compgen -G '*/settings.py' >/dev/null;   then echo "django"
+  elif [[ -f config.ru && -d app/views ]];                            then echo "rails"
+  elif grep -qs '"vscode"' package.json;                              then echo "ext"
+  elif grep -qs '"next"' package.json frontend/package.json;          then echo "next"
+  elif grep -qs '"react"' package.json frontend/package.json;         then echo "react"
+  else echo "unknown"
+  fi
+}
+
+seed_feedback() {
+  # cwd = target clone; $1 = repo name, $2 = default branch.
+  local name="$1" def="$2" kit="$HUB/templates/feedback" stack dir
+  stack="$(feedback_stack)"
+  echo "feedback: detected stack '${stack}'"
+
+  # A zer0-mistakes consumer already HAS the widget — the theme ships it, and
+  # remote_theme simply cannot carry the _config.yml key that turns it on. That
+  # is the whole reason it is dead on every consumer site, and vendoring a
+  # second widget on top would give the page two feedback buttons.
+  if [[ "$stack" == "zer0-theme" ]]; then
+    if grep -qs 'page_feedback:' _config.yml; then
+      echo "feedback: theme consumer — page_feedback already configured, nothing to seed"
+    else
+      echo "feedback: theme consumer — ADD TO _config.yml (one key, no kit needed):"
+      echo "feedback:     page_feedback:"
+      echo "feedback:       enabled: true"
+    fi
+    # The no-JS twin is still the repo's own file, and the theme does not ship it.
+    if [[ ! -f .github/ISSUE_TEMPLATE/page_feedback.yml ]]; then
+      mkdir -p .github/ISSUE_TEMPLATE
+      cp "$kit/page_feedback.yml" .github/ISSUE_TEMPLATE/page_feedback.yml
+      echo "page_feedback.yml: seeded"
+    fi
+    return
+  fi
+
+  dir="$(feedback_asset_dir)"
+  seed_vendored_asset "$dir/fleet-feedback.js" "$kit/fleet-feedback.js" "fleet-feedback.js"
+  seed_vendored_asset "$dir/fleet-feedback-capture.js" "$kit/capture.js" "capture.js"
+
+  if [[ ! -f .github/ISSUE_TEMPLATE/page_feedback.yml ]]; then
+    mkdir -p .github/ISSUE_TEMPLATE
+    cp "$kit/page_feedback.yml" .github/ISSUE_TEMPLATE/page_feedback.yml
+    echo "page_feedback.yml: seeded"
+  fi
+
+  # The adapter is seeded as a file and mounted by a human. Every app shell in
+  # the fleet is hand-written; a machine editing one is how a fan-out breaks a
+  # site it was meant to improve.
+  case "$stack" in
+    next|react)
+      mkdir -p components
+      [[ -f components/FeedbackButton.tsx ]] || cp "$kit/adapters/FeedbackButton.tsx" components/FeedbackButton.tsx
+      if [[ "$stack" == "next" && ! -f components/FeedbackCapture.tsx ]]; then
+        cp "$kit/adapters/nextjs.tsx" components/FeedbackCapture.tsx
+      fi
+      echo "feedback: MOUNT — <FeedbackButton repo=\"bamr87/${name}\" /> once in the app shell"
+      # A bare `[[ ]] && echo` here would leave the branch with a non-zero exit
+      # status for every non-Next repo, and seeding runs under `set -e`.
+      if [[ "$stack" == "next" ]]; then
+        echo "feedback: MOUNT — <FeedbackCapture /> in the <head> of app/layout.tsx"
+      fi
+      ;;
+    jekyll|mkdocs)
+      mkdir -p _includes/custom
+      [[ -f _includes/custom/fleet-feedback.html ]] || cp "$kit/adapters/jekyll.html" _includes/custom/fleet-feedback.html
+      echo "feedback: MOUNT — {% include custom/fleet-feedback.html %} before </body>"
+      ;;
+    django|rails)
+      mkdir -p templates/includes
+      [[ -f templates/includes/fleet-feedback.html ]] || cp "$kit/adapters/django.html" templates/includes/fleet-feedback.html
+      echo "feedback: MOUNT — {% include 'includes/fleet-feedback.html' %} before </body> in base.html"
+      ;;
+    ext)
+      echo "feedback: webview stack — mount the inline trigger with mode=\"postmessage\"; see templates/feedback/README.md"
+      ;;
+    *)
+      echo "feedback: stack not recognised — assets vendored to ${dir}; mount <fleet-feedback repo=\"bamr87/${name}\"> by hand"
+      ;;
+  esac
+}
+
+# GitHub SILENTLY DROPS a label that does not exist from a prefilled issue URL:
+# no error, no warning, the label is just gone and the issue never enters the
+# pipeline. Creating them is therefore part of making the widget work, not a
+# nicety — the one place this kit writes to a target outside its own PR, and
+# only under --apply.
+feedback_ensure_labels() {  # $1 = owner/repo
+  local slug="$1" spec name color desc
+  for spec in \
+    "page-feedback|0E8A16|Filed from a page via the feedback widget" \
+    "bug|D73A4A|Something is not working" \
+    "feature|A2EEEF|New capability" \
+    "docs|0075CA|Documentation" \
+    "question|D876E3|Further information is requested" \
+    "area:a11y|1D76DB|Accessibility" \
+    "area:perf|1D76DB|Performance"; do
+    IFS='|' read -r name color desc <<< "$spec"
+    gh label create "$name" --repo "$slug" --color "$color" --description "$desc" >/dev/null 2>&1 \
+      && echo "label: created ${name}" || true
+  done
 }
 
 # A fan-out target is a REPO, not a working tree: run_one clones it fresh from
@@ -392,6 +565,8 @@ run_one() {
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
+      feedback)    seed_feedback "$(basename "${url%.git}")" "$def"
+                   [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0

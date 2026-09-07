@@ -1,23 +1,53 @@
 kit: feedback
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/feedback/
-seeded-by: tools/fanout.sh --kit feedback (to be wired; see specs/CONFORMANCE.md adoption step 6)
-files: fleet-feedback.js, feedback_types.yml, page_feedback.yml, adapters/jekyll.html, adapters/FeedbackButton.tsx, adapters/django.html
+seeded-by: tools/fanout.sh --kit feedback --target <name> [--apply]
+files: fleet-feedback.js, capture.js, feedback_types.yml, page_feedback.yml,
+  adapters/jekyll.html, adapters/FeedbackButton.tsx, adapters/nextjs.tsx,
+  adapters/django.html, tests/contract.test.mjs, archive/fleet-feedback-0.1.0.js
 spec: specs/FEEDBACK.md (UPS-FB)
-updated: 2026-09-01
+updated: 2026-09-07
 changelog: |
-  0.1.0 — initial extraction of the zer0-mistakes page-feedback widget into a
-  framework-agnostic web component. Same issue contract (title tag, section
-  order, 7000-char URL budget with logs → directive → environment trimming,
-  clipboard fallback, hidden marker), same taxonomy, but type labels now map
-  onto the fleet issue-pipeline label set (bug/feature/docs/question) so
-  widget-filed issues are pipeline-eligible on the next scan. Adapters for
-  Jekyll (non-theme sites), React, and Django/Rails. Zero dependencies.
+  0.2.0 — the kit becomes deliverable, and its contract becomes testable.
+
+  * THREE LAYERS IN ONE FILE. fleet-feedback.js is now capture buffer +
+    `FleetFeedbackCore` (the issue contract as pure functions, no DOM) +
+    `<fleet-feedback>` (the default dialog, rendered only where the tag is).
+    A host with its own UI — the zer0-mistakes theme's Bootstrap modal — loads
+    the file for the first two layers and never writes the tag, so both widgets
+    file byte-identical issues instead of two divergent ones.
+  * capture.js: the buffer alone, for <head>. Byte-identical to the block
+    inside fleet-feedback.js; tests/contract.test.mjs fails if they diverge.
+    Without it, capture starts after page load and the dialog says so rather
+    than implying it saw errors it structurally could not.
+  * 25 contract tests (`npm test`, node:test, no dependencies): section order,
+    marker, labels, assignment, escaping, the 7000-char trim ladder, redaction,
+    and taxonomy parity across the JS fallback, feedback_types.yml, and the
+    no-JS issue form. Two real defects fell out of writing them — the Markdown
+    cell escaper doubled backslashes, and the credential scrubber stopped at
+    the scheme word, leaving "Authorization: Bearer <token>" in the buffer.
+  * Privacy: every captured line is redacted (bearer/API keys, JWTs, GitHub
+    tokens, email addresses) BEFORE it enters the ring, so a secret can never
+    be previewed, copied, or filed.
+  * `breadcrumb(level, message)` so an app's fetch wrapper can put the API call
+    that broke into the report, not just the exception it surfaced as.
+  * `mode="postmessage"` for sandboxed hosts (VS Code webviews) with no
+    window.open of their own.
+  * Adapters: FeedbackButton.tsx now compiles under React 19 (the global JSX
+    namespace it augmented no longer exists) and under Next (it read Vite's
+    `import.meta.env`); new nextjs.tsx installs capture with
+    `strategy="beforeInteractive"`; jekyll.html ships the taxonomy inline
+    instead of pointing at a /feedback-types.json nothing generated.
+  * Wired into tools/fanout.sh (`--kit feedback`) and drift check (i), so a
+    vendored copy that drifts from the hub is now visible.
 notes: |
-  - Vendor fleet-feedback.js into the repo (assets/js, public/, static/js);
-    never hot-link the hub.
+  - Vendor fleet-feedback.js + capture.js into the repo (assets/js, public/,
+    static/js); never hot-link the hub.
   - Every label in feedback_types.yml MUST exist in the target repo:
-    `gh label list`. GitHub silently drops unknown labels from prefilled URLs.
-  - The zer0-mistakes theme keeps its richer Liquid widget; the theme change
-    that makes it work on remote_theme consumers (built-in taxonomy fallback,
-    UPS-FB-31) is tracked on the roadmap.
+    `gh label list`. GitHub silently drops unknown labels from prefilled URLs —
+    no error, no warning. The fan-out creates them.
+  - EDIT THE CAPTURE BLOCK IN capture.js, then re-splice it into
+    fleet-feedback.js (the parity test tells you when you forgot).
+  - Snapshot the outgoing fleet-feedback.js into archive/ BEFORE editing it, or
+    every deployed copy reads as hand-modified and --upgrade stops reaching the
+    fleet.
