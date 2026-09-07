@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Harness Console</title>
+<!-- Inline so the console needs no extra request and no binary in the tree;
+     without it every page load logs a 404 for /favicon.ico. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.95em' font-size='90'%3E%F0%9F%9B%A0%3C/text%3E%3C/svg%3E">
 <style>
   /* Palette roles (dataviz reference instance): light on :root, dark under both
      the OS media query and an explicit data-theme toggle. */
@@ -14,6 +17,11 @@
     --good: #0ca30c; --good-text: #006300; --warning: #fab219; --warning-track: #fdeec6;
     --serious: #ec835a; --critical: #d03b3b; --critical-track: #f6d2d2;
     --series-2: #eb6834; --series-3: #1baf7a;
+    /* Terminal colours for job logs. The tools/ scripts emit SGR codes, so the
+       log view decodes them instead of printing the escapes; these are the
+       light-theme values, darkened for contrast on the light surface. */
+    --ansi-red: #c02b2b; --ansi-green: #006300; --ansi-yellow: #8a6100;
+    --ansi-blue: #1f63b8; --ansi-magenta: #9c3f9c; --ansi-cyan: #0f7180;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -22,6 +30,8 @@
       --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
       --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
       --series-2: #d95926; --series-3: #199e70;
+      --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
+      --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
     }
   }
   :root[data-theme="dark"] {
@@ -30,6 +40,8 @@
     --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
     --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
     --series-2: #d95926; --series-3: #199e70;
+    --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
+    --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -65,27 +77,65 @@
   .status.warn { color: var(--ink); border-color: var(--warning); background: var(--warning-track); }
   .status.crit { color: var(--ink); border-color: var(--critical); background: var(--critical-track); }
   .status.info { color: var(--ink-2); }
+  /* .status is a nowrap PILL — a sentence-length notice belongs in a banner,
+     or it widens the whole page on a narrow viewport (the Auth tab's
+     "no DASH_CONSOLE_TOKEN set…" line overflowed a 430px screen by 151px). */
+  .banner { display: block; margin: 8px 0; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 12.5px; }
+  .banner.warn { border-color: var(--warning); background: var(--warning-track); }
+  .banner.crit { border-color: var(--critical); background: var(--critical-track); }
+  .banner.info { color: var(--ink-2); }
   table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--grid); vertical-align: top; font-size: 13px; }
   th { color: var(--ink-2); font-weight: 600; font-size: 12px; background: var(--surface); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.flag td { background: color-mix(in srgb, var(--warning-track) 45%, var(--surface)); }
   tr.bad td { background: color-mix(in srgb, var(--critical-track) 45%, var(--surface)); }
-  .wrap { overflow-x: auto; }
+  .wrap { overflow-x: auto; max-width: 100%; }
+  /* A grid/flex child defaults to min-width:auto, so it refuses to shrink below
+     its content. That silently defeats the .wrap scrollers: instead of the wide
+     table scrolling inside its own box, the whole PAGE scrolled sideways on a
+     narrow viewport (Fleet overflowed by 473px). Opting these children out of
+     the auto minimum is what lets the inner overflow do its job. */
+  .split > *, form.contract label > span { min-width: 0; }
+  details.sect { margin-bottom: 10px; }
+  details.sect > summary { cursor: pointer; font-weight: 650; font-size: 13.5px; list-style-position: outside; }
+  details.sect > summary small { display: block; font-weight: 400; color: var(--ink-2); margin-top: 3px; }
+  .cred { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; padding: 9px 0; border-bottom: 1px solid var(--grid); }
+  .cred:last-child { border-bottom: 0; }
+  .cred .n { min-width: 0; }
+  .cred .n small { display: block; color: var(--ink-2); }
+  .cred .set { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+  .set .btn { white-space: nowrap; }
+  /* Read-only reference tables carry long unbreakable values (a serialised
+     tier config, a cron). Let those wrap instead of widening the page — for a
+     value you only read, wrapping beats a horizontal scrollbar. */
+  table.ref td { overflow-wrap: anywhere; }
+  form.contract label > span { overflow-wrap: anywhere; }
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
   button.btn { background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; padding: 6px 11px; cursor: pointer; font-size: 13px; }
   button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.btn.danger { border-color: var(--critical); color: var(--critical); }
   button.btn:disabled { opacity: .5; cursor: not-allowed; }
-  input[type=text], input[type=number], select { background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; font-size: 13px; }
+  input[type=text], input[type=password], input[type=number], select { background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; font-size: 13px; }
   label.inl { display: inline-flex; gap: 5px; align-items: center; font-size: 13px; color: var(--ink-2); }
   pre.log { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; max-height: 520px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
+  /* Decoded SGR spans (see ansiToHtml) */
+  .log .a-red { color: var(--ansi-red); } .log .a-green { color: var(--ansi-green); }
+  .log .a-yellow { color: var(--ansi-yellow); } .log .a-blue { color: var(--ansi-blue); }
+  .log .a-magenta { color: var(--ansi-magenta); } .log .a-cyan { color: var(--ansi-cyan); }
+  .log .a-grey { color: var(--muted); }
+  .log .a-bold { font-weight: 650; } .log .a-dim { opacity: .65; }
+  .log .a-under { text-decoration: underline; }
   .split { display: grid; gap: 16px; grid-template-columns: minmax(280px, 1fr) minmax(360px, 2fr); }
   @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
   .ops .op { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--grid); }
   .ops .op:last-child { border-bottom: 0; }
   .ops .op .t { flex: 1; } .ops .op .t b { font-weight: 600; } .ops .op .t small { display: block; color: var(--ink-2); }
-  .hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
+  /* 24 fixed tracks need ~380px before the hour labels start colliding, which
+     is wider than a phone's content box — so the chart scrolls in its own box
+     rather than widening the page. minmax keeps the columns legible instead of
+     letting `1fr` squeeze them to nothing. */
+  .hours { display: grid; grid-template-columns: repeat(24, minmax(14px, 1fr)); gap: 3px; overflow-x: auto; padding-bottom: 2px; }
   .hours div { text-align: center; font-size: 11px; color: var(--ink-2); }
   .hours .bar { height: 46px; display: flex; align-items: flex-end; }
   .hours .bar i { display: block; width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; }
@@ -116,7 +166,8 @@
   <button data-tab="costs">Costs</button>
   <button data-tab="traces">Traces</button>
   <button data-tab="fleet">Fleet</button>
-  <button data-tab="contract">Contract</button>
+  <button data-tab="contract">Config</button>
+  <button data-tab="auth">Auth</button>
   <button data-tab="jobs">Jobs</button>
 </nav>
 <main>
@@ -128,6 +179,7 @@
   <section id="tab-traces" hidden></section>
   <section id="tab-fleet" hidden></section>
   <section id="tab-contract" hidden></section>
+  <section id="tab-auth" hidden></section>
   <section id="tab-jobs" hidden></section>
 </main>
 <div id="toast" class="toast" hidden></div>
@@ -137,10 +189,39 @@
 // ------------------------------------------------------------------ helpers
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// --- ANSI -> HTML ---------------------------------------------------------
+// Job logs are the real output of the tools/ scripts, which colour their
+// findings. Rendered as plain text those SGR codes show up literally ("[33m!"),
+// which is both noise and a loss of the signal the colour carried. Decode the
+// SGR subset the scripts actually use and drop every other escape (cursor
+// moves, erase-line, OSC hyperlinks) rather than printing it.
+const ANSI_COLOUR = {30:'a-grey',31:'a-red',32:'a-green',33:'a-yellow',34:'a-blue',35:'a-magenta',36:'a-cyan',37:'',
+                     90:'a-grey',91:'a-red',92:'a-green',93:'a-yellow',94:'a-blue',95:'a-magenta',96:'a-cyan',97:''};
+const ANSI_STYLE = {1:'a-bold', 2:'a-dim', 4:'a-under'};
+function ansiToHtml(text) {
+  // strip OSC (\x1b]…BEL or ST) first — it carries no display state
+  text = String(text).replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '');
+  const CSI = /\x1b\[([0-9;]*)([A-Za-z])/g;
+  let out = '', last = 0, open = 0, m;
+  while ((m = CSI.exec(text)) !== null) {
+    out += esc(text.slice(last, m.index));
+    last = CSI.lastIndex;
+    if (m[2] !== 'm') continue;                       // not a colour/style code: drop it
+    for (const part of (m[1] === '' ? '0' : m[1]).split(';')) {
+      const code = parseInt(part || '0', 10);
+      if (code === 0) { out += '</span>'.repeat(open); open = 0; continue; }
+      const cls = ANSI_STYLE[code] ?? ANSI_COLOUR[code];
+      if (cls) { out += `<span class="${cls}">`; open++; }
+    }
+  }
+  return out + esc(text.slice(last)) + '</span>'.repeat(open);
+}
 const fmt = (n, d = 1) => (n === null || n === undefined || n === '') ? '—' : (typeof n === 'number' ? (Number.isInteger(n) ? n.toLocaleString() : n.toFixed(d)) : esc(n));
 const usd = n => (n === null || n === undefined) ? '—' : '$' + Number(n).toFixed(2);
 const pct = (a, b) => (b ? Math.round(100 * a / b) : 0);
 const sev = ratio => ratio >= 1 ? 'crit' : ratio >= 0.7 ? 'warn' : '';
+const banner = (kind, html) => `<div class="banner ${kind}">${kind === 'good' ? '✓' : kind === 'warn' ? '⚠' : kind === 'crit' ? '✖' : '●'} ${html}</div>`;
 const status = (kind, text) => `<span class="status ${kind}">${kind === 'good' ? '✓' : kind === 'warn' ? '⚠' : kind === 'crit' ? '✖' : '●'} ${esc(text)}</span>`;
 const meter = (value, cap, extra = '') => `<div class="meter ${sev(cap ? value / cap : 0)} ${extra}"><i style="width:${Math.min(100, cap ? 100 * value / cap : 0)}%"></i></div>`;
 let TOKEN = localStorage.getItem('console_token') || '';
@@ -180,10 +261,13 @@ function renderMeta() {
   $('#meta').innerHTML = [
     `<span class="chip" title="git branch / head">⎇ ${esc(g.branch || '?')} <code>${esc(g.head || '')}</code></span>`,
     `<span class="chip ${g.dirty_count ? '' : 'ok'}" title="uncommitted files — the console never commits; review and commit the generated data yourself">${g.dirty_count ? '✎ ' + g.dirty_count + ' uncommitted' : '✓ clean tree'}</span>`,
-    `<span class="chip ${c.gh_authenticated ? 'ok' : 'bad'}" title="gh auth status">${c.gh_authenticated ? '✓ gh authenticated' : '✖ gh not authenticated'}</span>`,
-    `<span class="chip" title="credential names present in this process environment (values never shown)">🔑 ${tokens.length ? tokens.join(', ') : 'no tokens in env'}</span>`,
+    `<span class="chip ${c.gh_authenticated ? 'ok' : 'bad'}" data-goto="auth" title="gh auth status — click to sign in on the Auth tab" style="cursor:pointer">${c.gh_authenticated ? '✓ gh authenticated' : '✖ gh not authenticated'}</span>`,
+    `<span class="chip" data-goto="auth" title="credential names present in this process environment (values never shown) — click to manage them" style="cursor:pointer">🔑 ${tokens.length ? tokens.join(', ') : 'no tokens in env'}</span>`,
     `<span class="chip" title="snapshot time">${esc(STATE.generated_at)}</span>`,
   ].join('');
+  // The two credential chips are the shortest path to the Auth tab — this is
+  // where you notice gh is signed out, so this is where fixing it should start.
+  $('#meta').querySelectorAll('[data-goto]').forEach(el => el.onclick = () => $(`#nav button[data-tab="${el.dataset.goto}"]`).click());
 }
 
 // ------------------------------------------------------------------ tabs
@@ -197,7 +281,8 @@ $('#nav').addEventListener('click', e => {
 function renderTab(tab) {
   if (!STATE) return;
   ({ overview: renderOverview, harnesses: renderHarnesses, schedules: renderSchedules, loops: renderLoops,
-     costs: renderCosts, traces: renderTraces, fleet: renderFleet, contract: renderContract, jobs: renderJobs })[tab]();
+     costs: renderCosts, traces: renderTraces, fleet: renderFleet, contract: renderConfig,
+     auth: renderAuth, jobs: renderJobs })[tab]();
 }
 
 // ------------------------------------------------------------------ overview
@@ -368,7 +453,8 @@ async function renderTraces() {
   let lake, runs, lines;
   try { [lake, runs, lines] = await Promise.all([api('/api/lake'), api('/api/lake/runs?limit=60'), api('/api/lake/lines')]); }
   catch (e) { el.innerHTML = status('crit', e.message); return; }
-  const px = lake.phoenix || {}, t = lake.tables || {}, ls = lake.last_sync || {}, ag = lake.agent_runs || {}, ex = lake.exports || {}, repos = lake.repos || [];
+  const px = lake.phoenix || {}, t = lake.tables || {}, ls = lake.last_sync || {}, ag = lake.agent_runs || {}, ex = lake.exports || {}, repos = lake.repos || []
+  const se = lake.sessions || {};
   const reach = px.reachable === true ? status('good', 'reachable') : px.reachable === false ? status('crit', 'not reachable') : status('info', 'not probed');
   el.innerHTML = `
     <div class="card"><b>The local stack</b> <span class="muted">— three services on this machine, one code path with CI (docs/HARNESS-OPS.md).</span>
@@ -399,14 +485,15 @@ Harness Console :4001 (this)   ·   Jekyll dash :4000 (read-only twin)   ·   Gi
       <div class="card tile"><div class="label">Runs · AI runs · agent runs parsed</div><div class="value">${fmt(t.runs)} <span class="muted" style="font-size:14px">· ${fmt(repos.reduce((a, r) => a + (r.ai_runs || 0), 0))} · ${fmt(ag.count)}</span></div><div class="delta">${fmt(t.jobs)} jobs · ${fmt(t.steps)} steps · ${fmt(t.logs)} log entries</div></div>
       <div class="card tile"><div class="label">Agent spend in the lake</div><div class="value">${usd(ag.cost_usd)}</div><div class="delta">${fmt(ag.turns)} turns · ${esc(Object.entries(ag.models || {}).map(([m, n]) => m + '×' + n).join(', ') || '—')}</div></div>
       <div class="card tile"><div class="label">Issues · workflows · .factory files</div><div class="value" style="font-size:18px">${fmt(t.issues)} · ${fmt(t.workflows)} · ${fmt(t.factory_files)}</div><div class="delta">${fmt(repos.filter(r => r.factory).length)} GitFactory-managed repos in the lake</div></div>
+      <div class="card tile"><div class="label">Local Claude Code sessions</div><div class="value">${fmt(se.count)}</div><div class="delta">${usd(se.cost_usd)} · ${fmt(se.turns)} turns · ${fmt(se.tool_calls)} tool calls${se.last ? " · last " + esc(se.last) : ""}</div></div>
       <div class="card tile"><div class="label">Phoenix</div><div class="value" style="font-size:18px">${reach}</div><div class="delta"><code>${esc(px.collector)}</code> · ${fmt(ex.count)} traces / ${fmt(ex.spans)} spans exported${ex.last ? ' · last ' + esc(ex.last) : ''}${CAPS && CAPS.otel_exporter === false ? ' · ' + status('warn', 'OTel exporter not installed (dry run still works)') : ''}</div></div>
     </div>
     <h2>Repos in the lake</h2>
     <div class="wrap"><table><thead><tr><th>repo</th><th class="num">runs</th><th class="num">AI runs</th><th class="num">workflows</th><th class="num">open issues</th><th>last run</th><th>synced</th></tr></thead><tbody>
       ${repos.map(r => `<tr><td><code>${esc(r.nwo)}</code>${r.factory ? ' <span title="GitFactory-managed: .factory/ blueprints">⚙</span>' : ''}${r.manifest ? ' <span title="declares fleet.manifest.yml">📜</span>' : ''}${r.archived ? ' <span class="muted">archived</span>' : ''}</td><td class="num">${fmt(r.runs)}</td><td class="num">${fmt(r.ai_runs)}</td><td class="num">${fmt(r.workflows)}</td><td class="num">${fmt(r.open_issues)}</td><td class="muted">${esc(r.last_run || '—')}</td><td class="muted">${esc(r.synced_at || '')}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">empty — sync first (needs gh auth)</td></tr>'}
     </tbody></table></div>
-    <h2>Agent runs (newest first)</h2>
-    <div class="sub">One trace per run: workflow → jobs → steps → the Claude step (model, turns, cost from the run log) → tool calls when the action ran with <code>show_full_output</code>. Exported rows show their Phoenix trace id.</div>
+    <h2>Agent runs (with parsed agent facts first)</h2>
+    <div class="sub">One trace per run: workflow → jobs → steps → the Claude step (model, turns, cost from the run log) → tool calls when the action ran with <code>show_full_output</code>. Exported rows show their Phoenix trace id. Runs whose log yielded those facts are listed first — an AI workflow's mention handler fires and skips on every issue comment, so plain recency buries them.</div>
     <div class="wrap"><table><thead><tr><th>repo</th><th>workflow</th><th>event</th><th>conclusion</th><th>model</th><th class="num">turns</th><th class="num">cost</th><th class="num">min</th><th>trace</th></tr></thead><tbody>
       ${runs.map(r => `<tr class="${r.conclusion === 'failure' ? 'bad' : ''}"><td><code>${esc(r.nwo)}</code></td><td><a href="${esc(r.html_url)}" target="_blank" rel="noopener">${esc(r.workflow_name)}</a></td><td>${esc(r.event)}</td><td>${r.conclusion === 'success' ? status('good', 'success') : r.conclusion === 'failure' ? status('crit', 'failure') : status('info', r.conclusion || r.status)}</td><td>${esc(r.model || '—')}</td><td class="num">${fmt(r.num_turns)}</td><td class="num">${r.cost_usd == null ? '—' : usd(r.cost_usd)}</td><td class="num">${r.duration_ms == null ? '—' : (r.duration_ms / 60000).toFixed(1)}</td><td>${r.trace_id ? '<code title="exported ' + esc(r.exported_at) + '">' + esc(r.trace_id.slice(0, 12)) + '…</code>' : '<span class="muted">not exported</span>'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">no agent runs in the lake yet</td></tr>'}
     </tbody></table></div>
@@ -435,31 +522,134 @@ function renderFleet() {
   bindRunButtons('#tab-fleet');
 }
 
-// ------------------------------------------------------------------ contract
-async function renderContract() {
-  let c; try { c = await api('/api/contract'); } catch (e) { $('#tab-contract').innerHTML = status('crit', e.message); return; }
-  const h = c.harnesses || {}, get = k => k.split('.').reduce((o, p) => (o || {})[p], h);
-  const field = k => { const v = get(k); const id = 'c-' + k.replace(/\./g, '-');
-    if (typeof v === 'boolean') return `<input type="checkbox" id="${id}" data-key="${k}" ${v ? 'checked' : ''}>`;
-    if (Array.isArray(v)) return `<input type="text" id="${id}" data-key="${k}" value="${esc(v.join(','))}" placeholder="comma-separated repo names" size="30">`;
-    return `<input type="number" id="${id}" data-key="${k}" value="${esc(v)}" step="any" style="width:130px">`; };
-  const help = { 'baseline.require_mention_handler': 'a claude-code-action workflow answering @claude', 'baseline.require_agent_context': 'CLAUDE.md / AGENTS.md / copilot-instructions / .cursorrules', 'baseline.require_oauth_secret': 'CLAUDE_CODE_OAUTH_TOKEN present per the rotation ledger',
-    'throughput.max_scheduled_ai_per_day_fleet': 'estimated cron-driven AI workflow runs/day, fleet-wide', 'throughput.max_scheduled_ai_per_day_repo': 'per repo', 'throughput.max_ai_crons_per_utc_hour': 'distinct AI crons sharing one UTC hour',
-    'budget.monthly_ai_usd': 'projected monthly Claude CI spend ceiling', 'budget.monthly_actions_minutes': 'projected monthly Actions minutes ceiling', 'budget.trend_warn_pct': 'week-over-week growth beyond this is flagged',
-    'inventory.max_workflow_files': 'workflow files parsed per repo', 'inventory.schedule_limit': 'rows in the fleet schedule calendar', 'attention_max': 'findings surfaced per run', 'exempt': 'repo names excused from the baseline' };
-  $('#tab-contract').innerHTML = `<div class="sub">The <code>harnesses:</code> block of <code>_data/fleet.yml</code>. Saving edits the working tree with comments preserved and shows the git diff — <b>the commit (and the PR) stays with you</b>; nothing here reaches a fleet repo. Other blocks (schedule, caps, tokens) are read-only here: edit them in the file.</div>
-    ${CAPS && CAPS.contract_editing === false ? status('warn', 'ruamel.yaml missing — editing disabled (pip install ruamel.yaml)') : ''}
-    <div class="split"><form class="contract card" id="contract-form">${c.editable.map(k => `<label><span><code>${esc(k)}</code><small>${esc(help[k] || '')}</small></span>${field(k)}</label>`).join('')}
-      <div class="toolbar" style="margin:12px 0 0"><button class="btn primary" type="submit">Save to fleet.yml</button><button class="btn" type="button" id="c-recompute" title="re-grade the committed inventory against the new contract">then ↻ recompute (offline)</button></div></form>
-      <div><h2>Read-only reference</h2><div class="card"><b>Schedule (UTC)</b><table style="margin-top:6px;border:0">${Object.entries(STATE.contract.schedule || {}).map(([k, v]) => `<tr><td><code>${esc(k)}</code></td><td><code>${esc(v)}</code></td></tr>`).join('')}</table></div>
-      <div class="card" style="margin-top:10px"><b>Caps</b><table style="margin-top:6px;border:0"><tr><td>remediation.max_candidates</td><td class="num">${fmt((STATE.contract.remediation || {}).max_candidates)}</td></tr><tr><td>issue_pipeline.tiers</td><td class="muted">${esc(JSON.stringify(STATE.contract.issue_pipeline_tiers))}</td></tr><tr><td>evolution</td><td class="muted">${esc(JSON.stringify(STATE.contract.evolution))}</td></tr></table></div>
-      <div class="card" style="margin-top:10px"><b>Token contract</b> <span class="muted">(names and placement — never values)</span><table style="margin-top:6px;border:0">${(STATE.tokens || []).map(t => `<tr><td><code>${esc(t.name)}</code>${t.deprecated ? ' <span class="muted">deprecated</span>' : ''}</td><td>${esc(t.scope)}${t.required ? ' · required' : ''}</td></tr>`).join('')}</table></div>
-      <pre class="log" id="c-diff" hidden></pre></div></div>`;
-  $('#contract-form').onsubmit = async e => { e.preventDefault(); const changes = {};
-    $('#contract-form').querySelectorAll('[data-key]').forEach(el => { changes[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value; });
-    try { const r = await api('/api/contract', { method: 'PUT', body: JSON.stringify({ changes }) }); const d = $('#c-diff'); d.hidden = false; d.textContent = Object.keys(r.applied).length ? (r.diff || '(no diff — values unchanged?)') : 'nothing changed'; toast(Object.keys(r.applied).length ? 'saved: ' + Object.keys(r.applied).join(', ') : 'no changes'); STATE = await api('/api/state'); renderMeta(); }
-    catch (err) { toast(err.message, true); } };
-  $('#c-recompute').onclick = () => runOp('harnesses-offline', {});
+// ------------------------------------------------------------------ config
+// The whole fleet contract (_data/fleet.yml), section by section. Saving edits
+// the WORKING TREE with every comment preserved and shows the git diff — the
+// commit and the PR stay with the human, exactly as they do for the generated
+// data. Nothing here reaches a fleet repo; projecting the canonical variables
+// outward is a separate, confirm-gated job (config-sync).
+async function renderConfig() {
+  let c; try { c = await api('/api/config'); } catch (e) { $('#tab-contract').innerHTML = status('crit', e.message); return; }
+  const fid = k => 'c-' + k.replace(/[^A-Za-z0-9]/g, '-');
+  const input = f => {
+    if (!f.present) return `<span class="status info" title="not declared in ${esc(c.path)} — add the key by hand first, then it becomes editable here">not declared</span>`;
+    const a = `id="${fid(f.key)}" data-key="${esc(f.key)}" data-kind="${esc(f.kind)}"`;
+    if (f.kind === 'bool') return `<input type="checkbox" ${a}${f.value ? ' checked' : ''}>`;
+    if (f.kind === 'choice') return `<select ${a}>${(f.choices || []).map(o => `<option${o === f.value ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    if (f.kind === 'list') return `<input type="text" ${a} value="${esc((f.value || []).join(','))}" placeholder="comma-separated repo names" size="26">`;
+    if (f.kind === 'int' || f.kind === 'float') return `<input type="number" step="any" ${a} value="${esc(f.value)}" style="width:120px">`;
+    return `<input type="text" ${a} value="${esc(f.value)}" size="${f.kind === 'cron' ? 15 : 22}"${f.kind === 'cron' ? ' placeholder="m h dom mon dow"' : ''}>`;
+  };
+  // `harnesses:` opens by default — it is what this tab was before it grew the
+  // rest of the contract, and what the Costs/Overview deep links come here for.
+  const section = s => `<details class="card sect" data-section="${esc(s.key)}"${s.key === 'harnesses' ? ' open' : ''}>
+    <summary><code>${esc(s.key)}:</code> ${esc(s.title)}<small>${esc(s.blurb)} <a href="https://github.com/bamr87/bamr87/blob/main/${esc(s.doc)}" target="_blank" rel="noopener">${esc(s.doc)}</a></small></summary>
+    ${s.present ? '' : banner('warn', `no <code>${esc(s.key)}:</code> block in <code>${esc(c.path)}</code>`)}
+    <form class="contract" data-section="${esc(s.key)}">${s.fields.map(f => `<label><span><code>${esc(f.path)}</code><small>${esc(f.help)}</small></span>${input(f)}</label>`).join('')}
+      <div class="toolbar" style="margin:12px 0 0"><button class="btn primary" type="submit">Save <code>${esc(s.key)}:</code></button>
+      ${s.key === 'harnesses' ? '<button class="btn" type="button" data-recompute title="re-grade the committed inventory against the new contract">then ↻ recompute (offline)</button>' : ''}
+      ${s.key === 'variables' ? '<button class="btn" type="button" data-run=\'{"op":"config-sync"}\'>▶ project onto the fleet (dry run)</button>' : ''}</div></form></details>`;
+  $('#tab-contract').innerHTML = `<div class="sub">Every knob the console may change in <code>${esc(c.path)}</code> — the control plane's own settings. Saving rewrites <b>only the blocks you edited</b>, comments intact, and shows the git diff; <b>the commit (and the PR) stays with you</b>. A key the file doesn't declare is shown read-only: add it by hand first, so the console can never invent contract structure. Values that must reach GitHub (canonical variables, secrets) still travel through their own confirm-gated jobs.</div>
+    ${CAPS && CAPS.config_editing === false ? banner('warn', 'ruamel.yaml missing — editing disabled (<code>pip install ruamel.yaml</code>)') : ''}
+    <div class="split"><div>${c.sections.map(section).join('')}</div>
+      <div><h2>Working tree</h2><div class="card"><div class="sub" style="margin:0">Saved edits land in <code>${esc(c.path)}</code> and nowhere else. Review them in git, commit, open a PR — the drift gate and the fixture tests are what verify a contract change, and they run on the PR.</div>
+        <div class="toolbar" style="margin:10px 0 0"><button class="btn" data-run='{"op":"tests"}'>▶ fixture tests</button><button class="btn" data-run='{"op":"drift"}'>▶ drift gate</button><button class="btn" data-run='{"op":"config-show"}'>▶ dash config show</button></div></div>
+      <pre class="log" id="c-diff" hidden></pre>
+      <h2>Read-only here</h2><div class="card"><b>Hub identity</b><table class="ref" style="margin-top:6px;border:0">${Object.entries(STATE.contract.hub || {}).map(([k, v]) => `<tr><td><code>${esc(k)}</code></td><td>${esc(v)}</td></tr>`).join('')}</table>
+        <div class="sub" style="margin:10px 0 0">Also read-only: the dependency policy (<code>latest</code>, never a lockfile), the token contract (Auth tab), and every policy key <code>fleet.yml</code> itself calls non-negotiable — <code>rotation.hub_first</code>, <code>issue_pipeline.autonomy.never_merge</code>. Those change in an editor, with the comment that explains why.</div></div></div></div>`;
+  $('#tab-contract').querySelectorAll('form.contract').forEach(form => {
+    form.onsubmit = async e => {
+      e.preventDefault();
+      const changes = {};
+      form.querySelectorAll('[data-key]').forEach(el => { changes[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value; });
+      try {
+        const r = await api('/api/config', { method: 'PUT', body: JSON.stringify({ changes }) });
+        const d = $('#c-diff'), keys = Object.keys(r.applied);
+        d.hidden = false; d.textContent = keys.length ? (r.diff || '(no diff — already saved?)') : 'nothing changed';
+        toast(keys.length ? 'saved: ' + keys.join(', ') : 'no changes');
+        STATE = await api('/api/state'); renderMeta();
+      } catch (err) { toast(err.message, true); }
+    };
+  });
+  const rc = $('#tab-contract [data-recompute]'); if (rc) rc.onclick = () => runOp('harnesses-offline', {});
+  bindRunButtons('#tab-contract');
+}
+
+// ------------------------------------------------------------------ auth
+// The console can be HANDED a credential instead of dead-ending at "go find a
+// terminal". A value posted here lives in this process's environment — which is
+// exactly what a job inherits — and dies with the process; writing it to the
+// gitignored .env is a separate, explicitly confirmed step; a GitHub token can
+// instead go to `gh auth login --with-token` over stdin so the CLI's own store
+// keeps it. Nothing ever reads a value back: this page only ever learns which
+// names are present and where they came from.
+async function renderAuth() {
+  let a; try { a = await api('/api/auth'); } catch (e) { $('#tab-auth').innerHTML = status('crit', e.message); return; }
+  const gh = a.github || {}, cl = a.claude || {}, ef = a.env_file || {}, rot = (STATE.rotation || {}).tokens || [];
+  const ghState = !gh.cli ? status('crit', 'gh CLI not installed')
+    : gh.authenticated ? status('good', `signed in${gh.account ? ' as ' + gh.account : ''}${gh.host ? ' @ ' + gh.host : ''}`)
+    : status('warn', 'not signed in');
+  const row = c => `<div class="cred"><div class="n"><code>${esc(c.name)}</code> ${c.present ? status('good', c.source === 'session' ? 'set in this console' : 'in the environment') : status('warn', 'absent')}${c.in_env_file ? ' ' + status('info', 'in .env') : ''}
+      <small>${esc(c.label)} — ${esc(c.help)} <a href="${esc(c.url)}" target="_blank" rel="noopener">↗</a></small>
+      <div class="set"><input type="password" data-cred="${esc(c.name)}" placeholder="paste value…" size="26" autocomplete="off" spellcheck="false">
+        <label class="inl"><input type="checkbox" data-persist="${esc(c.name)}"> also write to <code>.env</code></label>
+        <button class="btn primary" data-set="${esc(c.name)}">Set</button>
+        ${c.present || c.in_env_file ? `<button class="btn danger" data-clear="${esc(c.name)}">Clear</button>` : ''}</div></div>
+    <div class="muted" style="white-space:nowrap">${rot.filter(t => t.name === c.name).map(t => `oldest ${fmt(t.oldest_age_days)}d / ${fmt(t.max_age_days)}d`).join('') || ''}</div></div>`;
+  $('#tab-auth').innerHTML = `<div class="sub">Credentials for <b>this console process</b>. A value you set here reaches the jobs the console runs — the same environment a terminal would give them — and dies when the console stops, unless you also write it to <code>.env</code> (gitignored, mode 600). Values are never returned, logged, or put on a command line; this page only ever sees which names are present. The fleet's own copies live in GitHub Actions secrets and are rotated by <a href="https://github.com/bamr87/bamr87/blob/main/docs/TOKEN-ROTATION.md" target="_blank" rel="noopener">token-rotation.yml</a>.</div>
+    ${a.writes_enabled ? '' : banner('warn', 'Credential writes are disabled (<code>DASH_CONSOLE_AUTH=off</code>) — this page is read-only.')}
+    ${a.console_token_required ? '' : banner('info', 'No <code>DASH_CONSOLE_TOKEN</code> set: this console is protected by the loopback Host guard alone. Set one before serving it anywhere but localhost.')}
+    ${ef.tracked_by_git ? banner('crit', `<code>${esc(ef.path)}</code> is TRACKED BY GIT — the console refuses to write a credential into it.`) : ''}
+    <div class="split"><div>
+      <h2>GitHub</h2><div class="card">${ghState}
+        ${gh.scopes && gh.scopes.length ? `<div class="sub" style="margin:8px 0 0">scopes: ${gh.scopes.map(s => `<code>${esc(s)}</code>`).join(' ')}${gh.protocol ? ' · protocol ' + esc(gh.protocol) : ''}</div>` : ''}
+        ${gh.env_token ? banner('warn', `<code>${esc(gh.env_token)}</code> is set in this process's environment — gh prefers it over a stored login, so a sign-in here will not change which token gh uses until you clear it.`) : ''}
+        <div class="sub" style="margin:8px 0 4px">Paste a personal access token; it goes to <code>gh auth login --with-token</code> over <b>stdin</b>, never a command line, and the CLI's own credential store keeps it. Fleet work needs <code>repo</code>, <code>workflow</code> and <code>read:org</code> — cross-repo PRs and secret writes want a <code>FLEET_TOKEN</code> below instead.</div>
+        <div class="set"><input type="password" id="gh-token" placeholder="ghp_… / github_pat_…" size="30" autocomplete="off" spellcheck="false">
+          <button class="btn primary" id="gh-login" ${a.writes_enabled && gh.cli ? '' : 'disabled'}>Sign in</button>
+          ${gh.authenticated ? `<button class="btn danger" id="gh-logout" ${a.writes_enabled ? '' : 'disabled'}>Sign out</button>` : ''}
+          <a class="btn" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener" style="text-decoration:none">Create a token ↗</a></div>
+        ${gh.message ? `<pre class="log" style="max-height:120px;margin-top:10px">${esc(gh.message)}</pre>` : ''}</div>
+      <h2>Claude</h2><div class="card">${cl.oauth ? status('good', 'CLAUDE_CODE_OAUTH_TOKEN present') : cl.api_key ? status('warn', 'API key only — the fleet convention is OAuth first') : status('warn', 'no Claude credential')}
+        <div class="sub" style="margin:8px 0 0">The OAuth token is minted by a browser flow that cannot run headlessly: run <code>claude setup-token</code> in a terminal${cl.cli ? '' : ' (the <code>claude</code> CLI is not on this PATH)'} and paste the result into <code>CLAUDE_CODE_OAUTH_TOKEN</code> opposite. It lasts a year; <code>token-rotation.yml</code> propagates the hub's copy to the fleet weekly, and only ever propagates one that is newer than what a repo already has.</div></div>
+      <h2>Where values live</h2><div class="card"><table class="ref" style="border:0"><tr><td><b>this process</b></td><td>every credential you Set — inherited by jobs, gone when the console stops</td></tr>
+        <tr><td><b><code>${esc(ef.path)}</code></b></td><td>${ef.exists ? 'exists' : 'absent'}${ef.names && ef.names.length ? ' · declares ' + ef.names.map(n => `<code>${esc(n)}</code>`).join(', ') : ''} — gitignored, mode 600, written only on an explicit confirm</td></tr>
+        <tr><td><b>gh CLI store</b></td><td>the GitHub login above (keychain / config file, this machine only)</td></tr>
+        <tr><td><b>GitHub Actions</b></td><td>the fleet's copies — audited by <code>dash secrets</code>, rotated weekly, never readable back</td></tr></table></div></div>
+      <div><h2>Credentials</h2><div class="card">${(a.credentials || []).map(row).join('')}</div>
+      <h2>The token contract</h2><div class="sub">Names and placement from <code>_data/fleet.yml</code> <code>tokens:</code> — never values.</div>
+      <div class="wrap"><table><thead><tr><th>secret</th><th>scope</th><th>used by</th></tr></thead><tbody>${(STATE.tokens || []).map(t => `<tr><td><code>${esc(t.name)}</code>${t.deprecated ? ' ' + status('warn', 'deprecated') : ''}</td><td>${esc(t.scope)}${t.required ? ' · required' : ''}</td><td class="muted">${esc((t.used_by || []).join(', '))}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">no contract</td></tr>'}</tbody></table></div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn" data-run='{"op":"secrets-audit"}'>▶ audit the fleet's secrets</button><button class="btn" data-run='{"op":"secrets-plan"}'>▶ rotation plan</button></div></div></div>`;
+
+  const refresh = async () => { CAPS = await api('/api/capabilities'); renderMeta(); renderAuth(); };
+  $('#tab-auth').querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
+    const name = b.dataset.set, el = $(`[data-cred="${name}"]`), persist = $(`[data-persist="${name}"]`).checked;
+    if (!el.value.trim()) { toast('paste a value first', true); return; }
+    if (persist && !confirm(`Write ${name} to ${ef.path}?\n\nIt is gitignored and written mode 600, but it IS a credential on disk.`)) return;
+    try {
+      await api('/api/auth/credential', { method: 'PUT', body: JSON.stringify({ name, value: el.value.trim(), persist, confirm: persist }) });
+      el.value = ''; toast(name + ' set' + (persist ? ' and written to .env' : ' for this console')); refresh();
+    } catch (e) { toast(e.message, true); }
+  });
+  $('#tab-auth').querySelectorAll('[data-clear]').forEach(b => b.onclick = async () => {
+    const name = b.dataset.clear;
+    const purge = confirm(`Clear ${name} from this console.\n\nOK also removes it from ${ef.path}; Cancel clears only the running process.`);
+    try { await api(`/api/auth/credential/${encodeURIComponent(name)}?purge=${purge}`, { method: 'DELETE' }); toast(name + ' cleared'); refresh(); }
+    catch (e) { toast(e.message, true); }
+  });
+  const login = $('#gh-login'); if (login) login.onclick = async () => {
+    const el = $('#gh-token'); if (!el.value.trim()) { toast('paste a token first', true); return; }
+    try { const r = await api('/api/auth/github', { method: 'POST', body: JSON.stringify({ action: 'login', token: el.value.trim() }) });
+      el.value = ''; toast(r.ok ? 'gh signed in' : r.message, !r.ok); refresh(); }
+    catch (e) { toast(e.message, true); }
+  };
+  const logout = $('#gh-logout'); if (logout) logout.onclick = async () => {
+    if (!confirm('Sign the gh CLI out of github.com on this machine?')) return;
+    try { const r = await api('/api/auth/github', { method: 'POST', body: JSON.stringify({ action: 'logout' }) });
+      toast(r.ok ? 'gh signed out' : r.message, !r.ok); refresh(); }
+    catch (e) { toast(e.message, true); }
+  };
+  bindRunButtons('#tab-auth');
 }
 
 // ------------------------------------------------------------------ jobs
@@ -519,8 +709,19 @@ async function runOp(op, params) {
   } catch (e) { toast(e.message, true); }
 }
 function watch(id) {
-  clearInterval(POLL); CURRENT_JOB = id; let offset = 0; const log = $('#log'); if (!log) return; log.textContent = '';
-  const tick = async () => { try { const t = await api(`/api/jobs/${id}?offset=${offset}`); if (t.text) { log.textContent += t.text; offset = t.offset; log.scrollTop = log.scrollHeight; }
+  clearInterval(POLL); CURRENT_JOB = id; let offset = 0; const log = $('#log'); if (!log) return;
+  // Keep the raw text: an SGR sequence can straddle two poll chunks, so the
+  // decode has to run over the whole log, not per-chunk.
+  let raw = ''; log.textContent = '';
+  const tick = async () => { try { const t = await api(`/api/jobs/${id}?offset=${offset}`); if (t.text) {
+        // Only follow the tail if the reader is already at the bottom —
+        // otherwise a streaming job yanks the view back every second and you
+        // cannot read what scrolled past.
+        const pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+        raw += t.text; offset = t.offset;
+        log.innerHTML = ansiToHtml(raw);
+        if (pinned) log.scrollTop = log.scrollHeight;
+      }
       $('#log-title').textContent = `Log — ${t.job.title} (${t.job.status})`;
       if (t.done) { clearInterval(POLL); POLL = null; JOBS = await api('/api/jobs'); drawJobs(); if (t.job.status === 'succeeded') { STATE = await api('/api/state'); renderMeta(); if (ACTIVE !== 'jobs') renderTab(ACTIVE); } } }
     catch (e) { clearInterval(POLL); toast(e.message, true); } };

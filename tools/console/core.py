@@ -20,15 +20,21 @@ Four things live here:
              serialized behind one lock — the console mirrors the fleet's
              rules: dry-run by default, one remote write at a time, never a
              merge.
-  CONTRACT   a comment-preserving editor for the `harnesses:` block of
-             _data/fleet.yml (ruamel round-trip), limited to declared scalar
-             knobs. It edits the working tree and shows the git diff; the
-             commit stays with the human — git is the database and the review
-             gate, here as everywhere else in the dash.
+  CONFIG     a comment-preserving editor for _data/fleet.yml (ruamel
+             round-trip), limited to the declared knobs of CONFIG_SECTIONS and
+             spliced back one top-level block at a time so the diff covers only
+             what the form touched. It edits the working tree and shows the git
+             diff; the commit stays with the human — git is the database and
+             the review gate, here as everywhere else in the dash.
+  AUTH       credentials supplied through the UI: held in this process's
+             environment (which is what a job inherits), optionally written to
+             the gitignored .env or handed to `gh auth login` over stdin, and
+             never returned, logged, or placed in an argv.
 """
 from __future__ import annotations
 
 import datetime as dt
+import io
 import importlib.util
 import os
 import re
@@ -78,7 +84,8 @@ SOURCES = {
 }
 
 # Secrets the fleet contract names — the console reports PRESENCE of the env
-# var by name only, never a value or a prefix.
+# var by name only, never a value or a prefix. The AUTH section below adds the
+# ones the console itself can be handed (CREDENTIALS, a superset of these).
 TOKEN_ENV = ["FLEET_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]
 
 # Workflows the console may dispatch through `gh workflow run`, with the
@@ -318,8 +325,10 @@ def capabilities() -> dict:
     return {
         "tools": tools,
         "gh_authenticated": gh_auth,
-        "env_tokens": {name: bool(os.environ.get(name)) for name in TOKEN_ENV},
+        "env_tokens": {name: bool(os.environ.get(name)) for name in CREDENTIALS},
         "contract_editing": has_ruamel,
+        "config_editing": has_ruamel,
+        "auth_writes": AUTH_WRITES,
         "console_token_required": bool(os.environ.get("DASH_CONSOLE_TOKEN")),
         "python": sys.version.split()[0],
         "job_dir": str(JOB_DIR),
@@ -664,6 +673,26 @@ class Job:
         }
 
 
+def job_env() -> dict:
+    """The environment every job runs with.
+
+    A job inherits this process's environment exactly as a terminal would —
+    which is also how a credential handed to set_credential() reaches `gh` and
+    the generators without ever touching an argv.
+
+    PYTHON is what tools/dash-gen execs. Without it the generators ran on the
+    system python3 while the console's own dependencies live in .venv-console,
+    so `lake export` — whose OpenTelemetry SDK the console itself installs —
+    died with ModuleNotFoundError on every real send. (The dry run returns
+    before that import, which is why only the shipping path was broken, and why
+    the UI looked fine until you unticked "dry run".) Handing jobs this
+    interpreter makes what the console installs and what its jobs can import
+    the same set.
+    """
+    return {**os.environ, "PYTHONUNBUFFERED": "1", "FORCE_COLOR": "0", "NO_COLOR": "1",
+            "PYTHON": sys.executable}
+
+
 class JobManager:
     def __init__(self, job_dir: Path = JOB_DIR, max_jobs: int = 200):
         self.job_dir = job_dir
@@ -692,7 +721,7 @@ class JobManager:
         return job
 
     def _run(self, job: Job) -> None:
-        env = {**os.environ, "PYTHONUNBUFFERED": "1", "FORCE_COLOR": "0", "NO_COLOR": "1"}
+        env = job_env()
         lock = self._remote_lock if job.remote else None
         if lock:
             lock.acquire()
@@ -756,42 +785,216 @@ class JobManager:
         return job
 
 
+
 # --------------------------------------------------------------------------- #
-# CONTRACT — comment-preserving edits to fleet.yml `harnesses:`
+# CONFIG — comment-preserving edits to _data/fleet.yml
 # --------------------------------------------------------------------------- #
-# The knobs the console may change, with their types. Anything else in the
-# block (the kit name, comments, structure) is edited in a text editor + PR.
-EDITABLE = {
-    "baseline.require_mention_handler": bool,
-    "baseline.require_agent_context": bool,
-    "baseline.require_oauth_secret": bool,
-    "throughput.max_scheduled_ai_per_day_fleet": int,
-    "throughput.max_scheduled_ai_per_day_repo": int,
-    "throughput.max_ai_crons_per_utc_hour": int,
-    "budget.monthly_ai_usd": float,
-    "budget.monthly_actions_minutes": int,
-    "budget.trend_warn_pct": float,
-    "inventory.max_workflow_files": int,
-    "inventory.schedule_limit": int,
-    "attention_max": int,
-    "exempt": list,
+# The contract is the control plane's own settings, so the console edits it the
+# way the fleet edits anything else: an ALLOWLIST of declared knobs, validated
+# by type, written back through a round trip that keeps every comment, and
+# spliced so the diff covers only the blocks the form touched. Anything not
+# listed here (structure, comments, the token contract, policy keys the file
+# itself calls non-negotiable) stays a text-editor-and-PR change.
+CRON_RX = re.compile(r"^[\d*/,\-]{1,24}( +[\dA-Za-z*/,\-]{1,24}){4}$")
+VERSION_RX = re.compile(r"^[0-9][0-9A-Za-z.+\-]{0,31}$")
+VALUE_RX = re.compile(r"^[A-Za-z0-9._/@:+\- ]{1,120}$")   # canonical variable values
+SLUG_RX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/\-]{0,63}$")
+
+
+def _f(kind: str, help: str = "", choices: tuple[str, ...] | None = None) -> dict:
+    return {"kind": kind, "help": help, "choices": list(choices) if choices else None}
+
+
+# Sections of _data/fleet.yml the console may edit, in file order. Each field's
+# path is relative to its section; the fully qualified key (`section.a.b`) is
+# what the API accepts.
+CONFIG_SECTIONS: list[dict] = [
+    {"key": "toolchain", "title": "Toolchain", "doc": "docs/DASH.md",
+     "blurb": "Language versions reusable CI falls back to (caller input → repo vars.* → these).",
+     "fields": {
+         "node": _f("version", "Node major used by the reusable workflows"),
+         "python": _f("version", "Python version"),
+         "ruby": _f("version", "Ruby version"),
+     }},
+    {"key": "schedule", "title": "Schedule (UTC)", "doc": "docs/DAILY-ANALYSIS.md",
+     "blurb": "Cron cadence of each control-plane loop. Editing here changes the CONTRACT — "
+              "the workflow's own `on: schedule:` is what GitHub obeys, so change both.",
+     "fields": {k: _f("cron", d) for k, d in (
+         ("fleet_pulse", "gather → publish → remediate"),
+         ("build_dash", "republish the Pages site after the data lands"),
+         ("issue_pipeline", "intake → implement → complete"),
+         ("refresh_dash", "README AUTO span refresh PR"),
+         ("reconcile_registry", "registry ↔ GitHub reconciliation"),
+         ("update_submodules", "weekly submodule pointer bump PR"),
+         ("rotate_tokens", "weekly credential rotation"),
+         ("repo_evolution", "weekly proactive per-repo improvement pass"),
+     )}},
+    {"key": "remediation", "title": "Remediation — the doctor's guardrails", "doc": "docs/DAILY-ANALYSIS.md",
+     "blurb": "Blast radius and eligibility of the daily auto-fix loop. Raising max_candidates "
+              "without raising the doctor's --max-turns loses the whole day's queue.",
+     "fields": {
+         "max_candidates": _f("int", "candidates acted on per run"),
+         "max_cross_repo": _f("int", "of those, how many may become submodule PRs"),
+         "min_runs": _f("int", "ignore workflows with fewer runs in the window"),
+         "min_priority": _f("float", "unflagged workflows at/above this are eligible"),
+         "slow_avg_min": _f("int", "avg minutes/run that counts as long-running"),
+         "slow_p95_min": _f("int", "p95 minutes/run that counts as long-running"),
+         "window_days": _f("int", "analytics window"),
+         "supersede_on_success": _f("bool", "latest green run drops a failing/flaky flag"),
+         "interactive_dispatch_pct": _f("int", "≥ this % hand-dispatched ⇒ cost signals don't apply"),
+         "stale_after_days": _f("int", "latest run older than this sorts below live candidates (0 = off)"),
+     }},
+    {"key": "issue_pipeline", "title": "Issue pipeline — the three tiers", "doc": "docs/ISSUE-PIPELINE.md",
+     "blurb": "Per-tier caps, the evidence budget, and the autonomy default. `never_merge` is "
+              "deliberately absent: no tier may ever merge.",
+     "fields": {
+         "enabled": _f("bool", "run the pipeline at all"),
+         "tiers.intake.max_issues": _f("int", "issues enriched per run, fleet-wide"),
+         "tiers.intake.max_per_repo": _f("int", "…so one noisy backlog can't consume the run"),
+         "tiers.implement.max_issues": _f("int", "draft PRs opened per run"),
+         "tiers.implement.max_cross_repo": _f("int", "of those, how many land outside the hub"),
+         "tiers.complete.max_prs": _f("int", "pipeline PRs driven toward mergeable per run"),
+         "evidence.enabled": _f("bool", "build evidence bundles in the virtual environment"),
+         "evidence.max_runs": _f("int", "evidence bundles built per run"),
+         "evidence.ttl_days": _f("int", "a bundle newer than this is reused"),
+         "evidence.timeout_minutes": _f("int", "per phase (clone/install/lint/test/build)"),
+         "evidence.screenshots": _f("bool", "capture a page screenshot for web stacks"),
+         "readiness.min_score": _f("int", "below this T1 must not pass an issue on"),
+         "autonomy.default": _f("choice", "what may proceed unattended", ("auto", "assisted")),
+     }},
+    {"key": "evolution", "title": "Repo evolution — the weekly proactive loop", "doc": "docs/EVOLUTION.md",
+     "blurb": "One Opus agent and one draft PR per target. max_turns is wired into the workflow "
+              "through the plan, so this is the only place it is stated.",
+     "fields": {
+         "enabled": _f("bool", "run the weekly pass"),
+         "skip_when_open_pr": _f("bool", "one open evolution PR per repo is the backpressure"),
+         "max_targets": _f("int", "repos evolved per run"),
+         "max_parallel": _f("int", "concurrent agents (one OAuth account's rate limit)"),
+         "max_turns": _f("int", "per-repo turn budget — set above observed demand, not at it"),
+         "signals.max_issues": _f("int", "issues quoted into each brief"),
+         "signals.max_prs": _f("int", "PRs quoted into each brief"),
+     }},
+    {"key": "harness", "title": "Harness health — scorecard + trip wires", "doc": "docs/HARNESS.md",
+     "blurb": "The hub watching itself: pass/fail lines and the aggregate-drift alarms "
+              "`dash harness` computes offline from the committed signals.",
+     "fields": {
+         "scorecard.completion_rate_min_pct": _f("float", "fleet workflow success rate floor"),
+         "scorecard.effectiveness_min_pct": _f("float", "minutes ending in success, as a share of all minutes"),
+         "trip_wires.stale_data_days": _f("int", "a signal older than this is an alarm"),
+         "trip_wires.pass_rate_floor_pct": _f("float", "fleet-wide quality regression"),
+         "trip_wires.waste_ceiling_pct": _f("float", "non-success minutes / total minutes"),
+         "trip_wires.cost_spike_multiplier": _f("float", "× the fleet MEDIAN run time = runaway"),
+         "trip_wires.cost_spike_min_runs": _f("int", "ignore workflows with fewer runs"),
+         "trip_wires.cost_spike_min_avg_min": _f("float", "…and anything cheaper than this on average"),
+         "trip_wires.standing_failures_max": _f("int", "red-workflow backlog the doctor can't drain"),
+         "trip_wires.credential_grace_days": _f("int", "past max_age + this, a credential is an alarm"),
+     }},
+    {"key": "harnesses", "title": "Harnesses — the fleet deployment contract", "doc": "docs/HARNESS-OPS.md",
+     "blurb": "What every owned repo must carry, how much scheduled agent work the fleet may "
+              "commit to, and what the projected spend may grow to before somebody is told.",
+     "fields": {
+         "baseline.require_mention_handler": _f("bool", "a claude-code-action workflow answering @claude"),
+         "baseline.require_agent_context": _f("bool", "CLAUDE.md / AGENTS.md / copilot-instructions / .cursorrules"),
+         "baseline.require_oauth_secret": _f("bool", "CLAUDE_CODE_OAUTH_TOKEN present per the rotation ledger"),
+         "exempt": _f("list", "repo names excused from the baseline"),
+         "throughput.max_scheduled_ai_per_day_fleet": _f("int", "estimated cron-driven AI runs/day, fleet-wide"),
+         "throughput.max_scheduled_ai_per_day_repo": _f("int", "the same per repo"),
+         "throughput.max_ai_crons_per_utc_hour": _f("int", "AI crons sharing one UTC hour"),
+         "budget.monthly_ai_usd": _f("float", "projected monthly Claude CI spend ceiling"),
+         "budget.monthly_actions_minutes": _f("int", "projected monthly Actions minutes ceiling"),
+         "budget.trend_warn_pct": _f("float", "week-over-week growth beyond this is flagged"),
+         "inventory.max_workflow_files": _f("int", "workflow files parsed per repo"),
+         "inventory.schedule_limit": _f("int", "rows in the fleet schedule calendar"),
+         "attention_max": _f("int", "findings surfaced per run"),
+     }},
+    {"key": "rotation", "title": "Token rotation", "doc": "docs/TOKEN-ROTATION.md",
+     "blurb": "The weekly credential loop. `hub_first` is not offered here — the file calls it "
+              "non-negotiable, and it is the rule that keeps a bad credential an incident "
+              "rather than an outage.",
+     "fields": {
+         "enabled": _f("bool", "run the weekly pass"),
+         "only_stale": _f("bool", "rewrite only what is missing or past max_age_days"),
+         "max_repos": _f("int", "0 = no cap (fleet-wide consistency is the point)"),
+         "max_failures": _f("int", "abort the remaining writes past this many failures"),
+         "fail_on_unreachable": _f("bool", "treat a repo the token cannot see as fatal"),
+         "variables.enabled": _f("bool", "propagate canonical repo variables in the same pass"),
+         "variables.warn_on_fallback": _f("bool", "say so when the hub lacks a declared variable"),
+     }},
+    {"key": "variables", "title": "Canonical repository variables", "doc": "docs/TOKEN-ROTATION.md",
+     "blurb": "The FALLBACK values (bamr87/bamr87's live settings are authoritative). "
+              "Project them with `dash config sync --apply` or the weekly rotation.",
+     "fields": {
+         "NODE_VERSION": _f("value", "vars.NODE_VERSION"),
+         "PYTHON_VERSION": _f("value", "vars.PYTHON_VERSION"),
+         "RUBY_VERSION": _f("value", "vars.RUBY_VERSION"),
+         "FLEET_HUB": _f("value", "owner/repo of the hub"),
+         "FLEET_CI_WORKFLOW": _f("value", "the reusable CI workflow reference"),
+     }},
+]
+
+# fully qualified key → field spec
+CONFIG_FIELDS: dict[str, dict] = {
+    f"{section['key']}.{path}": spec
+    for section in CONFIG_SECTIONS for path, spec in section["fields"].items()
 }
+
+# Back-compat: the harnesses-relative knobs the Contract API has always taken.
+EDITABLE = {path: spec["kind"] for path, spec in
+            next(s for s in CONFIG_SECTIONS if s["key"] == "harnesses")["fields"].items()}
+
+
+def _dig(node, parts: list[str]):
+    """Walk a dotted path, returning (parent, leaf, present)."""
+    for part in parts[:-1]:
+        if not isinstance(node, dict) or part not in node:
+            return None, parts[-1], False
+        node = node[part]
+    if not isinstance(node, dict) or parts[-1] not in node:
+        return None, parts[-1], False
+    return node, parts[-1], True
+
+
+def read_config(fleet_path: Path = DATA / "fleet.yml") -> dict:
+    """Every editable knob with its current value — the Config tab's document."""
+    fleet = load_yaml(fleet_path) or {}
+    sections = []
+    for section in CONFIG_SECTIONS:
+        block = fleet.get(section["key"])
+        fields = []
+        for path, spec in section["fields"].items():
+            parent, leaf, present = _dig(block, path.split("."))
+            fields.append({
+                "path": path, "key": f"{section['key']}.{path}", "kind": spec["kind"],
+                "help": spec["help"], "choices": spec["choices"],
+                "value": parent[leaf] if present else None, "present": present,
+            })
+        sections.append({k: section[k] for k in ("key", "title", "blurb", "doc")} |
+                        {"present": isinstance(block, dict), "fields": fields})
+    return {"path": str(fleet_path.relative_to(REPO_ROOT)) if fleet_path.is_relative_to(REPO_ROOT)
+            else str(fleet_path),
+            "sections": sections, "editable": sorted(CONFIG_FIELDS)}
 
 
 def read_contract(fleet_path: Path = DATA / "fleet.yml") -> dict:
+    """The harnesses: block alone, in the shape the Contract API has always returned."""
     fleet = load_yaml(fleet_path) or {}
     return {"harnesses": fleet.get("harnesses") or {}, "editable": sorted(EDITABLE)}
 
 
 def _coerce(key: str, value):
-    kind = EDITABLE[key]
-    if kind is bool:
+    """Validate one value against its declared kind. `key` is fully qualified,
+    or harnesses-relative (the Contract API's older shape)."""
+    spec = CONFIG_FIELDS.get(key) or CONFIG_FIELDS.get(f"harnesses.{key}")
+    if spec is None:
+        raise ValueError(key)
+    kind = spec["kind"]
+    if kind == "bool":
         if isinstance(value, bool):
             return value
         if isinstance(value, str) and value.lower() in ("true", "false"):
             return value.lower() == "true"
         raise ValueError(f"{key} must be true/false")
-    if kind is int:
+    if kind == "int":
         try:
             n = int(value)
         except (TypeError, ValueError):
@@ -799,7 +1002,7 @@ def _coerce(key: str, value):
         if n < 0:
             raise ValueError(f"{key} must be >= 0")
         return n
-    if kind is float:
+    if kind == "float":
         try:
             f = float(value)
         except (TypeError, ValueError):
@@ -807,48 +1010,428 @@ def _coerce(key: str, value):
         if f < 0:
             raise ValueError(f"{key} must be >= 0")
         return int(f) if f.is_integer() else f
-    if kind is list:
+    if kind == "list":
         if isinstance(value, str):
             value = [v.strip() for v in value.split(",") if v.strip()]
         if not isinstance(value, list) or not all(isinstance(v, str) and NAME_RX.match(v) for v in value):
             raise ValueError(f"{key} must be a list of repo names")
-        return value
+        return _flow_seq(value)
+    if kind == "choice":
+        v = str(value).strip()
+        if v not in (spec["choices"] or []):
+            raise ValueError(f"{key} must be one of {spec['choices']}")
+        return v
+    if kind in ("cron", "version", "value", "slug"):
+        v = str(value).strip()
+        rx = {"cron": CRON_RX, "version": VERSION_RX, "value": VALUE_RX, "slug": SLUG_RX}[kind]
+        if not rx.match(v):
+            raise ValueError(f"{key} must match {rx.pattern}")
+        return v
     raise ValueError(key)
 
 
-def update_contract(changes: dict, fleet_path: Path = DATA / "fleet.yml") -> dict:
-    """Apply validated changes to fleet.yml's harnesses: block, preserving every
-    comment (ruamel round-trip). Returns what changed plus the git diff."""
+def _flow_seq(items: list):
+    """A list written inline (`exempt: [a, b]`), matching fleet.yml's own style.
+
+    Not cosmetic: these keys carry a trailing `# comment`, and ruamel emits a
+    BLOCK sequence's items after the comment paragraph that follows the key —
+    so `exempt:` and its entries end up separated by the next section's
+    comment. Still valid YAML, but it reads as though the comment owns the
+    list. A flow sequence cannot be split from its key.
+    """
+    try:
+        from ruamel.yaml.comments import CommentedSeq
+    except ImportError:                       # pragma: no cover - plain list still works
+        return items
+    seq = CommentedSeq(items)
+    seq.fa.set_flow_style()
+    return seq
+
+
+_AMBIGUOUS_SCALAR_RX = re.compile(
+    r"^(-?\d+(\.\d+)?|true|false|yes|no|on|off|null|~)$", re.IGNORECASE)
+
+
+def _styled(old, value: str):
+    """Write a string back in the quoting style the file already used.
+
+    `node: "20"` must not come back as `node: '20'` (a needless diff line) and a
+    plain `FLEET_HUB: bamr87/bamr87` must not gain quotes it never had. A value
+    YAML would read back as a number or a bool is quoted whatever the old style
+    was — that is correctness, not cosmetics.
+    """
+    try:
+        from ruamel.yaml.scalarstring import DoubleQuotedScalarString as DQ
+        from ruamel.yaml.scalarstring import SingleQuotedScalarString as SQ
+    except ImportError:                       # pragma: no cover
+        return value
+    if isinstance(old, DQ):
+        return DQ(value)
+    if isinstance(old, SQ):
+        return SQ(value)
+    return DQ(value) if _AMBIGUOUS_SCALAR_RX.match(value) else value
+
+
+def update_config(changes: dict, fleet_path: Path = DATA / "fleet.yml") -> dict:
+    """Apply validated changes to fleet.yml, preserving every comment (ruamel
+    round-trip) and splicing back only the top-level blocks that changed.
+
+    Keys are fully qualified (`remediation.max_candidates`); a bare key is read
+    as harnesses-relative, which is what the older Contract API sends.
+    """
     try:
         from ruamel.yaml import YAML
     except ImportError:
-        raise RuntimeError("contract editing needs ruamel.yaml (pip install ruamel.yaml)")
-    unknown = sorted(set(changes) - set(EDITABLE))
-    if unknown:
-        raise ValueError(f"not editable from the console: {', '.join(unknown)}")
+        raise RuntimeError("config editing needs ruamel.yaml (pip install ruamel.yaml)")
+    resolved: dict[str, str] = {}
+    for key in changes:
+        if key in CONFIG_FIELDS:
+            resolved[key] = key
+        elif f"harnesses.{key}" in CONFIG_FIELDS:
+            resolved[key] = f"harnesses.{key}"
+        else:
+            raise ValueError(f"not editable from the console: {key}")
     yml = YAML(typ="rt")
     yml.preserve_quotes = True
     yml.width = 4096
-    doc = yml.load(fleet_path.read_text())
-    block = doc.get("harnesses")
-    if block is None:
-        raise ValueError("fleet.yml has no harnesses: block")
-    applied = {}
-    for key, value in changes.items():
-        coerced = _coerce(key, value)
-        parts = key.split(".")
-        node = block
-        for part in parts[:-1]:
-            if part not in node:
-                raise ValueError(f"fleet.yml harnesses.{key} is not declared; add it by hand first")
-            node = node[part]
-        if parts[-1] not in node:
-            raise ValueError(f"fleet.yml harnesses.{key} is not declared; add it by hand first")
-        if node[parts[-1]] != coerced:
-            node[parts[-1]] = coerced
-            applied[key] = coerced
+    # Match fleet.yml's own layout, or the round trip "fixes" the whole file:
+    # ruamel's default puts a block sequence's dash at the parent's indent,
+    # while this file indents it (`tokens:` / `  - name:`), so a one-field edit
+    # came back as a 188-line reindent of every list in the document.
+    yml.indent(mapping=2, sequence=4, offset=2)
+    original = fleet_path.read_text()
+    doc = yml.load(original)
+    applied: dict[str, object] = {}
+    touched: list[str] = []
+    for key, full in resolved.items():
+        coerced = _coerce(full, changes[key])
+        parts = full.split(".")
+        if parts[0] not in doc:
+            raise ValueError(f"fleet.yml has no {parts[0]}: block")
+        parent, leaf, present = _dig(doc[parts[0]], parts[1:])
+        if not present:
+            raise ValueError(f"fleet.yml {full} is not declared; add it by hand first")
+        if isinstance(coerced, str):
+            coerced = _styled(parent[leaf], coerced)
+        if parent[leaf] != coerced:
+            parent[leaf] = coerced
+            applied[key] = str(coerced) if isinstance(coerced, str) else coerced
+            if parts[0] not in touched:
+                touched.append(parts[0])
     if applied:
-        with fleet_path.open("w") as fh:
-            yml.dump(doc, fh)
+        buf = io.StringIO()
+        yml.dump(doc, buf)
+        rewritten = buf.getvalue()
+        text = original
+        for block_key in touched:
+            spliced = _splice_block(text, rewritten, block_key)
+            if spliced is None:               # a shape we don't recognise
+                text = rewritten
+                break
+            text = spliced
+        fleet_path.write_text(text)
     rc, diff = run_quiet(["git", "diff", "--no-color", "--", str(fleet_path)])
-    return {"applied": applied, "diff": diff if rc == 0 else ""}
+    return {"applied": applied, "sections": touched, "diff": diff if rc == 0 else ""}
+
+
+def update_contract(changes: dict, fleet_path: Path = DATA / "fleet.yml") -> dict:
+    """The harnesses-scoped half of update_config (the Contract API's shape)."""
+    unknown = sorted(k for k in changes if f"harnesses.{k}" not in CONFIG_FIELDS)
+    if unknown:
+        raise ValueError(f"not editable from the console: {', '.join(unknown)}")
+    result = update_config({f"harnesses.{k}": v for k, v in changes.items()}, fleet_path)
+    return {"applied": {k.split(".", 1)[1]: v for k, v in result["applied"].items()},
+            "diff": result["diff"]}
+
+
+def _top_level_block(text: str, key: str) -> tuple[int, int] | None:
+    """Line span [start, end) of a top-level `key:` block, its comments included."""
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, ln in enumerate(lines) if ln.startswith(f"{key}:")), None)
+    if start is None:
+        return None
+    for i in range(start + 1, len(lines)):
+        # the next top-level key ends the block; blanks and indented lines don't
+        if lines[i][:1] not in (" ", "\t", "\n", "#") and lines[i].strip():
+            return start, i
+    return start, len(lines)
+
+
+def _splice_block(original: str, rewritten: str, key: str) -> str | None:
+    """Put only `key:`'s block from the rewritten document back into the original.
+
+    Even correctly configured, a ruamel round trip renormalises things it was
+    never asked to touch — here it re-joined two hand-wrapped `used_by:` flow
+    lists in the read-only `tokens:` block. The console's promise is that saving
+    shows you a diff you can read and commit, so the write is confined to the
+    blocks the form edited; everything else stays byte-identical. Returns None
+    when either document's shape isn't recognisable, so the caller can fall
+    back to the whole round trip rather than guess.
+    """
+    a, b = _top_level_block(original, key), _top_level_block(rewritten, key)
+    if not a or not b:
+        return None
+    src, dst = original.splitlines(keepends=True), rewritten.splitlines(keepends=True)
+    return "".join(src[:a[0]] + dst[b[0]:b[1]] + src[a[1]:])
+
+
+# --------------------------------------------------------------------------- #
+# AUTH — credentials supplied through the UI, held for this console's jobs
+# --------------------------------------------------------------------------- #
+# The console used to be able to say it never held a credential: jobs inherited
+# the environment and the UI only ever reported which NAMES were present. That
+# is still the default, but "open the console and it tells you gh is not
+# authenticated, now go find a terminal" is a dead end on the one surface meant
+# to be self-sufficient. So the console can now RECEIVE a credential:
+#
+#   * values arrive only over the loopback-guarded API (Host allowlist +
+#     optional DASH_CONSOLE_TOKEN), never in a URL, never in argv, never in a
+#     job's command line, and are never returned, logged, or echoed back — the
+#     status document reports presence and provenance only;
+#   * a value set here lives in this PROCESS's environment, which is exactly
+#     what a job inherits, and dies with the process;
+#   * writing one to disk (.env, gitignored, 0600) is a separate, explicitly
+#     confirmed step — the same confirm gate the GitHub-writing operations use;
+#   * a GitHub token can be handed to `gh auth login --with-token` over STDIN
+#     so the CLI's own credential store keeps it instead of this process;
+#   * DASH_CONSOLE_AUTH=off refuses every credential write, for a console
+#     fronted by anything less private than loopback.
+AUTH_WRITES = (os.environ.get("DASH_CONSOLE_AUTH", "on").strip().lower()
+               not in ("0", "off", "false", "no"))
+ENV_FILE = Path(os.environ.get("DASH_CONSOLE_ENV_FILE") or (REPO_ROOT / ".env"))
+
+# Printable, no whitespace — every credential the fleet uses is opaque ASCII.
+SECRET_RX = re.compile(r"^[\x21-\x7e]{8,4096}$")
+# What can be written to .env unquoted; anything else is single-quoted.
+ENV_PLAIN_RX = re.compile(r"^[A-Za-z0-9_.:/@+=-]+$")
+
+CREDENTIALS: dict[str, dict] = {
+    "FLEET_TOKEN": {
+        "label": "GitHub fine-grained PAT (fleet-wide)",
+        "help": "Cross-repo PRs, fan-outs and secret writes. Needs contents + pull-requests + "
+                "workflows write, and secrets:write for the rotation loop. GITHUB_TOKEN cannot "
+                "stand in: GitHub fires no workflow events for refs it pushes.",
+        "url": "https://github.com/settings/personal-access-tokens",
+    },
+    "GH_TOKEN": {
+        "label": "GitHub token for the gh CLI",
+        "help": "Read-only analytics work fine with this. Note that gh prefers it over its own "
+                "stored login, so setting it here shadows a `gh auth login`.",
+        "url": "https://github.com/settings/tokens",
+    },
+    "GITHUB_TOKEN": {
+        "label": "GitHub token (Actions-style name)",
+        "help": "Same role as GH_TOKEN; what the dash-gen generators read when GH_TOKEN is unset.",
+        "url": "https://github.com/settings/tokens",
+    },
+    "CLAUDE_CODE_OAUTH_TOKEN": {
+        "label": "Claude Code OAuth token",
+        "help": "Mint it in a terminal with a browser — `claude setup-token` — then paste it here. "
+                "It is the fleet's canonical Claude credential (one-year lifetime, propagated "
+                "weekly by token-rotation.yml).",
+        "url": "https://docs.claude.com/en/docs/claude-code/github-actions",
+    },
+    "ANTHROPIC_API_KEY": {
+        "label": "Anthropic API key",
+        "help": "The fallback at every claude-code-action call site when the OAuth token is absent.",
+        "url": "https://console.anthropic.com/settings/keys",
+    },
+    "PHOENIX_API_KEY": {
+        "label": "Phoenix API key",
+        "help": "Only needed for a Phoenix instance that requires auth; forwarded by "
+                "`lake export` and never shown.",
+        "url": "https://docs.arize.com/phoenix",
+    },
+}
+
+# Names this process set at runtime, so the UI can distinguish "you typed this"
+# from "it was in the environment when the console started".
+_SESSION_CREDS: set[str] = set()
+_SCRUB_RX = re.compile(r"\b(gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9\-_]+)")
+
+
+def _scrub(text: str) -> str:
+    """Never let a tool's own output carry a credential into a response."""
+    out = []
+    for line in (text or "").splitlines():
+        if re.search(r"Token:\s*\S", line):
+            continue
+        out.append(_SCRUB_RX.sub("«redacted»", line))
+    return "\n".join(out).strip()
+
+
+def _env_file_names(path: Path | None = None) -> set[str]:
+    """Which credential names the .env file declares (names only — never read a value)."""
+    path = path or ENV_FILE                    # resolved per call, so tests can redirect it
+    if not path.exists():
+        return set()
+    names = set()
+    try:
+        for line in path.read_text().splitlines():
+            m = re.match(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=", line)
+            if m and m.group(1) in CREDENTIALS:
+                names.add(m.group(1))
+    except OSError:
+        return set()
+    return names
+
+
+def _env_file_upsert(name: str, value: str | None, path: Path | None = None) -> None:
+    """Set (or, with value=None, remove) one name in the .env file, 0600."""
+    path = path or ENV_FILE
+    lines = path.read_text().splitlines() if path.exists() else []
+    rx = re.compile(rf"^\s*(?:export\s+)?{re.escape(name)}\s*=")
+    kept = [ln for ln in lines if not rx.match(ln)]
+    if value is not None:
+        if "'" in value:
+            raise ValueError(f"{name} contains a quote the console will not write to .env")
+        rendered = value if ENV_PLAIN_RX.match(value) else f"'{value}'"
+        kept.append(f"{name}={rendered}")
+    body = "\n".join(kept).rstrip("\n") + "\n" if kept else ""
+    fd = os.open(str(path), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(body)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:                            # pragma: no cover - unusual filesystems
+        pass
+
+
+def _gh_status() -> dict:
+    """What `gh auth status` says, as fields — never as its raw text."""
+    if not shutil.which("gh"):
+        return {"cli": False, "authenticated": None, "account": None, "host": None,
+                "scopes": [], "protocol": None, "env_token": None, "message":
+                "the gh CLI is not installed in the console's environment"}
+    rc, out = run_quiet(["gh", "auth", "status"], timeout=20)
+    account = re.search(r"account\s+([A-Za-z0-9-]+)", out)
+    host = re.search(r"Logged in to (\S+)", out)
+    scopes = re.search(r"Token scopes:\s*(.+)", out)
+    protocol = re.search(r"Git operations protocol:\s*(\S+)", out)
+    return {
+        "cli": True,
+        "authenticated": rc == 0,
+        "account": account.group(1) if account else None,
+        "host": host.group(1) if host else None,
+        "scopes": sorted({s.strip().strip("'\"") for s in scopes.group(1).split(",")}) if scopes else [],
+        "protocol": protocol.group(1) if protocol else None,
+        # gh prefers an environment token over its stored login, and refuses to
+        # store one while it is set — worth saying out loud rather than letting
+        # a login mysteriously not take.
+        "env_token": next((n for n in ("GH_TOKEN", "GITHUB_TOKEN") if os.environ.get(n)), None),
+        "message": _scrub(out),
+    }
+
+
+def auth_status() -> dict:
+    """Presence and provenance of every credential — never a value or a prefix."""
+    in_file = _env_file_names()
+    creds = []
+    for name, spec in CREDENTIALS.items():
+        present = bool(os.environ.get(name))
+        creds.append({
+            "name": name, "label": spec["label"], "help": spec["help"], "url": spec["url"],
+            "present": present,
+            "source": ("session" if name in _SESSION_CREDS else "environment") if present else None,
+            "in_env_file": name in in_file,
+        })
+    rc_tracked, tracked = run_quiet(["git", "ls-files", "--error-unmatch", str(ENV_FILE)])
+    return {
+        "credentials": creds,
+        "github": _gh_status(),
+        "claude": {"cli": shutil.which("claude") is not None,
+                   "oauth": bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")),
+                   "api_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
+                   "mint": "claude setup-token"},
+        "env_file": {"path": str(ENV_FILE), "exists": ENV_FILE.exists(),
+                     "tracked_by_git": rc_tracked == 0, "names": sorted(in_file)},
+        "writes_enabled": AUTH_WRITES,
+        "console_token_required": bool(os.environ.get("DASH_CONSOLE_TOKEN")),
+    }
+
+
+def _check_writes() -> None:
+    if not AUTH_WRITES:
+        raise PermissionError("credential writes are disabled (DASH_CONSOLE_AUTH=off)")
+
+
+def set_credential(name: str, value: str, persist: bool = False, confirm: bool = False) -> dict:
+    """Hold a credential for this console's jobs; optionally write it to .env.
+
+    The value reaches the process environment — which is precisely what
+    JobManager hands a subprocess — and nothing else, unless `persist` is asked
+    for AND confirmed, because that one writes a secret to the disk of a repo.
+    """
+    _check_writes()
+    if name not in CREDENTIALS:
+        raise ValueError(f"unknown credential '{name}' — one of {sorted(CREDENTIALS)}")
+    value = (value or "").strip()
+    if not SECRET_RX.match(value):
+        raise ValueError(f"{name} must be 8-4096 printable characters with no whitespace")
+    if persist:
+        if not confirm:
+            raise PermissionError(f"writing {name} to {ENV_FILE.name} needs confirm=true")
+        rc, _ = run_quiet(["git", "ls-files", "--error-unmatch", str(ENV_FILE)])
+        if rc == 0:
+            raise ValueError(f"{ENV_FILE} is tracked by git — the console will not write a "
+                             "credential into a tracked file")
+        _env_file_upsert(name, value)
+    os.environ[name] = value
+    _SESSION_CREDS.add(name)
+    return auth_status()
+
+
+def clear_credential(name: str, purge: bool = False) -> dict:
+    """Drop a credential from this process (and, with purge, from .env)."""
+    _check_writes()
+    if name not in CREDENTIALS:
+        raise ValueError(f"unknown credential '{name}'")
+    os.environ.pop(name, None)
+    _SESSION_CREDS.discard(name)
+    if purge and ENV_FILE.exists():
+        _env_file_upsert(name, None)
+    return auth_status()
+
+
+def gh_login(token: str) -> dict:
+    """Hand a token to `gh auth login --with-token` over stdin.
+
+    Stdin, not argv: a command line is visible to every process on the machine
+    and would land in this console's own job log. The environment's GH_TOKEN /
+    GITHUB_TOKEN are stripped for the call because gh refuses to store a login
+    while either is set.
+    """
+    _check_writes()
+    if not shutil.which("gh"):
+        raise RuntimeError("the gh CLI is not installed in the console's environment")
+    token = (token or "").strip()
+    if not SECRET_RX.match(token):
+        raise ValueError("the token must be 8-4096 printable characters with no whitespace")
+    env = {k: v for k, v in os.environ.items() if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
+    try:
+        proc = subprocess.run(
+            ["gh", "auth", "login", "--hostname", "github.com",
+             "--git-protocol", "https", "--with-token"],
+            input=token, text=True, capture_output=True, timeout=60,
+            cwd=str(REPO_ROOT), env=env)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("gh auth login timed out")
+    ok = proc.returncode == 0
+    return {"ok": ok, "message": _scrub((proc.stdout or "") + (proc.stderr or "")) or
+            ("signed in" if ok else "gh refused the token"), "auth": auth_status()}
+
+
+def gh_logout() -> dict:
+    """Drop the gh CLI's stored login for github.com (never touches .env)."""
+    _check_writes()
+    if not shutil.which("gh"):
+        raise RuntimeError("the gh CLI is not installed in the console's environment")
+    try:
+        proc = subprocess.run(["gh", "auth", "logout", "--hostname", "github.com"],
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                              timeout=30, cwd=str(REPO_ROOT))
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("gh auth logout timed out (it wanted an answer the console can't give)")
+    return {"ok": proc.returncode == 0,
+            "message": _scrub((proc.stdout or "") + (proc.stderr or "")) or "signed out",
+            "auth": auth_status()}

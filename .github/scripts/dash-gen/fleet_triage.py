@@ -10,6 +10,15 @@ what is OPEN right now:
   - every open PR (count + items, with draft/dependabot/CI status/age),
   - every workflow's latest completed conclusion (and the failing ones),
 
+The failing signal is read from the repo's TRACKED BRANCH ONLY, and runs from
+pull-request events are DROPPED ENTIRELY rather than kept as a weaker signal.
+A `pull_request` run that fails on an unmerged topic branch is the gate doing
+its job — it is feedback to that PR's author, not fleet breakage — and this
+signal is consumed at the highest severity weight there is (remediation.py's
+`failing`, 100), so a PR-branch failure used to spend a capped doctor slot
+telling an agent to "fix" a workflow that is green on main. See bamr87#205,
+and docs/DAILY-ANALYSIS.md for the contract this states.
+
 then computes a deterministic attention score per repo and a unified,
 prioritized "inbox" of the items most worth acting on. The result is written
 to a COMMITTED data file — _data/fleet_triage.yml — rendered by the dash's
@@ -48,6 +57,12 @@ GENERATED_HEADER = (
 
 # Latest-run conclusions that mark a workflow as failing (cancelled is noise).
 FAILING_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
+
+# Run events that never describe the tracked branch's own health, whatever
+# branch they ran on. The server-side `branch=` filter matches head_branch, and
+# a PR opened from a FORK's `main` produces a run whose head_branch is `main` —
+# so the branch filter alone does not exclude pull-request runs.
+PR_EVENTS = {"pull_request", "pull_request_target"}
 
 DEFAULT_THRESHOLDS = {"stale_issue_days": 30, "stale_pr_days": 14}
 
@@ -113,6 +128,56 @@ def pr_ci_state(repo, sha: str) -> str:
     if any(r.status != "completed" for r in runs):
         return "pending"
     return "pass"
+
+
+def tracked_branch(project: dict, repo) -> str:
+    """The branch whose CI conclusions represent this repo's health.
+
+    The REGISTRY's declared branch wins over GitHub's `default_branch`: this
+    fleet deliberately tracks non-default branches, which is exactly why
+    check-drift.sh treats branch divergence as advisory rather than gating.
+    GitHub's default is the fallback for a repo the registry doesn't pin.
+    """
+    declared = str(project.get("branch") or "").strip()
+    if declared:
+        return declared
+    return str(getattr(repo, "default_branch", "") or "") or "main"
+
+
+def latest_runs_on_branch(runs, branch: str, scan_cap: int = FAILING_RUNS_SCAN) -> dict[str, dict]:
+    """Latest completed conclusion per workflow path, tracked branch only.
+
+    `runs` is newest-first, so the first completed run seen for a path is that
+    workflow's current verdict. Both guards below fail OPEN — a run missing
+    head_branch or event is kept — because the failure mode of this filter is
+    silently dropping every run and reporting the fleet permanently green
+    (see the converse assertion in test_fleet_triage.py).
+    """
+    latest: dict[str, dict] = {}
+    seen = 0
+    for run in runs:
+        seen += 1
+        if seen > scan_cap:
+            break
+        if run.status != "completed":
+            continue
+        if getattr(run, "event", "") in PR_EVENTS:
+            continue
+        head = getattr(run, "head_branch", "") or ""
+        if head and head != branch:
+            continue
+        key = getattr(run, "path", "") or run.name or "?"
+        if key in latest:
+            continue
+        created = actions_analytics.as_utc(run.created_at)
+        latest[key] = {
+            "workflow": run.name or "(workflow)",
+            "path": getattr(run, "path", "") or "",
+            "conclusion": run.conclusion or "?",
+            "run_url": run.html_url,
+            "run_at": created.strftime("%Y-%m-%d %H:%M UTC") if created else "?",
+        }
+    return latest
 
 
 def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
@@ -237,25 +302,14 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
         pass
     if not external:
         try:
-            latest: dict[str, dict] = {}
-            seen = 0
-            for run in repo.get_workflow_runs():
-                seen += 1
-                if seen > FAILING_RUNS_SCAN:
-                    break
-                if run.status != "completed":
-                    continue
-                key = getattr(run, "path", "") or run.name or "?"
-                if key in latest:
-                    continue
-                created = actions_analytics.as_utc(run.created_at)
-                latest[key] = {
-                    "workflow": run.name or "(workflow)",
-                    "path": getattr(run, "path", "") or "",
-                    "conclusion": run.conclusion or "?",
-                    "run_url": run.html_url,
-                    "run_at": created.strftime("%Y-%m-%d %H:%M UTC") if created else "?",
-                }
+            branch = tracked_branch(project, repo)
+            # Filtered server-side as well as in latest_runs_on_branch: it is
+            # the cheaper query AND it stops PR runs from eating the
+            # FAILING_RUNS_SCAN budget, which is what let a busy repo's
+            # main-only workflows fall off the scan entirely.
+            latest = latest_runs_on_branch(
+                repo.get_workflow_runs(branch=branch), branch
+            )
             rec["workflows"]["failing"] = [
                 v for v in latest.values() if v["conclusion"] in FAILING_CONCLUSIONS
             ]
@@ -392,7 +446,9 @@ def build_report(registry: list[dict], gh, th: dict, pr_ci_cap: int) -> dict:
         "note": (
             "Open-state snapshot of every registry repo: all open issues and PRs "
             f"(items capped at {ITEMS_CAP}/repo; counts exact), plus each workflow's "
-            "latest completed conclusion. External mirrors are excluded from totals, "
+            "latest completed conclusion ON THE TRACKED BRANCH — pull-request runs "
+            "are excluded, so a gate that failed an unmerged topic branch is not "
+            "reported as breakage. External mirrors are excluded from totals, "
             "scores, and the inbox. PR CI state is checked for the most recently "
             "updated non-draft PRs per repo."
         ),

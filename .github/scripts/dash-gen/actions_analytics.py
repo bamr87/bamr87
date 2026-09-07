@@ -14,6 +14,19 @@ while producing little? It groups consumption by workflow *type* and surfaces
 "high running, low effective" workflows quantitatively (cost = wall-clock minutes,
 value = share of minutes that end in success; waste = minutes on non-success runs).
 
+The cost proxy is BOUNDED in two ways, because unbounded wall clock is wrong in
+one direction: a run that never reaches a runner bills nothing but keeps accruing
+elapsed time. A run that did not execute — `startup_failure`, or no jobs at all —
+contributes ZERO minutes, and every other run is clamped to MAX_RUN_MIN. Such runs
+still count toward `success_rate_pct` and the failing flag; only their minutes are
+zeroed. Without this, one run parked for 68h at `billable: {}` contributed 4079.9
+phantom minutes and took over the fleet's fix queue (bamr87/bamr87#229).
+
+The fleet `totals` are computed over bamr87-owned workflows only — the same
+population as the by_type / by_repo / by_day rollups. Mixing the two populations
+across a ratio's halves is how this file once published more waste than
+consumption, and a negative effectiveness.
+
 Cancelled runs are counted as waste (the minutes were really burned) but NOT as
 failures: `success_rate_pct` and the failing/flaky flags look only at runs that
 reached a verdict. Conflating the two made every workflow with a working
@@ -56,6 +69,13 @@ MIN_WASTE_MIN = 4.0        # ignore trivial waste below this when flagging
 
 # Non-success terminal conclusions whose minutes count as waste.
 WASTE_CONCLUSIONS = {"failure", "cancelled", "timed_out", "startup_failure"}
+
+# Ceiling on the wall-clock cost proxy, in minutes. GitHub's own per-job limit is
+# 6h, so a *run* reporting more than this is dominated by time it spent parked in
+# a non-terminal state rather than by time it spent on a runner. Clamping here is
+# a backstop, not the primary filter: it bounds the blast radius of the next
+# stuck-run variant `cost_min` does not anticipate (bamr87/bamr87#229).
+MAX_RUN_MIN = 360.0
 
 # Conclusions that say nothing about whether the workflow works. A run whose
 # `if:` gate declined is the system behaving correctly at ~zero cost, so it must
@@ -126,11 +146,60 @@ def as_utc(value: dt.datetime | None) -> dt.datetime | None:
 
 
 def duration_min(run) -> float | None:
+    """Raw wall clock for one run. The ELAPSED time, not the cost — see cost_min."""
     start = as_utc(run.run_started_at) or as_utc(run.created_at)
     end = as_utc(run.updated_at)
     if not start or not end:
         return None
     return max(0.0, (end - start).total_seconds() / 60.0)
+
+
+def has_no_jobs(run) -> bool:
+    """True if the run dispatched no job at all, so it billed nothing.
+
+    Costs one API request, which is why `cost_min` asks it only of runs whose wall
+    clock is ALREADY implausible — a handful per sweep rather than one per run.
+    That is the same objection that keeps the per-run `/timing` lookup out of this
+    module, answered by making the expensive question proportional to the outliers
+    instead of to the population.
+
+    A failure that never loaded its workflow file is reported by the API as a plain
+    `failure`, not `startup_failure` (run 33362222262 in bamr87/bamr87#229 is
+    exactly that shape, with `billable: {}`), so the conclusion alone cannot catch
+    it and the job list is the cheapest thing that can.
+    """
+    try:
+        return run.jobs().totalCount == 0
+    except Exception:
+        # Unknown, not zero. Consistent with this module's degrade-gracefully
+        # contract: keep the run and let MAX_RUN_MIN bound it, rather than
+        # zeroing consumption that may well have been real.
+        return False
+
+
+def cost_min(run, dur: float) -> float:
+    """The billable-minutes proxy for one run, from its wall-clock `dur`.
+
+    Wall clock over-reports in exactly one direction: a run that never reached a
+    runner still accrues elapsed time it never billed. GitHub left run 33362222262
+    non-terminal for 68 HOURS against an empty `billable` map — 4079.9 phantom
+    minutes, 99.2% of that workflow's entire reported spend, which then outranked
+    the fleet's real cost in the queue `remediate` sorts on (bamr87/bamr87#229).
+
+    Two corrections, in order:
+
+    * a run that never executed costs **0**, not its wall clock;
+    * everything else is clamped to MAX_RUN_MIN, bounding the next variant.
+
+    Only the MINUTES are zeroed. The run still counts toward `success_rate_pct`
+    and the `failing` flag — a startup failure genuinely is red, and suppressing
+    it there would trade a cost bug for a correctness one.
+    """
+    if (run.conclusion or "") == "startup_failure":
+        return 0.0
+    if dur <= MAX_RUN_MIN:
+        return dur
+    return 0.0 if has_no_jobs(run) else MAX_RUN_MIN
 
 
 # --------------------------------------------------------------------------- #
@@ -177,7 +246,7 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
                 "path": path,
                 "event": run.event or "unknown",
                 "conclusion": run.conclusion or "unknown",
-                "minutes": dur,
+                "minutes": cost_min(run, dur),
                 "day": created.date().isoformat() if created else None,
                 "created_at": created.isoformat() if created else None,
             })
@@ -418,13 +487,22 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         key=lambda r: r["date"],
     )
 
-    tot_runs = sum(w["runs"] for w in workflows)
-    tot_success = sum(w["success"] for w in workflows)
+    # Every fleet total ranges over `owned`, the SAME population as grand_min
+    # above. Summing these over all `workflows` while the denominator counted
+    # only owned ones published 2091.6h wasted against 1269.3h consumed and an
+    # effectiveness of -64.8% — a figure unreachable when waste is a subset of
+    # consumption. One external mirror (tt-a1i/archify) contributed 50890.7 of
+    # those waste minutes while its 51370.0 consumed minutes were correctly
+    # excluded (bamr87/bamr87#229). External spend is not ours to optimize, so
+    # it belongs in NEITHER half — the same rule the by_type/by_repo/by_day
+    # rollups already follow.
+    tot_runs = sum(w["runs"] for w in owned)
+    tot_success = sum(w["success"] for w in owned)
     # Failures only — cancelled runs reached no verdict and are excluded from
     # the success rate, matching the per-workflow record. Their MINUTES still
     # count in waste_min.
-    tot_fail = sum(w["failure"] for w in workflows)
-    tot_waste = round(sum(w["waste_min"] for w in workflows), 1)
+    tot_fail = sum(w["failure"] for w in owned)
+    tot_waste = round(sum(w["waste_min"] for w in owned), 1)
 
     return {
         "generated_at": now.strftime("%Y-%m-%d %H:%M UTC"),
@@ -447,8 +525,15 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         "workflows": workflows,
         "inactive": sorted(inactive, key=lambda x: (x["repo"], x["workflow"])),
         "note": ("Cost = wall-clock run minutes (run_started_at → updated_at), a proxy for "
-                 "billable minutes. Value = share of minutes ending in success. "
+                 "billable minutes, with two bounds: a run that never executed "
+                 "(startup_failure, or zero jobs) counts as 0 minutes, and every other "
+                 f"run is capped at {MAX_RUN_MIN:.0f} min — GitHub's own job ceiling — so a run "
+                 "left parked in a non-terminal state cannot report minutes it never "
+                 "billed. Those runs still count against the success rate; only their "
+                 "minutes are zeroed. Value = share of minutes ending in success. "
                  "Waste = minutes on failed/cancelled/timed-out runs. "
+                 "Fleet totals cover bamr87-owned workflows only — the same population "
+                 "on both halves of every ratio, so waste can never exceed consumption. "
                  "Success rate counts only runs that reached a verdict "
                  "(success + failure); cancelled runs were superseded, not broken, "
                  "and show up as cancel_pct / the cancel-heavy flag instead. "

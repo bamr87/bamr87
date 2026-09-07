@@ -171,11 +171,27 @@ def iso(value) -> str | None:
     return value.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_SUBSECOND = re.compile(r"(\.\d{6})\d+")
+
+
 def parse_iso(value: str | None) -> dt.datetime | None:
+    """Parse an ISO-8601 stamp, tolerating the two shapes GitHub actually emits.
+
+    The API's own stamps are plain (`2026-09-01T06:49:00Z`), but the timestamps
+    inside a claude-code-action run log carry .NET-style 100-nanosecond ticks —
+    SEVEN fractional digits (`...:38.2932628Z`). `fromisoformat` accepts only 3
+    or 6 before Python 3.11, so on an older interpreter every agent stamp
+    silently parsed as None and `_agent_step` then compared int <= None and
+    crashed the whole export. Truncating to microseconds (datetime's own
+    resolution — the extra digits are not representable anyway) makes this
+    independent of the interpreter version, which matters because the fleet
+    runs this file on CI's Python and on whatever the devenv image ships.
+    """
     if not value:
         return None
+    text = _SUBSECOND.sub(r"\1", str(value).strip().replace("Z", "+00:00"))
     try:
-        ts = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        ts = dt.datetime.fromisoformat(text)
     except ValueError:
         return None
     return ts if ts.tzinfo else ts.replace(tzinfo=dt.timezone.utc)
@@ -795,7 +811,14 @@ def recent_runs(lake_dir: Path | str | None = None, limit: int = 50, ai_only: bo
             f"a.duration_ms, a.session_id, e.exported_at, e.trace_id "
             f"FROM runs r LEFT JOIN agent_runs a ON a.run_id=r.id "
             f"LEFT JOIN exports e ON e.key = 'run:' || r.nwo || ':' || r.id "
-            f"{where} ORDER BY r.created_at DESC LIMIT ?", (max(1, min(int(limit), 500)),))]
+            # Runs whose log actually yielded agent facts come first, then by
+            # recency. `r.ai=1` marks an AI WORKFLOW, not a run that ran the
+            # agent, and the mention handler fires (and skips) on every issue
+            # comment — so plain recency filled the whole window with skips and
+            # pushed every model/turns/cost row out of the view that exists to
+            # show them.
+            f"{where} ORDER BY (a.run_id IS NOT NULL) DESC, r.created_at DESC LIMIT ?",
+            (max(1, min(int(limit), 500)),))]
     finally:
         conn.close()
 
@@ -831,8 +854,15 @@ def cmd_status(args: argparse.Namespace) -> int:
         t = s["tables"]
         ls = s["last_sync"] or {}
         print(f"lake: {s['db_path']} ({s['size_bytes'] / 1e6:.1f} MB, schema v{s['schema_version']})")
-        print(f"  last sync: {ls.get('finished_at') or '—'} (window {ls.get('window_days')}d, "
-              f"{ls.get('repos')} repos) {ls.get('note') or ''}")
+        # A lake filled only by `lake sessions` has never had a GitHub sync, so
+        # there is no window or repo count to report — printing the empty dict's
+        # Nones gave "window Noned, None repos", which is the FIRST line anyone
+        # without a GitHub token sees.
+        if ls.get("finished_at"):
+            print(f"  last sync: {ls['finished_at']} (window {ls.get('window_days')}d, "
+                  f"{ls.get('repos')} repos) {ls.get('note') or ''}")
+        else:
+            print("  last sync: — (no GitHub sync yet; `tools/dash lake sync` needs a token)")
         print("  tables:   " + ", ".join(f"{k}={v}" for k, v in t.items()))
         a = s["agent_runs"]
         print(f"  agent runs: {a['count']} · ${a['cost_usd']:.2f} · {a['turns']} turns · "
@@ -885,17 +915,23 @@ def _agent_step(steps: list[dict], agent: dict | None) -> dict | None:
     """The step that ran claude-code-action: the one whose interval contains
     the agent's own start stamp; else the one named after Claude; else the
     longest — the SDK log only tells us WHEN, not WHICH step."""
-    timed = [s for s in steps if s.get("started_at") and s.get("completed_at")]
-    if agent and agent.get("started_at"):
-        t = to_ns(agent["started_at"])
-        for s in timed:
-            if to_ns(s["started_at"]) <= t <= to_ns(s["completed_at"]):
+    # Parse once and keep only steps with BOTH stamps usable. Filtering on the
+    # raw values is not enough: a present-but-unparseable stamp survives that
+    # test and then compares as None, which is how one bad timestamp used to
+    # abort the export for an entire run.
+    timed = [(s, a, b) for s, a, b in
+             ((s, to_ns(s.get("started_at")), to_ns(s.get("completed_at"))) for s in steps)
+             if a is not None and b is not None]
+    t = to_ns(agent.get("started_at")) if agent else None
+    if t is not None:
+        for s, a, b in timed:
+            if a <= t <= b:
                 return s
     for s in steps:
         if "claude" in (s.get("name") or "").lower():
             return s
     if timed:
-        return max(timed, key=lambda s: to_ns(s["completed_at"]) - to_ns(s["started_at"]))
+        return max(timed, key=lambda r: r[2] - r[1])[0]
     return None
 
 
@@ -1353,9 +1389,19 @@ def ship(spans: list[dict], project: str, endpoint: str, headers: dict | None = 
 
 
 def _otel_available() -> bool:
+    """Whether the OTLP exporter can be imported.
+
+    find_spec() on a DOTTED name imports the parent package, so when
+    opentelemetry is absent entirely this raised ModuleNotFoundError instead of
+    returning False — the probe written to produce a friendly "install the SDK"
+    message was itself the traceback the user saw.
+    """
     import importlib.util
-    return all(importlib.util.find_spec(m) is not None
-               for m in ("opentelemetry.sdk", "opentelemetry.exporter.otlp.proto.http"))
+    try:
+        return all(importlib.util.find_spec(m) is not None
+                   for m in ("opentelemetry.sdk", "opentelemetry.exporter.otlp.proto.http"))
+    except (ImportError, AttributeError, ValueError):
+        return False
 
 
 def cmd_export(args: argparse.Namespace) -> int:
@@ -1381,6 +1427,18 @@ def cmd_export(args: argparse.Namespace) -> int:
             finally:
                 conn.close()
     if args.local:
+        # Say so when the transcripts simply are not visible. Without this the
+        # run falls through to "nothing new to export", which reads as "already
+        # done" — the wrong conclusion, and the usual one inside the compose
+        # console, whose container only sees ~/.claude if it is mounted.
+        claude_dir = Path(args.claude_dir)
+        if not claude_dir.is_dir():
+            sys.stderr.write(
+                f"lake export: --local but no Claude transcripts at {claude_dir} — "
+                "pass --claude-dir, or mount it into the container (docker-compose.yml "
+                "mounts it read-only for the console service).\n")
+            if not bundles:
+                return 1
         seen_keys = {}
         if db.exists():
             conn = connect(d, create=False)
@@ -1440,8 +1498,12 @@ def cmd_export(args: argparse.Namespace) -> int:
         return 1
     finally:
         conn.close()
+    # Name the projects that actually RECEIVED spans. Listing both whenever
+    # --local was passed sent people looking for a `fleet-harnesses` project
+    # that a session-only export never creates.
+    written = sorted({proj for _, _, proj, _ in bundles})
     sys.stderr.write(f"lake export: {shipped_traces} traces / {shipped_spans} spans → {endpoint}/v1/traces "
-                     f"(projects: {args.project}{', ' + args.local_project if args.local else ''}); "
+                     f"(project{'s' if len(written) > 1 else ''}: {', '.join(written)}); "
                      f"open {PHOENIX_UI_DEFAULT}/projects\n")
     return 0
 

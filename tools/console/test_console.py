@@ -13,9 +13,12 @@ Guards the properties that make the console safe to leave running:
   * the state document degrades on missing signals instead of crashing;
   * the job manager runs a real subprocess, tails its log, and reports the
     exit status; and
-  * the contract editor changes ONLY declared knobs, rejects the rest, and
-    preserves every comment in fleet.yml (round-trip) when ruamel is present;
-    and
+  * the config editor changes ONLY declared knobs anywhere in fleet.yml,
+    rejects the rest, preserves every comment (round-trip) when ruamel is
+    present, and rewrites only the blocks the form touched;
+  * the auth layer takes a credential without ever handing one back: values
+    never appear in a status document, a log, or an argv, .env is written only
+    on an explicit confirm, and DASH_CONSOLE_AUTH=off refuses every write; and
   * the HTTP surface refuses a rebound Host, so binding to loopback actually
     means loopback (skipped unless FastAPI is installed).
 
@@ -26,6 +29,8 @@ PyYAML (ruamel.yaml enables the round-trip test; absent, it is skipped):
 """
 from __future__ import annotations
 
+import os
+import re
 import shutil
 import sys
 import tempfile
@@ -122,6 +127,23 @@ def test_lake_ops_argv_shapes_and_status_document():
     assert isinstance(caps["otel_exporter"], bool) and caps["phoenix"]["collector"] and isinstance(caps["lake_present"], bool)
 
 
+def test_job_env_hands_jobs_this_interpreter():
+    """tools/dash-gen execs $PYTHON, defaulting to system python3.
+
+    The console pip-installs its dependencies (the OpenTelemetry SDK among
+    them) into .venv-console, so a job launched on the system interpreter
+    cannot import what the console installed — `lake export` failed with
+    ModuleNotFoundError on every real send while the dry run, which returns
+    before that import, looked fine.
+    """
+    env = core.job_env()
+    assert env["PYTHON"] == sys.executable, env["PYTHON"]
+    assert env["PYTHONUNBUFFERED"] == "1"
+    # the ambient environment is still inherited — that is how a credential
+    # reaches `gh` without ever appearing in an argv
+    assert set(os.environ) <= set(env)
+
+
 def test_job_manager_runs_confirms_and_tails():
     tmp = Path(tempfile.mkdtemp())
     try:
@@ -164,9 +186,13 @@ def test_state_document_degrades_without_signals(monkeypatch_dir=None):
 
 def test_capabilities_report_names_not_values():
     caps = core.capabilities()
-    assert set(caps["env_tokens"]) == set(core.TOKEN_ENV)
+    # every credential the console can be handed, plus every one the contract
+    # names — booleans only, so a capability probe can never leak a value
+    assert set(caps["env_tokens"]) == set(core.CREDENTIALS)
+    assert set(core.TOKEN_ENV) <= set(core.CREDENTIALS)
     assert all(isinstance(v, bool) for v in caps["env_tokens"].values())
     assert isinstance(caps["contract_editing"], bool)
+    assert isinstance(caps["config_editing"], bool) and isinstance(caps["auth_writes"], bool)
 
 
 def test_api_documents_are_json_serializable():
@@ -178,6 +204,8 @@ def test_api_documents_are_json_serializable():
     json.dumps(core.load_state())
     json.dumps(core.list_ops())
     json.dumps(core.read_contract())
+    json.dumps(core.read_config())
+    json.dumps(core.auth_status())
 
 
 def test_contract_editor_limits_and_preserves_comments():
@@ -216,6 +244,44 @@ def test_contract_editor_limits_and_preserves_comments():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_contract_edit_touches_only_the_edited_lines():
+    """The console's promise is a diff a human can read and commit.
+
+    Counting comments is not enough to prove that: a ruamel round trip keeps
+    every comment while still reindenting every sequence in the file and
+    re-joining hand-wrapped flow lists, which once turned a one-field edit into
+    a 188-line diff over blocks the form cannot even edit.
+    """
+    try:
+        import ruamel.yaml  # noqa: F401
+    except ImportError:
+        print("  (ruamel.yaml absent — surgical-diff test skipped)")
+        return
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        fleet = tmp / "fleet.yml"
+        shutil.copy(core.DATA / "fleet.yml", fleet)
+        before = fleet.read_text().splitlines()
+        core.update_contract({"attention_max": 21}, fleet)
+        after = fleet.read_text().splitlines()
+        assert len(before) == len(after), f"line count changed: {len(before)} -> {len(after)}"
+        differing = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
+        assert len(differing) == 1, f"expected 1 changed line, got {len(differing)}: {differing}"
+        assert "attention_max: 21" in after[differing[0]]
+        assert "#" in after[differing[0]], "the trailing comment was dropped"
+
+        # a list knob stays inline, so the following comment paragraph can never
+        # be emitted between the key and its own items
+        core.update_contract({"exempt": ["alpha", "beta"]}, fleet)
+        lines = fleet.read_text().splitlines()
+        row = next(ln for ln in lines if ln.strip().startswith("exempt:"))
+        assert "[alpha, beta]" in row, row
+        import yaml
+        assert yaml.safe_load("\n".join(lines))["harnesses"]["exempt"] == ["alpha", "beta"]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_http_refuses_a_rebound_host():
     """DNS rebinding is the way a loopback bind stops meaning loopback: a
     hostile page resolves its own name to 127.0.0.1 and is then same-origin
@@ -240,6 +306,192 @@ def test_http_refuses_a_rebound_host():
     # loopback names still answer, port suffix and case included
     for host in ("127.0.0.1:4001", "localhost", "LOCALHOST:4001"):
         assert client.get("/api/health", headers={"Host": host}).status_code == 200, host
+
+
+def test_config_editor_reaches_every_section_and_splices_each():
+    """The config form edits blocks all over fleet.yml, so the surgical-diff
+    promise has to hold for SEVERAL blocks in one save, not just harnesses."""
+    try:
+        import ruamel.yaml  # noqa: F401
+    except ImportError:
+        print("    (ruamel.yaml absent — multi-section test skipped)")
+        return
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        fleet = tmp / "fleet.yml"
+        shutil.copy(core.DATA / "fleet.yml", fleet)
+        before = fleet.read_text().splitlines()
+        out = core.update_config({"remediation.max_candidates": 5,
+                                  "schedule.fleet_pulse": "30 6 * * *",
+                                  "evolution.max_turns": 130,
+                                  "variables.NODE_VERSION": "22"}, fleet)
+        assert set(out["applied"]) == {"remediation.max_candidates", "schedule.fleet_pulse",
+                                       "evolution.max_turns", "variables.NODE_VERSION"}, out["applied"]
+        assert set(out["sections"]) == {"remediation", "schedule", "evolution", "variables"}
+        after = fleet.read_text().splitlines()
+        assert len(before) == len(after), f"line count changed: {len(before)} -> {len(after)}"
+        differing = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
+        assert len(differing) == 4, f"expected 4 changed lines, got {len(differing)}: {differing}"
+        assert "\n".join(before).count("#") == "\n".join(after).count("#"), "a comment was lost"
+        # a quoted scalar stays quoted the way the file wrote it — otherwise
+        # every version bump lands as two diff lines instead of one
+        assert 'NODE_VERSION: "22"' in "\n".join(after)
+        assert 'fleet_pulse: "30 6 * * *"' in "\n".join(after)
+        import yaml
+        doc = yaml.safe_load("\n".join(after))
+        assert doc["remediation"]["max_candidates"] == 5 and doc["evolution"]["max_turns"] == 130
+        assert doc["variables"]["NODE_VERSION"] == "22"
+        assert core.update_config({"evolution.max_turns": 130}, fleet)["applied"] == {}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_config_editor_refuses_undeclared_keys_and_bad_types():
+    try:
+        import ruamel.yaml  # noqa: F401
+    except ImportError:
+        print("    (ruamel.yaml absent — refusal test skipped)")
+        return
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        fleet = tmp / "fleet.yml"
+        shutil.copy(core.DATA / "fleet.yml", fleet)
+        before = fleet.read_text()
+        for bad in ({"hub.repo": "someone/else"},            # not an editable field
+                    {"rotation.hub_first": False},           # the file calls it non-negotiable
+                    {"issue_pipeline.autonomy.never_merge": False},
+                    {"schedule.fleet_pulse": "0 6 * * * ; rm -rf /"},
+                    {"toolchain.node": "$(id)"},
+                    {"variables.FLEET_HUB": "a\nb"},
+                    {"issue_pipeline.autonomy.default": "whatever"},
+                    {"remediation.max_candidates": -1},
+                    {"harness.trip_wires.stale_data_days": "soon"}):
+            try:
+                core.update_config(bad, fleet)
+            except ValueError:
+                continue
+            raise AssertionError(f"accepted {bad}")
+        assert fleet.read_text() == before, "a refused edit touched the file"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_read_config_describes_every_editable_knob():
+    doc = core.read_config()
+    keys = {f["key"] for s in doc["sections"] for f in s["fields"]}
+    assert keys == set(core.CONFIG_FIELDS) == set(doc["editable"])
+    for s in doc["sections"]:
+        assert s["title"] and s["doc"] and s["present"], s["key"]
+        for f in s["fields"]:
+            assert f["kind"] in ("bool", "int", "float", "list", "choice", "cron", "version", "value", "slug")
+            assert f["present"], f"{f['key']} is not declared in fleet.yml"
+    # the Contract API keeps its older, harnesses-relative shape
+    assert set(core.read_contract()["editable"]) == set(core.EDITABLE)
+    assert "attention_max" in core.EDITABLE and "harnesses.attention_max" in core.CONFIG_FIELDS
+
+
+def test_auth_status_reports_names_never_values():
+    marker = "s3cret-value-nobody-should-see"
+    core.os.environ["ANTHROPIC_API_KEY"] = marker
+    try:
+        import json
+        blob = json.dumps(core.auth_status())
+        assert marker not in blob, "a credential value reached the status document"
+        entry = next(c for c in core.auth_status()["credentials"] if c["name"] == "ANTHROPIC_API_KEY")
+        assert entry["present"] is True and entry["label"] and entry["url"]
+    finally:
+        core.os.environ.pop("ANTHROPIC_API_KEY", None)
+    # a tool's own output is scrubbed before it is ever returned
+    scrubbed = core._scrub("  - Token: ghp_aaaaaaaaaaaaaaaaaaaa\n  - repo cloned with github_pat_bbbbbbbb\n  ok")
+    assert "ghp_" not in scrubbed and "github_pat_" not in scrubbed and "ok" in scrubbed
+
+
+def test_credentials_are_held_for_jobs_and_persisted_only_on_confirm():
+    tmp = Path(tempfile.mkdtemp())
+    saved_env_file, saved_value = core.ENV_FILE, core.os.environ.get("FLEET_TOKEN")
+    try:
+        core.ENV_FILE = tmp / ".env"
+        for bad in ("", "short", "has space in it"):
+            try:
+                core.set_credential("FLEET_TOKEN", bad)
+            except ValueError:
+                continue
+            raise AssertionError(f"accepted {bad!r}")
+        try:
+            core.set_credential("NOT_A_CREDENTIAL", "x" * 20)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unknown credential accepted")
+        # persisting a secret to disk is its own confirm, like every remote write
+        try:
+            core.set_credential("FLEET_TOKEN", "ghp_" + "a" * 30, persist=True)
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("persisted without confirm")
+        assert not core.ENV_FILE.exists(), "the refused persist wrote a file anyway"
+
+        st = core.set_credential("FLEET_TOKEN", "ghp_" + "a" * 30)
+        assert core.os.environ["FLEET_TOKEN"] == "ghp_" + "a" * 30   # what a job inherits
+        entry = next(c for c in st["credentials"] if c["name"] == "FLEET_TOKEN")
+        assert entry["source"] == "session" and entry["in_env_file"] is False
+
+        core.set_credential("FLEET_TOKEN", "ghp_" + "b" * 30, persist=True, confirm=True)
+        text = core.ENV_FILE.read_text()
+        assert text.count("FLEET_TOKEN=") == 1, text          # upsert, never appended twice
+        assert oct(core.ENV_FILE.stat().st_mode)[-3:] == "600", "the .env was not written 0600"
+        assert core._env_file_names(core.ENV_FILE) == {"FLEET_TOKEN"}
+
+        core.clear_credential("FLEET_TOKEN", purge=True)
+        assert "FLEET_TOKEN" not in core.os.environ
+        assert "FLEET_TOKEN" not in core.ENV_FILE.read_text()
+    finally:
+        core.ENV_FILE = saved_env_file
+        core.os.environ.pop("FLEET_TOKEN", None)
+        if saved_value is not None:
+            core.os.environ["FLEET_TOKEN"] = saved_value
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_auth_writes_can_be_switched_off_entirely():
+    """The console is loopback-guarded, but a deployment that fronts it with
+    anything less private needs one switch that refuses every credential write."""
+    saved = core.AUTH_WRITES
+    try:
+        core.AUTH_WRITES = False
+        for call in (lambda: core.set_credential("FLEET_TOKEN", "x" * 20),
+                     lambda: core.clear_credential("FLEET_TOKEN"),
+                     lambda: core.gh_login("x" * 20),
+                     core.gh_logout):
+            try:
+                call()
+            except PermissionError:
+                continue
+            raise AssertionError("a credential write ran with DASH_CONSOLE_AUTH=off")
+        assert core.auth_status()["writes_enabled"] is False
+    finally:
+        core.AUTH_WRITES = saved
+
+
+def test_gh_login_validates_before_it_ever_runs_gh():
+    """The token goes to gh over STDIN — a command line is world-readable and
+    would land in this console's own job log. Bad values die before that."""
+    for bad in ("", "tiny", "tok en", "tok\nen"):
+        try:
+            core.gh_login(bad)
+        except ValueError:
+            continue
+        except RuntimeError:
+            continue          # gh not installed here — refused earlier still
+        raise AssertionError(f"accepted {bad!r}")
+    st = core.auth_status()["github"]
+    assert set(st) >= {"cli", "authenticated", "account", "scopes", "env_token"}
+    # gh prints the token itself; the status document must carry the scopes and
+    # never the credential, whether or not this machine happens to be signed in
+    msg = st.get("message") or ""
+    assert not re.search(r"Token:\s*\S", msg), msg
+    assert "ghp_" not in msg and "github_pat_" not in msg, msg
 
 
 # --------------------------------------------------------------------------- #
