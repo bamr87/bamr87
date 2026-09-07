@@ -1,0 +1,14 @@
+# Fleet triage — the open-state inbox rendered from the committed snapshot.
+id: triage
+feature: HUB-003
+title: "Fleet triage inbox renders the committed snapshot"
+description: "The /triage/ page shows the totals row and the inbox table from _data/fleet_triage.yml; no sideways scroll on mobile (wide tables scroll inside their own container)."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /triage/
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { text: "Inbox" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: triage

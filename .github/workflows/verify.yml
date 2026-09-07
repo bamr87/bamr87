@@ -1,0 +1,64 @@
+name: Verify
+
+# The hub practices what it seeds: this is the same thin caller the verify
+# kit drops into member repos (templates/verify/verify.yml), except that it
+# references the reusable workflow and the tooling from THIS checkout — so a PR
+# that changes fleet-verify.yml, features_index.py, the runner template, or a
+# dash page is validated by building the site, running the user scenarios in
+# verify/scenarios/ against it, and grading features/features.yml, before it
+# can reach `main` and the fleet. Advisory (gate: false) until the scenarios
+# have proven stable across a few runs. Label a PR `verify` (or dispatch with
+# agent=true) to add the Claude Code pass that drives the built site through
+# the Playwright MCP. Doc: docs/VERIFICATION.md
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - ".github/workflows/fleet-verify.yml"
+      - ".github/workflows/verify.yml"
+      - "tools/features_index.py"
+      - "templates/verify/**"
+      - "features/**"
+      - "verify/**"
+      - "pages/**"
+      - "_data/features_index.yml"
+      - "_config.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fleet-verify.yml"
+      - "features/**"
+      - "verify/**"
+      - "pages/**"
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Run the Claude Code verification pass against the built site"
+        type: boolean
+        default: false
+      only:
+        description: "Comma-separated scenario ids (empty = all)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    uses: ./.github/workflows/fleet-verify.yml
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    with:
+      gate: false
+      hub-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      agent: ${{ github.event_name == 'workflow_dispatch' && inputs.agent || contains(github.event.pull_request.labels.*.name, 'verify') }}
+      only: ${{ github.event_name == 'workflow_dispatch' && inputs.only || '' }}
+    secrets: inherit

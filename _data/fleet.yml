@@ -325,6 +325,36 @@ evolution:
     max_prs: 5
 
 # --------------------------------------------------------------------------- #
+# Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
+#
+# Tests prove the code; verification proves the PRODUCT, by using it the way a
+# person does. Every fleet repo carries a feature index (features/features.yml)
+# an agent reads for what the product does and what proves it, user scenarios
+# (verify/scenarios/*.yml) both verify/runner.mjs and a Claude Code pass can
+# execute, and evidence bundles (test/evidence/<slug>/) linked back to the
+# feature. The hub aggregates coverage into _data/features_index.yml
+# (`dash features fleet --write`, refreshed by fleet-pulse) → /features/.
+# Kit: templates/verify/ · reusable gate: fleet-verify.yml · spec: UPS-QA-50..53
+# --------------------------------------------------------------------------- #
+verification:
+  kit: verify                       # templates/<kit>/ — version read from its VERSION at scan time
+  index: features/features.yml      # canonical index path (legacy _data/features.yml is read too)
+  evidence_dir: test/evidence       # where runner + agent write bundles
+  labels:
+    request_agent: verify           # PR label that triggers the Claude Code pass in fleet-verify.yml
+    skip_evidence: skip-evidence    # PR label that waives UPS-QA-52 with a reason in the PR body
+  agent:
+    model: sonnet                   # the pass is browsing + writing a report, not architecture
+    max_turns: 40                   # per PR; the caller can override via `max-turns`
+    viewports: [1280, 390]          # widths the agent must screenshot at (desktop, mobile)
+  coverage:
+    ui_min_pct: 80                  # implemented UI features with ≥1 test/scenario, per repo — below = attention
+    stale_verified_days: 90         # a `verified:` stamp older than this is reported as stale
+  fanout:
+    branch: test/agent-verification
+    max_targets_per_run: 10         # verify-fanout `gaps` opens at most this many PRs per dispatch
+
+# --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.
 #
 # The control plane's self-observation contract (docs/HARNESS.md). The four

@@ -137,6 +137,16 @@ jobs:
         continue-on-error: true
         run: tools/dash-gen harnesses --days "$DAYS"
 
+      # The fleet features index: every checked-out submodule's
+      # features/features.yml + verification coverage (tests / user scenarios
+      # / evidence / verified stamps, graded from files on disk) → the
+      # /features/ page and verify-fanout's `gaps` target. Offline: it reads
+      # the submodule checkouts this job already has (docs/VERIFICATION.md).
+      - name: Fleet features index
+        id: g_features
+        continue-on-error: true
+        run: tools/dash features fleet --write
+
       # Runs LAST among the gather steps because it is the layer that watches
       # the others: it reads the snapshots just written (plus the committed
       # rotation ledger) and computes the harness scorecard + trip wires.
@@ -161,6 +171,7 @@ jobs:
             echo "| Triage snapshot | ${{ steps.g_triage.outcome }} |"
             echo "| Harness inventory | ${{ steps.g_harnesses.outcome }} (${{ steps.g_harnesses.outputs.ai_workflows || '?' }} AI workflows, ${{ steps.g_harnesses.outputs.attention_count || '?' }} attention) |"
             echo "| Harness scorecard | ${{ steps.g_harness.outcome }} (${{ steps.g_harness.outputs.tripped_count || '?' }} trip wires tripped) |"
+            echo "| Fleet features index | ${{ steps.g_features.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # --- publish --------------------------------------------------------
@@ -180,6 +191,7 @@ jobs:
             - `_data/ai_usage.yml`, `_data/engagements.yml` — Claude usage + engagement actuals
             - `_data/fleet_triage.yml` — fleet open-state snapshot (the `/triage/` portal)
             - `_data/harness_registry.yml` — fleet AI-harness + schedule inventory (the `/harnesses/` portal, docs/HARNESS-OPS.md)
+            - `_data/features_index.yml` — fleet features index + verification coverage (the `/features/` portal, docs/VERIFICATION.md)
             - `_data/harness_health.yml` — harness scorecard + trip wires (docs/HARNESS.md)
             - `_reports/daily/` — the prior-day activity digest
 

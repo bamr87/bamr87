@@ -29,6 +29,8 @@
   description: Focused per-project improvement pass (maps to .github/agents personas).
 - name: run-dash
   description: Orchestration hub — project map, health, per-project work orders; serve/screenshot the dash site.
+- name: verify-feature
+  description: Verify a feature/change/fix the way a user experiences it — feature index for context, run the app, drive it in a real browser (Playwright MCP / verify/runner.mjs), evidence bundle, PASS/FAIL report; fleet view of _data/features_index.yml and `dash verify deploy`.
 - name: archify
   description: Vendored tt-a1i/archify — typed JSON → validated, interactive HTML diagrams; draws the harness and its loops in diagrams/ (tools/render-diagrams.sh, /harness/).
 

@@ -19,6 +19,7 @@ coverage: listed
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
 | `feedback/` | dir | Universal feedback widget kit: `<fleet-feedback>` web component + taxonomy + issue form + stack adapters (spec: specs/FEEDBACK.md) | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
+| `verify/` | dir | Agent verification kit: feature index scaffold, verify run config, user scenario, Playwright runner + MCP config, fleet-verify caller, verify-feature skill + verifier agent (spec: specs/QUALITY.md UPS-QA-50..53; doc: docs/VERIFICATION.md) | terminal |
 
 ## Placement
 

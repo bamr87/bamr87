@@ -24,6 +24,9 @@ coverage: listed
 | `assets/` | dir | Static site assets (structure owned by the zer0-mistakes theme) | terminal |
 | `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
+| `features/` | dir | The hub's own feature index (`features/v1`): what the dash does for a user, where it lives, what proves it — aggregated fleet-wide by `dash features fleet` (docs/VERIFICATION.md) | required |
+| `verify/` | dir | The hub's agent-verification harness: run config, user scenarios, the rendered Playwright runner, the Playwright MCP config (kit: `templates/verify/`) | required |
+| `test/` | dir | Verification outputs — evidence bundles (`test/evidence/<scenario>/`) written by `tools/dash verify`; hub unit tests live beside their modules | required |
 | `pages/` | dir | Jekyll content collections for the dash site | required |
 | `projects/` | dir | The fleet: one submodule per project (contract generated from the registry) | required |
 | `site/` | dir | MkDocs build output | generated |
@@ -55,6 +58,7 @@ coverage: listed
 - New fleet-wide requirement → a row in `specs/<AREA>.md`, then `tools/gen-specs-data.py`
 - New gate, generator, or fleet script → `tools/`
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
+- New dash surface or loop → an entry in `features/features.yml` + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
 - New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`
 - New registry → `_data/`, registered in `_data/SCHEMA.md`
 - New project → `.gitmodules` + `_data/projects.yml`, then `tools/gen-projects-schema.py`

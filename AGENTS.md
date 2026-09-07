@@ -219,10 +219,11 @@ result = service.get_item("123")
 assert result == expected
 ```
 
-- Use `pytest` for Python, `vitest` or `cypress` for TypeScript
+- Use `pytest` for Python, `vitest` for TypeScript units, **Playwright** for e2e (Cypress is retired — UPS-QA-12)
 - Mock external dependencies at the service boundary
 - Test both success and error paths
 - Follow Arrange-Act-Assert (AAA) pattern
+- **Verify like a user, not just like a test.** Any change to what a user sees or does follows the agent verification standard ([`docs/VERIFICATION.md`](docs/VERIFICATION.md)): read `features/features.yml` for the feature, run the app per `verify/verify.yml`, drive it in a real browser (`verify-feature` skill / Playwright MCP / `verify/runner.mjs`), commit the evidence bundle under `test/evidence/<slug>/`, link it from the feature entry. A PASS cites a scenario and an evidence dir that exist; a non-visual change gets the `skip-evidence` label with a reason.
 
 ---
 

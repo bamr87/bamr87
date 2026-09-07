@@ -1,0 +1,124 @@
+{
+  "id": "monitor",
+  "title": "Monitor board renders with or without live health data",
+  "features": [
+    "HUB-002"
+  ],
+  "path": "verify/scenarios/monitor.yml",
+  "started": "2026-09-05T05:12:48.952Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/monitor/",
+          "ok": true,
+          "ms": 719
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 18
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "monitor",
+          "ok": true,
+          "file": "test/evidence/monitor/desktop-monitor.png",
+          "ms": 52
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/monitor/desktop-monitor.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/monitor/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/monitor/",
+          "ok": true,
+          "ms": 692
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "monitor",
+          "ok": true,
+          "file": "test/evidence/monitor/mobile-monitor.png",
+          "ms": 33
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/monitor/mobile-monitor.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/monitor/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-09-05T05:12:50.578Z",
+  "base": "http://127.0.0.1:4000"
+}

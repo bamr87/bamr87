@@ -571,6 +571,42 @@ requirements:
     satisfied_by: "CI step"
     seed: "—"
     gap: true
+  - id: UPS-QA-50
+    area: QA
+    section: "Verification"
+    level: MUST
+    applies: [site, app, api, cli, ext]
+    requirement: "A **feature index** `features/features.yml` (`schema: features/v1`; the legacy zer0/it-journey shape is accepted as-is) lists every user-facing capability with `surface`, `link`, `docs`, and the `tests` / `scenarios` / `evidence` that prove it; `{na: reason}` waives coverage explicitly. `tools/features_index.py check` validates it — bad or duplicate ids fail, dangling paths warn."
+    satisfied_by: "file present + valid"
+    seed: "`templates/verify/` (`tools/fanout.sh --kit verify`)"
+    gap: false
+  - id: UPS-QA-51
+    area: QA
+    section: "Verification"
+    level: MUST
+    applies: [site, app]
+    requirement: "The **verify kit** is present: `verify/verify.yml` (how to run the app like a user), ≥1 `verify/scenarios/*.yml` user scenario (`scenario/v1`), `verify/runner.mjs`, and `.github/workflows/verify.yml` calling the reusable `fleet-verify.yml` (advisory until `gate: true`). zer0-mistakes' `test/visual/evidence-kit.mjs` + `visual-evidence` skill satisfy this as the precedent."
+    satisfied_by: "files present"
+    seed: "`templates/verify/`"
+    gap: false
+  - id: UPS-QA-52
+    area: QA
+    section: "Verification"
+    level: SHOULD
+    applies: [site, app]
+    requirement: "Every PR that changes a user-visible surface ships **evidence**: a scenario that replays the user path plus `test/evidence/<slug>/` (screenshots at ≥2 viewports, `report.json`, a README saying what each image proves) linked from the feature entry — or the `skip-evidence` label with a reason. The `verify` label requests the Claude Code pass that drives the live app through the Playwright MCP; the workflow, never the agent, posts its report."
+    satisfied_by: "PR contents"
+    seed: "`fleet-verify.yml` + the `verify-feature` skill"
+    gap: false
+  - id: UPS-QA-53
+    area: QA
+    section: "Verification"
+    level: SHOULD
+    applies: [site, app]
+    requirement: "Every implemented `surface: ui` feature is **covered** (≥1 test or scenario that exists on disk) and carries a `verified:` stamp (`date`, `by: agent|human|ci`, `run`); the fleet index (`_data/features_index.yml`, rendered at `/features/`) grades coverage from files, not claims, and lists the gaps as attention items."
+    satisfied_by: "`dash features coverage`"
+    seed: "`verify/runner.mjs --stamp`, the agent pass"
+    gap: false
   - id: UPS-QA-20
     area: QA
     section: "CI"

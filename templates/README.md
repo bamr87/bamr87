@@ -71,6 +71,22 @@ The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK
 | `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `django.html` (Django; ERB equivalent for Rails) |
 | `VERSION` | Kit provenance + changelog |
 
+## `verify/`
+
+The **agent verification kit** (spec: [`specs/QUALITY.md`](../specs/QUALITY.md) "Verification", UPS-QA-50..53; doc: [`docs/VERIFICATION.md`](../docs/VERIFICATION.md)), seeded by `tools/fanout.sh --kit verify` / `dash verify deploy` / [`verify-fanout.yml`](../.github/workflows/verify-fanout.yml) (branch `test/agent-verification`). Lifted from zer0-mistakes' `features/features.yml` + `test/visual/evidence-kit.mjs` + `visual-evidence` skill and made fleet-standard: an index every agent reads, user scenarios both a Playwright runner and a Claude Code pass execute, evidence linked back, graded at `/features/`. See [`verify/README.md`](verify/README.md).
+
+| File | Purpose |
+| --- | --- |
+| `features.template.yml` | `features/features.yml` scaffold (`features/v1`, a strict superset of the legacy shape) — seeded only when the repo has no index of any shape |
+| `verify.template.yml` | `verify/verify.yml` — how to run the app like a user (build/start/static_dir, URL, readiness, viewports, agent guardrails) |
+| `scenario.template.yml` | `verify/scenarios/smoke-home.yml` — a `scenario/v1` user path (goto/click/fill/expect/screenshot) |
+| `runner.mjs` | `verify/runner.mjs` — Playwright executor → `test/evidence/<id>/` + `--stamp` writes `verified:` into the index (machine seed, `--upgrade`-able) |
+| `mcp.json` | `verify/mcp.json` — the Playwright MCP server the verification agent drives the live app with |
+| `verify.yml` | `.github/workflows/verify.yml` — thin caller of the reusable `fleet-verify.yml` (`__DEFAULT_BRANCH__` substituted; advisory until `gate: true`) |
+| `SKILL.template.md`, `verifier.template.md` | `.claude/skills/verify-feature/SKILL.md`, `.claude/agents/verifier.md` — dedicated kit artifacts (the agent-context 0.4.0 exception), seeded only when no verification skill exists |
+| `EVIDENCE-README.template.md` | the shape of a `test/evidence/<slug>/README.md` |
+| `VERSION` | Kit provenance + changelog |
+
 ## `prose/`
 
 The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/markdown-oneline`):

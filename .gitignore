@@ -210,3 +210,14 @@ evolution-workorders/
 .claude/settings.local.json
 .claude/worktrees/
 .claude/skills/run-dash/*.png
+
+# Ephemeral outputs of the agent verification loop (fleet-verify.yml / verify/runner.mjs):
+# the brief and report the agent pass exchanges with the workflow, and the
+# screenshots the Playwright MCP drops during a pass. Evidence BUNDLES under
+# test/evidence/<slug>/ are committed deliberately (docs/VERIFICATION.md).
+verify/BRIEF.md
+verify/AGENT-REPORT.md
+test/evidence/agent/
+test/evidence/report.json
+verify-app.log
+verify-run.txt
