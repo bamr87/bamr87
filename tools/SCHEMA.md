@@ -27,6 +27,8 @@ coverage: listed
 | `features_index.py` | file | The fleet features index — validates a repo's `features/features.yml`, grades verification coverage from files on disk, aggregates every submodule → `_data/features_index.yml` (`dash features`; docs/VERIFICATION.md) | |
 | `test_features_index.py` | file | Fixture tests for features_index.py (run by run-all-tests.sh) | |
 | `render-diagrams.sh` | file | Validates + delivers every `diagrams/*.json` archify spec to its self-contained HTML via the vendored `.claude/skills/archify` renderer (`--check` validates only; docs/HARNESS.md) | |
+| `tui/` | dir | The terminal command center — the Jekyll dash's read-only twin in a TUI: registry + health + forge container state over the same committed signals (`tools/dash tui`; docs/FORGE-HOST.md) | |
+| `test_tui_fleet.py` | file | Fixture tests for tools/tui/fleet.py (run by run-all-tests.sh) | |
 | `console/` | dir | The Harness Console — local control plane UI + API (FastAPI) wrapping the allowlisted `dash` operations as jobs, rendering every committed fleet signal, editing the fleet.yml harness contract, and (Traces tab) reading the local data lake + linking Phoenix; `tools/dash console`, compose service `console` (docs/HARNESS-OPS.md) | |
 | `*.sh` | pattern | One fleet/ops script per concern, kebab-case (gates, setup, fan-out seeds) | required |
 | `*.py` | pattern | Python gate/generator tooling — includes the vendored schema_lint.py (see templates/schema/VERSION) | required |

@@ -1,0 +1,3 @@
+# Terminal dash — always-latest (fleet policy: no pins, no lockfiles).
+PyYAML
+textual

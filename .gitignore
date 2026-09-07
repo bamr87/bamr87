@@ -45,6 +45,7 @@ _site/
 .venv/
 venv/
 .venv-console/
+.venv-tui/
 ENV/
 env/
 .virtualenv/

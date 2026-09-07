@@ -42,6 +42,8 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
+  ${c_bold}dash tui${c_off}               terminal command center — same registry + health as the Jekyll dash (DOCKER_HOST ssh://forge)
+  ${c_bold}dash host [setup|ps|up|rebuild]${c_off}  forge Docker host — rebuild hub from bamr87/.env, or up a submodule
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
@@ -116,6 +118,59 @@ cmd_serve() {
 # The Harness Console: the credentialed, write-capable front end of the local
 # stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
 # via tools/console/run.sh; --docker starts the compose service instead.
+cmd_tui() {
+  "${TOOLS}/tui/run.sh" "$@"
+}
+
+cmd_host() {
+  local sub="${1:-ps}"; shift || true
+  case "$sub" in
+    setup)
+      if docker context inspect forge >/dev/null 2>&1; then
+        echo "docker context 'forge' already exists"
+      else
+        docker context create forge --docker "host=ssh://forge" --description "forge LAN container host"
+      fi
+      docker --context forge info --format '{{.Name}} {{.ServerVersion}}'
+      echo "use: docker --context forge ps"
+      echo "or:  DASH_DOCKER_HOST=ssh://forge tools/dash tui"
+      echo "compose must run ON forge (bind mounts are the remote filesystem). See docs/FORGE-HOST.md"
+      ;;
+    ps)
+      docker -H "${DASH_DOCKER_HOST:-ssh://forge}" ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+      ;;
+    up)
+      local proj="${1:-}"
+      [[ -n "$proj" ]] || { echo "usage: dash host up <project>   (repo must exist at forge:~/dev/<project>)" >&2; return 1; }
+      ssh forge "cd ~/dev/$proj && docker compose --env-file ~/dev/bamr87/.env up -d #nomirror"
+      ;;
+    rebuild)
+      local dest="forge:dev/bamr87/"
+      echo "rsync $ROOT → $dest"
+      rsync -a --delete \
+        --exclude .git --exclude .venv --exclude .venv-tui --exclude .venv-console \
+        --exclude node_modules --exclude _site --exclude .jekyll-cache --exclude __pycache__ \
+        --exclude .dash-lake \
+        "$ROOT/" "$dest"
+      ssh forge 'chmod 600 ~/dev/bamr87/.env 2>/dev/null || true'
+      ssh forge 'bash -s' <<'REMOTE'
+set -euo pipefail
+#nomirror
+ids=$(docker ps -aq)
+[[ -n "$ids" ]] && docker rm -f $ids
+docker volume ls -q | xargs -r docker volume rm
+cd "$HOME/dev/bamr87"
+docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin up -d --build
+docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin ps
+REMOTE
+      ;;
+    *)
+      echo "usage: dash host setup|ps|up <project>|rebuild" >&2
+      return 1
+      ;;
+  esac
+}
+
 cmd_console() {
   if [[ "${1:-}" == "--docker" ]]; then
     shift
@@ -427,6 +482,8 @@ main() {
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
     serve)   cmd_serve "$@" ;;
+    tui)     cmd_tui "$@" ;;
+    host)    cmd_host "$@" ;;
     console) cmd_console "$@" ;;
     sync)    cmd_sync "$@" ;;
     foreach) cmd_foreach "$@" ;;
