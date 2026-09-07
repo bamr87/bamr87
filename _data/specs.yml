@@ -105,7 +105,7 @@ requirements:
     section: "Layout"
     level: MUST
     applies: [all]
-    requirement: "Exactly one checkout per upstream in the fleet. Duplicate directories tracking the same remote (2026-09: `edgar-data-parse`≡`fredgar-ai`, `vscode-front-matter`≡`zer0-cms`) are a registry defect, not two projects."
+    requirement: "Exactly one checkout per upstream in the fleet. Duplicate directories tracking the same remote (as `edgar-data-parse`≡`fredgar-ai` and `vscode-front-matter`≡`zer0-cms` were until the 2026-09-07 reconciliation) are a registry defect, not two projects."
     satisfied_by: "registry + `.gitmodules` have one path per `repo_url`"
     seed: "`dash reconcile`"
     gap: false

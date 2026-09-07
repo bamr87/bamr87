@@ -133,20 +133,6 @@
       "fleet_status": "active"
     },
     {
-      "id": "fleet-bash-cms",
-      "name": "bash-cms",
-      "description": "Governed LinkedIn publishing from a repo inside VS Code — draft, brand-guard, human approval, idempotency ledger, bundled MCP server (BASH Consulting).",
-      "technologies": [
-        "typescript",
-        "vscode",
-        "mcp"
-      ],
-      "github": "https://github.com/bamr87/bash-cms",
-      "startDate": "",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
       "id": "fleet-bashconsultants",
       "name": "bashconsultants",
       "description": "BASH Consulting — Denver-based IT consulting firm website.",
@@ -155,6 +141,22 @@
         "shell"
       ],
       "github": "https://github.com/bamr87/bashconsultants",
+      "startDate": "",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
+      "id": "fleet-bashos",
+      "name": "bashos",
+      "description": "Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCode engine, running on Claude Code OAuth.",
+      "technologies": [
+        "python",
+        "langgraph",
+        "opencode",
+        "ai",
+        "cli"
+      ],
+      "github": "https://github.com/bamr87/bashos",
       "startDate": "",
       "featured": false,
       "fleet_status": "active"
@@ -175,8 +177,8 @@
       "fleet_status": "active"
     },
     {
-      "id": "fleet-edgar-data-parse",
-      "name": "edgar-data-parse",
+      "id": "fleet-fredgar-ai",
+      "name": "fredgar-ai",
       "description": "SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.",
       "technologies": [
         "django",
@@ -228,6 +230,7 @@
       ],
       "github": "https://github.com/bamr87/irony-works",
       "startDate": "",
+      "url": "https://bamr87.github.io/irony-works/",
       "featured": false,
       "fleet_status": "active"
     },
@@ -246,6 +249,37 @@
       "fleet_status": "active"
     },
     {
+      "id": "fleet-ocrmd",
+      "name": "ocrmd",
+      "description": "Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR voting) diffed against a Claude vision transcription, one page file with rich frontmatter each.",
+      "technologies": [
+        "python",
+        "ocr",
+        "claude",
+        "cli"
+      ],
+      "github": "https://github.com/bamr87/ocrmd",
+      "startDate": "",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
+      "id": "fleet-rewind-arcade",
+      "name": "rewind-arcade",
+      "description": "A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snake included; builds to static files and plays fully offline.",
+      "technologies": [
+        "react",
+        "typescript",
+        "vite",
+        "canvas"
+      ],
+      "github": "https://github.com/bamr87/rewind-arcade",
+      "startDate": "",
+      "url": "https://bamr87.github.io/rewind-arcade/",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
       "id": "fleet-schema",
       "name": "SCHEMA",
       "description": "Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.",
@@ -254,19 +288,6 @@
         "markdown"
       ],
       "github": "https://github.com/bamr87/SCHEMA",
-      "startDate": "",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
-      "id": "fleet-vscode-front-matter",
-      "name": "vscode-front-matter",
-      "description": "zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.",
-      "technologies": [
-        "typescript",
-        "vscode"
-      ],
-      "github": "https://github.com/bamr87/zer0-CMS",
       "startDate": "",
       "featured": false,
       "fleet_status": "active"
@@ -281,6 +302,19 @@
         "markdown"
       ],
       "github": "https://github.com/bamr87/wargames",
+      "startDate": "",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
+      "id": "fleet-zer0-cms",
+      "name": "zer0-CMS",
+      "description": "zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.",
+      "technologies": [
+        "typescript",
+        "vscode"
+      ],
+      "github": "https://github.com/bamr87/zer0-CMS",
       "startDate": "",
       "featured": false,
       "fleet_status": "active"
@@ -322,23 +356,30 @@
         "ai",
         "bash",
         "bootstrap",
+        "canvas",
+        "claude",
         "claude-code",
+        "cli",
+        "diagrams",
         "django",
         "docker",
-        "drf",
         "fastapi",
         "firebase",
         "github-actions",
         "javascript",
         "jekyll",
+        "langgraph",
         "latex",
         "markdown",
         "mcp",
         "mkdocs",
         "node",
         "obsidian",
+        "ocr",
         "ollama",
         "openai",
+        "opencode",
+        "pglite",
         "postgres",
         "python",
         "react",
