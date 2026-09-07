@@ -1,0 +1,14 @@
+# The AI harness + schedule control board.
+id: harnesses
+feature: HUB-005
+title: "AI Harnesses board renders totals, attention, and the schedule"
+description: "The /harnesses/ page renders the inventory from _data/harness_registry.yml — the totals cards, the attention list, and the per-repo table — without sideways scrolling."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /harnesses/
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { text: "Attention" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: harnesses

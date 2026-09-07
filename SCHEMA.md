@@ -24,6 +24,9 @@ coverage: listed
 | `assets/` | dir | Static site assets (structure owned by the zer0-mistakes theme) | terminal |
 | `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
+| `features/` | dir | The hub's own feature index (`features/v1`): what the dash does for a user, where it lives, what proves it — aggregated fleet-wide by `dash features fleet` (docs/VERIFICATION.md) | required |
+| `verify/` | dir | The hub's agent-verification harness: run config, user scenarios, the rendered Playwright runner, the Playwright MCP config (kit: `templates/verify/`) | required |
+| `test/` | dir | Verification outputs — evidence bundles (`test/evidence/<scenario>/`) written by `tools/dash verify`; hub unit tests live beside their modules | required |
 | `pages/` | dir | Jekyll content collections for the dash site | required |
 | `projects/` | dir | The fleet: one submodule per project (contract generated from the registry) | required |
 | `site/` | dir | MkDocs build output | generated |
@@ -43,9 +46,11 @@ coverage: listed
 | `fleet.manifest.yml` | file | This repo's AI lanes in the shared `fleet/v1` vocabulary (spec: bamr87/wtd docs/FLEET-SPEC.md) | |
 | `_config_dev.yml` | file | Jekyll local-dev overrides | |
 | `docker-compose.yml` | file | Containerized dev services | |
+| `docker-compose.forge.yml` | file | Overlay that retargets the compose stack at the `forge` LAN Docker host (`dash host rebuild`; docs/FORGE-HOST.md) | |
 | `home.code-workspace` | file | VS Code multi-root workspace | |
 | `index.md` | file | Dash site landing page | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
+| `issue-workorder-t*.md` | pattern | Ephemeral per-tier issue work orders (`dash issues` → issue-pipeline.yml; gitignored) | generated |
 | `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |
 | `.dash-lake/` | dir | The local data lake — GitHub runs/jobs/steps/logs/issues/workflow files extracted into SQLite by `dash-gen lake sync`, the source of the Phoenix traces (gitignored; docs/HARNESS-OPS.md) | generated |
 
@@ -55,6 +60,7 @@ coverage: listed
 - New fleet-wide requirement → a row in `specs/<AREA>.md`, then `tools/gen-specs-data.py`
 - New gate, generator, or fleet script → `tools/`
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
+- New dash surface or loop → an entry in `features/features.yml` + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
 - New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`
 - New registry → `_data/`, registered in `_data/SCHEMA.md`
 - New project → `.gitmodules` + `_data/projects.yml`, then `tools/gen-projects-schema.py`

@@ -1,0 +1,148 @@
+{
+  "id": "dashboard",
+  "title": "Dashboard lists the registry's projects",
+  "features": [
+    "HUB-001"
+  ],
+  "path": "verify/scenarios/dashboard.yml",
+  "started": "2026-09-05T05:12:40.255Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/dashboard/",
+          "ok": true,
+          "ms": 755
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 27
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main a[href*='github.com/bamr87/']",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 26,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 2
+        },
+        {
+          "step": "screenshot",
+          "arg": "dashboard",
+          "ok": true,
+          "file": "test/evidence/dashboard/desktop-dashboard.png",
+          "ms": 57
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/dashboard/desktop-dashboard.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/dashboard/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/dashboard/",
+          "ok": true,
+          "ms": 710
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 18
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main a[href*='github.com/bamr87/']",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 26,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "dashboard",
+          "ok": true,
+          "file": "test/evidence/dashboard/mobile-dashboard.png",
+          "ms": 26
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/dashboard/mobile-dashboard.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/dashboard/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-09-05T05:12:41.975Z",
+  "base": "http://127.0.0.1:4000"
+}

@@ -1,0 +1,36 @@
+# Overlay when this checkout lives on forge and compose runs there.
+# `!override` replaces the loopback binds in docker-compose.yml (compose concatenates lists).
+# Ports come from .env.
+services:
+  devenv:
+    ports: !override
+      - "${CV_PORT:-5000}:5000"
+      - "${VITE_HMR_PORT:-5173}:5173"
+      - "${MKDOCS_PORT:-8000}:8000"
+      - "${JEKYLL_PORT:-4000}:4000"
+  console:
+    ports: !override
+      - "${CONSOLE_PORT:-4001}:4001"
+    environment:
+      - DASH_CONSOLE_ALLOWED_HOSTS=${DASH_CONSOLE_ALLOWED_HOSTS:-forge.local,localhost,127.0.0.1}
+  phoenix:
+    ports: !override
+      - "${PHOENIX_PORT:-6006}:6006"
+      - "${PHOENIX_GRPC_PORT:-4317}:4317"
+  mkdocs:
+    ports: !override
+      - "${MKDOCS_SERVE_PORT:-8001}:8000"
+  wiki:
+    ports: !override
+      - "${WIKI_PORT:-3000}:3000"
+    environment:
+      WIKI_SITE_URL: ${WIKI_SITE_URL:-http://forge.local:3000}
+  db:
+    ports: !override
+      - "${DB_PORT:-5432}:5432"
+  redis:
+    ports: !override
+      - "${REDIS_PORT:-6379}:6379"
+  pgadmin:
+    ports: !override
+      - "${PGADMIN_PORT:-5050}:80"

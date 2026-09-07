@@ -1,0 +1,140 @@
+{
+  "id": "harnesses",
+  "title": "AI Harnesses board renders totals, attention, and the schedule",
+  "features": [
+    "HUB-005"
+  ],
+  "path": "verify/scenarios/harnesses.yml",
+  "started": "2026-09-05T05:12:45.505Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/harnesses/",
+          "ok": true,
+          "ms": 709
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 16
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Attention"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses",
+          "ok": true,
+          "file": "test/evidence/harnesses/desktop-harnesses.png",
+          "ms": 48
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/harnesses/desktop-harnesses.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/harnesses/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/harnesses/",
+          "ok": true,
+          "ms": 717
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 21
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Attention"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "harnesses",
+          "ok": true,
+          "file": "test/evidence/harnesses/mobile-harnesses.png",
+          "ms": 51
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/harnesses/mobile-harnesses.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/harnesses/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-09-05T05:12:47.160Z",
+  "base": "http://127.0.0.1:4000"
+}

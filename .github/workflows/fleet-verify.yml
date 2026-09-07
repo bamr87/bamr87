@@ -1,0 +1,394 @@
+name: fleet-verify
+
+# Reusable AGENT VERIFICATION gate — the in-repo half of the verify kit
+# (templates/verify/, spec: specs/QUALITY.md "Verification", doc:
+# docs/VERIFICATION.md). A member repo adopts it with the short caller in
+# templates/verify/verify.yml (tools/fanout.sh --kit verify). It checks out the
+# hub beside the caller's tree for the shared tooling, then:
+#
+#   1. validates features/features.yml (tools/features_index.py check) and
+#      prints coverage — every feature's tests / scenarios / evidence links;
+#   2. starts the app exactly as verify/verify.yml says a user would run it
+#      (build → start, or serve a static build dir) and waits for readiness;
+#   3. executes verify/scenarios/*.yml with verify/runner.mjs → test/evidence/
+#      (screenshots at every viewport, report.json per scenario), uploaded as
+#      the `verify-evidence` artifact and summarised in the job summary;
+#   4. with `agent: true` (the caller sets it from a `verify` PR label or a
+#      dispatch input) and Claude auth present, hands the SAME live app to a
+#      Claude Code pass through the Playwright MCP — it reads the feature
+#      index, the diff, and the scenario results, uses the app like a person,
+#      saves screenshots under test/evidence/agent/, and writes
+#      verify/AGENT-REPORT.md. The WORKFLOW — never the agent — posts that
+#      report on the PR (sticky comment) and uploads it. The agent has no
+#      credential in the tree and no push/PR tools; it cannot merge anything.
+#
+# Advisory by default (`gate: false`): scenario failures land in the summary
+# and the workflow stays green. A repo flips `gate: true` once its scenarios
+# are trustworthy, which is what turns "the agent clicked through it" into a
+# PR-blocking check where the code lives.
+#
+# Auth (house convention): CLAUDE_CODE_OAUTH_TOKEN preferred, ANTHROPIC_API_KEY
+# fallback — callers pass `secrets: inherit`. A missing credential SKIPS the
+# agent step with a notice; it never fails the scenario half.
+#
+# Call it from a member repo:
+#   jobs:
+#     verify:
+#       uses: bamr87/bamr87/.github/workflows/fleet-verify.yml@main
+#       permissions: { contents: read, pull-requests: write, id-token: write }
+#       with: { agent: ${{ contains(github.event.pull_request.labels.*.name, 'verify') }} }
+#       secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: "Path of the verify config (verify/verify.yml)"
+        type: string
+        default: "verify/verify.yml"
+      only:
+        description: "Comma-separated scenario ids to run (empty = all)"
+        type: string
+        default: ""
+      gate:
+        description: "Fail the job when the index is invalid or any scenario fails"
+        type: boolean
+        default: false
+      agent:
+        description: "Run the Claude Code verification pass against the live app"
+        type: boolean
+        default: false
+      max-turns:
+        description: "Turn budget for the agent pass"
+        type: number
+        default: 40
+      hub-ref:
+        description: "bamr87/bamr87 ref to take the tooling from"
+        type: string
+        default: "main"
+      node-version:
+        type: string
+        default: ""
+      python-version:
+        type: string
+        default: ""
+      ruby-version:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  NODE_V: ${{ inputs.node-version || vars.NODE_VERSION || '20' }}
+  PYTHON_V: ${{ inputs.python-version || vars.PYTHON_VERSION || '3.12' }}
+  RUBY_V: ${{ inputs.ruby-version || vars.RUBY_VERSION || '3.3' }}
+  CONFIG: ${{ inputs.config }}
+  HUB: .fleet-hub
+
+jobs:
+  verify:
+    name: Scenarios + evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout the hub (tooling)
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref }}
+          path: .fleet-hub
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_V }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_V }}
+
+      - name: Install hub tooling dependency
+        run: python -m pip install --quiet --upgrade pyyaml
+
+      # ------------------------------------------------------------------ 1. index
+      - name: Validate the feature index + coverage
+        id: index
+        run: |
+          set -uo pipefail
+          if [ ! -f features/features.yml ] && [ ! -f _data/features.yml ]; then
+            echo "::warning::no features/features.yml — seed one with the verify kit (tools/fanout.sh --kit verify)"
+            echo "valid=missing" >> "$GITHUB_OUTPUT"
+            { echo "## Feature index"; echo; echo "_No \`features/features.yml\` in this repo._"; } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 "$HUB/tools/features_index.py" check . --json > features-check.json || true
+          python3 "$HUB/tools/features_index.py" coverage . | tee coverage.txt || true
+          valid=$(python3 -c 'import json;print("true" if json.load(open("features-check.json")).get("ok") else "false")' 2>/dev/null || echo false)
+          echo "valid=$valid" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Feature index"
+            echo
+            echo "Valid: **$valid**"
+            echo
+            echo '```text'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------ 2. app
+      - name: Read verify config
+        id: cfg
+        run: |
+          set -euo pipefail
+          if [ ! -f "$CONFIG" ]; then
+            echo "::warning::no $CONFIG — nothing to run (seed with the verify kit)"
+            echo "present=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          python3 - "$CONFIG" >> "$GITHUB_OUTPUT" <<'PY'
+          import sys, yaml, urllib.parse
+          cfg = yaml.safe_load(open(sys.argv[1])) or {}
+          app = cfg.get("app") or {}
+          url = str(app.get("url") or "http://127.0.0.1:4000")
+          port = urllib.parse.urlparse(url).port or 80
+          print("present=true")
+          for k in ("start", "build", "static_dir", "ready", "install"):
+              print(f"{k}={str(app.get(k) or '').replace(chr(10), ' ')}")
+          print(f"url={url}")
+          print(f"port={port}")
+          print(f"timeout={int(app.get('timeout_s') or 180)}")
+          print(f"scenarios={cfg.get('scenarios') or 'verify/scenarios'}")
+          print(f"evidence={cfg.get('evidence_dir') or 'test/evidence'}")
+          PY
+
+      - uses: ruby/setup-ruby@v1
+        if: ${{ steps.cfg.outputs.present == 'true' && hashFiles('Gemfile') != '' }}
+        with:
+          ruby-version: ${{ env.RUBY_V }}
+          bundler-cache: false
+
+      - name: Install the app's dependencies
+        if: ${{ steps.cfg.outputs.present == 'true' }}
+        env:
+          INSTALL: ${{ steps.cfg.outputs.install }}
+        run: |
+          set -uo pipefail
+          # Always-latest fleet policy: install, never ci; no lockfiles.
+          if [ -n "$INSTALL" ]; then bash -c "$INSTALL"
+          else
+            [ -f package.json ] && npm install --no-audit --no-fund
+            [ -f Gemfile ] && bundle install --quiet
+            [ -f requirements.txt ] && pip install --quiet -r requirements.txt
+            [ -f pyproject.toml ] && pip install --quiet -e . 2>/dev/null
+          fi
+          true
+
+      - name: Install the runner's dependencies + Chromium
+        if: ${{ steps.cfg.outputs.present == 'true' }}
+        run: |
+          set -euo pipefail
+          # Resolved from <repo>/node_modules by verify/runner.mjs. --no-save so a
+          # repo without package.json (Jekyll, Django) gets nothing written back.
+          npm install --no-save --no-audit --no-fund --no-package-lock @playwright/test yaml
+          npx playwright install --with-deps chromium
+
+      - name: Start the app the way a user would
+        if: ${{ steps.cfg.outputs.present == 'true' }}
+        id: app
+        env:
+          BUILD: ${{ steps.cfg.outputs.build }}
+          START: ${{ steps.cfg.outputs.start }}
+          STATIC: ${{ steps.cfg.outputs.static_dir }}
+          URL: ${{ steps.cfg.outputs.url }}
+          PORT: ${{ steps.cfg.outputs.port }}
+          READY: ${{ steps.cfg.outputs.ready }}
+          TIMEOUT: ${{ steps.cfg.outputs.timeout }}
+        run: |
+          set -uo pipefail
+          if [ -n "$BUILD" ]; then
+            echo "build: $BUILD"
+            bash -c "$BUILD" 2>&1 | tail -50 || { echo "::error::build failed"; echo "started=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          fi
+          if [ -n "$START" ]; then
+            echo "start: $START"
+            nohup bash -c "$START" > verify-app.log 2>&1 &
+          elif [ -n "$STATIC" ]; then
+            echo "serve: $STATIC on :$PORT"
+            nohup python3 -m http.server "$PORT" --bind 127.0.0.1 -d "$STATIC" > verify-app.log 2>&1 &
+          else
+            echo "::warning::verify.yml has neither app.start nor app.static_dir — scenarios will run against $URL as-is"
+          fi
+          ready="${URL%/}${READY:-/}"
+          for i in $(seq 1 "$TIMEOUT"); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$ready" || true)
+            if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then echo "ready after ${i}s (HTTP $code)"; echo "started=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+            sleep 1
+          done
+          echo "::error::app not ready at $ready after ${TIMEOUT}s"
+          [ -f verify-app.log ] && tail -40 verify-app.log
+          echo "started=false" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------------ 3. scenarios
+      - name: Run the user scenarios
+        if: ${{ steps.cfg.outputs.present == 'true' && steps.app.outputs.started == 'true' }}
+        id: run
+        env:
+          ONLY: ${{ inputs.only }}
+          EVIDENCE: ${{ steps.cfg.outputs.evidence }}
+        run: |
+          set -uo pipefail
+          args=(--config "$CONFIG" --no-fail --by ci)
+          [ -n "$ONLY" ] && args+=(--only "$ONLY")
+          node verify/runner.mjs "${args[@]}" | tee verify-run.txt
+          rep="$EVIDENCE/report.json"
+          if [ -f "$rep" ]; then
+            passed=$(python3 -c "import json;print(json.load(open('$rep'))['passed'])")
+            failed=$(python3 -c "import json;print(json.load(open('$rep'))['failed'])")
+          else
+            passed=0; failed=0
+          fi
+          echo "passed=$passed" >> "$GITHUB_OUTPUT"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          shots=$(find "$EVIDENCE" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
+          {
+            echo "## Scenarios"
+            echo
+            echo "**$passed passed · $failed failed · $shots screenshots** — evidence in the \`verify-evidence\` artifact."
+            echo
+            echo '```text'
+            cat verify-run.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload evidence
+        if: ${{ always() && steps.cfg.outputs.present == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: verify-evidence
+          path: |
+            ${{ steps.cfg.outputs.evidence }}/**
+            verify-app.log
+            verify-run.txt
+            features-check.json
+            coverage.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ------------------------------------------------------------------ 4. agent
+      - name: Claude auth check
+        if: ${{ inputs.agent }}
+        run: |
+          if [ "$HAS_CLAUDE_AUTH" != "true" ]; then
+            echo "::notice::agent pass requested but neither CLAUDE_CODE_OAUTH_TOKEN nor ANTHROPIC_API_KEY is set — skipping (docs/AI-INTEGRATION.md)"
+          fi
+
+      - name: Write the verification brief
+        if: ${{ inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}
+        env:
+          URL: ${{ steps.cfg.outputs.url }}
+          EVIDENCE: ${{ steps.cfg.outputs.evidence }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PASSED: ${{ steps.run.outputs.passed }}
+          FAILED: ${{ steps.run.outputs.failed }}
+        run: |
+          set -uo pipefail
+          mkdir -p "$EVIDENCE/agent"
+          if [ -n "$BASE_SHA" ]; then changed=$(git diff --name-only "$BASE_SHA"...HEAD | head -200); else changed=$(git show --name-only --format= HEAD | head -200); fi
+          {
+            echo "# Verification brief"
+            echo
+            echo "- Repository: ${{ github.repository }} · ref: ${{ github.ref_name }} · PR: ${PR:-none}"
+            echo "- The app is RUNNING at $URL — use the Playwright MCP against it (never another host)."
+            echo "- Deterministic scenarios already ran: $PASSED passed, $FAILED failed (see $EVIDENCE/report.json)."
+            echo "- Save every screenshot you take under $EVIDENCE/agent/ (the MCP output dir); write the report to verify/AGENT-REPORT.md."
+            echo
+            echo "## Files changed"
+            echo
+            echo '```'; echo "$changed"; echo '```'
+          } > verify/BRIEF.md
+          echo "brief written ($(wc -l < verify/BRIEF.md) lines)"
+
+      - name: Claude Code verification pass
+        if: ${{ inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}
+        id: agent
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          # ALLOWLIST: the browser (Playwright MCP), the runner, and read/write of
+          # files in the tree. No git write verbs, no gh, no network beyond the
+          # MCP — publishing the report is the workflow's job below.
+          claude_args: >-
+            --model sonnet
+            --max-turns ${{ inputs.max-turns }}
+            --mcp-config verify/mcp.json
+            --allowedTools "mcp__playwright__*,Bash(node verify/runner.mjs:*),Bash(python3 .fleet-hub/tools/features_index.py:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(jq:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(mkdir:*),Read,Grep,Glob,Write,Edit"
+          prompt: |
+            You are the VERIFIER for this repository (fleet standard: bamr87/bamr87 docs/VERIFICATION.md). Read verify/BRIEF.md first, then features/features.yml (what exists and what proves it), verify/verify.yml (how the app runs; obey `agent.never`), verify/scenarios/*.yml (the step vocabulary), and ${{ steps.cfg.outputs.evidence }}/report.json (what the runner already found).
+
+            The app is live at ${{ steps.cfg.outputs.url }}. Using the Playwright MCP, USE it the way a person would for every feature the changed files touch (map files → feature ids via the index; if a touched capability has no entry, say so — that is a finding): browser_navigate to the route, browser_snapshot to read the page, interact, browser_take_screenshot at each proof point at desktop (1280 wide) AND mobile (390 wide; browser_resize). Check what unit tests never do: nothing scrolls sideways, focus is visible, browser_console_messages shows no errors, empty/404 states render, both colour modes hold if the app has them.
+
+            For each feature you verified, write a replayable verify/scenarios/<slug>.yml (scenario/v1) and run it with `node verify/runner.mjs --only <slug>`; it must pass before you cite it. Then write verify/AGENT-REPORT.md: a table — feature id · PASS / FAIL / NOT VERIFIED · scenario · evidence dir · one sentence; then "Findings" (every failure with step, viewport, screenshot path); then "Not covered". Do NOT commit, push, label, or comment — the workflow publishes your report. Never describe behaviour you did not observe in the browser; "could not verify: <reason>" is a valid row.
+
+      - name: Publish the agent report
+        if: ${{ always() && inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          OUTCOME: ${{ steps.agent.outcome }}
+        run: |
+          set -uo pipefail
+          rep=verify/AGENT-REPORT.md
+          if [ ! -f "$rep" ]; then
+            printf '# Agent verification\n\n_The agent pass ended (%s) without writing verify/AGENT-REPORT.md — see the job log._\n' "$OUTCOME" > "$rep"
+          fi
+          { echo "## Agent verification"; echo; cat "$rep"; } >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$PR" ] || { echo "no PR — report is in the summary + artifact"; exit 0; }
+          marker='<!-- fleet-verify agent-report -->'
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body="$(printf '%s\n%s\n\n_Posted by fleet-verify (run %s). Screenshots: the verify-agent-report artifact._\n' "$marker" "$(head -c 60000 "$rep")" "$run_url")"
+          existing=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$existing" -f body="$body" >/dev/null && echo "updated comment $existing"
+          else
+            gh api "repos/${{ github.repository }}/issues/$PR/comments" -f body="$body" >/dev/null && echo "posted comment"
+          fi
+
+      - name: Upload agent report
+        if: ${{ always() && inputs.agent && env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: verify-agent-report
+          path: |
+            verify/AGENT-REPORT.md
+            verify/BRIEF.md
+            ${{ steps.cfg.outputs.evidence }}/agent/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ------------------------------------------------------------------ gate
+      - name: Gate
+        if: ${{ inputs.gate }}
+        env:
+          VALID: ${{ steps.index.outputs.valid }}
+          STARTED: ${{ steps.app.outputs.started }}
+          FAILED: ${{ steps.run.outputs.failed }}
+        run: |
+          rc=0
+          [ "$VALID" = "false" ] && { echo "::error::features/features.yml is invalid"; rc=1; }
+          [ "$STARTED" = "false" ] && { echo "::error::the app did not start"; rc=1; }
+          [ "${FAILED:-0}" != "0" ] && { echo "::error::${FAILED} scenario(s) failed"; rc=1; }
+          exit $rc

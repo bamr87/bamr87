@@ -21,6 +21,8 @@ Claude Code configuration that makes the dash self-managing.
 | `skills/estimate-issue/` | Deep-analyze a GitHub issue into a client-engagement estimate in `_data/engagements.yml` (refines the `dash estimate` draft; approval stays human) |
 | `skills/evolve-project/` | Focused per-project improvement pass (reads `.github/agents` personas as guidance; shares its goals file `.github/evolution/evolve-prompt.md` with the weekly `repo-evolution.yml` loop) |
 | `skills/archify/` | Vendored [tt-a1i/archify](https://github.com/tt-a1i/archify) (MIT) — typed-JSON → validated HTML diagrams; the hub's harness/loop illustrations in `diagrams/` are authored with it and rendered by `tools/render-diagrams.sh` |
+| `skills/verify-feature/` | **Agent verification**: prove a feature/change/fix works the way a user experiences it — read the feature index for context, run the app per `verify/verify.yml`, drive it in a real browser (Playwright MCP / `verify/runner.mjs`), capture evidence, link it back, report PASS/FAIL/NOT VERIFIED; plus the fleet view of `_data/features_index.yml` and `dash verify deploy` for seeding the kit ([`docs/VERIFICATION.md`](../docs/VERIFICATION.md)) |
+| `agents/verifier.md` | sub-agent: the acceptance tester that follows `verify-feature` and never claims what it did not observe |
 | `skills/run-dash/` | Orchestration hub: whole-repo project map + per-project "work order" (branch, stack, run cmd, context) for dispatching into a submodule; serve/screenshot the Jekyll dash. Driven by `driver.py` |
 | `commands/dash-status.md` | `/dash-status` — read-only status |
 | `commands/evolve.md` | `/evolve` — run the self-evolution loop |
@@ -32,7 +34,7 @@ Claude Code configuration that makes the dash self-managing.
 | `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |
 
-MCP servers (github, memory, sequentialthinking, context7) are configured in the repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN` env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
+MCP servers (github, memory, sequentialthinking, context7, **playwright** — the browser the `verify-feature` skill drives) are configured in the repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN` env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
 
 > **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and `.github/prompts/` are **Copilot-format reference templates** (per `.github/docs/toolkit-retention-map.md`) consumed in place by hub skills (e.g. `evolve-project` reads the agent personas) — nothing seeds them into submodules, and Claude Code cannot Task-launch them. Only `.claude/agents/` (feature-scout) are real subagents. For a working-diff review use the native `/code-review` skill.
 

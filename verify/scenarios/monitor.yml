@@ -1,0 +1,14 @@
+# The monitor board — live-signal attention view (ephemeral data, so the page
+# must render sensibly with OR without _data/project_health.yml).
+id: monitor
+feature: HUB-002
+title: "Monitor board renders with or without live health data"
+description: "The /monitor/ page renders its board; when the gitignored health snapshot is absent it explains how to generate it instead of breaking."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /monitor/
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: monitor

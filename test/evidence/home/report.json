@@ -1,0 +1,142 @@
+{
+  "id": "home",
+  "title": "Home page renders with the dash navigation",
+  "features": [
+    "HUB-001"
+  ],
+  "path": "verify/scenarios/home.yml",
+  "started": "2026-09-05T05:12:47.161Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": false,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/",
+          "ok": true,
+          "ms": 726
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": false,
+          "value": {
+            "sw": 1292,
+            "cw": 1280
+          },
+          "error": "horizontal overflow: scrollWidth 1292 > clientWidth 1280",
+          "ms": 4,
+          "screenshot": "test/evidence/home/desktop-FAILED-step4.png"
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_console_errors": true
+          },
+          "ok": false,
+          "skipped": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "home",
+          "ok": false,
+          "skipped": true
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/home/desktop-FAILED-step4.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": false,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/",
+          "ok": true,
+          "ms": 717
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 17
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": false,
+          "value": {
+            "sw": 402,
+            "cw": 390
+          },
+          "error": "horizontal overflow: scrollWidth 402 > clientWidth 390",
+          "ms": 1,
+          "screenshot": "test/evidence/home/mobile-FAILED-step4.png"
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_console_errors": true
+          },
+          "ok": false,
+          "skipped": true
+        },
+        {
+          "step": "screenshot",
+          "arg": "home",
+          "ok": false,
+          "skipped": true
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/home/mobile-FAILED-step4.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/"
+    }
+  ],
+  "ok": false,
+  "finished": "2026-09-05T05:12:48.952Z",
+  "base": "http://127.0.0.1:4000"
+}

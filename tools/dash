@@ -32,6 +32,8 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash spec [check|fleet|kinds]${c_off} Universal Project Standard checker (specs/): \`check [path] [--kinds a,b] [--gate]\` one repo; \`fleet --write\` every submodule → _data/conformance.yml (feeds the repo-evolution brief)
   ${c_bold}dash harness${c_off}           six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md)
   ${c_bold}dash harnesses [gaps|deploy]${c_off} fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); \`gaps\` prints fan-out-deployable gap repos; \`deploy [--gaps|--target N] [--artifacts csv] [--upgrade] [--apply]\` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md)
+  ${c_bold}dash features [check|coverage] [path]${c_off}  validate / grade one repo's feature index (features/features.yml); \`fleet [--write|--check]\` aggregates every submodule → _data/features_index.yml (/features/ portal; docs/VERIFICATION.md)
+  ${c_bold}dash verify [runner flags]${c_off}  run the hub's own user scenarios through Playwright (verify/runner.mjs → test/evidence/); \`deploy [--gaps|--target N] [--upgrade] [--apply]\` fans the verify kit out via fanout.sh (dry-run default)
   ${c_bold}dash issues${c_off}            three-tier issue pipeline queues → _data/issue_pipeline.yml + per-tier work orders (feeds issue-pipeline)
   ${c_bold}dash evidence <repo> <n>${c_off} build one issue's evidence bundle in an isolated virtual environment
   ${c_bold}dash secrets [sync|rotate|plan]${c_off} per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env); \`rotate --apply\` runs the weekly credential loop (audit ages, mint where possible, propagate hub-first); \`plan\` shows the ages read-only
@@ -40,6 +42,8 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
+  ${c_bold}dash tui${c_off}               terminal command center — same registry + health as the Jekyll dash (DOCKER_HOST ssh://forge)
+  ${c_bold}dash host [setup|ps|up|rebuild]${c_off}  forge Docker host — rebuild hub from bamr87/.env, or up a submodule
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
@@ -114,6 +118,59 @@ cmd_serve() {
 # The Harness Console: the credentialed, write-capable front end of the local
 # stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
 # via tools/console/run.sh; --docker starts the compose service instead.
+cmd_tui() {
+  "${TOOLS}/tui/run.sh" "$@"
+}
+
+cmd_host() {
+  local sub="${1:-ps}"; shift || true
+  case "$sub" in
+    setup)
+      if docker context inspect forge >/dev/null 2>&1; then
+        echo "docker context 'forge' already exists"
+      else
+        docker context create forge --docker "host=ssh://forge" --description "forge LAN container host"
+      fi
+      docker --context forge info --format '{{.Name}} {{.ServerVersion}}'
+      echo "use: docker --context forge ps"
+      echo "or:  DASH_DOCKER_HOST=ssh://forge tools/dash tui"
+      echo "compose must run ON forge (bind mounts are the remote filesystem). See docs/FORGE-HOST.md"
+      ;;
+    ps)
+      docker -H "${DASH_DOCKER_HOST:-ssh://forge}" ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+      ;;
+    up)
+      local proj="${1:-}"
+      [[ -n "$proj" ]] || { echo "usage: dash host up <project>   (repo must exist at forge:~/dev/<project>)" >&2; return 1; }
+      ssh forge "cd ~/dev/$proj && docker compose --env-file ~/dev/bamr87/.env up -d #nomirror"
+      ;;
+    rebuild)
+      local dest="forge:dev/bamr87/"
+      echo "rsync $ROOT → $dest"
+      rsync -a --delete \
+        --exclude .git --exclude .venv --exclude .venv-tui --exclude .venv-console \
+        --exclude node_modules --exclude _site --exclude .jekyll-cache --exclude __pycache__ \
+        --exclude .dash-lake \
+        "$ROOT/" "$dest"
+      ssh forge 'chmod 600 ~/dev/bamr87/.env 2>/dev/null || true'
+      ssh forge 'bash -s' <<'REMOTE'
+set -euo pipefail
+#nomirror
+ids=$(docker ps -aq)
+[[ -n "$ids" ]] && docker rm -f $ids
+docker volume ls -q | xargs -r docker volume rm
+cd "$HOME/dev/bamr87"
+docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin up -d --build
+docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin ps
+REMOTE
+      ;;
+    *)
+      echo "usage: dash host setup|ps|up <project>|rebuild" >&2
+      return 1
+      ;;
+  esac
+}
+
 cmd_console() {
   if [[ "${1:-}" == "--docker" ]]; then
     shift
@@ -286,6 +343,63 @@ harnesses_deploy() {
       ${apply[@]+"${apply[@]}"} ${upgrade[@]+"${upgrade[@]}"}
   done
 }
+# The fleet features index + agent verification (docs/VERIFICATION.md):
+#   dash features [check|coverage] [path]   validate / grade one repo (default: the hub itself)
+#   dash features fleet [--write|--check]   every submodule → _data/features_index.yml (/features/)
+#   dash verify [--only id] [--base URL]    the hub's own scenarios via verify/runner.mjs
+#   dash verify deploy [--gaps] [--target N]... [--upgrade] [--apply]   fan the kit out
+cmd_features() {
+  case "${1:-}" in
+    check|coverage|fleet) python3 "${TOOLS}/features_index.py" "$@" ;;
+    *) python3 "${TOOLS}/features_index.py" check "${@:-.}" ;;
+  esac
+}
+cmd_verify() {
+  case "${1:-}" in
+    deploy) shift; verify_deploy "$@" ;;
+    *) ( cd "$ROOT" && node verify/runner.mjs "$@" ) ;;
+  esac
+}
+verify_deploy() {
+  # Same engine + guarantees as `dash harnesses deploy`; `--gaps` reads the
+  # COMMITTED fleet index, so the target set is reviewable before any clone.
+  local targets=() use_gaps=0 apply=() upgrade=() t
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --gaps)    use_gaps=1 ;;
+      --target)  targets+=("${2:?--target needs a value}"); shift ;;
+      --apply)   apply=(--apply) ;;
+      --upgrade) upgrade=(--upgrade) ;;
+      *) echo "unknown flag: $1 (usage: dash verify deploy [--gaps] [--target <name>]... [--upgrade] [--apply])" >&2; return 2 ;;
+    esac
+    shift
+  done
+  if [[ "$use_gaps" -eq 1 ]]; then
+    while IFS= read -r t; do
+      [[ -n "$t" ]] && targets+=("$t")
+    done < <(python3 - "$ROOT/_data/features_index.yml" <<'PY'
+import sys, yaml
+try:
+    idx = yaml.safe_load(open(sys.argv[1])) or {}
+except OSError:
+    raise SystemExit(0)
+for r in idx.get("repos", []):
+    if r.get("name") == "bamr87":
+        continue
+    k = r.get("kit") or {}
+    if r.get("index", {}).get("format") in ("none", "prose") or not (k.get("config") or k.get("legacy_evidence_kit")):
+        print(r["name"])
+PY
+)
+  fi
+  if [[ ${#targets[@]} -eq 0 ]]; then
+    echo "no deploy targets — pass --target <name>, or --gaps after \`dash features fleet --write\` has produced _data/features_index.yml"
+    return 0
+  fi
+  for t in "${targets[@]}"; do
+    "${TOOLS}/fanout.sh" --kit verify --target "$t" ${apply[@]+"${apply[@]}"} ${upgrade[@]+"${upgrade[@]}"}
+  done
+}
 cmd_spec() {
   # `dash spec check [path] [--kinds …] [--gate]` — one repo against the UPS;
   # `dash spec fleet [--write]` — every checked-out submodule → _data/conformance.yml
@@ -357,6 +471,8 @@ main() {
     remediate) cmd_remediate "$@" ;;
     harness) cmd_harness "$@" ;;
     harnesses) cmd_harnesses "$@" ;;
+    features) cmd_features "$@" ;;
+    verify)  cmd_verify "$@" ;;
     spec)    cmd_spec "$@" ;;
     issues)  cmd_issues "$@" ;;
     evidence) cmd_evidence "$@" ;;
@@ -366,6 +482,8 @@ main() {
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
     serve)   cmd_serve "$@" ;;
+    tui)     cmd_tui "$@" ;;
+    host)    cmd_host "$@" ;;
     console) cmd_console "$@" ;;
     sync)    cmd_sync "$@" ;;
     foreach) cmd_foreach "$@" ;;

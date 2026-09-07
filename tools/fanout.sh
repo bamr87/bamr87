@@ -28,6 +28,7 @@
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
+#   tools/fanout.sh --kit verify --target <name|all> [--apply] [--upgrade]
 #
 # Kits:
 #   standardize  branch chore/standardize-baseline; artifacts (default
@@ -66,6 +67,16 @@
 #                deletes + gitignores lockfiles, npm ci → npm install,
 #                lockfile-keyed caches removed, action tags floated to @major
 #                (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md)
+#   verify       branch test/agent-verification; the AGENT VERIFICATION kit
+#                (templates/verify/, docs/VERIFICATION.md): features/
+#                features.yml scaffold (only when the repo has NO feature
+#                index of any shape), verify/verify.yml run config, a smoke
+#                user scenario, the Playwright runner + MCP config, the
+#                verify.yml caller of the reusable fleet-verify.yml, and the
+#                repo-local verify-feature skill + verifier agent (dedicated
+#                kit artifacts — the sanctioned exception to ".claude/ never
+#                fans out"). runner.mjs and verify.yml are upgradeable
+#                machine seeds (archive/<file>-<ver>.yml).
 #
 # --upgrade (every templated artifact, not just claude.yml):
 #   Each kit dir carries a VERSION and an archive/ of the shapes it has seeded
@@ -110,6 +121,7 @@ AC_VERSION="$(kit_version agent-context)"
 PROSE_VERSION="$(kit_version prose)"
 CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
+VERIFY_VERSION="$(kit_version verify)"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -163,8 +175,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|verify) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|verify> --target <name|all> [--artifacts csv] [--apply] [--upgrade]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -193,6 +205,12 @@ case "$KIT" in
     COMMIT_MSG="build(deps): adopt fleet always-latest dependency policy"
     PR_TITLE="build(deps): always-latest dependencies — drop pins and lockfiles"
     PR_BODY="Automated by bamr87 deps-fanout (tools/fanout.sh --kit deps-latest): adopts the fleet's ALWAYS-LATEST dependency policy — strips exact version pins from package.json/requirements*.txt/Gemfile, deletes and gitignores lockfiles, floats GitHub Actions on their major tags, and adapts CI installs (npm ci → npm install; lockfile-keyed caches removed). Every install now resolves the newest published versions; breakage surfaces in CI and is triaged by the hub's daily fleet-pulse loop. Follow-ups the script won't automate (pyproject/poetry/Pipfile tables, hash-pinned requirements, npm overrides) are listed in the run log. See bamr87/bamr87 docs/DEPENDENCIES.md."
+    ;;
+  verify)
+    BRANCH="test/agent-verification"
+    COMMIT_MSG="test: adopt the agent verification kit (feature index + user scenarios + evidence)"
+    PR_TITLE="test: adopt the agent verification kit"
+    PR_BODY="$(printf 'Automated by bamr87 verify-fanout (tools/fanout.sh --kit verify): seeds the fleet AGENT VERIFICATION standard — a feature index (features/features.yml, schema features/v1) every agent reads for what this product does and what proves it; verify/verify.yml (how to run the app like a user); a smoke user scenario + the Playwright runner (verify/runner.mjs → test/evidence/<id>/ screenshots + report.json); the Playwright MCP config; a thin verify.yml caller of the reusable fleet-verify.yml (scenarios on every PR, an OAuth Claude Code pass driving the live app on `verify`-labelled PRs — advisory until gate: true); and the repo-local verify-feature skill + verifier agent.\n\nAdditive-only — nothing the repo already has is overwritten. After merge: fill verify/verify.yml `app:` for this stack, `npm i -D @playwright/test yaml && npx playwright install --with-deps chromium`, replace the TODO feature entry, create the `verify` and `skip-evidence` labels. Coverage is graded fleet-wide at bamr87.github.io/bamr87/features/. See bamr87/bamr87 docs/VERIFICATION.md.')"
     ;;
 esac
 
@@ -284,6 +302,47 @@ seed_prose() {
           | sed "s/^--exclude '//; s/'$//")
   fi
   python3 tools/unwrap-prose.py --write "${ex[@]}" >/dev/null 2>&1 || true
+}
+
+seed_verify() {
+  # cwd = target clone; $1 = repo name, $2 = default branch. Additive-only:
+  # every artifact is seeded only when the repo has nothing in its place. The
+  # feature index is the one artifact checked against EVERY shape the fleet
+  # already uses (features/, _data/, root) — a repo with a legacy index keeps
+  # it, because the hub reads legacy files as-is.
+  local name="$1" def="$2" tpl="$HUB/templates/verify"
+  if [[ ! -f features/features.yml && ! -f _data/features.yml && ! -f features.yml ]]; then
+    mkdir -p features
+    render_kit_template "$tpl/features.template.yml" "$name" "$def" "$VERIFY_VERSION" > features/features.yml
+    echo "features/features.yml: seeded (kit v${VERIFY_VERSION})"
+  else
+    echo "feature index: present — left alone"
+  fi
+  mkdir -p verify/scenarios
+  seed_workflow_artifact "verify/verify.yml" verify/verify.yml \
+    "$tpl/verify.template.yml" "$name" "$def" "$VERIFY_VERSION"
+  if ! compgen -G "verify/scenarios/*.yml" >/dev/null 2>&1 \
+     && ! compgen -G "verify/scenarios/*.yaml" >/dev/null 2>&1; then
+    render_kit_template "$tpl/scenario.template.yml" "$name" "$def" "$VERIFY_VERSION" > verify/scenarios/smoke-home.yml
+    echo "verify/scenarios/smoke-home.yml: seeded"
+  fi
+  seed_workflow_artifact "verify/runner.mjs" verify/runner.mjs \
+    "$tpl/runner.mjs" "$name" "$def" "$VERIFY_VERSION"
+  [[ -f verify/mcp.json ]] || { cp "$tpl/mcp.json" verify/mcp.json; echo "verify/mcp.json: seeded"; }
+  seed_workflow_artifact "verify.yml" .github/workflows/verify.yml \
+    "$tpl/verify.yml" "$name" "$def" "$VERIFY_VERSION"
+  # Dedicated kit artifacts (agent-context 0.4.0 exception): seeded only when
+  # no verification skill/agent of any authorship exists.
+  if [[ ! -f .claude/skills/verify-feature/SKILL.md && ! -f .github/skills/visual-evidence/SKILL.md ]]; then
+    mkdir -p .claude/skills/verify-feature
+    render_kit_template "$tpl/SKILL.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/skills/verify-feature/SKILL.md
+    echo ".claude/skills/verify-feature/SKILL.md: seeded"
+  fi
+  if [[ ! -f .claude/agents/verifier.md ]]; then
+    mkdir -p .claude/agents
+    render_kit_template "$tpl/verifier.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/agents/verifier.md
+    echo ".claude/agents/verifier.md: seeded"
+  fi
 }
 
 # A fan-out target is a REPO, not a working tree: run_one clones it fresh from
@@ -392,6 +451,7 @@ run_one() {
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
+      verify)      seed_verify "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0

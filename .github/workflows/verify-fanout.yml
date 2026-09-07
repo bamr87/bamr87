@@ -1,0 +1,119 @@
+name: verify-fanout
+
+# Downward propagation of the AGENT VERIFICATION kit (templates/verify/):
+# opens adoption PRs INTO fleet repos seeding the feature index scaffold
+# (features/features.yml), the run config (verify/verify.yml), a smoke user
+# scenario, the Playwright runner, the Playwright MCP config, the thin CI
+# caller of the reusable fleet-verify.yml, and the repo-local verify-feature
+# skill + verifier agent. Fourth sibling of standardize-fanout, schema-fanout,
+# and deps-fanout; rides the same engine (tools/fanout.sh) with the same
+# posture: dispatch-only, DRY RUN by default, PRs only (never pushes to a
+# default branch), additive-only, skips external upstreams.
+#
+# Targets: a submodule name, 'all', or 'gaps' — the repos the committed fleet
+# features index (_data/features_index.yml, `dash features fleet`) grades as
+# user-facing with no index or no kit (deterministic `plan` job, no AI).
+#
+# Secrets:
+#   FLEET_TOKEN  required (legacy FANOUT_TOKEN honoured) — fine-grained PAT with
+#                contents:write + pull-requests:write + workflows:write on the
+#                targets (the kit seeds .github/workflows/verify.yml, which
+#                GitHub refuses to push without the Workflows permission).
+#
+# Doc: docs/VERIFICATION.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Submodule name, 'all', or 'gaps' (from _data/features_index.yml)"
+        type: string
+        default: "gaps"
+      dry_run:
+        description: "Build branches but don't push/PR"
+        type: boolean
+        default: true
+      upgrade:
+        description: "Also refresh machine-seeded verify.yml/runner.mjs copies that are byte-identical to an archived kit shape"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-fanout
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.12' }}
+      - run: python -m pip install --quiet --upgrade pyyaml
+      - name: Resolve targets
+        id: plan
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" != "gaps" ]; then
+            echo "targets=$TARGET" >> "$GITHUB_OUTPUT"; echo "targets: $TARGET"; exit 0
+          fi
+          # Gap = a non-archived, owned registry repo the committed index grades
+          # as having no feature index or no verify config. Deterministic: reads
+          # the committed snapshot, never the network.
+          targets=$(python3 - <<'PY'
+          import yaml
+          idx = yaml.safe_load(open("_data/features_index.yml")) or {}
+          out = []
+          for r in idx.get("repos", []):
+              if r.get("name") == "bamr87":
+                  continue
+              k = r.get("kit") or {}
+              if r.get("index", {}).get("format") in ("none", "prose") or not (k.get("config") or k.get("legacy_evidence_kit")):
+                  out.append(r["name"])
+          print(",".join(out))
+          PY
+          )
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "gap targets: ${targets:-none}"
+
+  fanout:
+    needs: plan
+    if: ${{ needs.plan.outputs.targets != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.12' }}
+      - run: python -m pip install --quiet --upgrade pyyaml
+      - name: Fan out the verify kit
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          TARGETS: ${{ needs.plan.outputs.targets }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          UPGRADE: ${{ inputs.upgrade }}
+        run: |
+          set -euo pipefail
+          [ -n "$GH_TOKEN" ] || { echo "::error::FLEET_TOKEN is not set (docs/AI-INTEGRATION.md)"; exit 1; }
+          gh api user --jq .login >/dev/null || { echo "::error::FLEET_TOKEN rejected by the API"; exit 1; }
+          flags=()
+          [ "$DRY_RUN" = "true" ] || flags+=(--apply)
+          [ "$UPGRADE" = "true" ] && flags+=(--upgrade)
+          if [ "$TARGETS" = "all" ]; then
+            tools/fanout.sh --kit verify --target all ${flags[@]+"${flags[@]}"}
+          else
+            IFS=',' read -ra list <<< "$TARGETS"
+            for t in "${list[@]}"; do
+              tools/fanout.sh --kit verify --target "$t" ${flags[@]+"${flags[@]}"}
+            done
+          fi
