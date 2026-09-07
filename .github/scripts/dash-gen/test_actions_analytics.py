@@ -148,6 +148,33 @@ def case_zero_job_failure_is_caught_by_the_job_probe() -> None:
     check("a short run is never probed for jobs", cost_of(short) == 30.0)
 
 
+def case_zero_job_run_under_the_clamp_costs_nothing() -> None:
+    """FAILS on the #229 code, which probed for jobs only ABOVE MAX_RUN_MIN.
+
+    Modelled on bamr87/law-ai run 34062551261: parked 5.48h (328.8 min) with
+    `total_count: 0` jobs and `billable: {}` — under the 6h clamp, so the old
+    `if dur <= MAX_RUN_MIN: return dur` handed back the full wall clock without
+    ever asking whether the run had executed. Those 328.8 phantom minutes were
+    84% of integration-tests.yml's reported 398.8 min and dragged its average to
+    15.95 min against a 3.45 min p95 — enough to flag a healthy workflow as
+    `high-cost-low-value, slow` and spend a slot on the fleet-doctor queue.
+    """
+    parked = FakeRun(conclusion="failure", hours=5.48, jobs=0)
+    check("a 5.5h zero-job run under the clamp costs 0 minutes",
+          cost_of(parked) == 0.0)
+
+    # The probe must stay bounded to outliers: anything at or under the suspect
+    # threshold is still billed on wall clock alone, without an API request.
+    just_under = FakeRun(conclusion="failure", hours=0.9, jobs=0, raises=True)
+    check("a run at 54 min is still never probed for jobs",
+          cost_of(just_under) == 54.0)
+
+    # A run that really did execute in that same band keeps its real cost —
+    # the fix must not zero genuine consumption between 1h and 6h.
+    real = FakeRun(conclusion="success", hours=2.5, jobs=2)
+    check("a 2.5h run that DID execute keeps its 150 min", cost_of(real) == 150.0)
+
+
 def case_duration_is_capped() -> None:
     """FAILS on the pre-fix code, which had no ceiling at all."""
     billable = FakeRun(conclusion="success", hours=PHANTOM_HOURS, jobs=3)
@@ -223,6 +250,7 @@ def case_note_documents_the_bounds() -> None:
     text = report["note"]
     check("the note states the zero-cost exclusion", "never executed" in text)
     check("the note states the cap", "360" in text)
+    check("the note states the zero-jobs probe threshold", "60 min" in text)
     check("the note states the owned-only totals", "owned" in text)
 
 
@@ -232,6 +260,7 @@ def case_note_documents_the_bounds() -> None:
 def main() -> int:
     for fn in (case_non_executing_runs_cost_nothing,
                case_zero_job_failure_is_caught_by_the_job_probe,
+               case_zero_job_run_under_the_clamp_costs_nothing,
                case_duration_is_capped,
                case_ordinary_runs_are_untouched,
                case_totals_range_over_one_population,

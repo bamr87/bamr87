@@ -22,6 +22,11 @@ still count toward `success_rate_pct` and the failing flag; only their minutes a
 zeroed. Without this, one run parked for 68h at `billable: {}` contributed 4079.9
 phantom minutes and took over the fleet's fix queue (bamr87/bamr87#229).
 
+A parked run bills nothing at ANY duration, so the zero-jobs question is asked of
+every run past SUSPECT_RUN_MIN rather than only of runs past the 6h clamp — the
+narrower reading let a 5.5h zero-job run keep all 328.8 of its phantom minutes
+and put a healthy workflow on the fix queue a day after #229 was closed.
+
 The fleet `totals` are computed over bamr87-owned workflows only — the same
 population as the by_type / by_repo / by_day rollups. Mixing the two populations
 across a ratio's halves is how this file once published more waste than
@@ -76,6 +81,19 @@ WASTE_CONCLUSIONS = {"failure", "cancelled", "timed_out", "startup_failure"}
 # a backstop, not the primary filter: it bounds the blast radius of the next
 # stuck-run variant `cost_min` does not anticipate (bamr87/bamr87#229).
 MAX_RUN_MIN = 360.0
+
+# Wall clock above which a run is worth ASKING whether it dispatched any job.
+# Deliberately far below MAX_RUN_MIN: a parked run bills nothing no matter how
+# long it parks, so tying the zero-jobs probe to the 6h clamp only ever caught
+# the parked runs that happened to park for longer than a legal job (#229's
+# 68-hour run). bamr87/law-ai run 34062551261 parked for 5.5h — under the clamp,
+# `billable: {}`, zero jobs — and its 328.8 phantom minutes were 84% of its
+# workflow's reported spend, which is what put an otherwise healthy workflow on
+# the fix queue. Real runs here are bounded by SLOW_AVG_MIN (12m) and the
+# slowest fleet workflow's p95 (~28m), so a run past this threshold is already
+# an outlier and the probe stays proportional to outliers, not to the
+# population — the property that keeps this module's request count sane.
+SUSPECT_RUN_MIN = 60.0
 
 # Conclusions that say nothing about whether the workflow works. A run whose
 # `if:` gate declined is the system behaving correctly at ~zero cost, so it must
@@ -191,15 +209,25 @@ def cost_min(run, dur: float) -> float:
     * a run that never executed costs **0**, not its wall clock;
     * everything else is clamped to MAX_RUN_MIN, bounding the next variant.
 
+    The zero-jobs probe keys off SUSPECT_RUN_MIN, *not* off the MAX_RUN_MIN
+    clamp. Those are different questions and conflating them is what let this
+    bug survive #229: "did this run bill anything?" is answered by the job list
+    at any duration, while "how much do we credit a run we believe really ran?"
+    is what the 6h ceiling bounds. Gating the first on the second meant a run
+    had to park for longer than a legal job before anyone asked whether it had
+    run at all, so every parked run under 6h kept its full wall clock.
+
     Only the MINUTES are zeroed. The run still counts toward `success_rate_pct`
     and the `failing` flag — a startup failure genuinely is red, and suppressing
     it there would trade a cost bug for a correctness one.
     """
     if (run.conclusion or "") == "startup_failure":
         return 0.0
-    if dur <= MAX_RUN_MIN:
+    if dur <= SUSPECT_RUN_MIN:
         return dur
-    return 0.0 if has_no_jobs(run) else MAX_RUN_MIN
+    if has_no_jobs(run):
+        return 0.0
+    return min(dur, MAX_RUN_MIN)
 
 
 # --------------------------------------------------------------------------- #
@@ -526,7 +554,8 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
         "inactive": sorted(inactive, key=lambda x: (x["repo"], x["workflow"])),
         "note": ("Cost = wall-clock run minutes (run_started_at → updated_at), a proxy for "
                  "billable minutes, with two bounds: a run that never executed "
-                 "(startup_failure, or zero jobs) counts as 0 minutes, and every other "
+                 "(startup_failure, or zero jobs — checked for every run over "
+                 f"{SUSPECT_RUN_MIN:.0f} min) counts as 0 minutes, and every other "
                  f"run is capped at {MAX_RUN_MIN:.0f} min — GitHub's own job ceiling — so a run "
                  "left parked in a non-terminal state cannot report minutes it never "
                  "billed. Those runs still count against the success rate; only their "
