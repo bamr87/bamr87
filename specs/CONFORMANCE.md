@@ -46,13 +46,13 @@ The order is chosen so each step is a small PR that leaves the repo better even 
 3. **Community files** — LICENSE, SECURITY.md, CONTRIBUTING.md, CODEOWNERS, issue/PR templates, dependabot (REPO-12..19, QA-41). Kit: `community` (to build).
 4. **Quality** — CI caller, formatter, linter, test runner with ≥1 test, release-please (QA-*). Kits: `standardize --artifacts ci`, `adopt-release`.
 5. **Schema** — SCHEMA.md pyramid + gate (AGENT-20). Kit: `schema`.
-6. **Feedback** — mount the widget, enable on consumer sites (FB-*). Kit: `feedback`.
+6. **Feedback** — vendor the widget, mount it, enable on consumer sites (FB-*). Kit: `feedback` (`tools/fanout.sh --kit feedback`, or dispatch `feedback-fanout.yml`). Theme consumers need no kit: `page_feedback.enabled: true` in their own `_config.yml`.
 7. **Design tokens + shell** — token file, colour mode, AppShell, skip link, 404, error boundary, toast, states (FE-01..20). Kit: `design-tokens` (to build); components lifted per the FE seed column.
 8. **Meta, consent, analytics** — FE-24/25. Kit: `design-tokens` snippets.
 9. **API + ops** — envelope, health/version, settings, logging, security headers (BE-*, OPS-*). Kit: `api` (to build).
 10. **Gates** — UX audit, Lighthouse, OpenAPI diff, coverage (FE-60, FE-53, QA-17, QA-14). Kit: `ux-audit` (to build).
 
-Fleet-wide, steps 1–6 are fan-out-able today or with one new kit each; steps 7–10 need the kits listed as gaps below.
+Fleet-wide, steps 1–6 are fan-out-able today (feedback since 2026-09) or with one new kit each; steps 7–10 need the kits listed as gaps below.
 
 ## Manual checklist (until the audit is tooled)
 
@@ -72,7 +72,7 @@ OPS   01 02 03 10 11 12 16 20 21 22 23 24 30 31 33 40 42
 
 | Gap | Scope | Fix |
 | --- | --- | --- |
-| Feedback widget dead on 7 consumer sites; absent in every app | FB-01, FB-31, FB-32 | `templates/feedback/` kit + theme fallback taxonomy |
+| Feedback widget dead on 7 consumer sites; absent in every app | FB-01, FB-31, FB-32 | `templates/feedback/` kit, wired into the fan-out (2026-09) + theme fallback taxonomy |
 | Four token vocabularies; no shared component kit; no React app consumes the design system's React specs | FE-01..09, FE-10..20 | `design-tokens` kit extracted from `zer0-mistakes/_design-system/tokens`; component lift per FE seed column |
 | Skip link in 3 surfaces; OG meta outside Jekyll in 1; analytics outside Jekyll in 0; consent in 1 | FE-11, FE-24, FE-25 | shell + head snippets in the `design-tokens` kit |
 | UX audit exists in 1 repo (law-ai) | FE-60 | `ux-audit` kit generalised from `law-ai/scripts/ux_audit.py` |

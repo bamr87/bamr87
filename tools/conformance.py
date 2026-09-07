@@ -477,6 +477,33 @@ def _fb_template(r, k):
     return _ok() if r.has(".github/ISSUE_TEMPLATE/page_feedback.yml") else _no("no .github/ISSUE_TEMPLATE/page_feedback.yml")
 
 
+@check("UPS-FB-04")
+def _fb_capture(r, k):
+    """Console/error capture installed — the half of a report an agent cannot
+    ask the reader to reconstruct. The theme installs it from <head> under its
+    own name; everyone else vendors the kit's buffer."""
+    if r.zer0_theme() or r.is_theme_repo():
+        return _ok("theme-provided (console-capture)")
+    hit = r.grep(r"__fleetFeedback|fleet-feedback-capture", {".js", ".html", ".tsx", ".jsx", ".erb", ".liquid"})
+    return _ok(hit or "") if hit else _no("no console/error capture buffer (vendor capture.js)")
+
+
+@check("UPS-FB-23")
+def _fb_contract(r, k):
+    """The issue body contract. The marker comment is the machine-readable half
+    — without it the issue pipeline re-templates a report that is already
+    structured — and it only exists in an implementation that speaks the
+    contract, so grepping for it checks the whole section shape by proxy.
+
+    Theme consumers ship no widget of their own — the theme emits the body, the
+    same way it provides the skip link and the 404 page. Deferring here is the
+    model FB-01 and FB-04 already use."""
+    if r.zer0_theme():
+        return _ok("theme-provided")
+    hit = r.grep(r"fleet-feedback v1 type=", {".js", ".ts", ".tsx", ".html", ".rb", ".py", ".liquid"})
+    return _ok(hit or "") if hit else _no("no fleet-feedback issue marker — the widget does not emit the contract body")
+
+
 @check("UPS-BE-10")
 def _healthz(r, k):
     hit = r.grep(r"healthz|/health\b|readyz", {".py", ".ts", ".rb", ".js"})
