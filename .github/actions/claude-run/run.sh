@@ -61,6 +61,10 @@ elif [[ "${BASH_SOURCE[0]}" == */scripts/ai/run.sh ]]; then
 else
   REPO="$PWD"
 fi
+# Act FROM the consumer tree: `claude --agent` resolves .claude/agents/ against
+# the working directory, and the agent's edits must land in that tree even when
+# a caller staged it somewhere other than the workspace root (AI_REPO_ROOT).
+cd "$REPO" || exit 1
 
 # The Claude Code CLI reads CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY from the
 # env. Prefer the OAuth token when present, and drop an empty ANTHROPIC_API_KEY

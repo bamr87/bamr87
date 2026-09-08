@@ -79,6 +79,10 @@ runs:
           echo "::warning::Claude Code install failed — using the Claude API fallback."
           tail -n 40 "$RUNNER_TEMP/npm-install.log" >&2 || true
         fi
+        # Nested calls: a skill the agent runs (e.g. an illustrator) may need the
+        # runner too. Export its location so a consumer's thin scripts/ai/run.sh
+        # shim can find it without a second copy or a download.
+        export AI_RUNNER="$GITHUB_ACTION_PATH/run.sh"
         args=(--prompt "$PROMPT")
         [ -n "$AGENT" ]     && args+=(--agent "$AGENT")
         [ -n "$TOOLS" ]     && args+=(--tools "$TOOLS")
