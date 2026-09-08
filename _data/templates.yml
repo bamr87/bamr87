@@ -23,9 +23,12 @@
 - name: Feedback widget kit
   path: https://github.com/bamr87/bamr87/tree/main/templates/feedback
   description: fleet-feedback — "Improve this page" → prefilled GitHub issue carrying page context, environment and captured console errors, in any stack. Fanned out with tools/fanout.sh --kit feedback.
+- name: AI runner kit
+  path: https://github.com/bamr87/bamr87/tree/main/templates/ai-runner
+  description: The fleet's model step and lane, consumed by reference — `uses: bamr87/bamr87/.github/actions/claude-run@main` (Claude Code first, OAuth-first, API fallback, metering) and the reusable `ai-lane.yml` (kill switch, concurrency, hooks, result assertion).
 - name: Seedable kits
   path: https://github.com/bamr87/bamr87/tree/main/templates
-  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback — versioned kits fanned out by tools/fanout.sh.
+  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.
 - name: Skill template
   path: https://github.com/bamr87/bamr87/tree/main/.claude/skills
   description: Author new skills with the skill-creator skill.

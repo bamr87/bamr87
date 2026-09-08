@@ -42,6 +42,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | Kit | Version | Updated | Seeded by | Files |
 | --- | --- | --- | --- | --- |
 | [`agent-context/`](templates/agent-context/) | 0.4.0 | 2026-08-07 | .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-setting… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
+| [`ai-runner/`](templates/ai-runner/) | 0.1.0 | 2026-09-08 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (standardize-fanout.yml) | `README.md`, `conformance.yml` |
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
@@ -107,6 +108,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | --- | --- |
 | [`Brewfile`](tools/Brewfile) | macOS Homebrew bundle — native `brew bundle` format (derived from manifest) |
 | [`adopt-release.sh`](tools/adopt-release.sh) | Scaffolds the release-please pipeline into a repo and opens a PR (wrapped by `dash adopt-release`) |
+| [`audit-git-hooks.sh`](tools/audit-git-hooks.sh) | Read-only diagnostic for the "Husky vs. |
 | [`audit-standards.sh`](tools/audit-standards.sh) | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
 | [`check-drift.sh`](tools/check-drift.sh) | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
 | [`conformance.py`](tools/conformance.py) | **Executable Universal Project Standard checker** (`dash spec`): `check [path]` runs the machine-checkable rows of `_data/specs.yml` against one repo (kinds detected fro… |
@@ -138,6 +140,8 @@ The control-plane automation; standards and the full table in [`.github/workflow
 
 | Workflow | Name | Triggers | Purpose |
 | --- | --- | --- | --- |
+| [`ai-lane.yml`](.github/workflows/ai-lane.yml) | ai-lane (reusable) | `workflow_call` (reusable) | **The fleet's AI lane** (kit `ai-runner`): kill switch (`vars.<SWITCH>`, `workflow_dispatch` bypasses), bot guard, credential check, named concurrency, probed `GH_PAT` →… |
+| [`ai-runner-contract.yml`](.github/workflows/ai-runner-contract.yml) | ai-runner-contract | PR, push `main` (runner/lane/kit paths) | Pre-flight gate for the kit: the runner's contract tests (stubbed `claude`, no credential) and a check that the action calls the runner beside it. |
 | [`build-dash.yml`](.github/workflows/build-dash.yml) | 🛰️ Build & Deploy Dash | push `main` (dash paths), daily 07:00, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. |
 | [`claude.yml`](.github/workflows/claude.yml) | Claude | `@claude` mention (issues/PRs) | Claude Code responds to `@claude` mentions in this repo. |
 | [`conformance.yml`](.github/workflows/conformance.yml) | Conformance | PR, push `main` | The hub's own caller of `fleet-conformance.yml`, referenced from the same checkout (`hub-ref` = the PR head), so any change to the spec, the checker, or the reusable wor… |
