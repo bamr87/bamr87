@@ -19,6 +19,7 @@ coverage: listed
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
 | `feedback/` | dir | Universal feedback widget kit: `<fleet-feedback>` web component + taxonomy + issue form + stack adapters (spec: specs/FEEDBACK.md) | terminal |
 | `ai-runner/` | dir | AI runner kit: the fleet's model step, consumed BY REFERENCE (`.github/actions/claude-run` + reusable `ai-lane.yml`) — caller template, contract tests, VERSION + archive | terminal |
+| `fleet-engines/` | dir | Fleet engines kit: the fleet/v1 manifest, workflow facts, the audit rulebook, harness scorecard — published to npm as `@bamr87/fleet-engines`, consumed by dependency by GitFactory and zer0-CMS | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
 
 ## Placement

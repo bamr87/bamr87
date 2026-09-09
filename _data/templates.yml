@@ -26,6 +26,9 @@
 - name: AI runner kit
   path: https://github.com/bamr87/bamr87/tree/main/templates/ai-runner
   description: "The fleet's model step and lane, consumed by reference: the claude-run action (Claude Code first, OAuth-first, API fallback, metering) and the reusable ai-lane.yml (kill switch, concurrency, hooks, result assertion)."
+- name: Fleet engines package
+  path: https://github.com/bamr87/bamr87/tree/main/templates/fleet-engines
+  description: "@bamr87/fleet-engines — the fleet/v1 manifest, workflow facts, the audit rulebook, metrics and the harness scorecard as one npm package, consumed by dependency by GitFactory and zer0-CMS."
 - name: Seedable kits
   path: https://github.com/bamr87/bamr87/tree/main/templates
   description: standard-ci, agent-context, prose, schema, release-pipeline, feedback — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.

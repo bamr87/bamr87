@@ -1,0 +1,96 @@
+name: Refresh warehouse dataset
+
+# The ONLY workflow that talks to SEC EDGAR / FRED. It maintains the serverless
+# dataset: a compressed SQLite warehouse attached to the rolling "dataset"
+# GitHub Release. Site publishes (pages.yml) download that asset and render
+# offline — they never re-fetch from EDGAR/FRED.
+#
+# Flow: download current dataset (if any) -> migrate -> sync the ticker cohort
+# with --force-refresh (the DB-first payload cache would otherwise keep serving
+# stale SEC JSON forever) + FRED bundles when FRED_API_KEY is set -> compress ->
+# upload back to the release -> dispatch a site publish.
+#
+# First run bootstraps everything: no release asset yet means it starts from an
+# empty warehouse and performs the initial full load.
+
+on:
+  schedule:
+    - cron: "17 10 * * 1" # weekly, an hour before pages.yml's Monday cron
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Comma-separated tickers to refresh/add (empty = default cohort)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write # upload the release asset
+  actions: write # dispatch pages.yml after a successful refresh
+
+concurrency:
+  group: refresh-dataset
+  cancel-in-progress: false
+
+env:
+  DATASET_TAG: dataset
+  DATASET_ASSET: fredgar-warehouse.sqlite3.zst
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      USER_AGENT_EMAIL: ${{ vars.USER_AGENT_EMAIL || secrets.USER_AGENT_EMAIL }}
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      TICKERS: ${{ inputs.tickers }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+
+      - name: Require SEC contact email
+        run: |
+          if [ -z "$USER_AGENT_EMAIL" ]; then
+            echo "::error::USER_AGENT_EMAIL is not set. SEC requires a contact email in the" \
+                 "User-Agent — add a USER_AGENT_EMAIL repository variable or secret."
+            exit 1
+          fi
+
+      - name: Download current dataset (bootstrap from empty if absent)
+        run: |
+          mkdir -p /tmp/dataset
+          if gh release download "$DATASET_TAG" --pattern "$DATASET_ASSET" \
+               --dir /tmp/dataset --repo "$GITHUB_REPOSITORY" 2>/dev/null; then
+            zstd -d -f "/tmp/dataset/$DATASET_ASSET" -o src/db.sqlite3
+            echo "Refreshing existing dataset ($(du -h src/db.sqlite3 | cut -f1))."
+          else
+            echo "No dataset release yet — performing the initial full load."
+          fi
+
+      - name: Sync warehouse from SEC EDGAR (+ FRED when keyed)
+        working-directory: src
+        run: |
+          ARGS=(--sync-only --force-refresh)
+          if [ -n "$TICKERS" ]; then ARGS+=(--tickers "$TICKERS"); fi
+          python manage.py migrate --noinput
+          python manage.py publish_static_site "${ARGS[@]}"
+
+      - name: Upload dataset to the rolling release
+        run: |
+          zstd -9 -T0 -f src/db.sqlite3 -o "/tmp/$DATASET_ASSET"
+          ls -lh "/tmp/$DATASET_ASSET"
+          if ! gh release view "$DATASET_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$DATASET_TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "Warehouse dataset (rolling)" \
+              --notes "Compressed SQLite warehouse consumed by the Pages publish workflow. Updated by refresh-data.yml; do not edit by hand." \
+              --latest=false
+          fi
+          gh release upload "$DATASET_TAG" "/tmp/$DATASET_ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Publish the site from the fresh dataset
+        run: gh workflow run pages.yml --ref "${GITHUB_REF_NAME}" --repo "$GITHUB_REPOSITORY"

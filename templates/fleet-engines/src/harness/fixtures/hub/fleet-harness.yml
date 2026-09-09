@@ -1,0 +1,14 @@
+# FIXTURE — bamr87/bamr87@00fa7ae _data/fleet.yml → harness:, reduced to the fields dash-gen harness reads (specs/014). Regenerate from the hub; never hand-edit.
+harness:
+  scorecard:
+    completion_rate_min_pct: 80
+    effectiveness_min_pct: 70
+  trip_wires:
+    stale_data_days: 3
+    pass_rate_floor_pct: 75
+    waste_ceiling_pct: 30
+    cost_spike_multiplier: 3.0
+    cost_spike_min_runs: 3
+    cost_spike_min_avg_min: 5.0
+    standing_failures_max: 30
+    credential_grace_days: 15

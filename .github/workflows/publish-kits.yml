@@ -64,7 +64,10 @@ jobs:
             name=$(node -p "require('./$manifest').name")
             version=$(node -p "require('./$manifest').version")
             echo "::group::$name@$version ($dir)"
-            ( cd "$dir" && node --check "$(node -p "require('./package.json').main")" && npm pack --dry-run )
+            # A TypeScript kit ships built JS: build first (no lockfile — always-latest), then check.
+            ( cd "$dir" \
+              && if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then npm install --no-audit --no-fund --no-package-lock && npm run build; fi \
+              && node --check "$(node -p "require('./package.json').main")" && npm pack --dry-run )
             if [ "$DRY_RUN" = "true" ]; then
               echo "dry run — not publishing"
             elif [ -z "${NODE_AUTH_TOKEN:-}" ]; then

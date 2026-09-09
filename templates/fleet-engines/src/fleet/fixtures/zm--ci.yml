@@ -1,0 +1,528 @@
+# Features: ZER0-016, ZER0-027
+name: Comprehensive CI Pipeline
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      test_scope:
+        description: 'Test scope'
+        required: false
+        default: 'standard'
+        type: choice
+        options:
+          - 'fast'        # Quick feedback tests
+          - 'standard'    # Full test suite
+      fix_markdown:
+        description: 'Auto-fix markdown formatting'
+        required: false
+        default: false
+        type: boolean
+
+# ==============================================================================
+# Note: This workflow uses explicit Ruby versions for testing compatibility.
+# For the zero-pin strategy (latest everything), see test-latest.yml
+# ==============================================================================
+env:
+  # These are used for backwards compatibility testing
+  # The test-latest.yml workflow uses actual latest versions
+  RUBY_VERSION: '3.3'
+  NODE_VERSION: '20'
+  # Required for jekyll-github-metadata gem during CI builds
+  # Uses repository variable if set, otherwise falls back to github.repository
+  PAGES_REPO_NWO: ${{ vars.PAGES_REPO_NWO || github.repository }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Detect what changed to skip unnecessary jobs on docs-only PRs
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      code: ${{ steps.check.outputs.code }}
+      docker: ${{ steps.check.outputs.docker }}
+      content: ${{ steps.check.outputs.content }}
+      styling: ${{ steps.check.outputs.styling }}
+      install: ${{ steps.check.outputs.install }}
+      docs-only: ${{ steps.check.outputs.docs-only }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      # continue-on-error so a GitHub API outage degrades to a FULL run (the
+      # resolve step below fails open) instead of a red "Detect Changes" that
+      # blocks every open PR and wakes ci-self-repair — exactly what the
+      # 2026-07-16 pulls/*/files API incident did.
+      - name: Filter Paths
+        uses: dorny/paths-filter@v4
+        id: filter
+        continue-on-error: true
+        with:
+          filters: |
+            code:
+              - '_layouts/**'
+              - '_includes/**'
+              - '_sass/**'
+              - '_plugins/**'
+              - 'assets/**'
+              - 'lib/**'
+              - '*.gemspec'
+              - 'Gemfile*'
+              - 'Rakefile'
+              - 'scripts/**'
+              - 'test/**'
+              - '_config*.yml'
+            docker:
+              - 'docker/**'
+              - 'docker-compose*.yml'
+              - 'Dockerfile'
+              - 'Gemfile*'
+            content:
+              - 'pages/**'
+              - '*.md'
+              - '_data/**'
+              - '_config*.yml'
+            styling:
+              - '_sass/**'
+              - 'assets/css/**'
+              - 'assets/js/**'
+              - '_layouts/**'
+              - '_includes/**'
+              - 'test/visual/**'
+              - 'test/playwright.config.js'
+            install:
+              - 'install.sh'
+              - 'scripts/lib/install/**'
+              - 'scripts/bin/install'
+              - 'templates/**'
+              - 'test/test_install*.sh'
+              - 'test/test_deployment.sh'
+              - 'test/test_site_generation.sh'
+              - 'docker/**'
+              - 'docker-compose*.yml'
+              - 'Dockerfile'
+
+      - name: Resolve filters (fail open) and check if docs-only
+        id: check
+        env:
+          FILTER_OUTCOME: ${{ steps.filter.outcome }}
+          CODE: ${{ steps.filter.outputs.code }}
+          DOCKER: ${{ steps.filter.outputs.docker }}
+          CONTENT: ${{ steps.filter.outputs.content }}
+          STYLING: ${{ steps.filter.outputs.styling }}
+          INSTALL: ${{ steps.filter.outputs.install }}
+        run: |
+          if [[ "$FILTER_OUTCOME" != "success" ]]; then
+            # paths-filter needs the pulls/*/files API; when it fails we cannot
+            # know what changed, so run EVERYTHING rather than skip gates.
+            echo "::warning::paths-filter failed (outcome: $FILTER_OUTCOME) — failing open: running the full pipeline."
+            CODE=true; DOCKER=true; CONTENT=true; STYLING=true; INSTALL=true
+          fi
+          {
+            echo "code=$CODE"
+            echo "docker=$DOCKER"
+            echo "content=$CONTENT"
+            echo "styling=$STYLING"
+            echo "install=$INSTALL"
+          } >> "$GITHUB_OUTPUT"
+          if [[ "$CODE" == "false" && "$DOCKER" == "false" ]]; then
+            echo "docs-only=true" >> $GITHUB_OUTPUT
+            echo "📄 Docs-only change detected — heavy jobs will be skipped"
+          else
+            echo "docs-only=false" >> $GITHUB_OUTPUT
+            echo "🔧 Code/docker changes detected — running full pipeline"
+          fi
+
+  # Quality control checks — always runs (covers markdown linting). Also hosts
+  # the quick validator for code changes (formerly its own fast-checks job —
+  # merged here since both jobs did a full Ruby setup and ran sequentially).
+  quality-checks:
+    name: Quality Control
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    # Always run quality checks (markdown lint is relevant for docs-only PRs)
+    if: always() && needs.detect-changes.result == 'success' && !cancelled()
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      # Always-running guard: version.rb must equal the gem version pinned in
+      # Gemfile.lock. Runs unconditionally (not path-filtered) so it gates every
+      # PR — including release PRs that bump version.rb without re-locking, the
+      # drift that left the lock at 1.19.1 vs version.rb 1.19.0.
+      # Pure bash (no Ruby setup needed); mirrors validate_version_consistency
+      # in scripts/bin/validate.
+      - name: Version ↔ Gemfile.lock consistency
+        run: |
+          rb=$(sed -nE 's/.*VERSION = "([0-9][^"]*)".*/\1/p' lib/jekyll-theme-zer0/version.rb | head -1)
+          lock=$(sed -nE 's/^[[:space:]]*jekyll-theme-zer0 \(([^)]+)\).*/\1/p' Gemfile.lock | head -1)
+          if [ -z "$rb" ] || [ -z "$lock" ]; then
+            echo "::error::could not parse version (version.rb='$rb', Gemfile.lock='$lock')"
+            exit 1
+          fi
+          if [ "$rb" != "$lock" ]; then
+            echo "::error file=Gemfile.lock::version.rb ($rb) != Gemfile.lock ($lock) — run 'bundle lock' to re-sync"
+            exit 1
+          fi
+          echo "✓ version.rb and Gemfile.lock agree: $rb"
+
+      - name: Run Quality Checks
+        uses: ./.github/actions/quality-checks
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          check-markdown: true
+          fix-formatting: ${{ inputs.fix_markdown }}
+
+      # Quick preflight validation — code changes only (Ruby + gems are already
+      # set up by the quality-checks composite above).
+      - name: Run Quick Validator
+        if: needs.detect-changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
+        run: ./scripts/bin/validate --quick
+
+  # Comprehensive testing across Ruby versions
+  test:
+    name: Test Suite (Ruby ${{ matrix.ruby }})
+    runs-on: ubuntu-latest
+    needs: [detect-changes, quality-checks]
+    # Skip when only docs/content changed
+    if: |
+      always() &&
+      needs.detect-changes.outputs.code == 'true' &&
+      needs.quality-checks.result == 'success'
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.3']
+        include:
+          - ruby: '3.3'
+            coverage: true
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Run Test Suite
+        uses: ./.github/actions/test-suite
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          verbose: true
+          # Lean PR gate: the install/deploy/site-generation suites run here
+          # only when install-related paths changed (detect-changes `install`
+          # filter). They still run unconditionally every night in
+          # nightly-extended.yml, and the installer e2e suites always run via
+          # the `./scripts/bin/test` step below, so a quiet install regression
+          # surfaces within a day instead of taxing every PR.
+          suites: >-
+            ${{ needs.detect-changes.outputs.install == 'true'
+                && 'core,deployment,quality,installer,site_generation,obsidian,features'
+                || 'core,quality,obsidian,features' }}
+          skip-docker: true
+          skip-remote: true
+
+      - name: Run Script Suites (lib, theme validate, integration, installer e2e)
+        # Gate parity (T-012): the canonical entrypoint's own suites —
+        # scripts/test/lib unit tests, scripts/test/theme/validate,
+        # scripts/test/integration (auto-version, mermaid), and the
+        # test/test_install_*.sh e2e suites. These rotted unnoticed before
+        # PR #132 because no CI job executed them.
+        run: ./scripts/bin/test
+
+      - name: Setup Node.js (Playwright)
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Playwright dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Playwright critical tests (PR gate)
+        env:
+          PAGES_REPO_NWO: ${{ env.PAGES_REPO_NWO }}
+        uses: ./.github/actions/playwright-tests
+        with:
+          project: critical
+          install-deps: 'false'
+
+      # NOTE: the PR gate runs only the @critical-tagged tier (user-facing
+      # essentials: navigation, search, mobile survival, theming baseline,
+      # security). The full `smoke` tier plus the demoted shell suites run
+      # nightly in .github/workflows/nightly-extended.yml, which files an
+      # issue on failure instead of blocking PRs. The pixel-snapshot tier has
+      # its own `snapshots` job (below) so the jammy-image pull + 9-skin
+      # render isn't squeezed by this job's 25-min budget.
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results-ruby-${{ matrix.ruby }}
+          path: test/results/
+          retention-days: 7
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v7
+        if: matrix.coverage
+        with:
+          name: coverage-ruby-${{ matrix.ruby }}
+          path: test/coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Visual pixel-snapshot gate — its own job so the jammy-image pull + 9-skin
+  # render gets a full timeout budget instead of sharing the Test Suite job's
+  # (which hit its 25-min limit mid-render). Renders inside the SAME Playwright
+  # image (mcr.microsoft.com/playwright:v1.58.2-jammy) that
+  # test/update-snapshots.sh generates baselines in, so a refreshed Linux
+  # baseline matches CI exactly (the runner's own chromium renders fonts
+  # differently → false whole-page diffs).
+  snapshots:
+    name: Visual Snapshots
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      needs.detect-changes.outputs.styling == 'true' &&
+      (github.event_name != 'workflow_dispatch' || inputs.test_scope != 'fast')
+    timeout-minutes: 30
+    env:
+      # The `env` context isn't available at job-level env; mirror the
+      # workflow-level definition directly.
+      PAGES_REPO_NWO: ${{ vars.PAGES_REPO_NWO || github.repository }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Render snapshot gate in the jammy Playwright image
+        run: |
+          # Verify snapshots EXACTLY as test/update-snapshots.sh GENERATES the
+          # baselines: it brings Jekyll up via `docker compose` (binds 0.0.0.0:4000,
+          # port-mapped — reachable from the --network host Playwright container; a
+          # host-only `--host 127.0.0.1` bundle serve was NOT, so page.goto timed
+          # out) and runs the snapshots project inside
+          # mcr.microsoft.com/playwright:v1.58.2-jammy. UPDATE_SNAPSHOTS=0 compares
+          # instead of regenerating, so generation and verification share ONE
+          # environment (Jekyll + browser) and cannot drift. Needs only Docker.
+          UPDATE_SNAPSHOTS=0 ./test/update-snapshots.sh
+
+      - name: Upload snapshot diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-snapshots
+          path: test/visual-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Build validation
+  build:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test]
+    # Skip when only docs/content changed
+    if: |
+      always() &&
+      needs.detect-changes.outputs.code == 'true' &&
+      needs.test.result == 'success'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Ruby environment
+        uses: ./.github/actions/setup-ruby
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          install-system-deps: true
+
+      - name: Build gem
+        run: |
+          chmod +x ./scripts/build
+          ./scripts/build
+
+      - name: Validate gem
+        run: |
+          # Get version from Ruby file (most reliable source)
+          VERSION=$(ruby -e "require './lib/jekyll-theme-zer0/version'; puts JekyllThemeZer0::VERSION")
+          GEM_FILE="jekyll-theme-zer0-${VERSION}.gem"
+
+          if [ -f "$GEM_FILE" ]; then
+            echo "✅ Gem built successfully: $GEM_FILE"
+            gem spec "$GEM_FILE" | grep -E "(name|version|files)" | head -5
+          else
+            echo "❌ Gem file not found: $GEM_FILE"
+            ls -la *.gem 2>/dev/null || echo "No .gem files found"
+            exit 1
+          fi
+
+      - name: Test gem installation
+        run: |
+          # Install dependencies first (Jekyll is required by the gem)
+          bundle install --quiet
+          # Now install our gem locally (dependencies already satisfied)
+          gem install ./jekyll-theme-zer0-*.gem --local --no-document --ignore-dependencies
+          echo "✅ Gem installs successfully"
+
+  # Integration testing with Docker
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [detect-changes, quality-checks]
+    # Run when code or docker files changed
+    if: |
+      always() &&
+      needs.quality-checks.result == 'success' &&
+      (needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.docker == 'true')
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Build and start Jekyll in Docker
+        run: |
+          echo "🔨 Building and starting Docker containers..."
+          docker compose up --build -d
+          
+          echo "⏳ Waiting for Jekyll to start with adaptive timeout..."
+          MAX_WAIT=120
+          ELAPSED=0
+          INTERVAL=2
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            # Check container health status first
+            CONTAINER_STATUS=$(docker compose ps --format json 2>/dev/null | grep -o '"State":"[^"]*"' | head -1 || echo "")
+            if echo "$CONTAINER_STATUS" | grep -q "running"; then
+              # Container is running, check HTTP accessibility
+              if curl -sf --max-time 3 http://localhost:4000 > /dev/null 2>&1; then
+                echo "✅ Site is accessible after ${ELAPSED}s"
+                break
+              fi
+            fi
+            
+            # Check for container crash
+            if docker compose ps | grep -q "exited\|dead"; then
+              echo "❌ Container crashed!"
+              docker compose logs --tail=50
+              exit 1
+            fi
+            
+            # Show progress every 30 seconds
+            if [ $((ELAPSED % 30)) -eq 0 ] && [ $ELAPSED -gt 0 ]; then
+              echo "📊 Still waiting... (${ELAPSED}s elapsed)"
+              docker compose ps
+            fi
+            
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+            
+            # Exponential backoff: increase interval up to 10 seconds
+            if [ $INTERVAL -lt 10 ]; then
+              INTERVAL=$((INTERVAL + 1))
+            fi
+          done
+          
+          # Final check after loop
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            if curl -sf --max-time 5 http://localhost:4000 > /dev/null 2>&1; then
+              echo "✅ Site became accessible at ${ELAPSED}s"
+            else
+              echo "❌ Timeout: Site not accessible after ${MAX_WAIT}s"
+              docker compose logs --tail=100
+              exit 1
+            fi
+          fi
+
+      - name: Show Docker logs on failure
+        if: failure()
+        run: |
+          echo "📋 Docker container logs:"
+          docker compose logs --tail=100
+
+      - name: Test critical pages
+        run: |
+          echo "🔍 Testing critical page accessibility..."
+          
+          # Critical paths that MUST be accessible (fail if not)
+          CRITICAL_PATHS=(
+            "/"
+            "/docs/"
+            "/about/"
+            "/search.json"
+            "/sitemap.xml"
+            "/feed.xml"
+          )
+          
+          # Optional paths (warn if not accessible)
+          OPTIONAL_PATHS=(
+            "/blog/"
+            "/features/"
+            "/categories/"
+            "/tags/"
+          )
+          
+          FAILED=0
+          
+          echo "## Critical Pages Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Path | Status | Response |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Test critical paths - fail on any error
+          for path in "${CRITICAL_PATHS[@]}"; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 10 "http://localhost:4000${path}" 2>/dev/null || echo "000")
+            if [[ "$STATUS" == "200" ]]; then
+              echo "✅ CRITICAL: ${path} (HTTP ${STATUS})"
+              echo "| ${path} | ✅ OK | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ CRITICAL FAIL: ${path} (HTTP ${STATUS})"
+              echo "| ${path} | ❌ FAIL | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+              FAILED=$((FAILED + 1))
+            fi
+          done
+          
+          # Test optional paths - warn only
+          for path in "${OPTIONAL_PATHS[@]}"; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 10 "http://localhost:4000${path}" 2>/dev/null || echo "000")
+            if [[ "$STATUS" == "200" ]]; then
+              echo "✅ OPTIONAL: ${path} (HTTP ${STATUS})"
+              echo "| ${path} | ✅ OK | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ OPTIONAL: ${path} (HTTP ${STATUS})"
+              echo "| ${path} | ⚠️ Warning | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          if [[ $FAILED -gt 0 ]]; then
+            echo ""
+            echo "::error::${FAILED} critical page(s) failed accessibility test"
+            docker compose logs --tail=50
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All critical pages are accessible"
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down --volumes --remove-orphans || true
