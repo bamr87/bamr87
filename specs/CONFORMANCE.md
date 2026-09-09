@@ -79,7 +79,7 @@ OPS   01 02 03 10 11 12 16 20 21 22 23 24 30 31 33 40 42
 | Three `ApiError` shapes, no envelope, no health/version contract, no OpenAPI in CI | BE-10..40 | `api` kit: middleware + client + settings + logging |
 | No `SECURITY.md`, `CONTRIBUTING.md`, CODEOWNERS, labels, dependabot fan-out; 12 owned repos without LICENSE | REPO-12..19, QA-41, AGENT-32 | `community` kit |
 | `templates/release-pipeline/` lacks `VERSION`/`archive/`; only 5 repos on release-please | QA-32 | version the kit; fan out |
-| Duplicate checkouts (`fredgar-ai`≡`edgar-data-parse`, `zer0-cms`≡`vscode-front-matter`); 4 stray unregistered dirs; `amrs-project` superseded by `djangoerp` | REPO-08 | registry + `.gitmodules` reconciliation, retire `amrs-project` |
+| ~~Duplicate checkouts (`fredgar-ai`≡`edgar-data-parse`, `zer0-cms`≡`vscode-front-matter`); 4 stray unregistered dirs; `amrs-project` superseded by `djangoerp`~~ — resolved 2026-09-07: dirs renamed to their upstreams, strays removed, `amrs-project` retired (upstream deleted) | REPO-08 | done — registry + `.gitmodules` reconciled |
 | VS Code extensions: 4 toolchains, 1 with no tests, committed `node_modules` in 3 repos | QA-13, REPO-07 | `vscode-extension` profile + kit |
 | Cypress in 1 repo; pytest config in 3 places; `test/` vs `tests/` | QA-11, QA-12, REPO-02 | per-repo migration PRs (grandfather `test/`) |
 | `standard-ci` passes on zero tests; no Bash detection | QA-10, QA-04 | `standard-ci.yml` change |

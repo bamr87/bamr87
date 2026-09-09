@@ -62,7 +62,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | Consent + analytics gating | `zer0-mistakes` · `_includes/components/cookie-consent.html, _includes/analytics/posthog.html` | UPS-FE-24, UPS-OPS-14 | Consent categories, DNT/GPC, production-only gate. |
 | UX audit gate | `law-ai` · `frontend/scripts/ux_audit.py, frontend/ui/base.css` | UPS-FE-50, UPS-FE-52, UPS-FE-60 | 13 machine-checked rules with an exempt marker; single focus ring; named z-scale. |
 | AppShell with skip link and route states | `law-ai` · `frontend/components/shell/AppShell.tsx, frontend/app/(app)/` | UPS-FE-10, UPS-FE-11, UPS-FE-16 | Labelled landmarks, loading/error/not-found route files, roving tabindex hook. |
-| State set + HTTP client | `edgar-data-parse` · `frontend/src/components/ui/states.tsx, frontend/src/lib/http.ts, frontend/src/lib/toast.tsx` | UPS-FE-17, UPS-FE-18, UPS-FE-20, UPS-BE-40, UPS-BE-41, UPS-BE-43 | Loading/Skeleton/Empty/Error + Query wrapper; ApiError with isAuth/isRateLimit; aria-live toaster. |
+| State set + HTTP client | `fredgar-ai` · `frontend/src/components/ui/states.tsx, frontend/src/lib/http.ts, frontend/src/lib/toast.tsx` | UPS-FE-17, UPS-FE-18, UPS-FE-20, UPS-BE-40, UPS-BE-41, UPS-BE-43 | Loading/Skeleton/Empty/Error + Query wrapper; ApiError with isAuth/isRateLimit; aria-live toaster. |
 | Token-literal leak test | `gitorio` · `app/src/theme.test.ts` | UPS-FE-01 | Asserts only the token file may contain colour literals. |
 | Webview token isolation | `zer0-cms` · `media/tokens.css, src/webview/shared/dom.ts` | UPS-FE-06, UPS-OPS-23 | Only file allowed to name --vscode-* (CI grep); strict CSP with nonce (see also zpl-viewer). |
 | Forms with validation | `cv-builder-pro` · `src/components/ui/form.tsx, src/context/AuthContext.tsx` | UPS-FE-19, UPS-BE-51 | react-hook-form + zod wiring; Firebase auth behind a Protected route. |
@@ -73,7 +73,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (38 projects: 20 active, 4 archived, 9 experiment, 5 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (42 projects: 23 active, 4 archived, 10 experiment, 5 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |

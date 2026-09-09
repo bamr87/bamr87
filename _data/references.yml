@@ -42,7 +42,7 @@
   reference_for: [UPS-FE-10, UPS-FE-11, UPS-FE-16]
   note: Labelled landmarks, loading/error/not-found route files, roving tabindex hook.
 - name: State set + HTTP client
-  repo: edgar-data-parse
+  repo: fredgar-ai
   path: frontend/src/components/ui/states.tsx, frontend/src/lib/http.ts, frontend/src/lib/toast.tsx
   reference_for: [UPS-FE-17, UPS-FE-18, UPS-FE-20, UPS-BE-40, UPS-BE-41, UPS-BE-43]
   note: Loading/Skeleton/Empty/Error + Query wrapper; ApiError with isAuth/isRateLimit; aria-live toaster.

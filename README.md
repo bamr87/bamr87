@@ -230,7 +230,7 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[cv](https://github.com/bamr87/cv)**: CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII/LaTeX/HTML/PDF, published to Pages and releases; round-trips with cv-builder-pro. Live at [https://bamr87.github.io/cv/](https://bamr87.github.io/cv/).
 - **[books](https://github.com/bamr87/books)**: Personal books and reference notes collection.
 - **[zer0-pages](https://github.com/bamr87/zer0-pages)**: Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Dataview to GitHub Pages via the zer0-mistakes gem; the theme's second brain.
-- **[irony-works](https://github.com/bamr87/irony-works)**: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
+- **[irony-works](https://github.com/bamr87/irony-works)**: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos. Live at [https://bamr87.github.io/irony-works/](https://bamr87.github.io/irony-works/).
 
 ### 🚀 Full-Stack & AI Applications
 
@@ -240,9 +240,11 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[lawmode](https://github.com/bamr87/lawmode)**: Always-on AI lawyer concept for developers.
 - **[law-ai](https://github.com/bamr87/law-ai)**: LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ollama).
 - **[githubai](https://github.com/bamr87/githubai)**: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
-- **[edgar-data-parse](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
+- **[fredgar-ai](https://github.com/bamr87/fredgar-ai)**: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
 - **[drsai](https://github.com/bamr87/drsai)**: Dr. Seuss-style AI poetry generator.
 - **[djangoerp](https://github.com/bamr87/djangoerp)**: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
+- **[ocrmd](https://github.com/bamr87/ocrmd)**: Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR voting) diffed against a Claude vision transcription, one page file with rich frontmatter each.
+- **[gitnexus](https://github.com/bamr87/gitnexus)**: App Builder sandbox workspace (Vite + React + PGlite) exported from Grok Build — an experiment in hosted, agent-built apps.
 
 ### 🛠️ Developer Tools & Experiments
 
@@ -256,9 +258,11 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[zpl-viewer](https://github.com/bamr87/zpl-viewer)**: ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.
 - **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Terminal game and command-line learning project.
-- **[vscode-front-matter](https://github.com/bamr87/zer0-CMS)**: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
-- **[SCHEMA](https://github.com/bamr87/SCHEMA)**: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
+- **[zer0-CMS](https://github.com/bamr87/zer0-CMS)**: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
+- **[bashos](https://github.com/bamr87/bashos)**: Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCode engine, running on Claude Code OAuth.
+- **[rewind-arcade](https://github.com/bamr87/rewind-arcade)**: A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snake included; builds to static files and plays fully offline. Live at [https://bamr87.github.io/rewind-arcade/](https://bamr87.github.io/rewind-arcade/).
 - **[git-with-the-program](https://github.com/bamr87/git-with-the-program)**: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
+- **[SCHEMA](https://github.com/bamr87/SCHEMA)**: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
 - **[archify](https://github.com/tt-a1i/archify)**: Agent skill that compiles typed JSON IR into validated, self-contained HTML system diagrams — the hub vendors it to illustrate the harness and its loops (diagrams/, /harness/). Live at [https://tt-a1i.github.io/archify/](https://tt-a1i.github.io/archify/).
 
 ### 🛰️ Dash

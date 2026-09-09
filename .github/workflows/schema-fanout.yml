@@ -57,7 +57,7 @@ jobs:
         uses: actions/checkout@v7
 
       # agent-fill must not assume repo name == submodule dir name (e.g.
-      # edgar-data-parse's upstream is fredgar-ai) — resolve the slug from
+      # zer0-CMS is checked out at projects/zer0-cms) — resolve the slug from
       # the .gitmodules URL, exactly like the engine does.
       - name: Resolve target repo slug
         id: resolve
