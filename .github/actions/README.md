@@ -1,6 +1,6 @@
 # Actions
 
-Composite actions used by this hub's own workflows. Every action here is called by at least one workflow in `.github/workflows/` — that is the entry bar, not a nicety.
+Composite actions used by this hub's own workflows. Every action here is called by at least one workflow in `.github/workflows/` — that is the entry bar, not a nicety. One of them, `claude-run`, is also the fleet's shared runtime and is referenced remotely by member repos; it is the exception to "local glue only" below, made deliberately so the fleet receives the AI step by dependency rather than by copy (see `templates/ai-runner/`).
 
 ## Layout
 
@@ -9,6 +9,7 @@ Composite actions used by this hub's own workflows. Every action here is called 
 | `setup/dash-gen` | Install Python + the dash-gen generator's dependencies. | `fleet-pulse`, `build-dash`, `refresh-dash`, `reconcile-registry` |
 | `setup/configure-git` | Configure Git identity and authentication for automation. | `fleet-pulse`, `refresh-dash`, `reconcile-registry` |
 | `utilities/publish-data` | Commit generated `_data/` files, falling back to a PR when the branch is protected. | `fleet-pulse`, `reconcile-registry` |
+| `claude-run` | **The fleet's universal AI step** (kit `ai-runner`): install Claude Code, resolve the model from the CONSUMER repo, run `claude -p` OAuth-first with an optional API fallback and optional metering; attempted-and-failed is RED. The one action here meant to be referenced REMOTELY (`uses: bamr87/bamr87/.github/actions/claude-run@main`). | `ai-lane.yml` (the reusable lane), every fleet repo that adopts the kit; contract-tested by `ai-runner-contract` |
 | `resolve-fleet-token` | Pick the first candidate token that actually validates against a probe repo, rather than the first one that is merely non-empty. | `token-rotation` |
 
 ## Rules

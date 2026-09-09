@@ -73,6 +73,20 @@ The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK
 | `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `nextjs.tsx` (App Router `beforeInteractive` capture), `django.html` (Django; ERB equivalent for Rails) |
 | `VERSION` | Kit provenance + changelog |
 
+## `ai-runner/`
+
+The AI runner kit — the fleet's one model step and one lane shape, **consumed by reference, not by copy** (`tools/fanout.sh` does not seed it; a consumer references the hub at `@main` and picks up every fix on its next run):
+
+| File | Purpose |
+| --- | --- |
+| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@main` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`. Claude Code first (OAuth-first), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
+| `../../.github/workflows/ai-lane.yml` | The reusable lane (`workflow_call`): kill switch (`vars.<SWITCH>`, dispatch bypasses), bot guard, named concurrency, probed `GH_PAT` → `GH_TOKEN`, runtimes, pre/post hooks, the model step, the result-file assertion, artifact |
+| `ai-lane.template.yml` | A caller of the lane — copy one per lane, fill `__LANE__`, `__SWITCH__`, `__AGENT__`, `__PROJECT_NAME__` (stamped `# kit: ai-runner v__KIT_VERSION__`) |
+| `tests/contract.sh` | The runner's ten contract tests (stubbed `claude`, no credential, no network); CI: `ai-runner-contract.yml`. A consumer that still vendors the runner proves parity with `AI_RUNNER_SUT=scripts/ai/run.sh bash tests/contract.sh` |
+| `archive/ai-lane-0.1.0.yml` | The caller shape as first shipped, for `--upgrade` byte-comparison |
+
+What stays in the consumer repo, by design: `_data/ai.yml` (`model:`), `.claude/agents/*.md`, `scripts/ai/usage.rb` + `usage_report.rb` (metering, optional), `scripts/ai/api_call.rb|py` (API fallback, optional), `.prose-excludes`, and the repo's own verification harness (passed as `pre-run`/`post-run`). Reference implementation: [bamr87/lifehacker.dev](https://github.com/bamr87/lifehacker.dev) (`docs/AI-USAGE.md`, `scripts/ai/README.md`).
+
 ## `prose/`
 
 The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/markdown-oneline`):
