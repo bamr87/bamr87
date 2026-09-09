@@ -21,7 +21,7 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 183 requirements: 131 MUST, 48 SHOULD, 4 MAY; 67 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 186 requirements: 133 MUST, 49 SHOULD, 4 MAY; 67 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
@@ -29,7 +29,7 @@
 | AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 1 | Agent context |
 | QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…42 | 23 / 5 / 0 | 18 | Quality gates |
 | FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 7 | Frontend: design system, core components, UX standards |
-| FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…33 | 16 / 3 / 1 | 3 | The universal feedback component |
+| FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
 | OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 17 / 7 / 1 | 15 | Configuration, observability, security, data |
 | — | [`STACKS.md`](specs/STACKS.md) | — | — | — | Stack-family profiles and the applicability matrix |
@@ -43,7 +43,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | --- | --- | --- | --- | --- |
 | [`agent-context/`](templates/agent-context/) | 0.4.0 | 2026-08-07 | .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-setting… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
 | [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (standardize-fanout.yml) | `README.md`, `conformance.yml` |
-| [`feedback/`](templates/feedback/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit feedback (to be wired; see specs/CONFORMANCE.md adoption step 6) | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedback.yml` |
+| [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
@@ -143,6 +143,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`conformance.yml`](.github/workflows/conformance.yml) | Conformance | PR, push `main` | The hub's own caller of `fleet-conformance.yml`, referenced from the same checkout (`hub-ref` = the PR head), so any change to the spec, the checker, or the reusable wor… |
 | [`deps-fanout.yml`](.github/workflows/deps-fanout.yml) | deps-fanout | — | Downward propagation of the fleet's ALWAYS-LATEST dependency policy (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md): opens PRs INTO submodule repos that strip ex… |
 | [`drift-check.yml`](.github/workflows/drift-check.yml) | 🚧 Drift Check | push `main`, PR, dispatch | Fast offline+API gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, missing top-level READMEs, **SCHEMA.md pyramid (h)**; a… |
+| [`feedback-fanout.yml`](.github/workflows/feedback-fanout.yml) | feedback-fanout | — | Downward propagation of the universal feedback widget (templates/feedback/, spec specs/FEEDBACK.md UPS-FB): opens PRs INTO submodule repos that vendor fleet-feedback.js… |
 | [`fleet-conformance.yml`](.github/workflows/fleet-conformance.yml) | fleet-conformance (reusable) | `workflow_call` (reusable) | **The in-repo Universal Project Standard gate.** Checks out the hub beside the caller and runs `tools/conformance.py` (static, offline) so every repo is measured by the… |
 | [`fleet-pulse.yml`](.github/workflows/fleet-pulse.yml) | 🩺 Fleet Pulse | daily 06:00, dispatch | **THE daily loop.** Job `pulse` gathers every fleet signal (Actions analytics, Claude usage + engagement actuals, prior-day digest, open-state triage snapshot, the AI-ha… |
 | [`harness-fanout.yml`](.github/workflows/harness-fanout.yml) | harness-fanout | dispatch (`gaps`/all/per-repo) | **Mass deploy/update of the fleet's AI harnesses**, driven by the central inventory: a deterministic `plan` job resolves `target: gaps` from the committed `_data/harness… |

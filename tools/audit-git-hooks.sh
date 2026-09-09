@@ -140,6 +140,7 @@ head2 "4. pre-commit framework"
 
 PRECOMMIT_SHIM=0
 PRECOMMIT_CONFIG=0
+MIRRORS_PRETTIER=0
 
 DEFAULT_HOOK="$EFFECTIVE_HOOKS_DIR/pre-commit"
 if [ -f "$DEFAULT_HOOK" ]; then
@@ -159,6 +160,7 @@ if [ -f ".pre-commit-config.yaml" ]; then
   PRECOMMIT_CONFIG=1
   yes_ ".pre-commit-config.yaml exists"
   if grep -qi 'mirrors-prettier' .pre-commit-config.yaml 2>/dev/null; then
+    MIRRORS_PRETTIER=1
     yes_ "it includes a mirrors-prettier entry:"
     grep -ni 'mirrors-prettier' .pre-commit-config.yaml 2>/dev/null | sed 's/^/       /'
   else

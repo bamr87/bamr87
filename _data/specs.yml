@@ -1136,16 +1136,16 @@ requirements:
     section: "Behaviour"
     level: MUST
     applies: [site, app]
-    requirement: "Console/error capture: a ring buffer (default 40 entries) of `console.warn/error`, `window.onerror`, and `unhandledrejection`, installed as early as possible; attached only when the user leaves \"include logs\" checked; previewable before submit."
+    requirement: "Console/error capture: a ring buffer (default 40 entries) of `console.warn/error`, `window.onerror`, and `unhandledrejection`, installed **before the app runs** (`capture.js` in `<head>`; `beforeInteractive` under Next); attached only when the user leaves \"include logs\" checked; previewable before submit. A buffer installed after hydration reports a clean console for exactly the load-time failures worth reporting, so the dialog says so when it started late. `breadcrumb(level, msg)` lets an app's fetch wrapper record the API call that broke."
     satisfied_by: "`window.__fleetFeedback.logs`"
-    seed: "kit (`fleet-feedback.js` installs on load)"
+    seed: "kit (`capture.js`, spliced into `fleet-feedback.js`)"
     gap: false
   - id: UPS-FB-05
     area: FB
     section: "Behaviour"
     level: MUST
     applies: [site, app]
-    requirement: "Default mode is **`url`**: open `https://github.com/<repo>/issues/new?title=&body=&labels=&assignees=` in a new tab with no token. Optional **`proxy`** mode POSTs `{title, body, labels}` to a configured endpoint that holds the token server-side."
+    requirement: "Default mode is **`url`**: open `https://github.com/<repo>/issues/new?title=&body=&labels=&assignees=` in a new tab with no token. Optional **`proxy`** mode POSTs `{title, body, labels, assignees, type}` to a configured endpoint that holds the token server-side, falling back to the URL path rather than losing the report. **`postmessage`** mode hands the issue to a sandboxed host (a VS Code extension) that has no `window.open` of its own."
     satisfied_by: "attribute `mode`"
     seed: "kit"
     gap: false
@@ -1172,7 +1172,7 @@ requirements:
     section: "Behaviour"
     level: MUST
     applies: [site, app]
-    requirement: "Privacy: no cookies, no analytics event without consent, no request until the user submits; the environment section never includes IP, user identity, or form contents; logs are shown before sending."
+    requirement: "Privacy: no cookies, no analytics event without consent, no request until the user submits; the environment section never includes IP, user identity, or form contents; logs are shown before sending. Every captured line is **redacted before it enters the buffer** — bearer/API keys, JWTs, GitHub tokens, email addresses — so a secret cannot be previewed, copied, or filed even by accident."
     satisfied_by: "review"
     seed: "kit"
     gap: false
@@ -1253,7 +1253,7 @@ requirements:
     section: "Configuration"
     level: MUST
     applies: [site, app]
-    requirement: "Configuration keys (attributes on the element, `page_feedback:` in `_config.yml`, or the React props): `repo` (required, `owner/name`), `branch` (default `main`), `source` (page source path), `labels` (marker, default `page-feedback`), `assignee`, `mode` (`url`/`proxy`), `endpoint`, `capture-logs` (default true), `log-limit` (40), `fab` (default true), `label` (\"Improve this page\"), `types` (URL or inline JSON)."
+    requirement: "Configuration keys (attributes on the element, `page_feedback:` in `_config.yml`, or the React props): `repo` (required, `owner/name`), `branch` (default `main`), `source` (page source path), `route` (for apps whose pages are not files), `labels` (marker, default `page-feedback`), `assignee`, `mode` (`url`/`proxy`/`postmessage`), `endpoint`, `capture-logs` (default true), `log-limit` (40), `fab` (default true), `label` (\"Improve this page\"), `env`, `app-version`, `types` (URL or inline JSON)."
     satisfied_by: "attributes"
     seed: "kit README"
     gap: false
@@ -1271,7 +1271,7 @@ requirements:
     section: "Configuration"
     level: MUST
     applies: [app]
-    requirement: "React/Next apps mount `<FeedbackButton>` once in the AppShell; Django/Rails/MkDocs include the snippet in the base template; VS Code webviews mount the inline variant with `mode=\"proxy\"` (the extension host files the issue via `vscode.env.openExternal`)."
+    requirement: "React/Next apps mount `<FeedbackButton>` once in the AppShell (Next also renders `<FeedbackCapture />` in the root layout `<head>`); Django/Rails/MkDocs include the snippet in the base template; VS Code webviews mount the inline variant with `mode=\"postmessage\"` (the extension host files the issue via `vscode.env.openExternal`)."
     satisfied_by: "mount point"
     seed: "kit adapters"
     gap: false
@@ -1283,6 +1283,33 @@ requirements:
     requirement: "The hub dash mounts it on every surface against `bamr87/bamr87`, so a visitor can file against the control plane itself."
     satisfied_by: "element present"
     seed: "hub change"
+    gap: false
+  - id: UPS-FB-40
+    area: FB
+    section: "Delivery"
+    level: MUST
+    applies: [site, app]
+    requirement: "The kit is fanned out, not hand-installed: `tools/fanout.sh --kit feedback --target <name>` vendors the widget + buffer into the stack's static assets, seeds the adapter and `page_feedback.yml`, and creates the labels. Dry-run by default, PR-only, additive. Mounting stays a human one-liner — the fan-out never edits a hand-written app shell."
+    satisfied_by: "`feedback-fanout.yml`"
+    seed: "`tools/fanout.sh`"
+    gap: false
+  - id: UPS-FB-41
+    area: FB
+    section: "Delivery"
+    level: MUST
+    applies: [site, app]
+    requirement: "A vendored copy that drifts from the hub's is reported by drift check (i), and `--upgrade` refreshes only copies byte-identical to an archived kit shape. A hand-modified widget is never machine-reverted."
+    satisfied_by: "`tools/check-drift.sh`"
+    seed: "`templates/feedback/archive/`"
+    gap: false
+  - id: UPS-FB-42
+    area: FB
+    section: "Delivery"
+    level: SHOULD
+    applies: [site, app]
+    requirement: "The contract is enforced by tests, not by review: section order, marker, labels, assignment, escaping, the trim ladder, redaction, and taxonomy parity across the JS fallback, the data file, and the no-JS form."
+    satisfied_by: "`templates/feedback/tests/`"
+    seed: "kit"
     gap: false
   - id: UPS-BE-01
     area: BE

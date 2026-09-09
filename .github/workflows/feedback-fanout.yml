@@ -1,0 +1,98 @@
+name: feedback-fanout
+
+# Downward propagation of the universal feedback widget (templates/feedback/,
+# spec specs/FEEDBACK.md UPS-FB): opens PRs INTO submodule repos that vendor
+# fleet-feedback.js + capture.js into the stack's static assets, seed the
+# stack's adapter and the no-JS issue form, and — on a real run — create the
+# labels the taxonomy applies. Engine: tools/fanout.sh --kit feedback.
+#
+# WHY THE LABELS ARE CREATED OUTSIDE THE PR: GitHub silently drops a label that
+# does not exist from a prefilled issue URL — no error, no warning, the label is
+# simply gone. A widget seeded without them files unlabelled issues that never
+# enter the three-tier issue pipeline, so creating them is part of making the
+# seeding work rather than a nicety. It is the one write this kit makes to a
+# target outside its own pull request, and only when dry_run is false.
+#
+# MOUNTING STAYS HUMAN. The adapter is seeded as a file and the run log prints
+# the one line to add; the fan-out never edits a hand-written app shell. The
+# exception is a zer0-mistakes theme consumer, which needs no kit at all — the
+# theme already ships the widget and `page_feedback.enabled: true` switches it
+# on. Those repos are detected and told exactly that.
+#
+# Safety posture is the engine's, unchanged: dispatch-only, dry-run by default,
+# PR-only (never a default branch), external upstreams skipped, additive-only
+# seeding. `upgrade` refreshes a vendored copy ONLY when it is byte-identical to
+# a shape the kit has shipped before (templates/feedback/archive/); a
+# hand-modified widget is left alone.
+#
+# Requires FLEET_TOKEN (legacy FANOUT_TOKEN still honoured) — a fine-grained PAT
+# with contents:write + pull-requests:write on the targets, plus issues:write
+# for the label creation.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Submodule/registry name, or 'all'"
+        type: string
+        default: "all"
+      dry_run:
+        description: "Build branches but don't push/PR (and don't create labels)"
+        type: boolean
+        default: true
+      upgrade:
+        description: "Refresh vendored copies that are byte-identical to an archived kit shape"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: feedback-fanout
+  cancel-in-progress: false
+
+jobs:
+  # The contract these PRs propagate is the same one ~25 repositories will file
+  # issues against. Running the kit's tests first means a broken builder cannot
+  # be fanned out — which is cheaper than 25 revert PRs.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Kit contract tests
+        working-directory: templates/feedback
+        run: npm test
+
+  fanout:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v7
+
+      - name: Open feedback-widget PRs
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          TARGET: ${{ inputs.target }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          UPGRADE: ${{ inputs.upgrade }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + issues write on the targets. See _data/fleet.yml."
+            exit 1
+          fi
+          FLAGS=()
+          if [ "$DRY_RUN" != "true" ]; then FLAGS+=(--apply); fi
+          if [ "$UPGRADE" = "true" ]; then FLAGS+=(--upgrade); fi
+          tools/fanout.sh --kit feedback --target "$TARGET" ${FLAGS[@]+"${FLAGS[@]}"}
