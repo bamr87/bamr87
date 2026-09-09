@@ -144,8 +144,35 @@ def case_zero_job_failure_is_caught_by_the_job_probe() -> None:
 
     # The probe is only worth its request on outliers — a short run must never
     # trigger it, or the sweep pays one extra call per run across ~40 repos.
-    short = FakeRun(conclusion="failure", hours=0.5, jobs=0, raises=True)
-    check("a short run is never probed for jobs", cost_of(short) == 30.0)
+    # `raises=True` makes the probe observable: if it ran, the exception path
+    # would be the only thing keeping this from blowing up, so the boundary has
+    # to sit clear of SUSPECT_RUN_MIN for the check to mean anything.
+    short = FakeRun(conclusion="failure", hours=0.1, jobs=0, raises=True)
+    check("a short run is never probed for jobs", cost_of(short) == 6.0)
+
+
+def case_sub_clamp_phantom_minutes_are_zeroed() -> None:
+    """The zer0-mistakes shape: jobless `failure` runs BELOW the 6h clamp.
+
+    Six of them contributed 328.8 of markdown-oneline's 337.4 reported minutes
+    (97.5%) against a real p95 of 0.28 min, which flagged a workflow costing
+    ~9 minutes as the fleet's most expensive `high-cost-low-value` candidate.
+    FAILS on the pre-fix code, which billed every one of those minutes.
+    """
+    for minutes in (297.35, 99.05, 24.93, 17.78):
+        run = FakeRun(conclusion="failure", hours=minutes / 60, jobs=0)
+        check(f"a jobless {minutes:.0f}min `failure` under the clamp costs 0",
+              cost_of(run) == 0.0)
+
+    # The probe decides on the JOB COUNT, never on the duration alone: a long
+    # failure that really did run must keep every minute it burned.
+    real = FakeRun(conclusion="failure", hours=1.0, jobs=2)
+    check("a long failure that DID execute keeps its 60 min", cost_of(real) == 60.0)
+
+    # Success is out of scope by construction — a green build is the population,
+    # not an outlier, and must never cost the sweep an extra request.
+    green = FakeRun(conclusion="success", hours=1.0, jobs=0, raises=True)
+    check("a long SUCCESS is never probed for jobs", cost_of(green) == 60.0)
 
 
 def case_duration_is_capped() -> None:
@@ -232,6 +259,7 @@ def case_note_documents_the_bounds() -> None:
 def main() -> int:
     for fn in (case_non_executing_runs_cost_nothing,
                case_zero_job_failure_is_caught_by_the_job_probe,
+               case_sub_clamp_phantom_minutes_are_zeroed,
                case_duration_is_capped,
                case_ordinary_runs_are_untouched,
                case_totals_range_over_one_population,
