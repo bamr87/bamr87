@@ -87,6 +87,10 @@ The AI runner kit — the fleet's one model step and one lane shape, **consumed 
 
 What stays in the consumer repo, by design: `_data/ai.yml` (`model:`), `.claude/agents/*.md`, `scripts/ai/usage.rb` + `usage_report.rb` (metering, optional), `scripts/ai/api_call.rb|py` (API fallback, optional), `.prose-excludes`, and the repo's own verification harness (passed as `pre-run`/`post-run`). Reference implementation: [bamr87/lifehacker.dev](https://github.com/bamr87/lifehacker.dev) (`docs/AI-USAGE.md`, `scripts/ai/README.md`).
 
+## `fleet-engines/`
+
+The fleet's pure engines as a package, `@bamr87/fleet-engines`, published by `publish-kits.yml` and **consumed by dependency** (not fanned out): the `fleet/v1` manifest parse + emit, workflow facts (which runner, which switch, which guards), the audit rulebook (the fleet's conventions as data), metrics, the harness scorecard + trip wires, the hub reader, and the `GithubClient` contract each console implements over its own fetch. Lifted from GitFactory so GitFactory and zer0-CMS run one implementation; tests and 39 real-fleet fixtures travel with it. See [`fleet-engines/README.md`](fleet-engines/README.md).
+
 ## `prose/`
 
 The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/markdown-oneline`):

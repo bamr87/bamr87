@@ -1,0 +1,117 @@
+# =============================================================================
+# auto-fix.yml — try to fix a failing CONTENT PR, escalate to a human if stuck
+# -----------------------------------------------------------------------------
+# When the pipeline fails on a bot content PR, the fleet-bugfix agent reads the
+# findings, attempts a content-only fix, and pushes it back to the PR branch so
+# the pipeline re-runs. After MAX_ATTEMPTS it gives up, labels the PR
+# `needs-human`, and removes `auto:content` so auto-merge won't touch it. It only
+# ever fixes content (the same lane as content-review) — never deps/pipeline.
+# OFF by default behind AUTO_FIX_ENABLED + the API key.
+# =============================================================================
+name: auto-fix
+
+on:
+  workflow_run:
+    workflows: [pipeline]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-fix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # FLEET_TOKEN (bot PAT) so the fix push re-triggers the pipeline on the PR
+      # (a github.token push is suppressed from triggering workflows). Falls back
+      # to github.token.
+      GH_TOKEN: ${{ secrets.FLEET_TOKEN || github.token }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      MAX_ATTEMPTS: '3'
+    steps:
+      - name: Gate
+        id: gate
+        env:
+          ENABLED: ${{ vars.AUTO_FIX_ENABLED }}
+        run: |
+          { [ "$ENABLED" = "true" ] && { [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || [ -n "$ANTHROPIC_API_KEY" ]; }; } || { echo "auto-fix off — idle."; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          pr=$(gh pr list --head "$BRANCH" --state open --json number,labels --jq '.[0].number // empty')
+          [ -z "$pr" ] && { echo "no open PR for $BRANCH"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          # content PRs only, not already escalated
+          labels=$(gh pr view "$pr" --json labels --jq '[.labels[].name]')
+          echo "$labels" | grep -q 'auto:content' || { echo "PR #$pr is not a content PR — leaving for a human."; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          echo "$labels" | grep -q 'needs-human' && { echo "PR #$pr already escalated."; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          attempts=$(gh pr view "$pr" --json comments --jq '[.comments[] | select(.body | contains("<!-- auto-fix-attempt -->"))] | length')
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "attempts=$attempts" >> "$GITHUB_OUTPUT"
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
+      - name: Escalate if out of attempts
+        if: ${{ steps.gate.outputs.go == 'true' && steps.gate.outputs.attempts >= env.MAX_ATTEMPTS }}
+        run: |
+          pr=${{ steps.gate.outputs.pr }}
+          gh pr edit "$pr" --add-label needs-human --remove-label auto:content
+          gh pr comment "$pr" --body "Auto-fix gave up after ${{ env.MAX_ATTEMPTS }} attempts. Labeled \`needs-human\` and removed \`auto:content\` so it won't auto-merge. A human's turn."
+
+      - name: Attempt a content fix
+        if: ${{ steps.gate.outputs.go == 'true' && steps.gate.outputs.attempts < env.MAX_ATTEMPTS }}
+        run: |
+          pr=${{ steps.gate.outputs.pr }}
+          gh repo clone "$GITHUB_REPOSITORY" repo -- -q
+          cd repo && git checkout "$BRANCH"
+          base=$(git rev-parse HEAD)
+          gem install bundler >/dev/null 2>&1 || true
+          npm install -g @anthropic-ai/claude-code >/dev/null 2>&1 || true
+          # Run the fix FIRST. The attempt is recorded (and the budget spent) ONLY
+          # after a real content-only fix lands — so a transient agent/API failure
+          # doesn't burn an attempt and prematurely escalate a fixable PR.
+          # Universal AI runner (Claude Code -> Claude API fallback), from the clone.
+          bash scripts/ai/run.sh \
+            --agent fleet-bugfix \
+            --prompt "The pipeline failed on this content PR. Use the fleet-bugfix skill to fix it: run /test-lifehacker, read test-results/findings.jsonl, and make the SMALLEST content-only change that turns the gate green. Touch ONLY the content file(s) under pages/_* (and _data/backlog.yml if needed) — NEVER scripts/.github/_config/Gemfile. Commit to this branch. If it's a theme bug, file upstream and stop. Never merge." \
+            --tools "Bash(git:*),Bash(bundle:*),Bash(ruby:*),Bash(gh pr comment:*),Read,Edit,Write(pages/**),Write(_data/backlog.yml),Grep,Glob" \
+            --system "You are fleet-bugfix for lifehacker.dev. Make the smallest content-only fix; never touch infra; never merge." \
+            || { echo "::error::auto-fix run failed — not counting this as an attempt."; exit 1; }
+          if git diff --quiet "$base" HEAD; then
+            echo "auto-fix produced no committed change — not counting an attempt."; exit 0
+          fi
+          # Defense in depth: the fix MUST be content-only. If the agent touched
+          # deps/pipeline, refuse to push and escalate — never auto-ship infra.
+          kinds=$(git diff --name-only "$base" HEAD | ruby scripts/ci/classify_changes.rb)
+          if printf '%s' "$kinds" | grep -qwE 'deps|pipeline'; then
+            echo "::error::auto-fix touched non-content ($kinds) — refusing to push; escalating to a human."
+            gh pr edit "$pr" --add-label needs-human --remove-label auto:content
+            exit 1
+          fi
+          # A content-only fix exists: record the attempt and push so the pipeline
+          # re-validates (a FLEET_TOKEN push re-triggers it; see the job env).
+          gh pr comment "$pr" --body "<!-- auto-fix-attempt -->
+          Auto-fix attempt $(( ${{ steps.gate.outputs.attempts }} + 1 ))/${{ env.MAX_ATTEMPTS }}: pushed a content-only fix (${kinds}); the pipeline will re-validate."
+          git push origin "$BRANCH"
+
+      # ---- AI usage metering (best-effort; this job calls run.sh directly, so
+      # it reports its own records — claude-run consumers get this for free).
+      # Runs from the clone because this workflow never checks the repo out.
+      - name: Report AI usage
+        id: usage
+        if: ${{ always() && steps.gate.outputs.go == 'true' }}
+        run: |
+          [ -d repo ] || { echo "no clone — no AI ran."; exit 0; }
+          cd repo && ruby scripts/ai/usage_report.rb --pr "${{ steps.gate.outputs.pr }}" \
+            || echo "::notice::AI usage report failed (non-fatal)."
+      - name: Upload AI usage artifact
+        if: ${{ always() && steps.usage.outputs.file != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.usage.outputs.name }}
+          path: ${{ steps.usage.outputs.file }}
+          if-no-files-found: ignore
+          retention-days: 30

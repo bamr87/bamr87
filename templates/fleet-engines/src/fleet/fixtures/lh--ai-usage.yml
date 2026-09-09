@@ -1,0 +1,150 @@
+# =============================================================================
+# ai-usage.yml — the AI cost ledger (daily sweep, gated, OFF by default)
+# -----------------------------------------------------------------------------
+# Every AI job in this repo uploads an `ai-usage-*` artifact (one JSONL record
+# per model call: tokens, API-equivalent cost, workflow/PR attribution — see
+# scripts/ai/usage.rb). Artifacts expire after 30 days; this workflow is what
+# makes the spend PERMANENT and PUBLIC: it sweeps recent artifacts, folds them
+# into _data/ai_usage/ledger.jsonl (dedup by record id — re-sweeping is always
+# safe), regenerates summary.yml + AI_USAGE.md, and opens ONE data-only PR.
+# The /docs/ai-usage/ site page renders summary.yml on the next deploy.
+#
+# Same posture as every autonomy loop:
+#   * scheduled runs idle unless AI_USAGE_ENABLED=true (repo variable);
+#   * manual runs always go, but default to a DRY RUN (no PR) unless `apply`;
+#   * it never merges — the PR is labeled `source/ai-usage-bot`, and the gated
+#     auto-merge sweep may ship it ONLY if the diff classifies as pure data
+#     (same tight bar as triage refreshes);
+#   * each run supersedes the previous still-open ledger PR (newest wins —
+#     every run regenerates the full summary, so stacked refreshes only rot).
+# This workflow makes ZERO model calls — it meters, it doesn't spend.
+# =============================================================================
+name: ai-usage
+
+on:
+  # Cron disabled 2026-07-16: AI_USAGE_ENABLED was unset, so scheduled runs were
+  # gate-only no-ops. NOTE: ai-usage-* artifacts expire after 30 days — if you
+  # want the permanent cost ledger, set the AI_USAGE_ENABLED repo variable to
+  # true AND restore this block (preferred over leaving it off; see the header).
+  # schedule:
+  #   - cron: '17 8 * * *'   # daily 08:17 UTC — after triage (07:47) settles
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Commit the ledger + open the PR (unchecked = dry-run report only)"
+        type: boolean
+        default: false
+      lookback_days:
+        description: "How many days of run artifacts to sweep (bump for a backfill)"
+        type: string
+        default: "3"
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read          # artifact download needs it; nothing here mutates runs
+
+concurrency:
+  group: ai-usage
+  cancel-in-progress: false
+
+jobs:
+  # Kill switch for the SCHEDULED path: a cron run without AI_USAGE_ENABLED=true
+  # idles. Manual runs always go (a human clicked; `apply` still defaults off).
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+      apply: ${{ steps.check.outputs.apply }}
+      lookback: ${{ steps.check.outputs.lookback }}
+    steps:
+      - id: check
+        env:
+          ENABLED: ${{ vars.AI_USAGE_ENABLED }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            { echo "go=true"; echo "apply=${{ inputs.apply }}"; echo "lookback=${{ inputs.lookback_days }}"; } >> "$GITHUB_OUTPUT"
+          elif [ "$ENABLED" = "true" ]; then
+            { echo "go=true"; echo "apply=true"; echo "lookback=3"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "scheduled ai-usage ledger is off (AI_USAGE_ENABLED != true) — idle."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  ledger:
+    needs: gate
+    if: ${{ needs.gate.outputs.go == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      # Sweep recent ai-usage-* artifacts (newest first; dedup by record id makes
+      # overlap with previous sweeps harmless — the lookback only bounds the API
+      # work, not correctness).
+      - name: Download usage artifacts
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-usage-artifacts"
+          cutoff=$(date -u -d "${{ needs.gate.outputs.lookback }} days ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "sweeping ai-usage-* artifacts created since $cutoff"
+          n=0
+          while IFS=$'\t' read -r id name created; do
+            [ -n "$id" ] || continue
+            [[ "$created" < "$cutoff" ]] && continue
+            echo "  + $name ($created)"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip" > "$RUNNER_TEMP/a.zip" \
+              && unzip -oq "$RUNNER_TEMP/a.zip" -d "$RUNNER_TEMP/ai-usage-artifacts/$id" \
+              && n=$((n+1)) || echo "    (download failed — skipping)"
+          done < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+                     --jq '.artifacts[] | select(.expired | not) | select(.name | startswith("ai-usage-")) | [.id, .name, .created_at] | @tsv')
+          echo "downloaded $n artifact(s)"
+
+      - name: Fold into the ledger + regenerate the summary and dashboard
+        run: ruby scripts/ai/usage_ledger.rb ingest "$RUNNER_TEMP/ai-usage-artifacts" | tee ledger.out
+
+      - name: Ledger report -> Step Summary
+        if: always()
+        run: |
+          { echo "## AI usage ledger sweep"
+            echo '```'
+            cat ledger.out 2>/dev/null || echo "no ledger output"
+            echo '```'
+            echo ""
+            echo "apply: ${{ needs.gate.outputs.apply }} · lookback: ${{ needs.gate.outputs.lookback }}d"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open PR with ledger + summary updates
+        if: ${{ needs.gate.outputs.apply == 'true' }}
+        continue-on-error: true   # GITHUB_TOKEN-authored PRs are fine for data-only changes
+        run: |
+          git config user.name  "lifehacker-ai-usage[bot]"
+          git config user.email "ai-usage@lifehacker.dev"
+          branch="ai-usage/$(date +%Y%m%d-%H%M)"
+          git checkout -b "$branch"
+          git add _data/ai_usage AI_USAGE.md 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No new usage records to commit."
+            exit 0
+          fi
+          git commit -m "ai-usage: fold run artifacts into the cost ledger"
+          git push origin "$branch"
+          gh label create source/ai-usage-bot --color 5319e7 \
+            --description "Opened by the AI usage ledger sweep" 2>/dev/null || true
+          gh pr create --base "${{ github.ref_name }}" --head "$branch" \
+            --title "ai-usage: cost ledger refresh" \
+            --body "Automated AI-usage sweep. Folded recent \`ai-usage-*\` run artifacts into \`_data/ai_usage/ledger.jsonl\` and regenerated \`summary.yml\` + \`AI_USAGE.md\`. All figures are API-equivalent (subscription OAuth runs have zero marginal cost). Generated data only — the gated auto-merge sweep ships it once the pipeline is green (anything beyond pure data gets \`needs-human\`). The ledger bot itself never merges." \
+            --label "source/ai-usage-bot"
+
+          # Supersede: every sweep regenerates the FULL summary from the full
+          # ledger, so any older still-open ai-usage PR is stale by construction
+          # — and would go conflicted the moment this one merges. Newest wins.
+          new=$(gh pr view "$branch" --json number --jq .number)
+          for old in $(gh pr list --state open --label source/ai-usage-bot \
+                        --json number --jq ".[].number | select(. != $new)"); do
+            gh pr comment "$old" --body "Superseded by #$new — every sweep regenerates the full ledger + summary, so only the newest refresh matters." || true
+            gh pr close "$old" --delete-branch || true
+          done

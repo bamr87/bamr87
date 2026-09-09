@@ -1,0 +1,54 @@
+name: fleet-engines-contract
+
+# Pre-flight gate for the fleet-engines kit (same precedent as feedback-fanout's
+# `verify` and ai-runner-contract): the package is consumed by dependency by
+# GitFactory and zer0-CMS, so a regression here reaches both on their next build.
+
+on:
+  pull_request:
+    paths:
+      - "templates/fleet-engines/**"
+      - ".github/workflows/fleet-engines-contract.yml"
+  push:
+    branches: [main]
+    paths:
+      - "templates/fleet-engines/**"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: engines contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: templates/fleet-engines
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ vars.NODE_VERSION || '22' }}
+
+      - name: Install (always-latest, no lockfile)
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests (vitest, node)
+        run: npm test
+
+      - name: Build + pack (what publish-kits would ship)
+        run: |
+          npm run build
+          node --check dist/index.js
+          npm pack --dry-run
+
+      - name: VERSION and package.json agree
+        run: |
+          pv=$(node -p "require('./package.json').version")
+          vv=$(awk '/^version:/{print $2; exit}' VERSION)
+          [ "$pv" = "$vv" ] || { echo "::error::package.json ($pv) and VERSION ($vv) disagree"; exit 1; }

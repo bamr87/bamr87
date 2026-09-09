@@ -1,0 +1,31 @@
+kit: fleet-engines
+version: 0.1.0
+source: "bamr87/bamr87 templates/fleet-engines/ (npm: @bamr87/fleet-engines)"
+seeded-by: "consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on version change); not fanned out by tools/fanout.sh"
+files: package.json, src/**/*.ts (github/, fleet/, harness/), tests + fixtures beside the sources, README.md
+updated: 2026-09-08
+changelog: |
+  0.1.0 — the fleet's pure engines, lifted from GitFactory (bamr87/gitorio app/src at
+  1ea1836) so that GitFactory and zer0-CMS run ONE implementation: fleet/v1 manifest
+  parse + emit (harness/lanes, manifest-yaml), workflow facts (fleet/facts, parse),
+  the audit rulebook (fleet/audit — the fleet's conventions as data: OAuth-first,
+  kill switch on scheduled AI, loop guards, concurrency, least privilege, timeouts,
+  pinning, plan/apply, dormant crons, sticky markers, the runner by reference),
+  metrics, the harness scorecard + six trip wires (harness/health), live signals,
+  the hub reader, and the GithubClient contract (github/types) every console
+  implements over its own fetch. Two seams cut on the way out: the blueprint →
+  lanes direction (toFleetLanes) stays with GitFactory's compiler, and
+  toFleetManifestYaml now takes lanes + meta instead of a blueprint; HUB_PATHS /
+  HubSnapshot were lifted out of GitFactory's zustand store into harness/hub-paths.
+  Tests travel with the code (vitest, node environment): 230+ cases over 39
+  real-fleet workflow fixtures and the hub's committed signal files. The live
+  signals adapter (harness/signals) is exercised by GitFactory's demo scan and
+  keeps its test there.
+notes: |
+  Runtime dependency: exactly one, `yaml` (floor, per the always-latest policy).
+  Ships built JS + d.ts (dist/, produced by `prepack`; publish-kits.yml builds
+  before its `node --check` because the source is TypeScript). Consumers bundle it
+  (Vite, esbuild) and implement `GithubClient` themselves — a browser fetch
+  client, an editor fetch + SecretStorage client, a fixture client for demos.
+  Until GitFactory switches to this package (gitorio BL item) its app/src copy is
+  the same code at the SHA above; that copy is retired by the switch, never edited.

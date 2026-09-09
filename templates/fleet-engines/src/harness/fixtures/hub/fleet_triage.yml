@@ -1,0 +1,5 @@
+# FIXTURE — bamr87/bamr87@00fa7ae _data/fleet_triage.yml, reduced to the fields dash-gen harness reads (specs/014). Regenerate from the hub; never hand-edit.
+generated_at: 2026-09-01 06:48 UTC
+totals:
+  failing_workflows: 32
+  repos_red: 21

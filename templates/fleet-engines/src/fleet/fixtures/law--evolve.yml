@@ -1,0 +1,103 @@
+name: Evolve (weekly autopilot)
+
+# Runs the headless half of /evolve every Monday 13:00 UTC.
+# - Audits the repo for follow-ups, appends them to BACKLOG.md.
+# - Opens a PR with the new BL-* entries so a human (or Copilot coding agent)
+#   can pick the next /evolve cycle.
+# - Optionally files a tracking issue tagged for the GitHub Copilot coding
+#   agent — assigning that issue to @copilot will run /evolve in the cloud.
+
+on:
+  schedule:
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal deps for audit
+        run: pip install coverage
+
+      - name: Run discovery audit
+        id: audit
+        run: |
+          python scripts/evolve_audit.py | tee audit.out
+          if git diff --quiet BACKLOG.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate gates still pass
+        if: steps.audit.outputs.changed == 'true'
+        run: |
+          python scripts/spec_validator.py
+          python scripts/backlog_lint.py
+
+      - name: Open PR with new BACKLOG entries
+        if: steps.audit.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # Stable branch so weekly re-runs update the SAME PR instead of opening
+          # a fresh one every run (the old ${{ github.run_id }} branch piled up 6
+          # stale duplicate PRs). add-paths limits the commit to BACKLOG.md so the
+          # transient audit.out scratch file is never committed.
+          branch: evolve/weekly-backlog-audit
+          add-paths: |
+            BACKLOG.md
+          title: "chore(evolve): weekly BACKLOG audit"
+          commit-message: "chore(evolve): append discovered follow-ups"
+          body: |
+            Automated discovery run from `scripts/evolve_audit.py`.
+
+            ```
+            ${{ steps.audit.outputs.audit }}
+            ```
+
+            **Next step:** assign the companion tracking issue to `@copilot`
+            to run `/evolve` against the highest-priority new item, or run
+            `/evolve` locally in Copilot Chat.
+          labels: |
+            evolve
+            backlog
+
+      - name: File tracking issue for Copilot coding agent
+        if: steps.audit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Idempotency: skip filing a new tracking issue if an 'evolve' issue is
+          # already open (the old unconditional create piled up 6 stale issues).
+          if [ "$(gh issue list --label evolve --state open --json number --jq 'length')" -gt 0 ]; then
+            echo "An open 'evolve' issue already exists — skipping issue creation."
+            exit 0
+          fi
+          gh issue create \
+            --title "evolve: run /evolve on top BACKLOG item" \
+            --label evolve \
+            --body "$(cat <<'EOF'
+          The weekly audit appended new BACKLOG entries.
+
+          To advance the repo, follow [prompts/evolve.md](../blob/main/prompts/evolve.md):
+          1. Pick the highest-severity item under `## Open` in `BACKLOG.md`.
+          2. Run `/specify` → `/clarify` → `/plan` → `/tasks` → `/implement`.
+          3. Mirror new follow-ups back into `BACKLOG.md`.
+
+          Assign this issue to `@copilot` to have the GitHub Copilot coding
+          agent execute the cycle in the cloud.
+          EOF
+          )"

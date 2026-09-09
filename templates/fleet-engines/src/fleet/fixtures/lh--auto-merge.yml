@@ -1,0 +1,123 @@
+# =============================================================================
+# auto-merge.yml — merge green BOT PRs automatically (gated, narrowly scoped)
+# -----------------------------------------------------------------------------
+# When AUTO_MERGE_ENABLED is on, this merges bot-authored PRs that have passed
+# the entire gate — and ONLY two flavors of them:
+#   * content PRs   (label auto:content)      — diff must be content/data only
+#   * triage PRs    (label source/triage-bot) — diff must be generated DATA only
+#     (_data/health, SITE_HEALTH.md, _data/analytics — the queue + dashboard
+#     refresh; one content line in the diff and it goes back to a human)
+# The load-bearing safety is the SMUGGLE GUARD: it re-classifies the PR's diff
+# and refuses to merge anything touching deps or pipeline/infra, even if the PR
+# is labeled content. So a content PR can never sneak a workflow, script,
+# _config, or Gemfile change past review. Dependency/infra/workflow PRs are
+# NEVER auto-merged — they always wait for a human.
+#
+# OFF by default behind the AUTO_MERGE_ENABLED repo variable. Enabling it retires
+# the human review of *content* and *triage data* (only) — record it in
+# /about/colophon/.
+# =============================================================================
+name: auto-merge
+
+on:
+  workflow_run:
+    workflows: [pipeline]
+    types: [completed]
+  schedule:
+    # Backstop sweep only. The workflow_run trigger above already fires at every
+    # moment a PR can newly turn green (pipeline completion), so a */30 cron was
+    # ≥85% no-op (~250 runs/5 days for ~6 bot PRs/day). 6/day catches stragglers.
+    - cron: '13 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Gate FIRST — before checkout (fetch-depth:0) + Ruby. When the kill switch
+      # is off, a sweep should cost seconds, not a full checkout + toolchain.
+      - name: Gate
+        id: gate
+        env:
+          ENABLED: ${{ vars.AUTO_MERGE_ENABLED }}
+        run: |
+          if [ "$ENABLED" != "true" ]; then
+            echo "AUTO_MERGE_ENABLED != true — auto-merge is OFF. Nothing merged."
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "go=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: ${{ steps.gate.outputs.go == 'true' }}
+        with:
+          fetch-depth: 0
+      - uses: ruby/setup-ruby@v1
+        if: ${{ steps.gate.outputs.go == 'true' }}
+        with:
+          ruby-version: '3.3'
+      - name: Merge eligible content PRs
+        if: ${{ steps.gate.outputs.go == 'true' }}
+        run: |
+          set -u
+          merged=0; declined=0; skipped=0
+          # Candidates: open PRs labeled auto:content (content factory et al.),
+          # source/triage-bot (queue + dashboard refreshes), or
+          # source/ai-usage-bot (AI cost ledger sweeps), NOT needs-human. Both
+          # bot-data flavors are held to the same pure-data bar below.
+          prs=$(gh pr list --state open \
+                 --json number,labels \
+                 --jq '.[] | [.labels[].name] as $l
+                       | select(($l | index("needs-human") | not)
+                                and ($l | any(. == "auto:content" or . == "source/triage-bot" or . == "source/ai-usage-bot")))
+                       | "\(.number) \(if $l | index("source/triage-bot") then "triage" elif $l | index("source/ai-usage-bot") then "ai-usage" else "content" end)"')
+          while read -r pr flavor; do
+            [ -n "$pr" ] || continue
+            echo "::group::PR #$pr ($flavor)"
+
+            # 1. SMUGGLE GUARD — the diff must be content/data ONLY.
+            kinds=$(gh pr diff "$pr" --name-only | ruby scripts/ci/classify_changes.rb)
+            if echo "$kinds" | grep -qiE 'deps|pipeline'; then
+              echo "DECLINE #$pr: diff touches build/pipeline files ($kinds) — always human-gated."
+              gh pr edit "$pr" --add-label needs-human || true
+              gh pr comment "$pr" --body "Auto-merge declined: this PR changes build or pipeline files (\`$kinds\`), which require human review. Labeled \`needs-human\`." || true
+              declined=$((declined+1)); echo "::endgroup::"; continue
+            fi
+
+            # 1b. Bot data refreshes (triage queue, ai-usage ledger) are held to
+            # a TIGHTER bar: generated data only. A data bot has no business
+            # editing content.
+            if { [ "$flavor" = "triage" ] || [ "$flavor" = "ai-usage" ]; } && [ "$kinds" != "data" ]; then
+              echo "DECLINE #$pr: $flavor PR classifies as '$kinds', not pure data — human-gated."
+              gh pr edit "$pr" --add-label needs-human || true
+              gh pr comment "$pr" --body "Auto-merge declined: a $flavor PR should only touch generated data, but this diff classifies as \`$kinds\`. Labeled \`needs-human\`." || true
+              declined=$((declined+1)); echo "::endgroup::"; continue
+            fi
+
+            # 2. All required checks green? (gh pr checks exits 0 only when all pass)
+            if ! gh pr checks "$pr" >/dev/null 2>&1; then
+              echo "SKIP #$pr: checks not all green yet."
+              skipped=$((skipped+1)); echo "::endgroup::"; continue
+            fi
+
+            # 3. Mergeable (no conflicts)?
+            if [ "$(gh pr view "$pr" --json mergeable --jq .mergeable)" != "MERGEABLE" ]; then
+              echo "SKIP #$pr: not mergeable."
+              skipped=$((skipped+1)); echo "::endgroup::"; continue
+            fi
+
+            echo "MERGE #$pr: $flavor-only, green, mergeable -> squash-merging."
+            if gh pr merge "$pr" --squash --delete-branch; then merged=$((merged+1)); else
+              echo "merge failed for #$pr"; skipped=$((skipped+1)); fi
+            echo "::endgroup::"
+          done <<< "$prs"
+          { echo "## Auto-merge sweep"; echo "merged: $merged · declined (needs-human): $declined · skipped: $skipped"; } >> "$GITHUB_STEP_SUMMARY"

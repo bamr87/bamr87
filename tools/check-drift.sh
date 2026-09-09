@@ -319,7 +319,9 @@ fi
 #
 # Offline and hub-scoped, so it gates on every PR. `archive/` templates are
 # EXEMPT: those are deliberately frozen shapes that `fanout.sh --upgrade` uses
-# to recognize machine-seeded copies — freezing them is the point.
+# to recognize machine-seeded copies — freezing them is the point. So are a
+# kit's `fixtures/`: test data snapshotted from real fleet workflows, SHA pins
+# and all, because the fleet-engines rulebook's `pin-sha` rule is tested on them.
 echo "(j) always-latest dependency policy"
 dep_out="$("$PY" - "$ROOT" <<'PY'
 import os, re, sys
@@ -329,7 +331,7 @@ problems = []
 
 LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
          "Gemfile.lock", "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock"}
-SKIP_DIRS = {".git", "projects", "node_modules", "_site", "vendor", ".venv"}
+SKIP_DIRS = {".git", "projects", "node_modules", "_site", "vendor", ".venv", "fixtures", "dist"}
 USES = re.compile(r"^\s*-?\s*uses:\s*['\"]?([^'\"\s#]+)")
 
 def walk(*subs):
