@@ -73,6 +73,24 @@ The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK
 | `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `nextjs.tsx` (App Router `beforeInteractive` capture), `django.html` (Django; ERB equivalent for Rails) |
 | `VERSION` | Kit provenance + changelog |
 
+## `issue-autopilot/`
+
+The issue-autopilot kit — the canonical issue-triage engine that `it-journey` and `zer0-mistakes` each maintained a fork of. **OPT-IN**: named explicitly via `--artifacts issue-autopilot`, never in the default set. See [`issue-autopilot/README.md`](issue-autopilot/README.md) for the policy boundary, the flag, and the adoption recipe.
+
+| File | Purpose |
+| --- | --- |
+| `triage.py` | Deterministic classifier/planner → `.issues/plan.json` + worklist; read-only against GitHub |
+| `dispatch.py` | OODA controller / budget gate — how many resolution PRs this run may propose |
+| `verify_close.py` | The verify-and-close gate: closes only a `resolved` + high-confidence verdict, and only when the default branch's CI is green (fails CLOSED) |
+| `test_verify_close.py` | The safety-critical gate tests, ported from zer0-mistakes |
+| `test_triage_engine.py` | Engine tests + **fork-parity proof**: runs both archived pre-kit engines beside the canonical one and asserts identical plans and worklists |
+| `SKILL.template.md` | `issue-triage` loop skill → `.claude/skills/issue-triage/SKILL.md` |
+| `issue-{triager,resolver,verifier}.template.md` | Agent skeletons → `.claude/agents/`; carry `TODO(adopt)` markers where per-repo policy goes |
+| `archive/*.py` | Byte-exact pre-kit fork shapes; `--upgrade` converts a matching copy in place, and the parity tests read them as fixtures |
+| `VERSION` | Kit provenance, the measured fork divergence, the convergence rule, and the declared policy boundary |
+
+**The kit never writes `.issues/config.yml`.** Engine in the kit, policy in the repo — `fanout.sh` has no code path that touches anything under `.issues/`.
+
 ## `ai-runner/`
 
 The AI runner kit — the fleet's one model step and one lane shape, **consumed by reference, not by copy** (`tools/fanout.sh` does not seed it; a consumer references the hub at `@main` and picks up every fix on its next run):

@@ -1,0 +1,101 @@
+kit: issue-autopilot
+version: 0.1.0
+source: bamr87/bamr87 templates/issue-autopilot/
+seeded-by: .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/fanout.sh
+files: |
+  ENGINE (seeded to scripts/issues/):
+    triage.py, dispatch.py, verify_close.py,
+    test_verify_close.py, test_triage_engine.py
+  SKELETONS (seeded only when absent — hand-authored copies are never touched):
+    SKILL.template.md            -> .claude/skills/issue-triage/SKILL.md
+    issue-triager.template.md    -> .claude/agents/issue-triager.md
+    issue-resolver.template.md   -> .claude/agents/issue-resolver.md
+    issue-verifier.template.md   -> .claude/agents/issue-verifier.md
+  ARCHIVE (byte-identity basis for --upgrade; also the parity-test fixtures):
+    archive/triage-0.0.0-it-journey.py, archive/triage-0.0.0-zer0-mistakes.py,
+    archive/dispatch-0.0.0-fork.py, archive/verify_close-0.0.0-zer0-mistakes.py,
+    archive/test_verify_close-0.0.0-zer0-mistakes.py
+updated: 2026-09-10
+policy-boundary: |
+  THE ENGINE IS THE KIT'S. THE POLICY IS THE REPO'S.
+
+  Seeded (kit-owned, refreshed by --upgrade, improved upstream):
+    scripts/issues/*.py — classification math, batching, the OODA budget gate,
+    the verify-and-close gate, and the tests.
+
+  NEVER written by the kit (repo-owned, hand-edited):
+    .issues/config.yml   — dispositions, label namespace, limits,
+                           resolve_allow_globs, `features:` flags
+    .issues/budget.yml   — backpressure caps
+    .issues/README.md, .issues/reports/, .issues/worklists/
+
+  fanout.sh has no code path that writes any file under .issues/. That is the
+  boundary: a repo can adopt a newer engine without any risk to its policy, and
+  a policy change never needs an engine change. A bug in the engine is fixed
+  once, upstream; a misrouted issue is fixed in one repo's config.yml.
+
+  Corollary: DO NOT hand-edit a seeded scripts/issues/*.py. --upgrade refreshes
+  a file only when it is byte-identical to the current kit shape or an archived
+  one, so a local edit permanently strands that copy — which is exactly how the
+  two forks this kit replaces came to exist.
+changelog: |
+  0.1.0 — initial kit (FF-0018). Extracts the issue-triage engine that
+  bamr87/it-journey and bamr87/zer0-mistakes each maintained a fork of, into one
+  canonical engine seeded as an OPT-IN artifact (`--artifacts issue-autopilot`,
+  never in the default set).
+
+  MEASURED DIVERGENCE at extraction time (full diff, not an estimate):
+    dispatch.py — BYTE-IDENTICAL across both forks (17883 bytes each).
+    triage.py   — 78 added / 8 changed lines, all on the zer0-mistakes side,
+                  in three features:
+                    (a) the verify-and-close lane (`verify_candidate` flag,
+                        its count, the status line, the docstring),
+                    (b) `any_of` OR-groups in disposition matching,
+                    (c) the `skip` action -> a "Left alone (protected)" batch
+                        and its worklist section.
+    zer0-mistakes only: verify_close.py, test_verify_close.py.
+    it-journey only: nothing.
+
+  CORRECTION to the founding issue: batching is present in BOTH forks, textually
+  identical apart from (c). It was never a fork-exclusive feature, so nothing
+  about it needed reconciling and no flag was added for it.
+
+  CONVERGENCE RULE — a feature is flagged only when it CHANGES BEHAVIOUR for a
+  repo that has not asked for it:
+    (a) verify-and-close is FLAGGED (`features.verify_close`, default OFF). It
+        is the only path by which the autopilot ever closes a HUMAN-authored
+        issue; no repo may acquire it by adopting a kit. With the flag off the
+        engine emits no `verify_candidate` key and no `verify_candidates` count,
+        so plan.json is byte-identical to a pre-kit run rather than merely
+        equivalent.
+    (b) and (c) are UNCONDITIONAL. Both are inert unless a repo's config.yml
+        actually uses them (`any_of` in a match; `action: skip` on a
+        disposition), so flagging them would add a knob with no off-state
+        behaviour to protect. Proven by test_triage_engine.py.
+
+  ONE DELIBERATE GENERALIZATION: verify candidacy excluded
+  `disposition_id != "backlog-managed"` — one repo's disposition id baked into a
+  shared engine. The kit excludes `action != "skip"` instead, which selects
+  exactly the same issues under zer0-mistakes' config (its only `skip`
+  disposition IS `backlog-managed`) and keeps a renamed or additional protected
+  disposition protected. Covered by a test.
+
+  PARITY IS TESTED, NOT ASSERTED. Both pre-kit engines are archived verbatim,
+  and test_triage_engine.py runs them beside the canonical engine over the same
+  fixtures with each repo's real disposition rules, asserting plan.json AND the
+  rendered worklist Markdown are equal — lane off == it-journey, lane on ==
+  zer0-mistakes.
+notes: |
+  ADOPTION, per repo, is one fan-out plus at most one hand-edited line:
+    it-journey     --artifacts issue-autopilot --upgrade   (no config change:
+                   the lane defaults off, which is what it does today)
+    zer0-mistakes  --artifacts issue-autopilot --upgrade   plus `features:
+                   {verify_close: true}` in .issues/config.yml — the kit will
+                   not write it, by design.
+  Both forks' current engine bytes are in archive/, so --upgrade recognizes them
+  as machine seeds and converts them in place.
+
+  The four SKELETONS are additive-only and both repos already have hand-authored
+  skill/agent files, so a fan-out will NOT overwrite them. They exist for the
+  next repo to adopt the loop; they carry TODO(adopt) markers where per-repo
+  policy has to be filled in.
