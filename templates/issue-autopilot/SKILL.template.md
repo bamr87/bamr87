@@ -17,8 +17,7 @@ The single source of loop behavior for the __PROJECT_NAME__ issue autopilot, use
 The engine is seeded from the hub kit and is **not** where policy lives:
 
 - `.issues/config.yml` — THE policy file. Disposition rules, the label namespace,
-  `resolve_allow_globs`, per-run `limits`, and the `features:` flags. Repo-owned;
-  the kit never writes it.
+`resolve_allow_globs`, per-run `limits`, and the `features:` flags. Repo-owned; the kit never writes it.
 - `.issues/budget.yml` — the backpressure caps (`max_open_prs`, batch caps).
 - The repo's own agent context (`CLAUDE.md`, `AGENTS.md`,
   `.github/instructions/*`) — the autopilot inherits ALL of its non-negotiables.
