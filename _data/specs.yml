@@ -322,9 +322,9 @@ requirements:
     section: "`.claude/` baseline"
     level: MUST
     applies: [all]
-    requirement: "Hooks, skills, commands, agents, and agent memory are **repo-local** and never fanned out by default. Two sanctioned opt-in kit artifacts exist: `claude-guardrails` (`.claude/skills/_shared/quarantine.md`) and `claude-agent-auditor`."
+    requirement: "Hooks, skills, commands, agents, and agent memory are **repo-local** and never fanned out by default. Three sanctioned opt-in kit artifacts exist: `claude-guardrails` (`.claude/skills/_shared/quarantine.md`), `claude-agent-auditor`, and `issue-autopilot` (the issue-triage engine + its skill/agent skeletons; policy stays in each repo's `.issues/config.yml`, which the kit never writes)."
     satisfied_by: "kit VERSION 0.4.0 position"
-    seed: "`templates/agent-context/`"
+    seed: "`templates/agent-context/`, `templates/issue-autopilot/`"
     gap: false
   - id: UPS-AGENT-12
     area: AGENT

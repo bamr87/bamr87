@@ -24,7 +24,7 @@
 # Usage:
 #   tools/fanout.sh --kit standardize --target <name|all> [--apply] [--upgrade]
 #                   [--artifacts editorconfig,ci,conformance,agent-context,claude,claude-settings,
-#                    claude-guardrails,claude-agent-auditor]
+#                    claude-guardrails,claude-agent-auditor,issue-autopilot]
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
@@ -50,9 +50,15 @@
 #                  claude-agent-auditor   agent-auditor.template.md →
 #                                  .claude/agents/agent-auditor.md, only when
 #                                  no auditor-role agent exists (FF-0020)
-#                The three claude-* .claude artifacts are OPT-IN (never in the
-#                default set); other hooks/skills/commands/agents stay
-#                repo-local and never fan out.
+#                  issue-autopilot templates/issue-autopilot/ → the canonical
+#                                  issue-triage ENGINE (scripts/issues/*.py) +
+#                                  the issue-triage skill and triager/resolver/
+#                                  verifier agent skeletons (FF-0018). NEVER
+#                                  writes .issues/config.yml or budget.yml —
+#                                  engine in the kit, policy in the repo
+#                The three claude-* .claude artifacts and issue-autopilot are
+#                OPT-IN (never in the default set); other hooks/skills/commands/
+#                agents stay repo-local and never fan out.
 #                Seeded agent-context/claude files carry a `kit: agent-context
 #                vX.Y.Z` stamp (from templates/agent-context/VERSION).
 #   schema       branch chore/schema-adoption; delegates to
@@ -125,6 +131,7 @@ PROSE_VERSION="$(kit_version prose)"
 CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
 FB_VERSION="$(kit_version feedback)"
+IA_VERSION="$(kit_version issue-autopilot)"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -140,10 +147,12 @@ render_kit_template() {  # $1 template, $2 repo name, $3 default branch, $4 kit 
 # always left alone. Archived shapes live beside the template as
 # archive/<template-basename>-<version>[-<variant>].yml.
 machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 version
-  local f="$1" tpl="$2" dir base cand tmp
-  dir="$(dirname "$tpl")"; base="$(basename "$tpl" .yml)"
+  local f="$1" tpl="$2" dir base ext cand tmp
+  # Extension-derived, not hardcoded .yml: the issue-autopilot kit archives .py
+  # engine shapes. For a .yml template this is byte-for-byte the old behaviour.
+  dir="$(dirname "$tpl")"; ext="${tpl##*.}"; base="$(basename "$tpl" ".$ext")"
   tmp="$(mktemp)"
-  for cand in "$dir/archive/$base"-*.yml; do
+  for cand in "$dir/archive/$base"-*."$ext"; do
     [[ -f "$cand" ]] || continue
     render_kit_template "$cand" "$3" "$4" "$5" > "$tmp"
     if cmp -s "$f" "$tmp"; then rm -f "$tmp"; return 0; fi
@@ -152,10 +161,12 @@ machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 
   return 1
 }
 
-# Seed one templated workflow artifact, or report/refresh an existing copy.
+# Seed one templated artifact, or report/refresh an existing copy.
 # This is the single upgrade path for EVERY kit artifact: previously only
 # claude.yml could be upgraded, which is how the prose kit drifted two major
-# action versions behind the fleet unnoticed.
+# action versions behind the fleet unnoticed. Despite the name it is not
+# workflow-specific — machine_seeded() derives the archive extension from the
+# template, so .py engines and .md skeletons ride the same path.
 seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch, $6 version
   local label="$1" dest="$2" tpl="$3" name="$4" def="$5" ver="$6" stamp
   if [[ ! -f "$dest" ]]; then
@@ -263,6 +274,46 @@ seed_standardize() {
         "$HUB/templates/agent-context/agent-auditor.template.md" > .claude/agents/agent-auditor.md
     fi ;;
   esac
+  case ",$ARTIFACTS," in *,issue-autopilot,*)
+    seed_issue_autopilot "$name" "$def" ;;
+  esac
+}
+
+# Seed the OPT-IN issue-autopilot kit: the canonical issue-triage ENGINE plus the
+# skill/agent skeletons.
+#
+# THE POLICY BOUNDARY IS ENFORCED BY OMISSION: there is no line below that writes
+# any path under .issues/. config.yml (dispositions, labels, limits,
+# resolve_allow_globs, feature flags) and budget.yml are the repo's, permanently.
+# A repo can take a newer engine with zero risk to its routing policy, which is
+# the entire reason the engine was extracted. See templates/issue-autopilot/.
+seed_issue_autopilot() {  # cwd = target clone; $1 repo name, $2 default branch
+  local name="$1" def="$2" kit="$HUB/templates/issue-autopilot" f base
+  # The engine + its tests. Upgradeable: archive/ holds both pre-kit fork shapes,
+  # so a repo still on its own fork is converted in place rather than reported as
+  # hand-modified.
+  for base in triage dispatch verify_close test_verify_close test_triage_engine; do
+    seed_workflow_artifact "scripts/issues/${base}.py" "scripts/issues/${base}.py" \
+      "$kit/${base}.py" "$name" "$def" "$IA_VERSION"
+  done
+  # The skeletons. Additive-only in practice — there is no archive/ for them, so
+  # --upgrade can only ever match the current shape (a no-op). A hand-authored
+  # skill or agent is never touched.
+  seed_workflow_artifact ".claude/skills/issue-triage/SKILL.md" \
+    .claude/skills/issue-triage/SKILL.md \
+    "$kit/SKILL.template.md" "$name" "$def" "$IA_VERSION"
+  for f in issue-triager issue-resolver issue-verifier; do
+    seed_workflow_artifact ".claude/agents/${f}.md" ".claude/agents/${f}.md" \
+      "$kit/${f}.template.md" "$name" "$def" "$IA_VERSION"
+  done
+  # The one thing a human must still write. Say so loudly rather than seeding a
+  # default policy: a wrong disposition rule routes real issues wrongly, and the
+  # kit has no way to know this repo's labels, limits, or resolver boundary.
+  if [[ ! -f .issues/config.yml ]]; then
+    echo "issue-autopilot: NOTE — .issues/config.yml is absent and the kit never writes it."
+    echo "issue-autopilot:        The engine is inert until you add one (dispositions, labels,"
+    echo "issue-autopilot:        limits, resolve_allow_globs). See templates/issue-autopilot/README.md."
+  fi
 }
 
 seed_prose() {
