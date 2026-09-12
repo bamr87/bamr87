@@ -117,7 +117,21 @@ remediation:
   interactive_dispatch_pct: 60    # ≥ this % of runs hand-dispatched ⇒ its cost is a
                                   # debugging session, not standing fleet spend, so the
                                   # cost signals (and the priority fallback) don't apply
-  # The third guard reads the CLOCK, not the verdict. A workflow triggered rarely
+  # The third guard asks what the minutes BOUGHT. `slow` ranks on duration alone,
+  # so it cannot tell "long because wasteful" from "long because it is bounded,
+  # gated work deliberately moved off the PR path" — and a healthy workflow never
+  # changes, so it holds one of four slots every single cycle. That burned two of
+  # them on the same day: zer0-mistakes `nightly-extended.yml` (13m of Playwright
+  # smoke behind a skip gate that demonstrably works — 9s on an idle night) and
+  # it-journey `quest-fix-loop.yml` (~4–5m of agent time per fix PR delivered),
+  # both 100% scheduled, 100% green, 0.0m waste (bamr87/bamr87#258, #259). Like
+  # the two above and unlike `stale_after_days`, this SUPPRESSES: 100% success
+  # with zero recorded waste is positive evidence of health. Set above 100 to
+  # switch it off; 90 (rather than 100) tolerates an occasional manual re-run.
+  productive_schedule_pct: 90     # ≥ this % scheduled AND 100% green AND zero wasted
+                                  # minutes ⇒ bounded productive work, so the cost
+                                  # signals (and the priority fallback) don't apply
+  # The fourth guard reads the CLOCK, not the verdict. A workflow triggered rarely
   # (`issues: opened`, `workflow_dispatch`, a weekly cron) cannot clear its own
   # red: the only thing that would is a fresh green run nothing is going to
   # produce, so a resolved incident holds a slot forever (bamr87/bamr87#200 —
