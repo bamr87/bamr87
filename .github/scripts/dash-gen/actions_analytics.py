@@ -32,6 +32,16 @@ failures: `success_rate_pct` and the failing/flaky flags look only at runs that
 reached a verdict. Conflating the two made every workflow with a working
 `concurrency: cancel-in-progress` guard read as broken.
 
+The `cancel-heavy` flag needs the same distinction one level further in, on the
+MINUTES rather than the counts. A concurrency guard doing its job and genuine
+churn are indistinguishable by cancelled SHARE — both cancel most of their runs
+— and are opposites by cancelled COST. GitHub holds at most one pending run per
+group, so a supersession is cancelled seconds after creation having never
+started a job; a burst of 12 pushes collapsing into 1 real run costs ~3 min and
+SAVES ~16. Flagging that told the fleet-doctor to go "fix" three workflows whose
+guards were correct. So the flag now also requires the cancelled minutes to be
+material, both absolutely and against what a real run of that workflow costs.
+
 For the same reason a workflow with NO verdicts in the window — every run
 skipped by an `if:` gate — reports `success_rate_pct` / `effectiveness_pct` as
 `None`, not `0.0`: "no data" and "failed every run" are different states and
@@ -66,6 +76,16 @@ LOW_EFFECTIVENESS = 55     # < this % of minutes ending in success is "low value
 CANCEL_HEAVY_PCT = 25      # cancelled share above this is "cancel-heavy"
 CRON_HEAVY_PCT = 60        # scheduled share above this is "cron-heavy"
 MIN_WASTE_MIN = 4.0        # ignore trivial waste below this when flagging
+
+# Cost gate on `cancel-heavy`, applied on top of CANCEL_HEAVY_PCT. A cancelled
+# run must have burned a real share of a real run before its SHARE is allowed to
+# mean anything: supersessions die in seconds, so they clear neither test, while
+# a 20-minute build killed half-done clears both. Both halves are needed — the
+# ratio alone would flag a cheap workflow whose every run is cancelled at 60% of
+# its (tiny) average, and the absolute floor alone would flag a very busy one
+# accumulating minutes a few seconds at a time.
+CANCEL_MIN_WASTE_MIN = 4.0   # cancelled minutes below this are never "heavy"
+CANCEL_COST_RATIO = 0.5      # cancelled runs must average >= this share of avg_min
 
 # Non-success terminal conclusions whose minutes count as waste.
 WASTE_CONCLUSIONS = {"failure", "cancelled", "timed_out", "startup_failure"}
@@ -281,6 +301,9 @@ def collect_repo(gh, nwo: str, window_start: dt.datetime, max_runs: int) -> tupl
 # --------------------------------------------------------------------------- #
 def new_bucket() -> dict:
     return {"runs": 0, "total_min": 0.0, "success_min": 0.0, "waste_min": 0.0,
+            # cancel_min is a SUBSET of waste_min, split out so the cancel-heavy
+            # flag can ask what cancellation actually cost.
+            "cancel_min": 0.0,
             "success": 0, "failure": 0, "cancelled": 0, "other": 0,
             "durations": [], "events": {},
             "last_conclusion": None, "last_at": None}
@@ -309,6 +332,7 @@ def fold(bucket: dict, rec: dict) -> None:
         bucket["waste_min"] += m
         if c == "cancelled":
             bucket["cancelled"] += 1
+            bucket["cancel_min"] += m
         else:
             bucket["failure"] += 1
     else:
@@ -353,6 +377,10 @@ def workflow_record(b: dict, *, repo: str, repo_url: str | None,
         "avg_min": round(b["total_min"] / b["runs"], 2) if b["runs"] else 0.0,
         "p95_min": p95(b["durations"]),
         "waste_min": round(b["waste_min"], 1),
+        # The share of waste_min that was merely superseded. Published because
+        # "42% of runs cancelled" and "cancellation cost 2.5 of 84.7 minutes"
+        # are the two halves of the same fact, and only the second one is a cost.
+        "cancel_min": round(b["cancel_min"], 1),
         "runs_per_week": round(b["runs"] / weeks, 1),
         "success": b["success"], "failure": b["failure"], "cancelled": b["cancelled"],
         # Cancelled runs are EXCLUDED from the denominator: a superseded
@@ -478,7 +506,15 @@ def finalize(workflows, inactive, by_type, by_repo, by_day, days, scanned, now) 
             flags.append("flaky")
         if w["avg_min"] > SLOW_AVG_MIN:
             flags.append("slow")
-        if completed >= 4 and pct(w["cancelled"], completed) > CANCEL_HEAVY_PCT:
+        # Cancelled SHARE says a guard is firing; cancelled COST says whether
+        # that is a problem. Requiring both keeps a working `cancel-in-progress`
+        # guard — which saves far more minutes than the supersessions burn —
+        # out of a queue meant for workflows that need fixing.
+        cancel_min = w.get("cancel_min") or 0.0
+        cancel_run_min = cancel_min / w["cancelled"] if w["cancelled"] else 0.0
+        if (completed >= 4 and pct(w["cancelled"], completed) > CANCEL_HEAVY_PCT
+                and cancel_min >= CANCEL_MIN_WASTE_MIN
+                and cancel_run_min >= CANCEL_COST_RATIO * w["avg_min"]):
             flags.append("cancel-heavy")
         if w["runs"] >= 5 and w["sched_pct"] > CRON_HEAVY_PCT:
             flags.append("cron-heavy")
