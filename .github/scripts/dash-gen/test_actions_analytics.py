@@ -239,6 +239,65 @@ def case_owned_only_fleet_is_unchanged() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# defect 3 — cancel-heavy fired on working concurrency guards
+# --------------------------------------------------------------------------- #
+def flags_of(*records: dict) -> list[str]:
+    wf = workflow("bamr87/it-journey", False, *records)
+    actions_analytics.finalize([wf], [], {}, {}, {}, days=14, scanned=1, now=NOW)
+    return wf["flags"]
+
+
+def case_supersession_is_not_cancel_heavy() -> None:
+    """The three candidates the 2026-09-12 fleet-doctor queue was spent on.
+
+    All three had a CORRECT concurrency guard and zero defects; the flag read
+    their supersessions — runs cancelled 1-3s after creation, having never
+    started a job — as churn. FAILS on the pre-fix code, which looked only at
+    the cancelled share.
+    """
+    # bamr87/aieo CI: 13 success / 12 cancelled, 3.2 of 33.4 min cancelled.
+    # `cancel-in-progress: true` collapsed a 12-push burst on main into one run.
+    aieo = [rec(2.32, "success")] * 13 + [rec(0.27, "cancelled")] * 12
+    check("a push burst collapsed by cancel-in-progress is not cancel-heavy",
+          "cancel-heavy" not in flags_of(*aieo))
+
+    # it-journey content-auto-merge: 27 cancelled for 2.5 min, on a workflow
+    # that documents `cancel-in-progress: false` as the fix for issue #563.
+    automerge = [rec(2.4, "success")] * 34 + [rec(0.09, "cancelled")] * 27
+    check("pending-queue supersession is not cancel-heavy",
+          "cancel-heavy" not in flags_of(*automerge))
+
+    # it-journey issue-autopilot: 10 cancelled for 0.3 min — 18 seconds in 14d.
+    autopilot = [rec(0.8, "success")] * 21 + [rec(0.03, "cancelled")] * 10
+    check("a singleton loop's label-event supersessions are not cancel-heavy",
+          "cancel-heavy" not in flags_of(*autopilot))
+
+
+def case_real_cancellation_churn_still_flags() -> None:
+    """The guard must not blind the flag: long builds killed half-done are
+    exactly what `cancel-heavy` exists to catch, and still cost real minutes."""
+    churn = [rec(20.0, "success")] * 6 + [rec(14.0, "cancelled")] * 6
+    flags = flags_of(*churn)
+    check("builds cancelled mid-flight are still cancel-heavy",
+          "cancel-heavy" in flags)
+
+    # Same share, same per-run cost, but only seconds of it: below the absolute
+    # floor there is nothing to recover and nothing to fix.
+    trivial = [rec(0.02, "success")] * 6 + [rec(0.014, "cancelled")] * 6
+    check("a cheap workflow never trips the flag on ratio alone",
+          "cancel-heavy" not in flags_of(*trivial))
+
+
+def case_cancelled_minutes_are_published() -> None:
+    """`cancel_min` is what makes the flag auditable from the data file alone."""
+    wf = workflow("bamr87/aieo", False,
+                  rec(10.0, "success"), rec(3.0, "cancelled"), rec(2.0, "failure"))
+    check("cancelled minutes are published", wf["cancel_min"] == 3.0)
+    check("cancelled minutes stay a subset of waste",
+          wf["cancel_min"] <= wf["waste_min"] == 5.0)
+
+
+# --------------------------------------------------------------------------- #
 # published contract
 # --------------------------------------------------------------------------- #
 def case_note_documents_the_bounds() -> None:
@@ -264,6 +323,9 @@ def main() -> int:
                case_ordinary_runs_are_untouched,
                case_totals_range_over_one_population,
                case_owned_only_fleet_is_unchanged,
+               case_supersession_is_not_cancel_heavy,
+               case_real_cancellation_churn_still_flags,
+               case_cancelled_minutes_are_published,
                case_note_documents_the_bounds):
         fn()
 
