@@ -20,7 +20,7 @@ coverage: listed
 | `.github/` | dir | Actions control plane: drift gate, the daily/weekly loops, fan-outs, evolution prompts | terminal |
 | `_data/` | dir | Registries powering every dash surface — projects.yml is the source of truth | required |
 | `_reports/` | dir | Committed automation records — the daily repo-activity digests | generated |
-| `_site/` | dir | Jekyll build output | generated |
+| `_site/` | dir | Jekyll build output (includes `/api/v1/*.json` + `llms.txt` from `dash-gen machine-api`) | generated |
 | `assets/` | dir | Static site assets (structure owned by the zer0-mistakes theme) | terminal |
 | `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
