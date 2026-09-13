@@ -4,6 +4,19 @@
 
 Guidelines for AI coding agents working in the bamr87 monorepo — a self-managing **dash** (control plane) that manages ~40 Git submodules (docs sites, full-stack AI apps, VS Code extensions, dev tools, and content repos) from one registry-driven source of truth. See [`CLAUDE.md`](CLAUDE.md) and [`docs/DASH.md`](docs/DASH.md) for the architecture, and [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) for the AI surfaces and Claude auth; the authoritative project list is [`_data/projects.yml`](_data/projects.yml).
 
+## Machine API — start here (bots)
+
+Human dashboards (`/triage/`, `/monitor/`) are HTML. For prioritization, hit the static JSON surface published on every Pages deploy:
+
+1. [`/api/v1/index.json`](https://bamr87.github.io/bamr87/api/v1/index.json) — discovery + current top inbox hint
+2. [`/api/v1/fleet.json`](https://bamr87.github.io/bamr87/api/v1/fleet.json) — work `inbox[]` in order
+3. [`/api/v1/health.json`](https://bamr87.github.io/bamr87/api/v1/health.json) — per-repo red/amber/green (build-time)
+4. [`/llms.txt`](https://bamr87.github.io/bamr87/llms.txt) — plain-text discovery
+
+Emitted by `tools/dash-gen machine-api` (wired into `build-dash.yml` after Jekyll). Contract: `docs/MACHINE-API.md`.
+
+---
+
 ## ⚠️ Fresh Information First
 
 **Dependencies and APIs change constantly. Never work with stale knowledge.**
