@@ -1,7 +1,6 @@
 # Machine API
 
-Stable, agent-facing JSON published on GitHub Pages so bots can prioritize fleet
-work without scraping the Bootstrap dash.
+Stable, agent-facing JSON published on GitHub Pages so bots can prioritize fleet work without scraping the Bootstrap dash.
 
 **Start URL:** https://bamr87.github.io/bamr87/api/v1/index.json
 
@@ -18,8 +17,7 @@ Also: https://bamr87.github.io/bamr87/llms.txt
 | `/api/v1/issues.json` | `_data/issue_pipeline.yml` | Pipeline stages / caps |
 | `/llms.txt` | derived | Plain-text agent discovery |
 
-`schema_version` is currently `1.0`. Missing inputs emit `status: "degraded"` with
-a reason — never a hard build failure.
+`schema_version` is currently `1.0`. Missing inputs emit `status: "degraded"` with a reason — never a hard build failure.
 
 ## How bots should use it
 
@@ -37,8 +35,7 @@ Human mirrors: `/triage/`, `/monitor/`.
 python .github/scripts/dash-gen/dash_gen.py machine-api --out _site
 ```
 
-`build-dash.yml` runs this after `jekyll build` and before the Pages artifact
-upload. Outputs live under `_site/` only — they are **not** committed.
+`build-dash.yml` runs this after `jekyll build` and before the Pages artifact upload. Outputs live under `_site/` only — they are **not** committed.
 
 ## Tests
 
