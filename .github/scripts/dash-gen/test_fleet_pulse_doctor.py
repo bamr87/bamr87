@@ -49,8 +49,14 @@ REQUIRED_COMMANDS = ["gh", "git", "grep", "head", "tail", "cat", "ls", "mkdir", 
 # Step 2 is 2 reads (run log + workflow definition); Step 3b is clone, branch,
 # read, edit, commit, push, `gh pr create` — 7 more. That is an 11-turn floor
 # with zero margin for a wrong guess, and the run that exhausted its budget
-# averaged ~24 turns/candidate. 30 is that observed cost plus margin.
-MIN_TURNS_PER_CANDIDATE = 30
+# averaged ~24 turns/candidate.
+#
+# 30 was still under-modelled: run 34742995303 finished its 4-candidate queue
+# SUCCESSFULLY in 185 turns — 46 each — and the action failed the job for
+# crossing the 160 ceiling, discarding a completed pass. Diagnosis is not the
+# whole cost; the reads that rule a wrong hypothesis OUT are, and a cross-repo
+# candidate adds a clone and a push. 55 is the observed 46 plus that margin.
+MIN_TURNS_PER_CANDIDATE = 55
 
 CHECKS: list[tuple[str, bool]] = []
 
