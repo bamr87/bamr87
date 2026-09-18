@@ -345,6 +345,7 @@ jobs:
           claude_args: >-
             --model opus
             --max-turns 240
+            --max-budget-usd 40
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(jq:*),Bash(echo:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are the **fleet doctor** (Opus) for the bamr87 monorepo dash, the
