@@ -498,6 +498,25 @@ def linked_issue_numbers(pr_body: str) -> set[int]:
     return {int(m.group(2)) for m in CLOSES_RE.finditer(pr_body or "")}
 
 
+def first_n(paginated, limit: int):
+    """Yield at most `limit` items from a PyGithub PaginatedList.
+
+    Never slice one. `PaginatedList[:n]` returns a lazy `_Slice` whose
+    `_isBiggerThan(0)` is optimistically true before the first page is fetched,
+    so on an EMPTY result set it still indexes element 0 and raises
+    `IndexError: list index out of range`. A repo with zero open pull requests
+    is not an edge case in this fleet, and because the caller's `except
+    GithubException` does not catch IndexError the whole repo was dropped from
+    the sweep — its open ISSUES included. Counting while iterating keeps the
+    early exit (no extra page is fetched past the bound) without the trap; it is
+    the same idiom fleet_triage.py and daily_report.py already use.
+    """
+    for i, item in enumerate(paginated):
+        if i >= limit:
+            return
+        yield item
+
+
 def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | None, str]:
     """Inventory one repo's open issues + pipeline PRs.
 
@@ -542,7 +561,8 @@ def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | N
     # --- pipeline PRs first: an issue with an open PR is at T3, not T1 -------
     linked: dict[int, dict] = {}
     try:
-        for pr in repo.get_pulls(state="open", sort="updated", direction="desc")[:60]:
+        for pr in first_n(repo.get_pulls(state="open", sort="updated",
+                                         direction="desc"), 60):
             labels = [l.name for l in pr.labels]
             body = pr.body or ""
             nums = linked_issue_numbers(body)

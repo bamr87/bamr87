@@ -26,6 +26,12 @@ Subcommands:
            pricing-table, alias, or DEDUPE regression stops being silent.
            Reached as `dash ai check`. Implemented in ai_reconcile.py.
 
+  ai-run   Run `claude -p` under the dollar ceiling from _data/fleet.yml
+           (`budget.local_usd`) and record what it actually cost into the same
+           ledger's `runs` section, keyed by session id. `--max-turns` bounds
+           iterations, not spend; this is the spend bound. Reached as
+           `dash ai run -- <args>`. Implemented in ai_activity.py.
+
   remediate Merge the fleet's failing + expensive workflow signals into ONE
            ranked, deduped, capped fix queue and emit the work order that
            drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
@@ -441,6 +447,12 @@ def main(argv: list[str] | None = None) -> int:
         "ai", help="shadow-price local Claude Code usage -> ai_activity.yml (local-only)"
     )
     ai_activity.add_arguments(p_ai)
+
+    p_ai_run = sub.add_parser(
+        "ai-run",
+        help="run `claude -p` under a dollar cap, recording the run (`dash ai run`)",
+    )
+    ai_activity.add_run_arguments(p_ai_run)
 
     p_ai_check = sub.add_parser(
         "ai-check",
