@@ -545,6 +545,32 @@ def test_repo_schedule_load_is_order_independent():
     assert a == b, f"{a} != {b}"
 
 
+def test_trends_price_actions_from_the_billing_meter_when_present():
+    """The proxy ranks; the meter prices. This is the sensor for the phantom
+    287k-minute breach the proxy published in 2026-09 while GitHub billed ~24k."""
+    days = [{"date": f"2026-09-0{d}", "total_min": 9000.0} for d in range(1, 8)]   # proxy: ~274k/month
+    act = {"by_day": days, "billing": {
+        "days_elapsed": 5, "minutes_this_month": 6239.0, "run_rate_monthly": 37983.0,
+        "previous_month": "2026-08", "minutes_previous_month": 21891.0}}
+    t = hr.build_trends({}, act, CFG)["actions_minutes"]
+    assert t["source"] == "billing" and t["proxy_projected_monthly"] > 200000, t
+    # under a week of the month elapsed, the last FULL month is the projection
+    assert t["projected_monthly"] == 21891.0 and t["status"] == "ok", t
+    assert t["mom_delta_pct"] == 0.0
+    # a full week in: the run-rate takes over, and growth is month-over-month
+    act["billing"]["days_elapsed"] = 10
+    t = hr.build_trends({}, act, CFG)["actions_minutes"]
+    assert t["projected_monthly"] == 37983.0 and t["mom_delta_pct"] == 73.5, t
+    assert t["status"] == "growing", t["status"]
+    # the ceiling is judged on billed minutes, never on the proxy
+    tight = dict(CFG, budget={**CFG["budget"], "monthly_actions_minutes": 30000})
+    assert hr.build_trends({}, act, tight)["actions_minutes"]["status"] == "breach"
+    # an errored billing block leaves the proxy in charge, and says nothing about billing
+    act["billing"] = {"error": "403 scope"}
+    t = hr.build_trends({}, act, CFG)["actions_minutes"]
+    assert "source" not in t and t["projected_monthly"] > 200000
+
+
 # --------------------------------------------------------------------------- #
 def main() -> int:
     failures = 0

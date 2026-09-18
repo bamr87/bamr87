@@ -557,6 +557,40 @@ def _series_trend(series: list[tuple[str, float]], budget_monthly: float | None,
     return out
 
 
+def _apply_billing(trend: dict, billing: dict, budget_monthly, warn_pct: float) -> dict:
+    """Price Actions from GitHub's meter instead of the wall-clock proxy.
+
+    The proxy's projection is kept as `proxy_projected_monthly` so the two can
+    be compared on the page, but status is judged on billed minutes only: the
+    proxy once projected 287k min/month against ~24k billed and parked a
+    phantom `budget-breach` at the top of the attention queue for a fortnight
+    (2026-09 review). Projection = this month's run-rate once a week of it
+    exists, else the last full month; growth is month-over-month, since a
+    month is the meter's grain.
+    """
+    out = dict(trend)
+    out["proxy_projected_monthly"] = trend.get("projected_monthly")
+    out["source"] = "billing"
+    out["billed_this_month"] = billing.get("minutes_this_month")
+    out["billed_previous_month"] = billing.get("minutes_previous_month")
+    rate, prev = billing.get("run_rate_monthly"), billing.get("minutes_previous_month")
+    projected = rate if (rate is not None and (billing.get("days_elapsed") or 0) >= 7) else prev
+    if projected is None:
+        projected = rate
+    out["projected_monthly"] = round(projected, 2) if projected is not None else None
+    out["mom_delta_pct"] = (round(100.0 * (out["projected_monthly"] - prev) / prev, 1)
+                            if prev and out["projected_monthly"] is not None else None)
+    if out["projected_monthly"] is None:
+        out["status"] = "no-data"
+    elif budget_monthly is not None and out["projected_monthly"] > budget_monthly:
+        out["status"] = "breach"
+    elif out["mom_delta_pct"] is not None and out["mom_delta_pct"] > warn_pct:
+        out["status"] = "growing"
+    else:
+        out["status"] = "ok"
+    return out
+
+
 def build_trends(ai_usage: dict, actions_usage: dict, cfg: dict) -> dict:
     budget = cfg["budget"]
     ai_series = [
@@ -567,11 +601,16 @@ def build_trends(ai_usage: dict, actions_usage: dict, cfg: dict) -> dict:
         (str(r.get("date")), float(r.get("total_min") or 0))
         for r in actions_usage.get("by_day") or [] if isinstance(r, dict) and r.get("date")
     ]
+    actions = _series_trend(act_series, budget.get("monthly_actions_minutes"),
+                            budget["trend_warn_pct"])
+    billing = actions_usage.get("billing")
+    if isinstance(billing, dict) and not billing.get("error"):
+        actions = _apply_billing(actions, billing, budget.get("monthly_actions_minutes"),
+                                 budget["trend_warn_pct"])
     return {
         "ai_cost_usd": _series_trend(ai_series, budget.get("monthly_ai_usd"),
                                      budget["trend_warn_pct"]),
-        "actions_minutes": _series_trend(act_series, budget.get("monthly_actions_minutes"),
-                                         budget["trend_warn_pct"]),
+        "actions_minutes": actions,
     }
 
 
@@ -596,9 +635,12 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                 f"{t['budget_monthly']} {unit} ceiling",
                 "retune the loops' cadence/caps, or raise harnesses.budget in _data/fleet.yml")
         elif t.get("status") == "growing":
-            add(50, "cost-trend",
-                f"{label} grew {t['wow_delta_pct']}% week-over-week "
-                f"(last 7d: {t['last7']} {unit})",
+            if t.get("source") == "billing":
+                grew = (f"{t['mom_delta_pct']}% month-over-month (billed {t['billed_previous_month']} "
+                        f"{unit} last month, {t['projected_monthly']} {unit} projected)")
+            else:
+                grew = f"{t['wow_delta_pct']}% week-over-week (last 7d: {t['last7']} {unit})"
+            add(50, "cost-trend", f"{label} grew {grew}",
                 "check /harnesses/ trends and the actions/ai-usage boards for the driver")
 
     if throughput.get("fleet_over_cap"):

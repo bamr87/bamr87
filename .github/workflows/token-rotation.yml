@@ -60,7 +60,7 @@ name: 🔑 Token Rotation
 
 on:
   schedule:
-    - cron: '0 2 * * 1'   # weekly, Monday 02:00 UTC (_data/fleet.yml schedule.rotate_tokens)
+    - cron: '7 2 * * 1'   # weekly, Monday 02:07 UTC (_data/fleet.yml schedule.rotate_tokens)
   workflow_dispatch:
     inputs:
       apply:

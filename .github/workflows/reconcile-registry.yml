@@ -26,7 +26,7 @@ name: 🧭 Reconcile Registry
 
 on:
   schedule:
-    - cron: '0 5 * * *'   # daily 05:00 UTC, after refresh-dash (04:00)
+    - cron: '7 5 * * *'   # daily 05:07 UTC, after refresh-dash (04:07)
   workflow_dispatch:
     inputs:
       apply:
