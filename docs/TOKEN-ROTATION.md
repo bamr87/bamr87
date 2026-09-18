@@ -12,7 +12,7 @@ dash secrets rotate                  # what the weekly run would do (dry run)
 dash secrets rotate --apply          # do it
 ```
 
-Runs automatically every **Monday 02:00 UTC** (`schedule.rotate_tokens`).
+Runs automatically every **Monday 02:07 UTC** (`schedule.rotate_tokens`).
 
 ---
 
