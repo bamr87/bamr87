@@ -319,11 +319,18 @@ jobs:
           # per candidate (run log + workflow definition) and Step 3b costs 7
           # more (clone, branch, read, edit, commit, push, `gh pr create`) — an
           # 11-turn floor with zero margin. The run that died on `error_max_turns`
-          # averaged ~24 turns across 5 candidates and still did not finish. 160
-          # turns against a cap of 4 is 40 each: the observed cost plus margin
-          # for one wrong guess. Raising the cap without raising this re-creates
-          # the failure, which is why test_fleet_pulse_doctor.py asserts the
-          # arithmetic.
+          # averaged ~24 turns across 5 candidates and still did not finish.
+          #
+          # 160 (40/candidate) was still too low: run 34742995303 worked its
+          # 4-candidate queue to a SUCCESSFUL result in 185 turns — ~46 each —
+          # and the action failed the job anyway for crossing the ceiling, so a
+          # completed remediation pass was thrown away after $12.31 of billing.
+          # The floor is not the diagnosis, it is the diagnosis plus the reads
+          # that rule a hypothesis OUT: cross-repo candidates cost a clone and a
+          # push on top of it. 240 against a cap of 4 is 60 each — the observed
+          # 46 plus margin for one wrong guess per candidate. Raising the cap
+          # without raising this re-creates the failure, which is why
+          # test_fleet_pulse_doctor.py asserts the arithmetic.
           #
           # ALLOWLIST: the filters are not conveniences. Step 2 instructs a
           # `gh run view --log-failed` read, which emits thousands of lines and
@@ -337,8 +344,7 @@ jobs:
           # the two agree and that the cap clears `usd_per_turn * max-turns`.
           claude_args: >-
             --model opus
-            --max-turns 160
-            --max-budget-usd 25
+            --max-turns 240
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(jq:*),Bash(echo:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are the **fleet doctor** (Opus) for the bamr87 monorepo dash, the
