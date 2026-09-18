@@ -400,7 +400,7 @@ jobs:
           fi
           echo "budget_hit=${budget_hit}" >> "$GITHUB_OUTPUT"
           if [ "$budget_hit" = "true" ]; then
-            echo "::error::${TIER}: BUDGET CAP HIT — metered \$${cost} against a \$${BUDGET_USD} ceiling after ${turns} turn(s) (a priced estimate under subscription auth, not an invoice — see _data/fleet.yml `budget`). The agent was stopped MID-TASK and its work is probably partial. Raise \`budget.call_sites\` in _data/fleet.yml if this spend is legitimate, or shrink the queue."
+            echo "::error::${TIER}: BUDGET CAP HIT — metered \$${cost} against a \$${BUDGET_USD} ceiling after ${turns} turn(s) (a priced estimate under subscription auth, not an invoice — see _data/fleet.yml \`budget\`). The agent was stopped MID-TASK and its work is probably partial. Raise \`budget.call_sites\` in _data/fleet.yml if this spend is legitimate, or shrink the queue."
             {
               echo ""
               echo "> **⛔ Budget cap hit.** \$${cost} of a \$${BUDGET_USD} ceiling, ${turns} turn(s)."
