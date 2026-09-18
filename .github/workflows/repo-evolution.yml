@@ -46,7 +46,8 @@ name: 🌿 Repo Evolution
 
 on:
   schedule:
-    - cron: '0 9 * * 1'   # weekly, Monday 09:00 UTC — after the daily 06:00/08:00 agent loops
+    - cron: '37 10 * * 1' # weekly, Monday 10:37 UTC — after the daily 05:37/07:37 agent loops,
+                          # in an hour no fleet repo schedules an agent (see fleet.yml schedule:)
   workflow_dispatch:
     inputs:
       target:
@@ -79,6 +80,12 @@ jobs:
   # ========================================================================= #
   plan:
     name: Plan targets & briefs
+    # Kill switch (house convention, fleet.yml harnesses:): a scheduled firing
+    # is a no-op once the repo variable REPO_EVOLUTION_ENABLED is set to 'false' —
+    # disarmed without a commit, and a manual dispatch still runs so the
+    # loop can be exercised while it is off. Default-ON because the switch
+    # was added to a loop already in service; a new loop starts default-OFF.
+    if: ${{ github.event_name != 'schedule' || vars.REPO_EVOLUTION_ENABLED != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
