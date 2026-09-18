@@ -118,3 +118,18 @@ The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/mark
 | `markdown-oneline.yml` | CI gate enforcing one-paragraph-per-line markdown (`__DEFAULT_BRANCH__` substituted); the fan-out also vendors the Liquid-safe `tools/unwrap-prose.py` and runs a one-time unwrap (SCHEMA.md/CHANGELOG.md skipped) |
 
 Placeholders use the `__NAME__` convention and are replaced by the tools via `sed`.
+
+## `ux-audit/`
+
+OPT-IN continuous UX audit kit (spec: [`specs/FRONTEND.md`](../specs/FRONTEND.md) UPS-FE-53/60, docs: [`docs/UX-HARNESS.md`](../docs/UX-HARNESS.md)). Seeded only when requested via `tools/fanout.sh --kit ux-audit` — never in the default standardize set.
+
+| File | Purpose |
+| --- | --- |
+| `VERSION` | kit provenance + changelog |
+| `ux.manifest.example.yml` | leaf `ux.yml` example (surfaces, personas, preview) |
+| `scripts/ux_audit.py` | portable UPS-FE-60 R1–R13 gate (stdlib) |
+| `scripts/collect_evidence.mjs` | Playwright + axe evidence collector MVP |
+| `workflows/ux-gate.yml` | leaf PR gate |
+| `prompts/` | specialist critique prompts for the hub loop |
+| `AGENT_PROMPT.md` | how a coding agent consumes an evidence bundle |
+

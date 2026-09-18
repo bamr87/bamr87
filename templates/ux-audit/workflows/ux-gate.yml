@@ -1,0 +1,60 @@
+# Seeded to .github/workflows/ux-gate.yml — computational UX gate (UPS-FE-53/60).
+# OPT-IN kit. Fails on findings from scripts/ux_audit.py; axe evidence is advisory
+# unless the leaf sets fail_on: any in ux.yml.
+name: ux-gate
+
+on:
+  pull_request:
+    paths:
+      - "**/*.css"
+      - "**/*.scss"
+      - "**/*.html"
+      - "**/*.jsx"
+      - "**/*.tsx"
+      - "**/*.vue"
+      - "**/*.svelte"
+      - "ux.yml"
+      - "scripts/ux_audit.py"
+      - "scripts/collect_evidence.mjs"
+      - ".github/workflows/ux-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  r-rules:
+    name: UPS-FE-60 R-rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run portable UX audit
+        run: |
+          roots="."
+          if [ -f ux.yml ]; then
+            # optional: respect audit.roots later; default repo root
+            true
+          fi
+          python3 scripts/ux_audit.py --root .
+
+  evidence:
+    name: Collect axe evidence (non-blocking MVP)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install collector peers
+        run: npm i -D playwright @axe-core/playwright js-yaml && npx playwright install --with-deps chromium
+      - name: Collect evidence against live or preview URL
+        env:
+          UX_BASE_URL: ${{ vars.UX_BASE_URL }}
+        run: node scripts/collect_evidence.mjs --out evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ux-evidence
+          path: evidence/
+          if-no-files-found: ignore
