@@ -49,40 +49,15 @@ Copy this shape verbatim into any new workflow (it is what `claude.yml` uses):
 
 ## Spend guardrails
 
-**`--max-turns` bounds iterations, not spend.** One turn against a large context
-can outspend thirty small ones, which is why a turn cap is not a budget: six
-scheduled loops ran for months turn-capped and dollar-uncapped (bamr87#128).
+**`--max-turns` bounds iterations, not spend.** One turn against a large context can outspend thirty small ones, which is why a turn cap is not a budget: six scheduled loops ran for months turn-capped and dollar-uncapped (bamr87#128).
 
-Every `anthropics/claude-code-action` call site therefore also passes
-`--max-budget-usd`. The ceiling is declared once in
-[`_data/fleet.yml`](../_data/fleet.yml) `budget:` — `usd_per_turn` (the
-derivation rule), `default_usd`, `local_usd` (for `dash ai run`), and
-`call_sites`, keyed `<workflow file>:<job id>`. A `claude_args` string cannot
-read YAML, so the number is necessarily written twice;
-`.github/scripts/dash-gen/test_ai_budget.py` asserts that the two copies agree,
-that no call site is missing a cap, and that each cap clears
-`usd_per_turn × --max-turns`. **Adding a new Claude call site without a cap
-fails that test.**
+Every `anthropics/claude-code-action` call site therefore also passes `--max-budget-usd`. The ceiling is declared once in [`_data/fleet.yml`](../_data/fleet.yml) `budget:` — `usd_per_turn` (the derivation rule), `default_usd`, `local_usd` (for `dash ai run`), and `call_sites`, keyed `<workflow file>:<job id>`. A `claude_args` string cannot read YAML, so the number is necessarily written twice; `.github/scripts/dash-gen/test_ai_budget.py` asserts that the two copies agree, that no call site is missing a cap, and that each cap clears `usd_per_turn × --max-turns`. **Adding a new Claude call site without a cap fails that test.**
 
-A cap is a **circuit breaker, not a target**. A budget abort stops the agent
-*mid-task* — worse than a turn overshoot, which at least stops at a boundary —
-so caps are set at roughly 1.5× a full run's observed spend, and hitting one is
-reported as an `::error::` plus a job-summary block naming the cap and the
-spend, never a silent truncation. Read the current table with
-`dash config show budget`.
+A cap is a **circuit breaker, not a target**. A budget abort stops the agent *mid-task* — worse than a turn overshoot, which at least stops at a boundary — so caps are set at roughly 1.5× a full run's observed spend, and hitting one is reported as an `::error::` plus a job-summary block naming the cap and the spend, never a silent truncation. Read the current table with `dash config show budget`.
 
-Cost is reported on **every** run, not only failures. Each call site's
-`Report Claude run cost` step reads `${RUNNER_TEMP}/claude-execution-output.json`
-and writes spend / cap / turns to the job summary; it used to sit behind
-`if: failure()`, so a green run — the common case, and the one whose spend
-accumulates unnoticed — printed nothing. The durable record still belongs to
-`ai_usage_collector.py` and `fleet_lake.py`; the step is a readout, not a third
-parser.
+Cost is reported on **every** run, not only failures. Each call site's `Report Claude run cost` step reads `${RUNNER_TEMP}/claude-execution-output.json` and writes spend / cap / turns to the job summary; it used to sit behind `if: failure()`, so a green run — the common case, and the one whose spend accumulates unnoticed — printed nothing. The durable record still belongs to `ai_usage_collector.py` and `fleet_lake.py`; the step is a readout, not a third parser.
 
-Locally, `tools/dash ai run -- <args>` is the same guardrail: it wraps
-`claude -p --output-format json` at `budget.local_usd` and records the run's
-billed cost into the ledger's `runs` section
-([schema](../.github/scripts/dash-gen/README.md#run-record-schema)).
+Locally, `tools/dash ai run -- <args>` is the same guardrail: it wraps `claude -p --output-format json` at `budget.local_usd` and records the run's billed cost into the ledger's `runs` section ([schema](../.github/scripts/dash-gen/README.md#run-record-schema)).
 
 ## The loops
 
