@@ -71,11 +71,16 @@ jobs:
           fi
 
       - name: Run Claude Code evolution pass
+        id: evolve
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
-          claude_args: "--max-turns 30"
+          # DOLLAR CAP: `--max-turns` bounds iterations, not spend — one turn on
+          # a large context can outspend thirty small ones. Declared in
+          # _data/fleet.yml `budget.call_sites` and repeated here because
+          # `claude_args` is a literal; test_ai_budget.py asserts they agree.
+          claude_args: "--max-turns 30 --max-budget-usd 10"
           prompt: |
             You are running the hub's self-evolution pass on bamr87/bamr87 — the
             control plane for a fleet of ~35 submodule repos. Read CLAUDE.md first;
@@ -99,6 +104,86 @@ jobs:
 
             If DRY RUN is true, make NO file changes — write your findings and the
             change you would have made to the job summary instead.
+
+      # This workflow was the one Claude call site capturing NO cost at all —
+      # no `id:`, no cost step, no artifact, so a dispatched pass left no
+      # record of what it spent. Same shape as fleet-pulse / issue-pipeline /
+      # repo-evolution, and reported on success as well as failure: a green run
+      # is the common case and the one whose spend goes unnoticed.
+      - name: Report Claude run cost
+        if: ${{ !cancelled() }}
+        env:
+          TIER: Hub evolution
+          ICON: 🧬
+          BUDGET_USD: '10'
+          STEP_OUTCOME: ${{ steps.evolve.outcome }}
+        run: |
+          log="${RUNNER_TEMP}/claude-execution-output.json"
+          result=""
+          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+          if [ -z "$result" ]; then
+            if [ "$STEP_OUTCOME" = "failure" ]; then
+              echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
+            fi
+            exit 0
+          fi
+          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
+          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
+          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
+          subtype=$(printf '%s' "$result" | jq -r '.subtype // ""')
+          is_error=$(printf '%s' "$result" | jq -r '.is_error // false')
+          pct=$(awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { printf "%d", (b + 0 > 0) ? (c / b) * 100 : 0 }')
+          {
+            echo "### ${ICON} ${TIER} — run cost"
+            echo ""
+            echo "| spend | cap | used | turns | models |"
+            echo "| ---: | ---: | ---: | ---: | ---: |"
+            echo "| \$${cost} | \$${BUDGET_USD} | ${pct}% | ${turns} | ${models} |"
+            echo ""
+            echo "Cap from \`_data/fleet.yml\` \`budget.call_sites\`. Subscription auth bills nothing per token — this is shadow accounting, not an invoice."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          budget_hit=false
+          case "$subtype" in *budget*) budget_hit=true ;; esac
+          if [ "$is_error" = "true" ] && awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { exit !(b + 0 > 0 && c + 0 >= b + 0) }'; then
+            budget_hit=true
+          fi
+          if [ "$budget_hit" = "true" ]; then
+            echo "::error::${TIER}: BUDGET CAP HIT — \$${cost} against a \$${BUDGET_USD} ceiling after ${turns} turn(s). The agent was stopped MID-TASK and its work is probably partial. Raise \`budget.call_sites\` in _data/fleet.yml if this spend is legitimate, or narrow the focus."
+            {
+              echo ""
+              echo "> **⛔ Budget cap hit.** \$${cost} of a \$${BUDGET_USD} ceiling, ${turns} turn(s)."
+              echo "> The run was aborted mid-task, so its work is probably partial."
+              echo "> Raise \`budget.call_sites\` in \`_data/fleet.yml\` or narrow the focus."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          [ "$STEP_OUTCOME" = "failure" ] || exit 0
+          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+            {
+              echo ""
+              echo "**Claude credential rejected.** No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
+              echo "The secret is present — the \`Require Claude auth\` step only tests that — but the API refused it."
+              echo ""
+              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
+          fi
+
+      # The raw result record, kept for 14 days. `dash lake sync` reads costs
+      # out of run LOGS, which GitHub expires; this is the one call site with no
+      # other durable trace, so the JSON itself is retained.
+      - name: Upload the Claude result JSON
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-execution-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Open a pull request with the changes
         if: ${{ !inputs.dry_run }}

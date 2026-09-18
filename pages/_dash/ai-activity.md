@@ -11,6 +11,8 @@ sidebar:
 
 Claude Code usage across **every repo touched from this machine**, shadow-priced at Anthropic API list rates from the local session ledger (`~/.claude/projects/`). Generated locally by `tools/dash ai` and **never committed** — spend data stays on your machine unless you deliberately publish it.
 
+Two accountings live here and are deliberately kept apart. The tables below are **estimates** at list prices, derived from session transcripts. [Headless runs](#headless-runs-dash-ai-run) are **billed costs** the CLI reported for itself under `tools/dash ai run`'s dollar cap. A headless run leaves a transcript too, so the same spend appears in both — they are never summed.
+
 {% assign ai = site.data.ai_activity %}
 {% if ai == nil %}
 <div class="alert alert-info">
@@ -91,6 +93,52 @@ add rates to <code>.github/scripts/dash-gen/ai_activity.py</code>.
   </tbody>
 </table>
 </div>
+
+## Headless runs (`dash ai run`)
+
+{% assign hl = ai.headless %}
+{% if hl == nil or hl.count == 0 %}
+<div class="alert alert-secondary">
+No headless runs recorded. <code>tools/dash ai run -- &lt;args&gt;</code> wraps
+<code>claude -p</code> with the dollar ceiling from <code>_data/fleet.yml</code>
+(<code>budget.local_usd</code>) and records what each run actually cost.
+</div>
+{% else %}
+
+<div class="alert alert-info">
+<strong>Billed, not estimated.</strong> {{ hl.note }}
+</div>
+
+<div class="row text-center my-3">
+  <div class="col-md-4 col-6 mb-3"><div class="card"><div class="card-body"><h2>${{ hl.window_billed_cost_usd | round: 2 }}</h2><div class="text-muted">Billed, last {{ ai.window_days }}d</div></div></div></div>
+  <div class="col-md-4 col-6 mb-3"><div class="card"><div class="card-body"><h2>${{ hl.billed_cost_usd | round: 2 }}</h2><div class="text-muted">Billed, all time</div></div></div></div>
+  <div class="col-md-4 col-12 mb-3"><div class="card"><div class="card-body"><h2>{{ hl.count }}</h2><div class="text-muted">Recorded runs</div></div></div></div>
+</div>
+
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+  <thead>
+    <tr>
+      <th>When</th><th>Repo</th><th>Billed</th><th>Turns</th>
+      <th>Models</th><th>Source</th><th>Session</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in hl.runs %}
+    <tr>
+      <td>{{ r.timestamp | slice: 0, 16 }}</td>
+      <td>{{ r.repo }}</td>
+      <td>${{ r.billed_cost_usd | round: 4 }}</td>
+      <td>{{ r.turns }}</td>
+      <td><small>{{ r.models | join: ", " }}</small></td>
+      <td><small><code>{{ r.source }}</code></small></td>
+      <td><small class="text-muted">{{ r.session_id | slice: 0, 8 }}{% if r.also_in_scan %} <span class="badge bg-secondary" title="This session's transcript is also counted in the estimates above — the two numbers are the same spend measured twice, never added">also estimated</span>{% endif %}</small></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
 
 ## Last 14 days
 

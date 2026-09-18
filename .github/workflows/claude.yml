@@ -55,3 +55,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          # The one HUMAN-triggered call site, so there is no turn cap to size
+          # against — but a mention is unattended spend the moment the person
+          # who wrote it walks away, which is the same exposure as a cron. The
+          # ceiling is deliberately generous; it is a circuit breaker, not a
+          # budget. Declared in _data/fleet.yml `budget.call_sites`, asserted
+          # against this literal by test_ai_budget.py.
+          claude_args: "--max-budget-usd 20"

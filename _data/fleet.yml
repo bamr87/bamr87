@@ -339,6 +339,59 @@ evolution:
     max_prs: 5
 
 # --------------------------------------------------------------------------- #
+# Budget — the dollar ceiling on a single headless agent invocation.
+#
+# `--max-turns` bounds ITERATIONS, not spend, and the two are not the same
+# quantity: one turn against a large context can outspend thirty small ones.
+# Every Claude loop above therefore also carries `--max-budget-usd`, declared
+# here so one edit reaches all of them, and asserted against the workflows by
+# test_ai_budget.py — a cap that lives only in a `claude_args` string drifts
+# from the one in this file the first time somebody edits one of them.
+#
+# A cap is a CIRCUIT BREAKER, not a target. The `evolution.max_turns` comment
+# above records what a tight bound costs: two agents finished their work, were
+# billed $3.51 and $2.85, overshot the cap, and had the whole result thrown
+# away. The same failure mode is worse in dollars, because a budget abort
+# stops mid-task rather than at a turn boundary. So these are set at roughly
+# 1.5x the observed spend of a full run, and a cap being hit is reported as an
+# `::error::` — the loop asking to be looked at, not a routine outcome.
+#
+# Read with `dash config show budget`. Values are per INVOCATION: one job, or
+# for a matrix loop (repo-evolution) one matrix leg.
+# --------------------------------------------------------------------------- #
+budget:
+  # Derivation rule, not a billing rate. Opus against these prompts has cost
+  # ~$0.06/turn (repo-evolution: $3.51 over 61 turns) to ~$0.10/turn
+  # (fleet-pulse doctor: $11.71 over 121 turns). 0.15 is the high observation
+  # plus 50% margin; every cap below must clear `usd_per_turn * max_turns`,
+  # which is what test_ai_budget.py checks.
+  usd_per_turn: 0.15
+
+  # Fallback for a call site not named below, and the default enforced by
+  # `dash ai run` for local headless invocations.
+  default_usd: 10
+  local_usd: 5
+
+  # Per call site, keyed `<workflow file>:<job id>`. Every
+  # `anthropics/claude-code-action` step in .github/workflows/ must appear
+  # here and must pass the matching `--max-budget-usd` — the test fails the
+  # drift gate on a new call site that forgets one, which is the only reason
+  # this stays honest as loops are added.
+  call_sites:
+    fleet-pulse.yml:doctor: 25            # 160 turns · observed $11.71 for a 5-candidate queue
+    issue-pipeline.yml:tier1: 40          # 250 turns · intake, evidence-heavy reads
+    issue-pipeline.yml:tier2: 60          # 400 turns · implement — clone, edit, test, PR
+    issue-pipeline.yml:tier3: 60          # 400 turns · complete — CI iteration is the long tail
+    repo-evolution.yml:evolve: 20         # 120 turns PER MATRIX LEG (evolution.max_turns)
+    unified-evolution.yml:evolve: 10      # 30 turns · dispatch-only hub pass
+    schema-fanout.yml:agent-fill: 10      # 25 turns · fills scaffold TODOs
+    standardize-fanout.yml:agent-fill: 8  # 15 turns · fills a CLAUDE.md scaffold
+    # The @claude mention handler is the one HUMAN-triggered call site, so it
+    # has no turn cap to derive from. It gets a generous ceiling anyway: a
+    # runaway mention is still unattended spend once the human walks away.
+    claude.yml:claude: 20
+
+# --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.
 #
 # The control plane's self-observation contract (docs/HARNESS.md). The four

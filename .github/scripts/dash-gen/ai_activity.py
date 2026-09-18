@@ -23,6 +23,16 @@ answers the pilot question "what would this cost on standard API pricing?":
           committed; costs are estimates at API list prices, and publishing
           your own spend is an explicit opt-in, not a default).
 
+It also owns the other half of local AI accounting, `dash ai run`:
+
+  run     wrap `claude -p --output-format json` with the dollar ceiling from
+          _data/fleet.yml `budget.local_usd`, then record the run's OWN
+          reported cost — `total_cost_usd`, straight from the CLI, not an
+          estimate — into a `runs` section of the same ledger, keyed by
+          session id. Headless runs are reported as their own table and are
+          NEVER added to the scan-derived estimates above: both halves see the
+          same session, so summing them would double-count it.
+
 Local-only by design: the data source is this machine's ~/.claude, so unlike
 `health` this subcommand is NOT part of `dash-gen all` and never runs in CI.
 """
@@ -34,6 +44,8 @@ import json
 import os
 import platform
 import re
+import shutil
+import subprocess
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -46,6 +58,7 @@ except ImportError:  # pragma: no cover
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = REPO_ROOT / "_data" / "projects.yml"
+FLEET = REPO_ROOT / "_data" / "fleet.yml"
 OUT_DEFAULT = REPO_ROOT / "_data" / "ai_activity.yml"
 LEDGER_DEFAULT = Path(
     os.environ.get("DASH_AI_LEDGER", "~/.claude/ai-activity-ledger.json")
@@ -99,7 +112,26 @@ MODEL_ALIASES = {
 DATE_SUFFIX = re.compile(r"-20\d{6}$")
 
 USAGE_FIELDS = ("input", "output", "cache_5m", "cache_1h", "cache_read", "turns")
+
+# The ledger version is NOT bumped by the addition of the `runs` section, and
+# that is deliberate. `merge_ledger` discards the WHOLE prior ledger when the
+# version does not match, so a bump here would silently throw away every day of
+# history the moment this landed — for a purely additive key. `runs` is read
+# with a default instead: a v1 ledger written before this existed simply gains
+# an empty section on its next merge. Bump only for a change that makes old
+# data WRONG, and write a migration when you do.
 LEDGER_VERSION = 1
+
+# One record per headless `dash ai run`, keyed by session id in the ledger's
+# `runs` section. Ordered as it is documented in dash-gen/README.md.
+RUN_FIELDS = (
+    "timestamp", "machine", "repo", "session_id",
+    "models", "usage", "total_cost_usd", "source",
+)
+
+# Fallback ceiling for `dash ai run` when _data/fleet.yml is unreadable (the
+# wrapper must still be usable from a checkout that has no registry).
+BUDGET_FALLBACK_USD = 5.0
 
 
 # --------------------------------------------------------------------------- #
@@ -293,21 +325,42 @@ def scan(projects_dir: Path, machine: str) -> tuple[dict, dict, set[str]]:
 # --------------------------------------------------------------------------- #
 # ledger: persistence across Claude Code's transcript cleanup
 # --------------------------------------------------------------------------- #
-def merge_ledger(ledger_path: Path, usage: dict, sessions: dict) -> dict:
-    """Max-merge scan results into the ledger file; return the merged ledger.
+def load_ledger(ledger_path: Path) -> dict:
+    """Read the ledger, tolerating absence, corruption, and a missing `runs`.
 
-    A day's tokens only grow while its transcripts exist and only shrink when
-    Claude Code prunes them — so per-key max preserves the true daily total.
+    `runs` defaults rather than being required, so a v1 ledger written before
+    the headless wrapper existed keeps all of its history — see LEDGER_VERSION.
     """
-    ledger = {"version": LEDGER_VERSION, "usage": {}, "sessions": {}}
+    ledger = {"version": LEDGER_VERSION, "usage": {}, "sessions": {}, "runs": {}}
     try:
         with ledger_path.open() as fh:
             prior = json.load(fh)
         if isinstance(prior, dict) and prior.get("version") == LEDGER_VERSION:
             ledger["usage"] = prior.get("usage", {})
             ledger["sessions"] = prior.get("sessions", {})
+            ledger["runs"] = prior.get("runs", {})
     except (OSError, json.JSONDecodeError):
         pass
+    return ledger
+
+
+def save_ledger(ledger_path: Path, ledger: dict) -> None:
+    """Stamp and write the ledger atomically."""
+    ledger["updated_at"] = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = ledger_path.with_suffix(".tmp")
+    with tmp.open("w") as fh:
+        json.dump(ledger, fh, separators=(",", ":"))
+    tmp.replace(ledger_path)
+
+
+def merge_ledger(ledger_path: Path, usage: dict, sessions: dict) -> dict:
+    """Max-merge scan results into the ledger file; return the merged ledger.
+
+    A day's tokens only grow while its transcripts exist and only shrink when
+    Claude Code prunes them — so per-key max preserves the true daily total.
+    """
+    ledger = load_ledger(ledger_path)
 
     for key, row in usage.items():
         old = ledger["usage"].setdefault(key, dict.fromkeys(USAGE_FIELDS, 0))
@@ -316,12 +369,23 @@ def merge_ledger(ledger_path: Path, usage: dict, sessions: dict) -> dict:
     for key, ids in sessions.items():
         ledger["sessions"][key] = sorted(set(ledger["sessions"].get(key, [])) | ids)
 
-    ledger["updated_at"] = dt.datetime.now().astimezone().isoformat(timespec="seconds")
-    ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = ledger_path.with_suffix(".tmp")
-    with tmp.open("w") as fh:
-        json.dump(ledger, fh, separators=(",", ":"))
-    tmp.replace(ledger_path)
+    save_ledger(ledger_path, ledger)
+    return ledger
+
+
+def record_run(ledger_path: Path, record: dict) -> dict:
+    """Merge ONE headless run record into the ledger's `runs` section.
+
+    Keyed by `session_id`, so re-running the wrapper against the same session
+    (`--resume`) updates that record rather than appending a second one: the
+    CLI's `total_cost_usd` is cumulative for the session, and two rows would be
+    two charges for one conversation. A run the CLI gave no session id for
+    falls back to a timestamp key — still one row, just not deduplicable.
+    """
+    ledger = load_ledger(ledger_path)
+    key = record.get("session_id") or f"unknown-{record['timestamp']}"
+    ledger["runs"][key] = {f: record.get(f) for f in RUN_FIELDS}
+    save_ledger(ledger_path, ledger)
     return ledger
 
 
@@ -339,6 +403,60 @@ def cost_usd(model: str, row: dict) -> float:
         + row["cache_1h"] * p["in"] * CACHE_1H_MULT
         + row["cache_read"] * p["in"] * CACHE_READ_MULT
     ) / 1_000_000
+
+
+def _headless_section(ledger: dict, window_start: str) -> dict:
+    """The `dash ai run` table, kept SEPARATE from the scan-derived estimates.
+
+    Every number here is the CLI's own `total_cost_usd` — a reported cost, not
+    a shadow price off the PRICING table. The two accountings deliberately
+    overlap: a headless run leaves a transcript that `scan()` also reads. That
+    is precisely why they are never summed, and why each row carries
+    `also_in_scan` so a reader can see which sessions are counted twice if they
+    try. Acceptance criterion: "never blended into interactive-session
+    estimates."
+    """
+    scanned: set[str] = set()
+    for ids in (ledger.get("sessions") or {}).values():
+        scanned.update(ids)
+
+    rows = []
+    for key, rec in (ledger.get("runs") or {}).items():
+        sid = rec.get("session_id") or key
+        ts = str(rec.get("timestamp") or "")
+        usage = rec.get("usage") or {}
+        rows.append({
+            "session_id": sid,
+            "timestamp": ts,
+            "machine": rec.get("machine"),
+            "repo": rec.get("repo"),
+            "models": rec.get("models") or [],
+            "billed_cost_usd": round(float(rec.get("total_cost_usd") or 0.0), 4),
+            "turns": usage.get("turns", 0),
+            "tokens": {
+                "input": usage.get("input", 0),
+                "output": usage.get("output", 0),
+                "cache_write": usage.get("cache_write", 0),
+                "cache_read": usage.get("cache_read", 0),
+            },
+            "source": rec.get("source") or "dash ai run",
+            "also_in_scan": sid in scanned,
+        })
+    rows.sort(key=lambda r: r["timestamp"], reverse=True)
+    in_window = [r for r in rows if r["timestamp"][:10] >= window_start]
+
+    return {
+        "note": (
+            "Billed cost as reported by `claude -p --output-format json`, not a "
+            "shadow price. Headless runs also leave a transcript the scan above "
+            "reads, so these totals are NOT additive with the estimates — they "
+            "are the same spend, measured two ways."
+        ),
+        "count": len(rows),
+        "billed_cost_usd": round(sum(r["billed_cost_usd"] for r in rows), 2),
+        "window_billed_cost_usd": round(sum(r["billed_cost_usd"] for r in in_window), 2),
+        "runs": rows[:50],
+    }
 
 
 def _bucket() -> dict:
@@ -465,6 +583,7 @@ def build_report(ledger: dict, machine: str, window_days: int) -> dict:
             }
             for d in last14
         ],
+        "headless": _headless_section(ledger, window_start),
         "repos": sorted(
             (repo_entry(n, b) for n, b in repos.items()),
             key=lambda r: (-r["window_est_cost_usd"], -r["est_cost_usd"]),
@@ -530,6 +649,223 @@ def run(args: argparse.Namespace) -> int:
             f"  ! unpriced models (counted, $0): {', '.join(report['unpriced_models'])}\n"
         )
     return 0
+
+
+# --------------------------------------------------------------------------- #
+# `dash ai run` — the capped headless wrapper
+# --------------------------------------------------------------------------- #
+def load_local_budget() -> float:
+    """The dollar ceiling for a local headless run, from _data/fleet.yml.
+
+    `budget.local_usd`, falling back to `budget.default_usd`, falling back to
+    BUDGET_FALLBACK_USD — the wrapper has to stay usable from a checkout with
+    no registry, and a missing config must not mean "no cap at all".
+    """
+    try:
+        with FLEET.open() as fh:
+            fleet = yaml.safe_load(fh) or {}
+    except (OSError, yaml.YAMLError):
+        return BUDGET_FALLBACK_USD
+    budget = fleet.get("budget") if isinstance(fleet, dict) else None
+    if isinstance(budget, dict):
+        for key in ("local_usd", "default_usd"):
+            value = budget.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+                return float(value)
+    return BUDGET_FALLBACK_USD
+
+
+def result_record(stdout: str) -> dict | None:
+    """The LAST `type: "result"` object in `claude -p --output-format json`.
+
+    Accepts the three shapes the CLI has emitted: a bare result object, an
+    array of stream records, and JSONL. Returns None when there is no result
+    record at all — which is a real outcome (the process died before the model
+    answered), not an error to swallow.
+    """
+    def _results(value) -> list[dict]:
+        if isinstance(value, dict):
+            if value.get("type") == "result":
+                return [value]
+            return []
+        if isinstance(value, list):
+            return [r for item in value for r in _results(item)]
+        return []
+
+    stdout = stdout.strip()
+    if not stdout:
+        return None
+    try:
+        found = _results(json.loads(stdout))
+    except json.JSONDecodeError:
+        found = []
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                found.extend(_results(json.loads(line)))
+            except json.JSONDecodeError:
+                continue
+    return found[-1] if found else None
+
+
+# claude-code-action and the CLI have both spelled these fields more than one
+# way. Read every spelling rather than guessing: a miss here is a silent zero
+# in the ledger, which reads exactly like a free run.
+_TOKEN_KEYS = {
+    "input": ("inputTokens", "input_tokens", "input"),
+    "output": ("outputTokens", "output_tokens", "output"),
+    "cache_write": (
+        "cacheCreationInputTokens", "cache_creation_input_tokens", "cacheWriteTokens",
+    ),
+    "cache_read": (
+        "cacheReadInputTokens", "cache_read_input_tokens", "cacheReadTokens",
+    ),
+}
+
+
+def usage_from_result(result: dict) -> dict:
+    """Token totals across every model in the result's `modelUsage`."""
+    usage = dict.fromkeys(_TOKEN_KEYS, 0)
+    model_usage = result.get("modelUsage")
+    if isinstance(model_usage, dict):
+        for per_model in model_usage.values():
+            if not isinstance(per_model, dict):
+                continue
+            for field, keys in _TOKEN_KEYS.items():
+                for key in keys:
+                    value = per_model.get(key)
+                    if isinstance(value, int):
+                        usage[field] += value
+                        break
+    usage["turns"] = result.get("num_turns") or 0
+    return usage
+
+
+def models_from_result(result: dict) -> list[str]:
+    model_usage = result.get("modelUsage")
+    if not isinstance(model_usage, dict):
+        return []
+    return sorted({normalize_model(m) or m for m in model_usage})
+
+
+def budget_was_hit(result: dict, budget: float) -> bool:
+    """Did `--max-budget-usd` stop this run?
+
+    Two tests, because the abort's `subtype` is not a documented contract: the
+    subtype naming the budget, or a FAILED run that reached the ceiling. The
+    second alone would misread an ordinary failure that happened to be
+    expensive, so it is gated on `is_error`.
+    """
+    if "budget" in str(result.get("subtype") or "").lower():
+        return True
+    cost = float(result.get("total_cost_usd") or 0.0)
+    return bool(result.get("is_error")) and budget > 0 and cost >= budget
+
+
+def run_headless(args: argparse.Namespace) -> int:
+    """Run `claude -p` under a dollar cap and record what it cost.
+
+    The cap is the point: `--max-turns` bounds iterations, not spend, so a
+    local script looping over repos has had no ceiling at all. Everything else
+    here is bookkeeping around it.
+    """
+    budget = args.max_budget_usd if args.max_budget_usd is not None else load_local_budget()
+    if budget <= 0:
+        sys.stderr.write("--max-budget-usd must be greater than 0\n")
+        return 2
+
+    claude = shutil.which(args.claude_bin)
+    if not claude:
+        sys.stderr.write(
+            f"{args.claude_bin} not found on PATH — install Claude Code first "
+            "(npm install -g @anthropic-ai/claude-code)\n"
+        )
+        return 127
+
+    passthrough = list(args.claude_args or [])
+    if passthrough and passthrough[0] == "--":
+        passthrough = passthrough[1:]
+    if any(a == "--max-budget-usd" for a in passthrough):
+        sys.stderr.write(
+            "refusing to run: --max-budget-usd passed through to claude. The cap "
+            "is this wrapper's job — set it with `dash ai run --max-budget-usd`.\n"
+        )
+        return 2
+
+    cmd = [claude, "-p", "--output-format", "json",
+           "--max-budget-usd", f"{budget:g}", *passthrough]
+    sys.stderr.write(f"  $ {' '.join(cmd)}\n  cap: ${budget:,.2f}\n")
+    if args.dry_run:
+        return 0
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if proc.stderr:
+        sys.stderr.write(proc.stderr)
+
+    result = result_record(proc.stdout)
+    if result is None:
+        sys.stdout.write(proc.stdout)
+        sys.stderr.write(
+            "! no result record in the CLI's output — nothing recorded to the "
+            "ledger. The run is still whatever claude's exit code says it is.\n"
+        )
+        return proc.returncode or 1
+
+    cost = float(result.get("total_cost_usd") or 0.0)
+    record = {
+        "timestamp": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "machine": platform.node().split(".")[0] or "local",
+        "repo": repo_for(os.getcwd()),
+        "session_id": result.get("session_id"),
+        "models": models_from_result(result),
+        "usage": usage_from_result(result),
+        "total_cost_usd": round(cost, 6),
+        "source": args.source,
+    }
+    ledger_path = Path(args.ledger)
+    record_run(ledger_path, record)
+
+    sys.stdout.write(str(result.get("result") or ""))
+    if not str(result.get("result") or "").endswith("\n"):
+        sys.stdout.write("\n")
+
+    sys.stderr.write(
+        f"  {record['repo']} · {record['usage']['turns']} turn(s) · "
+        f"${cost:,.4f} of ${budget:,.2f} "
+        f"({(cost / budget * 100) if budget else 0:.0f}%) · "
+        f"session {record['session_id'] or 'unknown'}\n"
+        f"  recorded to {ledger_path}\n"
+    )
+
+    # A budget abort is LOUD. It stops the agent mid-task, so a silent exit 0
+    # would hand back partial work as if it were finished.
+    if budget_was_hit(result, budget):
+        sys.stderr.write(
+            f"! BUDGET CAP HIT — ${cost:,.4f} against a ${budget:,.2f} ceiling. "
+            "The run was stopped MID-TASK and its output is probably partial. "
+            "Raise `budget.local_usd` in _data/fleet.yml or pass "
+            "--max-budget-usd.\n"
+        )
+        return proc.returncode or 2
+    return proc.returncode
+
+
+def add_run_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--max-budget-usd", type=float, default=None, metavar="USD",
+                        help="dollar ceiling (default: budget.local_usd in _data/fleet.yml)")
+    parser.add_argument("--ledger", default=str(LEDGER_DEFAULT), metavar="PATH",
+                        help=f"persistent ledger (default: {LEDGER_DEFAULT})")
+    parser.add_argument("--source", default="dash ai run", metavar="LABEL",
+                        help="how this run was invoked, recorded on the ledger entry")
+    parser.add_argument("--claude-bin", default="claude", metavar="BIN",
+                        help="Claude Code executable (default: claude)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="print the command and the cap, run nothing")
+    parser.add_argument("claude_args", nargs=argparse.REMAINDER, metavar="-- ARGS",
+                        help="everything after `--` is passed to `claude -p`")
+    parser.set_defaults(func=run_headless)
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:

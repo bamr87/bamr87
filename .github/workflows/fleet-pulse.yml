@@ -305,6 +305,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Diagnose & fix
+        id: fix
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
         uses: anthropics/claude-code-action@v1
         env:
@@ -329,9 +330,15 @@ jobs:
           # is unusable without a pipe — and a pipeline is matched per segment,
           # so `Bash(gh:*)` does NOT cover the command on the right of the `|`.
           # Without them the agent burned 36 of 121 turns on DENIED calls.
+          #
+          # DOLLAR CAP: `--max-turns` bounds iterations, not spend. The ceiling
+          # is declared in _data/fleet.yml `budget.call_sites` and repeated
+          # here because `claude_args` is a literal; test_ai_budget.py asserts
+          # the two agree and that the cap clears `usd_per_turn * max-turns`.
           claude_args: >-
             --model opus
             --max-turns 160
+            --max-budget-usd 25
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(jq:*),Bash(echo:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are the **fleet doctor** (Opus) for the bamr87 monorepo dash, the
@@ -421,44 +428,88 @@ jobs:
               workflow look green. Fix the cause or file an issue.
             - Be specific and technical. No boilerplate.
 
-      # `claude-code-action` surfaces a rejected credential as a bare
-      # `is_error: true` with NO message, so the annotation reads "Claude
-      # execution failed" and names nothing. That is how an expired
-      # CLAUDE_CODE_OAUTH_TOKEN kept this job red from 2026-08-17 to 08-24
-      # without anyone being told which secret to rotate. The result record
-      # does carry the tell: a credential rejected at the first API call
-      # bills nothing, so `total_cost_usd == 0` AND an empty `modelUsage`
-      # means the model was never actually reached — as opposed to a genuine
-      # agent failure, which always has usage against it. Classify it here so
-      # the next expiry costs one run instead of eight days.
-      - name: Diagnose Claude failure
-        if: ${{ failure() && env.HAS_CLAUDE_AUTH == 'true' }}
+      # Cost ALWAYS, plus two classifications when the step went red.
+      #
+      # This step was `Diagnose Claude failure`, gated on `failure()`, so a
+      # GREEN run — the common case, and the one whose spend accumulates
+      # unnoticed — reported no dollar figure at all. The extraction is
+      # unchanged; only the guard moved. It is not a new cost pipeline:
+      # ai_usage_collector.py and fleet_lake.py still own the durable record
+      # in _data/ai_usage.yml and the lake. This is the per-run readout.
+      #
+      # (a) BUDGET ABORT. `--max-budget-usd` stops the agent MID-TASK, which
+      #     otherwise looks exactly like any other failed step. Read from the
+      #     subtype when the CLI names it, and from "failed at or above the
+      #     cap" when it does not — the abort subtype is not a contract.
+      # (b) REJECTED CREDENTIAL. `claude-code-action` surfaces one as a bare
+      #     `is_error: true` with NO message, so the annotation reads "Claude
+      #     execution failed" and names nothing. That is how an expired
+      #     CLAUDE_CODE_OAUTH_TOKEN kept this job red from 2026-08-17 to
+      #     08-24 without anyone being told which secret to rotate. The tell:
+      #     a credential refused at the first API call bills nothing, so
+      #     `total_cost_usd == 0` AND an empty `modelUsage` means the model
+      #     was never reached — a genuine agent failure always has usage.
+      - name: Report Claude run cost
+        if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
+        env:
+          TIER: Fleet doctor
+          ICON: 🩺
+          BUDGET_USD: '25'
+          STEP_OUTCOME: ${{ steps.fix.outcome }}
         run: |
           log="${RUNNER_TEMP}/claude-execution-output.json"
-          if [ ! -f "$log" ]; then
-            echo "::warning::Claude failed before writing an execution log — check the step output directly."
-            exit 0
-          fi
-          result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
+          result=""
+          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
           if [ -z "$result" ]; then
-            echo "::warning::No result record in the Claude execution log — check the step output directly."
+            if [ "$STEP_OUTCOME" = "failure" ]; then
+              echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
+            fi
             exit 0
           fi
           cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
           models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
           turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
-          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
-            echo "::error::Claude was never reached: 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+          subtype=$(printf '%s' "$result" | jq -r '.subtype // ""')
+          is_error=$(printf '%s' "$result" | jq -r '.is_error // false')
+          pct=$(awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { printf "%d", (b + 0 > 0) ? (c / b) * 100 : 0 }')
+          {
+            echo "### ${ICON} ${TIER} — run cost"
+            echo ""
+            echo "| spend | cap | used | turns | models |"
+            echo "| ---: | ---: | ---: | ---: | ---: |"
+            echo "| \$${cost} | \$${BUDGET_USD} | ${pct}% | ${turns} | ${models} |"
+            echo ""
+            echo "Cap from \`_data/fleet.yml\` \`budget.call_sites\`. Subscription auth bills nothing per token — this is shadow accounting, not an invoice."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          budget_hit=false
+          case "$subtype" in *budget*) budget_hit=true ;; esac
+          if [ "$is_error" = "true" ] && awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { exit !(b + 0 > 0 && c + 0 >= b + 0) }'; then
+            budget_hit=true
+          fi
+          if [ "$budget_hit" = "true" ]; then
+            echo "::error::${TIER}: BUDGET CAP HIT — \$${cost} against a \$${BUDGET_USD} ceiling after ${turns} turn(s). The agent was stopped MID-TASK and its work is probably partial. Raise \`budget.call_sites\` in _data/fleet.yml if this spend is legitimate, or shrink the queue."
             {
-              echo "### 🩺 Fleet doctor — Claude credential rejected"
               echo ""
-              echo "The agent made **no billed API call** (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
+              echo "> **⛔ Budget cap hit.** \$${cost} of a \$${BUDGET_USD} ceiling, ${turns} turn(s)."
+              echo "> The run was aborted mid-task, so its work is probably partial."
+              echo "> Raise \`budget.call_sites\` in \`_data/fleet.yml\` or shrink the queue."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          [ "$STEP_OUTCOME" = "failure" ] || exit 0
+          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
+            {
+              echo ""
+              echo "**Claude credential rejected.** No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
               echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
               echo ""
               echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\` in this repo, then run \`token-rotation.yml\` to propagate it to the fleet."
             } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::Claude ran ($turns turn(s), \$$cost billed) and still failed — this is an agent/tooling failure, not an auth failure."
+            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not an auth failure."
           fi
 
       - name: Summary
