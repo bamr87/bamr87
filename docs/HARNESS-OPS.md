@@ -82,6 +82,8 @@ Crossing a ceiling → a `budget-breach` attention item; growing faster than `tr
 
 ## The local stack
 
+> **Cockpit direction:** [COCKPIT.md](./COCKPIT.md) — Gitorio is the one-stop local operator UI; this stack is the engine (dash jobs, lake, Phoenix). Pages stays the static projection. The Harness Console on :4001 remains the allowlisted job bridge until Gitorio absorbs its tabs.
+
 The local stack is what runs on the bench: **three services and a database**, all fed by the same `tools/` entrypoints CI runs, so nothing here is a second implementation of anything.
 
 ```text
