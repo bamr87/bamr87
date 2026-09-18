@@ -173,7 +173,7 @@
   title: "Per-run AI cost ledger and --max-budget-usd guardrails for headless agent invocations"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
-  status: approved
+  status: in-progress
   priority: P1
   effort: M
   category: infra
