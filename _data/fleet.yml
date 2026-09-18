@@ -682,3 +682,23 @@ variables:
   RUBY_VERSION: "3.3"
   FLEET_HUB: bamr87/bamr87
   FLEET_CI_WORKFLOW: bamr87/.github/.github/workflows/ci.yml@main
+
+# --------------------------------------------------------------------------- #
+# UX audit harness — templates/ux-audit/ (OPT-IN kit; see docs/UX-HARNESS.md)
+# Computational gates run in leaf repos. Hub critique is capped here and is
+# draft-PR only when enabled. Keep schedules away from crowded UTC hours.
+# --------------------------------------------------------------------------- #
+ux_audit:
+  kit: ux-audit
+  enabled: false          # flip when hub critique workflow ships
+  schedule: "0 15 * * 1"  # Mondays 15:00 UTC — adjust via dash config
+  throughput:
+    max_repos_per_run: 3
+    max_surfaces_per_repo: 8
+  budget:
+    max_agent_usd_per_run: 5
+  policy:
+    require_evidence: true
+    never_merge: true
+    fail_leaf_gate_on: new   # new R-rule fingerprints / new axe ids
+

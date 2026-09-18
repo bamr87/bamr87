@@ -44,7 +44,14 @@
 #                            via _data/standards.yml; set only to override.
 #                            The standardization baseline per tier lives in
 #                            _data/standards.yml; the audit is `tools/dash audit`.
-#   auto_evolve    bool      opt-in to the weekly repo-evolution loop
+#   ux             optional  UX-audit harness scope (templates/ux-audit/). Sub-keys:
+                             enabled: bool (default true when live_url set & not archived)
+                             tier: active|experiment|content
+                             surfaces: [{url, role}] optional hub-side overrides
+                             personas: [string] optional
+                             preview: {command, ready_url} documented for leaf gates
+                             baselines: none|visual|journey
+  auto_evolve    bool      opt-in to the weekly repo-evolution loop
 #                            (.github/workflows/repo-evolution.yml): a Claude Code pass
 #                            opens a DRAFT PR in this repo's own upstream. Submodules
 #                            only — the planner refuses external upstreams and archived
@@ -142,6 +149,14 @@
   featured: true
   maintained: true
   live_url: https://it-journey.dev
+  ux:
+    enabled: true
+    tier: active
+    surfaces:
+      - url: https://it-journey.dev/
+        role: home
+    baselines: none
+
   docs_url: https://it-journey.dev
   schema:
     status: none
@@ -176,6 +191,14 @@
   featured: true
   maintained: true
   live_url: https://zer0-mistakes.com
+  ux:
+    enabled: true
+    tier: active
+    surfaces:
+      - url: https://zer0-mistakes.com/
+        role: home
+    baselines: none
+
   docs_url: https://zer0-mistakes.com
   release:
     engine: release-please
@@ -237,6 +260,14 @@
   featured: true
   maintained: true
   live_url: https://barodybroject.com
+  ux:
+    enabled: true
+    tier: active
+    surfaces:
+      - url: https://barodybroject.com/
+        role: home
+    baselines: none
+
   docs_url: null
   schema:
     status: none
@@ -474,6 +505,14 @@
   featured: false
   maintained: true
   live_url: https://bamr87.github.io
+  ux:
+    enabled: true
+    tier: content
+    surfaces:
+      - url: https://bamr87.github.io/
+        role: home
+    baselines: none
+
   docs_url: null
   schema:
     status: none
@@ -491,6 +530,14 @@
   featured: false
   maintained: true
   live_url: https://lifehacker.dev
+  ux:
+    enabled: true
+    tier: active
+    surfaces:
+      - url: https://lifehacker.dev/
+        role: home
+    baselines: none
+
   docs_url: null
   schema:
     status: none
@@ -605,6 +652,14 @@
   featured: false
   maintained: true
   live_url: https://bamr87.github.io/cv/
+  ux:
+    enabled: true
+    tier: content
+    surfaces:
+      - url: https://bamr87.github.io/cv/
+        role: home
+    baselines: none
+
   docs_url: null
   schema:
     status: none
@@ -711,6 +766,14 @@
   featured: false
   maintained: true
   live_url: https://bamr87.github.io/rewind-arcade/
+  ux:
+    enabled: true
+    tier: experiment
+    surfaces:
+      - url: https://bamr87.github.io/rewind-arcade/
+        role: home
+    baselines: none
+
   docs_url: null
   schema:
     status: none
@@ -745,6 +808,14 @@
   featured: false
   maintained: true
   live_url: https://bamr87.github.io/irony-works/
+  ux:
+    enabled: true
+    tier: content
+    surfaces:
+      - url: https://bamr87.github.io/irony-works/
+        role: home
+    baselines: none
+
   docs_url: null
   schema:
     status: none
@@ -805,5 +876,13 @@
   featured: false
   maintained: true
   live_url: https://tt-a1i.github.io/archify/
+  ux:
+    enabled: true
+    tier: experiment
+    surfaces:
+      - url: https://tt-a1i.github.io/archify/
+        role: home
+    baselines: none
+
   docs_url: https://tt-a1i.github.io/archify/guide.html
   license: MIT
