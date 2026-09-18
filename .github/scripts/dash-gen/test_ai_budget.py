@@ -145,6 +145,78 @@ def check_workflows(fleet: dict) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# what a cap DOES when it binds
+# --------------------------------------------------------------------------- #
+def cost_steps() -> dict[str, dict]:
+    """`<workflow file>:<job id>` -> the `Report Claude run cost` step."""
+    found: dict[str, dict] = {}
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        if "Report Claude run cost" not in text:
+            continue
+        workflow = yaml.safe_load(text)
+        for job_id, job in (workflow.get("jobs") or {}).items():
+            for step in job.get("steps") or []:
+                if str(step.get("name", "")) == "Report Claude run cost":
+                    found[f"{path.name}:{job_id}"] = step
+    return found
+
+
+def check_abort_contract() -> None:
+    """A cap that binds must CHANGE something, not just annotate.
+
+    `::error::` writes an annotation; it does not fail a step, and a green job
+    runs every `success()`-gated step after it. So an abort that exits 0 with
+    truncated work published a pull request that read like a completed pass.
+    Three properties close that, and each is asserted here because all three
+    are invisible until the day a cap actually binds:
+
+      * the cost step FAILS on a budget hit (`dash ai run` already exits 1 —
+        the same event must not have two different verdicts);
+      * it publishes `budget_hit` as a step OUTPUT, so a publishing step can
+        gate on the cap rather than on the action's undocumented exit code;
+      * it echoes the result record into the RUN LOG, because that log is what
+        ai_usage_collector.py scrapes for `total_cost_usd` — if an abort's
+        record never lands there, the runs that hit the cap are exactly the
+        ones missing from the fleet's cost ledger.
+    """
+    steps = cost_steps()
+    check("`Report Claude run cost` steps were found (a zero here means the "
+          "scan broke, not that the fleet is clean)", len(steps) > 0)
+
+    for site, step in sorted(steps.items()):
+        body = str(step.get("run") or "")
+        check(f"{site}: the cost step has `id: cost` so its verdict is readable",
+              step.get("id") == "cost")
+        check(f"{site}: publishes `budget_hit` to $GITHUB_OUTPUT",
+              'budget_hit=${budget_hit}" >> "$GITHUB_OUTPUT"' in body)
+        check(f"{site}: echoes the result record into the run log for the "
+              f"cost collector", "claude-run-result" in body)
+
+        # The budget branch must end in a non-zero exit. Match the branch
+        # itself rather than the file, so an `exit 0` elsewhere cannot satisfy
+        # this and a future edit that softens it fails here.
+        branch = re.search(
+            # YAML strips a block scalar's common indentation, so match the
+            # branch's closing `fi` at whatever column it lands on.
+            r'if \[ "\$budget_hit" = "true" \]; then(.*?)\n *fi\b',
+            body, re.S)
+        check(f"{site}: a budget hit FAILS the step (exit 1, not an annotation "
+              f"alone)", bool(branch) and re.search(r"\bexit 1\b", branch.group(1)))
+
+    # The two workflows that publish a PR from the agent's working tree must
+    # gate on that output. Everywhere else the agent opens its own PR, so a
+    # red job is the whole signal.
+    for name, job_id in (("unified-evolution.yml", "evolve"),
+                         ("repo-evolution.yml", "evolve")):
+        text = (WORKFLOWS / name).read_text(encoding="utf-8")
+        check(f"{name}: the publishing step reads `steps.cost.outputs.budget_hit`",
+              "steps.cost.outputs.budget_hit" in text)
+        check(f"{name}: a budget-truncated PR says so in its body",
+              "BUDGET_HIT" in text and "MID-TASK" in text)
+
+
+# --------------------------------------------------------------------------- #
 # the `runs` ledger section
 # --------------------------------------------------------------------------- #
 V1_FIXTURE = {
@@ -294,6 +366,7 @@ def check_wrapper() -> None:
 def main() -> int:
     fleet = yaml.safe_load(FLEET.read_text(encoding="utf-8"))
     check_workflows(fleet)
+    check_abort_contract()
     check_ledger()
     check_wrapper()
 

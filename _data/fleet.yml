@@ -360,6 +360,16 @@ evolution:
 # for a matrix loop (repo-evolution) one matrix leg.
 # --------------------------------------------------------------------------- #
 budget:
+  # WHAT A CAP MEANS DEPENDS ON THE AUTH MODE, and this fleet runs both.
+  # Every call site is OAuth-first (CLAUDE_CODE_OAUTH_TOKEN preferred,
+  # ANTHROPIC_API_KEY fallback - docs/AI-INTEGRATION.md), so in the normal case
+  # `total_cost_usd` is a PRICED ESTIMATE of what the same work would have cost
+  # on the API, not an amount anyone is billed: under a subscription the cap is
+  # a THROUGHPUT ceiling. It is a true spend ceiling only where the API key is
+  # in use. Both are worth having - a runaway agent is a problem either way -
+  # but nothing downstream should present these numbers as an invoice, and the
+  # abort annotation says so explicitly.
+  #
   # Derivation rule, not a billing rate. Opus against these prompts has cost
   # ~$0.06/turn (repo-evolution: $3.51 over 61 turns) to ~$0.10/turn
   # (fleet-pulse doctor: $11.71 over 121 turns). 0.15 is the high observation
