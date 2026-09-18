@@ -1,8 +1,6 @@
 # templates/ux-audit/
 
-Fleet UX audit kit — the computational floor + evidence bundle for continuous
-UI/UX review across bamr87 repos. Named as the gap in
-[`specs/FRONTEND.md`](../../specs/FRONTEND.md) (UPS-FE-53, UPS-FE-60).
+Fleet UX audit kit — the computational floor + evidence bundle for continuous UI/UX review across bamr87 repos. Named as the gap in [`specs/FRONTEND.md`](../../specs/FRONTEND.md) (UPS-FE-53, UPS-FE-60).
 
 ## Roles
 
@@ -31,8 +29,7 @@ tools/fanout.sh --kit ux-audit --target gaps --dry-run
 tools/fanout.sh --kit ux-audit --target it-journey   # example leaf
 ```
 
-Selection for `gaps`: registry entries with `ux.enabled: true` (or
-`kinds` ∩ {site,app,ext} and `live_url` set) that lack a seeded stamp.
+Selection for `gaps`: registry entries with `ux.enabled: true` (or `kinds` ∩ {site,app,ext} and `live_url` set) that lack a seeded stamp.
 
 ## Leaf quick start
 
@@ -48,5 +45,4 @@ Selection for `gaps`: registry entries with `ux.enabled: true` (or
 
 ## Reference
 
-App-specific deeper rules (shell/scroller contracts, LSAT parity, …) live in
-`bamr87/law-ai` `scripts/ux_audit.py`. This kit stays portable on purpose.
+App-specific deeper rules (shell/scroller contracts, LSAT parity, …) live in `bamr87/law-ai` `scripts/ux_audit.py`. This kit stays portable on purpose.
