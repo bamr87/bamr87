@@ -403,7 +403,9 @@ budget:
   # drift gate on a new call site that forgets one, which is the only reason
   # this stays honest as loops are added.
   call_sites:
-    fleet-pulse.yml:doctor: 25            # 160 turns · observed $11.71 for a 5-candidate queue
+    fleet-pulse.yml:doctor: 40            # 240 turns · observed $11.71 over 121 turns (~$0.10/turn),
+                                          # so ~$23 expected at this cap; 40 clears the
+                                          # usd_per_turn floor (0.15 x 240 = 36) with margin
     issue-pipeline.yml:tier1: 40          # 250 turns · intake, evidence-heavy reads
     issue-pipeline.yml:tier2: 60          # 400 turns · implement — clone, edit, test, PR
     issue-pipeline.yml:tier3: 60          # 400 turns · complete — CI iteration is the long tail
