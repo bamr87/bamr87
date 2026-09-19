@@ -84,7 +84,7 @@ Everything else at the root is developer-environment plumbing: linting, formatti
 | `.devcontainer/` | VS Code / Codespaces dev container definition — likely the quickest path to a working environment. | inferred |
 | `docker-compose.yml` | Container services for local development. | inferred — read the file for the actual service names |
 | `.vscode/` | Shared VS Code settings for this workspace. | inferred |
-| `home.code-workspace` | A VS Code multi-root workspace file. | inferred |
+| `home.code-workspace` | Consolidated VS Code multi-root workspace (dash plus related clones). | inferred |
 | `.editorconfig` | Cross-editor whitespace/encoding rules. | verified (standard format) |
 | `.prettierrc`, `.prettierignore` | Prettier formatting config and exclusions. | verified (standard names) |
 | `.pre-commit-config.yaml` | `pre-commit` framework hook definitions. | verified (standard name) |
@@ -196,7 +196,7 @@ The evidence for "Jekyll site" is in the root: a `Gemfile`, `_config.yml`, `_con
 | `.env.example` | Template for local environment variables. Copy it to `.env` (which is git-ignored) and fill in real values. ⚠️ *Verify:* which keys are required vs. optional. |
 | `.gitmodules` | Submodule definitions — see [`SUBMODULES.md`](../SUBMODULES.md). |
 | `.gitconfig`, `.zshrc`, `.zprofile` | The author's shell and Git configuration, versioned as dotfiles. **These are not needed to build the site** — do not source them expecting the project to require it. |
-| `.vscode/`, `home.code-workspace` | VS Code workspace settings and multi-root workspace file. Open the `.code-workspace` file rather than the plain folder to pick up the intended workspace layout. |
+| `.vscode/`, `home.code-workspace` | VS Code workspace settings and the consolidated multi-root workspace. Open `home.code-workspace` rather than the plain folder to pick up the intended layout. |
 | `.mcp.json`, `.claude/` | Model Context Protocol / Claude tooling configuration for agent-assisted work. See [`AGENTS.md`](../AGENTS.md) and [`CLAUDE.md`](../CLAUDE.md). |
 
 ## Getting the site running locally

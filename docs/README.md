@@ -48,7 +48,7 @@ A map of the top-level directories, to orient a newcomer. Descriptions marked _(
 | `_reports/` | Generated reports. _(unverified)_ |
 | `.github/` | GitHub configuration: workflows, issue templates, and similar. _(unverified)_ |
 | `.devcontainer/` | Dev Container definition for a reproducible development environment. _(unverified)_ |
-| `.vscode/` | Shared editor settings. See also [`home.code-workspace`](../home.code-workspace). _(unverified)_ |
+| `.vscode/` | Shared editor settings. See also [`home.code-workspace`](../home.code-workspace) (consolidated multi-root workspace). _(unverified)_ |
 | `.husky/` | Git hook definitions. _(unverified)_ |
 | `.claude/` | Claude Code configuration. See [`CLAUDE.md`](../CLAUDE.md). _(unverified)_ |
 

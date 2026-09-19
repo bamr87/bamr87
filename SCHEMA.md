@@ -43,7 +43,7 @@ coverage: listed
 | `fleet.manifest.yml` | file | This repo's AI lanes in the shared `fleet/v1` vocabulary (spec: bamr87/wtd docs/FLEET-SPEC.md) | |
 | `_config_dev.yml` | file | Jekyll local-dev overrides | |
 | `docker-compose.yml` | file | Containerized dev services | |
-| `home.code-workspace` | file | VS Code multi-root workspace | |
+| `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
 | `index.md` | file | Dash site landing page | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
 | `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |

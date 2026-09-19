@@ -55,7 +55,7 @@ Everything at the repository root, and what it is. Entries whose purpose is infe
 | `docker-compose.yml` | Containerised local environment. |
 | `.devcontainer/` | VS Code / Codespaces dev container definition. |
 | `.env.example` | Template for local environment variables. |
-| `home.code-workspace` | VS Code multi-root workspace file. |
+| `home.code-workspace` | Consolidated VS Code multi-root workspace (dash plus related clones under `projects/` and `../github/`). |
 | `.vscode/` | Shared editor settings and tasks. |
 
 ### Content and assets

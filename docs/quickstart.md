@@ -49,7 +49,7 @@ Install whichever path you plan to use.
   > Check the `Gemfile` (and a `.ruby-version` file, if one exists) before installing.
 - **Docker** — for the container path (`docker-compose.yml` is present).
 - **VS Code + Dev Containers extension** — optional; a `.devcontainer/` directory is
-  present, and `home.code-workspace` suggests a prepared VS Code workspace.
+  present, and `home.code-workspace` is the consolidated VS Code multi-root workspace.
 
 ---
 
@@ -185,7 +185,7 @@ Top-level directories and what the surrounding files suggest they hold:
 | `.github/` | GitHub configuration and CI workflows |
 | `.claude/`, `.mcp.json` | Agent/automation tooling configuration; see [`AGENTS.md`](../AGENTS.md) and [`CLAUDE.md`](../CLAUDE.md) |
 
-Key root files: `README.md` (the profile page), `CONTRIBUTING.md`, `SUBMODULES.md`, `SCHEMA.md`, `AGENTS.md`, `CLAUDE.md`, `Rakefile`, `Gemfile`, `fleet.manifest.yml`, `home.code-workspace`.
+Key root files: `README.md` (the profile page), `CONTRIBUTING.md`, `SUBMODULES.md`, `SCHEMA.md`, `AGENTS.md`, `CLAUDE.md`, `Rakefile`, `Gemfile`, `fleet.manifest.yml`, `home.code-workspace` (the consolidated VS Code workspace).
 
 ---
 

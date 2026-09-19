@@ -81,7 +81,7 @@ These exist to keep contributions consistent. You rarely need to edit them, but 
 | `.github/` | GitHub configuration: workflows, issue templates, and similar. Contents not inspected. | 🔍 Inferred |
 | `.devcontainer/` | Dev Container definition for VS Code / Codespaces. | 🔍 Inferred |
 | `.vscode/` | Workspace-local VS Code settings. | 🔍 Inferred |
-| `home.code-workspace` | A VS Code multi-root workspace file — useful given the submodule setup. | 🔍 Inferred |
+| `home.code-workspace` | Consolidated VS Code multi-root workspace — dash plus related clones under `projects/` and `../github/`. | 🔍 Inferred |
 | `.claude/` | Claude Code configuration. Pairs with `CLAUDE.md`. | 🔍 Inferred |
 | `.mcp.json` | Model Context Protocol server configuration. | 🔍 Inferred |
 | `fleet.manifest.yml` | ⚠️ Manifest for the automated agent fleet operating on this repository. Contents not inspected. | ⚠️ Unverified |

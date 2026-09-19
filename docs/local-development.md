@@ -204,7 +204,7 @@ The top level of the monorepo:
 | `Rakefile` | Automation tasks |
 | `docker-compose.yml` | Container definition for local development |
 | `fleet.manifest.yml` | Fleet/automation manifest |
-| `home.code-workspace` | VS Code multi-root workspace file |
+| `home.code-workspace` | Consolidated VS Code multi-root workspace (dash plus related clones) |
 | `.devcontainer/` | VS Code Dev Container definition |
 | `.github/` | GitHub workflows, issue and PR templates |
 | `.vscode/` | Editor settings shared with the team |
