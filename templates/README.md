@@ -60,32 +60,54 @@ The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../s
 
 ## `feedback/`
 
-The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract; not yet wired into `tools/fanout.sh` (roadmap).
+The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract. Fanned out with `tools/fanout.sh --kit feedback` (dispatch: [`feedback-fanout.yml`](../.github/workflows/feedback-fanout.yml)); vendored copies are held to the hub's by drift check (i).
 
 | File | Purpose |
 | --- | --- |
 | `package.json` | npm manifest `@bamr87/fleet-feedback` — published by `publish-kits.yml` so always-latest consumers get updates by dependency |
-| `fleet-feedback.js` | `<fleet-feedback>` — zero-dependency web component: console/error capture, request-type dialog, prefilled-issue URL with a 7000-char budget and clipboard fallback, optional proxy mode |
+| `fleet-feedback.js` | Three layers in one vendored file: the capture buffer, `FleetFeedbackCore` (the issue contract as pure functions), and `<fleet-feedback>` — request-type dialog, prefilled-issue URL with a 7000-char budget and clipboard fallback, optional proxy/postmessage modes |
+| `capture.js` | The console/error ring buffer alone, for `<head>` — byte-identical to the block inside `fleet-feedback.js` |
+| `tests/` | 25 contract tests (`npm test`, `node:test`, no dependencies) — what stops a contract change breaking issues filed from ~25 repositories |
 | `feedback_types.yml` | Request-type taxonomy; type labels map onto the fleet issue-pipeline label set |
 | `page_feedback.yml` | No-JS twin: GitHub issue form with the same sections (→ `.github/ISSUE_TEMPLATE/`) |
 | `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `django.html` (Django; ERB equivalent for Rails) |
 | `VERSION` | Kit provenance + changelog |
 
-## `verify/`
+## `issue-autopilot/`
 
-The **agent verification kit** (spec: [`specs/QUALITY.md`](../specs/QUALITY.md) "Verification", UPS-QA-50..53; doc: [`docs/VERIFICATION.md`](../docs/VERIFICATION.md)), seeded by `tools/fanout.sh --kit verify` / `dash verify deploy` / [`verify-fanout.yml`](../.github/workflows/verify-fanout.yml) (branch `test/agent-verification`). Lifted from zer0-mistakes' `features/features.yml` + `test/visual/evidence-kit.mjs` + `visual-evidence` skill and made fleet-standard: an index every agent reads, user scenarios both a Playwright runner and a Claude Code pass execute, evidence linked back, graded at `/features/`. See [`verify/README.md`](verify/README.md).
+The issue-autopilot kit — the canonical issue-triage engine that `it-journey` and `zer0-mistakes` each maintained a fork of. **OPT-IN**: named explicitly via `--artifacts issue-autopilot`, never in the default set. See [`issue-autopilot/README.md`](issue-autopilot/README.md) for the policy boundary, the flag, and the adoption recipe.
 
 | File | Purpose |
 | --- | --- |
-| `features.template.yml` | `features/features.yml` scaffold (`features/v1`, a strict superset of the legacy shape) — seeded only when the repo has no index of any shape |
-| `verify.template.yml` | `verify/verify.yml` — how to run the app like a user (build/start/static_dir, URL, readiness, viewports, agent guardrails) |
-| `scenario.template.yml` | `verify/scenarios/smoke-home.yml` — a `scenario/v1` user path (goto/click/fill/expect/screenshot) |
-| `runner.mjs` | `verify/runner.mjs` — Playwright executor → `test/evidence/<id>/` + `--stamp` writes `verified:` into the index (machine seed, `--upgrade`-able) |
-| `mcp.json` | `verify/mcp.json` — the Playwright MCP server the verification agent drives the live app with |
-| `verify.yml` | `.github/workflows/verify.yml` — thin caller of the reusable `fleet-verify.yml` (`__DEFAULT_BRANCH__` substituted; advisory until `gate: true`) |
-| `SKILL.template.md`, `verifier.template.md` | `.claude/skills/verify-feature/SKILL.md`, `.claude/agents/verifier.md` — dedicated kit artifacts (the agent-context 0.4.0 exception), seeded only when no verification skill exists |
-| `EVIDENCE-README.template.md` | the shape of a `test/evidence/<slug>/README.md` |
-| `VERSION` | Kit provenance + changelog |
+| `triage.py` | Deterministic classifier/planner → `.issues/plan.json` + worklist; read-only against GitHub |
+| `dispatch.py` | OODA controller / budget gate — how many resolution PRs this run may propose |
+| `verify_close.py` | The verify-and-close gate: closes only a `resolved` + high-confidence verdict, and only when the default branch's CI is green (fails CLOSED) |
+| `test_verify_close.py` | The safety-critical gate tests, ported from zer0-mistakes |
+| `test_triage_engine.py` | Engine tests + **fork-parity proof**: runs both archived pre-kit engines beside the canonical one and asserts identical plans and worklists |
+| `SKILL.template.md` | `issue-triage` loop skill → `.claude/skills/issue-triage/SKILL.md` |
+| `issue-{triager,resolver,verifier}.template.md` | Agent skeletons → `.claude/agents/`; carry `TODO(adopt)` markers where per-repo policy goes |
+| `archive/*.py` | Byte-exact pre-kit fork shapes; `--upgrade` converts a matching copy in place, and the parity tests read them as fixtures |
+| `VERSION` | Kit provenance, the measured fork divergence, the convergence rule, and the declared policy boundary |
+
+**The kit never writes `.issues/config.yml`.** Engine in the kit, policy in the repo — `fanout.sh` has no code path that touches anything under `.issues/`.
+
+## `ai-runner/`
+
+The AI runner kit — the fleet's one model step and one lane shape, **consumed by reference, not by copy** (`tools/fanout.sh` does not seed it; a consumer references the hub at `@main` and picks up every fix on its next run):
+
+| File | Purpose |
+| --- | --- |
+| `../../.github/actions/claude-run/` | The runtime: `action.yml` + `run.sh`. `uses: bamr87/bamr87/.github/actions/claude-run@main` with `prompt`, `agent`, `tools`, `mcp`, `system`, `out`, `model`, `max-turns`. Claude Code first (OAuth-first), consumer-owned API fallback and metering when present, exit 1 on attempted-and-failed |
+| `../../.github/workflows/ai-lane.yml` | The reusable lane (`workflow_call`): kill switch (`vars.<SWITCH>`, dispatch bypasses), bot guard, named concurrency, probed `GH_PAT` → `GH_TOKEN`, runtimes, pre/post hooks, the model step, the result-file assertion, artifact |
+| `ai-lane.template.yml` | A caller of the lane — copy one per lane, fill `__LANE__`, `__SWITCH__`, `__AGENT__`, `__PROJECT_NAME__` (stamped `# kit: ai-runner v__KIT_VERSION__`) |
+| `tests/contract.sh` | The runner's ten contract tests (stubbed `claude`, no credential, no network); CI: `ai-runner-contract.yml`. A consumer that still vendors the runner proves parity with `AI_RUNNER_SUT=scripts/ai/run.sh bash tests/contract.sh` |
+| `archive/ai-lane-0.1.0.yml` | The caller shape as first shipped, for `--upgrade` byte-comparison |
+
+What stays in the consumer repo, by design: `_data/ai.yml` (`model:`), `.claude/agents/*.md`, `scripts/ai/usage.rb` + `usage_report.rb` (metering, optional), `scripts/ai/api_call.rb|py` (API fallback, optional), `.prose-excludes`, and the repo's own verification harness (passed as `pre-run`/`post-run`). Reference implementation: [bamr87/lifehacker.dev](https://github.com/bamr87/lifehacker.dev) (`docs/AI-USAGE.md`, `scripts/ai/README.md`).
+
+## `fleet-engines/`
+
+The fleet's pure engines as a package, `@bamr87/fleet-engines`, published by `publish-kits.yml` and **consumed by dependency** (not fanned out): the `fleet/v1` manifest parse + emit, workflow facts (which runner, which switch, which guards), the audit rulebook (the fleet's conventions as data), metrics, the harness scorecard + trip wires, the hub reader, and the `GithubClient` contract each console implements over its own fetch. Lifted from GitFactory so GitFactory and zer0-CMS run one implementation; tests and 39 real-fleet fixtures travel with it. See [`fleet-engines/README.md`](fleet-engines/README.md).
 
 ## `prose/`
 

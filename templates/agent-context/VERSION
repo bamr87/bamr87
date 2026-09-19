@@ -4,6 +4,26 @@ source: bamr87/bamr87 templates/agent-context/
 seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-settings, claude-guardrails, claude-agent-auditor) via tools/fanout.sh
 files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml
 updated: 2026-08-07
+position-amendment: |
+  The 0.3.0/0.4.0 position below — "hooks/skills/commands/agents never fan out
+  by default; dedicated, explicitly-requested kit artifacts are the sanctioned
+  exception" — now names a THIRD sanctioned exception, and the first one that
+  lives in its own kit rather than here:
+
+    issue-autopilot (templates/issue-autopilot/, FF-0018) — the canonical
+    issue-triage engine plus the issue-triage skill and the triager/resolver/
+    verifier agent skeletons. OPT-IN via `--artifacts issue-autopilot`, never in
+    the default set. It seeds an ENGINE and never writes `.issues/config.yml` or
+    `.issues/budget.yml`: the routing policy those files hold is exactly the
+    repo-specific layer this position exists to protect, so the exception is
+    narrower than it looks — the kit fans out the shared math, not anyone's
+    judgement.
+
+  NO VERSION BUMP: nothing this kit seeds changed. Bumping the version would
+  change the `kit: agent-context vX.Y.Z` stamp rendered into every template,
+  which would make every 0.4.0-stamped copy in the fleet read as hand-modified
+  and silently strand it from `--upgrade` — the exact failure the 0.3.1 entry
+  below records. Amend the position; leave the stamp alone.
 changelog: |
   0.4.0 — FF-0020 + FF-0021: two OPT-IN agent artifacts (never in the default
   artifact set), amending the 0.3.0 position: hooks/skills/commands/agents

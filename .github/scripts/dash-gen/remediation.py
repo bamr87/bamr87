@@ -16,20 +16,28 @@ dash already collects but previously acted on in two disconnected loops:
             flaky, high-cost-low-value, cancel-heavy, cron-heavy.
 
 The expensive signal is averaged over a 14-day window, which has no memory of
-ORDER and no notion of who pressed the button — so two guards filter it before a
-candidate is admitted (both configured in _data/fleet.yml → remediation:):
+ORDER, no notion of who pressed the button and no notion of what the minutes
+BOUGHT — so three guards filter it before a candidate is admitted (all three
+configured in _data/fleet.yml → remediation:):
 
   supersede_on_success      a workflow whose latest non-skipped run was GREEN is
                             not currently broken; drop failing/flaky.
   interactive_dispatch_pct  a workflow mostly triggered by hand is being
                             debugged, not haemorrhaging fleet minutes; drop the
                             cost signals and the priority fallback.
+  productive_schedule_pct   a cron workflow that is 100% green with zero
+                            recorded waste is long because it is WORKING; its
+                            duration is the unit price of its output. Drop the
+                            cost signals and the priority fallback.
 
-Without them, three `workflow_dispatch` runs five minutes apart ending green
-score 33% success and take a remediation slot — which is what happened to a
-healthy, switched-off workflow in bamr87/irony-works (bamr87/bamr87#92).
+Without the first two, three `workflow_dispatch` runs five minutes apart ending
+green score 33% success and take a remediation slot — which is what happened to
+a healthy, switched-off workflow in bamr87/irony-works (bamr87/bamr87#92).
+Without the third, a nightly behind a working skip gate and an agentic fix loop
+that ships PRs are both re-queued every single cycle, because nothing about a
+healthy workflow is ever going to change (bamr87/bamr87#258, #259).
 
-A third guard reads the clock rather than the verdict:
+A fourth guard reads the clock rather than the verdict:
 
   stale_after_days          the latest run on record is older than this and
                             nothing has run since; de-prioritise, never drop.
@@ -39,7 +47,7 @@ For a workflow whose trigger is rare (`issues: opened`, `workflow_dispatch`, a
 weekly cron) the only thing that can clear a red is a fresh green run that
 nothing is going to produce — so a resolved incident holds a slot forever
 (bamr87/bamr87#200: gitorio Factory 1, red from a model-side outage that lifted
-on 2026-08-25, never re-triggered). Note the asymmetry with the other two:
+on 2026-08-25, never re-triggered). Note the asymmetry with the other three:
 
     Suppress a signal only on POSITIVE EVIDENCE OF HEALTH.
     Down-rank it on ABSENCE OF EVIDENCE.
@@ -147,6 +155,7 @@ def load_config(path: Path) -> dict:
         "slow_p95_min": cfg.get("slow_p95_min", 20),
         "supersede_on_success": cfg.get("supersede_on_success", True),
         "interactive_dispatch_pct": cfg.get("interactive_dispatch_pct", 60),
+        "productive_schedule_pct": cfg.get("productive_schedule_pct", 90),
         "stale_after_days": cfg.get("stale_after_days", 7),
         "severity": sev,
     }
@@ -347,8 +356,32 @@ def is_interactive(w: dict, cfg: dict) -> bool:
     return share >= cfg["interactive_dispatch_pct"]
 
 
+def is_productive_schedule(w: dict, cfg: dict) -> bool:
+    """Is this workflow long because it is WASTEFUL, or because it is working?
+
+    A cron workflow that is 100% green, records zero wasted minutes and is never
+    hand-dispatched is bounded, gated work — its duration is the unit price of
+    its output, not a defect. `slow` ranks on DURATION alone and cannot tell
+    those apart, so a healthy nightly holds a remediation slot every cycle and
+    nothing about it is ever going to change (bamr87/bamr87#258: zer0-mistakes
+    `nightly-extended.yml`, 13m of Playwright smoke behind a working skip gate;
+    bamr87/bamr87#259: it-journey `quest-fix-loop.yml`, ~4-5m of agent time per
+    fix PR delivered).
+
+    Like `is_superseded` and `is_interactive` — and unlike `is_stale` — this
+    SUPPRESSES rather than de-prioritises: 100% success with zero recorded waste
+    is positive evidence of health, not absence of evidence. Set the threshold
+    above 100 to switch the guard off.
+    """
+    if (w.get("sched_pct") or 0) < cfg["productive_schedule_pct"]:
+        return False
+    if (w.get("success_rate_pct") or 0) < 100.0:
+        return False
+    return float(w.get("waste_min") or 0) <= 0.0
+
+
 # --------------------------------------------------------------------------- #
-# guard 3 — staleness (reads the clock, not the verdict)
+# guard 4 — staleness (reads the clock, not the verdict)
 # --------------------------------------------------------------------------- #
 # The two signals timestamp their runs DIFFERENTLY and neither is going to change
 # for the other's benefit: actions_usage.yml writes ISO-8601 with an offset
@@ -453,23 +486,26 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
         raw = {f for f in (w.get("flags") or []) if f in severity}
         signals = set(raw)
 
-        # Two false-positive guards, applied to the flags the analytics module
-        # computed over the whole window. Neither weakens a real signal: they
+        # Three false-positive guards, applied to the flags the analytics module
+        # computed over the whole window. None weakens a real signal: they
         # only discard the ones the window's *averaging* manufactured.
         superseded = is_superseded(w, cfg)
         interactive = is_interactive(w, cfg)
+        productive = is_productive_schedule(w, cfg)
         suppressed = set()
         if superseded:
             suppressed |= raw & CORRECTNESS_SIGNALS
-        if interactive:
+        if interactive or productive:
             suppressed |= raw & COST_SIGNALS
         signals -= suppressed
 
         # The analytics module flags `slow` relative to the fleet; the fleet
         # config sets an ABSOLUTE bar too, so "long-running" means the same
         # thing here as it does to a human reading the dash. Skipped for
-        # interactive workflows for the same reason their cost flags are.
-        if is_long_running(w, cfg) and not interactive:
+        # interactive and productively-scheduled workflows for the same reason
+        # their cost flags are — and it has to be skipped HERE as well as above,
+        # or the flag the guard just suppressed is immediately restored.
+        if is_long_running(w, cfg) and not interactive and not productive:
             signals.add("slow")
         if not signals:
             # Nothing left to fix. When a guard actually FIRED we have
@@ -477,7 +513,7 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
             # so the priority fallback below is skipped — that fallback is
             # precisely what queued a green, switched-off workflow on the
             # strength of a human's debugging minutes (bamr87/bamr87#92).
-            if suppressed or interactive:
+            if suppressed or interactive or productive:
                 continue
             if (w.get("priority") or 0) < cfg["min_priority"]:
                 continue

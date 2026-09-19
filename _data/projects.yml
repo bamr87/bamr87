@@ -309,11 +309,11 @@
     status: none
   license: MIT
 
-- name: edgar-data-parse
-  slug: edgar-data-parse
-  submodule_path: projects/edgar-data-parse
+- name: fredgar-ai
+  slug: fredgar-ai
+  submodule_path: projects/fredgar-ai
   branch: main
-  repo_url: https://github.com/bamr87/fredgar-ai   # renamed on GitHub; local dir kept as edgar-data-parse
+  repo_url: https://github.com/bamr87/fredgar-ai   # formerly edgar-data-parse; dir renamed to match 2026-09-07
   description: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
   stack: [django, python, react, typescript]
   category: full-stack-ai
@@ -642,12 +642,12 @@
     status: adopted
     pr: https://github.com/bamr87/zer0-pages/pull/4
 
-# --- Forks of upstream tools -----------------------------------------------
-- name: vscode-front-matter
-  slug: vscode-front-matter
-  submodule_path: projects/vscode-front-matter
+# --- Formerly forked tools (now first-party in substance) -------------------
+- name: zer0-CMS
+  slug: zer0-cms
+  submodule_path: projects/zer0-cms
   branch: main
-  repo_url: https://github.com/bamr87/zer0-CMS   # renamed on GitHub; local dir rename tracked in the restructuring plan
+  repo_url: https://github.com/bamr87/zer0-CMS   # formerly vscode-front-matter; dir renamed to match 2026-09-07
   # No longer a fork in substance: "refactor!: break free from the Front Matter
   # fork — a lightweight zer0-CMS extension" (2026-07-31). GitHub still reports
   # isFork:true because the upstream history was never detached.
@@ -662,6 +662,108 @@
   schema:
     status: none
   license: MIT
+
+# --- Added in the 2026-09-07 reconciliation (live bamr87 repos that were
+# unregistered or registered without a checkout) -----------------------------
+- name: bashos
+  slug: bashos
+  submodule_path: projects/bashos
+  branch: main
+  repo_url: https://github.com/bamr87/bashos
+  description: Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCode engine, running on Claude Code OAuth.
+  stack: [python, langgraph, opencode, ai, cli]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: ocrmd
+  slug: ocrmd
+  submodule_path: projects/ocrmd
+  branch: main
+  repo_url: https://github.com/bamr87/ocrmd
+  description: Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR voting) diffed against a Claude vision transcription, one page file with rich frontmatter each.
+  stack: [python, ocr, claude, cli]
+  category: full-stack-ai
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: rewind-arcade
+  slug: rewind-arcade
+  submodule_path: projects/rewind-arcade
+  branch: main
+  repo_url: https://github.com/bamr87/rewind-arcade
+  description: A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snake included; builds to static files and plays fully offline.
+  stack: [react, typescript, vite, canvas]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: https://bamr87.github.io/rewind-arcade/
+  docs_url: null
+  schema:
+    status: none
+  license: null
+
+- name: gitnexus
+  slug: gitnexus
+  submodule_path: projects/gitnexus
+  branch: main
+  repo_url: https://github.com/bamr87/gitnexus
+  description: App Builder sandbox workspace (Vite + React + PGlite) exported from Grok Build — an experiment in hosted, agent-built apps.
+  stack: [typescript, react, vite, pglite]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: null
+
+- name: irony-works
+  slug: irony-works
+  submodule_path: projects/irony-works
+  branch: main
+  repo_url: https://github.com/bamr87/irony-works
+  description: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
+  stack: [javascript, markdown, ai]
+  category: docs
+  status: active
+  featured: false
+  maintained: true
+  live_url: https://bamr87.github.io/irony-works/
+  docs_url: null
+  schema:
+    status: none
+
+- name: git-with-the-program
+  slug: git-with-the-program
+  submodule_path: projects/git-with-the-program
+  branch: main
+  repo_url: https://github.com/bamr87/git-with-the-program
+  description: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
+  stack: [typescript, ai]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
 
 - name: .github
   slug: dot-github
@@ -686,34 +788,6 @@
   stack: [python, markdown]
   category: dev-tools
   status: active
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
-- name: irony-works
-  slug: irony-works
-  submodule_path: null
-  branch: main
-  repo_url: https://github.com/bamr87/irony-works
-  description: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
-  stack: [javascript, markdown, ai]
-  category: docs
-  status: active
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-
-- name: git-with-the-program
-  slug: git-with-the-program
-  submodule_path: null
-  branch: main
-  repo_url: https://github.com/bamr87/git-with-the-program
-  description: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
-  stack: [typescript, ai]
-  category: dev-tools
-  status: experiment
   featured: false
   maintained: true
   live_url: null

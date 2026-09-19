@@ -1,0 +1,164 @@
+name: Frontmatter Validation
+
+# Validation-only gate. This used to inline a ~400-line frontmatter validator
+# that drifted from the canonical one the repo ships at
+# scripts/validation/frontmatter-validator.py (the same code `make
+# content-validate` runs). It now calls that single source of truth so CI and
+# local stay in lockstep. Mechanical AUTO-FIXING is intentionally NOT here —
+# that is owned by `make content-normalize-apply`, run daily by
+# cms-daily-loop.yml (Lane A). Quest frontmatter is validated by
+# quest-validation.yml, so it is excluded here to avoid double coverage.
+
+on:
+  pull_request:
+    paths:
+      - 'pages/**/*.md'
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-frontmatter:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Check Mermaid render flags
+        # Fails if any page contains a Mermaid diagram but omits `mermaid: true`
+        # (the theme only loads Mermaid when that flag is set). Stdlib-only.
+        run: python3 scripts/validation/check_mermaid_flags.py
+
+      - name: Determine target files
+        id: targets
+        run: |
+          mkdir -p /tmp/fm
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Only changed, non-quest markdown under pages/.
+            git diff --name-only --diff-filter=ACMR \
+              "${{ github.event.pull_request.base.sha }}" \
+              "${{ github.event.pull_request.head.sha }}" \
+              -- 'pages/**/*.md' \
+              | grep -v '^pages/_quests/' > /tmp/fm/targets.txt || true
+          else
+            # Manual run: every non-quest markdown page.
+            find pages -name '*.md' -type f \
+              | grep -v '^pages/_quests/' > /tmp/fm/targets.txt || true
+          fi
+          # `grep -c .` prints "0" AND exits 1 when nothing matches (e.g. a
+          # quest-only PR, where every changed page is filtered out above). The
+          # old `|| echo 0` then appended a SECOND "0", making a multiline
+          # GITHUB_OUTPUT value GitHub rejects ("Invalid format '0'"). Swallow the
+          # non-zero exit and default an empty capture to 0 so count is one int.
+          COUNT=$(grep -c . /tmp/fm/targets.txt 2>/dev/null || true)
+          echo "count=${COUNT:-0}" >> "$GITHUB_OUTPUT"
+          echo "Targeting $COUNT file(s):"
+          cat /tmp/fm/targets.txt || true
+
+      - name: Validate frontmatter (canonical validator)
+        id: validate
+        if: steps.targets.outputs.count != '0'
+        run: |
+          # Run the canonical validator per file so content-type detection (which
+          # keys off the directory name) stays correct, writing one JSON each.
+          i=0
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            i=$((i + 1))
+            python3 scripts/validation/frontmatter-validator.py "$f" \
+              -o "/tmp/fm/result-${i}.json" > /dev/null 2>&1 || true
+          done < /tmp/fm/targets.txt
+
+          # Aggregate the per-file JSON reports into a comment + error total.
+          python3 - <<'PY'
+          import glob, json, os
+          files = []
+          for path in glob.glob('/tmp/fm/result-*.json'):
+              with open(path) as fh:
+                  files.extend(json.load(fh).get('files', []))
+
+          errors = sum(f['error_count'] for f in files)
+          warnings = sum(f['warning_count'] for f in files)
+          invalid = [f for f in files if f['error_count'] > 0]
+
+          lines = ['## 📋 Frontmatter Validation', '',
+                   f'**Files checked:** {len(files)}  ',
+                   f'**Errors:** {errors}  ',
+                   f'**Warnings:** {warnings}  ', '']
+          if invalid:
+              lines.append('### ❌ Files with errors')
+              for f in sorted(invalid, key=lambda x: -x['error_count'])[:25]:
+                  lines.append(f"- `{f['file_path']}` — {f['error_count']} error(s)")
+                  for issue in [i for i in f['issues'] if i['severity'] == 'error'][:5]:
+                      sug = f" — _{issue['suggestion']}_" if issue.get('suggestion') else ''
+                      lines.append(f"  - **{issue['field']}**: {issue['message']}{sug}")
+          else:
+              lines.append('✅ No frontmatter errors in the changed pages.')
+          lines += ['', '<sub>Validated by `scripts/validation/frontmatter-validator.py`'
+                    ' — run locally with `make content-validate`.</sub>']
+
+          with open('/tmp/fm/comment.md', 'w') as fh:
+              fh.write('\n'.join(lines))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+              fh.write(f'errors={errors}\n')
+          PY
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.targets.outputs.count != '0'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try { body = fs.readFileSync('/tmp/fm/comment.md', 'utf8'); } catch { return; }
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Frontmatter Validation'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body,
+              });
+            }
+
+      - name: Upload validation report
+        if: steps.targets.outputs.count != '0'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frontmatter-validation-results
+          path: /tmp/fm/
+          retention-days: 14
+
+      - name: Fail on frontmatter errors
+        if: steps.validate.outputs.errors != '' && steps.validate.outputs.errors != '0'
+        run: |
+          echo "::error::${{ steps.validate.outputs.errors }} frontmatter error(s) in changed pages. See the PR comment / artifact; fix and push."
+          exit 1

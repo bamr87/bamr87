@@ -1,0 +1,234 @@
+name: 🔗 Link Health Guardian
+
+on:
+  # PRs: fast incremental check (changed files only, no AI)
+  pull_request:
+    paths:
+      - '**.md'
+      - '**.html'
+      - '**.htm'
+
+  # Scheduled full scan with AI analysis
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6 AM UTC
+
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Link checking scope'
+        required: false
+        default: 'website'
+        type: choice
+        options:
+          - 'website'
+          - 'internal'
+          - 'external'
+          - 'docs'
+          - 'posts'
+          - 'quests'
+          - 'all'
+
+      analysis_level:
+        description: 'Analysis depth'
+        required: false
+        default: 'comprehensive'
+        type: choice
+        options:
+          - 'basic'
+          - 'standard'
+          - 'comprehensive'
+
+      ai_provider:
+        description: 'AI provider for analysis'
+        required: false
+        default: 'none'
+        type: choice
+        options:
+          - 'none'
+          - 'openai'
+          - 'anthropic'
+
+      create_issue:
+        description: 'Create GitHub issue with results'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OUTPUT_DIR: 'link-check-results'
+  LYCHEE_CACHE: '.lycheecache'
+
+jobs:
+  # ── PR check: fast, incremental, no AI ─────────────────────────────
+  pr-link-check:
+    name: 🔍 PR Link Check (incremental)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: 🗄️ Restore lychee cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.LYCHEE_CACHE }}
+          key: lychee-cache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: lychee-cache-${{ runner.os }}-
+
+      - name: 🧮 Compute changed files
+        id: changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Resolve changed *.md/*.html files without interpolating the
+          # untrusted branch name into a shell command-substitution.
+          files=$(git diff --name-only --diff-filter=ACMR "origin/${BASE_REF}...HEAD" -- '*.md' '*.html' | tr '\n' ' ')
+          echo "files=${files}" >> "$GITHUB_OUTPUT"
+
+      - name: 🔗 Lychee link check (changed files)
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
+        with:
+          args: >-
+            --no-progress
+            ${{ steps.changed.outputs.files }}
+          fail: false
+          jobSummary: true
+
+  # ── Scheduled / manual: full scan with analysis ─────────────────────
+  full-link-check:
+    name: 🔍 Full Link Health Assessment
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+
+    outputs:
+      total-links: ${{ steps.results.outputs.total-links }}
+      broken-links: ${{ steps.results.outputs.broken-links }}
+      success-rate: ${{ steps.results.outputs.success-rate }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: 🗄️ Restore lychee cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.LYCHEE_CACHE }}
+          key: lychee-cache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: lychee-cache-${{ runner.os }}-
+
+      - name: 🗄️ Restore baseline
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.OUTPUT_DIR }}/broken_links_baseline.json
+          key: link-baseline-${{ runner.os }}-${{ github.sha }}
+          restore-keys: link-baseline-${{ runner.os }}-
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: pip install requests
+
+      - name: 🔗 Lychee link check
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
+        with:
+          args: --no-progress --output ${{ env.OUTPUT_DIR }}/lychee_results.json .
+          fail: false
+          jobSummary: true
+
+      - name: 📊 Run analysis
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Run the Python analysis/delta/AI script on lychee's JSON output
+          python3 scripts/validation/link-checker.py \
+            --scope "${{ github.event.inputs.scope || 'website' }}" \
+            --analysis-level "${{ github.event.inputs.analysis_level || 'comprehensive' }}" \
+            --output-dir "${{ env.OUTPUT_DIR }}" \
+            --ai-provider "${{ github.event.inputs.ai_provider || 'none' }}" \
+            ${{ github.event.inputs.create_issue == 'true' && '--create-issue' || '' }}
+
+      - name: 📊 Extract results
+        id: results
+        if: always()
+        run: |
+          if [[ -f "${{ env.OUTPUT_DIR }}/statistics.env" ]]; then
+            source "${{ env.OUTPUT_DIR }}/statistics.env"
+            echo "total-links=${TOTAL_COUNT:-0}" >> $GITHUB_OUTPUT
+            echo "broken-links=${BROKEN_COUNT:-0}" >> $GITHUB_OUTPUT
+            echo "success-rate=${SUCCESS_RATE:-0}" >> $GITHUB_OUTPUT
+          else
+            echo "total-links=0" >> $GITHUB_OUTPUT
+            echo "broken-links=0" >> $GITHUB_OUTPUT
+            echo "success-rate=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📦 Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: link-health-results-${{ github.run_number }}
+          path: ${{ env.OUTPUT_DIR }}/
+          retention-days: 30
+          if-no-files-found: warn
+
+  # ── Summary ─────────────────────────────────────────────────────────
+  workflow-summary:
+    name: 📊 Workflow Summary
+    runs-on: ubuntu-latest
+    needs: full-link-check
+    if: always() && github.event_name != 'pull_request'
+
+    steps:
+      - name: 📊 Display summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 🔗 Link Health Guardian — Summary
+
+          | Metric | Value |
+          |--------|-------|
+          | Total links | ${{ needs.full-link-check.outputs.total-links }} |
+          | Broken links | ${{ needs.full-link-check.outputs.broken-links }} |
+          | Success rate | ${{ needs.full-link-check.outputs.success-rate }}% |
+          | Scope | ${{ github.event.inputs.scope || 'website' }} |
+          | AI provider | ${{ github.event.inputs.ai_provider || 'none' }} |
+
+          *Generated by Link Health Guardian v3.0*
+          EOF
+
+      - name: 🚨 Set status
+        run: |
+          broken_count=${{ needs.full-link-check.outputs.broken-links }}
+          if [[ "$broken_count" -eq 0 ]]; then
+            echo "✅ No broken links found"
+          elif [[ "$broken_count" -le 5 ]]; then
+            echo "⚠️ $broken_count broken links (minor)"
+          else
+            echo "🚨 $broken_count broken links"
+            echo "This may require immediate attention to maintain site quality"
+            exit 1
+          fi

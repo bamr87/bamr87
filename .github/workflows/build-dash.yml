@@ -80,6 +80,12 @@ jobs:
         env:
           JEKYLL_ENV: production
 
+      # Agents cannot scrape the Bootstrap dash. Project the same registries into
+      # stable JSON under _site/api/v1/ (+ llms.txt) after Jekyll so Pages serves
+      # them as static files. Degraded endpoints still emit valid JSON.
+      - name: Emit machine API (agent JSON + llms.txt)
+        run: python .github/scripts/dash-gen/dash_gen.py machine-api --out _site
+
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5

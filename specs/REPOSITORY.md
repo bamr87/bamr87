@@ -15,7 +15,7 @@ Evidence base: 33 of 35 fleet repos carry the byte-identical hub `.editorconfig`
 | UPS-REPO-05 | MUST | all | Multi-surface repos (backend + frontend, extension + CLI) keep each surface in its own top-level dir with its own manifest and README; the root README links them. | e.g. `backend/`, `frontend/` each with `README.md` | — |
 | UPS-REPO-06 | MUST | all | Every directory with more than trivial content has a `README.md` (README-First/README-Last) and, in a schema-adopted repo, a `SCHEMA.md`. | file present | `templates/schema/`, `.github/templates/README.template.md` |
 | UPS-REPO-07 | MUST | all | No committed build output, `node_modules/`, lockfiles, `.env`, or secrets. `.gitignore` carries the fleet lockfile block. | `.gitignore` contains the `unpin-deps.sh` block; `git ls-files` clean | `tools/unpin-deps.sh` |
-| UPS-REPO-08 | MUST | all | Exactly one checkout per upstream in the fleet. Duplicate directories tracking the same remote (2026-09: `edgar-data-parse`≡`fredgar-ai`, `vscode-front-matter`≡`zer0-cms`) are a registry defect, not two projects. | registry + `.gitmodules` have one path per `repo_url` | `dash reconcile` |
+| UPS-REPO-08 | MUST | all | Exactly one checkout per upstream in the fleet. Duplicate directories tracking the same remote (as `edgar-data-parse`≡`fredgar-ai` and `vscode-front-matter`≡`zer0-cms` were until the 2026-09-07 reconciliation) are a registry defect, not two projects. | registry + `.gitmodules` have one path per `repo_url` | `dash reconcile` |
 
 ## Required files — content contracts
 

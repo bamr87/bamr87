@@ -1,0 +1,55 @@
+{
+  "name": "@bamr87/fleet-engines",
+  "version": "0.1.0",
+  "description": "The fleet's pure engines, versioned once: fleet/v1 manifest parse + emit, workflow facts, the audit rulebook, metrics, the harness scorecard and trip wires, and the GithubClient contract every console implements over its own fetch. Consumed by dependency by GitFactory and zer0-CMS.",
+  "license": "MIT",
+  "author": "bamr87",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bamr87/bamr87.git",
+    "directory": "templates/fleet-engines"
+  },
+  "homepage": "https://github.com/bamr87/bamr87/tree/main/templates/fleet-engines",
+  "keywords": [
+    "fleet",
+    "github-actions",
+    "harness",
+    "audit",
+    "fleet-manifest"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "VERSION"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "yaml": ">=2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": ">=22",
+    "typescript": ">=5.9",
+    "vitest": ">=3"
+  }
+}

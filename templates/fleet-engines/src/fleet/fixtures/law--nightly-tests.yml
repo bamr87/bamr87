@@ -1,0 +1,215 @@
+name: Nightly Tests & Autonomy
+
+# Runs weekly on Monday at 06:00 UTC.  Also triggerable manually with an
+# optional `dry_run` flag that skips the expensive Docker steps (coverage,
+# LegalBench, synthesis) while still validating spec/backlog gates and
+# opening the PR.
+#
+# NOTE: cadence was reduced from daily to weekly after 37/37 scheduled runs
+# failed on hosted-runner disk exhaustion (0 MB free during `docker compose
+# up` after building both app images). Restore daily cadence only after a
+# sustained green streak.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: >
+          Skip expensive steps (coverage, LegalBench, synthesis).
+          Spec/backlog gates + PR plumbing still run so you can test the workflow.
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  nightly:
+    name: Nightly Tests & Autonomy
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ------------------------------------------------------------------
+      # Reclaim hosted-runner disk space BEFORE building. Every scheduled
+      # run of this workflow died with "Free space left: 0 MB" during
+      # `docker compose up` (see run 28644585073, 2026-07-03): the backend
+      # image (chromadb/spacy/onnxruntime/crewai/langgraph) is multi-GB and
+      # the standard ubuntu-latest runner only has ~14 GB free. Removing
+      # the preinstalled Android SDK, .NET, GHC, and CodeQL toolcaches
+      # reclaims ~25-30 GB.
+      # ------------------------------------------------------------------
+      - name: Free disk space on hosted runner
+        if: ${{ !inputs.dry_run }}
+        run: |
+          echo "Disk before cleanup:" && df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune -af
+          echo "Disk after cleanup:" && df -h /
+
+      # ------------------------------------------------------------------
+      # Build images once — reused by all make targets below.
+      # ------------------------------------------------------------------
+      - name: Build Docker images
+        if: ${{ !inputs.dry_run }}
+        run: docker compose build backend frontend
+
+      # Drop the intermediate build cache once images exist — the layer
+      # cache is not reused within this run and costs several GB.
+      - name: Reclaim Docker build cache
+        if: ${{ !inputs.dry_run }}
+        run: |
+          docker builder prune -f
+          df -h /
+
+      # ------------------------------------------------------------------
+      # Infra services — needed by test-legalbench + autonomy-run.
+      # ------------------------------------------------------------------
+      - name: Start infrastructure services
+        if: ${{ !inputs.dry_run }}
+        run: docker compose up -d neo4j postgres redis ollama phoenix --wait
+
+      # ------------------------------------------------------------------
+      # Coverage — emits backend/coverage.xml via bind mount (./backend:/app).
+      # evolve_audit.py reads coverage.xml to detect shortfalls.
+      # ------------------------------------------------------------------
+      - name: Run test coverage
+        if: ${{ !inputs.dry_run }}
+        run: make test-coverage
+
+      # ------------------------------------------------------------------
+      # LegalBench regression eval.
+      # ------------------------------------------------------------------
+      - name: Run LegalBench eval
+        if: ${{ !inputs.dry_run }}
+        run: make test-legalbench
+
+      # ------------------------------------------------------------------
+      # Spec / BACKLOG validators (host stdlib only — no container needed).
+      # ------------------------------------------------------------------
+      - name: Validate spec & backlog gates
+        run: |
+          python3 scripts/spec_validator.py
+          python3 scripts/backlog_lint.py
+
+      # ------------------------------------------------------------------
+      # Discovery audit — reads backend/coverage.xml + var/legalbench/.
+      # Appends new BL-* entries to BACKLOG.md when regressions are found.
+      # ------------------------------------------------------------------
+      - name: Run discovery audit
+        id: audit
+        run: |
+          python3 scripts/evolve_audit.py | tee audit.out
+          # Detect a LegalBench severity:high item in this run's output.
+          if grep -qE '\*, high\*' audit.out; then
+            echo "regression=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "regression=false" >> "$GITHUB_OUTPUT"
+          fi
+          # Track whether BACKLOG.md was modified so we can include it in the PR.
+          if git diff --quiet BACKLOG.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true"  >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fail the workflow when a LegalBench regression is detected (constitution §8).
+      - name: Fail on LegalBench severity:high regression
+        if: steps.audit.outputs.regression == 'true'
+        run: |
+          echo "::error::evolve_audit detected a LegalBench severity:high regression — see audit.out artifact"
+          cat audit.out
+          exit 1
+
+      # ------------------------------------------------------------------
+      # Autonomy — synthesise proposed test files for lowest-coverage modules.
+      # Uses make autonomy-run KIND=test_pillar (RUN_BACKEND_FULL → needs infra).
+      # ------------------------------------------------------------------
+      - name: Run autonomy test synthesis
+        if: ${{ !inputs.dry_run }}
+        run: make autonomy-run KIND=test_pillar
+
+      # ------------------------------------------------------------------
+      # Inventory proposed test files added by the synthesis step.
+      # ------------------------------------------------------------------
+      - name: Count proposed test files
+        id: proposed
+        run: |
+          count=$(find backend/tests/autonomy/proposed -name "*.proposed.py" 2>/dev/null | wc -l | tr -d ' ')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Proposed test files: $count"
+
+      # ------------------------------------------------------------------
+      # Tear down services.
+      # ------------------------------------------------------------------
+      - name: Teardown Docker services
+        if: ${{ always() && !inputs.dry_run }}
+        run: docker compose down
+
+      # ------------------------------------------------------------------
+      # Artifacts.
+      # ------------------------------------------------------------------
+      - name: Upload coverage report
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.run_id }}
+          path: |
+            backend/htmlcov/
+            backend/coverage.xml
+          retention-days: 14
+
+      - name: Upload evolve audit output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-${{ github.run_id }}
+          path: audit.out
+          retention-days: 14
+
+      # ------------------------------------------------------------------
+      # Open a draft PR when there are new proposed test files or BACKLOG
+      # updates.  All proposed tests carry @pytest.mark.skip so nothing
+      # breaks until a human reviews and promotes them.
+      # ------------------------------------------------------------------
+      - name: Open draft PR
+        if: steps.audit.outputs.changed == 'true' || steps.proposed.outputs.count != '0'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: nightly/auto-${{ github.run_id }}
+          title: "chore(nightly): proposed tests + BACKLOG audit"
+          draft: true
+          commit-message: "chore(nightly): proposed tests + BACKLOG updates from nightly run"
+          body: |
+            Automated nightly run from `.github/workflows/nightly-tests.yml`.
+
+            | Signal | Value |
+            |---|---|
+            | Proposed test files | ${{ steps.proposed.outputs.count }} |
+            | BACKLOG updated | ${{ steps.audit.outputs.changed }} |
+            | LegalBench regression | ${{ steps.audit.outputs.regression }} |
+
+            **Proposed tests** (if any) are under `backend/tests/autonomy/proposed/`.
+            All are decorated with `@pytest.mark.skip("autonomy-proposed")`.
+            Review each file, remove the skip decorator, and move to the
+            appropriate test module before merging.
+
+            **BACKLOG entries** (if any) are appended under `## Open` in `BACKLOG.md`.
+
+            See the `audit-${{ github.run_id }}` artifact for the full discovery
+            audit output.
+          labels: |
+            autonomy
+            nightly

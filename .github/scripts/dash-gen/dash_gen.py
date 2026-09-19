@@ -75,6 +75,7 @@ import fleet_triage
 import harness
 import harness_registry
 import issue_pipeline
+import machine_api
 import reconcile
 import remediation
 import schema_vendor
@@ -526,6 +527,12 @@ def main(argv: list[str] | None = None) -> int:
         help="compare the vendored Pyramid Schema kit against upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files",
     )
     schema_vendor.add_arguments(p_vendor)
+
+    p_machine = sub.add_parser(
+        "machine-api",
+        help="emit agent JSON + llms.txt into the site root (default _site) for Pages",
+    )
+    machine_api.add_arguments(p_machine)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")

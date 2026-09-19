@@ -5,12 +5,15 @@
   Path: _includes/custom/body-end.html  (or include from it)
   Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB). Kit: templates/feedback.
 
-  Renders <fleet-feedback> on every page when site.page_feedback.enabled
-  is true. Sites on the zer0-mistakes theme already get the theme's richer
-  widget from _layouts/root.html; use this adapter on non-theme Jekyll sites
-  (MkDocs users: paste the same two tags into overrides/main.html).
+  Renders <fleet-feedback> on every page when site.page_feedback.enabled is
+  true. Sites on the zer0-mistakes theme already get the theme's own richer
+  widget from _layouts/root.html — use this adapter on NON-theme Jekyll sites.
+  MkDocs users: paste the same tags into overrides/main.html.
 
-  Requires: assets/js/fleet-feedback.js vendored from the kit.
+  Requires, vendored from the kit into the site:
+    assets/js/fleet-feedback-capture.html  the capture snippet, included in <head>
+    assets/js/fleet-feedback.js            the component, loaded here
+
   Config (_config.yml):
     repository: owner/name          # required
     branch: main
@@ -18,18 +21,31 @@
       enabled: true
       assignee: copilot             # '' to disable
       default_labels: [page-feedback]
+
+  The taxonomy rides inline as JSON rather than pointing at a generated file:
+  remote_theme sites cannot ship _data, and a `types` URL that 404s silently
+  falls back to the built-in list — which is the same list, so the fetch was
+  never worth the request.
   ===================================================================
 {%- endcomment -%}
 {%- if site.page_feedback.enabled -%}
 {%- assign pf_labels = site.page_feedback.default_labels | default: "page-feedback" | join: "," -%}
-<script src="{{ '/assets/js/fleet-feedback.js' | relative_url }}"></script>
+<script src="{{ '/assets/js/fleet-feedback.js' | relative_url }}" defer></script>
 <fleet-feedback
   repo="{{ site.repository }}"
   branch="{{ site.branch | default: 'main' }}"
   source="{{ page.path }}"
+  route="{{ page.collection | default: page.url }}"
   page-title="{{ page.title | default: site.title | escape }}"
   labels="{{ pf_labels }}"
   assignee="{{ site.page_feedback.assignee | default: 'copilot' }}"
-  env="{{ jekyll.environment }}"
-  {%- if site.data.feedback_types %} types="{{ '/feedback-types.json' | relative_url }}"{%- endif %}></fleet-feedback>
+  env="{{ jekyll.environment }}">
+  {%- if site.data.feedback_types %}
+  <script type="application/json">{{ site.data.feedback_types | jsonify }}</script>
+  {%- endif %}
+</fleet-feedback>
+{%- comment -%}
+  Inline, no-JS trigger for the page action bar (UPS-FB-07/FE-14). A real link
+  to the issue form, upgraded in place by the widget when JavaScript runs.
+{%- endcomment -%}
 {%- endif -%}

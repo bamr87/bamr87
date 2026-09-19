@@ -1,0 +1,91 @@
+# =============================================================================
+# content-factory.yml — the daily autonomous content generator
+# -----------------------------------------------------------------------------
+# Each day (when enabled), produces one on-voice, tested piece for EVERY
+# collection and opens one pull request each, labeled `auto:content` so the
+# auto-merge gate can recognize it. It wraps the existing grow-lifehacker skill —
+# the skill does the work (read brand + backlog, draft, build, screenshot, open
+# the PR); this workflow just schedules and parameterizes it per collection.
+#
+# OFF by default behind CONTENT_FACTORY_ENABLED (a repo variable) and the API
+# key. It never merges — the PRs flow into the normal content gate, and the
+# auto-merge workflow (also gated) decides. The matrix is the daily cap: at most
+# one PR per collection per run.
+# =============================================================================
+name: content-factory
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 09:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: content-factory
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - id: check
+        env:
+          ENABLED: ${{ vars.CONTENT_FACTORY_ENABLED }}
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ "$ENABLED" = "true" ] && { [ -n "$OAUTH" ] || [ -n "$KEY" ]; }; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "content factory is off (CONTENT_FACTORY_ENABLED != true, or no CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY) — idle."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  generate:
+    needs: gate
+    if: ${{ needs.gate.outputs.go == 'true' }}
+    runs-on: ubuntu-latest
+    # Per-leg cap: the longest observed leg is 14.4 min, and max-parallel:1 means
+    # one hung agent stalls the other three collections queued behind it.
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      # Serialize the collections: the per-agent "check open auto:content PRs, then
+      # open one" dedup RACES if agents run in parallel (two agents can pick the
+      # same backlog topic before either's PR exists). max-parallel:1 makes each
+      # agent see its siblings' already-open PRs, so dedup actually works.
+      max-parallel: 1
+      matrix:
+        collection: [hack, tool, post, doc]
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # FLEET_TOKEN (bot PAT, contents+PRs, NO admin) so the agent can open PRs —
+      # GITHUB_TOKEN is blocked from creating PRs, and PAT-authored PRs also
+      # trigger the pipeline. Falls back to github.token (degrades to no-PR).
+      GH_TOKEN: ${{ secrets.FLEET_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      # NOT continue-on-error: a crashed skill run must show RED, not a silent
+      # green skip. The matrix is fail-fast:false, so one collection failing
+      # never kills the others.
+      - name: Generate one ${{ matrix.collection }} and open a PR (universal AI runner)
+        uses: ./.github/actions/claude-run
+        with:
+          agent: grow-lifehacker
+          prompt: "Use the grow-lifehacker skill to produce exactly ONE ${{ matrix.collection }} for lifehacker.dev. Pick the highest-priority backlog item whose kind IS '${{ matrix.collection }}' — never borrow an item meant for another collection (a tmux walkthrough is a hack, not a post). First run `gh pr list --state open --label auto:content --json title,headRefLabel` and if your chosen item duplicates an open PR's topic, take the next-priority '${{ matrix.collection }}' item; if no '${{ matrix.collection }}' item fits or all would duplicate, propose a FRESH on-voice ${{ matrix.collection }} idea, add it to the backlog, and draft THAT (never silently no-op, never cross collections). Verify with /test-lifehacker. Open ONE pull request on a branch, label it 'auto:content' and 'collection/${{ matrix.collection }}', write the resulting PR URL to the file pr-result.txt, flip the backlog item to done, and STOP. Never merge."
+          tools: "Bash,Read,Write,Edit,Grep,Glob"
+          system: "You are the lifehacker.dev content factory. Produce one on-voice, tested piece and open one PR. Never merge."
+      - name: Confirm a PR was opened (fail visibly if the agent didn't)
+        run: |
+          [ -s pr-result.txt ] || { echo "::error::content-factory ${{ matrix.collection }}: no PR was opened — see the agent step log (auth? duplicate? build failure?)."; exit 1; }
+          echo "opened: $(cat pr-result.txt)"

@@ -45,3 +45,9 @@ coverage: listed
 ## Forbidden
 
 - No secrets or tokens — registries are public site data.
+
+## Machine API (not a registry file)
+
+Agent JSON is **not** stored under `_data/`. `dash-gen machine-api` projects the
+registries above into `_site/api/v1/*.json` (+ `llms.txt`) at Pages build time.
+See [`docs/MACHINE-API.md`](../docs/MACHINE-API.md).

@@ -1,0 +1,311 @@
+# =============================================================================
+# pipeline.yml — the tiered, continuous CI/CD pipeline
+# -----------------------------------------------------------------------------
+# One pipeline, four tiers, each gating the next so feedback is fast and the
+# build runs ONCE and feeds everything downstream:
+#
+#   TIER 1  fast        seconds, no build — DevOps audit + E2E simulation.
+#   TIER 2  verify      the REQUIRED status check — safe-mode build + harness gate.
+#   TIER 2b brand-review conditional, paid, comment-only.
+#   TIER 3  integration  triage queue + fleet plan off TIER 2's fresh artifact.
+#
+# This replaces the old test.yml; `verify` is still the required check name, so
+# branch protection is unchanged. deploy-verify.yml continues the flow post-merge
+# against the live site. Every tier writes a GITHUB_STEP_SUMMARY so health is
+# visible without digging through logs.
+# =============================================================================
+name: pipeline
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pipeline-${{ github.event.pull_request.number || github.ref }}
+  # Cancel superseded PR runs (fast feedback), but NEVER cancel a push-to-main
+  # run: each main commit's pipeline is the authoritative build record and feeds
+  # deploy-verify. A cancelled run surfaces as a *failure*, so cancelling main
+  # would discard the build signal and leave main looking red.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ----- Change routing — run only the tier each change needs ----------------
+  # content -> the content gate (verify + content-review); deps -> full build +
+  # tests; pipeline -> audit + sim too. Pure data PRs skip the heavy work. The
+  # `verify` gate always runs so the required check is meaningful for every kind.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      content: ${{ steps.c.outputs.content }}
+      deps: ${{ steps.c.outputs.deps }}
+      pipeline: ${{ steps.c.outputs.pipeline }}
+      data: ${{ steps.c.outputs.data }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: c
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -n "$BASE" ] && git cat-file -e "$BASE" 2>/dev/null; then
+            git diff --name-only "$BASE"...HEAD | ruby scripts/ci/classify_changes.rb
+          else
+            echo "no usable base ref — running everything (fail-safe)"
+            printf 'content=true\ndeps=true\npipeline=true\ndata=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+  # ----- TIER 1 — fast feedback (no build): only when the machinery changed ---
+  # Fail-safe: if the `changes` router didn't succeed (e.g. a transient runner
+  # kill), the change type is unknown, so run the audit + sim rather than skip —
+  # the same "unclassifiable diff runs everything" stance as classify_changes.rb.
+  fast:
+    needs: changes
+    if: ${{ always() && (needs.changes.result != 'success' || needs.changes.outputs.pipeline == 'true' || needs.changes.outputs.deps == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: DevOps audit (pipeline wiring + guardrails)
+        run: ruby scripts/devops/audit.rb | tee audit.out
+      - name: End-to-end simulation (contract conformance)
+        run: ruby scripts/sim/simulate.rb | tee sim.out
+      - name: Tier-1 summary
+        if: always()
+        run: |
+          { echo "## Tier 1 — fast"; echo '```'; tail -3 audit.out; echo; tail -2 sim.out; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  # ----- TIER 2 — the required gate (build + harness): ALWAYS runs -----------
+  # Deliberately has NO `needs: changes`: the required check must never be
+  # skipped just because the lightweight router job flaked (a transient runner
+  # kill of `changes` previously left main's HEAD with no green build). verify
+  # ignores the change-type outputs anyway — it always builds — so decoupling it
+  # makes the gate independent of `changes` and lets the two run in parallel.
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      needs_review: ${{ steps.brand.outputs.needs_review }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # need history to diff this PR against its base
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      # Scope the report to the files THIS PR changed, so a PR is neither drowned
+      # in nor blocked by pre-existing findings on files it never touched.
+      #   * BRAND is scoped on EVERY PR (issue #93): a branch can only introduce a
+      #     voice problem in the prose it changed, so brand never re-dumps the
+      #     repo's accepted `10x`/`seamless`. (lint_brand.rb reads LH_BRAND_CHANGED_FILES.)
+      #   * The REST of the report + the gate (build, drift, link-rot) can regress
+      #     site-wide from an infra/deps change, so only a CONTENT-only PR scopes
+      #     the whole report; infra/deps/pipeline PRs keep the full-repo report.
+      #     (aggregate.rb reads LH_CHANGED_FILES.)
+      # Both env vars unset (triage, nightly, push to main) => full-repo report.
+      - name: Scope the report to this PR's changed files
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if ! git cat-file -e "$BASE" 2>/dev/null; then
+            echo "base $BASE unavailable — keeping the full-repo report"; exit 0
+          fi
+          # core.quotepath=false: keep non-ASCII paths verbatim so they match the
+          # repo-relative paths lint_brand/aggregate compare against (not octal-escaped).
+          git -c core.quotepath=false diff --name-only "$BASE"...HEAD > "$RUNNER_TEMP/changed.txt"
+          kinds=$(ruby scripts/ci/classify_changes.rb < "$RUNNER_TEMP/changed.txt")
+          echo "changed kinds: [$kinds]"; echo "--- changed files ---"; cat "$RUNNER_TEMP/changed.txt"
+          # Brand: always PR-scoped.
+          echo "LH_BRAND_CHANGED_FILES=$RUNNER_TEMP/changed.txt" >> "$GITHUB_ENV"
+          # Whole report + gate: content-only PRs.
+          case " $kinds " in
+            *" deps "*|*" pipeline "*) echo "infra/deps PR — full-repo report (brand still PR-scoped)" ;;
+            *" content "*) echo "LH_CHANGED_FILES=$RUNNER_TEMP/changed.txt" >> "$GITHUB_ENV"; echo "-> scoping the whole report to this PR's changed files" ;;
+            *) echo "no content changes detected — full-repo report (brand still PR-scoped)" ;;
+          esac
+
+      - name: Build + harness (ONCE; the sev1-on-build-break fail-safe lives in the composite)
+        id: bh
+        uses: ./.github/actions/build-and-harness
+
+      - name: Brand tier-1 review signal
+        id: brand
+        if: always()
+        run: echo "needs_review=$(cat test-results/brand-needs-review 2>/dev/null || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the fresh contract (findings + queue + _site) for Tier 3
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract
+          path: |
+            test-results/
+            _site/
+
+      # Marker-based upsert, NOT `--edit-last`: edit-last grabs whatever comment
+      # the bot posted most recently — with the AI cost comment now also bot-
+      # authored, edit-last would overwrite it. Find the harness's own comment
+      # by its <!-- lh-test-report --> marker (aggregate.rb writes it) instead.
+      - name: Sticky PR comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          [ -f test-results/comment.md ] || exit 0
+          cid=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments?per_page=100" \
+                  --jq '[.[] | select(.body | startswith("<!-- lh-test-report -->"))][0].id' 2>/dev/null || true)
+          body=$(ruby -rjson -e 'puts JSON.generate({"body" => File.read("test-results/comment.md")})')
+          if [ -n "$cid" ] && [ "$cid" != "null" ]; then
+            printf '%s' "$body" | gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${cid}" --input - > /dev/null
+          else
+            printf '%s' "$body" | gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --input - > /dev/null
+          fi
+
+      - name: Gate (build + harness must pass)
+        if: always()
+        run: |
+          [ "${{ steps.bh.outputs.build_outcome }}" = "success" ] || { echo "::error::safe-mode build failed"; exit 1; }
+          [ "${{ steps.bh.outputs.harness_outcome }}" = "success" ] || { echo "::error::test harness gate failed"; exit 1; }
+
+  # ----- TIER 2b — paid brand review (conditional, comment-only) -------------
+  brand-review:
+    needs: verify
+    if: ${{ needs.verify.outputs.needs_review == 'true' && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8        # backstop: it adjudicates a handful of PR-scoped candidates, never the whole repo
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # need history to diff this PR against its base
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      # Scope the brand candidates to THIS PR's changed files so the paid reviewer
+      # only adjudicates words the PR actually introduced — not every `10x`/`seamless`
+      # already in the repo (scanning the whole repo is what made this run 10-14 min).
+      - name: Scope brand candidates to changed files
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE" 2>/dev/null; then
+            git -c core.quotepath=false diff --name-only "$BASE"...HEAD > "$RUNNER_TEMP/changed.txt"
+            echo "LH_BRAND_CHANGED_FILES=$RUNNER_TEMP/changed.txt" >> "$GITHUB_ENV"
+          fi
+      - name: Refresh brand candidates (PR-scoped)
+        run: ruby scripts/ci/lint_brand.rb || true
+      - name: Any PR-introduced candidates to adjudicate?
+        id: gate
+        run: |
+          n=$(ruby -rjson -e 'd=(JSON.parse(File.read("test-results/brand.json")) rescue []); puts d.count { |f| f["rule"].to_s.start_with?("banned-when-sincere:") && f["severity"]=="warning" }')
+          echo "candidates=$n" >> "$GITHUB_OUTPUT"
+          echo "PR-scoped sincere candidates: $n"
+      - name: Run brand-reviewer (universal AI runner)
+        if: ${{ steps.gate.outputs.candidates != '0' }}
+        uses: ./.github/actions/claude-run
+        continue-on-error: true
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          agent: brand-reviewer
+          prompt: "Use the brand-reviewer agent to adjudicate the banned-when-sincere candidates in test-results/brand.json — already scoped to PR #${{ github.event.pull_request.number }}'s changed files. Adjudicate ONLY those candidates (do not scan other files), then stop. Comments only; never approve or merge."
+          tools: "Bash(gh pr comment:*),Read,Grep"
+          system: "You are the brand-reviewer for lifehacker.dev: rule each banned-when-sincere candidate as flagged-satire or sincere-violation. The candidates in test-results/brand.json are ALREADY scoped to this PR — adjudicate exactly those, efficiently, then stop. Output review comments only; never approve or merge."
+
+  # ----- TIER 3 — integration (triage + fleet plan off the fresh artifact) ---
+  integration:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: Download the fresh contract from Tier 2
+        uses: actions/download-artifact@v4
+        with:
+          name: contract
+      - name: Rank the queue from the FRESH findings (not the committed copy)
+        run: |
+          ruby scripts/triage/build_queue.rb test-results/findings.jsonl || true
+          ruby scripts/triage/gen_dashboard.rb || true
+      - name: Integration report -> Step Summary
+        if: always()
+        run: |
+          n=$(gh pr list --state open --json number --jq 'length' 2>/dev/null || echo 0)
+          { echo "## Tier 3 — integration"; ruby scripts/sim/report.rb "$n"; } >> "$GITHUB_STEP_SUMMARY"
+
+  # ----- Content tier — only when content changed (the quality/editorial pass) -
+  # Runs after the harness gate. The content-reviewer agent analyzes the draft,
+  # applies small improvements to the PR, and backlogs larger ideas. Comment-only
+  # judgment; never merges. No-op without an API key.
+  content-review:
+    needs: [changes, verify]
+    # LOOP-BREAKER: the editorial commit content-review pushes (with FLEET_TOKEN, so
+    # it re-triggers `verify`) itself fires a `synchronize` event. Skip content-review
+    # on synchronize so it never re-reviews its own commit — one editorial pass per PR
+    # open/reopen, not an infinite micro-edit loop. (`verify` still runs on synchronize,
+    # so the editorial commit is re-validated.) The sibling auto-fix job solves the
+    # same self-retrigger hazard with a MAX_ATTEMPTS counter.
+    if: ${{ needs.changes.outputs.content == 'true' && github.event_name == 'pull_request' && github.event.action != 'synchronize' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          # Check out with the bot PAT so the content-reviewer's `git push` is
+          # authenticated as the PAT, not github.token — a github.token-authored
+          # push re-triggers the pipeline as github-actions[bot], which GitHub
+          # gates with `action_required`, leaving the editorial commit unvalidated
+          # and the PR un-mergeable. (Setting GH_TOKEN alone fixes `gh`, not `git`.)
+          token: ${{ secrets.FLEET_TOKEN || github.token }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: Download the harness findings
+        uses: actions/download-artifact@v4
+        with:
+          name: contract
+        continue-on-error: true
+      - name: Review + improve the content (universal AI runner)
+        uses: ./.github/actions/claude-run
+        continue-on-error: true
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # FLEET_TOKEN (bot PAT) so an editorial commit RE-TRIGGERS the pipeline:
+          # a github.token-authored push is suppressed from starting workflows, so
+          # the improvement would otherwise land un-re-validated. Falls back to
+          # github.token (improvement still lands, just without an auto re-run).
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || github.token }}
+        with:
+          agent: content-reviewer
+          prompt: "Use the content-reviewer skill on this content PR (#${{ github.event.pull_request.number }}). Read test-results/findings.jsonl, analyze the changed content under pages/_*, and apply small improvements to the content file(s) ONLY. Commit ONLY if your edits materially improve the piece; if it already reads clean and on-voice, make NO commit — just post a one-line 'looks good' PR comment. This is a single editorial pass, not an iterative polish. Post larger follow-up ideas as a PR COMMENT (do NOT append to _data/backlog.yml — concurrent content PRs collide on it). Comment judgment calls. Never touch scripts/.github/_config/Gemfile or _data/backlog.yml. Never merge."
+          tools: "Bash(gh pr comment:*),Bash(git:*),Read,Edit,Write(pages/**),Grep,Glob"
+          system: "You are the content-reviewer for lifehacker.dev. Improve the changed content only; never touch infra; never merge."

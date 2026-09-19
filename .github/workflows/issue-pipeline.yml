@@ -600,9 +600,12 @@ jobs:
           # limit and the job failed with work still in flight. At the observed
           # ~8.7s/turn, 400 turns ≈ 58 min, which fits inside 90 with headroom for
           # checkout/setup/post steps and lets the job timeout be the real ceiling.
+          # Run 34328433164 repeated it verbatim — 201 turns, $22.82 billed, the
+          # whole job over in 24m of the 90 — because the value below still said
+          # 200 while this comment prescribed 400.
           claude_args: >-
             --model opus
-            --max-turns 200
+            --max-turns 400
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(docker:*),Bash(curl:*),Bash(tools/:*),Bash(./test/:*),Bash(test/:*),Bash(./scripts/:*),Bash(scripts/:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are **tier 2** of the bamr87 fleet's issue pipeline:
@@ -800,7 +803,7 @@ jobs:
           # 33301167779 with an hour of its 90-minute budget unused.
           claude_args: >-
             --model opus
-            --max-turns 200
+            --max-turns 400
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(jq:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Bash(docker:*),Bash(curl:*),Bash(tools/:*),Bash(./test/:*),Bash(test/:*),Bash(./scripts/:*),Bash(scripts/:*),Read,Grep,Glob,Edit,Write"
           prompt: |
             You are **tier 3** of the bamr87 fleet's issue pipeline: COMPLETION.

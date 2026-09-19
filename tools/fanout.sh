@@ -24,11 +24,10 @@
 # Usage:
 #   tools/fanout.sh --kit standardize --target <name|all> [--apply] [--upgrade]
 #                   [--artifacts editorconfig,ci,conformance,agent-context,claude,claude-settings,
-#                    claude-guardrails,claude-agent-auditor]
+#                    claude-guardrails,claude-agent-auditor,issue-autopilot]
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
-#   tools/fanout.sh --kit verify --target <name|all> [--apply] [--upgrade]
 #
 # Kits:
 #   standardize  branch chore/standardize-baseline; artifacts (default
@@ -50,9 +49,15 @@
 #                  claude-agent-auditor   agent-auditor.template.md →
 #                                  .claude/agents/agent-auditor.md, only when
 #                                  no auditor-role agent exists (FF-0020)
-#                The three claude-* .claude artifacts are OPT-IN (never in the
-#                default set); other hooks/skills/commands/agents stay
-#                repo-local and never fan out.
+#                  issue-autopilot templates/issue-autopilot/ → the canonical
+#                                  issue-triage ENGINE (scripts/issues/*.py) +
+#                                  the issue-triage skill and triager/resolver/
+#                                  verifier agent skeletons (FF-0018). NEVER
+#                                  writes .issues/config.yml or budget.yml —
+#                                  engine in the kit, policy in the repo
+#                The three claude-* .claude artifacts and issue-autopilot are
+#                OPT-IN (never in the default set); other hooks/skills/commands/
+#                agents stay repo-local and never fan out.
 #                Seeded agent-context/claude files carry a `kit: agent-context
 #                vX.Y.Z` stamp (from templates/agent-context/VERSION).
 #   schema       branch chore/schema-adoption; delegates to
@@ -61,6 +66,19 @@
 #                tools/unwrap-prose.py, seeds the markdown-oneline CI gate,
 #                and does a one-time unwrap of wrapped prose
 #                (SCHEMA.md/CHANGELOG.md skipped)
+#   feedback     branch feat/page-feedback; vendors the universal feedback
+#                widget (templates/feedback: fleet-feedback.js + capture.js),
+#                seeds the stack's adapter and the no-JS issue form, and — under
+#                --apply — CREATES THE LABELS the taxonomy applies. That last
+#                step is the one place a kit writes to a target outside its PR,
+#                and it is deliberate: GitHub silently drops unknown labels from
+#                a prefilled issue URL, so a widget seeded without them files
+#                unlabelled issues that never enter the issue pipeline. Mounting
+#                the element stays a human one-liner (the PR body carries it) —
+#                every app shell is hand-written and the fan-out is additive.
+#                zer0-mistakes theme consumers are detected and told to set
+#                `page_feedback.enabled: true` instead: the theme already ships
+#                the widget, it is just switched off.
 #   deps-latest  branch chore/deps-latest; converts the repo to the fleet's
 #                ALWAYS-LATEST dependency policy via tools/unpin-deps.sh —
 #                strips exact pins (package.json/requirements*.txt/Gemfile),
@@ -121,7 +139,6 @@ AC_VERSION="$(kit_version agent-context)"
 PROSE_VERSION="$(kit_version prose)"
 CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
-VERIFY_VERSION="$(kit_version verify)"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -137,10 +154,12 @@ render_kit_template() {  # $1 template, $2 repo name, $3 default branch, $4 kit 
 # always left alone. Archived shapes live beside the template as
 # archive/<template-basename>-<version>[-<variant>].yml.
 machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 version
-  local f="$1" tpl="$2" dir base cand tmp
-  dir="$(dirname "$tpl")"; base="$(basename "$tpl" .yml)"
+  local f="$1" tpl="$2" dir base ext cand tmp
+  # Extension-derived, not hardcoded .yml: the issue-autopilot kit archives .py
+  # engine shapes. For a .yml template this is byte-for-byte the old behaviour.
+  dir="$(dirname "$tpl")"; ext="${tpl##*.}"; base="$(basename "$tpl" ".$ext")"
   tmp="$(mktemp)"
-  for cand in "$dir/archive/$base"-*.yml; do
+  for cand in "$dir/archive/$base"-*."$ext"; do
     [[ -f "$cand" ]] || continue
     render_kit_template "$cand" "$3" "$4" "$5" > "$tmp"
     if cmp -s "$f" "$tmp"; then rm -f "$tmp"; return 0; fi
@@ -149,10 +168,12 @@ machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 
   return 1
 }
 
-# Seed one templated workflow artifact, or report/refresh an existing copy.
+# Seed one templated artifact, or report/refresh an existing copy.
 # This is the single upgrade path for EVERY kit artifact: previously only
 # claude.yml could be upgraded, which is how the prose kit drifted two major
-# action versions behind the fleet unnoticed.
+# action versions behind the fleet unnoticed. Despite the name it is not
+# workflow-specific — machine_seeded() derives the archive extension from the
+# template, so .py engines and .md skeletons ride the same path.
 seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch, $6 version
   local label="$1" dest="$2" tpl="$3" name="$4" def="$5" ver="$6" stamp
   if [[ ! -f "$dest" ]]; then
@@ -175,8 +196,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|verify) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|verify> --target <name|all> [--artifacts csv] [--apply] [--upgrade]" >&2
+  standardize|schema|prose|deps-latest) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -199,6 +220,12 @@ case "$KIT" in
     COMMIT_MSG="style(markdown): one paragraph per line + CI enforcement"
     PR_TITLE="style(markdown): enforce one paragraph per line"
     PR_BODY="Automated by bamr87 prose-fanout (tools/fanout.sh): unwraps soft-wrapped markdown prose so each paragraph is a single line — Liquid/HTML/tables/code/front-matter left byte-for-byte, and SCHEMA.md/CHANGELOG.md skipped. Also vendors tools/unwrap-prose.py and seeds a markdown-oneline CI check. Additive-only. See bamr87/bamr87."
+    ;;
+  feedback)
+    BRANCH="feat/page-feedback"
+    COMMIT_MSG="feat(feedback): adopt the universal page-feedback widget (kit v${FB_VERSION})"
+    PR_TITLE="feat(feedback): universal \"Improve this page\" → GitHub issue widget"
+    PR_BODY="$(printf 'Automated by bamr87 feedback-fanout (tools/fanout.sh --kit feedback): vendors the universal feedback widget so a reader can file a well-formed issue against this repo from any page — request type, description, page context, environment, and the console/error lines that led up to the report.\n\nSeeded (additive — nothing existing is overwritten):\n- the widget + the early capture buffer, vendored into the static assets of this stack\n- `.github/ISSUE_TEMPLATE/page_feedback.yml`, the no-JS twin carrying the same sections\n- the adapter for the detected stack, ready to mount\n\n**One human line is left**: mount the adapter in the shell — the fan-out log names the exact line, and `templates/feedback/README.md` has the detail. The fan-out never edits a hand-written shell.\n\nIssues filed this way carry the `fleet-feedback` marker comment and labels from the fleet taxonomy, so they enter the three-tier issue pipeline on the next scan. Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB).')"
     ;;
   deps-latest)
     BRANCH="chore/deps-latest"
@@ -260,6 +287,46 @@ seed_standardize() {
         "$HUB/templates/agent-context/agent-auditor.template.md" > .claude/agents/agent-auditor.md
     fi ;;
   esac
+  case ",$ARTIFACTS," in *,issue-autopilot,*)
+    seed_issue_autopilot "$name" "$def" ;;
+  esac
+}
+
+# Seed the OPT-IN issue-autopilot kit: the canonical issue-triage ENGINE plus the
+# skill/agent skeletons.
+#
+# THE POLICY BOUNDARY IS ENFORCED BY OMISSION: there is no line below that writes
+# any path under .issues/. config.yml (dispositions, labels, limits,
+# resolve_allow_globs, feature flags) and budget.yml are the repo's, permanently.
+# A repo can take a newer engine with zero risk to its routing policy, which is
+# the entire reason the engine was extracted. See templates/issue-autopilot/.
+seed_issue_autopilot() {  # cwd = target clone; $1 repo name, $2 default branch
+  local name="$1" def="$2" kit="$HUB/templates/issue-autopilot" f base
+  # The engine + its tests. Upgradeable: archive/ holds both pre-kit fork shapes,
+  # so a repo still on its own fork is converted in place rather than reported as
+  # hand-modified.
+  for base in triage dispatch verify_close test_verify_close test_triage_engine; do
+    seed_workflow_artifact "scripts/issues/${base}.py" "scripts/issues/${base}.py" \
+      "$kit/${base}.py" "$name" "$def" "$IA_VERSION"
+  done
+  # The skeletons. Additive-only in practice — there is no archive/ for them, so
+  # --upgrade can only ever match the current shape (a no-op). A hand-authored
+  # skill or agent is never touched.
+  seed_workflow_artifact ".claude/skills/issue-triage/SKILL.md" \
+    .claude/skills/issue-triage/SKILL.md \
+    "$kit/SKILL.template.md" "$name" "$def" "$IA_VERSION"
+  for f in issue-triager issue-resolver issue-verifier; do
+    seed_workflow_artifact ".claude/agents/${f}.md" ".claude/agents/${f}.md" \
+      "$kit/${f}.template.md" "$name" "$def" "$IA_VERSION"
+  done
+  # The one thing a human must still write. Say so loudly rather than seeding a
+  # default policy: a wrong disposition rule routes real issues wrongly, and the
+  # kit has no way to know this repo's labels, limits, or resolver boundary.
+  if [[ ! -f .issues/config.yml ]]; then
+    echo "issue-autopilot: NOTE — .issues/config.yml is absent and the kit never writes it."
+    echo "issue-autopilot:        The engine is inert until you add one (dispositions, labels,"
+    echo "issue-autopilot:        limits, resolve_allow_globs). See templates/issue-autopilot/README.md."
+  fi
 }
 
 seed_prose() {
@@ -302,47 +369,6 @@ seed_prose() {
           | sed "s/^--exclude '//; s/'$//")
   fi
   python3 tools/unwrap-prose.py --write "${ex[@]}" >/dev/null 2>&1 || true
-}
-
-seed_verify() {
-  # cwd = target clone; $1 = repo name, $2 = default branch. Additive-only:
-  # every artifact is seeded only when the repo has nothing in its place. The
-  # feature index is the one artifact checked against EVERY shape the fleet
-  # already uses (features/, _data/, root) — a repo with a legacy index keeps
-  # it, because the hub reads legacy files as-is.
-  local name="$1" def="$2" tpl="$HUB/templates/verify"
-  if [[ ! -f features/features.yml && ! -f _data/features.yml && ! -f features.yml ]]; then
-    mkdir -p features
-    render_kit_template "$tpl/features.template.yml" "$name" "$def" "$VERIFY_VERSION" > features/features.yml
-    echo "features/features.yml: seeded (kit v${VERIFY_VERSION})"
-  else
-    echo "feature index: present — left alone"
-  fi
-  mkdir -p verify/scenarios
-  seed_workflow_artifact "verify/verify.yml" verify/verify.yml \
-    "$tpl/verify.template.yml" "$name" "$def" "$VERIFY_VERSION"
-  if ! compgen -G "verify/scenarios/*.yml" >/dev/null 2>&1 \
-     && ! compgen -G "verify/scenarios/*.yaml" >/dev/null 2>&1; then
-    render_kit_template "$tpl/scenario.template.yml" "$name" "$def" "$VERIFY_VERSION" > verify/scenarios/smoke-home.yml
-    echo "verify/scenarios/smoke-home.yml: seeded"
-  fi
-  seed_workflow_artifact "verify/runner.mjs" verify/runner.mjs \
-    "$tpl/runner.mjs" "$name" "$def" "$VERIFY_VERSION"
-  [[ -f verify/mcp.json ]] || { cp "$tpl/mcp.json" verify/mcp.json; echo "verify/mcp.json: seeded"; }
-  seed_workflow_artifact "verify.yml" .github/workflows/verify.yml \
-    "$tpl/verify.yml" "$name" "$def" "$VERIFY_VERSION"
-  # Dedicated kit artifacts (agent-context 0.4.0 exception): seeded only when
-  # no verification skill/agent of any authorship exists.
-  if [[ ! -f .claude/skills/verify-feature/SKILL.md && ! -f .github/skills/visual-evidence/SKILL.md ]]; then
-    mkdir -p .claude/skills/verify-feature
-    render_kit_template "$tpl/SKILL.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/skills/verify-feature/SKILL.md
-    echo ".claude/skills/verify-feature/SKILL.md: seeded"
-  fi
-  if [[ ! -f .claude/agents/verifier.md ]]; then
-    mkdir -p .claude/agents
-    render_kit_template "$tpl/verifier.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/agents/verifier.md
-    echo ".claude/agents/verifier.md: seeded"
-  fi
 }
 
 # A fan-out target is a REPO, not a working tree: run_one clones it fresh from
@@ -451,7 +477,6 @@ run_one() {
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
-      verify)      seed_verify "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0

@@ -1,0 +1,100 @@
+# =============================================================================
+# theme-scout.yml — contribute theme improvements UPSTREAM (gated, OFF by default)
+# -----------------------------------------------------------------------------
+# lifehacker.dev uses bamr87/zer0-mistakes as a REMOTE THEME. This finds theme
+# UI/UX + accessibility issues and local workarounds that belong in the theme,
+# dedupes them against the open issues on zer0-mistakes, and files NEW ones
+# UPSTREAM — so this repo can focus on content while the theme gets better.
+#
+# It files to bamr87/zer0-mistakes (NOT this repo) via FLEET_TOKEN (a bot PAT
+# scoped to that repo). It NEVER edits content, NEVER merges, NEVER closes a
+# human's issue.
+#
+# SAFE BY DEFAULT, same posture as explore.yml:
+#   1. The weekly cron is ON (colophon, 2026-07-01) but scheduled runs idle
+#      unless THEME_SCOUT_ENABLED == "true" — the variable is the consent.
+#   2. `gate` requires THEME_SCOUT_ENABLED == "true" (kill-switch repo variable) +
+#      Claude auth + FLEET_TOKEN. Off => idle.
+#   3. Manual runs keep `apply` defaulting false (DRY-RUN unless a human checks
+#      the box); scheduled runs apply — turning the var on IS the checked box.
+#   4. Minimal scopes: contents:read only here; the upstream write happens through
+#      FLEET_TOKEN, not github.token. NO administration / workflows scope.
+# =============================================================================
+name: theme-scout
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "File NEW deduped issues upstream to zer0-mistakes (unchecked = dry-run)"
+        type: boolean
+        default: false
+      max_issues:
+        description: "Max NEW upstream issues to file this run (cost/noise cap)"
+        type: string
+        default: "5"
+  schedule:
+    - cron: '41 6 * * 1'            # weekly, Monday 06:41 UTC — gated by
+                                    # THEME_SCOUT_ENABLED (the var is the consent;
+                                    # scheduled runs apply, manual keeps dry-run default)
+
+permissions:
+  contents: read
+  # No issues/pull-requests here: upstream filing goes through FLEET_TOKEN (a PAT),
+  # not github.token. Deliberately NO administration / workflows scope.
+
+concurrency:
+  group: theme-scout
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+      apply: ${{ steps.check.outputs.apply }}
+      max_issues: ${{ steps.check.outputs.max_issues }}
+    steps:
+      - id: check
+        env:
+          ENABLED: ${{ vars.THEME_SCOUT_ENABLED }}
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PAT: ${{ secrets.FLEET_TOKEN }}
+        run: |
+          if [ "$ENABLED" = "true" ] && { [ -n "$OAUTH" ] || [ -n "$KEY" ]; } && [ -n "$PAT" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "theme-scout off (THEME_SCOUT_ENABLED != true, no Claude auth, or no FLEET_TOKEN for upstream) — idle."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            { echo "apply=${{ inputs.apply }}"; echo "max_issues=${{ inputs.max_issues }}"; } >> "$GITHUB_OUTPUT"
+          else
+            { echo "apply=true"; echo "max_issues=5"; } >> "$GITHUB_OUTPUT"
+          fi
+
+  scout:
+    needs: gate
+    if: ${{ needs.gate.outputs.go == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # FLEET_TOKEN: the bot PAT scoped to bamr87/zer0-mistakes (issues:write). The
+      # repo github.token cannot write to the upstream theme repo.
+      GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: Scout the theme + file upstream (theme-scout skill, universal AI runner)
+        uses: ./.github/actions/claude-run
+        continue-on-error: true
+        with:
+          agent: theme-scout
+          prompt: "Use the theme-scout skill. Find THEME UI/UX + accessibility issues and upstreamable local workarounds across this repo and the live site https://lifehacker.dev. ALWAYS first run `gh issue list --repo bamr87/zer0-mistakes --state all --search theme --json number,title` to dedupe — never re-file an existing issue. apply=${{ needs.gate.outputs.apply }}: if true, file up to ${{ needs.gate.outputs.max_issues }} NEW deduped issues to bamr87/zer0-mistakes (labeled, with a concrete proposed fix); if false, DRY-RUN — print the issues you WOULD file and create NOTHING. Never edit lifehacker.dev content; never merge; never close anyone's issue."
+          tools: "Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh search:*),Bash(curl:*),Bash(grep:*),Bash(ls:*),Read,Grep,Glob"
+          system: "You are theme-scout: contribute THEME improvements upstream to bamr87/zer0-mistakes so lifehacker.dev can focus on content. File deduped, concrete, maintainer-ready issues only; never edit content; never merge; never close anyone's issue."

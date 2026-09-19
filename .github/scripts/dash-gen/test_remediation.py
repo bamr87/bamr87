@@ -50,6 +50,7 @@ CFG = {
     "slow_p95_min": 20,
     "supersede_on_success": True,
     "interactive_dispatch_pct": 60,
+    "productive_schedule_pct": 90,
     "stale_after_days": 7,
     "severity": dict(remediation.DEFAULT_SEVERITY),
 }
@@ -248,6 +249,122 @@ def main() -> int:
                  usage(germinate))
     check("a triage-side standing failure is never suppressed by these guards",
           len(both) == 1 and "failing" in both[0]["signals"])
+
+    # --- productive schedules (bamr87/bamr87#258, #259) --------------------- #
+    # The live case: two of four remediation slots on one day, both spent
+    # re-deriving "no change needed". zer0-mistakes `nightly-extended.yml` is
+    # 13m of Playwright smoke behind a skip gate that demonstrably works (9s on
+    # an idle night); it-journey `quest-fix-loop.yml` is ~4-5m of agent time per
+    # fix PR it delivers. Both 100% scheduled, 100% green, 0.0m waste — and
+    # `slow`, which ranks on duration alone, cannot tell either apart from
+    # genuine waste. Neither would ever have changed, so both came back every
+    # cycle.
+    print("productive schedules:")
+    nightly = dict(wf("bamr87/zer0-mistakes", "Nightly Extended Tests",
+                      ".github/workflows/nightly-extended.yml",
+                      runs=4, flags=["slow"], avg=13.46, p95=18.48, waste=0.0,
+                      total=53.8, priority=0.0, last_conclusion="success",
+                      dispatch_pct=0.0),
+                   sched_pct=100.0, success_rate_pct=100.0,
+                   effectiveness_pct=100.0)
+    check("a 100%-green, zero-waste scheduled workflow is not queued",
+          build(triage(), usage(nightly)) == [])
+
+    # The same record as an AI harness — `type: ai`, otherwise identical. The
+    # guard reads the health numbers, so it needs no harness registry lookup.
+    quest = dict(nightly, repo="it-journey",
+                 repo_url="https://github.com/bamr87/it-journey",
+                 workflow="🔧 Quest Fix Loop",
+                 path=".github/workflows/quest-fix-loop.yml",
+                 type="ai", avg_min=12.18, p95_min=16.82, total_min=48.7)
+    check("…and neither is the agentic fix loop that ships PRs",
+          build(triage(), usage(quest)) == [])
+
+    # Each input to the guard has to be load-bearing on its own, or a regression
+    # in one hides behind the others. A failing, wasteful or hand-driven
+    # workflow is NOT productive work, whatever its cron share.
+    red = dict(nightly, success_rate_pct=75.0)
+    cands_red = build(triage(), usage(red))
+    check("…still queued when it is not 100% green",
+          len(cands_red) == 1 and "slow" in cands_red[0]["signals"])
+
+    wasteful = dict(nightly, waste_min=4.0)
+    cands_waste = build(triage(), usage(wasteful))
+    check("…still queued when it records wasted minutes",
+          len(cands_waste) == 1 and "slow" in cands_waste[0]["signals"])
+
+    unscheduled = dict(nightly, sched_pct=20.0)
+    cands_unsched = build(triage(), usage(unscheduled))
+    check("…still queued when most runs are not scheduled",
+          len(cands_unsched) == 1 and "slow" in cands_unsched[0]["signals"])
+
+    # The `slow` re-add at the absolute bar has to be gated too: suppressing the
+    # analytics flag and then restoring it one line later is a no-op fix.
+    check("the absolute-bar re-add does not restore the suppressed flag",
+          build(triage(), usage(dict(nightly, flags=[]))) == []
+          and remediation.is_long_running(nightly, CFG))
+
+    # The priority fallback is the documented trap from bamr87/bamr87#92: it
+    # admits a candidate on spend alone after the guards emptied its flags.
+    fallback = dict(nightly, flags=[], priority=99.0)
+    check("the priority fallback does not admit a productive schedule",
+          build(triage(), usage(fallback)) == [])
+
+    # A green, scheduled workflow that is genuinely wasteful is still real work.
+    # The guard settles PRODUCTIVITY on positive evidence; absent that evidence
+    # it must stay out of the way.
+    burner = dict(wf("bamr87/a", "Burner", path, runs=20,
+                     flags=["high-cost-low-value"], avg=30.0, waste=400.0,
+                     total=900.0, priority=500.0, last_conclusion="success",
+                     dispatch_pct=0.0),
+                  sched_pct=100.0, success_rate_pct=100.0)
+    cands_burner = build(triage(), usage(burner))
+    check("a green scheduled workflow that WASTES minutes keeps its signals",
+          len(cands_burner) == 1
+          and cands_burner[0]["signals"] >= {"high-cost-low-value", "slow"})
+
+    # Correctness is not this guard's business: it clears COST_SIGNALS only, and
+    # a triage-side standing failure must outlive it entirely.
+    still_failing = build(
+        triage(repo_rec("bamr87/zer0-mistakes",
+                        failing=[("Nightly Extended Tests",
+                                  ".github/workflows/nightly-extended.yml")])),
+        usage(nightly))
+    check("a triage-side standing failure is never suppressed by this guard",
+          len(still_failing) == 1 and "failing" in still_failing[0]["signals"])
+
+    # Old snapshots predate `sched_pct`/`success_rate_pct`; absent data must
+    # leave the previous behaviour exactly as it was.
+    pre_guard = wf("bamr87/a", "W", path, runs=10, flags=["slow"], avg=13.46)
+    check("a pre-guard snapshot behaves exactly as before",
+          len(build(triage(), usage(pre_guard))) == 1)
+
+    # The knob: threshold and off-switch.
+    check("100% scheduled clears the 90 threshold",
+          remediation.is_productive_schedule(nightly, CFG))
+    check("productive_schedule_pct: 101 switches the guard off",
+          not remediation.is_productive_schedule(
+              nightly, dict(CFG, productive_schedule_pct=101)))
+    off = dict(CFG, productive_schedule_pct=101)
+    cands_off = build(triage(), usage(nightly), cfg=off)
+    check("…restoring today's behaviour end to end",
+          len(cands_off) == 1 and "slow" in cands_off[0]["signals"])
+    check("load_config defaults productive_schedule_pct to 90 when absent",
+          remediation.load_config(Path("/nonexistent/fleet.yml"))[
+              "productive_schedule_pct"] == 90)
+    check("the committed _data/fleet.yml declares the knob",
+          (remediation.load_yaml(remediation.FLEET_DEFAULT).get("remediation")
+           or {}).get("productive_schedule_pct") is not None)
+
+    # The regression this issue is: run the guard against the COMMITTED
+    # analytics snapshot, which is the detector's own real input.
+    live_usage = remediation.load_yaml(remediation.USAGE_DEFAULT)
+    live_cfg = remediation.load_config(remediation.FLEET_DEFAULT)
+    live_keys = remediation.usage_candidates(live_usage, live_cfg, OWNER)
+    check("the committed snapshot no longer queues nightly-extended.yml",
+          not any("nightly-extended.yml" in k for k in live_keys))
+    check("…nor quest-fix-loop.yml",
+          not any("quest-fix-loop.yml" in k for k in live_keys))
 
     # --- stale reds (bamr87/bamr87#200) ------------------------------------- #
     # The live case: bamr87/gitorio `Factory: Gitorio Factory 1`. Three failures

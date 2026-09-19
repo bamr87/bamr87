@@ -1,0 +1,41 @@
+name: ai-runner-contract
+
+# Pre-flight gate for the ai-runner kit. The runner in .github/actions/claude-run
+# is consumed BY REFERENCE by every AI lane in the fleet, so a regression here
+# reaches every repo on its next scheduled run — cheaper to catch it on the PR
+# than to explain 40 red lanes. Same precedent as feedback-fanout's `verify`.
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/claude-run/**"
+      - ".github/workflows/ai-lane.yml"
+      - ".github/workflows/ai-runner-contract.yml"
+      - "templates/ai-runner/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/actions/claude-run/**"
+      - ".github/workflows/ai-lane.yml"
+      - "templates/ai-runner/**"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: runner contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ vars.RUBY_VERSION || '3.3' }}
+
+      - name: Contract tests (stubbed `claude`; no credential, no network)
+        run: bash templates/ai-runner/tests/contract.sh
+
+      - name: The action manifest calls the runner beside it, not a consumer path
+        run: grep -qF 'GITHUB_ACTION_PATH/run.sh' .github/actions/claude-run/action.yml

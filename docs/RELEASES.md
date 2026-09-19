@@ -91,7 +91,7 @@ tools/protect-branch.sh <repo>           # require CI checks + PR review on the 
 ## Reference & status
 
 - **Reference migration:** [zer0-mistakes](https://github.com/bamr87/zer0-mistakes) (`ruby`) — replaced ~1000 lines of bespoke release bash.
-- **Pilots:** [zpl-viewer](https://github.com/bamr87/zpl-viewer) (`node`/npm), [edgar-data-parse](https://github.com/bamr87/edgar-data-parse) (`simple`).
+- **Pilots:** [zpl-viewer](https://github.com/bamr87/zpl-viewer) (`node`/npm), [fredgar-ai](https://github.com/bamr87/fredgar-ai) (`simple`).
 - Adoption + current version per repo is tracked in [`_data/projects.yml`](../_data/projects.yml) (`release:` block) and surfaced on the [dash](https://bamr87.github.io/bamr87/). Run `python3 .claude/skills/run-dash/driver.py releases` for a fleet view.
 
 ## FAQ

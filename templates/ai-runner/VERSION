@@ -1,0 +1,29 @@
+kit: ai-runner
+version: 0.1.0
+source: "bamr87/bamr87 templates/ai-runner/ (runtime: .github/actions/claude-run/ + .github/workflows/ai-lane.yml)"
+seeded-by: "consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusable .github/workflows/ai-lane.yml@main); not fanned out by tools/fanout.sh"
+files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml
+updated: 2026-09-08
+changelog: |
+  0.1.0 — the fleet's model step and lane, versioned ONCE. Promoted from
+  lifehacker.dev scripts/ai/run.sh + .github/actions/claude-run (PR #643), where
+  a real fleet of 17 lanes tests it daily, after the 2026-09-06 review found
+  three divergent copies of one `claude-run` contract (lifehacker, it-journey,
+  zer0-mistakes — three hashes, one name) and two of them exiting 0 on a dead
+  credential. The runner: model resolution (--model > AI_MODEL > the consumer's
+  _data/ai.yml > fleet default), OAuth-first (`env -u ANTHROPIC_API_KEY`),
+  Claude Code primary with an optional consumer-owned API fallback, optional
+  consumer-owned metering, a post-run one-paragraph-per-line normalizer honouring
+  the consumer's .prose-excludes, and the exit contract: 0 = ran or nothing was
+  attempted, 1 = attempted and FAILED (with the reason, as a ::error::). The
+  reusable lane adds the kill switch (`vars.<SWITCH>`, dispatch bypasses), the
+  bot guard, named concurrency, probed GH_PAT → GH_TOKEN, runtime setup,
+  pre/post hooks, and the result-file assertion. Ten contract tests.
+notes: |
+  Consumed by reference, so there is nothing for --upgrade to byte-compare:
+  every consumer follows @main on its next run. The caller template IS a file a
+  repo holds, so it is stamped and archived like agent-context; the runtime is
+  not. Ruby is the only runtime the runner needs beyond bash (model resolution,
+  result parsing) and ubuntu-latest ships it. Consumers that vendored the
+  runner (scripts/ai/run.sh) prove parity with
+  `AI_RUNNER_SUT=scripts/ai/run.sh bash tests/contract.sh`.

@@ -1,0 +1,11 @@
+# FIXTURE — bamr87/bamr87@00fa7ae _data/issue_pipeline.yml, reduced to the fields dash-gen harness reads (specs/014). Regenerate from the hub; never hand-edit.
+generated_at: 2026-08-31 08:23 UTC
+totals:
+  pipeline_prs: 15
+  stages:
+    intake: 80
+    ready: 4
+    in-pr: 13
+    blocked: 40
+    done: 5
+    hold: 0

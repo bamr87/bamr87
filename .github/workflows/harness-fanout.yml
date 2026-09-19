@@ -31,7 +31,7 @@ on:
         type: string
         default: "gaps"
       artifacts:
-        description: "Comma-separated agent-context kit artifacts: claude,agent-context,claude-settings,claude-guardrails,claude-agent-auditor"
+        description: "Comma-separated kit artifacts: claude,agent-context,claude-settings,claude-guardrails,claude-agent-auditor,issue-autopilot"
         type: string
         default: "claude"
       dry_run:

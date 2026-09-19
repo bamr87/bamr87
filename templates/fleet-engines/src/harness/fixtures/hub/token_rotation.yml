@@ -1,0 +1,9 @@
+# FIXTURE — bamr87/bamr87@00fa7ae _data/token_rotation.yml, reduced to the fields dash-gen harness reads (specs/014). Regenerate from the hub; never hand-edit.
+generated_at: 2026-08-31 02:17 UTC
+tokens:
+- name: CLAUDE_CODE_OAUTH_TOKEN
+  oldest_age_days: 6
+  max_age_days: 45
+- name: ANTHROPIC_API_KEY
+  oldest_age_days: 78
+  max_age_days: 45

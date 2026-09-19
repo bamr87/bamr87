@@ -1,0 +1,278 @@
+name: ai-lane
+
+# Reusable AI lane — the fleet's ONE shape for "a scheduled or event-driven job
+# that runs a Claude Code agent and opens a pull request". kit: ai-runner v0.1.0.
+#
+# What every consumer used to hand-roll, versioned once here:
+#   gate     the kill switch (`vars.<SWITCH>` must be "true"; workflow_dispatch
+#            bypasses it), the bot guard, and "is there a credential at all?"
+#   run      named concurrency (never cancels a writer by default), checkout,
+#            the runtimes the repo needs, an optional pre-run hook, the model
+#            step (.github/actions/claude-run — Claude Code first, API fallback,
+#            OAuth-first, attempted-and-failed is RED), an optional post-run
+#            hook, the "did the agent actually produce something?" assertion,
+#            and an artifact upload.
+#
+# Deliberately NOT here: permissions (a called workflow inherits the CALLER's
+# job permissions and may only narrow them — declare least privilege at the
+# call site), the schedule, the prompt, and the repo's own verification
+# harness (pass it as pre-run/post-run). The agent owns its git work: it
+# branches, commits, and opens ONE PR a human merges — never merges.
+#
+# Call it (templates/ai-runner/ai-lane.template.yml is the full caller):
+#   jobs:
+#     grow:
+#       permissions: { contents: write, pull-requests: write }
+#       uses: bamr87/bamr87/.github/workflows/ai-lane.yml@main
+#       with:
+#         lane: content-factory
+#         switch: CONTENT_FACTORY_ENABLED
+#         agent: grow
+#         prompt: "Produce ONE piece from the backlog, verify it, open ONE PR."
+#         tools: "Bash,Read,Write,Edit,Grep,Glob"
+#         setup-ruby: "3.3"
+#         result-file: pr-result.txt
+#       secrets:
+#         CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+#         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+#         GH_PAT: ${{ secrets.FLEET_TOKEN }}
+#
+# Not expressible here, by design: fan-out matrices computed by a planning job
+# (call this lane once per matrix item from the caller), multi-job pipelines
+# with artifact hand-offs, and lanes that check out ANOTHER repository.
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        description: "Lane name — the concurrency group, the AI_ROLE for metering, the log prefix"
+        type: string
+        required: true
+      switch:
+        description: "Repo VARIABLE that must be 'true' for scheduled/event runs (e.g. CONTENT_FACTORY_ENABLED); workflow_dispatch bypasses; empty = ungated (event-driven lanes only)"
+        type: string
+        default: ""
+      prompt:
+        description: "The instruction for the agent"
+        type: string
+        required: true
+      agent:
+        description: "Run AS this .claude/agents/<name>.md — its system prompt, tools, constraints"
+        type: string
+        default: ""
+      system:
+        description: "System prompt appended to the agent (also used by the API fallback)"
+        type: string
+        default: ""
+      tools:
+        description: "Comma-separated --allowedTools for Claude Code"
+        type: string
+        default: ""
+      mcp:
+        description: "Path to an MCP config JSON in the consumer repo"
+        type: string
+        default: ""
+      model:
+        description: "Model override (beats AI_MODEL and the repo's _data/ai.yml)"
+        type: string
+        default: ""
+      max-turns:
+        description: "Cap the agent's turns; empty = the CLI default"
+        type: string
+        default: ""
+      out:
+        description: "Write the agent's result text to this file instead of stdout"
+        type: string
+        default: ""
+      setup-ruby:
+        description: "Ruby version to install (e.g. '3.3'); empty = none"
+        type: string
+        default: ""
+      bundler-cache:
+        description: "Run bundle install with caching when setup-ruby is set"
+        type: boolean
+        default: true
+      setup-node:
+        description: "Node version to install (e.g. '20'); empty = none"
+        type: string
+        default: ""
+      setup-python:
+        description: "Python version to install (e.g. '3.12'); empty = none"
+        type: string
+        default: ""
+      pre-run:
+        description: "Shell to run in the consumer repo before the agent (plan, scan, preflight)"
+        type: string
+        default: ""
+      post-run:
+        description: "Shell to run after the agent (verify, ledger, cleanup)"
+        type: string
+        default: ""
+      result-file:
+        description: "When set, the job FAILS unless this file is non-empty after the run (e.g. pr-result.txt) — a crashed agent shows RED, not a silent skip"
+        type: string
+        default: ""
+      artifact-path:
+        description: "Paths to upload as artifact `<lane>-<run>` (newline-separated); empty = none"
+        type: string
+        default: ""
+      timeout-minutes:
+        description: "Job timeout for the run"
+        type: number
+        default: 30
+      cancel-in-progress:
+        description: "Cancel a superseded run — false for writers (default), true for PR reviewers"
+        type: boolean
+        default: false
+      continue-on-error:
+        description: "Let the workflow stay green when the agent step fails (default false: a failed call is RED)"
+        type: boolean
+        default: false
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: "Claude Code OAuth token (from `claude setup-token`) — the primary credential"
+        required: false
+      ANTHROPIC_API_KEY:
+        description: "Claude API key — primary when no OAuth token, and the API fallback"
+        required: false
+      GH_PAT:
+        description: "Bot PAT for PRs that must trigger CI (e.g. FLEET_TOKEN); probed with `gh api user`, falls back to the job token"
+        required: false
+      OPENAI_API_KEY:
+        description: "Optional, for lanes whose skill paints images"
+        required: false
+    outputs:
+      go:
+        description: "'true' when the gate let the lane run"
+        value: ${{ jobs.gate.outputs.go }}
+      agent-outcome:
+        description: "success | failure | skipped — the agent step's outcome"
+        value: ${{ jobs.run.outputs.agent-outcome }}
+
+jobs:
+  # ---- the kill switch, the bot guard, and "is there a credential at all?" --
+  gate:
+    name: gate (${{ inputs.lane }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.gate.outputs.go }}
+    steps:
+      - id: gate
+        env:
+          LANE: ${{ inputs.lane }}
+          SWITCH: ${{ inputs.switch }}
+          ENABLED: ${{ inputs.switch != '' && vars[inputs.switch] || '' }}
+          EVENT: ${{ github.event_name }}
+          SENDER_TYPE: ${{ github.event.sender.type }}
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          go=true; why="enabled"
+          if [ "$SENDER_TYPE" = "Bot" ]; then
+            go=false; why="triggered by a bot actor (loop guard)"
+          elif [ -n "$SWITCH" ] && [ "$EVENT" != "workflow_dispatch" ] && [ "$ENABLED" != "true" ]; then
+            go=false; why="repo variable $SWITCH is not 'true' (set it to enable; workflow_dispatch bypasses)"
+          elif [ -z "$OAUTH" ] && [ -z "$KEY" ]; then
+            go=false; why="no Claude credential (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY)"
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+          echo "ai-lane $LANE: go=$go — $why"
+          [ "$go" = "true" ] || echo "::notice::ai-lane $LANE idle: $why"
+
+  # ---- the lane itself ------------------------------------------------------
+  run:
+    name: run (${{ inputs.lane }})
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    concurrency:
+      group: ai-lane-${{ github.repository }}-${{ inputs.lane }}
+      cancel-in-progress: ${{ inputs.cancel-in-progress }}
+    outputs:
+      agent-outcome: ${{ steps.agent.outcome }}
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      AI_ROLE: ${{ inputs.agent || inputs.lane }}
+      AI_LANE: ${{ inputs.lane }}
+    steps:
+      # A PAT that is present but expired fails later as `could not read
+      # Username` (the presence-fallback trap) — so validate it first and
+      # export the winner as GH_TOKEN for `gh` and the agent. GITHUB_ENV, not a
+      # step output: Actions drops outputs that carry a secret.
+      - name: Resolve the GitHub token (probe GH_PAT, else the job token)
+        env:
+          PAT: ${{ secrets.GH_PAT }}
+          JOB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "$PAT" ] && GH_TOKEN="$PAT" gh api user -q .login >/dev/null 2>&1; then
+            echo "GH_TOKEN=$PAT" >> "$GITHUB_ENV"; echo "GH_TOKEN_SOURCE=pat" >> "$GITHUB_ENV"
+          else
+            [ -z "$PAT" ] || echo "::warning::GH_PAT did not validate — using the job token (PRs it opens will not trigger CI)."
+            echo "GH_TOKEN=$JOB_TOKEN" >> "$GITHUB_ENV"; echo "GH_TOKEN_SOURCE=default" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/checkout@v7
+
+      - if: inputs.setup-ruby != ''
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.setup-ruby }}
+          bundler-cache: ${{ inputs.bundler-cache }}
+
+      - if: inputs.setup-node != ''
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.setup-node }}
+
+      - if: inputs.setup-python != ''
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.setup-python }}
+
+      - name: Pre-run
+        if: inputs.pre-run != ''
+        env:
+          PRE_RUN: ${{ inputs.pre-run }}
+        run: bash -euo pipefail -c "$PRE_RUN"
+
+      # NOT continue-on-error by default: a crashed agent must show RED.
+      - name: Agent — ${{ inputs.agent || 'claude' }} (universal AI runner)
+        id: agent
+        continue-on-error: ${{ inputs.continue-on-error }}
+        uses: bamr87/bamr87/.github/actions/claude-run@main
+        with:
+          prompt: ${{ inputs.prompt }}
+          agent: ${{ inputs.agent }}
+          tools: ${{ inputs.tools }}
+          mcp: ${{ inputs.mcp }}
+          system: ${{ inputs.system }}
+          out: ${{ inputs.out }}
+          model: ${{ inputs.model }}
+          max-turns: ${{ inputs.max-turns }}
+
+      - name: Post-run
+        if: inputs.post-run != ''
+        env:
+          POST_RUN: ${{ inputs.post-run }}
+        run: bash -euo pipefail -c "$POST_RUN"
+
+      - name: Confirm the agent produced something (fail visibly if not)
+        if: inputs.result-file != ''
+        env:
+          RESULT_FILE: ${{ inputs.result-file }}
+          LANE: ${{ inputs.lane }}
+        run: |
+          [ -s "$RESULT_FILE" ] || { echo "::error::ai-lane $LANE: $RESULT_FILE is empty — the agent produced no PR/issue (auth? duplicate? build failure?). See the agent step log."; exit 1; }
+          echo "result: $(cat "$RESULT_FILE")"
+
+      - if: ${{ always() && inputs.artifact-path != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.lane }}-${{ github.run_id }}
+          path: ${{ inputs.artifact-path }}
+          if-no-files-found: ignore
+          retention-days: 30

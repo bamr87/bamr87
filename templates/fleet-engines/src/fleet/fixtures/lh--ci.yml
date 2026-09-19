@@ -1,0 +1,31 @@
+name: CI
+
+# Adopted from bamr87/bamr87 via standardize-fanout.yml. This is a thin caller —
+# the gate logic is shared and versioned in
+# bamr87/bamr87/.github/workflows/standard-ci.yml. Don't edit the logic here.
+# (main is substituted with the repo's default branch on adoption.)
+#
+# Path-scoped 2026-07-16: pipeline.yml already gates the identical PR/push
+# audience (the required 'verify' check), so running the generic baseline on
+# every content PR was ~100 redundant min/wk. This caller now only covers infra
+# changes the pipeline's content tiers don't exercise. Kept (not deleted) so the
+# hub's standardize-audit still sees the standard-ci adoption.
+
+on:
+  pull_request:
+    paths: ['.github/**', 'scripts/**', 'Gemfile*']
+  push:
+    branches: [main]
+    paths: ['.github/**', 'scripts/**', 'Gemfile*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: bamr87/bamr87/.github/workflows/standard-ci.yml@main
+    secrets: inherit

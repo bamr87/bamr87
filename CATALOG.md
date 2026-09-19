@@ -29,7 +29,7 @@
 | AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 1 | Agent context |
 | QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…53 | 25 / 7 / 0 | 18 | Quality gates |
 | FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 7 | Frontend: design system, core components, UX standards |
-| FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…33 | 16 / 3 / 1 | 3 | The universal feedback component |
+| FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
 | OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 17 / 7 / 1 | 15 | Configuration, observability, security, data |
 | — | [`STACKS.md`](specs/STACKS.md) | — | — | — | Stack-family profiles and the applicability matrix |
@@ -42,8 +42,11 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | Kit | Version | Updated | Seeded by | Files |
 | --- | --- | --- | --- | --- |
 | [`agent-context/`](templates/agent-context/) | 0.4.0 | 2026-08-07 | .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-setting… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
+| [`ai-runner/`](templates/ai-runner/) | 0.1.0 | 2026-09-08 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (standardize-fanout.yml) | `README.md`, `conformance.yml` |
-| [`feedback/`](templates/feedback/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit feedback (to be wired; see specs/CONFORMANCE.md adoption step 6) | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedback.yml` |
+| [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
+| [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `dist/fleet/audit.d.ts`, `dist/fleet/audit.js`, `dist/fleet/facts.d.ts`, `dist/fleet/facts.js`, `dist/fleet/import.d.ts`, `dist/fleet/import.js`, `dist/fleet/manifest.d.ts`… |
+| [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/f… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
@@ -63,7 +66,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | Consent + analytics gating | `zer0-mistakes` · `_includes/components/cookie-consent.html, _includes/analytics/posthog.html` | UPS-FE-24, UPS-OPS-14 | Consent categories, DNT/GPC, production-only gate. |
 | UX audit gate | `law-ai` · `frontend/scripts/ux_audit.py, frontend/ui/base.css` | UPS-FE-50, UPS-FE-52, UPS-FE-60 | 13 machine-checked rules with an exempt marker; single focus ring; named z-scale. |
 | AppShell with skip link and route states | `law-ai` · `frontend/components/shell/AppShell.tsx, frontend/app/(app)/` | UPS-FE-10, UPS-FE-11, UPS-FE-16 | Labelled landmarks, loading/error/not-found route files, roving tabindex hook. |
-| State set + HTTP client | `edgar-data-parse` · `frontend/src/components/ui/states.tsx, frontend/src/lib/http.ts, frontend/src/lib/toast.tsx` | UPS-FE-17, UPS-FE-18, UPS-FE-20, UPS-BE-40, UPS-BE-41, UPS-BE-43 | Loading/Skeleton/Empty/Error + Query wrapper; ApiError with isAuth/isRateLimit; aria-live toaster. |
+| State set + HTTP client | `fredgar-ai` · `frontend/src/components/ui/states.tsx, frontend/src/lib/http.ts, frontend/src/lib/toast.tsx` | UPS-FE-17, UPS-FE-18, UPS-FE-20, UPS-BE-40, UPS-BE-41, UPS-BE-43 | Loading/Skeleton/Empty/Error + Query wrapper; ApiError with isAuth/isRateLimit; aria-live toaster. |
 | Token-literal leak test | `gitorio` · `app/src/theme.test.ts` | UPS-FE-01 | Asserts only the token file may contain colour literals. |
 | Webview token isolation | `zer0-cms` · `media/tokens.css, src/webview/shared/dom.ts` | UPS-FE-06, UPS-OPS-23 | Only file allowed to name --vscode-* (CI grep); strict CSP with nonce (see also zpl-viewer). |
 | Forms with validation | `cv-builder-pro` · `src/components/ui/form.tsx, src/context/AuthContext.tsx` | UPS-FE-19, UPS-BE-51 | react-hook-form + zod wiring; Firebase auth behind a Protected route. |
@@ -76,7 +79,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (38 projects: 20 active, 4 archived, 9 experiment, 5 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (42 projects: 23 active, 4 archived, 10 experiment, 5 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |
@@ -114,6 +117,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | --- | --- |
 | [`Brewfile`](tools/Brewfile) | macOS Homebrew bundle — native `brew bundle` format (derived from manifest) |
 | [`adopt-release.sh`](tools/adopt-release.sh) | Scaffolds the release-please pipeline into a repo and opens a PR (wrapped by `dash adopt-release`) |
+| [`audit-git-hooks.sh`](tools/audit-git-hooks.sh) | Read-only diagnostic for the "Husky vs. |
 | [`audit-standards.sh`](tools/audit-standards.sh) | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
 | [`check-drift.sh`](tools/check-drift.sh) | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
 | [`conformance.py`](tools/conformance.py) | **Executable Universal Project Standard checker** (`dash spec`): `check [path]` runs the machine-checkable rows of `_data/specs.yml` against one repo (kinds detected fro… |
@@ -148,12 +152,16 @@ The control-plane automation; standards and the full table in [`.github/workflow
 
 | Workflow | Name | Triggers | Purpose |
 | --- | --- | --- | --- |
+| [`ai-lane.yml`](.github/workflows/ai-lane.yml) | ai-lane (reusable) | `workflow_call` (reusable) | **The fleet's AI lane** (kit `ai-runner`): kill switch (`vars.<SWITCH>`, `workflow_dispatch` bypasses), bot guard, credential check, named concurrency, probed `GH_PAT` →… |
+| [`ai-runner-contract.yml`](.github/workflows/ai-runner-contract.yml) | ai-runner-contract | PR, push `main` (runner/lane/kit paths) | Pre-flight gate for the kit: the runner's contract tests (stubbed `claude`, no credential) and a check that the action calls the runner beside it. |
 | [`build-dash.yml`](.github/workflows/build-dash.yml) | 🛰️ Build & Deploy Dash | push `main` (dash paths), daily 07:00, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. |
 | [`claude.yml`](.github/workflows/claude.yml) | Claude | `@claude` mention (issues/PRs) | Claude Code responds to `@claude` mentions in this repo. |
 | [`conformance.yml`](.github/workflows/conformance.yml) | Conformance | PR, push `main` | The hub's own caller of `fleet-conformance.yml`, referenced from the same checkout (`hub-ref` = the PR head), so any change to the spec, the checker, or the reusable wor… |
 | [`deps-fanout.yml`](.github/workflows/deps-fanout.yml) | deps-fanout | — | Downward propagation of the fleet's ALWAYS-LATEST dependency policy (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md): opens PRs INTO submodule repos that strip ex… |
 | [`drift-check.yml`](.github/workflows/drift-check.yml) | 🚧 Drift Check | push `main`, PR, dispatch | Fast offline+API gate: registry↔`.gitmodules` parity, **stray/unregistered project dirs**, README AUTO freshness, missing top-level READMEs, **SCHEMA.md pyramid (h)**; a… |
+| [`feedback-fanout.yml`](.github/workflows/feedback-fanout.yml) | feedback-fanout | — | Downward propagation of the universal feedback widget (templates/feedback/, spec specs/FEEDBACK.md UPS-FB): opens PRs INTO submodule repos that vendor fleet-feedback.js… |
 | [`fleet-conformance.yml`](.github/workflows/fleet-conformance.yml) | fleet-conformance (reusable) | `workflow_call` (reusable) | **The in-repo Universal Project Standard gate.** Checks out the hub beside the caller and runs `tools/conformance.py` (static, offline) so every repo is measured by the… |
+| [`fleet-engines-contract.yml`](.github/workflows/fleet-engines-contract.yml) | fleet-engines-contract | PR, push `main` (`templates/fleet-engines/**`) | Pre-flight gate for the `@bamr87/fleet-engines` kit: typecheck, vitest, build, pack, VERSION↔package.json parity. |
 | [`fleet-pulse.yml`](.github/workflows/fleet-pulse.yml) | 🩺 Fleet Pulse | daily 06:00, dispatch | **THE daily loop.** Job `pulse` gathers every fleet signal (Actions analytics, Claude usage + engagement actuals, prior-day digest, open-state triage snapshot, the AI-ha… |
 | [`fleet-verify.yml`](.github/workflows/fleet-verify.yml) | fleet-verify (reusable) | `workflow_call` (reusable) | **The in-repo agent verification gate** ([`docs/VERIFICATION.md`](../../docs/VERIFICATION.md)). |
 | [`harness-fanout.yml`](.github/workflows/harness-fanout.yml) | harness-fanout | dispatch (`gaps`/all/per-repo) | **Mass deploy/update of the fleet's AI harnesses**, driven by the central inventory: a deterministic `plan` job resolves `target: gaps` from the committed `_data/harness… |

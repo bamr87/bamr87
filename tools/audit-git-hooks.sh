@@ -17,9 +17,9 @@
 #     formatting.
 #
 # Usage:
-#   bash scripts/audit-git-hooks.sh
+#   bash tools/audit-git-hooks.sh
 #   # or, once the file has its executable bit set:
-#   ./scripts/audit-git-hooks.sh
+#   ./tools/audit-git-hooks.sh
 #
 # This script is READ-ONLY: it never installs, uninstalls, or rewrites config.
 # It always exits 0 so it is safe to run in CI as a diagnostic rather than a
