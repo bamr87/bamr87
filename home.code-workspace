@@ -1,8 +1,138 @@
 {
+	// Consolidated VS Code workspace for the bamr87 dash and related clones.
+	// Open this file (not the folder) so workspace settings apply.
+	// Submodule folders live under projects/; clones that are not submodules
+	// are referenced from ../github/ on this machine.
+	// Personal editor preferences stay HERE, not in each repo's settings.json.
 	"folders": [
-	{
-		"path": "."
-	}
+		{
+			"name": "bamr87",
+			"path": "."
+		},
+		{
+			"path": "projects/aieo"
+		},
+		{
+			"path": "../github/ai-world-view.github.io"
+		},
+		{
+			"path": "../github/bash-365.com"
+		},
+		{
+			"path": "projects/bashconsultants"
+		},
+		{
+			"path": "projects/gitorio"
+		},
+		{
+			"path": "projects/irony-works"
+		},
+		{
+			"path": "projects/it-journey"
+		},
+		{
+			"path": "projects/law-ai"
+		},
+		{
+			"path": "projects/lifehacker.dev"
+		},
+		{
+			"path": "projects/ocrmd"
+		},
+		{
+			"path": "../github/SCHEMA"
+		},
+		{
+			"name": "year-of-ai",
+			"path": "../github/year-of-ai/year-of-ai.github.io"
+		},
+		{
+			"name": "zer0-CMS",
+			"path": "projects/zer0-cms"
+		},
+		{
+			"path": "projects/zer0-image-generator"
+		},
+		{
+			"path": "projects/zer0-mistakes"
+		},
+		{
+			"path": "projects/zer0-pages-remote"
+		}
 	],
-	"settings": {}
+	"settings": {
+		"editor.fontSize": 14,
+		"editor.lineHeight": 26,
+		"editor.minimap.enabled": false,
+		"editor.tabCompletion": "on",
+		"editor.wordBasedSuggestions": "matchingDocuments",
+		"editor.quickSuggestions": {
+			"other": true,
+			"comments": true,
+			"strings": true
+		},
+		"files.autoSave": "afterDelay",
+		"files.autoSaveDelay": 1000,
+		"files.associations": {
+			"*.html": "liquid",
+			"*.md": "markdown",
+			"*.md.tmp": "markdown",
+			"*.yml": "yaml",
+			"*.yaml": "yaml",
+			"_config*.yml": "yaml",
+			"docker-compose*.yml": "yaml",
+			"Dockerfile*": "dockerfile",
+			"ocrmd.example.toml": "toml"
+		},
+		"markdown.preview.breaks": true,
+		"markdown.preview.linkify": true,
+		"emmet.includeLanguages": {
+			"liquid": "html"
+		},
+		"github.copilot.enable": {
+			"*": true,
+			"markdown": true,
+			"yaml": true,
+			"liquid": true,
+			"html": true,
+			"scss": true,
+			"javascript": true,
+			"python": true,
+			"dockerfile": true,
+			"json": true,
+			"jsonc": true
+		},
+		"terminal.integrated.env.osx": {
+			"JEKYLL_ENV": "development",
+			"DOCKER_BUILDKIT": "1"
+		},
+		"terminal.integrated.env.linux": {
+			"JEKYLL_ENV": "development",
+			"DOCKER_BUILDKIT": "1"
+		},
+		"containers.composeCommand": "docker compose",
+		"containers.images.label": "latest",
+		"shellcheck.useWorkspaceRootAsCwd": true,
+		"yaml.format.enable": true,
+		"yaml.validate": true,
+		"frontMatter.panel.openOnSupportedFile": false,
+		"frontMatter.dashboard.openOnStart": true,
+		"frontMatter.content.autoUpdateDate": true,
+		"github-actions.workflows.pinned.workflows": [
+			".github/workflows/frontmatter-validation.yml"
+		]
+	},
+	"extensions": {
+		"recommendations": [
+			"anthropic.claude-code",
+			"editorconfig.editorconfig",
+			"github.vscode-github-actions",
+			"github.vscode-pull-request-github",
+			"ms-azuretools.vscode-containers",
+			"redhat.vscode-yaml",
+			"davidanson.vscode-markdownlint",
+			"streetsidesoftware.code-spell-checker",
+			"timonwong.shellcheck"
+		]
+	}
 }
