@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "bashconsultants"
+		},
+		{
+			"path": "zer0-mistakes"
+		},
+		{
+			"path": "it-journey"
+		},
+		{
+			"path": "zer0-pages-remote"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.html": "liquid"
+		},
+		"frontMatter.panel.openOnSupportedFile": false
+	}
+}
