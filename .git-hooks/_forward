@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Forward a git hook to the repo-local implementations that a global
+# core.hooksPath would otherwise shadow. Usage: _forward <hook-name> "$@"
+name="$1"; shift
+git_dir="$(git rev-parse --git-dir 2>/dev/null)" || exit 0
+top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+candidates=("$git_dir/hooks/$name")
+# Only run .husky/<name> when husky is actually installed (its _/ runtime
+# exists); a checked-in .husky/ without `npm install` is a stale shim that
+# would fail every commit on a missing husky.sh — the hub's is exactly that.
+if [[ -f "$top/.husky/_/h" || -f "$top/.husky/_/husky.sh" ]]; then
+    candidates+=("$top/.husky/_/$name" "$top/.husky/$name")
+fi
+for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+        "$candidate" "$@" || exit $?
+        break   # husky's _/<name> wraps .husky/<name>; never run both
+    fi
+done
+exit 0
