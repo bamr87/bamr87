@@ -994,3 +994,66 @@
   source: session:0117dhy8cFVjQsA2ViC7f1T1
   created: 2026-08-31
   issue_url: null
+
+- id: FF-0025
+  title: Fleet stack images — share containers across hub and submodules
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: backlog
+  priority: P1
+  effort: L
+  category: infra
+  problem: >-
+    Launch configs now run everything through Docker, but they do it the cheap
+    way: one fat devenv and `compose exec`. Submodules still carry ~29 compose
+    files and ~32 Dockerfiles with no include/extends, Ruby 3.2 vs fleet.yml
+    3.3, and UPS-REPO-30's canonical ports (4000/5000/5173/8000) colliding with
+    hub offsets (4010–4020, 5174–5177). standards.yml only checks that *a*
+    container file exists, not that two Jekyll repos share an image. A
+    standalone clone and a nested dash checkout cannot obey the same runtime.
+  proposal: >-
+    Apply the harness declare → observe → act shape to containers. Publish
+    one GHCR image per stack kind from fleet.yml toolchain: (stack-base,
+    stack-jekyll, stack-node, stack-python, stack-django). Keep devenv as a
+    workspace only (sleep infinity, VS Code, dash-gen); app processes become
+    sibling compose services on the same network (`compose --profile jekyll
+    up it-journey`), not exec into devenv. Put stack + nested dev_port on
+    each _data/projects.yml row and generate hub compose fragments + launch
+    commands from the registry (same pattern as gen-projects-schema.py).
+    Fan-out templates/containers/ so a standalone clone uses the same image
+    with the canonical 4000/5000/8000 map. Phased: (1) publish stack-jekyll
+    and move the 11 hub Jekyll F5s to compose up; (2) generate hub compose +
+    ports from the registry, delete the hand-maintained 4010–4020 block;
+    (3) fan-out FROM ghcr.io/bamr87/stack-jekyll into Jekyll submodules;
+    (4) repeat for node/django; (5) leave CLIs on devenv exec; (6) tighten
+    UPS-REPO-30 and the standards.yml container column to "uses fleet stack
+    image".
+  acceptance:
+    - "GHCR images ghcr.io/bamr87/stack-{base,jekyll} exist, built from fleet.yml toolchain (node 20 / python 3.12 / ruby 3.3), VERSION-stamped like other kits."
+    - "The 11 hub Jekyll launch configs are `docker compose --profile jekyll up <service>` (or equivalent) against a generated compose fragment, not `compose exec devenv bundle exec`."
+    - "Nested ports come from the registry (`stack` + `dev_port` on the project row); standalone clones keep UPS-REPO-30's 4000/5000/5173/8000 map."
+    - "`tools/gen-compose.py` (or dash-gen compose) regenerates the hub fragment; hand-edited 4010–4020 / 5174–5177 / 8010–8013 lists are gone from docker-compose.yml."
+    - "templates/containers/ is a fan-out kit (dry-run default, PRs only, --upgrade only when byte-identical); at least one Jekyll submodule lands FROM ghcr.io/bamr87/stack-jekyll."
+    - "dash audit / drift reports 'uses fleet stack image' vs 'private build'; UPS-REPO-30 documents the nested-vs-standalone port exception."
+    - "devenv remains the workspace; console/mkdocs/phoenix stay sibling services; Postgres 15 / Redis 7 stay the shared data plane (UPS-OPS-30)."
+    - ".vscode/README.md and docs/DEVELOPMENT.md describe compose up per stack, not host install or devenv exec for servers."
+  scope:
+    in:
+      - stack-base + stack-jekyll images and publish path
+      - registry fields + generated hub compose + launch rewrite for Jekyll
+      - templates/containers/ kit + one consumer PR
+      - UPS-REPO-30 / standards.yml container column wording
+    out:
+      - rewriting every submodule Dockerfile in this item (fan-out PRs are follow-ups)
+      - putting CLIs or Extension Host inside stack images (CLIs stay devenv exec; Ext Host stays host VS Code)
+      - a kitchen-sink replacement for devenv
+      - sharing one writable node_modules / BUNDLE_PATH across apps
+  risks:
+    - GHCR publish from a personal account needs a token with packages:write; FLEET_TOKEN may lack it — probe capability, don't presence-check.
+    - Nested vs standalone port maps will drift if the registry field is optional — require it for stack-using projects and gate it.
+    - Native gem/npm extensions can break a shared BUNDLE_PATH or node_modules volume — named volume per service, not per stack.
+    - Existing submodule Dockerfiles that pin Ruby 3.2 will fail on stack-jekyll 3.3 — fan-out is additive; --upgrade never overwrites a hand-built Dockerfile.
+    - Recreating devenv is still required once for current extra port mappings until those ports move onto sibling services.
+  source: session
+  created: 2026-09-19
+  issue_url: null

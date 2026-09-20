@@ -1,25 +1,28 @@
 {
   // ==========================================================================
-  // Launch configurations for the bamr87 dash — the local control plane
-  // plus one debug entry per Git submodule under projects/ (registry:
-  // _data/projects.yml, paths from .gitmodules).
+  // Launch configurations — Docker-first. Nothing here installs or runs on
+  // the host except Extension Host (VS Code itself) and the Edge debugger
+  // attaching to a container-published port.
   //
-  // Groups in the Run and Debug dropdown:
+  // Every command is `docker compose exec` / `up` against docker-compose.yml:
+  //   devenv   workspace (repo at /workspace) — generators, jekyll, vite, django, clis
+  //   console  Harness Console :4001
+  //   mkdocs   README submodule site (host :8001 → container :8000)
+  //   phoenix  traces UI :6006
+  //
+  // Groups:
   //   1-view        Jekyll dash in Docker on :4000 (msedge)
-  //   2-generators  dash-gen, Harness Console :4001, lake → Phoenix :6006
-  //   3-verify      dash-gen fixture tests (plain scripts, not pytest)
-  //   4-docs        MkDocs in the README submodule
-  //   5-jekyll      submodule Jekyll sites (unique ports 4010–4020)
-  //   6-apps        Vite / Node web apps (unique ports; gitnexus keeps 8080)
-  //   7-python      Django / FastAPI / pytest
-  //   8-ext         VS Code extensions (extensionHost)
-  //   9-cli         Python / Node CLIs (safe default: --help)
-  //   10-content    markdown / scripts / consumed skills (no long-lived server)
+  //   2-generators  dash-gen / console / lake inside devenv|console|phoenix
+  //   3-verify      dash-gen fixture tests inside devenv
+  //   4-docs        MkDocs containers
+  //   5-jekyll      submodule Jekyll via devenv (:4010–4020)
+  //   6-apps        Vite / Node via devenv
+  //   7-python      Django / FastAPI / pytest via devenv
+  //   8-ext         compile in devenv, then Extension Host on the host
+  //   9-cli         Python / Node CLIs via devenv (--help)
+  //   10-content    cat/head inside devenv (no host `code` open)
   //
-  // Submodule ports are offset from the hub map (4000 dash · 4001 console ·
-  // 5000 CV Builder · 5173 Vite HMR · 8000 MkDocs) so two F5s don't collide.
-  // Task hooks reference .vscode/tasks.json. Hub entries wrap tools/ the same
-  // way CI does. The pre-2026 Django/PostHog configs live in git history.
+  // Bind 0.0.0.0 inside the container so published loopback ports work.
   // ==========================================================================
   "version": "0.2.0",
   "configurations": [
@@ -67,484 +70,419 @@
     },
 
     // --------------------------------------------- MONITOR / ORCHESTRATE
-    // All generators run through the one dispatcher; auth comes from your
-    // gh login (GH_TOKEN/GITHUB_TOKEN) and every generator degrades rather
-    // than dies without it.
+    // All generators run through the one dispatcher inside devenv; auth
+    // comes from compose env (GH_TOKEN/GITHUB_TOKEN) and every generator
+    // degrades rather than dies without it.
     {
       "name": "🧭 dash-gen: run a generator…",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
-      "args": ["${input:dashGenCommand}"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py ${input:dashGenCommand}",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "2-generators" }
     },
     {
       "name": "🛠️ Harness Inventory: live fleet scan",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
-      "args": ["harnesses"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py harnesses",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "2-generators" }
     },
     {
       "name": "🛠️ Harness Inventory: offline (reuse committed scan)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
-      "args": ["harnesses", "--offline"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py harnesses --offline",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "2-generators" }
     },
     {
       "name": "🛠️ Harness Inventory: fan-out gap targets",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
-      "args": ["harnesses", "--gaps"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py harnesses --gaps",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "2-generators" }
     },
 
     // --------------------------------------------------------------- CONSOLE
-    // The Harness Console — the local control plane's front end (FastAPI).
-    // Debug the server in-process; the page is at http://127.0.0.1:4001/.
+    // The Harness Console — compose service `console` on 127.0.0.1:4001.
     {
-      "name": "🎛️ Harness Console (uvicorn, reload)",
-      "type": "debugpy",
+      "name": "🎛️ Harness Console (compose)",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "uvicorn",
-      "args": ["app:app", "--host", "127.0.0.1", "--port", "4001", "--reload", "--reload-dir", "${workspaceFolder}/tools/console"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/tools/console",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose logs -f --tail=50 console",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure console",
       "serverReadyAction": {
         "pattern": "Uvicorn running on (https?://[^\\s]+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:4001/",
         "action": "openExternally"
       },
       "presentation": { "group": "2-generators" }
     },
 
     // ------------------------------------------------------------------ LAKE
-    // The local data lake + Phoenix traces (docs/HARNESS-OPS.md, "The local
-    // stack"). `lake` takes a sub-subcommand, so it gets its own entries
-    // rather than a slot in the dashGenCommand picker. Sync needs gh auth;
-    // export needs `docker compose up -d phoenix` unless --dry-run.
     {
       "name": "🌊 Lake: sync (extract GitHub → .dash-lake/fleet.sqlite)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
-      "args": ["lake", "sync", "--days", "7"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py lake sync --days 7",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure lake stack",
       "presentation": { "group": "2-generators" }
     },
     {
       "name": "🌊 Lake: status",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
-      "args": ["lake", "status"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py lake status",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure lake stack",
       "presentation": { "group": "2-generators" }
     },
     {
       "name": "🔭 Lake: export traces to Phoenix (dry run, incl. local sessions)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/.github/scripts/dash-gen/dash_gen.py",
-      "args": ["lake", "export", "--local", "--dry-run"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py lake export --local --dry-run",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure lake stack",
       "presentation": { "group": "2-generators" }
     },
 
     // ---------------------------------------------------------------- VERIFY
-    // The dash-gen fixture tests are dependency-light plain scripts
-    // (python3 test_x.py), so debug the open file directly — no pytest.
     {
       "name": "🧪 dash-gen: Debug Current Fixture Test",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal",
-      "justMyCode": false,
+      "command": "docker compose exec -T -w /workspace devenv python3 \"${relativeFile}\"",
       "cwd": "${workspaceFolder}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "3-verify" }
     },
 
     // ------------------------------------------------------------------ DOCS
     {
-      "name": "📚 MkDocs: Serve (README submodule)",
-      "type": "debugpy",
+      "name": "📚 MkDocs: Serve (README submodule, compose :8001)",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "mkdocs",
-      "args": ["serve", "--dev-addr=127.0.0.1:8000"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/README",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose logs -f --tail=50 mkdocs",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure mkdocs",
+      "serverReadyAction": {
+        "pattern": "Serving on (https?://[^\\s]+)",
+        "uriFormat": "http://127.0.0.1:8001/",
+        "action": "openExternally"
+      },
       "presentation": { "group": "4-docs" }
     },
     {
       "name": "🔨 MkDocs: Build Strict (README submodule)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "mkdocs",
-      "args": ["build", "--strict", "--clean"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/README",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose run --rm mkdocs build --strict --clean",
+      "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-docs" }
     },
     {
-      "name": "📚 MkDocs: Serve (ai-seed)",
-      "type": "debugpy",
+      "name": "📚 MkDocs: Serve (ai-seed, devenv :8003)",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "mkdocs",
-      "args": ["serve", "--dev-addr=127.0.0.1:8001"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/ai-seed",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/ai-seed devenv mkdocs serve --dev-addr=0.0.0.0:8003",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
+      "serverReadyAction": {
+        "pattern": "Serving on (https?://[^\\s]+)",
+        "uriFormat": "http://127.0.0.1:8003/",
+        "action": "openExternally"
+      },
       "presentation": { "group": "4-docs", "order": 20 }
     },
 
     // --------------------------------------------------------------- JEKYLL
-    // bundle exec jekyll serve — unique ports so they don't collide with the
-    // hub dash on :4000. Needs Bundler gems installed in that submodule.
+    // bundle exec jekyll serve inside devenv — unique ports so they don't
+    // collide with the hub dash on :4000. Bind 0.0.0.0 so published ports work.
     {
       "name": "💎 Jekyll: it-journey (:4010)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4010 --livereload --livereload-port 35730",
-      "cwd": "${workspaceFolder}/projects/it-journey",
+      "command": "docker compose exec -T -w /workspace/projects/it-journey devenv bundle exec jekyll serve --host 0.0.0.0 --port 4010 --livereload --livereload-port 35730",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: zer0-mistakes (:4011)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4011 --livereload --livereload-port 35731",
-      "cwd": "${workspaceFolder}/projects/zer0-mistakes",
+      "command": "docker compose exec -T -w /workspace/projects/zer0-mistakes devenv bundle exec jekyll serve --host 0.0.0.0 --port 4011 --livereload --livereload-port 35731",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: bamr87.github.io (:4012)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4012 --livereload --livereload-port 35732",
-      "cwd": "${workspaceFolder}/projects/bamr87.github.io",
+      "command": "docker compose exec -T -w /workspace/projects/bamr87.github.io devenv bundle exec jekyll serve --host 0.0.0.0 --port 4012 --livereload --livereload-port 35732",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: lifehacker.dev (:4013)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4013 --livereload --livereload-port 35733",
-      "cwd": "${workspaceFolder}/projects/lifehacker.dev",
+      "command": "docker compose exec -T -w /workspace/projects/lifehacker.dev devenv bundle exec jekyll serve --host 0.0.0.0 --port 4013 --livereload --livereload-port 35733",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: bashconsultants (:4014)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4014 --livereload --livereload-port 35734",
-      "cwd": "${workspaceFolder}/projects/bashconsultants",
+      "command": "docker compose exec -T -w /workspace/projects/bashconsultants devenv bundle exec jekyll serve --host 0.0.0.0 --port 4014 --livereload --livereload-port 35734",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: wargames (:4015)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4015 --livereload --livereload-port 35735",
-      "cwd": "${workspaceFolder}/projects/wargames",
+      "command": "docker compose exec -T -w /workspace/projects/wargames devenv bundle exec jekyll serve --host 0.0.0.0 --port 4015 --livereload --livereload-port 35735",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: drsai (:4016)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4016 --livereload --livereload-port 35736",
-      "cwd": "${workspaceFolder}/projects/drsai",
+      "command": "docker compose exec -T -w /workspace/projects/drsai devenv bundle exec jekyll serve --host 0.0.0.0 --port 4016 --livereload --livereload-port 35736",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: irony-works (:4017)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4017 --livereload --livereload-port 35737",
-      "cwd": "${workspaceFolder}/projects/irony-works",
+      "command": "docker compose exec -T -w /workspace/projects/irony-works devenv bundle exec jekyll serve --host 0.0.0.0 --port 4017 --livereload --livereload-port 35737",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: 2005 (:4018)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4018 --livereload --livereload-port 35738",
-      "cwd": "${workspaceFolder}/projects/2005",
+      "command": "docker compose exec -T -w /workspace/projects/2005 devenv bundle exec jekyll serve --host 0.0.0.0 --port 4018 --livereload --livereload-port 35738",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: zer0-pages (:4019)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4019 --livereload --livereload-port 35739",
-      "cwd": "${workspaceFolder}/projects/zer0-pages",
+      "command": "docker compose exec -T -w /workspace/projects/zer0-pages devenv bundle exec jekyll serve --host 0.0.0.0 --port 4019 --livereload --livereload-port 35739",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
       "name": "💎 Jekyll: zer0-pages-remote (:4020)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4020 --livereload --livereload-port 35740",
-      "cwd": "${workspaceFolder}/projects/zer0-pages-remote",
+      "command": "docker compose exec -T -w /workspace/projects/zer0-pages-remote devenv bundle exec jekyll serve --host 0.0.0.0 --port 4020 --livereload --livereload-port 35740",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
 
     // ------------------------------------------------------------------ APPS
     {
       "name": "⚡ Vite: cv-builder-pro (:5000)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5000"],
-      "cwd": "${workspaceFolder}/projects/cv-builder-pro",
-      "console": "integratedTerminal",
+      "command": "docker compose exec -T -w /workspace/projects/cv-builder-pro devenv npx vite --host 0.0.0.0 --port 5000",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:5000/",
         "action": "openExternally"
       },
-      "skipFiles": ["<node_internals>/**"],
       "presentation": { "group": "6-apps" }
     },
     {
       "name": "⚡ Vite: gitnexus (:8080)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "${workspaceFolder}/projects/gitnexus",
-      "console": "integratedTerminal",
+      "command": "docker compose exec -T -w /workspace/projects/gitnexus devenv npm run dev",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:8080/",
         "action": "openExternally"
       },
-      "skipFiles": ["<node_internals>/**"],
       "presentation": { "group": "6-apps" }
     },
     {
       "name": "⚡ Vite: gitorio app (:5174)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5174"],
-      "cwd": "${workspaceFolder}/projects/gitorio/app",
-      "console": "integratedTerminal",
+      "command": "docker compose exec -T -w /workspace/projects/gitorio/app devenv npx vite --host 0.0.0.0 --port 5174",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:5174/",
         "action": "openExternally"
       },
-      "skipFiles": ["<node_internals>/**"],
       "presentation": { "group": "6-apps" }
     },
     {
       "name": "⚡ Vite: rewind-arcade (:5175)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5175"],
-      "cwd": "${workspaceFolder}/projects/rewind-arcade/arcade",
-      "console": "integratedTerminal",
+      "command": "docker compose exec -T -w /workspace/projects/rewind-arcade/arcade devenv npx vite --host 0.0.0.0 --port 5175",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:5175/",
         "action": "openExternally"
       },
-      "skipFiles": ["<node_internals>/**"],
       "presentation": { "group": "6-apps" }
     },
     {
       "name": "⚡ Vite: aieo frontend (:5176)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5176"],
-      "cwd": "${workspaceFolder}/projects/aieo/frontend",
-      "console": "integratedTerminal",
+      "command": "docker compose exec -T -w /workspace/projects/aieo/frontend devenv npx vite --host 0.0.0.0 --port 5176",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:5176/",
         "action": "openExternally"
       },
-      "skipFiles": ["<node_internals>/**"],
       "presentation": { "group": "6-apps" }
     },
     {
       "name": "⚡ Vite: fredgar-ai frontend (:5177)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5177"],
-      "cwd": "${workspaceFolder}/projects/fredgar-ai/frontend",
-      "console": "integratedTerminal",
+      "command": "docker compose exec -T -w /workspace/projects/fredgar-ai/frontend devenv npx vite --host 0.0.0.0 --port 5177",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:5177/",
         "action": "openExternally"
       },
-      "skipFiles": ["<node_internals>/**"],
       "presentation": { "group": "6-apps" }
     },
     {
       "name": "📄 cv: build (tsx builder/build.ts)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["tsx", "builder/build.ts"],
-      "cwd": "${workspaceFolder}/projects/cv",
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
+      "command": "docker compose exec -T -w /workspace/projects/cv devenv npx tsx builder/build.ts",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "6-apps" }
     },
     {
       "name": "📄 cv: watch",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["tsx", "builder/watch.ts"],
-      "cwd": "${workspaceFolder}/projects/cv",
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
+      "command": "docker compose exec -T -w /workspace/projects/cv devenv npx tsx builder/watch.ts",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "6-apps" }
     },
 
     // ---------------------------------------------------------------- PYTHON
     {
       "name": "🐍 Django: barodybroject runserver (:8010)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/projects/barodybroject/src/manage.py",
-      "args": ["runserver", "127.0.0.1:8010"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/barodybroject/src",
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "barodybroject.settings.development"
-      },
+      "command": "docker compose exec -T -w /workspace/projects/barodybroject/src -e DJANGO_SETTINGS_MODULE=barodybroject.settings.development devenv python3 manage.py runserver 0.0.0.0:8010",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "7-python" }
     },
     {
       "name": "🐍 Django: fredgar-ai runserver (:8011)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/projects/fredgar-ai/src/manage.py",
-      "args": ["runserver", "127.0.0.1:8011"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/fredgar-ai/src",
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "config.settings"
-      },
+      "command": "docker compose exec -T -w /workspace/projects/fredgar-ai/src -e DJANGO_SETTINGS_MODULE=config.settings devenv python3 manage.py runserver 0.0.0.0:8011",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "7-python" }
     },
     {
       "name": "🐍 Django: law-ai runserver (:8012)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/projects/law-ai/backend/manage.py",
-      "args": ["runserver", "127.0.0.1:8012"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/law-ai/backend",
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "law_ai.settings.dev"
-      },
+      "command": "docker compose exec -T -w /workspace/projects/law-ai/backend -e DJANGO_SETTINGS_MODULE=law_ai.settings.dev devenv python3 manage.py runserver 0.0.0.0:8012",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "7-python" }
     },
     {
       "name": "🐍 Django: djangoerp runserver (:8013)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/projects/djangoerp/manage.py",
-      "args": ["runserver", "127.0.0.1:8013"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/djangoerp",
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "DJANGO_SETTINGS_MODULE": "djangoerp.settings"
-      },
+      "command": "docker compose exec -T -w /workspace/projects/djangoerp -e DJANGO_SETTINGS_MODULE=djangoerp.settings devenv python3 manage.py runserver 0.0.0.0:8013",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "7-python" }
     },
     {
       "name": "🐍 FastAPI: aieo backend (:8002)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "uvicorn",
-      "args": ["app.main:app", "--host", "127.0.0.1", "--port", "8002", "--reload"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/aieo/backend",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/aieo/backend devenv python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
         "pattern": "Uvicorn running on (https?://[^\\s]+)",
-        "uriFormat": "%s",
+        "uriFormat": "http://127.0.0.1:8002/",
         "action": "openExternally"
       },
       "presentation": { "group": "7-python" }
     },
     {
       "name": "🧪 pytest: current file (submodule)",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "pytest",
-      "args": ["${file}", "-v"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${fileDirname}",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace devenv python3 -m pytest \"${relativeFile}\" -v",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "7-python" }
     },
 
     // ----------------------------------------------------------- EXTENSIONS
+    // Compile inside devenv (container-first); Extension Host still runs on
+    // the host because it is VS Code itself.
     {
       "name": "🧩 Ext: csv-vscoode",
       "type": "extensionHost",
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/csv-vscoode"],
       "outFiles": ["${workspaceFolder}/projects/csv-vscoode/out/**/*.js"],
+      "preLaunchTask": "devenv: compile csv-vscoode",
       "presentation": { "group": "8-ext" }
     },
     {
@@ -553,6 +491,7 @@
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/vs-sonic-pi"],
       "outFiles": ["${workspaceFolder}/projects/vs-sonic-pi/dist/**/*.js"],
+      "preLaunchTask": "devenv: compile vs-sonic-pi",
       "presentation": { "group": "8-ext" }
     },
     {
@@ -561,6 +500,7 @@
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/zpl-viewer"],
       "outFiles": ["${workspaceFolder}/projects/zpl-viewer/dist/**/*.js"],
+      "preLaunchTask": "devenv: compile zpl-viewer",
       "presentation": { "group": "8-ext" }
     },
     {
@@ -569,143 +509,119 @@
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/zer0-cms"],
       "outFiles": ["${workspaceFolder}/projects/zer0-cms/dist/**/*.js"],
+      "preLaunchTask": "devenv: compile zer0-cms",
       "presentation": { "group": "8-ext" }
     },
 
     // ------------------------------------------------------------------- CLI
     {
       "name": "⌨️ CLI: bashos --help",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "bashos.shell.cli",
-      "args": ["--help"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/bashos",
-      "env": { "PYTHONUNBUFFERED": "1", "PYTHONPATH": "${workspaceFolder}/projects/bashos/src" },
+      "command": "docker compose exec -T -w /workspace/projects/bashos -e PYTHONPATH=/workspace/projects/bashos/src devenv python3 -m bashos.shell.cli --help",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "⌨️ CLI: ocrmd --help",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "ocrmd.cli",
-      "args": ["--help"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/ocrmd",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/ocrmd devenv python3 -m ocrmd.cli --help",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "⌨️ CLI: lawmode --help",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "lawmode.cli",
-      "args": ["--help"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/lawmode",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/lawmode devenv python3 -m lawmode.cli --help",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "⌨️ CLI: wtd --help",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "wtd.cli",
-      "args": ["--help"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/wtd",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/wtd devenv python3 -m wtd.cli --help",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "⌨️ CLI: books --help",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "bookshelf.cli",
-      "args": ["--help"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/books",
-      "env": { "PYTHONUNBUFFERED": "1", "PYTHONPATH": "${workspaceFolder}/projects/books/src" },
+      "command": "docker compose exec -T -w /workspace/projects/books -e PYTHONPATH=/workspace/projects/books/src devenv python3 -m bookshelf.cli --help",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "⌨️ CLI: gwtp --help",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["tsx", "src/cli/index.ts", "--help"],
-      "cwd": "${workspaceFolder}/projects/git-with-the-program",
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
+      "command": "docker compose exec -T -w /workspace/projects/git-with-the-program devenv npx tsx src/cli/index.ts --help",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "⌨️ Node test: bashcrawl",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["test"],
-      "cwd": "${workspaceFolder}/projects/bashcrawl",
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
+      "command": "docker compose exec -T -w /workspace/projects/bashcrawl devenv npm test",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "🧪 pytest: githubai",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "pytest",
-      "args": ["-v"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/githubai",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/githubai devenv python3 -m pytest -v",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
     {
       "name": "🧪 pytest: zer0-image-generator",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "module": "pytest",
-      "args": ["-v"],
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/zer0-image-generator",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/zer0-image-generator devenv python3 -m pytest -v",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
 
     // -------------------------------------------------------------- CONTENT
     {
       "name": "📝 scripts: current file",
-      "type": "debugpy",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}/projects/scripts",
-      "env": { "PYTHONUNBUFFERED": "1" },
+      "command": "docker compose exec -T -w /workspace/projects/scripts devenv python3 \"/workspace/${relativeFile}\"",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "10-content" }
     },
     {
-      "name": "📝 1987: open index.md",
+      "name": "📝 1987: show index.md",
       "type": "node-terminal",
       "request": "launch",
-      "command": "code \"${workspaceFolder}/projects/1987/index.md\"",
-      "cwd": "${workspaceFolder}/projects/1987",
+      "command": "docker compose exec -T devenv head -n 80 /workspace/projects/1987/index.md",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "10-content" }
     },
     {
-      "name": "📝 skills: open Agents.md",
+      "name": "📝 skills: show Agents.md",
       "type": "node-terminal",
       "request": "launch",
-      "command": "code \"${workspaceFolder}/projects/skills/Agents.md\"",
-      "cwd": "${workspaceFolder}/projects/skills",
+      "command": "docker compose exec -T devenv head -n 80 /workspace/projects/skills/Agents.md",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "10-content" }
     }
   ],

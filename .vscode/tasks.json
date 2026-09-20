@@ -88,6 +88,142 @@
     },
 
     {
+      "label": "Docker: Ensure devenv",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "devenv"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "detail": "Start only the devenv workspace container (repo mounted at /workspace)"
+    },
+
+    {
+      "label": "Docker: Ensure console",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "console"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "detail": "Start the Harness Console container on 127.0.0.1:4001"
+    },
+
+    {
+      "label": "Docker: Ensure mkdocs",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "mkdocs"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "detail": "Start the MkDocs container for projects/README on :8001"
+    },
+
+    {
+      "label": "Docker: Ensure phoenix",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "phoenix"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "detail": "Start Arize Phoenix on 127.0.0.1:6006"
+    },
+
+    {
+      "label": "Docker: Ensure lake stack",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "devenv", "phoenix"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "detail": "Start devenv + Phoenix for dash-gen lake sync/export"
+    },
+
+    {
+      "label": "devenv: compile csv-vscoode",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/csv-vscoode", "devenv", "npm", "run", "compile"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": "Docker: Ensure devenv",
+      "problemMatcher": [],
+      "detail": "Compile csv-vscoode inside devenv before Extension Host"
+    },
+    {
+      "label": "devenv: compile vs-sonic-pi",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/vs-sonic-pi", "devenv", "npm", "run", "build"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": "Docker: Ensure devenv",
+      "problemMatcher": [],
+      "detail": "Build vs-sonic-pi inside devenv before Extension Host"
+    },
+    {
+      "label": "devenv: compile zpl-viewer",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/zpl-viewer", "devenv", "npm", "run", "compile"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": "Docker: Ensure devenv",
+      "problemMatcher": [],
+      "detail": "Compile zpl-viewer inside devenv before Extension Host"
+    },
+    {
+      "label": "devenv: compile zer0-cms",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/zer0-cms", "devenv", "npm", "run", "compile"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": "Docker: Ensure devenv",
+      "problemMatcher": [],
+      "detail": "Compile zer0-cms inside devenv before Extension Host"
+    },
+
+    {
       "label": "Docker: View Logs",
       "type": "shell",
       "command": "docker-compose",
