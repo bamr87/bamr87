@@ -1,21 +1,25 @@
 {
   // ==========================================================================
-  // Launch configurations for the bamr87 dash — the local control plane.
+  // Launch configurations for the bamr87 dash — the local control plane
+  // plus one debug entry per Git submodule under projects/ (registry:
+  // _data/projects.yml, paths from .gitmodules).
   //
-  // Mirrors the stack documented in docs/HARNESS-OPS.md ("The local stack"):
-  //   VIEW        the Jekyll dash in Docker on :4000 (msedge debug)
-  //   MONITOR/    the dash-gen generators (debugpy) — harness inventory,
-  //   ORCHESTRATE triage, actions, remediation queue, issue pipeline, …
-  //   CONSOLE     the Harness Console (FastAPI) on :4001
-  //   LAKE        the local data lake (SQLite) + trace export to Phoenix :6006
-  //   VERIFY      the dash-gen fixture tests (plain scripts, not pytest)
-  //   DOCS        MkDocs, which lives in the README submodule (the hub's own
-  //               mkdocs.yml was deleted; see CLAUDE.md)
+  // Groups in the Run and Debug dropdown:
+  //   1-view        Jekyll dash in Docker on :4000 (msedge)
+  //   2-generators  dash-gen, Harness Console :4001, lake → Phoenix :6006
+  //   3-verify      dash-gen fixture tests (plain scripts, not pytest)
+  //   4-docs        MkDocs in the README submodule
+  //   5-jekyll      submodule Jekyll sites (unique ports 4010–4020)
+  //   6-apps        Vite / Node web apps (unique ports; gitnexus keeps 8080)
+  //   7-python      Django / FastAPI / pytest
+  //   8-ext         VS Code extensions (extensionHost)
+  //   9-cli         Python / Node CLIs (safe default: --help)
+  //   10-content    markdown / scripts / consumed skills (no long-lived server)
   //
-  // Task hooks (preLaunchTask/postDebugTask) reference .vscode/tasks.json.
-  // Everything here wraps the same tools/ entrypoints CI runs — see
-  // tools/dash for the CLI equivalents. The pre-2026 Django/PostHog configs
-  // (foreign to this repo, and structurally broken) live in git history.
+  // Submodule ports are offset from the hub map (4000 dash · 4001 console ·
+  // 5000 CV Builder · 5173 Vite HMR · 8000 MkDocs) so two F5s don't collide.
+  // Task hooks reference .vscode/tasks.json. Hub entries wrap tools/ the same
+  // way CI does. The pre-2026 Django/PostHog configs live in git history.
   // ==========================================================================
   "version": "0.2.0",
   "configurations": [
@@ -217,6 +221,492 @@
       "cwd": "${workspaceFolder}/projects/README",
       "env": { "PYTHONUNBUFFERED": "1" },
       "presentation": { "group": "4-docs" }
+    },
+    {
+      "name": "📚 MkDocs: Serve (ai-seed)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mkdocs",
+      "args": ["serve", "--dev-addr=127.0.0.1:8001"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/ai-seed",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "4-docs", "order": 20 }
+    },
+
+    // --------------------------------------------------------------- JEKYLL
+    // bundle exec jekyll serve — unique ports so they don't collide with the
+    // hub dash on :4000. Needs Bundler gems installed in that submodule.
+    {
+      "name": "💎 Jekyll: it-journey (:4010)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4010 --livereload --livereload-port 35730",
+      "cwd": "${workspaceFolder}/projects/it-journey",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: zer0-mistakes (:4011)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4011 --livereload --livereload-port 35731",
+      "cwd": "${workspaceFolder}/projects/zer0-mistakes",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: bamr87.github.io (:4012)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4012 --livereload --livereload-port 35732",
+      "cwd": "${workspaceFolder}/projects/bamr87.github.io",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: lifehacker.dev (:4013)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4013 --livereload --livereload-port 35733",
+      "cwd": "${workspaceFolder}/projects/lifehacker.dev",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: bashconsultants (:4014)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4014 --livereload --livereload-port 35734",
+      "cwd": "${workspaceFolder}/projects/bashconsultants",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: wargames (:4015)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4015 --livereload --livereload-port 35735",
+      "cwd": "${workspaceFolder}/projects/wargames",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: drsai (:4016)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4016 --livereload --livereload-port 35736",
+      "cwd": "${workspaceFolder}/projects/drsai",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: irony-works (:4017)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4017 --livereload --livereload-port 35737",
+      "cwd": "${workspaceFolder}/projects/irony-works",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: 2005 (:4018)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4018 --livereload --livereload-port 35738",
+      "cwd": "${workspaceFolder}/projects/2005",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: zer0-pages (:4019)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4019 --livereload --livereload-port 35739",
+      "cwd": "${workspaceFolder}/projects/zer0-pages",
+      "presentation": { "group": "5-jekyll" }
+    },
+    {
+      "name": "💎 Jekyll: zer0-pages-remote (:4020)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bundle exec jekyll serve --host 127.0.0.1 --port 4020 --livereload --livereload-port 35740",
+      "cwd": "${workspaceFolder}/projects/zer0-pages-remote",
+      "presentation": { "group": "5-jekyll" }
+    },
+
+    // ------------------------------------------------------------------ APPS
+    {
+      "name": "⚡ Vite: cv-builder-pro (:5000)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5000"],
+      "cwd": "${workspaceFolder}/projects/cv-builder-pro",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+    {
+      "name": "⚡ Vite: gitnexus (:8080)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/projects/gitnexus",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+    {
+      "name": "⚡ Vite: gitorio app (:5174)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5174"],
+      "cwd": "${workspaceFolder}/projects/gitorio/app",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+    {
+      "name": "⚡ Vite: rewind-arcade (:5175)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5175"],
+      "cwd": "${workspaceFolder}/projects/rewind-arcade/arcade",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+    {
+      "name": "⚡ Vite: aieo frontend (:5176)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5176"],
+      "cwd": "${workspaceFolder}/projects/aieo/frontend",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+    {
+      "name": "⚡ Vite: fredgar-ai frontend (:5177)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--host", "127.0.0.1", "--port", "5177"],
+      "cwd": "${workspaceFolder}/projects/fredgar-ai/frontend",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+    {
+      "name": "📄 cv: build (tsx builder/build.ts)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "builder/build.ts"],
+      "cwd": "${workspaceFolder}/projects/cv",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+    {
+      "name": "📄 cv: watch",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "builder/watch.ts"],
+      "cwd": "${workspaceFolder}/projects/cv",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "6-apps" }
+    },
+
+    // ---------------------------------------------------------------- PYTHON
+    {
+      "name": "🐍 Django: barodybroject runserver (:8010)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/projects/barodybroject/src/manage.py",
+      "args": ["runserver", "127.0.0.1:8010"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/barodybroject/src",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "DJANGO_SETTINGS_MODULE": "barodybroject.settings.development"
+      },
+      "presentation": { "group": "7-python" }
+    },
+    {
+      "name": "🐍 Django: fredgar-ai runserver (:8011)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/projects/fredgar-ai/src/manage.py",
+      "args": ["runserver", "127.0.0.1:8011"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/fredgar-ai/src",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "DJANGO_SETTINGS_MODULE": "config.settings"
+      },
+      "presentation": { "group": "7-python" }
+    },
+    {
+      "name": "🐍 Django: law-ai runserver (:8012)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/projects/law-ai/backend/manage.py",
+      "args": ["runserver", "127.0.0.1:8012"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/law-ai/backend",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "DJANGO_SETTINGS_MODULE": "law_ai.settings.dev"
+      },
+      "presentation": { "group": "7-python" }
+    },
+    {
+      "name": "🐍 Django: djangoerp runserver (:8013)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/projects/djangoerp/manage.py",
+      "args": ["runserver", "127.0.0.1:8013"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/djangoerp",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "DJANGO_SETTINGS_MODULE": "djangoerp.settings"
+      },
+      "presentation": { "group": "7-python" }
+    },
+    {
+      "name": "🐍 FastAPI: aieo backend (:8002)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "127.0.0.1", "--port", "8002", "--reload"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/aieo/backend",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "serverReadyAction": {
+        "pattern": "Uvicorn running on (https?://[^\\s]+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "7-python" }
+    },
+    {
+      "name": "🧪 pytest: current file (submodule)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-v"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${fileDirname}",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "7-python" }
+    },
+
+    // ----------------------------------------------------------- EXTENSIONS
+    {
+      "name": "🧩 Ext: csv-vscoode",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/csv-vscoode"],
+      "outFiles": ["${workspaceFolder}/projects/csv-vscoode/out/**/*.js"],
+      "presentation": { "group": "8-ext" }
+    },
+    {
+      "name": "🧩 Ext: vs-sonic-pi",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/vs-sonic-pi"],
+      "outFiles": ["${workspaceFolder}/projects/vs-sonic-pi/dist/**/*.js"],
+      "presentation": { "group": "8-ext" }
+    },
+    {
+      "name": "🧩 Ext: zpl-viewer",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/zpl-viewer"],
+      "outFiles": ["${workspaceFolder}/projects/zpl-viewer/dist/**/*.js"],
+      "presentation": { "group": "8-ext" }
+    },
+    {
+      "name": "🧩 Ext: zer0-cms",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/zer0-cms"],
+      "outFiles": ["${workspaceFolder}/projects/zer0-cms/dist/**/*.js"],
+      "presentation": { "group": "8-ext" }
+    },
+
+    // ------------------------------------------------------------------- CLI
+    {
+      "name": "⌨️ CLI: bashos --help",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "bashos.shell.cli",
+      "args": ["--help"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/bashos",
+      "env": { "PYTHONUNBUFFERED": "1", "PYTHONPATH": "${workspaceFolder}/projects/bashos/src" },
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "⌨️ CLI: ocrmd --help",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ocrmd.cli",
+      "args": ["--help"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/ocrmd",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "⌨️ CLI: lawmode --help",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "lawmode.cli",
+      "args": ["--help"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/lawmode",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "⌨️ CLI: wtd --help",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "wtd.cli",
+      "args": ["--help"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/wtd",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "⌨️ CLI: books --help",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "bookshelf.cli",
+      "args": ["--help"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/books",
+      "env": { "PYTHONUNBUFFERED": "1", "PYTHONPATH": "${workspaceFolder}/projects/books/src" },
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "⌨️ CLI: gwtp --help",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "src/cli/index.ts", "--help"],
+      "cwd": "${workspaceFolder}/projects/git-with-the-program",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "⌨️ Node test: bashcrawl",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["test"],
+      "cwd": "${workspaceFolder}/projects/bashcrawl",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "🧪 pytest: githubai",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-v"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/githubai",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "9-cli" }
+    },
+    {
+      "name": "🧪 pytest: zer0-image-generator",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-v"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/zer0-image-generator",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "9-cli" }
+    },
+
+    // -------------------------------------------------------------- CONTENT
+    {
+      "name": "📝 scripts: current file",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/projects/scripts",
+      "env": { "PYTHONUNBUFFERED": "1" },
+      "presentation": { "group": "10-content" }
+    },
+    {
+      "name": "📝 1987: open index.md",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "code \"${workspaceFolder}/projects/1987/index.md\"",
+      "cwd": "${workspaceFolder}/projects/1987",
+      "presentation": { "group": "10-content" }
+    },
+    {
+      "name": "📝 skills: open Agents.md",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "code \"${workspaceFolder}/projects/skills/Agents.md\"",
+      "cwd": "${workspaceFolder}/projects/skills",
+      "presentation": { "group": "10-content" }
     }
   ],
 
