@@ -1,0 +1,48 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"github.copilot.enable": {
+			"*": true,
+			"markdown": true,
+			"yaml": true,
+			"liquid": true,
+			"html": true,
+			"scss": true,
+			"javascript": true,
+			"python": true,
+			"dockerfile": true,
+			"json": true,
+			"jsonc": true
+		},
+		"files.associations": {
+			"*.html": "liquid",
+			"*.md": "markdown",
+			"*.yml": "yaml",
+			"*.yaml": "yaml",
+			"_config*.yml": "yaml",
+			"docker-compose*.yml": "yaml",
+			"Dockerfile*": "dockerfile"
+		},
+		"yaml.completion": true,
+		"yaml.hover": true,
+		"emmet.includeLanguages": {
+			"liquid": "html"
+		},
+		"terminal.integrated.env.osx": {
+			"JEKYLL_ENV": "development",
+			"DOCKER_BUILDKIT": "1"
+		},
+		"terminal.integrated.env.linux": {
+			"JEKYLL_ENV": "development",
+			"DOCKER_BUILDKIT": "1"
+		},
+		"git.autoRepositoryDetection": "subFolders",
+		"frontMatter.dashboard.openOnStart": false,
+		"frontMatter.content.autoUpdateDate": true,
+		"containers.images.label": "latest"
+	}
+}

@@ -10,7 +10,6 @@
     // CORE DEVELOPMENT TOOLS
     // ==========================================
     "github.copilot",
-    "github.copilot-chat",
     "ms-azuretools.vscode-docker",
     
     // ==========================================
@@ -28,8 +27,6 @@
     "shopify.liquid",
     "ms-vscode.vscode-json",
     "redhat.vscode-yaml",
-    "davidanson.vscode-markdownlint",
-    "yzhang.markdown-all-in-one",
     
     // ==========================================
     // UTILITY EXTENSIONS
@@ -37,17 +34,11 @@
     "ms-vscode.vscode-typescript-next",
     "ms-vscode-remote.remote-containers",
     "ms-vscode.remote-repositories",
-    "streetsidesoftware.code-spell-checker",
-    "eamodio.gitlens",
     
     // ==========================================
     // OPTIONAL ENHANCEMENTS
     // ==========================================
     "ms-vscode.live-server",
-    "bradlc.vscode-tailwindcss",
-    "formulahendry.auto-rename-tag",
-    "christian-kohler.path-intellisense",
-    "esbenp.prettier-vscode"
   ],
   
   // ==========================================
