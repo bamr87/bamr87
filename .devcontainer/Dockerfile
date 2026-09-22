@@ -2,108 +2,81 @@
 # bamr87 Monorepo - Development Container
 # ============================================================================
 #
-# Multi-stage Dockerfile for the development environment.
-# Provides Node.js, Python, Ruby, and shell tooling in a single container.
+# Node.js, Python, Ruby and shell tooling in one workspace image.
 #
+# Every base image below is an OFFICIAL language image, so its version flows
+# from one place: `_data/fleet.yml` `images:` (rewritten by
+# tools/docker_harmonize.py, gated by drift check (n)). An earlier revision was
+# Ubuntu 22.04 with Ruby compiled from a source tarball — ~10 minutes of
+# `make`, a hand-maintained RUBY_VERSION, and a Node/Python/Ruby trio that each
+# had its own upgrade story.
+#
+# Ruby is 3.4, NOT 4.0: the github-pages gem the dash site builds with declares
+# `Ruby >= 2.6, < 4.0`, so 4.0 cannot resolve it (see fleet.yml `images:`).
+
+# Declared BEFORE the first FROM so it is visible to every FROM below — an ARG
+# after a FROM belongs to that stage only, and `FROM ruby:${RUBY_VERSION}-trixie`
+# would silently expand to `ruby:-trixie`.
+ARG RUBY_VERSION=3.4
 
 # ---------------------------------------------------------------------------
-# Base image with common system dependencies
+# Node.js — donor stage. Only the runtime is copied out; the version is the
+# FROM tag, so `docker_harmonize.py` bumps it like any other image.
 # ---------------------------------------------------------------------------
-FROM ubuntu:22.04 AS base
+FROM node:24-trixie-slim AS node
+
+# ---------------------------------------------------------------------------
+# Development image: Ruby 3.4 on Debian 13 (trixie), which already carries the
+# compiler toolchain, git and bundler.
+# ---------------------------------------------------------------------------
+FROM ruby:${RUBY_VERSION}-trixie AS development
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
-# System packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
-    build-essential \
     ca-certificates \
     curl \
-    git \
     gnupg \
     jq \
     less \
-    lsb-release \
     openssh-client \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-venv \
     shellcheck \
     sudo \
     unzip \
-    wget \
     vim \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# ---------------------------------------------------------------------------
-# Node.js (LTS)
-# ---------------------------------------------------------------------------
-FROM base AS node-setup
+# Node runtime + npm/npx from the donor stage.
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack
 
-RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g npm@latest \
-    && rm -rf /var/lib/apt/lists/*
+# Python tooling lives in its own venv on PATH. Debian 13 enforces PEP 668, so a
+# bare `pip3 install` is refused — and a venv is what the fleet's own tools want
+# anyway (PyYAML is the one every hub script imports).
+ENV VIRTUAL_ENV=/opt/tools
+ENV PATH=/opt/tools/bin:${PATH}
+RUN python3 -m venv "${VIRTUAL_ENV}" \
+    && "${VIRTUAL_ENV}/bin/pip" install --no-cache-dir \
+        black \
+        flake8 \
+        mkdocs \
+        mkdocs-material \
+        pre-commit \
+        pyyaml \
+    && ln -sf "${VIRTUAL_ENV}/bin/python" /usr/local/bin/python
 
-# ---------------------------------------------------------------------------
-# Python 3.12
-# ---------------------------------------------------------------------------
-FROM node-setup AS python-setup
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
-    python3-dev \
-    && ln -sf /usr/bin/python3 /usr/local/bin/python \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install common Python tools globally
-# (Ubuntu 22.04 ships pip 22.0.2, which predates PEP 668 / --break-system-packages)
-RUN pip3 install --no-cache-dir \
-    pre-commit \
-    black \
-    flake8 \
-    mkdocs \
-    mkdocs-material
-
-# ---------------------------------------------------------------------------
-# Ruby 3.3 (matches build-dash.yml's ruby/setup-ruby version)
-# ---------------------------------------------------------------------------
-# Ubuntu 22.04 (jammy) has no apt package for Ruby 3.3 — the archive ships 3.0,
-# and the brightbox PPA that used to backport newer Rubies stopped publishing
-# jammy builds after 2.7. Build from the official source tarball instead; the
-# root Gemfile (github-pages + jekyll) needs the dash's Jekyll site to build.
-FROM python-setup AS ruby-setup
-
-ARG RUBY_VERSION=3.3.11
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    autoconf \
-    bison \
-    libffi-dev \
-    libgdbm-dev \
-    libgmp-dev \
-    libncurses-dev \
-    libreadline-dev \
-    libssl-dev \
-    libyaml-dev \
-    uuid-dev \
-    zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL "https://cache.ruby-lang.org/pub/ruby/${RUBY_VERSION%.*}/ruby-${RUBY_VERSION}.tar.gz" -o /tmp/ruby.tar.gz \
-    && tar -xzf /tmp/ruby.tar.gz -C /tmp \
-    && cd "/tmp/ruby-${RUBY_VERSION}" \
-    && ./configure --disable-install-doc --prefix=/usr/local \
-    && make -j"$(nproc)" \
-    && make install \
-    && cd / && rm -rf "/tmp/ruby-${RUBY_VERSION}" /tmp/ruby.tar.gz \
-    && gem install bundler --no-document
-
-# ---------------------------------------------------------------------------
 # GitHub CLI
-# ---------------------------------------------------------------------------
-FROM ruby-setup AS gh-setup
-
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -112,12 +85,7 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-# ---------------------------------------------------------------------------
-# Final development image
-# ---------------------------------------------------------------------------
-FROM gh-setup AS development
-
-# Create non-root user
+# Non-root user
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
@@ -136,8 +104,7 @@ RUN mkdir -p /workspace && chown ${USERNAME}:${USERNAME} /workspace
 # them root-owned on first mount and the container (uid 1000) cannot write to
 # them. That is what left `console` in a restart loop ("Permission denied:
 # /workspace/.venv-console/include") while `bundle-gems`, pre-created below,
-# worked fine. Same reasoning as BUNDLE_PATH; keep in sync with the volume
-# list in docker-compose.yml.
+# worked fine. Keep in sync with the volume list in docker-compose.yml.
 RUN mkdir -p /workspace/.venv-console \
              /workspace/.venv-docs \
              /workspace/projects/README/.venv \
@@ -166,7 +133,7 @@ RUN echo "=== Development Container Versions ===" \
     && echo "Node.js: $(node --version)" \
     && echo "npm:     $(npm --version)" \
     && echo "Python:  $(python3 --version)" \
-    && echo "pip:     $(pip3 --version)" \
+    && echo "pip:     $(pip --version)" \
     && echo "git:     $(git --version)" \
     && echo "gh:      $(gh --version | head -1)" \
     && echo "Ruby:    $(ruby --version)" \

@@ -112,6 +112,30 @@ run_control_plane_tests() {
         run_step "dash-gen $(basename "$t")" python3 "$t"
     done
     [[ "$found" -eq 1 ]] || skip "no dash-gen tests found"
+    # The local fleet SMOKE test: connect to every running container and hold it
+    # to the recorded baseline (_data/smoke.yml). Skipped rather than failed when
+    # the stack is not up or Docker is unreachable — this suite also runs on
+    # machines that never start the fleet, and a skip there is honest where a
+    # failure would be noise. Bring it up with `tools/dash dev up --all`.
+    if [[ -f "${PROJECT_ROOT}/_data/smoke.yml" ]]; then
+        if ! docker info >/dev/null 2>&1; then
+            skip "fleet smoke: Docker is not running"
+        elif [[ -z "$(docker ps -q 2>/dev/null)" ]]; then
+            skip "fleet smoke: no containers up (tools/dash dev up --all)"
+        else
+            run_step "fleet smoke (containers vs recorded baseline)" \
+                python3 "${PROJECT_ROOT}/tools/fleet_smoke.py" check
+        fi
+    else
+        skip "fleet smoke: no baseline recorded (tools/dash dev smoke record)"
+    fi
+
+    # The Docker-standard transformer edits other repos unattended, so its tests
+    # are part of every sweep (PyYAML only, no Docker needed).
+    for t in "${PROJECT_ROOT}"/tools/test_*.py; do
+        [[ -e "$t" ]] || continue
+        run_step "tools $(basename "$t")" python3 "$t"
+    done
     # The Harness Console's core is tested the same way (PyYAML only).
     for t in "${PROJECT_ROOT}"/tools/console/test_*.py; do
         [[ -e "$t" ]] || continue

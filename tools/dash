@@ -14,6 +14,22 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS="${ROOT}/tools"
 SCRIPTS="${ROOT}/projects/scripts"   # the scripts submodule lives under projects/
 
+# Every Python tool here needs PyYAML, and `python3` is whatever is first on
+# PATH — which after a Homebrew minor bump is an interpreter carrying none of
+# the fleet's packages, while /usr/bin/python3 still has them. PEP 668 then
+# refuses to let you simply install into the new one. Probing beats assuming;
+# this is the same resolve_py that tools/fleet-dev.sh uses, for the same reason.
+resolve_py() {
+  local cand
+  for cand in "${PYTHON:-}" python3 /usr/bin/python3 python; do
+    [[ -n "$cand" ]] || continue
+    command -v "$cand" >/dev/null 2>&1 || continue
+    "$cand" -c 'import yaml' >/dev/null 2>&1 && { echo "$cand"; return 0; }
+  done
+  return 1
+}
+PY="$(resolve_py || echo "${PYTHON:-python3}")"
+
 c_bold=$'\033[1m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
 
 usage() {
@@ -39,6 +55,12 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
+  ${c_bold}dash dev <cmd> [project...]${c_off} the fleet DEV STACK — launch/debug any submodule from the hub
+                         up|down|ps|logs|exec|build|config|ports|list; --all for everything,
+                         --debug to layer a repo's own debugpy compose (docs/FLEET-COMPOSE.md)
+  ${c_bold}dash docker <cmd>${c_off}       the fleet Docker standard — audit|apply|check|tags|fleet; image versions live
+                         in _data/fleet.yml \`images:\`, fan-out via docker-fanout.yml (docs/DOCKER.md).
+                         \`view [--write]\` builds the consolidated /docker/ dashboard (_data/docker.yml)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -65,8 +87,8 @@ cmd_status() {
   git -C "$ROOT" submodule status || true
   echo
   echo "${c_bold}== Registry ==${c_off}"
-  if command -v python3 >/dev/null; then
-    python3 - "$ROOT/_data/projects.yml" <<'PY'
+  if command -v "$PY" >/dev/null; then
+    "$PY" - "$ROOT/_data/projects.yml" <<'PY'
 import sys, yaml
 with open(sys.argv[1]) as fh:
     reg = yaml.safe_load(fh) or []
@@ -85,7 +107,7 @@ cmd_monitor() {
   "${TOOLS}/dash-gen" health
   local health="${ROOT}/_data/project_health.yml"
   [[ -f "$health" ]] || { echo "no health data"; return 1; }
-  python3 - "$health" <<'PY'
+  "$PY" - "$health" <<'PY'
 import sys, yaml
 data = yaml.safe_load(open(sys.argv[1])) or []
 order = {"red":0,"amber":1,"green":2}
@@ -98,6 +120,28 @@ for h in sorted(data, key=lambda x: x.get("attention_rank", 2)):
 green = sum(1 for h in data if h["attention"]["level"]=="green")
 print(f'\n🟢 {green} healthy / {len(data)} total')
 PY
+}
+
+# The fleet dev stack. Thin delegation on purpose: fleet-dev.sh is also the
+# entry point .vscode/launch.json and tasks.json call, and a second
+# implementation here would be a second thing to keep correct.
+cmd_dev() {
+  exec "$ROOT/tools/fleet-dev.sh" "$@"
+}
+
+# The fleet Docker standard. Delegation only — the transformer is also what
+# tools/fanout.sh --kit docker runs, and one implementation is one thing to keep
+# correct. `dash docker fleet` audits every checked-out submodule read-only.
+cmd_docker() {
+  # `view` is the read-only dashboard projection, not a transform — it merges
+  # the port registry, the image contract, the smoke recording and this audit
+  # into _data/docker.yml for the /docker/ page. Everything else is the
+  # harmonizer itself.
+  if [[ "${1:-}" == "view" ]]; then
+    shift
+    exec "$PY" "${TOOLS}/docker_view.py" "$@"
+  fi
+  "$PY" "${TOOLS}/docker_harmonize.py" "$@"
 }
 
 cmd_serve() {
@@ -202,7 +246,7 @@ cmd_foreach() {
 # Active-tier, non-fork submodule names (the release/protect candidates).
 _active_repos() {
   "${TOOLS}/audit-standards.sh" --json --no-color 2>/dev/null \
-    | python3 -c 'import sys,json;print("\n".join(r["name"] for r in json.load(sys.stdin)["rows"] if r["tier"]=="active"))'
+    | "$PY" -c 'import sys,json;print("\n".join(r["name"] for r in json.load(sys.stdin)["rows"] if r["tier"]=="active"))'
 }
 
 cmd_adopt_release() {
@@ -296,8 +340,8 @@ cmd_spec() {
   # (the file the repo-evolution brief reads); `dash spec kinds [path]`.
   local sub="${1:-check}"
   case "$sub" in
-    check|fleet|kinds) shift; python3 "${TOOLS}/conformance.py" "$sub" "$@" ;;
-    *) python3 "${TOOLS}/conformance.py" check "$@" ;;
+    check|fleet|kinds) shift; "$PY" "${TOOLS}/conformance.py" "$sub" "$@" ;;
+    *) "$PY" "${TOOLS}/conformance.py" check "$@" ;;
   esac
 }
 cmd_issues() { "${TOOLS}/dash-gen" issues "$@"; }
@@ -317,10 +361,10 @@ cmd_secrets() {
   # the weekly credential loop and `plan` is its read-only half. Values come
   # from the environment only — see fleet-config.py.
   case "${1:-}" in
-    sync) shift; python3 "${TOOLS}/fleet-config.py" sync-secrets "$@" ;;
-    rotate) shift; python3 "${TOOLS}/fleet-config.py" rotate "$@" ;;
-    plan) shift; python3 "${TOOLS}/fleet-config.py" rotation-plan "$@" ;;
-    *) python3 "${TOOLS}/fleet-config.py" audit "$@" ;;
+    sync) shift; "$PY" "${TOOLS}/fleet-config.py" sync-secrets "$@" ;;
+    rotate) shift; "$PY" "${TOOLS}/fleet-config.py" rotate "$@" ;;
+    plan) shift; "$PY" "${TOOLS}/fleet-config.py" rotation-plan "$@" ;;
+    *) "$PY" "${TOOLS}/fleet-config.py" audit "$@" ;;
   esac
 }
 cmd_config() {
@@ -328,9 +372,9 @@ cmd_config() {
   # forwards show/audit/sync straight through.
   local sub="${1:-show}"
   case "$sub" in
-    show|audit|sync) shift; python3 "${TOOLS}/fleet-config.py" "$sub" "$@" ;;
-    sync-secrets|rotate|rotation-plan) shift; python3 "${TOOLS}/fleet-config.py" "$sub" "$@" ;;
-    *) python3 "${TOOLS}/fleet-config.py" show "$@" ;;
+    show|audit|sync) shift; "$PY" "${TOOLS}/fleet-config.py" "$sub" "$@" ;;
+    sync-secrets|rotate|rotation-plan) shift; "$PY" "${TOOLS}/fleet-config.py" "$sub" "$@" ;;
+    *) "$PY" "${TOOLS}/fleet-config.py" show "$@" ;;
   esac
 }
 cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
@@ -369,6 +413,8 @@ main() {
     estimate) cmd_estimate "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
+    dev)     cmd_dev "$@" ;;
+    docker)  cmd_docker "$@" ;;
     serve)   cmd_serve "$@" ;;
     console) cmd_console "$@" ;;
     sync)    cmd_sync "$@" ;;
