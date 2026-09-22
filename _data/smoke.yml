@@ -1,0 +1,1065 @@
+---
+schema: fleet-smoke/v1
+recorded_at: '2026-09-22T02:43:49Z'
+note: Observed by tools/fleet_smoke.py against the LOCAL fleet stack. `services` is the full recording;
+  `expectations` is the stable subset that `fleet-smoke check` asserts. Latency, byte counts, patch versions
+  and container ids are recorded but never asserted.
+summary:
+  services: 35
+  ok: 26
+  broken: 0
+  stopped: 0
+  optional: 7
+  absent: 2
+services:
+- project: ai-seed
+  service: api
+  band: api
+  port: 8113
+  container: ai-seed-api-1
+  state: running
+  image: eeaa7a347e52
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8113/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: application/json
+    bytes: 232
+    ms: 9
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: ai-seed
+  service: database
+  band: database
+  port: 5445
+  container: ai-seed-database-1
+  state: running
+  image: postgres:15-alpine
+  probes:
+  - kind: tcp
+    port: 5445
+    ok: true
+    ms: 1
+  - kind: postgres
+    ok: true
+    server_version: '15.19'
+    major: '15'
+    databases:
+    - ai_seed_dev
+    - postgres
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: ai-seed
+  service: frontend
+  band: frontend
+  port: 5112
+  container: ai-seed-frontend-1
+  state: running
+  image: 634717eb1b63
+  probes:
+  - kind: http
+    url: http://127.0.0.1:5112/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 743
+    ms: 36
+    title: 'AI-Seed: Evolution Engine'
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: aieo
+  service: postgres
+  band: database
+  port: 5443
+  container: fleet-aieo-postgres
+  state: running
+  image: timescale/timescaledb:latest-pg16
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 5443
+    ok: true
+    ms: 1
+  - kind: postgres
+    ok: true
+    server_version: '16.15'
+    major: '16'
+    databases:
+    - aieo
+    - postgres
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: aieo
+  service: redis
+  band: cache
+  port: 6392
+  container: fleet-aieo-redis
+  state: running
+  image: redis:7-alpine
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 6392
+    ok: true
+    ms: 1
+  - kind: redis
+    ok: true
+    pong: true
+    redis_version: 7.4.11
+    major: '7'
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: bamr87
+  service: console
+  band: hub
+  port: 4001
+  container: fleet-hub-console-1
+  state: running
+  image: fleet-hub-console
+  health: healthy
+  probes:
+  - kind: http
+    url: http://127.0.0.1:4001/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 31
+    title: Harness Console
+  - kind: exec
+    ok: true
+    user: vscode
+  ok: true
+  verdict: ok
+- project: bamr87
+  service: mkdocs
+  band: docs
+  port: 8001
+  container: fleet-hub-mkdocs-1
+  state: running
+  image: squidfunk/mkdocs-material
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8001/
+    ok: true
+    status: 302
+    status_class: 3xx
+    content_type: ''
+    bytes: 0
+    ms: 28
+    location: /README/
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: barodybroject
+  service: barodydb
+  band: database
+  port: 5444
+  container: fleet-barodybroject-barodydb
+  state: running
+  image: postgres:15-alpine
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 5444
+    ok: true
+    ms: 2
+  - kind: postgres
+    ok: true
+    server_version: '15.19'
+    major: '15'
+    databases:
+    - barodydb
+    - postgres
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: barodybroject
+  service: docs
+  band: api
+  port: 8121
+  container: fleet-barodybroject-docs
+  state: running
+  image: barodybroject-docs
+  health: unhealthy
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8121/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 10
+    title: Parodynews Documentation &mdash; Parodynews 2.0.0 documentation
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: barodybroject
+  service: jekyll
+  band: jekyll
+  port: 4021
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:4021/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 0
+  ok: false
+  profiles:
+  - jekyll
+  - dev
+  verdict: optional
+- project: barodybroject
+  service: web-prod
+  band: api
+  port: 8114
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8114/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 0
+  ok: false
+  verdict: absent
+- project: bashconsultants
+  service: jekyll
+  band: jekyll
+  port: 4014
+  container: bashconsultants-jekyll-1
+  state: running
+  image: ruby:3.3
+  probes:
+  - kind: http
+    url: http://127.0.0.1:4014/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 24
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: bashos
+  service: langgraph-dev
+  band: api
+  port: 8116
+  container: bashos-langgraph-dev-1
+  state: running
+  image: bashos-langgraph-dev
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8116/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: application/json
+    bytes: 11
+    ms: 11
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: djangoerp
+  service: db
+  band: database
+  port: 5433
+  container: djangoerp-db-1
+  state: running
+  image: postgres:17-alpine
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 5433
+    ok: true
+    ms: 1
+  - kind: postgres
+    ok: true
+    server_version: '17.11'
+    major: '17'
+    databases:
+    - djangoerp
+    - postgres
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: djangoerp
+  service: redis
+  band: cache
+  port: 6380
+  container: djangoerp-redis-1
+  state: running
+  image: redis:8-alpine
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 6380
+    ok: true
+    ms: 1
+  - kind: redis
+    ok: true
+    pong: true
+    redis_version: 8.10.1
+    major: '8'
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: djangoerp
+  service: web
+  band: api
+  port: 8111
+  container: djangoerp-web-1
+  state: running
+  image: djangoerp-web
+  health: healthy
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8111/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 80
+    title: "Setup \xB7 DjangoERP"
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: djangoerp
+  service: worker
+  band: debug
+  port: 5711
+  state: absent
+  probes:
+  - kind: tcp
+    port: 5711
+    ok: false
+    error: ConnectionRefusedError
+    ms: 1
+  ok: false
+  profiles:
+  - celery
+  verdict: optional
+- project: fredgar-ai
+  service: frontend
+  band: frontend
+  port: 5111
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:5111/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 1
+  ok: false
+  profiles:
+  - dev
+  verdict: optional
+- project: fredgar-ai
+  service: frontend-prod
+  band: frontend
+  port: 5115
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:5115/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 0
+  ok: false
+  profiles:
+  - prod
+  verdict: optional
+- project: fredgar-ai
+  service: web
+  band: api
+  port: 8112
+  container: fredgar-ai-web-1
+  state: running
+  image: b52b2a4e5ceb
+  health: healthy
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8112/
+    ok: true
+    status: 404
+    status_class: 4xx
+    content_type: text/html
+    bytes: 0
+    ms: 17
+  - kind: exec
+    ok: true
+    user: appuser
+  ok: true
+  verdict: ok
+- project: gitorio
+  service: dev
+  band: frontend
+  port: 5113
+  container: gitorio-dev-1
+  state: running
+  image: 0a47e86346f5
+  probes:
+  - kind: http
+    url: http://127.0.0.1:5113/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 845
+    ms: 41
+    title: "GitFactory \u2014 factory builder for GitHub automation"
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: gitorio
+  service: preview
+  band: frontend
+  port: 5114
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:5114/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 1
+  ok: false
+  profiles:
+  - preview
+  verdict: optional
+- project: it-journey
+  service: jekyll
+  band: jekyll
+  port: 4010
+  container: it-journey-jekyll-1
+  state: running
+  image: ae4be9bb31ae
+  probes:
+  - kind: http
+    url: http://127.0.0.1:4010/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 10
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: law-ai
+  service: backend
+  band: api
+  port: 8110
+  container: law-ai-backend-1
+  state: running
+  image: 067a1a8eb061
+  health: healthy
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8110/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: application/json
+    bytes: 149
+    ms: 748
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: law-ai
+  service: frontend
+  band: frontend
+  port: 5110
+  container: law-ai-frontend-1
+  state: running
+  image: 3bca5b06caf0
+  health: healthy
+  probes:
+  - kind: http
+    url: http://127.0.0.1:5110/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 353
+    title: Law AI
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: law-ai
+  service: langgraph-api
+  band: api
+  port: 8115
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8115/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 3
+  ok: false
+  profiles:
+  - studio
+  verdict: optional
+- project: law-ai
+  service: postgres
+  band: database
+  port: 5442
+  container: law-ai-postgres-1
+  state: running
+  image: postgres:16-alpine
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 5442
+    ok: true
+    ms: 3
+  - kind: postgres
+    ok: true
+    server_version: '16.15'
+    major: '16'
+    databases:
+    - law_ai
+    - postgres
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: law-ai
+  service: redis
+  band: cache
+  port: 6391
+  container: law-ai-redis-1
+  state: running
+  image: redis:7-alpine
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 6391
+    ok: true
+    ms: 1
+  - kind: redis
+    ok: true
+    pong: true
+    redis_version: 7.4.11
+    major: '7'
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: law-ai
+  service: worker
+  band: debug
+  port: 5714
+  container: law-ai-worker-1
+  state: running
+  image: law-ai-worker
+  health: healthy
+  probes:
+  - kind: tcp
+    port: 5714
+    ok: true
+    ms: 2
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: zer0-cms
+  service: cms
+  band: api
+  port: 8117
+  container: zer0-cms-cms-1
+  state: running
+  image: b3c1e60a2585
+  health: healthy
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8117/
+    ok: true
+    status: 301
+    status_class: 3xx
+    content_type: text/html
+    bytes: 0
+    ms: 16
+    location: http://127.0.0.1:8117/admin
+  - kind: exec
+    ok: true
+    user: rails
+  ok: true
+  verdict: ok
+- project: zer0-cms
+  service: imagegen
+  band: api
+  port: 8118
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8118/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 1
+  ok: false
+  profiles:
+  - imagegen
+  verdict: optional
+- project: zer0-image-generator
+  service: web
+  band: api
+  port: 8119
+  state: absent
+  probes:
+  - kind: http
+    url: http://127.0.0.1:8119/
+    ok: false
+    error: URLError
+    detail: <urlopen error [Errno 61] Connection refused>
+    ms: 0
+  ok: false
+  verdict: absent
+- project: zer0-mistakes
+  service: jekyll
+  band: jekyll
+  port: 4011
+  container: zer0-mistakes-jekyll-1
+  state: running
+  image: 8f81f790bfd3
+  probes:
+  - kind: http
+    url: http://127.0.0.1:4011/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 32
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: zer0-pages
+  service: site
+  band: jekyll
+  port: 4019
+  container: zer0-pages-site-1
+  state: running
+  image: ruby:3.3
+  probes:
+  - kind: http
+    url: http://127.0.0.1:4019/
+    ok: true
+    status: 404
+    status_class: 4xx
+    content_type: text/html
+    bytes: 0
+    ms: 4
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+- project: zer0-pages-remote
+  service: jekyll
+  band: jekyll
+  port: 4020
+  container: zer0-pages-remote-jekyll-1
+  state: running
+  image: ruby:3.2-slim
+  probes:
+  - kind: http
+    url: http://127.0.0.1:4020/
+    ok: true
+    status: 200
+    status_class: 2xx
+    content_type: text/html
+    bytes: 4096
+    ms: 53
+  - kind: exec
+    ok: true
+    user: root
+  ok: true
+  verdict: ok
+unallocated_containers:
+- project: ai-seed
+  service: evolution
+  state: running
+  image: ebaf1dbb91a2
+  container: ai-seed-evolution-1
+- project: aieo
+  service: mcp-audit
+  state: exited
+  image: 82f1b740bbff
+  container: fleet-aieo-mcp-audit
+- project: aieo
+  service: mcp-server
+  state: exited
+  image: 86efe59fef23
+  container: fleet-aieo-mcp-server
+- project: aieo
+  service: qdrant
+  state: running
+  image: qdrant/qdrant:latest
+  container: fleet-aieo-qdrant
+  health: unhealthy
+- project: bamr87
+  service: db
+  state: running
+  image: postgres:15-alpine
+  container: fleet-hub-db-1
+  health: healthy
+- project: bamr87
+  service: devenv
+  state: running
+  image: fleet-hub-devenv
+  container: fleet-hub-devenv-1
+- project: bamr87
+  service: phoenix
+  state: running
+  image: arizephoenix/phoenix:latest
+  container: fleet-hub-phoenix-1
+- project: bamr87
+  service: wiki
+  state: running
+  image: requarks/wiki:2
+  container: fleet-hub-wiki-1
+  health: healthy
+- project: fredgar-ai
+  service: db
+  state: running
+  image: postgres:15
+  container: fredgar-ai-db-1
+  health: healthy
+- project: fredgar-ai
+  service: redis
+  state: running
+  image: redis:7-alpine
+  container: fredgar-ai-redis-1
+  health: healthy
+- project: fredgar-ai
+  service: worker
+  state: running
+  image: fredgar-ai-worker
+  container: fredgar-ai-worker-1
+- project: it-journey
+  service: prd-machine
+  state: exited
+  image: it-journey-prd-machine
+  container: it-journey-prd-machine-1
+- project: it-journey
+  service: quest-audit
+  state: exited
+  image: python:3.12-slim
+  container: it-journey-quest-audit-1
+- project: it-journey
+  service: quest-build
+  state: exited
+  image: it-journey-quest-build
+  container: it-journey-quest-build-1
+- project: it-journey
+  service: quest-network-validator
+  state: exited
+  image: it-journey-quest-network-validator
+  container: it-journey-quest-network-validator-1
+- project: it-journey
+  service: quest-validator
+  state: exited
+  image: it-journey-quest-validator
+  container: it-journey-quest-validator-1
+- project: law-ai
+  service: neo4j
+  state: running
+  image: neo4j:5-community
+  container: law-ai-neo4j-1
+  health: 'health: starting'
+- project: law-ai
+  service: ollama
+  state: running
+  image: ollama/ollama:0.12.6
+  container: law-ai-ollama-1
+  health: healthy
+- project: lawmode
+  service: lawmode
+  state: exited
+  image: c61587a602dc
+  container: lawmode-lawmode-1
+expectations:
+  ai-seed/api:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root
+  ai-seed/database:
+    state: running
+    ok: true
+    verdict: ok
+    tcp: true
+    postgres_major: '15'
+    exec_user: root
+  ai-seed/frontend:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root
+  aieo/postgres:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    postgres_major: '16'
+    exec_user: root
+  aieo/redis:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    redis_major: '7'
+    exec_user: root
+  bamr87/console:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    http: 2xx
+    exec_user: vscode
+  bamr87/mkdocs:
+    state: running
+    ok: true
+    verdict: ok
+    http: 3xx
+    exec_user: root
+  barodybroject/barodydb:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    postgres_major: '15'
+    exec_user: root
+  barodybroject/docs:
+    state: running
+    ok: true
+    verdict: ok
+    health: unhealthy
+    http: 2xx
+    exec_user: root
+  barodybroject/jekyll:
+    state: absent
+    ok: false
+    verdict: optional
+    http: unreachable
+  barodybroject/web-prod:
+    state: absent
+    ok: false
+    verdict: absent
+    http: unreachable
+  bashconsultants/jekyll:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root
+  bashos/langgraph-dev:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root
+  djangoerp/db:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    postgres_major: '17'
+    exec_user: root
+  djangoerp/redis:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    redis_major: '8'
+    exec_user: root
+  djangoerp/web:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    http: 2xx
+    exec_user: root
+  djangoerp/worker:
+    state: absent
+    ok: false
+    verdict: optional
+    tcp: false
+  fredgar-ai/frontend:
+    state: absent
+    ok: false
+    verdict: optional
+    http: unreachable
+  fredgar-ai/frontend-prod:
+    state: absent
+    ok: false
+    verdict: optional
+    http: unreachable
+  fredgar-ai/web:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    http: 4xx
+    exec_user: appuser
+  gitorio/dev:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root
+  gitorio/preview:
+    state: absent
+    ok: false
+    verdict: optional
+    http: unreachable
+  it-journey/jekyll:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root
+  law-ai/backend:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    http: 2xx
+    exec_user: root
+  law-ai/frontend:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    http: 2xx
+    exec_user: root
+  law-ai/langgraph-api:
+    state: absent
+    ok: false
+    verdict: optional
+    http: unreachable
+  law-ai/postgres:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    postgres_major: '16'
+    exec_user: root
+  law-ai/redis:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    redis_major: '7'
+    exec_user: root
+  law-ai/worker:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    tcp: true
+    exec_user: root
+  zer0-cms/cms:
+    state: running
+    ok: true
+    verdict: ok
+    health: healthy
+    http: 3xx
+    exec_user: rails
+  zer0-cms/imagegen:
+    state: absent
+    ok: false
+    verdict: optional
+    http: unreachable
+  zer0-image-generator/web:
+    state: absent
+    ok: false
+    verdict: absent
+    http: unreachable
+  zer0-mistakes/jekyll:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root
+  zer0-pages/site:
+    state: running
+    ok: true
+    verdict: ok
+    http: 4xx
+    exec_user: root
+  zer0-pages-remote/jekyll:
+    state: running
+    ok: true
+    verdict: ok
+    http: 2xx
+    exec_user: root

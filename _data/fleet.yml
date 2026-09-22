@@ -32,6 +32,57 @@ toolchain:
   ruby: "3.3"
 
 # --------------------------------------------------------------------------- #
+# Images — the container image versions every Dockerfile and compose file in the
+# fleet tracks. The Docker-side twin of `toolchain:` above, and the ONLY place a
+# version is bumped: tools/docker_harmonize.py rewrites each repo to match, and
+# drift check (n) flags the ones that have fallen behind.
+#
+# Only the VERSION lives here. A file keeps its own tag variant (-alpine, -slim),
+# because the variant is a per-image decision; `bookworm` is rewritten to
+# `trixie` (Debian 13, current stable). Floating tags (`latest`, bare `alpine`)
+# are already "latest" and are left alone, matching the dependencies policy.
+#
+# DELIBERATE PINS WIN. A comment on or directly above an image line containing
+# "pinned", "bump deliberately", "do not bump" or "fleet-pin" freezes that
+# image's whole family in that repo — law-ai pins Postgres 16 (dump/restore
+# note) and keeps its own Ollama/Phoenix versions for reproducible eval runs.
+#
+# Third-party service images (neo4j, qdrant, ollama, grafana, …) are NOT managed
+# here: they version independently and a repo owns its own choice.
+#
+# This block governs CONTAINER images only. `toolchain:` above and `variables:`
+# below govern the CI RUNNERS (standard-ci.yml falls back to Node 20) and are
+# deliberately separate: moving every repo's CI runtime is its own fleet-wide,
+# outward-facing change (`dash config sync`), not a side effect of a Dockerfile.
+#
+# node "24"   Active LTS. Node 26 is "Current" and becomes LTS in Oct 2026 — one
+#             line to bump then.
+# ruby "3.4"  NOT 4.0. The github-pages gem declares `Ruby >= 2.6, < 4.0`, so 4.0
+#             cannot resolve for any Jekyll site in the fleet (verified 2026-09-21).
+# nginx "1"   Mainline major: `nginx:1-alpine` floats to the newest 1.x.
+#
+# WARNING — a Postgres MAJOR bump orphans existing local volumes: the new server
+# refuses data written by an older major. Dev data is disposable
+# (`docker compose down -v`) or `pg_dumpall` first. Postgres 18 also moved its
+# data directory, so the harmonizer rewrites the volume mount for you.
+# --------------------------------------------------------------------------- #
+images:
+  postgres: "18"
+  redis: "8"
+  node: "24"
+  python: "3.14"
+  ruby: "3.4"
+  nginx: "1"
+
+# Per-repo CEILINGS on the versions above — for the repo whose ecosystem has not
+# caught up, with the reason recorded so the exception is reviewable and removable
+# in one line. The harmonizer moves such a repo to THIS version instead (and, as
+# always, never lowers one). This is the same shape as Ruby 4.0 vs github-pages.
+image_overrides:
+  law-ai:
+    python: { version: "3.13", reason: "crewai>=1.14 publishes no release for Python 3.14 — every candidate says Requires-Python <3.14 (verified 2026-09-21)" }
+
+# --------------------------------------------------------------------------- #
 # Dependencies — the fleet-wide version policy: ALWAYS LATEST.
 #
 # Decision (2026-08): every repo installs whatever is newest at build time.

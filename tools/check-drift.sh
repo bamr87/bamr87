@@ -27,6 +27,13 @@
 #       trailing the hub's action majors, no committed lockfiles, no exact or
 #       ceiling pins in hub manifests (docs/DEPENDENCIES.md, `dependencies:` in
 #       _data/fleet.yml). Offline and hub-scoped, so it gates on every PR.
+#   (m) fleet dev-stack port allocation: _data/ports.yml has no collisions and
+#       is in band, and compose/overrides/* + compose.fleet.yml are in sync
+#       with it. Offline, so it gates every PR. Advisory half: submodules
+#       still publishing a hardcoded port or setting a container_name.
+#   (n) the Docker standard: the hub's OWN Dockerfiles/compose files match the
+#       image registry (_data/fleet.yml `images:`) and the transformer's tests
+#       pass. Advisory half: how much drift the checked-out submodules carry.
 #   (k) the fleet half of (j): committed lockfiles and SHA-pinned `uses:` in
 #       every registry repo (warn; --remote / --ci only; needs gh + network).
 #       Advisory for (g)'s reason — a repo-scoped token 404s on a private repo
@@ -724,6 +731,86 @@ PY
   else
     warn "skipped (gh not installed)"
   fi
+fi
+
+# --- (m): fleet dev-stack port allocation ----------------------------------
+# Offline and fast, so it gates. The fleet's 16 compose projects used to fight
+# over the same numbers — six repos published 5432, six 3000, five 8000 and
+# 8080, four 4000 — because UPS-REPO-30 mandated one fixed map for every repo.
+# _data/ports.yml replaced that map with an allocation; this keeps it honest
+# and keeps the generated overrides from drifting away from it.
+echo "(m) fleet port allocation + generated compose overrides"
+if [[ -f "$ROOT/_data/ports.yml" ]]; then
+  m_out="$("$PY" "$ROOT/tools/fleet-compose.py" check 2>&1)"
+  m_rc=$?
+  if [[ $m_rc -eq 0 ]]; then
+    ok "$(printf '%s' "$m_out" | sed -n 's/^  ✓ //p' | head -1)"
+  elif printf '%s' "$m_out" | grep -q 'PyYAML is required'; then
+    warn "skipped (PyYAML unavailable)"
+  else
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      bad "${line#  ✗ }"
+    done <<< "$(printf '%s' "$m_out" | grep '✗' || true)"
+    warn "  regenerate with: tools/fleet-compose.py sync"
+  fi
+
+  # Advisory: a submodule that still hardcodes a published port is fine inside
+  # the fleet stack (the hub override neutralizes it) but collides for anyone
+  # running that repo alongside another one standalone. Upstreaming the
+  # parameterized form is what eventually deletes its override file.
+  m_audit="$("$PY" "$ROOT/tools/fleet-compose.py" check --audit 2>/dev/null | grep '^  !' || true)"
+  if [[ -n "$m_audit" ]]; then
+    m_n="$(printf '%s\n' "$m_audit" | wc -l | tr -d ' ')"
+    warn "${m_n} submodule service(s) still hardcode a published port or set a container_name"
+    warn "  (fleet mode overrides them; standalone runs still collide — see docs/FLEET-COMPOSE.md)"
+  fi
+else
+  warn "skipped (_data/ports.yml absent)"
+fi
+
+# --- (n): the Docker standard ------------------------------------------------
+# The hub practices what it seeds: its own Dockerfiles and compose files must
+# already be what tools/docker_harmonize.py would write — image versions from
+# the registry (_data/fleet.yml `images:`), loopback env-overridable ports, no
+# container_name. Offline and fast, so it gates. The submodules are the ADVISORY
+# half: they converge through docker-fanout.yml PRs, not through this gate.
+echo "(n) Docker standard (image registry, ports, healthchecks)"
+if [[ -f "$ROOT/tools/docker_harmonize.py" ]]; then
+  if ! "$PY" -c 'import yaml' >/dev/null 2>&1; then
+    warn "skipped (PyYAML unavailable)"
+  else
+    if "$PY" "$ROOT/tools/test_docker_harmonize.py" >/dev/null 2>&1; then
+      ok "harmonizer tests pass"
+    else
+      bad "tools/test_docker_harmonize.py fails (run it to see which rule regressed)"
+    fi
+    # The /docker/ view reads the same registries the transformer writes to, so
+    # a change to one is exactly when the other's assumptions break.
+    if [[ -f "$ROOT/tools/test_docker_view.py" ]]; then
+      if "$PY" "$ROOT/tools/test_docker_view.py" >/dev/null 2>&1; then
+        ok "docker view tests pass"
+      else
+        bad "tools/test_docker_view.py fails (run it to see which projection regressed)"
+      fi
+    fi
+    n_out="$("$PY" "$ROOT/tools/docker_harmonize.py" check "$ROOT" --project bamr87 2>&1)"
+    if [[ -z "$n_out" ]]; then
+      ok "the hub's own Docker files match the standard"
+    else
+      while IFS= read -r line; do [[ -n "$line" ]] && bad "${line#  ✗ }"; done <<< "$n_out"
+      warn "  fix with: tools/dash docker apply . --project bamr87"
+    fi
+    # Advisory: submodule drift (local-only — CI does not check submodules out).
+    n_sum="$("$PY" "$ROOT/tools/docker_harmonize.py" fleet --summary 2>/dev/null || echo "0 0")"
+    n_changes="${n_sum% *}"; n_repos="${n_sum#* }"
+    if [[ "${n_changes:-0}" -gt 0 ]]; then
+      warn "${n_changes} pending Docker change(s) across ${n_repos} checked-out submodule(s)"
+      warn "  (converge via the docker-fanout workflow: tools/fanout.sh --kit docker --target all)"
+    fi
+  fi
+else
+  warn "skipped (tools/docker_harmonize.py absent)"
 fi
 
 # --- (c): internal links ---------------------------------------------------

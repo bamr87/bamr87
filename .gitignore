@@ -210,3 +210,6 @@ evolution-workorders/
 .claude/settings.local.json
 .claude/worktrees/
 .claude/skills/run-dash/*.png
+
+# Fleet dev stack: regenerated from _data/ports.yml by tools/fleet-compose.py
+.env.fleet

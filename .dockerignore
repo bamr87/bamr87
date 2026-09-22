@@ -1,0 +1,20 @@
+# Build context for the hub's devenv/console images (context: .).
+#
+# The monorepo root carries ~40 submodule checkouts, their node_modules and the
+# local data lake — none of which either image COPYs. Sending them anyway made
+# every build stream gigabytes to the daemon, and left `.env` one careless
+# `COPY . .` away from being baked into a layer (UPS-REPO-31).
+.git
+.github
+.kilo
+.dash-lake
+.venv*
+.env
+.env.*
+!.env.example
+_site
+site
+node_modules
+projects
+evolution-workorders
+*.log

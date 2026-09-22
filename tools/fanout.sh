@@ -18,7 +18,9 @@
 #     never overwrites a file the target already has. The deps-latest kit is
 #     the deliberate exception — converting a repo to the always-latest
 #     dependency policy MEANS editing manifests and deleting lockfiles
-#     (docs/DEPENDENCIES.md); every other guarantee here still applies to it
+#     (docs/DEPENDENCIES.md); the docker kit is the second — harmonizing a
+#     Dockerfile MEANS editing it (docs/DOCKER.md). Every other guarantee here
+#     still applies to both
 #   - one bot identity: bamr87-bot <10567847+bamr87@users.noreply.github.com>
 #
 # Usage:
@@ -28,6 +30,7 @@
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
+#   tools/fanout.sh --kit docker --target <name|all> [--apply]
 #   tools/fanout.sh --kit feedback --target <name|all> [--apply] [--upgrade]
 #
 # Kits:
@@ -86,6 +89,13 @@
 #                deletes + gitignores lockfiles, npm ci → npm install,
 #                lockfile-keyed caches removed, action tags floated to @major
 #                (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md)
+#   docker       branch chore/docker-harmonize; brings a repo's Dockerfiles and
+#                compose files to the fleet standard via tools/docker_harmonize.py —
+#                image versions from _data/fleet.yml `images:` (variant kept, never
+#                lowered, deliberate pins respected), Postgres 18 data-mount, ports
+#                loopback-bound + env-overridable, no container_name, 127.0.0.1
+#                healthchecks, optional env_file. Like deps-latest it EDITS existing
+#                files — that is its purpose — and is idempotent (docs/DOCKER.md)
 #
 # --upgrade (every templated artifact, not just claude.yml):
 #   Each kit dir carries a VERSION and an archive/ of the shapes it has seeded
@@ -189,8 +199,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|feedback) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|feedback> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -225,6 +235,12 @@ case "$KIT" in
     COMMIT_MSG="build(deps): adopt fleet always-latest dependency policy"
     PR_TITLE="build(deps): always-latest dependencies — drop pins and lockfiles"
     PR_BODY="Automated by bamr87 deps-fanout (tools/fanout.sh --kit deps-latest): adopts the fleet's ALWAYS-LATEST dependency policy — strips exact version pins from package.json/requirements*.txt/Gemfile, deletes and gitignores lockfiles, floats GitHub Actions on their major tags, and adapts CI installs (npm ci → npm install; lockfile-keyed caches removed). Every install now resolves the newest published versions; breakage surfaces in CI and is triaged by the hub's daily fleet-pulse loop. Follow-ups the script won't automate (pyproject/poetry/Pipfile tables, hash-pinned requirements, npm overrides) are listed in the run log. See bamr87/bamr87 docs/DEPENDENCIES.md."
+    ;;
+  docker)
+    BRANCH="chore/docker-harmonize"
+    COMMIT_MSG="build(docker): harmonize Docker configuration to the fleet standard"
+    PR_TITLE="build(docker): harmonize Docker configuration to the fleet standard"
+    PR_BODY="$(printf 'Automated by bamr87 docker-fanout (tools/fanout.sh --kit docker): brings this repo'"'"'s Dockerfiles and compose files to the fleet standard. Image versions come from one registry (bamr87/bamr87 `_data/fleet.yml` `images:`) — the variant (-alpine, -slim) is kept, a version is never lowered, and anything you marked deliberately pinned (a comment containing "pinned", "bump deliberately", "do not bump" or "fleet-pin") is left alone. Also: published ports become `127.0.0.1:${VAR:-<same port>}:<target>` (defaults unchanged, so nothing moves unless you set the variable), env values that hardcode a host port follow that variable, `container_name` is dropped unless a script references it, healthchecks probe 127.0.0.1 instead of localhost, a missing `.env` no longer stops `compose` from parsing, and the obsolete `version:` key goes.\n\n**A Postgres major bump orphans existing local volumes** — the new server refuses data written by an older major, and Postgres 18 also moved its data directory (the mount is rewritten for you). Dev data is disposable (`docker compose down -v`), or `pg_dumpall` first; `tools/dash dev db-upgrade` in the hub automates the dump/restore. Pin the image with a comment to opt out.\n\nReport-only items the kit does not auto-fix (root user, no HEALTHCHECK, no .dockerignore, single-stage builds) are listed in the run log. Idempotent: re-running on a converted repo is a no-op. See bamr87/bamr87 docs/DOCKER.md and specs/REPOSITORY.md (UPS-REPO-34..39).')"
     ;;
 esac
 
@@ -616,6 +632,9 @@ run_one() {
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
+      docker)      # --project keys the repo into _data/ports.yml so variable names
+                   # match the fleet allocation (FREDGAR_API_PORT, not a derived one)
+                   "${PYTHON:-python3}" "$HUB/tools/docker_harmonize.py" apply . --project "$name" ;;
       feedback)    seed_feedback "$(basename "${url%.git}")" "$def"
                    [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
     esac
