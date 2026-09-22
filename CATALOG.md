@@ -45,7 +45,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`ai-runner/`](templates/ai-runner/) | 0.1.0 | 2026-09-08 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (standardize-fanout.yml) | `README.md`, `conformance.yml` |
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
-| [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `dist/fleet/audit.d.ts`, `dist/fleet/audit.js`, `dist/fleet/facts.d.ts`, `dist/fleet/facts.js`, `dist/fleet/import.d.ts`, `dist/fleet/import.js`, `dist/fleet/manifest.d.ts`… |
+| [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
 | [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/f… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
@@ -126,12 +126,14 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
+| [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
 | [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
 | [`render-diagrams.sh`](tools/render-diagrams.sh) | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
 | [`run-all-tests.sh`](tools/run-all-tests.sh) | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
 | [`schema_lint.py`](tools/schema_lint.py) | Vendored Pyramid Schema linter (`check` + `init`) — provenance in [templates/schema/VERSION](../templates/schema/VERSION) |
 | [`seed-schema.sh`](tools/seed-schema.sh) | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
-| [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup |
+| [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bamr87/chui](https://github.com/bamr87/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font with CoreText via `m… |
+| [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
 | [`update-submodules.sh`](tools/update-submodules.sh) | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
@@ -267,6 +269,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | Doc | Purpose |
 | --- | --- |
 | [`AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth and the secrets matrix, loops, fleet propagation. |
+| [`COCKPIT.md`](docs/COCKPIT.md) | **Status:** Accepted direction (2026-09-18). |
 | [`DAILY-ANALYSIS.md`](docs/DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`) — measure, rank, remediate. |
 | [`DASH.md`](docs/DASH.md) | The dash architecture — registry, surfaces, monitoring, drift gates, and the self-evolution loop. |
 | [`DEPENDENCIES.md`](docs/DEPENDENCIES.md) | The always-latest dependency policy. |
@@ -276,6 +279,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`HARNESS-OPS.md`](docs/HARNESS-OPS.md) | Central management of the fleet's AI harnesses and schedules — the `harnesses:` contract, the daily inventory (`dash harnesses` → `/harnesses/`), mass deploy/update via… |
 | [`HARNESS.md`](docs/HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane — layer mapping, ratchet routing rule, health scorecard + trip wires, readine… |
 | [`ISSUE-PIPELINE.md`](docs/ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR. |
+| [`MACHINE-API.md`](docs/MACHINE-API.md) | Machine API |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
 | [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline the fleet is held to; points to [`../specs/`](../specs/README.md), the Universal Project Standard that governs content and behaviour. |

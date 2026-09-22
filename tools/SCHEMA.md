@@ -27,6 +27,7 @@ coverage: listed
 | `render-diagrams.sh` | file | Validates + delivers every `diagrams/*.json` archify spec to its self-contained HTML via the vendored `.claude/skills/archify` renderer (`--check` validates only; docs/HARNESS.md) | |
 | `audit-git-hooks.sh` | file | Read-only diagnostic answering the Husky-vs-pre-commit question — reports which hook manager is actually live via `core.hooksPath` (always exits 0) | |
 | `console/` | dir | The Harness Console — local control plane UI + API (FastAPI) wrapping the allowlisted `dash` operations as jobs, rendering every committed fleet signal, editing the fleet.yml harness contract, and (Traces tab) reading the local data lake + linking Phoenix; `tools/dash console`, compose service `console` (docs/HARNESS-OPS.md) | |
+| `macos-register-nerd-fonts.swift` | file | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s so Terminal.app can see them (`swift` has no `*.swift` pattern row here; this is the fleet's only one) | |
 | `*.sh` | pattern | One fleet/ops script per concern, kebab-case (gates, setup, fan-out seeds) | required |
 | `*.py` | pattern | Python gate/generator tooling — includes the vendored schema_lint.py (see templates/schema/VERSION) | required |
 

@@ -2,7 +2,7 @@
 #
 # File: setup.sh
 # Description: Cross-platform development environment setup entrypoint for bamr87 monorepo
-# Version: 2.2.0
+# Version: 2.3.0
 # Author: bamr87
 # Created: 2026-02-10
 # Last Modified: 2026-02-10
@@ -67,7 +67,7 @@ set -euo pipefail
 readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-readonly SCRIPT_VERSION="2.2.0"
+readonly SCRIPT_VERSION="2.3.0"
 readonly SCRIPTS_DIR="${PROJECT_ROOT}/projects/scripts"
 readonly LOCAL_BIN="${HOME}/.local/bin"
 readonly DEVTOOLS_CONF="${SCRIPT_DIR}/devtools.conf"
@@ -79,6 +79,7 @@ DRY_RUN="${DRY_RUN:-false}"
 QUIET="${QUIET:-false}"
 SKIP_DEPS="${BAMR87_SKIP_DEPS:-false}"
 SKIP_SUBMODULES=false
+SKIP_TERMINAL=false
 DEV_MODE="${BAMR87_DEV_MODE:-all}"
 INTERACTIVE=false
 COMPONENTS=()
@@ -159,6 +160,7 @@ usage() {
     echo "  -q, --quiet           Suppress non-error output"
     echo "  --skip-deps           Skip OS-level dependency installation"
     echo "  --skip-submodules     Skip git submodule initialization"
+    echo "  --skip-terminal       Skip macOS terminal CHUI (bamr87/chui)"
     echo "  --docker              Set up Docker/dev container environment only"
     echo "  --local               Set up local (non-Docker) development only"
     echo "  --all                 Set up everything (default)"
@@ -359,6 +361,14 @@ run_interactive() {
         SKIP_SUBMODULES=true
     fi
 
+    if [[ "$OS" == "macos" ]]; then
+        if confirm_prompt "  Install terminal CHUI (Oh My Zsh / Powerlevel10k / Meslo)?" "y"; then
+            SKIP_TERMINAL=false
+        else
+            SKIP_TERMINAL=true
+        fi
+    fi
+
     if confirm_prompt "  Enable verbose output?" "n"; then
         VERBOSE=true
     fi
@@ -370,6 +380,7 @@ run_interactive() {
     echo -e "  Components:  ${GREEN}${COMPONENTS[*]:-all}${NC}"
     echo -e "  OS deps:     $(if [[ "$SKIP_DEPS" == "true" ]]; then echo -e "${YELLOW}skip${NC}"; else echo -e "${GREEN}install${NC}"; fi)"
     echo -e "  Submodules:  $(if [[ "$SKIP_SUBMODULES" == "true" ]]; then echo -e "${YELLOW}skip${NC}"; else echo -e "${GREEN}init${NC}"; fi)"
+    echo -e "  Terminal:    $(if [[ "$SKIP_TERMINAL" == "true" ]]; then echo -e "${YELLOW}skip${NC}"; else echo -e "${GREEN}chui${NC}"; fi)"
     echo -e "  Verbose:     $(if [[ "$VERBOSE" == "true" ]]; then echo -e "${GREEN}yes${NC}"; else echo "no"; fi)"
     echo -e "  Dry run:     $(if [[ "$DRY_RUN" == "true" ]]; then echo -e "${YELLOW}yes${NC}"; else echo "no"; fi)"
     echo ""
@@ -487,6 +498,7 @@ parse_devtools_conf() {
         # Skip reference-only sections
         [[ "$current_section" == "python-docs" ]] && continue
         [[ "$current_section" == "node-cv" ]] && continue
+        [[ "$current_section" == "terminal" ]] && continue
 
         # Platform-prefixed entries
         if [[ "$line" =~ ^@([a-zA-Z]+)[[:space:]]+(.+)$ ]]; then
@@ -555,6 +567,20 @@ install_apt_pkg() {
     fi
 }
 
+install_pip_pkg() {
+    local pkg="$1"
+    if command_exists "$pkg"; then
+        log_debug "Already installed: ${pkg}"
+        return 0
+    fi
+    if command_exists pipx; then
+        log_info "Installing ${pkg} via pipx..."
+        run_cmd pipx install "$pkg"
+        return 0
+    fi
+    log_warn "Skipping ${pkg}: Homebrew Python blocks pip install --user (PEP 668). Install pipx and re-run."
+}
+
 # Handle @custom entries that require special install logic
 install_custom() {
     local label="$1"
@@ -616,15 +642,7 @@ install_deps_macos() {
         for pkg in "${PKGS_CASK[@]}";    do install_brew_cask "$pkg"; done
     fi
 
-    # pip packages
-    for pkg in "${PKGS_PIP[@]}"; do
-        if command_exists "$pkg" 2>/dev/null || pip3 show "$pkg" &>/dev/null 2>&1; then
-            log_debug "Already installed (pip): ${pkg}"
-        else
-            log_info "Installing ${pkg} via pip..."
-            run_cmd pip3 install --user "$pkg"
-        fi
-    done
+    for pkg in "${PKGS_PIP[@]}"; do install_pip_pkg "$pkg"; done
 }
 
 install_deps_linux() {
@@ -640,15 +658,7 @@ install_deps_linux() {
     # Custom install targets (Node, Docker, gh, etc.)
     for label in "${PKGS_CUSTOM[@]}"; do install_custom "$label"; done
 
-    # pip packages
-    for pkg in "${PKGS_PIP[@]}"; do
-        if command_exists "$pkg" 2>/dev/null || pip3 show "$pkg" &>/dev/null 2>&1; then
-            log_debug "Already installed (pip): ${pkg}"
-        else
-            log_info "Installing ${pkg} via pip..."
-            run_cmd pip3 install --user "$pkg"
-        fi
-    done
+    for pkg in "${PKGS_PIP[@]}"; do install_pip_pkg "$pkg"; done
 }
 
 install_deps_windows() {
@@ -778,6 +788,16 @@ setup_submodules() {
 
     run_cmd git submodule sync --recursive
     run_cmd git submodule update --init --recursive
+
+    if [[ "$DRY_RUN" != "true" ]]; then
+        git submodule foreach --quiet '
+            count=$(find . -mindepth 1 -maxdepth 1 ! -name .git -print | wc -l | tr -d " ")
+            if [ "$count" -eq 0 ]; then
+                echo "Restoring empty submodule $(basename "$(pwd)")"
+                git reset --hard HEAD
+            fi
+        '
+    fi
 
     log_info "Submodule status:"
     git submodule status
@@ -999,6 +1019,10 @@ ensure_local_bin_on_path() {
     fi
 
     if [[ -n "$shell_rc" ]]; then
+        if [[ -L "$shell_rc" ]]; then
+            log_debug "${shell_rc} is a symlink (CHUI owns it); not appending"
+            return 0
+        fi
         if ! grep -q '# bamr87 script tools' "$shell_rc" 2>/dev/null; then
             log_info "Appending PATH entry to ${shell_rc}"
             if [[ "$DRY_RUN" != "true" ]]; then
@@ -1019,6 +1043,33 @@ PATHEOF
     fi
 }
 
+setup_terminal() {
+    if [[ "$SKIP_TERMINAL" == "true" ]]; then
+        log_info "Skipping terminal CHUI (--skip-terminal)"
+        return 0
+    fi
+    if [[ "$OS" != "macos" ]]; then
+        return 0
+    fi
+    log_step "Setting up macOS terminal CHUI..."
+    local args=()
+    [[ "$DRY_RUN" == "true" ]] && args+=(--dry-run)
+    [[ "$VERBOSE" == "true" ]] && args+=(--verbose)
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] ${SCRIPT_DIR}/setup-terminal.sh ${args[*]}"
+        return 0
+    fi
+    chmod +x "${SCRIPT_DIR}/setup-terminal.sh"
+    # ${args[@]+"${args[@]}"}, not "${args[@]}": under `set -u` on macOS's
+    # stock bash 3.2 (not the Homebrew one this script itself installs),
+    # expanding an EMPTY array with "${args[@]}" is an unbound-variable error
+    # — and args IS empty here on the common path (DRY_RUN is always false by
+    # this point; VERBOSE defaults to false). That crashed a first-run
+    # `tools/setup.sh` for exactly the audience most likely to still be on the
+    # stock shell. The `+` form only expands when the array is actually set.
+    "${SCRIPT_DIR}/setup-terminal.sh" ${args[@]+"${args[@]}"}
+}
+
 setup_precommit() {
     if [[ ! -f "${PROJECT_ROOT}/.pre-commit-config.yaml" ]]; then
         return 0
@@ -1032,7 +1083,7 @@ setup_precommit() {
         run_cmd pre-commit install
         log_info "Pre-commit hooks installed."
     else
-        log_warn "pre-commit not found. Install with: pip install pre-commit"
+        log_warn "pre-commit not found. Install with: pipx install pre-commit"
     fi
 }
 
@@ -1090,6 +1141,11 @@ print_summary() {
     command_exists pre-commit \
         && echo -e "  ${GREEN}✓${NC} Pre-commit hooks" \
         || echo -e "  ${YELLOW}○${NC} Pre-commit (not installed)"
+    if [[ "$OS" == "macos" ]]; then
+        [[ -L "${HOME}/.zshrc" && -d "${HOME}/github/chui/.git" ]] \
+            && echo -e "  ${GREEN}✓${NC} Terminal CHUI (~/github/chui)" \
+            || echo -e "  ${YELLOW}○${NC} Terminal CHUI (run tools/setup-terminal.sh)"
+    fi
     echo ""
 
     # Script CLI tools status
@@ -1151,6 +1207,7 @@ parse_arguments() {
             -q|--quiet)      QUIET=true; shift ;;
             --skip-deps)     SKIP_DEPS=true; shift ;;
             --skip-submodules) SKIP_SUBMODULES=true; shift ;;
+            --skip-terminal) SKIP_TERMINAL=true; shift ;;
             --docker)        DEV_MODE="docker"; shift ;;
             --local)         DEV_MODE="local"; shift ;;
             --all)           DEV_MODE="all"; shift ;;
@@ -1203,7 +1260,10 @@ main() {
     # 8. Pre-commit hooks
     setup_precommit
 
-    # 9. Summary
+    # 9. macOS terminal CHUI (Oh My Zsh / p10k / Meslo)
+    setup_terminal
+
+    # 10. Summary
     print_summary
 }
 

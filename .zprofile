@@ -1,7 +1,7 @@
 
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
-source ~/.env
+[[ -f ~/.env ]] && source ~/.env
 
 # bamr87 monorepo development environment
 # Loads PATH, aliases, and variables from tools/devtools.conf [env] section
