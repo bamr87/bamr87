@@ -194,7 +194,7 @@
       "name": "📚 MkDocs: Serve (ai-seed, devenv :8003)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/ai-seed devenv mkdocs serve --dev-addr=0.0.0.0:8003",
+      "command": "tools/dash up ai-seed    # its own compose project on the fleet network — http://127.0.0.1:3014",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
@@ -212,97 +212,97 @@
       "name": "💎 Jekyll: it-journey (:4010)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/it-journey devenv bundle exec jekyll serve --host 0.0.0.0 --port 4010 --livereload --livereload-port 35730",
+      "command": "tools/dash up it-journey    # its own compose project on the fleet network — http://127.0.0.1:4010",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: zer0-mistakes (:4011)",
+      "name": "💎 Jekyll: zer0-mistakes (:4016)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/zer0-mistakes devenv bundle exec jekyll serve --host 0.0.0.0 --port 4011 --livereload --livereload-port 35731",
+      "command": "tools/dash up zer0-mistakes    # its own compose project on the fleet network — http://127.0.0.1:4016",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: bamr87.github.io (:4012)",
+      "name": "💎 Jekyll: bamr87.github.io (:4040)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/bamr87.github.io devenv bundle exec jekyll serve --host 0.0.0.0 --port 4012 --livereload --livereload-port 35732",
+      "command": "docker compose exec -T -w /workspace/projects/bamr87.github.io devenv bundle exec jekyll serve --host 0.0.0.0 --port 4040 --livereload --livereload-port 35760",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: lifehacker.dev (:4013)",
+      "name": "💎 Jekyll: lifehacker.dev (:4041)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/lifehacker.dev devenv bundle exec jekyll serve --host 0.0.0.0 --port 4013 --livereload --livereload-port 35733",
+      "command": "docker compose exec -T -w /workspace/projects/lifehacker.dev devenv bundle exec jekyll serve --host 0.0.0.0 --port 4041 --livereload --livereload-port 35761",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: bashconsultants (:4014)",
+      "name": "💎 Jekyll: bashconsultants (:4018)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/bashconsultants devenv bundle exec jekyll serve --host 0.0.0.0 --port 4014 --livereload --livereload-port 35734",
+      "command": "tools/dash up bashconsultants    # its own compose project on the fleet network — http://127.0.0.1:4018",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: wargames (:4015)",
+      "name": "💎 Jekyll: wargames (:4042)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/wargames devenv bundle exec jekyll serve --host 0.0.0.0 --port 4015 --livereload --livereload-port 35735",
+      "command": "docker compose exec -T -w /workspace/projects/wargames devenv bundle exec jekyll serve --host 0.0.0.0 --port 4042 --livereload --livereload-port 35762",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: drsai (:4016)",
+      "name": "💎 Jekyll: drsai (:4043)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/drsai devenv bundle exec jekyll serve --host 0.0.0.0 --port 4016 --livereload --livereload-port 35736",
+      "command": "docker compose exec -T -w /workspace/projects/drsai devenv bundle exec jekyll serve --host 0.0.0.0 --port 4043 --livereload --livereload-port 35763",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: irony-works (:4017)",
+      "name": "💎 Jekyll: irony-works (:4044)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/irony-works devenv bundle exec jekyll serve --host 0.0.0.0 --port 4017 --livereload --livereload-port 35737",
+      "command": "docker compose exec -T -w /workspace/projects/irony-works devenv bundle exec jekyll serve --host 0.0.0.0 --port 4044 --livereload --livereload-port 35764",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: 2005 (:4018)",
+      "name": "💎 Jekyll: 2005 (:4045)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/2005 devenv bundle exec jekyll serve --host 0.0.0.0 --port 4018 --livereload --livereload-port 35738",
+      "command": "docker compose exec -T -w /workspace/projects/2005 devenv bundle exec jekyll serve --host 0.0.0.0 --port 4045 --livereload --livereload-port 35765",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: zer0-pages (:4019)",
+      "name": "💎 Jekyll: zer0-pages (:4012)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/zer0-pages devenv bundle exec jekyll serve --host 0.0.0.0 --port 4019 --livereload --livereload-port 35739",
+      "command": "tools/dash up zer0-pages    # its own compose project on the fleet network — http://127.0.0.1:4012",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
     },
     {
-      "name": "💎 Jekyll: zer0-pages-remote (:4020)",
+      "name": "💎 Jekyll: zer0-pages-remote (:4014)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/zer0-pages-remote devenv bundle exec jekyll serve --host 0.0.0.0 --port 4020 --livereload --livereload-port 35740",
+      "command": "tools/dash up zer0-pages-remote    # its own compose project on the fleet network — http://127.0.0.1:4014",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "5-jekyll" }
@@ -341,7 +341,7 @@
       "name": "⚡ Vite: gitorio app (:5174)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/gitorio/app devenv npx vite --host 0.0.0.0 --port 5174",
+      "command": "tools/dash up gitorio    # its own compose project on the fleet network — http://127.0.0.1:5174",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
@@ -352,10 +352,10 @@
       "presentation": { "group": "6-apps" }
     },
     {
-      "name": "⚡ Vite: rewind-arcade (:5175)",
+      "name": "⚡ Vite: rewind-arcade (:5001)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/rewind-arcade/arcade devenv npx vite --host 0.0.0.0 --port 5175",
+      "command": "docker compose exec -T -w /workspace/projects/rewind-arcade/arcade devenv npx vite --host 0.0.0.0 --port 5001",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
@@ -369,7 +369,7 @@
       "name": "⚡ Vite: aieo frontend (:5176)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/aieo/frontend devenv npx vite --host 0.0.0.0 --port 5176",
+      "command": "tools/dash up aieo    # its own compose project on the fleet network — http://127.0.0.1:8020",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
@@ -383,7 +383,7 @@
       "name": "⚡ Vite: fredgar-ai frontend (:5177)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/fredgar-ai/frontend devenv npx vite --host 0.0.0.0 --port 5177",
+      "command": "tools/dash up fredgar-ai    # its own compose project on the fleet network — http://127.0.0.1:8024",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "serverReadyAction": {
@@ -417,7 +417,7 @@
       "name": "🐍 Django: barodybroject runserver (:8010)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/barodybroject/src -e DJANGO_SETTINGS_MODULE=barodybroject.settings.development devenv python3 manage.py runserver 0.0.0.0:8010",
+      "command": "tools/dash up barodybroject    # its own compose project on the fleet network — http://127.0.0.1:4020",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "7-python" }
@@ -426,7 +426,7 @@
       "name": "🐍 Django: fredgar-ai runserver (:8011)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/fredgar-ai/src -e DJANGO_SETTINGS_MODULE=config.settings devenv python3 manage.py runserver 0.0.0.0:8011",
+      "command": "tools/dash up fredgar-ai    # its own compose project on the fleet network — http://127.0.0.1:8024",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "7-python" }

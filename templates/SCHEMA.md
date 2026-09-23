@@ -21,6 +21,7 @@ coverage: listed
 | `issue-autopilot/` | dir | Issue-autopilot kit (OPT-IN): the canonical issue-triage engine + verify-and-close gate + skill/agent skeletons, seeded by standardize-fanout. Policy stays in each repo's `.issues/config.yml`, which the kit never writes | terminal |
 | `ai-runner/` | dir | AI runner kit: the fleet's model step, consumed BY REFERENCE (`.github/actions/claude-run` + reusable `ai-lane.yml`) — caller template, contract tests, VERSION + archive | terminal |
 | `fleet-engines/` | dir | Fleet engines kit: the fleet/v1 manifest, workflow facts, the audit rulebook, harness scorecard — published to npm as `@bamr87/fleet-engines`, consumed by dependency by GitFactory and zer0-CMS | terminal |
+| `elk/` | dir | ELK kit: the vendored Filebeat shipper config, the `com.bamr87.fleet.*` label + rotation fragment (UPS-OPS-17), a standalone single-node ES+Kibana overlay, and one UPS-OPS-10 JSON emitter per stack with the UPS-OPS-12 redaction attached; seeded by `fanout.sh --kit elk` (docs/OBSERVABILITY.md) | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
 
 ## Placement

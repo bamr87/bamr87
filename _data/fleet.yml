@@ -520,6 +520,206 @@ harnesses:
   attention_max: 20                 # findings surfaced per run, strongest first
 
 # --------------------------------------------------------------------------- #
+# Observability — the THREE LOCAL PLANES and the one front door onto them.
+#
+# The hub already had traces (the lake -> OpenInference -> Phoenix) and daily
+# aggregates (the committed _data/*.yml the Pages dash renders). It had no LOG
+# plane: Actions logs were downloaded by `dash lake sync` and then TRUNCATED at
+# 2 MB/run for offline review, container logs were read one `docker logs` at a
+# time, and specs/OPERATIONS.md UPS-OPS-10 had been mandating a structured JSON
+# log line fleet-wide with nothing anywhere that read one. This block is the
+# contract for closing that: Elastic owns logs, Grafana draws trends over them,
+# Phoenix keeps traces, and the Harness Console's Observe tab embeds all three.
+#
+# LOCAL-ONLY BY CONSTRUCTION, exactly like the lake (docs/COCKPIT.md's
+# non-negotiable 4): every port binds 127.0.0.1, every byte lives in a docker
+# volume, none of it runs in CI, and nothing here is ever published to Pages.
+# That is what lets it hold raw run logs the committed aggregates deliberately
+# leave out — and it is why `xpack.security.enabled: false` and an anonymous
+# Grafana viewer are acceptable here and nowhere else.
+#
+# Consumed by:
+#   - .github/scripts/dash-gen/fleet_observe.py  — shipper, ILM/template render, status
+#   - tools/observability/bootstrap.sh           — installs what the render produces
+#   - tools/console/core.py, app.py              — capability probe, ops, CSP frame-src
+#   - docker-compose.yml                         — the `elk` profile (asserted by test_observe_contract.py)
+# Full doc: docs/OBSERVABILITY.md
+# --------------------------------------------------------------------------- #
+observability:
+  # ---- Logs: Elasticsearch + Logstash + Kibana + Filebeat ------------------ #
+  logs:
+    engine: elastic
+    # Container images are TOOLCHAIN-class, not dependency-class: they pin a
+    # runtime the pipelines, mappings and dashboards are written against, the
+    # way `toolchain:` pins node/python/ruby — so they are the documented
+    # exception to always-latest (docs/DEPENDENCIES.md), not a violation of it.
+    # The pin is also forced: Elastic publishes ONLY exact patch tags on its
+    # images (no floating `9` or `9.5`), verified against the registry.
+    # docker-compose.yml reads these through ${ELASTIC_VERSION}/${GRAFANA_VERSION}
+    # with matching defaults, and test_observe_contract.py asserts they agree —
+    # so a bump is one edit here plus one in compose, never a silent drift.
+    stack_version: '9.5.3' # elasticsearch · logstash · kibana · filebeat, one release train
+    profile: elk # `docker compose --profile elk up -d`; precedent: full, admin
+    elasticsearch: http://127.0.0.1:9200
+    kibana: http://127.0.0.1:5601
+    logstash_http: http://127.0.0.1:8088 # the shipper's input; Filebeat uses the beats port instead
+    namespace: default # ECS data streams are logs-<dataset>-<namespace>
+
+    # One dataset per SOURCE, not per repo: 40 repos x 3 sources would be 120
+    # data streams to template, alias and expire. The repo is a FIELD
+    # (fleet.repo) — Kibana filters on it, ILM does not have to know it exists.
+    datasets:
+      actions: fleet.actions # GitHub Actions run logs, replayed from the lake
+      container: fleet.container # docker stdout/stderr that did NOT parse as JSON
+      app: fleet.app # UPS-OPS-10 structured lines (they have level + msg)
+
+    # Retention is a day-one deliverable, not later hardening: the ingest
+    # decision was "everything" (all repos, all runs, untruncated), and an
+    # unbounded index on a laptop ends as a cluster stuck read-only at the 95%
+    # flood watermark, which fails silently until the next write.
+    retention_days:
+      actions: 90 # long enough to answer "when did this workflow start failing"
+      container: 14 # noisiest, least durable value — dev-loop chatter
+      app: 30 # one sprint of application behaviour
+
+    rollover: { max_primary_shard_size: 10gb, max_age: 1d }
+    disk_budget_gb: 40 # `dash observe status` warns here, well before ES's 95% watermark
+
+    # GitHub masks secrets in ITS logs; nothing masks a local container's. This
+    # list is the only guard, which is why the Logstash pipelines route both
+    # inputs through ONE shared filter rather than redacting per input — the
+    # per-input variant is how a leak eventually arrives by the path nobody
+    # updated. Prefixes lifted from the tools/issue-evidence.sh scrub list per
+    # UPS-OPS-12.
+    redact: [sk-ant-, ghp_, github_pat_, gho_, ghs_, AIza]
+
+    ship:
+      source: lake # the lake is the metadata authority AND the dedupe ledger
+      logs: all # all repos, all runs — the ingest decision this block is sized for
+      batch: 500 # docs per bulk POST to Logstash
+      # 512m, not the 1g that looks natural: this bench runs ~20 containers
+      # from a dozen projects inside a 7.7 GiB Docker VM, and a 1g heap took
+      # Elasticsearch to ~2 GiB RSS and an exit-137 OOM kill on the first
+      # start. 512m indexes the fleet's log volume comfortably; raise it
+      # (ES_HEAP in .env) before widening `dash observe ship --days`.
+      heap: { elasticsearch: 512m, logstash: 256m }
+
+  # ---- Metrics: Grafana (Prometheus joins later, FF-0003) ------------------ #
+  metrics:
+    engine: grafana
+    grafana_version: '12.4' # Grafana DOES publish a floating minor tag, so this one tracks patches
+    grafana: http://127.0.0.1:3001 # NOT 3000 — the wiki service owns that port
+    datasources: [elasticsearch] # a list because FF-0003 appends to it; no rework when it lands
+    prometheus: { status: planned, roadmap: FF-0003 }
+
+  # ---- Traces: the existing plane, recorded here so all three are in one place #
+  traces:
+    engine: phoenix
+    endpoint: http://127.0.0.1:6006
+    doc: docs/HARNESS-OPS.md
+
+  # ---- The portal: the Console's Observe tab ------------------------------- #
+  # Saved-object ids are PINNED in the committed dashboards. Letting Kibana and
+  # Grafana mint them at import would re-key every dashboard on every re-import
+  # and leave the console's embed URLs 404ing into a blank iframe — a failure
+  # with no error message anywhere. test_observe_contract.py resolves every id
+  # below against the committed files.
+  portal:
+    embed: true
+    frame_src: # the console's CSP frame-src allowlist, stated ONCE
+      - http://127.0.0.1:5601
+      - http://127.0.0.1:3001
+      - http://127.0.0.1:6006
+    dashboards:
+      logs: { id: fleet-ci, title: 'Fleet CI' }
+      metrics: { uid: fleet-logs, title: 'Fleet log volume & cost' }
+
+# --------------------------------------------------------------------------- #
+# Containers — how ~24 compose files become ONE runnable fleet.
+#
+# The fleet is not one compose project and cannot be. Compose's `include:` does
+# not namespace service names: five submodules define a service called
+# `jekyll`, and compose merges them by name — silently keeping one and
+# DISCARDING the rest, with no error and no warning (verified, 2026-09-22).
+# Postgres appears 8 times, Redis 5, Phoenix 3, and 17 host ports are claimed
+# by more than one project.
+#
+# So each repo stays its own compose project, and they are made to compose by
+# three things instead:
+#
+#   1. ONE NETWORK. The hub creates `fleet`; every project attaches to it as
+#      external, which is what lets a submodule reach `db` and `redis` by
+#      service name across project boundaries.
+#   2. ONE OF EACH BACKING SERVICE. The hub runs the Postgres, the Redis and
+#      (opt-in) the Phoenix. A project asks for a database by declaring
+#      `database: true` in _data/projects.yml and gets one, plus a role.
+#   3. ONE PORT MAP. Every project's `dev_port` is declared in the registry and
+#      allocated out of the ranges below; `dash-gen compose` rewrites the HOST
+#      side of each published port from it, leaving container ports untouched.
+#
+# The overrides that carry 1 and 3 are generated into the HUB's own tree
+# (.fleet/compose/), never into a submodule — a submodule is a separate repo
+# and the hub does not write to it outside a fan-out PR.
+#
+# Consumed by:
+#   - .github/scripts/dash-gen/fleet_compose.py  — generates the overrides + db init
+#   - tools/dash up|down|ps                      — the orchestrator
+#   - docker-compose.yml                         — the shared half
+# Full doc: docs/CONTAINERS.md
+# --------------------------------------------------------------------------- #
+containers:
+  network: fleet # `docker network ls` name; submodules attach as external
+  project: fleet # pinned compose project name for the hub's own services
+  overrides: .fleet/compose # where generated per-project overrides land (gitignored)
+
+  # Shared services the hub owns. A project that needs one of these should NOT
+  # run its own — that is the whole point, and it is what a 7.7 GiB Docker VM
+  # can actually afford. `host` is the name to reach it by ON the fleet network.
+  shared:
+    postgres: { host: db, port: 5432, image: postgres:15-alpine }
+    redis: { host: redis, port: 6379, image: redis:7-alpine }
+    phoenix: { host: phoenix, port: 6006, profile: traces }
+
+  # Host-port ranges, one per stack kind. A project's `dev_port` must fall in
+  # the range for its kind — `dash-gen compose` fails on a port that does not,
+  # and on any duplicate, because a collision here surfaces as a container that
+  # simply never binds rather than as an error anyone reads.
+  #
+  # Below 4010 is reserved for the hub itself: 4000 dash, 4001 console,
+  # 3000 wiki, 5050 pgadmin, 5432 db, 6379 redis, 6006/4317 phoenix,
+  # 8001 mkdocs, 9200/5601/3001 the log plane.
+  ports:
+    jekyll: [4010, 4039] # Jekyll/Ruby static sites
+    livereload: [35730, 35759] # their livereload sidecars, allocated in step
+    web: [3010, 3039] # Rails, Node SSR, anything that wants :3000
+    node: [5174, 5199] # Vite/node dev servers
+    python: [8010, 8049] # Django, FastAPI, MkDocs, agents
+    data: [9010, 9039] # per-project stores the fleet cannot share
+
+    # Projects with NO compose file of their own — nine of them, all Jekyll
+    # sites or single-command Vite apps — still run inside `devenv` by
+    # `compose exec`, which is what .vscode/launch.json drives. They need
+    # published ports on devenv, and those must not overlap the ranges above
+    # or a workspace F5 and a `dash up` fight for the same port. Give a project
+    # a compose file and a `dev_port` and it graduates out of this block.
+    workspace: [4040, 4069] # Jekyll-in-devenv
+    workspace_livereload: [35760, 35789]
+    workspace_node: [5000, 5019] # Vite-in-devenv (cv-builder-pro, rewind-arcade)
+
+  # Named groups for `dash up --group <name>`. A project may appear in several.
+  groups:
+    jekyll:
+      [it-journey, zer0-pages, zer0-pages-remote, zer0-mistakes, bashconsultants, barodybroject]
+    web: [zer0-cms, zer0-image-generator, gitorio]
+    ai: [law-ai, aieo, bashos, fredgar-ai, ai-seed]
+    django: [djangoerp, barodybroject]
+
+  # `dash up --all` refuses past this many projects unless forced: law-ai alone
+  # pulls neo4j, ollama, vllm and Phoenix, and this bench OOM-killed
+  # Elasticsearch at a 1 GB heap with five extra containers.
+  max_projects: 8
+
+# --------------------------------------------------------------------------- #
 # Token contract — WHICH secret does WHAT, and where it must exist.
 #
 # `scope: hub` secrets live on bamr87/bamr87 only. `scope: fleet` secrets are

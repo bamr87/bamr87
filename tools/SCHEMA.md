@@ -27,6 +27,8 @@ coverage: listed
 | `render-diagrams.sh` | file | Validates + delivers every `diagrams/*.json` archify spec to its self-contained HTML via the vendored `.claude/skills/archify` renderer (`--check` validates only; docs/HARNESS.md) | |
 | `audit-git-hooks.sh` | file | Read-only diagnostic answering the Husky-vs-pre-commit question — reports which hook manager is actually live via `core.hooksPath` (always exits 0) | |
 | `console/` | dir | The Harness Console — local control plane UI + API (FastAPI) wrapping the allowlisted `dash` operations as jobs, rendering every committed fleet signal, editing the fleet.yml harness contract, and (Traces tab) reading the local data lake + linking Phoenix; `tools/dash console`, compose service `console` (docs/HARNESS-OPS.md) | |
+| `fleet/` | dir | Generated bootstrap for the shared container plane — the Postgres init that gives each project declaring `database: true` a database and role on the hub's one instance, replacing the eight separate Postgres containers the fleet used to run (docs/CONTAINERS.md) | generated |
+| `observability/` | dir | The local LOG plane's configuration — Logstash pipelines (one shared redaction path), the label-gated Filebeat shipper, and the Elasticsearch/Kibana/Grafana objects rendered from `_data/fleet.yml` `observability:`; `tools/dash observe`, compose profile `elk` (docs/OBSERVABILITY.md) | |
 | `*.sh` | pattern | One fleet/ops script per concern, kebab-case (gates, setup, fan-out seeds) | required |
 | `*.py` | pattern | Python gate/generator tooling — includes the vendored schema_lint.py (see templates/schema/VERSION) | required |
 

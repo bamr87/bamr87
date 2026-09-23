@@ -336,6 +336,11 @@ def capabilities() -> dict:
         "lake_present": (LAKE_DIR / "fleet.sqlite").exists(),
         "otel_exporter": has_otel,
         "phoenix": {"collector": PHOENIX_COLLECTOR, "ui": PHOENIX_UI},
+        # All three local planes in one key, so the Observe tab can render a
+        # pane per plane without three round trips. Kept BESIDE the legacy
+        # `phoenix` key rather than replacing it: anything already reading that
+        # key keeps working, which is cheaper than finding every reader.
+        "observability": observability_planes(probe=False),
     }
 
 
@@ -357,6 +362,129 @@ def lake_status(probe: bool = True) -> dict:
         return {"present": False, "lake_dir": str(LAKE_DIR), "error": f"{exc.__class__.__name__}: {exc}",
                 "tables": {}, "repos": [], "agent_runs": {"count": 0}, "exports": {"count": 0},
                 "phoenix": {"collector": PHOENIX_COLLECTOR, "ui": PHOENIX_UI, "reachable": None}}
+
+
+# --------------------------------------------------------------------------- #
+# OBSERVABILITY — the three local planes, read through dash-gen's module
+# --------------------------------------------------------------------------- #
+def _observe_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import fleet_observe  # noqa: WPS433
+    return fleet_observe
+
+
+def observability_planes(probe: bool = True) -> dict:
+    """Per-plane identity and (optionally) reachability.
+
+    Never raises. A plane that is down has to render as a pane with a Start
+    button, not as a 500 that takes the whole tab with it — the same
+    degrade-don't-explode contract lake_status() keeps.
+
+    probe=False skips the network entirely, which is what /api/capabilities
+    wants: that document is fetched on every page load.
+    """
+    try:
+        fo = _observe_module()
+        contract = fo.load_contract()
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
+                "logs": {}, "metrics": {}, "traces": {}, "portal": {}}
+    if probe:
+        planes = fo.plane_status(contract)
+    else:
+        logs, metrics, traces = contract["logs"], contract["metrics"], contract["traces"]
+        planes = {
+            "logs": {"engine": logs.get("engine"), "url": logs.get("kibana"),
+                     "elasticsearch": logs.get("elasticsearch"), "reachable": None},
+            "metrics": {"engine": metrics.get("engine"), "url": metrics.get("grafana"),
+                        "reachable": None, "datasources": metrics.get("datasources") or []},
+            "traces": {"engine": traces.get("engine"), "url": traces.get("endpoint"),
+                       "reachable": None},
+        }
+    planes["present"] = True
+    planes["portal"] = contract.get("portal") or {}
+    return planes
+
+
+def observe_status() -> dict:
+    """The /api/observability document: planes, dataset sizes, ship lag.
+
+    This is the probing one — it is fetched when the Observe tab opens, not on
+    every page load.
+    """
+    try:
+        fo = _observe_module()
+        contract = fo.load_contract()
+        planes = fo.plane_status(contract)
+        doc = {
+            "present": True,
+            "planes": planes,
+            "portal": contract.get("portal") or {},
+            "disk_budget_gb": contract["logs"]["disk_budget_gb"],
+            "retention_days": contract["logs"]["retention_days"],
+            "datasets": fo.dataset_stats(contract) if planes["logs"]["reachable"] else [],
+            "embeds": observe_embeds(contract),
+        }
+        doc["bytes_total"] = sum(d.get("bytes") or 0 for d in doc["datasets"])
+        doc["over_budget"] = doc["bytes_total"] > doc["disk_budget_gb"] * 1024 ** 3
+        try:
+            conn = _lake_module().connect(LAKE_DIR, create=False)
+            row = conn.execute("SELECT COUNT(*) c, MAX(shipped_at) last FROM shipments "
+                               "WHERE sink = ?", (fo.SINK,)).fetchone()
+            doc["shipments"] = {"count": row[0], "last": row[1]}
+        except Exception:
+            doc["shipments"] = {"count": 0, "last": None}
+        return doc
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
+                "planes": {}, "datasets": [], "embeds": {}, "shipments": {"count": 0, "last": None}}
+
+
+def observe_embeds(contract: dict) -> dict:
+    """The iframe URLs for the Observe tab.
+
+    Built here rather than in the browser so the PINNED ids stay in one place —
+    the contract — instead of being half in fleet.yml and half in a template
+    string in index.html, which is how an embed ends up pointing at a dashboard
+    that was renamed six months ago.
+    """
+    portal = contract.get("portal") or {}
+    dash = portal.get("dashboards") or {}
+    kibana = (contract.get("logs") or {}).get("kibana") or ""
+    grafana = (contract.get("metrics") or {}).get("grafana") or ""
+    logs_id = (dash.get("logs") or {}).get("id")
+    metrics_uid = (dash.get("metrics") or {}).get("uid")
+    out = {"enabled": bool(portal.get("embed"))}
+    if kibana and logs_id:
+        # embed=true strips Kibana's own chrome; the time range comes from the
+        # dashboard's saved timeRestore rather than a _g we would have to keep
+        # in step with it.
+        out["logs"] = f"{kibana}/app/dashboards#/view/{logs_id}?embed=true&show-top-menu=false"
+    if grafana and metrics_uid:
+        out["metrics"] = f"{grafana}/d/{metrics_uid}/{metrics_uid}?kiosk&theme=dark"
+        out["metrics_panel"] = f"{grafana}/d-solo/{metrics_uid}/{metrics_uid}?panelId=%s&theme=dark"
+    out["traces"] = (contract.get("traces") or {}).get("endpoint") or ""
+    return out
+
+
+def frame_src() -> list[str]:
+    """The CSP frame-src allowlist, stated once in _data/fleet.yml.
+
+    A missing origin here is not an error anyone sees: the browser refuses the
+    frame and writes one line to a console nobody has open.
+    """
+    try:
+        contract = _observe_module().load_contract()
+    except Exception:
+        return []
+    portal = contract.get("portal") or {}
+    urls = list(portal.get("frame_src") or [])
+    for url in ((contract.get("logs") or {}).get("kibana"),
+                (contract.get("metrics") or {}).get("grafana"),
+                (contract.get("traces") or {}).get("endpoint")):
+        if url and url not in urls:
+            urls.append(url)
+    return urls
 
 
 def lake_runs(limit: int = 50) -> list[dict]:
@@ -502,6 +630,42 @@ def _lake_export(params: dict) -> list[str]:
     return argv
 
 
+def _observe_ship(params: dict) -> list[str]:
+    argv = [DASH_GEN, "observe", "ship", "--days", _days({"days": params.get("days", 7)})]
+    if str(params.get("target") or "").strip():
+        argv += ["--repo", _name(params)]
+    if _flag(params, "dry_run"):
+        argv.append("--dry-run")
+    if _flag(params, "force"):
+        argv.append("--force")
+    return argv
+
+
+# The log plane's five services, named explicitly. A bare `--profile elk up`
+# also starts every service in the DEFAULT profile, so "start the log plane"
+# would bring up devenv, console, wiki and db as well and fight them for their
+# ports. Held equal to the profile's membership by test_observe_contract.py.
+ELK_SERVICES = ["elasticsearch", "logstash", "kibana", "filebeat", "grafana"]
+
+
+def _observe_compose(verb: str):
+    """`docker compose --profile elk …` as argv, never a shell string.
+
+    The verb is a literal from this module, not a parameter — there is no path
+    by which a request body reaches the compose command line.
+    """
+    VERBS = {"up": ["up", "-d"], "stop": ["stop"]}
+    assert verb in VERBS, verb
+
+    def build(_params: dict) -> list[str]:
+        return ["docker", "compose", "--profile", "elk", *VERBS[verb], *ELK_SERVICES]
+    return build
+
+
+def _observe_bootstrap(_params: dict) -> list[str]:
+    return [str(TOOLS / "observability" / "bootstrap.sh")]
+
+
 # id → (title, group, argv builder, needs_token, remote_write(params) -> bool, description)
 OPS: dict[str, dict] = {
     # observe ----------------------------------------------------------------
@@ -595,6 +759,44 @@ OPS: dict[str, dict] = {
                         desc="OpenInference spans for the lake's agent runs (and this machine's Claude Code "
                              "sessions with local) → Phoenix over OTLP/HTTP. Dry run writes export-preview.json.",
                         params=["days", "local", "dry_run", "force"]),
+    # observe — the local LOG plane (docs/OBSERVABILITY.md). Writes to docker and
+    # to Elasticsearch on this machine only; nothing here touches GitHub, which
+    # is why none of it needs a token or a confirm except the destructive one.
+    "observe-status": dict(title="Observe: plane health, dataset sizes, ship lag", group="observe",
+                           argv=lambda p: [DASH_GEN, "observe", "status"], needs_token=False,
+                           desc="Elasticsearch/Kibana, Grafana and Phoenix reachability; docs and bytes "
+                                "per data stream against the disk budget; how many runs are unshipped."),
+    "observe-up": dict(title="Observe: start the log + metrics stack", group="observe",
+                       argv=_observe_compose("up"), needs_token=False,
+                       desc="docker compose --profile elk up -d — Elasticsearch, Logstash, Kibana, "
+                            "Filebeat and Grafana. Run 'bootstrap' after it to install ILM + dashboards."),
+    "observe-bootstrap": dict(title="Observe: install ILM policies + dashboards", group="observe",
+                              argv=_observe_bootstrap, needs_token=False,
+                              desc="Idempotent: PUTs the rendered ILM policies and index templates, "
+                                   "imports the Kibana saved objects, reports Grafana's provisioning."),
+    "observe-down": dict(title="Observe: stop the stack (keeps the data)", group="observe",
+                         argv=_observe_compose("stop"), needs_token=False,
+                         desc="Stops the elk profile. The volumes — and every indexed log line — survive."),
+    "observe-ship": dict(title="Observe: ship Actions logs from the lake", group="observe",
+                         argv=_observe_ship, needs_token=False,
+                         desc="dash-gen observe ship — replays the lake's completed runs into Logstash as "
+                              "ECS documents, carrying the same trace.id Phoenix uses. Extract first with "
+                              "'Lake: extract GitHub data'. Dry run writes observe-preview.json.",
+                         params=["days", "target", "dry_run", "force"]),
+    # Delegates to the CLI rather than running compose itself: `down -v` would
+    # take EVERY named volume in the file — db-data, wiki-data, phoenix-data
+    # included — and the narrow teardown (remove the five containers, then the
+    # five volumes by name) should exist in exactly one place.
+    "observe-reset": dict(title="Observe: destroy the indices and volumes", group="observe",
+                          argv=lambda p: [str(TOOLS / "dash"), "observe", "reset", "--yes"],
+                          needs_token=False, remote=lambda p: True,
+                          desc="Deletes every indexed log line and the five elk volumes — and nothing else. "
+                               "Irreversible: the lake can re-ship Actions logs, but container logs only "
+                               "ever existed here."),
+    "observe-verify": dict(title="Observe: re-render ILM + dashboards from the contract", group="verify",
+                           argv=lambda p: [DASH_GEN, "observe", "verify"], needs_token=False,
+                           desc="Offline diff of _data/fleet.yml `observability:` against the committed "
+                                "tools/observability files, and resolves every pinned dashboard id."),
     # deploy (writes to GitHub — confirm-gated, serialized) ---------------------
     "deploy-gaps": dict(title="Deploy the agent-context kit to gap repos", group="deploy",
                         argv=lambda p: _deploy(p, "gaps"), needs_token=True,
@@ -708,7 +910,8 @@ class JobManager:
         argv, remote = build_argv(op_id, params)
         if remote and not confirm:
             raise PermissionError(
-                f"'{op_id}' with these parameters writes to GitHub — resubmit with confirm=true")
+                f"'{op_id}' with these parameters writes to GitHub or destroys local data — "
+                "resubmit with confirm=true")
         job = Job(op_id, argv, remote, params)
         job.log_path = self.job_dir / f"{job.id}.log"
         with self._lock:
@@ -906,6 +1109,22 @@ CONFIG_SECTIONS: list[dict] = [
          "inventory.max_workflow_files": _f("int", "workflow files parsed per repo"),
          "inventory.schedule_limit": _f("int", "rows in the fleet schedule calendar"),
          "attention_max": _f("int", "findings surfaced per run"),
+     }},
+    {"key": "observability", "title": "Observability — the three local planes", "doc": "docs/OBSERVABILITY.md",
+     "blurb": "Retention, disk budget and the portal's pinned dashboards. Changing retention or "
+              "rollover here changes only the CONTRACT — re-render and re-install with "
+              "`dash observe verify --write` then `dash observe up`, or the cluster keeps expiring "
+              "on the old schedule.",
+     "fields": {
+         "logs.retention_days.actions": _f("int", "days of GitHub Actions log lines"),
+         "logs.retention_days.container": _f("int", "days of raw container stdout"),
+         "logs.retention_days.app": _f("int", "days of UPS-OPS-10 structured lines"),
+         "logs.rollover.max_primary_shard_size": _f("version", "roll an index over at this size"),
+         "logs.rollover.max_age": _f("version", "…or this age, whichever comes first"),
+         "logs.disk_budget_gb": _f("int", "`observe status` warns past this (ES stops writing at 95% disk)"),
+         "logs.ship.batch": _f("int", "documents per bulk POST to Logstash"),
+         "logs.ship.logs": _f("choice", "which runs to ship", ("all", "ai", "none")),
+         "portal.embed": _f("bool", "embed Kibana + Grafana in the Observe tab, or link out only"),
      }},
     {"key": "rotation", "title": "Token rotation", "doc": "docs/TOKEN-ROTATION.md",
      "blurb": "The weekly credential loop. `hub_first` is not offered here — the file calls it "

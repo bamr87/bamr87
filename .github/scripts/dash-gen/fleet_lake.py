@@ -142,6 +142,12 @@ CREATE TABLE IF NOT EXISTS session_tools (
   PRIMARY KEY (key, idx, seq));
 CREATE TABLE IF NOT EXISTS exports (
   key TEXT PRIMARY KEY, kind TEXT, trace_id TEXT, spans INTEGER, endpoint TEXT, exported_at TEXT);
+-- The exports ledger's twin for the OTHER sink: what `dash observe ship` has
+-- already pushed into Elasticsearch. Same idempotency contract — a run in here
+-- is skipped unless --force — so re-running the shipper is free rather than a
+-- duplicate index of every log line the fleet has ever produced.
+CREATE TABLE IF NOT EXISTS shipments (
+  key TEXT PRIMARY KEY, sink TEXT, docs INTEGER, bytes INTEGER, endpoint TEXT, shipped_at TEXT);
 CREATE INDEX IF NOT EXISTS runs_nwo_created ON runs (nwo, created_at);
 CREATE INDEX IF NOT EXISTS runs_ai_created ON runs (ai, created_at);
 CREATE INDEX IF NOT EXISTS jobs_run ON jobs (run_id);
@@ -150,7 +156,8 @@ CREATE INDEX IF NOT EXISTS session_tools_name ON session_tools (name);
 """
 
 TABLES = ["repos", "workflows", "factory_files", "runs", "jobs", "steps", "logs",
-          "agent_runs", "issues", "sessions", "session_turns", "session_tools", "exports", "syncs"]
+          "agent_runs", "issues", "sessions", "session_turns", "session_tools", "exports",
+          "shipments", "syncs"]
 
 
 # --------------------------------------------------------------------------- #
@@ -487,28 +494,44 @@ def sync_factory(conn, repo, nwo: str, root_names: set[str], now: str) -> int:
     return count
 
 
-def store_logs(conn, session, run_id: int, logs_url: str, max_bytes: int) -> tuple[int, str]:
-    """Download one run's log zip and store each entry (step files first, then
-    the per-job full logs) until the per-run byte cap. Returns (entries,
-    agent-relevant text) — the text the claude-code-action facts are parsed
-    from."""
+def iter_log_entries(session, logs_url: str):
+    """Yield (entry_name, raw_bytes, text) for every *.txt in one run's log zip,
+    step files first and then the per-job full logs.
+
+    Split out of store_logs so the SAME download, the SAME zip walk and the SAME
+    ordering feed two sinks: the capped SQLite upsert below (offline review) and
+    the uncapped ECS emitter in fleet_observe (the Elasticsearch log plane). A
+    second downloader would be a second set of ordering, decoding and
+    rate-limit bugs to keep in step — see docs/OBSERVABILITY.md.
+
+    Yields nothing at all on any failure, exactly as store_logs used to return
+    (0, "") — a missing log is a normal condition here, not an error.
+    """
     try:
         resp = session.get(logs_url, timeout=90)
         if resp.status_code != 200:
-            return 0, ""
+            return
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
     except Exception:
-        return 0, ""
+        return
     names = [n for n in zf.namelist() if n.endswith(".txt")]
     names.sort(key=lambda n: (0 if "/" in n else 1, n))
-    used, stored = 0, 0
-    agent_text: list[str] = []
     for name in names:
         try:
             raw = zf.read(name)
         except Exception:
             continue
-        text = raw.decode("utf-8", "replace")
+        yield name, raw, raw.decode("utf-8", "replace")
+
+
+def store_logs(conn, session, run_id: int, logs_url: str, max_bytes: int) -> tuple[int, str]:
+    """Download one run's log zip and store each entry (step files first, then
+    the per-job full logs) until the per-run byte cap. Returns (entries,
+    agent-relevant text) — the text the claude-code-action facts are parsed
+    from."""
+    used, stored = 0, 0
+    agent_text: list[str] = []
+    for name, raw, text in iter_log_entries(session, logs_url):
         if CLAUDE_ACTION_MARKER in text or "total_cost_usd" in text or "SDK options:" in text:
             agent_text.append(text)
         truncated = 0

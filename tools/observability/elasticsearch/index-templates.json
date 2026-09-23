@@ -1,0 +1,413 @@
+{
+  "fleet.actions-logs": {
+    "_meta": {
+      "contract": "_data/fleet.yml observability.logs",
+      "doc": "docs/OBSERVABILITY.md",
+      "managed_by": "tools/dash observe"
+    },
+    "data_stream": {},
+    "index_patterns": [
+      "logs-fleet.actions-*"
+    ],
+    "priority": 500,
+    "template": {
+      "mappings": {
+        "properties": {
+          "@timestamp": {
+            "type": "date"
+          },
+          "ci": {
+            "properties": {
+              "branch": {
+                "type": "keyword"
+              },
+              "conclusion": {
+                "type": "keyword"
+              },
+              "event": {
+                "type": "keyword"
+              },
+              "job": {
+                "type": "keyword"
+              },
+              "run_attempt": {
+                "type": "integer"
+              },
+              "run_id": {
+                "type": "long"
+              },
+              "run_number": {
+                "type": "long"
+              },
+              "sha": {
+                "type": "keyword"
+              },
+              "status": {
+                "type": "keyword"
+              },
+              "step": {
+                "type": "keyword"
+              },
+              "workflow": {
+                "type": "keyword"
+              },
+              "workflow_path": {
+                "type": "keyword"
+              }
+            }
+          },
+          "ecs": {
+            "properties": {
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "event": {
+            "properties": {
+              "dataset": {
+                "type": "keyword"
+              },
+              "module": {
+                "type": "keyword"
+              }
+            }
+          },
+          "fleet": {
+            "properties": {
+              "category": {
+                "type": "keyword"
+              },
+              "project": {
+                "type": "keyword"
+              },
+              "repo": {
+                "type": "keyword"
+              },
+              "stack": {
+                "type": "keyword"
+              }
+            }
+          },
+          "host": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "llm": {
+            "properties": {
+              "cost_usd": {
+                "type": "double"
+              },
+              "model": {
+                "type": "keyword"
+              },
+              "session_id": {
+                "type": "keyword"
+              },
+              "turns": {
+                "type": "integer"
+              }
+            }
+          },
+          "log": {
+            "properties": {
+              "level": {
+                "type": "keyword"
+              },
+              "logger": {
+                "type": "keyword"
+              }
+            }
+          },
+          "message": {
+            "type": "match_only_text"
+          },
+          "service": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              },
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "trace": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "request_id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "url": {
+            "properties": {
+              "full": {
+                "index": false,
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "settings": {
+        "index.lifecycle.name": "fleet.actions-logs",
+        "index.number_of_replicas": 0,
+        "index.number_of_shards": 1
+      }
+    }
+  },
+  "fleet.app-logs": {
+    "_meta": {
+      "contract": "_data/fleet.yml observability.logs",
+      "doc": "docs/OBSERVABILITY.md",
+      "managed_by": "tools/dash observe"
+    },
+    "data_stream": {},
+    "index_patterns": [
+      "logs-fleet.app-*"
+    ],
+    "priority": 500,
+    "template": {
+      "mappings": {
+        "properties": {
+          "@timestamp": {
+            "type": "date"
+          },
+          "container": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "image": {
+                "properties": {
+                  "name": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "ecs": {
+            "properties": {
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "event": {
+            "properties": {
+              "dataset": {
+                "type": "keyword"
+              },
+              "module": {
+                "type": "keyword"
+              }
+            }
+          },
+          "fleet": {
+            "properties": {
+              "category": {
+                "type": "keyword"
+              },
+              "project": {
+                "type": "keyword"
+              },
+              "repo": {
+                "type": "keyword"
+              },
+              "stack": {
+                "type": "keyword"
+              }
+            }
+          },
+          "host": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "log": {
+            "properties": {
+              "level": {
+                "type": "keyword"
+              },
+              "logger": {
+                "type": "keyword"
+              }
+            }
+          },
+          "message": {
+            "type": "match_only_text"
+          },
+          "service": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              },
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "trace": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "request_id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "url": {
+            "properties": {
+              "full": {
+                "index": false,
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "settings": {
+        "index.lifecycle.name": "fleet.app-logs",
+        "index.number_of_replicas": 0,
+        "index.number_of_shards": 1
+      }
+    }
+  },
+  "fleet.container-logs": {
+    "_meta": {
+      "contract": "_data/fleet.yml observability.logs",
+      "doc": "docs/OBSERVABILITY.md",
+      "managed_by": "tools/dash observe"
+    },
+    "data_stream": {},
+    "index_patterns": [
+      "logs-fleet.container-*"
+    ],
+    "priority": 500,
+    "template": {
+      "mappings": {
+        "properties": {
+          "@timestamp": {
+            "type": "date"
+          },
+          "container": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "image": {
+                "properties": {
+                  "name": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "ecs": {
+            "properties": {
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "event": {
+            "properties": {
+              "dataset": {
+                "type": "keyword"
+              },
+              "module": {
+                "type": "keyword"
+              }
+            }
+          },
+          "fleet": {
+            "properties": {
+              "category": {
+                "type": "keyword"
+              },
+              "project": {
+                "type": "keyword"
+              },
+              "repo": {
+                "type": "keyword"
+              },
+              "stack": {
+                "type": "keyword"
+              }
+            }
+          },
+          "host": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "log": {
+            "properties": {
+              "level": {
+                "type": "keyword"
+              },
+              "logger": {
+                "type": "keyword"
+              }
+            }
+          },
+          "message": {
+            "type": "match_only_text"
+          },
+          "service": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              },
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "trace": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "request_id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "url": {
+            "properties": {
+              "full": {
+                "index": false,
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "settings": {
+        "index.lifecycle.name": "fleet.container-logs",
+        "index.number_of_replicas": 0,
+        "index.number_of_shards": 1
+      }
+    }
+  }
+}

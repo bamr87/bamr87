@@ -418,7 +418,7 @@ else
 fi
 
 # --- (i): vendored-payload parity -------------------------------------------
-# The hub VENDORS three payloads into the fleet: tools/unwrap-prose.py (the
+# The hub VENDORS four payloads into the fleet: tools/unwrap-prose.py (the
 # prose kit payload — it defines what the markdown-oneline gate actually
 # enforces), tools/schema_lint.py (the schema kit's linter, itself vendored from
 # bamr87/SCHEMA), and templates/feedback/fleet-feedback.js (the feedback kit's
@@ -433,6 +433,12 @@ fi
 # schema kit's own VERSION file already states the policy — improvements go
 # upstream first, then re-vendor — it simply had no enforcement.
 #
+# filebeat.fleet.yml joins them for the same reason one step further out: it
+# defines the SHAPE every repo ships logs in. A drifted copy still ships, into
+# the same shared index, with different fields — which is not a broken repo but
+# a quietly inconsistent dataset, and those are only noticed when a dashboard
+# filter comes back empty for one repo and nobody can say since when.
+#
 # Advisory, never gating: a submodule may legitimately be mid-upgrade, and this
 # reads working trees that CI does not check out. Local-only for that reason.
 if [[ -d "$ROOT/projects" ]]; then
@@ -445,7 +451,8 @@ if [[ -d "$ROOT/projects" ]]; then
   for spec in \
     "tools/unwrap-prose.py|unwrap-prose.py|3" \
     "tools/schema_lint.py|schema_lint.py|3" \
-    "templates/feedback/fleet-feedback.js|fleet-feedback.js|5"; do
+    "templates/feedback/fleet-feedback.js|fleet-feedback.js|5" \
+    "templates/elk/filebeat.fleet.yml|filebeat.fleet.yml|3"; do
     IFS='|' read -r vsrc vname vdepth <<< "$spec"
     [[ -f "$ROOT/$vsrc" ]] || continue
     while IFS= read -r copy; do
@@ -470,6 +477,7 @@ if [[ -d "$ROOT/projects" ]]; then
     warn "  unwrap-prose.py   → tools/fanout.sh --kit prose --target <name> --upgrade"
     warn "  schema_lint.py    → upstream the change to bamr87/SCHEMA first, then re-vendor (templates/schema/VERSION)"
     warn "  fleet-feedback.js → tools/fanout.sh --kit feedback --target <name> --upgrade"
+    warn "  filebeat.fleet.yml → edit tools/observability/filebeat/filebeat.yml, re-vendor, then tools/fanout.sh --kit elk --target <name> --upgrade"
   fi
 fi
 

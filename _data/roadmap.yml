@@ -120,7 +120,7 @@
   issue_url: null
 
 - id: FF-0003
-  title: "AI cost telemetry via OpenTelemetry — local collector stack with per-prompt drill-down (finance-ai Layer 2)"
+  title: "AI cost METRICS via OpenTelemetry — otel-collector + Prometheus into the existing Grafana (finance-ai Layer 2; log half shipped as FF-0026)"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
   status: approved
@@ -134,37 +134,44 @@
     and there is no live view of spend while a session is running. Request-level
     questions ("why was Thursday $9?") currently have no answer surface.
   proposal: >-
-    Opt into Claude Code's native OTel instrumentation and stand up a local,
-    opt-in backend. Add a `telemetry` profile to docker-compose.yml with four
-    services (otel-collector, prometheus, loki, grafana) and provisioned config
-    checked into the repo, plus a documented managed-settings/env template that
-    sets CLAUDE_CODE_ENABLE_TELEMETRY=1 and points OTLP metric/log exporters at
-    the local collector. Ship one provisioned Grafana dashboard implementing the
-    question tiers from finance-ai.md — estimated spend over time, split by model
-    and query_source, cache-read ratio, and session→prompt drill-down via Loki
-    queries on prompt.id. Single machine, single developer, local-only.
+    NARROWED 2026-09-22 to METRICS ONLY. The log half of this item shipped as the
+    observability log plane (docs/OBSERVABILITY.md): Elasticsearch/Logstash/
+    Kibana behind `docker compose --profile elk`, and Grafana already running on
+    127.0.0.1:3001 with an Elasticsearch datasource and a provisioned dashboard.
+    Loki is dropped as redundant — a second log store next to Elasticsearch would
+    mean two query languages and two retention policies for one question. What
+    remains: opt into Claude Code's native OTel instrumentation and add
+    otel-collector + prometheus under a `metrics` compose profile (grafana
+    already carries that profile, so it needs no change), plus a documented
+    managed-settings/env template setting CLAUDE_CODE_ENABLE_TELEMETRY=1 and
+    pointing the OTLP metric exporter at the local collector. Then append
+    prometheus to `observability.metrics.datasources` in _data/fleet.yml and add
+    the live-gauge panels to the existing fleet-logs dashboard. Prompt-level
+    drill-down that would have used Loki is served by the log plane instead.
   acceptance:
-    - "`docker compose --profile telemetry up -d` starts otel-collector + prometheus + loki + grafana with provisioned datasources/dashboards committed to the repo."
+    - "`docker compose --profile metrics up -d` starts otel-collector + prometheus alongside the already-provisioned grafana (which carries both the elk and metrics profiles)."
     - "A documented settings template (managed settings or ~/.claude/settings.json env block) enables telemetry and targets the local collector; no endpoints or tokens are hard-coded elsewhere."
-    - "claude_code.cost.usage and claude_code.token.usage are queryable in Prometheus; user_prompt/api_request/tool_result events land in Loki and filter by prompt.id."
-    - "The committed Grafana dashboard shows spend over time, per-model/query_source split, cache-read ratio, and links a session to its prompt-level events."
+    - "claude_code.cost.usage and claude_code.token.usage are queryable in Prometheus."
+    - "`observability.metrics.datasources` in _data/fleet.yml lists prometheus, and the committed fleet-logs dashboard gains live spend/cache-ratio gauges beside its existing Elasticsearch panels."
     - "Local-only is preserved: telemetry services never run in CI and the published dash stays free of spend data."
-    - "docs/DASH.md documents the layer split — ledger scan is retroactive history, OTel is forward-looking drill-down — and that dollar figures remain estimates."
+    - "docs/OBSERVABILITY.md documents the three planes — logs shipped, traces in Phoenix, metrics here — and docs/DASH.md the layer split (ledger scan is retroactive history, OTel is forward-looking) with dollar figures still estimates."
   scope:
     in:
-      - docker-compose.yml `telemetry` profile + collector/prometheus/loki/grafana provisioning
+      - docker-compose.yml `metrics` profile + collector/prometheus provisioning
       - managed-settings / env rollout template and docs
-      - one provisioned Grafana dashboard
+      - prometheus panels appended to the existing fleet-logs dashboard
     out:
+      - Loki and any second log store — the log plane (docs/OBSERVABILITY.md) owns logs
+      - a second Grafana or a second dashboard provider — both already exist
       - Layer 3 Admin APIs (org-level reporting)
       - multi-user fleet rollout, auth hardening, cloud backends
       - replacing the JSONL ledger (OTel only captures forward from enablement)
       - traces beta (CLAUDE_CODE_ENHANCED_TELEMETRY_BETA) beyond a docs note
   risks:
     - Metric cardinality — session-id/account-uuid labels can explode Prometheus series; keep OTEL_METRICS_INCLUDE_SESSION_ID off by default.
-    - Prometheus/Loki volumes grow unbounded without retention limits — set retention in the provisioned config.
+    - Prometheus volumes grow unbounded without retention limits — set retention in the provisioned config, as observability.logs.retention_days does for the log plane.
     - The managed-settings path differs per OS (macOS vs Linux container) — document both or prefer the user settings env block.
-    - Four extra containers is heavy for one developer — the compose profile must keep the stack strictly opt-in.
+    - "MEMORY, not disk, is the binding constraint: the elk profile already needs ~2 GB and Elasticsearch was OOM-killed at a 1 GB heap on this bench. Two more containers must stay strictly opt-in and probably cannot run at the same time as the full log plane."
   source: scout
   created: 2026-07-06
   issue_url: null
@@ -1056,4 +1063,67 @@
     - Recreating devenv is still required once for current extra port mappings until those ports move onto sibling services.
   source: session
   created: 2026-09-19
+  issue_url: null
+
+- id: FF-0026
+  title: "Observability log plane — Elasticsearch/Logstash/Kibana + Grafana, fed by the lake, with a Console portal"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: in-progress
+  priority: P1
+  effort: L
+  category: infra
+  problem: >-
+    The hub had traces (Phoenix) and daily aggregates (the committed _data/*.yml
+    the Pages dash renders) but no log plane. GitHub Actions logs were pulled by
+    `dash lake sync` and then TRUNCATED at 2 MB per run for offline review; local
+    container logs were read one `docker logs` at a time with nothing correlating
+    them; and specs/OPERATIONS.md UPS-OPS-10 had been mandating a structured JSON
+    log line fleet-wide with nothing anywhere that read one. Answering "when did
+    this workflow start failing, and what did it actually say" meant opening
+    GitHub run by run.
+  proposal: >-
+    One Elastic 9.x stack at the hub behind `docker compose --profile elk`
+    (elasticsearch/logstash/kibana/filebeat) plus Grafana for trends over the
+    same indices, fed by two paths that share one extractor: `dash observe ship`
+    replays the lake's runs (store_logs split into iter_log_entries, so one
+    download feeds both the capped SQLite sink and the uncapped ECS emitter), and
+    Filebeat autodiscovers containers by com.bamr87.fleet.* labels. Both inputs
+    pass through ONE Logstash enrich pipeline that drops verbatim copies, maps to
+    ECS and redacts. Every Actions document carries the same deterministic
+    trace.id the Phoenix exporter uses, so one id addresses the same work in all
+    three planes. The Harness Console's Traces tab becomes Observe with
+    Logs/Metrics/Traces panes embedding Kibana and Grafana behind a narrow
+    frame-src CSP. templates/elk/ fans the producer half out to the fleet.
+    Retention, datasets, redaction prefixes and the pinned dashboard ids all live
+    in _data/fleet.yml `observability:` and are RENDERED into the cluster's
+    configuration, never hand-written.
+  acceptance:
+    - "`tools/dash observe up` starts the five services and installs ILM policies, index templates and dashboards rendered from _data/fleet.yml."
+    - "`tools/dash observe ship` replays lake runs into logs-fleet.actions-default with no second GitHub client; a shipments ledger makes a re-run free."
+    - "A document's trace.id is byte-identical to the Phoenix trace id for the same run, asserted by a test."
+    - "No credential survives into the index from either input — including the verbatim copies Logstash's http input stores in event.original."
+    - "The Console's Observe tab embeds the pinned Kibana and Grafana dashboards, degrades to a Start button when a plane is down, and never returns a 500."
+    - "`tools/fanout.sh --kit elk` opens an additive PR carrying the vendored shipper, the label fragment, a standalone overlay and the stack's logging adapter; drift check (i) holds the payload equal fleet-wide."
+    - "Local-only is preserved: loopback ports, Docker volumes, never in CI, nothing published to Pages."
+  scope:
+    in:
+      - the `elk` compose profile + tools/observability/ configuration
+      - fleet_observe.py (shipper, ECS mappers, ILM/template/dashboard renderers, status)
+      - the fleet_lake refactor + shipments ledger
+      - the Console Observe portal, /api/observability and the frame-src CSP
+      - templates/elk/ and its fan-out wiring
+      - UPS-OPS-17/18 and docs/OBSERVABILITY.md
+    out:
+      - metrics collection (FF-0003, narrowed to Prometheus + otel-collector)
+      - any CI-side or cloud-hosted Elasticsearch — the plane is local-only by design
+      - a Pages surface for logs; the committed aggregates stay the published half
+      - a full nonce-based CSP for the console (UPS-OPS-23), which needs index.html templated
+  risks:
+    - "Memory is the binding constraint, not disk: Elasticsearch takes ~2x its heap in RSS and was OOM-killed (exit 137) at a 1 GB heap on a 7.7 GiB Docker VM already running ~20 containers. Default lowered to 512m; Kibana is the heaviest of the five."
+    - Embeds break on an Elastic/Grafana major bump — the URL shapes are not API-stable. Pinned ids plus a contract test catch a renamed dashboard; a major bump needs the embeds re-checked by hand, with the deep link as the fallback.
+    - Anonymous Grafana and security-off Elasticsearch are only defensible on loopback; fronting the console with a proxy makes both real exposure.
+    - The read-only docker.sock mount is the broadest grant in the compose file, and is required because Docker Desktop for Mac keeps container logs inside the VM.
+  source: session
+  created: 2026-09-22
   issue_url: null

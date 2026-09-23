@@ -132,6 +132,7 @@ CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
 FB_VERSION="$(kit_version feedback)"
 IA_VERSION="$(kit_version issue-autopilot)"
+ELK_VERSION="$(kit_version elk)"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -189,8 +190,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|feedback) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|feedback> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|feedback|elk) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|feedback|elk> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -219,6 +220,12 @@ case "$KIT" in
     COMMIT_MSG="feat(feedback): adopt the universal page-feedback widget (kit v${FB_VERSION})"
     PR_TITLE="feat(feedback): universal \"Improve this page\" → GitHub issue widget"
     PR_BODY="$(printf 'Automated by bamr87 feedback-fanout (tools/fanout.sh --kit feedback): vendors the universal feedback widget so a reader can file a well-formed issue against this repo from any page — request type, description, page context, environment, and the console/error lines that led up to the report.\n\nSeeded (additive — nothing existing is overwritten):\n- the widget + the early capture buffer, vendored into the static assets of this stack\n- `.github/ISSUE_TEMPLATE/page_feedback.yml`, the no-JS twin carrying the same sections\n- the adapter for the detected stack, ready to mount\n\n**One human line is left**: mount the adapter in the shell — the fan-out log names the exact line, and `templates/feedback/README.md` has the detail. The fan-out never edits a hand-written shell.\n\nIssues filed this way carry the `fleet-feedback` marker comment and labels from the fleet taxonomy, so they enter the three-tier issue pipeline on the next scan. Spec: bamr87/bamr87 specs/FEEDBACK.md (UPS-FB).')"
+    ;;
+  elk)
+    BRANCH="feat/fleet-logging"
+    COMMIT_MSG="feat(logging): adopt the fleet log plane (kit v${ELK_VERSION})"
+    PR_TITLE="feat(logging): structured logs + fleet log shipping"
+    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit elk): adopts the fleet LOG PLANE, so this repo'"'"'s logs are searchable alongside every other repo'"'"'s instead of only readable one container at a time.\n\nSeeded (additive — nothing existing is overwritten):\n- `filebeat.fleet.yml`, the fleet shipper config, vendored byte-for-byte from the hub\n- `compose.labels.yml`, the `com.bamr87.fleet.*` labels + json-file rotation (UPS-OPS-17)\n- `compose.elk.yml`, a standalone single-node Elasticsearch + Kibana for a clone OUTSIDE the hub\n- the UPS-OPS-10 JSON logging adapter for the detected stack, with the UPS-OPS-12 redaction attached\n\n**One human line is left**: add the `include:` (or the four per-service lines) to docker-compose.yml — the fan-out log names it exactly, and `templates/elk/README.md` has the detail. The fan-out never edits a hand-written compose file.\n\nThe labels ARE the opt-in: the hub'"'"'s Filebeat autodiscovers on them and ignores every container without them, so nothing central changes. Spec: bamr87/bamr87 specs/OPERATIONS.md (UPS-OPS-10/12/17/18), doc docs/OBSERVABILITY.md.')"
     ;;
   deps-latest)
     BRANCH="chore/deps-latest"
@@ -364,23 +371,32 @@ seed_prose() {
 # (proof it was machine-seeded and never touched). A hand-modified copy is left
 # alone — someone made that change on purpose, and a widget silently reverted
 # under them is worse than one version behind.
-seed_vendored_asset() {  # $1 dest, $2 kit source, $3 label
-  local dest="$1" src="$2" label="$3" dir base cand
-  dir="$(dirname "$src")/archive"; base="$(basename "$src")"; base="${base%.js}"
+# Seed one BYTE-COPIED payload (no __PLACEHOLDER__ substitution) and report or
+# refresh an existing copy — the untemplated twin of seed_workflow_artifact,
+# with the same four states.
+#
+# $4/$5 default to the feedback kit's version and .js archives, which is what
+# every call site used when this only had one caller. The elk kit vendors a
+# .yml payload, so both are now parameters: a hardcoded version stamps the
+# WRONG kit's number into the log, and a hardcoded extension means --upgrade
+# silently never matches that kit's archives.
+seed_vendored_asset() {  # $1 dest, $2 kit source, $3 label, [$4 version], [$5 archive ext]
+  local dest="$1" src="$2" label="$3" ver="${4:-$FB_VERSION}" ext="${5:-js}" dir base cand
+  dir="$(dirname "$src")/archive"; base="$(basename "$src")"; base="${base%".$ext"}"
   if [[ ! -f "$dest" ]]; then
     mkdir -p "$(dirname "$dest")"
     cp "$src" "$dest"
-    echo "${label}: vendored -> ${dest} (kit v${FB_VERSION})"
+    echo "${label}: vendored -> ${dest} (kit v${ver})"
     return
   fi
-  if cmp -s "$dest" "$src"; then echo "${label}: current (kit v${FB_VERSION})"; return; fi
-  for cand in "$dir/$base"-*.js; do
+  if cmp -s "$dest" "$src"; then echo "${label}: current (kit v${ver})"; return; fi
+  for cand in "$dir/$base"-*."$ext"; do
     [[ -f "$cand" ]] || continue
     if cmp -s "$dest" "$cand"; then
       if [[ "$UPGRADE" -eq 1 ]]; then
-        cp "$src" "$dest"; echo "${label}: upgraded machine seed -> kit v${FB_VERSION}"
+        cp "$src" "$dest"; echo "${label}: upgraded machine seed -> kit v${ver}"
       else
-        echo "${label}: upgradeable machine seed (latest kit v${FB_VERSION}; rerun with --upgrade)"
+        echo "${label}: upgradeable machine seed (latest kit v${ver}; rerun with --upgrade)"
       fi
       return
     fi
@@ -414,6 +430,66 @@ feedback_stack() {
   elif grep -qs '"react"' package.json frontend/package.json;         then echo "react"
   else echo "unknown"
   fi
+}
+
+# Which logging adapter this repo can actually use. Reuses feedback_stack()'s
+# marker-file detection rather than repeating it — the two kits ask the same
+# question ("what is this repo built out of") and a second answer would drift.
+elk_adapter() {
+  case "$(feedback_stack)" in
+    django)                echo "django-logging.py" ;;
+    rails)                 echo "rails-lograge.rb" ;;
+    next|react|ext)        echo "node-pino.mjs" ;;
+    mkdocs)                echo "python-logging.py" ;;
+    jekyll|zer0-theme)     echo "" ;;   # a static site has no runtime to log from
+    *)                     if [[ -f package.json ]]; then echo "node-pino.mjs"
+                           elif compgen -G '*.py' >/dev/null || [[ -f pyproject.toml ]]; then echo "python-logging.py"
+                           else echo ""; fi ;;
+  esac
+}
+
+seed_elk() {
+  # cwd = target clone; $1 = repo name, $2 = default branch.
+  local name="$1" def="$2" kit="$HUB/templates/elk" stack adapter
+  stack="$(feedback_stack)"
+  echo "elk: detected stack '${stack}'"
+
+  # The shipper config is VENDORED, not templated: every repo must ship in the
+  # same shape or the shared index holds two schemas. Drift check (i) compares
+  # the copies against the hub's.
+  seed_vendored_asset "filebeat.fleet.yml" "$kit/filebeat.fleet.yml" "shipper config" \
+    "$ELK_VERSION" "yml"
+
+  # The compose fragments carry __PROJECT_NAME__/__KIT_VERSION__, so they ride
+  # the four-state upgrade ladder like every other templated artifact.
+  seed_workflow_artifact "compose.labels.yml" compose.labels.yml \
+    "$kit/compose.labels.yml" "$name" "$def" "$ELK_VERSION"
+  seed_workflow_artifact "compose.elk.yml" compose.elk.yml \
+    "$kit/compose.elk.yml" "$name" "$def" "$ELK_VERSION"
+
+  adapter="$(elk_adapter)"
+  if [[ -n "$adapter" ]]; then
+    mkdir -p .fleet/logging
+    seed_workflow_artifact "logging adapter (${adapter})" ".fleet/logging/${adapter}" \
+      "$kit/adapters/${adapter}" "$name" "$def" "$ELK_VERSION"
+  else
+    echo "logging adapter: none — '${stack}' has no runtime that emits logs"
+  fi
+
+  # The one line a human adds. Printed, never applied: this kit does not edit a
+  # hand-written docker-compose.yml, for the same reason the feedback kit does
+  # not edit a hand-written page shell.
+  echo
+  echo "  MOUNT (one human line in docker-compose.yml):"
+  if [[ -f docker-compose.yml ]] || [[ -f compose.yml ]]; then
+    echo "    include:"
+    echo "      - path: compose.labels.yml"
+    echo "    …then per service:  labels: {<<: *fleet-labels, com.bamr87.fleet.stack: ${stack}}  and  logging: *fleet-logging"
+  else
+    echo "    (no compose file here — the labels apply wherever this repo's containers are defined)"
+  fi
+  [[ -n "$adapter" ]] && echo "    …and import .fleet/logging/${adapter} where logging is configured."
+  echo
 }
 
 seed_feedback() {
@@ -618,6 +694,7 @@ run_one() {
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
       feedback)    seed_feedback "$(basename "${url%.git}")" "$def"
                    [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
+      elk)         seed_elk "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0

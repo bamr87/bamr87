@@ -39,7 +39,7 @@ Gitorio already owns Design (canvas/compiler), Fleet Observe, and a Harness tab 
 1. **Source of truth stays files in bamr87** (`_data/projects.yml`, `_data/fleet.yml`, kit `VERSION`s, generated registries). Gitorio edits them only through allowlisted dash jobs (diff + confirm + PR / working-tree), never silent pushes to `main`.
 2. **No second contract store** inside Gitorio (no parallel caps DB). Blueprints *consume* caps and kill switches; they do not replace `fleet.yml`.
 3. **Compiler output remains plain GitHub Actions YAML** in leaf repos. Production must not require Gitorio to be online.
-4. **Lake and Phoenix stay local-only** (gitignored lake; no run-log publication to Pages).
+4. **Lake, Phoenix and the log plane stay local-only** (gitignored lake; Docker volumes for the indices; no run-log publication to Pages).
 5. **Draft-only / never-merge** agent behavior and fan-out PR discipline are unchanged.
 6. **Pages never gains write UI.**
 
@@ -54,6 +54,8 @@ Gitorio already owns Design (canvas/compiler), Fleet Observe, and a Harness tab 
 | **Deploy** | Kit gaps → dry-run → PR | `harness-fanout` / `tools/dash harnesses deploy` |
 | **Auth** | Credential presence for this process / `gh` | Console Auth semantics (env / `gh auth`, never echo secrets) |
 | **Insight** | Cost, waste, attention | `tools/dash lake review` (+ committed usage ledgers) |
+| **Logs** | Search every CI and container line | Elasticsearch/Kibana `:5601` (embedded in the console's Observe tab; joins to Traces on `trace.id`) |
+| **Metrics** | Volume, error rate, agent spend over time | Grafana `:3001` over the same indices |
 | **Traces** | Per-run agent trees | Phoenix `:6006` (embed or deep-link by run/session id) |
 | **UX** | Surfaces, evidence, critique queue | `templates/ux-audit` + `ux:` on projects + future `ux_registry.yml` |
 | **Jobs** | Live log of allowlisted ops | Same job runner the console uses |

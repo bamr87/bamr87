@@ -122,10 +122,16 @@ A `.devcontainer/` directory is present, so opening the repository in VS Code wi
 A `docker-compose.yml` is present at the root; `devenv` is the primary workspace container (the repo is mounted at `/workspace`) and every other service is optional.
 
 ```bash
-docker compose up -d devenv
+tools/dash up                          # the shared core: devenv, console, one Postgres, one Redis
+tools/dash up it-journey               # …plus a submodule, as its own compose project
+tools/dash up --group jekyll           # …plus a whole group (docs/CONTAINERS.md)
+tools/dash ps                          # what is running fleet-wide
+docker compose up -d devenv            # or just the workspace, without the orchestrator
 docker compose exec devenv bash
 docker compose up -d console           # the Harness Console — http://127.0.0.1:4001 (or: tools/dash console)
 docker compose up -d phoenix           # Phoenix traces — http://127.0.0.1:6006 (tools/dash lake export ships traces to it)
+docker compose --profile elk up -d     # the log + metrics planes — Kibana :5601, Grafana :3001
+                                       # (or: tools/dash observe up, which also installs ILM + dashboards)
 docker compose --profile admin up -d   # adds pgAdmin
 docker compose down -v                 # stop and wipe volumes
 ```

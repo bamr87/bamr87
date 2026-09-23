@@ -73,6 +73,21 @@ The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK
 | `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `nextjs.tsx` (App Router `beforeInteractive` capture), `django.html` (Django; ERB equivalent for Rails) |
 | `VERSION` | Kit provenance + changelog |
 
+## `elk/`
+
+The ELK logging kit (spec: [`specs/OPERATIONS.md`](../specs/OPERATIONS.md), UPS-OPS-10/12/17/18) — the **producer** half of the hub's log plane. The hub runs one Elasticsearch/Logstash/Kibana + Grafana stack for the whole fleet ([`docs/OBSERVABILITY.md`](../docs/OBSERVABILITY.md)); this is what a repo needs in order to emit logs that stack can read, and to stand up its own single-node copy when cloned outside the hub. See [`elk/README.md`](elk/README.md) for the emission contract. Fanned out with `tools/fanout.sh --kit elk`; the vendored shipper config is held to the hub's by drift check (i).
+
+| File | Purpose |
+| --- | --- |
+| `filebeat.fleet.yml` | The vendored shipper — label-gated docker autodiscover, byte-identical to the hub's `tools/observability/filebeat/filebeat.yml`. One shape fleet-wide, or the shared index holds two schemas |
+| `compose.labels.yml` | The `com.bamr87.fleet.*` labels + `json-file` rotation (UPS-OPS-17). The labels ARE the opt-in: the hub's Filebeat ignores every container without them, so nothing central changes when a repo adopts |
+| `compose.elk.yml` | Standalone single-node Elasticsearch + Kibana + Filebeat, `--profile elk`, for a clone outside the hub. Switches the shipper's output with `-E` flags rather than editing the vendored payload |
+| `adapters/` | `python-logging.py` (stdlib JSON formatter + redaction filter), `node-pino.mjs` (pino + a UPS-OPS-11 request logger), `django-logging.py`, `rails-lograge.rb` |
+| `tests/` | 9 contract tests (`node --test`, no dependencies) — field coverage, redaction, payload/archive parity, placeholder hygiene |
+| `VERSION` | Kit provenance + changelog |
+
+Redaction runs at **emission** in every adapter, not only in the hub's ingest pipeline: a repo running standalone has no Logstash in its path at all, and a secret masked before it is written never reaches a scrollback or a bug report either.
+
 ## `issue-autopilot/`
 
 The issue-autopilot kit — the canonical issue-triage engine that `it-journey` and `zer0-mistakes` each maintained a fork of. **OPT-IN**: named explicitly via `--artifacts issue-autopilot`, never in the default set. See [`issue-autopilot/README.md`](issue-autopilot/README.md) for the policy boundary, the flag, and the adoption recipe.

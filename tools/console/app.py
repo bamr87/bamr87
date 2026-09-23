@@ -16,6 +16,9 @@ workflows and run --apply fan-outs with the operator's FLEET_TOKEN is a real
 lever. So every request's Host header is checked against a loopback allowlist
 (extend it with DASH_CONSOLE_ALLOWED_HOSTS when fronting the console with a
 proxy or a real hostname).
+A narrow Content-Security-Policy rides alongside that guard: frame-src names
+the three observability UIs the Observe tab embeds, and frame-ancestors 'none'
+stops anything embedding this console in turn.
 Credentials: jobs inherit the process environment exactly like a terminal
 would, and every status document reports credential NAMES and presence only —
 never a value or a prefix. The /api/auth routes let the operator hand this
@@ -61,6 +64,30 @@ async def guard_host(request: Request, call_next):
             "detail": f"host '{host}' is not allowed — the console answers on loopback only; "
                       "set DASH_CONSOLE_ALLOWED_HOSTS to serve another hostname"})
     return await call_next(request)
+
+
+@app.middleware("http")
+async def frame_policy(request: Request, call_next):
+    """Allow the Observe tab to embed Kibana, Grafana and Phoenix — and nothing
+    else to embed this console.
+
+    Deliberately NARROW. index.html is one file of inline script and style, so
+    a policy with a `default-src` would have to carry 'unsafe-inline' to work
+    at all, which is a worse policy than none. With only frame-src and
+    frame-ancestors, scripts are untouched and two real things are gained: the
+    embeds are permitted (a browser refuses a cross-origin frame with nothing
+    but a console line), and this origin — which can dispatch workflows with
+    the operator's FLEET_TOKEN — can no longer be framed by anyone.
+
+    The allowlist is _data/fleet.yml `observability.portal.frame_src`, stated
+    once. A full nonce-based CSP (UPS-OPS-23) needs index.html templated and is
+    tracked separately.
+    """
+    response = await call_next(request)
+    sources = " ".join(core.frame_src())
+    response.headers["Content-Security-Policy"] = (
+        f"frame-src 'self' {sources}".strip() + "; frame-ancestors 'none'")
+    return response
 
 
 def require_token(authorization: str | None = Header(default=None)) -> None:
@@ -172,6 +199,13 @@ def lake_review(days: int = Query(default=30, ge=1, le=3650),
     return core.lake_review(days, repo, limit)
 
 
+@app.get("/api/observability", dependencies=[Depends(require_token)])
+def observability() -> dict:
+    """The Observe tab's document: all three planes, the dataset sizes against
+    the disk budget, the ship ledger, and the composed embed URLs."""
+    return core.observe_status()
+
+
 @app.get("/api/contract", dependencies=[Depends(require_token)])
 def contract() -> dict:
     return core.read_contract()
@@ -257,6 +291,7 @@ def api_root() -> JSONResponse:
     return JSONResponse({"routes": ["/api/state", "/api/capabilities", "/api/ops", "/api/jobs",
                                     "/api/lake", "/api/lake/runs", "/api/lake/lines",
                                     "/api/lake/review",
+                                    "/api/observability",
                                     "/api/contract", "/api/config", "/api/auth",
                                     "/api/auth/credential", "/api/auth/github", "/docs"]})
 
