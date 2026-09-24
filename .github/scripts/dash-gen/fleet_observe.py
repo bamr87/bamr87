@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -303,13 +304,20 @@ def kibana_saved_objects(contract: dict) -> list[dict]:
     def dashboard(did: str, title: str, description: str, panels: list[str]) -> dict:
         panels_json, refs = [], []
         for i, sid in enumerate(panels):
+            # The reference NAME must equal panelRefName exactly. Kibana's
+            # injectReferences looks the panelRefName up verbatim, and the
+            # `<panelIndex>:` prefix seen in Kibana's own exports only works
+            # when the prefix matches that panel's panelIndex. Getting those
+            # two out of step is a 500 on import — "Could not find reference
+            # panel_0" — with the dashboard silently absent afterwards. Bare
+            # names cannot drift apart, so they are what this writes.
             name = f"panel_{i}"
             panels_json.append({
                 "version": "8.11.0", "type": "search", "panelIndex": str(i + 1),
                 "gridData": {"x": 0, "y": i * 15, "w": 48, "h": 15, "i": str(i + 1)},
                 "embeddableConfig": {}, "panelRefName": name,
             })
-            refs.append({"id": sid, "name": f"{i}:{name}", "type": "search"})
+            refs.append({"id": sid, "name": name, "type": "search"})
         return {
             "id": did,
             "type": "dashboard",
@@ -587,6 +595,23 @@ def _post_json(url: str, payload, timeout: int = 60) -> tuple[bool, str]:
         return False, str(exc)
 
 
+# The contract's URLs are what a BROWSER must use — they are also the embed URLs
+# and the links the console renders. A server-side probe needs a different
+# address whenever the prober is itself in a container, where 127.0.0.1 is the
+# container's own loopback and nothing is listening on it. docker-compose.yml
+# already makes exactly this distinction for Phoenix (PHOENIX_COLLECTOR_ENDPOINT
+# is service DNS, PHOENIX_UI_URL is loopback); these are the same split for the
+# other two planes, and compose sets them on the services that do the probing.
+PROBE_ENV = {"elasticsearch": "ES_URL", "kibana": "KIBANA_URL",
+             "grafana": "GRAFANA_URL", "phoenix": "PHOENIX_COLLECTOR_ENDPOINT"}
+
+
+def probe_url(service: str, browser_url: str) -> str:
+    """Where to REACH a service from this process, which is not always where a
+    browser would reach it."""
+    return (os.environ.get(PROBE_ENV.get(service, "")) or "").rstrip("/") or browser_url
+
+
 def reachable(url: str) -> bool:
     try:
         req = urllib.request.Request(url, method="GET")
@@ -616,11 +641,12 @@ def plane_status(contract: dict) -> dict:
     a document saying so, which is what lets the console render a Start button
     instead of a 500."""
     logs, metrics, traces = contract["logs"], contract.get("metrics") or {}, contract.get("traces") or {}
-    es_url = logs["elasticsearch"]
-    health = _get_json(f"{es_url}/_cluster/health")
-    kibana_url = logs["kibana"]
+    es_url, kibana_url = logs["elasticsearch"], logs["kibana"]
     grafana_url = metrics.get("grafana") or ""
     phoenix_url = traces.get("endpoint") or ""
+    # Probe one address, report the other: `url` is what the browser gets.
+    es_probe = probe_url("elasticsearch", es_url)
+    health = _get_json(f"{es_probe}/_cluster/health")
     return {
         "logs": {
             "engine": logs.get("engine", "elastic"),
@@ -628,18 +654,18 @@ def plane_status(contract: dict) -> dict:
             "elasticsearch": es_url,
             "reachable": health is not None,
             "cluster_status": (health or {}).get("status"),
-            "kibana_reachable": reachable(f"{kibana_url}/api/status"),
+            "kibana_reachable": reachable(f"{probe_url('kibana', kibana_url)}/api/status"),
         },
         "metrics": {
             "engine": metrics.get("engine", "grafana"),
             "url": grafana_url,
-            "reachable": reachable(f"{grafana_url}/api/health") if grafana_url else False,
+            "reachable": reachable(f"{probe_url('grafana', grafana_url)}/api/health") if grafana_url else False,
             "datasources": metrics.get("datasources") or [],
         },
         "traces": {
             "engine": traces.get("engine", "phoenix"),
             "url": phoenix_url,
-            "reachable": reachable(phoenix_url) if phoenix_url else False,
+            "reachable": reachable(probe_url("phoenix", phoenix_url)) if phoenix_url else False,
         },
     }
 
@@ -647,7 +673,7 @@ def plane_status(contract: dict) -> dict:
 def dataset_stats(contract: dict) -> list[dict]:
     """Doc count and size per data stream, plus its ILM phase."""
     logs = contract["logs"]
-    es = logs["elasticsearch"]
+    es = probe_url("elasticsearch", logs["elasticsearch"])
     out = []
     for key in sorted(logs["datasets"]):
         stream = data_stream_for(key, contract)
@@ -772,7 +798,8 @@ def cmd_status(args) -> int:
 def cmd_ship(args) -> int:
     """Replay the lake's runs into Logstash as ECS documents."""
     contract = load_contract(args.fleet)
-    endpoint = args.endpoint or contract["logs"]["logstash_http"]
+    endpoint = (args.endpoint or os.environ.get("LOGSTASH_URL")
+                or contract["logs"]["logstash_http"])
     batch_size = int(contract["logs"]["ship"]["batch"])
     projects = registry_index()
 

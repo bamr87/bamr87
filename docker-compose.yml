@@ -125,6 +125,15 @@ services:
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006
       - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}
       - DASH_LAKE_DIR=/workspace/.dash-lake
+      # Server-side addresses for the log plane. The contract's URLs
+      # (_data/fleet.yml `observability:`) are what a BROWSER must use and what
+      # the console embeds; from inside a container 127.0.0.1 is this
+      # container's own loopback, where nothing is listening. Same split
+      # PHOENIX_COLLECTOR_ENDPOINT vs PHOENIX_UI_URL already makes above.
+      - ES_URL=http://elasticsearch:9200
+      - KIBANA_URL=http://kibana:5601
+      - GRAFANA_URL=http://grafana:3000
+      - LOGSTASH_URL=http://logstash:8088
     stdin_open: true
     tty: true
     networks:
@@ -184,6 +193,15 @@ services:
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006     # traces go to the sibling service
       - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}  # what the console links to
       - DASH_LAKE_DIR=/workspace/.dash-lake
+      # Server-side addresses for the log plane. The contract's URLs
+      # (_data/fleet.yml `observability:`) are what a BROWSER must use and what
+      # the console embeds; from inside a container 127.0.0.1 is this
+      # container's own loopback, where nothing is listening. Same split
+      # PHOENIX_COLLECTOR_ENDPOINT vs PHOENIX_UI_URL already makes above.
+      - ES_URL=http://elasticsearch:9200
+      - KIBANA_URL=http://kibana:5601
+      - GRAFANA_URL=http://grafana:3000
+      - LOGSTASH_URL=http://logstash:8088
     networks:
       - fleet
     restart: unless-stopped

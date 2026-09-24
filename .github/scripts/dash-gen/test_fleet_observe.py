@@ -254,6 +254,38 @@ def test_every_kibana_panel_reference_resolves_within_the_bundle():
             assert ref["id"] in ids, f"{o['id']} references missing object {ref['id']}"
 
 
+def test_every_dashboard_panel_reference_name_matches_its_panelRefName():
+    """Regression: the import 500'd with `Could not find reference "panel_0"`.
+
+    Kibana looks a panel's `panelRefName` up verbatim among the object's
+    reference names. The first version wrote `panelIndex: "1"` alongside a
+    reference named `0:panel_0`, so the lookup missed — and the failure mode is
+    a 500 on import with the dashboard simply absent afterwards, which is
+    exactly the kind of thing a pinned id cannot protect against.
+    """
+    for obj in fo.kibana_saved_objects(CONTRACT):
+        if obj["type"] != "dashboard":
+            continue
+        ref_names = {r["name"] for r in obj["references"]}
+        for panel in json.loads(obj["attributes"]["panelsJSON"]):
+            assert panel["panelRefName"] in ref_names, \
+                f"{obj['id']}: panel {panel['panelIndex']} references " \
+                f"{panel['panelRefName']}, which is not a reference name ({sorted(ref_names)})"
+        # …and nothing unreferenced in the other direction.
+        used = {p["panelRefName"] for p in json.loads(obj["attributes"]["panelsJSON"])}
+        assert ref_names == used, f"{obj['id']}: orphan references {ref_names - used}"
+
+
+def test_dashboard_grid_ids_match_their_panel_index():
+    """gridData.i and panelIndex address the same panel; Kibana's layout code
+    joins on them, and a mismatch drops the panel from the grid."""
+    for obj in fo.kibana_saved_objects(CONTRACT):
+        if obj["type"] != "dashboard":
+            continue
+        for panel in json.loads(obj["attributes"]["panelsJSON"]):
+            assert panel["gridData"]["i"] == panel["panelIndex"], panel
+
+
 def test_grafana_panels_all_point_at_the_pinned_datasource():
     dash = fo.grafana_dashboard(CONTRACT)
     assert dash["panels"], "a dashboard with no panels is a blank embed"

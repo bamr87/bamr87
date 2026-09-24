@@ -280,6 +280,43 @@ def test_every_dataset_has_a_policy_a_template_and_a_data_view():
     assert set(templates) == declared, f"orphan templates: {set(templates) - declared}"
 
 
+def test_probing_services_get_service_dns_not_loopback():
+    """Regression: the console reported all three planes DOWN while all three
+    were up.
+
+    It runs in a container, where `http://127.0.0.1:9200` is the container's own
+    loopback and nothing is listening. The contract's URLs are the BROWSER's —
+    they are also the embed URLs — so a server-side probe needs the service-DNS
+    form. docker-compose.yml already draws exactly this distinction for Phoenix
+    (PHOENIX_COLLECTOR_ENDPOINT vs PHOENIX_UI_URL); these are the same split for
+    the rest of the planes, and the services that probe must carry them.
+    """
+    want = {"ES_URL": "http://elasticsearch:9200", "KIBANA_URL": "http://kibana:5601",
+            "GRAFANA_URL": "http://grafana:3000", "LOGSTASH_URL": "http://logstash:8088"}
+    for svc in ("console", "devenv"):
+        env = _env(SERVICES[svc])
+        for name, url in want.items():
+            assert env.get(name) == url, f"{svc}: {name} is {env.get(name)!r}, want {url!r}"
+            assert "127.0.0.1" not in env[name], f"{svc}: {name} must not be loopback"
+    # Grafana's CONTAINER port is 3000 even though the host publishes 3001 —
+    # service DNS reaches the container port, and mixing the two is the bug.
+    assert want["GRAFANA_URL"].endswith(":3000")
+    assert CONTRACT["metrics"]["grafana"].endswith(":3001"), "the browser URL is the published one"
+    # …and the module honours them.
+    import os
+    old = os.environ.get("GRAFANA_URL")
+    os.environ["GRAFANA_URL"] = "http://grafana:3000"
+    try:
+        assert fo.probe_url("grafana", CONTRACT["metrics"]["grafana"]) == "http://grafana:3000"
+    finally:
+        if old is None:
+            del os.environ["GRAFANA_URL"]
+        else:
+            os.environ["GRAFANA_URL"] = old
+    # With nothing set, the contract URL is the answer — the native case.
+    assert fo.probe_url("kibana", "http://127.0.0.1:5601") == "http://127.0.0.1:5601"
+
+
 # --------------------------------------------------------------------------- #
 # the portal
 # --------------------------------------------------------------------------- #
@@ -308,6 +345,19 @@ def test_grafana_datasource_uid_is_pinned_and_matches_the_dashboard():
     assert fo.GRAFANA_DS_UID in uids, "the dashboard points at a datasource uid nothing provisions"
     assert all(d.get("editable") is False for d in ds["datasources"]), \
         "a provisioned datasource edited in the UI silently diverges from this file"
+
+    # Regression: every panel rendered "No data" with no error anywhere.
+    # `interval: Daily` tells Grafana the index is date-PATTERNED, so it builds
+    # names like `logs-fleet.*-2026.09.23` — which match nothing, because these
+    # are data streams: one stable alias Elasticsearch rolls over behind.
+    for d in ds["datasources"]:
+        if d.get("type") != "elasticsearch":
+            continue
+        jd = d.get("jsonData") or {}
+        assert "interval" not in jd, \
+            f"interval={jd['interval']!r} makes Grafana query date-suffixed names a data stream never has"
+        assert jd.get("timeField") == "@timestamp", jd
+        assert jd.get("index", "").startswith("logs-"), jd
 
 
 # --------------------------------------------------------------------------- #
