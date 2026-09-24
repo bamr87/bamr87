@@ -29,9 +29,12 @@
 - name: Fleet engines package
   path: https://github.com/bamr87/bamr87/tree/main/templates/fleet-engines
   description: "@bamr87/fleet-engines — the fleet/v1 manifest, workflow facts, the audit rulebook, metrics and the harness scorecard as one npm package, consumed by dependency by GitFactory and zer0-CMS."
+- name: ELK logging kit
+  path: https://github.com/bamr87/bamr87/tree/main/templates/elk
+  description: "The fleet log plane's producer half — the vendored Filebeat shipper, the com.bamr87.fleet.* label + rotation fragment, a standalone single-node ES+Kibana overlay, and one UPS-OPS-10 JSON emitter per stack with redaction attached. Fanned out with tools/fanout.sh --kit elk."
 - name: Seedable kits
   path: https://github.com/bamr87/bamr87/tree/main/templates
-  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.
+  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback, elk — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.
 - name: Skill template
   path: https://github.com/bamr87/bamr87/tree/main/.claude/skills
   description: Author new skills with the skill-creator skill.

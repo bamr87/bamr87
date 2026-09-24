@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# Grafana datasources (provisioned — the UI's copy is read-only).
+#
+# `uid` is PINNED and referenced by every panel in dashboards/fleet-logs.json.
+# A generated uid would leave the dashboard pointing at a datasource that no
+# longer exists after any re-provision, which renders as empty panels with no
+# error — the same failure class the pinned dashboard ids guard against.
+#
+# FF-0003 appends a Prometheus datasource here; nothing else changes.
+# ---------------------------------------------------------------------------
+apiVersion: 1
+
+datasources:
+  - name: Fleet logs (Elasticsearch)
+    uid: fleet-elasticsearch
+    type: elasticsearch
+    access: proxy
+    # Service DNS on dev-network, not 127.0.0.1: this URL is resolved by the
+    # Grafana container, not the browser.
+    url: http://elasticsearch:9200
+    isDefault: true
+    editable: false
+    # One index pattern spanning all three datasets. Panels narrow with a
+    # query on event.dataset; splitting the datasource per dataset would mean
+    # three of everything for no gain.
+    database: 'logs-fleet.*'
+    jsonData:
+      timeField: '@timestamp'
+      index: 'logs-fleet.*'
+      # NO `interval:` here. Setting one (Daily/Weekly/…) tells Grafana the
+      # index is date-PATTERNED and makes it build names like
+      # `logs-fleet.*-2026.09.23`, which match nothing — every panel then
+      # renders "No data" with no error to explain it. These are DATA
+      # STREAMS: one stable alias Elasticsearch rolls over behind, so the
+      # pattern is queried exactly as written.
+      logMessageField: message
+      logLevelField: log.level
+      maxConcurrentShardRequests: 5

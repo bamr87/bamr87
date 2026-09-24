@@ -53,9 +53,13 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash ai run -- <args>${c_off}  run \`claude -p\` under the fleet.yml dollar cap, recording what it cost
+  ${c_bold}dash observe [up|down|ship|status|verify|open|reset]${c_off} the local LOG plane — \`up\` starts the elk profile (Elasticsearch/Logstash/Kibana/Filebeat + Grafana) and installs ILM + dashboards; \`ship\` replays the lake's Actions logs in as ECS documents; \`status\` reports all three planes; \`verify\` re-renders ILM/templates from _data/fleet.yml; \`open\` is the Console's Observe tab (docs/OBSERVABILITY.md)
+  ${c_bold}dash up [names…|--group G|--all]${c_off} start the shared container plane (workspace, console, one Postgres, one Redis on the \`fleet\` network), then each named submodule as its OWN compose project with a generated port/network override — the fleet runs as many projects, not one (docs/CONTAINERS.md)
+  ${c_bold}dash down [--all] [-v]${c_off} stop the core, or every project too; \`-v\` also drops volumes
+  ${c_bold}dash ps${c_off}               what is running fleet-wide, and who is on the shared network
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|lake|remediate|issues|reconcile|vendor|estimate|ledger|targets|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|lake|observe|remediate|issues|reconcile|vendor|estimate|ledger|targets|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -343,6 +347,214 @@ cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
 #   dash lake status    what the lake holds + Phoenix reachability
 #   dash lake export    OpenInference traces → Phoenix (docker compose up -d phoenix)
 cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
+
+# The local LOG plane (docs/OBSERVABILITY.md). Phoenix holds traces, Grafana
+# draws trends, Elasticsearch/Kibana hold the raw text of what CI and the
+# containers actually said. up/down/open drive docker + the browser, so they
+# live here; ship/status/verify are the generator's.
+#   dash observe up        start the elk profile, then install ILM + dashboards
+#   dash observe ship      replay the lake's Actions logs into Logstash (ECS)
+#   dash observe status    every plane's health, dataset sizes vs the budget
+#   dash observe verify    re-render ILM/templates from fleet.yml and diff
+#   dash observe open      the Harness Console's Observe tab — the one front door
+#   dash observe reset     destroy the indices and volumes (asks first)
+# The five services are NAMED rather than left to the profile: a bare
+# `--profile elk up` also starts everything in the DEFAULT profile (devenv,
+# console, wiki, db…), so "start the log plane" would quietly start the whole
+# bench and fight for its ports. test_observe_contract.py holds this list equal
+# to the profile's membership.
+ELK_SERVICES=(elasticsearch logstash kibana filebeat grafana)
+
+cmd_observe() {
+  local sub="${1:-status}"; shift || true
+  case "$sub" in
+    up)
+      cd "$ROOT" || return 1
+      docker compose --profile elk up -d "${ELK_SERVICES[@]}" || return 1
+      echo "waiting for elasticsearch + kibana to report healthy…"
+      "${TOOLS}/observability/bootstrap.sh"
+      ;;
+    down)
+      cd "$ROOT" && docker compose --profile elk stop "${ELK_SERVICES[@]}"
+      ;;
+    open)
+      local url="http://127.0.0.1:${CONSOLE_PORT:-4001}/#observe"
+      echo "opening ${url}"
+      command -v open >/dev/null 2>&1 && open "$url" || echo "open ${url}"
+      ;;
+    reset)
+      # Destructive, and NARROWLY so. `docker compose down -v` would remove
+      # every named volume in the file — db-data, wiki-data, phoenix-data
+      # included — which is not what "reset the log plane" can be allowed to
+      # mean. So: remove the five containers, then the five volumes BY NAME.
+      cd "$ROOT" || return 1
+      local answer="${1:-}"
+      if [[ "$answer" != "--yes" ]]; then
+        printf 'Destroy every indexed log line and the 5 elk volumes? [y/N] '
+        read -r answer
+        [[ "$answer" == [yY]* ]] || { echo "aborted"; return 1; }
+      fi
+      docker compose --profile elk rm -sf "${ELK_SERVICES[@]}" || true
+      local proj vol
+      proj="$(docker compose config --format json 2>/dev/null \
+              | "${PYTHON:-python3}" -c 'import json,sys; print(json.load(sys.stdin)["name"])' 2>/dev/null)"
+      if [[ -z "$proj" ]]; then
+        echo "could not resolve the compose project name — volumes left alone" >&2
+        return 1
+      fi
+      for vol in es-data logstash-data kibana-data filebeat-data grafana-data; do
+        docker volume rm -f "${proj}_${vol}" >/dev/null 2>&1 \
+          && echo "  removed ${proj}_${vol}" || true
+      done
+      ;;
+    status|ship|verify) "${TOOLS}/dash-gen" observe "$sub" "$@" ;;
+    *) "${TOOLS}/dash-gen" observe "$sub" "$@" ;;
+  esac
+}
+# The fleet's container plane (docs/CONTAINERS.md). The hub runs the shared
+# half — workspace, console, one Postgres, one Redis — on a network named
+# `fleet`; every submodule stays its OWN compose project and joins that network
+# through a generated override, which is why `up` is a loop over `docker
+# compose` rather than one big project. (`include:` cannot do this: it merges
+# by service name, and five submodules define `jekyll`.)
+#
+#   dash up                     the shared core
+#   dash up it-journey law-ai   …plus those projects
+#   dash up --group jekyll      …plus a group from _data/fleet.yml
+#   dash up --all [--force]     …everything registered, capped by max_projects
+#   dash down [--all]           stop the core, or everything
+#   dash ps                     what is running, fleet-wide
+FLEET_PROFILES_DEFAULT=""
+
+_fleet_targets() {  # echoes: slug<TAB>dir<TAB>base<TAB>override
+  "${TOOLS}/dash-gen" compose --resolve "$@"
+}
+
+_fleet_up_one() {  # $1 slug, $2 dir, $3 base compose, $4 override
+  local slug="$1" dir="$2" base="$3" ovr="$4"
+  if [[ ! -f "$ROOT/$ovr" ]]; then
+    echo "  ✗ ${slug}: no override at ${ovr} — run: tools/dash gen compose" >&2
+    return 1
+  fi
+  echo "  → ${slug}"
+  local out rc=0
+  out="$( cd "$ROOT" && docker compose -p "$slug" --project-directory "$dir" \
+            -f "$base" -f "$ovr" up -d 2>&1 )" || rc=$?
+  echo "$out" | sed 's/^/      /'
+  [[ $rc -eq 0 ]] && return 0
+
+  # A project that requires its own .env is the most common way this fails,
+  # and compose's message names an absolute path without saying what to do
+  # about it. Name the fix instead.
+  if [[ "$out" == *"env file"*"not found"* ]]; then
+    echo "  ✗ ${slug}: needs its own .env" >&2
+    if [[ -f "$ROOT/$dir/.env.example" ]]; then
+      echo "      fix: cp ${dir}/.env.example ${dir}/.env" >&2
+    else
+      echo "      fix: touch ${dir}/.env   (the project requires one; it has no example)" >&2
+    fi
+    echo "      (a pre-existing requirement of that repo, not of the fleet plane)" >&2
+  else
+    echo "  ✗ ${slug}: failed to start (see above)" >&2
+  fi
+  return 1
+}
+
+cmd_up() {
+  local all=0 force=0 group="" profiles="${FLEET_PROFILES:-$FLEET_PROFILES_DEFAULT}"
+  # Declared BEFORE the parse loop that fills them — declaring them after it
+  # resets what it just collected, which reads as "no projects named".
+  local names=(); local spec=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all)     all=1; shift ;;
+      --force)   force=1; shift ;;
+      --group)   group="${2:-}"; shift 2 ;;
+      --profile) profiles="${profiles} ${2:-}"; shift 2 ;;
+      -*)        echo "unknown flag: $1" >&2; return 2 ;;
+      *)         names+=("$1"); shift ;;
+    esac
+  done
+
+  cd "$ROOT" || return 1
+
+  # 1. The shared core, always. Everything else needs its network and its db.
+  echo "fleet core:"
+  local pargs=()
+  for pr in $profiles; do pargs+=(--profile "$pr"); done
+  docker compose ${pargs[@]+"${pargs[@]}"} up -d 2>&1 | sed 's/^/  /'
+
+  # 2. Per-project databases, idempotently. The init directory only runs on a
+  #    FRESH volume, so a db-data that predates a project would never get one.
+  local initsh="${TOOLS}/fleet/db-init/10-fleet-databases.sh"
+  if [[ -f "$initsh" ]]; then
+    echo "fleet databases:"
+    docker compose exec -T db bash -s < "$initsh" 2>&1 | sed 's/^/  /' \
+      || echo "  (skipped — db not ready yet; re-run \`tools/dash up\` once it is)"
+  fi
+
+  # 3. The projects.
+  [[ "$all" -eq 1 ]] && spec+=(--all)
+  [[ "$force" -eq 1 ]] && spec+=(--force)
+  [[ -n "$group" ]] && spec+=(--group "$group")
+  [[ ${#names[@]} -gt 0 ]] && spec+=(${names[@]+"${names[@]}"})
+  if [[ ${#spec[@]} -eq 0 ]]; then
+    echo
+    echo "core only. Add projects: tools/dash up <name>… | --group <name> | --all"
+    return 0
+  fi
+
+  local targets rc=0
+  targets="$(_fleet_targets ${spec[@]+"${spec[@]}"})" || return 1
+  [[ -n "$targets" ]] || { echo "no matching projects."; return 0; }
+  echo "projects:"
+  while IFS=$'\t' read -r slug dir base ovr; do
+    [[ -n "$slug" ]] || continue
+    _fleet_up_one "$slug" "$dir" "$base" "$ovr" || rc=1
+  done <<< "$targets"
+  return $rc
+}
+
+cmd_down() {
+  local all=0; local volumes=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all) all=1; shift ;;
+      -v|--volumes) volumes+=(-v); shift ;;
+      *) shift ;;
+    esac
+  done
+  cd "$ROOT" || return 1
+  if [[ "$all" -eq 1 ]]; then
+    echo "projects:"
+    while IFS=$'\t' read -r slug dir base ovr; do
+      [[ -n "$slug" ]] || continue
+      echo "  ← ${slug}"
+      docker compose -p "$slug" --project-directory "$dir" -f "$base" -f "$ovr" \
+        down ${volumes[@]+"${volumes[@]}"} 2>&1 | sed 's/^/      /' || true
+    done <<< "$(_fleet_targets --all --force)"
+  fi
+  # The core LAST: it owns the network every project above is attached to, and
+  # docker will not remove a network that still has endpoints on it.
+  echo "fleet core:"
+  docker compose --profile traces --profile docs --profile admin --profile elk \
+    down ${volumes[@]+"${volumes[@]}"} 2>&1 | sed 's/^/  /'
+}
+
+cmd_ps() {
+  local net; net="$("${TOOLS}/fleet-config.py" show containers.network 2>/dev/null || echo fleet)"
+  printf '%-26s %-34s %s\n' "PROJECT" "SERVICE" "STATUS / PORTS"
+  docker ps -a --filter "label=com.docker.compose.project" \
+    --format '{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.service"}}\t{{.Status}}\t{{.Ports}}' \
+    | sort | while IFS=$'\t' read -r proj svc status ports; do
+        printf '%-26s %-34s %s  %s\n' "$proj" "$svc" "$status" "${ports:0:60}"
+      done
+  echo
+  echo "network ${net}:"
+  docker network inspect "$net" --format '{{range .Containers}}  {{.Name}} {{.IPv4Address}}
+{{end}}' 2>/dev/null || echo "  (not created — run: tools/dash up)"
+}
+
 cmd_doctor() { "${TOOLS}/setup.sh" --dry-run "$@"; }
 cmd_test()   { "${TOOLS}/run-all-tests.sh" "$@"; }
 cmd_gen()    { "${TOOLS}/dash-gen" "$@"; }
@@ -369,6 +581,10 @@ main() {
     estimate) cmd_estimate "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
+    observe) cmd_observe "$@" ;;
+    up)      cmd_up "$@" ;;
+    down)    cmd_down "$@" ;;
+    ps)      cmd_ps "$@" ;;
     serve)   cmd_serve "$@" ;;
     console) cmd_console "$@" ;;
     sync)    cmd_sync "$@" ;;

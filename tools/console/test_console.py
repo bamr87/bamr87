@@ -127,6 +127,106 @@ def test_lake_ops_argv_shapes_and_status_document():
     assert isinstance(caps["otel_exporter"], bool) and caps["phoenix"]["collector"] and isinstance(caps["lake_present"], bool)
 
 
+def test_observe_ops_argv_shapes_and_the_destructive_one_is_gated():
+    """The Observe tab's operations.
+
+    Two properties matter here. Every parameter reaches the process as an argv
+    ELEMENT, never as a shell string — the compose verb is a literal chosen in
+    core.py, so no request body can reach that command line. And exactly one of
+    these is irreversible, so exactly one requires a confirm.
+    """
+    argv, remote = core.build_argv("observe-ship", {"days": "3", "target": "alpha", "dry_run": True})
+    assert argv[1:] == ["observe", "ship", "--days", "3", "--repo", "alpha", "--dry-run"], argv
+    assert remote is False, "shipping writes to a local Logstash, not to GitHub"
+    argv, _ = core.build_argv("observe-ship", {})
+    assert argv[1:] == ["observe", "ship", "--days", "7"], argv
+    for bad in ({"days": 0}, {"days": 999}, {"target": "a/b"}, {"target": "x; rm -rf /"}):
+        try:
+            core.build_argv("observe-ship", bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted {bad}")
+
+    # The five services are NAMED, not left to the profile: a bare
+    # `--profile elk up` also starts everything in the DEFAULT profile, so
+    # "start the log plane" would bring up devenv, console, wiki and db too.
+    up = core.build_argv("observe-up", {})[0]
+    assert up[:6] == ["docker", "compose", "--profile", "elk", "up", "-d"], up
+    assert set(up[6:]) == set(core.ELK_SERVICES), up
+    down = core.build_argv("observe-down", {})[0]
+    assert down[:5] == ["docker", "compose", "--profile", "elk", "stop"], down
+    assert "-v" not in down, "down must not take the volumes with it"
+
+    # The one that destroys data is gated even though it never touches GitHub,
+    # and it goes through the CLI rather than running compose itself: a bare
+    # `docker compose down -v` removes EVERY named volume in the file, which
+    # would take the wiki's database and Phoenix's traces with the log plane.
+    argv, remote = core.build_argv("observe-reset", {})
+    assert argv[-3:] == ["observe", "reset", "--yes"], argv
+    assert "down" not in argv and "-v" not in argv, "reset must not run compose down -v"
+    assert remote is True, "deleting every indexed log line must require a confirm"
+    try:
+        core.JobManager().submit("observe-reset", {}, confirm=False)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("observe-reset ran without a confirm")
+    # …and nothing else in the group is gated, or the tab becomes unusable.
+    for oid in ("observe-status", "observe-up", "observe-down", "observe-ship", "observe-verify"):
+        assert core.build_argv(oid, {})[1] is False, f"{oid} should not need a confirm"
+
+
+def test_observability_document_degrades_instead_of_exploding():
+    """A plane that is not running is the ORDINARY state — the stack is opt-in
+    behind `--profile elk`. The tab has to render a Start button, so this
+    document must come back describing the outage rather than raising."""
+    import json
+    doc = core.observe_status()
+    assert doc["present"] is True, doc.get("error")
+    for plane in ("logs", "metrics", "traces"):
+        assert plane in doc["planes"], plane
+        assert doc["planes"][plane]["url"], f"{plane} has no URL to link to"
+    assert isinstance(doc["datasets"], list)
+    assert doc["disk_budget_gb"] > 0
+    json.dumps(doc)          # the API returns it verbatim
+
+    # The cheap variant /api/capabilities uses must not touch the network.
+    caps = core.capabilities()
+    obs = caps["observability"]
+    assert obs["present"] and obs["logs"]["reachable"] is None, \
+        "probe=False must not report reachability it did not measure"
+    assert caps["phoenix"]["collector"], "the legacy key stays for existing readers"
+
+
+def test_embed_urls_and_frame_src_come_from_the_contract():
+    """Both halves of the portal, and they have to agree.
+
+    A pinned dashboard id that is not in the embed URL, or an origin missing
+    from frame-src, produces the identical symptom: a blank iframe and one line
+    in a browser console nobody has open.
+    """
+    sources = core.frame_src()
+    assert sources, "no frame-src means the browser refuses every embed"
+    embeds = core.observe_status()["embeds"]
+    for plane in ("logs", "metrics"):
+        url = embeds.get(plane)
+        assert url, f"no embed URL for {plane}"
+        origin = "/".join(url.split("/", 3)[:3])
+        assert origin in sources, f"{plane} embeds {origin}, which frame-src does not allow"
+    assert "embed=true" in embeds["logs"], "kibana would render its full chrome inside the pane"
+    assert "kiosk" in embeds["metrics"], "grafana would render its full chrome inside the pane"
+    for src in sources:
+        assert src.startswith("http://127.0.0.1:"), f"{src} is not loopback — the planes are local-only"
+
+
+def test_the_observability_contract_block_is_editable_from_the_config_tab():
+    keys = [s["key"] for s in core.CONFIG_SECTIONS]
+    assert "observability" in keys, "retention would be terminal-only to change"
+    section = next(s for s in core.CONFIG_SECTIONS if s["key"] == "observability")
+    for field in ("logs.retention_days.actions", "logs.disk_budget_gb", "portal.embed"):
+        assert field in section["fields"], field
+
+
 def test_job_env_hands_jobs_this_interpreter():
     """tools/dash-gen execs $PYTHON, defaulting to system python3.
 
@@ -306,6 +406,21 @@ def test_http_refuses_a_rebound_host():
     # loopback names still answer, port suffix and case included
     for host in ("127.0.0.1:4001", "localhost", "LOCALHOST:4001"):
         assert client.get("/api/health", headers={"Host": host}).status_code == 200, host
+
+    # The frame policy rides alongside that guard. frame-src must name every
+    # origin the Observe tab embeds (a browser refuses a missing one with
+    # nothing but a console line), and frame-ancestors must be 'none' — this
+    # origin can dispatch workflows with the operator's FLEET_TOKEN, so it is
+    # not something to be embedded by anyone.
+    csp = client.get("/").headers.get("content-security-policy", "")
+    assert "frame-ancestors 'none'" in csp, csp
+    for src in core.frame_src():
+        assert src in csp, f"{src} is embedded but not in frame-src: {csp}"
+    # Deliberately narrow: index.html is one file of inline script and style,
+    # so a default-src would have to carry 'unsafe-inline' to work at all.
+    assert "default-src" not in csp, "a default-src here breaks the page it protects"
+
+    assert client.get("/api/observability").status_code == 200
 
 
 def test_config_editor_reaches_every_section_and_splices_each():

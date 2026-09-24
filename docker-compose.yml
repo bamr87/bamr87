@@ -1,21 +1,66 @@
 # ============================================================================
-# bamr87 Monorepo - Docker Compose Development Environment
+# bamr87 Monorepo — the FLEET's shared container plane
 # ============================================================================
 #
+# This file is the SHARED HALF of a fleet of ~24 compose files. It runs the
+# services every project needs one of — a workspace, the console, one Postgres,
+# one Redis — on a network named `fleet` that every submodule's own compose
+# project attaches to. The submodules keep their own compose files and their
+# own project names; `tools/dash up` brings them up beside this one with a
+# generated port/network override, so nothing is ever written into a submodule
+# repo. See docs/CONTAINERS.md.
+#
+# Why not one big compose project: `include:` does not namespace service names.
+# Five submodules define a service called `jekyll`, and compose merges them —
+# silently keeping ONE and discarding the rest, with no error. Separate
+# projects on a shared network is the only arrangement that actually composes.
+#
 # Usage:
-#   docker compose up -d                     # Start all services
-#   docker compose up -d devenv              # Start dev environment only
-#   docker compose up -d console             # Harness Console on http://127.0.0.1:4001
-#   docker compose up -d phoenix             # Phoenix traces UI on http://127.0.0.1:6006
-#   docker compose up -d wiki db             # Start wiki stack only
-#   docker compose --profile admin up -d     # Include admin tools (pgAdmin)
-#   docker compose exec devenv bash          # Open shell in dev container
-#   docker compose down                      # Stop all services
-#   docker compose down -v                   # Stop and remove volumes
+#   tools/dash up                            # this file's core services
+#   tools/dash up it-journey zer0-pages      # …plus those projects
+#   tools/dash up --group jekyll             # …plus a whole group
+#   tools/dash up --all                      # everything registered (heavy)
+#   tools/dash ps                            # what is running, fleet-wide
+#   tools/dash down [--all]                  # stop this, or everything
+#
+#   docker compose up -d                     # core only, without the orchestrator
+#   docker compose --profile traces up -d    # + Phoenix (:6006)
+#   docker compose --profile docs up -d      # + MkDocs (:8001) and Wiki.js (:3000)
+#   docker compose --profile elk up -d       # + the log/metrics planes (:5601, :3001)
+#   docker compose --profile admin up -d     # + pgAdmin (:5050)
+#   docker compose exec devenv bash          # a shell in the workspace
 #
 # Environment:
 #   Copy .env.example to .env and configure before first run.
 #
+# The project name is PINNED below. Without it compose derives the name from
+# the directory, so a git worktree and the main checkout silently get separate
+# volumes — which is how one Postgres becomes two with the same data in
+# neither. Pinning it means every checkout of this repo drives one fleet.
+# ============================================================================
+name: ${COMPOSE_PROJECT_NAME:-fleet}
+
+# ============================================================================
+# Log shipping (UPS-OPS-17) — shared by every service the fleet shipper reads
+#
+# Two halves, and both matter. `logging:` bounds what Docker keeps on disk: an
+# unrotated json-file grows until the disk does, and Filebeat's registry has to
+# walk whatever is there. `labels:` are the OPT-IN — Filebeat autodiscovers on
+# com.bamr87.fleet.project and ignores everything without it, so a container
+# joins the log plane by labelling itself rather than by an edit here.
+#
+# The elk services themselves are deliberately UNLABELLED: a shipper that ships
+# its own output is a feedback loop, and Kibana is not interesting to Kibana.
+# ============================================================================
+x-fleet-logging: &fleet-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-fleet-labels: &fleet-labels
+  com.bamr87.fleet.repo: bamr87/bamr87
+  com.bamr87.fleet.project: bamr87
 
 services:
   # --------------------------------------------------------------------------
@@ -23,6 +68,10 @@ services:
   # Primary workspace for coding, building, and testing
   # --------------------------------------------------------------------------
   devenv:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: workspace
+    logging: *fleet-logging
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
@@ -35,24 +84,35 @@ services:
       - bundle-gems:/home/vscode/.bundle-gems
     working_dir: /workspace
     ports:
-      # Bound to 127.0.0.1 explicitly: on Docker Desktop for Mac, the default
+      # The hub's OWN Jekyll dash, and nothing else. This used to publish ~30
+      # ports in ranges (4010-4020, 5174-5177, 8010-8013…) so that every
+      # submodule's dev server could be run INSIDE this container by
+      # `compose exec`. That made devenv a second, hand-maintained copy of the
+      # fleet's port map, and it could only ever run the projects someone had
+      # remembered to reserve a range for.
+      #
+      # Each project now runs as its OWN compose project on the `fleet`
+      # network, taking its port from the registry (`dev_port` in
+      # _data/projects.yml) via a generated override. devenv is back to being
+      # what its name says: a workspace with the toolchain in it.
+      #
+      # Loopback-bound explicitly: on Docker Desktop for Mac the default
       # 0.0.0.0 mapping also opens an IPv6 ([::]) docker-proxy listener that
-      # resets connections on some hosts. Since `localhost` often resolves to
-      # ::1 first, that alone makes the dev server look unreachable even
-      # though IPv4 (127.0.0.1) works fine. Loopback-only also matches these
-      # ports' actual use (local dev, not LAN-exposed).
-      - "127.0.0.1:${CV_PORT:-5000}:5000"          # CV Builder (Vite)
-      - "127.0.0.1:${VITE_HMR_PORT:-5173}:5173"    # Vite HMR
-      - "127.0.0.1:${MKDOCS_PORT:-8000}:8000"      # MkDocs (devenv)
+      # resets connections, and `localhost` often resolves to ::1 first — so
+      # the dev server looks unreachable even though IPv4 works.
       - "127.0.0.1:${JEKYLL_PORT:-4000}:4000"      # Jekyll (hub dash)
-      # Submodule servers launched via `docker compose exec devenv` (.vscode/launch.json).
-      # Offset from the hub map so two F5s don't collide with 4000/5000/5173/8000.
-      - "127.0.0.1:4010-4020:4010-4020"            # Jekyll fleet
-      - "127.0.0.1:35730-35740:35730-35740"        # Jekyll livereload
-      - "127.0.0.1:5174-5177:5174-5177"            # extra Vite apps
+      # …and the WORKSPACE block, for the nine projects that have no compose
+      # file of their own and can only run by `compose exec` here. Ranges come
+      # from _data/fleet.yml `containers.ports.workspace*`, deliberately clear
+      # of the fleet map (4010-4039 jekyll, 5174-5199 node, 8010-8049 python)
+      # so an F5 in the workspace and a `dash up` cannot want the same port.
+      # A project graduates out of this block by gaining a compose file and a
+      # `dev_port`; test_fleet_compose.py holds the two apart.
+      - "127.0.0.1:4040-4049:4040-4049"            # Jekyll-in-devenv
+      - "127.0.0.1:35760-35769:35760-35769"        # …their livereload
+      - "127.0.0.1:5000-5001:5000-5001"            # Vite-in-devenv
+      - "127.0.0.1:${MKDOCS_PORT:-8000}:8000"      # MkDocs-in-devenv
       - "127.0.0.1:8080:8080"                      # gitnexus (npm run dev)
-      - "127.0.0.1:8002-8003:8002-8003"            # aieo FastAPI · ai-seed MkDocs
-      - "127.0.0.1:8010-8013:8010-8013"            # Django fleet
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PYTHONDONTWRITEBYTECODE=1
@@ -65,10 +125,19 @@ services:
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006
       - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}
       - DASH_LAKE_DIR=/workspace/.dash-lake
+      # Server-side addresses for the log plane. The contract's URLs
+      # (_data/fleet.yml `observability:`) are what a BROWSER must use and what
+      # the console embeds; from inside a container 127.0.0.1 is this
+      # container's own loopback, where nothing is listening. Same split
+      # PHOENIX_COLLECTOR_ENDPOINT vs PHOENIX_UI_URL already makes above.
+      - ES_URL=http://elasticsearch:9200
+      - KIBANA_URL=http://kibana:5601
+      - GRAFANA_URL=http://grafana:3000
+      - LOGSTASH_URL=http://logstash:8088
     stdin_open: true
     tty: true
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
     command: sleep infinity
 
@@ -86,6 +155,10 @@ services:
   # bearer token on the API when you expose it beyond localhost.
   # --------------------------------------------------------------------------
   console:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: python
+    logging: *fleet-logging
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
@@ -120,8 +193,17 @@ services:
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006     # traces go to the sibling service
       - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}  # what the console links to
       - DASH_LAKE_DIR=/workspace/.dash-lake
+      # Server-side addresses for the log plane. The contract's URLs
+      # (_data/fleet.yml `observability:`) are what a BROWSER must use and what
+      # the console embeds; from inside a container 127.0.0.1 is this
+      # container's own loopback, where nothing is listening. Same split
+      # PHOENIX_COLLECTOR_ENDPOINT vs PHOENIX_UI_URL already makes above.
+      - ES_URL=http://elasticsearch:9200
+      - KIBANA_URL=http://kibana:5601
+      - GRAFANA_URL=http://grafana:3000
+      - LOGSTASH_URL=http://logstash:8088
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
     command: tools/console/run.sh
     healthcheck:
@@ -142,18 +224,244 @@ services:
   # SQLite-backed (PHOENIX_WORKING_DIR volume); loopback-only ports.
   # --------------------------------------------------------------------------
   phoenix:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: python
+    logging: *fleet-logging
     image: arizephoenix/phoenix:latest
     container_name: bamr87-phoenix
     ports:
-      - "127.0.0.1:${PHOENIX_PORT:-6006}:6006"        # UI + OTLP/HTTP (/v1/traces)
-      - "127.0.0.1:${PHOENIX_GRPC_PORT:-4317}:4317"   # OTLP/gRPC
+      - "127.0.0.1:${PHOENIX_PORT:-6006}:6006"           # UI + OTLP/HTTP (/v1/traces)
+      - "127.0.0.1:${PHOENIX_GRPC_PORT:-4317}:4317"      # OTLP/gRPC
     environment:
       - PHOENIX_WORKING_DIR=/mnt/data
     volumes:
       - phoenix-data:/mnt/data
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
+
+    # ==========================================================================
+    # Observability — the LOG and METRICS planes (profile: elk)
+    #
+    # Phoenix above is the traces plane; these five are the other two. All are
+    # OPT-IN behind `--profile elk` because Elasticsearch alone is ~1 GB of heap
+    # and most days you do not need it:
+    #
+    #   docker compose --profile elk up -d       # the whole log + metrics stack
+    #   tools/dash observe up                    # …and install ILM + dashboards
+    #
+    # LOCAL-ONLY BY CONSTRUCTION (docs/COCKPIT.md non-negotiable 4): every port
+    # binds 127.0.0.1, every byte lives in a named volume, none of this runs in
+    # CI, and nothing reaches Pages. That is the whole reason Elasticsearch runs
+    # with security off and Grafana with an anonymous viewer — settings that
+    # would be indefensible on any listening interface. Contract and rationale:
+    # _data/fleet.yml `observability:` · docs/OBSERVABILITY.md
+    # ==========================================================================
+
+    # --------------------------------------------------------------------------
+    # Elasticsearch - the log store
+    #
+    # Single-node, security off. Heap is set on BOTH -Xms and -Xmx to the same
+    # value: a JVM that is allowed to grow its heap will, and an ES that grows
+    # into the laptop's memory is how the rest of the compose stack starts
+    # getting OOM-killed. Retention is ILM's job, not this file's — the policies
+    # are rendered from fleet.yml `retention_days` by `dash observe verify`.
+    # --------------------------------------------------------------------------
+    profiles:
+      # Opt-in: the console and `dash lake review` both degrade cleanly without it.
+      - traces
+
+  elasticsearch:
+    image: elasticsearch:${ELASTIC_VERSION:-9.5.3}
+    container_name: bamr87-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # loopback-only, never in CI — see the block comment above
+      - xpack.license.self_generated.type=basic
+      - ES_JAVA_OPTS=-Xms${ES_HEAP:-512m} -Xmx${ES_HEAP:-512m}
+      - cluster.routing.allocation.disk.threshold_enabled=true
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+    ports:
+      - "127.0.0.1:${ES_PORT:-9200}:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - fleet
+    healthcheck:
+      # yellow, not green: a single node can never allocate replicas, so a
+      # one-node cluster is healthy at yellow and would wait here forever
+      # for green.
+      test:
+        [
+          'CMD-SHELL',
+          "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+    profiles:
+      - elk
+
+  # --------------------------------------------------------------------------
+  # Logstash - the ONE normalization and redaction point
+  #
+  # Both ingest paths land here — Filebeat on 5044 (container stdout) and
+  # `dash observe ship` on 8088 (Actions run logs replayed from the lake) —
+  # and both are routed into a single `enrich` pipeline that does the ECS
+  # mapping, the secret redaction and the data-stream routing. Redacting per
+  # input instead would work right up until someone adds a third input.
+  # --------------------------------------------------------------------------
+  logstash:
+    image: logstash:${ELASTIC_VERSION:-9.5.3}
+    container_name: bamr87-logstash
+    environment:
+      - LS_JAVA_OPTS=-Xms${LS_HEAP:-256m} -Xmx${LS_HEAP:-256m}
+      - ELASTIC_HOSTS=http://elasticsearch:9200
+      - xpack.monitoring.enabled=false
+    ports:
+      - "127.0.0.1:${LOGSTASH_BEATS_PORT:-5044}:5044"      # beats input (Filebeat)
+      - "127.0.0.1:${LOGSTASH_HTTP_PORT:-8088}:8088"       # http input (dash observe ship)
+      - "127.0.0.1:9600:9600"                              # node/pipeline API — the healthcheck target
+    volumes:
+      - ./tools/observability/logstash/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./tools/observability/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - logstash-data:/usr/share/logstash/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - fleet
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:9600/_node/pipelines || exit 1']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped
+    profiles:
+      - elk
+
+  # --------------------------------------------------------------------------
+  # Kibana - log search and discovery
+  #
+  # SERVER_PUBLICBASEURL and the embedding header are both load-bearing for the
+  # Harness Console's Observe tab, which iframes a pinned dashboard. Kibana
+  # refuses to be framed when DISABLEEMBEDDING is true, and generates wrong
+  # absolute URLs without a public base URL — both failures present as a blank
+  # iframe with nothing in any log.
+  # --------------------------------------------------------------------------
+  kibana:
+    image: kibana:${ELASTIC_VERSION:-9.5.3}
+    container_name: bamr87-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_PUBLICBASEURL=http://127.0.0.1:${KIBANA_PORT:-5601}
+      - SERVER_SECURITYRESPONSEHEADERS_DISABLEEMBEDDING=false
+      - TELEMETRY_OPTIN=false
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - fleet
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -fsS http://127.0.0.1:5601/api/status | grep -q ''"level":"available"'' || exit 1',
+        ]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 180s
+    restart: unless-stopped
+    profiles:
+      - elk
+
+  # --------------------------------------------------------------------------
+  # Filebeat - the container-log shipper
+  #
+  # Autodiscovers containers by the com.bamr87.fleet.* labels (UPS-OPS-17): an
+  # unlabelled container is invisible on purpose, so a submodule stack opts in
+  # by labelling rather than by editing this file.
+  #
+  # The read-only docker.sock mount is required, not convenient: on Docker
+  # Desktop for Mac the container log files live inside the VM, so the paths
+  # alone are unreachable from the host and autodiscover is the only way in.
+  # It is the broadest grant in this compose file — read-only, loopback stack,
+  # local bench only.
+  # --------------------------------------------------------------------------
+  filebeat:
+    image: elastic/filebeat:${ELASTIC_VERSION:-9.5.3}
+    container_name: bamr87-filebeat
+    user: root # needs to read /var/lib/docker/containers
+    command: ['filebeat', '-e', '--strict.perms=false']
+    volumes:
+      - ./tools/observability/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - filebeat-data:/usr/share/filebeat/data
+    depends_on:
+      logstash:
+        condition: service_healthy
+    networks:
+      - fleet
+    restart: unless-stopped
+    profiles:
+      - elk
+
+  # --------------------------------------------------------------------------
+  # Grafana - trends over the same data
+  #
+  # Two profiles on purpose: it comes up with the log stack today (its only
+  # datasource is Elasticsearch) and stays up when FF-0003 adds a `metrics`
+  # profile for Prometheus + an OTel collector — at which point it gains a
+  # second datasource and nothing here changes.
+  #
+  # Port 3001, NOT Grafana's default 3000: the wiki service already owns 3000.
+  # Anonymous viewer is what lets the console embed a panel without a cookie
+  # handshake across origins; it is read-only and loopback-only.
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION:-12.4}
+    container_name: bamr87-grafana
+    environment:
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_BASIC_ENABLED=false
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ELASTIC_URL=http://elasticsearch:9200
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./tools/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./tools/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - fleet
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3000/api/health || exit 1']
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    profiles:
+      - elk
+      - metrics
 
   # --------------------------------------------------------------------------
   # MkDocs - Documentation site (Material theme)
@@ -164,20 +472,32 @@ services:
   # and this service repointed at the config that is actually live and deployed.
   # --------------------------------------------------------------------------
   mkdocs:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: python
+    logging: *fleet-logging
     image: squidfunk/mkdocs-material
     container_name: bamr87-mkdocs
     volumes:
       - ./projects/README:/docs:cached
     ports:
-      - "${MKDOCS_SERVE_PORT:-8001}:8000"
+      - "127.0.0.1:${MKDOCS_SERVE_PORT:-8001}:8000"
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
 
-  # --------------------------------------------------------------------------
-  # Wiki.js - Knowledge base and documentation wiki
-  # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # Wiki.js - Knowledge base and documentation wiki
+    # --------------------------------------------------------------------------
+    profiles:
+      # Opt-in: the README submodule's site, not needed to work on the hub.
+      - docs
+
   wiki:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: node
+    logging: *fleet-logging
     image: requarks/wiki:2
     container_name: bamr87-wiki
     depends_on:
@@ -193,13 +513,13 @@ services:
       WIKI_ADMIN_EMAIL: ${WIKI_ADMIN_EMAIL:-admin@example.com}
       WIKI_SITE_URL: ${WIKI_SITE_URL:-http://localhost:3000}
     ports:
-      - "${WIKI_PORT:-3000}:3000"
+      - "127.0.0.1:${WIKI_PORT:-3000}:3000"
     volumes:
       - wiki-data:/wiki/data
       - wiki-repo:/wiki/repo
       - ./projects/README/docs:/wiki/content:ro
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
     healthcheck:
       # 127.0.0.1, not localhost: /etc/hosts in this image maps localhost to
@@ -213,23 +533,44 @@ services:
       retries: 3
       start_period: 40s
 
-  # --------------------------------------------------------------------------
-  # PostgreSQL - Database for Wiki.js and other services
-  # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # PostgreSQL - Database for Wiki.js and other services
+    # --------------------------------------------------------------------------
+    profiles:
+      # Opt-in, and the only other consumer of the shared Postgres by default.
+      - docs
+
   db:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: postgres
+    logging: *fleet-logging
     image: postgres:15-alpine
     container_name: bamr87-db
     environment:
+      # The wiki's database stays the bootstrap database and its credentials
+      # stay the superuser, because an existing db-data volume was initialised
+      # with them and Postgres only runs initdb on an EMPTY data directory —
+      # changing them here would leave a running instance nobody can log into.
+      # Every other project gets its own database and role from the init
+      # script below, which `dash up` also applies idempotently to volumes
+      # that predate it.
       POSTGRES_DB: ${WIKI_DB_NAME:-wiki}
       POSTGRES_USER: ${WIKI_DB_USER:-wikijs}
       POSTGRES_PASSWORD: ${WIKI_DB_PASS:-wikijsrocks}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+      FLEET_DB_PASSWORD: ${FLEET_DB_PASSWORD:-fleetdev}
     volumes:
       - db-data:/var/lib/postgresql/data
+      # Runs once, on a FRESH volume: one database + role per project that
+      # declares `database: true` in _data/projects.yml. `dash up` applies the
+      # same list idempotently at runtime, so a volume that predates this
+      # still ends up with the databases.
+      - ./tools/fleet/db-init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${WIKI_DB_USER:-wikijs}"]
@@ -241,27 +582,33 @@ services:
   # Redis - Caching layer (optional, for future use)
   # --------------------------------------------------------------------------
   redis:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: redis
+    logging: *fleet-logging
     image: redis:7-alpine
     container_name: bamr87-redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
-    profiles:
-      - full
 
   # --------------------------------------------------------------------------
   # pgAdmin - Database management UI (admin profile only)
   # --------------------------------------------------------------------------
   pgadmin:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: python
+    logging: *fleet-logging
     image: dpage/pgadmin4:latest
     container_name: bamr87-pgadmin
     environment:
@@ -269,11 +616,11 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_LISTEN_PORT: 80
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:
-      - dev-network
+      - fleet
     restart: unless-stopped
     profiles:
       - admin
@@ -287,6 +634,19 @@ volumes:
   venv-console:
     driver: local
   phoenix-data:
+    driver: local
+  # Observability (profile: elk). These hold raw logs, which is exactly why
+  # they are docker volumes and not a directory in the tree — the same reason
+  # .dash-lake/ is gitignored. `tools/dash observe reset` is what destroys them.
+  es-data:
+    driver: local
+  logstash-data:
+    driver: local
+  kibana-data:
+    driver: local
+  filebeat-data:
+    driver: local
+  grafana-data:
     driver: local
   venv-docs:
     driver: local
@@ -309,5 +669,11 @@ volumes:
 # Networks
 # ============================================================================
 networks:
-  dev-network:
+  # Declared here, NOT external: the hub creates it, so `docker compose up`
+  # works from a clean machine with no prerequisite command. `name:` pins the
+  # real network name to `fleet` instead of `<project>_fleet`, which is what
+  # lets every submodule's own compose project attach to it as `external: true`
+  # and reach `db`, `redis` and `phoenix` by service name.
+  fleet:
+    name: ${FLEET_NETWORK:-fleet}
     driver: bridge

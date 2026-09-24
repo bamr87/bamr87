@@ -91,6 +91,16 @@
   tr.flag td { background: color-mix(in srgb, var(--warning-track) 45%, var(--surface)); }
   tr.bad td { background: color-mix(in srgb, var(--critical-track) 45%, var(--surface)); }
   .wrap { overflow-x: auto; max-width: 100%; }
+  /* Observe tab: the three planes. The embeds are real iframes, so they need a
+     height — an auto-height iframe collapses to 150px and looks like a failure. */
+  .panes { display: flex; gap: 6px; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
+  .panes button { background: none; border: 0; border-bottom: 2px solid transparent;
+                  color: var(--ink-2); cursor: pointer; font: inherit; padding: 7px 12px; }
+  .panes button.active { color: var(--ink); border-bottom-color: var(--accent, #6ea8fe); }
+  .embed { width: 100%; height: 640px; border: 1px solid var(--border); border-radius: 10px;
+           background: var(--surface); }
+  .embed-off { border: 1px dashed var(--border); border-radius: 10px; padding: 28px;
+               text-align: center; color: var(--ink-2); }
   /* A grid/flex child defaults to min-width:auto, so it refuses to shrink below
      its content. That silently defeats the .wrap scrollers: instead of the wide
      table scrolling inside its own box, the whole PAGE scrolled sideways on a
@@ -164,7 +174,7 @@
   <button data-tab="schedules">Schedules</button>
   <button data-tab="loops">Loops</button>
   <button data-tab="costs">Costs</button>
-  <button data-tab="traces">Traces</button>
+  <button data-tab="observe">Observe</button>
   <button data-tab="fleet">Fleet</button>
   <button data-tab="contract">Config</button>
   <button data-tab="auth">Auth</button>
@@ -176,7 +186,7 @@
   <section id="tab-schedules" hidden></section>
   <section id="tab-loops" hidden></section>
   <section id="tab-costs" hidden></section>
-  <section id="tab-traces" hidden></section>
+  <section id="tab-observe" hidden></section>
   <section id="tab-fleet" hidden></section>
   <section id="tab-contract" hidden></section>
   <section id="tab-auth" hidden></section>
@@ -281,7 +291,7 @@ $('#nav').addEventListener('click', e => {
 function renderTab(tab) {
   if (!STATE) return;
   ({ overview: renderOverview, harnesses: renderHarnesses, schedules: renderSchedules, loops: renderLoops,
-     costs: renderCosts, traces: renderTraces, fleet: renderFleet, contract: renderConfig,
+     costs: renderCosts, observe: renderObserve, fleet: renderFleet, contract: renderConfig,
      auth: renderAuth, jobs: renderJobs })[tab]();
 }
 
@@ -447,8 +457,142 @@ function renderCosts() {
 }
 
 // ------------------------------------------------------------------ traces (the local stack: lake + Phoenix)
-async function renderTraces() {
-  const el = $('#tab-traces');
+// The one front door onto the three local planes. Kibana searches the logs,
+// Grafana trends them, Phoenix holds the traces — and all three address the
+// same work by the same trace.id, which is the whole reason they are one tab
+// rather than three bookmarks (docs/OBSERVABILITY.md).
+let OBS = null, OBS_PANE = 'logs';
+
+async function renderObserve() {
+  const el = $('#tab-observe');
+  if (!el.dataset.built) {
+    el.innerHTML = `
+      <div class="panes" id="obs-panes">
+        <button data-pane="logs">Logs <span class="muted">Kibana</span></button>
+        <button data-pane="metrics">Metrics <span class="muted">Grafana</span></button>
+        <button data-pane="traces">Traces <span class="muted">lake + Phoenix</span></button>
+      </div>
+      <div id="pane-logs"></div>
+      <div id="pane-metrics" hidden></div>
+      <div id="pane-traces" hidden></div>`;
+    el.dataset.built = '1';
+    $('#obs-panes').addEventListener('click', e => {
+      const b = e.target.closest('button[data-pane]'); if (!b) return;
+      OBS_PANE = b.dataset.pane; renderObserve();
+    });
+  }
+  document.querySelectorAll('#obs-panes button')
+    .forEach(b => b.classList.toggle('active', b.dataset.pane === OBS_PANE));
+  ['logs', 'metrics', 'traces']
+    .forEach(n => $('#pane-' + n).hidden = n !== OBS_PANE);
+  if (OBS_PANE === 'traces') return renderTracesPane();
+  return renderLogPlane(OBS_PANE);
+}
+
+// A plane that is not running renders as an invitation to start it. It must
+// never render as an error: the stack is opt-in behind `--profile elk`, so
+// "not running" is the ordinary state, not a fault.
+function planeOff(plane, label, why) {
+  return `<div class="embed-off"><p><b>${esc(label)} is not running.</b></p>
+    <p class="muted">${esc(why)}</p>
+    <p><button class="btn primary" data-run='{"op":"observe-up"}'>▶ Start the log + metrics stack</button>
+       <button class="btn" data-run='{"op":"observe-bootstrap"}'>▶ Install ILM + dashboards</button></p>
+    <p class="muted">Or from a terminal: <code>tools/dash observe up</code></p></div>`;
+}
+
+async function renderLogPlane(pane) {
+  const el = $('#pane-' + pane);
+  if (!OBS) el.innerHTML = '<div class="muted">probing the planes…</div>';
+  try { OBS = await api('/api/observability'); }
+  catch (e) { el.innerHTML = status('crit', e.message); return; }
+  if (!OBS.present) { el.innerHTML = status('crit', OBS.error || 'observability contract unreadable'); return; }
+
+  const planes = OBS.planes || {}, embeds = OBS.embeds || {}, ship = OBS.shipments || {};
+  const p = planes[pane] || {};
+  const gb = b => ((b || 0) / 1073741824).toFixed(2);
+
+  if (pane === 'metrics') {
+    el.innerHTML = `
+      <div class="card"><b>Trends over the log plane</b> <span class="muted">— Grafana reads the same
+        Elasticsearch indices Kibana searches. "How much, over time" lives here; "what exactly did it
+        say" lives in the Logs pane; per-run agent trees live in Traces. The dashboard and its
+        datasource are provisioned from <code>tools/observability/grafana/</code> and generated from
+        <code>_data/fleet.yml</code> — edits made in Grafana's UI are discarded on the next
+        provision.</span></div>
+      <div class="toolbar">
+        <button class="btn" data-run='{"op":"observe-status"}'>▶ Plane status</button>
+        <a class="btn" href="${esc(p.url || '#')}" target="_blank" rel="noopener"
+           style="text-decoration:none">Open Grafana ↗</a>
+        <span class="muted">datasources: ${esc((p.datasources || []).join(', ') || '—')}
+          · Prometheus arrives with FF-0003</span>
+      </div>
+      ${p.reachable && embeds.enabled && embeds.metrics
+        ? `<iframe class="embed" src="${esc(embeds.metrics)}" loading="lazy"
+             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+             title="Fleet log volume and cost"></iframe>`
+        : planeOff('metrics', 'Grafana', p.reachable
+            ? 'Embedding is turned off in the contract (observability.portal.embed) — use the link above.'
+            : `Nothing is answering at ${p.url || 'the configured URL'}.`)}`;
+    bindRunButtons('#tab-observe');
+    return;
+  }
+
+  // logs
+  const ds = OBS.datasets || [];
+  el.innerHTML = `
+    <div class="card"><b>The log plane</b> <span class="muted">— every line the fleet's CI and this
+      machine's containers actually produced. Actions logs are replayed out of the data lake by
+      <code>dash observe ship</code> (one extractor, two sinks); container logs arrive through
+      Filebeat's label-gated autodiscover. Both pass through one Logstash pipeline that does the ECS
+      mapping and the secret redaction. Each document carries the same <code>trace.id</code> as its
+      Phoenix trace — paste one into Kibana's search bar to pivot between the panes.</span></div>
+    <div class="toolbar">
+      <label class="inl">days <input id="o-days" type="number" min="1" max="90" value="7" style="width:70px"></label>
+      <label class="inl">repo <input id="o-target" type="text" placeholder="all owned repos" size="18"></label>
+      <label class="inl"><input id="o-dry" type="checkbox" checked> dry run</label>
+      <label class="inl"><input id="o-force" type="checkbox"> force</label>
+      <button class="btn primary" id="o-ship">⬆ Ship Actions logs from the lake</button>
+      <button class="btn" data-run='{"op":"observe-status"}'>▶ Status</button>
+      <button class="btn" data-run='{"op":"observe-verify"}'>▶ Verify contract</button>
+      <a class="btn" href="${esc(p.url || '#')}" target="_blank" rel="noopener"
+         style="text-decoration:none">Open Kibana ↗</a>
+    </div>
+    <div class="grid">
+      <div class="card tile"><div class="label">Elasticsearch</div><div class="value" style="font-size:18px">${
+        p.reachable ? status(p.cluster_status === 'red' ? 'crit' : p.cluster_status === 'yellow' ? 'good' : 'good',
+                             p.cluster_status || 'up') : status('crit', 'not running')
+      }</div><div class="delta"><code>${esc(p.elasticsearch || '')}</code>${
+        p.kibana_reachable === false ? ' · ' + status('warn', 'kibana still starting') : ''}</div></div>
+      <div class="card tile"><div class="label">Indexed</div><div class="value">${
+        fmt(ds.reduce((a, d) => a + (d.docs || 0), 0))}</div><div class="delta">documents across ${ds.length} data stream(s)</div></div>
+      <div class="card tile"><div class="label">On disk</div><div class="value" style="font-size:20px">${
+        gb(OBS.bytes_total)} GB</div><div class="delta">of ${OBS.disk_budget_gb} GB budget${
+        OBS.over_budget ? ' · ' + status('crit', 'over budget') : ''}</div></div>
+      <div class="card tile"><div class="label">Shipped</div><div class="value">${fmt(ship.count)}</div><div class="delta">run(s)${
+        ship.last ? ' · last ' + esc(ship.last) : ' · never'}</div></div>
+    </div>
+    ${ds.length ? `<h2>Data streams</h2>
+    <div class="sub">One dataset per source, the repo as a field — 40 repos × 3 sources would be 120 streams to template and expire. Retention is <code>observability.logs.retention_days</code>; edit it on the Config tab, then re-render and re-install.</div>
+    <div class="wrap"><table><thead><tr><th>data stream</th><th class="num">docs</th><th class="num">size</th><th class="num">retention</th></tr></thead><tbody>
+      ${ds.map(d => `<tr><td><code>${esc(d.data_stream)}</code></td><td class="num">${fmt(d.docs)}</td><td class="num">${((d.bytes || 0) / 1048576).toFixed(1)} MB</td><td class="num">${d.retention_days}d</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    <h2>Fleet CI</h2>
+    ${p.reachable && p.kibana_reachable && embeds.enabled && embeds.logs
+      ? `<iframe class="embed" src="${esc(embeds.logs)}" loading="lazy"
+           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+           title="Fleet CI dashboard"></iframe>`
+      : planeOff('logs', 'Kibana', p.reachable
+          ? (p.kibana_reachable ? 'Embedding is turned off in the contract (observability.portal.embed).'
+                                : 'Elasticsearch is up but Kibana is still starting — it migrates its own indices on a cold volume and can take a few minutes.')
+          : `Nothing is answering at ${p.elasticsearch || 'the configured URL'}.`)}`;
+  $('#o-ship').onclick = () => runOp('observe-ship', {
+    days: $('#o-days').value, target: $('#o-target').value.trim(),
+    dry_run: $('#o-dry').checked, force: $('#o-force').checked });
+  bindRunButtons('#tab-observe');
+}
+
+async function renderTracesPane() {
+  const el = $('#pane-traces');
   el.innerHTML = '<div class="muted">reading the lake…</div>';
   let lake, runs, lines;
   try { [lake, runs, lines] = await Promise.all([api('/api/lake'), api('/api/lake/runs?limit=60'), api('/api/lake/lines')]); }
@@ -509,7 +653,7 @@ Harness Console :4001 (this)   ·   Jekyll dash :4000 (read-only twin)   ·   Gi
   ['#l-filter', '#l-ai'].forEach(s => $(s).addEventListener('input', draw)); draw();
   $('#l-sync').onclick = () => runOp('lake-sync', { days: $('#l-days').value, target: $('#l-target').value.trim() });
   $('#l-export').onclick = () => runOp('lake-export', { days: $('#l-days').value, local: $('#l-local').checked, dry_run: $('#l-dry').checked, force: $('#l-force').checked });
-  bindRunButtons('#tab-traces');
+  bindRunButtons('#tab-observe');
 }
 
 // ------------------------------------------------------------------ fleet
@@ -695,9 +839,11 @@ function drawJobs() {
 function bindRunButtons(scope) { document.querySelectorAll(scope + ' button[data-run]').forEach(b => b.onclick = () => { const r = JSON.parse(b.dataset.run); runOp(r.op, r.params || {}); }); }
 async function runOp(op, params) {
   const o = OPS.find(x => x.id === op) || {};
-  const remote = o.remote_write && (params.apply === true || op === 'dispatch');
+  const remote = o.remote_write && (params.apply === true || op === 'dispatch' || op === 'observe-reset');
   if (remote) {
-    const detail = op === 'dispatch' ? `Dispatch ${params.workflow}.yml in GitHub Actions with ${JSON.stringify(params.fields || {})}` : `${o.title} — WITH --apply: this opens pull requests / writes secrets in fleet repos.`;
+    const detail = op === 'dispatch' ? `Dispatch ${params.workflow}.yml in GitHub Actions with ${JSON.stringify(params.fields || {})}`
+      : op === 'observe-reset' ? `${o.title} — this DELETES every indexed log line and all five elk volumes. Actions logs can be re-shipped from the lake; container logs cannot.`
+      : `${o.title} — WITH --apply: this opens pull requests / writes secrets in fleet repos.`;
     if (!confirm(detail + '\n\nContinue?')) return;
   }
   if (o.needs_token && CAPS && CAPS.gh_authenticated === false && !confirm('gh is not authenticated in the console’s environment — this operation will probably degrade or fail. Run anyway?')) return;
