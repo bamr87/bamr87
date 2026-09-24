@@ -13,7 +13,9 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `devtools.conf` | **Central manifest** — declares all tools, packages, and env vars by platform |
 | `devtools-env.sh` | Shell environment loader — exports vars, PATH, and aliases from the manifest |
 | `Brewfile` | macOS Homebrew bundle — native `brew bundle` format (derived from manifest) |
-| `setup.sh` | **Primary entrypoint** — cross-platform dev environment setup |
+| `setup.sh` | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
+| `setup-terminal.sh` | macOS-only: bootstraps the [bamr87/chui](https://github.com/bamr87/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font with CoreText via `macos-register-nerd-fonts.swift`, applies it to Apple Terminal, and wires `~/.config/chui/local.zsh` to source `devtools-env.sh`. `--dry-run`/`--verbose`; no-ops on non-macOS |
+| `macos-register-nerd-fonts.swift` | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/login |
 | `update-submodules.sh` | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
 | `install-workspace-sync.sh` | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main` everywhere — pointer recording stays with the `update-submodules.yml` PR (`--uninstall` removes it) |
 | `install-prose-hook.sh` | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born passing the `markdown-oneline` gate and the CI run it would have cost never happens; other hook names forward to each repo's own `.git/hooks`/`.husky` hooks. `PROSE_HOOK_SKIP=1` skips once, `--uninstall` removes it |

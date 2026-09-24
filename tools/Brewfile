@@ -23,10 +23,12 @@ brew "python@3"
 # --- Containers ---
 brew "docker"
 brew "docker-compose"
+cask "docker-desktop"
 
 # --- Developer Tools ---
 brew "gh"
 brew "shellcheck"
+brew "pipx"
 
 # --- Editors (casks) ---
 cask "visual-studio-code"
