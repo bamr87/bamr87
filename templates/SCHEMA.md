@@ -17,6 +17,7 @@ coverage: listed
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
 | `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
+| `ux-audit/` | dir | OPT-IN UX audit kit: R1–R13 gate + axe evidence + critique prompts (UPS-FE-53/60) | terminal |
 | `feedback/` | dir | Universal feedback widget kit: `<fleet-feedback>` web component + taxonomy + issue form + stack adapters (spec: specs/FEEDBACK.md) | terminal |
 | `issue-autopilot/` | dir | Issue-autopilot kit (OPT-IN): the canonical issue-triage engine + verify-and-close gate + skill/agent skeletons, seeded by standardize-fanout. Policy stays in each repo's `.issues/config.yml`, which the kit never writes | terminal |
 | `ai-runner/` | dir | AI runner kit: the fleet's model step, consumed BY REFERENCE (`.github/actions/claude-run` + reusable `ai-lane.yml`) — caller template, contract tests, VERSION + archive | terminal |

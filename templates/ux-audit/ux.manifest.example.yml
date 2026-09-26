@@ -1,0 +1,32 @@
+# ux.yml — leaf UX audit manifest (seeded from templates/ux-audit/)
+# schema: ux-manifest/v1
+schema: ux-manifest/v1
+enabled: true
+tier: active   # active | experiment | content
+
+# How to boot a local preview for PR gates (optional if only live_url is audited)
+preview:
+  command: "npm run preview -- --host 127.0.0.1 --port 4173"
+  ready_url: "http://127.0.0.1:4173/"
+  # command: "bundle exec jekyll serve -H 127.0.0.1 -P 4000"
+  # ready_url: "http://127.0.0.1:4000/"
+
+# Prefer stable paths; hub critique also uses projects.yml live_url
+surfaces:
+  - url: "/"
+    role: home
+  - url: "/404.html"
+    role: not-found
+
+personas:
+  - id: first-time
+    goals: ["understand what this product is", "reach the primary action"]
+  - id: returning
+    goals: ["resume a prior task without re-learning the chrome"]
+
+baselines: none   # none | visual | journey
+
+audit:
+  roots: ["."]              # paths passed to ux_audit.py --root
+  axe_tags: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
+  fail_on: [new]            # new | any
