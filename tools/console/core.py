@@ -512,6 +512,127 @@ def lake_review(days: int = 30, repo: str | None = None, limit: int = 10) -> dic
 
 
 # --------------------------------------------------------------------------- #
+# CONTENT — the content atlas + the editorial plan (docs/CONTENT-ATLAS.md)
+# --------------------------------------------------------------------------- #
+EDITORIAL = Path(os.environ.get("DASH_EDITORIAL_PLAN") or (DATA / "editorial.yml"))
+CONTENT_VIEWS = ("all", "stale", "issues", "thin", "recent", "drafts", "unmapped")
+
+
+def _rel(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _content_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import content_atlas  # noqa: WPS433
+    return content_atlas
+
+
+def _content_inputs():
+    ca = _content_module()
+    return ca, ca.load_contract(DATA / "fleet.yml", DATA / "projects.yml"), ca.load_plan(EDITORIAL)
+
+
+def content_report(site: str | None = None) -> dict:
+    """The /api/content document: every declared site analyzed from the lake,
+    plus the editorial plan's view of it. Degrades to a 'not present' document
+    (with the declared sites, so the tab can offer the sync) rather than a 500."""
+    try:
+        ca, contract, plan = _content_inputs()
+        declared = [{"name": s["name"], "repo": s.get("repo"), "live_url": s.get("live_url")}
+                    for s in contract["sites"]]
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "declared": [], "sites": [],
+                "overlap": [], "unsynced": [], "fleet": {}}
+    if site is not None and site not in {s["name"] for s in declared}:
+        raise ValueError(f"unknown site '{site}'")
+    try:
+        try:
+            conn = ca.connect(LAKE_DIR, create=False)
+        except FileNotFoundError:
+            return {"present": False, "declared": declared, "sites": [], "overlap": [],
+                    "unsynced": [s["name"] for s in declared], "fleet": {}}
+        doc = ca.report(conn, contract, plan, site=site)
+        doc.update(present=True, declared=declared, plan_path=_rel(EDITORIAL))
+        return doc
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "declared": [], "sites": [],
+                "overlap": [], "unsynced": [], "fleet": {}}
+
+
+def content_documents(site: str, view: str = "all", q: str = "", limit: int = 200) -> list[dict]:
+    if not NAME_RX.match(site or ""):
+        raise ValueError("site must be a plain name")
+    if view not in CONTENT_VIEWS and not re.match(r"^pillar:[a-z0-9][a-z0-9._-]{0,63}$", view or ""):
+        raise ValueError(f"view must be one of {CONTENT_VIEWS} or pillar:<id>")
+    ca, contract, plan = _content_inputs()
+    try:
+        conn = ca.connect(LAKE_DIR, create=False)
+    except FileNotFoundError:
+        return []
+    return ca.documents(conn, site, view=view, q=str(q or "")[:120], limit=max(1, min(int(limit), 1000)),
+                        contract=contract, plan=plan)
+
+
+def _plan_diff() -> str:
+    rc, diff = run_quiet(["git", "diff", "--no-color", "--", str(EDITORIAL)])
+    if rc == 0 and not diff:
+        # an untracked plan has no diff against HEAD; say so rather than show nothing
+        rc2, out = run_quiet(["git", "ls-files", "--error-unmatch", str(EDITORIAL)])
+        if rc2 != 0:
+            return f"(new file: {_rel(EDITORIAL)} — not yet tracked)"
+    return diff if rc == 0 else ""
+
+
+def editorial_decide(site: str, action: str, key: str, fields: dict | None = None) -> dict:
+    """Approve / reject a suggestion, add a directive, or move one — written to
+    _data/editorial.yml in the working tree (comments preserved). The commit is
+    the approval of record, and it stays with the human, as everywhere else."""
+    ca, contract, plan = _content_inputs()
+    suggestion = None
+    if action in ("approve", "reject"):
+        doc = content_report(site)
+        a = (doc.get("sites") or [None])[0]
+        suggestion = next((s for s in (a or {}).get("suggestions") or [] if s["key"] == key), None)
+    result = ca.decide(EDITORIAL, site, action, key, contract, suggestion=suggestion, fields=fields or {})
+    result["diff"] = _plan_diff()
+    return result
+
+
+def editorial_update(site: str, fields: dict) -> dict:
+    ca, contract, _plan = _content_inputs()
+    result = ca.update_site(EDITORIAL, site, contract, fields or {})
+    result["diff"] = _plan_diff()
+    return result
+
+
+def content_brief(site: str) -> dict:
+    doc = content_report(site)
+    if not doc.get("sites"):
+        raise ValueError(f"'{site}' is not in the atlas yet — run 'Content: sync' first")
+    return {"site": site, "markdown": _content_module().render_brief(doc["sites"][0])}
+
+
+def _content_sync(params: dict) -> list[str]:
+    argv = [DASH_GEN, "content", "sync"]
+    if str(params.get("target") or "").strip():
+        argv += ["--site", _name(params)]
+    if _flag(params, "no_fetch"):
+        argv.append("--no-fetch")
+    return argv
+
+
+def _content_file(params: dict) -> list[str]:
+    argv = [DASH_GEN, "content", "file", "--site", _name(params)]
+    if _flag(params, "apply"):
+        argv.append("--apply")
+    return argv
+
+
+# --------------------------------------------------------------------------- #
 # OPS — the allowlist
 # --------------------------------------------------------------------------- #
 def _flag(params: dict, key: str) -> bool:
@@ -797,6 +918,29 @@ OPS: dict[str, dict] = {
                            argv=lambda p: [DASH_GEN, "observe", "verify"], needs_token=False,
                            desc="Offline diff of _data/fleet.yml `observability:` against the committed "
                                 "tools/observability files, and resolves every pinned dashboard id."),
+    # content — the content atlas (docs/CONTENT-ATLAS.md). sync/report write only
+    # to the lake; `content-file` with apply opens issues in a site's repo.
+    "content-sync": dict(title="Content: extract the content sites into the atlas", group="content",
+                         argv=_content_sync, needs_token=False,
+                         desc="dash-gen content sync — every fleet.yml `content.sites` entry (or one, by "
+                              "target) from its local checkout or a cached blob-less clone → front matter, "
+                              "body metrics and git history in the lake. Clones public repos without a token.",
+                         params=["target", "no_fetch"]),
+    "content-report": dict(title="Content: report (topics, aging, hygiene, suggestions)", group="content",
+                           argv=lambda p: [DASH_GEN, "content", "report"] + (
+                               ["--site", _name(p)] if str(p.get("target") or "").strip() else []),
+                           needs_token=False, desc="The atlas as a terminal table; offline.",
+                           params=["target"]),
+    "content-brief": dict(title="Content: render a site's editorial brief", group="content",
+                          argv=lambda p: [DASH_GEN, "content", "brief", "--site", _name(p)], needs_token=False,
+                          desc="Narrative, pillar coverage and approved directives as Markdown.",
+                          params=["target"]),
+    "content-file": dict(title="Content: file approved directives as issues", group="content",
+                         argv=_content_file, needs_token=True, remote=lambda p: _flag(p, "apply"),
+                         desc="One issue per approved directive in the site's own repo, labelled "
+                              "editorial:directive and deduped on a hidden marker — DRY RUN unless apply. "
+                              "Records filed + the URL in _data/editorial.yml (commit it yourself).",
+                         params=["target", "apply"]),
     # deploy (writes to GitHub — confirm-gated, serialized) ---------------------
     "deploy-gaps": dict(title="Deploy the agent-context kit to gap repos", group="deploy",
                         argv=lambda p: _deploy(p, "gaps"), needs_token=True,

@@ -42,9 +42,9 @@ from pydantic import BaseModel, Field
 import core
 
 STATIC = Path(__file__).resolve().parent / "static"
-app = FastAPI(title="bamr87 Harness Console", version="0.3.0",
+app = FastAPI(title="bamr87 Harness Console", version="0.4.0",
               description="Local control plane for the fleet's AI harnesses and schedules — "
-                          "with the local data lake and Phoenix traces.")
+                          "with the local data lake, Phoenix traces and the content atlas.")
 jobs = core.JobManager()
 
 # Hosts this console answers to. Loopback names only by default; a deployment
@@ -115,6 +115,17 @@ class CredentialUpdate(BaseModel):
     value: str
     persist: bool = False
     confirm: bool = False
+
+
+class EditorialDecision(BaseModel):
+    site: str
+    action: str                    # approve | reject | add | status | remove
+    key: str
+    fields: dict = Field(default_factory=dict)
+
+
+class EditorialSite(BaseModel):
+    fields: dict
 
 
 class GithubAuth(BaseModel):
@@ -204,6 +215,57 @@ def observability() -> dict:
     """The Observe tab's document: all three planes, the dataset sizes against
     the disk budget, the ship ledger, and the composed embed URLs."""
     return core.observe_status()
+
+
+@app.get("/api/content", dependencies=[Depends(require_token)])
+def content(site: str | None = Query(default=None, max_length=64)) -> dict:
+    """The content atlas: every declared site analyzed from the lake (topics,
+    activity, aging, hygiene, pillar coverage) with its editorial suggestions."""
+    try:
+        return core.content_report(site)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/content/{site}/docs", dependencies=[Depends(require_token)])
+def content_docs(site: str, view: str = Query(default="all", max_length=80),
+                 q: str = Query(default="", max_length=120),
+                 limit: int = Query(default=200, ge=1, le=1000)) -> list[dict]:
+    try:
+        return core.content_documents(site, view=view, q=q, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/content/{site}/brief", dependencies=[Depends(require_token)])
+def content_brief(site: str) -> dict:
+    try:
+        return core.content_brief(site)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/editorial/decision", dependencies=[Depends(require_token)])
+def editorial_decision(req: EditorialDecision) -> dict:
+    """Approve/reject a suggestion, add or move a directive — _data/editorial.yml
+    in the working tree, comments preserved; returns the git diff."""
+    try:
+        return core.editorial_decide(req.site, req.action, req.key, req.fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
+@app.put("/api/editorial/{site}", dependencies=[Depends(require_token)])
+def editorial_site(site: str, req: EditorialSite) -> dict:
+    """Set a site's narrative / audience / voice, or upsert one pillar."""
+    try:
+        return core.editorial_update(site, req.fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
 
 
 @app.get("/api/contract", dependencies=[Depends(require_token)])

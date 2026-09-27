@@ -127,6 +127,41 @@ def test_lake_ops_argv_shapes_and_status_document():
     assert isinstance(caps["otel_exporter"], bool) and caps["phoenix"]["collector"] and isinstance(caps["lake_present"], bool)
 
 
+def test_content_ops_argv_and_only_apply_is_remote():
+    argv, remote = core.build_argv("content-sync", {"target": "lifehacker.dev", "no_fetch": True})
+    assert argv[1:] == ["content", "sync", "--site", "lifehacker.dev", "--no-fetch"], argv
+    assert remote is False  # the atlas writes to the lake, never to GitHub
+    argv, _ = core.build_argv("content-sync", {})
+    assert argv[1:] == ["content", "sync"], argv
+    argv, remote = core.build_argv("content-file", {"target": "it-journey"})
+    assert argv[1:] == ["content", "file", "--site", "it-journey"] and remote is False, argv
+    argv, remote = core.build_argv("content-file", {"target": "it-journey", "apply": True})
+    assert argv[-1] == "--apply" and remote is True, "filing issues is a GitHub write — confirm-gated"
+    for op, bad in (("content-file", {}), ("content-file", {"target": "a b"}), ("content-brief", {"target": "../x"}),
+                    ("content-sync", {"target": "x;rm"})):
+        try:
+            core.build_argv(op, bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"{op} accepted {bad}")
+    for bad_site, bad_view in (("../etc", "all"), ("demo", "everything"), ("demo", "pillar:Bad Id")):
+        try:
+            core.content_documents(bad_site, view=bad_view)
+        except ValueError:
+            continue
+        raise AssertionError(f"content_documents accepted {bad_site!r} {bad_view!r}")
+    import json
+    doc = core.content_report()
+    assert "present" in doc and "declared" in doc and "sites" in doc, doc.keys()
+    json.dumps(doc)
+    try:
+        core.content_report("no-such-site")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an undeclared site must be refused")
+
+
 def test_observe_ops_argv_shapes_and_the_destructive_one_is_gated():
     """The Observe tab's operations.
 

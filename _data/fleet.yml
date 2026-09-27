@@ -635,6 +635,82 @@ observability:
       metrics: { uid: fleet-logs, title: 'Fleet log volume & cost' }
 
 # --------------------------------------------------------------------------- #
+# Content — the CONTENT ATLAS: observability + editorial direction for the
+# fleet's content sites (docs/CONTENT-ATLAS.md).
+#
+# The other planes watch the machinery (runs, cost, logs, traces). This block
+# names the sites whose CONTENT is watched: what they publish, about what, how
+# fresh it is, and whether the mix still matches the narrative a human set in
+# _data/editorial.yml. `dash content sync` reads each site from a local
+# checkout when one exists (sibling dirs under search_roots, the submodule),
+# else a blob-less clone cached in the gitignored lake — so the atlas works on
+# a laptop with none of the submodules checked out.
+#
+# A site entry names a registry project (repo/live_url/branch come from
+# _data/projects.yml) or, for a site outside the registry, carries `repo:`.
+# `roots:` overrides the scan root (default: the Jekyll collections_dir);
+# `quality:` overrides the hygiene rules for a site whose schema differs;
+# `dates: git` dates publication by first commit, for knowledge bases whose
+# front-matter `date` is the subject's date rather than the publish date.
+#
+# Consumed by:
+#   - .github/scripts/dash-gen/content_atlas.py — sync/report/plan/brief/file
+#   - tools/console (Content tab, /api/content*) — the review + approval surface
+# --------------------------------------------------------------------------- #
+content:
+  search_roots: ['..', projects] # relative to the hub root; DASH_CONTENT_ROOTS (os.pathsep list) prepends
+  cache_dir: .dash-lake/content # blob-less clones for sites with no local checkout (gitignored)
+  history_days: 730 # git log window for created/modified/commit cadence
+  recent_days: 90 # "recent" for publishing share, pillar coverage, rising/fading topics
+  cadence_days: 30 # no publication for longer than this → a `cadence` suggestion
+  stale_days: 365 # a document not updated in this long is stale
+  aging_buckets: [30, 90, 180, 365]
+  quality:
+    min_words: 250 # below this a document is `thin`
+    description: [50, 160] # front-matter description length window
+    require: [title, description, date, tags]
+  suggest:
+    gap_ratio: 0.5 # recent share below target × this → "publish on <pillar>"
+    over_ratio: 1.75 # recent share above target × this (≥3 pieces) → "rest <pillar>"
+    unmapped_share: 0.3 # more than this share matching no pillar → "map the orphan topics"
+    refresh_top: 3 # stale, substantive documents proposed for refresh per site
+  directives:
+    label: editorial:directive # the label `dash content file --apply` files under
+    color: 5319e7
+  sites:
+    - name: lifehacker.dev
+      quality: { require: [title, description, date, author, tags] }
+    - name: it-journey
+      quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
+    - name: bash-365.com
+      registry: bashconsultants
+      repo: amr-bash/bash-365.com
+      live_url: https://bash-365.com
+      quality: { description: [120, 155] }
+    - name: irony-works
+      roots: [vault]
+      exclude: [templates]
+      quality: { min_words: 150, require: [title, status] }
+    - name: wargames
+      roots: [overthewire]
+      quality: { min_words: 100, require: [title] }
+    # The two lineage orgs: the hub is the front door, the members hold the
+    # content. Members are declared individually so each subject gets its own
+    # narrative in editorial.yml; add a member here when it should be watched.
+    - name: year-of-ai.github.io
+      repo: year-of-ai/year-of-ai.github.io
+      live_url: https://year-of-ai.github.io
+    - name: '2005' # registry entry; a year-of-ai member
+      dates: git # front-matter `date` is the subject's date (2005), not when it was published
+    - name: ai-world-view.github.io
+      repo: ai-world-view/ai-world-view.github.io
+      live_url: https://ai-world-view.github.io
+    - name: china # an ai-world-view member, outside the registry
+      repo: ai-world-view/china
+      live_url: https://ai-world-view.github.io/china/
+      dates: git
+
+# --------------------------------------------------------------------------- #
 # Containers — how ~24 compose files become ONE runnable fleet.
 #
 # The fleet is not one compose project and cannot be. Compose's `include:` does

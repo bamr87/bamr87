@@ -84,6 +84,7 @@ import daily_report
 import engagements
 import evolution
 import fleet_compose
+import content_atlas
 import fleet_lake
 import fleet_observe
 import fleet_triage
@@ -512,6 +513,15 @@ def main(argv: list[str] | None = None) -> int:
              "OpenInference traces to Phoenix (local-only; never committed)",
     )
     fleet_lake.add_arguments(p_lake)
+
+    p_content = sub.add_parser(
+        "content",
+        help="the CONTENT ATLAS: `sync` extracts every fleet.yml content site into the lake, `report` "
+             "analyzes topics/activity/aging/hygiene + pillar coverage, `plan` approves/rejects "
+             "editorial directives in _data/editorial.yml, `brief` renders a site's brief, `file` "
+             "opens approved directives as issues (dry run unless --apply)",
+    )
+    content_atlas.add_arguments(p_content)
 
     p_compose = sub.add_parser(
         "compose",

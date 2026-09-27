@@ -39,6 +39,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
+  ${c_bold}dash content [sync|report|plan|brief|file]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo (docs/CONTENT-ATLAS.md)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -59,7 +60,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ps${c_off}               what is running fleet-wide, and who is on the shared network
   ${c_bold}dash doctor${c_off}            environment checks (setup.sh --dry-run)
   ${c_bold}dash test${c_off}              run the aggregate test suite
-  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|lake|observe|remediate|issues|reconcile|vendor|estimate|ledger|targets|all>${c_off}  run the registry generator
+  ${c_bold}dash gen <health|readme|ai|ai-check|ai-run|ai-usage|actions|daily|triage|harness|harnesses|lake|content|observe|remediate|issues|reconcile|vendor|estimate|ledger|targets|all>${c_off}  run the registry generator
   ${c_bold}dash help${c_off}             this help
 EOF
 }
@@ -348,6 +349,15 @@ cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
 #   dash lake export    OpenInference traces → Phoenix (docker compose up -d phoenix)
 cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
 
+# The content atlas (docs/CONTENT-ATLAS.md): what the content sites publish,
+# about what, how fresh — and the editorial plan that steers them.
+#   dash content sync [--site S]     extract every fleet.yml content site into the lake
+#   dash content report [--site S]   topics, activity, aging, hygiene, pillar coverage, suggestions
+#   dash content plan approve|reject|add|status --site S --key K   decide (_data/editorial.yml)
+#   dash content brief --site S      the site's editorial brief (Markdown)
+#   dash content file --site S [--apply]   approved directives → issues in the site's repo
+cmd_content() { "${TOOLS}/dash-gen" content "${@:-report}"; }
+
 # The local LOG plane (docs/OBSERVABILITY.md). Phoenix holds traces, Grafana
 # draws trends, Elasticsearch/Kibana hold the raw text of what CI and the
 # containers actually said. up/down/open drive docker + the browser, so they
@@ -581,6 +591,7 @@ main() {
     estimate) cmd_estimate "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
+    content) cmd_content "$@" ;;
     observe) cmd_observe "$@" ;;
     up)      cmd_up "$@" ;;
     down)    cmd_down "$@" ;;

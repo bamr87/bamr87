@@ -156,6 +156,38 @@
   details summary { cursor: pointer; color: var(--ink-2); }
   form.contract label { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--grid); }
   form.contract label span small { display: block; color: var(--muted); }
+  /* Content tab — column charts. Bars are thin marks with a 4px rounded data
+     end on the baseline and a 2px surface gap between stacked segments; the
+     chart scrolls in its own box on a narrow screen instead of widening it. */
+  .cols { display: grid; gap: 2px; align-items: end; height: 120px; overflow-x: auto; padding-top: 4px; }
+  .cols .c { display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; justify-content: flex-start; min-width: 6px; cursor: default; }
+  .cols .c i { display: block; width: 100%; background: var(--accent); border-radius: 0; }
+  .cols .c i:last-child { border-radius: 4px 4px 0 0; }
+  .cols .c i.s2 { background: var(--series-2); }
+  .cols .c:hover i { filter: brightness(1.12); }
+  .axis { display: grid; gap: 2px; font-size: 11px; color: var(--muted); overflow: hidden; }
+  .axis span { white-space: nowrap; overflow: visible; }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--ink-2); margin: 4px 0; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--accent); margin-right: 5px; vertical-align: -1px; }
+  .legend i.s2 { background: var(--series-2); }
+  .tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.18); z-index: 20; white-space: pre; }
+  .pillar-meter { position: relative; height: 10px; border-radius: 5px; background: var(--accent-track); min-width: 120px; }
+  .pillar-meter > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 5px; }
+  .pillar-meter > b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 1px; }
+  .hbar { display: grid; grid-template-columns: minmax(90px, 180px) 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; padding: 2px 0; }
+  .hbar > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hbar .track { height: 8px; border-radius: 0 4px 4px 0; background: transparent; }
+  .hbar .track > i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+  .sugg { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; align-items: start; padding: 9px 0; border-bottom: 1px solid var(--grid); }
+  .sugg:last-child { border-bottom: 0; }
+  .sugg small { display: block; color: var(--ink-2); margin-top: 2px; }
+  .sugg > div { min-width: 0; } .sugg code, .hbar code { overflow-wrap: anywhere; }
+  @media (max-width: 600px) { .sugg { grid-template-columns: auto 1fr; } .sugg .acts { grid-column: 2; justify-content: flex-start; } }
+  .sugg .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  tr.pick { cursor: pointer; } tr.pick:hover td { background: color-mix(in srgb, var(--accent-track) 35%, var(--surface)); }
+  tr.sel td { background: color-mix(in srgb, var(--accent-track) 55%, var(--surface)); }
+  .toolbar input[type=text] { max-width: 100%; }
+  textarea { width: 100%; min-height: 90px; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; font: inherit; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -175,6 +207,7 @@
   <button data-tab="loops">Loops</button>
   <button data-tab="costs">Costs</button>
   <button data-tab="observe">Observe</button>
+  <button data-tab="content">Content</button>
   <button data-tab="fleet">Fleet</button>
   <button data-tab="contract">Config</button>
   <button data-tab="auth">Auth</button>
@@ -187,12 +220,14 @@
   <section id="tab-loops" hidden></section>
   <section id="tab-costs" hidden></section>
   <section id="tab-observe" hidden></section>
+  <section id="tab-content" hidden></section>
   <section id="tab-fleet" hidden></section>
   <section id="tab-contract" hidden></section>
   <section id="tab-auth" hidden></section>
   <section id="tab-jobs" hidden></section>
 </main>
 <div id="toast" class="toast" hidden></div>
+<div id="tip" class="tip" hidden></div>
 
 <script>
 'use strict';
@@ -291,7 +326,7 @@ $('#nav').addEventListener('click', e => {
 function renderTab(tab) {
   if (!STATE) return;
   ({ overview: renderOverview, harnesses: renderHarnesses, schedules: renderSchedules, loops: renderLoops,
-     costs: renderCosts, observe: renderObserve, fleet: renderFleet, contract: renderConfig,
+     costs: renderCosts, observe: renderObserve, content: renderContent, fleet: renderFleet, contract: renderConfig,
      auth: renderAuth, jobs: renderJobs })[tab]();
 }
 
@@ -656,6 +691,217 @@ Harness Console :4001 (this)   ·   Jekyll dash :4000 (read-only twin)   ·   Gi
   bindRunButtons('#tab-observe');
 }
 
+// ------------------------------------------------------------------ content (the content atlas)
+// What the content sites publish, about what, and how fresh — against the
+// editorial plan a human sets in _data/editorial.yml. Approve/reject writes
+// that file in the working tree; the commit stays with you, as everywhere
+// else in this console (docs/CONTENT-ATLAS.md).
+let CONTENT = null, CSITE = null, CVIEW = 'all';
+
+// One tooltip for every chart: marks carry data-tip, the page shows it.
+document.addEventListener('mouseover', e => { const t = e.target.closest('[data-tip]'), tip = $('#tip'); if (!tip) return;
+  if (!t) { tip.hidden = true; return; } tip.textContent = t.dataset.tip; tip.hidden = false; });
+document.addEventListener('mousemove', e => { const tip = $('#tip'); if (tip && !tip.hidden) {
+  tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; } });
+
+// Column chart: rows × series, stacked when there is more than one series.
+// Single hue for one series (the title names it); a legend for two.
+function colChart(rows, label, series, fmtLabel = x => x) {
+  const max = Math.max(1, ...rows.map(r => series.reduce((a, s) => a + (r[s.key] || 0), 0)));
+  const cols = `grid-template-columns:repeat(${rows.length}, minmax(6px, 1fr))`;
+  const bars = rows.map(r => { const tot = series.reduce((a, s) => a + (r[s.key] || 0), 0);
+    const tip = `${fmtLabel(r[label])}\n` + series.map(s => `${s.label}: ${r[s.key] || 0}`).join('\n');
+    return `<div class="c" data-tip="${esc(tip)}">${series.map(s => r[s.key] ? `<i class="${s.cls || ''}" style="height:${100 * r[s.key] / max}%"></i>` : '').join('')}${tot ? '' : '<i style="height:1px;background:var(--grid)"></i>'}</div>`; }).join('');
+  const every = Math.ceil(rows.length / 8);
+  const ticks = rows.map((r, i) => `<span>${i % every === 0 ? esc(fmtLabel(r[label])) : ''}</span>`).join('');
+  const legend = series.length > 1 ? `<div class="legend">${series.map(s => `<span><i class="${s.cls || ''}"></i>${esc(s.label)}</span>`).join('')}</div>` : '';
+  return `${legend}<div class="cols" style="${cols}" role="img" aria-label="${esc(series.map(s => s.label).join(', '))}">${bars}</div><div class="axis" style="${cols}">${ticks}</div>`;
+}
+function hbars(rows, key, val, extra = () => '') {
+  const max = Math.max(1, ...rows.map(r => r[val] || 0));
+  return rows.map(r => `<div class="hbar"><span title="${esc(r[key])}">${esc(r[key])}</span><div class="track"><i style="width:${100 * (r[val] || 0) / max}%"></i></div><span class="muted">${fmt(r[val])}${extra(r)}</span></div>`).join('') || '<div class="muted">none</div>';
+}
+const ago = d => d == null ? '—' : d === 0 ? 'today' : d + 'd';
+const sharePct = x => x == null ? '—' : Math.round(100 * x) + '%';
+
+async function renderContent() {
+  const el = $('#tab-content');
+  el.innerHTML = '<div class="muted">reading the atlas…</div>';
+  try { CONTENT = await api('/api/content'); } catch (e) { el.innerHTML = banner('crit', esc(e.message)); return; }
+  const C = CONTENT, sites = C.sites || [];
+  const toolbar = `<div class="toolbar"><button class="btn primary" data-run='{"op":"content-sync"}'>↻ Sync all sites</button>
+    <button class="btn" data-run='{"op":"content-sync","params":{"no_fetch":true}}'>↻ Sync (local checkouts only)</button>
+    <span class="muted">sites declared in <code>_data/fleet.yml content.sites</code> · plan <code>_data/editorial.yml</code> · lake <code>.dash-lake/</code> (gitignored)</span></div>`;
+  if (!C.present) {
+    el.innerHTML = `<div class="sub">The content atlas reads each content site's Markdown, front matter and git history into the local lake, then measures it against the editorial plan.</div>${toolbar}
+      ${C.error ? banner('crit', esc(C.error)) : banner('info', 'The atlas is empty. <b>Sync all sites</b> reads local checkouts where they exist and clones the rest (public repos need no token).')}
+      <h2>Declared sites (${(C.declared || []).length})</h2><div class="wrap"><table><thead><tr><th>site</th><th>repo</th><th>live</th></tr></thead><tbody>${(C.declared || []).map(s => `<tr><td><code>${esc(s.name)}</code></td><td>${esc(s.repo || '—')}</td><td>${s.live_url ? `<a href="${esc(s.live_url)}" target="_blank" rel="noopener">${esc(s.live_url)}</a>` : '—'}</td></tr>`).join('')}</tbody></table></div>`;
+    bindRunButtons('#tab-content'); return;
+  }
+  if (!CSITE || !sites.find(s => s.site === CSITE)) CSITE = (sites.slice().sort((a, b) => b.suggestions.length - a.suggestions.length)[0] || {}).site;
+  const f = C.fleet || {};
+  const offTarget = a => (a.pillars || []).filter(p => p.target_share != null && p.status === 'active' && Math.abs(p.recent_share - p.target_share) > p.target_share * 0.5).length;
+  el.innerHTML = `<div class="sub">What each content site publishes, about what, and how fresh — measured against the narrative and pillars in <code>_data/editorial.yml</code>. Approving a suggestion writes it there as a directive; <b>File</b> turns approved directives into issues in the site's own repo, where its content loop picks them up.</div>${toolbar}
+    ${(C.unsynced || []).length ? banner('warn', `Not synced yet: ${C.unsynced.map(n => `<code>${esc(n)}</code>`).join(', ')}`) : ''}
+    <div class="grid">
+      <div class="card tile"><div class="label">Sites</div><div class="value">${fmt(f.sites)}</div><div class="delta">${fmt(f.docs)} published documents</div></div>
+      <div class="card tile"><div class="label">New (last ${fmt((sites[0] || {totals: {}}).totals.recent_days)}d)</div><div class="value">${fmt(f.recent)}</div><div class="delta">across the fleet</div></div>
+      <div class="card tile"><div class="label">Stale (&gt; a year untouched)</div><div class="value">${fmt(f.stale)}</div><div class="delta">${sharePct(f.docs ? f.stale / f.docs : 0)} of documents</div></div>
+      <div class="card tile"><div class="label">Open suggestions</div><div class="value">${fmt(f.suggestions)}</div><div class="delta">${fmt(f.approved)} approved, not yet filed</div></div>
+    </div>
+    <h2>Sites</h2><div class="wrap"><table><thead><tr><th>site</th><th class="num">docs</th><th class="num">new</th><th>last published</th><th class="num">median age</th><th class="num">stale</th><th class="num">hygiene</th><th class="num">pillars off target</th><th class="num">suggestions</th><th>synced</th></tr></thead>
+    <tbody>${sites.map(a => { const t = a.totals; const late = t.days_since_publish == null || t.days_since_publish > 30;
+      return `<tr class="pick ${a.site === CSITE ? 'sel' : ''}" data-site="${esc(a.site)}"><td><b>${esc(a.site)}</b>${a.error ? ' ' + status('crit', 'sync failed') : ''}</td><td class="num">${fmt(t.docs)}</td><td class="num">${fmt(t.recent)}</td><td>${esc(t.last_published || '—')} ${late ? status('warn', ago(t.days_since_publish) + ' ago') : `<span class="muted">${ago(t.days_since_publish)} ago</span>`}</td><td class="num">${ago(t.median_age)}</td><td class="num">${fmt(t.stale)}</td><td class="num">${fmt(t.with_issues)}</td><td class="num">${a.pillars.length ? fmt(offTarget(a)) + ' / ' + a.pillars.filter(p => p.target_share != null).length : '<span class="muted">no pillars</span>'}</td><td class="num">${fmt(a.suggestions.length)}</td><td class="muted">${esc((a.synced_at || '').slice(0, 16).replace('T', ' '))} · ${esc(a.source || '')}</td></tr>`; }).join('')}</tbody></table></div>
+    ${(C.overlap || []).length ? `<details class="sect" style="margin-top:12px"><summary>Shared topics across sites (${C.overlap.length}) <small>Tags two or more sites cover — cross-link candidates, or two narratives competing for one reader.</small></summary><div class="wrap"><table><thead><tr><th>tag</th><th class="num">sites</th><th>where</th></tr></thead><tbody>${C.overlap.map(o => `<tr><td><code>${esc(o.tag)}</code></td><td class="num">${Object.keys(o.sites).length}</td><td>${Object.entries(o.sites).map(([s, n]) => `${esc(s)} <span class="muted">${n}</span>`).join(' · ')}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
+    <div id="content-site"></div>`;
+  el.querySelectorAll('tr[data-site]').forEach(tr => tr.onclick = () => { CSITE = tr.dataset.site; CVIEW = 'all';
+    el.querySelectorAll('tr[data-site]').forEach(x => x.classList.toggle('sel', x === tr)); renderContentSite(); });
+  bindRunButtons('#tab-content');
+  renderContentSite();
+}
+
+function renderContentSite() {
+  const a = (CONTENT.sites || []).find(s => s.site === CSITE), host = $('#content-site');
+  if (!a) { host.innerHTML = ''; return; }
+  const t = a.totals, gh = a.repo ? `https://github.com/${a.repo}` : null;
+  const tile = (label, value, delta) => `<div class="card tile"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta}</div></div>`;
+  const dirs = a.directives || [];
+  const pillarRows = (a.pillars || []).map(p => { const tgt = p.target_share, r = p.recent_share || 0;
+    const off = tgt != null && p.status === 'active' ? (r < tgt * 0.5 ? status('warn', 'under') : r > tgt * 1.75 ? status('warn', 'over') : status('good', 'on target')) : status('info', tgt == null ? 'tracked' : p.status);
+    return `<tr><td><b>${esc(p.title)}</b> <code class="muted">${esc(p.id)}</code></td>
+      <td><div class="pillar-meter" data-tip="${esc(`${p.title}\nrecent share: ${sharePct(r)} (${p.recent} of ${t.recent})\ntarget: ${sharePct(tgt)}`)}"><i style="width:${Math.min(100, 100 * r)}%"></i>${tgt != null ? `<b style="left:calc(${Math.min(100, 100 * tgt)}% - 1px)"></b>` : ''}</div></td>
+      <td class="num">${sharePct(r)}</td><td style="white-space:nowrap"><input type="number" min="0" max="100" step="1" value="${tgt == null ? '' : Math.round(100 * tgt)}" data-pillar="${esc(p.id)}" style="width:64px" title="target % of new work (blank = tracked, not steered)">%</td>
+      <td>${off}</td><td class="num"><a href="#" data-view="pillar:${esc(p.id)}">${fmt(p.docs)}</a></td><td class="num">${ago(p.newest_age)}</td></tr>`; }).join('');
+  const suggs = (a.suggestions || []).map(sg => `<div class="sugg"><span class="status ${sg.priority === 'P1' ? 'crit' : sg.priority === 'P2' ? 'warn' : 'info'}">${esc(sg.priority)}</span>
+      <div><b>${esc(sg.title)}</b> <code class="muted">${esc(sg.key)}</code><small>${esc(sg.brief)}</small></div>
+      <div class="acts"><button class="btn primary" data-decide="approve" data-key="${esc(sg.key)}">✓ Approve</button><button class="btn" data-decide="reject" data-key="${esc(sg.key)}">✕ Reject</button></div></div>`).join('') || '<div class="muted">No open suggestions — the site matches its plan.</div>';
+  const nextActs = d => ({ proposed: [['approved', 'Approve'], ['rejected', 'Reject'], ['remove', 'Remove']], approved: [['done', 'Done'], ['rejected', 'Reject'], ['proposed', 'Un-approve']],
+                           filed: [['done', 'Done'], ['approved', 'Back to approved']], rejected: [['proposed', 'Reopen'], ['remove', 'Remove']], done: [['proposed', 'Reopen']] })[d.status || 'proposed'] || [];
+  const dirRows = dirs.map(d => `<tr class="${d.status === 'rejected' ? 'muted' : ''}"><td>${d.status === 'approved' ? status('good', 'approved') : d.status === 'filed' ? status('info', 'filed') : d.status === 'done' ? status('good', 'done') : d.status === 'rejected' ? status('info', 'rejected') : status('warn', d.status || 'proposed')}</td>
+      <td><b>${esc(d.title)}</b><div class="muted" style="font-size:12px">${esc(d.brief || '')}</div></td><td>${esc(d.kind)} · ${esc(d.priority)}${d.pillar ? ` · <code>${esc(d.pillar)}</code>` : ''}</td>
+      <td>${d.issue ? `<a href="${esc(d.issue)}" target="_blank" rel="noopener">issue</a>` : '—'}</td><td class="muted">${esc(d.decided || '')} · ${esc(d.source || '')}</td>
+      <td style="white-space:nowrap">${nextActs(d).map(([s, l]) => `<button class="btn" data-move="${s}" data-key="${esc(d.key)}">${l}</button>`).join(' ')}</td></tr>`).join('');
+  const approved = dirs.filter(d => d.status === 'approved').length;
+  const pillarOpts = (a.pillars || []).map(p => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
+  host.innerHTML = `<h2 style="margin-top:26px">${esc(a.site)} ${gh ? `<a href="${gh}" target="_blank" rel="noopener" style="font-size:12.5px;font-weight:400">${esc(a.repo)}</a>` : ''} ${a.live_url ? `<a href="${esc(a.live_url)}" target="_blank" rel="noopener" style="font-size:12.5px;font-weight:400">live ↗</a>` : ''}</h2>
+    <div class="sub">read from ${esc(a.source || '—')} @ <code>${esc(a.head || '—')}</code>, synced ${esc((a.synced_at || '').replace('T', ' ').slice(0, 16))} · ${fmt(a.skipped)} Markdown files without front matter skipped
+      <button class="btn" data-run='${esc(JSON.stringify({op: 'content-sync', params: {target: a.site}}))}'>↻ Re-sync</button> <button class="btn" id="brief-btn">📝 Brief</button></div>
+    ${a.error ? banner('crit', 'Last sync failed: ' + esc(a.error)) : ''}
+    <div class="grid">
+      ${tile('Published documents', fmt(t.docs), `${fmt(t.drafts)} drafts · ${fmt(Math.round(t.words / 1000))}k words`)}
+      ${tile(`New (last ${t.recent_days}d)`, fmt(t.recent), `last published ${esc(t.last_published || '—')}`)}
+      ${tile('Median age', ago(t.median_age), 'since last update (front matter or git)')}
+      ${tile('Stale', fmt(t.stale), `${sharePct(t.stale_share)} untouched for a year`)}
+      ${tile('Hygiene', fmt(t.with_issues), 'documents with front-matter issues')}
+      ${tile('Bot share of commits', sharePct(t.bot_share), `${fmt(t.commits)} content commits in the history window`)}
+    </div>
+    <div class="split" style="margin-top:14px">
+      <div class="card"><h2 style="margin-top:0">Narrative</h2>
+        <div id="narr-view">${a.narrative ? `<p style="margin:0 0 8px">${esc(a.narrative)}</p>` : '<p class="muted">No narrative yet — the story this site tells, in a paragraph. Every filed directive quotes it back.</p>'}
+          <div class="muted" style="font-size:12.5px"><b>Audience</b> ${esc(a.audience || '—')}<br><b>Voice</b> ${esc(a.voice || '—')}</div>
+          <div class="toolbar"><button class="btn" id="narr-edit">✎ Edit</button></div></div>
+        <div id="narr-form" hidden><textarea id="narr-text" maxlength="2000">${esc(a.narrative || '')}</textarea>
+          <label class="inl" style="display:flex;margin-top:6px">audience <input id="narr-aud" type="text" maxlength="400" style="flex:1" value="${esc(a.audience || '')}"></label>
+          <label class="inl" style="display:flex;margin-top:6px">voice <input id="narr-voice" type="text" maxlength="400" style="flex:1" value="${esc(a.voice || '')}"></label>
+          <div class="toolbar"><button class="btn primary" id="narr-save">Save to editorial.yml</button><button class="btn" id="narr-cancel">Cancel</button></div></div>
+      </div>
+      <div class="card"><h2 style="margin-top:0">Pillar coverage <span class="muted" style="font-weight:400;font-size:12px">share of the last ${t.recent_days} days' new work · ▎= target</span></h2>
+        ${a.pillars.length ? `<div class="wrap"><table style="border:0"><thead><tr><th>pillar</th><th>recent share</th><th class="num"></th><th>target</th><th></th><th class="num">docs</th><th class="num">newest</th></tr></thead><tbody>${pillarRows}</tbody></table></div>
+          <div class="toolbar"><button class="btn" id="targets-save">Save targets</button><span class="muted">${fmt(a.unmapped.docs)} documents (${sharePct(a.unmapped.share)}) match no pillar — <a href="#" data-view="unmapped">show</a>${a.unmapped.top_tags.length ? `; their top tags: ${a.unmapped.top_tags.slice(0, 6).map(x => `<code>${esc(x.tag)}</code>`).join(' ')}` : ''}</span></div>`
+          : '<div class="muted">No pillars declared for this site. Add one below, or approve the <code>define-pillars</code> suggestion.</div>'}
+        <details style="margin-top:8px"><summary>Add or re-match a pillar</summary>
+          <div class="toolbar"><input id="pl-id" type="text" placeholder="id (lowercase)" size="14"><input id="pl-title" type="text" placeholder="title" size="20"><input id="pl-target" type="number" min="0" max="100" placeholder="target %" style="width:90px"></div>
+          <div class="toolbar"><input id="pl-tags" type="text" placeholder="tags, comma-separated" size="26"><input id="pl-sections" type="text" placeholder="sections" size="16"><input id="pl-colls" type="text" placeholder="collections" size="16"><input id="pl-kw" type="text" placeholder="title keywords" size="16"><button class="btn primary" id="pl-save">Save pillar</button></div></details>
+      </div>
+    </div>
+    <h2>Suggestions (${a.suggestions.length})</h2><div class="sub">Deterministic, from the numbers above. Each has a stable key: a decision sticks across re-syncs, and a rejected one never comes back.</div>
+    <div class="card">${suggs}</div>
+    <h2>Directives (${dirs.length})</h2>
+    <div class="toolbar"><button class="btn" data-run='${esc(JSON.stringify({op: 'content-file', params: {target: a.site}}))}'>▶ File approved — dry run</button>
+      <button class="btn primary" ${approved ? '' : 'disabled'} data-run='${esc(JSON.stringify({op: 'content-file', params: {target: a.site, apply: true}}))}'>▶ File ${approved} approved as issues in ${esc(a.repo || '—')}</button>
+      <span class="muted">labelled <code>editorial:directive</code>; the site's issue loop or a human takes it from there</span></div>
+    ${dirs.length ? `<div class="wrap"><table><thead><tr><th>status</th><th>directive</th><th>kind</th><th>issue</th><th>decided</th><th></th></tr></thead><tbody>${dirRows}</tbody></table></div>` : '<div class="muted">No directives yet — approve a suggestion or add your own.</div>'}
+    <details style="margin-top:8px"><summary>Add a directive of your own</summary>
+      <div class="toolbar"><input id="dir-title" type="text" placeholder="title — what should be published or changed" size="46" maxlength="200">
+        <select id="dir-kind">${['write', 'refresh', 'fix', 'hold', 'pillar', 'cadence'].map(k => `<option>${k}</option>`).join('')}</select>
+        <select id="dir-prio"><option>P1</option><option selected>P2</option><option>P3</option></select>
+        <select id="dir-pillar"><option value="">(no pillar)</option>${pillarOpts}</select></div>
+      <textarea id="dir-brief" maxlength="2000" placeholder="brief — the angle, the audience, what done looks like"></textarea>
+      <div class="toolbar"><button class="btn primary" id="dir-add">Add as approved</button></div></details>
+    <pre class="log" id="plan-diff" hidden style="margin-top:10px"></pre>
+    <div class="split" style="margin-top:14px">
+      <div class="card"><h2 style="margin-top:0">Published per month</h2><div class="sub">by publication date, last 24 months</div>${colChart(a.timeline, 'month', [{key: 'published', label: 'documents published'}], m => m.slice(2).replace('-', '/'))}</div>
+      <div class="card"><h2 style="margin-top:0">Content commits per week</h2><div class="sub">commits touching a document, last 26 weeks</div>${colChart(a.cadence, 'week', [{key: 'human', label: 'human'}, {key: 'bot', label: 'bot / agent', cls: 's2'}], w => w.slice(5))}</div>
+    </div>
+    <div class="split" style="margin-top:14px">
+      <div class="card"><h2 style="margin-top:0">Age since last update</h2>${colChart(a.aging, 'bucket', [{key: 'docs', label: 'documents'}])}</div>
+      <div class="card"><h2 style="margin-top:0">Topics</h2><div class="sub">top tags · Δ = last ${t.recent_days}d vs the ${t.recent_days}d before</div>
+        ${hbars(a.topics.slice(0, 14), 'tag', 'docs', r => r.trend ? ` <span class="${r.trend > 0 ? '' : 'muted'}">${r.trend > 0 ? '▲' : '▼'}${Math.abs(r.trend)}</span>` : '')}
+        ${a.rising.length || a.fading.length ? `<div class="muted" style="font-size:12.5px;margin-top:8px">${a.rising.length ? `rising: ${a.rising.map(x => `<code>${esc(x.tag)}</code>`).join(' ')}` : ''} ${a.fading.length ? `<br>fading: ${a.fading.map(x => `<code>${esc(x.tag)}</code>`).join(' ')}` : ''}</div>` : ''}</div>
+    </div>
+    <div class="split" style="margin-top:14px">
+      <div><h2>Sections</h2><div class="wrap"><table><thead><tr><th>section</th><th class="num">docs</th><th class="num">new</th><th class="num">stale</th><th>newest</th></tr></thead><tbody>${a.sections.map(c => `<tr><td>${esc(c.name)}</td><td class="num">${fmt(c.docs)}</td><td class="num">${fmt(c.recent)}</td><td class="num">${fmt(c.stale)}</td><td>${esc(c.newest || '—')}</td></tr>`).join('')}</tbody></table></div></div>
+      <div><h2>Authors</h2><div class="card">${hbars(a.authors, 'author', 'docs')}</div>
+        <h2>Hygiene</h2><div class="card">${a.issues.length ? hbars(a.issues, 'issue', 'docs') + '<div class="toolbar"><a href="#" data-view="issues">show affected documents</a></div>' : '<span class="muted">clean</span>'}</div></div>
+    </div>
+    <h2>Documents</h2>
+    <div class="toolbar"><select id="doc-view">${['all', 'recent', 'stale', 'issues', 'thin', 'drafts', 'unmapped', ...(a.pillars || []).map(p => 'pillar:' + p.id)].map(v => `<option ${v === CVIEW ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+      <input id="doc-q" type="text" placeholder="filter by path, title or tag" size="30"><span class="muted" id="doc-count"></span></div>
+    <div class="wrap"><table><thead><tr><th>document</th><th>section</th><th>published</th><th>updated</th><th class="num">age</th><th class="num">words</th><th>tags</th><th>issues</th></tr></thead><tbody id="doc-rows"><tr><td colspan="8" class="muted">loading…</td></tr></tbody></table></div>
+    <pre class="log" id="brief-out" hidden style="margin-top:12px"></pre>`;
+  bindRunButtons('#content-site');
+  bindContentSite(a);
+  loadDocs(a);
+}
+
+async function planWrite(path, method, body, okMsg) {
+  try { const r = await api(path, { method, body: JSON.stringify(body) }); toast(okMsg);
+    await renderContent();
+    const d = $('#plan-diff'); if (d && r.diff) { d.hidden = false; d.textContent = '_data/editorial.yml in the working tree — commit it to make it the record:\n\n' + r.diff; }
+  } catch (e) { toast(e.message, true); }
+}
+function bindContentSite(a) {
+  const site = a.site, host = $('#content-site');
+  host.querySelectorAll('[data-decide]').forEach(b => b.onclick = () => planWrite('/api/editorial/decision', 'POST', { site, action: b.dataset.decide, key: b.dataset.key }, `${b.dataset.decide === 'approve' ? 'approved' : 'rejected'}: ${b.dataset.key}`));
+  host.querySelectorAll('[data-move]').forEach(b => b.onclick = () => { const m = b.dataset.move;
+    planWrite('/api/editorial/decision', 'POST', m === 'remove' ? { site, action: 'remove', key: b.dataset.key } : { site, action: 'status', key: b.dataset.key, fields: { status: m } }, `${b.dataset.key} → ${m}`); });
+  host.querySelectorAll('[data-view]').forEach(x => x.onclick = e => { e.preventDefault(); CVIEW = x.dataset.view; const s = $('#doc-view'); if (s) s.value = CVIEW; loadDocs(a); $('#doc-view').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  $('#narr-edit').onclick = () => { $('#narr-view').hidden = true; $('#narr-form').hidden = false; };
+  $('#narr-cancel').onclick = () => { $('#narr-view').hidden = false; $('#narr-form').hidden = true; };
+  $('#narr-save').onclick = () => planWrite(`/api/editorial/${encodeURIComponent(site)}`, 'PUT', { fields: { narrative: $('#narr-text').value, audience: $('#narr-aud').value, voice: $('#narr-voice').value } }, 'narrative saved');
+  const ts = $('#targets-save'); if (ts) ts.onclick = async () => {
+    const inputs = [...host.querySelectorAll('input[data-pillar]')], changed = inputs.filter(i => { const p = a.pillars.find(x => x.id === i.dataset.pillar); const cur = p.target_share == null ? '' : String(Math.round(100 * p.target_share)); return i.value !== cur; });
+    if (!changed.length) { toast('no target changed'); return; }
+    for (const i of changed.slice(0, -1)) { try { await api(`/api/editorial/${encodeURIComponent(site)}`, { method: 'PUT', body: JSON.stringify({ fields: { pillar: { id: i.dataset.pillar, target_share: i.value === '' ? null : Number(i.value) / 100 } } }) }); } catch (e) { toast(e.message, true); return; } }
+    const last = changed[changed.length - 1];
+    planWrite(`/api/editorial/${encodeURIComponent(site)}`, 'PUT', { fields: { pillar: { id: last.dataset.pillar, target_share: last.value === '' ? null : Number(last.value) / 100 } } }, `${changed.length} target(s) saved`); };
+  $('#pl-save').onclick = () => { const id = $('#pl-id').value.trim(); if (!id) { toast('a pillar needs an id', true); return; }
+    const csv = v => v.split(',').map(x => x.trim()).filter(Boolean), p = { id };
+    if ($('#pl-title').value.trim()) p.title = $('#pl-title').value.trim();
+    if ($('#pl-target').value !== '') p.target_share = Number($('#pl-target').value) / 100;
+    const m = { tags: csv($('#pl-tags').value), sections: csv($('#pl-sections').value), collections: csv($('#pl-colls').value), keywords: csv($('#pl-kw').value) };
+    if (Object.values(m).some(v => v.length)) p.match = m;
+    planWrite(`/api/editorial/${encodeURIComponent(site)}`, 'PUT', { fields: { pillar: p } }, `pillar ${id} saved`); };
+  $('#dir-add').onclick = () => { const title = $('#dir-title').value.trim(); if (!title) { toast('a directive needs a title', true); return; }
+    const key = 'human:' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+    planWrite('/api/editorial/decision', 'POST', { site, action: 'add', key, fields: { title, brief: $('#dir-brief').value, kind: $('#dir-kind').value, priority: $('#dir-prio').value, pillar: $('#dir-pillar').value || null } }, 'directive added'); };
+  $('#brief-btn').onclick = async () => { try { const b = await api(`/api/content/${encodeURIComponent(site)}/brief`); const o = $('#brief-out'); o.hidden = false; o.textContent = b.markdown; o.scrollIntoView({ behavior: 'smooth' }); } catch (e) { toast(e.message, true); } };
+  $('#doc-view').onchange = e => { CVIEW = e.target.value; loadDocs(a); };
+  let deb; $('#doc-q').oninput = () => { clearTimeout(deb); deb = setTimeout(() => loadDocs(a), 250); };
+}
+async function loadDocs(a) {
+  const rows = $('#doc-rows'); if (!rows) return;
+  const q = ($('#doc-q') || {}).value || '';
+  try {
+    const docs = await api(`/api/content/${encodeURIComponent(a.site)}/docs?view=${encodeURIComponent(CVIEW)}&q=${encodeURIComponent(q)}&limit=300`);
+    $('#doc-count').textContent = `${docs.length}${docs.length === 300 ? '+' : ''} shown`;
+    const link = p => a.repo ? `https://github.com/${a.repo}/blob/HEAD/${p.split('/').map(encodeURIComponent).join('/')}` : null;
+    rows.innerHTML = docs.map(d => `<tr class="${(d.issues || []).includes('frontmatter-invalid') ? 'bad' : (d.age || 0) > 365 ? 'flag' : ''}"><td>${link(d.path) ? `<a href="${link(d.path)}" target="_blank" rel="noopener">${esc(d.title || d.path)}</a>` : esc(d.title || d.path)}${d.draft ? ' ' + status('info', 'draft') : ''}<div class="muted" style="font-size:11.5px">${esc(d.path)}</div></td>
+      <td>${esc(d.section)}</td><td>${esc(d.date || '—')}</td><td>${esc(d.updated || '—')}</td><td class="num">${ago(d.age)}</td><td class="num">${fmt(d.words)}</td>
+      <td>${(d.tags || []).slice(0, 5).map(x => `<code>${esc(x)}</code>`).join(' ')}</td><td>${(d.issues || []).map(i => `<span class="status ${i === 'frontmatter-invalid' ? 'crit' : 'warn'}">${esc(i)}</span>`).join(' ')}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">no documents in this view</td></tr>';
+  } catch (e) { rows.innerHTML = `<tr><td colspan="8">${banner('crit', esc(e.message))}</td></tr>`; }
+}
+
 // ------------------------------------------------------------------ fleet
 function renderFleet() {
   const reg = STATE.registry.projects || [], inbox = STATE.triage.inbox || [], rot = STATE.rotation.tokens || [];
@@ -798,7 +1044,7 @@ async function renderAuth() {
 
 // ------------------------------------------------------------------ jobs
 function renderJobs() {
-  const groups = ['observe', 'plan', 'verify', 'lake', 'deploy'];
+  const groups = ['observe', 'plan', 'verify', 'lake', 'content', 'deploy'];
   $('#tab-jobs').innerHTML = `<div class="split"><div class="card ops"><h2>Run an operation</h2>
     <select id="op-select">${groups.map(g => `<optgroup label="${g}">${OPS.filter(o => o.group === g).map(o => `<option value="${o.id}">${esc(o.title)}</option>`).join('')}</optgroup>`).join('')}</select>
     <div id="op-params" style="margin:10px 0"></div><div class="toolbar"><button class="btn primary" id="op-run">▶ Run</button><span class="muted" id="op-desc"></span></div>
@@ -821,11 +1067,12 @@ function renderJobs() {
       local: `<label class="inl"><input id="p-local" type="checkbox"> include this machine's Claude Code sessions</label>`,
       dry_run: `<label class="inl"><input id="p-dry_run" type="checkbox" checked> dry run (preview only)</label>`,
       force: `<label class="inl"><input id="p-force" type="checkbox"> force (resend exported traces)</label>`,
+      no_fetch: `<label class="inl"><input id="p-no_fetch" type="checkbox"> local checkouts only (no clone/fetch)</label>`,
     })[k] || '').join(' '); };
   sel.onchange = () => paramsFor(sel.value); paramsFor(sel.value);
   $('#op-run').onclick = () => { const id = sel.value, params = {};
     ['days', 'target', 'artifacts', 'key', 'workflow', 'jobs', 'logs'].forEach(k => { const el = $('#p-' + k); if (el && el.value !== '') params[k] = el.value; });
-    ['upgrade', 'apply', 'local', 'dry_run', 'force'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
+    ['upgrade', 'apply', 'local', 'dry_run', 'force', 'no_fetch'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
     const f = $('#p-fields'); if (f && f.value.trim()) { params.fields = {}; f.value.split(',').forEach(kv => { const [k, ...v] = kv.split('='); if (k.trim()) params.fields[k.trim()] = v.join('=').trim(); }); }
     runOp(id, params); };
   bindRunButtons('#tab-jobs'); drawJobs();
@@ -842,6 +1089,7 @@ async function runOp(op, params) {
   const remote = o.remote_write && (params.apply === true || op === 'dispatch' || op === 'observe-reset');
   if (remote) {
     const detail = op === 'dispatch' ? `Dispatch ${params.workflow}.yml in GitHub Actions with ${JSON.stringify(params.fields || {})}`
+      : op === 'content-file' ? `${o.title} for ${params.target} — WITH --apply: this opens issues in that site's GitHub repo.`
       : op === 'observe-reset' ? `${o.title} — this DELETES every indexed log line and all five elk volumes. Actions logs can be re-shipped from the lake; container logs cannot.`
       : `${o.title} — WITH --apply: this opens pull requests / writes secrets in fleet repos.`;
     if (!confirm(detail + '\n\nContinue?')) return;
