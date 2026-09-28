@@ -29,6 +29,17 @@ Evidence base: 20 repos are byte-identical callers of the reusable `standard-ci.
 | UPS-QA-16 | SHOULD | app, site | The UX audit gate (FE-60) runs in CI for every UI surface. | CI step | `templates/ux-audit/` (gap) |
 | UPS-QA-17 | MUST | api | Contract tests: the OpenAPI document is generated in CI and diffed against the committed one; a breaking diff fails without a version bump (BE-30). | CI step | — |
 
+## Verification
+
+Tests prove the code; verification proves the product — by using it the way a person does. Evidence base: zer0-mistakes holds a feature registry (`features/features.yml`, 84 entries with tests/provenance) plus an evidence standard (`test/visual/evidence-kit.mjs`, `.github/skills/visual-evidence`: regression test + before/after screenshots per UI change); it-journey and barodybroject carry the same registry shape with 2–3 entries; cv-builder-pro documents features in prose only; every other repo has no index at all, so an agent entering it has no map of what it does or what proves it. The hub's `tools/issue-evidence.sh` already screenshots issue reproductions in a sandbox. The rows below make that one contract: an index every agent reads, scenarios both a runner and an agent execute, evidence linked back, graded fleet-wide at `/features/`.
+
+| id | level | applies | requirement | satisfied by | seed |
+| --- | --- | --- | --- | --- | --- |
+| UPS-QA-50 | MUST | site, app, api, cli, ext | A **feature index** `features/features.yml` (`schema: features/v1`; the legacy zer0/it-journey shape is accepted as-is) lists every user-facing capability with `surface`, `link`, `docs`, and the `tests` / `scenarios` / `evidence` that prove it; `{na: reason}` waives coverage explicitly. `tools/features_index.py check` validates it — bad or duplicate ids fail, dangling paths warn. | file present + valid | `templates/verify/` (`tools/fanout.sh --kit verify`) |
+| UPS-QA-51 | MUST | site, app | The **verify kit** is present: `verify/verify.yml` (how to run the app like a user), ≥1 `verify/scenarios/*.yml` user scenario (`scenario/v1`), `verify/runner.mjs`, and `.github/workflows/verify.yml` calling the reusable `fleet-verify.yml` (advisory until `gate: true`). zer0-mistakes' `test/visual/evidence-kit.mjs` + `visual-evidence` skill satisfy this as the precedent. | files present | `templates/verify/` |
+| UPS-QA-52 | SHOULD | site, app | Every PR that changes a user-visible surface ships **evidence**: a scenario that replays the user path plus `test/evidence/<slug>/` (screenshots at ≥2 viewports, `report.json`, a README saying what each image proves) linked from the feature entry — or the `skip-evidence` label with a reason. The `verify` label requests the Claude Code pass that drives the live app through the Playwright MCP; the workflow, never the agent, posts its report. | PR contents | `fleet-verify.yml` + the `verify-feature` skill |
+| UPS-QA-53 | SHOULD | site, app | Every implemented `surface: ui` feature is **covered** (≥1 test or scenario that exists on disk) and carries a `verified:` stamp (`date`, `by: agent\|human\|ci`, `run`); the fleet index (`_data/features_index.yml`, rendered at `/features/`) grades coverage from files, not claims, and lists the gaps as attention items. | `dash features coverage` | `verify/runner.mjs --stamp`, the agent pass |
+
 ## CI
 
 | id | level | applies | requirement | satisfied by | seed |

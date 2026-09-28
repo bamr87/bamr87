@@ -1,0 +1,140 @@
+{
+  "id": "roadmap",
+  "title": "Roadmap renders the backlog",
+  "features": [
+    "HUB-015"
+  ],
+  "path": "verify/scenarios/roadmap.yml",
+  "started": "2026-09-05T05:12:50.579Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/roadmap/",
+          "ok": true,
+          "ms": 700
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 21
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "FF-"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "roadmap",
+          "ok": true,
+          "file": "test/evidence/roadmap/desktop-roadmap.png",
+          "ms": 50
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/roadmap/desktop-roadmap.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/roadmap/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/roadmap/",
+          "ok": true,
+          "ms": 708
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 24
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "FF-"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "roadmap",
+          "ok": true,
+          "file": "test/evidence/roadmap/mobile-roadmap.png",
+          "ms": 23
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/roadmap/mobile-roadmap.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/roadmap/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-09-05T05:12:52.208Z",
+  "base": "http://127.0.0.1:4000"
+}

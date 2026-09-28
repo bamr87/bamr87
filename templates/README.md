@@ -70,7 +70,7 @@ The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK
 | `tests/` | 25 contract tests (`npm test`, `node:test`, no dependencies) — what stops a contract change breaking issues filed from ~25 repositories |
 | `feedback_types.yml` | Request-type taxonomy; type labels map onto the fleet issue-pipeline label set |
 | `page_feedback.yml` | No-JS twin: GitHub issue form with the same sections (→ `.github/ISSUE_TEMPLATE/`) |
-| `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `nextjs.tsx` (App Router `beforeInteractive` capture), `django.html` (Django; ERB equivalent for Rails) |
+| `adapters/` | `jekyll.html` (non-theme sites/MkDocs), `FeedbackButton.tsx` (React/Next), `django.html` (Django; ERB equivalent for Rails) |
 | `VERSION` | Kit provenance + changelog |
 
 ## `elk/`

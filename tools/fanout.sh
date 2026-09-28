@@ -96,6 +96,16 @@
 #                loopback-bound + env-overridable, no container_name, 127.0.0.1
 #                healthchecks, optional env_file. Like deps-latest it EDITS existing
 #                files — that is its purpose — and is idempotent (docs/DOCKER.md)
+#   verify       branch test/agent-verification; the AGENT VERIFICATION kit
+#                (templates/verify/, docs/VERIFICATION.md): features/
+#                features.yml scaffold (only when the repo has NO feature
+#                index of any shape), verify/verify.yml run config, a smoke
+#                user scenario, the Playwright runner + MCP config, the
+#                verify.yml caller of the reusable fleet-verify.yml, and the
+#                repo-local verify-feature skill + verifier agent (dedicated
+#                kit artifacts — the sanctioned exception to ".claude/ never
+#                fans out"). runner.mjs and verify.yml are upgradeable
+#                machine seeds (archive/<file>-<ver>.yml).
 #
 # --upgrade (every templated artifact, not just claude.yml):
 #   Each kit dir carries a VERSION and an archive/ of the shapes it has seeded
@@ -200,8 +210,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -248,6 +258,12 @@ case "$KIT" in
     COMMIT_MSG="build(docker): harmonize Docker configuration to the fleet standard"
     PR_TITLE="build(docker): harmonize Docker configuration to the fleet standard"
     PR_BODY="$(printf 'Automated by bamr87 docker-fanout (tools/fanout.sh --kit docker): brings this repo'"'"'s Dockerfiles and compose files to the fleet standard. Image versions come from one registry (bamr87/bamr87 `_data/fleet.yml` `images:`) — the variant (-alpine, -slim) is kept, a version is never lowered, and anything you marked deliberately pinned (a comment containing "pinned", "bump deliberately", "do not bump" or "fleet-pin") is left alone. Also: published ports become `127.0.0.1:${VAR:-<same port>}:<target>` (defaults unchanged, so nothing moves unless you set the variable), env values that hardcode a host port follow that variable, `container_name` is dropped unless a script references it, healthchecks probe 127.0.0.1 instead of localhost, a missing `.env` no longer stops `compose` from parsing, and the obsolete `version:` key goes.\n\n**A Postgres major bump orphans existing local volumes** — the new server refuses data written by an older major, and Postgres 18 also moved its data directory (the mount is rewritten for you). Dev data is disposable (`docker compose down -v`), or `pg_dumpall` first; `tools/dash dev db-upgrade` in the hub automates the dump/restore. Pin the image with a comment to opt out.\n\nReport-only items the kit does not auto-fix (root user, no HEALTHCHECK, no .dockerignore, single-stage builds) are listed in the run log. Idempotent: re-running on a converted repo is a no-op. See bamr87/bamr87 docs/DOCKER.md and specs/REPOSITORY.md (UPS-REPO-34..39).')"
+    ;;
+  verify)
+    BRANCH="test/agent-verification"
+    COMMIT_MSG="test: adopt the agent verification kit (feature index + user scenarios + evidence)"
+    PR_TITLE="test: adopt the agent verification kit"
+    PR_BODY="$(printf 'Automated by bamr87 verify-fanout (tools/fanout.sh --kit verify): seeds the fleet AGENT VERIFICATION standard — a feature index (features/features.yml, schema features/v1) every agent reads for what this product does and what proves it; verify/verify.yml (how to run the app like a user); a smoke user scenario + the Playwright runner (verify/runner.mjs → test/evidence/<id>/ screenshots + report.json); the Playwright MCP config; a thin verify.yml caller of the reusable fleet-verify.yml (scenarios on every PR, an OAuth Claude Code pass driving the live app on `verify`-labelled PRs — advisory until gate: true); and the repo-local verify-feature skill + verifier agent.\n\nAdditive-only — nothing the repo already has is overwritten. After merge: fill verify/verify.yml `app:` for this stack, `npm i -D @playwright/test yaml && npx playwright install --with-deps chromium`, replace the TODO feature entry, create the `verify` and `skip-evidence` labels. Coverage is graded fleet-wide at bamr87.github.io/bamr87/features/. See bamr87/bamr87 docs/VERIFICATION.md.')"
     ;;
 esac
 

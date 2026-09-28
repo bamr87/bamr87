@@ -1,0 +1,40 @@
+# =============================================================================
+# verify/verify.yml — how to run the DASH the way a user would
+# =============================================================================
+# kit: verify v0.1.0 — the hub practices what it seeds (templates/verify/).
+#
+# The dash is a Jekyll site (remote_theme bamr87/zer0-mistakes) published under
+# the /bamr87 project subpath. For verification it is built with an EMPTY
+# baseurl and served statically, so scenarios navigate to clean routes
+# (/dashboard/, /features/, …) exactly as they read on the nav — locally and in
+# fleet-verify.yml alike. Read by verify/runner.mjs, .github/workflows/
+# verify.yml (via fleet-verify.yml), and .claude/skills/verify-feature.
+#
+#   local:  bundle install && tools/dash verify            (builds + serves + runs)
+#           tools/dash verify --base http://127.0.0.1:4000/bamr87   (against `dash serve`)
+# =============================================================================
+schema: verify/v1
+
+app:
+  build: "bundle exec jekyll build --baseurl '' --quiet"
+  start: ""
+  static_dir: _site
+  url: http://127.0.0.1:4000
+  ready: /
+  timeout_s: 240
+  install: ""
+
+viewports:
+  desktop: { width: 1280, height: 800 }
+  tablet: { width: 768, height: 1024 }
+  mobile: { width: 390, height: 844 }
+
+features: features/features.yml
+scenarios: verify/scenarios
+evidence_dir: test/evidence
+
+agent:
+  entry_routes: ["/", "/dashboard/", "/features/"]
+  never:
+    - "follow links off 127.0.0.1 — the dash links to ~40 live repos and sites; verify THIS site"
+    - "dispatch workflows or edit GitHub state — the dash is read-only observation"
