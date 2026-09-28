@@ -842,7 +842,7 @@ containers:
   # run its own — that is the whole point, and it is what a 7.7 GiB Docker VM
   # can actually afford. `host` is the name to reach it by ON the fleet network.
   shared:
-    postgres: { host: db, port: 5432, image: postgres:15-alpine }
+    postgres: { host: db, port: 5432, image: postgres:18-alpine }
     redis: { host: redis, port: 6379, image: redis:7-alpine }
     phoenix: { host: phoenix, port: 6006, profile: traces }
 

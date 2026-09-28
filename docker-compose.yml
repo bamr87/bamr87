@@ -282,7 +282,6 @@ services:
 
   elasticsearch:
     image: elasticsearch:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false # loopback-only, never in CI — see the block comment above
@@ -325,7 +324,6 @@ services:
   # --------------------------------------------------------------------------
   logstash:
     image: logstash:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-logstash
     environment:
       - LS_JAVA_OPTS=-Xms${LS_HEAP:-256m} -Xmx${LS_HEAP:-256m}
       - ELASTIC_HOSTS=http://elasticsearch:9200
@@ -333,7 +331,7 @@ services:
     ports:
       - "127.0.0.1:${LOGSTASH_BEATS_PORT:-5044}:5044"      # beats input (Filebeat)
       - "127.0.0.1:${LOGSTASH_HTTP_PORT:-8088}:8088"       # http input (dash observe ship)
-      - "127.0.0.1:9600:9600"                              # node/pipeline API — the healthcheck target
+      - "127.0.0.1:${BAMR87_LOGSTASH_9600_PORT:-9600}:9600"                              # node/pipeline API — the healthcheck target
     volumes:
       - ./tools/observability/logstash/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
       - ./tools/observability/logstash/pipeline:/usr/share/logstash/pipeline:ro
@@ -364,7 +362,6 @@ services:
   # --------------------------------------------------------------------------
   kibana:
     image: kibana:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - SERVER_PUBLICBASEURL=http://127.0.0.1:${KIBANA_PORT:-5601}
@@ -408,7 +405,6 @@ services:
   # --------------------------------------------------------------------------
   filebeat:
     image: elastic/filebeat:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-filebeat
     user: root # needs to read /var/lib/docker/containers
     command: ['filebeat', '-e', '--strict.perms=false']
     volumes:
@@ -439,7 +435,6 @@ services:
   # --------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:${GRAFANA_VERSION:-12.4}
-    container_name: bamr87-grafana
     environment:
       - GF_SECURITY_ALLOW_EMBEDDING=true
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -486,7 +481,6 @@ services:
       com.bamr87.fleet.stack: data
     logging: *fleet-logging
     image: qdrant/qdrant:${QDRANT_VERSION:-v1.18.1}
-    container_name: bamr87-qdrant
     ports:
       - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
     volumes:
@@ -498,7 +492,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf \"GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q ready <&3'",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf \"GET /readyz HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q ready <&3'",
         ]
       interval: 15s
       timeout: 5s
@@ -594,7 +588,7 @@ services:
       <<: *fleet-labels
       com.bamr87.fleet.stack: postgres
     logging: *fleet-logging
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     environment:
       # The wiki's database stays the bootstrap database and its credentials
       # stay the superuser, because an existing db-data volume was initialised
@@ -609,7 +603,7 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
       FLEET_DB_PASSWORD: ${FLEET_DB_PASSWORD:-fleetdev}
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql
       # Runs once, on a FRESH volume: one database + role per project that
       # declares `database: true` in _data/projects.yml. `dash up` applies the
       # same list idempotently at runtime, so a volume that predates this
