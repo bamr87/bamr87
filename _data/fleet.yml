@@ -619,6 +619,44 @@ observability:
     endpoint: http://127.0.0.1:6006
     doc: docs/HARNESS-OPS.md
 
+  # ---- Code index: Qdrant, written by Kilo Code ----------------------------- #
+  # Not a fourth question. Logs/metrics/traces still answer what was said, how
+  # much, and what shape a run had. This is the store Kilo's semantic search
+  # writes, operated from the same `dash observe` front door so a down vector
+  # store or an uninitialized submodule is visible next to the other planes.
+  #
+  # The scanner walks this worktree. It skips a path segment named `.git`, not
+  # the tree beside it, so every checked-out submodule under projects/ is in
+  # the same index as the hub. An uninitialized submodule is an empty directory
+  # and is not indexed; `dash observe status` lists those paths. Opening a
+  # submodule as its own workspace does not inherit kilo.jsonc — that repo's
+  # git root is the submodule, and the hub does not write into it.
+  #
+  # The embedder is the Mac's own Ollama (`brew services start ollama`), not a
+  # container. Docker Ollama is too slow for embeddings, and this bench already
+  # OOM-killed Elasticsearch beside a second heavy container. kilo.jsonc must
+  # name the same two URLs and the same model; test_observe_contract.py fails
+  # otherwise. From inside the console, the probe uses host.docker.internal
+  # because 127.0.0.1 there is the container.
+  indexing:
+    engine: qdrant
+    # Kilo's client is @qdrant/js-client-rest 1.17.0 and refuses a server whose
+    # minor version differs by more than 1. `latest` was 1.19.1 and the scan
+    # never left "Starting workspace scan". Pin the image the client accepts.
+    qdrant_version: v1.18.1
+    qdrant: http://127.0.0.1:6333
+    embedder: http://127.0.0.1:11434
+    provider: ollama
+    model: nomic-embed-text
+    config: kilo.jsonc
+    # Analysis over the collection, not a second store. A hit below the floor
+    # is noise (a nonsense query scored ~0.55; real matches sat at 0.72+).
+    # `dash index harmonize` uses this floor to split projects that share a
+    # pattern from projects that do not.
+    analysis:
+      min_score: 0.66
+      limit: 40
+
   # ---- The portal: the Console's Observe tab ------------------------------- #
   # Saved-object ids are PINNED in the committed dashboards. Letting Kibana and
   # Grafana mint them at import would re-key every dashboard on every re-import
@@ -688,7 +726,7 @@ containers:
   #
   # Below 4010 is reserved for the hub itself: 4000 dash, 4001 console,
   # 3000 wiki, 5050 pgadmin, 5432 db, 6379 redis, 6006/4317 phoenix,
-  # 8001 mkdocs, 9200/5601/3001 the log plane.
+  # 8001 mkdocs, 9200/5601/3001 the log plane, 6333 the code index.
   ports:
     jekyll: [4010, 4039] # Jekyll/Ruby static sites
     livereload: [35730, 35759] # their livereload sidecars, allocated in step

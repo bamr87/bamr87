@@ -147,7 +147,7 @@ def test_observe_ops_argv_shapes_and_the_destructive_one_is_gated():
             continue
         raise AssertionError(f"accepted {bad}")
 
-    # The five services are NAMED, not left to the profile: a bare
+    # The elk services are NAMED, not left to the profile: a bare
     # `--profile elk up` also starts everything in the DEFAULT profile, so
     # "start the log plane" would bring up devenv, console, wiki and db too.
     up = core.build_argv("observe-up", {})[0]
@@ -176,6 +176,13 @@ def test_observe_ops_argv_shapes_and_the_destructive_one_is_gated():
         assert core.build_argv(oid, {})[1] is False, f"{oid} should not need a confirm"
 
 
+def test_index_query_refuses_an_empty_pattern():
+    doc = core.index_query("search", "  ")
+    assert doc["present"] is False
+    harm = core.index_query("harmonize", "")
+    assert harm["present"] is False
+
+
 def test_observability_document_degrades_instead_of_exploding():
     """A plane that is not running is the ORDINARY state — the stack is opt-in
     behind `--profile elk`. The tab has to render a Start button, so this
@@ -183,9 +190,11 @@ def test_observability_document_degrades_instead_of_exploding():
     import json
     doc = core.observe_status()
     assert doc["present"] is True, doc.get("error")
-    for plane in ("logs", "metrics", "traces"):
+    for plane in ("logs", "metrics", "traces", "indexing"):
         assert plane in doc["planes"], plane
         assert doc["planes"][plane]["url"], f"{plane} has no URL to link to"
+    assert doc["planes"]["indexing"]["submodules"]["declared"] > 0, \
+        "the code index has no submodule scope to report"
     assert isinstance(doc["datasets"], list)
     assert doc["disk_budget_gb"] > 0
     json.dumps(doc)          # the API returns it verbatim

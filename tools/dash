@@ -53,7 +53,8 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash ai run -- <args>${c_off}  run \`claude -p\` under the fleet.yml dollar cap, recording what it cost
-  ${c_bold}dash observe [up|down|ship|status|verify|open|reset]${c_off} the local LOG plane — \`up\` starts the elk profile (Elasticsearch/Logstash/Kibana/Filebeat + Grafana) and installs ILM + dashboards; \`ship\` replays the lake's Actions logs in as ECS documents; \`status\` reports all three planes; \`verify\` re-renders ILM/templates from _data/fleet.yml; \`open\` is the Console's Observe tab (docs/OBSERVABILITY.md)
+  ${c_bold}dash observe [up|down|ship|status|verify|open|reset]${c_off} the local LOG plane — \`up\` starts the elk profile (Elasticsearch/Logstash/Kibana/Filebeat + Grafana + Qdrant) and installs ILM + dashboards; \`ship\` replays the lake's Actions logs in as ECS documents; \`status\` reports the three planes and the Kilo code index; \`verify\` re-renders ILM/templates from _data/fleet.yml; \`open\` is the Console's Observe tab (docs/OBSERVABILITY.md)
+  ${c_bold}dash index [status|coverage|search|harmonize]${c_off} analyse the code index — \`coverage\` is chunks per submodule; \`search\` is semantic search above the contract floor; \`harmonize\` lists which projects share a pattern and which do not (docs/OBSERVABILITY.md)
   ${c_bold}dash up [names…|--group G|--all]${c_off} start the shared container plane (workspace, console, one Postgres, one Redis on the \`fleet\` network), then each named submodule as its OWN compose project with a generated port/network override — the fleet runs as many projects, not one (docs/CONTAINERS.md)
   ${c_bold}dash down [--all] [-v]${c_off} stop the core, or every project too; \`-v\` also drops volumes
   ${c_bold}dash ps${c_off}               what is running fleet-wide, and who is on the shared network
@@ -358,12 +359,15 @@ cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
 #   dash observe verify    re-render ILM/templates from fleet.yml and diff
 #   dash observe open      the Harness Console's Observe tab — the one front door
 #   dash observe reset     destroy the indices and volumes (asks first)
-# The five services are NAMED rather than left to the profile: a bare
+# The services are NAMED rather than left to the profile: a bare
 # `--profile elk up` also starts everything in the DEFAULT profile (devenv,
 # console, wiki, db…), so "start the log plane" would quietly start the whole
 # bench and fight for its ports. test_observe_contract.py holds this list equal
-# to the profile's membership.
-ELK_SERVICES=(elasticsearch logstash kibana filebeat grafana)
+# to the profile's membership. qdrant is the Kilo code index; it starts here
+# so status can see it, and it is labelled so Filebeat ships its logs.
+ELK_SERVICES=(elasticsearch logstash kibana filebeat grafana qdrant)
+
+cmd_index() { "${TOOLS}/dash-gen" index "$@"; }
 
 cmd_observe() {
   local sub="${1:-status}"; shift || true
@@ -386,11 +390,11 @@ cmd_observe() {
       # Destructive, and NARROWLY so. `docker compose down -v` would remove
       # every named volume in the file — db-data, wiki-data, phoenix-data
       # included — which is not what "reset the log plane" can be allowed to
-      # mean. So: remove the five containers, then the five volumes BY NAME.
+      # mean. So: remove the elk containers, then their volumes BY NAME.
       cd "$ROOT" || return 1
       local answer="${1:-}"
       if [[ "$answer" != "--yes" ]]; then
-        printf 'Destroy every indexed log line and the 5 elk volumes? [y/N] '
+        printf 'Destroy the log indices, the code index, and the 6 elk volumes? [y/N] '
         read -r answer
         [[ "$answer" == [yY]* ]] || { echo "aborted"; return 1; }
       fi
@@ -402,7 +406,7 @@ cmd_observe() {
         echo "could not resolve the compose project name — volumes left alone" >&2
         return 1
       fi
-      for vol in es-data logstash-data kibana-data filebeat-data grafana-data; do
+      for vol in es-data logstash-data kibana-data filebeat-data grafana-data qdrant-data; do
         docker volume rm -f "${proj}_${vol}" >/dev/null 2>&1 \
           && echo "  removed ${proj}_${vol}" || true
       done
@@ -582,6 +586,7 @@ main() {
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
     observe) cmd_observe "$@" ;;
+    index)   cmd_index "$@" ;;
     up)      cmd_up "$@" ;;
     down)    cmd_down "$@" ;;
     ps)      cmd_ps "$@" ;;

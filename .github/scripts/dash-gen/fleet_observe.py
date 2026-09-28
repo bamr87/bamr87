@@ -5,7 +5,10 @@ fleet_observe — the LOG plane: ship, render, verify, report.
 Three planes run on the local bench and each has one job. Phoenix holds traces
 (shape, latency and cost of an agent run). Grafana draws trends. THIS module
 owns logs: the raw text of what the fleet's CI and containers actually said,
-indexed in Elasticsearch and searchable in Kibana.
+indexed in Elasticsearch and searchable in Kibana. It also reports the Kilo
+code index (Qdrant + submodule checkout) from the same status path — that
+store is not a fourth question, it is the semantic index the Observe tab
+shows next to the other three.
 
 Two halves, split on network — the same division harness_registry.py uses, and
 for the same reason: everything that decides anything is a pure function over
@@ -104,6 +107,7 @@ def load_contract(fleet_path: Path | str | None = None) -> dict:
     obs["logs"] = logs
     obs.setdefault("metrics", {})
     obs.setdefault("traces", {})
+    obs.setdefault("indexing", {})
     obs.setdefault("portal", {})
     return obs
 
@@ -603,7 +607,10 @@ def _post_json(url: str, payload, timeout: int = 60) -> tuple[bool, str]:
 # is service DNS, PHOENIX_UI_URL is loopback); these are the same split for the
 # other two planes, and compose sets them on the services that do the probing.
 PROBE_ENV = {"elasticsearch": "ES_URL", "kibana": "KIBANA_URL",
-             "grafana": "GRAFANA_URL", "phoenix": "PHOENIX_COLLECTOR_ENDPOINT"}
+             "grafana": "GRAFANA_URL", "phoenix": "PHOENIX_COLLECTOR_ENDPOINT",
+             "qdrant": "QDRANT_URL", "ollama": "OLLAMA_URL"}
+
+_GITMODULES_PATH = re.compile(r"^\s*path\s*=\s*(\S+)\s*$", re.M)
 
 
 def probe_url(service: str, browser_url: str) -> str:
@@ -636,17 +643,88 @@ def registry_index(path: Path | str | None = None) -> dict:
     return out
 
 
+def submodule_paths(root: Path | str | None = None) -> list[str]:
+    """Paths declared in .gitmodules. The indexer's scope, not a second workspace."""
+    path = Path(root or REPO_ROOT) / ".gitmodules"
+    try:
+        text = path.read_text()
+    except OSError:
+        return []
+    return _GITMODULES_PATH.findall(text)
+
+
+def submodule_coverage(root: Path | str | None = None) -> dict:
+    """Which submodule working trees the workspace scan can actually see.
+
+    Kilo's scanner walks the worktree and skips a path segment named `.git`,
+    not the tree beside it. A checked-out submodule is therefore in the same
+    index as the hub. An uninitialized one is an empty directory and is not.
+    """
+    root = Path(root or REPO_ROOT)
+    declared = submodule_paths(root)
+    empty = []
+    checked = 0
+    for rel in declared:
+        path = root / rel
+        if not path.is_dir():
+            empty.append(rel)
+            continue
+        try:
+            populated = any(child.name != ".git" for child in path.iterdir())
+        except OSError:
+            empty.append(rel)
+            continue
+        if populated:
+            checked += 1
+        else:
+            empty.append(rel)
+    return {"declared": len(declared), "checked_out": checked, "empty": empty}
+
+
+def kilo_index_config(root: Path | str | None = None) -> dict:
+    """The `indexing` object Kilo reads. Strict JSON so a comment cannot hide a drift."""
+    path = Path(root or REPO_ROOT) / "kilo.jsonc"
+    try:
+        doc = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    indexing = doc.get("indexing")
+    return indexing if isinstance(indexing, dict) else {}
+
+
+def _qdrant_collections(base: str) -> list[dict] | None:
+    """Point counts per collection. None means the store did not answer."""
+    listed = _get_json(f"{base}/collections")
+    if not listed:
+        return None
+    names = [c.get("name") for c in ((listed.get("result") or {}).get("collections") or [])
+             if c.get("name")]
+    out = []
+    for name in names:
+        detail = _get_json(f"{base}/collections/{name}") or {}
+        result = detail.get("result") or {}
+        out.append({"name": name, "points": result.get("points_count"),
+                    "status": result.get("status")})
+    return out
+
+
 def plane_status(contract: dict) -> dict:
     """Per-plane reachability + identity. Never raises: a plane that is down is
     a document saying so, which is what lets the console render a Start button
     instead of a 500."""
     logs, metrics, traces = contract["logs"], contract.get("metrics") or {}, contract.get("traces") or {}
+    indexing = contract.get("indexing") or {}
     es_url, kibana_url = logs["elasticsearch"], logs["kibana"]
     grafana_url = metrics.get("grafana") or ""
     phoenix_url = traces.get("endpoint") or ""
+    qdrant_url = indexing.get("qdrant") or ""
+    embedder_url = indexing.get("embedder") or ""
     # Probe one address, report the other: `url` is what the browser gets.
     es_probe = probe_url("elasticsearch", es_url)
     health = _get_json(f"{es_probe}/_cluster/health")
+    qdrant_probe = probe_url("qdrant", qdrant_url) if qdrant_url else ""
+    collections = _qdrant_collections(qdrant_probe) if qdrant_probe else None
+    embedder_probe = probe_url("ollama", embedder_url) if embedder_url else ""
     return {
         "logs": {
             "engine": logs.get("engine", "elastic"),
@@ -666,6 +744,19 @@ def plane_status(contract: dict) -> dict:
             "engine": traces.get("engine", "phoenix"),
             "url": phoenix_url,
             "reachable": reachable(probe_url("phoenix", phoenix_url)) if phoenix_url else False,
+        },
+        "indexing": {
+            "engine": indexing.get("engine", "qdrant"),
+            "url": qdrant_url,
+            "embedder": embedder_url,
+            "provider": indexing.get("provider"),
+            "model": indexing.get("model"),
+            "reachable": collections is not None,
+            "embedder_reachable": reachable(f"{embedder_probe}/api/tags") if embedder_probe else False,
+            "collections": collections or [],
+            "points": sum((c.get("points") or 0) for c in (collections or [])),
+            "submodules": submodule_coverage(),
+            "configured": bool(kilo_index_config().get("enabled")),
         },
     }
 
@@ -782,6 +873,15 @@ def cmd_status(args) -> int:
     for name, plane in planes.items():
         mark = "ok " if plane["reachable"] else "DOWN"
         print(f"  [{mark}] {name:8} {plane['engine']:<10} {plane['url']}")
+    idx = planes.get("indexing") or {}
+    subs = idx.get("submodules") or {}
+    if subs:
+        print(f"  index scope  {subs.get('checked_out', 0)}/{subs.get('declared', 0)} "
+              f"submodules checked out, embedder {'up' if idx.get('embedder_reachable') else 'down'}"
+              f" ({idx.get('model') or 'unset'})")
+        empty = subs.get("empty") or []
+        if empty:
+            print(f"  not checked out: {', '.join(empty)}")
     if doc["datasets"]:
         print()
         for d in doc["datasets"]:

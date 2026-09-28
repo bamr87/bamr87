@@ -85,6 +85,7 @@ import engagements
 import evolution
 import fleet_compose
 import fleet_lake
+import fleet_index
 import fleet_observe
 import fleet_triage
 import harness
@@ -524,11 +525,18 @@ def main(argv: list[str] | None = None) -> int:
     p_observe = sub.add_parser(
         "observe",
         help="the local LOG plane: `ship` replays the lake's Actions logs into Logstash as ECS "
-             "documents, `status` reports all three planes and the dataset sizes, `verify` renders "
+             "documents, `status` reports the three planes, the Kilo code index and the dataset sizes, `verify` renders "
              "ILM + index templates from _data/fleet.yml and diffs the committed files "
              "(local-only; never committed, never in CI)",
     )
     fleet_observe.add_arguments(p_observe)
+
+    p_index = sub.add_parser(
+        "index",
+        help="analyse the Kilo code index: coverage, semantic search, and which submodules "
+             "share a pattern (local Qdrant + native Ollama; never committed)",
+    )
+    fleet_index.add_arguments(p_index)
 
     p_remediate = sub.add_parser(
         "remediate",
