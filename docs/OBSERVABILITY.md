@@ -121,6 +121,16 @@ Two things make the embeds work, and both fail the same silent way when wrong �
 
 Grafana runs with an anonymous **Viewer** so an embed does not have to complete a login across origins, and on port **3001** because the wiki has owned 3000 since before this plane existed.
 
+## The code index
+
+Kilo Code's codebase index is a local store, not a fourth question. Logs, metrics and traces still answer what was said, how much, and what shape a run had. The index answers a different one — *where is the code that means this* — and it is operated from the same front door so a missing submodule or a down vector store is visible next to the other planes instead of as a silent empty search.
+
+`kilo.jsonc` turns indexing on for this worktree. The scanner walks the filesystem and skips a path segment named `.git`, not the tree beside it, so every checked-out submodule under `projects/` is in the same index as the hub. An uninitialized submodule is an empty directory and is not indexed; `dash observe status` lists those paths. Opening a submodule as its own workspace does not inherit this file — that repo's git root is the submodule, and the hub does not write into it.
+
+The same collection is what the harness searches when it needs to harmonize the fleet, not a second copy in Elasticsearch. `tools/dash index status` reports coverage and the scanner's blind spots. `tools/dash index search` is semantic search with hits below `observability.indexing.analysis.min_score` dropped. `tools/dash index harmonize <pattern>` embeds the pattern once and takes the best hit inside each submodule, so a project that does not clear the floor is a gap rather than a victim of some other repo filling the top-k window. The Observe tab's Index pane draws the same three views. A nonsense query scored about 0.55 and real matches sat at 0.72 and above, which is why the floor is 0.66 and not the client's default of 0.4.
+
+The vector store is Qdrant, started by `tools/dash observe up` with the elk profile, bound to `127.0.0.1:6333`, and labelled so Filebeat ships its logs into `logs-fleet.container-default`. The image is pinned (`observability.indexing.qdrant_version`) because Kilo's client is 1.17.0 and refuses a server more than one minor away — `latest` was 1.19.1 and the scan never started. The embedder is native Ollama on the Mac (`brew services start ollama`, model `nomic-embed-text`), not a container — Docker Ollama is too slow for embeddings, and this bench already OOM-killed Elasticsearch beside a second heavy container. `kilo.jsonc` and `_data/fleet.yml` `observability.indexing` both name that URL and model; `test_observe_contract.py` fails when they do not. From inside the console container the embedder is reached at `host.docker.internal:11434`, because `127.0.0.1` there is the container. The scan itself starts when Kilo opens this workspace, not when the stack comes up.
+
 ## Per-repo: emit, ship, standalone
 
 The hub runs one stack; every repo is a producer. The [`templates/elk/`](../templates/elk/README.md) kit is that half, fanned out additively like every other:
@@ -144,7 +154,9 @@ Standalone mode (`compose.elk.yml`) is deliberately simpler than the hub's — n
 | Kibana `:5601` | `fleet-ci` (failing steps + the agent runs behind them), `fleet-local` (container and app logs) |
 | Grafana `:3001` | `fleet-logs` — volume and error rate by repo, agent spend by model, CI failures by workflow |
 | Phoenix `:6006` | The trace tree for any `trace.id` seen in the other two |
-| `tools/dash observe status` | The same numbers without a browser |
+| `tools/dash observe status` | The same numbers without a browser, plus whether Qdrant is up and which submodules are checked out |
+| `tools/dash index harmonize` | Which submodules share a pattern, and which do not — the harness gap list |
+| Harness Console `:4001` → **Observe** → **Index** | Store health, coverage bars, semantic search, and the harmonize gap list |
 
 Nothing appears on the Pages dash. The committed `_data/*.yml` aggregates stay the published surface; raw logs stay here.
 
@@ -152,7 +164,8 @@ Nothing appears on the Pages dash. The committed `_data/*.yml` aggregates stay t
 
 | Path | What |
 | --- | --- |
-| [`_data/fleet.yml`](../_data/fleet.yml) `observability:` | The contract — retention, datasets, redaction prefixes, portal ids, image versions |
+| [`_data/fleet.yml`](../_data/fleet.yml) `observability:` | The contract — retention, datasets, redaction prefixes, portal ids, image versions, and the code-index URLs |
+| [`kilo.jsonc`](../kilo.jsonc) | Kilo Code indexing for this worktree. URLs and model must agree with `observability.indexing` |
 | [`tools/observability/`](../tools/observability/) | Logstash pipelines, the Filebeat config, and the rendered ES/Kibana/Grafana objects |
 | [`.github/scripts/dash-gen/fleet_observe.py`](../.github/scripts/dash-gen/fleet_observe.py) | Shipper, ECS mappers, renderers, status |
 | [`.github/scripts/dash-gen/fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py) | `iter_log_entries()` and the `shipments` ledger |

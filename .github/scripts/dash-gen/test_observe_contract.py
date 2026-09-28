@@ -86,7 +86,9 @@ def _env(svc: dict) -> dict:
 # the profile exists and is shaped like the rest of the file
 # --------------------------------------------------------------------------- #
 def test_the_elk_profile_holds_the_whole_stack():
-    assert set(ELK) == {"elasticsearch", "logstash", "kibana", "filebeat", "grafana"}, sorted(ELK)
+    assert set(ELK) == {
+        "elasticsearch", "logstash", "kibana", "filebeat", "grafana", "qdrant",
+    }, sorted(ELK)
 
 
 def test_the_cli_and_the_console_name_exactly_the_profile_members():
@@ -161,6 +163,7 @@ def test_published_ports_match_the_urls_in_the_contract():
         "elasticsearch": CONTRACT["logs"]["elasticsearch"],
         "kibana": CONTRACT["logs"]["kibana"],
         "grafana": CONTRACT["metrics"]["grafana"],
+        "qdrant": CONTRACT["indexing"]["qdrant"],
     }
     for name, url in want.items():
         port = url.rsplit(":", 1)[1]
@@ -292,7 +295,9 @@ def test_probing_services_get_service_dns_not_loopback():
     the rest of the planes, and the services that probe must carry them.
     """
     want = {"ES_URL": "http://elasticsearch:9200", "KIBANA_URL": "http://kibana:5601",
-            "GRAFANA_URL": "http://grafana:3000", "LOGSTASH_URL": "http://logstash:8088"}
+            "GRAFANA_URL": "http://grafana:3000", "LOGSTASH_URL": "http://logstash:8088",
+            "QDRANT_URL": "http://qdrant:6333",
+            "OLLAMA_URL": "http://host.docker.internal:11434"}
     for svc in ("console", "devenv"):
         env = _env(SERVICES[svc])
         for name, url in want.items():
@@ -315,6 +320,47 @@ def test_probing_services_get_service_dns_not_loopback():
             os.environ["GRAFANA_URL"] = old
     # With nothing set, the contract URL is the answer — the native case.
     assert fo.probe_url("kibana", "http://127.0.0.1:5601") == "http://127.0.0.1:5601"
+
+
+def test_qdrant_is_labelled_and_the_shipper_stack_is_not():
+    """A labelled shipper ships its own output. That is a feedback loop.
+
+    qdrant is a producer that happens to start with the profile, so it is
+    labelled and its logs land in the container dataset. The five services
+    that ARE the plane stay unlabelled.
+    """
+    shipper = {"elasticsearch", "logstash", "kibana", "filebeat", "grafana"}
+    for name in shipper:
+        labels = ELK[name].get("labels") or {}
+        assert "com.bamr87.fleet.project" not in labels, f"{name} would ship its own output"
+    labels = ELK["qdrant"].get("labels") or {}
+    assert labels.get("com.bamr87.fleet.project") == "bamr87", labels
+    assert ELK["qdrant"].get("logging", {}).get("driver") == "json-file"
+
+
+def test_kilo_indexing_agrees_with_the_contract_and_includes_submodules():
+    """Two copies of the same URLs: what Kilo reads, and what observe status probes.
+
+    A drifted URL is an index that writes somewhere status never looks, which
+    presents as an empty search and a green vector store. The scanner includes
+    submodule working trees by walking the worktree — so the config must not
+    exclude projects/, and status must be able to name every declared path.
+    """
+    cfg = json.loads((REPO_ROOT / "kilo.jsonc").read_text())["indexing"]
+    contract = CONTRACT["indexing"]
+    assert cfg["enabled"] is True
+    assert cfg["provider"] == contract["provider"]
+    assert cfg["model"] == contract["model"]
+    assert cfg["vectorStore"] == "qdrant"
+    assert cfg["qdrant"]["url"] == contract["qdrant"]
+    assert f":-{contract['qdrant_version']}}}" in ELK["qdrant"]["image"], ELK["qdrant"]["image"]
+    assert ENV.get("QDRANT_VERSION") == contract["qdrant_version"]
+    assert cfg["ollama"]["baseUrl"] == contract["embedder"]
+    assert "projects/" not in (REPO_ROOT / ".gitignore").read_text()
+    assert not (REPO_ROOT / ".kilocodeignore").exists()
+    coverage = fo.submodule_coverage(REPO_ROOT)
+    assert coverage["declared"] > 0
+    assert coverage["declared"] == coverage["checked_out"] + len(coverage["empty"])
 
 
 # --------------------------------------------------------------------------- #
