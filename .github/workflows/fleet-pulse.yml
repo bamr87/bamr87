@@ -95,15 +95,44 @@ jobs:
       cross_repo_count: ${{ steps.remediate.outputs.cross_repo_count }}
       publish_mode: ${{ steps.publish.outputs.mode }}
     env:
-      # One resolution of the token chain, reused by every step below. Secrets
-      # can't be referenced from a step `if:`, so presence is surfaced as plain
-      # env where a step needs to branch on it.
-      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
+      # GH_TOKEN is NOT set here: the `token` step below exports the first
+      # credential the API actually accepts. A presence chain
+      # (`FLEET_TOKEN || … || GITHUB_TOKEN`) picks an EXPIRED FLEET_TOKEN over a
+      # working fallback — from 2026-09-27 every gather step got 401 on all 43
+      # repos, wrote zeros, and the run still went green.
       DAYS: ${{ inputs.days || '14' }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup/dash-gen
+
+      # Probe, never presence-check (CLAUDE.md standing rule). PATs answer
+      # `gh api user`; GITHUB_TOKEN is an installation token that cannot, so it
+      # is the unprobed last resort — it still reads the hub and public repos,
+      # which makes a degraded snapshot partial rather than blind.
+      - name: Resolve a working fleet token
+        id: token
+        env:
+          T_FLEET: ${{ secrets.FLEET_TOKEN }}
+          T_ANALYTICS: ${{ secrets.ACTIONS_ANALYTICS_TOKEN }}
+          T_DAILY: ${{ secrets.DAILY_ANALYSIS_TOKEN }}
+          T_DEFAULT: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chosen=""
+          for name in T_FLEET T_ANALYTICS T_DAILY; do
+            val="${!name}"
+            [ -n "$val" ] || continue
+            if GH_TOKEN="$val" gh api user --jq .login >/dev/null 2>&1; then
+              chosen="$name"; break
+            fi
+            echo "::warning::${name#T_} token is set but rejected by the API (expired or revoked) — trying the next one."
+          done
+          if [ -z "$chosen" ]; then
+            chosen=T_DEFAULT
+            echo "::error::No fleet PAT is accepted by the API — falling back to GITHUB_TOKEN (hub + public repos only). Re-mint FLEET_TOKEN (docs/TOKEN-ROTATION.md)."
+          fi
+          echo "GH_TOKEN=${!chosen}" >> "$GITHUB_ENV"
+          echo "source=${chosen#T_}" >> "$GITHUB_OUTPUT"
 
       # --- gather ---------------------------------------------------------
       # Each signal is independent; `continue-on-error` keeps one degraded API
@@ -159,6 +188,8 @@ jobs:
           {
             echo "### 🩺 Fleet pulse — signal gathering"
             echo ""
+            echo "Token: \`${{ steps.token.outputs.source }}\`"
+            echo ""
             echo "| Signal | Result |"
             echo "| --- | --- |"
             echo "| Actions analytics | ${{ steps.g_actions.outcome }} |"
@@ -201,7 +232,8 @@ jobs:
           # commits, unsigned commit). A repo-owner PAT can be granted ruleset
           # bypass; `GITHUB_TOKEN` cannot be. If both are refused the action
           # still reports `mode=failed` rather than failing the job.
-          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          # …but only a FLEET_TOKEN the probe above accepted: a dead one fails route 2.
+          token: ${{ steps.token.outputs.source == 'FLEET' && secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
 
       # --- triage ---------------------------------------------------------
       # Runs AFTER publishing so the queue is built from exactly the data that
