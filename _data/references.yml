@@ -81,3 +81,13 @@
   path: tools/issue-evidence.sh
   reference_for: [UPS-OPS-12, UPS-OPS-24]
   note: Redaction list for token prefixes; never executes commands from issue bodies.
+- name: Feature registry + visual evidence standard
+  repo: zer0-mistakes
+  path: features/features.yml, test/visual/evidence-kit.mjs, test/visual/evidence/, .github/skills/visual-evidence/SKILL.md
+  reference_for: [UPS-QA-50, UPS-QA-51, UPS-QA-52, UPS-QA-53]
+  note: The precedent the verify kit was lifted from — 84-entry feature index with tests + provenance, before/after screenshot montages with measured overflow, evidence as a PR requirement (auto-merge eligibility). Links its evidence dirs from the feature entries next.
+- name: Minimal feature index
+  repo: it-journey
+  path: features/features.yml
+  reference_for: [UPS-QA-50]
+  note: The smallest valid index (id/title/description/implemented/link/tags/date); features/v1 is a strict superset, so it validates unchanged.

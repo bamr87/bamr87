@@ -1,0 +1,13 @@
+# Engagements — per-client estimates and actuals.
+id: engagements
+feature: HUB-016
+title: "Engagements page renders estimates and actuals"
+description: "The /engagements/ page renders the ledger from _data/engagements.yml with per-client rollups; tables scroll inside their own container on mobile."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /engagements/
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: engagements

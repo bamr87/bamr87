@@ -1,0 +1,19 @@
+# The fleet features index — this loop's own surface.
+id: features
+feature: HUB-007
+title: "Fleet features index lists every repo's features with coverage"
+description: "The /features/ page renders the totals, the attention list, and one section per repo with its features, their docs/tests/scenarios/evidence links, and the verified stamp; the hub's own entries are present."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /features/
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { text: "HUB-007" }
+  - expect: { count: { selector: "main table", min: 1 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: features
+  - expect: { count: { selector: "a[href='#repo-zer0-mistakes']", min: 1 } }
+  - goto: /features/#repo-zer0-mistakes
+  - expect: { visible: "#repo-zer0-mistakes" }
+  - screenshot: features-repo

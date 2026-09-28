@@ -28,7 +28,6 @@
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
-#   tools/fanout.sh --kit feedback --target <name|all> [--apply] [--upgrade]
 #
 # Kits:
 #   standardize  branch chore/standardize-baseline; artifacts (default
@@ -86,6 +85,16 @@
 #                deletes + gitignores lockfiles, npm ci → npm install,
 #                lockfile-keyed caches removed, action tags floated to @major
 #                (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md)
+#   verify       branch test/agent-verification; the AGENT VERIFICATION kit
+#                (templates/verify/, docs/VERIFICATION.md): features/
+#                features.yml scaffold (only when the repo has NO feature
+#                index of any shape), verify/verify.yml run config, a smoke
+#                user scenario, the Playwright runner + MCP config, the
+#                verify.yml caller of the reusable fleet-verify.yml, and the
+#                repo-local verify-feature skill + verifier agent (dedicated
+#                kit artifacts — the sanctioned exception to ".claude/ never
+#                fans out"). runner.mjs and verify.yml are upgradeable
+#                machine seeds (archive/<file>-<ver>.yml).
 #
 # --upgrade (every templated artifact, not just claude.yml):
 #   Each kit dir carries a VERSION and an archive/ of the shapes it has seeded
@@ -232,6 +241,12 @@ case "$KIT" in
     COMMIT_MSG="build(deps): adopt fleet always-latest dependency policy"
     PR_TITLE="build(deps): always-latest dependencies — drop pins and lockfiles"
     PR_BODY="Automated by bamr87 deps-fanout (tools/fanout.sh --kit deps-latest): adopts the fleet's ALWAYS-LATEST dependency policy — strips exact version pins from package.json/requirements*.txt/Gemfile, deletes and gitignores lockfiles, floats GitHub Actions on their major tags, and adapts CI installs (npm ci → npm install; lockfile-keyed caches removed). Every install now resolves the newest published versions; breakage surfaces in CI and is triaged by the hub's daily fleet-pulse loop. Follow-ups the script won't automate (pyproject/poetry/Pipfile tables, hash-pinned requirements, npm overrides) are listed in the run log. See bamr87/bamr87 docs/DEPENDENCIES.md."
+    ;;
+  verify)
+    BRANCH="test/agent-verification"
+    COMMIT_MSG="test: adopt the agent verification kit (feature index + user scenarios + evidence)"
+    PR_TITLE="test: adopt the agent verification kit"
+    PR_BODY="$(printf 'Automated by bamr87 verify-fanout (tools/fanout.sh --kit verify): seeds the fleet AGENT VERIFICATION standard — a feature index (features/features.yml, schema features/v1) every agent reads for what this product does and what proves it; verify/verify.yml (how to run the app like a user); a smoke user scenario + the Playwright runner (verify/runner.mjs → test/evidence/<id>/ screenshots + report.json); the Playwright MCP config; a thin verify.yml caller of the reusable fleet-verify.yml (scenarios on every PR, an OAuth Claude Code pass driving the live app on `verify`-labelled PRs — advisory until gate: true); and the repo-local verify-feature skill + verifier agent.\n\nAdditive-only — nothing the repo already has is overwritten. After merge: fill verify/verify.yml `app:` for this stack, `npm i -D @playwright/test yaml && npx playwright install --with-deps chromium`, replace the TODO feature entry, create the `verify` and `skip-evidence` labels. Coverage is graded fleet-wide at bamr87.github.io/bamr87/features/. See bamr87/bamr87 docs/VERIFICATION.md.')"
     ;;
 esac
 
