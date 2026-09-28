@@ -210,10 +210,28 @@ def lake_review(days: int = Query(default=30, ge=1, le=3650),
     return core.lake_review(days, repo, limit)
 
 
+@app.get("/api/index/coverage", dependencies=[Depends(require_token)])
+def index_coverage() -> dict:
+    """Chunk counts per submodule, plus scanner blind spots (dot-directories)."""
+    return core.index_coverage()
+
+
+@app.get("/api/index/search", dependencies=[Depends(require_token)])
+def index_search(q: str = Query(default="", max_length=500)) -> dict:
+    """Semantic search over the code index, hits below the contract floor dropped."""
+    return core.index_query("search", q)
+
+
+@app.get("/api/index/harmonize", dependencies=[Depends(require_token)])
+def index_harmonize(q: str = Query(default="", max_length=500)) -> dict:
+    """Which submodules share a pattern, and which do not."""
+    return core.index_query("harmonize", q)
+
+
 @app.get("/api/observability", dependencies=[Depends(require_token)])
 def observability() -> dict:
-    """The Observe tab's document: all three planes, the dataset sizes against
-    the disk budget, the ship ledger, and the composed embed URLs."""
+    """The Observe tab's document: the three planes, the Kilo code index, the
+    dataset sizes against the disk budget, the ship ledger, and the embed URLs."""
     return core.observe_status()
 
 

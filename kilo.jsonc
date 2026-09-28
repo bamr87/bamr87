@@ -1,0 +1,15 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "indexing": {
+    "enabled": true,
+    "provider": "ollama",
+    "model": "nomic-embed-text",
+    "vectorStore": "qdrant",
+    "ollama": {
+      "baseUrl": "http://127.0.0.1:11434"
+    },
+    "qdrant": {
+      "url": "http://127.0.0.1:6333"
+    }
+  }
+}
