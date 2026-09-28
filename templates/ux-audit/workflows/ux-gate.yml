@@ -27,7 +27,7 @@ jobs:
     name: UPS-FE-60 R-rules
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run portable UX audit
         run: |
           roots="."
@@ -42,8 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: Install collector peers
@@ -52,7 +52,7 @@ jobs:
         env:
           UX_BASE_URL: ${{ vars.UX_BASE_URL }}
         run: node scripts/collect_evidence.mjs --out evidence
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ux-evidence

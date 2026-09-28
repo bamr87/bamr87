@@ -45,13 +45,13 @@
 #                            The standardization baseline per tier lives in
 #                            _data/standards.yml; the audit is `tools/dash audit`.
 #   ux             optional  UX-audit harness scope (templates/ux-audit/). Sub-keys:
-                             enabled: bool (default true when live_url set & not archived)
-                             tier: active|experiment|content
-                             surfaces: [{url, role}] optional hub-side overrides
-                             personas: [string] optional
-                             preview: {command, ready_url} documented for leaf gates
-                             baselines: none|visual|journey
-  auto_evolve    bool      opt-in to the weekly repo-evolution loop
+#                            enabled: bool (default true when live_url set & not archived)
+#                            tier: active|experiment|content
+#                            surfaces: [{url, role}] optional hub-side overrides
+#                            personas: [string] optional
+#                            preview: {command, ready_url} documented for leaf gates
+#                            baselines: none|visual|journey
+#   auto_evolve    bool      opt-in to the weekly repo-evolution loop
 #                            (.github/workflows/repo-evolution.yml): a Claude Code pass
 #                            opens a DRAFT PR in this repo's own upstream. Submodules
 #                            only — the planner refuses external upstreams and archived
