@@ -52,6 +52,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/standardize-fanout.yml (artifact `ci`) via tools/fanout.sh | `ci.yml` |
+| [`ux-audit/`](templates/ux-audit/) | 0.1.0 | 2026-09-18 | tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set) | `AGENT_PROMPT.md`, `README.md`, `prompts/a11y.md`, `prompts/design-system.md`, `prompts/interaction.md`, `prompts/microcopy.md`, `prompts/synthesizer.md`, `scripts/collect_evidence.mjs`, `scripts/ux_… |
 | [`verify/`](templates/verify/) | 0.1.0 | 2026-09-04 | tools/fanout.sh --kit verify (verify-fanout.yml); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
 
 ## 3. Reference implementations
@@ -303,6 +304,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
 | [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline the fleet is held to; points to [`../specs/`](../specs/README.md), the Universal Project Standard that governs content and behaviour. |
 | [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
+| [`UX-HARNESS.md`](docs/UX-HARNESS.md) | **Status:** v0 kit (`templates/ux-audit/` 0.1.0). |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard: the feature index every repo carries (`features/features.yml`), user scenarios a Playwright runner and a Claude Code pass both execute,… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
 | [`automation-and-agents.md`](docs/automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |
