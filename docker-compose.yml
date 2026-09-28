@@ -49,8 +49,11 @@ name: ${COMPOSE_PROJECT_NAME:-fleet}
 # com.bamr87.fleet.project and ignores everything without it, so a container
 # joins the log plane by labelling itself rather than by an edit here.
 #
-# The elk services themselves are deliberately UNLABELLED: a shipper that ships
-# its own output is a feedback loop, and Kibana is not interesting to Kibana.
+# The shipper stack (elasticsearch, logstash, kibana, filebeat, grafana) is
+# deliberately UNLABELLED: a shipper that ships its own output is a feedback
+# loop, and Kibana is not interesting to Kibana. qdrant is a producer that
+# starts with the same profile — it is labelled so its logs land in the
+# container dataset.
 # ============================================================================
 x-fleet-logging: &fleet-logging
   driver: json-file
@@ -134,6 +137,10 @@ services:
       - KIBANA_URL=http://kibana:5601
       - GRAFANA_URL=http://grafana:3000
       - LOGSTASH_URL=http://logstash:8088
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     stdin_open: true
     tty: true
     networks:
@@ -202,6 +209,10 @@ services:
       - KIBANA_URL=http://kibana:5601
       - GRAFANA_URL=http://grafana:3000
       - LOGSTASH_URL=http://logstash:8088
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - fleet
     restart: unless-stopped
@@ -464,6 +475,43 @@ services:
       - metrics
 
   # --------------------------------------------------------------------------
+  # Qdrant — the Kilo codebase index
+  #
+  # Starts with the elk profile because `dash observe up` is the one command
+  # that brings the local planes up, and the code index is reported from the
+  # same status. Labelled, unlike the shipper stack above: its logs are a
+  # producer, not the shipper's own output. The embedder is native Ollama on
+  # the Mac, not a container — see _data/fleet.yml `observability.indexing`.
+  # --------------------------------------------------------------------------
+  qdrant:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: data
+    logging: *fleet-logging
+    image: qdrant/qdrant:${QDRANT_VERSION:-v1.18.1}
+    container_name: bamr87-qdrant
+    ports:
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - fleet
+    healthcheck:
+      # The image has bash and no curl. /readyz is the documented ready probe.
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf \"GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q ready <&3'",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    restart: unless-stopped
+    profiles:
+      - elk
+
+  # --------------------------------------------------------------------------
   # MkDocs - Documentation site (Material theme)
   #
   # Mounts the README SUBMODULE, not the hub root. The hub's own mkdocs.yml was
@@ -647,6 +695,8 @@ volumes:
   filebeat-data:
     driver: local
   grafana-data:
+    driver: local
+  qdrant-data:
     driver: local
   venv-docs:
     driver: local

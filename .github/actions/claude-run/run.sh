@@ -255,8 +255,14 @@ api=()
 if   [ -f "$REPO/scripts/ai/api_call.rb" ]; then api=(ruby    "$REPO/scripts/ai/api_call.rb" --prompt "$prompt")
 elif [ -f "$REPO/scripts/ai/api_call.py" ]; then api=(python3 "$REPO/scripts/ai/api_call.py" --prompt "$prompt")
 fi
-if [ -z "${ANTHROPIC_API_KEY:-}" ] || [ ${#api[@]} -eq 0 ]; then
-  why="no ANTHROPIC_API_KEY"; [ ${#api[@]} -eq 0 ] && why="no scripts/ai/api_call.rb|py"
+provider="${AI_PROVIDER:-anthropic}"
+case "$provider" in
+  anthropic) api_key_present="${ANTHROPIC_API_KEY:+1}"; missing_key="no ANTHROPIC_API_KEY" ;;
+  openai)    api_key_present="${OPENAI_API_KEY:+1}"; missing_key="no OPENAI_API_KEY" ;;
+  *) echo "[ai] unsupported AI_PROVIDER (expected anthropic or openai)" >&2; exit 1 ;;
+esac
+if [ -z "$api_key_present" ] || [ ${#api[@]} -eq 0 ]; then
+  why="$missing_key"; [ ${#api[@]} -eq 0 ] && why="no scripts/ai/api_call.rb|py"
   if [ "$primary_failed" -eq 1 ]; then
     echo "[ai] $why to fall back to — the AI step failed." >&2
     [ "${GITHUB_ACTIONS:-}" = "true" ] && \

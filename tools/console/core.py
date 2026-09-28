@@ -373,6 +373,35 @@ def _observe_module():
     return fleet_observe
 
 
+def _index_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import fleet_index  # noqa: WPS433
+    return fleet_index
+
+
+def index_query(kind: str, query: str) -> dict:
+    """Search or harmonize the code index. Never raises: a down store is a document."""
+    query = (query or "").strip()
+    if not query:
+        return {"present": False, "error": "query is empty", "query": ""}
+    if len(query) > 500:
+        return {"present": False, "error": "query is longer than 500 characters", "query": query[:80]}
+    try:
+        mod = _index_module()
+        fn = mod.harmonize if kind == "harmonize" else mod.search
+        return fn(query)
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "query": query}
+
+
+def index_coverage() -> dict:
+    try:
+        return _index_module().coverage()
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "projects": [], "missing": [],
+                "blind_spots": [], "hub_chunks": 0}
+
+
 def observability_planes(probe: bool = True) -> dict:
     """Per-plane identity and (optionally) reachability.
 
@@ -388,11 +417,12 @@ def observability_planes(probe: bool = True) -> dict:
         contract = fo.load_contract()
     except Exception as exc:
         return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
-                "logs": {}, "metrics": {}, "traces": {}, "portal": {}}
+                "logs": {}, "metrics": {}, "traces": {}, "indexing": {}, "portal": {}}
     if probe:
         planes = fo.plane_status(contract)
     else:
         logs, metrics, traces = contract["logs"], contract["metrics"], contract["traces"]
+        indexing = contract.get("indexing") or {}
         planes = {
             "logs": {"engine": logs.get("engine"), "url": logs.get("kibana"),
                      "elasticsearch": logs.get("elasticsearch"), "reachable": None},
@@ -400,6 +430,9 @@ def observability_planes(probe: bool = True) -> dict:
                         "reachable": None, "datasources": metrics.get("datasources") or []},
             "traces": {"engine": traces.get("engine"), "url": traces.get("endpoint"),
                        "reachable": None},
+            "indexing": {"engine": indexing.get("engine"), "url": indexing.get("qdrant"),
+                         "embedder": indexing.get("embedder"), "model": indexing.get("model"),
+                         "reachable": None, "embedder_reachable": None},
         }
     planes["present"] = True
     planes["portal"] = contract.get("portal") or {}
@@ -762,11 +795,12 @@ def _observe_ship(params: dict) -> list[str]:
     return argv
 
 
-# The log plane's five services, named explicitly. A bare `--profile elk up`
+# The log plane's services, named explicitly. A bare `--profile elk up`
 # also starts every service in the DEFAULT profile, so "start the log plane"
 # would bring up devenv, console, wiki and db as well and fight them for their
 # ports. Held equal to the profile's membership by test_observe_contract.py.
-ELK_SERVICES = ["elasticsearch", "logstash", "kibana", "filebeat", "grafana"]
+# qdrant is the Kilo code index; it starts with the plane so status can see it.
+ELK_SERVICES = ["elasticsearch", "logstash", "kibana", "filebeat", "grafana", "qdrant"]
 
 
 def _observe_compose(verb: str):
@@ -890,7 +924,8 @@ OPS: dict[str, dict] = {
     "observe-up": dict(title="Observe: start the log + metrics stack", group="observe",
                        argv=_observe_compose("up"), needs_token=False,
                        desc="docker compose --profile elk up -d — Elasticsearch, Logstash, Kibana, "
-                            "Filebeat and Grafana. Run 'bootstrap' after it to install ILM + dashboards."),
+                            "Filebeat, Grafana and Qdrant (the Kilo code index). Run 'bootstrap' after "
+                            "it to install ILM + dashboards."),
     "observe-bootstrap": dict(title="Observe: install ILM policies + dashboards", group="observe",
                               argv=_observe_bootstrap, needs_token=False,
                               desc="Idempotent: PUTs the rendered ILM policies and index templates, "
@@ -906,14 +941,14 @@ OPS: dict[str, dict] = {
                          params=["days", "target", "dry_run", "force"]),
     # Delegates to the CLI rather than running compose itself: `down -v` would
     # take EVERY named volume in the file — db-data, wiki-data, phoenix-data
-    # included — and the narrow teardown (remove the five containers, then the
-    # five volumes by name) should exist in exactly one place.
+    # included — and the narrow teardown (remove the elk containers, then their
+    # volumes by name) should exist in exactly one place.
     "observe-reset": dict(title="Observe: destroy the indices and volumes", group="observe",
                           argv=lambda p: [str(TOOLS / "dash"), "observe", "reset", "--yes"],
                           needs_token=False, remote=lambda p: True,
-                          desc="Deletes every indexed log line and the five elk volumes — and nothing else. "
-                               "Irreversible: the lake can re-ship Actions logs, but container logs only "
-                               "ever existed here."),
+                          desc="Deletes every indexed log line, the Kilo code index, and the six elk "
+                               "volumes — and nothing else. Irreversible: the lake can re-ship Actions "
+                               "logs, but container logs and the code index only ever existed here."),
     "observe-verify": dict(title="Observe: re-render ILM + dashboards from the contract", group="verify",
                            argv=lambda p: [DASH_GEN, "observe", "verify"], needs_token=False,
                            desc="Offline diff of _data/fleet.yml `observability:` against the committed "
@@ -1254,7 +1289,7 @@ CONFIG_SECTIONS: list[dict] = [
          "inventory.schedule_limit": _f("int", "rows in the fleet schedule calendar"),
          "attention_max": _f("int", "findings surfaced per run"),
      }},
-    {"key": "observability", "title": "Observability — the three local planes", "doc": "docs/OBSERVABILITY.md",
+    {"key": "observability", "title": "Observability — the local planes and the code index", "doc": "docs/OBSERVABILITY.md",
      "blurb": "Retention, disk budget and the portal's pinned dashboards. Changing retention or "
               "rollover here changes only the CONTRACT — re-render and re-install with "
               "`dash observe verify --write` then `dash observe up`, or the cluster keeps expiring "
