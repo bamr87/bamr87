@@ -760,6 +760,7 @@
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "3-verify" }
     },
+
     // ----------------------------------------------------------- EXTENSIONS
     // Compile inside devenv (container-first); Extension Host still runs on
     // the host because it is VS Code itself.

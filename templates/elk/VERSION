@@ -1,0 +1,45 @@
+kit: elk
+version: 0.1.0
+source: bamr87/bamr87 templates/elk/
+seeded-by: tools/fanout.sh --kit elk --target <name> [--apply]
+files: filebeat.fleet.yml, compose.elk.yml, compose.labels.yml,
+  adapters/python-logging.py, adapters/node-pino.mjs, adapters/django-logging.py,
+  adapters/rails-lograge.rb, tests/contract.test.mjs
+spec: specs/OPERATIONS.md (UPS-OPS-10, UPS-OPS-12, UPS-OPS-17, UPS-OPS-18)
+updated: 2026-09-22
+changelog: |
+  0.1.0 — the log plane reaches the fleet.
+
+  The hub grew a real log plane (Elasticsearch/Logstash/Kibana + Grafana behind
+  `docker compose --profile elk`, docs/OBSERVABILITY.md). This kit is the other
+  half: what a repo needs to PRODUCE logs that plane can read, and to stand up
+  its own single-node copy when it is cloned outside the hub.
+
+  * filebeat.fleet.yml — THE VENDORED PAYLOAD. One shipper config fleet-wide,
+    byte-identical to the hub's tools/observability/filebeat/filebeat.yml and
+    held there by drift check (i). A drifted copy is worse than a missing one:
+    the repo still ships, just in a different shape, into a shared index.
+  * compose.labels.yml — the com.bamr87.fleet.* labels and json-file rotation
+    (UPS-OPS-17). The labels ARE the opt-in: Filebeat autodiscovers on them and
+    ignores everything else, so a service joins the log plane by labelling
+    itself rather than by an edit anywhere central.
+  * compose.elk.yml — a standalone single-node Elasticsearch + Kibana +
+    Filebeat overlay, so a clone outside the hub gets a log UI instead of
+    nothing. Inside the hub the same labels feed the hub's one stack and this
+    overlay stays unused.
+  * adapters/ — UPS-OPS-10 JSON emission per stack, each with the UPS-OPS-12
+    redaction filter attached. Structured emission is the MUST; this kit only
+    makes it convenient.
+  * tests/contract.test.mjs — asserts an emitted line carries every field the
+    contract names and that the redaction actually redacts.
+notes: |
+  - Seeding is ADDITIVE. The kit never edits a hand-written docker-compose.yml;
+    the seeder prints the one `include:` (or per-service `labels:`) line a human
+    adds, exactly as the feedback kit prints its mount line.
+  - Inside the hub, do NOT run compose.elk.yml — the hub already runs one
+    stack and a second Elasticsearch will fight it for port 9200 and for RAM.
+  - EDIT THE HUB COPY FIRST (tools/observability/filebeat/filebeat.yml), then
+    re-vendor. Drift check (i) compares the two.
+  - Snapshot the outgoing filebeat.fleet.yml into archive/ BEFORE editing it,
+    or every deployed copy reads as hand-modified and --upgrade stops reaching
+    the fleet (the trap templates/agent-context/VERSION documents).

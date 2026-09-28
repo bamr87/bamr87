@@ -141,6 +141,9 @@
   status: active
   featured: true
   maintained: true
+  dev_port:
+    4010 # jekyll range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: https://it-journey.dev
   docs_url: https://it-journey.dev
   schema:
@@ -175,6 +178,9 @@
   status: active
   featured: true
   maintained: true
+  dev_port:
+    4016 # jekyll range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: https://zer0-mistakes.com
   docs_url: https://zer0-mistakes.com
   release:
@@ -198,6 +204,9 @@
   status: active
   featured: false
   maintained: true
+  dev_port:
+    3012 # web range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: null
   docs_url: null
   release:
@@ -220,6 +229,9 @@
   status: active
   featured: false
   maintained: true
+  dev_port:
+    5174 # node range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: null
   docs_url: null
   schema:
@@ -236,6 +248,13 @@
   status: active
   featured: true
   maintained: true
+  dev_port:
+    4020 # jekyll range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
+  database:
+    true # gets a database + role on the hub's shared Postgres
+    # (`db` on the fleet network). Its own Postgres still runs
+    # until `shared_services: [postgres]` is set here too.
   live_url: https://barodybroject.com
   docs_url: null
   schema:
@@ -253,6 +272,13 @@
   status: active
   featured: false
   maintained: true
+  dev_port:
+    8020 # python range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
+  database:
+    true # gets a database + role on the hub's shared Postgres
+    # (`db` on the fleet network). Its own Postgres still runs
+    # until `shared_services: [postgres]` is set here too.
   live_url: null
   docs_url: null
   schema:
@@ -287,6 +313,13 @@
   status: experiment
   featured: false
   maintained: true
+  dev_port:
+    8010 # python range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
+  database:
+    true # gets a database + role on the hub's shared Postgres
+    # (`db` on the fleet network). Its own Postgres still runs
+    # until `shared_services: [postgres]` is set here too.
   live_url: null
   docs_url: null
   schema:
@@ -320,6 +353,13 @@
   status: active
   featured: false
   maintained: true
+  dev_port:
+    8024 # python range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
+  database:
+    true # gets a database + role on the hub's shared Postgres
+    # (`db` on the fleet network). Its own Postgres still runs
+    # until `shared_services: [postgres]` is set here too.
   live_url: null
   docs_url: null
   release:
@@ -361,6 +401,13 @@
   status: archived
   featured: false
   maintained: false
+  dev_port:
+    3014 # web range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
+  database:
+    true # gets a database + role on the hub's shared Postgres
+    # (`db` on the fleet network). Its own Postgres still runs
+    # until `shared_services: [postgres]` is set here too.
   live_url: null
   docs_url: null
   schema:
@@ -512,6 +559,9 @@
   status: archived
   featured: false
   maintained: false
+  dev_port:
+    4014 # jekyll range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: null
   docs_url: null
   schema:
@@ -528,6 +578,9 @@
   status: active
   featured: false
   maintained: true
+  dev_port:
+    4018 # jekyll range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: null
   docs_url: null
   schema:
@@ -581,6 +634,13 @@
   status: experiment
   featured: true
   maintained: true
+  dev_port:
+    8032 # python range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
+  database:
+    true # gets a database + role on the hub's shared Postgres
+    # (`db` on the fleet network). Its own Postgres still runs
+    # until `shared_services: [postgres]` is set here too.
   live_url: null
   docs_url: null
   schema:
@@ -636,6 +696,9 @@
   status: experiment
   featured: false
   maintained: true
+  dev_port:
+    4012 # jekyll range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: null
   docs_url: null
   schema:
@@ -657,6 +720,9 @@
   status: active
   featured: false
   maintained: true
+  dev_port:
+    3010 # web range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: null
   docs_url: null
   schema:
@@ -676,6 +742,9 @@
   status: active
   featured: false
   maintained: true
+  dev_port:
+    8028 # python range; `dash-gen compose` remaps this project's
+    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: null
   docs_url: null
   schema:

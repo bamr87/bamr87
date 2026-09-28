@@ -12,12 +12,12 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `README.md` | file | How to run the console (native venv or compose), what it can and cannot do | required |
-| `core.py` | file | Pure logic: committed-state loader, the operation ALLOWLIST, the job manager, the comment-preserving fleet.yml config editor (`CONFIG_SECTIONS`), and the credential layer (`CREDENTIALS`, process env, `.env`, `gh auth login`) — no web framework, testable on PyYAML alone | required |
-| `app.py` | file | FastAPI routes over core.py (`/api/state`, `/api/ops`, `/api/jobs`, `/api/contract`, `/api/config`, `/api/auth` + `/api/auth/credential` + `/api/auth/github`, `/api/capabilities`, `/api/lake` + `/api/lake/runs` + `/api/lake/lines`) + the static page; Host allowlist + optional bearer-token guard | required |
+| `core.py` | file | Pure logic: committed-state loader, the operation ALLOWLIST, the job manager, the comment-preserving fleet.yml config editor (`CONFIG_SECTIONS`), and the credential layer (`CREDENTIALS`, process env, `.env`, `gh auth login`), and the content-atlas + editorial-plan adapters over dash-gen's `content_atlas.py` — no web framework, testable on PyYAML alone | required |
+| `app.py` | file | FastAPI routes over core.py (`/api/state`, `/api/ops`, `/api/jobs`, `/api/contract`, `/api/config`, `/api/auth` + `/api/auth/credential` + `/api/auth/github`, `/api/capabilities`, `/api/lake` + `/api/lake/runs` + `/api/lake/lines`, `/api/content` + `/api/content/{site}/docs` + `/api/content/{site}/brief`, `/api/editorial/decision` + `/api/editorial/{site}`) + the static page; Host allowlist + optional bearer-token guard | required |
 | `run.sh` | file | Bootstraps `.venv-console` at latest and execs uvicorn (`tools/dash console`, the compose `console` service) | required |
 | `requirements.txt` | file | Always-latest deps: dash-gen's requirements + fastapi, uvicorn, ruamel.yaml, the OpenTelemetry SDK + OTLP/HTTP exporter (lake export) | required |
 | `test_console.py` | file | Fixture tests — allowlist refusals, argv shapes, confirm gate, job manager, state degradation, multi-section config round-trip, credential handling (values never returned, `.env` only on confirm, the kill switch) | required |
-| `static/` | dir | The single-page front end (`index.html`: overview, harnesses, schedules, loops, costs, traces — the lake + Phoenix — fleet, config, auth, jobs) | terminal |
+| `static/` | dir | The single-page front end (`index.html`: overview, harnesses, schedules, loops, costs, observe — the lake + Phoenix + logs — content — the content atlas + editorial approvals — fleet, config, auth, jobs) | terminal |
 
 ## Placement
 

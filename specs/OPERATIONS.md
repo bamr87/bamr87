@@ -24,6 +24,8 @@ Evidence base: the hub has a full token contract (`_data/fleet.yml` `tokens:`), 
 | UPS-OPS-14 | SHOULD | app, api | Product analytics is PostHog (privacy config, consent-gated per FE-24), server events via `POSTHOG_KEY`; no other tracker without a reason. | init code | zer0 `analytics/posthog.html` |
 | UPS-OPS-15 | MAY | api | OpenTelemetry traces exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; AI calls emit token/cost attributes (FF-0003). | instrumentation | — |
 | UPS-OPS-16 | MUST | all with AI calls | Every Claude/LLM call site is OAuth-first (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` fallback), names its model from config not code, sets `max_tokens`, and logs tokens in/out per call so the hub's usage ledger can price it. | review | `docs/AI-INTEGRATION.md` |
+| UPS-OPS-17 | MUST | all with containers | Every compose service carries `com.bamr87.fleet.repo` / `.project` / `.stack` / `.log_format` labels and a `json-file` driver with `max-size` + `max-file` rotation, so the fleet log shipper can attribute its lines to a repo and the host's log files stay bounded. An unlabelled container is invisible to the shipper by design — the label IS the opt-in. | `docker inspect` labels | hub `docker-compose.yml`, `templates/elk/compose.labels.yml` |
+| UPS-OPS-18 | SHOULD | all | The repo carries the ELK kit (`compose.elk.yml`, `filebeat.fleet.yml`) so a clone OUTSIDE the hub still gets a local log UI (`docker compose --profile elk up`); inside the hub the same labels feed the hub's one stack instead. Structured emission (OPS-10) is the MUST; this is the shipping half. | kit files present | `templates/elk/` (`tools/fanout.sh --kit elk`) |
 
 ## Security
 

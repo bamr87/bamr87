@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# Logstash pipeline topology.
+#
+# Two inputs, ONE enrichment path. `beats-in` takes container stdout from
+# Filebeat, `http-in` takes Actions run logs replayed from the lake by
+# `dash observe ship`, and both forward to `enrich` — where the ECS mapping,
+# the secret redaction and the data-stream routing happen exactly once.
+#
+# The alternative (redact in each input) works right up until somebody adds a
+# third input and forgets, which is a class of bug that ships credentials.
+# Contract: _data/fleet.yml `observability:` · doc: docs/OBSERVABILITY.md
+# ---------------------------------------------------------------------------
+- pipeline.id: beats-in
+  path.config: '/usr/share/logstash/pipeline/00-beats-in.conf'
+
+- pipeline.id: http-in
+  path.config: '/usr/share/logstash/pipeline/10-http-in.conf'
+
+- pipeline.id: enrich
+  path.config: '/usr/share/logstash/pipeline/90-enrich-out.conf'
+  # A persistent queue is what makes backpressure survive a restart: the
+  # ingest decision was "everything", and a memory queue drops the overflow
+  # silently when Elasticsearch is slow or down.
+  queue.type: persisted
+  queue.max_bytes: 1gb

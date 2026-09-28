@@ -341,6 +341,7 @@ cd projects/README && mkdocs serve
 
 ### 📖 Documentation
 
+- **[AGENTS.md](AGENTS.md)**: Compact agent guide — repository boundaries, focused checks, generated files, and operational gotchas
 - **[SUBMODULES.md](SUBMODULES.md)**: The submodule workflow — commit in the submodule, then bump the pointer
 - **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
 - **[docs/DASH.md](docs/DASH.md)**: The dash architecture — registry, surfaces, gates, AI loop
@@ -378,7 +379,7 @@ mindmap
         RESTful APIs
         SOAP Services
         Data Warehousing
-    
+
     Full-Stack Development
       Backend
         Python Django
@@ -392,19 +393,19 @@ mindmap
         Docker
         CI/CD Pipelines
         Cloud Orchestration
-    
+
     Cloud Architecture
       AWS Services
       Azure Platform
       Google Cloud
       Multi-Cloud Strategy
-    
+
     AI & Innovation
       AI Agent Platforms
       Prompt Engineering
       Intelligent Automation
       ML Integration
-    
+
     Industry Expertise
       Manufacturing
         Automotive
