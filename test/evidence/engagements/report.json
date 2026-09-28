@@ -1,0 +1,124 @@
+{
+  "id": "engagements",
+  "title": "Engagements page renders estimates and actuals",
+  "features": [
+    "HUB-016"
+  ],
+  "path": "verify/scenarios/engagements.yml",
+  "started": "2026-09-05T05:12:41.975Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/engagements/",
+          "ok": true,
+          "ms": 716
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 21
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "engagements",
+          "ok": true,
+          "file": "test/evidence/engagements/desktop-engagements.png",
+          "ms": 57
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/engagements/desktop-engagements.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/engagements/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/engagements/",
+          "ok": true,
+          "ms": 712
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "visible": "main, [role=main], #main-content"
+          },
+          "ok": true,
+          "ms": 21
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "engagements",
+          "ok": true,
+          "file": "test/evidence/engagements/mobile-engagements.png",
+          "ms": 43
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/engagements/mobile-engagements.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4000/engagements/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-09-05T05:12:43.635Z",
+  "base": "http://127.0.0.1:4000"
+}

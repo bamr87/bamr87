@@ -24,6 +24,7 @@ coverage: listed
 | `fleet-engines/` | dir | Fleet engines kit: the fleet/v1 manifest, workflow facts, the audit rulebook, harness scorecard — published to npm as `@bamr87/fleet-engines`, consumed by dependency by GitFactory and zer0-CMS | terminal |
 | `elk/` | dir | ELK kit: the vendored Filebeat shipper config, the `com.bamr87.fleet.*` label + rotation fragment (UPS-OPS-17), a standalone single-node ES+Kibana overlay, and one UPS-OPS-10 JSON emitter per stack with the UPS-OPS-12 redaction attached; seeded by `fanout.sh --kit elk` (docs/OBSERVABILITY.md) | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
+| `verify/` | dir | Agent verification kit: feature index scaffold, verify run config, user scenario, Playwright runner + MCP config, fleet-verify caller, verify-feature skill + verifier agent (spec: specs/QUALITY.md UPS-QA-50..53; doc: docs/VERIFICATION.md) | terminal |
 
 ## Placement
 

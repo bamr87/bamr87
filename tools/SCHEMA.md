@@ -18,12 +18,15 @@ coverage: listed
 | `README.md` | file | Tools index | required |
 | `dash` | file | Dash CLI entrypoint (status, audit, work orders) | required |
 | `dash-gen` | file | Regenerates README AUTO spans and portfolio data from the registry | required |
+| `tui/` | dir | Terminal command center — the TTY twin of the dash (`dash tui`); see its README | |
 | `fleet-config.py` | file | Reads `_data/fleet.yml`; audits fleet secrets/variables against GitHub and projects the canonical variables onto every repo (`dash secrets`, `dash config`) | required |
 | `Brewfile` | file | macOS dev dependencies | |
 | `devtools.conf` | file | Shared config for the devtools scripts | |
 | `fanout.sh` | file | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard (called by standardize-fanout.yml, schema-fanout.yml, and deps-fanout.yml) | |
 | `unpin-deps.sh` | file | Converts one repo to the always-latest dependency policy — strips pins, removes + gitignores lockfiles, adapts CI installs (used by the deps-latest fan-out kit; docs/DEPENDENCIES.md) | |
 | `issue-evidence.sh` | file | Builds one issue's evidence bundle in an isolated virtual environment — clone, toolchain install, lint/test/build, screenshots, candidate files (tier 1 of docs/ISSUE-PIPELINE.md) | |
+| `features_index.py` | file | The fleet features index — validates a repo's `features/features.yml`, grades verification coverage from files on disk, aggregates every submodule → `_data/features_index.yml` (`dash features`; docs/VERIFICATION.md) | |
+| `test_features_index.py` | file | Fixture tests for features_index.py (run by run-all-tests.sh) | |
 | `render-diagrams.sh` | file | Validates + delivers every `diagrams/*.json` archify spec to its self-contained HTML via the vendored `.claude/skills/archify` renderer (`--check` validates only; docs/HARNESS.md) | |
 | `audit-git-hooks.sh` | file | Read-only diagnostic answering the Husky-vs-pre-commit question — reports which hook manager is actually live via `core.hooksPath` (always exits 0) | |
 | `macos-register-nerd-fonts.swift` | file | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s so Terminal.app can see them (`swift` has no `*.swift` pattern row here; this is the fleet's only one) | |

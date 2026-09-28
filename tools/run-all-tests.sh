@@ -117,6 +117,11 @@ run_control_plane_tests() {
         [[ -e "$t" ]] || continue
         run_step "console $(basename "$t")" python3 "$t"
     done
+    # tools/*.py gates and generators (features_index.py, …) — same posture.
+    for t in "${PROJECT_ROOT}"/tools/test_*.py; do
+        [[ -e "$t" ]] || continue
+        run_step "tools $(basename "$t")" python3 "$t"
+    done
 }
 
 run_root_checks() {
