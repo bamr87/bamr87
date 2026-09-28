@@ -149,6 +149,7 @@ render_kit_template() {  # $1 template, $2 repo name, $3 default branch, $4 kit 
 # archive/<template-basename>-<version>[-<variant>].yml.
 machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 version
   local f="$1" tpl="$2" dir base ext cand tmp
+  MATCHED_ARCHIVE=""
   # Extension-derived, not hardcoded .yml: the issue-autopilot kit archives .py
   # engine shapes. For a .yml template this is byte-for-byte the old behaviour.
   dir="$(dirname "$tpl")"; ext="${tpl##*.}"; base="$(basename "$tpl" ".$ext")"
@@ -156,10 +157,22 @@ machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 
   for cand in "$dir/archive/$base"-*."$ext"; do
     [[ -f "$cand" ]] || continue
     render_kit_template "$cand" "$3" "$4" "$5" > "$tmp"
-    if cmp -s "$f" "$tmp"; then rm -f "$tmp"; return 0; fi
+    if cmp -s "$f" "$tmp"; then rm -f "$tmp"; MATCHED_ARCHIVE="$cand"; return 0; fi
   done
   rm -f "$tmp"
   return 1
+}
+
+# The version an on-disk seed is AT, for the dry-run report (FF-0017): its
+# `# kit: <kit> vX.Y.Z` stamp when it has one, else the version in the name of
+# the archived shape it matched (archive/<base>-<X.Y.Z>[-variant].<ext>).
+seed_version() {  # $1 file, $2 matched archive (may be empty)
+  local v
+  v="$(sed -n 's/^# kit: [a-z-]* v//p' "$1" | head -1)"
+  if [[ -z "$v" && -n "$2" ]]; then
+    v="$(basename "$2" | grep -Eo -- '-[0-9]+\.[0-9]+\.[0-9]+' | head -1)"; v="${v#-}"
+  fi
+  echo "${v:-unknown}"
 }
 
 # Seed one templated artifact, or report/refresh an existing copy.
@@ -181,7 +194,7 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
       render_kit_template "$tpl" "$name" "$def" "$ver" > "$dest"
       echo "${label}: upgraded machine seed -> kit v${ver}"
     else
-      echo "${label}: upgradeable machine seed (latest kit v${ver}; rerun with --upgrade)"
+      echo "${label}: upgradeable machine seed (v$(seed_version "$dest" "$MATCHED_ARCHIVE") -> latest kit v${ver}; rerun with --upgrade)"
     fi
   else
     stamp="$(sed -n 's/^# kit: [a-z-]* v//p' "$dest" | head -1)"
@@ -396,7 +409,7 @@ seed_vendored_asset() {  # $1 dest, $2 kit source, $3 label, [$4 version], [$5 a
       if [[ "$UPGRADE" -eq 1 ]]; then
         cp "$src" "$dest"; echo "${label}: upgraded machine seed -> kit v${ver}"
       else
-        echo "${label}: upgradeable machine seed (latest kit v${ver}; rerun with --upgrade)"
+        echo "${label}: upgradeable machine seed (v$(seed_version "$dest" "$cand") -> latest kit v${ver}; rerun with --upgrade)"
       fi
       return
     fi
