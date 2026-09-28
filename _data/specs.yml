@@ -216,9 +216,64 @@ requirements:
     section: "Containers and local environment"
     level: SHOULD
     applies: [app, api, site]
-    requirement: "A `docker-compose.yml` (or `compose.yml`) runs the whole app locally with one command; a `.devcontainer/devcontainer.json` composes it and pins the fleet VS Code extension set. Ports follow the fleet map: 4000 Jekyll, 5000 web app, 5173 Vite HMR, 8000 API/MkDocs, 5432 Postgres, 6379 Redis."
-    satisfied_by: "files present, ports match"
+    requirement: "A `docker-compose.yml` (or `compose.yml`) runs the whole app locally with one command; a `.devcontainer/devcontainer.json` composes it and pins the fleet VS Code extension set."
+    satisfied_by: "files present"
     seed: "hub `.devcontainer/`, `docker-compose.yml` as reference"
+    gap: false
+  - id: UPS-REPO-34
+    area: REPO
+    section: "Containers and local environment"
+    level: MUST
+    applies: [app, api, site]
+    requirement: "**Every published port is env-overridable and loopback-bound** — `\"127.0.0.1:${NAME_PORT:-<default>}:<container>\"`, never a bare `8000:8000`. The default comes from that project's allocation in the hub's [`_data/ports.yml`](../_data/ports.yml), not from a fixed per-role number. This replaces the old fixed map (4000/5000/5173/8000/5432/6379), which every repo obeyed and which is exactly why six repos published 5432, six 3000, five 8000 and 8080, and four 4000 — correct for one repo at a time, impossible for the fleet at once."
+    satisfied_by: "drift check (m); `tools/fleet-compose.py check --audit`"
+    seed: "hub `_data/ports.yml`, reference impl: `projects/djangoerp`"
+    gap: false
+  - id: UPS-REPO-35
+    area: REPO
+    section: "Containers and local environment"
+    level: MUST
+    applies: [app, api, site]
+    requirement: "**No `container_name:`.** Container names are global to the Docker daemon, so two repos that pick the same one cannot run together — the hub and `projects/README` both claimed `bamr87-wiki`. Let Compose namespace containers as `<project>-<service>-1`."
+    satisfied_by: "drift check (m)"
+    seed: "hub `compose/overrides/`"
+    gap: false
+  - id: UPS-REPO-36
+    area: REPO
+    section: "Containers and local environment"
+    level: SHOULD
+    applies: [app, api]
+    requirement: "An `env_file:` entry that a fresh clone will not have uses the long form with `required: false`; a service that a shared hub service supersedes locally sits behind `profiles: [standalone]`. Both keep the repo runnable standalone *and* inside the fleet stack."
+    satisfied_by: "compose review"
+    seed: "`projects/law-ai/docker-compose.yml`"
+    gap: false
+  - id: UPS-REPO-37
+    area: REPO
+    section: "Containers and local environment"
+    level: MUST
+    applies: [app, api, site]
+    requirement: "**Container image versions come from one registry.** A Dockerfile `FROM` or compose `image:` for postgres, redis, node, python, ruby or nginx tracks [`_data/fleet.yml`](../_data/fleet.yml) `images:` — the tag's variant (`-alpine`, `-slim`) is the repo's own choice, a version is never lowered, and `bookworm` variants move to `trixie`. A deliberate pin is a comment on or directly above the image line containing \"pinned\", \"bump deliberately\", \"do not bump\" or \"fleet-pin\" (it freezes that image family repo-wide). A repo whose ecosystem lags gets a ceiling with its reason in `image_overrides:` (law-ai: Python 3.13, `crewai` has no 3.14 release)."
+    satisfied_by: "`tools/dash docker check`; drift check (n)"
+    seed: "`tools/docker_harmonize.py`; `tools/fanout.sh --kit docker`"
+    gap: false
+  - id: UPS-REPO-38
+    area: REPO
+    section: "Containers and local environment"
+    level: MUST
+    applies: [app, api, site]
+    requirement: "A `healthcheck:` probes `127.0.0.1`, never `localhost` — `localhost` resolves to `::1` first and most servers bind IPv4 only, so a healthy service reports unhealthy (seen on Wiki.js, barodybroject docs, zer0-cms). It uses a tool the image actually ships: qdrant has no `curl`, so `bash -c ':> /dev/tcp/127.0.0.1/6333'`; `celery inspect ping` needs an explicit `--timeout`."
+    satisfied_by: "compose review; `dash docker check`"
+    seed: "`tools/docker_harmonize.py` rules H1/H2"
+    gap: false
+  - id: UPS-REPO-39
+    area: REPO
+    section: "Containers and local environment"
+    level: MUST
+    applies: [app, api]
+    applies_notes: ["api (with Postgres)"]
+    requirement: "**Postgres 18+ mounts its volume at `/var/lib/postgresql`**, not `/var/lib/postgresql/data` — the image stores data in a major-versioned subdirectory and refuses to start on the old path. A Postgres MAJOR bump orphans existing local volumes; migrate with `tools/dash dev db-upgrade` (backs up the raw volume and takes a `pg_dumpall` before removing anything) rather than deleting data."
+    satisfied_by: "`dash docker check`; `fleet-dev.sh up` preflight"
+    seed: "`tools/pg-major-upgrade.sh`"
     gap: false
   - id: UPS-REPO-31
     area: REPO

@@ -1,0 +1,68 @@
+name: docker-fanout
+
+# Downward propagation of the fleet's Docker standard (docs/DOCKER.md, specs
+# REPOSITORY.md UPS-REPO-34..39): opens PRs INTO submodule repos that bring their
+# Dockerfiles and compose files to it — image versions from ONE registry
+# (_data/fleet.yml `images:`), loopback-bound env-overridable ports, no
+# container_name, 127.0.0.1 healthchecks, Postgres 18 data mount. Engine:
+# tools/fanout.sh --kit docker → tools/docker_harmonize.py per clone.
+#
+# Like deps-fanout this EDITS existing files — that is its purpose — but the
+# engine safety posture is unchanged: dispatch-only, dry-run by default, PR-only
+# (never a default branch), external upstreams skipped. The transformer is
+# idempotent, so re-runs on converted repos are no-ops, and it NEVER lowers a
+# version or overrides a deliberate pin.
+#
+# A Postgres MAJOR bump orphans existing local volumes; the PR body says so and
+# `tools/dash dev db-upgrade` automates the dump/restore.
+#
+# Requires FLEET_TOKEN (legacy FANOUT_TOKEN still honoured) — a fine-grained
+# PAT with contents:write + pull-requests:write + workflows:write on the targets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Submodule name, or 'all'"
+        type: string
+        default: "all"
+      dry_run:
+        description: "Build branches but don't push/PR"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-fanout
+  cancel-in-progress: false
+
+jobs:
+  fanout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v7
+
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet pyyaml
+
+      - name: Test the transformer before it touches anyone's repo
+        run: python3 tools/test_docker_harmonize.py
+
+      - name: Open docker-harmonize PRs
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          TARGET: ${{ inputs.target }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
+            exit 1
+          fi
+          FLAGS=()
+          if [ "$DRY_RUN" != "true" ]; then FLAGS+=(--apply); fi
+          tools/fanout.sh --kit docker --target "$TARGET" ${FLAGS[@]+"${FLAGS[@]}"}
