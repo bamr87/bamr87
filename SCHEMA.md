@@ -47,7 +47,6 @@ coverage: listed
 | `_config_dev.yml` | file | Jekyll local-dev overrides | |
 | `docker-compose.yml` | file | Containerized dev services | |
 | `docker-compose.forge.yml` | file | Overlay that retargets the compose stack at the `forge` LAN Docker host (`dash host rebuild`; docs/FORGE-HOST.md) | |
-| `home.code-workspace` | file | VS Code multi-root workspace | |
 | `kilo.jsonc` | file | Kilo Code project config — codebase indexing for this worktree, including checked-out submodules; URLs must agree with `_data/fleet.yml` `observability.indexing` | |
 | `bamr87.code-workspace` | file | Single-root VS Code workspace for this repo alone — Copilot enablement, Liquid/YAML file associations, and the Jekyll/Docker terminal env (the multi-root variant is `home.code-workspace`) | |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |

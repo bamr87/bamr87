@@ -18,6 +18,7 @@ coverage: listed
 | `README.md` | file | Tools index | required |
 | `dash` | file | Dash CLI entrypoint (status, audit, work orders) | required |
 | `dash-gen` | file | Regenerates README AUTO spans and portfolio data from the registry | required |
+| `tui/` | dir | Terminal command center — the TTY twin of the dash (`dash tui`); see its README | |
 | `fleet-config.py` | file | Reads `_data/fleet.yml`; audits fleet secrets/variables against GitHub and projects the canonical variables onto every repo (`dash secrets`, `dash config`) | required |
 | `Brewfile` | file | macOS dev dependencies | |
 | `devtools.conf` | file | Shared config for the devtools scripts | |

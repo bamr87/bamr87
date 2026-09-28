@@ -26,25 +26,31 @@ coverage: listed
 | `barodybroject/` | dir | Full-stack responsive web app with OpenAI integrations and CMS functionality. | terminal |
 | `bashconsultants/` | dir | BASH Consulting — Denver-based IT consulting firm website. | terminal |
 | `bashcrawl/` | dir | Terminal game and command-line learning project. | terminal |
+| `bashos/` | dir | Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCo… | terminal |
 | `books/` | dir | Personal books and reference notes collection. | terminal |
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
 | `cv/` | dir | CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII… | terminal |
 | `cv-builder-pro/` | dir | AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor… | terminal |
 | `djangoerp/` | dir | A Django-based ERP experiment exploring enterprise resource planning modules in Python. | terminal |
 | `drsai/` | dir | Dr. Seuss-style AI poetry generator. | terminal |
-| `edgar-data-parse/` | dir | SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI. | terminal |
+| `fredgar-ai/` | dir | SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI. | terminal |
+| `git-with-the-program/` | dir | Agentic governance framework — distills git history into a versioned core memory, then scores chang… | terminal |
 | `githubai/` | dir | Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude in… | terminal |
+| `gitnexus/` | dir | App Builder sandbox workspace (Vite + React + PGlite) exported from Grok Build — an experiment in h… | terminal |
 | `gitorio/` | dir | Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions wo… | terminal |
+| `irony-works/` | dir | The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repo… | terminal |
 | `it-journey/` | dir | From-zero-to-hero docs, tools, and scripts supporting an IT learning journey. | terminal |
 | `law-ai/` | dir | LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ol… | terminal |
 | `lawmode/` | dir | Always-on AI lawyer concept for developers. | terminal |
 | `lifehacker.dev/` | dir | Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages. | terminal |
+| `ocrmd/` | dir | Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR vo… | terminal |
+| `rewind-arcade/` | dir | A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snak… | terminal |
 | `scripts/` | dir | Development and automation utilities for project setup, GitHub workflows, and local tooling. | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |
 | `vs-sonic-pi/` | dir | VS Code extension for writing and performing Sonic Pi music from the editor. | terminal |
-| `vscode-front-matter/` | dir | zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a… | terminal |
 | `wargames/` | dir | Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey. | terminal |
 | `wtd/` | dir | Recursive TODO engine experiment for AI-orchestrated task decomposition. | terminal |
+| `zer0-cms/` | dir | zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a… | terminal |
 | `zer0-image-generator/` | dir | AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Po… | terminal |
 | `zer0-mistakes/` | dir | GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash. | terminal |
 | `zer0-pages/` | dir | Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Data… | terminal |

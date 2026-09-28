@@ -13,7 +13,7 @@ Every independent project in this monorepo is a **git submodule** under this dir
 | --- | --- | --- | --- |
 | `projects/cv-builder-pro` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite |
 | `projects/README` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
-| `projects/scripts` | `bamr87/scripts` | `master` | Bash, Python |
+| `projects/scripts` | `bamr87/scripts` | `main` | Bash, Python |
 | `projects/skills` | `microsoft/skills` (external) | `main` (`update = merge`) | Markdown skills, MCP |
 
 ## Adding a project

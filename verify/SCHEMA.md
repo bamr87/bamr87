@@ -11,6 +11,7 @@ coverage: listed
 
 | entry | kind | purpose | rules |
 |---|---|---|---|
+| `README.md` | file | What this directory holds and how to regenerate it | required |
 | `verify.yml` | file | Run config (`verify/v1`): build + static serve of the Jekyll site with an empty baseurl, viewports, paths, agent guardrails | required |
 | `runner.mjs` | file | Rendered copy of the kit's Playwright scenario runner (machine seed — refresh from `templates/verify/runner.mjs`, never hand-edit) | generated |
 | `mcp.json` | file | Playwright MCP server definition the verification agent drives the site with | required |

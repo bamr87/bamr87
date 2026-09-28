@@ -11,6 +11,7 @@ coverage: listed
 
 | entry | kind | purpose | rules |
 |---|---|---|---|
+| `README.md` | file | What this directory holds and how to regenerate it | required |
 | `evidence/` | dir | One `<scenario id>/` bundle per user scenario — screenshots per viewport, `report.json`, a README saying what each image proves; committed deliberately as the proof linked from `features/features.yml`. `evidence/agent/` (MCP screenshots) and `evidence/report.json` (the aggregate) are gitignored run outputs | generated |
 
 ## Placement

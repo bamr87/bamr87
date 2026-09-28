@@ -35,8 +35,8 @@
 	path = projects/zer0-mistakes
 	url = https://github.com/bamr87/zer0-mistakes.git
 	branch = main
-[submodule "projects/edgar-data-parse"]
-	path = projects/edgar-data-parse
+[submodule "projects/fredgar-ai"]
+	path = projects/fredgar-ai
 	url = https://github.com/bamr87/fredgar-ai.git
 	branch = main
 [submodule "projects/bashconsultants"]
@@ -103,8 +103,8 @@
 	path = projects/djangoerp
 	url = https://github.com/bamr87/djangoerp.git
 	branch = main
-[submodule "projects/vscode-front-matter"]
-	path = projects/vscode-front-matter
+[submodule "projects/zer0-cms"]
+	path = projects/zer0-cms
 	url = https://github.com/bamr87/zer0-CMS.git
 	branch = main
 [submodule "projects/cv-builder-pro"]
@@ -130,4 +130,28 @@
 [submodule "projects/wargames"]
 	path = projects/wargames
 	url = https://github.com/bamr87/wargames.git
+	branch = main
+[submodule "projects/bashos"]
+	path = projects/bashos
+	url = https://github.com/bamr87/bashos.git
+	branch = main
+[submodule "projects/gitnexus"]
+	path = projects/gitnexus
+	url = https://github.com/bamr87/gitnexus.git
+	branch = main
+[submodule "projects/ocrmd"]
+	path = projects/ocrmd
+	url = https://github.com/bamr87/ocrmd.git
+	branch = main
+[submodule "projects/rewind-arcade"]
+	path = projects/rewind-arcade
+	url = https://github.com/bamr87/rewind-arcade.git
+	branch = main
+[submodule "projects/irony-works"]
+	path = projects/irony-works
+	url = https://github.com/bamr87/irony-works.git
+	branch = main
+[submodule "projects/git-with-the-program"]
+	path = projects/git-with-the-program
+	url = https://github.com/bamr87/git-with-the-program.git
 	branch = main
