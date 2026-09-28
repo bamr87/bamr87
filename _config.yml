@@ -16,10 +16,10 @@ site_configured          : true        # tells the theme this site is personalis
 remote_theme             : "bamr87/zer0-mistakes"
 
 # Site identity ----------------------------------------------------------------
-title                    : "Amr Abdel-Motaleb"
+title                    : "Amr"
 title_url                : "/"
 title_icon               : "person-badge"
-subtitle                 : "Solutions Architect · ERP Specialist · Full-Stack Developer"
+subtitle                 : "IT Wizard"
 title_separator          : "|"
 url                      : "https://bamr87.github.io"
 baseurl                  : "/bamr87"   # project Pages subpath: bamr87.github.io/bamr87/

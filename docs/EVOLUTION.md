@@ -4,7 +4,7 @@ The fleet's weekly **proactive** loop. The three loops it sits beside all *react
 
 | | | |
 | --- | --- | --- |
-| **Workflow** | [`.github/workflows/repo-evolution.yml`](../.github/workflows/repo-evolution.yml) | weekly Mon 09:00 UTC + dispatch |
+| **Workflow** | [`.github/workflows/repo-evolution.yml`](../.github/workflows/repo-evolution.yml) | weekly Mon 10:37 UTC + dispatch |
 | **Planner** | [`.github/scripts/dash-gen/evolution.py`](../.github/scripts/dash-gen/evolution.py) | `dash-gen targets` / `dash gen targets` |
 | **Brief material** | [`.github/evolution/`](../.github/evolution/) | goals + method template, category emphasis |
 | **Config** | [`_data/fleet.yml`](../_data/fleet.yml) → `schedule.repo_evolution`, `evolution:` | cadence, caps, marker, backpressure |
@@ -19,7 +19,7 @@ The fleet's weekly **proactive** loop. The three loops it sits beside all *react
 ## The loop
 
 ```text
-          ┌──────────────────── weekly Mon 09:00 UTC · repo-evolution.yml ─────────────────────┐
+          ┌──────────────────── weekly Mon 10:37 UTC · repo-evolution.yml ─────────────────────┐
           │                                                                                  │
           │  job: plan  (deterministic)                 job: evolve  (matrix, needs: plan)    │
           │  ┌──────────────────────────────────┐       ┌───────────────────────────────────┐ │

@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# Standalone log plane for __PROJECT_NAME__ — kit: elk v__KIT_VERSION__
+#
+# ONLY for a clone OUTSIDE the hub. Inside bamr87/bamr87 the hub already runs
+# one Elasticsearch, one Kibana and one Filebeat for the whole fleet, and this
+# overlay would fight it for port 9200 and for a gigabyte of heap. The labels
+# in compose.labels.yml are what feed the hub's stack; they are also what feed
+# this one, which is the point — one emission contract, two possible readers.
+#
+#   docker compose -f docker-compose.yml -f compose.elk.yml --profile elk up -d
+#   open http://127.0.0.1:5601
+#
+# Deliberately simpler than the hub's: no Logstash and no Grafana. A single
+# repo's logs do not need a shared normalization hub or cross-fleet trends —
+# they need to be searchable. Filebeat writes straight to Elasticsearch here,
+# which means the hub's central redaction filter is NOT in the path: the
+# emission-side redaction in adapters/ is what protects this configuration
+# (UPS-OPS-12), which is why the adapters attach it rather than leaving it to
+# the pipeline.
+#
+# Local-only: loopback ports, security off, never in CI.
+# ---------------------------------------------------------------------------
+services:
+  elasticsearch:
+    image: elasticsearch:${ELASTIC_VERSION:-9.5.3}
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - '127.0.0.1:${ES_PORT:-9200}:9200'
+    volumes:
+      - elk-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      # yellow, not green: one node can never allocate a replica.
+      test:
+        [
+          'CMD-SHELL',
+          "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    profiles: [elk]
+
+  kibana:
+    image: kibana:${ELASTIC_VERSION:-9.5.3}
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_PUBLICBASEURL=http://127.0.0.1:${KIBANA_PORT:-5601}
+      - TELEMETRY_OPTIN=false
+    ports:
+      - '127.0.0.1:${KIBANA_PORT:-5601}:5601'
+    volumes:
+      - elk-kibana-data:/usr/share/kibana/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles: [elk]
+
+  filebeat:
+    image: elastic/filebeat:${ELASTIC_VERSION:-9.5.3}
+    user: root
+    # The shipper config is the VENDORED payload and must stay byte-identical
+    # to the hub's (drift check (i)), so the standalone output is switched with
+    # -E overrides rather than by editing the file. A second copy of that file
+    # would defeat the whole point of vendoring one.
+    command:
+      - filebeat
+      - -e
+      - --strict.perms=false
+      - -E
+      - output.logstash.enabled=false
+      - -E
+      - output.elasticsearch.enabled=true
+      - -E
+      - output.elasticsearch.hosts=["elasticsearch:9200"]
+    volumes:
+      - ./filebeat.fleet.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - elk-filebeat-data:/usr/share/filebeat/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles: [elk]
+
+volumes:
+  elk-es-data:
+  elk-kibana-data:
+  elk-filebeat-data:

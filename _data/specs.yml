@@ -1613,6 +1613,25 @@ requirements:
     satisfied_by: "review"
     seed: "`docs/AI-INTEGRATION.md`"
     gap: false
+  - id: UPS-OPS-17
+    area: OPS
+    section: "Logging, errors, telemetry"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all with containers"]
+    requirement: "Every compose service carries `com.bamr87.fleet.repo` / `.project` / `.stack` / `.log_format` labels and a `json-file` driver with `max-size` + `max-file` rotation, so the fleet log shipper can attribute its lines to a repo and the host's log files stay bounded. An unlabelled container is invisible to the shipper by design — the label IS the opt-in."
+    satisfied_by: "`docker inspect` labels"
+    seed: "hub `docker-compose.yml`, `templates/elk/compose.labels.yml`"
+    gap: false
+  - id: UPS-OPS-18
+    area: OPS
+    section: "Logging, errors, telemetry"
+    level: SHOULD
+    applies: [all]
+    requirement: "The repo carries the ELK kit (`compose.elk.yml`, `filebeat.fleet.yml`) so a clone OUTSIDE the hub still gets a local log UI (`docker compose --profile elk up`); inside the hub the same labels feed the hub's one stack instead. Structured emission (OPS-10) is the MUST; this is the shipping half."
+    satisfied_by: "kit files present"
+    seed: "`templates/elk/` (`tools/fanout.sh --kit elk`)"
+    gap: false
   - id: UPS-OPS-20
     area: OPS
     section: "Security"

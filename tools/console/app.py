@@ -16,6 +16,9 @@ workflows and run --apply fan-outs with the operator's FLEET_TOKEN is a real
 lever. So every request's Host header is checked against a loopback allowlist
 (extend it with DASH_CONSOLE_ALLOWED_HOSTS when fronting the console with a
 proxy or a real hostname).
+A narrow Content-Security-Policy rides alongside that guard: frame-src names
+the three observability UIs the Observe tab embeds, and frame-ancestors 'none'
+stops anything embedding this console in turn.
 Credentials: jobs inherit the process environment exactly like a terminal
 would, and every status document reports credential NAMES and presence only —
 never a value or a prefix. The /api/auth routes let the operator hand this
@@ -39,9 +42,9 @@ from pydantic import BaseModel, Field
 import core
 
 STATIC = Path(__file__).resolve().parent / "static"
-app = FastAPI(title="bamr87 Harness Console", version="0.3.0",
+app = FastAPI(title="bamr87 Harness Console", version="0.4.0",
               description="Local control plane for the fleet's AI harnesses and schedules — "
-                          "with the local data lake and Phoenix traces.")
+                          "with the local data lake, Phoenix traces and the content atlas.")
 jobs = core.JobManager()
 
 # Hosts this console answers to. Loopback names only by default; a deployment
@@ -61,6 +64,30 @@ async def guard_host(request: Request, call_next):
             "detail": f"host '{host}' is not allowed — the console answers on loopback only; "
                       "set DASH_CONSOLE_ALLOWED_HOSTS to serve another hostname"})
     return await call_next(request)
+
+
+@app.middleware("http")
+async def frame_policy(request: Request, call_next):
+    """Allow the Observe tab to embed Kibana, Grafana and Phoenix — and nothing
+    else to embed this console.
+
+    Deliberately NARROW. index.html is one file of inline script and style, so
+    a policy with a `default-src` would have to carry 'unsafe-inline' to work
+    at all, which is a worse policy than none. With only frame-src and
+    frame-ancestors, scripts are untouched and two real things are gained: the
+    embeds are permitted (a browser refuses a cross-origin frame with nothing
+    but a console line), and this origin — which can dispatch workflows with
+    the operator's FLEET_TOKEN — can no longer be framed by anyone.
+
+    The allowlist is _data/fleet.yml `observability.portal.frame_src`, stated
+    once. A full nonce-based CSP (UPS-OPS-23) needs index.html templated and is
+    tracked separately.
+    """
+    response = await call_next(request)
+    sources = " ".join(core.frame_src())
+    response.headers["Content-Security-Policy"] = (
+        f"frame-src 'self' {sources}".strip() + "; frame-ancestors 'none'")
+    return response
 
 
 def require_token(authorization: str | None = Header(default=None)) -> None:
@@ -88,6 +115,17 @@ class CredentialUpdate(BaseModel):
     value: str
     persist: bool = False
     confirm: bool = False
+
+
+class EditorialDecision(BaseModel):
+    site: str
+    action: str                    # approve | reject | add | status | remove
+    key: str
+    fields: dict = Field(default_factory=dict)
+
+
+class EditorialSite(BaseModel):
+    fields: dict
 
 
 class GithubAuth(BaseModel):
@@ -170,6 +208,82 @@ def lake_review(days: int = Query(default=30, ge=1, le=3650),
                 limit: int = Query(default=10, ge=1, le=100)) -> dict:
     """Local Claude Code sessions + CI agent runs, unified and analyzed."""
     return core.lake_review(days, repo, limit)
+
+
+@app.get("/api/index/coverage", dependencies=[Depends(require_token)])
+def index_coverage() -> dict:
+    """Chunk counts per submodule, plus scanner blind spots (dot-directories)."""
+    return core.index_coverage()
+
+
+@app.get("/api/index/search", dependencies=[Depends(require_token)])
+def index_search(q: str = Query(default="", max_length=500)) -> dict:
+    """Semantic search over the code index, hits below the contract floor dropped."""
+    return core.index_query("search", q)
+
+
+@app.get("/api/index/harmonize", dependencies=[Depends(require_token)])
+def index_harmonize(q: str = Query(default="", max_length=500)) -> dict:
+    """Which submodules share a pattern, and which do not."""
+    return core.index_query("harmonize", q)
+
+
+@app.get("/api/observability", dependencies=[Depends(require_token)])
+def observability() -> dict:
+    """The Observe tab's document: the three planes, the Kilo code index, the
+    dataset sizes against the disk budget, the ship ledger, and the embed URLs."""
+    return core.observe_status()
+
+
+@app.get("/api/content", dependencies=[Depends(require_token)])
+def content(site: str | None = Query(default=None, max_length=64)) -> dict:
+    """The content atlas: every declared site analyzed from the lake (topics,
+    activity, aging, hygiene, pillar coverage) with its editorial suggestions."""
+    try:
+        return core.content_report(site)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/content/{site}/docs", dependencies=[Depends(require_token)])
+def content_docs(site: str, view: str = Query(default="all", max_length=80),
+                 q: str = Query(default="", max_length=120),
+                 limit: int = Query(default=200, ge=1, le=1000)) -> list[dict]:
+    try:
+        return core.content_documents(site, view=view, q=q, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/content/{site}/brief", dependencies=[Depends(require_token)])
+def content_brief(site: str) -> dict:
+    try:
+        return core.content_brief(site)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/editorial/decision", dependencies=[Depends(require_token)])
+def editorial_decision(req: EditorialDecision) -> dict:
+    """Approve/reject a suggestion, add or move a directive — _data/editorial.yml
+    in the working tree, comments preserved; returns the git diff."""
+    try:
+        return core.editorial_decide(req.site, req.action, req.key, req.fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
+@app.put("/api/editorial/{site}", dependencies=[Depends(require_token)])
+def editorial_site(site: str, req: EditorialSite) -> dict:
+    """Set a site's narrative / audience / voice, or upsert one pillar."""
+    try:
+        return core.editorial_update(site, req.fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
 
 
 @app.get("/api/contract", dependencies=[Depends(require_token)])
@@ -257,6 +371,7 @@ def api_root() -> JSONResponse:
     return JSONResponse({"routes": ["/api/state", "/api/capabilities", "/api/ops", "/api/jobs",
                                     "/api/lake", "/api/lake/runs", "/api/lake/lines",
                                     "/api/lake/review",
+                                    "/api/observability",
                                     "/api/contract", "/api/config", "/api/auth",
                                     "/api/auth/credential", "/api/auth/github", "/docs"]})
 

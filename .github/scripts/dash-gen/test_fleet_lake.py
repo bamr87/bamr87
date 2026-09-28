@@ -19,7 +19,11 @@ record of what GitHub holds, and the traces trustworthy as evidence:
     spans closed by their tool_result, everything under the session root;
   * the SQLite layer upserts idempotently (a second sync is an update, not a
     duplicate) and the export ledger keeps already-shipped runs out of the
-    next selection unless forced; and
+    next selection unless forced;
+  * iter_log_entries — the generator the log plane's shipper replays through —
+    yields exactly what store_logs used to consume, in the same order, and
+    store_logs still truncates at its per-run cap (the refactor that gave the
+    lake a second sink must not have changed the first one); and
   * the status / runs / lines documents the console serves are JSON-safe.
 
 Deliberately dependency-light — no network, no gh, no OpenTelemetry, no
@@ -29,10 +33,12 @@ pytest. Needs only PyYAML:
 """
 from __future__ import annotations
 
+import io
 import json
 import shutil
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -472,6 +478,82 @@ def test_seven_digit_subsecond_stamps_parse_on_every_interpreter():
     picked = fl._agent_step(steps, {"started_at": "2026-09-01T06:49:38.2932628Z"})
     assert picked and picked["number"] == 2, picked
     assert fl._agent_step(steps, {"started_at": "not-a-date"})["number"] == 2
+
+
+# --------------------------------------------------------------------------- #
+# the two sinks on one extractor
+# --------------------------------------------------------------------------- #
+class _FakeResp:
+    def __init__(self, content): self.status_code, self.content = 200, content
+
+
+class _FakeSession:
+    """Stands in for the requests.Session `lake sync` builds. Counts calls,
+    because 'one download feeding two sinks' is the property under test."""
+    def __init__(self, entries): self.entries, self.calls = entries, 0
+
+    def get(self, _url, timeout=None):
+        self.calls += 1
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            for name, text in self.entries:
+                zf.writestr(name, text)
+        return _FakeResp(buf.getvalue())
+
+
+LOG_ENTRIES = [
+    ("0_setup.txt", "2026-09-20T10:00:00Z per-job roll-up\n"),
+    ("build/1_Checkout.txt", "2026-09-20T10:00:01Z checking out\n"),
+    ("build/2_Test.txt", "2026-09-20T10:00:02Z ERROR: nope\n"),
+]
+
+
+def test_iter_log_entries_yields_step_files_before_job_rollups():
+    session = _FakeSession(LOG_ENTRIES)
+    got = [name for name, _raw, _text in fl.iter_log_entries(session, "https://x/logs")]
+    # store_logs sorted step files (those with a "/") first and then by name;
+    # the ordering decides what survives the byte cap, so it is load-bearing.
+    assert got == ["build/1_Checkout.txt", "build/2_Test.txt", "0_setup.txt"], got
+    assert session.calls == 1, "one download per run, not one per entry"
+
+
+def test_iter_log_entries_is_silent_on_a_missing_or_broken_zip():
+    class Dead:
+        def get(self, *_a, **_k): raise OSError("no network")
+    assert list(fl.iter_log_entries(Dead(), "https://x/logs")) == []
+
+    class NotAZip:
+        def get(self, *_a, **_k): return _FakeResp(b"not a zip at all")
+    assert list(fl.iter_log_entries(NotAZip(), "https://x/logs")) == []
+
+
+def test_store_logs_still_truncates_at_the_per_run_cap():
+    conn = fl.connect(tempfile.mkdtemp())
+    big = [("build/1_Big.txt", "2026-09-20T10:00:00Z " + "x" * 5000 + "\n")]
+    stored, _agent = fl.store_logs(conn, _FakeSession(big), 1, "https://x/logs", max_bytes=100)
+    rows = conn.execute("SELECT truncated, text FROM logs WHERE run_id = 1").fetchall()
+    assert stored == 1 and rows[0]["truncated"] == 1, "the cap stopped applying"
+    assert "truncated at per-run cap" in rows[0]["text"]
+
+
+def test_store_logs_returns_the_agent_text_it_always_did():
+    entries = [("build/1_Claude.txt", "2026-09-20T10:00:00Z total_cost_usd: 0.42\n"),
+               ("build/2_Other.txt", "2026-09-20T10:00:01Z nothing interesting\n")]
+    conn = fl.connect(tempfile.mkdtemp())
+    stored, agent_text = fl.store_logs(conn, _FakeSession(entries), 9, "https://x/logs",
+                                       max_bytes=1_000_000)
+    assert stored == 2
+    assert "total_cost_usd" in agent_text
+    assert "nothing interesting" not in agent_text, "only agent-relevant entries are collected"
+
+
+def test_the_shipments_ledger_exists_beside_the_exports_ledger():
+    # The log plane's idempotency store. Same contract as `exports`: a run in
+    # here is skipped unless --force, so re-running the shipper is free.
+    conn = fl.connect(tempfile.mkdtemp())
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(shipments)")}
+    assert cols == {"key", "sink", "docs", "bytes", "endpoint", "shipped_at"}, cols
+    assert "shipments" in fl.TABLES, "status would not count it"
 
 
 # --------------------------------------------------------------------------- #

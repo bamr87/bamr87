@@ -198,6 +198,11 @@ issue-workorder-t*.md
 evolution-workorders/
 # local data lake (dash-gen lake): extracted GitHub runs/logs/issues + SQLite; never committed
 .dash-lake/
+
+# generated compose overrides (dash-gen compose): one per submodule, derived from
+# _data/projects.yml `dev_port` + _data/fleet.yml `containers:`. Regenerated, not
+# authored — and they name paths that only exist once submodules are checked out.
+.fleet/compose/
 # Evidence sandboxes built by tools/issue-evidence.sh: a full clone plus its
 # venv/node_modules per issue. Uploaded as a workflow artifact; never committed.
 .evidence/

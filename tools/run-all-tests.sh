@@ -122,7 +122,7 @@ run_control_plane_tests() {
 run_root_checks() {
     printf '\n%s== Root checks ==%s\n' "$c_bold" "$c_off"
     if has_command shellcheck; then
-        run_step "tools shellcheck" bash -c "cd '${PROJECT_ROOT}' && shellcheck tools/*.sh"
+        run_step "tools shellcheck" bash -c "cd '${PROJECT_ROOT}' && shellcheck tools/*.sh tools/observability/*.sh"
         # An un-checked-out submodule still leaves an EMPTY directory behind, so
         # `-d` alone passes and the glob then expands to a literal path that the
         # linter reports as a missing file — a guaranteed failure on any clone

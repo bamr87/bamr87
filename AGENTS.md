@@ -1,308 +1,58 @@
-<!-- Adapted from: projects/skills/Agents.md (microsoft/skills submodule) -->
+# Agent guide — bamr87 dash
 
-# Agent Principles
+## Boundaries and entrypoints
 
-Guidelines for AI coding agents working in the bamr87 monorepo — a self-managing **dash** (control plane) that manages ~40 Git submodules (docs sites, full-stack AI apps, VS Code extensions, dev tools, and content repos) from one registry-driven source of truth. See [`CLAUDE.md`](CLAUDE.md) and [`docs/DASH.md`](docs/DASH.md) for the architecture, and [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) for the AI surfaces and Claude auth; the authoritative project list is [`_data/projects.yml`](_data/projects.yml).
+- This root repo is the fleet control plane plus a GitHub profile and Jekyll site. `projects/*` are independent Git submodules with their own dependencies, tests, and releases; there is no shared package build. Read the target project's README and agent instructions before working there.
+- `_data/projects.yml` is the project registry; `.gitmodules` must agree on submodule paths, URLs, and branches. Read those files instead of hardcoding a project list or assuming `main`. When committing submodule work, commit in that repo first, then record its SHA in the parent; see [SUBMODULES.md](SUBMODULES.md).
+- `tools/dash` is the shell command router. `tools/dash-gen` wraps `.github/scripts/dash-gen/dash_gen.py`; generator implementations and most control-plane tests live beside that Python entrypoint. `tools/console/` is the local FastAPI Harness Console.
+- The published Pages site is the root Jekyll site (`pages/_dash/`, `index.md`, `_config.yml`), built by `.github/workflows/build-dash.yml`. MkDocs belongs to `projects/README/`; its `docs/` contains aggregated copies, so edit the original project sources rather than those copies.
+- Orient through [SCHEMA.md](SCHEMA.md) and the schema chain to the target directory. Detailed references: [docs/DASH.md](docs/DASH.md) for architecture, [CATALOG.md](CATALOG.md) for available tools/kits, [CLAUDE.md](CLAUDE.md) for operational context, and `.github/instructions/*.instructions.md` by `applyTo` scope. House rule: read the relevant README first and update it to reflect the change.
 
-## Machine API — start here (bots)
+## Development and focused verification
 
-Human dashboards (`/triage/`, `/monitor/`) are HTML. For prioritization, hit the static JSON surface published on every Pages deploy:
-
-1. [`/api/v1/index.json`](https://bamr87.github.io/bamr87/api/v1/index.json) — discovery + current top inbox hint
-2. [`/api/v1/fleet.json`](https://bamr87.github.io/bamr87/api/v1/fleet.json) — work `inbox[]` in order
-3. [`/api/v1/health.json`](https://bamr87.github.io/bamr87/api/v1/health.json) — per-repo red/amber/green (build-time)
-4. [`/llms.txt`](https://bamr87.github.io/bamr87/llms.txt) — plain-text discovery
-
-Emitted by `tools/dash-gen machine-api` (wired into `build-dash.yml` after Jekyll). Contract: `docs/MACHINE-API.md`.
-
----
-
-## ⚠️ Fresh Information First
-
-**Dependencies and APIs change constantly. Never work with stale knowledge.**
-
-Before implementing anything:
-
-1. **Check existing patterns first** — Read the relevant README.md and instruction files in `.github/instructions/`
-2. **Verify package versions** — Check `package.json`, `requirements*.txt`, or `Gemfile` for installed versions
-3. **Don't trust cached knowledge** — Your training data may be outdated. Verify against what's actually in the repo.
-
-```
-# Always do this first
-1. Read the README.md in the working directory
-2. Check .github/instructions/ for applicable guidelines
-3. Verify against actual installed package versions
-```
-
-**If you skip this step and use outdated patterns, you will produce broken code.**
-
----
-
-## Core Principles
-
-These principles reduce common LLM coding mistakes. Apply them to every task.
-
-### 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-- State assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them — don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-### 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-**The test:** Would a senior engineer say this is overcomplicated? If yes, simplify.
-
-### 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it — don't delete it.
-
-When your changes create orphans:
-
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-**The test:** Every changed line should trace directly to the user's request.
-
-### 4. Goal-Driven Execution (TDD)
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-
-| Instead of...    | Transform to...                                       |
-| ---------------- | ----------------------------------------------------- |
-| "Add validation" | "Write tests for invalid inputs, then make them pass" |
-| "Fix the bug"    | "Write a test that reproduces it, then make it pass"  |
-| "Refactor X"     | "Ensure tests pass before and after"                  |
-
-For multi-step tasks, state a brief plan:
-
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-## Clean Architecture
-
-Follow these layered boundaries when building features:
-
-```
-┌─────────────────────────────────────┐
-│           Presentation              │  ← UI components, API endpoints
-├─────────────────────────────────────┤
-│           Application               │  ← Use cases, orchestration
-├─────────────────────────────────────┤
-│             Domain                  │  ← Entities, business rules
-├─────────────────────────────────────┤
-│          Infrastructure             │  ← Database, external APIs
-└─────────────────────────────────────┘
-```
-
-**Rules:**
-
-- Dependencies point inward (outer layers depend on inner layers)
-- Domain layer has no external dependencies
-- Infrastructure implements interfaces defined in inner layers
-- Each layer should be testable in isolation
-
----
-
-## Repository Structure
-
-This is a monorepo of ~40 Git submodules, driven by a registry:
-
-```
-bamr87/
-├── AGENTS.md                   # This file — agent principles
-├── CLAUDE.md                   # Claude Code guidance (start here)
-├── _data/projects.yml          # THE REGISTRY — single source of truth for all submodules
-├── _data/standards.yml         # per-tier standardization requirements
-├── docker-compose.yml          # Container-first development
-├── projects/<name>/            # ~40 submodules, flat (category lives in the registry)
-├── pages/_dash/                # the Jekyll dash collection
-├── tools/                      # dash CLI (tools/dash), drift gate, standards audit, setup
-├── docs/                       # DASH.md (canonical) + architecture/dev docs
-├── .github/
-│   ├── agents/                 # PORTABLE Copilot persona templates (seeded into submodules)
-│   ├── prompts/                # Reusable prompt templates
-│   ├── instructions/           # Copilot instruction files (applyTo patterns)
-│   ├── workflows/              # control-plane CI (build-dash, drift-check, standardize-fanout, …)
-│   └── copilot-instructions.md # Global Copilot config
-└── .claude/                    # dash-operational AI layer (skills, commands, agents, hooks)
-```
-
-### Submodule reference
-
-Do **not** hardcode the submodule list — read [`_data/projects.yml`](_data/projects.yml) (cross-checked against `.gitmodules` by the drift gate). Foundational submodules:
-
-| Submodule | Repo | Branch | Tech Stack |
-| --- | --- | --- | --- |
-| `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind |
-| `projects/README/` | `bamr87/README` | `main` | MkDocs, Python, Markdown |
-| `projects/scripts/` | `bamr87/scripts` | `main` | Bash, Python |
-| `projects/zer0-mistakes/` | `bamr87/zer0-mistakes` | `main` | Jekyll theme (powers the dash) |
-| `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
-| `projects/skills/` | `microsoft/skills` (external) | `main` | Skills, prompts, MCP configs |
-
-**Branches:** all track `main`. Read the branch from `.gitmodules`.
-
-### Container Development
-
-All development runs in Docker. The `docker-compose.yml` provides:
-
-| Service  | Port   | Purpose           |
-| -------- | ------ | ----------------- |
-| `devenv` | `5000` | CV Builder (Vite) |
-| `devenv` | `5173` | Vite HMR          |
-| `devenv` | `8000` | MkDocs            |
-| `devenv` | `4000` | Jekyll            |
+Run the following from the repository root. Prefer the `devenv` container (`/workspace`); create `.env` from `.env.example` before first startup if it is absent.
 
 ```bash
-# Start development
-docker-compose up -d
-
-# Run commands inside container
-docker-compose exec devenv bash
+tools/dash up                         # shared workspace, console, Postgres, Redis
+docker compose exec devenv bash      # commands below run from /workspace
+python3 -m pip install -r .github/scripts/dash-gen/requirements.txt
 ```
 
----
+The generator requires PyYAML and PyGithub. CI uses Python 3.12 and Ruby 3.3; fleet defaults live in `_data/fleet.yml` under `toolchain`. `tools/dash-gen` and `tools/check-drift.sh` honor `PYTHON=/path/to/python` when using a local virtual environment.
 
-## Conventions
+| Scope | Command / behavior |
+| --- | --- |
+| Root drift gate | `tools/check-drift.sh` — registry parity, generated README, schema, dependency policy, action manifests; `--ci` also makes advisory GitHub API checks |
+| Schema only | `python3 tools/schema_lint.py check .` — schema warnings also fail the drift gate |
+| One generator test file | `python3 .github/scripts/dash-gen/test_machine_api.py` — offline fixtures |
+| One unittest case | `python3 .github/scripts/dash-gen/test_machine_api.py MachineApiTests.test_degraded_without_inputs` |
+| CV projection tests | `python3 -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q` — requires pytest; this file has no standalone runner |
+| Root config smoke test | `bundle exec rake test` — parses Jekyll config and checks registry keys; no site build |
+| Shell changes | `shellcheck tools/*.sh tools/observability/*.sh` |
+| Workflow changes | `actionlint .github/workflows/*.yml` |
 
-### Code Style
+- `tools/run-all-tests.sh` (also `tools/dash test`) runs root checks, direct `test_*.py` invocations under dash-gen and console, then checked-out submodule suites. It skips projects without installed local dependencies; green means only the executed checks passed. Run the CV pytest command separately when changing that projection.
+- Markdown prose is **one paragraph per line**. Check edited files with `python3 tools/unwrap-prose.py --check AGENTS.md README.md` (substitute the changed paths; `--write` fixes). Respect `.prettierignore`: Prettier can corrupt Liquid in `pages/` and `index.md`, and desynchronize generated Markdown.
+- Hook activation is clone-specific: Husky, pre-commit, and the global prose hook compete through `core.hooksPath`. Diagnose with `bash tools/audit-git-hooks.sh`. The root has no `package.json`, despite `.husky/pre-commit` invoking `pnpm lint-staged`.
 
-- **Python**: Follow PEP 8. Use type hints. Format with `black`, lint with `ruff` or `flake8`.
-- **TypeScript/JavaScript**: Use ESLint + Prettier. Prefer TypeScript. Use ES Modules.
-- **Bash**: Use `set -euo pipefail`. Quote all variables. Use `shellcheck`.
-- Use context managers and proper resource cleanup
-- Use type hints/annotations on all function signatures
+## Sources of truth and generated files
 
-### Git & GitHub
+- `_data/fleet.yml` owns control-plane settings (toolchains, schedules, budgets, token names, container groups); `_data/standards.yml` owns tier requirements. `_data/` is public site data, not a place for credential values.
+- After registry/submodule changes, regenerate affected projections rather than editing their output:
 
-- Follow Conventional Commits: `type(scope): description`
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`
-- Use `gh` CLI for GitHub operations (PRs, issues)
-- Always commit submodule changes before updating the parent pointer
+  ```bash
+  tools/dash-gen readme                 # README AUTO:projects span only
+  tools/gen-projects-schema.py          # projects/SCHEMA.md
+  tools/dash-gen cv                     # _data/cv_portfolio.json proposal
+  tools/check-drift.sh
+  ```
 
-### Clean Code Checklist
+- Add/remove/rename files in the nearest `SCHEMA.md` in the same change. New directories need their own schema and a parent Structure row; follow `Placement` and `Forbidden`. `projects/*` are terminal boundaries of the hub schema. Regenerate `CATALOG.md` with `tools/gen-catalog.py` after adding catalogued tools/docs/kits; regenerate `_data/specs.yml` with `tools/gen-specs-data.py` after editing requirement tables in `specs/`.
+- `_data/project_health.yml`, `_data/project_health_meta.yml`, `_data/ai_activity.yml`, `_site/`, and `.fleet/compose/` are ephemeral/ignored. Other snapshots such as `_data/fleet_triage.yml` and `_data/actions_usage.yml` are intentionally committed; check the generator's README before refreshing data.
+- Dependency policy deliberately floats versions: no exact package pins, upper bounds, or committed lockfiles. Actions use major tags; pre-commit revisions and fleet-governed toolchain versions are exceptions. See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md). `tools/schema_lint.py` is vendored from `bamr87/SCHEMA`: fixes go upstream, then are re-vendored.
 
-Before completing any code change:
+## Site and fleet gotchas
 
-- [ ] Functions do one thing
-- [ ] Names are descriptive and intention-revealing
-- [ ] No magic numbers or strings (use constants)
-- [ ] Error handling is explicit (no empty catch blocks)
-- [ ] No commented-out code
-- [ ] Tests cover the change
-
-### Testing Patterns
-
-```python
-# Arrange
-service = DataService()
-expected = {"id": "123", "name": "test"}
-
-# Act
-result = service.get_item("123")
-
-# Assert
-assert result == expected
-```
-
-- Use `pytest` for Python, `vitest` or `cypress` for TypeScript
-- Mock external dependencies at the service boundary
-- Test both success and error paths
-- Follow Arrange-Act-Assert (AAA) pattern
-
----
-
-## README-First, README-Last
-
-This is a **critical workflow rule**. Before and after every task:
-
-1. **README-FIRST**: Read the relevant `README.md` to understand context
-2. Do the work
-3. **README-LAST**: Update `README.md` to reflect changes
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
-
----
-
-## Workflow: Adding a Feature
-
-1. **Clarify** — Understand the requirement. Ask if unclear.
-2. **Read README** — Understand context and existing patterns.
-3. **Test First** — Write a failing test that defines success.
-4. **Implement** — Write minimum code to pass the test.
-5. **Refactor** — Clean up while tests stay green.
-6. **Verify** — Run full test suite, check types, lint.
-7. **Update README** — Document what changed.
-
-```bash
-# Example workflow
-pytest tests/test_feature.py -v     # Run specific tests
-mypy src/                           # Type check (Python)
-ruff check src/                     # Lint (Python)
-npx eslint src/                     # Lint (TypeScript)
-```
-
----
-
-## Do's and Don'ts
-
-### Do
-
-- ✅ Read README.md before and after every task
-- ✅ Use container-first development (`docker-compose`)
-- ✅ Write tests before or alongside implementation
-- ✅ Keep functions small and focused
-- ✅ Match existing patterns in the codebase
-- ✅ Use `gh` CLI for all GitHub operations
-- ✅ Follow Conventional Commits format
-- ✅ Commit submodule changes before updating parent
-
-### Don't
-
-- ❌ Hardcode credentials or endpoints
-- ❌ Suppress type errors (`as any`, `@ts-ignore`, `# type: ignore`)
-- ❌ Leave empty exception handlers
-- ❌ Refactor unrelated code while fixing bugs
-- ❌ Add dependencies without justification
-- ❌ Skip README updates after making changes
-- ❌ Make unrelated changes across multiple submodules in one PR
-
----
-
-## Success Indicators
-
-These principles are working if you see:
-
-- Fewer unnecessary changes in diffs
-- Fewer rewrites due to overcomplication
-- Clarifying questions come before implementation (not after mistakes)
-- Clean, minimal PRs without drive-by refactoring
-- Tests that document expected behavior
-- READMEs that stay current with code changes
+- `tools/dash serve` installs gems and serves the dash on port 4000 using `_config.yml,_config_dev.yml` (Docker, with native fallback). The dev override clears the production `/bamr87` base URL. `remote_theme: bamr87/zer0-mistakes` does **not** import the theme's config or data; required settings must exist here. Restart Jekyll after config changes.
+- Production build order is `bundle exec jekyll build` with `JEKYLL_ENV=production`, then `tools/dash-gen machine-api --out _site`. Jekyll alone does not emit the machine API. For fleet prioritization, start at [api/v1/index.json](https://bamr87.github.io/bamr87/api/v1/index.json), then the linked fleet inbox; see [docs/MACHINE-API.md](docs/MACHINE-API.md).
+- Fleet apps run as **separate Compose projects** on the shared `fleet` network; combining their compose files with `include:` collides on service names. Use `tools/dash up <project>` or `tools/dash up --group jekyll`; generate port/network overrides with `tools/dash gen compose` from registry `dev_port` values. Overrides live in the hub's `.fleet/compose/`, never in submodules. The hub's Compose project name defaults to `fleet`, so worktrees share its services and volumes. See [docs/CONTAINERS.md](docs/CONTAINERS.md).

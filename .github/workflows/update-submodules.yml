@@ -20,7 +20,7 @@ name: 🔀 Update Submodules
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '7 3 * * *'   # daily 03:07 UTC (_data/fleet.yml schedule.update_submodules)
   workflow_dispatch:
     inputs:
       submodule:

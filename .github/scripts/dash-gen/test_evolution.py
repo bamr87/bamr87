@@ -397,7 +397,14 @@ def test_workflow_contract() -> None:
     check("prompt carries the always-latest / no-lockfile rule", "lockfile" in prompt)
     check("prompt carries the SCHEMA.md rule", "SCHEMA.md" in prompt)
 
-    check("the credential-rejected classifier is present", "modelUsage" in step(evolve, "Diagnose Claude failure")["run"])
+    # `Report Claude run cost` (was `Diagnose Claude failure`): the spend line
+    # is reported on EVERY run, and a budget abort and a refused credential are
+    # each classified loudly. See test_ai_budget.py for the caps themselves.
+    cost_step = step(evolve, "Report Claude run cost")
+    check("the credential-rejected classifier is present", "modelUsage" in cost_step["run"])
+    check("cost is reported on success too, not only on failure",
+          "failure()" not in str(cost_step.get("if")) and "!cancelled()" in str(cost_step.get("if")))
+    check("a budget abort is called out as an error", "BUDGET CAP HIT" in cost_step["run"])
 
     pub = step(evolve, "Open draft PR")
     run = pub["run"]
