@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# Fleet log labels + rotation (UPS-OPS-17) — kit: elk v__KIT_VERSION__
+#
+# Merge this into __PROJECT_NAME__'s docker-compose.yml with `include:`, or
+# copy the two anchors in and add the four lines to each service. The seeder
+# never edits a hand-written compose file; it prints what to add.
+#
+#   include:
+#     - path: compose.labels.yml
+#
+#   services:
+#     web:
+#       labels:
+#         <<: *fleet-labels
+#         com.bamr87.fleet.stack: node
+#       logging: *fleet-logging
+#
+# WHY BOTH HALVES:
+#   labels  — the OPT-IN. The fleet shipper autodiscovers on
+#             com.bamr87.fleet.project and ignores every container without it,
+#             so nothing central needs editing when this repo appears.
+#   logging — the BOUND. An unrotated json-file grows until the disk does, and
+#             the shipper has to walk whatever is there.
+#
+# com.bamr87.fleet.stack is free-form but conventional: jekyll · node · python
+# · django · rails · workspace · postgres · redis.
+# ---------------------------------------------------------------------------
+x-fleet-logging: &fleet-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+x-fleet-labels: &fleet-labels
+  com.bamr87.fleet.repo: bamr87/__PROJECT_NAME__
+  com.bamr87.fleet.project: __PROJECT_NAME__

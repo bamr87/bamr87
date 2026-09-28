@@ -1,0 +1,65 @@
+{
+  "fleet.actions-logs": {
+    "policy": {
+      "phases": {
+        "delete": {
+          "actions": {
+            "delete": {}
+          },
+          "min_age": "90d"
+        },
+        "hot": {
+          "actions": {
+            "rollover": {
+              "max_age": "1d",
+              "max_primary_shard_size": "10gb"
+            }
+          },
+          "min_age": "0ms"
+        }
+      }
+    }
+  },
+  "fleet.app-logs": {
+    "policy": {
+      "phases": {
+        "delete": {
+          "actions": {
+            "delete": {}
+          },
+          "min_age": "30d"
+        },
+        "hot": {
+          "actions": {
+            "rollover": {
+              "max_age": "1d",
+              "max_primary_shard_size": "10gb"
+            }
+          },
+          "min_age": "0ms"
+        }
+      }
+    }
+  },
+  "fleet.container-logs": {
+    "policy": {
+      "phases": {
+        "delete": {
+          "actions": {
+            "delete": {}
+          },
+          "min_age": "14d"
+        },
+        "hot": {
+          "actions": {
+            "rollover": {
+              "max_age": "1d",
+              "max_primary_shard_size": "10gb"
+            }
+          },
+          "min_age": "0ms"
+        }
+      }
+    }
+  }
+}

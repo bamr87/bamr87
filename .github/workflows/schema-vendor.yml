@@ -27,9 +27,9 @@ name: 🔺 Schema Vendor Sync
 
 on:
   schedule:
-    # Mondays 08:00 UTC — after upstream's own weekly self-audit (07:13),
+    # Mondays 08:07 UTC — after upstream's own weekly self-audit (07:13),
     # so a week that broke upstream is already visible there when this runs.
-    - cron: '0 8 * * 1'
+    - cron: '7 8 * * 1'   # weekly, Monday 08:07 UTC (_data/fleet.yml schedule.schema_vendor)
   workflow_dispatch:
     inputs:
       apply:

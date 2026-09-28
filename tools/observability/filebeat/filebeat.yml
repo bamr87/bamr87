@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------------------
+# Filebeat — the container-log shipper for the hub's local stack.
+#
+# Autodiscovers by LABEL (UPS-OPS-17), not by name or path: a container joins
+# the log plane by declaring com.bamr87.fleet.project and leaves it by dropping
+# the label. Nothing in this file needs editing when a submodule stack appears.
+#
+# It reads the container log files directly (/var/lib/docker/containers) and
+# uses the docker socket only to learn which container is which — on Docker
+# Desktop for Mac those files live inside the VM, so the socket is the only
+# route to that mapping. Read-only, loopback stack, local bench only.
+#
+# This file is ALSO the fan-out payload: templates/elk/filebeat.fleet.yml is
+# the vendored copy every repo gets, and drift check (i) holds them equal.
+# ---------------------------------------------------------------------------
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: false
+      templates:
+        - condition:
+            has_fields: ['docker.container.labels.com.bamr87.fleet.project']
+          config:
+            - type: container
+              paths: ['/var/lib/docker/containers/${data.docker.container.id}/*.log']
+              # A UPS-OPS-10 line is JSON and parses here; anything else keeps
+              # its raw `message` and is routed to the container dataset by the
+              # Logstash enrich pipeline. add_error_key makes a malformed line
+              # visible rather than silently dropped.
+              json.keys_under_root: true
+              json.add_error_key: true
+              json.message_key: msg
+
+processors:
+  - add_docker_metadata:
+      host: 'unix:///var/run/docker.sock'
+  # Beats' own noise: host/agent/ecs blocks re-added downstream from the fleet
+  # labels, which are the attribution that actually matters here.
+  - drop_fields:
+      fields: ['agent.ephemeral_id', 'agent.id', 'agent.version', 'ecs.version']
+      ignore_missing: true
+
+# Logstash, not Elasticsearch directly: the redaction filter is the reason this
+# plane exists at all, and it lives in the enrich pipeline.
+output.logstash:
+  hosts: ['logstash:5044']
+
+logging.level: info
+logging.to_files: false

@@ -146,7 +146,10 @@ jobs:
                rows that don't apply.
             3. Keep the Conventions and Fleet context sections as they are.
             Do not modify any file other than CLAUDE.md.
-          claude_args: "--max-turns 15"
+          # `--max-turns` bounds iterations, not spend. Dollar ceiling declared
+          # in _data/fleet.yml `budget.call_sites`; test_ai_budget.py asserts
+          # this literal and that entry agree.
+          claude_args: "--max-turns 15 --max-budget-usd 8"
 
       - name: Push agent pass to the PR branch
         run: |

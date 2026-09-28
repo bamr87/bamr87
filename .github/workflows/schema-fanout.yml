@@ -137,7 +137,10 @@ jobs:
                of additions to this repo.
             Keep `python3 tools/schema_lint.py check .` passing with zero
             errors. Do not modify any file other than SCHEMA.md files.
-          claude_args: "--max-turns 25"
+          # `--max-turns` bounds iterations, not spend. Dollar ceiling declared
+          # in _data/fleet.yml `budget.call_sites`; test_ai_budget.py asserts
+          # this literal and that entry agree.
+          claude_args: "--max-turns 25 --max-budget-usd 10"
 
       - name: Push agent pass to the PR branch
         run: |

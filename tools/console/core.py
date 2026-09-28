@@ -336,6 +336,11 @@ def capabilities() -> dict:
         "lake_present": (LAKE_DIR / "fleet.sqlite").exists(),
         "otel_exporter": has_otel,
         "phoenix": {"collector": PHOENIX_COLLECTOR, "ui": PHOENIX_UI},
+        # All three local planes in one key, so the Observe tab can render a
+        # pane per plane without three round trips. Kept BESIDE the legacy
+        # `phoenix` key rather than replacing it: anything already reading that
+        # key keeps working, which is cheaper than finding every reader.
+        "observability": observability_planes(probe=False),
     }
 
 
@@ -357,6 +362,162 @@ def lake_status(probe: bool = True) -> dict:
         return {"present": False, "lake_dir": str(LAKE_DIR), "error": f"{exc.__class__.__name__}: {exc}",
                 "tables": {}, "repos": [], "agent_runs": {"count": 0}, "exports": {"count": 0},
                 "phoenix": {"collector": PHOENIX_COLLECTOR, "ui": PHOENIX_UI, "reachable": None}}
+
+
+# --------------------------------------------------------------------------- #
+# OBSERVABILITY — the three local planes, read through dash-gen's module
+# --------------------------------------------------------------------------- #
+def _observe_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import fleet_observe  # noqa: WPS433
+    return fleet_observe
+
+
+def _index_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import fleet_index  # noqa: WPS433
+    return fleet_index
+
+
+def index_query(kind: str, query: str) -> dict:
+    """Search or harmonize the code index. Never raises: a down store is a document."""
+    query = (query or "").strip()
+    if not query:
+        return {"present": False, "error": "query is empty", "query": ""}
+    if len(query) > 500:
+        return {"present": False, "error": "query is longer than 500 characters", "query": query[:80]}
+    try:
+        mod = _index_module()
+        fn = mod.harmonize if kind == "harmonize" else mod.search
+        return fn(query)
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "query": query}
+
+
+def index_coverage() -> dict:
+    try:
+        return _index_module().coverage()
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "projects": [], "missing": [],
+                "blind_spots": [], "hub_chunks": 0}
+
+
+def observability_planes(probe: bool = True) -> dict:
+    """Per-plane identity and (optionally) reachability.
+
+    Never raises. A plane that is down has to render as a pane with a Start
+    button, not as a 500 that takes the whole tab with it — the same
+    degrade-don't-explode contract lake_status() keeps.
+
+    probe=False skips the network entirely, which is what /api/capabilities
+    wants: that document is fetched on every page load.
+    """
+    try:
+        fo = _observe_module()
+        contract = fo.load_contract()
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
+                "logs": {}, "metrics": {}, "traces": {}, "indexing": {}, "portal": {}}
+    if probe:
+        planes = fo.plane_status(contract)
+    else:
+        logs, metrics, traces = contract["logs"], contract["metrics"], contract["traces"]
+        indexing = contract.get("indexing") or {}
+        planes = {
+            "logs": {"engine": logs.get("engine"), "url": logs.get("kibana"),
+                     "elasticsearch": logs.get("elasticsearch"), "reachable": None},
+            "metrics": {"engine": metrics.get("engine"), "url": metrics.get("grafana"),
+                        "reachable": None, "datasources": metrics.get("datasources") or []},
+            "traces": {"engine": traces.get("engine"), "url": traces.get("endpoint"),
+                       "reachable": None},
+            "indexing": {"engine": indexing.get("engine"), "url": indexing.get("qdrant"),
+                         "embedder": indexing.get("embedder"), "model": indexing.get("model"),
+                         "reachable": None, "embedder_reachable": None},
+        }
+    planes["present"] = True
+    planes["portal"] = contract.get("portal") or {}
+    return planes
+
+
+def observe_status() -> dict:
+    """The /api/observability document: planes, dataset sizes, ship lag.
+
+    This is the probing one — it is fetched when the Observe tab opens, not on
+    every page load.
+    """
+    try:
+        fo = _observe_module()
+        contract = fo.load_contract()
+        planes = fo.plane_status(contract)
+        doc = {
+            "present": True,
+            "planes": planes,
+            "portal": contract.get("portal") or {},
+            "disk_budget_gb": contract["logs"]["disk_budget_gb"],
+            "retention_days": contract["logs"]["retention_days"],
+            "datasets": fo.dataset_stats(contract) if planes["logs"]["reachable"] else [],
+            "embeds": observe_embeds(contract),
+        }
+        doc["bytes_total"] = sum(d.get("bytes") or 0 for d in doc["datasets"])
+        doc["over_budget"] = doc["bytes_total"] > doc["disk_budget_gb"] * 1024 ** 3
+        try:
+            conn = _lake_module().connect(LAKE_DIR, create=False)
+            row = conn.execute("SELECT COUNT(*) c, MAX(shipped_at) last FROM shipments "
+                               "WHERE sink = ?", (fo.SINK,)).fetchone()
+            doc["shipments"] = {"count": row[0], "last": row[1]}
+        except Exception:
+            doc["shipments"] = {"count": 0, "last": None}
+        return doc
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
+                "planes": {}, "datasets": [], "embeds": {}, "shipments": {"count": 0, "last": None}}
+
+
+def observe_embeds(contract: dict) -> dict:
+    """The iframe URLs for the Observe tab.
+
+    Built here rather than in the browser so the PINNED ids stay in one place —
+    the contract — instead of being half in fleet.yml and half in a template
+    string in index.html, which is how an embed ends up pointing at a dashboard
+    that was renamed six months ago.
+    """
+    portal = contract.get("portal") or {}
+    dash = portal.get("dashboards") or {}
+    kibana = (contract.get("logs") or {}).get("kibana") or ""
+    grafana = (contract.get("metrics") or {}).get("grafana") or ""
+    logs_id = (dash.get("logs") or {}).get("id")
+    metrics_uid = (dash.get("metrics") or {}).get("uid")
+    out = {"enabled": bool(portal.get("embed"))}
+    if kibana and logs_id:
+        # embed=true strips Kibana's own chrome; the time range comes from the
+        # dashboard's saved timeRestore rather than a _g we would have to keep
+        # in step with it.
+        out["logs"] = f"{kibana}/app/dashboards#/view/{logs_id}?embed=true&show-top-menu=false"
+    if grafana and metrics_uid:
+        out["metrics"] = f"{grafana}/d/{metrics_uid}/{metrics_uid}?kiosk&theme=dark"
+        out["metrics_panel"] = f"{grafana}/d-solo/{metrics_uid}/{metrics_uid}?panelId=%s&theme=dark"
+    out["traces"] = (contract.get("traces") or {}).get("endpoint") or ""
+    return out
+
+
+def frame_src() -> list[str]:
+    """The CSP frame-src allowlist, stated once in _data/fleet.yml.
+
+    A missing origin here is not an error anyone sees: the browser refuses the
+    frame and writes one line to a console nobody has open.
+    """
+    try:
+        contract = _observe_module().load_contract()
+    except Exception:
+        return []
+    portal = contract.get("portal") or {}
+    urls = list(portal.get("frame_src") or [])
+    for url in ((contract.get("logs") or {}).get("kibana"),
+                (contract.get("metrics") or {}).get("grafana"),
+                (contract.get("traces") or {}).get("endpoint")):
+        if url and url not in urls:
+            urls.append(url)
+    return urls
 
 
 def lake_runs(limit: int = 50) -> list[dict]:
@@ -381,6 +542,127 @@ def lake_review(days: int = 30, repo: str | None = None, limit: int = 10) -> dic
     except Exception as exc:
         return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
                 "local": {}, "ci": {}, "totals": {}, "findings": []}
+
+
+# --------------------------------------------------------------------------- #
+# CONTENT — the content atlas + the editorial plan (docs/CONTENT-ATLAS.md)
+# --------------------------------------------------------------------------- #
+EDITORIAL = Path(os.environ.get("DASH_EDITORIAL_PLAN") or (DATA / "editorial.yml"))
+CONTENT_VIEWS = ("all", "stale", "issues", "thin", "recent", "drafts", "unmapped")
+
+
+def _rel(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _content_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import content_atlas  # noqa: WPS433
+    return content_atlas
+
+
+def _content_inputs():
+    ca = _content_module()
+    return ca, ca.load_contract(DATA / "fleet.yml", DATA / "projects.yml"), ca.load_plan(EDITORIAL)
+
+
+def content_report(site: str | None = None) -> dict:
+    """The /api/content document: every declared site analyzed from the lake,
+    plus the editorial plan's view of it. Degrades to a 'not present' document
+    (with the declared sites, so the tab can offer the sync) rather than a 500."""
+    try:
+        ca, contract, plan = _content_inputs()
+        declared = [{"name": s["name"], "repo": s.get("repo"), "live_url": s.get("live_url")}
+                    for s in contract["sites"]]
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "declared": [], "sites": [],
+                "overlap": [], "unsynced": [], "fleet": {}}
+    if site is not None and site not in {s["name"] for s in declared}:
+        raise ValueError(f"unknown site '{site}'")
+    try:
+        try:
+            conn = ca.connect(LAKE_DIR, create=False)
+        except FileNotFoundError:
+            return {"present": False, "declared": declared, "sites": [], "overlap": [],
+                    "unsynced": [s["name"] for s in declared], "fleet": {}}
+        doc = ca.report(conn, contract, plan, site=site)
+        doc.update(present=True, declared=declared, plan_path=_rel(EDITORIAL))
+        return doc
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "declared": [], "sites": [],
+                "overlap": [], "unsynced": [], "fleet": {}}
+
+
+def content_documents(site: str, view: str = "all", q: str = "", limit: int = 200) -> list[dict]:
+    if not NAME_RX.match(site or ""):
+        raise ValueError("site must be a plain name")
+    if view not in CONTENT_VIEWS and not re.match(r"^pillar:[a-z0-9][a-z0-9._-]{0,63}$", view or ""):
+        raise ValueError(f"view must be one of {CONTENT_VIEWS} or pillar:<id>")
+    ca, contract, plan = _content_inputs()
+    try:
+        conn = ca.connect(LAKE_DIR, create=False)
+    except FileNotFoundError:
+        return []
+    return ca.documents(conn, site, view=view, q=str(q or "")[:120], limit=max(1, min(int(limit), 1000)),
+                        contract=contract, plan=plan)
+
+
+def _plan_diff() -> str:
+    rc, diff = run_quiet(["git", "diff", "--no-color", "--", str(EDITORIAL)])
+    if rc == 0 and not diff:
+        # an untracked plan has no diff against HEAD; say so rather than show nothing
+        rc2, out = run_quiet(["git", "ls-files", "--error-unmatch", str(EDITORIAL)])
+        if rc2 != 0:
+            return f"(new file: {_rel(EDITORIAL)} — not yet tracked)"
+    return diff if rc == 0 else ""
+
+
+def editorial_decide(site: str, action: str, key: str, fields: dict | None = None) -> dict:
+    """Approve / reject a suggestion, add a directive, or move one — written to
+    _data/editorial.yml in the working tree (comments preserved). The commit is
+    the approval of record, and it stays with the human, as everywhere else."""
+    ca, contract, plan = _content_inputs()
+    suggestion = None
+    if action in ("approve", "reject"):
+        doc = content_report(site)
+        a = (doc.get("sites") or [None])[0]
+        suggestion = next((s for s in (a or {}).get("suggestions") or [] if s["key"] == key), None)
+    result = ca.decide(EDITORIAL, site, action, key, contract, suggestion=suggestion, fields=fields or {})
+    result["diff"] = _plan_diff()
+    return result
+
+
+def editorial_update(site: str, fields: dict) -> dict:
+    ca, contract, _plan = _content_inputs()
+    result = ca.update_site(EDITORIAL, site, contract, fields or {})
+    result["diff"] = _plan_diff()
+    return result
+
+
+def content_brief(site: str) -> dict:
+    doc = content_report(site)
+    if not doc.get("sites"):
+        raise ValueError(f"'{site}' is not in the atlas yet — run 'Content: sync' first")
+    return {"site": site, "markdown": _content_module().render_brief(doc["sites"][0])}
+
+
+def _content_sync(params: dict) -> list[str]:
+    argv = [DASH_GEN, "content", "sync"]
+    if str(params.get("target") or "").strip():
+        argv += ["--site", _name(params)]
+    if _flag(params, "no_fetch"):
+        argv.append("--no-fetch")
+    return argv
+
+
+def _content_file(params: dict) -> list[str]:
+    argv = [DASH_GEN, "content", "file", "--site", _name(params)]
+    if _flag(params, "apply"):
+        argv.append("--apply")
+    return argv
 
 
 # --------------------------------------------------------------------------- #
@@ -502,6 +784,43 @@ def _lake_export(params: dict) -> list[str]:
     return argv
 
 
+def _observe_ship(params: dict) -> list[str]:
+    argv = [DASH_GEN, "observe", "ship", "--days", _days({"days": params.get("days", 7)})]
+    if str(params.get("target") or "").strip():
+        argv += ["--repo", _name(params)]
+    if _flag(params, "dry_run"):
+        argv.append("--dry-run")
+    if _flag(params, "force"):
+        argv.append("--force")
+    return argv
+
+
+# The log plane's services, named explicitly. A bare `--profile elk up`
+# also starts every service in the DEFAULT profile, so "start the log plane"
+# would bring up devenv, console, wiki and db as well and fight them for their
+# ports. Held equal to the profile's membership by test_observe_contract.py.
+# qdrant is the Kilo code index; it starts with the plane so status can see it.
+ELK_SERVICES = ["elasticsearch", "logstash", "kibana", "filebeat", "grafana", "qdrant"]
+
+
+def _observe_compose(verb: str):
+    """`docker compose --profile elk …` as argv, never a shell string.
+
+    The verb is a literal from this module, not a parameter — there is no path
+    by which a request body reaches the compose command line.
+    """
+    VERBS = {"up": ["up", "-d"], "stop": ["stop"]}
+    assert verb in VERBS, verb
+
+    def build(_params: dict) -> list[str]:
+        return ["docker", "compose", "--profile", "elk", *VERBS[verb], *ELK_SERVICES]
+    return build
+
+
+def _observe_bootstrap(_params: dict) -> list[str]:
+    return [str(TOOLS / "observability" / "bootstrap.sh")]
+
+
 # id → (title, group, argv builder, needs_token, remote_write(params) -> bool, description)
 OPS: dict[str, dict] = {
     # observe ----------------------------------------------------------------
@@ -595,6 +914,68 @@ OPS: dict[str, dict] = {
                         desc="OpenInference spans for the lake's agent runs (and this machine's Claude Code "
                              "sessions with local) → Phoenix over OTLP/HTTP. Dry run writes export-preview.json.",
                         params=["days", "local", "dry_run", "force"]),
+    # observe — the local LOG plane (docs/OBSERVABILITY.md). Writes to docker and
+    # to Elasticsearch on this machine only; nothing here touches GitHub, which
+    # is why none of it needs a token or a confirm except the destructive one.
+    "observe-status": dict(title="Observe: plane health, dataset sizes, ship lag", group="observe",
+                           argv=lambda p: [DASH_GEN, "observe", "status"], needs_token=False,
+                           desc="Elasticsearch/Kibana, Grafana and Phoenix reachability; docs and bytes "
+                                "per data stream against the disk budget; how many runs are unshipped."),
+    "observe-up": dict(title="Observe: start the log + metrics stack", group="observe",
+                       argv=_observe_compose("up"), needs_token=False,
+                       desc="docker compose --profile elk up -d — Elasticsearch, Logstash, Kibana, "
+                            "Filebeat, Grafana and Qdrant (the Kilo code index). Run 'bootstrap' after "
+                            "it to install ILM + dashboards."),
+    "observe-bootstrap": dict(title="Observe: install ILM policies + dashboards", group="observe",
+                              argv=_observe_bootstrap, needs_token=False,
+                              desc="Idempotent: PUTs the rendered ILM policies and index templates, "
+                                   "imports the Kibana saved objects, reports Grafana's provisioning."),
+    "observe-down": dict(title="Observe: stop the stack (keeps the data)", group="observe",
+                         argv=_observe_compose("stop"), needs_token=False,
+                         desc="Stops the elk profile. The volumes — and every indexed log line — survive."),
+    "observe-ship": dict(title="Observe: ship Actions logs from the lake", group="observe",
+                         argv=_observe_ship, needs_token=False,
+                         desc="dash-gen observe ship — replays the lake's completed runs into Logstash as "
+                              "ECS documents, carrying the same trace.id Phoenix uses. Extract first with "
+                              "'Lake: extract GitHub data'. Dry run writes observe-preview.json.",
+                         params=["days", "target", "dry_run", "force"]),
+    # Delegates to the CLI rather than running compose itself: `down -v` would
+    # take EVERY named volume in the file — db-data, wiki-data, phoenix-data
+    # included — and the narrow teardown (remove the elk containers, then their
+    # volumes by name) should exist in exactly one place.
+    "observe-reset": dict(title="Observe: destroy the indices and volumes", group="observe",
+                          argv=lambda p: [str(TOOLS / "dash"), "observe", "reset", "--yes"],
+                          needs_token=False, remote=lambda p: True,
+                          desc="Deletes every indexed log line, the Kilo code index, and the six elk "
+                               "volumes — and nothing else. Irreversible: the lake can re-ship Actions "
+                               "logs, but container logs and the code index only ever existed here."),
+    "observe-verify": dict(title="Observe: re-render ILM + dashboards from the contract", group="verify",
+                           argv=lambda p: [DASH_GEN, "observe", "verify"], needs_token=False,
+                           desc="Offline diff of _data/fleet.yml `observability:` against the committed "
+                                "tools/observability files, and resolves every pinned dashboard id."),
+    # content — the content atlas (docs/CONTENT-ATLAS.md). sync/report write only
+    # to the lake; `content-file` with apply opens issues in a site's repo.
+    "content-sync": dict(title="Content: extract the content sites into the atlas", group="content",
+                         argv=_content_sync, needs_token=False,
+                         desc="dash-gen content sync — every fleet.yml `content.sites` entry (or one, by "
+                              "target) from its local checkout or a cached blob-less clone → front matter, "
+                              "body metrics and git history in the lake. Clones public repos without a token.",
+                         params=["target", "no_fetch"]),
+    "content-report": dict(title="Content: report (topics, aging, hygiene, suggestions)", group="content",
+                           argv=lambda p: [DASH_GEN, "content", "report"] + (
+                               ["--site", _name(p)] if str(p.get("target") or "").strip() else []),
+                           needs_token=False, desc="The atlas as a terminal table; offline.",
+                           params=["target"]),
+    "content-brief": dict(title="Content: render a site's editorial brief", group="content",
+                          argv=lambda p: [DASH_GEN, "content", "brief", "--site", _name(p)], needs_token=False,
+                          desc="Narrative, pillar coverage and approved directives as Markdown.",
+                          params=["target"]),
+    "content-file": dict(title="Content: file approved directives as issues", group="content",
+                         argv=_content_file, needs_token=True, remote=lambda p: _flag(p, "apply"),
+                         desc="One issue per approved directive in the site's own repo, labelled "
+                              "editorial:directive and deduped on a hidden marker — DRY RUN unless apply. "
+                              "Records filed + the URL in _data/editorial.yml (commit it yourself).",
+                         params=["target", "apply"]),
     # deploy (writes to GitHub — confirm-gated, serialized) ---------------------
     "deploy-gaps": dict(title="Deploy the agent-context kit to gap repos", group="deploy",
                         argv=lambda p: _deploy(p, "gaps"), needs_token=True,
@@ -708,7 +1089,8 @@ class JobManager:
         argv, remote = build_argv(op_id, params)
         if remote and not confirm:
             raise PermissionError(
-                f"'{op_id}' with these parameters writes to GitHub — resubmit with confirm=true")
+                f"'{op_id}' with these parameters writes to GitHub or destroys local data — "
+                "resubmit with confirm=true")
         job = Job(op_id, argv, remote, params)
         job.log_path = self.job_dir / f"{job.id}.log"
         with self._lock:
@@ -906,6 +1288,22 @@ CONFIG_SECTIONS: list[dict] = [
          "inventory.max_workflow_files": _f("int", "workflow files parsed per repo"),
          "inventory.schedule_limit": _f("int", "rows in the fleet schedule calendar"),
          "attention_max": _f("int", "findings surfaced per run"),
+     }},
+    {"key": "observability", "title": "Observability — the local planes and the code index", "doc": "docs/OBSERVABILITY.md",
+     "blurb": "Retention, disk budget and the portal's pinned dashboards. Changing retention or "
+              "rollover here changes only the CONTRACT — re-render and re-install with "
+              "`dash observe verify --write` then `dash observe up`, or the cluster keeps expiring "
+              "on the old schedule.",
+     "fields": {
+         "logs.retention_days.actions": _f("int", "days of GitHub Actions log lines"),
+         "logs.retention_days.container": _f("int", "days of raw container stdout"),
+         "logs.retention_days.app": _f("int", "days of UPS-OPS-10 structured lines"),
+         "logs.rollover.max_primary_shard_size": _f("version", "roll an index over at this size"),
+         "logs.rollover.max_age": _f("version", "…or this age, whichever comes first"),
+         "logs.disk_budget_gb": _f("int", "`observe status` warns past this (ES stops writing at 95% disk)"),
+         "logs.ship.batch": _f("int", "documents per bulk POST to Logstash"),
+         "logs.ship.logs": _f("choice", "which runs to ship", ("all", "ai", "none")),
+         "portal.embed": _f("bool", "embed Kibana + Grafana in the Observe tab, or link out only"),
      }},
     {"key": "rotation", "title": "Token rotation", "doc": "docs/TOKEN-ROTATION.md",
      "blurb": "The weekly credential loop. `hub_first` is not offered here — the file calls it "

@@ -1,0 +1,332 @@
+# =============================================================================
+# _data/editorial.yml — THE EDITORIAL PLAN for the fleet's content sites
+# =============================================================================
+# The content atlas (docs/CONTENT-ATLAS.md) OBSERVES what each site publishes;
+# this file is what a human DECIDES it should publish. One entry per site
+# declared in _data/fleet.yml `content.sites`:
+#
+#   narrative   the story the site tells, in a paragraph — the brief every
+#               directive filed into that site's repo quotes back
+#   audience    who it is for;  voice: how it sounds (pointers to the site's
+#               own brand files, never a copy of them)
+#   pillars     the topics the site stands on. `match:` says which documents
+#               belong (any of tags / categories / sections / collections /
+#               keywords in title+description / path prefixes); `target_share`
+#               is the fraction of NEW work (last content.recent_days) the
+#               pillar should get — null = tracked, not steered. A document may
+#               sit in several pillars, so targets need not sum to 1.
+#               status: active | paused (tracked, never suggested) | retired
+#   directives  decisions. The atlas proposes suggestions with stable keys;
+#               approving or rejecting one (Harness Console → Content, or
+#               `dash content plan approve|reject`) writes it here, so a
+#               rejected suggestion stays rejected across re-syncs.
+#               status: proposed → approved → filed (an issue exists in the
+#               site's repo, `issue:` links it) → done; or → rejected.
+#
+# The console and `dash content plan` edit this file in the WORKING TREE with
+# comments preserved; committing it is the approval of record. Targets below
+# were SEEDED on 2026-09-26 from each site's observed mix and its own
+# CLAUDE.md — starting values for a human to retune, not measurements.
+# =============================================================================
+schema: editorial/v1
+sites:
+  lifehacker.dev:
+    narrative: >-
+      Surviving life, one byte at a time: satirical in the framing, never in the
+      facts. Every hack is one we actually ran, every tool review is honest,
+      field notes are the lessons a real build left behind, and The Wire covers
+      the model beat under the press charter. The joke is the delivery; the
+      command still has to work.
+    audience: Working developers and tinkerers who want the fix and can take the joke.
+    voice: _data/brand/ in the lifehacker.dev repo (identity, voice, glossary) — satire structural, facts sourced.
+    pillars:
+      - id: hacks
+        title: Hacks
+        target_share: 0.3
+        status: active
+        match:
+          sections: [hacks]
+      - id: tools
+        title: Tool reviews
+        target_share: 0.15
+        status: active
+        match:
+          sections: [tools]
+      - id: field-notes
+        title: Field notes
+        target_share: 0.25
+        status: active
+        match:
+          sections: [field-notes]
+      - id: wire
+        title: The Wire (model beat)
+        target_share: 0.15
+        status: active
+        match:
+          sections: [wire]
+      - id: docs
+        title: Docs
+        target_share: 0.1
+        status: active
+        match:
+          collections: [docs]
+      - id: ai-and-models
+        title: AI, agents and models (cross-cutting)
+        target_share:
+        status: active
+        match:
+          tags: [ai, models, agents, claude, llm]
+    directives: []
+
+  it-journey:
+    narrative: >-
+      A gamified path from zer0 to her0: every quest teaches one real IT skill
+      by doing it, levelled and linked so a learner always knows the next step,
+      and every quest is walked end to end by the perfection loop until it
+      works exactly as written.
+    audience: Beginners through practitioners learning IT and software development, by character path.
+    voice: _data/brand/ + the brand-voice skill in the it-journey repo — the quest-master voice.
+    pillars:
+      - id: quests
+        title: Quests (the curriculum)
+        target_share: 0.6
+        status: active
+        match:
+          collections: [quests]
+      - id: quest-reports
+        title: Walkthrough reports (machine-authored)
+        target_share: 0.2
+        status: active
+        match:
+          collections: [quest-reports]
+      - id: notes
+        title: Notes
+        target_share: 0.1
+        status: active
+        match:
+          collections: [notes]
+      - id: agentic-ai
+        title: Agentic AI and automation (cross-cutting)
+        target_share:
+        status: active
+        match:
+          tags: [agentic-ai, ai, automation, claude-code]
+      - id: security-path
+        title: Security specialist path
+        target_share:
+        status: active
+        match:
+          tags: [security-specialist, security, cybersecurity]
+    directives: []
+
+  bash-365.com:
+    narrative: >-
+      BASH Consulting runs on governed AI: rules in files, reusable playbooks,
+      agents that draft, humans who approve. The site shows a small or mid-size
+      business what that looks like across cloud, ERP and financial systems,
+      data and BI, and custom development — describing categories of work and
+      what the frameworks require, never inventing clients or claims.
+    audience: SMB owners and operators, and the partners who implement for them.
+    voice: .github/instructions/brand.instructions.md + content-style.instructions.md in the site repo.
+    pillars:
+      - id: erp-finance
+        title: ERP and financial systems
+        target_share: 0.25
+        status: active
+        match:
+          sections: [erp]
+          tags: [erp, accounting, quickbooks, erp-implementation, segregation-of-duties]
+      - id: data-bi
+        title: Data and BI
+        target_share: 0.2
+        status: active
+        match:
+          sections: [data-engineering, data-analytics]
+          tags: [master-data, entity-resolution, data]
+      - id: governed-ai
+        title: Governed AI and automation
+        target_share: 0.25
+        status: active
+        match:
+          sections: [ai-services]
+          tags: [ai, automation, mcp, guardrails, governance]
+      - id: security
+        title: Security and compliance
+        target_share: 0.15
+        status: active
+        match:
+          tags: [security, mfa, edr, compliance]
+      - id: smb-strategy
+        title: SMB strategy
+        target_share: 0.15
+        status: active
+        match:
+          sections: [corp, business, muses]
+          tags: [strategy, smb, small-business, total-cost-of-ownership]
+    directives: []
+
+  irony-works:
+    narrative: >-
+      A self-growing encyclopedia of irony and of paradox, defined structurally:
+      an irony must state its expectation and its reversal, a paradox its
+      premises, inference, conclusion and collision. Prefer one verified entry
+      to five plausible ones; the machine proposes, the human disposes.
+    audience: Readers who like their ironies verified and their paradoxes classified.
+    voice: vault/the-anatomy-of-a-paradox.md and the Alanis / Epimenides gates in the irony-works repo.
+    pillars:
+      - id: ironies
+        title: Ironies
+        target_share: 0.5
+        status: active
+        match:
+          collections: [instances, works, figures, futures]
+      - id: paradoxes
+        title: Paradoxes
+        target_share: 0.35
+        status: active
+        match:
+          collections: [paradoxes]
+          sections: [paradox]
+      - id: forms
+        title: Forms (the taxonomy)
+        target_share:
+        status: active
+        match:
+          collections: [forms]
+      - id: mirrors
+        title: Mirrors (the repo's own ironies)
+        target_share: 0.15
+        status: active
+        match:
+          collections: [mirrors]
+    directives: []
+
+  wargames:
+    narrative: >-
+      A faithful, readable mirror of the OverTheWire wargames under the zer0
+      theme. The pages are vendored from upstream and re-synced, never
+      rewritten, so the only editorial work is keeping the mirror current.
+    audience: Anyone working through the OverTheWire levels.
+    voice: Upstream's own text — vendored, never re-voiced.
+    pillars:
+      - id: mirror
+        title: OverTheWire mirror
+        target_share:
+        status: active
+        match:
+          paths: [overthewire/]
+    directives:
+      - key: cadence
+        kind: cadence
+        priority: P1
+        title: Resume publishing
+        brief: A vendored mirror has no publishing cadence; it changes when upstream does.
+        source: atlas
+        status: rejected
+        decided: '2026-09-26'
+
+  year-of-ai.github.io:
+    narrative: >-
+      The front door of the year-of-ai organization: one landing page and a
+      hub that presents every year knowledge base in the lineage. The hub's own
+      pages change rarely; the years grow.
+    audience: Readers arriving at the org, looking for a year.
+    voice: The lineage seeds in the hub repo (lineage/seeds/).
+    pillars: []
+    directives: []
+
+  '2005':
+    narrative: >-
+      2005 as a knowledge base, grown by the lineage engine: what happened, who
+      mattered, and what it meant, across science and technology, history and
+      politics, society and economics, arts and culture, and people.
+    audience: Readers exploring a single year in depth.
+    voice: lineage/seeds/2005.md in year-of-ai/year-of-ai.github.io.
+    pillars:
+      - id: science-technology
+        title: Science and technology
+        target_share: 0.2
+        status: active
+        match:
+          sections: [science-technology]
+      - id: history-politics
+        title: History and politics
+        target_share: 0.2
+        status: active
+        match:
+          sections: [history-politics]
+      - id: society-economics
+        title: Society and economics
+        target_share: 0.2
+        status: active
+        match:
+          sections: [society-economics]
+      - id: arts-culture
+        title: Arts and culture
+        target_share: 0.2
+        status: active
+        match:
+          sections: [arts-culture]
+      - id: people
+        title: People
+        target_share: 0.2
+        status: active
+        match:
+          sections: [people]
+    directives: []
+
+  ai-world-view.github.io:
+    narrative: >-
+      The front door of the ai-world-view organization: countries as the model
+      sees them, written from its own knowledge with no web research. The hub
+      presents the members; the countries grow.
+    audience: Readers curious how a model understands a country.
+    voice: The lineage seeds in the hub repo (lineage/seeds/).
+    pillars: []
+    directives: []
+
+  china:
+    narrative: >-
+      China as the model understands it — history, people, culture and society,
+      government and politics, geography, and the economy — written from the
+      model's own world view, never from the web.
+    audience: Readers curious how a model understands a country.
+    voice: lineage/seeds/china.md in ai-world-view/ai-world-view.github.io.
+    pillars:
+      - id: history
+        title: History
+        target_share: 0.2
+        status: active
+        match:
+          sections: [history]
+      - id: people
+        title: People
+        target_share: 0.15
+        status: active
+        match:
+          sections: [people]
+      - id: culture
+        title: Culture and society
+        target_share: 0.2
+        status: active
+        match:
+          sections: [culture]
+      - id: government
+        title: Government and politics
+        target_share: 0.15
+        status: active
+        match:
+          sections: [government]
+      - id: geography
+        title: Geography
+        target_share: 0.15
+        status: active
+        match:
+          sections: [geography]
+      - id: economy
+        title: Economy
+        target_share: 0.15
+        status: active
+        match:
+          sections: [economy]
+    directives: []

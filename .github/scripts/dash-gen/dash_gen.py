@@ -26,6 +26,19 @@ Subcommands:
            pricing-table, alias, or DEDUPE regression stops being silent.
            Reached as `dash ai check`. Implemented in ai_reconcile.py.
 
+  ai-run   Run `claude -p` under the dollar ceiling from _data/fleet.yml
+           (`budget.local_usd`) and record what it actually cost into the same
+           ledger's `runs` section, keyed by session id. `--max-turns` bounds
+           iterations, not spend; this is the spend bound. Reached as
+           `dash ai run -- <args>`. Implemented in ai_activity.py.
+
+  observe  The LOCAL LOG PLANE (Elasticsearch/Logstash/Kibana + Grafana): ship the
+           lake's Actions run logs in as ECS documents, report every plane's
+           health and each dataset's size against its budget, and render the
+           ILM policies and index templates out of _data/fleet.yml so retention
+           is never written twice. LOCAL-ONLY — never runs in CI, nothing is
+           published. Implemented in fleet_observe.py; doc docs/OBSERVABILITY.md.
+
   remediate Merge the fleet's failing + expensive workflow signals into ONE
            ranked, deduped, capped fix queue and emit the work order that
            drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
@@ -70,7 +83,11 @@ import cv_fragment
 import daily_report
 import engagements
 import evolution
+import fleet_compose
+import content_atlas
 import fleet_lake
+import fleet_index
+import fleet_observe
 import fleet_triage
 import harness
 import harness_registry
@@ -442,6 +459,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     ai_activity.add_arguments(p_ai)
 
+    p_ai_run = sub.add_parser(
+        "ai-run",
+        help="run `claude -p` under a dollar cap, recording the run (`dash ai run`)",
+    )
+    ai_activity.add_run_arguments(p_ai_run)
+
     p_ai_check = sub.add_parser(
         "ai-check",
         help="reconcile the ai-activity ledger against ccusage (local-only; `dash ai check`)",
@@ -491,6 +514,39 @@ def main(argv: list[str] | None = None) -> int:
              "OpenInference traces to Phoenix (local-only; never committed)",
     )
     fleet_lake.add_arguments(p_lake)
+
+    p_content = sub.add_parser(
+        "content",
+        help="the CONTENT ATLAS: `sync` extracts every fleet.yml content site into the lake, `report` "
+             "analyzes topics/activity/aging/hygiene + pillar coverage, `plan` approves/rejects "
+             "editorial directives in _data/editorial.yml, `brief` renders a site's brief, `file` "
+             "opens approved directives as issues (dry run unless --apply)",
+    )
+    content_atlas.add_arguments(p_content)
+
+    p_compose = sub.add_parser(
+        "compose",
+        help="generate the per-project compose overrides that put every submodule on the shared "
+             "`fleet` network with a non-colliding port map, plus the shared Postgres init "
+             "(--check verifies they match the registry; --resolve is used by `dash up`)",
+    )
+    fleet_compose.add_arguments(p_compose)
+
+    p_observe = sub.add_parser(
+        "observe",
+        help="the local LOG plane: `ship` replays the lake's Actions logs into Logstash as ECS "
+             "documents, `status` reports the three planes, the Kilo code index and the dataset sizes, `verify` renders "
+             "ILM + index templates from _data/fleet.yml and diffs the committed files "
+             "(local-only; never committed, never in CI)",
+    )
+    fleet_observe.add_arguments(p_observe)
+
+    p_index = sub.add_parser(
+        "index",
+        help="analyse the Kilo code index: coverage, semantic search, and which submodules "
+             "share a pattern (local Qdrant + native Ollama; never committed)",
+    )
+    fleet_index.add_arguments(p_index)
 
     p_remediate = sub.add_parser(
         "remediate",

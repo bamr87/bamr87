@@ -14,6 +14,9 @@ Guards the invariants that decide whether the pipeline is useful or a nuisance:
   * gap detection must distinguish gaps an AGENT can close (evidence, labels,
     scope) from gaps only a HUMAN can (ambiguous intent) — that distinction is
     the whole difference between `agent:ready` and `agent:blocked`;
+  * the per-repo sweep must survive a repo with NO open pull requests — slicing
+    an empty PyGithub PaginatedList raises IndexError, which silently dropped
+    such repos (and every open issue they held) from the pipeline entirely;
   * a config override in _data/fleet.yml must MERGE with the defaults, not
     replace them: a fleet.yml that sets one cap must not silently delete the
     label taxonomy the agents apply.
@@ -25,6 +28,7 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 
 from __future__ import annotations
 
+import inspect
 import sys
 from pathlib import Path
 
@@ -445,8 +449,61 @@ def test_render():
     check("T3 never instructs a merge", "gh pr merge" not in out3)
 
 
+class FakePaginatedList:
+    """The part of PyGithub's PaginatedList that matters here.
+
+    Reproduces the trap: slicing returns a lazy `_Slice` that indexes element 0
+    before the first page is fetched, so an EMPTY result set raises IndexError
+    rather than yielding nothing. Iterating it plainly is safe.
+    """
+
+    def __init__(self, items):
+        self._items = list(items)
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return FakePaginatedList(self._items)._slice_iter()
+        return self._items[index]  # IndexError when empty — the real bug
+
+    def _slice_iter(self):
+        # _Slice.__iter__ optimistically indexes 0 on a not-yet-fetched list.
+        yield self[0]
+
+
+def test_pagination_bound():
+    """first_n must survive an empty PaginatedList and still honour its bound."""
+    check("slicing an empty PaginatedList is the trap we are avoiding",
+          _raises_index_error(lambda: list(FakePaginatedList([])[:60])))
+    check("first_n yields nothing for a repo with no open PRs",
+          list(ip.first_n(FakePaginatedList([]), 60)) == [])
+    check("first_n passes short result sets through untouched",
+          list(ip.first_n(FakePaginatedList([1, 2, 3]), 60)) == [1, 2, 3])
+    check("first_n stops at the bound",
+          list(ip.first_n(FakePaginatedList(range(200)), 60)) == list(range(60)))
+    check("collect_repo bounds its PR sweep with first_n, never a slice",
+          "first_n(repo.get_pulls(" in _source_of(ip.collect_repo)
+          and "get_pulls(state=\"open\", sort=\"updated\", direction=\"desc\")[:"
+              not in _source_of(ip.collect_repo))
+
+
+def _raises_index_error(fn) -> bool:
+    try:
+        fn()
+    except IndexError:
+        return True
+    return False
+
+
+def _source_of(fn) -> str:
+    return inspect.getsource(fn)
+
+
 def main() -> int:
     print("issue_pipeline fixture tests")
+    test_pagination_bound()
     test_stages()
     test_classification()
     test_gaps()

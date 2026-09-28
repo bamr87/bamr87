@@ -44,7 +44,28 @@ Copy this shape verbatim into any new workflow (it is what `claude.yml` uses):
   with:
     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+    claude_args: "--max-budget-usd 10"     # see "Spend guardrails" below — required
 ```
+
+## Spend guardrails
+
+**`--max-turns` bounds iterations, not spend.** One turn against a large context can outspend thirty small ones, which is why a turn cap is not a budget: six scheduled loops ran for months turn-capped and dollar-uncapped (bamr87#128).
+
+Every `anthropics/claude-code-action` call site therefore also passes `--max-budget-usd`. The ceiling is declared once in [`_data/fleet.yml`](../_data/fleet.yml) `budget:` — `usd_per_turn` (the derivation rule), `default_usd`, `local_usd` (for `dash ai run`), and `call_sites`, keyed `<workflow file>:<job id>`. A `claude_args` string cannot read YAML, so the number is necessarily written twice; `.github/scripts/dash-gen/test_ai_budget.py` asserts that the two copies agree, that no call site is missing a cap, and that each cap clears `usd_per_turn × --max-turns`. **Adding a new Claude call site without a cap fails that test.**
+
+A cap is a **circuit breaker, not a target**. A budget abort stops the agent *mid-task* — worse than a turn overshoot, which at least stops at a boundary — so caps are set at roughly 1.5× a full run's observed spend, and hitting one is never a silent truncation. Read the current table with `dash config show budget`.
+
+**What a cap does when it binds** is a three-part contract, asserted by `test_ai_budget.py` because every part of it is invisible until the day a ceiling is actually reached:
+
+1. **The step fails.** `::error::` writes an annotation; it does not fail anything. A cost step that only annotated left the job green, and every `success()`-gated step after it ran on truncated work — including the ones that open pull requests. The step now exits non-zero, matching `dash ai run`, which already did: one event, one verdict.
+2. **The verdict is readable.** The cost step is `id: cost` and publishes `budget_hit` as a step output. Whether `claude-code-action` itself exits non-zero on an abort is not a documented contract, so the two workflows that publish a PR *from the agent's working tree* (`unified-evolution.yml`, `repo-evolution.yml`) gate on that output rather than on the action's exit code — and when it is set they still publish, as a **draft whose body says the diff is partial and unverified**. Discarding a run that has already been paid for is the worse failure; shipping one that reads like a completed pass is the dangerous one. At the other call sites the agent opens its own PR, so a red job is the whole signal.
+3. **The spend is still recorded.** `ai_usage_collector.py` regex-scrapes `total_cost_usd` out of the **run log**, so a run it cannot see is a run charged to nobody — and an abort is not the normal termination path. Each cost step therefore echoes the result record into the log itself. The collector takes the last occurrence and this is the same record, so the value is unchanged; it simply can no longer go missing on exactly the runs where the spend was highest.
+
+**Under subscription auth a cap is a throughput ceiling, not a spend ceiling.** Every call site is OAuth-first, so in the normal case `total_cost_usd` is a *priced estimate* of what the work would have cost on the API, not an amount anyone is billed — it is a true dollar ceiling only where `ANTHROPIC_API_KEY` is in use. Both are worth having, and nothing downstream presents these numbers as an invoice: the job summary and the abort annotation both say which they are.
+
+Cost is reported on **every** run, not only failures. Each call site's `Report Claude run cost` step reads `${RUNNER_TEMP}/claude-execution-output.json` and writes spend / cap / turns to the job summary; it used to sit behind `if: failure()`, so a green run — the common case, and the one whose spend accumulates unnoticed — printed nothing. The durable record still belongs to `ai_usage_collector.py` and `fleet_lake.py`; the step is a readout, not a third parser.
+
+Locally, `tools/dash ai run -- <args>` is the same guardrail: it wraps `claude -p --output-format json` at `budget.local_usd` and records the run's billed cost into the ledger's `runs` section ([schema](../.github/scripts/dash-gen/README.md#run-record-schema)).
 
 ## The loops
 
@@ -62,7 +83,7 @@ Copy this shape verbatim into any new workflow (it is what `claude.yml` uses):
 Two layers, one page family:
 
 - **Fleet ledger — [`/ai-usage/`](https://bamr87.github.io/bamr87/ai-usage/)** (committed): `.github/workflows/fleet-pulse.yml` runs `tools/dash-gen ai-usage` daily, harvesting every Claude touchpoint the fleet leaves in public infrastructure — **CI runs** of `anthropics/claude-code-action` in any registry repo (auto-detected from workflow content; cost + turn counts scraped from run logs), **commits** with a `Co-Authored-By: Claude` trailer, and **PRs** carrying the Claude Code marker — into `_data/ai_usage.yml`, categorized by repo / workflow / registry category / day, with per-run audit links. CI logs expose cost and turns but no token breakdown.
-- **Local sessions — [`/ai-activity/`](https://bamr87.github.io/bamr87/ai-activity/)** (gitignored): `tools/dash ai` shadow-prices this machine's `~/.claude/projects/` transcripts with full token detail. Publishing local spend is an explicit opt-in: running `tools/dash-gen ai-usage` **locally** folds the machine ledger's windowed aggregate into the committed file's `local` section; the daily CI refresh preserves (never adds, never erases) that section.
+- **Local sessions — [`/ai-activity/`](https://bamr87.github.io/bamr87/ai-activity/)** (gitignored): `tools/dash ai` shadow-prices this machine's `~/.claude/projects/` transcripts with full token detail. The same page carries a separate **headless runs** table fed by `tools/dash ai run` — those are *billed* figures the CLI reported for itself, not list-price estimates, and the two are never summed (a headless run leaves a transcript the scan also reads, so each row is flagged `also_in_scan`). Publishing local spend is an explicit opt-in: running `tools/dash-gen ai-usage` **locally** folds the machine ledger's windowed aggregate into the committed file's `local` section; the daily CI refresh preserves (never adds, never erases) that section.
 
 ## Fleet propagation
 
