@@ -212,8 +212,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|feedback|elk) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|feedback|elk> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|feedback|elk|verify) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|feedback|elk|verify> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
