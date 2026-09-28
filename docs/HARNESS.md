@@ -226,3 +226,5 @@ python3 .github/scripts/dash-gen/test_harness.py   # the invariants
 The daily refresh rides `fleet-pulse.yml`'s `pulse` job; thresholds are tuned in `_data/fleet.yml` `harness:` (a wire that is always on is noise — prune or retune it the way guide rules are pruned).
 
 This document watches the hub's own layers; managing the harnesses **deployed across the fleet** — inventory, mass deploy/update, throughput caps, cost forecasting, the local/cloud processing planes — is [`docs/HARNESS-OPS.md`](HARNESS-OPS.md) (`dash harnesses`, the `/harnesses/` board, `harness-fanout.yml`).
+
+Cross-repo pattern matching is `tools/dash index harmonize <pattern>` (Observe → Index in the console). It reads the Kilo code index — one embedding, the best hit per submodule — and lists who already has the pattern and who does not, so a standardize or evolve pass starts from a gap list instead of a blind grep. Coverage and the `.github` blind spot are `tools/dash index status`. The floor lives in `_data/fleet.yml` `observability.indexing.analysis`.

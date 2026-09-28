@@ -43,6 +43,7 @@ coverage: listed
 | `fleet.manifest.yml` | file | This repo's AI lanes in the shared `fleet/v1` vocabulary (spec: bamr87/wtd docs/FLEET-SPEC.md) | |
 | `_config_dev.yml` | file | Jekyll local-dev overrides | |
 | `docker-compose.yml` | file | Containerized dev services | |
+| `kilo.jsonc` | file | Kilo Code project config — codebase indexing for this worktree, including checked-out submodules; URLs must agree with `_data/fleet.yml` `observability.indexing` | |
 | `setup-terminal.sh` | file | Local Oh My Zsh, theme, plugin, and VS Code terminal setup | |
 | `theme-benchmark.sh` | file | Times a few Oh My Zsh themes and writes a markdown table | |
 | `validate-plugins.sh` | file | Checks that the configured Oh My Zsh plugins load | |

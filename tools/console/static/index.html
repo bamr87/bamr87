@@ -506,10 +506,12 @@ async function renderObserve() {
         <button data-pane="logs">Logs <span class="muted">Kibana</span></button>
         <button data-pane="metrics">Metrics <span class="muted">Grafana</span></button>
         <button data-pane="traces">Traces <span class="muted">lake + Phoenix</span></button>
+        <button data-pane="index">Index <span class="muted">Qdrant</span></button>
       </div>
       <div id="pane-logs"></div>
       <div id="pane-metrics" hidden></div>
-      <div id="pane-traces" hidden></div>`;
+      <div id="pane-traces" hidden></div>
+      <div id="pane-index" hidden></div>`;
     el.dataset.built = '1';
     $('#obs-panes').addEventListener('click', e => {
       const b = e.target.closest('button[data-pane]'); if (!b) return;
@@ -518,9 +520,10 @@ async function renderObserve() {
   }
   document.querySelectorAll('#obs-panes button')
     .forEach(b => b.classList.toggle('active', b.dataset.pane === OBS_PANE));
-  ['logs', 'metrics', 'traces']
+  ['logs', 'metrics', 'traces', 'index']
     .forEach(n => $('#pane-' + n).hidden = n !== OBS_PANE);
   if (OBS_PANE === 'traces') return renderTracesPane();
+  if (OBS_PANE === 'index') return renderIndexPane();
   return renderLogPlane(OBS_PANE);
 }
 
@@ -624,6 +627,104 @@ async function renderLogPlane(pane) {
     days: $('#o-days').value, target: $('#o-target').value.trim(),
     dry_run: $('#o-dry').checked, force: $('#o-force').checked });
   bindRunButtons('#tab-observe');
+}
+
+async function renderIndexPane() {
+  const el = $('#pane-index');
+  el.innerHTML = '<div class="muted">probing the code index…</div>';
+  try { OBS = await api('/api/observability'); }
+  catch (e) { el.innerHTML = status('crit', e.message); return; }
+  if (!OBS.present) { el.innerHTML = status('crit', OBS.error || 'observability contract unreadable'); return; }
+  const p = (OBS.planes || {}).indexing || {};
+  const subs = p.submodules || {};
+  const empty = subs.empty || [];
+  const cols = p.collections || [];
+  el.innerHTML = `
+    <div class="card"><b>Kilo codebase index</b> <span class="muted">— semantic search over this
+      worktree. Checked-out submodules are directories in that walk, not a second workspace, so
+      they are in the same index as the hub. An uninitialized submodule is an empty directory and
+      is not. Qdrant starts with <code>tools/dash observe up</code>; the embedder is native Ollama
+      on the Mac (<code>${esc(p.model || 'nomic-embed-text')}</code> on <code>${esc(p.embedder || '')}</code>),
+      not a container. The scan itself starts when Kilo opens this workspace.</span></div>
+    <div class="toolbar">
+      <button class="btn" data-run='{"op":"observe-status"}'>▶ Plane status</button>
+      <a class="btn" href="${esc(p.url || '#')}/dashboard" target="_blank" rel="noopener"
+         style="text-decoration:none">Open Qdrant ↗</a>
+    </div>
+    <div class="grid">
+      <div class="card tile"><div class="label">Qdrant</div><div class="value" style="font-size:18px">${
+        p.reachable ? status('good', 'up') : status('crit', 'not running')
+      }</div><div class="delta"><code>${esc(p.url || '')}</code></div></div>
+      <div class="card tile"><div class="label">Embedder</div><div class="value" style="font-size:18px">${
+        p.embedder_reachable ? status('good', 'up') : status('warn', 'down')
+      }</div><div class="delta"><code>${esc(p.provider || '')}/${esc(p.model || '')}</code></div></div>
+      <div class="card tile"><div class="label">Points</div><div class="value">${fmt(p.points)}</div><div class="delta">${
+        cols.length ? cols.map(c => esc(c.name) + ' ' + fmt(c.points)).join(', ') : 'no collection yet'
+      }</div></div>
+      <div class="card tile"><div class="label">Submodules</div><div class="value">${fmt(subs.checked_out)}/${fmt(subs.declared)}</div><div class="delta">${
+        p.configured ? 'kilo.jsonc indexing on' : status('warn', 'kilo.jsonc indexing off')
+      }${empty.length ? ' · ' + empty.length + ' not checked out' : ''}</div></div>
+    </div>
+    ${empty.length ? `<h2>Not checked out</h2>
+      <div class="sub">These paths are in <code>.gitmodules</code> but have no working tree. <code>git submodule update --init</code> is what puts them in the index.</div>
+      <div class="wrap"><table><thead><tr><th>path</th></tr></thead><tbody>
+        ${empty.map(rel => `<tr><td><code>${esc(rel)}</code></td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+    ${p.reachable ? '' : planeOff('index', 'Qdrant', `Nothing is answering at ${p.url || 'the configured URL'}.`)}
+    <h2>Coverage</h2>
+    <div class="sub">Chunks the harness can see, per submodule. A zero is a tree that is checked out but not in the collection. <code>.github</code> stays at zero: the scanner skips dot-directories, so the control plane is a blind spot.</div>
+    <div id="index-coverage"><div class="muted">counting chunks…</div></div>
+    <h2>Search</h2>
+    <div class="toolbar">
+      <input id="index-q" placeholder="pattern, e.g. journal entry posting" style="flex:1;min-width:16em">
+      <button class="btn" id="index-search">Search</button>
+      <button class="btn" id="index-harmonize">Harmonize</button>
+    </div>
+    <div id="index-results"></div>`;
+  bindRunButtons('#tab-observe');
+  const run = async (kind) => {
+    const q = ($('#index-q').value || '').trim();
+    const box = $('#index-results');
+    if (!q) { box.innerHTML = status('warn', 'enter a pattern'); return; }
+    box.innerHTML = '<div class="muted">embedding…</div>';
+    let doc;
+    try { doc = await api('/api/index/' + kind + '?q=' + encodeURIComponent(q)); }
+    catch (e) { box.innerHTML = status('crit', e.message); return; }
+    if (!doc.present) { box.innerHTML = status('crit', doc.error || 'index query failed'); return; }
+    if (kind === 'harmonize') {
+      const rows = doc.matched || [];
+      const gaps = doc.gaps || [];
+      box.innerHTML = `<div class="sub">${rows.length}/${doc.projects} projects at or above ${doc.min_score}</div>
+        <div class="wrap"><table><thead><tr><th>project</th><th>score</th><th>where</th></tr></thead><tbody>
+          ${rows.map(h => `<tr><td>${esc(h.project)}</td><td>${Number(h.score).toFixed(3)}</td><td><code>${esc(h.filePath)}:${esc(h.startLine)}</code></td></tr>`).join('') || '<tr><td colspan="3" class="muted">no project above the floor</td></tr>'}
+        </tbody></table></div>
+        ${gaps.length ? `<h2>Gaps</h2><div class="sub">${gaps.length} projects have no hit above the floor.</div><div class="wrap"><table><tbody>${gaps.map(n => `<tr><td><code>${esc(n)}</code></td></tr>`).join('')}</tbody></table></div>` : ''}`;
+      return;
+    }
+    const hits = doc.hits || [];
+    box.innerHTML = `<div class="sub">${hits.length} hits at or above ${doc.min_score}${doc.below_floor ? ' · ' + doc.below_floor + ' dropped' : ''}</div>
+      <div class="wrap"><table><thead><tr><th>score</th><th>project</th><th>where</th></tr></thead><tbody>
+        ${hits.map(h => `<tr><td>${Number(h.score).toFixed(3)}</td><td>${esc(h.project)}</td><td><code>${esc(h.filePath)}:${esc(h.startLine)}</code></td></tr>`).join('') || '<tr><td colspan="3" class="muted">nothing above the floor</td></tr>'}
+      </tbody></table></div>`;
+  };
+  $('#index-search').onclick = () => run('search');
+  $('#index-harmonize').onclick = () => run('harmonize');
+  try {
+    const cov = await api('/api/index/coverage');
+    const host = $('#index-coverage');
+    if (!cov.present) { host.innerHTML = status('warn', cov.error || 'coverage unavailable'); return; }
+    const rows = cov.projects || [];
+    const max = Math.max(1, ...rows.map(r => r.chunks || 0), cov.hub_chunks || 0);
+    const bar = (n) => `<span style="display:inline-block;height:8px;width:${Math.round((n / max) * 140)}px;background:var(--accent,#6cf);vertical-align:middle"></span>`;
+    const blind = (cov.blind_spots || []).map(s => `<tr><td><code>${esc(s.path)}</code></td><td>${s.chunks ? fmt(s.chunks) : status('warn', 'blind')}</td><td></td></tr>`).join('');
+    host.innerHTML = `<div class="wrap"><table><thead><tr><th>project</th><th>chunks</th><th></th></tr></thead><tbody>
+      <tr><td><code>_hub</code></td><td>${fmt(cov.hub_chunks)}</td><td>${bar(cov.hub_chunks || 0)}</td></tr>
+      ${rows.map(r => `<tr><td><code>${esc(r.project)}</code></td><td>${r.chunks ? fmt(r.chunks) : status('warn', '0')}</td><td>${bar(r.chunks || 0)}</td></tr>`).join('')}
+      ${blind}
+    </tbody></table></div>`;
+  } catch (e) {
+    $('#index-coverage').innerHTML = status('warn', e.message);
+  }
 }
 
 async function renderTracesPane() {
