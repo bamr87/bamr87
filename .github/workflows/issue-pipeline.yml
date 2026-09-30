@@ -605,7 +605,7 @@ jobs:
       actions: read
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
-      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
       GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
@@ -654,7 +654,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
-          FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
           WRITE_TOKEN_OK: ${{ steps.probe.outputs.write_token_ok }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -897,7 +897,7 @@ jobs:
       actions: read          # read the PRs' failing CI logs
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
-      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
       GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
@@ -912,7 +912,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
-          FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}

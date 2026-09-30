@@ -99,7 +99,7 @@ jobs:
       label: ${{ steps.plan.outputs.label }}
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
-      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -133,7 +133,7 @@ jobs:
       - name: Build the plan
         id: plan
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           TARGET: ${{ inputs.target || 'all' }}
           FOCUS: ${{ inputs.focus }}
           FORCE: ${{ inputs.force }}
@@ -219,7 +219,7 @@ jobs:
         with:
           repository: ${{ matrix.nwo }}
           ref: ${{ matrix.branch }}
-          token: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -241,7 +241,7 @@ jobs:
           # Read-only use, enforced by the allowlist below (view/list/diff
           # subcommands only). Gives the agent the listed issues/PRs on
           # private targets, which GITHUB_TOKEN could not see.
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
@@ -488,7 +488,7 @@ jobs:
         id: publish
         if: ${{ !cancelled() && inputs.dry_run != true && (steps.evolve.outcome == 'success' || steps.salvage.outputs.succeeded == 'true') }}
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           PREFIX: ${{ needs.plan.outputs.branch_prefix }}
           LABEL: ${{ needs.plan.outputs.label }}
           MARKER: ${{ matrix.marker }}

@@ -62,7 +62,6 @@ lanes:
   - ANTHROPIC_API_KEY
   - CLAUDE_CODE_OAUTH_TOKEN
   - DAILY_ANALYSIS_TOKEN
-  - FANOUT_TOKEN
   - FLEET_TOKEN
   - GITHUB_TOKEN
   guardrails:
@@ -81,7 +80,6 @@ lanes:
   - ANTHROPIC_API_KEY
   - CLAUDE_CODE_OAUTH_TOKEN
   - DAILY_ANALYSIS_TOKEN
-  - FANOUT_TOKEN
   - FLEET_TOKEN
   - GITHUB_TOKEN
   guardrails:
@@ -129,7 +127,6 @@ lanes:
   uses_tokens:
   - ANTHROPIC_API_KEY
   - CLAUDE_CODE_OAUTH_TOKEN
-  - FANOUT_TOKEN
   - FLEET_TOKEN
   guardrails:
     never_merges: true
@@ -144,7 +141,6 @@ lanes:
   uses_tokens:
   - ANTHROPIC_API_KEY
   - CLAUDE_CODE_OAUTH_TOKEN
-  - FANOUT_TOKEN
   - FLEET_TOKEN
   guardrails:
     never_merges: true
@@ -160,7 +156,6 @@ lanes:
   uses_tokens:
   - ANTHROPIC_API_KEY
   - CLAUDE_CODE_OAUTH_TOKEN
-  - FANOUT_TOKEN
   - FLEET_TOKEN
   guardrails:
     never_merges: true
@@ -217,15 +212,6 @@ tokens:
   used_by:
   - fleet-pulse
   - issue-pipeline
-- name: FANOUT_TOKEN
-  scope: repo
-  required: true
-  used_by:
-  - fleet-pulse
-  - issue-pipeline
-  - repo-evolution
-  - schema-fanout
-  - standardize-fanout
 - name: FLEET_TOKEN
   scope: fleet
   required: true

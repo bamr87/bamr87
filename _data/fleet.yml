@@ -1017,8 +1017,8 @@ tokens:
       weekly evolution loop may open PRs against, plus secrets:write on every fleet repo for the weekly
       rotation (writing an Actions secret is an admin-level operation — without
       it `token-rotation.yml` can audit ages but not fix them). Supersedes the
-      three separate PATs below.
-    replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN, FANOUT_TOKEN]
+      legacy PATs below (FANOUT_TOKEN, the third, was deleted 2026-09-30).
+    replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN]   # and FANOUT_TOKEN, removed 2026-09-30
     rotation:
       enabled: false      # GitHub PAT; re-issue in GitHub settings and re-seed
 
@@ -1045,11 +1045,6 @@ tokens:
     required: false
     deprecated: true
     purpose: Legacy — read fleet runs/issues for the daily analysis. Folded into FLEET_TOKEN.
-  - name: FANOUT_TOKEN
-    scope: hub
-    required: false
-    deprecated: true
-    purpose: Legacy — push branches + open PRs in submodules. Folded into FLEET_TOKEN.
 
 # --------------------------------------------------------------------------- #
 # Rotation — the weekly credential loop's guardrails.
