@@ -19,6 +19,15 @@ makes the declaration real.
           they are never stored in, or read from, any file. Dry-run by
           default; `--apply` writes; already-set secrets are left alone unless
           `--rotate`.
+  push    The operator's rotation path: read the token contract's names out
+          of a local dotenv file (default: the hub's gitignored .env), write
+          each to the HUB first, then fan every `scope: fleet` secret out to
+          the fleet — aborting a secret's fan-out if the hub refuses it. The
+          file is PARSED, never exported, so its other keys (a local
+          GITHUB_TOKEN above all, which would swap the credential `gh` writes
+          with) never reach a subprocess. Dry-run by default; `--apply`
+          writes; `--hub-only` stops at the hub and leaves the fan-out to the
+          weekly `rotate`.
   rotate  The weekly loop that brings the fleet into line with the HUB, for
           both halves of the contract:
             secrets   audit every repo's AGE from GitHub's own `updated_at`,
@@ -55,6 +64,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -442,6 +452,154 @@ def cmd_sync_secrets(args: argparse.Namespace) -> int:
 
     verb = "applied" if args.apply else "pending"
     print(f"\n  {changed} change(s) {verb} · {skipped} unreachable · {failed} failed")
+    if not args.apply and changed:
+        print("  Re-run with --apply to write.\n")
+    return 1 if failed else 0
+
+
+# --------------------------------------------------------------------------- #
+# push — the operator's .env → the hub → the fleet
+#
+# `sync-secrets` takes values from the environment, which in practice meant
+# `set -a; source .env` — and the hub's .env also carries a GITHUB_TOKEN for
+# local tools, so sourcing it swapped the credential `gh` writes secrets WITH
+# for one that usually lacks secrets:write. `push` reads the file as data
+# instead: only contract names are taken, values leave only on `gh secret
+# set`'s stdin, and nothing is exported.
+# --------------------------------------------------------------------------- #
+DEFAULT_ENV_FILE = REPO_ROOT / ".env"
+ENV_NAME_RX = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    """Parse a dotenv file into {name: value} without exporting anything."""
+    out: dict[str, str] = {}
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        name, sep, value = line.partition("=")
+        name = name.strip()
+        if not sep or not ENV_NAME_RX.match(name):
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        elif " #" in value:
+            value = value.split(" #", 1)[0].rstrip()
+        out[name] = value
+    return out
+
+
+def push_plan(tokens: list[dict], values: dict[str, str],
+              only: list[str] | None = None) -> dict:
+    """Which contract secrets the file can supply — names only, never values."""
+    contract = {t["name"]: t for t in tokens if not t.get("deprecated")}
+    unknown = sorted(set(only or []) - set(contract))
+    names = [n for n in contract if not only or n in only]
+    return {
+        "push": [n for n in names if values.get(n)],
+        "absent": [n for n in names if not values.get(n)],
+        "ignored": sorted(set(values) - set(contract)),
+        "unknown": unknown,
+        "scope": {n: contract[n].get("scope") for n in names},
+    }
+
+
+def _put_secret(name: str, value: str, nwo: str, verb: str, apply: bool) -> bool:
+    if not apply:
+        print(f"  {EXTRA} {nwo:34} would {verb} {name}")
+        return True
+    proc = subprocess.run(["gh", "secret", "set", name, "-R", nwo],
+                          input=value, capture_output=True, text=True)
+    if proc.returncode == 0:
+        print(f"  {EXTRA} {nwo:34} {verb} {name}")
+        return True
+    err = (proc.stderr or "").strip().splitlines()
+    print(f"  {MISSING} {nwo:34} FAILED {name}: {err[0] if err else '(no error output)'}")
+    return False
+
+
+def cmd_push(args: argparse.Namespace) -> int:
+    cfg = load(FLEET)
+    registry = load(REGISTRY)
+    path = Path(args.env_file) if args.env_file else DEFAULT_ENV_FILE
+    if not path.is_file():
+        sys.stderr.write(f"no env file at {path}\n")
+        return 2
+    values = read_env_file(path)
+    plan = push_plan(cfg.get("tokens") or [], values, args.only)
+    if plan["unknown"]:
+        sys.stderr.write(f"not in the token contract: {', '.join(plan['unknown'])}\n")
+        return 1
+
+    hub_nwo = cfg.get("hub", {}).get("repo") or "bamr87/bamr87"
+    others = [r for r in fleet_repos(cfg, registry) if r["nwo"] != hub_nwo]
+    if args.repo:
+        others = [r for r in others if args.repo in (r["name"], r["nwo"])]
+        if not others:
+            sys.stderr.write(f"no fleet repo matching {args.repo!r}\n")
+            return 1
+
+    mode = "APPLY" if args.apply else "DRY-RUN"
+    try:
+        shown = path.relative_to(REPO_ROOT)
+    except ValueError:
+        shown = path
+    print(f"\n\033[1mPush {shown} → {hub_nwo} → fleet\033[0m [{mode}]\n")
+    print(f"  from the file : {', '.join(plan['push']) or '(no contract secret)'}")
+    if plan["absent"]:
+        print(f"  \033[2mnot in the file: {', '.join(plan['absent'])}\033[0m")
+    if plan["ignored"]:
+        print(f"  \033[2mignored (not in the token contract, never sent): "
+              f"{', '.join(plan['ignored'])}\033[0m")
+    print()
+    if not plan["push"]:
+        print("  nothing to push.\n")
+        return 0
+
+    present_cache: dict[str, set[str] | None] = {}
+
+    def present(nwo: str) -> set[str] | None:
+        if nwo not in present_cache:
+            present_cache[nwo] = repo_secret_names(nwo)
+        return present_cache[nwo]
+
+    changed = skipped = failed = 0
+    for name in plan["push"]:
+        value = values[name]
+        mask(value)
+        hub_has = present(hub_nwo)
+        verb = "rotate" if hub_has and name in hub_has else "set"
+        # Hub first, and a refusal there stops this secret: a bad value on one
+        # repo is an incident, on the whole fleet an outage (docs/TOKEN-ROTATION.md).
+        if not _put_secret(name, value, hub_nwo, verb, args.apply):
+            failed += 1
+            print(f"    \033[2m{name}: the hub refused it — fan-out aborted\033[0m")
+            continue
+        changed += 1
+        if plan["scope"].get(name) != "fleet":
+            continue
+        if args.hub_only:
+            print(f"    \033[2m{name}: hub only — token-rotation.yml propagates it, "
+                  f"since the hub's copy is now the newest\033[0m")
+            continue
+        for r in others:
+            have = present(r["nwo"])
+            if have is None:
+                print(f"  {UNKNOWN} {r['nwo']:34} unreachable — skipped {name}")
+                skipped += 1
+                continue
+            verb = "rotate" if name in have else "set"
+            if _put_secret(name, value, r["nwo"], verb, args.apply):
+                changed += 1
+            else:
+                failed += 1
+
+    verb = "applied" if args.apply else "pending"
+    print(f"\n  {changed} write(s) {verb} · {skipped} unreachable · {failed} failed")
     if not args.apply and changed:
         print("  Re-run with --apply to write.\n")
     return 1 if failed else 0
@@ -1317,6 +1475,19 @@ def main(argv: list[str] | None = None) -> int:
                       help="overwrite secrets that are already set")
     p_ss.add_argument("--apply", action="store_true", help="write (default: dry-run)")
     p_ss.set_defaults(func=cmd_sync_secrets)
+
+    p_push = sub.add_parser("push",
+                            help="the operator's .env → the hub → the fleet, hub-first "
+                                 "(the file is parsed, never exported)")
+    p_push.add_argument("--env-file", metavar="PATH",
+                        help=f"dotenv file to read (default: {DEFAULT_ENV_FILE.name} at the hub root)")
+    p_push.add_argument("--only", metavar="SECRET", action="append",
+                        help="limit to this contract secret (repeatable)")
+    p_push.add_argument("--repo", metavar="NAME", help="limit the fan-out to one repo (the hub is always written)")
+    p_push.add_argument("--hub-only", action="store_true",
+                        help="write the hub only; the weekly rotation fans it out")
+    p_push.add_argument("--apply", action="store_true", help="write (default: dry-run)")
+    p_push.set_defaults(func=cmd_push)
 
     p_rot = sub.add_parser("rotate",
                            help="the weekly credential loop: audit ages, mint where "
