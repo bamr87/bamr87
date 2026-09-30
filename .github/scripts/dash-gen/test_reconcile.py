@@ -144,6 +144,32 @@ def main() -> int:
     check("a lone 404 is NOT collapsed (real deletion still surfaces)",
           len(kept) == 1 and kept[0].kind == "missing")
 
+    # An expired or revoked token does not 404, it fails every probe, so each
+    # repo comes back `unverifiable`. That filed 42 "could not verify" rows as
+    # fleet drift on #280. It has to collapse into ONE credential finding too.
+    print("rejected-token collapse:")
+    all_err = [reconcile.Finding(kind="unverifiable", name=f"repo{i}", detail="could not verify")
+               for i in range(12)]
+    rejected = reconcile.collapse_blind_token(list(all_err), probed=12)
+    check("12/12 unverifiable collapse to a single token-scope finding",
+          len(rejected) == 1 and rejected[0].kind == "token-scope")
+    check("no unverifiable rows survive the collapse",
+          not any(f.kind == "unverifiable" for f in rejected))
+    check("the collapsed finding says the token was rejected",
+          bool(rejected) and "rejected" in rejected[0].detail
+          and "FLEET_TOKEN" in rejected[0].detail)
+
+    class _OneBroken(_FakeGitHub):
+        def get_repo(self, nwo: str):
+            if nwo.endswith("/scripts"):
+                raise RuntimeError("502 from the API")
+            return super().get_repo(nwo)
+
+    partial = reconcile.collect(_OneBroken(), registry, mods)
+    check("a single erroring repo among healthy ones stays one unverifiable finding",
+          [f.name for f in partial if f.kind == "unverifiable"] == ["mismatch"]
+          and not any(f.kind == "token-scope" for f in partial))
+
     shutil.rmtree(tmp)
     print(f"\n{'FAILED: ' + str(len(failures)) if failures else 'OK'}")
     return 1 if failures else 0

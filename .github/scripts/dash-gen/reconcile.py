@@ -28,6 +28,9 @@ of the split:
                    it does on a deleted one, so auto-deregistering here would
                    eventually delete a live project. Humans decide.
     unverifiable   API error that is neither of the above.
+    token-scope    a mass of `missing` (token cannot see private repos) or of
+                   `unverifiable` (token rejected: expired/revoked), collapsed
+                   into one credential finding. See collapse_blind_token().
 
 Writes are surgical: the registry keeps its comments and formatting (only the
 one offending `repo_url:` line is rewritten) and `.gitmodules` is edited via
@@ -202,29 +205,40 @@ def collect(gh, registry: list[dict], mods: dict[str, dict[str, str]]) -> list[F
 
 
 def collapse_blind_token(findings: list[Finding], probed: int) -> list[Finding]:
-    """Replace a pile of 404s with one 'your token is blind' finding.
+    """Replace a pile of 404s or probe errors with one token finding.
 
     A repo-scoped token (CI's default GITHUB_TOKEN) 404s on every private repo
     in the fleet. Reported verbatim that is a dozen false "deleted" alarms per
     night; collapsed, it is one actionable line telling you to grant the token
     private-repo visibility.
+
+    An expired or revoked token fails differently: every probe errors, so every
+    repo comes back `unverifiable` (42 rows on #280, public repos included).
+    That collapses the same way, into one line saying the token was rejected.
     """
-    missing = [f for f in findings if f.kind == "missing"]
-    if not probed or len(missing) <= 1 or len(missing) / probed < BLIND_TOKEN_RATIO:
+    if not probed:
         return findings
 
-    names = ", ".join(sorted(f.name for f in missing))
-    collapsed = [f for f in findings if f.kind != "missing"]
-    collapsed.append(Finding(
-        kind="token-scope",
-        name="(token)",
-        detail=(f"{len(missing)}/{probed} repos returned 404 — the token almost "
-                f"certainly cannot see private repos rather than the fleet having "
-                f"been deleted. Grant private-repo read (e.g. set "
-                f"ACTIONS_ANALYTICS_TOKEN) and re-run before believing any of "
-                f"these: {names}"),
-    ))
-    return collapsed
+    def _collapse(fs: list[Finding], kind: str, detail) -> list[Finding]:
+        hits = [f for f in fs if f.kind == kind]
+        if len(hits) <= 1 or len(hits) / probed < BLIND_TOKEN_RATIO:
+            return fs
+        names = ", ".join(sorted(f.name for f in hits))
+        return [f for f in fs if f.kind != kind] + [
+            Finding(kind="token-scope", name="(token)", detail=detail(len(hits), names))
+        ]
+
+    findings = _collapse(findings, "missing", lambda n, names: (
+        f"{n}/{probed} repos returned 404 — the token almost "
+        f"certainly cannot see private repos rather than the fleet having "
+        f"been deleted. Grant private-repo read (e.g. set "
+        f"ACTIONS_ANALYTICS_TOKEN) and re-run before believing any of "
+        f"these: {names}"))
+    return _collapse(findings, "unverifiable", lambda n, names: (
+        f"{n}/{probed} repos could not be probed at all — the token was "
+        f"almost certainly rejected (expired or revoked) rather than the fleet "
+        f"drifting. Re-mint FLEET_TOKEN (docs/TOKEN-ROTATION.md) and re-run "
+        f"before believing any of these: {names}"))
 
 
 # --------------------------------------------------------------------------
