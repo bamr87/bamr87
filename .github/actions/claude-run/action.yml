@@ -11,7 +11,9 @@
 # step, result assertion) from .github/workflows/ai-lane.yml. The runner beside
 # this manifest (run.sh) installs Claude Code (best-effort), resolves the model
 # (--model > AI_MODEL > the CONSUMER repo's _data/ai.yml > the fleet default),
-# runs `claude -p` OAuth-first, and falls back to the Claude API when the
+# runs `claude -p` in the repo's credential order (AI_AUTH_ORDER, default
+# oauth then api_key; a REFUSED credential moves on to the next one), and falls
+# back to the Claude API when the
 # consumer ships scripts/ai/api_call.rb|py. A call that was ATTEMPTED and FAILED
 # with no fallback fails THIS step with the reason the run gave — never a silent
 # no-op for a later step to discover (run.sh, EXIT CODES). With NO auth at all

@@ -1118,7 +1118,12 @@ async function renderAuth() {
         <div class="set" style="margin-top:10px"><label class="inl">secret <select id="push-secret"><option value="">every one in .env (${pushable.length})</option>${pushable.map(t => `<option>${esc(t.name)}</option>`).join('')}</select></label>
           <label class="inl"><input type="checkbox" id="push-hub-only"> hub only</label></div>
         <div class="toolbar" style="margin-top:8px"><button class="btn" id="push-preview" ${ef.exists ? '' : 'disabled'}>▶ Preview (dry run)</button>
-          <button class="btn primary" id="push-apply" ${ef.exists && pushable.length && a.writes_enabled ? '' : 'disabled'}>⇪ Push to GitHub</button></div></div></div></div>`;
+          <button class="btn primary" id="push-apply" ${ef.exists && pushable.length && a.writes_enabled ? '' : 'disabled'}>⇪ Push to GitHub</button></div></div>
+      <h2>AI auth order</h2><div class="card">
+        <div class="sub" style="margin:0 0 8px">Which Claude credential each repo tries first — <code>oauth</code> (the subscription token) or <code>api_key</code> (metered) — set per repo or group in <code>_data/fleet.yml</code> <code>ai_auth:</code> (the default is on the <b>Config</b> tab). Every call site reads the repo's <code>CLAUDE_AUTH_ORDER</code> variable, and a repo is only pushed the credentials its order uses.</div>
+        <div class="toolbar"><button class="btn" data-run='{"op":"ai-auth"}'>▶ Resolve per repo</button>
+          <button class="btn" data-run='{"op":"ai-auth-sync"}'>▶ Sync — dry run</button>
+          <button class="btn primary" data-run='{"op":"ai-auth-sync","params":{"apply":true}}'>⇪ Sync CLAUDE_AUTH_ORDER</button></div></div></div></div>`;
 
   const refresh = async () => { CAPS = await api('/api/capabilities'); renderMeta(); renderAuth(); };
   $('#tab-auth').querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
@@ -1204,6 +1209,7 @@ async function runOp(op, params) {
   if (remote) {
     const detail = op === 'dispatch' ? `Dispatch ${params.workflow}.yml in GitHub Actions with ${JSON.stringify(params.fields || {})}`
       : op === 'content-file' ? `${o.title} for ${params.target} — WITH --apply: this opens issues in that site's GitHub repo.`
+      : op === 'ai-auth-sync' ? `Set CLAUDE_AUTH_ORDER on ${params.target || 'every fleet repo'} from ai_auth: in _data/fleet.yml. This changes which Claude credential those repos' AI steps use first.`
       : op === 'secrets-push' ? `Push ${params.secret || 'every contract secret in .env'} from .env to GitHub — the HUB first${params.hub_only ? ' and nowhere else' : ', then every fleet repo for fleet-scoped secrets'}. This OVERWRITES the current values.`
       : op === 'observe-reset' ? `${o.title} — this DELETES every indexed log line and all five elk volumes. Actions logs can be re-shipped from the lake; container logs cannot.`
       : `${o.title} — WITH --apply: this opens pull requests / writes secrets in fleet repos.`;

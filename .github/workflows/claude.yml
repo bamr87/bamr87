@@ -52,10 +52,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
+      # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
+      - name: Choose the Claude credential (ai_auth order)
+        id: claude-auth
+        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+          has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - uses: anthropics/claude-code-action@v1
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           # The one HUMAN-triggered call site, so there is no turn cap to size
           # against — but a mention is unattended spend the moment the person
           # who wrote it walks away, which is the same exposure as a cron. The

@@ -1052,6 +1052,47 @@ tokens:
     purpose: Legacy — push branches + open PRs in submodules. Folded into FLEET_TOKEN.
 
 # --------------------------------------------------------------------------- #
+# AI auth order — which Claude credential each repo tries first.
+#
+# Every Claude call site in the fleet takes its credential in the order its
+# repo's `CLAUDE_AUTH_ORDER` variable names (`oauth,api_key` = subscription
+# first, metered key as fallback; `api_key,oauth` = the reverse; a single
+# method = that one only). This block decides that order PER REPO, and the
+# same decision drives which credentials the fleet receives:
+#
+#   runtime   `CLAUDE_AUTH_ORDER` is projected onto every repo as a repository
+#             variable (`dash config auth sync --apply`, and the weekly
+#             `token-rotation.yml` variable pass). The call sites read it:
+#             .github/actions/claude-auth (every claude-code-action step) and
+#             claude-run (every ai-lane), which also moves to the next method
+#             when the first one is REJECTED, not only when it is absent.
+#   secrets   a repo whose order leaves a method out is not sent that method's
+#             secret by `dash secrets push|sync|rotate` — the hub always keeps
+#             every fleet secret, since it is the copy the fleet is written from.
+#
+# Precedence: `repos:` beats `groups:` beats `default:`. A repo matched by two
+# groups with DIFFERENT orders is a config error (`dash config auth` names it)
+# rather than a silent first-wins. Keys are registry names or owner/repo; the
+# hub is `bamr87`. Order values are comma lists of the `methods:` below.
+#
+# Inspect with `dash config auth` (the resolved order per repo, where it came
+# from, what the repo holds); project with `dash config auth sync --apply`.
+# --------------------------------------------------------------------------- #
+ai_auth:
+  variable: CLAUDE_AUTH_ORDER
+  methods:
+    oauth: CLAUDE_CODE_OAUTH_TOKEN     # subscription — `claude setup-token`
+    api_key: ANTHROPIC_API_KEY         # metered — console.anthropic.com
+  default: oauth,api_key               # the house convention since 2026-07
+  groups: {}
+    # metered-lanes:                   # example: content sites billed to the API key
+    #   order: api_key,oauth
+    #   repos: [lifehacker.dev, it-journey]
+    #   categories: []                 # …or every registry repo in a category
+  repos: {}
+    # zer0-mistakes: api_key           # example: API key only, never OAuth
+
+# --------------------------------------------------------------------------- #
 # Rotation — the weekly credential loop's guardrails.
 #
 # Counterpart to `remediation:` (broken workflows) and `issue_pipeline:` (open

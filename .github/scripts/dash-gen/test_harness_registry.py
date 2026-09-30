@@ -161,6 +161,19 @@ def harness_row(**kw) -> dict:
 # --------------------------------------------------------------------------- #
 # classification
 # --------------------------------------------------------------------------- #
+def test_classify_reads_the_ordered_auth_shape():
+    """The 0.5.0 kit takes its credential from CLAUDE_AUTH_ORDER — configuration,
+    not drift — and must not be graded as `auth-drift`."""
+    ordered = MENTION_WF.replace(
+        "anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}",
+        "anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}",
+    ).replace("      - uses: anthropics/claude-code-action@v1",
+              "      - id: claude-auth\n        uses: bamr87/bamr87/.github/actions/claude-auth@main\n"
+              "      - uses: anthropics/claude-code-action@v1")
+    info = hr.classify_workflow(".github/workflows/claude.yml", ordered)
+    assert info["auth"] == "ordered", info
+
+
 def test_classify_mention_handler_reads_kit_auth_and_triggers():
     info = hr.classify_workflow(".github/workflows/claude.yml", MENTION_WF)
     assert info["ai"] and info["kind"] == "mention-handler", info

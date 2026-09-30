@@ -314,6 +314,17 @@ jobs:
         run: |
           echo "::warning::No Claude auth (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) — tier 1 enrichment is skipped. Evidence bundles were still built and uploaded."
 
+      # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
+      # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
+      - name: Choose the Claude credential (ai_auth order)
+        id: claude-auth
+        if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+          has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - name: Enrich issues
         id: enrich
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
@@ -321,8 +332,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           # Turn budget must clear a FULL-capacity intake run: tiers.intake.max_issues (8)
           # issues plus evidence.max_runs (6) bundles to read. A run at exactly that
@@ -648,6 +659,17 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
+      # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
+      - name: Choose the Claude credential (ai_auth order)
+        id: claude-auth
+        if: ${{ env.HAS_CLAUDE_AUTH == 'true' && steps.queue.outputs.has_implement == 'true' }}
+        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+          has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - name: Implement
         id: implement
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' && steps.queue.outputs.has_implement == 'true' }}
@@ -657,8 +679,8 @@ jobs:
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
           WRITE_TOKEN_OK: ${{ steps.probe.outputs.write_token_ok }}
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           # Turn budget must be sized against `timeout-minutes: 90`, not guessed:
           # T2 implements up to `tiers.implement.max_issues` (3) issues end to end
@@ -906,6 +928,17 @@ jobs:
         with:
           name: issue-workorders
 
+      # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
+      # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
+      - name: Choose the Claude credential (ai_auth order)
+        id: claude-auth
+        if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+          has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - name: Complete
         id: complete
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
@@ -914,8 +947,8 @@ jobs:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           # Same sizing as T2, and T3 is the more turn-hungry of the two: its loop
           # is "read checks -> read failing log -> fix -> push -> re-check" over up

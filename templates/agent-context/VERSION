@@ -1,9 +1,9 @@
 kit: agent-context
-version: 0.4.0
+version: 0.5.0
 source: bamr87/bamr87 templates/agent-context/
 seeded-by: .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-settings, claude-guardrails, claude-agent-auditor) via tools/fanout.sh
-files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml
-updated: 2026-08-07
+files: CLAUDE.template.md, claude.yml, settings.template.json, quarantine.template.md, agent-auditor.template.md, archive/claude-0.1.0.yml, archive/claude-0.1.0-checkout-v7.yml, archive/claude-0.3.1.yml, archive/claude-0.4.0.yml
+updated: 2026-09-30
 position-amendment: |
   The 0.3.0/0.4.0 position below — "hooks/skills/commands/agents never fan out
   by default; dedicated, explicitly-requested kit artifacts are the sanctioned
@@ -25,6 +25,16 @@ position-amendment: |
   and silently strand it from `--upgrade` — the exact failure the 0.3.1 entry
   below records. Amend the position; leave the stamp alone.
 changelog: |
+  0.5.0 — claude.yml takes its Claude credential in the order the repo's
+  CLAUDE_AUTH_ORDER variable names (ai_auth: in bamr87/bamr87 _data/fleet.yml,
+  projected by `dash config auth sync --apply` and the weekly rotation's
+  variable pass), via the remote bamr87/bamr87/.github/actions/claude-auth
+  step, instead of the hard-coded OAuth-first expression. Unset variable = the
+  old behaviour (oauth, then api_key), so an upgraded copy changes nothing until
+  its repo is given an order. A rejected API key now falls through to OAuth.
+  The outgoing shape is archived at both stamps it was deployed under
+  (archive/claude-0.4.0.yml — 30 untouched fleet copies — and claude-0.3.1.yml,
+  same body), so `fanout.sh --upgrade` reaches them.
   0.4.0 — FF-0020 + FF-0021: two OPT-IN agent artifacts (never in the default
   artifact set), amending the 0.3.0 position: hooks/skills/commands/agents
   still never fan out by default — dedicated, explicitly-requested kit

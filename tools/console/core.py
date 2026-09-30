@@ -190,7 +190,8 @@ LOOPS = [
      "outputs": ["issue_pipeline"], "local_ops": ["issues"]},
     {"id": "token_rotation", "title": "Token rotation — credentials", "workflow": "token-rotation",
      "schedule_key": "rotate_tokens", "doc": "docs/TOKEN-ROTATION.md",
-     "outputs": ["token_rotation"], "local_ops": ["secrets-audit", "secrets-plan", "secrets-push", "secrets-rotate"]},
+     "outputs": ["token_rotation"], "local_ops": ["secrets-audit", "secrets-plan", "ai-auth",
+                                                   "secrets-push", "ai-auth-sync", "secrets-rotate"]},
     {"id": "repo_evolution", "title": "Repo evolution — proactive improvement", "workflow": "repo-evolution",
      "schedule_key": "repo_evolution", "doc": "docs/EVOLUTION.md",
      "outputs": [], "local_ops": ["targets"]},
@@ -1011,6 +1012,20 @@ OPS: dict[str, dict] = {
                           remote=lambda p: _flag(p, "apply"),
                           desc="tools/dash harnesses deploy --target <name> — DRY RUN unless apply.",
                           params=["target", "artifacts", "upgrade", "apply"]),
+    "ai-auth": dict(title="AI auth order per repo (resolved)", group="observe",
+                    argv=lambda p: [DASH, "config", "auth"] + (["--repo", _name(p)] if p.get("target") else []),
+                    needs_token=True,
+                    desc="tools/dash config auth — each repo's credential order, where it came from "
+                         "(default / group / repo), which credentials it holds, and its CLAUDE_AUTH_ORDER.",
+                    params=["target"]),
+    "ai-auth-sync": dict(title="Project the AI auth order (CLAUDE_AUTH_ORDER)", group="deploy",
+                         argv=lambda p: [DASH, "config", "auth", "sync"]
+                         + (["--repo", _name(p)] if p.get("target") else [])
+                         + (["--apply"] if _flag(p, "apply") else []),
+                         needs_token=True, remote=lambda p: _flag(p, "apply"),
+                         desc="Sets each repo's CLAUDE_AUTH_ORDER variable from ai_auth: — DRY RUN unless apply. "
+                              "Secrets follow the order on the next secrets push / rotation.",
+                         params=["target", "apply"]),
     "secrets-push": dict(title="Push .env secrets → hub → fleet", group="deploy",
                          argv=_secrets_push, needs_token=True, remote=lambda p: _flag(p, "apply"),
                          desc="tools/dash secrets push — reads the token contract's names from .env "
@@ -1334,6 +1349,15 @@ CONFIG_SECTIONS: list[dict] = [
          "logs.ship.batch": _f("int", "documents per bulk POST to Logstash"),
          "logs.ship.logs": _f("choice", "which runs to ship", ("all", "ai", "none")),
          "portal.embed": _f("bool", "embed Kibana + Grafana in the Observe tab, or link out only"),
+     }},
+    {"key": "ai_auth", "title": "AI auth order — which Claude credential each repo tries first",
+     "doc": "docs/AI-INTEGRATION.md",
+     "blurb": "The fleet-wide DEFAULT order. Groups and per-repo overrides are structure, so they "
+              "are edited in the file by PR; `ai-auth` below shows what every repo resolves to. "
+              "Saving here changes only the contract — project it with `ai-auth-sync`.",
+     "fields": {
+         "default": _f("choice", "tried in turn; the first present (and, for a key, accepted) wins",
+                       ("oauth,api_key", "api_key,oauth", "oauth", "api_key")),
      }},
     {"key": "rotation", "title": "Token rotation", "doc": "docs/TOKEN-ROTATION.md",
      "blurb": "The weekly credential loop. `hub_first` is not offered here — the file calls it "

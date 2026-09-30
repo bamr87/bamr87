@@ -179,6 +179,75 @@ else
 fi
 rm -rf "$argstub" "$outf"
 
+# 8-12. AI_AUTH_ORDER — the per-repo credential order (ai_auth: in the hub's
+#    _data/fleet.yml). The stubs report which credentials the CLI could SEE, so
+#    "one credential per attempt" is asserted, not assumed.
+authstub="$(mktemp -d)"
+cat > "$authstub/claude" <<'STUB'
+#!/usr/bin/env bash
+seen="${CLAUDE_CODE_OAUTH_TOKEN:+oauth}+${ANTHROPIC_API_KEY:+key}"
+if [ -n "${REFUSE_KEY:-}" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  printf '{"type":"result","subtype":"error_during_execution","is_error":true,"num_turns":1,"usage":{"input_tokens":0,"output_tokens":0},"result":"authentication_error: invalid x-api-key"}'
+  exit 1
+fi
+if [ -n "${OVERLOAD:-}" ]; then
+  printf '{"type":"result","subtype":"error_during_execution","is_error":true,"num_turns":1,"usage":{"input_tokens":0,"output_tokens":0},"result":"overloaded_error"}'
+  exit 1
+fi
+printf '{"type":"result","subtype":"success","is_error":false,"usage":{"input_tokens":1,"output_tokens":1},"result":"SAW %s"}' "$seen"
+STUB
+chmod +x "$authstub/claude"
+
+# auth_case <name> <want-rc> <want-stdout> <want-stderr|""> <not-in-stderr|""> VAR=value…
+auth_case() {
+  local name="$1" want_rc="$2" want_out="$3" want_err="$4" not_err="$5"; shift 5
+  local outf errf rc why=""
+  outf="$(mktemp)"; errf="$(mktemp)"
+  env -i PATH="${authstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+    "$@" bash "$SUT" --prompt "hello" >"$outf" 2>"$errf"; rc=$?
+  [[ "$rc" != "$want_rc" ]] && why="exit $rc, wanted $want_rc"
+  [[ -z "$why" && -n "$want_out" ]] && ! grep -qF -- "$want_out" "$outf" && why="stdout missing '$want_out'"
+  [[ -z "$why" && -n "$want_err" ]] && ! grep -qF -- "$want_err" "$errf" && why="stderr missing '$want_err'"
+  [[ -z "$why" && -n "$not_err" ]] && grep -qF -- "$not_err" "$errf" && why="stderr should not contain '$not_err'"
+  if [[ -z "$why" ]]; then echo "PASS: $name"; pass=$((pass + 1))
+  else echo "FAIL: $name — $why"; echo "  stdout: $(head -c 200 "$outf")"; echo "  stderr: $(head -c 300 "$errf")"; fail=$((fail + 1)); fi
+  rm -f "$outf" "$errf"
+}
+
+auth_case "default order: OAuth first, the key hidden from the CLI" 0 "SAW oauth+" "" "" \
+  CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
+auth_case "api_key,oauth: the key first, the OAuth token hidden" 0 "SAW +key" "" "" \
+  AI_AUTH_ORDER=api_key,oauth CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
+auth_case "CLAUDE_AUTH_ORDER is read when AI_AUTH_ORDER is unset" 0 "SAW +key" "" "" \
+  CLAUDE_AUTH_ORDER=api_key,oauth CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
+auth_case "a REFUSED first method hands over to the next" 0 "SAW oauth+" "retrying with oauth" "" \
+  AI_AUTH_ORDER=api_key,oauth REFUSE_KEY=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
+auth_case "a refused key's hint names the key, not the OAuth token" 1 "" "ANTHROPIC_API_KEY was rejected" "" \
+  AI_AUTH_ORDER=api_key REFUSE_KEY=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
+auth_case "a non-credential failure does NOT re-run the task" 1 "" "overloaded" "retrying with" \
+  AI_AUTH_ORDER=api_key,oauth OVERLOAD=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k
+
+# The single-shot API fallback is billed to the key, so an order without
+# api_key must never reach it. Needs a consumer tree with an api_call script.
+kit="$(mktemp -d)"; mkdir -p "$kit/scripts/ai"
+cp "$SUT" "$kit/scripts/ai/run.sh"
+printf 'print "API FALLBACK"\n' > "$kit/scripts/ai/api_call.rb"
+for order in oauth oauth,api_key; do
+  outf="$(mktemp)"
+  env -i PATH="${authstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+    AI_AUTH_ORDER="$order" OVERLOAD=1 CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k \
+    bash "$kit/scripts/ai/run.sh" --prompt "hello" >"$outf" 2>/dev/null; rc=$?
+  if [ "$order" = oauth ] && [ "$rc" = 1 ] && ! grep -qF "API FALLBACK" "$outf"; then
+    echo "PASS: order without api_key never spends the key on the API fallback"; pass=$((pass + 1))
+  elif [ "$order" = oauth,api_key ] && grep -qF "API FALLBACK" "$outf"; then
+    echo "PASS: order with api_key still reaches the API fallback"; pass=$((pass + 1))
+  else
+    echo "FAIL: API fallback under AI_AUTH_ORDER=$order: exit $rc, stdout=$(head -c 120 "$outf")"; fail=$((fail + 1))
+  fi
+  rm -f "$outf"
+done
+rm -rf "$kit" "$authstub"
+
 echo
 echo "ai runner contract: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]] || exit 1

@@ -1,0 +1,107 @@
+# =============================================================================
+# claude-auth — pick the Claude credential a claude-code-action step should use,
+# in the order the repo's `CLAUDE_AUTH_ORDER` variable names.
+# -----------------------------------------------------------------------------
+# The order is decided centrally (`ai_auth:` in bamr87/bamr87 _data/fleet.yml)
+# and projected onto every fleet repo as a repository variable. This action
+# reads it and outputs a METHOD NAME, never a credential: the calling step
+# gates each secret on that name, so no secret ever travels through an output.
+#
+#   - id: claude-auth
+#     uses: bamr87/bamr87/.github/actions/claude-auth@main
+#     with:
+#       order: <the repo variable CLAUDE_AUTH_ORDER>
+#       has-oauth: <whether CLAUDE_CODE_OAUTH_TOKEN is non-empty>
+#       api-key: <the ANTHROPIC_API_KEY secret>
+#   - uses: anthropics/claude-code-action@v1
+#     with:
+#       claude_code_oauth_token: <the OAuth secret when method is oauth, else empty>
+#       anthropic_api_key: <the API key secret when method is api_key, else empty>
+#
+# (templates/agent-context/claude.yml is the complete, copyable caller.)
+#
+# A method is chosen when its credential is PRESENT — and, for the API key,
+# ACCEPTED: the key is checked against the free models endpoint, so a revoked
+# key falls through to the next method instead of failing the agent 30 seconds
+# later. The OAuth token has no free check; it is chosen on presence, and
+# claude-run's retry covers a rejected one on the lanes that use it.
+#
+# Never fails the job: `method` is `none` when nothing usable is left, and the
+# caller's own "is there a credential?" gate decides what that means.
+# =============================================================================
+name: claude-auth
+description: Choose the Claude credential for this run from the repo's CLAUDE_AUTH_ORDER variable.
+inputs:
+  order:
+    description: Comma list of methods, e.g. `oauth,api_key`. Empty means the fleet default, `oauth,api_key`.
+    required: false
+    default: ""
+  has-oauth:
+    description: "'true' when the OAuth token secret is non-empty. A boolean, so the token itself never enters this action."
+    required: false
+    default: "false"
+  api-key:
+    description: The API key secret. Needed only to check it is accepted; empty means absent.
+    required: false
+    default: ""
+  check-api-key:
+    description: "'false' skips the models-endpoint check and chooses the key on presence alone."
+    required: false
+    default: "true"
+outputs:
+  method:
+    description: "`oauth`, `api_key`, or `none`."
+    value: ${{ steps.pick.outputs.method }}
+  order:
+    description: The order that was applied, after defaulting.
+    value: ${{ steps.pick.outputs.order }}
+runs:
+  using: composite
+  steps:
+    - id: pick
+      shell: bash
+      env:
+        ORDER: ${{ inputs.order }}
+        HAS_OAUTH: ${{ inputs.has-oauth }}
+        API_KEY: ${{ inputs.api-key }}
+        CHECK_KEY: ${{ inputs.check-api-key }}
+      run: |
+        set -uo pipefail
+        ORDER="${ORDER:-}"; HAS_OAUTH="${HAS_OAUTH:-false}"; API_KEY="${API_KEY:-}"; CHECK_KEY="${CHECK_KEY:-true}"
+        [ -n "$API_KEY" ] && echo "::add-mask::$API_KEY"
+        order="$(printf '%s' "${ORDER:-}" | tr -d '[:space:]')"
+        [ -n "$order" ] || order="oauth,api_key"
+        method=none; notes=()
+        IFS=, read -r -a methods <<<"$order"
+        for m in "${methods[@]}"; do
+          case "$m" in
+            oauth)
+              if [ "$HAS_OAUTH" = "true" ]; then method=oauth; break; fi
+              notes+=("oauth: no CLAUDE_CODE_OAUTH_TOKEN") ;;
+            api_key)
+              if [ -z "$API_KEY" ]; then notes+=("api_key: no ANTHROPIC_API_KEY"); continue; fi
+              if [ "$CHECK_KEY" != "false" ]; then
+                code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 \
+                  -H "x-api-key: $API_KEY" -H "anthropic-version: 2023-06-01" \
+                  https://api.anthropic.com/v1/models 2>/dev/null || echo 000)"
+                # Only a definite refusal disqualifies the key. A network blip
+                # (000) or a 5xx says nothing about the key, so it is kept.
+                if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+                  notes+=("api_key: ANTHROPIC_API_KEY rejected ($code)"); continue
+                fi
+              fi
+              method=api_key; break ;;
+            "") ;;
+            *) notes+=("$m: unknown method (expected oauth or api_key)") ;;
+          esac
+        done
+        echo "method=$method" >> "$GITHUB_OUTPUT"
+        echo "order=$order" >> "$GITHUB_OUTPUT"
+        skipped=""; [ ${#notes[@]} -gt 0 ] && skipped=" — skipped: $(IFS=';'; echo "${notes[*]}")"
+        if [ "$method" = none ]; then
+          echo "::warning::claude-auth: no usable credential in order '$order'$skipped"
+        else
+          echo "claude-auth: using $method (order $order)$skipped"
+          [ ${#notes[@]} -gt 0 ] && echo "::notice::claude-auth fell back to $method$skipped"
+        fi
+        exit 0

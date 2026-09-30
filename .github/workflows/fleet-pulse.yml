@@ -355,6 +355,17 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
+      # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
+      - name: Choose the Claude credential (ai_auth order)
+        id: claude-auth
+        if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
+        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+          has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - name: Diagnose & fix
         id: fix
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
@@ -363,8 +374,8 @@ jobs:
           GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
           github_token: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
           # BUDGET, and why it is what it is. Step 2 of the prompt costs 2 reads
           # per candidate (run log + workflow definition) and Step 3b costs 7

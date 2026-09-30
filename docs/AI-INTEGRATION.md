@@ -11,13 +11,13 @@ One page for the whole AI layer: what runs where, how it authenticates, and the 
 
 ## Auth & secrets
 
-House convention: **OAuth-first**. Every Claude call site prefers `CLAUDE_CODE_OAUTH_TOKEN` and falls back to `ANTHROPIC_API_KEY` only when the OAuth token is absent.
+Every Claude call site tries its credentials **in the order its repo's `CLAUDE_AUTH_ORDER` variable names**. The order is configured per repo and per group in [`_data/fleet.yml`](../_data/fleet.yml) `ai_auth:`. The fleet default is `oauth,api_key`, the house convention since 2026-07: `CLAUDE_CODE_OAUTH_TOKEN` first, `ANTHROPIC_API_KEY` as the fallback. See [Auth order per repo](#auth-order-per-repo).
 
 | Secret | Used by | Required? |
 | --- | --- | --- |
 | `CLAUDE_CODE_OAUTH_TOKEN` | `claude.yml`, `fleet-pulse.yml`, `issue-pipeline.yml`, `repo-evolution.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`, seeded fleet `claude.yml` workflows | Preferred Claude auth. From `claude setup-token` (a **one-year** credential), seeded onto the hub — [`token-rotation.yml`](../.github/workflows/token-rotation.yml) carries it to the rest of the fleet weekly. |
 | `CLAUDE_CODE_OAUTH_REFRESH_TOKEN` | `token-rotation.yml` | **Optional**, hub only. Lets the weekly rotation re-mint the OAuth token without a browser. Unset → the loop still propagates and audits, it just asks a human when the credential nears its expiry. See [TOKEN-ROTATION.md](TOKEN-ROTATION.md). |
-| `ANTHROPIC_API_KEY` | same call sites | Fallback only (used when the OAuth token is unset) |
+| `ANTHROPIC_API_KEY` | same call sites | The metered method. It comes second in the default order, or first in a repo whose `ai_auth` order puts `api_key` first. |
 | `FLEET_TOKEN` | `fleet-pulse.yml`, `issue-pipeline.yml`, `repo-evolution.yml`, `standardize-fanout.yml`, `schema-fanout.yml`, `token-rotation.yml` | **The one control-plane PAT.** Fine-grained, covering the fleet: `actions:read` + `contents:read` + `issues:read/write` + `pull_requests:read/write`, plus `contents:write` + **`workflows:write`** on repos the fan-outs and the fixer may open PRs against (GitHub refuses a push touching `.github/workflows/*` without the Workflows permission), plus **`secrets:write`** for the weekly rotation (writing an Actions secret is an admin-level call — `token-rotation.yml` is the only workflow that needs it). Supersedes the three legacy PATs below, which remain wired as fallbacks. |
 | `FANOUT_TOKEN` | `standardize-fanout.yml`, `schema-fanout.yml` | **Legacy** — folded into `FLEET_TOKEN`. Still honoured as a fallback. |
 | `ACTIONS_ANALYTICS_TOKEN` | `fleet-pulse.yml` | **Legacy** — folded into `FLEET_TOKEN`. Optional fallback (higher rate limits / private repos). |
@@ -40,12 +40,52 @@ The third line is what the weekly [`token-rotation.yml`](../.github/workflows/to
 Copy this shape verbatim into any new workflow (it is what `claude.yml` uses):
 
 ```yaml
+- id: claude-auth
+  uses: bamr87/bamr87/.github/actions/claude-auth@main
+  with:
+    order: ${{ vars.CLAUDE_AUTH_ORDER }}
+    has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 - uses: anthropics/claude-code-action@v1
   with:
-    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-    anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+    claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+    anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
     claude_args: "--max-budget-usd 10"     # see "Spend guardrails" below — required
 ```
+
+### Auth order per repo
+
+`ai_auth:` in [`_data/fleet.yml`](../_data/fleet.yml) decides which credential each repo tries first:
+
+```yaml
+ai_auth:
+  variable: CLAUDE_AUTH_ORDER
+  methods: { oauth: CLAUDE_CODE_OAUTH_TOKEN, api_key: ANTHROPIC_API_KEY }
+  default: oauth,api_key               # everything not matched below
+  groups:
+    metered-lanes:                     # API key first, OAuth as the fallback
+      order: api_key,oauth
+      repos: [lifehacker.dev, it-journey]
+      categories: []                   # …or every registry repo in a category
+  repos:
+    zer0-mistakes: api_key             # the key only, never OAuth
+```
+
+- **Precedence.** `repos:` beats `groups:`, which beats `default:`. A repo matched by two groups with *different* orders is an error. So is an unknown method or a key that names no fleet repo. Every writer refuses to act until the errors are fixed.
+- **What it drives at runtime.** The order is projected onto each repo as the `CLAUDE_AUTH_ORDER` repository variable. Every `claude-code-action` step reads it through [`claude-auth`](../.github/actions/claude-auth/). Every `ai-lane` reads it through `claude-run`, where it becomes `AI_AUTH_ORDER`.
+  - **`claude-auth`** outputs a method name, never the secret. An API key that the models endpoint refuses (`401`/`403`) falls through to the next method.
+  - **`claude-run`** gives the CLI only the credential being tried. If that credential is **refused** (rejected, or its quota exhausted), it moves on to the next one. It never re-runs a task after any other kind of failure. An order without `api_key` never spends the key, not even on the single-shot API fallback.
+- **What it drives in the secret store.** `dash secrets push`, `dash secrets sync`, `dash secrets rotate` and the weekly rotation send a repo only the credentials its order uses. The hub keeps every fleet secret whatever its own order, because it is the copy the fleet is written from.
+- **An unset variable means the default**, so a repo behaves exactly as before until it is given an order.
+
+```bash
+dash config auth                        # each repo's order, where it came from, what it holds, its variable
+dash config auth --offline              # the resolution alone (no GitHub calls)
+dash config auth sync                   # dry run: which CLAUDE_AUTH_ORDER variables would change
+dash config auth sync --apply           # set them (the weekly token-rotation variable pass does the same)
+```
+
+The Harness Console has the same controls. The Auth tab has an *AI auth order* panel (resolve, sync dry run, confirm-gated sync), and the fleet-wide default is a choice on the Config tab.
 
 ## Spend guardrails
 

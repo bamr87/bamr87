@@ -505,6 +505,50 @@ def test_config_editor_reaches_every_section_and_splices_each():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_ai_auth_ops_and_the_default_order_is_editable():
+    """The per-repo auth order: show is read-only, sync writes variables only
+    behind confirm, and the fleet default is a Config-tab choice that saves as
+    one line with every comment of the ai_auth: block intact."""
+    argv, remote = core.build_argv("ai-auth", {"target": "it-journey"})
+    assert argv[-4:] == ["config", "auth", "--repo", "it-journey"] and remote is False, argv
+    argv, remote = core.build_argv("ai-auth-sync", {})
+    assert argv[-3:] == ["config", "auth", "sync"] and remote is False, argv
+    argv, remote = core.build_argv("ai-auth-sync", {"apply": True})
+    assert argv[-1] == "--apply" and remote is True, argv
+    try:
+        core.build_argv("ai-auth", {"target": "../x"})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("ai-auth accepted a path as a repo name")
+    try:
+        core._coerce("ai_auth.default", "oauth,bedrock")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an order outside the declared choices was accepted")
+    try:
+        import ruamel.yaml  # noqa: F401
+    except ImportError:
+        print("    (ruamel.yaml absent — ai_auth round-trip skipped)")
+        return
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        fleet = tmp / "fleet.yml"
+        shutil.copy(core.DATA / "fleet.yml", fleet)
+        before = fleet.read_text().splitlines()
+        out = core.update_config({"ai_auth.default": "api_key,oauth"}, fleet)
+        assert out["sections"] == ["ai_auth"], out
+        after = fleet.read_text().splitlines()
+        differing = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
+        assert len(before) == len(after) and len(differing) == 1, differing
+        assert "\n".join(before).count("#") == "\n".join(after).count("#"), "a comment was lost"
+        import yaml
+        assert yaml.safe_load("\n".join(after))["ai_auth"]["default"] == "api_key,oauth"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_config_editor_refuses_undeclared_keys_and_bad_types():
     try:
         import ruamel.yaml  # noqa: F401
