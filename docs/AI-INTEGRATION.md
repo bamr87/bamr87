@@ -85,6 +85,51 @@ dash config auth sync                   # dry run: which CLAUDE_AUTH_ORDER varia
 dash config auth sync --apply           # set them (the weekly token-rotation variable pass does the same)
 ```
 
+### Anthropic API keys (per workspace)
+
+The `api_key` credential is not one fleet-wide value. Each repo holds the key of the **Console workspace that pays for it**, as declared in `_data/fleet.yml` `api_keys:`:
+
+- A workspace claims repos by registry name, by `owner/repo` (which can be outside the registry, like a content site in another GitHub org), or by GitHub owner.
+- Every repo that no workspace claims gets the key from the **Default Workspace**.
+- A repo whose `ai_auth` order leaves `api_key` out is never sent a key.
+
+**What the Admin API can and cannot do.** It can list keys (with `expires_at`) and disable them. It **cannot create a key**: keys, and their expiry, are minted in the Claude Console. That makes rotation *assisted*:
+
+1. **Create the keys.** In the Console (Settings → API keys → **Create key**), create each workspace's key scoped to that workspace, with an expiry of `lifetime_days` (7).
+2. **Paste them into `.env`.** Use any name starting with `ANTHROPIC_API_KEY`. The tool matches each value to its Console record by the key's partial hint and reads the workspace from the key's scope, so names don't matter. Admin keys and OAuth tokens are never taken, whatever they're called.
+3. **Run `dash keys rotate --apply`**, or use the Auth tab's *Anthropic API keys* panel. For each workspace it:
+   - takes the newest active key;
+   - refuses any key that outlives the policy (`--allow-long-lived` overrides);
+   - proves the key with **one cheap Messages call**, made exactly as CI makes it (no workspace header, so a key that would need one fails here rather than in CI);
+   - writes the key hub-first to every repo the workspace serves;
+   - records the ledger `_data/api_keys.yml` (ids, names, dates, repos; never a value);
+   - and only then disables the key it replaced. That's only when every repo took the new one, and only a key this tool deployed itself, never one in use by hand.
+4. **Let the daily check watch it.** [`api-keys.yml`](../.github/workflows/api-keys.yml) runs `dash keys watch`. It judges the *deployed* keys, proves the hub's own key live, and keeps one issue open from `renew_before_days` (2) before expiry until the replacement lands.
+
+```bash
+dash keys                          # each workspace's key in .env, its expiry vs policy, the repos it serves
+dash keys verify                   # + one cheap call per key (a fraction of a cent each)
+dash keys rotate                   # dry run: what would be written where
+dash keys rotate --apply           # write, hub first, then disable the replaced keys
+dash keys watch                    # the daily check: the DEPLOYED keys, from the ledger
+```
+
+`CLAUDE_CONSOLE_TOKEN` is the Admin API credential. It must be a service-account key **not** scoped to a workspace (a workspace-scoped key is refused by the Admin API), or an `sk-ant-admin` key. It is hub-only and never a fleet secret. Because `dash keys` owns `ANTHROPIC_API_KEY` (`managed_by: keys` in the token contract), the weekly rotation and `dash secrets push|sync` leave that secret alone. Otherwise they would overwrite every workspace's key with the hub's single copy.
+
+### Keyless: stage 2 (Workload Identity Federation)
+
+A 7-day key still has to be created by a person once a week. The documented way to have **no key at all** is Workload Identity Federation. A GitHub Actions job presents its OIDC token and exchanges it at `POST /v1/oauth/token` for a Claude access token that lives for minutes. There's nothing to mint, paste, expire or rotate. The plan is to prototype it on one repo before any fan-out:
+
+1. **One-time setup (a human, in the Console or with an `org:admin` OAuth token):**
+   - a service account per workspace with `organization_role: developer`;
+   - a GitHub issuer (`issuer_url: https://token.actions.githubusercontent.com`, `jwks: {type: discovery}`);
+   - and one rule per workspace (`oauth_scope: workspace:inference`), matched to an exact `repo:<owner>/<repo>:ref:refs/heads/main` subject. Never a trailing `*`, which would also admit pull requests from forks.
+2. **In the job:** grant `id-token: write`, request the OIDC token, and exchange it. The SDKs do the exchange themselves when `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID` and `ANTHROPIC_IDENTITY_TOKEN` are set.
+3. **Open questions the prototype has to answer before this replaces keys:**
+   - Can `claude-code-action` and the `claude` CLI take the federated token? Probably via `ANTHROPIC_AUTH_TOKEN`, but that isn't confirmed.
+   - Is `token_lifetime_seconds` long enough for a 30-minute agent run? Otherwise the run needs a refresh path.
+   - GitHub's OIDC tokens are single-use (`jti`), so a job that calls the CLI more than once needs one exchange, not several.
+
 The Harness Console has the same controls. The Auth tab has an *AI auth order* panel (resolve, sync dry run, confirm-gated sync), and the fleet-wide default is a choice on the Config tab.
 
 ## Spend guardrails

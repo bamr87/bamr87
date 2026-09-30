@@ -154,7 +154,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
 | [`test_docker_view.py`](tools/test_docker_view.py) | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Py… |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
-| [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`). |
+| [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/tui/fleet.py — the terminal dash data layer. |
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
@@ -168,6 +168,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | --- | --- | --- | --- |
 | [`ai-lane.yml`](.github/workflows/ai-lane.yml) | ai-lane (reusable) | `workflow_call` (reusable) | **The fleet's AI lane** (kit `ai-runner`): kill switch (`vars.<SWITCH>`, `workflow_dispatch` bypasses), bot guard, credential check, named concurrency, probed `GH_PAT` →… |
 | [`ai-runner-contract.yml`](.github/workflows/ai-runner-contract.yml) | ai-runner-contract | PR, push `main` (runner/lane/kit paths) | Pre-flight gate for the kit: the runner's contract tests (stubbed `claude`, no credential) and a check that the action calls the runner beside it. |
+| [`api-keys.yml`](.github/workflows/api-keys.yml) | 🔑 API Key Watch | **daily 06:47**, dispatch | **The Anthropic API key watch.** Each fleet repo holds the `ANTHROPIC_API_KEY` of the Console workspace that pays for it (`api_keys:` in `_data/fleet.yml`). |
 | [`build-dash.yml`](.github/workflows/build-dash.yml) | 🛰️ Build & Deploy Dash | push `main` (dash paths), daily 07:00, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. |
 | [`claude.yml`](.github/workflows/claude.yml) | Claude | `@claude` mention (issues/PRs) | Claude Code responds to `@claude` mentions in this repo. |
 | [`conformance.yml`](.github/workflows/conformance.yml) | Conformance | PR, push `main` | The hub's own caller of `fleet-conformance.yml`, referenced from the same checkout (`hub-ref` = the PR head), so any change to the spec, the checker, or the reusable wor… |

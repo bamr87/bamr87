@@ -154,6 +154,7 @@ schedule:
   schema_vendor: "7 8 * * 1"      # weekly hub↔upstream SCHEMA kit parity PR
   repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
   git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
+  api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -991,7 +992,12 @@ tokens:
   - name: ANTHROPIC_API_KEY
     scope: fleet
     required: false
-    purpose: Fallback Claude auth, used only when the OAuth token is absent.
+    # Per-workspace VALUES: each repo holds the key of the Console workspace
+    # that pays for it (api_keys: below). `dash keys` owns every write, so the
+    # weekly rotation and `dash secrets push|sync` leave this secret alone —
+    # propagating the hub's one copy would overwrite every workspace's key.
+    managed_by: keys
+    purpose: The metered Claude credential (`api_key` in ai_auth). One key per Console workspace, 7-day lifetime.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
               unified-evolution.yml, schema-fanout.yml, repo-evolution.yml]
     rotation:
@@ -1005,6 +1011,19 @@ tokens:
       enabled: true
       max_age_days: 45
       value_prefixes: ["sk-ant-api"]
+
+  - name: CLAUDE_CONSOLE_TOKEN
+    scope: hub
+    required: false
+    purpose: >-
+      Admin API credential for `dash keys` — a service-account key NOT scoped
+      to a workspace (or an sk-ant-admin key). Lists the Console's workspaces
+      and keys with their expiry, and disables the key a rotation replaced. It
+      cannot create keys (the Admin API has no create endpoint) and never sees
+      a key's value. Hub only; never a fleet secret.
+    used_by: [api-keys.yml]
+    rotation:
+      enabled: false      # rotate it in the Console; it must never reach a repo
 
   - name: FLEET_TOKEN
     scope: hub
@@ -1091,6 +1110,48 @@ ai_auth:
     #   categories: []                 # …or every registry repo in a category
   repos: {}
     # zer0-mistakes: api_key           # example: API key only, never OAuth
+
+# --------------------------------------------------------------------------- #
+# Anthropic API keys — one Console key per workspace, each to the repos that
+# workspace pays for.
+#
+# The Admin API can list keys (with `expires_at`) and disable them, but it
+# CANNOT create a key: keys and their expiry are minted in the Claude Console
+# (Settings → API keys → Create key). So rotation is assisted, not autonomous:
+#
+#   1. a human creates each workspace's key in the Console — scoped to that
+#      workspace, expiry `lifetime_days` — and pastes it into the hub's .env
+#      under any ANTHROPIC_API_KEY* name (the tool sorts them by workspace);
+#   2. `dash keys rotate --apply` (or the console's Auth tab) proves each key
+#      with one cheap Messages call, writes it hub-first to every repo its
+#      workspace serves, records the ledger, and disables the key it replaced;
+#   3. `api-keys.yml` checks expiry daily and files ONE issue when a key is
+#      within `renew_before_days` of expiring (or already has).
+#
+# The keyless alternative — GitHub OIDC → a federation rule per workspace →
+# tokens that live minutes — is stage 2 (docs/AI-INTEGRATION.md, "Keyless").
+#
+# `workspaces:` keys are Console WORKSPACE names. A workspace claims repos by
+# registry name, by owner/repo (which may be outside the registry), or by
+# GitHub owner; every fleet repo nobody claims gets the Default Workspace's key.
+# A repo whose ai_auth order leaves api_key out is never sent one.
+# --------------------------------------------------------------------------- #
+api_keys:
+  secret: ANTHROPIC_API_KEY            # the GitHub secret each repo receives
+  env_prefix: ANTHROPIC_API_KEY        # .env names the tool reads new keys from
+  admin_credential: CLAUDE_CONSOLE_TOKEN
+  lifetime_days: 7                     # a longer-lived key is refused (--allow-long-lived overrides)
+  renew_before_days: 2                 # the daily check files an issue this far ahead
+  workspaces:
+    bamr87: { repos: [bamr87] }                      # the hub
+    year-of-ai: { owners: [year-of-ai], repos: [year-of-ai/year-of-ai.github.io] }
+    zer0-mistakes: { repos: [zer0-mistakes] }
+    bash-365.com: { repos: [amr-bash/bash-365.com] }  # a content site outside the registry
+    bashcrawl: { repos: [bashcrawl] }
+  verify:                              # the cheap test — one call per key, a fraction of a cent
+    model: claude-opus-5
+    max_tokens: 16
+  ledger: _data/api_keys.yml           # key ids, names, dates, repos — never a value
 
 # --------------------------------------------------------------------------- #
 # Rotation — the weekly credential loop's guardrails.

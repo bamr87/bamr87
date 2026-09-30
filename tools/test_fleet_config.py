@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`).
+Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`)
+and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`).
 
 Guards the properties that make the order safe to change fleet-wide:
 
@@ -144,6 +145,120 @@ def test_the_live_fleet_contract_resolves_cleanly():
     resolved, errors = fc.resolve_auth(live, registry)
     assert not errors, errors
     assert resolved, "no repos resolved from the live registry"
+
+
+# --------------------------------------------------------------------------- #
+# api_keys: — Console keys per workspace (`dash keys`)
+# --------------------------------------------------------------------------- #
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+NOW = datetime(2026, 10, 1, tzinfo=timezone.utc)
+KREG = REGISTRY + [{"name": "2005", "repo_url": "https://github.com/year-of-ai/2005", "category": "docs"}]
+POLICY = {"lifetime_days": 7, "renew_before_days": 2}
+
+
+def kcfg(**extra) -> dict:
+    c = cfg()
+    c["api_keys"] = {"workspaces": {"ws-a": {"repos": ["alpha"]},
+                                    "year": {"owners": ["year-of-ai"], "repos": ["year-of-ai/site"]}},
+                     **extra}
+    return c
+
+
+def key(kid, ws, value, *, status="active", created=-1.0, life=7.0):
+    created_at = NOW + timedelta(days=created)
+    return {"id": kid, "name": kid, "status": status, "created_at": created_at.isoformat(),
+            "expires_at": None if life is None else (created_at + timedelta(days=life)).isoformat(),
+            "partial_key_hint": value[:10] + "..." + value[-4:], "scope_workspace_id": ws}
+
+
+def test_key_targets_claim_by_name_owner_and_explicit_slug_the_rest_default():
+    targets, errors = fc.key_targets(kcfg(), KREG)
+    assert not errors, errors
+    slot = {nwo: t["slot"] for nwo, t in targets.items()}
+    assert slot["bamr87/alpha"] == "ws-a", slot
+    assert slot["year-of-ai/2005"] == "year" and slot["year-of-ai/site"] == "year", slot
+    assert slot["bamr87/beta"] == "default" and slot["bamr87/bamr87"] == "default", slot
+
+
+def test_key_targets_report_conflicts_and_unknown_repos():
+    c = kcfg()
+    c["api_keys"]["workspaces"]["ws-b"] = {"repos": ["alpha", "nosuch"]}
+    _, errors = fc.key_targets(c, KREG)
+    text = "\n".join(errors)
+    assert "bamr87/alpha: claimed by workspaces ws-a and ws-b" in text, text
+    assert "'nosuch' is not a registry repo" in text, text
+
+
+def test_key_targets_honour_the_ai_auth_order():
+    c = kcfg()
+    c["ai_auth"] = {"methods": {"oauth": "CLAUDE_CODE_OAUTH_TOKEN", "api_key": "ANTHROPIC_API_KEY"},
+                    "repos": {"beta": "oauth"}}
+    targets, _ = fc.key_targets(c, KREG)
+    assert targets["bamr87/beta"]["skip"], "a repo whose order leaves api_key out must not get a key"
+    assert not targets["bamr87/alpha"]["skip"]
+
+
+def test_hint_matching_and_candidates_never_take_admin_or_oauth_values():
+    v = "sk-ant-api03-abcdefgh-XYZ1"
+    assert fc.hint_matches("sk-ant-api...XYZ1", v) and not fc.hint_matches("sk-ant-api...XYZ2", v)
+    assert not fc.hint_matches(None, v) and not fc.hint_matches("sk-ant-api", v)
+    cands = fc.key_candidates({"ANTHROPIC_API_KEY": v, "ANTHROPIC_API_KEY_OLD": "sk-ant-admin01-x",
+                               "ANTHROPIC_API_KEY_O": "sk-ant-oat01-x", "OTHER": v,
+                               "ANTHROPIC_API_KEY_NOTAKEY": "hello"}, "ANTHROPIC_API_KEY")
+    assert cands == {"ANTHROPIC_API_KEY": v}, cands
+
+
+def test_plan_takes_the_newest_active_key_and_applies_the_policy():
+    ws = {"ws-a": "W_A", "year": "W_Y"}
+    old, new = "sk-ant-api03-old-aaaa1111", "sk-ant-api03-new-bbbb2222"
+    forever, dflt = "sk-ant-api03-forever-cccc", "sk-ant-api03-dflt-dddd4444"
+    keys = [key("k_old", "W_A", old, created=-6), key("k_new", "W_A", new, created=-0.5),
+            key("k_forever", "W_Y", forever, life=None),
+            key("k_dflt", "W_DEFAULT", dflt, created=-6.5)]
+    values = {"A": old, "B": new, "C": forever, "D": dflt}
+    plan = fc.plan_keys(["default", "ws-a", "year"], ws, keys, values, POLICY, now=NOW)
+    assert plan["ws-a"]["key"]["id"] == "k_new" and plan["ws-a"]["issues"] == [], plan["ws-a"]
+    assert plan["ws-a"]["others_active"] == ["k_old"], plan["ws-a"]
+    assert "never-expires" in plan["year"]["issues"], plan["year"]
+    # an unnamed workspace is the Default one
+    assert plan["default"]["key"]["id"] == "k_dflt" and "renew-soon" in plan["default"]["issues"], plan["default"]
+    long = fc.plan_keys(["ws-a"], ws, [key("k30", "W_A", new, life=30)], {"B": new}, POLICY, now=NOW)
+    assert "lifetime-too-long" in long["ws-a"]["issues"], long
+    gone = fc.plan_keys(["ws-a"], ws, [key("kx", "W_A", new, status="expired")], {"B": new}, POLICY, now=NOW)
+    assert gone["ws-a"]["key"] is None and gone["ws-a"]["issues"] == ["expired-in-env"], gone
+    missing = fc.plan_keys(["ws-a"], ws, [], {}, POLICY, now=NOW)
+    assert missing["ws-a"]["issues"] == ["no-key-in-env"], missing
+
+
+def test_watch_judges_the_deployed_keys_from_the_ledger():
+    v = "sk-ant-api03-deployed-eeee5555"
+    ledger = {"slots": {"ws-a": {"key_id": "k1"}, "year": {"key_id": "k_gone"}}}
+    keys = [key("k1", "W_A", v, created=-5.5)]
+    plan = fc.watch_plan(["default", "ws-a", "year"], ledger, keys, {"ANTHROPIC_API_KEY": v}, POLICY, now=NOW)
+    assert plan["default"]["issues"] == ["not-deployed"], plan["default"]
+    assert plan["ws-a"]["issues"] == ["renew-soon"] and plan["ws-a"]["key"]["env"] == "ANTHROPIC_API_KEY", plan["ws-a"]
+    assert plan["year"]["issues"] == ["disabled"], plan["year"]
+
+
+def test_a_managed_secret_is_left_to_its_owner():
+    c = {"tokens": [{"name": "ANTHROPIC_API_KEY", "scope": "fleet", "managed_by": "keys",
+                     "rotation": {"enabled": True}},
+                    {"name": "CLAUDE_CODE_OAUTH_TOKEN", "scope": "fleet", "rotation": {"enabled": True}}]}
+    names = [t["name"] for t in fc.rotating_tokens(c)]
+    assert names == ["CLAUDE_CODE_OAUTH_TOKEN"], names
+    assert [t["name"] for t in fc.rotating_tokens(c, ["ANTHROPIC_API_KEY"])] == [], \
+        "--only must not smuggle a managed secret into the weekly rotation"
+    plan = fc.push_plan(c["tokens"], {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_OAUTH_TOKEN": "t"})
+    assert plan["push"] == ["CLAUDE_CODE_OAUTH_TOKEN"] and plan["managed"] == ["ANTHROPIC_API_KEY"], plan
+    assert "ANTHROPIC_API_KEY" not in plan["ignored"], plan
+
+
+def test_the_live_api_keys_contract_resolves_cleanly():
+    live = fc.load(fc.FLEET)
+    targets, errors = fc.key_targets(live, fc.load(fc.REGISTRY))
+    assert not errors, errors
+    assert {t["slot"] for t in targets.values()} >= {"default", "bamr87"}, targets
 
 
 def main() -> int:

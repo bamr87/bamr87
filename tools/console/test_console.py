@@ -731,6 +731,32 @@ def test_secrets_push_is_allowlisted_and_confirm_gated():
         core.AUTH_WRITES = saved
 
 
+def test_keys_ops_are_read_only_except_a_confirmed_rotation():
+    """dash keys: status / verify / watch never write; rotate writes secrets to
+    fleet repos and disables Console keys, so it is confirm-gated and refused
+    outright with DASH_CONSOLE_AUTH=off."""
+    for op in ("keys-status", "keys-verify", "keys-watch"):
+        argv, remote = core.build_argv(op, {})
+        assert argv[-2] == "keys" and remote is False, (op, argv)
+    argv, remote = core.build_argv("keys-rotate", {"allow_long_lived": True})
+    assert argv[-2:] == ["rotate", "--allow-long-lived"] and remote is False, argv
+    argv, remote = core.build_argv("keys-rotate", {"apply": True})
+    assert argv[-1] == "--apply" and remote is True, argv
+    saved = core.AUTH_WRITES
+    try:
+        core.AUTH_WRITES = False
+        try:
+            core.build_argv("keys-rotate", {"apply": True})
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("keys-rotate --apply built with DASH_CONSOLE_AUTH=off")
+    finally:
+        core.AUTH_WRITES = saved
+    assert "ANTHROPIC_API_KEY" not in {t["name"] for t in core.contract_secrets()}, \
+        "a secret `dash keys` manages must not be offered by the .env push"
+
+
 def test_push_reads_contract_names_from_env_file_never_values():
     """The Auth tab shows which contract secrets .env supplies, by NAME; and the
     CLI it runs parses the file rather than exporting it, so a local

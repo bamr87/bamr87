@@ -1,2 +1,3 @@
 PyYAML>=6.0
 PyGithub>=2.3
+anthropic

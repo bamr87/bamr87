@@ -1,0 +1,101 @@
+name: 🔑 API Key Watch
+
+# Daily expiry check for the fleet's Anthropic API keys — one Console key per
+# workspace, each written to the repos that workspace pays for (`api_keys:` in
+# _data/fleet.yml, docs/AI-INTEGRATION.md "Anthropic API keys").
+#
+# WHAT IT CAN AND CANNOT DO
+#   The Admin API lists keys with their `expires_at` and can disable them, but
+#   it cannot CREATE one — keys are minted in the Claude Console. And CI never
+#   holds a new key's value. So this workflow does not rotate anything: it
+#   reads the keys the ledger (_data/api_keys.yml) says are deployed, judges
+#   each against the lifetime policy, proves the hub's own ANTHROPIC_API_KEY
+#   with one cheap Messages call (the in-GitHub proof that a deployed key
+#   works), and keeps ONE issue open while anything needs a human — a key
+#   within `renew_before_days` of expiring, an expired or disabled key, or a
+#   failed test. The human creates the replacement in the Console, pastes it
+#   into the hub's .env, and runs `dash keys rotate --apply`.
+#
+# TOKENS
+#   CLAUDE_CONSOLE_TOKEN  hub secret: an Admin-API-capable key (a service-account
+#                         key not scoped to a workspace). Read-only here.
+#   ANTHROPIC_API_KEY     the hub's own inference key — the one thing tested live.
+#   GITHUB_TOKEN          files the issue in THIS repo, which it can always do —
+#                         deliberately not a FLEET_TOKEN fallback: an alarm must
+#                         not ride on the credential most likely to be dead.
+
+on:
+  schedule:
+    - cron: '47 6 * * *'   # daily (_data/fleet.yml schedule.api_keys)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-keys
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Check key expiry
+    # Kill switch: default ON; `API_KEYS_ENABLED=false` pauses the schedule,
+    # never a manual run.
+    if: ${{ github.event_name != 'schedule' || vars.API_KEYS_ENABLED != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      - name: Judge the deployed keys
+        id: keys
+        env:
+          CLAUDE_CONSOLE_TOKEN: ${{ secrets.CLAUDE_CONSOLE_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -uo pipefail
+          if [ -z "$CLAUDE_CONSOLE_TOKEN" ]; then
+            echo "::warning::CLAUDE_CONSOLE_TOKEN is not set on the hub — key expiry cannot be read. Add it (a service-account key not scoped to a workspace)."
+            {
+              echo "## Anthropic API keys need attention"
+              echo ""
+              echo "The daily check has no \`CLAUDE_CONSOLE_TOKEN\` on the hub, so it cannot read any key's expiry."
+              echo "Add a service-account key that is **not** scoped to a workspace as that hub secret."
+            } > key-attention.md
+            echo "attention=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          rc=0
+          python3 tools/fleet-config.py keys watch --attention-file key-attention.md || rc=$?
+          echo "rc=$rc"
+
+      - name: Open, update, or close the key issue
+        if: always() && steps.keys.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ATTENTION: ${{ steps.keys.outputs.attention }}
+          TITLE: "🔑 Anthropic API keys need a human"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty" || true)
+          if [ "$ATTENTION" != "true" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "Every deployed key is inside its policy and the hub's key passed the cheap test ([run]($RUN_URL))."
+              echo "::notice::Closed key issue #$existing — nothing needs a human."
+            fi
+            exit 0
+          fi
+          printf "\n_Filed by [\`api-keys.yml\`](%s) · updated in place daily._\n" "$RUN_URL" >> key-attention.md
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file key-attention.md
+            echo "::notice::Updated key issue #$existing"
+          else
+            gh issue create --title "$TITLE" --body-file key-attention.md
+          fi
