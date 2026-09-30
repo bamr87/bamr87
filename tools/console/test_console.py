@@ -653,6 +653,75 @@ def test_gh_login_validates_before_it_ever_runs_gh():
     assert "ghp_" not in msg and "github_pat_" not in msg, msg
 
 
+def test_secrets_push_is_allowlisted_and_confirm_gated():
+    """.env → hub → fleet: the dry run is local, apply is a remote write, and
+    `secret` can only name a token-contract entry — never an arbitrary var."""
+    argv, remote = core.build_argv("secrets-push", {})
+    assert argv[-2:] == ["secrets", "push"] and remote is False, argv
+    name = core.contract_secrets()[0]["name"]
+    argv, remote = core.build_argv("secrets-push", {"secret": name, "hub_only": True, "apply": True})
+    assert argv[-5:] == ["push", "--only", name, "--hub-only", "--apply"] and remote is True, argv
+    for bad in ("GITHUB_TOKEN", "PGADMIN_PASSWORD", "X; rm -rf /"):
+        try:
+            core.build_argv("secrets-push", {"secret": bad})
+        except ValueError:
+            continue
+        raise AssertionError(f"secrets-push accepted {bad!r}")
+    try:
+        core.JobManager(Path(tempfile.mkdtemp())).submit("secrets-push", {"apply": True})
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("secrets-push --apply ran without confirm")
+    saved = core.AUTH_WRITES
+    try:
+        core.AUTH_WRITES = False
+        core.build_argv("secrets-push", {})                    # the preview still runs
+        try:
+            core.build_argv("secrets-push", {"apply": True})
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("secrets-push --apply built with DASH_CONSOLE_AUTH=off")
+    finally:
+        core.AUTH_WRITES = saved
+
+
+def test_push_reads_contract_names_from_env_file_never_values():
+    """The Auth tab shows which contract secrets .env supplies, by NAME; and the
+    CLI it runs parses the file rather than exporting it, so a local
+    GITHUB_TOKEN never swaps the credential gh writes with."""
+    import importlib.util
+    tmp = Path(tempfile.mkdtemp())
+    saved = core.ENV_FILE
+    name = core.contract_secrets()[0]["name"]
+    try:
+        core.ENV_FILE = tmp / ".env"
+        core.ENV_FILE.write_text(f"# local\nexport {name}='sekrit-value-123'\nGITHUB_TOKEN=ghp_local\n"
+                                 "NPM_TOKEN=\nWIKI_DB_PASS=pw # comment\n")
+        doc = core.auth_status()
+        assert "sekrit-value-123" not in repr(doc) and "ghp_local" not in repr(doc)
+        rows = {r["name"]: r for r in doc["push"]}
+        assert rows[name]["in_env_file"] is True
+        if "NPM_TOKEN" in rows:
+            assert rows["NPM_TOKEN"]["in_env_file"] is False, "an empty assignment counted as supplied"
+
+        spec = importlib.util.spec_from_file_location("fleet_config", core.TOOLS / "fleet-config.py")
+        fc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fc)
+        values = fc.read_env_file(core.ENV_FILE)
+        assert values[name] == "sekrit-value-123" and values["WIKI_DB_PASS"] == "pw", values
+        plan = fc.push_plan([{"name": name, "scope": "fleet"}, {"name": "NPM_TOKEN", "scope": "hub"},
+                             {"name": "OLD", "deprecated": True}], values)
+        assert plan["push"] == [name] and plan["absent"] == ["NPM_TOKEN"], plan
+        assert "GITHUB_TOKEN" in plan["ignored"] and "OLD" not in plan["absent"], plan
+        assert fc.push_plan([], values, ["NOPE"])["unknown"] == ["NOPE"]
+        assert "GITHUB_TOKEN" not in os.environ or os.environ["GITHUB_TOKEN"] != "ghp_local"
+    finally:
+        core.ENV_FILE = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 # --------------------------------------------------------------------------- #
 def main() -> int:
     failures = 0
