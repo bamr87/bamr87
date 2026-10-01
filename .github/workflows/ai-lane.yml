@@ -9,7 +9,8 @@ name: ai-lane
 #   run      named concurrency (never cancels a writer by default), checkout,
 #            the runtimes the repo needs, an optional pre-run hook, the model
 #            step (.github/actions/claude-run — Claude Code first, API fallback,
-#            OAuth-first, attempted-and-failed is RED), an optional post-run
+#            credential order from vars.CLAUDE_AUTH_ORDER, attempted-and-failed
+#            is RED), an optional post-run
 #            hook, the "did the agent actually produce something?" assertion,
 #            and an artifact upload.
 #
@@ -167,14 +168,20 @@ jobs:
           SENDER_TYPE: ${{ github.event.sender.type }}
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AUTH_ORDER: ${{ vars.CLAUDE_AUTH_ORDER }}
         run: |
+          # A credential only counts if the repo's auth order (ai_auth: in the
+          # hub's _data/fleet.yml → vars.CLAUDE_AUTH_ORDER) actually uses it.
+          order=",${AUTH_ORDER:-oauth,api_key},"; order="${order// /}"
+          [[ "$order" == *,oauth,* ]] || OAUTH=""
+          [[ "$order" == *,api_key,* ]] || KEY=""
           go=true; why="enabled"
           if [ "$SENDER_TYPE" = "Bot" ]; then
             go=false; why="triggered by a bot actor (loop guard)"
           elif [ -n "$SWITCH" ] && [ "$EVENT" != "workflow_dispatch" ] && [ "$ENABLED" != "true" ]; then
             go=false; why="repo variable $SWITCH is not 'true' (set it to enable; workflow_dispatch bypasses)"
           elif [ -z "$OAUTH" ] && [ -z "$KEY" ]; then
-            go=false; why="no Claude credential (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY)"
+            go=false; why="no Claude credential that CLAUDE_AUTH_ORDER=${AUTH_ORDER:-oauth,api_key} allows (CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY)"
           fi
           echo "go=$go" >> "$GITHUB_OUTPUT"
           echo "ai-lane $LANE: go=$go — $why"
@@ -198,6 +205,10 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       AI_ROLE: ${{ inputs.agent || inputs.lane }}
       AI_LANE: ${{ inputs.lane }}
+      # The CALLER repo's credential order (a called workflow reads the caller's
+      # vars). run.sh tries each method with only its own credential and hands
+      # over to the next when one is refused.
+      AI_AUTH_ORDER: ${{ vars.CLAUDE_AUTH_ORDER }}
     steps:
       # A PAT that is present but expired fails later as `could not read
       # Username` (the presence-fallback trap) — so validate it first and

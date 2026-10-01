@@ -363,8 +363,13 @@ def classify_workflow(path: str, text: str) -> dict:
         info["action_ref"] = m.group(1) if m else None
         has_oauth = "claude_code_oauth_token" in text
         has_key = "anthropic_api_key" in text
+        # `ordered` = the credential comes from the repo's CLAUDE_AUTH_ORDER
+        # (the claude-auth step, or claude-run reading it) — the order is then
+        # configuration in ai_auth:, not a property of the file.
+        ordered = "claude-auth@" in text or "CLAUDE_AUTH_ORDER" in text
         info["auth"] = (
-            "oauth-first" if has_oauth and has_key
+            "ordered" if ordered and (has_oauth or has_key)
+            else "oauth-first" if has_oauth and has_key
             else "oauth-only" if has_oauth
             else "api-key" if has_key
             else "none"
@@ -665,7 +670,8 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
                     "the fleet-pulse doctor queue owns the fix; see /triage/", repo=r["repo"])
             if h.get("auth") in ("api-key", "none"):
                 add(60, "auth-drift",
-                    f"{h['path']} auth is '{h['auth']}' (house convention is OAuth-first)",
+                    f"{h['path']} auth is '{h['auth']}' (house convention: the ordered "
+                    f"claude-auth step, or OAuth-first)",
                     "dispatch harness-fanout with upgrade, or align the call site by hand",
                     repo=r["repo"])
         cov = r.get("coverage") or {}

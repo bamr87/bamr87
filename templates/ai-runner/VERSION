@@ -1,10 +1,22 @@
 kit: ai-runner
-version: 0.1.0
+version: 0.2.0
 source: "bamr87/bamr87 templates/ai-runner/ (runtime: .github/actions/claude-run/ + .github/workflows/ai-lane.yml)"
 seeded-by: "consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusable .github/workflows/ai-lane.yml@main); not fanned out by tools/fanout.sh"
 files: ai-lane.template.yml, tests/contract.sh, archive/ai-lane-0.1.0.yml
-updated: 2026-09-08
+updated: 2026-09-30
 changelog: |
+  0.2.0 — the credential ORDER is configuration. run.sh reads AI_AUTH_ORDER
+  (ai-lane.yml passes the caller repo's CLAUDE_AUTH_ORDER; CLAUDE_AUTH_ORDER is
+  read directly when AI_AUTH_ORDER is unset), gives the CLI ONLY the credential
+  being tried, and — new — moves to the next method when a call is REFUSED
+  (auth rejected or quota exhausted), never after any other failure, so a task
+  is not re-run once it has spent turns. An order without api_key never spends
+  the key, not even on the single-shot API fallback. Hints name the credential
+  that actually failed. ai-lane's gate counts only credentials the order uses.
+  Unset order = oauth,api_key = the 0.1.0 behaviour. Consumed by reference
+  (@main), so every lane gets this with no fan-out; the vendored scripts/ai/run.sh
+  copies (lifehacker.dev, it-journey, zer0-mistakes) are now behind and should be
+  re-copied. Contract: tests/contract.sh cases 8-12.
   0.1.0 — the fleet's model step and lane, versioned ONCE. Promoted from
   lifehacker.dev scripts/ai/run.sh + .github/actions/claude-run (PR #643), where
   a real fleet of 17 lanes tests it daily, after the 2026-09-06 review found

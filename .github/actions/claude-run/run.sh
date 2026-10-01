@@ -19,9 +19,18 @@
 #
 # Auth (either works for the primary Claude Code path):
 #   CLAUDE_CODE_OAUTH_TOKEN — a Claude Code token from `claude setup-token`
-#                             (subscription auth; the preferred CI credential).
-#   ANTHROPIC_API_KEY       — a pay-per-use API key; ALSO the only credential the
-#                             Claude API fallback can use.
+#                             (subscription auth; method `oauth`).
+#   ANTHROPIC_API_KEY       — a pay-per-use API key (method `api_key`); ALSO the
+#                             only credential the Claude API fallback can use.
+#   AI_AUTH_ORDER           — the order to try them in, e.g. `api_key,oauth`
+#                             (default `oauth,api_key`; CLAUDE_AUTH_ORDER is read
+#                             when AI_AUTH_ORDER is unset). Each method runs with
+#                             ONLY its own credential in the CLI's environment,
+#                             and a method whose call is REFUSED (rejected
+#                             credential, exhausted quota) hands over to the next
+#                             one. The fleet sets it per repo: `ai_auth:` in
+#                             bamr87/bamr87 _data/fleet.yml → the repo variable
+#                             CLAUDE_AUTH_ORDER → ai-lane.yml.
 # Env (canonical names — no repo prefix, so the file stays identical everywhere):
 #   AI_REPO_ROOT  the consumer repo root (default: $GITHUB_WORKSPACE, else script-relative)
 #   AI_MODEL      override the model from _data/ai.yml (also: --model)
@@ -72,6 +81,27 @@ cd "$REPO" || exit 1
 if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
   unset ANTHROPIC_API_KEY
 fi
+[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || unset CLAUDE_CODE_OAUTH_TOKEN
+
+# The methods to try, in order, keeping only those whose credential is present.
+# Empty = nothing in the environment: the CLI's own stored login is used (a
+# human running a skill locally), exactly as before this knob existed.
+AUTH_ORDER="$(printf '%s' "${AI_AUTH_ORDER:-${CLAUDE_AUTH_ORDER:-}}" | tr -d '[:space:]')"
+[ -n "$AUTH_ORDER" ] || AUTH_ORDER="oauth,api_key"
+auth_methods=()
+IFS=, read -r -a _order <<<"$AUTH_ORDER"
+for _m in "${_order[@]}"; do
+  case "$_m" in
+    oauth)   [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && auth_methods+=(oauth) ;;
+    api_key) [ -n "${ANTHROPIC_API_KEY:-}" ] && auth_methods+=(api_key) ;;
+    "") ;;
+    *) echo "[ai] ignoring unknown auth method '$_m' in AI_AUTH_ORDER (expected oauth or api_key)" >&2 ;;
+  esac
+done
+if [ ${#auth_methods[@]} -eq 0 ] && { [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || [ -n "${ANTHROPIC_API_KEY:-}" ]; }; then
+  echo "[ai] AI_AUTH_ORDER=$AUTH_ORDER allows none of the credentials present — Claude Code runs without them" >&2
+  [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::warning::AI_AUTH_ORDER=$AUTH_ORDER excludes every credential this job has"
+fi
 
 prompt=""; tools=""; mcp=""; system=""; out=""; agent=""; model_flag=""; max_turns="${AI_MAX_TURNS:-}"
 while [ $# -gt 0 ]; do
@@ -116,14 +146,15 @@ run_claude_code() {
   # agent prompt (tools/permissions) stays intact. Without this, a guardrail
   # like "never merge" would only bind the fallback path, not the primary one.
   [ -n "$system" ] && args+=(--append-system-prompt "$system")
-  # OAuth-first invariant: when the subscription token exists, the CLI must
-  # never see the metered API key (with both set it would silently bill the
-  # key). The key stays exported in THIS shell for the API fallback below.
-  if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
-    env -u ANTHROPIC_API_KEY claude "${args[@]}"
-  else
-    claude "${args[@]}"
-  fi
+  # One credential per attempt: the CLI sees ONLY the method being tried, so an
+  # oauth attempt can never silently bill the key and an api_key attempt is
+  # billed to the key and nothing else. Both stay exported in THIS shell for
+  # the next attempt and the API fallback.
+  case "${1:-}" in
+    oauth)   env -u ANTHROPIC_API_KEY claude "${args[@]}" ;;
+    api_key) env -u CLAUDE_CODE_OAUTH_TOKEN claude "${args[@]}" ;;
+    *)       env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN claude "${args[@]}" ;;
+  esac
 }
 
 # Turn the JSON result payload into the caller's text. With usage.rb present the
@@ -182,18 +213,40 @@ claude_failure_reason() {
   ' "$1" 2>/dev/null
 }
 
-# Name the operator action for the failures that actually recur here. Advisory
-# only — the run's own message is always printed alongside it.
-claude_failure_hint() {
+# Classify a failure. `quota` and `auth` are CREDENTIAL failures — the call was
+# refused before the model did any work — and are the only ones that hand over
+# to the next method in AI_AUTH_ORDER; retrying anything else would re-run a
+# task that already spent its turns.
+claude_failure_class() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
-    *"usage limit"*|*rate_limit*|*"too many requests"*|*429*)
-      echo "the Claude quota behind this credential is exhausted — wait for the window to reset, or move the lane to a metered ANTHROPIC_API_KEY" ;;
-    *authentication*|*unauthorized*|*"invalid api key"*|*invalid_api_key*|*expired*|*"/login"*|*401*|*403*)
-      echo "the Claude credential was rejected — mint a fresh CLAUDE_CODE_OAUTH_TOKEN with \`claude setup-token\` and update the repo secret" ;;
-    *overloaded*|*529*|*503*|*502*)
-      echo "the API was overloaded — transient; the next scheduled run should recover" ;;
-    *not_found*|*"does not support"*|*"unknown model"*)
-      echo "the model pinned in _data/ai.yml is not available to this credential — check \`model:\` there" ;;
+    *"usage limit"*|*rate_limit*|*"too many requests"*|*429*) echo quota ;;
+    *authentication*|*unauthorized*|*"invalid api key"*|*invalid_api_key*|*expired*|*revoked*|*"/login"*|*401*|*403*) echo auth ;;
+    *overloaded*|*529*|*503*|*502*) echo transient ;;
+    *not_found*|*"does not support"*|*"unknown model"*) echo model ;;
+    *) echo "" ;;
+  esac
+}
+
+# Name the operator action for the failures that actually recur here. Advisory
+# only — the run's own message is always printed alongside it. $2 = the method
+# that failed, so the advice names the credential that actually needs work.
+claude_failure_hint() {
+  local method="${2:-oauth}"
+  case "$(claude_failure_class "$1")" in
+    quota)
+      if [ "$method" = api_key ]; then
+        echo "the API key's rate or spend limit was hit — raise it in the Anthropic console, or put oauth first in AI_AUTH_ORDER"
+      else
+        echo "the Claude quota behind this credential is exhausted — wait for the window to reset, or put api_key first in AI_AUTH_ORDER"
+      fi ;;
+    auth)
+      if [ "$method" = api_key ]; then
+        echo "the ANTHROPIC_API_KEY was rejected — issue a new key in the Anthropic console and update the repo secret"
+      else
+        echo "the Claude credential was rejected — mint a fresh CLAUDE_CODE_OAUTH_TOKEN with \`claude setup-token\` and update the repo secret"
+      fi ;;
+    transient) echo "the API was overloaded — transient; the next scheduled run should recover" ;;
+    model) echo "the model pinned in _data/ai.yml is not available to this credential — check \`model:\` there" ;;
     *) echo "" ;;
   esac
 }
@@ -202,43 +255,60 @@ claude_failure_hint() {
 primary_failed=0
 reason=""
 if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
-  tmp_json="$(mktemp "${TMPDIR:-/tmp}/ai-result.XXXXXX")"
-  run_claude_code > "$tmp_json"
-  rc=$?
-  if [ "$rc" -eq 0 ]; then
-    # Record usage, then emit the result text (the caller's contract). A parse
-    # failure here means claude didn't produce a result payload — treat it
-    # exactly like a failed run and let the fallback engage.
-    if [ -n "$out" ]; then
-      if emit_result "$tmp_json" "$rc" > "$out"; then
-        rm -f "$tmp_json"; normalize_changed_markdown; exit 0
-      fi
-    else
-      if emit_result "$tmp_json" "$rc"; then
-        rm -f "$tmp_json"; normalize_changed_markdown; exit 0
+  # bash 3.2 (macOS) treats "${empty[@]}" as unbound under `set -u`.
+  attempts=(); [ ${#auth_methods[@]} -gt 0 ] && attempts=("${auth_methods[@]}")
+  [ ${#attempts[@]} -gt 0 ] || attempts=(ambient)
+  for attempt_idx in "${!attempts[@]}"; do
+    method="${attempts[$attempt_idx]}"
+    next_method="${attempts[$((attempt_idx + 1))]:-}"
+    tmp_json="$(mktemp "${TMPDIR:-/tmp}/ai-result.XXXXXX")"
+    run_claude_code "$method" > "$tmp_json"
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      # Record usage, then emit the result text (the caller's contract). A parse
+      # failure here means claude didn't produce a result payload — treat it
+      # exactly like a failed run and let the fallback engage.
+      if [ -n "$out" ]; then
+        if emit_result "$tmp_json" "$rc" > "$out"; then
+          rm -f "$tmp_json"; normalize_changed_markdown; exit 0
+        fi
+      else
+        if emit_result "$tmp_json" "$rc"; then
+          rm -f "$tmp_json"; normalize_changed_markdown; exit 0
+        fi
       fi
     fi
-  fi
-  # Reaching here means the run failed: a non-zero exit, or an exit-0 payload the
-  # ingester refused (an is_error result, or not a result at all). Tokens may
-  # still have been spent — record them (status:error, with the reason) before
-  # falling back, and no longer swallow the ingester's stderr, because that line
-  # is half the diagnosis. Only the non-zero path ingests here: the exit-0 path
-  # already ran the ingester above, and re-running it would append the record
-  # twice (same stable id, but the step summary and ledger both count rows).
-  primary_failed=1
-  if [ "$rc" -ne 0 ] && [ -f "$USAGE_RB" ]; then
-    ruby "$USAGE_RB" ingest-claude "$tmp_json" --agent "$agent" --rc "$rc" || true
-  fi
-  reason="$(claude_failure_reason "$tmp_json")"
-  rm -f "$tmp_json"
-  if [ "$rc" -ne 0 ]; then
-    echo "[ai] Claude Code failed (exit $rc): ${reason:-no result payload — claude produced no JSON}" >&2
-  else
-    echo "[ai] Claude Code exited 0 with an unusable result: ${reason:-no result payload — claude produced no JSON}" >&2
-  fi
-  hint="$(claude_failure_hint "$reason")"
-  [ -n "$hint" ] && echo "[ai] likely cause: $hint" >&2
+    # Reaching here means the run failed: a non-zero exit, or an exit-0 payload the
+    # ingester refused (an is_error result, or not a result at all). Tokens may
+    # still have been spent — record them (status:error, with the reason) before
+    # falling back, and no longer swallow the ingester's stderr, because that line
+    # is half the diagnosis. Only the non-zero path ingests here: the exit-0 path
+    # already ran the ingester above, and re-running it would append the record
+    # twice (same stable id, but the step summary and ledger both count rows).
+    primary_failed=1
+    if [ "$rc" -ne 0 ] && [ -f "$USAGE_RB" ]; then
+      ruby "$USAGE_RB" ingest-claude "$tmp_json" --agent "$agent" --rc "$rc" || true
+    fi
+    reason="$(claude_failure_reason "$tmp_json")"
+    rm -f "$tmp_json"
+    via=""; [ "$method" = ambient ] || via=" [$method]"
+    if [ "$rc" -ne 0 ]; then
+      echo "[ai] Claude Code failed$via (exit $rc): ${reason:-no result payload — claude produced no JSON}" >&2
+    else
+      echo "[ai] Claude Code exited 0 with an unusable result$via: ${reason:-no result payload — claude produced no JSON}" >&2
+    fi
+    hint="$(claude_failure_hint "$reason" "$method")"
+    [ -n "$hint" ] && echo "[ai] likely cause: $hint" >&2
+    case "$(claude_failure_class "$reason")" in
+      auth|quota)
+        if [ -n "$next_method" ]; then
+          echo "[ai] $method was refused — retrying with $next_method (AI_AUTH_ORDER=$AUTH_ORDER)." >&2
+          [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::warning::AI step: $method was refused ($(claude_failure_class "$reason")) — fell back to $next_method"
+          continue
+        fi ;;
+    esac
+    break
+  done
   echo "[ai] falling back to the Claude API." >&2
 fi
 
@@ -257,7 +327,14 @@ elif [ -f "$REPO/scripts/ai/api_call.py" ]; then api=(python3 "$REPO/scripts/ai/
 fi
 provider="${AI_PROVIDER:-anthropic}"
 case "$provider" in
-  anthropic) api_key_present="${ANTHROPIC_API_KEY:+1}"; missing_key="no ANTHROPIC_API_KEY" ;;
+  anthropic)
+    # The single-shot API is billed to the key, so it honours the order too: an
+    # order that leaves api_key out never spends the key, not even as a fallback.
+    if [[ ",$AUTH_ORDER," == *,api_key,* ]]; then
+      api_key_present="${ANTHROPIC_API_KEY:+1}"; missing_key="no ANTHROPIC_API_KEY"
+    else
+      api_key_present=""; missing_key="api_key not in AI_AUTH_ORDER=$AUTH_ORDER"
+    fi ;;
   openai)    api_key_present="${OPENAI_API_KEY:+1}"; missing_key="no OPENAI_API_KEY" ;;
   *) echo "[ai] unsupported AI_PROVIDER (expected anthropic or openai)" >&2; exit 1 ;;
 esac

@@ -190,7 +190,9 @@ LOOPS = [
      "outputs": ["issue_pipeline"], "local_ops": ["issues"]},
     {"id": "token_rotation", "title": "Token rotation — credentials", "workflow": "token-rotation",
      "schedule_key": "rotate_tokens", "doc": "docs/TOKEN-ROTATION.md",
-     "outputs": ["token_rotation"], "local_ops": ["secrets-audit", "secrets-plan", "secrets-push", "secrets-rotate"]},
+     "outputs": ["token_rotation"], "local_ops": ["secrets-audit", "secrets-plan", "ai-auth", "keys-status",
+                                                   "secrets-push", "ai-auth-sync", "keys-rotate",
+                                                   "secrets-rotate"]},
     {"id": "repo_evolution", "title": "Repo evolution — proactive improvement", "workflow": "repo-evolution",
      "schedule_key": "repo_evolution", "doc": "docs/EVOLUTION.md",
      "outputs": [], "local_ops": ["targets"]},
@@ -727,7 +729,20 @@ def contract_secrets() -> list[dict]:
     """The token contract's live (non-deprecated) entries — names and scope only."""
     fleet = load_yaml(DATA / "fleet.yml") or {}
     return [{"name": t["name"], "scope": t.get("scope"), "required": bool(t.get("required"))}
-            for t in (fleet.get("tokens") or []) if t.get("name") and not t.get("deprecated")]
+            for t in (fleet.get("tokens") or [])
+            if t.get("name") and not t.get("deprecated") and not t.get("managed_by")]
+
+
+def _keys_rotate(params: dict) -> list[str]:
+    """`dash keys rotate`: new Console keys in .env → the repos each workspace serves."""
+    argv = [DASH, "keys", "rotate"]
+    if _flag(params, "allow_long_lived"):
+        argv.append("--allow-long-lived")
+    if _flag(params, "apply"):
+        if not AUTH_WRITES:
+            raise PermissionError("credential writes are disabled (DASH_CONSOLE_AUTH=off)")
+        argv.append("--apply")
+    return argv
 
 
 def _secrets_push(params: dict) -> list[str]:
@@ -1011,6 +1026,38 @@ OPS: dict[str, dict] = {
                           remote=lambda p: _flag(p, "apply"),
                           desc="tools/dash harnesses deploy --target <name> — DRY RUN unless apply.",
                           params=["target", "artifacts", "upgrade", "apply"]),
+    "keys-status": dict(title="Anthropic API keys per workspace", group="observe",
+                        argv=lambda p: [DASH, "keys", "status"], needs_token=False,
+                        desc="tools/dash keys — each Console workspace's key found in .env, its expiry vs the "
+                             "7-day policy, and the repos it serves. Reads the Admin API (CLAUDE_CONSOLE_TOKEN); "
+                             "never a key value."),
+    "keys-verify": dict(title="Verify API keys (one cheap call each)", group="observe",
+                        argv=lambda p: [DASH, "keys", "verify"], needs_token=False,
+                        desc="tools/dash keys verify — one minimal Messages call per key in .env, exactly as CI "
+                             "makes it. A fraction of a cent per key."),
+    "keys-watch": dict(title="Deployed API keys vs policy (the daily check)", group="observe",
+                       argv=lambda p: [DASH, "keys", "watch"], needs_token=False,
+                       desc="tools/dash keys watch — judges the keys the ledger says are DEPLOYED, as "
+                            "api-keys.yml does every morning."),
+    "keys-rotate": dict(title="Rotate API keys: .env → workspaces' repos", group="deploy",
+                        argv=_keys_rotate, needs_token=True, remote=lambda p: _flag(p, "apply"),
+                        desc="tools/dash keys rotate — verifies each new key, writes it hub-first to the repos its "
+                             "workspace serves, then disables the key it replaced. DRY RUN unless apply.",
+                        params=["allow_long_lived", "apply"]),
+    "ai-auth": dict(title="AI auth order per repo (resolved)", group="observe",
+                    argv=lambda p: [DASH, "config", "auth"] + (["--repo", _name(p)] if p.get("target") else []),
+                    needs_token=True,
+                    desc="tools/dash config auth — each repo's credential order, where it came from "
+                         "(default / group / repo), which credentials it holds, and its CLAUDE_AUTH_ORDER.",
+                    params=["target"]),
+    "ai-auth-sync": dict(title="Project the AI auth order (CLAUDE_AUTH_ORDER)", group="deploy",
+                         argv=lambda p: [DASH, "config", "auth", "sync"]
+                         + (["--repo", _name(p)] if p.get("target") else [])
+                         + (["--apply"] if _flag(p, "apply") else []),
+                         needs_token=True, remote=lambda p: _flag(p, "apply"),
+                         desc="Sets each repo's CLAUDE_AUTH_ORDER variable from ai_auth: — DRY RUN unless apply. "
+                              "Secrets follow the order on the next secrets push / rotation.",
+                         params=["target", "apply"]),
     "secrets-push": dict(title="Push .env secrets → hub → fleet", group="deploy",
                          argv=_secrets_push, needs_token=True, remote=lambda p: _flag(p, "apply"),
                          desc="tools/dash secrets push — reads the token contract's names from .env "
@@ -1334,6 +1381,15 @@ CONFIG_SECTIONS: list[dict] = [
          "logs.ship.batch": _f("int", "documents per bulk POST to Logstash"),
          "logs.ship.logs": _f("choice", "which runs to ship", ("all", "ai", "none")),
          "portal.embed": _f("bool", "embed Kibana + Grafana in the Observe tab, or link out only"),
+     }},
+    {"key": "ai_auth", "title": "AI auth order — which Claude credential each repo tries first",
+     "doc": "docs/AI-INTEGRATION.md",
+     "blurb": "The fleet-wide DEFAULT order. Groups and per-repo overrides are structure, so they "
+              "are edited in the file by PR; `ai-auth` below shows what every repo resolves to. "
+              "Saving here changes only the contract — project it with `ai-auth-sync`.",
+     "fields": {
+         "default": _f("choice", "tried in turn; the first present (and, for a key, accepted) wins",
+                       ("oauth,api_key", "api_key,oauth", "oauth", "api_key")),
      }},
     {"key": "rotation", "title": "Token rotation", "doc": "docs/TOKEN-ROTATION.md",
      "blurb": "The weekly credential loop. `hub_first` is not offered here — the file calls it "
@@ -1663,6 +1719,13 @@ CREDENTIALS: dict[str, dict] = {
         "label": "Anthropic API key",
         "help": "The fallback at every claude-code-action call site when the OAuth token is absent.",
         "url": "https://console.anthropic.com/settings/keys",
+    },
+    "CLAUDE_CONSOLE_TOKEN": {
+        "label": "Claude Console admin credential",
+        "help": "A service-account key NOT scoped to a workspace (or an sk-ant-admin key). `dash keys` reads "
+                "the Console's workspaces and key expiry with it and disables a replaced key. It cannot "
+                "create keys and must never reach a fleet repo.",
+        "url": "https://platform.claude.com/settings/service-accounts",
     },
     "PHOENIX_API_KEY": {
         "label": "Phoenix API key",

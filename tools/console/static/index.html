@@ -1156,7 +1156,19 @@ async function renderAuth() {
         <div class="set" style="margin-top:10px"><label class="inl">secret <select id="push-secret"><option value="">every one in .env (${pushable.length})</option>${pushable.map(t => `<option>${esc(t.name)}</option>`).join('')}</select></label>
           <label class="inl"><input type="checkbox" id="push-hub-only"> hub only</label></div>
         <div class="toolbar" style="margin-top:8px"><button class="btn" id="push-preview" ${ef.exists ? '' : 'disabled'}>▶ Preview (dry run)</button>
-          <button class="btn primary" id="push-apply" ${ef.exists && pushable.length && a.writes_enabled ? '' : 'disabled'}>⇪ Push to GitHub</button></div></div></div></div>`;
+          <button class="btn primary" id="push-apply" ${ef.exists && pushable.length && a.writes_enabled ? '' : 'disabled'}>⇪ Push to GitHub</button></div></div>
+      <h2>Anthropic API keys</h2><div class="card">
+        <div class="sub" style="margin:0 0 8px">One Console key per workspace, each written to the repos that workspace pays for (<code>api_keys:</code> in <code>_data/fleet.yml</code>; every other repo gets the Default Workspace's key). The Admin API <b>cannot create keys</b>: create each one in the <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Console ↗</a>, scoped to its workspace with a 7-day expiry, and paste it into <code>.env</code> under any <code>ANTHROPIC_API_KEY*</code> name. <b>Rotate</b> then tests each key with one cheap call, writes it hub-first, and disables the key it replaced. <code>api-keys.yml</code> files an issue two days before any deployed key expires.</div>
+        <div class="toolbar"><button class="btn" data-run='{"op":"keys-status"}'>▶ Status</button>
+          <button class="btn" data-run='{"op":"keys-verify"}'>▶ Cheap test</button>
+          <button class="btn" data-run='{"op":"keys-watch"}'>▶ Deployed keys</button>
+          <button class="btn" data-run='{"op":"keys-rotate"}'>▶ Rotate — dry run</button>
+          <button class="btn primary" data-run='{"op":"keys-rotate","params":{"apply":true}}'>⇪ Rotate keys</button></div></div>
+      <h2>AI auth order</h2><div class="card">
+        <div class="sub" style="margin:0 0 8px">Which Claude credential each repo tries first — <code>oauth</code> (the subscription token) or <code>api_key</code> (metered) — set per repo or group in <code>_data/fleet.yml</code> <code>ai_auth:</code> (the default is on the <b>Config</b> tab). Every call site reads the repo's <code>CLAUDE_AUTH_ORDER</code> variable, and a repo is only pushed the credentials its order uses.</div>
+        <div class="toolbar"><button class="btn" data-run='{"op":"ai-auth"}'>▶ Resolve per repo</button>
+          <button class="btn" data-run='{"op":"ai-auth-sync"}'>▶ Sync — dry run</button>
+          <button class="btn primary" data-run='{"op":"ai-auth-sync","params":{"apply":true}}'>⇪ Sync CLAUDE_AUTH_ORDER</button></div></div></div></div>`;
 
   const refresh = async () => { CAPS = await api('/api/capabilities'); renderMeta(); renderAuth(); };
   $('#tab-auth').querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
@@ -1220,11 +1232,12 @@ function renderJobs() {
       no_fetch: `<label class="inl"><input id="p-no_fetch" type="checkbox"> local checkouts only (no clone/fetch)</label>`,
       secret: `<label class="inl">secret <input id="p-secret" type="text" placeholder="all in .env, or one name" size="26"></label>`,
       hub_only: `<label class="inl"><input id="p-hub_only" type="checkbox"> hub only (weekly rotation fans out)</label>`,
+      allow_long_lived: `<label class="inl"><input id="p-allow_long_lived" type="checkbox"> allow keys that outlive the lifetime policy</label>`,
     })[k] || '').join(' '); };
   sel.onchange = () => paramsFor(sel.value); paramsFor(sel.value);
   $('#op-run').onclick = () => { const id = sel.value, params = {};
     ['days', 'target', 'artifacts', 'key', 'workflow', 'jobs', 'logs', 'secret'].forEach(k => { const el = $('#p-' + k); if (el && el.value !== '') params[k] = el.value; });
-    ['upgrade', 'apply', 'local', 'dry_run', 'force', 'no_fetch', 'hub_only'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
+    ['upgrade', 'apply', 'local', 'dry_run', 'force', 'no_fetch', 'hub_only', 'allow_long_lived'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
     const f = $('#p-fields'); if (f && f.value.trim()) { params.fields = {}; f.value.split(',').forEach(kv => { const [k, ...v] = kv.split('='); if (k.trim()) params.fields[k.trim()] = v.join('=').trim(); }); }
     runOp(id, params); };
   bindRunButtons('#tab-jobs'); drawJobs();
@@ -1242,6 +1255,8 @@ async function runOp(op, params) {
   if (remote) {
     const detail = op === 'dispatch' ? `Dispatch ${params.workflow}.yml in GitHub Actions with ${JSON.stringify(params.fields || {})}`
       : op === 'content-file' ? `${o.title} for ${params.target} — WITH --apply: this opens issues in that site's GitHub repo.`
+      : op === 'keys-rotate' ? `Write each workspace's new Anthropic API key from .env to the repos it serves (hub first), then DISABLE the key each one replaces in the Console.${params.allow_long_lived ? ' Keys that outlive the lifetime policy are allowed.' : ''}`
+      : op === 'ai-auth-sync' ? `Set CLAUDE_AUTH_ORDER on ${params.target || 'every fleet repo'} from ai_auth: in _data/fleet.yml. This changes which Claude credential those repos' AI steps use first.`
       : op === 'secrets-push' ? `Push ${params.secret || 'every contract secret in .env'} from .env to GitHub — the HUB first${params.hub_only ? ' and nowhere else' : ', then every fleet repo for fleet-scoped secrets'}. This OVERWRITES the current values.`
       : op === 'observe-reset' ? `${o.title} — this DELETES every indexed log line and all five elk volumes. Actions logs can be re-shipped from the lake; container logs cannot.`
       : `${o.title} — WITH --apply: this opens pull requests / writes secrets in fleet repos.`;

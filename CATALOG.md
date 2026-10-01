@@ -41,8 +41,8 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 
 | Kit | Version | Updated | Seeded by | Files |
 | --- | --- | --- | --- | --- |
-| [`agent-context/`](templates/agent-context/) | 0.4.0 | 2026-08-07 | .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-setting… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
-| [`ai-runner/`](templates/ai-runner/) | 0.1.0 | 2026-09-08 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
+| [`agent-context/`](templates/agent-context/) | 0.5.0 | 2026-09-30 | .github/workflows/standardize-fanout.yml (artifacts agent-context, claude, claude-setting… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
+| [`ai-runner/`](templates/ai-runner/) | 0.2.0 | 2026-09-30 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (standardize-fanout.yml) | `README.md`, `conformance.yml` |
 | [`elk/`](templates/elk/) | 0.1.0 | 2026-09-22 | tools/fanout.sh --kit elk --target <name> [--apply] | `README.md`, `SCHEMA.md`, `adapters/django-logging.py`, `adapters/node-pino.mjs`, `adapters/python-logging.py`, `adapters/rails-lograge.rb`, `compose.elk.yml`, `compose.labels.yml`, `filebeat.fleet.y… |
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
@@ -52,6 +52,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/standardize-fanout.yml (artifact `ci`) via tools/fanout.sh | `ci.yml` |
+| [`ux-audit/`](templates/ux-audit/) | 0.1.0 | 2026-09-18 | tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set) | `AGENT_PROMPT.md`, `README.md`, `prompts/a11y.md`, `prompts/design-system.md`, `prompts/interaction.md`, `prompts/microcopy.md`, `prompts/synthesizer.md`, `scripts/collect_evidence.mjs`, `scripts/ux_… |
 | [`verify/`](templates/verify/) | 0.1.0 | 2026-09-04 | tools/fanout.sh --kit verify (verify-fanout.yml); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
 
 ## 3. Reference implementations
@@ -153,6 +154,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
 | [`test_docker_view.py`](tools/test_docker_view.py) | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Py… |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
+| [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/tui/fleet.py — the terminal dash data layer. |
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
@@ -166,6 +168,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | --- | --- | --- | --- |
 | [`ai-lane.yml`](.github/workflows/ai-lane.yml) | ai-lane (reusable) | `workflow_call` (reusable) | **The fleet's AI lane** (kit `ai-runner`): kill switch (`vars.<SWITCH>`, `workflow_dispatch` bypasses), bot guard, credential check, named concurrency, probed `GH_PAT` →… |
 | [`ai-runner-contract.yml`](.github/workflows/ai-runner-contract.yml) | ai-runner-contract | PR, push `main` (runner/lane/kit paths) | Pre-flight gate for the kit: the runner's contract tests (stubbed `claude`, no credential) and a check that the action calls the runner beside it. |
+| [`api-keys.yml`](.github/workflows/api-keys.yml) | 🔑 API Key Watch | **daily 06:47**, dispatch | **The Anthropic API key watch.** Each fleet repo holds the `ANTHROPIC_API_KEY` of the Console workspace that pays for it (`api_keys:` in `_data/fleet.yml`). |
 | [`build-dash.yml`](.github/workflows/build-dash.yml) | 🛰️ Build & Deploy Dash | push `main` (dash paths), daily 07:00, dispatch | Builds the Jekyll dash + ephemeral health data; deploys to GitHub Pages. |
 | [`claude.yml`](.github/workflows/claude.yml) | Claude | `@claude` mention (issues/PRs) | Claude Code responds to `@claude` mentions in this repo. |
 | [`conformance.yml`](.github/workflows/conformance.yml) | Conformance | PR, push `main` | The hub's own caller of `fleet-conformance.yml`, referenced from the same checkout (`hub-ref` = the PR head), so any change to the spec, the checker, or the reusable wor… |
@@ -318,6 +321,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`SMOKE.md`](docs/SMOKE.md) | `record` connects to every container in the local fleet and exercises it for |
 | [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline the fleet is held to; points to [`../specs/`](../specs/README.md), the Universal Project Standard that governs content and behaviour. |
 | [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
+| [`UX-HARNESS.md`](docs/UX-HARNESS.md) | **Status:** v0 kit (`templates/ux-audit/` 0.1.0). |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard: the feature index every repo carries (`features/features.yml`), user scenarios a Playwright runner and a Claude Code pass both execute,… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
 | [`automation-and-agents.md`](docs/automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |

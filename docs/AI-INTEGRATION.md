@@ -11,13 +11,13 @@ One page for the whole AI layer: what runs where, how it authenticates, and the 
 
 ## Auth & secrets
 
-House convention: **OAuth-first**. Every Claude call site prefers `CLAUDE_CODE_OAUTH_TOKEN` and falls back to `ANTHROPIC_API_KEY` only when the OAuth token is absent.
+Every Claude call site tries its credentials **in the order its repo's `CLAUDE_AUTH_ORDER` variable names**. The order is configured per repo and per group in [`_data/fleet.yml`](../_data/fleet.yml) `ai_auth:`. The fleet default is `oauth,api_key`, the house convention since 2026-07: `CLAUDE_CODE_OAUTH_TOKEN` first, `ANTHROPIC_API_KEY` as the fallback. See [Auth order per repo](#auth-order-per-repo).
 
 | Secret | Used by | Required? |
 | --- | --- | --- |
 | `CLAUDE_CODE_OAUTH_TOKEN` | `claude.yml`, `fleet-pulse.yml`, `issue-pipeline.yml`, `repo-evolution.yml`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`, seeded fleet `claude.yml` workflows | Preferred Claude auth. From `claude setup-token` (a **one-year** credential), seeded onto the hub — [`token-rotation.yml`](../.github/workflows/token-rotation.yml) carries it to the rest of the fleet weekly. |
 | `CLAUDE_CODE_OAUTH_REFRESH_TOKEN` | `token-rotation.yml` | **Optional**, hub only. Lets the weekly rotation re-mint the OAuth token without a browser. Unset → the loop still propagates and audits, it just asks a human when the credential nears its expiry. See [TOKEN-ROTATION.md](TOKEN-ROTATION.md). |
-| `ANTHROPIC_API_KEY` | same call sites | Fallback only (used when the OAuth token is unset) |
+| `ANTHROPIC_API_KEY` | same call sites | The metered method. It comes second in the default order, or first in a repo whose `ai_auth` order puts `api_key` first. |
 | `FLEET_TOKEN` | `fleet-pulse.yml`, `issue-pipeline.yml`, `repo-evolution.yml`, `standardize-fanout.yml`, `schema-fanout.yml`, `token-rotation.yml` | **The one control-plane PAT.** Fine-grained, covering the fleet: `actions:read` + `contents:read` + `issues:read/write` + `pull_requests:read/write`, plus `contents:write` + **`workflows:write`** on repos the fan-outs and the fixer may open PRs against (GitHub refuses a push touching `.github/workflows/*` without the Workflows permission), plus **`secrets:write`** for the weekly rotation (writing an Actions secret is an admin-level call — `token-rotation.yml` is the only workflow that needs it). Supersedes the three legacy PATs below, which remain wired as fallbacks. |
 | `ACTIONS_ANALYTICS_TOKEN` | `fleet-pulse.yml` | **Legacy** — folded into `FLEET_TOKEN`. Optional fallback (higher rate limits / private repos). |
 | `DAILY_ANALYSIS_TOKEN` | `fleet-pulse.yml` | **Legacy** — folded into `FLEET_TOKEN`. Optional fallback so the digest + `/triage/` snapshot cover private submodules; without any PAT it falls back to `GITHUB_TOKEN` (public repos only). |
@@ -39,12 +39,97 @@ The third line is what the weekly [`token-rotation.yml`](../.github/workflows/to
 Copy this shape verbatim into any new workflow (it is what `claude.yml` uses):
 
 ```yaml
+- id: claude-auth
+  uses: bamr87/bamr87/.github/actions/claude-auth@main
+  with:
+    order: ${{ vars.CLAUDE_AUTH_ORDER }}
+    has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 - uses: anthropics/claude-code-action@v1
   with:
-    claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-    anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
+    claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+    anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
     claude_args: "--max-budget-usd 10"     # see "Spend guardrails" below — required
 ```
+
+### Auth order per repo
+
+`ai_auth:` in [`_data/fleet.yml`](../_data/fleet.yml) decides which credential each repo tries first:
+
+```yaml
+ai_auth:
+  variable: CLAUDE_AUTH_ORDER
+  methods: { oauth: CLAUDE_CODE_OAUTH_TOKEN, api_key: ANTHROPIC_API_KEY }
+  default: oauth,api_key               # everything not matched below
+  groups:
+    metered-lanes:                     # API key first, OAuth as the fallback
+      order: api_key,oauth
+      repos: [lifehacker.dev, it-journey]
+      categories: []                   # …or every registry repo in a category
+  repos:
+    zer0-mistakes: api_key             # the key only, never OAuth
+```
+
+- **Precedence.** `repos:` beats `groups:`, which beats `default:`. A repo matched by two groups with *different* orders is an error. So is an unknown method or a key that names no fleet repo. Every writer refuses to act until the errors are fixed.
+- **What it drives at runtime.** The order is projected onto each repo as the `CLAUDE_AUTH_ORDER` repository variable. Every `claude-code-action` step reads it through [`claude-auth`](../.github/actions/claude-auth/). Every `ai-lane` reads it through `claude-run`, where it becomes `AI_AUTH_ORDER`.
+  - **`claude-auth`** outputs a method name, never the secret. An API key that the models endpoint refuses (`401`/`403`) falls through to the next method.
+  - **`claude-run`** gives the CLI only the credential being tried. If that credential is **refused** (rejected, or its quota exhausted), it moves on to the next one. It never re-runs a task after any other kind of failure. An order without `api_key` never spends the key, not even on the single-shot API fallback.
+- **What it drives in the secret store.** `dash secrets push`, `dash secrets sync`, `dash secrets rotate` and the weekly rotation send a repo only the credentials its order uses. The hub keeps every fleet secret whatever its own order, because it is the copy the fleet is written from.
+- **An unset variable means the default**, so a repo behaves exactly as before until it is given an order.
+
+```bash
+dash config auth                        # each repo's order, where it came from, what it holds, its variable
+dash config auth --offline              # the resolution alone (no GitHub calls)
+dash config auth sync                   # dry run: which CLAUDE_AUTH_ORDER variables would change
+dash config auth sync --apply           # set them (the weekly token-rotation variable pass does the same)
+```
+
+### Anthropic API keys (per workspace)
+
+The `api_key` credential is not one fleet-wide value. Each repo holds the key of the **Console workspace that pays for it**, as declared in `_data/fleet.yml` `api_keys:`:
+
+- A workspace claims repos by registry name, by `owner/repo` (which can be outside the registry, like a content site in another GitHub org), or by GitHub owner.
+- Every repo that no workspace claims gets the key from the **Default Workspace**.
+- A repo whose `ai_auth` order leaves `api_key` out is never sent a key.
+
+**What the Admin API can and cannot do.** It can list keys (with `expires_at`) and disable them. It **cannot create a key**: keys, and their expiry, are minted in the Claude Console. That makes rotation *assisted*:
+
+1. **Create the keys.** In the Console (Settings → API keys → **Create key**), create each workspace's key scoped to that workspace, with an expiry of `lifetime_days` (7).
+2. **Paste them into `.env`.** Use any name starting with `ANTHROPIC_API_KEY`. The tool matches each value to its Console record by the key's partial hint and reads the workspace from the key's scope, so names don't matter. Admin keys and OAuth tokens are never taken, whatever they're called.
+3. **Run `dash keys rotate --apply`**, or use the Auth tab's *Anthropic API keys* panel. For each workspace it:
+   - takes the newest active key;
+   - refuses any key that outlives the policy (`--allow-long-lived` overrides);
+   - proves the key with **one cheap Messages call**, made exactly as CI makes it (no workspace header, so a key that would need one fails here rather than in CI);
+   - writes the key hub-first to every repo the workspace serves;
+   - records the ledger `_data/api_keys.yml` (ids, names, dates, repos; never a value);
+   - and only then disables the key it replaced. That's only when every repo took the new one, and only a key this tool deployed itself, never one in use by hand.
+4. **Let the daily check watch it.** [`api-keys.yml`](../.github/workflows/api-keys.yml) runs `dash keys watch`. It judges the *deployed* keys, proves the hub's own key live, and keeps one issue open from `renew_before_days` (2) before expiry until the replacement lands.
+
+```bash
+dash keys                          # each workspace's key in .env, its expiry vs policy, the repos it serves
+dash keys verify                   # + one cheap call per key (a fraction of a cent each)
+dash keys rotate                   # dry run: what would be written where
+dash keys rotate --apply           # write, hub first, then disable the replaced keys
+dash keys watch                    # the daily check: the DEPLOYED keys, from the ledger
+```
+
+`CLAUDE_CONSOLE_TOKEN` is the Admin API credential. It must be a service-account key **not** scoped to a workspace (a workspace-scoped key is refused by the Admin API), or an `sk-ant-admin` key. It is hub-only and never a fleet secret. Because `dash keys` owns `ANTHROPIC_API_KEY` (`managed_by: keys` in the token contract), the weekly rotation and `dash secrets push|sync` leave that secret alone. Otherwise they would overwrite every workspace's key with the hub's single copy.
+
+### Keyless: stage 2 (Workload Identity Federation)
+
+A 7-day key still has to be created by a person once a week. The documented way to have **no key at all** is Workload Identity Federation. A GitHub Actions job presents its OIDC token and exchanges it at `POST /v1/oauth/token` for a Claude access token that lives for minutes. There's nothing to mint, paste, expire or rotate. The plan is to prototype it on one repo before any fan-out:
+
+1. **One-time setup (a human, in the Console or with an `org:admin` OAuth token):**
+   - a service account per workspace with `organization_role: developer`;
+   - a GitHub issuer (`issuer_url: https://token.actions.githubusercontent.com`, `jwks: {type: discovery}`);
+   - and one rule per workspace (`oauth_scope: workspace:inference`), matched to an exact `repo:<owner>/<repo>:ref:refs/heads/main` subject. Never a trailing `*`, which would also admit pull requests from forks.
+2. **In the job:** grant `id-token: write`, request the OIDC token, and exchange it. The SDKs do the exchange themselves when `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID` and `ANTHROPIC_IDENTITY_TOKEN` are set.
+3. **Open questions the prototype has to answer before this replaces keys:**
+   - Can `claude-code-action` and the `claude` CLI take the federated token? Probably via `ANTHROPIC_AUTH_TOKEN`, but that isn't confirmed.
+   - Is `token_lifetime_seconds` long enough for a 30-minute agent run? Otherwise the run needs a refresh path.
+   - GitHub's OIDC tokens are single-use (`jti`), so a job that calls the CLI more than once needs one exchange, not several.
+
+The Harness Console has the same controls. The Auth tab has an *AI auth order* panel (resolve, sync dry run, confirm-gated sync), and the fleet-wide default is a choice on the Config tab.
 
 ## Spend guardrails
 

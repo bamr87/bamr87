@@ -13,6 +13,18 @@ makes the declaration real.
           returns names only, which is all an audit needs and all it should see.
   sync    Project the canonical `variables:` block onto the fleet. Dry-run by
           default; `--apply` writes.
+  auth    The per-repo AI auth order (`ai_auth:`): which Claude credential each
+          repo tries first. `auth` shows the resolution, where each order came
+          from, and what each repo holds; `auth sync --apply` projects it as the
+          CLAUDE_AUTH_ORDER variable. The secret writers below honour it: a repo
+          is only sent the credentials its order uses.
+  keys    Anthropic Console API keys per workspace (`api_keys:`). The Admin API
+          can list keys and disable them but cannot CREATE one, so rotation is
+          assisted: paste the new Console keys into .env under any
+          ANTHROPIC_API_KEY* name; `keys` matches each to its Console record,
+          `keys verify` proves each with one cheap call, and `keys rotate
+          --apply` writes each workspace's key to the repos it serves, hub
+          first, then disables the key it replaced.
   sync-secrets
           Project the declared token contract onto the fleet. Values are read
           ONLY from the environment (export the secret under its own name);
@@ -179,6 +191,212 @@ def repo_variables(nwo: str) -> dict[str, str] | None:
 
 
 # --------------------------------------------------------------------------- #
+# AI auth order — `ai_auth:` in _data/fleet.yml
+#
+# Which Claude credential each repo tries first. Resolved per repo (`repos:`
+# beats `groups:` beats `default:`), projected onto the repo as a variable the
+# call sites read, and consulted by every secret writer so a repo is only sent
+# the credentials its order actually uses.
+# --------------------------------------------------------------------------- #
+AUTH_METHODS_DEFAULT = {"oauth": "CLAUDE_CODE_OAUTH_TOKEN", "api_key": "ANTHROPIC_API_KEY"}
+AUTH_ORDER_DEFAULT = ["oauth", "api_key"]
+
+
+def parse_order(value) -> list[str]:
+    """`oauth,api_key` or `[oauth, api_key]` → ['oauth', 'api_key'], deduped."""
+    items = value if isinstance(value, list) else str(value or "").split(",")
+    out: list[str] = []
+    for item in items:
+        m = str(item).strip()
+        if m and m not in out:
+            out.append(m)
+    return out
+
+
+def auth_config(cfg: dict) -> dict:
+    a = cfg.get("ai_auth") or {}
+    return {
+        "declared": bool(cfg.get("ai_auth")),
+        "variable": a.get("variable") or "CLAUDE_AUTH_ORDER",
+        "methods": dict(a.get("methods") or AUTH_METHODS_DEFAULT),
+        "default": parse_order(a.get("default")) or list(AUTH_ORDER_DEFAULT),
+        "groups": a.get("groups") or {},
+        "repos": a.get("repos") or {},
+    }
+
+
+def _repo_key_matches(key: str, repo: dict) -> bool:
+    key = str(key).strip()
+    return key in (repo["name"], repo["nwo"], repo["nwo"].split("/")[-1])
+
+
+def resolve_auth(cfg: dict, registry: list) -> tuple[dict[str, dict], list[str]]:
+    """({nwo: {name, nwo, order, source}}, errors) for every fleet repo + the hub.
+
+    Errors are returned, not raised: `dash config auth` shows them next to the
+    resolution so the operator sees the whole picture in one place, and every
+    writer refuses to act while any exist.
+    """
+    ac = auth_config(cfg)
+    methods = set(ac["methods"])
+    errors: list[str] = []
+    categories = {owner_repo(p.get("repo_url") or ""): p.get("category")
+                  for p in registry if isinstance(p, dict)}
+    repos = fleet_repos(cfg, registry)
+
+    def check(order: list[str], where: str) -> list[str]:
+        if not order:
+            errors.append(f"{where}: empty order")
+        for m in order:
+            if m not in methods:
+                errors.append(f"{where}: unknown method {m!r} (one of {', '.join(sorted(methods))})")
+        return order
+
+    default = check(ac["default"], "ai_auth.default")
+    group_orders: dict[str, list[str]] = {}
+    for g, spec in ac["groups"].items():
+        spec = spec or {}
+        group_orders[g] = check(parse_order(spec.get("order")), f"ai_auth.groups.{g}")
+        if not spec.get("repos") and not spec.get("categories"):
+            errors.append(f"ai_auth.groups.{g}: names neither repos nor categories")
+    repo_orders = {str(k): check(parse_order(v), f"ai_auth.repos.{k}")
+                   for k, v in ac["repos"].items()}
+
+    known = [k for g in ac["groups"].values() for k in ((g or {}).get("repos") or [])] + list(repo_orders)
+    for key in known:
+        if not any(_repo_key_matches(key, r) for r in repos):
+            errors.append(f"ai_auth: {key!r} is not a fleet repo (registry name or owner/repo)")
+
+    out: dict[str, dict] = {}
+    for r in repos:
+        order, source = default, "default"
+        hits = []
+        for g, spec in ac["groups"].items():
+            spec = spec or {}
+            if (any(_repo_key_matches(k, r) for k in spec.get("repos") or [])
+                    or categories.get(r["nwo"]) in (spec.get("categories") or [])):
+                hits.append(g)
+        if hits:
+            distinct = {",".join(group_orders[g]) for g in hits}
+            if len(distinct) > 1:
+                errors.append(f"{r['nwo']}: in groups {', '.join(hits)} with different orders")
+            order, source = group_orders[hits[0]], f"group:{hits[0]}"
+        for k, o in repo_orders.items():
+            if _repo_key_matches(k, r):
+                order, source = o, "repo"
+        out[r["nwo"]] = {**r, "order": order, "source": source}
+    return out, errors
+
+
+def auth_method_of(cfg: dict, secret: str) -> str | None:
+    """The auth method a secret implements, or None for a non-auth secret."""
+    return next((m for m, s in auth_config(cfg)["methods"].items() if s == secret), None)
+
+
+def secret_wanted(cfg: dict, resolved: dict[str, dict], nwo: str, secret: str,
+                  hub_nwo: str) -> bool:
+    """Does `nwo` need `secret`? The hub always does — it is the master copy."""
+    method = auth_method_of(cfg, secret)
+    if method is None or nwo == hub_nwo or nwo not in resolved:
+        return True
+    return method in resolved[nwo]["order"]
+
+
+def auth_variables(cfg: dict, registry: list) -> dict[str, dict[str, str]]:
+    """{nwo: {VAR: 'oauth,api_key'}} — the per-repo half of the variables pass.
+    Empty unless `ai_auth:` is declared, so an unconfigured fleet is untouched."""
+    ac = auth_config(cfg)
+    if not ac["declared"]:
+        return {}
+    resolved, errors = resolve_auth(cfg, registry)
+    if errors:
+        return {}
+    return {nwo: {ac["variable"]: ",".join(r["order"])} for nwo, r in resolved.items()}
+
+
+def cmd_auth(args: argparse.Namespace) -> int:
+    cfg = load(FLEET)
+    registry = load(REGISTRY)
+    ac = auth_config(cfg)
+    hub_nwo = cfg.get("hub", {}).get("repo") or "bamr87/bamr87"
+    resolved, errors = resolve_auth(cfg, registry)
+    rows = list(resolved.values())
+    if args.repo:
+        rows = [r for r in rows if args.repo in (r["name"], r["nwo"])]
+        if not rows:
+            sys.stderr.write(f"no fleet repo matching {args.repo!r}\n")
+            return 1
+    var = ac["variable"]
+    sync = args.action == "sync"
+    live = not args.offline or sync
+
+    if args.json and not sync:
+        print(json.dumps({"variable": var, "methods": ac["methods"],
+                          "default": ac["default"], "errors": errors,
+                          "repos": [{"name": r["name"], "nwo": r["nwo"],
+                                     "order": r["order"], "source": r["source"]}
+                                    for r in rows]}, indent=2))
+        return 1 if errors else 0
+
+    mode = ("APPLY" if args.apply else "DRY-RUN") if sync else "resolved"
+    print(f"\n\033[1mAI auth order\033[0m [{mode}] — variable {var}, "
+          f"default {','.join(ac['default'])}\n")
+    if errors:
+        for e in errors:
+            print(f"  {MISSING} {e}")
+        print("\n  Fix ai_auth in _data/fleet.yml — nothing is written while it has errors.\n")
+        if sync:
+            return 1
+
+    method_cols = list(ac["methods"].items())
+    changed = failed = skipped = 0
+    for r in rows:
+        order = ",".join(r["order"])
+        line = f"  {r['nwo'][:32]:32} {order:18} {r['source']:18}"
+        if live:
+            secrets = repo_secret_names(r["nwo"])
+            current = repo_variables(r["nwo"])
+            for m, secret in method_cols:
+                wanted = secret_wanted(cfg, resolved, r["nwo"], secret, hub_nwo)
+                mark = (UNKNOWN if secrets is None else
+                        OK if secret in secrets else (MISSING if wanted else "·"))
+                line += f" {m}:{mark}"
+            have = None if current is None else current.get(var)
+            if current is None:
+                line += f"  var:{UNKNOWN}"
+                skipped += sync
+            elif have == order:
+                line += f"  var:{OK}"
+            else:
+                line += f"  var:{have or '—'}→{order}"
+                if sync and not errors:
+                    if not args.apply:
+                        changed += 1
+                    else:
+                        proc = subprocess.run(["gh", "variable", "set", var, "--body", order,
+                                               "-R", r["nwo"]], capture_output=True, text=True)
+                        if proc.returncode == 0:
+                            changed += 1
+                            line += " (set)"
+                        else:
+                            failed += 1
+                            err = (proc.stderr or "").strip().splitlines()
+                            line += f" FAILED: {err[0] if err else '?'}"
+        print(line)
+
+    print(f"\n  \033[2morder = methods tried in turn · source = where the order came from · "
+          f"{OK} secret present  {MISSING} needed but missing  · not used by this order  "
+          f"{UNKNOWN} unreachable\033[0m")
+    if sync:
+        verb = "applied" if args.apply else "pending"
+        print(f"\n  {changed} variable write(s) {verb} · {skipped} unreachable · {failed} failed")
+        if not args.apply and changed:
+            print("  Re-run with --apply to write. Secrets follow the order on the next "
+                  "`dash secrets push|rotate`.\n")
+    return 1 if (failed or errors) else 0
+
+
+# --------------------------------------------------------------------------- #
 # show
 # --------------------------------------------------------------------------- #
 def cmd_show(args: argparse.Namespace) -> int:
@@ -219,6 +437,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     canonical_vars = cfg.get("variables") or {}
     hub_nwo = cfg.get("hub", {}).get("repo") or "bamr87/bamr87"
 
+    resolved, _ = resolve_auth(cfg, registry)
     rows, unreachable = [], []
     for r in repos:
         secrets = repo_secret_names(r["nwo"])
@@ -263,7 +482,10 @@ def cmd_audit(args: argparse.Namespace) -> int:
         for r in rows:
             line = f"{r['nwo'][:30]:30}"
             for c in secret_cols:
-                line += f" {cell(r['secrets'], c):>4}"
+                mark = cell(r["secrets"], c)
+                if mark == MISSING and not secret_wanted(cfg, resolved, r["nwo"], c, hub_nwo):
+                    mark = "·"
+                line += f" {mark:>4}"
             for c in var_cols:
                 if r["variables"] is None:
                     mark = UNKNOWN
@@ -305,8 +527,8 @@ def cmd_audit(args: argparse.Namespace) -> int:
               f"\n  Listing secrets requires admin on the repo — these are 'cannot see', "
               f"not 'not set'.\033[0m")
 
-    print(f"\n  {OK} set   {MISSING} missing   ≠ differs from canonical   "
-          f"{UNKNOWN} unreachable\n")
+    print(f"\n  {OK} set   {MISSING} missing   · not used by the repo's ai_auth order   "
+          f"≠ differs from canonical   {UNKNOWN} unreachable\n")
 
     if args.gate:
         gaps = sum(1 for r in rows if r["secrets"] is not None
@@ -339,6 +561,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
     mode = "APPLY" if args.apply else "DRY-RUN"
     print(f"\n\033[1mSync canonical variables\033[0m [{mode}] → {len(repos)} repo(s)\n")
     changed = skipped = failed = 0
+    per_repo = auth_variables(cfg, registry)
 
     for r in repos:
         current = repo_variables(r["nwo"])
@@ -346,7 +569,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
             print(f"  {UNKNOWN} {r['nwo']:30} unreachable (needs admin) — skipped")
             skipped += 1
             continue
-        diffs = {k: v for k, v in canonical.items()
+        want = {**canonical, **per_repo.get(r["nwo"], {})}
+        diffs = {k: v for k, v in want.items()
                  if str(current.get(k, "\0")) != str(v)}
         if not diffs:
             print(f"  {OK} {r['nwo']:30} up to date")
@@ -395,7 +619,11 @@ def cmd_sync_secrets(args: argparse.Namespace) -> int:
 
     cfg = load(FLEET)
     registry = load(REGISTRY)
-    tokens = [t for t in (cfg.get("tokens") or []) if not t.get("deprecated")]
+    managed = {t["name"]: t["managed_by"] for t in (cfg.get("tokens") or []) if t.get("managed_by")}
+    for name, owner in managed.items():
+        print(f"  \033[2m{name}: managed by `dash {owner}` — not written here\033[0m")
+    tokens = [t for t in (cfg.get("tokens") or [])
+              if not t.get("deprecated") and not t.get("managed_by")]
     if args.only:
         tokens = [t for t in tokens if t["name"] in args.only]
         missing = set(args.only) - {t["name"] for t in tokens}
@@ -411,6 +639,11 @@ def cmd_sync_secrets(args: argparse.Namespace) -> int:
             sys.stderr.write(f"no fleet repo matching {args.repo!r}\n")
             return 1
 
+    resolved, auth_errors = resolve_auth(cfg, registry)
+    if auth_errors:
+        sys.stderr.write("ai_auth has errors — run `dash config auth` first:\n  "
+                         + "\n  ".join(auth_errors) + "\n")
+        return 1
     mode = "APPLY" if args.apply else "DRY-RUN"
     print(f"\n\033[1mSync token contract\033[0m [{mode}]\n")
     changed = skipped = failed = 0
@@ -418,8 +651,9 @@ def cmd_sync_secrets(args: argparse.Namespace) -> int:
     for t in tokens:
         name = t["name"]
         value = os.environ.get(name)
-        targets = repos if t.get("scope") == "fleet" else \
-            [r for r in repos if r["nwo"] == hub_nwo]
+        targets = [r for r in repos
+                   if secret_wanted(cfg, resolved, r["nwo"], name, hub_nwo)] \
+            if t.get("scope") == "fleet" else [r for r in repos if r["nwo"] == hub_nwo]
         if not value:
             print(f"  \033[2m{name}: no value in env — export {name}=… to provision "
                   f"({len(targets)} target repo(s))\033[0m")
@@ -496,13 +730,16 @@ def read_env_file(path: Path) -> dict[str, str]:
 def push_plan(tokens: list[dict], values: dict[str, str],
               only: list[str] | None = None) -> dict:
     """Which contract secrets the file can supply — names only, never values."""
-    contract = {t["name"]: t for t in tokens if not t.get("deprecated")}
-    unknown = sorted(set(only or []) - set(contract))
+    managed = {t["name"] for t in tokens if t.get("managed_by") and not t.get("deprecated")}
+    contract = {t["name"]: t for t in tokens if not t.get("deprecated") and not t.get("managed_by")}
+    unknown = sorted(set(only or []) - set(contract)
+                     - {t["name"] for t in tokens if t.get("managed_by")})
     names = [n for n in contract if not only or n in only]
     return {
         "push": [n for n in names if values.get(n)],
         "absent": [n for n in names if not values.get(n)],
-        "ignored": sorted(set(values) - set(contract)),
+        "ignored": sorted(set(values) - set(contract) - managed),
+        "managed": sorted(managed & set(values)),
         "unknown": unknown,
         "scope": {n: contract[n].get("scope") for n in names},
     }
@@ -536,6 +773,11 @@ def cmd_push(args: argparse.Namespace) -> int:
         return 1
 
     hub_nwo = cfg.get("hub", {}).get("repo") or "bamr87/bamr87"
+    resolved, auth_errors = resolve_auth(cfg, registry)
+    if auth_errors:
+        sys.stderr.write("ai_auth has errors — run `dash config auth` first:\n  "
+                         + "\n  ".join(auth_errors) + "\n")
+        return 1
     others = [r for r in fleet_repos(cfg, registry) if r["nwo"] != hub_nwo]
     if args.repo:
         others = [r for r in others if args.repo in (r["name"], r["nwo"])]
@@ -552,6 +794,8 @@ def cmd_push(args: argparse.Namespace) -> int:
     print(f"  from the file : {', '.join(plan['push']) or '(no contract secret)'}")
     if plan["absent"]:
         print(f"  \033[2mnot in the file: {', '.join(plan['absent'])}\033[0m")
+    if plan["managed"]:
+        print(f"  \033[2mmanaged elsewhere (see `dash keys`): {', '.join(plan['managed'])}\033[0m")
     if plan["ignored"]:
         print(f"  \033[2mignored (not in the token contract, never sent): "
               f"{', '.join(plan['ignored'])}\033[0m")
@@ -586,7 +830,14 @@ def cmd_push(args: argparse.Namespace) -> int:
             print(f"    \033[2m{name}: hub only — token-rotation.yml propagates it, "
                   f"since the hub's copy is now the newest\033[0m")
             continue
+        skipped_by_order = [r["nwo"] for r in others
+                            if not secret_wanted(cfg, resolved, r["nwo"], name, hub_nwo)]
+        if skipped_by_order:
+            print(f"    \033[2m{name}: not sent to {len(skipped_by_order)} repo(s) whose "
+                  f"ai_auth order leaves it out\033[0m")
         for r in others:
+            if r["nwo"] in skipped_by_order:
+                continue
             have = present(r["nwo"])
             if have is None:
                 print(f"  {UNKNOWN} {r['nwo']:34} unreachable — skipped {name}")
@@ -603,6 +854,472 @@ def cmd_push(args: argparse.Namespace) -> int:
     if not args.apply and changed:
         print("  Re-run with --apply to write.\n")
     return 1 if failed else 0
+
+
+# --------------------------------------------------------------------------- #
+# keys — Anthropic Console API keys → the repos each workspace pays for
+#
+# The Admin API can LIST keys (with `expires_at`) and DISABLE them, but it
+# cannot create one: a key — and its expiry — is minted in the Claude Console.
+# So rotation is assisted: a human creates the new keys and pastes them into
+# .env under any `ANTHROPIC_API_KEY*` name; this command does everything else.
+# It matches each value to its Console key by the key's partial hint, reads the
+# workspace from the key's scope, takes the newest active key per workspace,
+# refuses one that outlives the lifetime policy, proves it with one cheap call,
+# writes it hub-first to the repos its workspace serves (`api_keys:` in
+# _data/fleet.yml; every unclaimed repo gets the Default Workspace's key), and
+# only then disables the key it replaced — and only a key THIS tool deployed
+# (the ledger), never one someone is using by hand.
+# --------------------------------------------------------------------------- #
+KEY_LEDGER_DEFAULT = "_data/api_keys.yml"
+DEFAULT_SLOT = "default"
+
+
+def api_keys_config(cfg: dict) -> dict:
+    a = cfg.get("api_keys") or {}
+    return {
+        "declared": bool(cfg.get("api_keys")),
+        "secret": a.get("secret") or "ANTHROPIC_API_KEY",
+        "env_prefix": a.get("env_prefix") or "ANTHROPIC_API_KEY",
+        "admin_credential": a.get("admin_credential") or "CLAUDE_CONSOLE_TOKEN",
+        "lifetime_days": int(a.get("lifetime_days") or 7),
+        "renew_before_days": int(a.get("renew_before_days") or 2),
+        "workspaces": a.get("workspaces") or {},
+        "verify": {"model": "claude-opus-5", "max_tokens": 16, **(a.get("verify") or {})},
+        "ledger": a.get("ledger") or KEY_LEDGER_DEFAULT,
+    }
+
+
+def key_targets(cfg: dict, registry: list) -> tuple[dict[str, dict], list[str]]:
+    """({nwo: {name, nwo, slot, skip}}, errors) — which workspace's key each repo gets.
+
+    A workspace claims repos by registry name, by explicit owner/repo (which may
+    sit outside the registry, e.g. a content site in another org), or by GitHub
+    owner. Every fleet repo nobody claims gets the Default Workspace's key.
+    """
+    kc = api_keys_config(cfg)
+    hub_nwo = cfg.get("hub", {}).get("repo") or "bamr87/bamr87"
+    errors: list[str] = []
+    fleet = {r["nwo"]: r for r in fleet_repos(cfg, registry)}
+    by_name = {}
+    for p in registry:
+        nwo = owner_repo((p or {}).get("repo_url") or "") if isinstance(p, dict) else None
+        if nwo:
+            by_name[str(p.get("name"))] = nwo
+    by_name[hub_nwo.split("/")[-1]] = hub_nwo
+    claims: dict[str, str] = {}
+    for slot, spec in kc["workspaces"].items():
+        if slot == DEFAULT_SLOT:
+            errors.append(f"api_keys.workspaces: '{DEFAULT_SLOT}' is implicit — every unclaimed repo")
+            continue
+        spec = spec or {}
+        wanted = []
+        for entry in spec.get("repos") or []:
+            entry = str(entry).strip()
+            if "/" in entry:
+                wanted.append(entry)
+            elif entry in by_name:
+                wanted.append(by_name[entry])
+            else:
+                errors.append(f"api_keys.workspaces.{slot}: {entry!r} is not a registry repo "
+                              "(use owner/repo for one outside the registry)")
+        for owner in spec.get("owners") or []:
+            owned = [nwo for nwo in set(by_name.values()) if nwo.split("/")[0] == owner]
+            if not owned:
+                errors.append(f"api_keys.workspaces.{slot}: no registry repo is owned by {owner!r}")
+            wanted += owned
+        if not wanted:
+            errors.append(f"api_keys.workspaces.{slot}: claims no repos")
+        for nwo in wanted:
+            if claims.get(nwo, slot) != slot:
+                errors.append(f"{nwo}: claimed by workspaces {claims[nwo]} and {slot}")
+            claims[nwo] = slot
+    resolved, auth_errors = resolve_auth(cfg, registry)
+    errors += auth_errors
+    out: dict[str, dict] = {}
+    for nwo in sorted(set(fleet) | set(claims)):
+        name = fleet[nwo]["name"] if nwo in fleet else nwo.split("/")[-1]
+        skip = None
+        if not secret_wanted(cfg, resolved, nwo, kc["secret"], hub_nwo):
+            skip = "ai_auth order leaves api_key out"
+        out[nwo] = {"name": name, "nwo": nwo, "slot": claims.get(nwo, DEFAULT_SLOT), "skip": skip}
+    return out, errors
+
+
+def hint_matches(hint: str | None, value: str) -> bool:
+    """A Console key's `partial_key_hint` is `<prefix>...<suffix>` of its secret."""
+    if not hint or "..." not in hint or not value:
+        return False
+    pre, suf = hint.split("...", 1)
+    return bool(pre) and bool(suf) and value.startswith(pre) and value.endswith(suf)
+
+
+def key_candidates(values: dict[str, str], prefix: str) -> dict[str, str]:
+    """{env name: value} for everything that could be an inference key — never an
+    admin key or an OAuth token, whatever it is called."""
+    return {n: v for n, v in values.items()
+            if n.startswith(prefix) and v.startswith("sk-ant-")
+            and not v.startswith(("sk-ant-admin", "sk-ant-oat", "sk-ant-ort"))}
+
+
+def _ts(v) -> datetime | None:
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+    return parse_ts(str(v))
+
+
+def plan_keys(slots: list[str], workspaces: dict[str, str], keys: list[dict],
+              values: dict[str, str], policy: dict, now: datetime | None = None) -> dict[str, dict]:
+    """Per slot: the newest ACTIVE Console key whose value is in `values`, its
+    remaining life, and what is wrong with it. Pure — the tests drive it.
+
+    `workspaces` maps workspace name → id; `keys` are Console key records
+    (id, name, status, created_at, expires_at, partial_key_hint, scope_workspace_id).
+    A key whose workspace is not a named workspace belongs to the Default one.
+    """
+    now = now or datetime.now(timezone.utc)
+    named_ids = set(workspaces.values())
+    out: dict[str, dict] = {}
+    for slot in slots:
+        ws_id = workspaces.get(slot)
+        mine = [k for k in keys
+                if (k.get("scope_workspace_id") == ws_id if slot != DEFAULT_SLOT
+                    else (k.get("scope_workspace_id") and k.get("scope_workspace_id") not in named_ids))]
+        have = []
+        for k in mine:
+            env = next((n for n, v in values.items() if hint_matches(k.get("partial_key_hint"), v)), None)
+            if env:
+                have.append({**k, "env": env})
+        active = sorted((k for k in have if k.get("status") == "active"),
+                        key=lambda k: _ts(k.get("created_at")) or now, reverse=True)
+        chosen = active[0] if active else None
+        issues: list[str] = []
+        if slot != DEFAULT_SLOT and ws_id is None:
+            issues.append("no-workspace")
+        if not chosen:
+            issues.append("expired-in-env" if any(k.get("status") == "expired" for k in have)
+                          else "no-key-in-env")
+        days_left = lifetime = None
+        if chosen:
+            exp, created = _ts(chosen.get("expires_at")), _ts(chosen.get("created_at"))
+            if exp is None:
+                issues.append("never-expires")
+            else:
+                days_left = round((exp - now).total_seconds() / 86400, 1)
+                if created:
+                    lifetime = round((exp - created).total_seconds() / 86400, 1)
+                if lifetime is not None and lifetime > policy["lifetime_days"] + 0.5:
+                    issues.append("lifetime-too-long")
+                if days_left <= 0:
+                    issues.append("expired")
+                elif days_left <= policy["renew_before_days"]:
+                    issues.append("renew-soon")
+        out[slot] = {"slot": slot, "workspace_id": ws_id, "key": chosen,
+                     "days_left": days_left, "lifetime_days": lifetime, "issues": issues,
+                     "others_active": [k["id"] for k in mine if k.get("status") == "active"
+                                       and (not chosen or k["id"] != chosen["id"])]}
+    return out
+
+
+def watch_plan(slots: list[str], ledger: dict, keys: list[dict], values: dict[str, str],
+               policy: dict, now: datetime | None = None) -> dict[str, dict]:
+    """Per slot: the key the LEDGER says is deployed, judged by what the Admin
+    API says about it now. This is the daily check's view — CI never holds the
+    new values, so `.env` cannot be the source of truth there."""
+    now = now or datetime.now(timezone.utc)
+    by_id = {k["id"]: k for k in keys}
+    deployed = ledger.get("slots") or {}
+    out: dict[str, dict] = {}
+    for slot in slots:
+        entry = deployed.get(slot) or {}
+        k = by_id.get(entry.get("key_id")) if entry else None
+        issues: list[str] = []
+        days_left = lifetime = None
+        if not entry:
+            issues.append("not-deployed")
+        elif not k or k.get("status") in ("inactive", "archived"):
+            issues.append("disabled")
+        if k:
+            env = next((n for n, v in values.items() if hint_matches(k.get("partial_key_hint"), v)), None)
+            k = {**k, "env": env}
+            exp, created = _ts(k.get("expires_at")), _ts(k.get("created_at"))
+            if k.get("status") == "expired" or (exp and exp <= now):
+                issues.append("expired")
+            elif exp is None:
+                issues.append("never-expires")
+            else:
+                days_left = round((exp - now).total_seconds() / 86400, 1)
+                lifetime = round((exp - created).total_seconds() / 86400, 1) if created else None
+                if lifetime is not None and lifetime > policy["lifetime_days"] + 0.5:
+                    issues.append("lifetime-too-long")
+                if days_left <= policy["renew_before_days"]:
+                    issues.append("renew-soon")
+        out[slot] = {"slot": slot, "workspace_id": entry.get("workspace_id"), "key": k,
+                     "days_left": days_left, "lifetime_days": lifetime, "issues": issues,
+                     "others_active": []}
+    return out
+
+
+KEY_ISSUE_TEXT = {
+    "not-deployed": "never rotated by `dash keys` — its repos hold whatever was pushed by hand",
+    "disabled": "the deployed key was disabled or deleted in the Console — its repos are failing",
+    "no-workspace": "no Console workspace has this name",
+    "no-key-in-env": "no key for this workspace in .env — create one in the Console and paste it",
+    "expired-in-env": "the key in .env has EXPIRED — create a new one in the Console",
+    "never-expires": "the key never expires — policy is a {lifetime}-day key (set at creation)",
+    "lifetime-too-long": "the key lives longer than the {lifetime}-day policy",
+    "expired": "EXPIRED — repos using it are failing now",
+    "renew-soon": "expires within {renew} day(s) — create its replacement",
+}
+BLOCKING = {"no-workspace", "no-key-in-env", "expired-in-env", "expired",
+            "never-expires", "lifetime-too-long"}
+
+
+def _admin_client(kc: dict, values: dict[str, str]):
+    try:
+        import anthropic
+    except ImportError:
+        sys.stderr.write("dash keys needs the anthropic SDK: pip install anthropic "
+                         "(it is in .github/scripts/dash-gen/requirements.txt)\n")
+        sys.exit(2)
+    cred = os.environ.get(kc["admin_credential"]) or values.get(kc["admin_credential"])
+    if not cred:
+        sys.stderr.write(f"{kc['admin_credential']} is not in the environment or .env — the Admin "
+                         "API credential (an admin key, or a service-account key not scoped to a "
+                         "workspace)\n")
+        sys.exit(2)
+    mask(cred)
+    return anthropic, anthropic.Anthropic(api_key=cred)
+
+
+def console_inventory(admin) -> tuple[dict[str, str], list[dict]]:
+    """(workspace name → id, key records) from the Admin API. No secret is ever
+    returned by these endpoints — only names, ids, statuses and hints."""
+    workspaces = {w.name: w.id for w in admin.beta.organization.workspaces.list(limit=100)}
+    keys = []
+    for k in admin.beta.organization.api_keys.list(limit=100):
+        scope = getattr(k, "scope", None)
+        keys.append({
+            "id": k.id, "name": k.name, "status": k.status,
+            "created_at": k.created_at, "expires_at": k.expires_at,
+            "partial_key_hint": getattr(k, "partial_key_hint", None),
+            "scope_workspace_id": getattr(scope, "workspace_id", None) or k.workspace_id,
+        })
+    return workspaces, keys
+
+
+def verify_key(anthropic_mod, value: str, spec: dict) -> dict:
+    """The cheap test: ONE minimal Messages call, exactly as a repo's CI makes it
+    (no workspace header — a key that needs one fails here, not in CI).
+    Costs a fraction of a cent; `ok` is what matters, the usage is reported."""
+    client = anthropic_mod.Anthropic(api_key=value, max_retries=1, timeout=60)
+    try:
+        msg = client.messages.create(
+            model=spec["model"], max_tokens=int(spec["max_tokens"]),
+            output_config={"effort": "low"},
+            messages=[{"role": "user", "content": "Reply with the single word OK."}])
+        u = msg.usage
+        return {"ok": True, "model": msg.model, "input_tokens": u.input_tokens,
+                "output_tokens": u.output_tokens, "stop_reason": msg.stop_reason}
+    except anthropic_mod.AuthenticationError as exc:
+        return {"ok": False, "error": "authentication", "detail": str(exc)[:160]}
+    except anthropic_mod.PermissionDeniedError as exc:
+        return {"ok": False, "error": "permission", "detail": str(exc)[:160]}
+    except anthropic_mod.RateLimitError as exc:
+        return {"ok": False, "error": "rate-limit", "detail": str(exc)[:160]}
+    except anthropic_mod.BadRequestError as exc:
+        return {"ok": False, "error": "bad-request", "detail": str(exc)[:160]}
+    except anthropic_mod.APIStatusError as exc:
+        return {"ok": False, "error": f"http-{exc.status_code}", "detail": str(exc)[:160]}
+    except anthropic_mod.APIConnectionError as exc:
+        return {"ok": False, "error": "connection", "detail": str(exc)[:160]}
+
+
+def _read_key_ledger(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text()) or {}
+
+
+def cmd_keys(args: argparse.Namespace) -> int:
+    cfg = load(FLEET)
+    registry = load(REGISTRY)
+    kc = api_keys_config(cfg)
+    if not kc["declared"]:
+        sys.stderr.write("no `api_keys:` block in _data/fleet.yml\n")
+        return 2
+    hub_nwo = cfg.get("hub", {}).get("repo") or "bamr87/bamr87"
+    env_file = Path(args.env_file) if args.env_file else DEFAULT_ENV_FILE
+    values = read_env_file(env_file) if env_file.is_file() else {}
+    # the process environment wins (CI hands secrets in that way)
+    values.update({n: v for n, v in os.environ.items() if n.startswith(kc["env_prefix"])})
+    candidates = key_candidates(values, kc["env_prefix"])
+    for v in candidates.values():
+        mask(v)
+
+    targets, errors = key_targets(cfg, registry)
+    anthropic_mod, admin = _admin_client(kc, values)
+    workspaces, keys = console_inventory(admin)
+    slots = [DEFAULT_SLOT] + list(kc["workspaces"])
+    policy_fmt = {"lifetime": kc["lifetime_days"], "renew": kc["renew_before_days"]}
+    ledger_path = REPO_ROOT / kc["ledger"]
+    ledger = _read_key_ledger(ledger_path)
+    action = args.action
+    plan = (watch_plan(slots, ledger, keys, candidates, kc) if action == "watch"
+            else plan_keys(slots, workspaces, keys, candidates, kc))
+
+    print(f"\n\033[1mAnthropic API keys\033[0m [{action}{' APPLY' if action == 'rotate' and args.apply else ''}]"
+          f" — policy: {kc['lifetime_days']}-day keys, renew {kc['renew_before_days']} day(s) ahead\n")
+    for e in errors:
+        print(f"  {MISSING} {e}")
+    if errors:
+        print("\n  Fix api_keys / ai_auth in _data/fleet.yml — nothing is written while it has errors.\n")
+
+    verified: dict[str, dict] = {}
+    rows = []
+    for slot in slots:
+        p = plan[slot]
+        k = p["key"]
+        served = [t for t in targets.values() if t["slot"] == slot and not t["skip"]]
+        label = (f"{k['name']} ({k['id']})" if k else "—")
+        life = (f"{p['days_left']:.1f}d left of {p['lifetime_days']:.0f}d" if p["days_left"] is not None
+                else "never expires" if k else "")
+        mark = MISSING if set(p["issues"]) & BLOCKING else (UNKNOWN if p["issues"] else OK)
+        print(f"  {mark} {slot:15} {label:52} {life:22} → {len(served)} repo(s)")
+        for issue in p["issues"]:
+            print(f"      \033[2m{KEY_ISSUE_TEXT[issue].format(**policy_fmt)}\033[0m")
+        if action in ("verify", "rotate", "watch") and k and k.get("env"):
+            res = verify_key(anthropic_mod, candidates[k["env"]], kc["verify"])
+            verified[slot] = res
+            if res["ok"]:
+                print(f"      {OK} cheap test: {res['model']} answered "
+                      f"({res['input_tokens']} in / {res['output_tokens']} out tokens)")
+            else:
+                print(f"      {MISSING} cheap test FAILED: {res['error']} — {res['detail']}")
+        rows.append({"slot": slot, **{x: p[x] for x in ("workspace_id", "days_left", "lifetime_days", "issues")},
+                     "key_id": k["id"] if k else None, "key_name": k["name"] if k else None,
+                     "expires_at": str(k["expires_at"]) if k and k["expires_at"] else None,
+                     "repos": sorted(t["nwo"] for t in served),
+                     "verified": verified.get(slot, {}).get("ok")})
+
+    skipped = [t for t in targets.values() if t["skip"]]
+    if skipped:
+        print(f"\n  \033[2mnot sent a key ({len(skipped)}): "
+              f"{', '.join(t['name'] for t in skipped)} — {skipped[0]['skip']}\033[0m")
+
+    attention = [r for r in rows if r["issues"] or r["verified"] is False]
+    if args.attention_file:
+        lines = ["## Anthropic API keys need attention", "",
+                 f"Policy: {kc['lifetime_days']}-day keys, replaced {kc['renew_before_days']} day(s) before expiry. "
+                 "The Admin API cannot create keys — create each in the Claude Console "
+                 "(Settings → API keys → Create key, scoped to the workspace below, expiry "
+                 f"{kc['lifetime_days']} days), paste it into the hub's `.env` under any "
+                 f"`{kc['env_prefix']}*` name, then run `dash keys rotate --apply` "
+                 "(or the console's Auth tab).", "",
+                 "| Workspace | Key | Expires | Repos | Needs |", "| --- | --- | --- | --- | --- |"]
+        for r in attention:
+            needs = "; ".join(KEY_ISSUE_TEXT[i].format(**policy_fmt) for i in r["issues"])
+            if r["verified"] is False:
+                needs = (needs + "; " if needs else "") + "the cheap test failed"
+            lines.append(f"| `{r['slot']}` | {r['key_name'] or '—'} | {r['expires_at'] or '—'} "
+                         f"| {len(r['repos'])} | {needs} |")
+        Path(args.attention_file).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    set_output({"attention": bool(attention),
+                "slots_blocked": ",".join(r["slot"] for r in rows if set(r["issues"]) & BLOCKING)})
+
+    if args.json:
+        print(json.dumps({"slots": rows, "targets": list(targets.values())}, indent=2, default=str))
+
+    if action != "rotate":
+        return 1 if (errors or any(v["ok"] is False for v in verified.values())) else 0
+
+    # ---- rotate ---------------------------------------------------------------
+    if errors:
+        return 1
+    deployable = [s for s in slots if plan[s]["key"] and verified.get(s, {}).get("ok")
+                  and not (set(plan[s]["issues"]) & BLOCKING - ({"never-expires", "lifetime-too-long"}
+                                                                  if args.allow_long_lived else set()))]
+    held = [s for s in slots if s not in deployable]
+    if held:
+        print(f"\n  \033[2mnot rotated: {', '.join(held)} (see above)\033[0m")
+    if args.only:
+        deployable = [s for s in deployable if s in args.only]
+    # the hub's slot first — the hub's own automation is what would clean up a bad write
+    hub_slot = targets.get(hub_nwo, {}).get("slot")
+    deployable.sort(key=lambda s: s != hub_slot)
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ledger_slots = dict((ledger.get("slots") or {}))
+    retired = list(ledger.get("retired") or [])
+    failed_total = written_total = pending_total = 0
+    for slot in deployable:
+        k = plan[slot]["key"]
+        value = candidates[k["env"]]
+        prev = (ledger_slots.get(slot) or {})
+        order = sorted((t for t in targets.values() if t["slot"] == slot and not t["skip"]),
+                       key=lambda t: t["nwo"] != hub_nwo)
+        if args.repo:
+            order = [t for t in order if args.repo in (t["name"], t["nwo"])]
+        print(f"\n  \033[1m{slot}\033[0m → {k['name']} ({k['id']}) to {len(order)} repo(s)")
+        failed = []
+        for t in order:
+            same = prev.get("key_id") == k["id"] and t["nwo"] in (prev.get("repos") or [])
+            if same and not args.force:
+                print(f"    {OK} {t['nwo']:34} already holds this key")
+                continue
+            if not args.apply:
+                pending_total += 1
+                print(f"    {EXTRA} {t['nwo']:34} would set {kc['secret']}")
+                continue
+            proc = subprocess.run(["gh", "secret", "set", kc["secret"], "-R", t["nwo"]],
+                                  input=value, capture_output=True, text=True)
+            if proc.returncode == 0:
+                written_total += 1
+                print(f"    {EXTRA} {t['nwo']:34} set {kc['secret']}")
+            else:
+                err = (proc.stderr or "").strip().splitlines()
+                print(f"    {MISSING} {t['nwo']:34} FAILED: {err[0] if err else '?'}")
+                failed.append(t["nwo"])
+                if t["nwo"] == hub_nwo:
+                    print("    \033[31maborting this workspace: the hub refused the key\033[0m")
+                    break
+        failed_total += len(failed)
+        if not args.apply:
+            continue
+        ledger_slots[slot] = {"key_id": k["id"], "key_name": k["name"], "workspace_id": plan[slot]["workspace_id"],
+                              "expires_at": str(k["expires_at"]) if k["expires_at"] else None,
+                              "deployed_at": now_iso, "verified_at": now_iso,
+                              "repos": sorted(t["nwo"] for t in order if t["nwo"] not in failed),
+                              "failed": failed}
+        # Retire the key this tool deployed before — only when every repo took
+        # the new one, so nothing is left holding a disabled credential.
+        old = prev.get("key_id")
+        if old and old != k["id"] and not failed and not args.keep_old:
+            try:
+                admin.beta.organization.api_keys.update(old, status="inactive")
+                retired.append({"key_id": old, "slot": slot, "retired_at": now_iso})
+                print(f"    {OK} disabled the key it replaced ({old})")
+            except anthropic_mod.APIError as exc:
+                print(f"    {UNKNOWN} could not disable {old}: {str(exc)[:120]}")
+        elif old and old != k["id"] and failed:
+            print(f"    {UNKNOWN} kept {old} active — {len(failed)} repo(s) still hold it")
+
+    if args.apply:
+        ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        doc = {"schema": "api-keys/v1", "generated_at": now_iso,
+               "policy": {"lifetime_days": kc["lifetime_days"], "renew_before_days": kc["renew_before_days"]},
+               "slots": ledger_slots, "retired": retired[-50:]}
+        ledger_path.write_text(
+            "# Generated by `dash keys rotate` — key ids, names and dates only; no key\n"
+            "# value is ever recorded (the Admin API never returns one).\n"
+            + yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+        print(f"\n  ledger → {kc['ledger']}")
+    if args.apply:
+        print(f"\n  {written_total} secret write(s) · {failed_total} failed\n")
+    else:
+        print(f"\n  {pending_total} secret write(s) pending — dry run, add --apply\n")
+    return 1 if failed_total else 0
 
 
 # --------------------------------------------------------------------------- #
@@ -676,7 +1393,10 @@ def rotating_tokens(cfg: dict, only: list[str] | None = None) -> list[dict]:
     """Contract entries the rotation loop owns, newest policy merged in."""
     out = []
     for t in cfg.get("tokens") or []:
-        if t.get("deprecated"):
+        if t.get("deprecated") or t.get("managed_by"):
+            # managed_by: another command owns this secret's values (e.g. the
+            # per-workspace ANTHROPIC_API_KEY → `dash keys`); propagating the
+            # hub's one copy would overwrite every repo's workspace key.
             continue
         if only and t["name"] not in only:
             continue
@@ -791,6 +1511,10 @@ def rotation_targets(cfg: dict, registry: list, token: dict,
     repos = fleet_repos(cfg, registry)
     if token.get("scope") != "fleet":
         repos = [r for r in repos if r["nwo"] == hub_nwo]
+    elif auth_method_of(cfg, token["name"]):
+        resolved, _ = resolve_auth(cfg, registry)
+        repos = [r for r in repos
+                 if secret_wanted(cfg, resolved, r["nwo"], token["name"], hub_nwo)]
     if repo_filter:
         repos = [r for r in repos if repo_filter in (r["name"], r["nwo"])]
     return repos
@@ -1012,6 +1736,9 @@ def rotate_variables(cfg: dict, registry: list, rot: dict,
     repos = fleet_repos(cfg, registry)
     if args.repo:
         repos = [r for r in repos if args.repo in (r["name"], r["nwo"])]
+    # The auth order is per REPO and comes from the contract, not the hub's own
+    # value — the hub's CLAUDE_AUTH_ORDER is just the hub's order.
+    per_repo = auth_variables(cfg, registry)
 
     rows, written, failed, exit_code = [], [], [], 0
     for r in repos:
@@ -1022,7 +1749,8 @@ def rotate_variables(cfg: dict, registry: list, rot: dict,
             continue
         # Compare by VALUE. Age is meaningless for something readable: a
         # variable that still matches the hub is correct however old it is.
-        diffs = {k: v for k, v in values.items() if current.get(k) != v}
+        want = {**values, **per_repo.get(r["nwo"], {})}
+        diffs = {k: v for k, v in want.items() if current.get(k) != v}
         if not diffs:
             rows.append({"nwo": r["nwo"], "state": S_OK,
                          "differing": [], "action": "none"})
@@ -1064,6 +1792,7 @@ def rotate_variables(cfg: dict, registry: list, rot: dict,
         # Variables are not secret — recording the values is the point, since
         # this is the only committed record of what the fleet is meant to hold.
         "values": values,
+        "auth_order": {nwo: v for nwo, d in per_repo.items() for v in d.values()},
         "counts": {"repos": len(rows), "ok": by(S_OK), "stale": by(S_STALE),
                    "missing": by(S_MISSING), "unreachable": by(S_UNREACHABLE),
                    "written": len(written), "failed": len(failed)},
@@ -1475,6 +2204,33 @@ def main(argv: list[str] | None = None) -> int:
                       help="overwrite secrets that are already set")
     p_ss.add_argument("--apply", action="store_true", help="write (default: dry-run)")
     p_ss.set_defaults(func=cmd_sync_secrets)
+
+    p_keys = sub.add_parser("keys", help="Anthropic Console API keys per workspace (api_keys:) — "
+                                         "status, cheap verification, assisted rotation")
+    p_keys.add_argument("action", nargs="?", choices=["status", "verify", "rotate", "watch"], default="status",
+                        help="status/verify/rotate judge the keys in .env; watch judges the DEPLOYED keys "
+                             "(the ledger) — the daily check")
+    p_keys.add_argument("--env-file", metavar="PATH", help="dotenv file holding the new keys (default: .env)")
+    p_keys.add_argument("--only", metavar="WORKSPACE", action="append", help="rotate: limit to this workspace slot")
+    p_keys.add_argument("--repo", metavar="NAME", help="rotate: limit the writes to one repo")
+    p_keys.add_argument("--force", action="store_true", help="rotate: rewrite repos the ledger says already hold the key")
+    p_keys.add_argument("--keep-old", action="store_true", help="rotate: do not disable the key being replaced")
+    p_keys.add_argument("--allow-long-lived", action="store_true",
+                        help="rotate: deploy a key that outlives the lifetime policy")
+    p_keys.add_argument("--attention-file", metavar="PATH", help="write the markdown attention report")
+    p_keys.add_argument("--json", action="store_true")
+    p_keys.add_argument("--apply", action="store_true", help="rotate: write (default: dry-run)")
+    p_keys.set_defaults(func=cmd_keys)
+
+    p_auth = sub.add_parser("auth", help="per-repo AI auth order (ai_auth:) — resolve, "
+                                         "inspect, and project CLAUDE_AUTH_ORDER")
+    p_auth.add_argument("action", nargs="?", choices=["show", "sync"], default="show")
+    p_auth.add_argument("--repo", metavar="NAME", help="one repo")
+    p_auth.add_argument("--offline", action="store_true",
+                        help="show the resolution only — no GitHub calls")
+    p_auth.add_argument("--json", action="store_true")
+    p_auth.add_argument("--apply", action="store_true", help="sync: write (default: dry-run)")
+    p_auth.set_defaults(func=cmd_auth)
 
     p_push = sub.add_parser("push",
                             help="the operator's .env → the hub → the fleet, hub-first "

@@ -376,9 +376,13 @@ def test_workflow_contract() -> None:
     # The prompt is a YAML block scalar: phrases wrap across lines, so compare
     # on whitespace-normalised text.
     prompt = " ".join(ev_step["with"]["prompt"].split())
-    check("OAuth-first Claude auth with the API-key fallback expression",
-          "claude_code_oauth_token" in ev_step["with"]
-          and "secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || ''" in ev_step["with"]["anthropic_api_key"])
+    auth_step = step(evolve, "Choose the Claude credential (ai_auth order)")
+    check("the credential is chosen by the repo's ai_auth order (claude-auth step)",
+          auth_step["uses"].startswith("bamr87/bamr87/.github/actions/claude-auth@")
+          and "vars.CLAUDE_AUTH_ORDER" in auth_step["with"]["order"])
+    check("each credential is gated on the chosen method, never passed both",
+          "steps.claude-auth.outputs.method == 'oauth'" in ev_step["with"]["claude_code_oauth_token"]
+          and "steps.claude-auth.outputs.method == 'api_key'" in ev_step["with"]["anthropic_api_key"])
     check("--max-turns is wired from the plan", "--max-turns ${{ needs.plan.outputs.max_turns }}" in args)
     m = re.search(r'--allowedTools\s+"([^"]+)"', args)
     check("claude_args declares --allowedTools", bool(m))
