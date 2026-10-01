@@ -269,21 +269,59 @@ const sev = ratio => ratio >= 1 ? 'crit' : ratio >= 0.7 ? 'warn' : '';
 const banner = (kind, html) => `<div class="banner ${kind}">${kind === 'good' ? '✓' : kind === 'warn' ? '⚠' : kind === 'crit' ? '✖' : '●'} ${html}</div>`;
 const status = (kind, text) => `<span class="status ${kind}">${kind === 'good' ? '✓' : kind === 'warn' ? '⚠' : kind === 'crit' ? '✖' : '●'} ${esc(text)}</span>`;
 const meter = (value, cap, extra = '') => `<div class="meter ${sev(cap ? value / cap : 0)} ${extra}"><i style="width:${Math.min(100, cap ? 100 * value / cap : 0)}%"></i></div>`;
-let TOKEN = localStorage.getItem('console_token') || '';
+let TOKEN = (() => { try { return localStorage.getItem('console_token') || ''; } catch (_) { return ''; } })();
 let STATE = null, OPS = [], CAPS = null, JOBS = [], ACTIVE = 'overview', POLL = null, CURRENT_JOB = null;
 
 function toast(msg, err = false) {
   const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.hidden = false;
   clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, err ? 7000 : 3500);
 }
-async function api(path, opts = {}) {
+// The console token is asked for ONCE, however many requests hit a 401 at the
+// same moment. The first load fires four in parallel; with a prompt() per 401
+// the right token went into the first dialog, three more followed, and
+// dismissing any of them failed the load — a correct token that looked
+// rejected, with no message saying why. So: one in-page dialog every 401
+// waits on, the value trimmed (a pasted "Bearer …" too), and a refusal SAID.
+let TOKEN_ASK = null;
+function askToken(rejected) {
+  if (TOKEN_ASK) return TOKEN_ASK;
+  TOKEN_ASK = new Promise(resolve => {
+    const m = document.createElement('div');
+    m.id = 'token-modal';
+    m.setAttribute('style', 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:16px');
+    m.innerHTML = `<form class="card" style="width:100%;max-width:440px" autocomplete="off">
+      <h2 style="margin-top:0">Console token</h2>
+      <div class="sub">This console requires its bearer token — the <code>DASH_CONSOLE_TOKEN</code> it was started with (the hub's <code>.env</code>, or the shell that ran <code>docker compose</code>).</div>
+      ${rejected ? `<div style="margin:8px 0">${status('crit', 'That token was rejected — it does not match the one this console is running with.')}</div>` : ''}
+      <input type="password" id="token-input" aria-label="console token" spellcheck="false" style="width:100%;margin:10px 0">
+      <div class="toolbar"><button class="btn primary" type="submit">Unlock</button><button class="btn" type="button" id="token-cancel">Cancel</button></div></form>`;
+    document.body.appendChild(m);
+    const input = m.querySelector('#token-input');
+    const done = v => { m.remove(); TOKEN_ASK = null; resolve(v); };
+    m.querySelector('form').onsubmit = e => {
+      e.preventDefault();
+      const v = input.value.trim().replace(/^bearer\s+/i, '').trim();
+      if (v) { TOKEN = v; try { localStorage.setItem('console_token', v); } catch (_) {} }
+      done(v || null);
+    };
+    m.querySelector('#token-cancel').onclick = () => done(null);
+    input.focus();
+  });
+  return TOKEN_ASK;
+}
+async function api(path, opts = {}, attempt = 0) {
   const headers = Object.assign({'Content-Type': 'application/json'}, opts.headers || {});
-  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  const sent = TOKEN;
+  if (sent) headers['Authorization'] = 'Bearer ' + sent;
   const r = await fetch(path, Object.assign({}, opts, { headers }));
   if (r.status === 401) {
-    const t = prompt('This console requires its bearer token (DASH_CONSOLE_TOKEN):');
-    if (t) { TOKEN = t; localStorage.setItem('console_token', t); return api(path, opts); }
-    throw new Error('console token required');
+    // Another request already obtained a new token while this one was in flight.
+    if (TOKEN && TOKEN !== sent) return api(path, opts, attempt);
+    if (sent) { try { localStorage.removeItem('console_token'); } catch (_) {} }
+    if (attempt >= 3) throw new Error('console token rejected three times — check DASH_CONSOLE_TOKEN');
+    const t = await askToken(Boolean(sent));
+    if (!t) throw new Error('console token required — reload to enter it');
+    return api(path, opts, attempt + 1);
   }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.detail || (r.status + ' ' + r.statusText));
@@ -1077,6 +1115,7 @@ async function renderConfig() {
 async function renderAuth() {
   let a; try { a = await api('/api/auth'); } catch (e) { $('#tab-auth').innerHTML = status('crit', e.message); return; }
   const gh = a.github || {}, cl = a.claude || {}, ef = a.env_file || {}, rot = (STATE.rotation || {}).tokens || [];
+  const push = a.push || [], pushable = push.filter(t => t.in_env_file);
   const ghState = !gh.cli ? status('crit', 'gh CLI not installed')
     : gh.authenticated ? status('good', `signed in${gh.account ? ' as ' + gh.account : ''}${gh.host ? ' @ ' + gh.host : ''}`)
     : status('warn', 'not signed in');
@@ -1110,7 +1149,14 @@ async function renderAuth() {
       <div><h2>Credentials</h2><div class="card">${(a.credentials || []).map(row).join('')}</div>
       <h2>The token contract</h2><div class="sub">Names and placement from <code>_data/fleet.yml</code> <code>tokens:</code> — never values.</div>
       <div class="wrap"><table><thead><tr><th>secret</th><th>scope</th><th>used by</th></tr></thead><tbody>${(STATE.tokens || []).map(t => `<tr><td><code>${esc(t.name)}</code>${t.deprecated ? ' ' + status('warn', 'deprecated') : ''}</td><td>${esc(t.scope)}${t.required ? ' · required' : ''}</td><td class="muted">${esc((t.used_by || []).join(', '))}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">no contract</td></tr>'}</tbody></table></div>
-      <div class="toolbar" style="margin-top:12px"><button class="btn" data-run='{"op":"secrets-audit"}'>▶ audit the fleet's secrets</button><button class="btn" data-run='{"op":"secrets-plan"}'>▶ rotation plan</button></div></div></div>`;
+      <div class="toolbar" style="margin-top:12px"><button class="btn" data-run='{"op":"secrets-audit"}'>▶ audit the fleet's secrets</button><button class="btn" data-run='{"op":"secrets-plan"}'>▶ rotation plan</button></div>
+      <h2>Rotate from <code>.env</code></h2><div class="card">
+        <div class="sub" style="margin:0 0 8px">Put the new value in <code>${esc(ef.path)}</code> (or Set it above with <i>also write to .env</i>), then push. Only the contract's names are read — the file is parsed, never sourced, so its <code>GITHUB_TOKEN</code> and local passwords never reach <code>gh</code>. Every secret goes to the <b>hub first</b>; a <code>fleet</code>-scoped one then fans out to every fleet repo, and a hub refusal aborts that secret's fan-out. <b>Hub only</b> stops at the hub and lets the weekly <code>token-rotation.yml</code> propagate it.</div>
+        <table class="ref" style="border:0">${push.map(t => `<tr><td><code>${esc(t.name)}</code></td><td>${esc(t.scope || '')}</td><td>${t.in_env_file ? status('good', 'in .env') : status('warn', 'not in .env')}</td></tr>`).join('') || '<tr><td class="muted">no token contract</td></tr>'}</table>
+        <div class="set" style="margin-top:10px"><label class="inl">secret <select id="push-secret"><option value="">every one in .env (${pushable.length})</option>${pushable.map(t => `<option>${esc(t.name)}</option>`).join('')}</select></label>
+          <label class="inl"><input type="checkbox" id="push-hub-only"> hub only</label></div>
+        <div class="toolbar" style="margin-top:8px"><button class="btn" id="push-preview" ${ef.exists ? '' : 'disabled'}>▶ Preview (dry run)</button>
+          <button class="btn primary" id="push-apply" ${ef.exists && pushable.length && a.writes_enabled ? '' : 'disabled'}>⇪ Push to GitHub</button></div></div></div></div>`;
 
   const refresh = async () => { CAPS = await api('/api/capabilities'); renderMeta(); renderAuth(); };
   $('#tab-auth').querySelectorAll('[data-set]').forEach(b => b.onclick = async () => {
@@ -1140,6 +1186,9 @@ async function renderAuth() {
       toast(r.ok ? 'gh signed out' : r.message, !r.ok); refresh(); }
     catch (e) { toast(e.message, true); }
   };
+  const pushParams = apply => { const p = { hub_only: $('#push-hub-only').checked, apply }; const v = $('#push-secret').value; if (v) p.secret = v; return p; };
+  $('#push-preview').onclick = () => runOp('secrets-push', pushParams(false));
+  $('#push-apply').onclick = () => runOp('secrets-push', pushParams(true));
   bindRunButtons('#tab-auth');
 }
 
@@ -1169,11 +1218,13 @@ function renderJobs() {
       dry_run: `<label class="inl"><input id="p-dry_run" type="checkbox" checked> dry run (preview only)</label>`,
       force: `<label class="inl"><input id="p-force" type="checkbox"> force (resend exported traces)</label>`,
       no_fetch: `<label class="inl"><input id="p-no_fetch" type="checkbox"> local checkouts only (no clone/fetch)</label>`,
+      secret: `<label class="inl">secret <input id="p-secret" type="text" placeholder="all in .env, or one name" size="26"></label>`,
+      hub_only: `<label class="inl"><input id="p-hub_only" type="checkbox"> hub only (weekly rotation fans out)</label>`,
     })[k] || '').join(' '); };
   sel.onchange = () => paramsFor(sel.value); paramsFor(sel.value);
   $('#op-run').onclick = () => { const id = sel.value, params = {};
-    ['days', 'target', 'artifacts', 'key', 'workflow', 'jobs', 'logs'].forEach(k => { const el = $('#p-' + k); if (el && el.value !== '') params[k] = el.value; });
-    ['upgrade', 'apply', 'local', 'dry_run', 'force', 'no_fetch'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
+    ['days', 'target', 'artifacts', 'key', 'workflow', 'jobs', 'logs', 'secret'].forEach(k => { const el = $('#p-' + k); if (el && el.value !== '') params[k] = el.value; });
+    ['upgrade', 'apply', 'local', 'dry_run', 'force', 'no_fetch', 'hub_only'].forEach(k => { const el = $('#p-' + k); if (el) params[k] = el.checked; });
     const f = $('#p-fields'); if (f && f.value.trim()) { params.fields = {}; f.value.split(',').forEach(kv => { const [k, ...v] = kv.split('='); if (k.trim()) params.fields[k.trim()] = v.join('=').trim(); }); }
     runOp(id, params); };
   bindRunButtons('#tab-jobs'); drawJobs();
@@ -1191,6 +1242,7 @@ async function runOp(op, params) {
   if (remote) {
     const detail = op === 'dispatch' ? `Dispatch ${params.workflow}.yml in GitHub Actions with ${JSON.stringify(params.fields || {})}`
       : op === 'content-file' ? `${o.title} for ${params.target} — WITH --apply: this opens issues in that site's GitHub repo.`
+      : op === 'secrets-push' ? `Push ${params.secret || 'every contract secret in .env'} from .env to GitHub — the HUB first${params.hub_only ? ' and nowhere else' : ', then every fleet repo for fleet-scoped secrets'}. This OVERWRITES the current values.`
       : op === 'observe-reset' ? `${o.title} — this DELETES every indexed log line and all five elk volumes. Actions logs can be re-shipped from the lake; container logs cannot.`
       : `${o.title} — WITH --apply: this opens pull requests / writes secrets in fleet repos.`;
     if (!confirm(detail + '\n\nContinue?')) return;

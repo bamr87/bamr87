@@ -1,0 +1,18 @@
+kit: ux-audit
+version: 0.1.0
+source: bamr87/bamr87 templates/ux-audit/
+seeded-by: tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set)
+files: README.md, VERSION, ux.manifest.example.yml, scripts/ux_audit.py, scripts/collect_evidence.mjs, workflows/ux-gate.yml, prompts/*.md, AGENT_PROMPT.md
+updated: 2026-09-18
+changelog: |
+  0.1.0 — initial kit. Closes the UPS-FE-53/60 gap named in specs/FRONTEND.md
+  (`templates/ux-audit/`). Ships: portable R1–R13 computational audit
+  (stdlib-only), Playwright evidence collector MVP, PR gate workflow outline,
+  specialist critique prompts, and leaf ux.yml manifest example.
+  Reference implementation for app-specific rules: bamr87/law-ai scripts/ux_audit.py.
+  OPT-IN fan-out only — never part of the default standardize artifact set.
+notes: |
+  Seed into a leaf repo only when projects.yml has ux.enabled: true (or the
+  maintainer opts in). Additive-only: never overwrite an existing ux.yml,
+  scripts/ux_audit.py, or .github/workflows/ux-gate.yml unless --upgrade and
+  the target is byte-identical to archive/.

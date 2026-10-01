@@ -138,8 +138,6 @@ jobs:
         uses: ./.github/actions/resolve-fleet-token
         with:
           fleet-token: ${{ secrets.FLEET_TOKEN }}
-          fallback-token: ${{ secrets.FANOUT_TOKEN }}
-          fallback-token-name: FANOUT_TOKEN
           default-token: ${{ github.token }}
           probe-repo: ${{ github.repository }}
           fail-on-no-valid-token: 'false'

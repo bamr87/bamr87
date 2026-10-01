@@ -12,7 +12,7 @@ name: standardize-fanout
 # never touched).
 #
 # SAFETY: dispatch-only, dry-run by default, opens PRs (never pushes to a
-# default branch). Requires FLEET_TOKEN (legacy FANOUT_TOKEN still honoured)
+# default branch). Requires FLEET_TOKEN
 # — a fine-grained PAT
 # with contents:write + pull-requests:write + workflows:write on the target
 # repos (the ci/claude artifacts push .github/workflows/* files, which GitHub
@@ -84,7 +84,7 @@ jobs:
 
       - name: Open standardization PRs
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           TARGET: ${{ inputs.target }}
           ARTIFACTS: ${{ inputs.artifacts }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
+            echo "::error::FLEET_TOKEN is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
             exit 1
           fi
           FLAGS=()
@@ -125,7 +125,7 @@ jobs:
         with:
           repository: ${{ needs.fanout.outputs.slug }}
           ref: chore/standardize-baseline
-          token: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN }}
 
       - name: Fill CLAUDE.md scaffold with Claude Code
         uses: anthropics/claude-code-action@v1

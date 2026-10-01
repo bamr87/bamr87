@@ -219,6 +219,17 @@ def main() -> int:
           failing_paths(latest) == set())
 
     # --- report -------------------------------------------------------------- #
+    # --- a snapshot that read nothing is a dead token, not a quiet fleet ----- #
+    # 2026-09-27: an expired FLEET_TOKEN made all 43 repos 401, the snapshot
+    # was written with zeros, and the doctor concluded "nothing to do".
+    print("Blind snapshots are refused:")
+    check("0 scanned with unreachable repos is blind",
+          fleet_triage.blind_snapshot({"repos_scanned": 0, "repos_unreachable": ["bamr87/bamr87"]}))
+    check("a partial read is not blind",
+          not fleet_triage.blind_snapshot({"repos_scanned": 1, "repos_unreachable": ["bamr87/cv"]}))
+    check("an empty registry is not blind",
+          not fleet_triage.blind_snapshot({"repos_scanned": 0, "repos_unreachable": []}))
+
     failed = [label for label, ok in CHECKS if not ok]
     print()
     for label, ok in CHECKS:

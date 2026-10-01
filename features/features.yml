@@ -1,0 +1,281 @@
+# =============================================================================
+# features/features.yml — THE FEATURE INDEX of the bamr87 dash (the hub)
+# =============================================================================
+# kit: verify v0.1.0 — the hub practices what it seeds (templates/verify/).
+#
+# What the control plane DOES for a user (the operator, or an agent working in
+# the fleet), where each capability lives, where it is documented, and what
+# proves it: the tests under .github/scripts/dash-gen/ and tools/, the user
+# scenarios under verify/scenarios/, and the evidence bundles under
+# test/evidence/. Aggregated with every submodule's index by
+# `dash features fleet --write` → _data/features_index.yml → /features/.
+# Validate: python3 tools/features_index.py check .   Grade: … coverage .
+#
+# Schema: features/v1 (see templates/verify/features.template.yml for the
+# field reference). `surface: ui` rows are dash pages; `infra` rows are the
+# loops and gates; `{na: reason}` under tests waives coverage with a reason.
+# =============================================================================
+schema: features/v1
+repo: bamr87/bamr87
+
+features:
+  # --------------------------------------------------------------- surfaces
+  - id: HUB-001
+    title: "Portfolio + dashboard from the registry"
+    description: "Every dash surface renders from one registry (_data/projects.yml): the portfolio grid, the /dashboard/ project list, and the profile README's AUTO span."
+    implemented: true
+    surface: ui
+    link: /dashboard/
+    docs: docs/DASH.md
+    tags: [ dash, registry, jekyll ]
+    date: 2025-12-01
+    tests:
+      - tools/check-drift.sh
+    scenarios:
+      - verify/scenarios/home.yml
+      - verify/scenarios/dashboard.yml
+    evidence:
+      - test/evidence/home
+      - test/evidence/dashboard
+  - id: HUB-002
+    title: "Monitor board"
+    description: "Live-signal attention board (/monitor/) from the ephemeral project_health.yml gathered by dash-gen health; degrades to an explanatory panel when the snapshot is absent."
+    implemented: true
+    surface: ui
+    link: /monitor/
+    docs: docs/DASH.md
+    tags: [ dash, monitoring ]
+    scenarios:
+      - verify/scenarios/monitor.yml
+    evidence:
+      - test/evidence/monitor
+    verified:
+      date: 2026-09-05
+      by: agent
+  - id: HUB-003
+    title: "Fleet triage inbox"
+    description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /triage/."
+    implemented: true
+    surface: ui
+    link: /triage/
+    docs: docs/DAILY-ANALYSIS.md
+    tags: [ dash, triage, fleet-pulse ]
+    tests:
+      - .github/scripts/dash-gen/test_remediation.py
+    scenarios:
+      - verify/scenarios/triage.yml
+    evidence:
+      - test/evidence/triage
+    verified:
+      date: 2026-09-05
+      by: agent
+  - id: HUB-004
+    title: "Issue pipeline board"
+    description: "Three-tier issue loop state (queues, stages derived from labels, caps, taxonomy) rendered at /issue-pipeline/ from _data/issue_pipeline.yml."
+    implemented: true
+    surface: ui
+    link: /issue-pipeline/
+    docs: docs/ISSUE-PIPELINE.md
+    tags: [ dash, issues, agents ]
+    tests:
+      - .github/scripts/dash-gen/test_issue_pipeline.py
+  - id: HUB-005
+    title: "AI harnesses inventory board"
+    description: "Per-repo AI-harness deployments and cron schedules graded against fleet.yml `harnesses:` — baseline coverage, throughput vs caps, budget forecast, and the fan-out gap list — at /harnesses/."
+    implemented: true
+    surface: ui
+    link: /harnesses/
+    docs: docs/HARNESS-OPS.md
+    tags: [ dash, harness, schedule ]
+    tests:
+      - .github/scripts/dash-gen/test_harness_registry.py
+    scenarios:
+      - verify/scenarios/harnesses.yml
+    evidence:
+      - test/evidence/harnesses
+    verified:
+      date: 2026-09-05
+      by: agent
+  - id: HUB-006
+    title: "Six-layer harness scorecard"
+    description: "The hub's own harness health scorecard + trip wires (/harness/), computed offline from the committed fleet signals against fleet.yml `harness:` thresholds."
+    implemented: true
+    surface: ui
+    link: /harness/
+    docs: docs/HARNESS.md
+    tags: [ dash, harness, scorecard ]
+    tests:
+      - .github/scripts/dash-gen/test_harness.py
+  - id: HUB-007
+    title: "Fleet features index"
+    description: "One listing of every feature in the fleet with its docs, tests, user scenarios, evidence bundles, screenshots, and verified stamp, plus per-repo coverage and the attention list of unverified UI features — at /features/ from _data/features_index.yml."
+    implemented: true
+    surface: ui
+    link: /features/
+    docs: docs/VERIFICATION.md
+    tags: [ dash, verification, coverage, agents ]
+    date: 2026-09-04
+    tests:
+      - tools/test_features_index.py
+    scenarios:
+      - verify/scenarios/features.yml
+    evidence:
+      - test/evidence/features
+    verified:
+      date: 2026-09-05
+      by: agent
+  - id: HUB-013
+    title: "Harness Console (local control plane UI)"
+    description: "Write-capable local front end (FastAPI, 127.0.0.1:4001) that renders every committed signal, runs allowlisted dash operations as jobs with live logs, dispatches workflows, and edits fleet.yml one block at a time."
+    implemented: true
+    surface: ui
+    link: tools/console/
+    docs: docs/HARNESS-OPS.md
+    tags: [ console, local, fastapi ]
+    tests:
+      - tools/console/test_console.py
+  - id: HUB-015
+    title: "Roadmap"
+    description: "The Future-Features backlog (_data/roadmap.yml) rendered at /roadmap/; entries are authored by /future-features and the feature-scout agent, never backlogged without approval."
+    implemented: true
+    surface: ui
+    link: /roadmap/
+    docs: .claude/README.md
+    tags: [ dash, roadmap ]
+    scenarios:
+      - verify/scenarios/roadmap.yml
+    evidence:
+      - test/evidence/roadmap
+    verified:
+      date: 2026-09-05
+      by: agent
+  - id: HUB-016
+    title: "Engagements ledger"
+    description: "Every registry project as a client: deterministic estimates from open issues, actuals accrued from usage evidence, variance and rollups at /engagements/."
+    implemented: true
+    surface: ui
+    link: /engagements/
+    docs: docs/ESTIMATION.md
+    tags: [ dash, finance ]
+    scenarios:
+      - verify/scenarios/engagements.yml
+    evidence:
+      - test/evidence/engagements
+    verified:
+      date: 2026-09-05
+      by: agent
+  - id: HUB-017
+    title: "Actions usage analytics"
+    description: "Per-workflow GitHub Actions cost, effectiveness, and waste across the fleet at /actions/, refreshed daily by fleet-pulse."
+    implemented: true
+    surface: ui
+    link: /actions/
+    docs: docs/DAILY-ANALYSIS.md
+    tags: [ dash, actions, cost ]
+    tests:
+      - .github/scripts/dash-gen/test_remediation.py
+
+  # ------------------------------------------------------------------ loops
+  - id: HUB-008
+    title: "Drift gate"
+    description: "Offline+API gate on every PR: registry↔.gitmodules parity, stray project dirs, stale README span, SCHEMA.md pyramid, vendored-tool parity, composite-action manifests; advisory GitHub-reality drift."
+    implemented: true
+    surface: infra
+    link: tools/check-drift.sh
+    docs: docs/DASH.md
+    tags: [ gate, ci, drift ]
+    tests:
+      - { na: "self-validating gate; runs in drift-check.yml on every PR and push" }
+  - id: HUB-009
+    title: "Fan-out engine"
+    description: "One clone→branch→seed→commit→PR engine for every downward kit (standardize, schema, prose, deps-latest, verify): dry-run default, PRs only, additive-only, external-upstream guard, byte-identical --upgrade."
+    implemented: true
+    surface: infra
+    link: tools/fanout.sh
+    docs: docs/STANDARDS.md
+    tags: [ fanout, kits, standardization ]
+    tests:
+      - { na: "shellcheck in the drift gate; each kit is exercised by its dispatch workflow in dry-run" }
+  - id: HUB-010
+    title: "Agent verification kit + fleet-verify gate"
+    description: "The verify kit (feature index scaffold, user scenarios, Playwright runner, MCP config, CI caller, verify-feature skill + verifier agent) fanned out by verify-fanout, and the reusable fleet-verify.yml that runs scenarios on every PR and hands the live app to a Claude Code pass on `verify`-labelled PRs."
+    implemented: true
+    surface: infra
+    link: templates/verify/
+    docs: docs/VERIFICATION.md
+    tags: [ verification, kits, agents, playwright ]
+    date: 2026-09-04
+    tests:
+      - tools/test_features_index.py
+  - id: HUB-011
+    title: "Repo evolution loop"
+    description: "Weekly proactive pass: deterministic planner selects registry opt-ins, writes briefs from fleet signals, one Opus agent per repo on a credential-free checkout, the workflow opens the draft PR."
+    implemented: true
+    surface: infra
+    link: .github/workflows/repo-evolution.yml
+    docs: docs/EVOLUTION.md
+    tags: [ loop, evolution, agents ]
+    tests:
+      - .github/scripts/dash-gen/test_evolution.py
+  - id: HUB-012
+    title: "Fleet pulse + remediation doctor"
+    description: "THE daily loop: gather every fleet signal off one checkout, publish in one commit, merge failing + expensive workflows into one ranked fix queue, and let an Opus agent open draft PRs with fixes."
+    implemented: true
+    surface: infra
+    link: .github/workflows/fleet-pulse.yml
+    docs: docs/DAILY-ANALYSIS.md
+    tags: [ loop, remediation, agents ]
+    tests:
+      - .github/scripts/dash-gen/test_remediation.py
+      - .github/scripts/dash-gen/test_fleet_pulse_doctor.py
+  - id: HUB-014
+    title: "Local data lake + Phoenix traces"
+    description: "dash lake sync/sessions/review/export: GitHub runs/jobs/logs and local Claude Code sessions extracted into .dash-lake/fleet.sqlite, analysed offline, exported as OpenInference traces."
+    implemented: true
+    surface: cli
+    link: .github/scripts/dash-gen/fleet_lake.py
+    docs: docs/HARNESS-OPS.md
+    tags: [ lake, traces, local ]
+    tests:
+      - .github/scripts/dash-gen/test_fleet_lake.py
+  - id: HUB-018
+    title: "Registry reconciliation"
+    description: "Nightly comparison of the registry, .gitmodules, and GitHub reality; authoritative drift (renames, url mismatches) is auto-fixed by PR, advisory drift (404s, branch) becomes a tracking issue."
+    implemented: true
+    surface: infra
+    link: .github/workflows/reconcile-registry.yml
+    docs: docs/DASH.md
+    tags: [ loop, registry ]
+    tests:
+      - .github/scripts/dash-gen/test_reconcile.py
+  - id: HUB-019
+    title: "Schema vendor loop"
+    description: "Weekly comparison of the vendored Pyramid Schema kit against upstream bamr87/SCHEMA via its content-addressed manifest; strict-parity drift is re-vendored by PR."
+    implemented: true
+    surface: infra
+    link: .github/workflows/schema-vendor.yml
+    docs: docs/SCHEMA-FRAMEWORK.md
+    tags: [ loop, schema, vendoring ]
+    tests:
+      - .github/scripts/dash-gen/test_schema_vendor.py
+  - id: HUB-021
+    title: "Terminal command center"
+    description: "Textual twin of the Jekyll command center (index.md + /monitor/): lists every registry app, joins ephemeral project_health.yml, filters/sorts like the web dash, degrades when health is missing."
+    implemented: true
+    surface: cli
+    link: tools/tui/app.py
+    docs: docs/DASH.md
+    tags: [ dash, tui, monitoring ]
+    tests:
+      - tools/test_tui_fleet.py
+    date: 2026-09-06
+  - id: HUB-020
+    title: "CV projection"
+    description: "Projects the registry into bamr87/cv's CVData contract (_data/cv_portfolio.json) for the human-curated sync-cv skill."
+    implemented: true
+    surface: infra
+    link: .github/scripts/dash-gen/cv_fragment.py
+    docs: .claude/skills/sync-cv/SKILL.md
+    tags: [ cv, projection ]
+    tests:
+      - .github/scripts/dash-gen/test_cv_fragment.py
