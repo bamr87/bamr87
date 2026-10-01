@@ -34,7 +34,7 @@ Uses `bamr87/.env` for tokens and compose ports.
 tools/dash host rebuild        # rsync hub+.env, docker rm -f, compose --build
 tools/dash host ps
 tools/dash host up <slug>      # launch one submodule compose in ~/dev/<slug>
-tools/dash tui                 # Apps + Forge tab
+tools/dash tui                 # Apps tab Docker column + the Docker tab
 ```
 
 Hub URLs on the LAN (ports from `.env`):
@@ -52,14 +52,16 @@ Hub URLs on the LAN (ports from `.env`):
 | Redis | forge.local:6379 |
 | pgAdmin | http://forge.local:5050 |
 
-The TUI **Forge** tab is `docker ps -a` on the host. The **Apps** Forge column is a join: compose project / container name / `bamr87.project` label vs registry `name` or submodule dir.
+The TUI polls every endpoint in `DASH_DOCKER_HOST`, which defaults to `local,ssh://forge`: this Mac's Docker, where `tools/dash up` runs the shared core, *and* forge. Its **Docker** tab is `docker ps -a` on each host. The **Apps** Docker column is a join onto the registry: the `com.bamr87.fleet.project` label first, then compose project / container name / `<name>-` prefix (longest registry name wins).
 
-Label app services so the join is exact:
+Label app services so the join is exact. It is the same UPS-OPS-17 label the log shipper keys on, so one label serves both:
 
 ```yaml
 labels:
-  bamr87.project: it-journey
+  com.bamr87.fleet.project: it-journey
 ```
+
+The older `bamr87.project` label still works, but new services should use the standard one.
 
 ## What belongs on forge
 
