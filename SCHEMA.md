@@ -52,6 +52,10 @@ coverage: listed
 | `.env.fleet` | file | Fleet port assignments projected from `_data/ports.yml` (gitignored, regenerated) | generated |
 | `docker-compose.forge.yml` | file | Overlay that retargets the compose stack at the `forge` LAN Docker host (`dash host rebuild`; docs/FORGE-HOST.md) | |
 | `kilo.jsonc` | file | Kilo Code project config — codebase indexing for this worktree, including checked-out submodules; URLs must agree with `_data/fleet.yml` `observability.indexing` | |
+| `setup-terminal.sh` | file | Local Oh My Zsh, theme, plugin, and VS Code terminal setup | |
+| `theme-benchmark.sh` | file | Times a few Oh My Zsh themes and writes a markdown table | |
+| `validate-plugins.sh` | file | Checks that the configured Oh My Zsh plugins load | |
+| `validate-vscode-terminal.sh` | file | Checks VS Code terminal integration with the local Zsh setup | |
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
 | `.env.fleet` | file | Generated fleet port assignments, one namespaced variable per allocation | |
 | `install_omz.sh` | file | Vendored copy of the upstream Oh My Zsh installer (ohmyzsh/ohmyzsh `tools/install.sh`) for local terminal setup; not a fleet tool | |
