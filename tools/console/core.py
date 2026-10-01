@@ -96,6 +96,7 @@ DISPATCHABLE = {
     "issue-pipeline": set(),
     "token-rotation": set(),
     "repo-evolution": {"target", "dry_run", "force", "focus"},
+    "fleet-steward": {"develop", "focus", "force"},
     "standardize-fanout": {"target", "artifacts", "dry_run", "upgrade"},
     "schema-fanout": {"target", "dry_run"},
     "build-dash": set(),
@@ -196,6 +197,9 @@ LOOPS = [
     {"id": "repo_evolution", "title": "Repo evolution — proactive improvement", "workflow": "repo-evolution",
      "schedule_key": "repo_evolution", "doc": "docs/EVOLUTION.md",
      "outputs": [], "local_ops": ["targets"]},
+    {"id": "fleet_steward", "title": "Fleet steward — weekly review + one pick (Fable → Sonnet)", "workflow": "fleet-steward",
+     "schedule_key": "fleet_steward", "doc": "docs/STEWARD.md",
+     "outputs": ["steward"], "local_ops": ["steward-plan"]},
     {"id": "harness_fanout", "title": "Harness fan-out — mass deploy / update", "workflow": "harness-fanout",
      "schedule_key": None, "doc": "docs/HARNESS-OPS.md",
      "outputs": [], "local_ops": ["gaps", "deploy-gaps"]},
@@ -1044,6 +1048,11 @@ OPS: dict[str, dict] = {
                         desc="tools/dash keys rotate — verifies each new key, writes it hub-first to the repos its "
                              "workspace serves, then disables the key it replaced. DRY RUN unless apply.",
                         params=["allow_long_lived", "apply"]),
+    "steward-plan": dict(title="Fleet steward brief (what Fable would read)", group="plan",
+                         argv=lambda p: [DASH, "steward"], needs_token=False,
+                         desc="tools/dash steward — builds this week's steward brief from the committed triage "
+                              "snapshot: every open item with the lane that owns it, the cross-repo themes, and "
+                              "recent picks. Local, free — no model runs."),
     "ai-auth": dict(title="AI auth order per repo (resolved)", group="observe",
                     argv=lambda p: [DASH, "config", "auth"] + (["--repo", _name(p)] if p.get("target") else []),
                     needs_token=True,

@@ -44,6 +44,7 @@ KEYS = {
     "git-digs": "git_digs",
     "schema-vendor": "schema_vendor",
     "api-keys": "api_keys",
+    "fleet-steward": "fleet_steward",
 }
 SWITCH_RX = re.compile(r"vars\.([A-Z][A-Z0-9_]*_ENABLED)\b")
 

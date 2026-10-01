@@ -97,6 +97,10 @@ def declared_max_turns(args: str, fleet: dict) -> int | None:
         return int(m.group(1))
     if re.search(r"--max-turns\s+\$\{\{[^}]*plan\.outputs\.max_turns", args):
         return int(fleet["evolution"]["max_turns"])
+    # fleet-steward reads its two turn caps from `steward:` through its scan job.
+    m = re.search(r"--max-turns\s+\$\{\{[^}]*scan\.outputs\.(orchestrator|developer)_max_turns", args)
+    if m:
+        return int(fleet["steward"][f"{m.group(1)}_max_turns"])
     return None
 
 
