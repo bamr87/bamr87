@@ -16,7 +16,7 @@ name: docker-fanout
 # A Postgres MAJOR bump orphans existing local volumes; the PR body says so and
 # `tools/dash dev db-upgrade` automates the dump/restore.
 #
-# Requires FLEET_TOKEN (legacy FANOUT_TOKEN still honoured) — a fine-grained
+# Requires FLEET_TOKEN — a fine-grained
 # PAT with contents:write + pull-requests:write + workflows:write on the targets.
 
 on:
@@ -54,13 +54,13 @@ jobs:
 
       - name: Open docker-harmonize PRs
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           TARGET: ${{ inputs.target }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
+            echo "::error::FLEET_TOKEN is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
             exit 1
           fi
           FLAGS=()

@@ -15,7 +15,7 @@ name: verify-fanout
 # user-facing with no index or no kit (deterministic `plan` job, no AI).
 #
 # Secrets:
-#   FLEET_TOKEN  required (legacy FANOUT_TOKEN honoured) — fine-grained PAT with
+#   FLEET_TOKEN  required — fine-grained PAT with
 #                contents:write + pull-requests:write + workflows:write on the
 #                targets (the kit seeds .github/workflows/verify.yml, which
 #                GitHub refuses to push without the Workflows permission).
@@ -98,7 +98,7 @@ jobs:
       - run: python -m pip install --quiet --upgrade pyyaml
       - name: Fan out the verify kit
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           TARGETS: ${{ needs.plan.outputs.targets }}
           DRY_RUN: ${{ inputs.dry_run }}
           UPGRADE: ${{ inputs.upgrade }}

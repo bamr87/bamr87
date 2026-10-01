@@ -426,6 +426,36 @@ def test_contract_edit_touches_only_the_edited_lines():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_console_token_is_checked_leniently_on_form_strictly_on_value():
+    """The page's token prompt fed a pasted value straight into the header, so a
+    stray space or a lowercase scheme read as a wrong token. The check now
+    forgives the FORM (RFC 7235 scheme case, surrounding whitespace) and never
+    the VALUE."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    saved = os.environ.get("DASH_CONSOLE_TOKEN")
+    os.environ["DASH_CONSOLE_TOKEN"] = "tok-" + "x" * 20
+    try:
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+        good = ["Bearer tok-" + "x" * 20, "bearer tok-" + "x" * 20, "  Bearer   tok-" + "x" * 20 + "  "]
+        bad = [None, "", "Bearer", "Bearer tok-" + "x" * 19, "Basic tok-" + "x" * 20, "tok-" + "x" * 20]
+        for h in good:
+            assert client.get("/api/ops", headers={"Authorization": h}).status_code == 200, repr(h)
+        for h in bad:
+            headers = {} if h is None else {"Authorization": h}
+            assert client.get("/api/ops", headers=headers).status_code == 401, repr(h)
+    finally:
+        if saved is None:
+            os.environ.pop("DASH_CONSOLE_TOKEN", None)
+        else:
+            os.environ["DASH_CONSOLE_TOKEN"] = saved
+
+
 def test_http_refuses_a_rebound_host():
     """DNS rebinding is the way a loopback bind stops meaning loopback: a
     hostile page resolves its own name to 127.0.0.1 and is then same-origin
