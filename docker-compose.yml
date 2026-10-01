@@ -78,7 +78,6 @@ services:
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
-    container_name: bamr87-devenv
     volumes:
       - .:/workspace:cached
       - node-modules:/workspace/projects/cv-builder-pro/node_modules
@@ -115,7 +114,7 @@ services:
       - "127.0.0.1:35760-35769:35760-35769"        # …their livereload
       - "127.0.0.1:5000-5001:5000-5001"            # Vite-in-devenv
       - "127.0.0.1:${MKDOCS_PORT:-8000}:8000"      # MkDocs-in-devenv
-      - "127.0.0.1:8080:8080"                      # gitnexus (npm run dev)
+      - "127.0.0.1:${BAMR87_DEVENV_8080_PORT:-8080}:8080"  # gitnexus (npm run dev)
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PYTHONDONTWRITEBYTECODE=1
@@ -169,7 +168,6 @@ services:
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
-    container_name: bamr87-console
     volumes:
       - .:/workspace:cached
       - venv-console:/workspace/.venv-console
@@ -240,7 +238,6 @@ services:
       com.bamr87.fleet.stack: python
     logging: *fleet-logging
     image: arizephoenix/phoenix:latest
-    container_name: bamr87-phoenix
     ports:
       - "127.0.0.1:${PHOENIX_PORT:-6006}:6006"           # UI + OTLP/HTTP (/v1/traces)
       - "127.0.0.1:${PHOENIX_GRPC_PORT:-4317}:4317"      # OTLP/gRPC
@@ -285,7 +282,6 @@ services:
 
   elasticsearch:
     image: elasticsearch:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false # loopback-only, never in CI — see the block comment above
@@ -328,7 +324,6 @@ services:
   # --------------------------------------------------------------------------
   logstash:
     image: logstash:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-logstash
     environment:
       - LS_JAVA_OPTS=-Xms${LS_HEAP:-256m} -Xmx${LS_HEAP:-256m}
       - ELASTIC_HOSTS=http://elasticsearch:9200
@@ -336,7 +331,7 @@ services:
     ports:
       - "127.0.0.1:${LOGSTASH_BEATS_PORT:-5044}:5044"      # beats input (Filebeat)
       - "127.0.0.1:${LOGSTASH_HTTP_PORT:-8088}:8088"       # http input (dash observe ship)
-      - "127.0.0.1:9600:9600"                              # node/pipeline API — the healthcheck target
+      - "127.0.0.1:${BAMR87_LOGSTASH_9600_PORT:-9600}:9600"                              # node/pipeline API — the healthcheck target
     volumes:
       - ./tools/observability/logstash/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
       - ./tools/observability/logstash/pipeline:/usr/share/logstash/pipeline:ro
@@ -367,7 +362,6 @@ services:
   # --------------------------------------------------------------------------
   kibana:
     image: kibana:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - SERVER_PUBLICBASEURL=http://127.0.0.1:${KIBANA_PORT:-5601}
@@ -411,7 +405,6 @@ services:
   # --------------------------------------------------------------------------
   filebeat:
     image: elastic/filebeat:${ELASTIC_VERSION:-9.5.3}
-    container_name: bamr87-filebeat
     user: root # needs to read /var/lib/docker/containers
     command: ['filebeat', '-e', '--strict.perms=false']
     volumes:
@@ -442,7 +435,6 @@ services:
   # --------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:${GRAFANA_VERSION:-12.4}
-    container_name: bamr87-grafana
     environment:
       - GF_SECURITY_ALLOW_EMBEDDING=true
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -489,7 +481,6 @@ services:
       com.bamr87.fleet.stack: data
     logging: *fleet-logging
     image: qdrant/qdrant:${QDRANT_VERSION:-v1.18.1}
-    container_name: bamr87-qdrant
     ports:
       - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
     volumes:
@@ -501,7 +492,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf \"GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q ready <&3'",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf \"GET /readyz HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q ready <&3'",
         ]
       interval: 15s
       timeout: 5s
@@ -525,7 +516,6 @@ services:
       com.bamr87.fleet.stack: python
     logging: *fleet-logging
     image: squidfunk/mkdocs-material
-    container_name: bamr87-mkdocs
     volumes:
       - ./projects/README:/docs:cached
     ports:
@@ -547,7 +537,6 @@ services:
       com.bamr87.fleet.stack: node
     logging: *fleet-logging
     image: requarks/wiki:2
-    container_name: bamr87-wiki
     depends_on:
       db:
         condition: service_healthy
@@ -589,12 +578,17 @@ services:
       - docs
 
   db:
+    # fleet-pin: Wiki.js content lives in the `db-data` volume, written by
+    # PostgreSQL 15. A major bump orphans it — and because 18 also moved its data
+    # directory, the new server would start on an EMPTY cluster while the old
+    # data sat unreachable in the same volume, which reads as "the wiki lost
+    # everything". Migrate deliberately, then delete this pin:
+    #   tools/dash dev db-upgrade hub --service db --yes
     labels:
       <<: *fleet-labels
       com.bamr87.fleet.stack: postgres
     logging: *fleet-logging
-    image: postgres:15-alpine
-    container_name: bamr87-db
+    image: postgres:18-alpine
     environment:
       # The wiki's database stays the bootstrap database and its credentials
       # stay the superuser, because an existing db-data volume was initialised
@@ -609,7 +603,7 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
       FLEET_DB_PASSWORD: ${FLEET_DB_PASSWORD:-fleetdev}
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql
       # Runs once, on a FRESH volume: one database + role per project that
       # declares `database: true` in _data/projects.yml. `dash up` applies the
       # same list idempotently at runtime, so a volume that predates this
@@ -634,8 +628,7 @@ services:
       <<: *fleet-labels
       com.bamr87.fleet.stack: redis
     logging: *fleet-logging
-    image: redis:7-alpine
-    container_name: bamr87-redis
+    image: redis:8-alpine
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
@@ -658,7 +651,6 @@ services:
       com.bamr87.fleet.stack: python
     logging: *fleet-logging
     image: dpage/pgadmin4:latest
-    container_name: bamr87-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}

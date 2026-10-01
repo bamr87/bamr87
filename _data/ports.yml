@@ -1,0 +1,332 @@
+---
+# ============================================================================
+# _data/ports.yml — THE fleet port allocation
+# ============================================================================
+#
+# The registry that makes "every app up at once" possible. Same role for ports
+# that projects.yml has for repos: one file, every surface follows it.
+#
+# Why this exists: UPS-REPO-30 used to mandate one port map for every repo
+# (4000 Jekyll, 5000 app, 5173 HMR, 8000 API, 5432 Postgres, 6379 Redis). Every
+# repo conformed, so six repos published 5432, six published 3000, five
+# published 8000 and 8080, four published 4000 — correct for "one repo at a
+# time", impossible for "the fleet at once". This file replaces the fixed map
+# with an allocation, and drift check (m) gates it.
+#
+# Consumed by:
+#   tools/fleet-compose.py   → .env.fleet (gitignored) + compose/overrides/ validation
+#   tools/check-drift.sh (m) → collision + conformance gate
+#   .vscode/launch.json      → the per-app debug targets
+#
+# Adding a project: add a `projects:` entry, run `tools/fleet-compose.py sync`,
+# commit the generated override. Never hand-pick a number outside its band.
+#
+# NOTE ON HOST BINDING: every allocation is published on 127.0.0.1 only. On
+# Docker Desktop for Mac a 0.0.0.0 mapping also opens an IPv6 docker-proxy
+# listener that resets connections, and `localhost` resolves to ::1 first —
+# which makes a working server look unreachable. Same trap documented in
+# docker-compose.yml's devenv port block.
+
+schema: fleet-ports/v1
+
+# ---------------------------------------------------------------------------
+# Bands — every allocation must fall inside its role's range.
+# ---------------------------------------------------------------------------
+bands:
+  hub:        { range: [4000, 4009], purpose: "Hub's own surfaces: dash, console" }
+  jekyll:     { range: [4010, 4039], purpose: "Jekyll/static sites, one per project" }
+  livereload: { range: [35730, 35759], purpose: "Jekyll livereload, mirrors the jekyll band" }
+  frontend:   { range: [5000, 5199], purpose: "Vite/Node frontends and static previews (5000 = cv-builder-pro, grandfathered)" }
+  api:        { range: [8100, 8149], purpose: "HTTP APIs and server-rendered apps" }
+  docs:       { range: [8000, 8009], purpose: "Hub/devenv documentation servers (MkDocs)" }
+  debug:      { range: [5700, 5749], purpose: "debugpy / node --inspect attach points" }
+  database:   { range: [5430, 5469], purpose: "Per-project databases that cannot share (see shared:)" }
+  cache:      { range: [6380, 6399], purpose: "Per-project caches that cannot share" }
+
+# ---------------------------------------------------------------------------
+# Shared services — exactly ONE instance, hub-owned, on the `fleet-net`
+# network. Reachable from any app container by the alias in `host`.
+# ---------------------------------------------------------------------------
+shared:
+  phoenix:
+    host: fleet-phoenix
+    ports: { ui: 6006, grpc: 4317 }
+    default: true
+    rationale: >-
+      A trace sink with no schema coupling to its clients, and CLAUDE.md
+      already designates ONE Phoenix as "the local stack's trace store" that
+      `dash lake export` ships the whole fleet into. law-ai and bashos each ran
+      a third copy on the same 6006/4317, which is both a collision and a
+      violation of that design. Consolidating is strictly a fix.
+  postgres:
+    host: fleet-db
+    # 5439, not 5432: the hub's own `db` (Wiki.js) publishes 5432 from the same
+    # compose project. Containers reach this one as `fleet-db:5432` regardless —
+    # the host port only matters to tools on the host.
+    ports: { sql: 5439 }
+    image: postgres:17-alpine
+    default: false
+    rationale: >-
+      Available behind `--profile shared-db`, NOT default. Sharing a server is
+      correct for plain-Postgres consumers (one server, one database per app)
+      but it is a behaviour change to a working stack, and two consumers cannot
+      join at all: aieo needs timescale/timescaledb and law-ai pins its major
+      version with a dump/restore note. Those keep their own, on a
+      deconflicted `database:` band port.
+  redis:
+    host: fleet-redis
+    ports: { redis: 6389 }   # not 6379 — same reason as fleet-db
+    default: false
+    rationale: >-
+      Same deal as postgres — safe in principle (a logical DB index per app),
+      but default-off until each consumer is moved deliberately.
+
+# ---------------------------------------------------------------------------
+# Projects.
+#
+#   host:     how the hub reaches it — `compose` (the project's own
+#             docker-compose.yml, included by compose.fleet.yml) or `devenv`
+#             (no compose of its own; run via `docker compose exec devenv`).
+#   services: service name in that compose file → allocation.
+#   var:      the namespaced env var written into .env.fleet. Namespaced on
+#             purpose: djangoerp and barodybroject both read POSTGRES_PORT, and
+#             zer0-cms and zer0-image-generator both read PORT, so the
+#             submodules' own variable names cannot be used in one shared file.
+# ---------------------------------------------------------------------------
+projects:
+
+  # ---- hub's own -----------------------------------------------------------
+  bamr87:
+    host: hub
+    # `served_by: devenv` marks a port the WORKSPACE container publishes for a
+    # server a human starts inside it — there is no container of its own, so the
+    # smoke probe records it as devenv-hosted instead of hunting for one. Every
+    # other entry here names a real compose service, and the key must MATCH that
+    # service's name or the probe cannot find it.
+    services:
+      dash:     { port: 4000, band: hub,      var: JEKYLL_PORT,  served_by: devenv }
+      console:  { port: 4001, band: hub,      var: CONSOLE_PORT }
+      vite-hmr: { port: 5173, band: frontend, var: VITE_HMR_PORT, served_by: devenv }
+      # Two different MkDocs: one a human runs inside devenv, one a compose
+      # service. Only the first was registered, so the service's 8001 was
+      # invisible to the port gate and the smoke probe looked for the `mkdocs`
+      # container on 8000 and found nothing listening.
+      devenv-mkdocs: { port: 8000, band: docs, var: MKDOCS_PORT, served_by: devenv }
+      mkdocs:        { port: 8001, band: docs, var: MKDOCS_SERVE_PORT }
+
+  # ---- compose-hosted: full stacks -----------------------------------------
+  law-ai:
+    host: compose
+    compose: projects/law-ai/docker-compose.yml
+    services:
+      backend:       { port: 8110, band: api,      var: LAW_AI_API_PORT }
+      frontend:      { port: 5110, band: frontend, var: LAW_AI_FRONTEND_PORT }
+      langgraph-api: { port: 8115, band: api,      var: LAW_AI_LANGGRAPH_PORT }
+      postgres:      { port: 5442, band: database, var: LAW_AI_DB_PORT, shared: false }
+      redis:         { port: 6391, band: cache,    var: LAW_AI_REDIS_PORT, shared: false }
+    debug:
+      # Needs `fleet-dev.sh up law-ai --debug`, which layers the repo's own
+      # docker-compose.debug.yml in. Note the worker listens on 5679 INSIDE the
+      # container, not 5678 — its debug command says so explicitly.
+      backend: { port: 5713, band: debug, var: LAW_AI_DEBUG_PORT, kind: debugpy,
+                 container_port: 5678, local: projects/law-ai/backend, remote: /app }
+      worker:  { port: 5714, band: debug, var: LAW_AI_WORKER_DEBUG_PORT, kind: debugpy,
+                 container_port: 5679, local: projects/law-ai/backend, remote: /app }
+    unique:
+      # Already collision-free fleet-wide — left exactly as the submodule has them.
+      neo4j: [7474, 7687]
+      ollama: [11434]
+    notes: >-
+      Its own Postgres stays: the compose file pins postgres:16-alpine with an
+      explicit "bumping the major version needs dump/restore" comment.
+
+  djangoerp:
+    host: compose
+    compose: projects/djangoerp/docker-compose.yml
+    services:
+      web:   { port: 8111, band: api,      var: DJANGOERP_API_PORT }
+      db:    { port: 5433, band: database, var: DJANGOERP_DB_PORT, shared: false }
+      redis: { port: 6380, band: cache,    var: DJANGOERP_REDIS_PORT, shared: false }
+    debug:
+      # Wired in the MAIN compose file — no --debug layer needed, just
+      # DEBUGPY_ENABLE=1. The whole repo bind-mounts to /app.
+      web:    { port: 5710, band: debug, var: DJANGOERP_DEBUG_PORT, kind: debugpy,
+                container_port: 5678, local: projects/djangoerp, remote: /app }
+      worker: { port: 5711, band: debug, var: DJANGOERP_WORKER_DEBUG_PORT, kind: debugpy,
+                container_port: 5678, local: projects/djangoerp, remote: /app }
+    notes: >-
+      Already fully parameterized and already off the contended defaults
+      (5433/6380) — the reference implementation for UPS-REPO-30.
+
+  fredgar-ai:
+    host: compose
+    prefix: FREDGAR
+    compose: projects/fredgar-ai/docker-compose.yml
+    services:
+      web:           { port: 8112, band: api,      var: FREDGAR_API_PORT }
+      frontend:      { port: 5111, band: frontend, var: FREDGAR_FRONTEND_PORT }
+      frontend-prod: { port: 5115, band: frontend, var: FREDGAR_FRONTEND_PROD_PORT }
+    debug:
+      # Needs --debug: only docker-compose.debug.yml installs debugpy, and it
+      # is also the only file that bind-mounts ./src.
+      web: { port: 5712, band: debug, var: FREDGAR_DEBUG_PORT, kind: debugpy,
+             container_port: 5678, local: projects/fredgar-ai/src, remote: /app/src }
+    unique:
+      tika: [9998]
+    notes: "db and redis publish no host port — nothing to deconflict."
+
+  barodybroject:
+    host: compose
+    prefix: BARODY
+    compose: projects/barodybroject/docker-compose.yml
+    services:
+      web-prod: { port: 8114, band: api,      var: BARODY_API_PORT }
+      jekyll:   { port: 4021, band: jekyll,   var: BARODY_JEKYLL_PORT }
+      docs:     { port: 8121, band: api,      var: BARODY_DOCS_PORT }
+      barodydb: { port: 5444, band: database, var: BARODY_DB_PORT, shared: false }
+    exclude:
+      # DJANGO_SETTINGS_MODULE is hardcoded to settings.production, which
+      # raises ImproperlyConfigured("SECRET_KEY must be set for production")
+      # and crash-loops. It is a PRODUCTION service; the dev server (with
+      # debugpy on 5678) lives in .devcontainer/docker-compose_dev.yml, which
+      # the hub does not drive. Supplying a fake SECRET_KEY here would be the
+      # hub changing what a service IS, which an override must never do.
+      web-prod: "production settings; needs a real SECRET_KEY (dev stack is in .devcontainer/)"
+    # No debug: allocation. docker-compose.yml's web-prod runs gunicorn with no
+    # debugpy and no source bind-mount; the 5678 in this repo belongs to the
+    # .devcontainer stack's `python` service, which the hub does not drive.
+    # Offering an attach target here would produce a config that never connects.
+
+  aieo:
+    host: compose
+    compose: projects/aieo/docker-compose.yml
+    services:
+      postgres: { port: 5443, band: database, var: AIEO_DB_PORT, shared: false }
+      redis:    { port: 6392, band: cache,    var: AIEO_REDIS_PORT, shared: false }
+    unique:
+      qdrant: [6333, 6334]
+    notes: >-
+      Cannot join the shared Postgres — it runs timescale/timescaledb:latest-pg16.
+      mcp-server and mcp-audit publish no host port. Its frontend has no compose
+      service and stays on devenv (5176).
+
+  ai-seed:
+    host: compose
+    compose: projects/ai-seed/docker-compose.yml
+    services:
+      frontend: { port: 5112, band: frontend, var: AI_SEED_FRONTEND_PORT }
+      api:      { port: 8113, band: api,      var: AI_SEED_API_PORT }
+      database: { port: 5445, band: database, var: AI_SEED_DB_PORT, shared: false }
+
+  gitorio:
+    host: compose
+    compose: projects/gitorio/docker-compose.yml
+    services:
+      dev:     { port: 5113, band: frontend, var: GITORIO_DEV_PORT }
+      preview: { port: 5114, band: frontend, var: GITORIO_PREVIEW_PORT }
+
+  bashos:
+    host: compose
+    compose: projects/bashos/docker-compose.yml
+    services:
+      langgraph-dev: { port: 8116, band: api, var: BASHOS_LANGGRAPH_PORT }
+    notes: "Its phoenix is replaced by the shared fleet-phoenix (see shared:)."
+
+  # ---- compose-hosted: Jekyll sites ----------------------------------------
+  it-journey:
+    host: compose
+    compose: projects/it-journey/docker-compose.yml
+    services:
+      jekyll: { port: 4010, band: jekyll, var: IT_JOURNEY_PORT, livereload: 35730 }
+
+  zer0-mistakes:
+    host: compose
+    compose: projects/zer0-mistakes/docker-compose.yml
+    services:
+      jekyll: { port: 4011, band: jekyll, var: ZER0_MISTAKES_PORT, livereload: 35731 }
+
+  bashconsultants:
+    host: compose
+    compose: projects/bashconsultants/docker-compose.yml
+    services:
+      jekyll: { port: 4014, band: jekyll, var: BASHCONSULTANTS_PORT, livereload: 35734 }
+
+  zer0-pages:
+    host: compose
+    compose: projects/zer0-pages/docker-compose.yml
+    services:
+      site: { port: 4019, band: jekyll, var: ZER0_PAGES_PORT, livereload: 35739 }
+
+  zer0-pages-remote:
+    host: compose
+    compose: projects/zer0-pages-remote/docker-compose.yml
+    services:
+      jekyll: { port: 4020, band: jekyll, var: ZER0_PAGES_REMOTE_PORT, livereload: 35740 }
+
+  # ---- compose-hosted: single-service ---------------------------------------
+  zer0-cms:
+    host: compose
+    compose: projects/zer0-cms/docker-compose.yml
+    services:
+      cms:      { port: 8117, band: api, var: ZER0_CMS_PORT }
+      imagegen: { port: 8118, band: api, var: ZER0_CMS_IMAGEGEN_PORT }
+
+  zer0-image-generator:
+    host: compose
+    prefix: ZER0_IMAGEGEN
+    compose: projects/zer0-image-generator/docker-compose.yml
+    services:
+      web: { port: 8119, band: api, var: ZER0_IMAGEGEN_PORT }
+
+  lawmode:
+    host: compose
+    compose: projects/lawmode/docker-compose.yml
+    services: {}
+    notes: "Batch scanner — publishes no ports. Included so `dash dev up lawmode` works."
+
+  # ---- devenv-hosted: no compose of their own --------------------------------
+  # Run via `docker compose exec devenv`; ports published by the devenv service.
+  cv-builder-pro:
+    host: devenv
+    services:
+      vite: { port: 5000, band: frontend, var: CV_PORT }
+  bamr87.github.io:
+    host: devenv
+    services:
+      jekyll: { port: 4012, band: jekyll, var: BAMR87_IO_PORT, livereload: 35732 }
+  lifehacker.dev:
+    host: devenv
+    services:
+      jekyll: { port: 4013, band: jekyll, var: LIFEHACKER_PORT, livereload: 35733 }
+  wargames:
+    host: devenv
+    services:
+      jekyll: { port: 4015, band: jekyll, var: WARGAMES_PORT, livereload: 35735 }
+  drsai:
+    host: devenv
+    services:
+      jekyll: { port: 4016, band: jekyll, var: DRSAI_PORT, livereload: 35736 }
+  irony-works:
+    host: devenv
+    services:
+      jekyll: { port: 4017, band: jekyll, var: IRONY_WORKS_PORT, livereload: 35737 }
+  "2005":
+    host: devenv
+    services:
+      jekyll: { port: 4018, band: jekyll, var: Y2005_PORT, livereload: 35738 }
+  rewind-arcade:
+    host: devenv
+    services:
+      vite: { port: 5175, band: frontend, var: REWIND_ARCADE_PORT }
+  aieo-frontend:
+    host: devenv
+    services:
+      vite: { port: 5176, band: frontend, var: AIEO_FRONTEND_PORT }
+  gitnexus:
+    host: devenv
+    services:
+      vite: { port: 5177, band: frontend, var: GITNEXUS_PORT }
+  ai-seed-docs:
+    host: devenv
+    services:
+      mkdocs: { port: 8003, band: docs, var: AI_SEED_MKDOCS_PORT }

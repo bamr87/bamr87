@@ -17,7 +17,7 @@ name: harness-fanout
 # is deliberately NOT a deploy target here: credentials are token-rotation.yml's
 # lane (hub-first, abort-on-hub-failure), not a file fan-out's.
 #
-# SAFETY: dispatch-only. Requires FLEET_TOKEN (legacy FANOUT_TOKEN honoured) —
+# SAFETY: dispatch-only. Requires FLEET_TOKEN —
 # fine-grained PAT with contents + pull-requests + workflows write on the
 # targets (the claude artifact pushes .github/workflows/claude.yml, which
 # GitHub refuses without the Workflows permission).
@@ -110,7 +110,7 @@ jobs:
 
       - name: Open harness PRs
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           TARGETS: ${{ needs.plan.outputs.targets }}
           ARTIFACTS: ${{ inputs.artifacts }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -118,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::FLEET_TOKEN (or legacy FANOUT_TOKEN) is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
+            echo "::error::FLEET_TOKEN is required — a fine-grained PAT with contents + pull-requests + workflows write on the targets. See _data/fleet.yml."
             exit 1
           fi
           FLAGS=()

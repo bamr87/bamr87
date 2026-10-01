@@ -1,0 +1,14 @@
+# The roadmap surface driven by _data/roadmap.yml.
+id: roadmap
+feature: HUB-015
+title: "Roadmap renders the backlog"
+description: "The /roadmap/ page renders roadmap entries from _data/roadmap.yml, grouped and readable at mobile width."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /roadmap/
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { text: "FF-" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: roadmap

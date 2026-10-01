@@ -20,11 +20,20 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `install-workspace-sync.sh` | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main` everywhere — pointer recording stays with the `update-submodules.yml` PR (`--uninstall` removes it) |
 | `install-prose-hook.sh` | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born passing the `markdown-oneline` gate and the CI run it would have cost never happens; other hook names forward to each repo's own `.git/hooks`/`.husky` hooks. `PROSE_HOOK_SKIP=1` skips once, `--uninstall` removes it |
 | `audit-git-hooks.sh` | Read-only diagnostic for the "Husky vs. pre-commit" question — reports which hook manager is actually live in a clone. Husky sets `core.hooksPath` to `.husky`, which makes git ignore the `.git/hooks` shim `pre-commit install` writes, so only one can be in effect and whichever installer ran last wins. Never installs or rewrites config, and always exits 0 |
+| `fleet-dev.sh` | **The fleet dev stack's entry point** (`dash dev`) — launch, debug and work on any submodule from the hub. Drives each project as its OWN compose project joined by the external `fleet-net`, layering the hub's generated port override over the submodule's untouched compose file; `--debug` adds the repo's own debugpy layer. `up|down|ps|logs|exec|build|config|ports|list`, `--all` for everything. See [docs/FLEET-COMPOSE.md](../docs/FLEET-COMPOSE.md) |
+| `fleet-compose.py` | Projects [`_data/ports.yml`](../_data/ports.yml) onto that stack — generates `.env.fleet`, `compose/overrides/*.yml` and `compose.fleet.yml`, and gates the allocation (bands, collisions, staleness) as drift check (m). `check --audit` also reports which submodules still hardcode a published port |
+| `fleet_smoke.py` | **The monorepo smoke test** (`dash dev smoke`) — connects to every running fleet container and exercises it for real (HTTP GET, TCP connect, a `select` through the container's own `psql`, `redis-cli PING`, and an `exec` that records which user the process runs as), writes the whole observation to `_data/smoke.yml`, and `check` re-probes and fails on any move away from that baseline. Topology comes from `_data/ports.yml`, so a new service is probed automatically |
+| `docker_harmonize.py` | The **fleet Docker standard** (`dash docker`) — brings a repo's Dockerfiles and compose files to it from ONE version registry (`_data/fleet.yml` `images:`): variant kept, never lowered, deliberate pins respected, Postgres 18 mount, loopback env-overridable ports, no `container_name`, `127.0.0.1` healthchecks. Line edits that preserve comments; idempotent. `tools/fanout.sh --kit docker` delivers it as PRs. See [docs/DOCKER.md](../docs/DOCKER.md) |
+| `docker_view.py` | The **consolidated Docker view** (`dash docker view --write`) — joins the port registry, the image contract, the smoke recording, the launch/attach configurations and the read-only harmonizer audit into `_data/docker.yml`, rendered at `/docker/`: what to open, what is running, which image each service is on, and where that drifts from the contract (a deliberate pin, an `image_overrides:` ceiling and a floating tag are counted apart from real drift). Local-first — two of its inputs only exist where the containers and submodules are. |
+| `test_docker_view.py` | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Python 3.11/3.12 as conforming to 3.14), counting a deliberate pin or an `image_overrides:` ceiling as drift, taking a multi-stage `FROM base` for an image, and reporting a repo with no checkout as clean. Run by drift check (n). |
+| `pg-major-upgrade.sh` | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`): backs up the raw volume, dumps, verifies, recreates on the new layout, restores. Dry run without `--yes` |
+| `dash` | Unified dash CLI (`status`, `monitor`, `dev`, `serve`, `sync`, `ai`, `gen`, `harnesses`, `console`, `lake`, …) — see [docs/DASH.md](../docs/DASH.md); `dash lake sync|status|export` is the local data lake + Phoenix trace export of the local stack ([docs/HARNESS-OPS.md](../docs/HARNESS-OPS.md)) |
+| `console/` | The **Harness Console** — the local control plane's front end: a FastAPI service (`tools/dash console`, or `docker compose up -d console` → http://127.0.0.1:4001) that renders every committed fleet signal (harness inventory, schedules, throughput, cost trends, triage, credentials by age), runs the **allowlisted** `dash` operations as jobs with live logs (dry-run by default; GitHub-writing operations confirm-gated and serialized), dispatches control-plane workflows, and edits the `harnesses:` contract in `fleet.yml` with comments preserved — never commits, never merges. Its **Traces** tab is the window onto the rest of the local stack: the data lake (`dash lake`, `.dash-lake/`) and the Phoenix trace store (compose service `phoenix`, :6006). See [docs/HARNESS-OPS.md](../docs/HARNESS-OPS.md) |
 | `dash` | Unified dash CLI (`status`, `monitor`, `serve`, `sync`, `ai`, `gen`, `harnesses`, `console`, `lake`, `observe`, …) — see [docs/DASH.md](../docs/DASH.md); `dash lake sync|status|export` is the local data lake + Phoenix trace export, and `dash observe up|ship|status` the log plane beside it ([docs/HARNESS-OPS.md](../docs/HARNESS-OPS.md), [docs/OBSERVABILITY.md](../docs/OBSERVABILITY.md)) |
 | `console/` | The **Harness Console** — the local control plane's front end: a FastAPI service (`tools/dash console`, or `docker compose up -d console` → http://127.0.0.1:4001) that renders every committed fleet signal (harness inventory, schedules, throughput, cost trends, triage, credentials by age), runs the **allowlisted** `dash` operations as jobs with live logs (dry-run by default; GitHub-writing operations confirm-gated and serialized), dispatches control-plane workflows, and edits the `harnesses:` contract in `fleet.yml` with comments preserved — never commits, never merges. Its **Observe** tab is the window onto the rest of the local stack, one pane per plane: **Logs** (Elasticsearch/Kibana, embedded), **Metrics** (Grafana) and **Traces** (the data lake `dash lake`, `.dash-lake/`, plus the Phoenix trace store on :6006) — all three joined by one `trace.id`. See [docs/HARNESS-OPS.md](../docs/HARNESS-OPS.md) and [docs/OBSERVABILITY.md](../docs/OBSERVABILITY.md) |
 | `observability/` | The local **log plane's** configuration — the Logstash pipelines (two inputs, one shared ECS-mapping and redaction path), the label-gated Filebeat shipper, and the Elasticsearch ILM policies, index templates and Kibana/Grafana dashboards **rendered** from `_data/fleet.yml` `observability:` by `dash observe verify --write`. `bootstrap.sh` installs them into a running stack; `docker compose --profile elk up -d` starts it. Local-only: loopback ports, Docker volumes, never in CI. See [docs/OBSERVABILITY.md](../docs/OBSERVABILITY.md) |
 | `dash-gen` | Wrapper for the registry generator (`health`, `readme`, `ai`, `ai-usage`, `actions`, `daily`, `triage`, `remediate`, `reconcile`, `vendor`, `estimate`, `ledger`, `all`) in [.github/scripts/dash-gen/](../.github/scripts/dash-gen/) |
-| `fleet-config.py` | Reads [`_data/fleet.yml`](../_data/fleet.yml), the fleet's central config. `audit` (= `dash secrets`) prints the per-repo matrix of declared secrets/variables vs what GitHub actually has; `sync --apply` (= `dash config sync`) projects the canonical repo **variables** onto every fleet repo; `show [dotted.key]` reads a value; `rotate` (= `dash secrets rotate`) runs the weekly credential loop — audit each repo's secret AGE from GitHub's `updated_at`, re-mint via the optional OAuth refresh grant, propagate hub-first to missing/stale copies — and `rotation-plan` (= `dash secrets plan`) is its read-only half. Secret *values* are never read or stored: `gh` returns names only, and a value to be written comes from the environment and goes straight to `gh secret set`'s stdin. See [`docs/TOKEN-ROTATION.md`](../docs/TOKEN-ROTATION.md). |
+| `fleet-config.py` | Reads [`_data/fleet.yml`](../_data/fleet.yml), the fleet's central config. `audit` (= `dash secrets`) prints the per-repo matrix of declared secrets/variables vs what GitHub actually has; `sync --apply` (= `dash config sync`) projects the canonical repo **variables** onto every fleet repo; `show [dotted.key]` reads a value; `rotate` (= `dash secrets rotate`) runs the weekly credential loop — audit each repo's secret AGE from GitHub's `updated_at`, re-mint via the optional OAuth refresh grant, propagate hub-first to missing/stale copies — and `rotation-plan` (= `dash secrets plan`) is its read-only half. `push` (= `dash secrets push`) is the operator's rotation path: it parses the hub's `.env` (never sources it), takes only the token contract's names, writes the hub first and then fans the `scope: fleet` ones out — the Harness Console's Auth tab runs the same command. Secret *values* are never read or stored: `gh` returns names only, and a value to be written comes from the environment and goes straight to `gh secret set`'s stdin. See [`docs/TOKEN-ROTATION.md`](../docs/TOKEN-ROTATION.md). |
 | `check-drift.sh` | **Hard drift gate** — registry/`.gitmodules` parity, README freshness, schema pyramid, and advisory GitHub-reality checks (CI + `dash status`) |
 | `audit-standards.sh` | Standardization conformance matrix across the submodule fleet (wrapped by `dash audit`) |
 | `run-all-tests.sh` | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
@@ -37,10 +46,14 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 | `gen-projects-schema.py` | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
 | `render-diagrams.sh` | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
 | `unwrap-prose.py` | Liquid-safe one-paragraph-per-line unwrapper for markdown prose (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
+| `features_index.py` | **The fleet features index** (`dash features`): `check <repo>` validates a `features/features.yml` (schema `features/v1`; the legacy zer0/it-journey shape is accepted as-is — bad/duplicate ids fail, dangling paths warn, `{na: reason}` waives), `coverage <repo>` grades every feature's tests / user scenarios / evidence / `verified:` stamp **from files on disk**, `fleet --write` aggregates every checked-out submodule + the hub → `_data/features_index.yml` (the `/features/` page, refreshed daily by fleet-pulse) with per-repo gaps and a ranked attention list. Feeds `verify-fanout.yml`'s `gaps` target and `conformance.py`'s UPS-QA-50..53. Doc: [docs/VERIFICATION.md](../docs/VERIFICATION.md) |
+| `test_features_index.py` | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
 | `conformance.py` | **Executable Universal Project Standard checker** (`dash spec`): `check [path]` runs the machine-checkable rows of `_data/specs.yml` against one repo (kinds detected from the tree or `--kinds`; `--gate` fails on MUST); `fleet --write` snapshots every submodule → `_data/conformance.yml` (the repo-evolution brief's adoption lane); the reusable `fleet-conformance.yml` runs the same checker in each repo's CI |
 | `gen-catalog.py` | Regenerates the root `CATALOG.md` — the master index of specs, kits, references, registries, tools, workflows, AI layer, docs, dash surfaces, diagrams — from disk + each directory's README/SCHEMA tables (`--check` gates staleness) |
 | `gen-specs-data.py` | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
 | `seed-schema.sh` | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
+| `forge-ci.sh` / `forge_ci.py` | **Forge CI node** — invoke a checkout's fast GitHub workflows with `act` on forge and post commit status `forge/ci`. `dash host ci`, `forge ci`. Doc: [docs/FORGE-CI.md](../docs/FORGE-CI.md) |
+| `test_forge_ci.py` | Fixture tests for `forge_ci.py` (allowlist, reusable inlining) — run by `run-all-tests.sh` |
 
 ## Architecture
 
@@ -131,9 +144,22 @@ cd bamr87
 ./tools/setup.sh --skip-deps
 ```
 
+### macOS terminal (CHUI)
+
+On Darwin, `setup.sh` also runs `setup-terminal.sh` unless you pass `--skip-terminal`. That clone-and-install path is [bamr87/chui](https://github.com/bamr87/chui):
+
+```bash
+./tools/setup-terminal.sh            # clone ~/github/chui, install, register Meslo
+./tools/setup.sh --skip-terminal     # hub tools only
+```
+
+Copying a Nerd Font into `~/Library/Fonts` is not enough — Apple Terminal keeps SF Mono until CoreText has registered the family. `macos-register-nerd-fonts.swift` does that, then CHUI's `macos-font.sh` sets profile **Clear Dark** to **MesloLGS Nerd Font**. If `ls` still prints `?`, run `ls` again in that window (or quit Terminal.app once).
+
+bamr87 PATH/aliases live in `~/.config/chui/local.zsh` so they survive CHUI's `~/.zshrc` symlink. Do not append to that symlink from `setup.sh`.
+
 ### Shell Environment
 
-The `.zprofile` sources `tools/devtools-env.sh`, which:
+The `.zprofile` (and CHUI `local.zsh`) source `tools/devtools-env.sh`, which:
 
 - Reads the `[env]` section from `devtools.conf` and exports variables
 - Adds `tools/` and `projects/scripts/` to `PATH`
@@ -228,6 +254,10 @@ Wrapped by `tools/dash sync` (which also regenerates dash data) and the `bamr87-
 
 **Python venv errors:** `rm -rf .venv-docs projects/README/.venv && ./tools/setup.sh --local docs`
 
+**Terminal icons are `?`:** `./tools/setup-terminal.sh` (registers MesloLGS with CoreText). Then `ls` again.
+
+**`pip3 install --user` fails (PEP 668):** expected on Homebrew Python. `setup.sh` uses `pipx` (`brew install pipx`).
+
 ---
 
-**Version:** 2.1.0 | **Last Modified:** 2026-07-16
+**Version:** 2.3.0 | **Last Modified:** 2026-09-20

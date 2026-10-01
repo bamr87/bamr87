@@ -190,7 +190,7 @@ LOOPS = [
      "outputs": ["issue_pipeline"], "local_ops": ["issues"]},
     {"id": "token_rotation", "title": "Token rotation — credentials", "workflow": "token-rotation",
      "schedule_key": "rotate_tokens", "doc": "docs/TOKEN-ROTATION.md",
-     "outputs": ["token_rotation"], "local_ops": ["secrets-audit", "secrets-plan", "secrets-rotate"]},
+     "outputs": ["token_rotation"], "local_ops": ["secrets-audit", "secrets-plan", "secrets-push", "secrets-rotate"]},
     {"id": "repo_evolution", "title": "Repo evolution — proactive improvement", "workflow": "repo-evolution",
      "schedule_key": "repo_evolution", "doc": "docs/EVOLUTION.md",
      "outputs": [], "local_ops": ["targets"]},
@@ -723,6 +723,30 @@ def _dispatch(params: dict) -> list[str]:
     return argv
 
 
+def contract_secrets() -> list[dict]:
+    """The token contract's live (non-deprecated) entries — names and scope only."""
+    fleet = load_yaml(DATA / "fleet.yml") or {}
+    return [{"name": t["name"], "scope": t.get("scope"), "required": bool(t.get("required"))}
+            for t in (fleet.get("tokens") or []) if t.get("name") and not t.get("deprecated")]
+
+
+def _secrets_push(params: dict) -> list[str]:
+    """`dash secrets push`: .env → hub → fleet. `secret` must name a contract entry."""
+    argv = [DASH, "secrets", "push"]
+    secret = str(params.get("secret") or "").strip()
+    if secret:
+        if secret not in {t["name"] for t in contract_secrets()}:
+            raise ValueError(f"'{secret}' is not in the token contract (_data/fleet.yml tokens:)")
+        argv += ["--only", secret]
+    if _flag(params, "hub_only"):
+        argv.append("--hub-only")
+    if _flag(params, "apply"):
+        if not AUTH_WRITES:
+            raise PermissionError("credential writes are disabled (DASH_CONSOLE_AUTH=off)")
+        argv.append("--apply")
+    return argv
+
+
 def _tests(params: dict) -> list[str]:
     # A constant script (no parameters reach it): the same loop
     # run-all-tests.sh's control-plane section performs.
@@ -987,6 +1011,12 @@ OPS: dict[str, dict] = {
                           remote=lambda p: _flag(p, "apply"),
                           desc="tools/dash harnesses deploy --target <name> — DRY RUN unless apply.",
                           params=["target", "artifacts", "upgrade", "apply"]),
+    "secrets-push": dict(title="Push .env secrets → hub → fleet", group="deploy",
+                         argv=_secrets_push, needs_token=True, remote=lambda p: _flag(p, "apply"),
+                         desc="tools/dash secrets push — reads the token contract's names from .env "
+                              "(parsed, never sourced), writes the hub first, then fans the fleet-scoped "
+                              "ones out. DRY RUN unless apply.",
+                         params=["secret", "hub_only", "apply"]),
     "secrets-rotate": dict(title="Run the credential rotation loop now", group="deploy",
                            argv=lambda p: [DASH, "secrets", "rotate"] + (["--apply"] if _flag(p, "apply") else []),
                            needs_token=True, remote=lambda p: _flag(p, "apply"),
@@ -1674,6 +1704,20 @@ def _env_file_names(path: Path | None = None) -> set[str]:
     return names
 
 
+def _env_file_set_names(path: Path | None = None) -> set[str]:
+    """Every name the .env file assigns a NON-EMPTY value — the value itself is never kept."""
+    path = path or ENV_FILE
+    names = set()
+    try:
+        for line in path.read_text().splitlines():
+            m = re.match(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\S?)", line)
+            if m and m.group(2) and m.group(2) != "#":
+                names.add(m.group(1))
+    except OSError:
+        return set()
+    return names
+
+
 def _env_file_upsert(name: str, value: str | None, path: Path | None = None) -> None:
     """Set (or, with value=None, remove) one name in the .env file, 0600."""
     path = path or ENV_FILE
@@ -1724,6 +1768,7 @@ def _gh_status() -> dict:
 def auth_status() -> dict:
     """Presence and provenance of every credential — never a value or a prefix."""
     in_file = _env_file_names()
+    supplied = _env_file_set_names() if ENV_FILE.exists() else set()
     creds = []
     for name, spec in CREDENTIALS.items():
         present = bool(os.environ.get(name))
@@ -1743,6 +1788,9 @@ def auth_status() -> dict:
                    "mint": "claude setup-token"},
         "env_file": {"path": str(ENV_FILE), "exists": ENV_FILE.exists(),
                      "tracked_by_git": rc_tracked == 0, "names": sorted(in_file)},
+        # What `dash secrets push` would take from .env: the contract's names,
+        # each with its scope and whether the file supplies a value for it.
+        "push": [{**t, "in_env_file": t["name"] in supplied} for t in contract_secrets()],
         "writes_enabled": AUTH_WRITES,
         "console_token_required": bool(os.environ.get("DASH_CONSOLE_TOKEN")),
     }

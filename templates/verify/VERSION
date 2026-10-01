@@ -1,0 +1,36 @@
+kit: verify
+version: 0.1.0
+source: bamr87/bamr87 templates/verify/
+seeded-by: tools/fanout.sh --kit verify (verify-fanout.yml); `dash verify deploy`
+files: features.template.yml, verify.template.yml, scenario.template.yml, runner.mjs, mcp.json, verify.yml, SKILL.template.md, verifier.template.md, EVIDENCE-README.template.md
+spec: specs/QUALITY.md "Verification" (UPS-QA-50..53); reusable workflow .github/workflows/fleet-verify.yml; hub aggregator tools/features_index.py; docs/VERIFICATION.md
+updated: 2026-09-04
+changelog: |
+  0.1.0 — initial kit, lifted from three fleet precedents rather than
+  invented: zer0-mistakes' features/features.yml registry + test/visual/
+  evidence-kit.mjs + .github/skills/visual-evidence (the evidence standard),
+  it-journey's and barodybroject's features/features.yml (the same shape,
+  minimal), and tools/issue-evidence.sh (screenshot-in-a-sandbox). What the
+  kit adds is the fleet contract that ties them together: ONE features index
+  schema (features/v1, a strict superset of every existing file, so the three
+  precedents validate unchanged), declarative USER SCENARIOS an agent and a
+  runner both read (verify/scenarios/*.yml — goto/click/fill/expect/
+  screenshot, the steps a person would perform), a dependency-light Playwright
+  runner that executes them into evidence bundles (test/evidence/<slug>/
+  screenshots + report.json + README), a CI caller of the reusable
+  fleet-verify.yml (scenarios on every PR; an OAuth Claude Code pass driving
+  the live app through the Playwright MCP on `verify`-labelled PRs), and the
+  repo-local verify-feature skill + verifier agent that make the loop
+  runnable from a Claude Code session.
+notes: |
+  - Additive-only, like every kit: nothing the repo already has is overwritten.
+    A repo with a legacy features/features.yml keeps it — the schema is a
+    superset, so the hub index reads it as-is and coverage shows where the
+    tests/scenarios/evidence links are missing.
+  - SKILL.template.md and verifier.template.md are DEDICATED kit artifacts —
+    the sanctioned exception to the agent-context 0.3.0 position that
+    .claude/ layers never fan out: the kit IS the agent harness.
+  - Snapshot to archive/ before editing runner.mjs or verify.yml so --upgrade
+    can still recognise machine-seeded copies (same rule as the other kits).
+  - Playwright needs a browser: `npx playwright install --with-deps chromium`
+    (the reusable workflow does this; locally run it once).

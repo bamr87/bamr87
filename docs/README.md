@@ -28,6 +28,7 @@ This page exists for one reason: to make the documentation that already lives in
 | [`SCHEMA.md`](../SCHEMA.md) | Schema reference for the structured content in this repository — likely the front matter and/or the data files under `_data/`. _(summary unverified)_ |
 | [`SUBMODULES.md`](../SUBMODULES.md) | Working with the Git submodules this repository pulls in. The repository does track submodules — see [`.gitmodules`](../.gitmodules). _(summary unverified)_ |
 | [`AGENTS.md`](../AGENTS.md) | Instructions for AI coding agents working in this repository, following the conventional `AGENTS.md` location. _(summary unverified)_ |
+| [`VERIFICATION.md`](VERIFICATION.md) | The agent verification standard: the feature index every repo carries (`features/features.yml`), user scenarios a Playwright runner and a Claude Code pass both execute, evidence bundles, the reusable `fleet-verify.yml` gate, and the fleet coverage index at `/features/`. |
 | [`CLAUDE.md`](../CLAUDE.md) | Instructions specific to Claude Code. Related configuration lives in [`.claude/`](../.claude) and [`.mcp.json`](../.mcp.json). _(summary unverified)_ |
 
 ---

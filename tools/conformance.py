@@ -390,6 +390,52 @@ def _js_tests(r, k):
     return _ok() if ("vitest" in pj or "@playwright/test" in pj or "jest" in pj) else _no("no vitest/playwright configured")
 
 
+def _features(r):
+    """Lazy import: features_index.py lives beside this file and needs only PyYAML."""
+    if not hasattr(r, "_features_res"):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import features_index  # noqa: PLC0415
+        r._features_res = features_index.analyze(r.path)
+    return r._features_res
+
+
+@check("UPS-QA-50")
+def _feature_index(r, k):
+    res = _features(r)
+    if res["format"] == "none":
+        return _no("no features/features.yml (seed: tools/fanout.sh --kit verify)")
+    if res["format"] == "prose":
+        return _no(f"{res['index']} is prose only — convert to features/features.yml (features/v1)")
+    if not res["ok"]:
+        return _no(f"{len(res['errors'])} error(s): {res['errors'][0]}")
+    return _ok("legacy shape" if res["format"] == "legacy" else "")
+
+
+@check("UPS-QA-51")
+def _verify_kit(r, k):
+    kit = _features(r)["kit"]
+    if kit["legacy_evidence_kit"] and kit["legacy_visual_evidence_skill"]:
+        return _ok("precedent evidence kit (test/visual/evidence-kit.mjs + visual-evidence skill)")
+    missing = [name for name, present in (("verify/verify.yml", kit["config"]), ("verify/scenarios/*.yml", kit["scenarios"] > 0),
+                                          ("verify/runner.mjs", kit["runner"]), (".github/workflows/verify.yml", kit["workflow"])) if not present]
+    return _no("missing " + ", ".join(missing)) if missing else _ok()
+
+
+@check("UPS-QA-53")
+def _ui_verified(r, k):
+    res = _features(r)
+    if res["format"] in ("none", "prose"):
+        return _no("no feature index to grade")
+    c = res["counts"]
+    if c["ui"] == 0:
+        return _ok("no implemented UI features indexed")
+    if c["ui_covered"] < c["ui"]:
+        return _no(f"{c['ui'] - c['ui_covered']} of {c['ui']} implemented UI features have no test or scenario")
+    if c["ui_verified"] == 0:
+        return _no(f"{c['ui']} UI features covered, none carries a verified: stamp")
+    return _ok(f"{c['ui_verified']}/{c['ui']} verified")
+
+
 @check("UPS-QA-20")
 def _ci_caller(r, k):
     t = r.read(".github/workflows/ci.yml")

@@ -721,7 +721,7 @@
   title: "Kit-version drift visibility — dash audit column + fanout dry-run report, and scaffold-aware AGT status"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
-  status: approved
+  status: shipped
   priority: P1
   effort: S
   category: enhancement
@@ -759,7 +759,7 @@
     - Scaffold detection keyed on a template fingerprint, not the mere word TODO, to avoid false-amber on legitimately terse CLAUDE.md files.
   source: scout
   created: 2026-08-06
-  issue_url: null
+  issue_url: https://github.com/bamr87/bamr87/issues/127
 
 # FF-0018 diff-first gate PASSED 2026-08-07 (read-only fork analysis): dispatch.py
 # byte-identical; zer0's triage.py is a STRICT SUPERSET of it-journey's (no
@@ -874,7 +874,7 @@
   title: "Parameterized agent-auditor template in the agent-context kit (opt-in artifact)"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
-  status: approved
+  status: shipped
   priority: P2
   effort: S
   category: enhancement
@@ -913,13 +913,13 @@
     - Overlap with FF-0021 — if both are approved, ship them as one kit version bump (0.4.0) with a single position amendment.
   source: scout
   created: 2026-08-06
-  issue_url: null
+  issue_url: https://github.com/bamr87/bamr87/issues/131
 
 - id: FF-0021
   title: "Canonical shared guardrails doc (quarantine.md) as an opt-in agent-context kit artifact"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
-  status: approved
+  status: shipped
   priority: P2
   effort: S
   category: enhancement
@@ -956,7 +956,7 @@
     - Consolidating differently-worded guardrails risks silently weakening one — the strictest-wording rule must be checked variant by variant.
   source: scout
   created: 2026-08-06
-  issue_url: null
+  issue_url: https://github.com/bamr87/bamr87/issues/132
 
 - id: FF-0024
   title: Fleet Studio counterpart — the harness inventory as GitFactory's consumed fleet model

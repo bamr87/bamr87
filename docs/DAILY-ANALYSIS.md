@@ -184,7 +184,7 @@ Declared centrally in [`_data/fleet.yml`](../_data/fleet.yml); audit what is act
 | Secret | Needed for | Fallback |
 | --- | --- | --- |
 | `GITHUB_TOKEN` | read public activity, publish data, open hub PRs/issues | — (built-in) |
-| `FLEET_TOKEN` | read **private** repos' runs/issues, and **push fix branches + open PRs in submodules** | `ACTIONS_ANALYTICS_TOKEN` → `DAILY_ANALYSIS_TOKEN` → `FANOUT_TOKEN` → `GITHUB_TOKEN` |
+| `FLEET_TOKEN` | read **private** repos' runs/issues, and **push fix branches + open PRs in submodules** | `ACTIONS_ANALYTICS_TOKEN` → `DAILY_ANALYSIS_TOKEN` → `GITHUB_TOKEN` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | the fixer job | `ANTHROPIC_API_KEY` |
 
 `FLEET_TOKEN` supersedes the three legacy PATs; they stay wired as fallbacks so the migration is non-breaking. `dash secrets` flags them once `FLEET_TOKEN` is in place.

@@ -1,0 +1,14 @@
+# The portfolio/dashboard surface driven by _data/projects.yml.
+id: dashboard
+feature: HUB-001
+title: "Dashboard lists the registry's projects"
+description: "The /dashboard/ page renders one card or row per registry project, with links, at desktop and mobile widths."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /dashboard/
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { count: { selector: "main a[href*='github.com/bamr87/']", min: 10 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: dashboard

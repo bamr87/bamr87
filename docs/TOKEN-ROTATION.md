@@ -10,6 +10,7 @@ This is the third of the fleet's reconciliation loops. [`fleet-pulse.yml`](../.g
 dash secrets plan                    # per-repo credential ages, read-only
 dash secrets rotate                  # what the weekly run would do (dry run)
 dash secrets rotate --apply          # do it
+dash secrets push --apply            # rotate from the hub's .env: hub first, then the fleet
 ```
 
 Runs automatically every **Monday 02:07 UTC** (`schedule.rotate_tokens`).
@@ -189,11 +190,27 @@ dash secrets rotate --no-variables --apply         # secrets only, skip the vari
 
 A manual `workflow_dispatch` is a **dry run unless you tick `apply`**, so you can see the plan before touching 40 repos. Scheduled runs always apply.
 
-Values are read from the environment and nowhere else:
+Values are read from the environment:
 
 ```bash
 CLAUDE_CODE_OAUTH_TOKEN="$(pbpaste)" dash secrets rotate --apply
 ```
+
+## Rotating from the hub's `.env` (the operator's path)
+
+The hub's gitignored `.env` is where a freshly minted key usually lands first, so it is also the natural place to rotate from. `dash secrets push` makes it one step: it **parses** `.env` (never `source`s it), takes only the names declared in `_data/fleet.yml` `tokens:`, writes each to **the hub first**, and then fans every `scope: fleet` secret out to the fleet. If the hub refuses a value, that secret's fan-out is aborted.
+
+```bash
+dash secrets push                                   # dry run: what .env supplies, and where it would go
+dash secrets push --apply                           # hub first, then the fleet
+dash secrets push --only CLAUDE_CODE_OAUTH_TOKEN --apply
+dash secrets push --hub-only --apply                # hub only; the Monday run propagates it
+dash secrets push --env-file ~/secrets/fleet.env    # a different file
+```
+
+Parsing matters more than it looks. The same `.env` carries a `GITHUB_TOKEN` for local tools, and `set -a; source .env` exports it — after which `gh` writes secrets **with that token** instead of your login, and it usually lacks `secrets:write`. `push` hands values only to `gh secret set`'s stdin, so the rest of the file never reaches a subprocess. A name missing from the contract is listed as _ignored_ and is never sent anywhere; to make a new key rotatable, declare it in `tokens:` (and in `token-rotation.yml`'s `env:` — see drift check (l)).
+
+The Harness Console exposes the same command on its **Auth** tab (_Rotate from `.env`_): it shows which contract secrets `.env` supplies (by name, never by value), previews the dry run, and runs `--apply` only after a confirm. `DASH_CONSOLE_AUTH=off` refuses the apply.
 
 ## See also
 
