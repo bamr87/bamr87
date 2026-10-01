@@ -22,7 +22,8 @@ name: 🧭 Reconcile Registry
 # private repos as "not found". Set FLEET_TOKEN (the same
 # fine-grained PAT fleet-pulse.yml uses; FLEET_TOKEN supersedes it) to see them. Without it reconcile
 # still behaves: a mass of 404s collapses into a single "token-scope" finding
-# rather than a dozen false deletion alarms.
+# rather than a dozen false deletion alarms. The token is PROBED, not picked by
+# presence, and a rejected one (every probe errors) collapses the same way.
 
 on:
   schedule:
@@ -55,12 +56,39 @@ jobs:
 
       - uses: ./.github/actions/setup/dash-gen
 
+      # Probe, never presence-check (CLAUDE.md standing rule). Picking by
+      # presence (`FLEET_TOKEN || … || GITHUB_TOKEN`) chose an EXPIRED
+      # FLEET_TOKEN over a working fallback and filed all 42 repos as "could not
+      # verify" drift (#280). Same loop as fleet-pulse.yml. GITHUB_TOKEN cannot
+      # answer `gh api user`, so it is the unprobed last resort; the blind-token
+      # collapse in reconcile.py then turns its 404s into one finding.
+      - name: Resolve a working fleet token
+        id: token
+        env:
+          T_FLEET: ${{ secrets.FLEET_TOKEN }}
+          T_ANALYTICS: ${{ secrets.ACTIONS_ANALYTICS_TOKEN }}
+          T_DEFAULT: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chosen=""
+          for name in T_FLEET T_ANALYTICS; do
+            val="${!name}"
+            [ -n "$val" ] || continue
+            if GH_TOKEN="$val" gh api user --jq .login >/dev/null 2>&1; then
+              chosen="$name"; break
+            fi
+            echo "::warning::${name#T_} token is set but rejected by the API (expired or revoked) — trying the next one."
+          done
+          if [ -z "$chosen" ]; then
+            chosen=T_DEFAULT
+            echo "::error::No fleet PAT is accepted by the API — falling back to GITHUB_TOKEN (hub + public repos only). Re-mint FLEET_TOKEN (docs/TOKEN-ROTATION.md)."
+          fi
+          echo "GH_TOKEN=${!chosen}" >> "$GITHUB_ENV"
+          echo "source=${chosen#T_}" >> "$GITHUB_OUTPUT"
+
       # Report-only first, so the routing decision is made from a clean read
       # of the fleet before anything is written.
       - name: Detect drift
         id: detect
-        env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           python .github/scripts/dash-gen/dash_gen.py reconcile --json > /tmp/reconcile.json
           python - <<'PY' >> "$GITHUB_OUTPUT"
@@ -75,8 +103,6 @@ jobs:
       # --- authoritative: apply + PR ------------------------------------
       - name: Apply authoritative fixes
         if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
-        env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.ACTIONS_ANALYTICS_TOKEN || secrets.GITHUB_TOKEN }}
         run: python .github/scripts/dash-gen/dash_gen.py reconcile --apply
 
       - name: Configure Git
@@ -137,6 +163,24 @@ jobs:
               --label registry-drift
           fi
 
+      # A clean night retires the tracking issue. Without this it sat open
+      # indefinitely with a stale list after the drift (or the dead token that
+      # faked it) was gone (#280).
+      - name: Close tracking issue when clean
+        if: steps.detect.outcome == 'success' && steps.detect.outputs.advisory == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TITLE="Registry drift needs review (deleted / branch-drift)"
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" \
+                        --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')"
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" \
+              --comment "✓ Registry matches GitHub — clean as of $RUN_URL. Closing; the next run reopens a fresh issue if drift returns."
+            echo "closed issue #$EXISTING"
+          fi
+
       - name: Summary
         if: always()
         run: |
@@ -145,4 +189,5 @@ jobs:
             echo ""
             echo "- auto-fixable (renames, url mismatches): \`${{ steps.detect.outputs.authoritative }}\`"
             echo "- needs a human (404s, branch drift): \`${{ steps.detect.outputs.advisory }}\`"
+            echo "- token: \`${{ steps.token.outputs.source }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
