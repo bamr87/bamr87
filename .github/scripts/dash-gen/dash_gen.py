@@ -83,6 +83,7 @@ import cv_fragment
 import daily_report
 import engagements
 import evolution
+import steward
 import fleet_compose
 import content_atlas
 import fleet_lake
@@ -599,6 +600,12 @@ def main(argv: list[str] | None = None) -> int:
         help="weekly repo-evolution plan: select opted-in submodules, skip open passes, write briefs -> JSON matrix (feeds repo-evolution.yml)",
     )
     evolution.add_arguments(p_targets)
+
+    p_steward = sub.add_parser(
+        "steward",
+        help="weekly fleet-steward loop: plan (triage → brief), validate (the orchestrator's decision), record (report + ledger)",
+    )
+    steward.add_arguments(p_steward)
 
     args = parser.parse_args(argv)
     return args.func(args)

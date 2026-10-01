@@ -1184,7 +1184,7 @@ function renderJobs() {
       upgrade: `<label class="inl"><input id="p-upgrade" type="checkbox"> upgrade machine seeds</label>`,
       apply: `<label class="inl"><input id="p-apply" type="checkbox"> <b>apply</b> (write to GitHub)</label>`,
       key: `<label class="inl">key <input id="p-key" type="text" placeholder="harnesses.budget" size="24"></label>`,
-      workflow: `<label class="inl">workflow <select id="p-workflow">${['harness-fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution', 'standardize-fanout', 'schema-fanout', 'build-dash', 'reconcile-registry', 'refresh-dash', 'update-submodules'].map(w => `<option>${w}</option>`).join('')}</select></label>`,
+      workflow: `<label class="inl">workflow <select id="p-workflow">${['harness-fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution', 'fleet-steward', 'standardize-fanout', 'schema-fanout', 'build-dash', 'reconcile-registry', 'refresh-dash', 'update-submodules'].map(w => `<option>${w}</option>`).join('')}</select></label>`,
       fields: `<label class="inl">inputs <input id="p-fields" type="text" placeholder="key=value,key=value" size="34"></label>`,
       jobs: `<label class="inl">jobs+steps for <select id="p-jobs"><option>ai</option><option>all</option><option>none</option></select> runs</label>`,
       logs: `<label class="inl">logs for <select id="p-logs"><option>ai</option><option>all</option><option>none</option></select> runs</label>`,

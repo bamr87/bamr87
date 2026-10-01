@@ -179,6 +179,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`fleet-conformance.yml`](.github/workflows/fleet-conformance.yml) | fleet-conformance (reusable) | `workflow_call` (reusable) | **The in-repo Universal Project Standard gate.** Checks out the hub beside the caller and runs `tools/conformance.py` (static, offline) so every repo is measured by the… |
 | [`fleet-engines-contract.yml`](.github/workflows/fleet-engines-contract.yml) | fleet-engines-contract | PR, push `main` (`templates/fleet-engines/**`) | Pre-flight gate for the `@bamr87/fleet-engines` kit: typecheck, vitest, build, pack, VERSION↔package.json parity. |
 | [`fleet-pulse.yml`](.github/workflows/fleet-pulse.yml) | 🩺 Fleet Pulse | daily 06:00, dispatch | **THE daily loop.** Job `pulse` gathers every fleet signal (Actions analytics, Claude usage + engagement actuals, prior-day digest, open-state triage snapshot, the AI-ha… |
+| [`fleet-steward.yml`](.github/workflows/fleet-steward.yml) | 🧭 Fleet Steward | **weekly Thu 12:37**, dispatch; default-OFF (`FLEET_STEWARD… | **The fleet-wide review.** `scan` builds a fresh triage snapshot and `dash-gen steward plan` (every open issue/PR tagged with the lane that owns it, plus cross-repo them… |
 | [`fleet-verify.yml`](.github/workflows/fleet-verify.yml) | fleet-verify (reusable) | — | Reusable AGENT VERIFICATION gate — the in-repo half of the verify kit (templates/verify/, spec: specs/QUALITY.md "Verification", doc: docs/VERIFICATION.md). |
 | [`git-digs.yml`](.github/workflows/git-digs.yml) | Git Digs | daily 11:17 UTC, dispatch | **Git archaeology.** Checks out `bamr87/it-journey`, lists eligible `bamr87` repositories and already covered ranges, then an agent chooses one repository and one post-2… |
 | [`harness-fanout.yml`](.github/workflows/harness-fanout.yml) | harness-fanout | dispatch (`gaps`/all/per-repo) | **Mass deploy/update of the fleet's AI harnesses**, driven by the central inventory: a deterministic `plan` job resolves `target: gaps` from the committed `_data/harness… |
@@ -320,6 +321,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
 | [`SMOKE.md`](docs/SMOKE.md) | `record` connects to every container in the local fleet and exercises it for |
 | [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline the fleet is held to; points to [`../specs/`](../specs/README.md), the Universal Project Standard that governs content and behaviour. |
+| [`STEWARD.md`](docs/STEWARD.md) | The weekly fleet steward. |
 | [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | **Status:** v0 kit (`templates/ux-audit/` 0.1.0). |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard: the feature index every repo carries (`features/features.yml`), user scenarios a Playwright runner and a Claude Code pass both execute,… |

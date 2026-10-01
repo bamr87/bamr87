@@ -229,3 +229,4 @@ test/evidence/agent/
 test/evidence/report.json
 verify-app.log
 verify-run.txt
+steward-brief/

@@ -155,6 +155,7 @@ schedule:
   repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
   git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
+  fleet_steward: "37 12 * * 4"    # weekly fleet-wide review + one pick (see steward:); off unless FLEET_STEWARD_ENABLED=true
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -499,6 +500,11 @@ budget:
     # has no turn cap to derive from. It gets a generous ceiling anyway: a
     # runaway mention is still unattended spend once the human walks away.
     claude.yml:claude: 20
+    # The fleet steward bills the bamr87 API KEY, so these two are real dollar
+    # ceilings, not throughput caps. Fable 5.1 costs 2x Opus per token, which is
+    # why the orchestrator's cap sits well above usd_per_turn x its 60 turns.
+    fleet-steward.yml:orchestrate: 30     # 60 turns · claude-fable-5-1 reads the whole open state
+    fleet-steward.yml:develop: 25         # 150 turns · claude-sonnet-5 implements the one pick
 
 # --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.
@@ -1152,6 +1158,37 @@ api_keys:
     model: claude-opus-5
     max_tokens: 16
   ledger: _data/api_keys.yml           # key ids, names, dates, repos — never a value
+
+# --------------------------------------------------------------------------- #
+# Fleet steward — the weekly fleet-wide review (fleet-steward.yml, docs/STEWARD.md).
+#
+# Reads EVERY open issue and PR across the fleet, writes a comprehensive update
+# (logged: _reports/steward/<date>.md; tracked: _data/steward.yml + one hub
+# issue), and acts on the single most critical, complex, or harmonizing need
+# no other loop owns. Two models, one job each:
+#
+#   orchestrator  reads the brief, chooses, writes the update + the decision
+#   developer     implements the decision in ONE repo; the workflow opens a DRAFT
+#
+# Both bill the hub's ANTHROPIC_API_KEY — the bamr87 workspace key under
+# api_keys: — with no OAuth fallback, so the caps in budget.call_sites are real
+# dollar ceilings. One steward PR is open at a time (backpressure), and the
+# schedule is off until the repo variable FLEET_STEWARD_ENABLED is 'true'.
+# --------------------------------------------------------------------------- #
+steward:
+  models:
+    orchestrator: claude-fable-5-1     # also stated in fleet-steward.yml; test_steward.py holds them equal
+    developer: claude-sonnet-5
+  auth: api_key                        # the bamr87 workspace key (api_keys:) — never the subscription token
+  orchestrator_max_turns: 60
+  developer_max_turns: 150
+  max_candidates: 150                  # open items listed in the brief (all of them reach candidates.json)
+  max_themes: 12                       # cross-repo themes surfaced as harmonizing candidates
+  branch_prefix: fleet-steward
+  label: fleet-steward
+  report_dir: _reports/steward         # the LOG — one committed update per run
+  ledger: _data/steward.yml            # the TRACK — one row per run: pick, PR, spend
+  history: 52                          # ledger rows kept
 
 # --------------------------------------------------------------------------- #
 # Rotation — the weekly credential loop's guardrails.

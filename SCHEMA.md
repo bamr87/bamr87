@@ -19,7 +19,7 @@ coverage: listed
 |---|---|---|---|
 | `.github/` | dir | Actions control plane: drift gate, the daily/weekly loops, fan-outs, evolution prompts | terminal |
 | `_data/` | dir | Registries powering every dash surface — projects.yml is the source of truth | required |
-| `_reports/` | dir | Committed automation records — the daily repo-activity digests | generated |
+| `_reports/` | dir | Committed automation records — the daily repo-activity digests (`daily/`) and the weekly fleet-steward updates (`steward/`) | generated |
 | `_site/` | dir | Jekyll build output (includes `/api/v1/*.json` + `llms.txt` from `dash-gen machine-api`) | generated |
 | `assets/` | dir | Static site assets (structure owned by the zer0-mistakes theme) | terminal |
 | `compose/` | dir | Hub half of the fleet dev stack: shared-services layer + generated per-submodule overrides (docs/FLEET-COMPOSE.md) | required |
@@ -58,6 +58,7 @@ coverage: listed
 | `index.md` | file | Dash site landing page | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
 | `issue-workorder-t*.md` | pattern | Ephemeral per-tier issue work orders (`dash issues` → issue-pipeline.yml; gitignored) | generated |
+| `steward-brief/` | dir | Ephemeral fleet-steward brief (`dash steward` / dash-gen steward plan → fleet-steward.yml; gitignored) | generated |
 | `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |
 | `.dash-lake/` | dir | The local data lake — GitHub runs/jobs/steps/logs/issues/workflow files extracted into SQLite by `dash-gen lake sync`, the source of the Phoenix traces (gitignored; docs/HARNESS-OPS.md) | generated |
 
