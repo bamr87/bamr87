@@ -28,7 +28,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | Registry | Single source of truth | `_data/projects.yml` |
 | Submodules | All projects, flat under one container | `projects/<name>/` (see [`projects/README.md`](../projects/README.md)) |
 | Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection (portfolio, dashboard, monitor, triage, toolbox, actions, ai-activity, roadmap, resume, docs) | `pages/_dash/` → `bamr87.github.io/bamr87/` |
-| Terminal dash | Textual twin of the command center + `/monitor/` — same YAML, local TTY; live Docker via `ssh://forge` | `tools/tui/` (`tools/dash tui`) |
+| Terminal dash | Textual twin of the command center, `/monitor/`, `/triage/` and `/harness/` — same YAML, local TTY; live Docker from local + `ssh://forge` | `tools/tui/` (`tools/dash tui`) |
 | Container host | Forge LAN box runs app compose; Mac never bind-mounts into the remote daemon | [`docs/FORGE-HOST.md`](FORGE-HOST.md) |
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
 | AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
@@ -62,7 +62,7 @@ tools/dash triage         # open issues/PRs/CI snapshot → _data/fleet_triage.y
 tools/dash estimate       # draft client-engagement estimates from open issues (/engagements/)
 tools/dash ledger         # accrue engagement actuals + variance from usage evidence
 tools/dash serve          # serve the Jekyll dash locally (docker, :4000)
-tools/dash tui            # terminal command center (same registry + health YAML)
+tools/dash tui            # terminal command center (registry, health, triage inbox, harness wires, Docker)
 tools/dash sync           # update submodules + regenerate dash data
 tools/dash foreach <cmd>  # run a shell command in every checked-out submodule
 tools/dash run <tool>     # run a projects/scripts/ submodule tool (forkme, stashme, ...)

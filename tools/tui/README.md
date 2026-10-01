@@ -1,36 +1,67 @@
 # tools/tui — terminal command center
 
-The TTY twin of the Jekyll dash (`index.md` + `/monitor/`). Same registry, same health YAML, no second inventory.
+The TTY twin of the Jekyll dash: the home page, `/monitor/`, `/triage/` and `/harness/` in one Textual app, over the same YAML. No second inventory, and no writes.
 
 ```
 tools/dash tui
 ```
 
-Reads:
+## What it reads
 
-- `_data/projects.yml` — the fleet roster (committed)
-- `_data/project_health.yml` — red/amber/green attention (ephemeral)
+| Source | Page twin | Committed? | Missing → |
+| --- | --- | --- | --- |
+| `_data/projects.yml` | home | yes | — (the roster) |
+| `_data/project_health.yml` (+ `_meta`) | `/monitor/` | **no** — ephemeral, `dash-gen health` | Monitor tab explains, `R` fills it (~3 min) |
+| `_data/fleet_triage.yml` | `/triage/` | yes, daily (fleet-pulse) | Inbox tab explains |
+| `_data/harness_health.yml` | `/harness/` | yes, daily (fleet-pulse) | Harness tab explains |
+| `docker ps -a` on each `DASH_DOCKER_HOST` | `/docker/` (live half) | — | Docker tab names the host and its error |
 
-Missing health degrades to a banner (`run dash-gen health`) and still lists every project. Disk column is local checkout of `submodule_path`, not a new signal.
+Because triage and harness are committed, a fresh clone already shows red/amber attention, the fleet inbox and the trip wires. Only the `/monitor/` health columns need a `dash-gen health` run. The status line under the KPIs shows the age of every source and marks one **STALE** past `_data/fleet.yml` `harness.trip_wires.stale_data_days`, the same threshold as the harness's own `stale-data` wire. Files that change on disk (a `git pull`, the daily workspace sync, `dash-gen` in another shell) are reloaded on the next 15 s tick.
+
+## Tabs
+
+| # | Tab | Shows | `enter` |
+| --- | --- | --- | --- |
+| 1 | **Apps** | Every registry project: health, CI, last commit, triage score, open issues/PRs, failing workflows, security alerts, checkout, containers. The detail pane follows the cursor. | Opens this project's items in the Inbox |
+| 2 | **Inbox** | The fleet inbox (flagged items, highest priority first). From a drill-down: **all** of one repo's open items from `by_repo`, ranked with the same priorities. | Opens the issue / PR / run |
+| 3 | **Attention** | Red/amber on _either_ signal (health or triage), worst first | Repo's items |
+| 4 | **Monitor** | The `/monitor/` health board | Repo's items |
+| 5 | **Harness** | Trip wires (tripped first), then the scorecard with its desired direction and threshold | — |
+| 6 | **Docker** | Containers on every host, attributed to their registry project | — (`o` opens the owning repo) |
 
 ## Keys
 
 | Key | Action |
-|---|---|
-| `/` | search |
-| `s` | cycle sort (featured / name / health / alerts / recent / stars) |
-| `c` | cycle category |
-| `t` | cycle status |
-| `h` | cycle health |
-| `f` | featured only |
-| `r` | reload YAML |
-| `R` | `tools/dash-gen health` (GitHub) |
-| `o` | open `repo_url` |
-| `l` | open `live_url` |
+| --- | --- |
+| `1`–`6` | switch tab |
+| `/` · `esc` / `enter` | focus search · back to the table (search filters Apps and Inbox) |
+| `s` | cycle sort (featured / name / health / triage / alerts / recent / stars) |
+| `c` / `t` / `h` / `f` | cycle category / status / health level (either signal) / featured only |
+| `x` | clear every filter, the search and the inbox drill-down |
+| `o` / `l` | open the repo (or, on the Inbox, the item) / open `live_url` |
+| `r` / `R` | reload YAML / run `tools/dash-gen health` (progress streams into the status line) |
+| `d` | poll Docker now |
+| `?` | key help |
 | `q` | quit |
 
-Tabs: **Apps** (command center) · **Monitor** (ranked board) · **Attention** (red/amber).
+## Docker hosts
 
-`d` refreshes Docker. Default `DASH_DOCKER_HOST=ssh://forge`. Tab **Forge** is `docker ps -a` on that host; the Apps **Forge** column joins containers to the registry.
+`DASH_DOCKER_HOST` is a comma-separated list. `local` means this machine's current Docker context, which is where `tools/dash up` runs the shared core. Anything else goes to `docker -H`. The default is `local,ssh://forge` (see [`docs/FORGE-HOST.md`](../../docs/FORGE-HOST.md)). Set it to an empty string to turn polling off.
 
-Does not write, commit, or shell out except `dash-gen health` on `R` and `docker -H $DASH_DOCKER_HOST ps`. Compose must be started **on forge** — see [`docs/FORGE-HOST.md`](../../docs/FORGE-HOST.md). The credentialed write plane stays `tools/dash console`.
+A container belongs to a registry project by, strongest first:
+
+1. **its `com.bamr87.fleet.project` label** (UPS-OPS-17). The legacy `bamr87.project` label is also honoured. A labelled container is attributed to that project or to _nothing_: the hub's own services say `bamr87`, which is not a registry row, so they are never guessed onto a lookalike.
+2. its compose project name, then its container name, then a `<name>-…` prefix. The longest name wins, so `cv-builder-pro-web-1` goes to `cv-builder-pro`, not `cv`.
+
+## Layout
+
+| File | Role |
+| --- | --- |
+| `fleet.py` | Pure data layer (PyYAML only): the registry/health/triage/harness join, inbox and drill-down items, source freshness, filters, sorts |
+| `host.py` | Multi-host `docker ps` and container → project attribution |
+| `app.py` | The Textual UI |
+| `run.sh` | Bootstraps `.venv-tui` at latest and execs `app.py` |
+
+Tests: `python3 tools/test_tui_fleet.py` covers the data, and `.venv-tui/bin/python tools/tui/test_app.py` drives the screen headlessly with Textual's Pilot (layout, cursor stability, drill-down, markup safety, the streamed refresh). `tools/run-all-tests.sh` runs both, and skips the second with a reason when Textual isn't installed.
+
+It does not write, commit, or shell out except `docker ps` and, on `R`, `dash-gen health`. The credentialed write plane is `tools/dash console`.

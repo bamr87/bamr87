@@ -130,8 +130,10 @@ run_control_plane_tests() {
         skip "fleet smoke: no baseline recorded (tools/dash dev smoke record)"
     fi
 
-    # The Docker-standard transformer edits other repos unattended, so its tests
-    # are part of every sweep (PyYAML only, no Docker needed).
+    # tools/*.py gates and generators — the Docker-standard transformer (which
+    # edits other repos unattended), features_index.py, the terminal dash's data
+    # layer, … — all PyYAML only, no Docker needed. (This loop used to appear
+    # twice, so every one of these suites ran twice per sweep.)
     for t in "${PROJECT_ROOT}"/tools/test_*.py; do
         [[ -e "$t" ]] || continue
         run_step "tools $(basename "$t")" python3 "$t"
@@ -141,11 +143,19 @@ run_control_plane_tests() {
         [[ -e "$t" ]] || continue
         run_step "console $(basename "$t")" python3 "$t"
     done
-    # tools/*.py gates and generators (features_index.py, …) — same posture.
-    for t in "${PROJECT_ROOT}"/tools/test_*.py; do
-        [[ -e "$t" ]] || continue
-        run_step "tools $(basename "$t")" python3 "$t"
-    done
+    # The terminal dash's screen (Textual Pilot, headless). Textual lives in
+    # the venv `tools/dash tui` bootstraps, not on the bare interpreter.
+    local tui_py=""
+    if [[ -x "${PROJECT_ROOT}/.venv-tui/bin/python" ]]; then
+        tui_py="${PROJECT_ROOT}/.venv-tui/bin/python"
+    elif python3 -c 'import textual' >/dev/null 2>&1; then
+        tui_py="python3"
+    fi
+    if [[ -n "$tui_py" ]]; then
+        run_step "tui test_app.py (Textual pilot)" "$tui_py" "${PROJECT_ROOT}/tools/tui/test_app.py"
+    else
+        skip "tui test_app.py: Textual not installed (run tools/dash tui once to bootstrap .venv-tui)"
+    fi
 }
 
 run_root_checks() {

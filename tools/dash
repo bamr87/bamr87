@@ -66,7 +66,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
                          in _data/fleet.yml \`images:\`, fan-out via docker-fanout.yml (docs/DOCKER.md).
                          \`view [--write]\` builds the consolidated /docker/ dashboard (_data/docker.yml)
   ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
-  ${c_bold}dash tui${c_off}               terminal command center — same registry + health as the Jekyll dash (DOCKER_HOST ssh://forge)
+  ${c_bold}dash tui${c_off}               terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge)
   ${c_bold}dash host [setup|ps|up|rebuild]${c_off}  forge Docker host — rebuild hub from bamr87/.env, or up a submodule
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -167,9 +167,10 @@ cmd_serve() {
   fi
 }
 
-# The Harness Console: the credentialed, write-capable front end of the local
-# stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
-# via tools/console/run.sh; --docker starts the compose service instead.
+# The terminal command center: the Jekyll dash's read-only twin in a TTY —
+# registry + health + triage inbox + harness wires, and live containers from
+# DASH_DOCKER_HOST (default: local Docker + ssh://forge). tools/tui/run.sh
+# bootstraps .venv-tui.
 cmd_tui() {
   "${TOOLS}/tui/run.sh" "$@"
 }
@@ -223,6 +224,9 @@ REMOTE
   esac
 }
 
+# The Harness Console: the credentialed, write-capable front end of the local
+# stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
+# via tools/console/run.sh; --docker starts the compose service instead.
 cmd_console() {
   if [[ "${1:-}" == "--docker" ]]; then
     shift
