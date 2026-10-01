@@ -1,0 +1,106 @@
+# ============================================================================
+# compose/shared.yml — the hub's SHARED services layer
+# ============================================================================
+#
+# Overlaid on the hub's own docker-compose.yml by compose.fleet.yml. It exists
+# as a separate file so `docker compose up -d` at the repo root keeps working
+# byte-for-byte as before: nothing here is visible unless you go through the
+# fleet stack.
+#
+# What it does:
+#   1. Puts the hub's long-lived services on `fleet-net`, the one network every
+#      included submodule also joins.
+#   2. Gives `phoenix` the network ALIASES `fleet-phoenix` and `phoenix`. That
+#      alias is what lets law-ai and bashos keep their own
+#      `PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006` untouched while their
+#      own phoenix container is profiled out — no env rewriting, no upstream
+#      commit, and the fleet stops running three trace stores on one port.
+#   3. Offers the opt-in shared Postgres/Redis behind `--profile shared-db`.
+#
+# `fleet-net` is EXTERNAL on purpose: created once, outside any one compose
+# project, so a submodule started on its own (`cd projects/law-ai && docker
+# compose up`) can still join the hub's Phoenix. `tools/dash dev` creates it;
+# by hand it is `docker network create fleet-net`.
+
+services:
+  # ---- hub services join the fleet network --------------------------------
+  devenv:
+    networks:
+      fleet-net:
+        aliases: [fleet-devenv]
+
+  console:
+    networks:
+      fleet-net:
+        aliases: [fleet-console]
+
+  phoenix:
+    networks:
+      fleet-net:
+        aliases:
+          - fleet-phoenix
+          # The name law-ai's and bashos' compose files already point at.
+          - phoenix
+
+  # ---- opt-in shared backing services (profile: shared-db) -----------------
+  # Not default. Sharing one server is correct for plain-Postgres consumers,
+  # but it changes the behaviour of a working stack, and two consumers cannot
+  # join at all — aieo runs timescale/timescaledb and law-ai pins its major
+  # version with a documented dump/restore step. Those keep their own, on a
+  # deconflicted `database:` band port. See _data/ports.yml `shared:`.
+  fleet-db:
+    image: postgres:18-alpine
+    profiles: [shared-db]
+    environment:
+      POSTGRES_USER: ${FLEET_DB_USER:-fleet}
+      POSTGRES_PASSWORD: ${FLEET_DB_PASSWORD:-fleet-dev}
+      POSTGRES_DB: ${FLEET_DB_NAME:-fleet}
+      # Read by initdb/10-fleet-databases.sh: one database per consumer, one
+      # server. Per-app DATABASES, not per-app SERVERS — that is the whole
+      # point of the shared tier.
+      FLEET_DATABASES: ${FLEET_DATABASES:-djangoerp,fredgar,barodydb,ai_seed}
+    volumes:
+      - fleet-db-data:/var/lib/postgresql
+      - ./compose/initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      # NOT 5432: the hub's own `db` (Wiki.js) already publishes it in this same
+      # compose project, so both starting under --profile shared-db was a bind
+      # failure. Registered in _data/ports.yml `shared:`.
+      - "127.0.0.1:${FLEET_POSTGRES_SQL_PORT:-5439}:5432"
+    networks:
+      fleet-net:
+        aliases: [fleet-db]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FLEET_DB_USER:-fleet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  fleet-redis:
+    image: redis:8-alpine
+    profiles: [shared-db]
+    ports:
+      - "127.0.0.1:${FLEET_REDIS_REDIS_PORT:-6389}:6379"   # not 6379 — see fleet-db
+    volumes:
+      - fleet-redis-data:/data
+    networks:
+      fleet-net:
+        aliases: [fleet-redis]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  fleet-db-data:
+    driver: local
+  fleet-redis-data:
+    driver: local
+
+networks:
+  fleet-net:
+    name: fleet-net
+    external: true

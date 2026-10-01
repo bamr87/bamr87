@@ -426,6 +426,36 @@ def test_contract_edit_touches_only_the_edited_lines():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_console_token_is_checked_leniently_on_form_strictly_on_value():
+    """The page's token prompt fed a pasted value straight into the header, so a
+    stray space or a lowercase scheme read as a wrong token. The check now
+    forgives the FORM (RFC 7235 scheme case, surrounding whitespace) and never
+    the VALUE."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    saved = os.environ.get("DASH_CONSOLE_TOKEN")
+    os.environ["DASH_CONSOLE_TOKEN"] = "tok-" + "x" * 20
+    try:
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+        good = ["Bearer tok-" + "x" * 20, "bearer tok-" + "x" * 20, "  Bearer   tok-" + "x" * 20 + "  "]
+        bad = [None, "", "Bearer", "Bearer tok-" + "x" * 19, "Basic tok-" + "x" * 20, "tok-" + "x" * 20]
+        for h in good:
+            assert client.get("/api/ops", headers={"Authorization": h}).status_code == 200, repr(h)
+        for h in bad:
+            headers = {} if h is None else {"Authorization": h}
+            assert client.get("/api/ops", headers=headers).status_code == 401, repr(h)
+    finally:
+        if saved is None:
+            os.environ.pop("DASH_CONSOLE_TOKEN", None)
+        else:
+            os.environ["DASH_CONSOLE_TOKEN"] = saved
+
+
 def test_http_refuses_a_rebound_host():
     """DNS rebinding is the way a loopback bind stops meaning loopback: a
     hostile page resolves its own name to 127.0.0.1 and is then same-origin
@@ -651,6 +681,75 @@ def test_gh_login_validates_before_it_ever_runs_gh():
     msg = st.get("message") or ""
     assert not re.search(r"Token:\s*\S", msg), msg
     assert "ghp_" not in msg and "github_pat_" not in msg, msg
+
+
+def test_secrets_push_is_allowlisted_and_confirm_gated():
+    """.env → hub → fleet: the dry run is local, apply is a remote write, and
+    `secret` can only name a token-contract entry — never an arbitrary var."""
+    argv, remote = core.build_argv("secrets-push", {})
+    assert argv[-2:] == ["secrets", "push"] and remote is False, argv
+    name = core.contract_secrets()[0]["name"]
+    argv, remote = core.build_argv("secrets-push", {"secret": name, "hub_only": True, "apply": True})
+    assert argv[-5:] == ["push", "--only", name, "--hub-only", "--apply"] and remote is True, argv
+    for bad in ("GITHUB_TOKEN", "PGADMIN_PASSWORD", "X; rm -rf /"):
+        try:
+            core.build_argv("secrets-push", {"secret": bad})
+        except ValueError:
+            continue
+        raise AssertionError(f"secrets-push accepted {bad!r}")
+    try:
+        core.JobManager(Path(tempfile.mkdtemp())).submit("secrets-push", {"apply": True})
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("secrets-push --apply ran without confirm")
+    saved = core.AUTH_WRITES
+    try:
+        core.AUTH_WRITES = False
+        core.build_argv("secrets-push", {})                    # the preview still runs
+        try:
+            core.build_argv("secrets-push", {"apply": True})
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError("secrets-push --apply built with DASH_CONSOLE_AUTH=off")
+    finally:
+        core.AUTH_WRITES = saved
+
+
+def test_push_reads_contract_names_from_env_file_never_values():
+    """The Auth tab shows which contract secrets .env supplies, by NAME; and the
+    CLI it runs parses the file rather than exporting it, so a local
+    GITHUB_TOKEN never swaps the credential gh writes with."""
+    import importlib.util
+    tmp = Path(tempfile.mkdtemp())
+    saved = core.ENV_FILE
+    name = core.contract_secrets()[0]["name"]
+    try:
+        core.ENV_FILE = tmp / ".env"
+        core.ENV_FILE.write_text(f"# local\nexport {name}='sekrit-value-123'\nGITHUB_TOKEN=ghp_local\n"
+                                 "NPM_TOKEN=\nWIKI_DB_PASS=pw # comment\n")
+        doc = core.auth_status()
+        assert "sekrit-value-123" not in repr(doc) and "ghp_local" not in repr(doc)
+        rows = {r["name"]: r for r in doc["push"]}
+        assert rows[name]["in_env_file"] is True
+        if "NPM_TOKEN" in rows:
+            assert rows["NPM_TOKEN"]["in_env_file"] is False, "an empty assignment counted as supplied"
+
+        spec = importlib.util.spec_from_file_location("fleet_config", core.TOOLS / "fleet-config.py")
+        fc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fc)
+        values = fc.read_env_file(core.ENV_FILE)
+        assert values[name] == "sekrit-value-123" and values["WIKI_DB_PASS"] == "pw", values
+        plan = fc.push_plan([{"name": name, "scope": "fleet"}, {"name": "NPM_TOKEN", "scope": "hub"},
+                             {"name": "OLD", "deprecated": True}], values)
+        assert plan["push"] == [name] and plan["absent"] == ["NPM_TOKEN"], plan
+        assert "GITHUB_TOKEN" in plan["ignored"] and "OLD" not in plan["absent"], plan
+        assert fc.push_plan([], values, ["NOPE"])["unknown"] == ["NOPE"]
+        assert "GITHUB_TOKEN" not in os.environ or os.environ["GITHUB_TOKEN"] != "ghp_local"
+    finally:
+        core.ENV_FILE = saved
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------- #

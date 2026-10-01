@@ -96,7 +96,11 @@ def require_token(authorization: str | None = Header(default=None)) -> None:
         return
     # constant-time: the token is a shared secret, so don't leak its prefix
     # through comparison timing.
-    if not authorization or not _secrets.compare_digest(authorization, f"Bearer {expected}"):
+    # RFC 7235: the scheme is case-insensitive, and neither side should fail
+    # on stray whitespace from a paste or an env file.
+    scheme, _, credential = (authorization or "").strip().partition(" ")
+    if scheme.lower() != "bearer" or not _secrets.compare_digest(
+            credential.strip().encode(), expected.strip().encode()):
         raise HTTPException(status_code=401, detail="console token required")
 
 

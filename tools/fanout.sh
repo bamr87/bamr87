@@ -5,7 +5,7 @@
 # One safety posture for every fan-out: clone each target repo, create the
 # kit branch, seed files, commit, and (only with --apply) push + open a PR.
 # Called by .github/workflows/standardize-fanout.yml and schema-fanout.yml;
-# runs locally too. Auth (`gh` / FANOUT_TOKEN) needs contents:write +
+# runs locally too. Auth (`gh` / FLEET_TOKEN) needs contents:write +
 # pull-requests:write AND workflows:write on the targets — every kit can seed
 # .github/workflows/* files, which GitHub refuses to push without it.
 #
@@ -18,7 +18,9 @@
 #     never overwrites a file the target already has. The deps-latest kit is
 #     the deliberate exception — converting a repo to the always-latest
 #     dependency policy MEANS editing manifests and deleting lockfiles
-#     (docs/DEPENDENCIES.md); every other guarantee here still applies to it
+#     (docs/DEPENDENCIES.md); the docker kit is the second — harmonizing a
+#     Dockerfile MEANS editing it (docs/DOCKER.md). Every other guarantee here
+#     still applies to both
 #   - one bot identity: bamr87-bot <10567847+bamr87@users.noreply.github.com>
 #
 # Usage:
@@ -28,6 +30,7 @@
 #   tools/fanout.sh --kit schema --target <name|all> [--apply]
 #   tools/fanout.sh --kit prose --target <name|all> [--apply]
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
+#   tools/fanout.sh --kit docker --target <name|all> [--apply]
 #   tools/fanout.sh --kit feedback --target <name|all> [--apply] [--upgrade]
 #
 # Kits:
@@ -86,6 +89,23 @@
 #                deletes + gitignores lockfiles, npm ci → npm install,
 #                lockfile-keyed caches removed, action tags floated to @major
 #                (_data/fleet.yml `dependencies:`, docs/DEPENDENCIES.md)
+#   docker       branch chore/docker-harmonize; brings a repo's Dockerfiles and
+#                compose files to the fleet standard via tools/docker_harmonize.py —
+#                image versions from _data/fleet.yml `images:` (variant kept, never
+#                lowered, deliberate pins respected), Postgres 18 data-mount, ports
+#                loopback-bound + env-overridable, no container_name, 127.0.0.1
+#                healthchecks, optional env_file. Like deps-latest it EDITS existing
+#                files — that is its purpose — and is idempotent (docs/DOCKER.md)
+#   verify       branch test/agent-verification; the AGENT VERIFICATION kit
+#                (templates/verify/, docs/VERIFICATION.md): features/
+#                features.yml scaffold (only when the repo has NO feature
+#                index of any shape), verify/verify.yml run config, a smoke
+#                user scenario, the Playwright runner + MCP config, the
+#                verify.yml caller of the reusable fleet-verify.yml, and the
+#                repo-local verify-feature skill + verifier agent (dedicated
+#                kit artifacts — the sanctioned exception to ".claude/ never
+#                fans out"). runner.mjs and verify.yml are upgradeable
+#                machine seeds (archive/<file>-<ver>.yml).
 #
 # --upgrade (every templated artifact, not just claude.yml):
 #   Each kit dir carries a VERSION and an archive/ of the shapes it has seeded
@@ -149,6 +169,7 @@ render_kit_template() {  # $1 template, $2 repo name, $3 default branch, $4 kit 
 # archive/<template-basename>-<version>[-<variant>].yml.
 machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 version
   local f="$1" tpl="$2" dir base ext cand tmp
+  MATCHED_ARCHIVE=""
   # Extension-derived, not hardcoded .yml: the issue-autopilot kit archives .py
   # engine shapes. For a .yml template this is byte-for-byte the old behaviour.
   dir="$(dirname "$tpl")"; ext="${tpl##*.}"; base="$(basename "$tpl" ".$ext")"
@@ -156,10 +177,22 @@ machine_seeded() {  # $1 file, $2 template, $3 repo name, $4 default branch, $5 
   for cand in "$dir/archive/$base"-*."$ext"; do
     [[ -f "$cand" ]] || continue
     render_kit_template "$cand" "$3" "$4" "$5" > "$tmp"
-    if cmp -s "$f" "$tmp"; then rm -f "$tmp"; return 0; fi
+    if cmp -s "$f" "$tmp"; then rm -f "$tmp"; MATCHED_ARCHIVE="$cand"; return 0; fi
   done
   rm -f "$tmp"
   return 1
+}
+
+# The version an on-disk seed is AT, for the dry-run report (FF-0017): its
+# `# kit: <kit> vX.Y.Z` stamp when it has one, else the version in the name of
+# the archived shape it matched (archive/<base>-<X.Y.Z>[-variant].<ext>).
+seed_version() {  # $1 file, $2 matched archive (may be empty)
+  local v
+  v="$(sed -n 's/^# kit: [a-z-]* v//p' "$1" | head -1)"
+  if [[ -z "$v" && -n "$2" ]]; then
+    v="$(basename "$2" | grep -Eo -- '-[0-9]+\.[0-9]+\.[0-9]+' | head -1)"; v="${v#-}"
+  fi
+  echo "${v:-unknown}"
 }
 
 # Seed one templated artifact, or report/refresh an existing copy.
@@ -181,7 +214,7 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
       render_kit_template "$tpl" "$name" "$def" "$ver" > "$dest"
       echo "${label}: upgraded machine seed -> kit v${ver}"
     else
-      echo "${label}: upgradeable machine seed (latest kit v${ver}; rerun with --upgrade)"
+      echo "${label}: upgradeable machine seed (v$(seed_version "$dest" "$MATCHED_ARCHIVE") -> latest kit v${ver}; rerun with --upgrade)"
     fi
   else
     stamp="$(sed -n 's/^# kit: [a-z-]* v//p' "$dest" | head -1)"
@@ -190,8 +223,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|feedback|elk) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|feedback|elk> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -232,6 +265,18 @@ case "$KIT" in
     COMMIT_MSG="build(deps): adopt fleet always-latest dependency policy"
     PR_TITLE="build(deps): always-latest dependencies — drop pins and lockfiles"
     PR_BODY="Automated by bamr87 deps-fanout (tools/fanout.sh --kit deps-latest): adopts the fleet's ALWAYS-LATEST dependency policy — strips exact version pins from package.json/requirements*.txt/Gemfile, deletes and gitignores lockfiles, floats GitHub Actions on their major tags, and adapts CI installs (npm ci → npm install; lockfile-keyed caches removed). Every install now resolves the newest published versions; breakage surfaces in CI and is triaged by the hub's daily fleet-pulse loop. Follow-ups the script won't automate (pyproject/poetry/Pipfile tables, hash-pinned requirements, npm overrides) are listed in the run log. See bamr87/bamr87 docs/DEPENDENCIES.md."
+    ;;
+  docker)
+    BRANCH="chore/docker-harmonize"
+    COMMIT_MSG="build(docker): harmonize Docker configuration to the fleet standard"
+    PR_TITLE="build(docker): harmonize Docker configuration to the fleet standard"
+    PR_BODY="$(printf 'Automated by bamr87 docker-fanout (tools/fanout.sh --kit docker): brings this repo'"'"'s Dockerfiles and compose files to the fleet standard. Image versions come from one registry (bamr87/bamr87 `_data/fleet.yml` `images:`) — the variant (-alpine, -slim) is kept, a version is never lowered, and anything you marked deliberately pinned (a comment containing "pinned", "bump deliberately", "do not bump" or "fleet-pin") is left alone. Also: published ports become `127.0.0.1:${VAR:-<same port>}:<target>` (defaults unchanged, so nothing moves unless you set the variable), env values that hardcode a host port follow that variable, `container_name` is dropped unless a script references it, healthchecks probe 127.0.0.1 instead of localhost, a missing `.env` no longer stops `compose` from parsing, and the obsolete `version:` key goes.\n\n**A Postgres major bump orphans existing local volumes** — the new server refuses data written by an older major, and Postgres 18 also moved its data directory (the mount is rewritten for you). Dev data is disposable (`docker compose down -v`), or `pg_dumpall` first; `tools/dash dev db-upgrade` in the hub automates the dump/restore. Pin the image with a comment to opt out.\n\nReport-only items the kit does not auto-fix (root user, no HEALTHCHECK, no .dockerignore, single-stage builds) are listed in the run log. Idempotent: re-running on a converted repo is a no-op. See bamr87/bamr87 docs/DOCKER.md and specs/REPOSITORY.md (UPS-REPO-34..39).')"
+    ;;
+  verify)
+    BRANCH="test/agent-verification"
+    COMMIT_MSG="test: adopt the agent verification kit (feature index + user scenarios + evidence)"
+    PR_TITLE="test: adopt the agent verification kit"
+    PR_BODY="$(printf 'Automated by bamr87 verify-fanout (tools/fanout.sh --kit verify): seeds the fleet AGENT VERIFICATION standard — a feature index (features/features.yml, schema features/v1) every agent reads for what this product does and what proves it; verify/verify.yml (how to run the app like a user); a smoke user scenario + the Playwright runner (verify/runner.mjs → test/evidence/<id>/ screenshots + report.json); the Playwright MCP config; a thin verify.yml caller of the reusable fleet-verify.yml (scenarios on every PR, an OAuth Claude Code pass driving the live app on `verify`-labelled PRs — advisory until gate: true); and the repo-local verify-feature skill + verifier agent.\n\nAdditive-only — nothing the repo already has is overwritten. After merge: fill verify/verify.yml `app:` for this stack, `npm i -D @playwright/test yaml && npx playwright install --with-deps chromium`, replace the TODO feature entry, create the `verify` and `skip-evidence` labels. Coverage is graded fleet-wide at bamr87.github.io/bamr87/features/. See bamr87/bamr87 docs/VERIFICATION.md.')"
     ;;
 esac
 
@@ -396,7 +441,7 @@ seed_vendored_asset() {  # $1 dest, $2 kit source, $3 label, [$4 version], [$5 a
       if [[ "$UPGRADE" -eq 1 ]]; then
         cp "$src" "$dest"; echo "${label}: upgraded machine seed -> kit v${ver}"
       else
-        echo "${label}: upgradeable machine seed (latest kit v${ver}; rerun with --upgrade)"
+        echo "${label}: upgradeable machine seed (v$(seed_version "$dest" "$cand") -> latest kit v${ver}; rerun with --upgrade)"
       fi
       return
     fi
@@ -692,6 +737,9 @@ run_one() {
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
+      docker)      # --project keys the repo into _data/ports.yml so variable names
+                   # match the fleet allocation (FREDGAR_API_PORT, not a derived one)
+                   "${PYTHON:-python3}" "$HUB/tools/docker_harmonize.py" apply . --project "$name" ;;
       feedback)    seed_feedback "$(basename "${url%.git}")" "$def"
                    [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
       elk)         seed_elk "$(basename "${url%.git}")" "$def" ;;

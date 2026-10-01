@@ -1,0 +1,14 @@
+# The first thing a visitor does: land on the dash and find the command center.
+id: home
+feature: HUB-001
+title: "Home page renders with the dash navigation"
+description: "A visitor lands on the profile/dash root, sees the main content, and can reach the Command Center pages from the sidebar without any sideways scrolling."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+steps:
+  - goto: /
+  - expect: { status: 200 }
+  - expect: { visible: "main, [role=main], #main-content" }
+  - expect: { no_horizontal_scroll: true }
+  - expect: { no_console_errors: true }
+  - screenshot: home

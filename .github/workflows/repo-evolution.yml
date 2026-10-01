@@ -99,7 +99,7 @@ jobs:
       label: ${{ steps.plan.outputs.label }}
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
-      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+      FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -133,7 +133,7 @@ jobs:
       - name: Build the plan
         id: plan
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           TARGET: ${{ inputs.target || 'all' }}
           FOCUS: ${{ inputs.focus }}
           FORCE: ${{ inputs.force }}
@@ -219,7 +219,7 @@ jobs:
         with:
           repository: ${{ matrix.nwo }}
           ref: ${{ matrix.branch }}
-          token: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          token: ${{ secrets.FLEET_TOKEN }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -241,7 +241,7 @@ jobs:
           # Read-only use, enforced by the allowlist below (view/list/diff
           # subcommands only). Gives the agent the listed issues/PRs on
           # private targets, which GITHUB_TOKEN could not see.
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN == '' && secrets.ANTHROPIC_API_KEY || '' }}
@@ -488,7 +488,7 @@ jobs:
         id: publish
         if: ${{ !cancelled() && inputs.dry_run != true && (steps.evolve.outcome == 'success' || steps.salvage.outputs.succeeded == 'true') }}
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.FANOUT_TOKEN }}
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
           PREFIX: ${{ needs.plan.outputs.branch_prefix }}
           LABEL: ${{ needs.plan.outputs.label }}
           MARKER: ${{ matrix.marker }}
@@ -553,18 +553,14 @@ jobs:
           git commit -q -m "chore(evolve): weekly AI improvement pass" \
             -m "Documentation, clarity, and functionality pass from the bamr87/bamr87 repo-evolution loop (run ${GITHUB_RUN_ID}). Draft for human review; nothing merges automatically."
 
-          # Push to the repo this job is FOR, not to whatever `origin` happens to
-          # point at by now. In run 33376132003 the scripts job checked out
-          # bamr87/scripts (`git remote add origin https://github.com/bamr87/scripts`,
-          # confirmed in the log), the agent finished clean — and this push still
-          # went to `https://github.com/bamr87/bamr87.git/` and was rejected
-          # ("Invalid username or token"), throwing away a completed pass. Between
-          # the checkout and here, only `claude-code-action` touches the workspace,
-          # and bamr87/bamr87 is exactly `github.repository` — an ambient default
-          # this cross-repo checkout must not inherit. Re-asserting the target
-          # costs nothing and makes the step depend on `NWO` alone.
-          git remote set-url origin "https://github.com/${NWO}"
-          if ! git push -q -u origin "$BR"; then
+          # Push to the explicit, just-verified URL — never the remote NAME. In
+          # run 33376132003 the scripts job checked out bamr87/scripts, the agent
+          # finished clean, and a push to `origin` still went to
+          # https://github.com/bamr87/bamr87.git/ and was rejected ("Invalid
+          # username or token"), throwing away a completed pass. `origin` is
+          # ambient state claude-code-action may have touched; "$REMOTE" was
+          # built from $NWO alone a few lines up and asserted above.
+          if ! git push -q "$REMOTE" "HEAD:refs/heads/${BR}"; then
             echo "::error::${NAME}: pushing ${BR} to ${NWO} failed — the agent's work is committed locally but undelivered."
             echo "remotes and any url rewrites in effect:"
             git remote -v | sed 's/^/  | /'

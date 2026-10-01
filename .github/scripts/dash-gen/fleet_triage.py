@@ -191,7 +191,11 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
 
     try:
         repo = gh.get_repo(nwo)
-    except GithubException:
+    except GithubException as exc:
+        # Say WHY: a 401 here means the token is dead, not the repo — and the
+        # 2026-09-27 pulse logged 43 silent skips for exactly that.
+        msg = exc.data.get("message", "") if isinstance(exc.data, dict) else ""
+        sys.stderr.write(f"    ! {nwo}: HTTP {exc.status} {msg}\n")
         return None
 
     rec: dict = {
@@ -396,6 +400,11 @@ def build_inbox(repos: list[dict]) -> list[dict]:
     return inbox[:INBOX_CAP]
 
 
+def blind_snapshot(rep: dict) -> bool:
+    """True when not a single repo could be read — never a real fleet state."""
+    return rep.get("repos_scanned", 0) == 0 and bool(rep.get("repos_unreachable"))
+
+
 def build_report(registry: list[dict], gh, th: dict, pr_ci_cap: int) -> dict:
     repos: list[dict] = []
     unreachable: list[str] = []
@@ -478,6 +487,16 @@ def run(args: argparse.Namespace) -> int:
     gh = Github(auth=Auth.Token(token), per_page=100)
     sys.stderr.write(f"Triaging open state for {len(registry)} repos…\n")
     rep = build_report(registry, gh, th, args.pr_ci_cap)
+
+    # A snapshot that could read NOTHING is a credential failure, not a quiet
+    # fleet. Writing it anyway replaced a 43-repo snapshot with zeros on
+    # 2026-09-27 and told the fleet-pulse doctor "nothing to do" for two days.
+    # Keep the last good file and fail the step so the run summary shows it.
+    if blind_snapshot(rep):
+        sys.stderr.write(
+            f"::error::triage read 0 of {len(rep['repos_unreachable'])} repos — the token "
+            "is rejected or lacks access; keeping the previous snapshot.\n")
+        return 1
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
