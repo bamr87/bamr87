@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-01T06:06:29Z'
+generated_at: '2026-10-02T06:06:24Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
