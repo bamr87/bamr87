@@ -65,6 +65,7 @@ coverage: listed
 | `issue-workorder-t*.md` | pattern | Ephemeral per-tier issue work orders (`dash issues` → issue-pipeline.yml; gitignored) | generated |
 | `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |
 | `.dash-lake/` | dir | The local data lake — GitHub runs/jobs/steps/logs/issues/workflow files extracted into SQLite by `dash-gen lake sync`, the source of the Phoenix traces (gitignored; docs/HARNESS-OPS.md) | generated |
+| `LICENSE` | file | MIT license text | |
 
 ## Placement
 
