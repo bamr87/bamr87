@@ -10,10 +10,12 @@ Description: Executable Universal Project Standard (UPS) checker. Runs the
              Static and offline: file presence, byte parity, small greps. Rows
              with no implemented check are counted as `manual`; rows a check
              cannot decide offline are listed as `unverified`; rows at spec
-             level `retired` are skipped. A row in WARN_ONLY reports a failure
-             as a warning that never counts toward must_failed or `--gate`
-             (delete its entry to make it fail). The UPS-WORK, UPS-AGENT-07/08/09
-             and UPS-REPO-21 rows are keyed to the hub's specs/WORK.contract.yml.
+             level `retired` are skipped. Results are pass | warn | fail |
+             unverified: a warning is reported but never counts toward
+             must_failed or `--gate`. Rules marked `rollout: warn` in the hub's
+             specs/WORK.contract.yml report a failure as a warning (delete the
+             marker to make the rule gate). The UPS-WORK, UPS-AGENT-07/08/09 and
+             UPS-REPO-21 rows are keyed to that contract.
 Author: bamr87
 Created: 2026-09-01
 Last Modified: 2026-10-03
@@ -550,55 +552,40 @@ def _env_not_tracked(r, k):
 # with it: UPS-AGENT-07/08/09 (decision D4) and UPS-REPO-21 (decision D5).
 #
 # KEYED TO THE CONTRACT. specs/WORK.contract.yml (hub) is the machine contract
-# for these rows: every path, key and regex it names under `definitions:` is
-# read from it at run time (`contract(r)["defs"]`), never copied here. The few
-# regexes that the contract states inline in a rule's `pass:` text are written
-# below as `RULE_RX`, each keyed by rule id, and tools/test_conformance_work.py
-# fails if one stops appearing verbatim in the contract. When the hub checkout
-# has no contract (it predates bamr87/bamr87#323), these rows report
-# `unverified` instead of guessing.
+# for these rows: every path, key, list and regex it names under `definitions:`
+# is read from it at run time (`_defs(r)`), never copied here. The few regexes
+# the contract states only inside a rule's `pass:` text are in `RULE_RX`, keyed
+# by rule id; tools/test_conformance_work.py fails if one stops appearing
+# verbatim in the contract. When the hub checkout has no contract (it predates
+# bamr87/bamr87#323), these rows report `unverified` instead of guessing.
 #
-# Static and offline, like the rest: a fact the checker cannot see from the
-# tree (an inherited PR template or forms, labels on GitHub) returns ok=None
-# and is reported as `unverified`, never as a pass or a failure.
+# Result vocabulary (the contract's): pass | warn | fail | unverified. A check
+# returns True / WARN / False / None. WARN is a deprecated-but-accepted shape
+# (a rule's own `warn:` clause). Separately, every rule the contract marks
+# `rollout: warn` reports a would-be fail as a warning too (see warn_only()).
+#
+# One failure per root cause: a rule that only reads a file another rule owns
+# passes, naming the owner, when the file is missing (CHANGELOG.md belongs to
+# UPS-REPO-21; AGENTS.md to UPS-AGENT-07).
 # --------------------------------------------------------------------------- #
 CONTRACT_FILE = "specs/WORK.contract.yml"
-BACKLOG_FILES = ("BACKLOG.md", "_data/backlog.yml")
+WARN = "warn"
 FLEET_TYPES_FALLBACK = ("bug", "feature", "docs", "chore", "ci", "refactor", "test", "security", "question")
 SPEC_STALE_DAYS, BACKLOG_LAG_DAYS = 30, 60
-# Regexes the contract states inside a rule's `pass:` prose (not as a named
-# definition). Each string must appear verbatim in that rule's contract text.
+# Regexes and literals the contract states inside a rule's `pass:` prose (it has
+# no named definition for them). Each must appear verbatim in that rule's text.
 RULE_RX = {
     "UPS-WORK-02": r"backlog[_-]?lint|lint[_-]?backlog|validate[_-]?backlog",
     "UPS-WORK-03": r"^- \[ \] \*\*(.+?)\*\*",
-    "UPS-WORK-04": r"^\d{4}-[a-z0-9][a-z0-9-]*\.md$",
     "UPS-WORK-05/unreleased": r"^##\s*\[?unreleased\b",
     "UPS-WORK-05/tag": r"^v?\d+\.\d+\.\d+$",
     "UPS-WORK-05/heading": r"^##\s*\[?v?(\d+\.\d+\.\d+)",
     "UPS-WORK-11/task": r"^\s*[-*] \[[ xX]\] ",
     "UPS-WORK-11/id": r"\b(BL-\d{8}-\d{2}|T-\d{3,})\b",
+    "UPS-WORK-11/hub-roadmap": "bamr87/bamr87/blob/main/_data/roadmap.yml",
     "UPS-WORK-12/section": r"^##\s+Conventions\b",
     "UPS-WORK-12/dod": r"Definition of Done|pull_request_template",
-    "UPS-AGENT-08/import": r"^@AGENTS\.md\s*$",
-    "UPS-AGENT-09": r"<!-- kit: (agent-context|sdlc) v\d+\.\d+\.\d+",
-}
-# UPS-AGENT-07: the six `##` headings of AGENTS.md, in order (contract `related`).
-AGENT_HEADINGS = ("What this repo is", "Stack & commands", "Layout", "Conventions", "Fleet context", "Standard deviations")
-CLAUDE_MAX_LINES = 20  # UPS-AGENT-08: at most 20 non-blank lines
-WORK11_FILES = ("ROADMAP.md", "TODO.md", "PRD.md", "docs/ROADMAP.md", "docs/TODO.md", "docs/PRD.md")
-WORK11_HUB_ROADMAP = "bamr87/bamr87/blob/main/_data/roadmap.yml"
-RELEASE_TYPES = ("simple", "node", "python", "ruby")  # UPS-REPO-21
-
-# --------------------------------------------------------------------------- #
-# Severity overrides. A row listed here is evaluated as usual, but a failure is
-# reported as a WARNING (`! id` in text, `warnings:` in JSON): it does not count
-# toward must_failed / should_failed and never trips `--gate`. To make a row a
-# real failure again, delete its line; nothing else changes.
-# --------------------------------------------------------------------------- #
-WARN_ONLY: dict[str, str] = {
-    "UPS-AGENT-07": "warn until the agent-context kit moves to D4 (AGENTS.md canonical); ~60 repos fail today",
-    "UPS-AGENT-08": "warn until the agent-context kit moves to D4 (CLAUDE.md a pointer); ~60 repos fail today",
-    "UPS-WORK-07": "warn until law-ai and gitorio adopt the spec-driven kit's scripts byte-for-byte",
+    "UPS-REPO-21/no-profile": "simple|node|python|ruby",
 }
 
 _CONTRACTS: dict[Path, dict | None] = {}
@@ -629,6 +616,22 @@ def _need_contract(fn):
 
 def _defs(r) -> dict:
     return (contract(r) or {}).get("defs") or {}
+
+
+def _rule(r, rid: str) -> dict:
+    c = contract(r) or {}
+    return (c.get("rules") or {}).get(rid) or (c.get("related") or {}).get(rid) or {}
+
+
+def warn_only(r) -> dict[str, str]:
+    """Rules the contract marks `rollout: warn`: a failure is reported as a
+    warning that never counts toward must_failed or `--gate`. Fleet Ops makes a
+    rule gate by deleting its marker in specs/WORK.contract.yml; nothing here
+    changes."""
+    c = contract(r) or {}
+    rules = {**(c.get("rules") or {}), **(c.get("related") or {})}
+    return {rid: "rollout: warn in specs/WORK.contract.yml" for rid, v in rules.items()
+            if isinstance(v, dict) and v.get("rollout") == "warn"}
 
 
 def _hub_path(r, ref: str) -> Path:
@@ -733,8 +736,8 @@ def _backlog_decl(prof: dict | None) -> dict:
     return b if isinstance(b, dict) else {}
 
 
-def _adr_path(prof: dict | None) -> str:
-    return str((prof or {}).get("adr_path") or "docs/adr").strip("/")
+def _adr_path(r, prof: dict | None) -> str:
+    return str((prof or {}).get("adr_path") or _defs(r).get("adr_path_default") or "docs/adr").strip("/")
 
 
 def _workflow_texts(r) -> list[tuple[str, str]]:
@@ -748,6 +751,45 @@ def _section(text: str, heading_rx: str) -> str | None:
         return None
     nxt = re.search(r"^##\s", text[m.end():], re.M)
     return text[m.end(): m.end() + nxt.start()] if nxt else text[m.end():]
+
+
+def _at(node, segs: list[str]) -> list:
+    """Values at a contract key path: `<name>` = every value of a mapping,
+    `key[]` = every item of the list at key, `key` = that key."""
+    if not segs:
+        return [node]
+    seg, rest = segs[0], segs[1:]
+    if seg.startswith("<") and seg.endswith(">"):
+        return [v for x in (node.values() if isinstance(node, dict) else []) for v in _at(x, rest)]
+    if seg.endswith("[]"):
+        items = node.get(seg[:-2]) if isinstance(node, dict) else None
+        return [v for x in (items if isinstance(items, list) else []) for v in _at(x, rest)]
+    return _at(node[seg], rest) if isinstance(node, dict) and seg in node else []
+
+
+def uses_values(r, p: Path, only: str | None = None) -> list[str] | None:
+    """The `uses:` values parsed from a pin_scope file at the contract's
+    uses_keys (workflow keys under .github/workflows/, action keys elsewhere);
+    `only` restricts to one key path. None = the file is not valid YAML."""
+    keys = _defs(r).get("uses_keys") or {}
+    kind = "workflow" if p.parent.name == "workflows" else "action"
+    try:
+        doc = yaml.safe_load(p.read_text(encoding="utf-8", errors="replace"))
+    except yaml.YAMLError:
+        return None
+    out = []
+    for key in keys.get(kind) or []:
+        if only is None or key == only:
+            out += [v.strip() for v in _at(doc, key.split(".")) if isinstance(v, str)]
+    return out
+
+
+def _pin_files(r) -> list[Path]:
+    """Contract pin_scope (globs relative to the repo root; `**` is recursive)."""
+    out: set[Path] = set()
+    for g in _defs(r).get("pin_scope") or []:
+        out.update(p for p in r.path.glob(g) if p.is_file())
+    return sorted(out)
 
 
 # --- a JSON Schema subset, enough for templates/sdlc/sdlc.schema.json ------ #
@@ -866,8 +908,12 @@ def _definition_of_done(r, k):
     ref = _dod_block(ref_p.read_text(encoding="utf-8"), d["dod_block_re"]) if ref_p.is_file() else None
     if not ref:
         return _skip(f"{path} has a v{mine[0]} block; the hub has no reference template (bamr87/bamr87#319) to compare")
-    if mine[0] != ref[0]:
-        return _no(f"{path} carries fleet-dod v{mine[0]}; the hub kit is v{ref[0]}")
+    vers = _defs(r).get("dod_versions") or {"pass_offset": 0, "warn_offset": -1}
+    n, have = int(ref[0]), int(mine[0])
+    if have == n + int(vers.get("warn_offset", -1)) and have != n + int(vers.get("pass_offset", 0)):
+        return WARN, f"{path} carries fleet-dod v{have}; the hub kit is v{n} (previous version: update during the rollout)"
+    if have != n + int(vers.get("pass_offset", 0)):
+        return _no(f"{path} carries fleet-dod v{have}; the hub kit is v{n}")
     if mine[1] != ref[1]:
         missing = [b for b in ref[1] if b not in mine[1]]
         return _no(f"{path} DoD boxes differ from the kit" + (f" (missing: {', '.join(missing)})" if missing else " (order or wording)"))
@@ -877,15 +923,24 @@ def _definition_of_done(r, k):
 @check("UPS-WORK-04")
 @_need_contract
 def _adr_log(r, k):
-    """Contract UPS-WORK-04 (and WORK-13): <adr_path>/README.md + >= 1 NNNN-slug.md other than 0000-*."""
-    d = _adr_path(sdlc_profile(r)[0])
+    """Contract UPS-WORK-04 (and WORK-13): <adr_path>/<adr_index> + >= 1 adr_file_re
+    file (adr_template_re never counts). adr_alias_re files (ADR-NNNN-slug.md)
+    count with a warning until the D2 rename."""
+    defs = _defs(r)
+    d = _adr_path(r, sdlc_profile(r)[0])
     p = r.path / d
-    adrs = [x.name for x in p.glob("*.md") if re.match(RULE_RX["UPS-WORK-04"], x.name) and not x.name.startswith("0000-")] if p.is_dir() else []
-    if not adrs:
+    names = sorted(x.name for x in p.glob("*.md")) if p.is_dir() else []
+    tpl = re.compile(defs.get("adr_template_re") or r"^(ADR-)?0000-")
+    canon = [n for n in names if re.match(defs["adr_file_re"], n) and not tpl.match(n)]
+    alias = [n for n in names if re.match(defs["adr_alias_re"], n) and not tpl.match(n)]
+    index = str(defs.get("adr_index") or "README.md")
+    if not canon and not alias:
         return _no(f"no ADRs in {d}/ (NNNN-slug.md)")
-    if not (p / "README.md").is_file():
-        return _no(f"{d}/ has {len(adrs)} ADR(s) but no README.md index")
-    return _ok(f"{len(adrs)} ADR(s) in {d}/")
+    if not (p / index).is_file():
+        return _no(f"{d}/ has {len(canon) + len(alias)} ADR(s) but no {index} index")
+    if alias:
+        return WARN, f"{d}/: deprecated ADR- names, rename to NNNN-slug.md (D2): " + ", ".join(alias[:4]) + (f" (+{len(alias) - 4} more)" if len(alias) > 4 else "")
+    return _ok(f"{len(canon)} ADR(s) in {d}/")
 
 
 CHECKS["UPS-WORK-13"] = CHECKS["UPS-WORK-04"]  # contract: same_as UPS-WORK-04
@@ -902,7 +957,7 @@ def _changelog_hygiene(r, k):
     """Contract UPS-WORK-05: at most one [Unreleased]; newest heading == newest tag."""
     t = r.read(str(_defs(r).get("changelog") or "CHANGELOG.md"))
     if not t:
-        return _ok("no CHANGELOG.md; its absence is UPS-REPO-21")
+        return _ok("no CHANGELOG.md, see UPS-REPO-21")
     n = len(re.findall(RULE_RX["UPS-WORK-05/unreleased"], t, re.I | re.M))
     if n > 1:
         return _no(f"CHANGELOG.md has {n} `## [Unreleased]` headings (at most one)")
@@ -1064,25 +1119,28 @@ def _form_labels_check(r, k):
     return _ok(f"{len(forms)} form(s); repo labels are UPS-WORK-14 (online)") if not bad else _no("; ".join(bad))
 
 
-def _pin_files(r) -> list[Path]:
-    """Contract pin_scope (globs relative to the repo root; `**` is recursive)."""
-    out: set[Path] = set()
-    for g in _defs(r).get("pin_scope") or []:
-        out.update(p for p in r.path.glob(g) if p.is_file())
-    return sorted(out)
-
-
 @check("UPS-WORK-10")
 @_need_contract
 def _hub_refs_pinned(r, k):
-    """Contract UPS-WORK-10: every fleet_uses_re ref fullmatches pinned_ref_re."""
+    """Contract UPS-WORK-10: every parsed `uses:` value (uses_keys) matching
+    fleet_uses_value_re has a ref that fullmatches pinned_ref_re. `run:` text,
+    other strings and comments are never inspected."""
     d = _defs(r)
-    uses, pin = re.compile(d["fleet_uses_re"], re.M), re.compile(d["pinned_ref_re"])
-    floating = [f"{p.name}: {m.group(1).rsplit('/', 1)[-1]}@{m.group(2)}"
-                for p in _pin_files(r) for m in uses.finditer(p.read_text(encoding="utf-8", errors="replace"))
-                if not pin.fullmatch(m.group(2))]
-    return _ok() if not floating else _no("fleet workflow/action not pinned to @vN, @vX.Y.Z or a full SHA: " + ", ".join(floating[:4])
-                                          + (f" (+{len(floating) - 4} more)" if len(floating) > 4 else ""))
+    fleet, pin = re.compile(d["fleet_uses_value_re"]), re.compile(d["pinned_ref_re"])
+    floating, broken = [], []
+    for p in _pin_files(r):
+        vals = uses_values(r, p)
+        if vals is None:
+            broken.append(str(p.relative_to(r.path)))
+            continue
+        for v in vals:
+            m = fleet.match(v)
+            if m and not pin.fullmatch(m.group(2)):
+                floating.append(f"{p.name}: {m.group(1).rsplit('/', 1)[-1]}@{m.group(2)}")
+    problems = ([f"not valid YAML: {', '.join(broken)}"] if broken else []) + (
+        ["fleet workflow/action not pinned to @vN, @vX.Y.Z or a full SHA: " + ", ".join(floating[:4])
+         + (f" (+{len(floating) - 4} more)" if len(floating) > 4 else "")] if floating else [])
+    return _ok() if not problems else _no("; ".join(problems))
 
 
 def _strip_md_links(t: str) -> str:
@@ -1096,7 +1154,7 @@ def _planning_files(r, k):
     b = _backlog_decl(sdlc_profile(r)[0])
     link = b.get("file") if b.get("mode") == "file" and b.get("file") else "/issues"
     bad = []
-    for f in WORK11_FILES:
+    for f in _rule(r, "UPS-WORK-11").get("reads") or []:
         t = r.read(f)
         if not r.has(f):
             continue
@@ -1105,7 +1163,7 @@ def _planning_files(r, k):
             bad.append(f"{f} has task-list items")
         if ids := re.findall(RULE_RX["UPS-WORK-11/id"], plain):
             bad.append(f"{f} carries backlog ids ({', '.join(sorted(set(ids))[:3])})")
-        if link not in t and WORK11_HUB_ROADMAP not in t:
+        if link not in t and RULE_RX["UPS-WORK-11/hub-roadmap"] not in t:
             bad.append(f"{f} does not link the backlog of record ({link})")
     return _ok() if not bad else _no("; ".join(bad))
 
@@ -1114,49 +1172,49 @@ def _planning_files(r, k):
 @_need_contract
 def _agents_conventions(r, k):
     """Contract UPS-WORK-12: AGENTS.md § Conventions names the backlog, the DoD and
-    the literal adr_path ('ADR' when the adr module is off). Matching is
-    case-insensitive (the kit template writes "Backlog of record")."""
+    the literal adr_path (re.I; 'ADR' when the profile sets modules.adr: false).
+    A missing AGENTS.md is UPS-AGENT-07's failure."""
     a = r.read(str(_defs(r).get("agents_file") or "AGENTS.md"))
     if not a:
-        return _no("no AGENTS.md (the canonical agent file, D4)")
+        return _ok("no AGENTS.md, see UPS-AGENT-07")
     sec = _section(a, RULE_RX["UPS-WORK-12/section"])
     if sec is None:
         return _no("AGENTS.md has no `## Conventions` section")
     prof = sdlc_profile(r)[0]
-    adr_on = prof is None or "adr" in sdlc_modules(prof) or "modules" not in prof
-    adr = _adr_path(prof) if adr_on else "ADR"
+    adr_off = isinstance((prof or {}).get("modules"), dict) and prof["modules"].get("adr") is False
+    adr = "ADR" if adr_off else _adr_path(r, prof)
     missing = [n for n, ok in (("backlog", re.search(r"backlog", sec, re.I)),
                                ("Definition of Done", re.search(RULE_RX["UPS-WORK-12/dod"], sec, re.I)),
-                               (f"ADR path `{adr}`", adr.lower() in sec.lower())) if not ok]
+                               (f"ADR path `{adr}`", re.search(re.escape(adr), sec, re.I))) if not ok]
     return _ok() if not missing else _no("AGENTS.md § Conventions does not name: " + ", ".join(missing))
 
 
-def _h2(text: str) -> list[str]:
-    return [h.strip().rstrip("#").strip() for h in re.findall(r"^##\s+(.+)$", text, re.M)]
-
-
-def _norm(h: str) -> str:
-    return re.sub(r"\s+", " ", h.replace("&amp;", "&")).strip().lower()
+def _h2(r, text: str) -> list[str]:
+    rx = _defs(r).get("agents_heading_re") or r"^##[ \t]+(.+?)[ \t]*#*[ \t]*$"
+    return [h.strip() for h in re.findall(rx, text, re.M)]
 
 
 @check("UPS-AGENT-07")
 @_need_contract
 def _agents_md(r, k):
-    """Contract related.UPS-AGENT-07: AGENTS.md has the six `##` headings, in order
-    (other headings may sit between them), and no line starting `TODO:`."""
-    a = r.read(str(_defs(r).get("agents_file") or "AGENTS.md"))
+    """Contract related.UPS-AGENT-07: agents_file has every agents_required_headings
+    name (trimmed, case-insensitive; agents_heading_order / agents_extra_headings
+    decide order and extras) and no agents_todo_re line."""
+    d = _defs(r)
+    a = r.read(str(d.get("agents_file") or "AGENTS.md"))
     if not a:
         return _no("no AGENTS.md (canonical agent file, D4)")
-    heads = [_norm(h) for h in _h2(a)]
-    absent = [w for w in AGENT_HEADINGS if _norm(w) not in heads]
+    want = [str(x) for x in d.get("agents_required_headings") or []]
+    heads = [h.lower() for h in _h2(r, a)]
     problems = []
+    absent = [w for w in want if w.lower() not in heads]
     if absent:
         problems.append("missing ## " + ", ".join(absent))
-    else:
-        pos = [heads.index(_norm(w)) for w in AGENT_HEADINGS]
-        if pos != sorted(pos):
-            problems.append("the six headings are out of order")
-    if re.search(r"^TODO:", a, re.M):
+    elif d.get("agents_heading_order") and [h for h in heads if h in {w.lower() for w in want}] != [w.lower() for w in want]:
+        problems.append("required headings out of order")
+    if d.get("agents_extra_headings") is False and (extra := [h for h in heads if h not in {w.lower() for w in want}]):
+        problems.append("extra headings: " + ", ".join(extra[:3]))
+    if re.search(d.get("agents_todo_re") or r"^TODO:", a, re.M):
         problems.append("scaffold `TODO:` lines left")
     return _ok() if not problems else _no("AGENTS.md: " + "; ".join(problems))
 
@@ -1164,39 +1222,52 @@ def _agents_md(r, k):
 @check("UPS-AGENT-08")
 @_need_contract
 def _claude_pointer(r, k):
-    """Contract related.UPS-AGENT-08: CLAUDE.md imports @AGENTS.md, carries none of
-    the AGENT-07 headings, and has at most 20 non-blank lines."""
-    t = r.read(str(_defs(r).get("claude_file") or "CLAUDE.md"))
+    """Contract related.UPS-AGENT-08: claude_file has a claude_pointer_re line, no
+    agents_required_headings heading, and <= claude_max_nonblank_lines non-blank lines."""
+    d = _defs(r)
+    t = r.read(str(d.get("claude_file") or "CLAUDE.md"))
     if not t:
         return _no("no CLAUDE.md pointer")
     problems = []
-    if not re.search(RULE_RX["UPS-AGENT-08/import"], t, re.M):
-        problems.append("no `@AGENTS.md` import line")
-    dup = [h for h in _h2(t) if _norm(h) in {_norm(x) for x in AGENT_HEADINGS}]
-    if dup:
+    if not re.search(d["claude_pointer_re"], t, re.M):
+        problems.append(f"no `{d.get('claude_pointer', '@AGENTS.md')}` import line")
+    want = {str(x).lower() for x in d.get("agents_required_headings") or []}
+    if dup := [h for h in _h2(r, t) if h.lower() in want]:
         problems.append("carries AGENTS.md headings: " + ", ".join(dup[:3]))
+    limit = int(d.get("claude_max_nonblank_lines", 20))
     n = sum(1 for line in t.splitlines() if line.strip())
-    if n > CLAUDE_MAX_LINES:
-        problems.append(f"{n} non-blank lines (max {CLAUDE_MAX_LINES})")
+    if n > limit:
+        problems.append(f"{n} non-blank lines (max {limit})")
     return _ok() if not problems else _no("CLAUDE.md: " + "; ".join(problems))
 
 
 @check("UPS-AGENT-09")
 @_need_contract
 def _agents_kit_stamp(r, k):
-    """Contract related.UPS-AGENT-09: AGENTS.md carries the kit stamp."""
-    a = r.read(str(_defs(r).get("agents_file") or "AGENTS.md"))
+    """Contract related.UPS-AGENT-09: kit_stamp.file matches kit_stamp.re. A
+    missing AGENTS.md is UPS-AGENT-07's failure."""
+    ks = _defs(r).get("kit_stamp") or {}
+    f = str(ks.get("file") or "AGENTS.md")
+    a = r.read(f)
     if not a:
-        return _no("no AGENTS.md")
-    return _ok() if re.search(RULE_RX["UPS-AGENT-09"], a) else _no("AGENTS.md lacks `<!-- kit: sdlc vX.Y.Z -->` (or agent-context)")
+        return _ok(f"no {f}, see UPS-AGENT-07")
+    m = re.search(ks["re"], a)
+    return _ok(f"kit {m.group(1)} v{m.group(2)}") if m else _no(f"{f} lacks the kit stamp {ks.get('format', '')}".rstrip())
 
 
 @check("UPS-REPO-21")
 @_need_contract
 def _release_please(r, k):
     """Contract related.UPS-REPO-21: CHANGELOG.md; release_files parse; release-type
-    is simple|node|python|ruby; a workflow calls the hub's release-please.yml at a pinned ref."""
+    allowed for the repo type (release_types); a job-level `uses:` of
+    release_workflow at a pinned ref. A legacy_release_workflow caller warns."""
     d = _defs(r)
+    prof = sdlc_profile(r)[0] or {}
+    rtype = prof.get("type")
+    allowed_map = d.get("release_types") or {}
+    if rtype in allowed_map and not allowed_map[rtype]:
+        return _ok(f"type {rtype}: release-please does not apply")
+    allowed = allowed_map.get(rtype) if rtype in allowed_map else RULE_RX["UPS-REPO-21/no-profile"].split("|")
     problems = [] if r.has(str(d.get("changelog") or "CHANGELOG.md")) else ["no CHANGELOG.md"]
     cfg = None
     for f in d.get("release_files") or []:
@@ -1212,16 +1283,22 @@ def _release_please(r, k):
             cfg = data
     if isinstance(cfg, dict):
         rt = ((cfg.get("packages") or {}).get(".") or {}).get("release-type")
-        if rt not in RELEASE_TYPES:
-            problems.append(f"packages[\".\"].release-type is {rt!r} (simple|node|python|ruby)")
-    call = re.compile(d["release_workflow_re"] + r"""([^\s'"#]+)""", re.M)
-    refs = [m.group(1) for _, t in _workflow_texts(r) for m in call.finditer(t)]
+        if rt not in allowed:
+            problems.append(f"packages[\".\"].release-type is {rt!r} (allowed for {'type ' + rtype if rtype in allowed_map else 'a repo with no profile'}: {'|'.join(allowed)})")
+    job_key = next(iter((d.get("uses_keys") or {}).get("workflow") or []), None)
+    calls = [v for p in _pin_files(r) if p.parent.name == "workflows" for v in (uses_values(r, p, only=job_key) or [])]
     pin = re.compile(d["pinned_ref_re"])
-    if not refs:
-        problems.append("no workflow calls bamr87/bamr87 release-please.yml")
-    elif not any(pin.fullmatch(x) for x in refs):
-        problems.append(f"release-please.yml called at an unpinned ref (@{refs[0]})")
-    return _ok() if not problems else _no("; ".join(problems))
+    hub_refs = [v.split("@", 1)[1] for v in calls if v.split("@", 1)[0] == d["release_workflow"] and "@" in v]
+    legacy = [v for v in calls if v.split("@", 1)[0] == d.get("legacy_release_workflow")]
+    if hub_refs and not any(pin.fullmatch(x) for x in hub_refs):
+        problems.append(f"release-please.yml called at an unpinned ref (@{hub_refs[0]})")
+    elif not hub_refs and not legacy:
+        problems.append(f"no job calls {d['release_workflow']}")
+    if problems:
+        return _no("; ".join(problems))
+    if not hub_refs:
+        return WARN, f"migrate to {d['release_workflow']}@v1 (decision D3); today it calls {legacy[0]}"
+    return _ok()
 
 
 # --------------------------------------------------------------------------- #
@@ -1263,9 +1340,11 @@ def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
         if ok is None:  # not decidable offline
             unverified.append({"id": req["id"], "level": req["level"], "detail": detail})
             continue
-        if not ok and req["id"] in WARN_ONLY:  # severity override: reported, never counted
+        rollout = warn_only(repo)
+        if ok == WARN or (not ok and req["id"] in rollout):  # reported, never counted
             warnings.append({"id": req["id"], "level": req["level"], "detail": detail,
-                             "why_warn": WARN_ONLY[req["id"]], "spec": f"specs/{area_file(req.get('area', ''), specs)}"})
+                             "why_warn": "deprecated shape (the rule's warn clause)" if ok == WARN else rollout[req["id"]],
+                             "spec": f"specs/{area_file(req.get('area', ''), specs)}"})
             continue
         results.append({"id": req["id"], "level": req["level"], "ok": bool(ok), "detail": detail,
                         "spec": req.get("area", "")})
