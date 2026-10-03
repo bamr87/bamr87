@@ -151,7 +151,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`seed-schema.sh`](tools/seed-schema.sh) | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 | [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bamr87/chui](https://github.com/bamr87/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font with CoreText via `m… |
 | [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
-| [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the UPS-WORK rows in tools/conformance.py (planning and delivery: SDLC profile, backlog of record, Definition of Done, ADRs, CHANGELOG and feature-cata… |
+| [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
 | [`test_docker_view.py`](tools/test_docker_view.py) | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Py… |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |

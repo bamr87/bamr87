@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 """
-Fixture tests for the UPS-WORK rows in tools/conformance.py (planning and
-delivery: SDLC profile, backlog of record, Definition of Done, ADRs, CHANGELOG
-and feature-catalog hygiene, spec-gate, freshness, form labels, pinned hub
-references, the CLAUDE.md loop).
+Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13
+(planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical,
+CLAUDE.md a pointer, the kit stamp) and UPS-REPO-21 (decision D5: release-please
+CHANGELOG in every repo), plus the retired-row and warning-severity plumbing.
 
-Guards the invariants that keep a draft area safe to ship ahead of its spec:
+The checker reads its paths, keys and regexes from the hub's
+specs/WORK.contract.yml, so these tests build a throwaway hub from the real
+files: the contract and specs.yml (bamr87/bamr87#323), the sdlc kit's schema and
+templates (#324), the spec-driven kit tools (#325) and the community kit's PR
+template (#319). Each comes from this checkout when it has it, otherwise from
+the PR branch via `git show origin/<branch>:<path>`; a test whose inputs are in
+neither place is reported as `skip`, never as a pass.
 
-  * the WORK rows are inert until _data/specs.yml carries them — the hub's
-    current spec runs exactly as before;
-  * a fact the offline checker cannot see (inherited PR template or forms,
-    labels on GitHub) is `unverified`, never a pass or a failure;
-  * the settled decisions are hard requirements: D4 (AGENTS.md canonical,
-    CLAUDE.md a pointer to it) and D5 (CHANGELOG.md in every repo, content
-    included);
-  * each check passes the canonical shape and fails the drift it targets.
-
-Deliberately dependency-light — no network, no gh, no pytest. Needs PyYAML and
-git:
+No network, no pytest. Needs PyYAML and git:
 
     python3 tools/test_conformance_work.py
 """
@@ -27,6 +23,7 @@ import contextlib
 import datetime as dt
 import io
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -39,18 +36,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import conformance as c  # noqa: E402
 
 HUB = Path(__file__).resolve().parent.parent
-SDLC = {"schema": "sdlc/v1", "kind": "app", "tier": "active", "backlog": {"mode": "issues"},
-        "modules": {"spec_driven": False, "adr": True}}
-DOD = """## Definition of Done
+# Where each dependency lives until its PR merges.
+SOURCES = {
+    "specs/WORK.contract.yml": "origin/docs/ups-work-spec",
+    "_data/specs.yml": "origin/docs/ups-work-spec",
+    "templates/sdlc/sdlc.schema.json": "origin/feat/sdlc-kit",
+    "templates/sdlc/sdlc.yml": "origin/feat/sdlc-kit",
+    "templates/sdlc/AGENTS.template.md": "origin/feat/sdlc-kit",
+    "templates/sdlc/CLAUDE.template.md": "origin/feat/sdlc-kit",
+    "templates/community/.github/pull_request_template.md": "origin/feat/community-kit",
+    **{f"templates/spec-driven/tools/{t}": "origin/feat/spec-driven-kit"
+       for t in ("spec_validator.py", "backlog_lint.py", "next_backlog_id.py", "pick_backlog_item.py")},
+}
 
-- [ ] PR title is a Conventional Commit
-- [ ] CI gate is green
-- [ ] Tests added or updated
-- [ ] README / docs updated; features/features.yml updated
-- [ ] Decision recorded in docs/adr/ if hard to reverse
-- [ ] Backlog of record updated
-- [ ] No secrets or unrelated changes
-"""
+
+class Skip(Exception):
+    pass
+
+
+def dep(rel: str) -> str:
+    """A hub file's text: this checkout if it has the merged version, else the PR branch."""
+    p = HUB / rel
+    if p.is_file() and (rel != "_data/specs.yml" or "UPS-WORK-01" in p.read_text(encoding="utf-8")):
+        return p.read_text(encoding="utf-8")
+    out = subprocess.run(["git", "-C", str(HUB), "show", f"{SOURCES[rel]}:{rel}"], capture_output=True, text=True)
+    if out.returncode:
+        raise Skip(f"{rel} is in neither this checkout nor {SOURCES[rel]}")
+    return out.stdout
 
 
 def write(root: Path, rel: str, text: str = "x") -> Path:
@@ -72,10 +84,14 @@ def commit(root: Path, msg: str = "c", when: dt.datetime | None = None) -> None:
     git(root, "commit", "-q", "--allow-empty", "-m", msg, when=when)
 
 
-def hub(tmp: Path, registry: list | None = None) -> Path:
+def hub(tmp: Path, registry: list | None = None, with_: tuple[str, ...] = tuple(SOURCES)) -> Path:
+    """A throwaway hub: the contract plus whichever kit files `with_` names."""
     h = tmp / "hub"
     write(h, "_data/fleet.yml", yaml.safe_dump({"issue_pipeline": {"labels": {"types": list(c.FLEET_TYPES_FALLBACK)}}}))
     write(h, "_data/projects.yml", yaml.safe_dump(registry or []))
+    for rel in with_:
+        write(h, rel, dep(rel))
+    c._CONTRACTS.pop(h.resolve(), None)
     return h
 
 
@@ -94,86 +110,288 @@ def run(rid: str, path: Path, h: Path, kinds=("app",)):
     return c.CHECKS[rid](c.Repo(path, h), list(kinds))
 
 
-def test_rows_inert_without_spec():
-    specs = c.load_specs(HUB)
-    assert not [q for q in specs.get("requirements", []) if q["id"].startswith("UPS-WORK-")], "WORK rows landed: retire this test"
-    with tempfile.TemporaryDirectory() as d:
-        r = repo(Path(d), {"README.md": "# r\n"})
-        res = c.run_checks(c.Repo(r, HUB), ["app"], "active", specs)
-        ids = {x["id"] for x in res["failing"]} | {x["id"] for x in res["unverified"]}
-        assert not [i for i in ids if i.startswith("UPS-WORK-")], ids
+def sdlc(**over) -> str:
+    base = {"schema": "sdlc/v1", "type": "app", "tier": "active", "backlog": {"mode": "issues"},
+            "modules": {"spec_driven": False, "adr": True}, "adr_path": "docs/adr", "release": {"type": "node"}}
+    base.update(over)
+    return yaml.safe_dump(base, sort_keys=False)
 
 
-def test_unverified_is_not_counted():
-    specs = {"requirements": [{"id": "UPS-WORK-03", "level": "MUST", "applies": ["all"], "area": "WORK"},
-                              {"id": "UPS-WORK-10", "level": "MUST", "applies": ["all"], "area": "WORK"}]}
-    with tempfile.TemporaryDirectory() as d:
-        h = hub(Path(d))
-        r = repo(Path(d), {".github/workflows/ci.yml": "jobs:\n  ci:\n    uses: bamr87/bamr87/.github/workflows/standard-ci.yml@main\n"})
-        res = c.run_checks(c.Repo(r, h), ["app"], "active", specs)
-        assert res["checked"] == 1 and res["must_failed"] == 1, res
-        assert [u["id"] for u in res["unverified"]] == ["UPS-WORK-03"], res["unverified"]
-        assert "? UPS-WORK-03" in c.render_text(res, "repo")
+AGENTS = """<!-- kit: sdlc v0.1.0 -->
+# repo
+
+## What this repo is
+
+A thing.
+
+## Stack & commands
+
+```bash
+make test
+```
+
+## Layout
+
+see SCHEMA.md
+
+## Conventions
+
+- **Backlog of record:** GitHub Issues.
+- **Definition of Done:** the checklist in `.github/pull_request_template.md`.
+- **Decisions:** ADRs in `docs/adr/NNNN-slug.md`.
+
+## Fleet context
+
+Member of the bamr87 fleet.
+
+## Standard deviations
+
+none
+"""
+CLAUDE = "<!-- kit: sdlc v0.1.0 · pointer only -->\n# repo\n\nSee [AGENTS.md](AGENTS.md).\n\n@AGENTS.md\n"
 
 
-def test_work01_sdlc_profile():
+# --- contract keying ------------------------------------------------------- #
+def test_inline_rule_regexes_are_verbatim_in_the_contract():
+    data = yaml.safe_load(dep("specs/WORK.contract.yml"))
+    rules = {**data["rules"], **data["related"]}
+    for key, rx in c.RULE_RX.items():
+        rid = key.split("/")[0]
+        assert rx in str(rules[rid]["pass"]), f"{key}: {rx!r} not in contract {rid}.pass"
+    a07 = rules["UPS-AGENT-07"]["pass"]
+    assert ", ".join(c.AGENT_HEADINGS) in " ".join(a07.split()), a07
+    assert f"at most {c.CLAUDE_MAX_LINES} non-blank lines" in rules["UPS-AGENT-08"]["pass"]
+    assert "|".join(c.RELEASE_TYPES) in rules["UPS-REPO-21"]["pass"]
+    assert c.WORK11_HUB_ROADMAP in rules["UPS-WORK-11"]["pass"]
+    assert all(f in rules["UPS-WORK-11"]["reads"] for f in c.WORK11_FILES)
+
+
+def test_rows_read_definitions_from_the_contract():
+    """Change a definition in the contract and the check follows it."""
     with tempfile.TemporaryDirectory() as d:
         t = Path(d)
-        h = hub(t, [{"name": "reg", "repo_url": "https://github.com/bamr87/reg", "sdlc": SDLC}])
+        h = hub(t, with_=("specs/WORK.contract.yml",))
+        caller = {".github/workflows/ci.yml": "jobs:\n  ci:\n    uses: bamr87/bamr87/.github/workflows/standard-ci.yml@v1\n"}
+        r = repo(t, caller)
+        assert run("UPS-WORK-10", r, h)[0] is True
+        cfile = h / "specs/WORK.contract.yml"
+        cfile.write_text(cfile.read_text().replace(r"pinned_ref_re: '^(v\d+|", r"pinned_ref_re: '^(", 1))
+        c._CONTRACTS.clear()
+        assert run("UPS-WORK-10", r, h)[0] is False
+        c._CONTRACTS.clear()
+
+
+def test_no_contract_means_unverified_not_pass_or_fail():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t, with_=())
+        r = repo(t, {"README.md": "# r\n"})
+        for rid in ("UPS-WORK-01", "UPS-WORK-10", "UPS-WORK-12", "UPS-AGENT-07", "UPS-AGENT-08", "UPS-AGENT-09", "UPS-REPO-21"):
+            ok, msg = run(rid, r, h)
+            assert ok is None and "WORK.contract.yml" in msg, (rid, ok, msg)
+
+
+# --- retired rows and warnings --------------------------------------------- #
+RETIRED = {"UPS-AGENT-01", "UPS-AGENT-02", "UPS-AGENT-03", "UPS-REPO-13"}
+
+
+def test_retired_rows_are_not_checked_and_nothing_errors():
+    specs = yaml.safe_load(dep("_data/specs.yml"))
+    assert RETIRED <= {q["id"] for q in specs["requirements"] if q["level"] == "retired"}
+    assert not RETIRED & set(c.CHECKS), "retired rows still have checks"
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        for files in ({"README.md": "# r\n"}, {"CLAUDE.md": "# old\n## Stack\n"}, {}):
+            res = c.run_checks(c.Repo(repo(t, files, name=f"r{len(files)}{id(files)}"), h), ["app"], "active", specs)
+            seen = {x["id"] for k in ("failing", "unverified", "warnings") for x in res[k]}
+            assert not seen & RETIRED, seen & RETIRED
+            errs = [x for k in ("failing", "unverified", "warnings") for x in res[k] if "checker error" in x["detail"]]
+            assert not errs, errs
+        # a retired row is skipped even when something registers a check for it
+        c.CHECKS["UPS-REPO-13"] = lambda r, k: (False, "should never run")
+        try:
+            res = c.run_checks(c.Repo(repo(t, name="x"), h), ["app"], "active",
+                               {"requirements": [{"id": "UPS-REPO-13", "level": "retired", "applies": ["all"], "area": "REPO"}]})
+            assert res["checked"] == 0 and not res["failing"], res
+        finally:
+            del c.CHECKS["UPS-REPO-13"]
+
+
+def test_warn_only_rows_report_but_never_count_and_flip_by_deleting_the_entry():
+    assert set(c.WARN_ONLY) == {"UPS-AGENT-07", "UPS-AGENT-08", "UPS-WORK-07"}
+    specs = {"requirements": [{"id": "UPS-AGENT-07", "level": "MUST", "applies": ["all"], "area": "AGENT"},
+                              {"id": "UPS-AGENT-09", "level": "MUST", "applies": ["all"], "area": "AGENT"}]}
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        r = repo(t, {"CLAUDE.md": "# legacy\n"})
+        res = c.run_checks(c.Repo(r, h), ["app"], "active", specs)
+        assert res["must_failed"] == 1 and [f["id"] for f in res["failing"]] == ["UPS-AGENT-09"], res
+        assert [w["id"] for w in res["warnings"]] == ["UPS-AGENT-07"], res["warnings"]
+        assert "! UPS-AGENT-07" in c.render_text(res, "r")
+        saved = c.WARN_ONLY.pop("UPS-AGENT-07")
+        try:
+            res = c.run_checks(c.Repo(r, h), ["app"], "active", specs)
+            assert res["must_failed"] == 2 and not res["warnings"], res
+        finally:
+            c.WARN_ONLY["UPS-AGENT-07"] = saved
+
+
+def test_gate_ignores_warnings():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        write(h, "_data/specs.yml", yaml.safe_dump({"requirements": [
+            {"id": "UPS-AGENT-07", "level": "MUST", "applies": ["all"], "area": "AGENT"},
+            {"id": "UPS-AGENT-08", "level": "MUST", "applies": ["all"], "area": "AGENT"}]}))
+        r = repo(t, {"CLAUDE.md": "# legacy\n"})
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert c.main(["check", str(r), "--hub", str(h), "--kinds", "app", "--gate"]) == 0
+
+
+# --- UPS-WORK-01 ----------------------------------------------------------- #
+def test_work01_profile_validates_against_the_kit_schema():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t, [{"name": "reg", "repo_url": "https://github.com/bamr87/reg",
+                     "sdlc": {"schema": "sdlc/v1", "type": "site", "tier": "active", "backlog": {"mode": "issues"},
+                              "modules": ["adr", "features"], "release": {"type": "simple"}}}])
         assert run("UPS-WORK-01", repo(t, name="none"), h)[0] is False
-        assert run("UPS-WORK-01", repo(t, {c.SDLC_FILE: yaml.safe_dump(SDLC)}, name="ok"), h) == (True, c.SDLC_FILE)
-        partial = {k: v for k, v in SDLC.items() if k != "backlog"}
-        ok, msg = run("UPS-WORK-01", repo(t, {c.SDLC_FILE: yaml.safe_dump(partial)}, name="partial"), h)
-        assert ok is False and "backlog.mode" in msg, msg
-        bad = dict(SDLC, backlog={"mode": "jira"})
-        assert run("UPS-WORK-01", repo(t, {c.SDLC_FILE: yaml.safe_dump(bad)}, name="bad"), h)[0] is False
+        kit = dep("templates/sdlc/sdlc.yml")
+        ok, msg = run("UPS-WORK-01", repo(t, {".github/sdlc.yml": kit}, name="kit"), h)
+        assert ok is True and "type app" in msg, msg
+        # `kind:` (the pre-contract key) is an unknown key and `type` is missing
+        old = kit.replace("\ntype: app", "\nkind: app")
+        ok, msg = run("UPS-WORK-01", repo(t, {".github/sdlc.yml": old}, name="kind"), h)
+        assert ok is False and "/kind: unknown key" in msg and "missing required `type`" in msg, msg
+        ok, msg = run("UPS-WORK-01", repo(t, {".github/sdlc.yml": sdlc(backlog={"mode": "file"})}, name="nofile"), h)
+        assert ok is False and "missing required `file`" in msg, msg
+        ok, msg = run("UPS-WORK-01", repo(t, {".github/sdlc.yml": sdlc(modules={"specs": True})}, name="badmod"), h)
+        assert ok is False and "/modules/specs: unknown key" in msg, msg
+        prof = yaml.safe_load(sdlc())
+        del prof["release"]
+        ok, msg = run("UPS-WORK-01", repo(t, {".github/sdlc.yml": yaml.safe_dump(prof)}, name="norel"), h)
+        assert ok is False and "`release`" in msg, msg
+        prof["type"] = "fork"
+        assert run("UPS-WORK-01", repo(t, {".github/sdlc.yml": yaml.safe_dump(prof)}, name="fork"), h)[0] is True
+        # an unquoted YAML date (`until: 2027-01-01`, as in the kit's example) is accepted
+        dev = sdlc() + "deviations:\n  - { id: UPS-WORK-11, reason: later, until: 2027-01-01 }\n"
+        assert run("UPS-WORK-01", repo(t, {".github/sdlc.yml": dev}, name="dev"), h)[0] is True
+        assert run("UPS-WORK-01", repo(t, {".github/sdlc.yml": "type: [\n"}, name="yamlerr"), h)[0] is False
+        # the registry block (modules as a list is allowed there) when there is no file
         reg = repo(t, name="reg")
         git(reg, "remote", "add", "origin", "https://github.com/bamr87/reg.git")
         ok, msg = run("UPS-WORK-01", reg, h)
         assert ok is True and "registry" in msg, msg
+        # no schema in the hub checkout: unverified, not a pass
+        h2 = hub(t / "h2", with_=("specs/WORK.contract.yml",))
+        assert run("UPS-WORK-01", repo(t, {".github/sdlc.yml": kit}, name="noschema"), h2)[0] is None
 
 
+def test_schema_subset_covers_the_kit_schema():
+    import json
+    schema = json.loads(dep("templates/sdlc/sdlc.schema.json"))
+    used: set[str] = set()
+
+    def walk(s):
+        if isinstance(s, dict):
+            used.update(k for k in s if k not in ("properties",))
+            for k, v in s.items():
+                if k == "properties":
+                    for sub in v.values():
+                        walk(sub)
+                elif isinstance(v, (dict, list)):
+                    walk(v)
+        elif isinstance(s, list):
+            for x in s:
+                walk(x)
+    walk(schema)
+    assert used <= c.SCHEMA_KEYWORDS | {"properties"}, used - c.SCHEMA_KEYWORDS
+
+
+def test_profile_kinds_follow_type():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t, with_=("specs/WORK.contract.yml",))
+        for typ, want in (("docs", ["content"]), ("control-plane", ["site"]), ("library", ["lib"])):
+            r = repo(t, {".github/sdlc.yml": sdlc(type=typ, kinds=None)}, name=typ)
+            p = yaml.safe_load((r / ".github/sdlc.yml").read_text())
+            p.pop("kinds")
+            (r / ".github/sdlc.yml").write_text(yaml.safe_dump(p))
+            assert c.profile_kinds(c.Repo(r, h)) == want, typ
+        assert c.profile_kinds(c.Repo(repo(t, {".github/sdlc.yml": sdlc(kinds=["app", "api"])}, name="k"), h)) == ["app", "api"]
+        assert c.profile_kinds(c.Repo(repo(t, name="none"), h)) is None
+
+
+# --- UPS-WORK-02/03/04/05/06 ----------------------------------------------- #
 def test_work02_backlog_of_record():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
-        assert run("UPS-WORK-02", repo(t, {c.SDLC_FILE: yaml.safe_dump(SDLC)}, name="issues"), h)[0] is None
-        fmode = dict(SDLC, backlog={"mode": "file", "file": "BACKLOG.md"})
-        lint = "jobs:\n  spec-gate:\n    steps:\n      - run: python3 tools/backlog_lint.py\n"
-        ok, msg = run("UPS-WORK-02", repo(t, {c.SDLC_FILE: yaml.safe_dump(fmode), "BACKLOG.md": "## Open\n",
-                                              ".github/workflows/ci.yml": lint}, name="linted"), h)
-        assert ok is True and "ci.yml" in msg, msg
-        assert run("UPS-WORK-02", repo(t, {c.SDLC_FILE: yaml.safe_dump(fmode), "BACKLOG.md": "## Open\n"}, name="unlinted"), h)[0] is False
-        assert run("UPS-WORK-02", repo(t, {c.SDLC_FILE: yaml.safe_dump(fmode)}, name="nofile"), h)[0] is False
+        t = Path(d)
+        h = hub(t)
+        assert run("UPS-WORK-02", repo(t, {".github/sdlc.yml": sdlc()}, name="issues"), h)[0] is None
+        fmode = sdlc(backlog={"mode": "file", "file": "BACKLOG.md"})
+        for i, step in enumerate(("python3 tools/backlog_lint.py", "npm run validate-backlog")):
+            ok, msg = run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode, "BACKLOG.md": "## Open\n",
+                                                  ".github/workflows/ci.yml": f"jobs:\n  g:\n    steps:\n      - run: {step}\n"}, name=f"l{i}"), h)
+            assert ok is True and "ci.yml" in msg, msg
+        sync = {".github/workflows/sync.yml": "jobs:\n  s:\n    steps:\n      - run: ruby sync-backlog.rb\n"}
+        assert run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode, "BACKLOG.md": "x", **sync}, name="sync"), h)[0] is False
+        assert run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode}, name="nofile"), h)[0] is False
 
 
-def test_work03_definition_of_done():
+def test_work03_dod_block_matches_the_reference():
+    ref = dep("templates/community/.github/pull_request_template.md")
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
+        t = Path(d)
+        h = hub(t)
         assert run("UPS-WORK-03", repo(t, name="inherits"), h)[0] is None
-        assert run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": DOD}, name="full"), h)[0] is True
-        old = "## Checklist\n- [ ] Tests pass\n- [ ] Docs updated\n- [ ] CHANGELOG\n- [ ] Conventional title\n"
-        ok, msg = run("UPS-WORK-03", repo(t, {".github/PULL_REQUEST_TEMPLATE.md": old}, name="short"), h)
-        assert ok is False and "ADR" in msg and "backlog" in msg and "secrets" in msg, msg
-        assert run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": "## Summary\n"}, name="nobox"), h)[0] is False
+        ok, msg = run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": ref}, name="kit"), h)
+        assert ok is True and "v1" in msg, msg
+        extra = ref.replace("<!-- fleet-dod:end -->", "<!-- fleet-dod:end -->\n- [ ] **E2E** passes")
+        assert run("UPS-WORK-03", repo(t, {".github/PULL_REQUEST_TEMPLATE.md": extra}, name="extra"), h)[0] is True
+        lines = ref.splitlines()
+        boxes = [i for i, x in enumerate(lines) if x.startswith("- [ ] **")]
+        dropped = "\n".join(x for i, x in enumerate(lines) if i != boxes[5])
+        ok, msg = run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": dropped}, name="drop"), h)
+        assert ok is False and "missing: Decision recorded" in msg, msg
+        swapped = list(lines)
+        swapped[boxes[0]], swapped[boxes[1]] = swapped[boxes[1]], swapped[boxes[0]]
+        ok, msg = run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": "\n".join(swapped)}, name="swap"), h)
+        assert ok is False and "order or wording" in msg, msg
+        ok, msg = run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": "## DoD\n- [ ] tests\n"}, name="nomark"), h)
+        assert ok is False and "fleet-dod" in msg, msg
+        v2 = ref.replace("fleet-dod:start v1", "fleet-dod:start v2")
+        ok, msg = run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": v2}, name="v2"), h)
+        assert ok is False and "v2" in msg, msg
+        ok, msg = run("UPS-WORK-03", repo(t, {".github/PULL_REQUEST_TEMPLATE/feature.md": ref}, name="dir"), h)
+        assert ok is True, msg
+        h2 = hub(t / "h2", with_=("specs/WORK.contract.yml",))
+        assert run("UPS-WORK-03", repo(t, {".github/pull_request_template.md": ref}, name="noref"), h2)[0] is None
 
 
 def test_work04_adr_log():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
-        assert run("UPS-WORK-04", repo(t, {"docs/adr/0000-template.md": "x"}, name="tpl"), h)[0] is False
+        t = Path(d)
+        h = hub(t)
+        assert run("UPS-WORK-04", repo(t, {"docs/adr/0000-template.md": "x", "docs/adr/README.md": "x"}, name="tpl"), h)[0] is False
         assert run("UPS-WORK-04", repo(t, {"docs/adr/0001-record.md": "x"}, name="noidx"), h)[0] is False
         assert run("UPS-WORK-04", repo(t, {"docs/adr/0001-record.md": "x", "docs/adr/README.md": "x"}, name="ok"), h)[0] is True
-        lineage = dict(SDLC, adr_path="lineage/decisions")
-        ok, msg = run("UPS-WORK-04", repo(t, {c.SDLC_FILE: yaml.safe_dump(lineage), "lineage/decisions/ADR-0001-x.md": "x",
-                                              "lineage/decisions/README.md": "x"}, name="lineage"), h)
+        lineage = {".github/sdlc.yml": sdlc(adr_path="lineage/decisions"), "lineage/decisions/0001-x.md": "x",
+                   "lineage/decisions/README.md": "x"}
+        ok, msg = run("UPS-WORK-04", repo(t, lineage, name="lineage"), h)
         assert ok is True and "lineage/decisions" in msg, msg
+        # the contract's filename regex is lowercase NNNN-slug.md: `ADR-0001-x.md` does not count
+        assert run("UPS-WORK-04", repo(t, {"docs/adr/ADR-0001-x.md": "x", "docs/adr/README.md": "x"}, name="prefix"), h)[0] is False
+        assert c.CHECKS["UPS-WORK-13"] is c.CHECKS["UPS-WORK-04"]
 
 
 def test_work05_changelog_hygiene():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
+        t = Path(d)
+        h = hub(t)
         ok, msg = run("UPS-WORK-05", repo(t, name="none"), h)
-        assert ok is False and "no CHANGELOG.md" in msg, msg
+        assert ok is True and "UPS-REPO-21" in msg, msg  # absence is REPO-21's failure, not this row's
         dup = "# Changelog\n\n## [Unreleased]\n\n## [Unreleased] - 2026-03-08\n\n## [1.0.0] - 2026-01-01\n"
         assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": dup}, name="dup"), h)[0] is False
         cl = "# Changelog\n\n## [Unreleased]\n\n## [1.2.0] - 2026-01-01\n\n## [1.1.0] - 2025-12-01\n"
@@ -184,17 +402,13 @@ def test_work05_changelog_hygiene():
         assert ok is False and "v1.1.0" in msg, msg
         git(notag, "tag", "v1.2.0")
         assert run("UPS-WORK-05", notag, h)[0] is True
-        # release-please writes no [Unreleased] heading at all: allowed (at most one)
         assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": "## [0.1.0] - 2026-01-01\n"}, name="rp"), h)[0] is True
-        # D5: content repos are held to the same rule — required, and hygienic
-        assert run("UPS-WORK-05", repo(t, name="content-none"), h, kinds=("content",))[0] is False
-        assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": dup}, name="content-dup"), h, kinds=("content",))[0] is False
-        assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": cl}, name="content-ok"), h, kinds=("content",))[0] is True
 
 
 def test_work06_features_hygiene():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
+        t = Path(d)
+        h = hub(t)
         clean = "# features/features.yml\n# kit: verify v0.1.0\nschema: features/v1\nfeatures: []\n"
         assert run("UPS-WORK-06", repo(t, {"features/features.yml": clean}, name="clean"), h)[0] is True
         hdr = "# Feature registry\n# Version: 1.29.0\nfeatures: []\n"
@@ -202,6 +416,7 @@ def test_work06_features_hygiene():
         assert ok is False and "duplicate" in msg and "version header" in msg, msg
 
 
+# --- UPS-WORK-07 ----------------------------------------------------------- #
 LAW_CI = """
 jobs:
   changes:
@@ -230,30 +445,39 @@ jobs:
 """
 
 
-def test_work07_spec_gate():
+def test_work07_spec_gate_and_kit_parity():
+    tools = {f"scripts/{n}": dep(f"templates/spec-driven/tools/{n}") for n in ("spec_validator.py", "backlog_lint.py")}
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
+        t = Path(d)
+        h = hub(t)
         assert run("UPS-WORK-07", repo(t, name="off"), h)[0] is True
-        sd = yaml.safe_dump(dict(SDLC, modules={"spec_driven": True}))
-        base = {c.SDLC_FILE: sd, "BACKLOG.md": "## Open\n", "specs/001-a/spec.md": "- **Status**: shipped\n"}
-        ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": LAW_CI}, name="law"), h)
-        assert ok is True and "spec-gate" in msg and "parity unchecked" in msg, msg
-        ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": GITORIO_CI}, name="gitorio"), h)
+        sd = sdlc(modules={"spec_driven": True})
+        base = {".github/sdlc.yml": sd, "BACKLOG.md": "## Open\n", "specs/001-a/spec.md": "- **Status**: shipped\n"}
+        ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": LAW_CI, **tools}, name="law"), h)
+        assert ok is True and "spec-gate" in msg, msg
+        ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": GITORIO_CI, **tools}, name="gitorio"), h)
         assert ok is False and "build" in msg, msg
-        assert run("UPS-WORK-07", repo(t, {c.SDLC_FILE: sd}, name="bare"), h)[0] is False
-        # kit parity once the hub publishes the kit
-        write(h, "templates/sdlc/spec-driven/tools/spec_validator.py", "canonical\n")
-        drift = repo(t, {**base, ".github/workflows/ci.yml": LAW_CI, "scripts/spec_validator.py": "forked\n"}, name="drift")
+        assert run("UPS-WORK-07", repo(t, {".github/sdlc.yml": sd}, name="bare"), h)[0] is False
+        drift = repo(t, {**base, ".github/workflows/ci.yml": LAW_CI, **tools, "scripts/spec_validator.py": "forked\n"}, name="drift")
         ok, msg = run("UPS-WORK-07", drift, h)
-        assert ok is False and "differs from the hub kit" in msg, msg
+        assert ok is False and "scripts/spec_validator.py differs from the hub kit" in msg, msg
+        # untracked copies are not the repo's files
+        loose = repo(t, {**base, ".github/workflows/ci.yml": LAW_CI, **tools}, name="loose")
+        write(loose, "tmp/backlog_lint.py", "scratch\n")
+        assert run("UPS-WORK-07", loose, h)[0] is True
+        h2 = hub(t / "h2", with_=("specs/WORK.contract.yml",))
+        ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": LAW_CI}, name="nokit"), h2)
+        assert ok is True and "parity unchecked" in msg, msg
 
 
 def test_work08_freshness():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
+        t = Path(d)
+        h = hub(t)
         old = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=90)
         r = repo(t, git_init=False)
         git(r, "init", "-q", "-b", "main")
+        write(r, ".github/sdlc.yml", sdlc(backlog={"mode": "file", "file": "BACKLOG.md"}))
         write(r, "specs/047-x/spec.md", "- **Status**: in-progress\n")
         write(r, "BACKLOG.md", "## Open\n")
         commit(r, "old", when=old)
@@ -268,25 +492,27 @@ def test_work08_freshness():
         assert run("UPS-WORK-08", repo(t, name="nogit", git_init=False), h)[0] is None
 
 
-def test_work09_form_labels():
+# --- UPS-WORK-09/10/11/12 -------------------------------------------------- #
+def test_work09_form_labels_exactly_one_type():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
+        t = Path(d)
+        h = hub(t)
         assert run("UPS-WORK-09", repo(t, name="inherits"), h)[0] is None
-        good = {".github/ISSUE_TEMPLATE/bug_report.yml": "labels: [bug]\n", ".github/ISSUE_TEMPLATE/feature_request.yml": "labels: [\"feature\"]\n",
+        good = {".github/ISSUE_TEMPLATE/bug_report.yml": "labels: [bug]\n", ".github/ISSUE_TEMPLATE/feature_request.yml": "labels: [\"feature\", \"agent:queued\"]\n",
                 ".github/ISSUE_TEMPLATE/page_feedback.yml": "labels: [page-feedback]\n", ".github/ISSUE_TEMPLATE/config.yml": "blank_issues_enabled: false\n"}
         assert run("UPS-WORK-09", repo(t, good, name="good"), h)[0] is True
         ok, msg = run("UPS-WORK-09", repo(t, {**good, ".github/ISSUE_TEMPLATE/feature_request.yml": "labels: [\"enhancement\"]\n"}, name="dup"), h)
         assert ok is False and "enhancement" in msg, msg
-        md = {".github/ISSUE_TEMPLATE/feature_request.md": "---\nname: Feature\nlabels: priority:P2\n---\nbody\n"}
-        ok, msg = run("UPS-WORK-09", repo(t, md, name="md"), h)
+        ok, msg = run("UPS-WORK-09", repo(t, {".github/ISSUE_TEMPLATE/feature_request.md": "---\nname: F\nlabels: priority:P2\n---\n"}, name="md"), h)
         assert ok is False and "priority:P2" in msg, msg
-        ok, msg = run("UPS-WORK-09", repo(t, {".github/ISSUE_TEMPLATE/task.yml": "labels: [triage]\n"}, name="untyped"), h)
-        assert ok is False and "no fleet type" in msg, msg
+        ok, msg = run("UPS-WORK-09", repo(t, {".github/ISSUE_TEMPLATE/task.yml": "labels: [bug, chore]\n"}, name="two"), h)
+        assert ok is False and "2 fleet type labels" in msg, msg
 
 
-def test_work10_hub_refs_pinned():
+def test_work10_pins_per_contract():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
+        t = Path(d)
+        h = hub(t)
         pinned = """jobs:
   ci:
     # uses: bamr87/bamr87/.github/workflows/standard-ci.yml@main   (comment: ignored)
@@ -294,7 +520,7 @@ def test_work10_hub_refs_pinned():
   conf:
     uses: bamr87/bamr87/.github/workflows/fleet-conformance.yml@v1.0.0
   rel:
-    uses: bamr87/.github/.github/workflows/release-please.yml@0123456789abcdef0123456789abcdef01234567
+    uses: bamr87/.github/.github/workflows/release-please.yml@0123456789abcdef0123456789abcdef01234567 # v1.0.0
   local:
     uses: ./.github/workflows/local.yml
   ext:
@@ -302,61 +528,154 @@ def test_work10_hub_refs_pinned():
       - uses: actions/checkout@main
 """
         assert run("UPS-WORK-10", repo(t, {".github/workflows/ci.yml": pinned}, name="pinned"), h)[0] is True
-        floating = "jobs:\n  ci:\n    uses: bamr87/bamr87/.github/workflows/standard-ci.yml@main\n  ai:\n    steps:\n      - uses: 'bamr87/bamr87/.github/actions/claude-auth@main'\n"
-        ok, msg = run("UPS-WORK-10", repo(t, {".github/workflows/ci.yml": floating}, name="floating"), h)
-        assert ok is False and "standard-ci.yml@main" in msg and "claude-auth@main" in msg, msg
+        for ref in ("main", "v1.2", "1.2.3", "0123456", "release/v1"):
+            files = {".github/workflows/ci.yml": f"jobs:\n  ci:\n    uses: bamr87/bamr87/.github/workflows/standard-ci.yml@{ref}\n"}
+            ok, msg = run("UPS-WORK-10", repo(t, files, name=f"f-{ref.replace('/', '-')}"), h)
+            assert ok is False and f"standard-ci.yml@{ref}" in msg, (ref, msg)
+        nested = {".github/actions/ai/run/action.yml": "runs:\n  steps:\n    - uses: 'bamr87/bamr87/.github/actions/claude-auth@main'\n",
+                  ".github/workflows/x.yaml": "jobs:\n  a:\n    uses: bamr87/.github/.github/workflows/publish.yml@main\n"}
+        ok, msg = run("UPS-WORK-10", repo(t, nested, name="nested"), h)
+        assert ok is False and "claude-auth@main" in msg and "publish.yml@main" in msg, msg
 
 
-CONVENTIONS = "## Conventions\n\nBacklog of record: GitHub Issues. Definition of Done: the PR template. ADRs: docs/adr/.\n\n## Fleet context\n"
-POINTER = "# CLAUDE.md\n\nThe canonical guide is [AGENTS.md](AGENTS.md). Spec-driven commands live in .claude/commands/.\n"
-
-
-def test_work12_agents_canonical():
+def test_work11_planning_files():
     with tempfile.TemporaryDirectory() as d:
-        t, h = Path(d), hub(Path(d))
-        assert run("UPS-WORK-12", repo(t, {"AGENTS.md": "# AGENTS.md\n\n" + CONVENTIONS, "CLAUDE.md": POINTER,
-                                           ".claude/commands/specify.md": "x"}, name="ok"), h)[0] is True
-        # CLAUDE.md-canonical (the pre-D4 shape) fails: no AGENTS.md
-        ok, msg = run("UPS-WORK-12", repo(t, {"CLAUDE.md": "# CLAUDE.md\n\n" + CONVENTIONS}, name="claude-only"), h)
+        t = Path(d)
+        h = hub(t)
+        assert run("UPS-WORK-11", repo(t, name="none"), h)[0] is True
+        ok_txt = "# Roadmap\n\nThemes only. Work items: https://github.com/o/r/issues ([BL-20260101-01](BACKLOG.md)).\n"
+        assert run("UPS-WORK-11", repo(t, {"ROADMAP.md": ok_txt}, name="ok"), h)[0] is True
+        ok, msg = run("UPS-WORK-11", repo(t, {"TODO.md": "- [ ] ship it\n- [x] done\n/issues\n"}, name="tasks"), h)
+        assert ok is False and "task-list" in msg, msg
+        ok, msg = run("UPS-WORK-11", repo(t, {"docs/PRD.md": "Scope: T-101 and BL-20260101-02.\n/issues\n"}, name="ids"), h)
+        assert ok is False and "T-101" in msg, msg
+        ok, msg = run("UPS-WORK-11", repo(t, {"ROADMAP.md": "# Roadmap\n"}, name="nolink"), h)
+        assert ok is False and "does not link" in msg, msg
+        hubl = "See https://github.com/bamr87/bamr87/blob/main/_data/roadmap.yml\n"
+        assert run("UPS-WORK-11", repo(t, {"ROADMAP.md": hubl}, name="hub"), h)[0] is True
+        fmode = {".github/sdlc.yml": sdlc(backlog={"mode": "file", "file": "BACKLOG.md"}), "ROADMAP.md": "Items: [backlog](BACKLOG.md)\n"}
+        assert run("UPS-WORK-11", repo(t, fmode, name="file"), h)[0] is True
+
+
+def test_work12_conventions_name_the_loop():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        assert run("UPS-WORK-12", repo(t, {"AGENTS.md": AGENTS}, name="ok"), h)[0] is True
+        # the kit template itself satisfies WORK-12 (its words are capitalised: case-insensitive)
+        assert run("UPS-WORK-12", repo(t, {"AGENTS.md": dep("templates/sdlc/AGENTS.template.md")}, name="kit"), h)[0] is True
+        ok, msg = run("UPS-WORK-12", repo(t, {"CLAUDE.md": AGENTS}, name="claude-only"), h)
         assert ok is False and "no AGENTS.md" in msg, msg
-        # CLAUDE.md missing, or not pointing at AGENTS.md, or duplicating the conventions
-        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": "# A\n\n" + CONVENTIONS}, name="nopointer"), h)
-        assert ok is False and "no CLAUDE.md pointer" in msg, msg
-        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": "# A\n\n" + CONVENTIONS, "CLAUDE.md": "# CLAUDE.md\n\nUse ruff.\n"}, name="stray"), h)
-        assert ok is False and "does not point to AGENTS.md" in msg, msg
-        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": "# A\n\n" + CONVENTIONS, "CLAUDE.md": POINTER + "\n" + CONVENTIONS}, name="dup"), h)
-        assert ok is False and "its own `## Conventions`" in msg, msg
-        # AGENTS.md conventions must name the loop
+        ok, msg = run("UPS-WORK-12", repo(t, {".github/sdlc.yml": sdlc(adr_path="lineage/decisions"), "AGENTS.md": AGENTS}, name="path"), h)
+        assert ok is False and "lineage/decisions" in msg, msg
+        off = AGENTS.replace("ADRs in `docs/adr/NNNN-slug.md`", "ADR log not used")
+        assert run("UPS-WORK-12", repo(t, {".github/sdlc.yml": sdlc(modules={"adr": False}), "AGENTS.md": off}, name="off"), h)[0] is True
         thin = "# A\n\n## Conventions\n\nUse ruff.\n\n## Backlog\n\nIssues.\n"
-        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": thin, "CLAUDE.md": POINTER}, name="thin"), h)
-        assert ok is False and "backlog" in msg and "ADR" in msg, msg
+        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": thin}, name="thin"), h)
+        assert ok is False and "backlog" in msg and "Definition of Done" in msg and "docs/adr" in msg, msg
 
 
-def test_cli_check_runs():
+# --- UPS-AGENT-07/08/09 ---------------------------------------------------- #
+def test_agent07_headings_in_order_and_no_todo():
     with tempfile.TemporaryDirectory() as d:
-        r = repo(Path(d), {"README.md": "# r\n"})
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            assert c.main(["check", str(r), "--hub", str(HUB), "--kinds", "content"]) == 0
-            try:
-                c.main(["check", str(r), "--hub", str(HUB), "--enable-pending", "D4"])
-            except SystemExit as e:
-                assert e.code == 2  # the pending-decision switch is gone: D4/D5 are settled
-            else:
-                raise AssertionError("--enable-pending still accepted")
+        t = Path(d)
+        h = hub(t)
+        assert run("UPS-AGENT-07", repo(t, {"AGENTS.md": AGENTS}, name="ok"), h)[0] is True
+        extra = AGENTS.replace("## Layout", "## Testing\n\nmore\n\n## Layout")
+        assert run("UPS-AGENT-07", repo(t, {"AGENTS.md": extra}, name="extra"), h)[0] is True
+        ok, msg = run("UPS-AGENT-07", repo(t, {"AGENTS.md": dep("templates/sdlc/AGENTS.template.md")}, name="kit"), h)
+        assert ok is False and "TODO:" in msg, msg  # the unfilled scaffold
+        ok, msg = run("UPS-AGENT-07", repo(t, {"AGENTS.md": AGENTS.replace("## Layout\n", "")}, name="miss"), h)
+        assert ok is False and "missing ## Layout" in msg, msg
+        moved = AGENTS.replace("## Fleet context", "## TEMP").replace("## Conventions", "## Fleet context").replace("## TEMP", "## Conventions")
+        ok, msg = run("UPS-AGENT-07", repo(t, {"AGENTS.md": moved}, name="order"), h)
+        assert ok is False and "out of order" in msg, msg
+        ok, msg = run("UPS-AGENT-07", repo(t, {"CLAUDE.md": AGENTS}, name="pre-d4"), h)
+        assert ok is False and "no AGENTS.md" in msg, msg
+
+
+def test_agent08_claude_is_a_pointer():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        assert run("UPS-AGENT-08", repo(t, {"CLAUDE.md": CLAUDE}, name="ok"), h)[0] is True
+        assert run("UPS-AGENT-08", repo(t, {"CLAUDE.md": dep("templates/sdlc/CLAUDE.template.md")}, name="kit"), h)[0] is True
+        ok, msg = run("UPS-AGENT-08", repo(t, {"CLAUDE.md": "# r\n\nRead AGENTS.md.\n"}, name="noimport"), h)
+        assert ok is False and "@AGENTS.md" in msg, msg
+        ok, msg = run("UPS-AGENT-08", repo(t, {"CLAUDE.md": CLAUDE + "\n## Stack & commands\n\nmake\n"}, name="dup"), h)
+        assert ok is False and "Stack & commands" in msg, msg
+        long = CLAUDE + "".join(f"line {i}\n" for i in range(20))
+        ok, msg = run("UPS-AGENT-08", repo(t, {"CLAUDE.md": long}, name="long"), h)
+        assert ok is False and "non-blank lines" in msg, msg
+        assert run("UPS-AGENT-08", repo(t, name="none"), h)[0] is False
+
+
+def test_agent09_kit_stamp():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        assert run("UPS-AGENT-09", repo(t, {"AGENTS.md": AGENTS}, name="sdlc"), h)[0] is True
+        legacy = AGENTS.replace("kit: sdlc v0.1.0", "kit: agent-context v0.3.1")
+        assert run("UPS-AGENT-09", repo(t, {"AGENTS.md": legacy}, name="ac"), h)[0] is True
+        assert run("UPS-AGENT-09", repo(t, {"AGENTS.md": AGENTS.replace("<!-- kit: sdlc v0.1.0 -->\n", "")}, name="none"), h)[0] is False
+        assert run("UPS-AGENT-09", repo(t, {"CLAUDE.md": legacy}, name="claude-stamp"), h)[0] is False
+
+
+# --- UPS-REPO-21 ----------------------------------------------------------- #
+RP_CFG = '{"packages": {".": {"release-type": "simple"}}}'
+RP_CALLER = "on: push\njobs:\n  release:\n    uses: bamr87/bamr87/.github/workflows/release-please.yml@{ref}\n    secrets: inherit\n"
+
+
+def test_repo21_release_please_owns_the_changelog():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        full = {"CHANGELOG.md": "# Changelog\n", "release-please-config.json": RP_CFG, ".release-please-manifest.json": '{".": "0.1.0"}',
+                ".github/workflows/release.yml": RP_CALLER.format(ref="v1")}
+        assert run("UPS-REPO-21", repo(t, full, name="ok"), h, kinds=("content",))[0] is True
+        ok, msg = run("UPS-REPO-21", repo(t, {**full, ".github/workflows/release.yml": RP_CALLER.format(ref="main")}, name="main"), h)
+        assert ok is False and "unpinned" in msg, msg
+        dotgh = RP_CALLER.format(ref="v1").replace("bamr87/bamr87/", "bamr87/.github/")
+        ok, msg = run("UPS-REPO-21", repo(t, {**full, ".github/workflows/release.yml": dotgh}, name="dotgh"), h)
+        assert ok is False and "no workflow calls" in msg, msg
+        ok, msg = run("UPS-REPO-21", repo(t, {**full, "release-please-config.json": '{"packages": {".": {"release-type": "go"}}}'}, name="go"), h)
+        assert ok is False and "'go'" in msg, msg
+        ok, msg = run("UPS-REPO-21", repo(t, {**full, ".release-please-manifest.json": "{"}, name="badjson"), h)
+        assert ok is False and "not valid JSON" in msg, msg
+        ok, msg = run("UPS-REPO-21", repo(t, {"README.md": "x"}, name="bare"), h)
+        assert ok is False and "no CHANGELOG.md" in msg and "no release-please-config.json" in msg, msg
+
+
+def test_cli_check_runs_on_the_new_spec():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        write(h, "_data/specs.yml", dep("_data/specs.yml"))
+        r = repo(t, {"README.md": "# r\n", "CLAUDE.md": "# legacy\n"})
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            assert c.main(["check", str(r), "--hub", str(h), "--kinds", "content"]) == 0
+        text = out.getvalue()
+        assert "! UPS-AGENT-07" in text and "! UPS-AGENT-08" in text, text
+        assert "UPS-AGENT-01" not in text and "UPS-REPO-13" not in text, text
+        assert "checker error" not in text, text
 
 
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
-    failed = 0
+    failed = skipped = 0
     for t in tests:
         try:
             t()
             print(f"ok   {t.__name__}")
+        except Skip as e:
+            skipped += 1
+            print(f"skip {t.__name__}: {e}")
         except AssertionError as e:  # noqa: PERF203
             failed += 1
             print(f"FAIL {t.__name__}: {e}")
         except Exception as e:  # noqa: BLE001
             failed += 1
             print(f"ERR  {t.__name__}: {type(e).__name__}: {e}")
-    print(f"{len(tests) - failed}/{len(tests)} passed")
+    print(f"{len(tests) - failed - skipped}/{len(tests)} passed, {skipped} skipped")
     raise SystemExit(1 if failed else 0)
