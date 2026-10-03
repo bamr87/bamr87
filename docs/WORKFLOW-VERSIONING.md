@@ -22,7 +22,7 @@ Other hub files consumed by reference (`fleet-verify.yml`, `ai-lane.yml`, `.gith
 | --- | --- | --- | --- |
 | `vX.Y.Z` (e.g. `v1.0.0`) | immutable release | never | you want an exact, reproducible gate (Dependabot can bump it for you) |
 | `vX` (e.g. `v1`) | floating major | moved to each new `vX.Y.Z` | you want compatible fixes automatically, and never a breaking change |
-| `main` | branch | every merge | the hub's own workflows and pre-release testing only |
+| `main` | branch | every merge | pre-release testing only; the hub calls its own workflows by local path (`./.github/workflows/…`), not by ref |
 
 Fleet callers pin the floating major:
 
@@ -56,6 +56,14 @@ Versions follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
 | **Patch** (`v1.0.1`; `v1` moves) | Bug fixes that cannot turn a green caller red; documentation and comment changes; dependency bumps of actions used inside the workflow at the same major. |
 
 When in doubt, treat the change as major: a new major costs callers one Dependabot PR, while a breaking change under `v1` breaks every caller on the same day.
+
+## Moving callers to a new major
+
+A new major never moves existing callers. The previous floating major is frozen at its last release, so a caller on `@v1` keeps exactly the behaviour it had.
+
+When a major ships, each caller is tried on it, one PR per repo through the caller templates. A caller that stays green moves to `@vN`. A caller that turns red pins the previous major (`@v1`) until its own failures are fixed, and then moves.
+
+The first planned major is `v2.0.0`, for #310: `standard-ci` stops ignoring failed dependency installs (`|| true`), which can turn a green caller red. `v1` keeps the lenient installs.
 
 ## Cutting a release
 
