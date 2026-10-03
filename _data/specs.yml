@@ -144,8 +144,8 @@ requirements:
     area: REPO
     section: "Required files — content contracts"
     level: retired
-    applies: [all, fork]
-    applies_notes: ["all except content"]
+    applies: [all]
+    applies_notes: ["all except content, fork"]
     requirement: "**Retired 2026-10-03 (decision D5) → UPS-REPO-21**, which drops the content exemption so this row and UPS-QA-33 agree. Was: `CHANGELOG.md` exists and is release-please managed (Keep-a-Changelog headings, newest first). Hand-edits go only above the first release heading."
     satisfied_by: "file + `release-please-config.json`"
     seed: "`tools/adopt-release.sh`"
@@ -220,7 +220,7 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "`CHANGELOG.md` exists in every repo, content repos included (decision D5), and release-please writes it: `release-please-config.json` + `.release-please-manifest.json` at the root (release type by repo type: `simple` for docs, sites, demos and the control plane; `node`/`python`/`ruby` by ecosystem for apps and libraries), and a workflow calls the hub's reusable `release-please.yml` at a pinned ref (UPS-WORK-10). Never edited by hand."
+    requirement: "`CHANGELOG.md` exists in every repo, content repos included (decision D5), and release-please writes it: `release-please-config.json` + `.release-please-manifest.json` at the root (release type by repo type: `simple` for docs, sites, demos and the control plane; `node`/`python`/`ruby` by ecosystem for apps and libraries), and a workflow calls the hub's reusable `release-please.yml` at a pinned ref (UPS-WORK-10). A caller of `bamr87/.github`'s `release-please.yml` warns during the rollout: migrate it to the hub's reusable workflow (D3). Never edited by hand."
     satisfied_by: "files present + caller"
     seed: "`templates/sdlc/release/`, hub `.github/workflows/release-please.yml`"
     gap: false
@@ -381,8 +381,8 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "A root `AGENTS.md` exists and is the **canonical** agent instructions file (decision D4), readable by every agent. It carries these `##` headings, in order: **What this repo is** (one paragraph, who it serves, what \"done\" means) · **Stack & commands** (install/run/test/lint/build as fenced commands, identical to README Quick start) · **Layout** (top-level dirs, or \"see SCHEMA.md\") · **Conventions** (backlog of record, Definition of Done, ADR path, commits, branches, the do-nots) · **Fleet context** (the submodule rule + link to the hub) · **Standard deviations** (UPS ids waived and why; \"none\" if none)."
-    satisfied_by: "headings present, in order; no `TODO:` scaffold markers left"
+    requirement: "A root `AGENTS.md` exists and is the **canonical** agent instructions file (decision D4), readable by every agent. It carries these six `##` headings, in any order (extra headings are allowed; names match case-insensitively): **What this repo is** (one paragraph, who it serves, what \"done\" means) · **Stack & commands** (install/run/test/lint/build as fenced commands, identical to README Quick start) · **Layout** (top-level dirs, or \"see SCHEMA.md\") · **Conventions** (backlog of record, Definition of Done, ADR path, commits, branches, the do-nots) · **Fleet context** (the submodule rule + link to the hub) · **Standard deviations** (UPS ids waived and why; \"none\" if none)."
+    satisfied_by: "the six headings present; no `TODO:` scaffold markers left"
     seed: "`templates/sdlc/AGENTS.template.md`"
     gap: false
   - id: UPS-AGENT-08
@@ -391,8 +391,8 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "`CLAUDE.md` is a short pointer to `AGENTS.md` (decision D4): it imports it with an `@AGENTS.md` line, carries none of the UPS-AGENT-07 headings and no rules of its own, and stays under 20 non-blank lines. `.claude/commands/` and the rest of `.claude/` are unaffected."
-    satisfied_by: "`@AGENTS.md` line; no AGENT-07 headings"
+    requirement: "`CLAUDE.md` is a short pointer to `AGENTS.md` (decision D4): it imports it with an `@AGENTS.md` line, carries none of the UPS-AGENT-07 headings and no rules of its own, and has at most 20 non-blank lines. `.claude/commands/` and the rest of `.claude/` are unaffected."
+    satisfied_by: "`@AGENTS.md` line; no AGENT-07 headings; ≤ 20 non-blank lines"
     seed: "`templates/sdlc/CLAUDE.template.md`"
     gap: false
   - id: UPS-AGENT-09
@@ -467,8 +467,8 @@ requirements:
     area: AGENT
     section: "Structural contract (Pyramid Schema)"
     level: SHOULD
-    applies: [all, content]
-    applies_notes: ["all except fork"]
+    applies: [all]
+    applies_notes: ["all except fork, content"]
     requirement: "The repo carries a `SCHEMA.md` pyramid (one per directory, from the kit template), the vendored `tools/schema_lint.py`, the `schema-check.yml` gate, and the protocol snippet in `CLAUDE.md`. Registry `schema.status` records adoption."
     satisfied_by: "`schema_lint.py check .` passes"
     seed: "`tools/seed-schema.sh` / `schema-fanout.yml`"
@@ -1909,8 +1909,8 @@ requirements:
     area: WORK
     section: "Backlog of record"
     level: MUST
-    applies: [all, fork]
-    applies_notes: ["all except content"]
+    applies: [all]
+    applies_notes: ["all except content, fork"]
     requirement: "There is exactly one **backlog of record**. `issues` mode (the default, D1): GitHub Issues carrying the fleet labels. `file` mode: the declared `BACKLOG.md` or `_data/backlog.yml`, linted by a CI job; a sync job alone is not a lint. Other planning files link to it (WORK-11)."
     satisfied_by: "file mode: file + CI lint step; issues mode: not visible offline (see WORK-14)"
     seed: "`templates/sdlc/`, `templates/spec-driven/tools/backlog_lint.py`"
@@ -1949,8 +1949,8 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "The repo's PR template (its own, or the default inherited from the owner's `.github` repo) carries the fleet **Definition of Done** between `<!-- fleet-dod:start v1 -->` and `<!-- fleet-dod:end -->`: Conventional title (drives release-please), CI green, tests, docs and features updated, `AGENTS.md` updated, ADR if hard to reverse, backlog of record updated, clean diff with no secrets. A repo may add boxes below the end marker, never inside it."
-    satisfied_by: "marker block with the kit's boxes, in order"
+    requirement: "The repo's PR template (its own, or the default inherited from the owner's `.github` repo) carries the fleet **Definition of Done** between `<!-- fleet-dod:start v1 -->` and `<!-- fleet-dod:end -->`: Conventional title (drives release-please), CI green, tests, docs and features updated, `AGENTS.md` updated, ADR if hard to reverse, backlog of record updated, clean diff with no secrets. A repo may add boxes below the end marker, never inside it. The current marker version passes; during a rollout the immediately previous version warns; any older version fails."
+    satisfied_by: "marker block at the current version with the kit's boxes, in order"
     seed: "`templates/community/.github/pull_request_template.md`"
     gap: false
   - id: UPS-WORK-04
@@ -1958,7 +1958,7 @@ requirements:
     section: "Delivery: Definition of Done, decisions, changelog"
     level: MUST
     applies: [app, api, lib, cli, ext]
-    requirement: "Decisions that are hard to reverse are recorded as `NNNN-slug.md` ADRs (law-ai format, D2) with a `README.md` index, under `adr_path` (default `docs/adr`)."
+    requirement: "Decisions that are hard to reverse are recorded as `NNNN-slug.md` ADRs (law-ai format, D2) with a `README.md` index, under `adr_path` (default `docs/adr`). An `ADR-NNNN-slug.md` name (year-of-ai's) is a deprecated alias: it counts, with a warning, until the D2 migration renames it."
     satisfied_by: "≥1 ADR + index"
     seed: "`templates/sdlc/docs/adr/`"
     gap: false
@@ -1977,7 +1977,7 @@ requirements:
     level: SHOULD
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "Changelog hygiene: **at most one** `## [Unreleased]` heading (release-please writes none, so zero is normal), and the newest version heading equals the newest `vX.Y.Z` tag."
+    requirement: "Changelog hygiene: **at most one** `## [Unreleased]` heading (release-please writes none, so zero is normal), and the newest version heading equals the newest `vX.Y.Z` tag. A repo with no `CHANGELOG.md` passes this row; the missing file is UPS-REPO-21's failure, so one root cause fails one row."
     satisfied_by: "parser check"
     seed: "`templates/sdlc/CHANGELOG.template.md`"
     gap: false
@@ -1996,8 +1996,8 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "`AGENTS.md § Conventions` names the backlog of record, the Definition of Done location and the ADR path (`adr_path`), so agents and humans follow one loop (D4)."
-    satisfied_by: "text check"
+    requirement: "`AGENTS.md § Conventions` names the backlog of record, the Definition of Done location and the ADR path (`adr_path`), so agents and humans follow one loop (D4). Matching is case-insensitive. With no profile (or no `adr_path` key) the expected path is `docs/adr`."
+    satisfied_by: "case-insensitive text check"
     seed: "`templates/sdlc/AGENTS.template.md`"
     gap: false
   - id: UPS-WORK-07
@@ -2015,8 +2015,8 @@ requirements:
     section: "Shared workflows"
     level: MUST
     applies: [all]
-    requirement: "Reusable workflows and composite actions from `bamr87/bamr87` or `bamr87/.github` are referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (a trailing `# vX.Y.Z` comment is allowed). Branch refs such as `@main` are rejected. The only exemption is a local `./` path, which is how the hub calls its own workflows; the hub's remote self-references count like anyone else's. Tag scheme: [`docs/WORKFLOW-VERSIONING.md`](../docs/WORKFLOW-VERSIONING.md)."
-    satisfied_by: "`uses:` refs"
+    requirement: "Reusable workflows and composite actions from `bamr87/bamr87` or `bamr87/.github` are referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (a trailing `# vX.Y.Z` comment is allowed). Branch refs such as `@main` are rejected. The only exemption is a local `./` path, which is how the hub calls its own workflows; the hub's remote self-references count like anyone else's. Only `uses:` keys parsed from the YAML are inspected (job-level and step-level, plus composite-action steps), the same way as UPS-QA-40; text inside `run:` scripts is never matched. Tag scheme: [`docs/WORKFLOW-VERSIONING.md`](../docs/WORKFLOW-VERSIONING.md)."
+    satisfied_by: "parsed `uses:` refs"
     seed: "fan-out of `@v1` callers"
     gap: false
   - id: UPS-WORK-08

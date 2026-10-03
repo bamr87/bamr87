@@ -44,6 +44,7 @@ def split_cells(line: str) -> list[str]:
 def parse_applies(text: str) -> tuple[list[str], list[str]]:
     """'app, api (server-rendered)' -> (['app','api'], ['api (server-rendered)'])"""
     kinds, notes = [], []
+    excepting = False  # inside an 'all except a, b' list: bare kinds extend the exception
     for chunk in text.split(","):
         chunk = chunk.strip()
         if not chunk:
@@ -52,7 +53,12 @@ def parse_applies(text: str) -> tuple[list[str], list[str]]:
         if m and m.group(1) == "all except":
             kinds.append("all")
             notes.append(chunk)
+            excepting = True
             continue
+        if excepting and chunk.strip("`") in KINDS:
+            notes[-1] += ", " + chunk
+            continue
+        excepting = False
         word = chunk.split()[0].strip("`")
         if word in KINDS:
             kinds.append(word)

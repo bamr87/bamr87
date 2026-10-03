@@ -38,12 +38,12 @@ All six were settled on 2026-10-03. None is a switch.
 
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
-| UPS-WORK-03 | MUST | all except fork | The repo's PR template (its own, or the default inherited from the owner's `.github` repo) carries the fleet **Definition of Done** between `<!-- fleet-dod:start v1 -->` and `<!-- fleet-dod:end -->`: Conventional title (drives release-please), CI green, tests, docs and features updated, `AGENTS.md` updated, ADR if hard to reverse, backlog of record updated, clean diff with no secrets. A repo may add boxes below the end marker, never inside it. | marker block with the kit's boxes, in order | `templates/community/.github/pull_request_template.md` |
-| UPS-WORK-04 | MUST | app, api, lib, cli, ext | Decisions that are hard to reverse are recorded as `NNNN-slug.md` ADRs (law-ai format, D2) with a `README.md` index, under `adr_path` (default `docs/adr`). | ≥1 ADR + index | `templates/sdlc/docs/adr/` |
+| UPS-WORK-03 | MUST | all except fork | The repo's PR template (its own, or the default inherited from the owner's `.github` repo) carries the fleet **Definition of Done** between `<!-- fleet-dod:start v1 -->` and `<!-- fleet-dod:end -->`: Conventional title (drives release-please), CI green, tests, docs and features updated, `AGENTS.md` updated, ADR if hard to reverse, backlog of record updated, clean diff with no secrets. A repo may add boxes below the end marker, never inside it. The current marker version passes; during a rollout the immediately previous version warns; any older version fails. | marker block at the current version with the kit's boxes, in order | `templates/community/.github/pull_request_template.md` |
+| UPS-WORK-04 | MUST | app, api, lib, cli, ext | Decisions that are hard to reverse are recorded as `NNNN-slug.md` ADRs (law-ai format, D2) with a `README.md` index, under `adr_path` (default `docs/adr`). An `ADR-NNNN-slug.md` name (year-of-ai's) is a deprecated alias: it counts, with a warning, until the D2 migration renames it. | ≥1 ADR + index | `templates/sdlc/docs/adr/` |
 | UPS-WORK-13 | SHOULD | site | Sites keep the same ADR log as WORK-04. | ≥1 ADR + index | `templates/sdlc/docs/adr/` |
-| UPS-WORK-05 | SHOULD | all except fork | Changelog hygiene: **at most one** `## [Unreleased]` heading (release-please writes none, so zero is normal), and the newest version heading equals the newest `vX.Y.Z` tag. | parser check | `templates/sdlc/CHANGELOG.template.md` |
+| UPS-WORK-05 | SHOULD | all except fork | Changelog hygiene: **at most one** `## [Unreleased]` heading (release-please writes none, so zero is normal), and the newest version heading equals the newest `vX.Y.Z` tag. A repo with no `CHANGELOG.md` passes this row; the missing file is UPS-REPO-21's failure, so one root cause fails one row. | parser check | `templates/sdlc/CHANGELOG.template.md` |
 | UPS-WORK-06 | SHOULD | all | The feature catalog lives in one place (`features/features.yml`, no `_data/features.yml` duplicate) and carries no hand-maintained version header. | parser check | `templates/verify/` |
-| UPS-WORK-12 | MUST | all except fork | `AGENTS.md § Conventions` names the backlog of record, the Definition of Done location and the ADR path (`adr_path`), so agents and humans follow one loop (D4). | text check | `templates/sdlc/AGENTS.template.md` |
+| UPS-WORK-12 | MUST | all except fork | `AGENTS.md § Conventions` names the backlog of record, the Definition of Done location and the ADR path (`adr_path`), so agents and humans follow one loop (D4). Matching is case-insensitive. With no profile (or no `adr_path` key) the expected path is `docs/adr`. | case-insensitive text check | `templates/sdlc/AGENTS.template.md` |
 
 ## Spec-driven module
 
@@ -55,7 +55,7 @@ All six were settled on 2026-10-03. None is a switch.
 
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
-| UPS-WORK-10 | MUST | all | Reusable workflows and composite actions from `bamr87/bamr87` or `bamr87/.github` are referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (a trailing `# vX.Y.Z` comment is allowed). Branch refs such as `@main` are rejected. The only exemption is a local `./` path, which is how the hub calls its own workflows; the hub's remote self-references count like anyone else's. Tag scheme: [`docs/WORKFLOW-VERSIONING.md`](../docs/WORKFLOW-VERSIONING.md). | `uses:` refs | fan-out of `@v1` callers |
+| UPS-WORK-10 | MUST | all | Reusable workflows and composite actions from `bamr87/bamr87` or `bamr87/.github` are referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (a trailing `# vX.Y.Z` comment is allowed). Branch refs such as `@main` are rejected. The only exemption is a local `./` path, which is how the hub calls its own workflows; the hub's remote self-references count like anyone else's. Only `uses:` keys parsed from the YAML are inspected (job-level and step-level, plus composite-action steps), the same way as UPS-QA-40; text inside `run:` scripts is never matched. Tag scheme: [`docs/WORKFLOW-VERSIONING.md`](../docs/WORKFLOW-VERSIONING.md). | parsed `uses:` refs | fan-out of `@v1` callers |
 
 ## Freshness
 
@@ -79,6 +79,12 @@ All six were settled on 2026-10-03. None is a switch.
 
 `hub` is a marker kind: no row targets it yet, so the control plane is checked as a `site`.
 
+## Rollout
+
+Some rows are new for most of the fleet. While they roll out, the contract marks them `rollout: warn`: the checker reports what would be a failure as a warning, which never gates. Fleet Ops makes a row gate by deleting its marker. The marked rows are UPS-WORK-01, UPS-WORK-07, UPS-WORK-12, UPS-AGENT-07, UPS-AGENT-08, UPS-AGENT-09 and UPS-REPO-21.
+
+Separately from the rollout, a few accepted-but-deprecated shapes always warn: an `ADR-NNNN-slug.md` name (WORK-04), the previous Definition of Done marker version (WORK-03), and a release caller of `bamr87/.github`'s `release-please.yml` (REPO-21; migrate to the hub's reusable workflow, D3).
+
 ## Deviations
 
 A waived SHOULD row is listed in two places: `.github/sdlc.yml` `deviations: [{id, reason, until}]`, and the `## Standard deviations` section of `AGENTS.md` (D4). During the transition the checker also accepts that section in `CLAUDE.md`. A MUST row cannot be waived; if it is wrong for a whole family, change the spec.
@@ -98,3 +104,15 @@ These were open in the Wave 1 draft (raised in #316) and are settled here and in
 9. **Kit path:** the spec-driven tools live in `templates/spec-driven/` (a top-level kit, versioned on its own), not `templates/sdlc/spec-driven/`.
 10. **DoD wording:** the `fleet-dod` markers and the kit's box titles are the contract, not keywords.
 11. **WORK-11:** rewritten as a file check (no item lists in planning files, plus a backlog link) instead of the undefined "link check".
+
+Settled with Fleet Ops after #316 was re-keyed to the contract:
+
+12. **ADR names (WORK-04):** `NNNN-slug.md` is canonical. `ADR-NNNN-slug.md` counts but warns until the D2 migration.
+13. **One failure per root cause:** a missing `CHANGELOG.md` fails only UPS-REPO-21 (WORK-05 passes), and a missing `AGENTS.md` fails only UPS-AGENT-07 (WORK-12 and AGENT-09 pass).
+14. **WORK-12 matching:** case-insensitive; `docs/adr` when there is no profile.
+15. **AGENT-07 headings:** all six required, in any order; extra headings allowed.
+16. **DoD versions (WORK-03):** current passes, the previous one warns during rollout, older ones fail.
+17. **Structured keys:** AGENT-07/08/09 and REPO-21 read named contract keys (required headings, the `@AGENTS.md` pointer and line limit, the kit stamp, release types per repo type) instead of prose.
+18. **Legacy release caller (REPO-21):** calling `bamr87/.github`'s `release-please.yml` warns and points at the hub's reusable workflow (D3).
+19. **What WORK-10 reads:** only parsed `uses:` keys, never `run:` text.
+20. **WORK-02 applicability:** all except content and fork. The contract is the source of truth; `_data/specs.yml` now matches.
