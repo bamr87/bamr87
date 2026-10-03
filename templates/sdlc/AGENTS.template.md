@@ -1,5 +1,5 @@
 <!-- kit: sdlc v__KIT_VERSION__ · AGENTS.md is the CANONICAL agent instructions file (decision D4, UPS-AGENT-07/08).
-     Keep these six `##` headings, in this order. CLAUDE.md is a pointer to this file and carries no rules of its own. -->
+     Keep these six `##` headings (UPS-AGENT-07 checks they exist, in any order; add your own headings as needed). CLAUDE.md is a pointer to this file and carries no rules of its own. -->
 
 # __PROJECT_NAME__
 
