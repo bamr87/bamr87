@@ -360,7 +360,7 @@ jobs:
       - name: Choose the Claude credential (ai_auth order)
         id: claude-auth
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
-        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        uses: ./.github/actions/claude-auth
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}

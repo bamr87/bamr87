@@ -238,7 +238,7 @@ jobs:
       # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
       - name: Choose the Claude credential (ai_auth order)
         id: claude-auth
-        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        uses: bamr87/bamr87/.github/actions/claude-auth@v1
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
