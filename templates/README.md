@@ -18,7 +18,7 @@ The per-repo glue for the standardized release pipeline (see [`docs/RELEASES.md`
 
 | File | Purpose |
 | --- | --- |
-| `ci.yml` | caller workflow → reusable `ci.yml@main` in `bamr87/.github` (`__DEFAULT_BRANCH__` is substituted) |
+| `ci.yml` | thin caller → the hub's shared gate `bamr87/bamr87/.github/workflows/standard-ci.yml@v1`, the same gate `standard-ci/` seeds (`__DEFAULT_BRANCH__` is substituted). `bamr87/.github`'s `ci.yml` is retired |
 | `release.yml` | caller workflow → reusable `release-please.yml` + `publish.yml` |
 | `RELEASING.md` | per-repo release cheat-sheet (`__REGISTRY__` / `__VERSION_SOURCE__` / `__SECRET__` substituted) |
 

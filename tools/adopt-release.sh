@@ -4,7 +4,9 @@
 #
 # Detects the repo's ecosystem, scaffolds the caller workflows + a release-please
 # config (from templates/release-pipeline/), and opens a PR. The shared logic
-# lives in bamr87/.github; this only adds the thin per-repo glue.
+# lives elsewhere; this only adds the thin per-repo glue. The CI caller targets
+# the hub's standard-ci.yml (the one shared gate; bamr87/.github's ci.yml is
+# retired); release.yml still calls bamr87/.github's release workflows.
 #
 # Usage:
 #   tools/adopt-release.sh <repo> [--owner bamr87] [--dry-run] [--no-pr]
@@ -88,7 +90,7 @@ mkdir -p .github/workflows
 subst() { sed -e "s/__DEFAULT_BRANCH__/${DEFAULT_BRANCH}/g" "$1"; }
 
 if [[ -f .github/workflows/ci.yml ]]; then
-  note "ci.yml already exists — leaving the repo's CI untouched"
+  note "ci.yml already exists — leaving the repo's CI untouched (UPS-QA-20 wants a caller of bamr87/bamr87 standard-ci.yml)"
 else
   subst "${TEMPLATES}/ci.yml" > .github/workflows/ci.yml; ok "added .github/workflows/ci.yml"
 fi
@@ -149,8 +151,8 @@ UID_NUM="$(gh api user --jq .id)"; LOGIN="$(gh api user --jq .login)"
 NOREPLY="${UID_NUM}+${LOGIN}@users.noreply.github.com"
 git -c user.name="$LOGIN" -c user.email="$NOREPLY" commit -q -m "ci: adopt standardized release pipeline
 
-Scaffolds release-please (${RELEASE_TYPE}) + caller workflows referencing
-bamr87/.github. Conventional Commits now drive versioning, CHANGELOG, and the
+Scaffolds release-please (${RELEASE_TYPE}), a CI caller of the hub's
+standard-ci.yml and a release caller of bamr87/.github. Conventional Commits now drive versioning, CHANGELOG, and the
 GitHub Release; ${REGISTRY} publishing runs on release."
 git push -u origin "$BRANCH" >/dev/null 2>&1 && ok "pushed ${BRANCH}"
 
@@ -161,6 +163,6 @@ gh pr create --repo "$SLUG" --base "$DEFAULT_BRANCH" --head "$BRANCH" \
 
 - Version source: \`${VERSION_SOURCE}\` (current: \`${VERSION}\`)
 - Required secret: \`${SECRET}\`
-- Caller workflows reference \`bamr87/.github@main\`; see \`RELEASING.md\`.
+- \`ci.yml\` calls the hub's shared gate \`bamr87/bamr87/.github/workflows/standard-ci.yml@v1\`; \`release.yml\` calls \`bamr87/.github@main\`. See \`RELEASING.md\`.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)"
