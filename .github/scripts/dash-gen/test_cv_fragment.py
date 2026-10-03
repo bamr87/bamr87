@@ -1,7 +1,12 @@
 """Tests for cv_fragment — the registry -> bamr87/cv portfolio projection."""
 from __future__ import annotations
 
-import cv_fragment
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import cv_fragment  # noqa: E402
 
 
 def _reg() -> list[dict]:
@@ -85,3 +90,23 @@ def test_skill_rollup_excludes_archived_and_sorts():
 def test_render_is_deterministic():
     assert cv_fragment.render(_reg()) == cv_fragment.render(_reg())
     assert cv_fragment.render(_reg()).endswith("\n")
+
+
+def main() -> int:
+    # Same bare-interpreter contract as the other suites: `python3 <file>` must
+    # RUN the tests. Without this block the file exited 0 having run nothing.
+    failures = 0
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            try:
+                fn()
+                print(f"  ✓ {name}")
+            except AssertionError as exc:
+                failures += 1
+                print(f"  ✗ {name}: {exc}")
+    print("OK — cv_fragment tests" if not failures else f"FAIL — {failures} cv_fragment test(s)")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -113,7 +113,7 @@ Then stop sending operators to `:4001` by default (API may remain).
 - Rewriting `tools/dash` in TypeScript
 - Replacing Phoenix with a custom trace product
 - Making Pages interactive
-- Mid-run dollar enforcement (still HARNESS checklist #7 — prerequisite before heavy critique automation)
+- Aggregate (monthly / workspace) dollar enforcement. Per-run `--max-budget-usd` ceilings are enforced at every call site (HARNESS checklist #7), but they use the CLI's client-side estimate and do not bound the fleet total. Prerequisite before heavy critique automation.
 - Multi-tenant SaaS packaging
 
 ## Consequences

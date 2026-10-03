@@ -79,7 +79,8 @@ class _GH:
 
 def test_collect_asks_the_users_endpoint_once_and_never_raises():
     r = _Requester(payload={"usageItems": ITEMS})
-    s = aa.collect_billing(_GH(r))
+    # pinned date: the fixture's "previous month" is 2026-08 only while today is in 2026-09
+    s = aa.collect_billing(_GH(r), dt.date(2026, 9, 5))
     assert r.calls == [("GET", "/users/bamr87/settings/billing/usage")], r.calls
     assert "error" not in s and s["minutes_previous_month"] == 21891.0
     # a token without the scope (or a moved endpoint) degrades to an error field
