@@ -42,6 +42,10 @@ on:
       python-version:
         type: string
         default: ""
+      enable-pending:
+        description: "Comma-separated pending decisions whose rules to enforce (D4, D5); empty = skip those rules"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -78,10 +82,12 @@ jobs:
         env:
           KINDS: ${{ inputs.kinds }}
           TIER: ${{ inputs.tier }}
+          ENABLE_PENDING: ${{ inputs.enable-pending }}
         run: |
           set -euo pipefail
           args=(check . --hub .fleet-hub --tier "$TIER")
           [ -n "$KINDS" ] && args+=(--kinds "$KINDS")
+          [ -n "$ENABLE_PENDING" ] && args+=(--enable-pending "$ENABLE_PENDING")
           python3 .fleet-hub/tools/conformance.py "${args[@]}" --json > conformance.json
           python3 .fleet-hub/tools/conformance.py "${args[@]}" | tee conformance.txt
           must=$(python3 -c 'import json;print(json.load(open("conformance.json"))["must_failed"])')
