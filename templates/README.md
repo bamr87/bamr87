@@ -35,6 +35,22 @@ The Pyramid Schema seed kit, stamped into a repo by [`tools/seed-schema.sh`](../
 | `schema-check.yml` | CI gate running the vendored `schema_lint.py` (`__DEFAULT_BRANCH__` substituted) |
 | `VERSION` | kit provenance (upstream commit, spec version, vendored date) |
 
+## `sdlc/`
+
+The core per-repo SDLC files (spec: [`specs/WORK.md`](../specs/WORK.md), contract: [`specs/WORK.contract.yml`](../specs/WORK.contract.yml)). Copied per repo; `fanout.sh --kit sdlc` is not wired yet. See [`sdlc/README.md`](sdlc/README.md).
+
+| File | Purpose |
+| --- | --- |
+| `sdlc.yml` → `.github/sdlc.yml` | the repo's SDLC profile: `type` (D6), `kinds`, `tier`, `backlog.mode` (D1: Issues by default), `modules` map, `adr_path` (D2), `release.type` (D5), `deviations` |
+| `sdlc.schema.json` | JSON Schema 2020-12 for `sdlc/v1`; stays in the hub and is what UPS-WORK-01 validates against |
+| `AGENTS.template.md`, `CLAUDE.template.md` | canonical `AGENTS.md` with the six required headings, and the `@AGENTS.md` pointer `CLAUDE.md` (D4) |
+| `docs/adr/`, `docs/README.template.md` | ADR index, template and ADR 0001 in law-ai format (D2); docs index |
+| `release/` | `release.yml` caller → hub `release-please.yml@v1`; `release-please-config.{simple,node,python,ruby}.json` (pick one by repo type) + `.release-please-manifest.json` (D5) |
+| `CHANGELOG.template.md` | release-please-friendly seed with a baseline heading; never edited by hand |
+| `content-queue/backlog.yml` | `content-queue/v1` content queue for the `content_queue` module (not the engineering backlog) |
+| `test_sdlc_kit.py` | fixture tests; `--target <repo>` validates a repo's `.github/sdlc.yml` against the schema |
+| `VERSION`, `archive/` | kit provenance + changelog; pre-change snapshots |
+
 ## `agent-context/`
 
 The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](../.github/workflows/standardize-fanout.yml) (artifacts `agent-context`, `claude`, `claude-settings`) via [`tools/fanout.sh`](../tools/fanout.sh) — closes the `agent_context` + `claude_workflow` requirements in [`_data/standards.yml`](../_data/standards.yml):
