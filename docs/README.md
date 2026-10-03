@@ -97,6 +97,7 @@ These are not documentation, but they answer the "how does this thing build and 
 | [`ESTIMATION.md`](ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
 | [`STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline the fleet is held to; points to [`../specs/`](../specs/README.md), the Universal Project Standard that governs content and behaviour. |
 | [`RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
+| [`WORKFLOW-VERSIONING.md`](WORKFLOW-VERSIONING.md) | How the hub's reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises callers, and how a release is cut and rolled back. History in [`../CHANGELOG.md`](../CHANGELOG.md). |
 | [`DEPENDENCIES.md`](DEPENDENCIES.md) | The always-latest dependency policy. |
 | [`SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
 | [`WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |

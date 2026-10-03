@@ -5,10 +5,11 @@ name: standard-ci
 # in by standardize-fanout.yml). Auto-detects the stack and runs lint + test +
 # build; every step is guarded so a repo only runs what applies to it.
 #
-# Call it from a member repo:
+# Call it from a member repo, pinned to the floating major tag (never @main;
+# tag scheme and bump rules: docs/WORKFLOW-VERSIONING.md, history: CHANGELOG.md):
 #   jobs:
 #     ci:
-#       uses: bamr87/bamr87/.github/workflows/standard-ci.yml@main
+#       uses: bamr87/bamr87/.github/workflows/standard-ci.yml@v1
 #       secrets: inherit
 #
 # TWO GATES, DELIBERATELY

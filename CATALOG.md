@@ -324,6 +324,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | **Status:** v0 kit (`templates/ux-audit/` 0.1.0). |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard: the feature index every repo carries (`features/features.yml`), user scenarios a Playwright runner and a Claude Code pass both execute,… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
+| [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the hub's reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises callers, and how a release is cut and rolled back. |
 | [`automation-and-agents.md`](docs/automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |
 | [`local-development.md`](docs/local-development.md) | Clone, configure and run the site locally (Docker or Bundler + Jekyll). |
 | [`prerequisites.md`](docs/prerequisites.md) | What to install before the quick start. |
