@@ -307,6 +307,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`DEPENDENCIES.md`](docs/DEPENDENCIES.md) | The always-latest dependency policy. |
 | [`DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Local setup for the hub — containers, the everyday loop, and the pre-PR checklist. |
 | [`DOCKER.md`](docs/DOCKER.md) | Image versions come from **one registry**, a tool rewrites each repo to match, |
+| [`DOCS-SYSTEM.md`](docs/DOCS-SYSTEM.md) | **Plan (2026-10-03):** documentation by role, not by generator — every page has one home: Jekyll front door, MkDocs guides, Sphinx API reference, one private Wiki.js han… |
 | [`ESTIMATION.md`](docs/ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
 | [`EVOLUTION.md`](docs/EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo. |
 | [`FLEET-COMPOSE.md`](docs/FLEET-COMPOSE.md) | One command brings up any project (or all of them) with its real database, |
