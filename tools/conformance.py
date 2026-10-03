@@ -441,9 +441,11 @@ def _ci_caller(r, k):
     t = r.read(".github/workflows/ci.yml")
     if not t:
         return _no("no .github/workflows/ci.yml")
-    if re.search(r"uses:\s*bamr87/(bamr87/\.github/workflows/standard-ci\.yml|\.github/\.github/workflows/ci\.yml)@", t):
+    if re.search(r"uses:\s*bamr87/bamr87/\.github/workflows/standard-ci\.yml@", t):
         return _ok()
-    return _no("ci.yml is bespoke (not a thin caller of the shared gate)")
+    if re.search(r"uses:\s*bamr87/\.github/\.github/workflows/ci\.yml@", t):
+        return _no("ci.yml calls bamr87/.github ci.yml, which is retired — call bamr87/bamr87 standard-ci.yml")
+    return _no("ci.yml is bespoke (not a thin caller of the shared gate, bamr87/bamr87 standard-ci.yml)")
 
 
 @check("UPS-QA-32")
