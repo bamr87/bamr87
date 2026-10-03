@@ -11,9 +11,9 @@ Guards the invariants that keep a draft area safe to ship ahead of its spec:
     current spec runs exactly as before;
   * a fact the offline checker cannot see (inherited PR template or forms,
     labels on GitHub) is `unverified`, never a pass or a failure;
-  * rules that depend on unratified decisions (D4: canonical agent file, D5:
-    CHANGELOG for content repos) are skipped unless --enable-pending names
-    them;
+  * the settled decisions are hard requirements: D4 (AGENTS.md canonical,
+    CLAUDE.md a pointer to it) and D5 (CHANGELOG.md in every repo, content
+    included);
   * each check passes the canonical shape and fails the drift it targets.
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs PyYAML and
@@ -90,10 +90,8 @@ def repo(tmp: Path, files: dict[str, str] | None = None, name: str = "repo", git
     return r
 
 
-def run(rid: str, path: Path, h: Path, kinds=("app",), enable=()):
-    rp = c.Repo(path, h)
-    rp.enabled_decisions = set(enable)
-    return c.CHECKS[rid](rp, list(kinds))
+def run(rid: str, path: Path, h: Path, kinds=("app",)):
+    return c.CHECKS[rid](c.Repo(path, h), list(kinds))
 
 
 def test_rows_inert_without_spec():
@@ -174,7 +172,8 @@ def test_work04_adr_log():
 def test_work05_changelog_hygiene():
     with tempfile.TemporaryDirectory() as d:
         t, h = Path(d), hub(Path(d))
-        assert run("UPS-WORK-05", repo(t, name="none"), h)[0] is True
+        ok, msg = run("UPS-WORK-05", repo(t, name="none"), h)
+        assert ok is False and "no CHANGELOG.md" in msg, msg
         dup = "# Changelog\n\n## [Unreleased]\n\n## [Unreleased] - 2026-03-08\n\n## [1.0.0] - 2026-01-01\n"
         assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": dup}, name="dup"), h)[0] is False
         cl = "# Changelog\n\n## [Unreleased]\n\n## [1.2.0] - 2026-01-01\n\n## [1.1.0] - 2025-12-01\n"
@@ -187,11 +186,10 @@ def test_work05_changelog_hygiene():
         assert run("UPS-WORK-05", notag, h)[0] is True
         # release-please writes no [Unreleased] heading at all: allowed (at most one)
         assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": "## [0.1.0] - 2026-01-01\n"}, name="rp"), h)[0] is True
-        # D5: content repos are pending unless enabled
-        content = repo(t, {"CHANGELOG.md": dup}, name="content")
-        ok, msg = run("UPS-WORK-05", content, h, kinds=("content",))
-        assert ok is None and "D5" in msg, msg
-        assert run("UPS-WORK-05", content, h, kinds=("content",), enable=("D5",))[0] is False
+        # D5: content repos are held to the same rule — required, and hygienic
+        assert run("UPS-WORK-05", repo(t, name="content-none"), h, kinds=("content",))[0] is False
+        assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": dup}, name="content-dup"), h, kinds=("content",))[0] is False
+        assert run("UPS-WORK-05", repo(t, {"CHANGELOG.md": cl}, name="content-ok"), h, kinds=("content",))[0] is True
 
 
 def test_work06_features_hygiene():
@@ -309,30 +307,42 @@ def test_work10_hub_refs_pinned():
         assert ok is False and "standard-ci.yml@main" in msg and "claude-auth@main" in msg, msg
 
 
-def test_work12_pending_d4():
+CONVENTIONS = "## Conventions\n\nBacklog of record: GitHub Issues. Definition of Done: the PR template. ADRs: docs/adr/.\n\n## Fleet context\n"
+POINTER = "# CLAUDE.md\n\nThe canonical guide is [AGENTS.md](AGENTS.md). Spec-driven commands live in .claude/commands/.\n"
+
+
+def test_work12_agents_canonical():
     with tempfile.TemporaryDirectory() as d:
         t, h = Path(d), hub(Path(d))
-        named = "# CLAUDE.md\n\n## Conventions\n\nBacklog of record: GitHub Issues. Definition of Done: the PR template. ADRs: docs/adr/.\n\n## Fleet context\n"
-        r = repo(t, {"CLAUDE.md": named}, name="named")
-        ok, msg = run("UPS-WORK-12", r, h)
-        assert ok is None and "D4" in msg, msg
-        assert run("UPS-WORK-12", r, h, enable=("D4",))[0] is True
-        thin = "# CLAUDE.md\n\n## Conventions\n\nUse ruff.\n\n## Backlog\n\nIssues.\n"
-        ok, msg = run("UPS-WORK-12", repo(t, {"CLAUDE.md": thin}, name="thin"), h, enable=("D4",))
+        assert run("UPS-WORK-12", repo(t, {"AGENTS.md": "# AGENTS.md\n\n" + CONVENTIONS, "CLAUDE.md": POINTER,
+                                           ".claude/commands/specify.md": "x"}, name="ok"), h)[0] is True
+        # CLAUDE.md-canonical (the pre-D4 shape) fails: no AGENTS.md
+        ok, msg = run("UPS-WORK-12", repo(t, {"CLAUDE.md": "# CLAUDE.md\n\n" + CONVENTIONS}, name="claude-only"), h)
+        assert ok is False and "no AGENTS.md" in msg, msg
+        # CLAUDE.md missing, or not pointing at AGENTS.md, or duplicating the conventions
+        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": "# A\n\n" + CONVENTIONS}, name="nopointer"), h)
+        assert ok is False and "no CLAUDE.md pointer" in msg, msg
+        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": "# A\n\n" + CONVENTIONS, "CLAUDE.md": "# CLAUDE.md\n\nUse ruff.\n"}, name="stray"), h)
+        assert ok is False and "does not point to AGENTS.md" in msg, msg
+        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": "# A\n\n" + CONVENTIONS, "CLAUDE.md": POINTER + "\n" + CONVENTIONS}, name="dup"), h)
+        assert ok is False and "its own `## Conventions`" in msg, msg
+        # AGENTS.md conventions must name the loop
+        thin = "# A\n\n## Conventions\n\nUse ruff.\n\n## Backlog\n\nIssues.\n"
+        ok, msg = run("UPS-WORK-12", repo(t, {"AGENTS.md": thin, "CLAUDE.md": POINTER}, name="thin"), h)
         assert ok is False and "backlog" in msg and "ADR" in msg, msg
 
 
-def test_cli_enable_pending():
+def test_cli_check_runs():
     with tempfile.TemporaryDirectory() as d:
         r = repo(Path(d), {"README.md": "# r\n"})
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            assert c.main(["check", str(r), "--hub", str(HUB), "--kinds", "app", "--enable-pending", "d4,D5"]) == 0
+            assert c.main(["check", str(r), "--hub", str(HUB), "--kinds", "content"]) == 0
             try:
-                c.main(["check", str(r), "--hub", str(HUB), "--enable-pending", "D9"])
+                c.main(["check", str(r), "--hub", str(HUB), "--enable-pending", "D4"])
             except SystemExit as e:
-                assert e.code == 2
+                assert e.code == 2  # the pending-decision switch is gone: D4/D5 are settled
             else:
-                raise AssertionError("unknown decision accepted")
+                raise AssertionError("--enable-pending still accepted")
 
 
 if __name__ == "__main__":
