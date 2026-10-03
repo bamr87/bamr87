@@ -21,17 +21,18 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 198 requirements: 141 MUST, 53 SHOULD, 4 MAY; 67 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 216 requirements: 149 MUST, 59 SHOULD, 4 MAY; 62 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
-| REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 22 / 7 / 0 | 10 | Repository layout and required files |
-| AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 1 | Agent context |
-| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…53 | 25 / 7 / 0 | 18 | Quality gates |
-| FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 7 | Frontend: design system, core components, UX standards |
+| REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 22 / 7 / 0 | 6 | Repository layout and required files |
+| AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 0 | Agent context |
+| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…53 | 25 / 7 / 0 | 17 | Quality gates |
+| FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 5 | Frontend: design system, core components, UX standards |
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
-| OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 15 | Configuration, observability, security, data |
+| OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 16 | Configuration, observability, security, data |
+| WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…14 | 8 / 6 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
 | — | [`STACKS.md`](specs/STACKS.md) | — | — | — | Stack-family profiles and the applicability matrix |
 | — | [`CONFORMANCE.md`](specs/CONFORMANCE.md) | — | — | — | Declaring, auditing, adoption order, the fleet gap list |
 

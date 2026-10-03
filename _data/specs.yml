@@ -5,7 +5,7 @@
 # Do not hand-edit: change the spec table, then regenerate. The drift gate's
 # `--check` mode fails when this file is stale.
 #
-# Per requirement: id, area, level (MUST|SHOULD|MAY), applies (stack kinds from
+# Per requirement: id, area, level (MUST|SHOULD|MAY|retired), applies (stack kinds from
 # specs/STACKS.md; `all` binds every kind, notes carry exceptions), the prose
 # requirement, what satisfies it, and the kit/tool that seeds it (`—` = gap).
 # Consumed by: the UPS audit (dash audit --spec, roadmap) and the dash site.
@@ -36,6 +36,9 @@ areas:
   - id: OPS
     file: specs/OPERATIONS.md
     title: "Configuration, observability, security, data"
+  - id: WORK
+    file: specs/WORK.md
+    title: "Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning"
 requirements:
   - id: UPS-REPO-01
     area: REPO
@@ -140,10 +143,10 @@ requirements:
   - id: UPS-REPO-13
     area: REPO
     section: "Required files — content contracts"
-    level: MUST
+    level: retired
     applies: [all, fork]
     applies_notes: ["all except content"]
-    requirement: "`CHANGELOG.md` exists and is release-please managed (Keep-a-Changelog headings, newest first). Hand-edits go only above the first release heading."
+    requirement: "**Retired 2026-10-03 (decision D5) → UPS-REPO-21**, which drops the content exemption so this row and UPS-QA-33 agree. Was: `CHANGELOG.md` exists and is release-please managed (Keep-a-Changelog headings, newest first). Hand-edits go only above the first release heading."
     satisfied_by: "file + `release-please-config.json`"
     seed: "`tools/adopt-release.sh`"
     gap: false
@@ -154,8 +157,8 @@ requirements:
     applies: [app, api, ext, lib, cli]
     requirement: "`SECURITY.md` states the supported versions, how to report privately (GitHub private vulnerability reporting), and the response window (fleet default: acknowledge within 7 days)."
     satisfied_by: "file with those three headings"
-    seed: "`templates/community/` (gap)"
-    gap: true
+    seed: "`templates/community/SECURITY.md`"
+    gap: false
   - id: UPS-REPO-15
     area: REPO
     section: "Required files — content contracts"
@@ -164,8 +167,8 @@ requirements:
     applies_notes: ["all except fork"]
     requirement: "`CONTRIBUTING.md` covers: branch naming, Conventional Commits, how to run the gates locally, the PR template, and the submodule rule (commit here first, hub bumps the pointer). Repos may instead link the hub's `CONTRIBUTING.md` in one line."
     satisfied_by: "file or README link"
-    seed: "`templates/community/` (gap)"
-    gap: true
+    seed: "`templates/community/CONTRIBUTING.md`"
+    gap: false
   - id: UPS-REPO-16
     area: REPO
     section: "Required files — content contracts"
@@ -173,7 +176,7 @@ requirements:
     applies: [all]
     requirement: "`CODEOWNERS` exists (soft template: `* @bamr87`) so the issue pipeline's owner routing has a default."
     satisfied_by: "`.github/CODEOWNERS`"
-    seed: "`.github/templates/CODEOWNERS-soft.template`"
+    seed: "`.github/templates/CODEOWNERS-soft.template`, `templates/community/.github/CODEOWNERS`"
     gap: false
   - id: UPS-REPO-17
     area: REPO
@@ -191,8 +194,8 @@ requirements:
     applies: [all]
     requirement: "Issue templates: `bug_report.yml`, `feature_request.yml`, `documentation.yml` plus the feedback-widget template `page_feedback.yml` (see [FEEDBACK.md](FEEDBACK.md)); each applies the type label from the fleet taxonomy so filed issues enter the issue pipeline."
     satisfied_by: "`.github/ISSUE_TEMPLATE/*.yml`"
-    seed: "`templates/community/` (gap)"
-    gap: true
+    seed: "`templates/community/.github/ISSUE_TEMPLATE/` + `templates/feedback/`"
+    gap: false
   - id: UPS-REPO-19
     area: REPO
     section: "Required files — content contracts"
@@ -200,8 +203,8 @@ requirements:
     applies: [all]
     requirement: "`.github/pull_request_template.md` with: summary, linked issue, checklist (gates green, README-Last done, SCHEMA.md updated)."
     satisfied_by: "file present"
-    seed: "`templates/community/` (gap)"
-    gap: true
+    seed: "`templates/community/.github/pull_request_template.md`"
+    gap: false
   - id: UPS-REPO-20
     area: REPO
     section: "Required files — content contracts"
@@ -210,6 +213,16 @@ requirements:
     requirement: "Front matter and file headers follow the house rule: shell/python tools carry the header block (File, Description, Author, Created, Last Modified, Version, Usage); Jekyll content carries `title`, `description`, `date`/`lastmod`, `tags`, `categories`, `permalink` (see [FRONTEND.md](FRONTEND.md) FE-40)."
     satisfied_by: "header present"
     seed: "`.github/copilot-instructions.md` § File Headers"
+    gap: false
+  - id: UPS-REPO-21
+    area: REPO
+    section: "Required files — content contracts"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "`CHANGELOG.md` exists in every repo, content repos included (decision D5), and release-please writes it: `release-please-config.json` + `.release-please-manifest.json` at the root (release type by repo type: `simple` for docs, sites, demos and the control plane; `node`/`python`/`ruby` by ecosystem for apps and libraries), and a workflow calls the hub's reusable `release-please.yml` at a pinned ref (UPS-WORK-10). Never edited by hand."
+    satisfied_by: "files present + caller"
+    seed: "`templates/sdlc/release/`, hub `.github/workflows/release-please.yml`"
     gap: false
   - id: UPS-REPO-30
     area: REPO
@@ -306,30 +319,30 @@ requirements:
   - id: UPS-AGENT-01
     area: AGENT
     section: "The context file"
-    level: MUST
+    level: retired
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "A root `CLAUDE.md` exists. `AGENTS.md`, when present, is the tool-neutral copy and MUST NOT contradict it; `CLAUDE.md` may be a one-line pointer to `AGENTS.md`."
+    requirement: "**Retired 2026-10-03 (decision D4) → UPS-AGENT-07/08: `AGENTS.md` is canonical and `CLAUDE.md` a pointer, the reverse of this row.** Was: A root `CLAUDE.md` exists. `AGENTS.md`, when present, is the tool-neutral copy and MUST NOT contradict it; `CLAUDE.md` may be a one-line pointer to `AGENTS.md`."
     satisfied_by: "file present"
     seed: "`templates/agent-context/CLAUDE.template.md`"
     gap: false
   - id: UPS-AGENT-02
     area: AGENT
     section: "The context file"
-    level: MUST
+    level: retired
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "`CLAUDE.md` carries these headings, in order: **What this repo is** (one paragraph, who it serves, what \"done\" means) · **Stack & commands** (install/run/test/lint/build as fenced commands, identical to README Quick start) · **Layout** (top-level dirs, or \"see SCHEMA.md\") · **Conventions** (commits, branches, the do-nots) · **Fleet context** (the submodule rule + link to the hub) · **Standard deviations** (UPS ids waived and why; \"none\" if none)."
+    requirement: "**Retired 2026-10-03 (decision D4) → UPS-AGENT-07: the same headings, now in `AGENTS.md`.** Was: `CLAUDE.md` carries these headings, in order: **What this repo is** (one paragraph, who it serves, what \"done\" means) · **Stack & commands** (install/run/test/lint/build as fenced commands, identical to README Quick start) · **Layout** (top-level dirs, or \"see SCHEMA.md\") · **Conventions** (commits, branches, the do-nots) · **Fleet context** (the submodule rule + link to the hub) · **Standard deviations** (UPS ids waived and why; \"none\" if none)."
     satisfied_by: "headings present; no `TODO:` scaffold markers left"
     seed: "kit scaffold + hand fill"
     gap: false
   - id: UPS-AGENT-03
     area: AGENT
     section: "The context file"
-    level: MUST
+    level: retired
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "The kit stamp `<!-- kit: agent-context vX.Y.Z -->` is preserved so `dash audit` can flag version drift and unfilled scaffolds."
+    requirement: "**Retired 2026-10-03 (decision D4) → UPS-AGENT-09: the stamp now lives in `AGENTS.md`.** Was: The kit stamp `<!-- kit: agent-context vX.Y.Z -->` is preserved so `dash audit` can flag version drift and unfilled scaffolds."
     satisfied_by: "stamp present"
     seed: "kit"
     gap: false
@@ -361,6 +374,36 @@ requirements:
     requirement: "`.github/workflows/claude.yml` is the kit's `@claude` mention handler, OAuth-first (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` fallback), with `checkout@v7`. Hand-modified copies keep the kit stamp and are excluded from `--upgrade`."
     satisfied_by: "byte-identical to kit or archive, or stamped + documented"
     seed: "`tools/fanout.sh --artifacts claude`"
+    gap: false
+  - id: UPS-AGENT-07
+    area: AGENT
+    section: "The context file"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "A root `AGENTS.md` exists and is the **canonical** agent instructions file (decision D4), readable by every agent. It carries these `##` headings, in order: **What this repo is** (one paragraph, who it serves, what \"done\" means) · **Stack & commands** (install/run/test/lint/build as fenced commands, identical to README Quick start) · **Layout** (top-level dirs, or \"see SCHEMA.md\") · **Conventions** (backlog of record, Definition of Done, ADR path, commits, branches, the do-nots) · **Fleet context** (the submodule rule + link to the hub) · **Standard deviations** (UPS ids waived and why; \"none\" if none)."
+    satisfied_by: "headings present, in order; no `TODO:` scaffold markers left"
+    seed: "`templates/sdlc/AGENTS.template.md`"
+    gap: false
+  - id: UPS-AGENT-08
+    area: AGENT
+    section: "The context file"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "`CLAUDE.md` is a short pointer to `AGENTS.md` (decision D4): it imports it with an `@AGENTS.md` line, carries none of the UPS-AGENT-07 headings and no rules of its own, and stays under 20 non-blank lines. `.claude/commands/` and the rest of `.claude/` are unaffected."
+    satisfied_by: "`@AGENTS.md` line; no AGENT-07 headings"
+    seed: "`templates/sdlc/CLAUDE.template.md`"
+    gap: false
+  - id: UPS-AGENT-09
+    area: AGENT
+    section: "The context file"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "`AGENTS.md` keeps its kit stamp, `<!-- kit: sdlc vX.Y.Z -->` (or `agent-context vX.Y.Z` until that kit migrates to D4), so `dash audit` can flag version drift and unfilled scaffolds."
+    satisfied_by: "stamp present"
+    seed: "kit"
     gap: false
   - id: UPS-AGENT-10
     area: AGENT
@@ -474,8 +517,8 @@ requirements:
     applies: [all]
     requirement: "Issue state for automation lives in labels from the fleet taxonomy (`agent:*`, type, `P0–P3`, `size:*`), never in a database or an event chain; `agent:hold` and `human-review` are the human brakes and are honoured everywhere."
     satisfied_by: "labels exist in repo (`gh label list`)"
-    seed: "`templates/community/labels.yml` (gap)"
-    gap: true
+    seed: "`templates/community/labels.yml`"
+    gap: false
   - id: UPS-AGENT-33
     area: AGENT
     section: "Agent-facing operational rules"
@@ -668,9 +711,9 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all except fork"]
-    requirement: "`ci.yml` is a thin caller of a reusable workflow: `standard-ci.yml@main` (experiment/content tiers) or `bamr87/.github` `ci.yml@main` (active tier, six jobs incl. CodeQL). Bespoke `ci.yml` is a deviation with a reason."
-    satisfied_by: "byte-identical to kit, or stamped"
-    seed: "`tools/fanout.sh --artifacts ci`"
+    requirement: "`ci.yml` is a thin caller of the fleet's one shared gate, the hub's reusable `bamr87/bamr87/.github/workflows/standard-ci.yml`, at a pinned ref (UPS-WORK-10). Extra gates (CodeQL, e2e, …) live in their own workflows beside it. `bamr87/.github`'s `ci.yml` is retired (decision D3); a caller of it fails. Bespoke `ci.yml` is a deviation with a reason."
+    satisfied_by: "caller of `standard-ci.yml`"
+    seed: "`tools/fanout.sh --artifacts ci` (`templates/standard-ci/ci.yml`), `tools/adopt-release.sh`"
     gap: false
   - id: UPS-QA-21
     area: QA
@@ -734,16 +777,16 @@ requirements:
     applies: [app, api, lib, cli, ext]
     requirement: "**release-please** manages versions and `CHANGELOG.md` (`release-type` per ecosystem, `simple` for the rest); `release.yml` calls the shared publish workflow; registry `release:` block filled. Kit gains `VERSION` + `archive/` like every other kit."
     satisfied_by: "files present"
-    seed: "`tools/adopt-release.sh`"
+    seed: "`tools/adopt-release.sh`, `templates/sdlc/release/`"
     gap: false
   - id: UPS-QA-33
     area: QA
     section: "Commits, branches, releases"
     level: MUST
     applies: [site, content]
-    requirement: "Sites and content repos still tag releases via release-please `simple` so the CHANGELOG exists; publishing is Pages, not a registry."
+    requirement: "Sites and content repos tag releases via release-please `simple` so the CHANGELOG exists (UPS-REPO-21, decision D5); publishing is Pages, not a registry."
     satisfied_by: "config present"
-    seed: "`tools/adopt-release.sh`"
+    seed: "`templates/sdlc/release/release-please-config.simple.json`"
     gap: false
   - id: UPS-QA-34
     area: QA
@@ -759,7 +802,7 @@ requirements:
     section: "Dependencies"
     level: MUST
     applies: [all]
-    requirement: "Always-latest: no exact pins, no ceilings, no committed lockfiles; floors (`>=`) are fine. Exceptions: Actions `@vN`, pre-commit `rev:`, fleet toolchain versions."
+    requirement: "Always-latest: no exact pins, no ceilings, no committed lockfiles; floors (`>=`) are fine. Exceptions: GitHub Actions and reusable workflows referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (optionally with a `# vX.Y.Z` comment), never a branch such as `@main`, with local `./` paths exempt (the same ref rule as UPS-WORK-10); pre-commit `rev:`; fleet toolchain versions."
     satisfied_by: "drift checks (j)/(k)"
     seed: "`tools/unpin-deps.sh`, `deps-fanout.yml`"
     gap: false
@@ -770,8 +813,8 @@ requirements:
     applies: [all]
     requirement: "Dependabot for `github-actions` weekly, grouped, `ci` prefix; no package-ecosystem entries (always-latest makes them redundant)."
     satisfied_by: "`.github/dependabot.yml`"
-    seed: "`templates/community/` (gap)"
-    gap: true
+    seed: "`templates/community/.github/dependabot.yml`"
+    gap: false
   - id: UPS-QA-42
     area: QA
     section: "Dependencies"
@@ -1166,8 +1209,8 @@ requirements:
     applies: [site, app]
     requirement: "Lighthouse budgets in CI: performance ≥ 90 on the home route, accessibility ≥ 95, no layout shift > 0.1; JS budget 200 KB gzipped for sites, documented per app."
     satisfied_by: "CI step"
-    seed: "`templates/ux-audit/` (gap)"
-    gap: true
+    seed: "`templates/ux-audit/`"
+    gap: false
   - id: UPS-FE-54
     area: FE
     section: "Accessibility and performance"
@@ -1184,8 +1227,8 @@ requirements:
     applies: [site, app]
     requirement: "A machine-checked UX audit runs in CI with the fleet rule set: **R1** one scroller · **R2** viewport ownership · **R3** single `<main>` · **R4** z-scale only · **R5** focus indicator · **R6** landmark labels · **R7** page layout primitive · **R8** route states · **R9** sticky offsets · **R10** composite widget names · **R11** control names · **R12** shared-CSS drift · **R13** token literal leak. An `ux-audit: exempt — <reason>` marker is the escape hatch."
     satisfied_by: "script + CI step"
-    seed: "`templates/ux-audit/` (gap; source `law-ai/scripts/ux_audit.py`)"
-    gap: true
+    seed: "`templates/ux-audit/` (portable kit; app-specific reference: `law-ai/scripts/ux_audit.py`)"
+    gap: false
   - id: UPS-FE-61
     area: FE
     section: "The UX audit gate"
@@ -1737,10 +1780,10 @@ requirements:
     section: "Security"
     level: MUST
     applies: [app, api]
-    requirement: "CodeQL runs (via the shared active-tier gate) for every language the repo has; findings triaged within the fleet-pulse loop."
-    satisfied_by: "workflow"
-    seed: "`bamr87/.github` `ci.yml`"
-    gap: false
+    requirement: "CodeQL runs for every language the repo has, through GitHub's CodeQL default setup or the repo's own `codeql.yml` beside its CI caller (the shared `standard-ci.yml` gate has no CodeQL job, and `bamr87/.github`'s `ci.yml` is retired, decision D3); findings triaged within the fleet-pulse loop."
+    satisfied_by: "code-scanning default setup, or `.github/workflows/codeql.yml`"
+    seed: "— (gap: no CodeQL caller kit yet)"
+    gap: true
   - id: UPS-OPS-22
     area: OPS
     section: "Security"
@@ -1850,5 +1893,139 @@ requirements:
     applies: [app, api]
     requirement: "The running build exposes its version (BE-11) and the deploy workflow verifies `/readyz` before marking success."
     satisfied_by: "workflow step"
+    seed: "—"
+    gap: true
+  - id: UPS-WORK-01
+    area: WORK
+    section: "The SDLC declaration"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "The repo declares its SDLC profile in `.github/sdlc.yml` (`schema: sdlc/v1`: `type`, optional `kinds`, `tier`, `backlog.mode`, a `modules` map, `adr_path`, `release.type`, `deviations`), valid against the kit's JSON Schema. The hub registry `sdlc:` block may carry the same keys; the file wins when both exist."
+    satisfied_by: "file valid against `templates/sdlc/sdlc.schema.json`, or registry block"
+    seed: "`templates/sdlc/sdlc.yml`"
+    gap: false
+  - id: UPS-WORK-02
+    area: WORK
+    section: "Backlog of record"
+    level: MUST
+    applies: [all, fork]
+    applies_notes: ["all except content"]
+    requirement: "There is exactly one **backlog of record**. `issues` mode (the default, D1): GitHub Issues carrying the fleet labels. `file` mode: the declared `BACKLOG.md` or `_data/backlog.yml`, linted by a CI job; a sync job alone is not a lint. Other planning files link to it (WORK-11)."
+    satisfied_by: "file mode: file + CI lint step; issues mode: not visible offline (see WORK-14)"
+    seed: "`templates/sdlc/`, `templates/spec-driven/tools/backlog_lint.py`"
+    gap: false
+  - id: UPS-WORK-09
+    area: WORK
+    section: "Backlog of record"
+    level: MUST
+    applies: [all]
+    requirement: "Issue forms in the tree apply exactly one fleet type label (`_data/fleet.yml` `issue_pipeline.labels.types`) and never a GitHub-default duplicate (`enhancement`, `documentation`, `priority:Px`). `page_feedback.yml` is exempt from the type-label clause because UPS-FB-07 fixes its label. Inherited forms are not visible offline."
+    satisfied_by: "`.github/ISSUE_TEMPLATE/*` labels"
+    seed: "`templates/community/.github/ISSUE_TEMPLATE/`"
+    gap: false
+  - id: UPS-WORK-14
+    area: WORK
+    section: "Backlog of record"
+    level: SHOULD
+    applies: [all]
+    requirement: "The repo's GitHub labels include every name in the fleet taxonomy (states, types, priorities, sizes), and the GitHub-default duplicates have been renamed into it rather than left beside it. Checked online by the fleet scorecard, never by the in-repo gate."
+    satisfied_by: "`gh label list` vs `labels.yml`"
+    seed: "`templates/community/labels.yml` (label-sync job)"
+    gap: false
+  - id: UPS-WORK-11
+    area: WORK
+    section: "Backlog of record"
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except content"]
+    requirement: "Planning files other than the backlog of record (`ROADMAP.md`, `TODO.md`, `PRD.md`, and the same names under `docs/`) hold no item lists: no task-list checkboxes and no backlog ids. Each one links to the backlog of record (the repo's Issues, or the declared backlog file) or to the hub's `_data/roadmap.yml`, where cross-repo initiatives (`FF-NNNN`) live."
+    satisfied_by: "no `- [ ]` lines or `BL-`/`T-` ids; a backlog link present"
+    seed: "—"
+    gap: true
+  - id: UPS-WORK-03
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "The repo's PR template (its own, or the default inherited from the owner's `.github` repo) carries the fleet **Definition of Done** between `<!-- fleet-dod:start v1 -->` and `<!-- fleet-dod:end -->`: Conventional title (drives release-please), CI green, tests, docs and features updated, `AGENTS.md` updated, ADR if hard to reverse, backlog of record updated, clean diff with no secrets. A repo may add boxes below the end marker, never inside it."
+    satisfied_by: "marker block with the kit's boxes, in order"
+    seed: "`templates/community/.github/pull_request_template.md`"
+    gap: false
+  - id: UPS-WORK-04
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: MUST
+    applies: [app, api, lib, cli, ext]
+    requirement: "Decisions that are hard to reverse are recorded as `NNNN-slug.md` ADRs (law-ai format, D2) with a `README.md` index, under `adr_path` (default `docs/adr`)."
+    satisfied_by: "≥1 ADR + index"
+    seed: "`templates/sdlc/docs/adr/`"
+    gap: false
+  - id: UPS-WORK-13
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: SHOULD
+    applies: [site]
+    requirement: "Sites keep the same ADR log as WORK-04."
+    satisfied_by: "≥1 ADR + index"
+    seed: "`templates/sdlc/docs/adr/`"
+    gap: false
+  - id: UPS-WORK-05
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "Changelog hygiene: **at most one** `## [Unreleased]` heading (release-please writes none, so zero is normal), and the newest version heading equals the newest `vX.Y.Z` tag."
+    satisfied_by: "parser check"
+    seed: "`templates/sdlc/CHANGELOG.template.md`"
+    gap: false
+  - id: UPS-WORK-06
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: SHOULD
+    applies: [all]
+    requirement: "The feature catalog lives in one place (`features/features.yml`, no `_data/features.yml` duplicate) and carries no hand-maintained version header."
+    satisfied_by: "parser check"
+    seed: "`templates/verify/`"
+    gap: false
+  - id: UPS-WORK-12
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "`AGENTS.md § Conventions` names the backlog of record, the Definition of Done location and the ADR path (`adr_path`), so agents and humans follow one loop (D4)."
+    satisfied_by: "text check"
+    seed: "`templates/sdlc/AGENTS.template.md`"
+    gap: false
+  - id: UPS-WORK-07
+    area: WORK
+    section: "Spec-driven module"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all (`modules.spec_driven: true` only)"]
+    requirement: "Spec packages `specs/NNN-slug/{spec,plan,tasks}.md` are validated by `spec_validator.py`, and `BACKLOG.md` by `backlog_lint.py`, in a CI spec-gate job that every other job in its workflow `needs`. The four shared tools are byte-identical to the hub kit's copies."
+    satisfied_by: "CI job + byte parity"
+    seed: "`templates/spec-driven/`"
+    gap: false
+  - id: UPS-WORK-10
+    area: WORK
+    section: "Shared workflows"
+    level: MUST
+    applies: [all]
+    requirement: "Reusable workflows and composite actions from `bamr87/bamr87` or `bamr87/.github` are referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (a trailing `# vX.Y.Z` comment is allowed). Branch refs such as `@main` are rejected. The only exemption is a local `./` path, which is how the hub calls its own workflows; the hub's remote self-references count like anyone else's. Tag scheme: [`docs/WORKFLOW-VERSIONING.md`](../docs/WORKFLOW-VERSIONING.md)."
+    satisfied_by: "`uses:` refs"
+    seed: "fan-out of `@v1` callers"
+    gap: false
+  - id: UPS-WORK-08
+    area: WORK
+    section: "Freshness"
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except content"]
+    requirement: "No spec stays `in-progress` for more than 30 days without a commit; no `P0`/`P1` issue sits idle for more than 30 days; the backlog file is touched within 60 days of the last code commit. Reported in the fleet scorecard, never gating."
+    satisfied_by: "scorecard"
     seed: "—"
     gap: true

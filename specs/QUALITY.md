@@ -44,7 +44,7 @@ Tests prove the code; verification proves the product — by using it the way a 
 
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
-| UPS-QA-20 | MUST | all except fork | `ci.yml` is a thin caller of a reusable workflow: `standard-ci.yml@main` (experiment/content tiers) or `bamr87/.github` `ci.yml@main` (active tier, six jobs incl. CodeQL). Bespoke `ci.yml` is a deviation with a reason. | byte-identical to kit, or stamped | `tools/fanout.sh --artifacts ci` |
+| UPS-QA-20 | MUST | all except fork | `ci.yml` is a thin caller of the fleet's one shared gate, the hub's reusable `bamr87/bamr87/.github/workflows/standard-ci.yml`, at a pinned ref (UPS-WORK-10). Extra gates (CodeQL, e2e, …) live in their own workflows beside it. `bamr87/.github`'s `ci.yml` is retired (decision D3); a caller of it fails. Bespoke `ci.yml` is a deviation with a reason. | caller of `standard-ci.yml` | `tools/fanout.sh --artifacts ci` (`templates/standard-ci/ci.yml`), `tools/adopt-release.sh` |
 | UPS-QA-21 | MUST | all | Toolchain versions resolve caller input → repo `vars.*` → fleet default (`_data/fleet.yml` `toolchain:`). No per-repo version pins in workflows. | grep | `dash config sync` |
 | UPS-QA-22 | MUST | all | Actions ride major tags (`@vN`); `permissions:` is declared and minimal; `timeout-minutes` set; `concurrency` cancels superseded runs on PRs; no workflow ends in a bare `git push` to a protected branch; `needs:` over `workflow_run`; `actionlint` clean. | hub workflow standards | hub `.github/workflows/README.md` |
 | UPS-QA-23 | MUST | all with `action.yml` | Composite action manifests contain no `${{ }}` in `description:` prose (drift check (l)). | check | — |
@@ -56,14 +56,14 @@ Tests prove the code; verification proves the product — by using it the way a 
 | --- | --- | --- | --- | --- | --- |
 | UPS-QA-30 | MUST | all | Conventional Commits `type(scope): description`; types `feat fix docs style refactor test chore perf ci build`. Bot commits use the fleet bot identity and the noreply email. | commit history | — |
 | UPS-QA-31 | MUST | all | Default branch is `main`; work branches `feature/ fix/ docs/ refactor/ test/ chore/`; automation branches use their declared prefixes (`agent/issue-*`, `ai-evolution/*`, `chore/standardize-baseline`). | branch names | — |
-| UPS-QA-32 | MUST | app, api, lib, cli, ext | **release-please** manages versions and `CHANGELOG.md` (`release-type` per ecosystem, `simple` for the rest); `release.yml` calls the shared publish workflow; registry `release:` block filled. Kit gains `VERSION` + `archive/` like every other kit. | files present | `tools/adopt-release.sh` |
-| UPS-QA-33 | MUST | site, content | Sites and content repos still tag releases via release-please `simple` so the CHANGELOG exists; publishing is Pages, not a registry. | config present | `tools/adopt-release.sh` |
+| UPS-QA-32 | MUST | app, api, lib, cli, ext | **release-please** manages versions and `CHANGELOG.md` (`release-type` per ecosystem, `simple` for the rest); `release.yml` calls the shared publish workflow; registry `release:` block filled. Kit gains `VERSION` + `archive/` like every other kit. | files present | `tools/adopt-release.sh`, `templates/sdlc/release/` |
+| UPS-QA-33 | MUST | site, content | Sites and content repos tag releases via release-please `simple` so the CHANGELOG exists (UPS-REPO-21, decision D5); publishing is Pages, not a registry. | config present | `templates/sdlc/release/release-please-config.simple.json` |
 | UPS-QA-34 | MUST | all | Submodule rule: commit and push in the project repo first; the hub bumps the pointer. Never bundle several submodules in one PR. | `SUBMODULES.md` | — |
 
 ## Dependencies
 
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
-| UPS-QA-40 | MUST | all | Always-latest: no exact pins, no ceilings, no committed lockfiles; floors (`>=`) are fine. Exceptions: Actions `@vN`, pre-commit `rev:`, fleet toolchain versions. | drift checks (j)/(k) | `tools/unpin-deps.sh`, `deps-fanout.yml` |
-| UPS-QA-41 | MUST | all | Dependabot for `github-actions` weekly, grouped, `ci` prefix; no package-ecosystem entries (always-latest makes them redundant). | `.github/dependabot.yml` | `templates/community/` (gap) |
+| UPS-QA-40 | MUST | all | Always-latest: no exact pins, no ceilings, no committed lockfiles; floors (`>=`) are fine. Exceptions: GitHub Actions and reusable workflows referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (optionally with a `# vX.Y.Z` comment), never a branch such as `@main`, with local `./` paths exempt (the same ref rule as UPS-WORK-10); pre-commit `rev:`; fleet toolchain versions. | drift checks (j)/(k) | `tools/unpin-deps.sh`, `deps-fanout.yml` |
+| UPS-QA-41 | MUST | all | Dependabot for `github-actions` weekly, grouped, `ci` prefix; no package-ecosystem entries (always-latest makes them redundant). | `.github/dependabot.yml` | `templates/community/.github/dependabot.yml` |
 | UPS-QA-42 | SHOULD | app, api | A `supply-chain` CI step runs the ecosystem audit (`npm audit --audit-level=high`, `pip-audit`, `bundle audit`) as advisory; findings flow to the fleet-pulse doctor. | CI step | `standard-ci` change (gap) |
