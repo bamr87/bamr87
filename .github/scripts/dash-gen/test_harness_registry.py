@@ -80,6 +80,7 @@ jobs:
           claude_args: >-
             --model opus
             --max-turns 160
+            --max-budget-usd 24
 """
 
 PLAIN_CI = """\
@@ -150,6 +151,7 @@ def harness_row(**kw) -> dict:
         "auth": "oauth-first",
         "model": None,
         "max_turns": None,
+        "max_budget_usd": None,
         "kit": "0.4.0",
         "kit_status": "current",
         "mention_handler": True,
@@ -190,6 +192,7 @@ def test_classify_scheduled_agent_reads_cron_model_turns():
     assert info["crons"] == ["0 6 * * *"]
     assert info["model"] == "opus"
     assert info["max_turns"] == 160
+    assert info["max_budget_usd"] == 24.0
     assert info["auth"] == "oauth-only"
     assert info["kit"] is None
 

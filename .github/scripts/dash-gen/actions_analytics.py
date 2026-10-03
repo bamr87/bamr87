@@ -300,8 +300,11 @@ def summarize_billing(items: list, today: dt.date) -> dict:
     }
 
 
-def collect_billing(gh) -> dict:
+def collect_billing(gh, today: dt.date | None = None) -> dict:
     """One request for the account's metered minutes; never raises.
+
+    `today` defaults to the current UTC date; tests pin it so the
+    this-month / previous-month split does not depend on the wall clock.
 
     A token without the billing read scope, or a moved endpoint, yields an
     `error` field instead of an exception, so the sweep still publishes the
@@ -311,7 +314,8 @@ def collect_billing(gh) -> dict:
         login = gh.get_user().login
         requester = getattr(gh, "requester", None) or getattr(gh, "_Github__requester")
         _, data = requester.requestJsonAndCheck("GET", BILLING_ENDPOINT.format(login=login))
-        return summarize_billing(data.get("usageItems") or [], dt.datetime.now(dt.timezone.utc).date())
+        return summarize_billing(data.get("usageItems") or [],
+                                 today or dt.datetime.now(dt.timezone.utc).date())
     except Exception as exc:  # noqa: BLE001 - the report must publish either way
         return {"source": "GitHub billing usage API (" + BILLING_ENDPOINT + ")",
                 "error": f"{type(exc).__name__}: {str(exc)[:160]}"}

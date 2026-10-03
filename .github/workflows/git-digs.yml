@@ -74,6 +74,7 @@ jobs:
           agent: dig-reporter
           tools: Bash,Read,Write,Edit,Grep,Glob
           max-turns: "30"
+          max-budget-usd: "6"   # _data/fleet.yml budget.call_sites[git-digs.yml:dig]
           prompt: >-
             Read .github/instructions/digs.instructions.md and .digs/brief.json.
             Choose one listed bamr87 repository and one commit range on or after

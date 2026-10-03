@@ -85,6 +85,11 @@ CLAUDE_ACTION_MARKER = "anthropics/claude-code-action"
 ACTION_REF_RX = re.compile(r"anthropics/claude-code-action@(\S+)")
 MODEL_RX = re.compile(r"--model\s+([\w.@-]+)")
 MAX_TURNS_RX = re.compile(r"--max-turns\s+(\d+)")
+# The per-invocation dollar ceiling, as a `claude_args` flag or a claude-run
+# `max-budget-usd:` input. Recorded beside max_turns because turns bound
+# iterations, not spend (_data/fleet.yml `budget:`).
+MAX_BUDGET_RX = re.compile(
+    r"(?:--max-budget-usd[= ]\s*|max-budget-usd:\s*['\"]?)([0-9]+(?:\.[0-9]+)?)")
 KIT_STAMP_RX = re.compile(r"#\s*kit:\s*agent-context\s+v([0-9][\w.-]*)")
 CRON_FALLBACK_RX = re.compile(r"cron:\s*['\"]([^'\"]+)['\"]")
 # GitFactory provenance — the same expressions the app's fleet/facts.ts uses,
@@ -378,6 +383,8 @@ def classify_workflow(path: str, text: str) -> dict:
         info["model"] = m.group(1) if m else None
         m = MAX_TURNS_RX.search(text)
         info["max_turns"] = int(m.group(1)) if m else None
+        m = MAX_BUDGET_RX.search(text)
+        info["max_budget_usd"] = float(m.group(1)) if m else None
         m = KIT_STAMP_RX.search(text)
         info["kit"] = m.group(1) if m else None
         # A prose "@claude" in a header comment must not read as a handler —
@@ -818,6 +825,7 @@ def scan_repo(gh, project: dict, cfg: dict, secret_states: dict[str, str],
                 "auth": info.get("auth"),
                 "model": info.get("model"),
                 "max_turns": info.get("max_turns"),
+                "max_budget_usd": info.get("max_budget_usd"),
                 "kit": info.get("kit"),
                 "kit_status": kit_status(info.get("kit"), hub_version),
                 "mention_handler": bool(info.get("mention_handler")),

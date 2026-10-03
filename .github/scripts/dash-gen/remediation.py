@@ -132,6 +132,14 @@ CORRECTNESS_SIGNALS = {"failing", "flaky"}
 # all three — failing dispatch runs are what building something looks like.
 COST_SIGNALS = {"high-cost-low-value", "slow", "cancel-heavy"}
 
+# `cron-heavy` (scheduled share above actions_analytics.CRON_HEAVY_PCT) is TRUE BY
+# CONSTRUCTION for every productive schedule: that guard requires a scheduled
+# share of at least `productive_schedule_pct` (90 by default, well above the
+# 60% cron-heavy bar). On a 100%-green, zero-waste cron it carries no evidence
+# of waste, only of being a cron, so the productive guard clears it too. Kept
+# out of COST_SIGNALS because the interactive guard has no such implication.
+PRODUCTIVE_SUPPRESSES = COST_SIGNALS | {"cron-heavy"}
+
 
 # --------------------------------------------------------------------------- #
 # config
@@ -495,8 +503,10 @@ def usage_candidates(usage: dict, cfg: dict, owner: str) -> dict[str, dict]:
         suppressed = set()
         if superseded:
             suppressed |= raw & CORRECTNESS_SIGNALS
-        if interactive or productive:
+        if interactive:
             suppressed |= raw & COST_SIGNALS
+        if productive:
+            suppressed |= raw & PRODUCTIVE_SUPPRESSES
         signals -= suppressed
 
         # The analytics module flags `slow` relative to the fleet; the fleet

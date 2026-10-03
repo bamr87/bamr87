@@ -280,6 +280,17 @@ def main() -> int:
     check("…and neither is the agentic fix loop that ships PRs",
           build(triage(), usage(quest)) == [])
 
+    # Once the nightly got faster it lost `slow` and kept only `cron-heavy` —
+    # which every productive schedule carries by construction (>= 90% scheduled
+    # vs the 60% bar). That flag alone must not re-queue it (2026-10 snapshot).
+    cron_only = dict(nightly, flags=["cron-heavy"], avg_min=3.43, p95_min=4.1)
+    check("a productive schedule flagged only cron-heavy is not queued",
+          build(triage(), usage(cron_only)) == [])
+    cron_wasteful = dict(cron_only, waste_min=4.0)
+    cands_cw = build(triage(), usage(cron_wasteful))
+    check("…but cron-heavy survives when the schedule wastes minutes",
+          len(cands_cw) == 1 and "cron-heavy" in cands_cw[0]["signals"])
+
     # Each input to the guard has to be load-bearing on its own, or a regression
     # in one hides behind the others. A failing, wasteful or hand-driven
     # workflow is NOT productive work, whatever its cron share.

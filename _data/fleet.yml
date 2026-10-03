@@ -165,8 +165,10 @@ schedule:
 # --------------------------------------------------------------------------- #
 remediation:
   # Bounded by what the doctor agent can actually WORK, not by what looks
-  # ambitious: each candidate costs it ~40 turns out of a 160-turn budget
-  # (`--max-turns` in fleet-pulse.yml). At 6 the agent exhausted its turns and
+  # ambitious: each candidate costs it ~46 observed turns (55 with margin,
+  # MIN_TURNS_PER_CANDIDATE) out of a 240-turn budget (`--max-turns` in
+  # fleet-pulse.yml; it was 160 until a completed 4-candidate pass took 185
+  # turns and was discarded for crossing it). At 6 the agent exhausted its turns and
   # the whole day's remediation was lost — a queue nobody can finish delivers
   # fewer fixes than a shorter one. Raise this and raise `--max-turns` with it;
   # test_fleet_pulse_doctor.py fails the pair if you don't.
@@ -480,10 +482,13 @@ budget:
   local_usd: 5
 
   # Per call site, keyed `<workflow file>:<job id>`. Every
-  # `anthropics/claude-code-action` step in .github/workflows/ must appear
-  # here and must pass the matching `--max-budget-usd` — the test fails the
-  # drift gate on a new call site that forgets one, which is the only reason
-  # this stays honest as loops are added.
+  # `anthropics/claude-code-action` step AND every `claude-run` action step
+  # (.github/actions/claude-run, local or `bamr87/bamr87/...@main`) in
+  # .github/workflows/ must appear here and must pass the matching
+  # `--max-budget-usd` / `max-budget-usd:` — test_ai_budget.py (run by the
+  # drift gate) fails on a new call site that forgets one, which is the only
+  # reason this stays honest as loops are added. A reusable workflow's cap may come from its own `workflow_call`
+  # input default; the test resolves `${{ inputs.<name> }}` to that default.
   call_sites:
     fleet-pulse.yml:doctor: 40            # 240 turns · observed $11.71 over 121 turns (~$0.10/turn),
                                           # so ~$23 expected at this cap; 40 clears the
@@ -499,6 +504,13 @@ budget:
     # has no turn cap to derive from. It gets a generous ceiling anyway: a
     # runaway mention is still unattended spend once the human walks away.
     claude.yml:claude: 20
+    # Reusable-workflow and claude-run call sites (added 2026-10-03).
+    fleet-verify.yml:verify: 10           # 40 turns default (inputs.max-turns), sonnet;
+                                          # floor 0.15 x 40 = 6. A caller raising max-turns
+                                          # past ~66 meets this ceiling first — by design.
+    ai-lane.yml:run: 10                   # the reusable lane's `max-budget-usd` input default
+                                          # (= default_usd); consumers may pass their own.
+    git-digs.yml:dig: 6                   # 30 turns · floor 4.5; no observed spend yet
 
 # --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.

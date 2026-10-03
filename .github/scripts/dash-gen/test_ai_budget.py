@@ -15,8 +15,14 @@ fleet just runs under a ceiling nobody declared.
 
 Guarded here:
 
-  * every `anthropics/claude-code-action` step in .github/workflows/ passes
-    `--max-budget-usd` — so a NEW loop cannot be added uncapped;
+  * every `anthropics/claude-code-action` step AND every `claude-run` action
+    step (.github/actions/claude-run — local `./` or `bamr87/bamr87/…@main`)
+    in .github/workflows/ passes `--max-budget-usd` / `max-budget-usd:` — so
+    a NEW loop cannot be added uncapped by either route;
+  * a reusable workflow's `${{ inputs.<name> }}` resolves to that input's
+    `workflow_call` default, so its cap and turn floor are still checked;
+  * the claude-run action itself forwards the cap to the CLI and defaults it
+    to `budget.default_usd`, so a caller that forgets it is still capped;
   * each literal equals the `budget.call_sites` entry for its
     `<workflow file>:<job id>`, in both directions (no stale entry either);
   * each cap clears `usd_per_turn * --max-turns`, so raising a turn budget
@@ -50,6 +56,7 @@ import ai_activity  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
+CLAUDE_RUN = REPO_ROOT / ".github" / "actions" / "claude-run"
 FLEET = REPO_ROOT / "_data" / "fleet.yml"
 DASH = REPO_ROOT / "tools" / "dash"
 
@@ -63,24 +70,63 @@ def check(label: str, ok: bool) -> None:
 # --------------------------------------------------------------------------- #
 # workflow call sites
 # --------------------------------------------------------------------------- #
+def is_claude_run(uses: str) -> bool:
+    """A step that runs the fleet's composite `claude-run` action, by any ref."""
+    return re.search(r"(^\./|^bamr87/bamr87/)\.github/actions/claude-run(@|$)", uses) is not None
+
+
+def call_inputs(workflow: dict) -> dict:
+    """The `workflow_call` inputs of a reusable workflow (PyYAML reads `on:` as True)."""
+    on = workflow.get("on", workflow.get(True)) or {}
+    if not isinstance(on, dict):
+        return {}
+    return ((on.get("workflow_call") or {}).get("inputs")) or {}
+
+
+def resolve_inputs(args: str, workflow: dict) -> str:
+    """Substitute `${{ inputs.<name> }}` with that input's non-empty default.
+
+    A reusable workflow's caller can override the input, but the DEFAULT is
+    what the hub declares and what an unconfigured caller gets — that is the
+    number to hold against `budget.call_sites` and the turn floor.
+    """
+    inputs = call_inputs(workflow)
+
+    def sub(m: re.Match) -> str:
+        default = (inputs.get(m.group(1)) or {}).get("default")
+        return m.group(0) if default in (None, "") else str(default)
+
+    return re.sub(r"\$\{\{\s*inputs\.([A-Za-z0-9_-]+)\s*\}\}", sub, args)
+
+
 def call_sites() -> dict[str, str]:
-    """`<workflow file>:<job id>` -> that step's claude_args string.
+    """`<workflow file>:<job id>` -> that step's agent arguments as one string.
 
     Keyed by job rather than by step name because a step name is prose and gets
     reworded; a job id is referenced by `needs:` and cannot move quietly.
+    `claude-run` takes its caps as `with:` inputs rather than a `claude_args`
+    string; they are rendered into the same `--flag value` shape so one set of
+    checks covers both routes.
     """
     found: dict[str, str] = {}
     for path in sorted(WORKFLOWS.glob("*.yml")):
         text = path.read_text(encoding="utf-8")
-        if "claude-code-action" not in text:
+        if "claude-code-action" not in text and "claude-run" not in text:
             continue
         workflow = yaml.safe_load(text)
         for job_id, job in (workflow.get("jobs") or {}).items():
             for step in job.get("steps") or []:
-                if "claude-code-action" in str(step.get("uses", "")):
-                    found[f"{path.name}:{job_id}"] = str(
-                        (step.get("with") or {}).get("claude_args") or ""
-                    )
+                uses = str(step.get("uses", ""))
+                with_ = step.get("with") or {}
+                if "claude-code-action" in uses:
+                    args = str(with_.get("claude_args") or "")
+                elif is_claude_run(uses):
+                    args = " ".join(
+                        f"--{key} {with_[key]}" for key in ("max-turns", "max-budget-usd")
+                        if str(with_.get(key, "")).strip())
+                else:
+                    continue
+                found[f"{path.name}:{job_id}"] = resolve_inputs(args, workflow)
     return found
 
 
@@ -100,6 +146,31 @@ def declared_max_turns(args: str, fleet: dict) -> int | None:
     return None
 
 
+def check_claude_run_action(budget: dict) -> None:
+    """The composite action is a call site's last line of defence.
+
+    A caller that omits `max-budget-usd` gets the action's default, so that
+    default must be the fleet fallback, and the value must actually reach the
+    CLI — an input that run.sh never forwards is a cap in name only.
+    """
+    action = yaml.safe_load((CLAUDE_RUN / "action.yml").read_text(encoding="utf-8"))
+    spec = (action.get("inputs") or {}).get("max-budget-usd") or {}
+    check("claude-run action declares a `max-budget-usd` input", bool(spec))
+    default = str(spec.get("default", "")).strip()
+    check(f"claude-run `max-budget-usd` defaults to budget.default_usd "
+          f"(${budget.get('default_usd')}, got '{default}')",
+          default != "" and float(default) == float(budget.get("default_usd") or -1))
+    steps_text = yaml.safe_dump(action.get("runs") or {})
+    check("claude-run action forwards the input to run.sh as --max-budget-usd",
+          "inputs.max-budget-usd" in steps_text and "--max-budget-usd" in steps_text)
+    run_sh = (CLAUDE_RUN / "run.sh").read_text(encoding="utf-8")
+    check("run.sh passes --max-budget-usd to the claude CLI",
+          re.search(r'args\+=\(--max-budget-usd "\$max_budget"\)', run_sh) is not None)
+    check("run.sh treats a budget abort as final (no retry, no API fallback)",
+          re.search(r"\*max_budget\*.*\) echo budget", run_sh) is not None
+          and re.search(r"budget\)\n(?:.*\n){0,8}?\s*exit 1", run_sh) is not None)
+
+
 def check_workflows(fleet: dict) -> None:
     budget = fleet.get("budget") or {}
     declared = budget.get("call_sites") or {}
@@ -116,6 +187,10 @@ def check_workflows(fleet: dict) -> None:
     check("at least one claude-code-action call site was found "
           "(a zero here means the scan broke, not that the fleet is clean)",
           len(sites) > 0)
+    check("at least one claude-run call site was found (same reasoning)",
+          any(f"{name}:" in site for site in sites
+              for name in ("ai-lane.yml", "git-digs.yml")))
+    check_claude_run_action(budget)
 
     for site, args in sorted(sites.items()):
         m = re.search(r"--max-budget-usd\s+([0-9]+(?:\.[0-9]+)?)", args)
