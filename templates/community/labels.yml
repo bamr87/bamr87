@@ -1,0 +1,64 @@
+# kit: community v__KIT_VERSION__ — the fleet label taxonomy as a file (UPS-AGENT-32, UPS-WORK-09).
+#
+# The NAMES are owned by bamr87/bamr87 _data/fleet.yml `issue_pipeline.labels`;
+# this file adds colours, descriptions and the rename map, and
+# test_community_kit.py fails if the two ever disagree. Applied by the label-sync
+# job (Repo Janitor), which RENAMES a GitHub default listed under `renames:`
+# instead of creating a duplicate beside it, so existing issues keep their label.
+#
+# Backlog of record = GitHub Issues (decision D1): an issue enters as
+# `agent:queued` from a form, triage adds a priority and size and moves it to
+# `agent:ready`, a PR that `Closes #N` moves it to `agent:in-pr`, and the merge
+# moves it to `agent:done`. `agent:hold` and `human-review` are human brakes
+# that every automation honours.
+schema: labels/v1
+
+state:
+  - { name: "agent:queued",  color: "ededed", description: "Waiting for triage" }
+  - { name: "agent:ready",   color: "0e8a16", description: "Triaged; a human or an agent may pick it up" }
+  - { name: "agent:blocked", color: "b60205", description: "Blocked on something outside this repo" }
+  - { name: "agent:in-pr",   color: "1d76db", description: "A pull request is open for it" }
+  - { name: "agent:done",    color: "5319e7", description: "Merged or resolved" }
+  - { name: "agent:hold",    color: "000000", description: "Human brake: automation must not touch this" }
+  - { name: "human-review",  color: "d93f0b", description: "Human brake: needs a human decision" }
+
+type:
+  - { name: "bug",      color: "d73a4a", description: "Something is broken" }
+  - { name: "feature",  color: "a2eeef", description: "New capability", renames: ["enhancement"] }
+  - { name: "docs",     color: "0075ca", description: "Documentation", renames: ["documentation"] }
+  - { name: "chore",    color: "fef2c0", description: "Maintenance" }
+  - { name: "ci",       color: "c5def5", description: "CI, workflows, infrastructure" }
+  - { name: "refactor", color: "fbca04", description: "Restructure without a behaviour change" }
+  - { name: "test",     color: "bfd4f2", description: "Tests or a test gap" }
+  - { name: "security", color: "ee0701", description: "Vulnerability or hardening" }
+  - { name: "question", color: "d876e3", description: "Question or discussion" }
+
+priority:
+  - { name: "P0", color: "b60205", description: "Drop everything", renames: ["priority:P0"] }
+  - { name: "P1", color: "d93f0b", description: "Next up",         renames: ["priority:P1"] }
+  - { name: "P2", color: "fbca04", description: "Soon",            renames: ["priority:P2"] }
+  - { name: "P3", color: "0e8a16", description: "Someday",         renames: ["priority:P3"] }
+
+size:
+  - { name: "size:xs", color: "ededed", description: "Under an hour" }
+  - { name: "size:s",  color: "ededed", description: "Up to half a day" }
+  - { name: "size:m",  color: "ededed", description: "Up to two days" }
+  - { name: "size:l",  color: "ededed", description: "Up to a week" }
+  - { name: "size:xl", color: "ededed", description: "Larger: split it" }
+
+# Created only in repos that opt in through .github/sdlc.yml.
+optional:
+  - { name: "backlog", color: "c2e0c6", description: "Mirrors a file-backlog item; its id is in the body", when: "backlog.mirror_to_issues: true" }
+  - { name: "spec",    color: "bfdadc", description: "Tracks a specs/NNN-slug package", when: "modules.spec_driven: true" }
+  - { name: "adr",     color: "e4e669", description: "Needs or records an architecture decision", when: "modules.adr: true" }
+
+# Mapping from the other work-item vocabularies onto the labels above, used when
+# a file backlog is mirrored to Issues (decision D1). History is mapped, never
+# rewritten.
+mapping:
+  # AO-SDLC BACKLOG.md kinds -> type label
+  kind: { feature: feature, refactor: refactor, tech-debt: refactor, test-gap: test, doc-gap: docs, infra: ci }
+  # AO-SDLC severities -> priority label
+  severity: { high: P1, med: P2, low: P3 }
+  # zer0-style _data/backlog.yml status -> state label
+  status: { open: "agent:ready", in-progress: "agent:in-pr", blocked: "agent:blocked", done: "agent:done" }

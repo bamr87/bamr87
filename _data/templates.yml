@@ -23,6 +23,9 @@
 - name: Feedback widget kit
   path: https://github.com/bamr87/bamr87/tree/main/templates/feedback
   description: fleet-feedback — "Improve this page" → prefilled GitHub issue carrying page context, environment and captured console errors, in any stack. Fanned out with tools/fanout.sh --kit feedback.
+- name: Community kit
+  path: https://github.com/bamr87/bamr87/tree/main/templates/community
+  description: The fleet Definition of Done PR template, issue forms with the fleet labels, the label taxonomy file, CONTRIBUTING, SECURITY and Code of Conduct, inherited through the owner .github repos.
 - name: AI runner kit
   path: https://github.com/bamr87/bamr87/tree/main/templates/ai-runner
   description: "The fleet's model step and lane, consumed by reference: the claude-run action (Claude Code first, OAuth-first, API fallback, metering) and the reusable ai-lane.yml (kill switch, concurrency, hooks, result assertion)."
