@@ -101,7 +101,9 @@ def main() -> int:
         "pinned hub (SHA) + legacy @v1": ([f"{hub}@{'a' * 40}", f"{legacy}@v1"], True, "fail"),
         "legacy only": ([f"{legacy}@main"], True, "warn"),
         "pinned hub only": ([f"{hub}@v1"], False, "pass"),
-        "unpinned hub + legacy": ([f"{hub}@main", f"{legacy}@main"], True, "warn"),
+        "unpinned hub @main + legacy @main": ([f"{hub}@main", f"{legacy}@main"], True, "fail"),
+        "unpinned hub @main + legacy @v1": ([f"{hub}@main", f"{legacy}@v1"], True, "fail"),
+        "unpinned hub @main only": ([f"{hub}@main"], True, "warn"),
     }
     for label, (uses, failed, want) in cases.items():
         hard = hard_fail_cases(r21, d, uses)

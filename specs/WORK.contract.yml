@@ -350,14 +350,15 @@ related:
       caller is not an accepted shape after the rollout.
     hard_fail:    # never softened by `rollout: warn` (see the header)
       double_release:
-        # Both callers present in the repo's workflows (same file or not): the
-        # release_workflow caller at a ref that fullmatches pinned_ref_re, and a
-        # legacy_release_workflow caller at any ref, @main included. Each is a
-        # job-level `uses:` value (uses_keys, parsed YAML) compared up to the '@'.
+        # Both callers present in the repo's workflows (same file or not): a
+        # release_workflow caller and a legacy_release_workflow caller, each at
+        # any ref (pinned or unpinned, @main included: an unpinned hub caller
+        # releases just the same). Each is a job-level `uses:` value (uses_keys,
+        # parsed YAML) compared up to the '@'.
         all_of:
-          - {caller: release_workflow, ref_re: pinned_ref_re}
+          - {caller: release_workflow, ref_re: any}
           - {caller: legacy_release_workflow, ref_re: any}
-        reads: [release_workflow, legacy_release_workflow, uses_keys, pinned_ref_re]
+        reads: [release_workflow, legacy_release_workflow, uses_keys]
         result: fail
         why: "both callers run release-please on the same pushes, so the repo can cut two releases and two CHANGELOG entries for one change"
         detail: "two release-please callers (<release_workflow>@<ref> in <file>, <legacy_release_workflow>@<ref> in <file>): the repo can release twice; delete the bamr87/.github caller"
