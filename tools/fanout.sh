@@ -150,6 +150,7 @@ AC_VERSION="$(kit_version agent-context)"
 PROSE_VERSION="$(kit_version prose)"
 CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
+VERIFY_VERSION="$(kit_version verify)"
 FB_VERSION="$(kit_version feedback)"
 IA_VERSION="$(kit_version issue-autopilot)"
 ELK_VERSION="$(kit_version elk)"
@@ -408,6 +409,47 @@ seed_prose() {
           | sed "s/^--exclude '//; s/'$//")
   fi
   python3 tools/unwrap-prose.py --write "${ex[@]}" >/dev/null 2>&1 || true
+}
+
+seed_verify() {
+  # cwd = target clone; $1 = repo name, $2 = default branch. Additive-only:
+  # every artifact is seeded only when the repo has nothing in its place. The
+  # feature index is the one artifact checked against EVERY shape the fleet
+  # already uses (features/, _data/, root) — a repo with a legacy index keeps
+  # it, because the hub reads legacy files as-is.
+  local name="$1" def="$2" tpl="$HUB/templates/verify"
+  if [[ ! -f features/features.yml && ! -f _data/features.yml && ! -f features.yml ]]; then
+    mkdir -p features
+    render_kit_template "$tpl/features.template.yml" "$name" "$def" "$VERIFY_VERSION" > features/features.yml
+    echo "features/features.yml: seeded (kit v${VERIFY_VERSION})"
+  else
+    echo "feature index: present — left alone"
+  fi
+  mkdir -p verify/scenarios
+  seed_workflow_artifact "verify/verify.yml" verify/verify.yml \
+    "$tpl/verify.template.yml" "$name" "$def" "$VERIFY_VERSION"
+  if ! compgen -G "verify/scenarios/*.yml" >/dev/null 2>&1 \
+     && ! compgen -G "verify/scenarios/*.yaml" >/dev/null 2>&1; then
+    render_kit_template "$tpl/scenario.template.yml" "$name" "$def" "$VERIFY_VERSION" > verify/scenarios/smoke-home.yml
+    echo "verify/scenarios/smoke-home.yml: seeded"
+  fi
+  seed_workflow_artifact "verify/runner.mjs" verify/runner.mjs \
+    "$tpl/runner.mjs" "$name" "$def" "$VERIFY_VERSION"
+  [[ -f verify/mcp.json ]] || { cp "$tpl/mcp.json" verify/mcp.json; echo "verify/mcp.json: seeded"; }
+  seed_workflow_artifact "verify.yml" .github/workflows/verify.yml \
+    "$tpl/verify.yml" "$name" "$def" "$VERIFY_VERSION"
+  # Dedicated kit artifacts (agent-context 0.4.0 exception): seeded only when
+  # no verification skill/agent of any authorship exists.
+  if [[ ! -f .claude/skills/verify-feature/SKILL.md && ! -f .github/skills/visual-evidence/SKILL.md ]]; then
+    mkdir -p .claude/skills/verify-feature
+    render_kit_template "$tpl/SKILL.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/skills/verify-feature/SKILL.md
+    echo ".claude/skills/verify-feature/SKILL.md: seeded"
+  fi
+  if [[ ! -f .claude/agents/verifier.md ]]; then
+    mkdir -p .claude/agents
+    render_kit_template "$tpl/verifier.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/agents/verifier.md
+    echo ".claude/agents/verifier.md: seeded"
+  fi
 }
 
 # Vendor one kit asset. Same posture as the workflow artifacts: seed when
@@ -737,6 +779,7 @@ run_one() {
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
+      verify)      seed_verify "$(basename "${url%.git}")" "$def" ;;
       docker)      # --project keys the repo into _data/ports.yml so variable names
                    # match the fleet allocation (FREDGAR_API_PORT, not a derived one)
                    "${PYTHON:-python3}" "$HUB/tools/docker_harmonize.py" apply . --project "$name" ;;
