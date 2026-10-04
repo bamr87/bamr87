@@ -1258,7 +1258,6 @@ variables:
   PYTHON_VERSION: "3.12"
   RUBY_VERSION: "3.3"
   FLEET_HUB: bamr87/bamr87
-  FLEET_CI_WORKFLOW: bamr87/.github/.github/workflows/ci.yml@main
 
 # --------------------------------------------------------------------------- #
 # UX audit harness — templates/ux-audit/ (OPT-IN kit; see docs/UX-HARNESS.md)

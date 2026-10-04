@@ -12,20 +12,15 @@ name: standard-ci
 #       uses: bamr87/bamr87/.github/workflows/standard-ci.yml@v1
 #       secrets: inherit
 #
-# TWO GATES, DELIBERATELY
-# -----------------------
-# The fleet has a second, fuller reusable gate — bamr87/.github's `ci.yml`
-# (detect → test/lint/build/docs/commitlint/CodeQL). They are not redundant and
-# this one is not being folded into it:
-#
-#   standard-ci.yml (here)   ONE job. The baseline every repo can afford.
-#   .github/ci.yml           SIX jobs incl. a CodeQL matrix. For release-grade
-#                            repos, adopted via templates/release-pipeline/.
-#
-# Collapsing this into the fuller gate would multiply the fleet's per-push
-# runner count by ~6 across ~40 repos — the exact waste the analytics layer
-# exists to hunt. Pick the gate by tier (_data/standards.yml): `experiment` and
-# `content` repos take this one, `active` repos take the full one.
+# THE ONE SHARED GATE
+# -------------------
+# This is the fleet's only reusable CI gate, for every tier. bamr87/.github
+# used to publish a fuller six-job `ci.yml` (detect → test/lint/build/docs/
+# commitlint/CodeQL); nothing called it, and it is being retired
+# (bamr87/.github#5). A repo that needs more than the baseline adds its own jobs
+# beside this caller (CodeQL, a spec-gate, e2e) instead of adopting a second
+# shared gate — one job here keeps the per-push runner count flat across ~40
+# repos, the cost the analytics layer exists to watch.
 #
 # TOOLCHAIN VERSIONS
 # ------------------
