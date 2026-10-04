@@ -38,8 +38,8 @@ import conformance as c  # noqa: E402
 HUB = Path(__file__).resolve().parent.parent
 # Where each dependency lives until its PR merges.
 SOURCES = {
-    "specs/WORK.contract.yml": "origin/docs/ups-work-spec",
-    "_data/specs.yml": "origin/docs/ups-work-spec",
+    "specs/WORK.contract.yml": "origin/fix/work-contract-gaps",
+    "_data/specs.yml": "origin/fix/work-contract-gaps",
     "templates/sdlc/sdlc.schema.json": "origin/feat/sdlc-kit",
     "templates/sdlc/sdlc.yml": "origin/feat/sdlc-kit",
     "templates/sdlc/AGENTS.template.md": "origin/feat/sdlc-kit",
@@ -54,10 +54,14 @@ class Skip(Exception):
     pass
 
 
+# Text that only the revision these tests target has (bamr87/bamr87#327).
+SENTINEL = {"specs/WORK.contract.yml": "backlog_lint_keys", "_data/specs.yml": "never in raw workflow text"}
+
+
 def dep(rel: str) -> str:
     """A hub file's text: this checkout if it has the merged version, else the PR branch."""
     p = HUB / rel
-    if p.is_file() and (rel != "_data/specs.yml" or "UPS-WORK-01" in p.read_text(encoding="utf-8")):
+    if p.is_file() and SENTINEL.get(rel, "") in p.read_text(encoding="utf-8"):
         return p.read_text(encoding="utf-8")
     out = subprocess.run(["git", "-C", str(HUB), "show", f"{SOURCES[rel]}:{rel}"], capture_output=True, text=True)
     if out.returncode:
@@ -366,6 +370,26 @@ def test_work02_backlog_of_record():
         sync = {".github/workflows/sync.yml": "jobs:\n  s:\n    steps:\n      - run: ruby sync-backlog.rb\n"}
         assert run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode, "BACKLOG.md": "x", **sync}, name="sync"), h)[0] is False
         assert run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode}, name="nofile"), h)[0] is False
+        # only parsed values at backlog_lint_keys count: never comments, `name:` or env text
+        for i, wf in enumerate((
+                "# TODO: add backlog_lint.py\njobs:\n  g:\n    steps:\n      - run: make test\n",
+                "jobs:\n  g:\n    name: backlog-lint\n    steps:\n      - name: backlog lint\n        run: make test\n",
+                "env:\n  STEP: python3 tools/backlog_lint.py\njobs:\n  g:\n    steps:\n      - run: echo $STEP\n",
+                "jobs: [\n  run: python3 tools/backlog_lint.py\n")):
+            ok, msg = run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode, "BACKLOG.md": "x", ".github/workflows/ci.yml": wf}, name=f"raw{i}"), h)
+            assert ok is False and "no CI lint" in msg, (i, msg)
+        # a step `uses:`, a job-level `uses:` and a .yaml workflow all count
+        for i, (fn, wf) in enumerate((
+                ("ci.yml", "jobs:\n  g:\n    steps:\n      - uses: org/backlog-lint-action@v1\n"),
+                ("ci.yml", "jobs:\n  g:\n    uses: org/repo/.github/workflows/validate-backlog.yml@v1\n"),
+                ("lint.yaml", "jobs:\n  g:\n    steps:\n      - run: |\n          set -e\n          python3 tools/backlog_lint.py BACKLOG.md\n"))):
+            ok, msg = run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode, "BACKLOG.md": "x", f".github/workflows/{fn}": wf}, name=f"val{i}"), h)
+            assert ok is True and fn in msg, (i, msg)
+        # the lint regex is the contract's backlog_lint_value_re, not a copy
+        assert "UPS-WORK-02" not in c.RULE_RX
+        _set_def(h, "backlog_lint_value_re", "'never-matches-anything'")
+        assert run("UPS-WORK-02", repo(t, {".github/sdlc.yml": fmode, "BACKLOG.md": "x", ".github/workflows/ci.yml":
+                                           "jobs:\n  g:\n    steps:\n      - run: python3 tools/backlog_lint.py\n"}, name="redef"), h)[0] is False
 
 
 def test_work03_dod_block_matches_the_reference():
@@ -613,6 +637,10 @@ def test_work12_conventions_name_the_loop():
         assert run("UPS-WORK-12", repo(t, {"AGENTS.md": AGENTS.replace("docs/adr", "DOCS/ADR")}, name="case"), h)[0] is True
         # one root cause: a missing AGENTS.md is UPS-AGENT-07's failure
         assert run("UPS-WORK-12", repo(t, {"CLAUDE.md": AGENTS}, name="claude-only"), h) == (True, "no AGENTS.md, see UPS-AGENT-07")
+        # ... and so is a missing `## Conventions` heading (it is in agents_required_headings)
+        noconv = AGENTS.replace("## Conventions", "## House rules")
+        assert run("UPS-WORK-12", repo(t, {"AGENTS.md": noconv}, name="noconv"), h) == (True, "no `## Conventions` section, see UPS-AGENT-07")
+        assert run("UPS-AGENT-07", repo(t, {"AGENTS.md": noconv}, name="noconv7"), h)[0] is False
         ok, msg = run("UPS-WORK-12", repo(t, {".github/sdlc.yml": sdlc(adr_path="lineage/decisions"), "AGENTS.md": AGENTS}, name="path"), h)
         assert ok is False and "lineage/decisions" in msg, msg
         off = AGENTS.replace("ADRs in `docs/adr/NNNN-slug.md`", "ADR log not used")
@@ -703,10 +731,11 @@ def test_repo21_release_please_owns_the_changelog():
         assert run("UPS-REPO-21", repo(t, full, name="ok"), h, kinds=("content",))[0] is True
         ok, msg = run("UPS-REPO-21", repo(t, {**full, ".github/workflows/release.yml": RP_CALLER.format(ref="main")}, name="main"), h)
         assert ok is False and "unpinned" in msg, msg
-        # the legacy bamr87/.github caller warns, pointing at the hub workflow (when all else passes)
-        dotgh = RP_CALLER.format(ref="main").replace("bamr87/bamr87/", "bamr87/.github/")
-        ok, msg = run("UPS-REPO-21", repo(t, {**full, ".github/workflows/release.yml": dotgh}, name="dotgh"), h)
-        assert ok == c.WARN and "migrate to bamr87/bamr87/.github/workflows/release-please.yml@v1" in msg, msg
+        # the legacy bamr87/.github caller fails at any ref, @main and pinned alike, naming the hub workflow
+        for ref in ("main", "v1"):
+            dotgh = RP_CALLER.format(ref=ref).replace("bamr87/bamr87/", "bamr87/.github/")
+            ok, msg = run("UPS-REPO-21", repo(t, {**full, ".github/workflows/release.yml": dotgh}, name=f"dotgh-{ref}"), h)
+            assert ok is False and "migrate to bamr87/bamr87/.github/workflows/release-please.yml@v1 (decision D3)" in msg, (ref, msg)
         ok, msg = run("UPS-REPO-21", repo(t, {".github/workflows/release.yml": dotgh}, name="dotgh-bare"), h)
         assert ok is False and "no CHANGELOG.md" in msg, msg
         # a step that merely mentions the workflow is not a caller (job-level uses only)
@@ -729,6 +758,33 @@ def test_repo21_release_please_owns_the_changelog():
         assert ok is False and "not valid JSON" in msg, msg
         ok, msg = run("UPS-REPO-21", repo(t, {"README.md": "x"}, name="bare"), h)
         assert ok is False and "no CHANGELOG.md" in msg and "no release-please-config.json" in msg, msg
+
+
+def test_repo21_legacy_caller_warns_only_while_the_rollout_marker_is_present():
+    """rollout_effect: `rollout: warn` reports the legacy-caller failure as a
+    warning; once Fleet Ops deletes the marker it fails (and gates)."""
+    specs = {"requirements": [{"id": "UPS-REPO-21", "level": "MUST", "applies": ["all"], "area": "REPO"}]}
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        rule = yaml.safe_load((h / "specs/WORK.contract.yml").read_text())["related"]["UPS-REPO-21"]
+        assert rule.get("rollout") == "warn" and rule.get("rollout_effect") and "warn" not in rule, rule
+        dotgh = RP_CALLER.format(ref="main").replace("bamr87/bamr87/", "bamr87/.github/")
+        r = repo(t, {"CHANGELOG.md": "# Changelog\n", "release-please-config.json": RP_CFG,
+                     ".release-please-manifest.json": '{".": "0.1.0"}', ".github/workflows/release.yml": dotgh})
+        res = c.run_checks(c.Repo(r, h), ["app"], "active", specs)
+        assert res["must_failed"] == 0 and [w["id"] for w in res["warnings"]] == ["UPS-REPO-21"], res
+        assert "rollout: warn" in res["warnings"][0]["why_warn"] and "rollout_effect" in res["warnings"][0]["why_warn"]
+        assert "migrate to" in res["warnings"][0]["detail"]
+        cf = h / "specs/WORK.contract.yml"
+        text = cf.read_text()
+        i = text.index("  UPS-REPO-21:\n")
+        cf.write_text(text[:i] + text[i:].replace("    rollout: warn\n", "", 1))
+        c._CONTRACTS.clear()
+        res = c.run_checks(c.Repo(r, h), ["app"], "active", specs)
+        assert res["must_failed"] == 1 and not res["warnings"], res
+        assert [f["id"] for f in res["failing"]] == ["UPS-REPO-21"] and "migrate to" in res["failing"][0]["detail"], res
+        c._CONTRACTS.clear()
 
 
 def test_cli_check_runs_on_the_new_spec():
