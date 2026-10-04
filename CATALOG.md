@@ -160,6 +160,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleet_ci_gate.py`](tools/test_fleet_ci_gate.py) | Fixture tests for UPS-QA-20 in tools/conformance.py: `ci.yml` is a thin caller of the ONE shared gate, bamr87/bamr87's standard-ci.yml. |
 | [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/tui/fleet.py — the terminal dash data layer. |
+| [`test_work_contract.py`](tools/test_work_contract.py) | Consistency tests for specs/WORK.contract.yml against the generated _data/specs.yml. |
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
 | [`unwrap-prose.py`](tools/unwrap-prose.py) | Liquid-safe one-paragraph-per-line unwrapper for markdown prose (`--check`/`--diff`/`--write`); vendored into the fleet by the prose kit |
 | [`update-submodules.sh`](tools/update-submodules.sh) | Refresh `projects/` — bring each submodule onto its declared branch at the remote tip (safe by default) and record moved pointers |
