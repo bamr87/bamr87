@@ -14,12 +14,13 @@ Description: Executable Universal Project Standard (UPS) checker. Runs the
              unverified: a warning is reported but never counts toward
              must_failed or `--gate`. Rules marked `rollout: warn` in the hub's
              specs/WORK.contract.yml report a failure as a warning (delete the
-             marker to make the rule gate). The UPS-WORK, UPS-AGENT-07/08/09 and
+             marker to make the rule gate), except the rule's `hard_fail:` cases,
+             which always fail. The UPS-WORK, UPS-AGENT-07/08/09 and
              UPS-REPO-21 rows are keyed to that contract.
 Author: bamr87
 Created: 2026-09-01
 Last Modified: 2026-10-04
-Version: 0.3.1
+Version: 0.3.2
 Usage: python3 tools/conformance.py check [PATH] [--kinds site,app] [--tier active] [--gate] [--json] [--hub DIR]
        python3 tools/conformance.py fleet [--write _data/conformance.yml] [--json]
        python3 tools/conformance.py kinds [PATH]      # print detected kinds
@@ -37,7 +38,7 @@ from pathlib import Path
 
 import yaml
 
-CHECKER_VERSION = "0.3.1"
+CHECKER_VERSION = "0.3.2"
 HUB_DEFAULT = Path(__file__).resolve().parent.parent
 KINDS = ("site", "app", "api", "lib", "cli", "ext", "content", "fork")
 LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock",
@@ -564,7 +565,8 @@ def _env_not_tracked(r, k):
 # Result vocabulary (the contract's): pass | warn | fail | unverified. A check
 # returns True / WARN / False / None. WARN is a deprecated-but-accepted shape
 # (a rule's own `warn:` clause). Separately, every rule the contract marks
-# `rollout: warn` reports a would-be fail as a warning too (see warn_only()).
+# `rollout: warn` reports a would-be fail as a warning too (see warn_only()),
+# except a rule's `hard_fail:` cases (see hard_fail()), which always fail.
 #
 # One failure per root cause: a rule that only reads a file another rule owns
 # passes, naming the owner, when the file is missing (CHANGELOG.md belongs to
@@ -634,6 +636,45 @@ def warn_only(r) -> dict[str, str]:
     return {rid: "rollout: warn in specs/WORK.contract.yml"
             + (" (rollout_effect: fails once the marker is removed)" if v.get("rollout_effect") else "")
             for rid, v in rules.items() if isinstance(v, dict) and v.get("rollout") == "warn"}
+
+
+def _job_uses(r) -> list[tuple[str, str]]:
+    """(value, workflow file) for every job-level `uses:` (the uses_keys
+    workflow paths outside steps[]) in the repo's pin_scope workflows."""
+    keys = [k for k in (_defs(r).get("uses_keys") or {}).get("workflow") or [] if "steps" not in k]
+    return [(v, p.name) for p in _pin_files(r) if p.parent.name == "workflows" for v in (yaml_values(p, keys) or [])]
+
+
+def hard_fail(r, rid: str) -> list[str]:
+    """The rule's contract `hard_fail:` cases that hold, as details. Each case is
+    `all_of: [{caller: <definition>, ref_re: <definition> | any}, ...]` over the
+    job-level `uses:` values, compared up to the '@'. A hit is a fail even while
+    the rule carries `rollout: warn` (run_checks never softens it)."""
+    if contract(r) is None:
+        return []
+    d, out = _defs(r), []
+    cases = _rule(r, rid).get("hard_fail") or {}
+    calls = _job_uses(r) if cases else []
+    for name, case in cases.items():
+        if not isinstance(case, dict) or case.get("result", "fail") != "fail":
+            continue
+        found = []
+        for want in case.get("all_of") or []:
+            target = str(d.get(want.get("caller"), ""))
+            rx = None if want.get("ref_re") == "any" else re.compile(d[want["ref_re"]])
+            hit = next(((v, f) for v, f in calls if target and v.split("@", 1)[0] == target
+                        and (rx is None or ("@" in v and rx.fullmatch(v.split("@", 1)[1])))), None)
+            if hit is None:
+                break
+            found.append((want.get("caller"), hit))
+        else:
+            if not found:
+                continue
+            detail = str(case.get("detail") or f"hard_fail.{name}")
+            for caller, (v, f) in found:  # fill "<caller>@<ref> in <file>" in all_of order
+                detail = detail.replace(f"<{caller}>@<ref> in <file>", f"{v} in {f}", 1)
+            out.append(f"hard_fail.{name}: {detail}")
+    return out
 
 
 def _hub_path(r, ref: str) -> Path:
@@ -1348,6 +1389,15 @@ def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
             ok, detail = fn(repo, kinds)
         except Exception as e:  # noqa: BLE001 — a checker bug must not hide the other results
             ok, detail = False, f"checker error: {e}"
+        try:
+            hard = hard_fail(repo, req["id"])
+        except Exception as e:  # noqa: BLE001
+            hard = [f"checker error (hard_fail): {e}"]
+        if hard:  # a contract hard_fail case: always a fail, never softened by rollout: warn
+            results.append({"id": req["id"], "level": req["level"], "ok": False, "hard_fail": True,
+                            "detail": "; ".join(hard + ([detail] if ok is False and detail else [])),
+                            "spec": req.get("area", "")})
+            continue
         if ok is None:  # not decidable offline
             unverified.append({"id": req["id"], "level": req["level"], "detail": detail})
             continue
@@ -1369,7 +1419,8 @@ def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
         "unverified": unverified,
         "warnings": warnings,
         "failing": [{"id": x["id"], "level": x["level"], "detail": x["detail"],
-                     "spec": f"specs/{area_file(x['spec'], specs)}"} for x in failing],
+                     "spec": f"specs/{area_file(x['spec'], specs)}", **({"hard_fail": True} if x.get("hard_fail") else {})}
+                    for x in failing],
     }
 
 

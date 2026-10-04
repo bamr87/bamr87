@@ -55,7 +55,7 @@ class Skip(Exception):
 
 
 # Text that only the revision these tests target has (bamr87/bamr87#327).
-SENTINEL = {"specs/WORK.contract.yml": "backlog_lint_keys", "_data/specs.yml": "never in raw workflow text"}
+SENTINEL = {"specs/WORK.contract.yml": "double_release", "_data/specs.yml": "never in raw workflow text"}
 
 
 def dep(rel: str) -> str:
@@ -784,6 +784,90 @@ def test_repo21_legacy_caller_warns_only_while_the_rollout_marker_is_present():
         res = c.run_checks(c.Repo(r, h), ["app"], "active", specs)
         assert res["must_failed"] == 1 and not res["warnings"], res
         assert [f["id"] for f in res["failing"]] == ["UPS-REPO-21"] and "migrate to" in res["failing"][0]["detail"], res
+        c._CONTRACTS.clear()
+
+
+R21_SPECS = {"requirements": [{"id": "UPS-REPO-21", "level": "MUST", "applies": ["all"], "area": "REPO"}]}
+R21_FILES = {"CHANGELOG.md": "# Changelog\n", "release-please-config.json": RP_CFG, ".release-please-manifest.json": '{".": "0.1.0"}'}
+
+
+def _r21(t: Path, h: Path, name: str, **workflows: str) -> dict:
+    files = {**R21_FILES, **{f".github/workflows/{k}.yml": v for k, v in workflows.items()}}
+    return c.run_checks(c.Repo(repo(t, files, name=name), h), ["app"], "active", R21_SPECS)
+
+
+def _legacy(ref: str) -> str:
+    return RP_CALLER.format(ref=ref).replace("bamr87/bamr87/", "bamr87/.github/")
+
+
+def test_repo21_double_release_is_a_hard_fail_never_softened_by_rollout():
+    """hard_fail.double_release: a hub caller plus a bamr87/.github caller fails
+    even while UPS-REPO-21 carries `rollout: warn`."""
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        rule = yaml.safe_load((h / "specs/WORK.contract.yml").read_text())["related"]["UPS-REPO-21"]
+        assert rule.get("rollout") == "warn" and "double_release" in (rule.get("hard_fail") or {}), rule
+        # pinned hub + legacy (separate files, legacy at @main): fail, flagged hard_fail
+        res = _r21(t, h, "pinned", release=RP_CALLER.format(ref="v1"), legacy=_legacy("main"))
+        assert res["must_failed"] == 1 and not res["warnings"], res
+        f = res["failing"][0]
+        assert f["id"] == "UPS-REPO-21" and f.get("hard_fail") is True, f
+        assert "hard_fail.double_release" in f["detail"] and "release twice" in f["detail"], f["detail"]
+        assert "release-please.yml@v1 in release.yml" in f["detail"] and "release-please.yml@main in legacy.yml" in f["detail"], f["detail"]
+        # pinned at a full SHA, legacy pinned too: still a fail
+        res = _r21(t, h, "sha", release=RP_CALLER.format(ref="a" * 40), legacy=_legacy("v1"))
+        assert res["must_failed"] == 1 and res["failing"][0].get("hard_fail"), res
+        # both callers in one workflow file
+        both = RP_CALLER.format(ref="v1") + "  old:\n    uses: bamr87/.github/.github/workflows/release-please.yml@main\n"
+        res = _r21(t, h, "onefile", release=both)
+        assert res["must_failed"] == 1 and res["failing"][0].get("hard_fail"), res
+        # a step that only mentions the legacy workflow is not a caller
+        step = "jobs:\n  x:\n    steps:\n      - run: echo bamr87/.github/.github/workflows/release-please.yml@main\n"
+        res = _r21(t, h, "mention", release=RP_CALLER.format(ref="v1"), note=step)
+        assert res["must_failed"] == 0 and not res["failing"] and not res["warnings"], res
+
+
+def test_repo21_hub_at_main_plus_legacy_fails():
+    """A hub caller at @main counts toward double_release once the contract's
+    case accepts any hub ref (Platform Architect is widening it in #327). The
+    checker reads `ref_re` from the contract, so the fixture states it."""
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        cf = h / "specs/WORK.contract.yml"
+        cf.write_text(re.sub(r"\{caller: release_workflow, ref_re: \w+\}", "{caller: release_workflow, ref_re: any}", cf.read_text()))
+        c._CONTRACTS.clear()
+        res = _r21(t, h, "main-both", release=RP_CALLER.format(ref="main"), legacy=_legacy("main"))
+        assert res["must_failed"] == 1 and not res["warnings"], res
+        assert res["failing"][0].get("hard_fail") and "release-please.yml@main in release.yml" in res["failing"][0]["detail"], res
+        # the hard fail comes from the contract: without the case, the same repo is a rollout warning
+        text = cf.read_text()
+        i, j = text.index("    hard_fail:"), text.index("    replaces: UPS-REPO-13")
+        cf.write_text(text[:i] + text[j:])
+        c._CONTRACTS.clear()
+        res = _r21(t, h, "main-both-nocase", release=RP_CALLER.format(ref="main"), legacy=_legacy("main"))
+        assert res["must_failed"] == 0 and [w["id"] for w in res["warnings"]] == ["UPS-REPO-21"], res
+        c._CONTRACTS.clear()
+
+
+def test_repo21_legacy_only_warns_and_hub_only_passes():
+    with tempfile.TemporaryDirectory() as d:
+        t = Path(d)
+        h = hub(t)
+        res = _r21(t, h, "legacy", release=_legacy("main"))
+        assert res["must_failed"] == 0 and [w["id"] for w in res["warnings"]] == ["UPS-REPO-21"], res
+        assert c.hard_fail(c.Repo(repo(t, {**R21_FILES, ".github/workflows/release.yml": _legacy("main")}, name="legacy2"), h), "UPS-REPO-21") == []
+        res = _r21(t, h, "hub", release=RP_CALLER.format(ref="v1"))
+        assert res["must_failed"] == 0 and not res["failing"] and not res["warnings"] and res["passed"] == 1, res
+        # marker deleted: legacy-only now fails, but not as a hard_fail
+        cf = h / "specs/WORK.contract.yml"
+        text = cf.read_text()
+        i = text.index("  UPS-REPO-21:\n")
+        cf.write_text(text[:i] + text[i:].replace("    rollout: warn\n", "", 1))
+        c._CONTRACTS.clear()
+        res = _r21(t, h, "legacy-gating", release=_legacy("main"))
+        assert res["must_failed"] == 1 and not res["failing"][0].get("hard_fail"), res
         c._CONTRACTS.clear()
 
 
