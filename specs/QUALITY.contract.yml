@@ -7,8 +7,8 @@
 # rule means; this file says exactly what a checker reads and matches, per rule
 # id. When the two disagree, fix both in the same PR; until then this file wins
 # for checker behaviour. Covers UPS-QA-60..63, plus (under `related:`) the
-# hub-only exception UPS-QA-40/41 grant to a sanctioned workflow runtime; the
-# other QA rows keep their checkers in tools/conformance.py.
+# hub-only exception UPS-QA-40/41 and UPS-REPO-07 grant to a sanctioned workflow
+# runtime; the other rows keep their checkers in tools/conformance.py.
 #
 # Result vocabulary (tools/conformance.py): pass | warn | fail | unverified, as in
 # WORK.contract.yml. Every rule here carries `rollout: warn`: while the fleet
@@ -50,17 +50,21 @@ definitions:
   report_schema: site-quality-report/v1            # report.json inside the artifact
   report_artifact_default: site-quality-report     # the reusable workflow's artifact-name default
 
-  # UPS-QA-40 / UPS-QA-41: the hub-only exception for the runtime of a hub
-  # reusable workflow, declared ONCE here and read by tools/check-drift.sh (j),
-  # tools/conformance.py (UPS-QA-40, hub self-check only), tools/unpin-deps.sh
-  # (skips these paths when run on the hub) and the generated block in the hub's
-  # .gitignore (check-drift (j) fails when that block drifts from this list).
+  # UPS-QA-40 / UPS-QA-41 / UPS-REPO-07: the hub-only exception for the runtime
+  # of a hub reusable workflow, declared ONCE here and parsed ONCE, by
+  # tools/sanctioned_lockfiles.py, which tools/conformance.py (QA-40, REPO-07,
+  # QA-41), tools/check-drift.sh (j) and tools/unpin-deps.sh (skips these paths
+  # when run on the hub) all use. The hub's .gitignore carries a generated block
+  # (check-drift (j) fails when it drifts from this list). "The hub" is the
+  # checkout whose origin is bamr87/bamr87 (hub_identity), and the list is read
+  # from that checkout's own copy of this file, not from a separate hub checkout.
   # Constraints (tools/test_quality_contract.py): every path is under `.github/`
   # and never under `templates/`; `workflow` is a hub reusable workflow
   # (`on: workflow_call`) that runs the runtime from `dir`; `manifest` pins every
   # dependency exactly (the "exact pins" half of the exception); `lockfile` is
   # committed; fan-out (tools/fanout.sh) never copies `dir`; each entry has a
   # matching sanctioned_dependabot entry, present in .github/dependabot.yml.
+  hub_identity: "origin remote bamr87/bamr87 (else $GITHUB_REPOSITORY when the checkout is the working directory), or the hub checkout itself; a copy of this file does not make a repo the hub"
   sanctioned_lockfiles:
     - dir: .github/site-quality
       lockfile: .github/site-quality/package-lock.json
@@ -144,19 +148,31 @@ related:
   UPS-QA-40:
     level: MUST
     applies: [all]
-    reads: [sanctioned_lockfiles, sanctioned_dependabot]
+    reads: [hub_identity, sanctioned_lockfiles, sanctioned_dependabot]
     exception: >-
-      Only when the hub checks itself: a tracked lockfile equal to some
-      sanctioned_lockfiles[].lockfile is not a committed-lockfile failure, provided a
-      sanctioned_dependabot entry with directory "/" + its dir exists in
-      .github/dependabot.yml. The manifest's exact pins are covered by the same entry.
+      Only when the checked repo is the hub (hub_identity): a tracked lockfile equal to
+      some sanctioned_lockfiles[].lockfile of the checked repo's own copy of this file
+      is not a committed-lockfile failure, provided every path of the entry is under
+      .github/ and outside templates/, and a sanctioned_dependabot entry with directory
+      "/" + its dir is declared and present in .github/dependabot.yml. The manifest's
+      exact pins are covered by the same entry.
     fail: >-
-      a sanctioned lockfile whose Dependabot entry is missing (detail names both); any
-      other committed lockfile, in the hub or a member repo, as before
+      any other committed lockfile, in the hub or a member repo, as before (a sanctioned
+      lockfile whose entry does not qualify counts as committed; UPS-QA-41 names why)
+  UPS-REPO-07:
+    level: MUST
+    applies: [all]
+    reads: [hub_identity, sanctioned_lockfiles, sanctioned_dependabot]
+    exception: "the same lockfiles as UPS-QA-40, under the same conditions; node_modules/, build output, .env and secrets have no exception"
+    fail: "any other tracked lockfile or node_modules/ path"
   UPS-QA-41:
     level: MUST
     applies: [all]
-    reads: [sanctioned_dependabot]
+    reads: [hub_identity, sanctioned_dependabot]
     exception: >-
       Only in the hub: the package-ecosystem entries listed in sanctioned_dependabot are
       allowed alongside github-actions; they are what moves the sanctioned exact pins.
+    fail: >-
+      no .github/dependabot.yml; in the hub, a sanctioned_lockfiles entry that does not
+      qualify (outside .github/, under templates/, Dependabot entry missing, or this file
+      malformed), named in the detail

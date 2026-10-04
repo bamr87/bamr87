@@ -51,11 +51,13 @@ updates:
   # (`sanctioned_lockfiles` / `sanctioned_dependabot`); check-drift (j) and
   # conformance UPS-QA-40 fail if they fall out of step.
   # RELEASE POLICY: axe-core minor and major releases add or tighten rules, and
-  # a new rule can turn a green gated caller red. Dependabot therefore ignores
-  # those two update types for axe-core and @axe-core/playwright; a maintainer
-  # bumps them by hand, reads the self-test, and releases them deliberately
-  # (a minor of this workflow, or a major when a gated caller would fail, per
-  # docs/WORKFLOW-VERSIONING.md). Patch releases (rule fixes) still flow here.
+  # @lhci/cli minor and major releases move the bundled Lighthouse (new audits,
+  # rescored categories); either can turn a green gated caller red. Dependabot
+  # therefore ignores those two update types for axe-core, @axe-core/playwright
+  # and @lhci/cli; a maintainer bumps them by hand, reads the self-test, and
+  # releases them deliberately (a minor of this workflow, or a major when a gated
+  # caller would fail, per docs/WORKFLOW-VERSIONING.md's major-bump rule). Patch
+  # releases still flow here.
   - package-ecosystem: "npm"
     directory: "/.github/site-quality"
     schedule:
@@ -74,4 +76,6 @@ updates:
       - dependency-name: "axe-core"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "@axe-core/playwright"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "@lhci/cli"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]

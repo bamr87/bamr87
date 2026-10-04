@@ -78,7 +78,7 @@
         "runs": { "type": "integer", "minimum": 1, "maximum": 5, "description": "Runs per page; assertions use the median. Default 1." },
         "form_factor": { "enum": ["mobile", "desktop"], "description": "Default mobile (simulated 4G/CPU throttling)." },
         "skip_audits": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/auditId" } },
-        "public_upload": { "type": "boolean", "description": "Also upload to LHCI temporary public storage (public link, ~7 days). Default false." },
+        "public_upload": { "type": "boolean", "description": "Also upload to LHCI temporary public storage (public link, ~7 days). Honoured only when the calling repo is public; a private or internal repo keeps the reports in the run artifact. Default false." },
         "categories": { "$ref": "#/$defs/categories" },
         "metrics": { "$ref": "#/$defs/metrics" },
         "audits": { "$ref": "#/$defs/audits" },

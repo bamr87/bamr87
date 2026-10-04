@@ -99,7 +99,7 @@ requirements:
     section: "Layout"
     level: MUST
     applies: [all]
-    requirement: "No committed build output, `node_modules/`, lockfiles, `.env`, or secrets. `.gitignore` carries the fleet lockfile block."
+    requirement: "No committed build output, `node_modules/`, lockfiles, `.env`, or secrets. `.gitignore` carries the fleet lockfile block. The one lockfile exception is UPS-QA-40's, in the hub only: the runtime lockfile of a hub reusable workflow declared in `QUALITY.contract.yml` `sanctioned_lockfiles`, which the hub's `.gitignore` re-allows after the block; no member repo can claim it."
     satisfied_by: "`.gitignore` contains the `unpin-deps.sh` block; `git ls-files` clean"
     seed: "`tools/unpin-deps.sh`"
     gap: false

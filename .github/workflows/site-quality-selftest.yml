@@ -35,7 +35,9 @@ on:
       - "tools/conformance.py"
       - "tools/check-drift.sh"
       - "tools/unpin-deps.sh"
+      - "tools/sanctioned_lockfiles.py"
       - "tools/test_quality_contract.py"
+      - "specs/REPOSITORY.md"
   push:
     branches: [main]
     paths:
@@ -51,7 +53,9 @@ on:
       - "tools/conformance.py"
       - "tools/check-drift.sh"
       - "tools/unpin-deps.sh"
+      - "tools/sanctioned_lockfiles.py"
       - "tools/test_quality_contract.py"
+      - "specs/REPOSITORY.md"
   workflow_dispatch:
 
 permissions:

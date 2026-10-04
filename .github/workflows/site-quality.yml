@@ -195,7 +195,9 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ env.HUB_DIR }}/.github/site-quality/package-lock.json
 
-      # Exact pins from the committed lockfile. Browsers: Playwright drives the
+      # Exact pins from the committed lockfile, with install scripts disabled
+      # (--ignore-scripts): no dependency runs code at install time, and none
+      # needs to, since nothing downloads a browser. Browsers: Playwright drives the
       # runner's Google Chrome (channel chrome); pa11y's puppeteer uses it via
       # CHROME_PATH; lhci finds it itself. No browser downloads.
       - name: Install the runner (npm ci)
@@ -204,7 +206,7 @@ jobs:
           PUPPETEER_SKIP_DOWNLOAD: "true"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: |
-          npm ci --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
           echo "SQ=$PWD" >> "$GITHUB_ENV"
           echo "PATH_LHCI=$PWD/node_modules/.bin/lhci" >> "$GITHUB_ENV"
 
@@ -267,6 +269,11 @@ jobs:
         run: |
           if [ -f "$SOURCE/Gemfile" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
 
+      # @v1 on purpose, as in every other hub workflow (ai-lane, build-dash,
+      # fleet-verify, ai-runner-contract): the hub's action policy is major tags,
+      # and check-drift (j) fails a SHA-pinned or minor/patch-pinned `uses:` in hub
+      # YAML (docs/DEPENDENCIES.md). ruby/setup-ruby publishes v1 as a branch, not
+      # a tag; moving the hub off it is a fleet-wide policy change, not this PR's.
       - uses: ruby/setup-ruby@v1
         if: inputs.mode == 'build'
         with:
@@ -375,17 +382,29 @@ jobs:
         run: |
           "$PATH_LHCI" assert --config=lighthouserc.json
 
-      - name: Lighthouse CI upload (filesystem; public link only if the config opts in)
+      # The public link (LHCI temporary-public-storage) is for public repos only:
+      # a private or internal repo's reports stay in the run's artifact, whatever
+      # the config says. Visibility comes from the event payload, else the API;
+      # anything other than "public" counts as private.
+      - name: Lighthouse CI upload (filesystem; public link only if the config opts in and the repo is public)
         if: steps.cfg.outputs.lighthouse == 'true' && steps.lhci.outcome == 'success'
         continue-on-error: true
         working-directory: ${{ env.SQ_WORK }}
         env:
           PUBLIC: ${{ steps.cfg.outputs.public_upload }}
+          VISIBILITY: ${{ github.event.repository.visibility }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           "$PATH_LHCI" upload --config=lighthouserc.json
           if [ "$PUBLIC" = "true" ]; then
-            "$PATH_LHCI" upload --target=temporary-public-storage || echo "::warning title=site-quality lighthouse::temporary public upload failed"
+            vis="${VISIBILITY:-}"
+            [ -n "$vis" ] || vis="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .visibility 2>/dev/null || true)"
+            if [ "$vis" = "public" ]; then
+              "$PATH_LHCI" upload --target=temporary-public-storage || echo "::warning title=site-quality lighthouse::temporary public upload failed"
+            else
+              echo "::warning title=site-quality lighthouse::lighthouse.public_upload ignored: ${GITHUB_REPOSITORY} is ${vis:-not confirmed public}; the reports are in the run artifact only"
+            fi
           fi
           cp .lighthouseci/assertion-results.json reports/lighthouse/ 2>/dev/null || true
 

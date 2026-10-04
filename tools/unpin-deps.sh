@@ -25,13 +25,14 @@
 #      --frozen-lockfile/--immutable dropped, lockfile-keyed `cache:` lines
 #      removed, and `uses: owner/action@vX.Y.Z` floated to `@vX`.
 #
-# THE ONE EXCEPTION (UPS-QA-40/41, hub only): when the target is the hub itself
-#   (it carries specs/QUALITY.contract.yml), every `sanctioned_lockfiles` entry
-#   there (the runtime of a hub reusable workflow: dir, lockfile, manifest,
-#   workflow) is left alone: its lockfile is not removed, its manifest's exact
+# THE ONE EXCEPTION (UPS-QA-40/41, UPS-REPO-07, hub only): when the target is
+#   the hub itself (its origin is bamr87/bamr87), every covered
+#   `sanctioned_lockfiles` entry of its specs/QUALITY.contract.yml (the
+#   runtime of a hub reusable workflow: dir, lockfile, manifest, workflow) is
+#   left alone: its lockfile is not removed, its manifest's exact
 #   pins stay, its workflow keeps `npm ci` and its lockfile cache, and the
-#   .gitignore block re-allows the lockfile. A member repo has no such contract,
-#   so nothing is exempt there.
+#   .gitignore block re-allows the lockfile. A member repo is never the hub, so
+#   nothing is exempt there, even if it carries a copy of the contract.
 #
 # WHAT IT LEAVES (reported as follow-ups, for a human or the doctor agent):
 #   pyproject.toml/poetry/Pipfile dependency tables (no safe stdlib TOML
@@ -44,6 +45,7 @@
 set -euo pipefail
 
 TARGET_DIR="${1:-.}"
+HUB_TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$TARGET_DIR"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || { echo "unpin-deps: not a git work tree: $TARGET_DIR" >&2; exit 2; }
@@ -52,21 +54,13 @@ LOCKS=(package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock
        Gemfile.lock poetry.lock Pipfile.lock uv.lock composer.lock)
 
 # --- 0. the hub-only sanctioned runtimes (specs/QUALITY.contract.yml) ------
-# One path per line: "<kind>\t<path>" with kind dir|lockfile|manifest|workflow.
-SANCTIONED="$(python3 - <<'PY'
-import os
-p = "specs/QUALITY.contract.yml"
-if os.path.isfile(p):
-    import yaml
-    qdefs = (yaml.safe_load(open(p, encoding="utf-8")) or {}).get("definitions") or {}
-    for e in qdefs.get("sanctioned_lockfiles") or []:
-        for kind in ("dir", "lockfile", "manifest", "workflow"):
-            v = str(e.get(kind) or "")
-            # Only hub reusable-workflow runtimes under .github/ ever qualify.
-            if v.startswith(".github/") and "templates/" not in v:
-                print(f"{kind}\t{v}")
-PY
-)"
+# One path per line: "<kind>\t<path>" with kind dir|lockfile|manifest|workflow,
+# from the shared parser (tools/sanctioned_lockfiles.py, also used by
+# conformance.py and check-drift (j)). It prints nothing unless this checkout is
+# the hub (origin bamr87/bamr87); a malformed contract stops the run (exit 2)
+# rather than silently unpinning the hub's sanctioned runtime.
+SANCTIONED="$(python3 "$HUB_TOOLS/sanctioned_lockfiles.py" paths .)" \
+  || { echo "unpin-deps: cannot read the sanctioned runtimes (see above); nothing changed" >&2; exit 2; }
 sanctioned() { printf '%s\n' "$SANCTIONED" | awk -F'\t' -v k="$1" '$1 == k { print $2 }'; }
 export SANCTIONED
 

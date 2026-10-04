@@ -30,7 +30,7 @@ Jekyll repos only (a root `_config.yml`). Additive-only: an existing `.github/si
 | Report | `report.json` (`site-quality-report/v1`) + `summary.md` + Lighthouse HTML/JSON + raw axe/pa11y results in the artifact (`site-quality-report` by default); the job summary carries the same tables and the resolved theme ref | same |
 | Gate | fails for findings the config marks `error`, and for a collector that crashed while its check is gated (`gate: false` reports only). An invalid config or a failed build fails the job regardless. | same |
 
-The runtime (`.github/site-quality/`) is pinned exactly (`@lhci/cli`, `axe-core`, `@axe-core/playwright`, `pa11y`, `playwright`, `ajv`, `yaml`) with a committed `package-lock.json`, and Dependabot moves it, except axe-core and @axe-core/playwright minor/major bumps, which add rules and are reviewed and released by hand. The runner always comes from the same hub commit as the workflow the caller pinned.
+The runtime (`.github/site-quality/`) is pinned exactly (`@lhci/cli`, `axe-core`, `@axe-core/playwright`, `pa11y`, `playwright`, `ajv`, `yaml`) with a committed `package-lock.json`, and installed with `npm ci --ignore-scripts`. Dependabot moves it, except minor/major bumps of axe-core, @axe-core/playwright and @lhci/cli, which add rules or move Lighthouse and are reviewed and released by hand. `lighthouse.public_upload` only takes effect in a public repo; a private or internal repo's Lighthouse reports stay in the run artifact. The runner always comes from the same hub commit as the workflow the caller pinned.
 
 ## Config in one screen
 

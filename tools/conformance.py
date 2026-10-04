@@ -42,11 +42,6 @@ HUB_DEFAULT = Path(__file__).resolve().parent.parent
 KINDS = ("site", "app", "api", "lib", "cli", "ext", "content", "fork")
 LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock",
              "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock")
-# The hub-only lockfile exception of UPS-QA-40/41 is declared once, in the hub's
-# specs/QUALITY.contract.yml (`sanctioned_lockfiles`, `sanctioned_dependabot`),
-# and read by sanctioned_runtimes() below; tools/check-drift.sh (j) and
-# tools/unpin-deps.sh read the same keys. Nothing here lists a path.
-QUALITY_CONTRACT_FILE = "specs/QUALITY.contract.yml"
 TEXT_EXT = {".md", ".html", ".tsx", ".jsx", ".ts", ".js", ".py", ".rb", ".erb", ".liquid", ".yml", ".yaml",
             ".json", ".css", ".scss", ".toml", ".cfg", ".txt", ".sh"}
 SKIP_DIRS = {".git", "node_modules", "_site", "site", "dist", "build", ".venv", "venv", "vendor", "__pycache__",
@@ -206,6 +201,35 @@ def _no(msg: str) -> tuple[bool, str]:
     return False, msg
 
 
+# The hub-only lockfile exception (UPS-QA-40, UPS-REPO-07; its Dependabot half
+# is UPS-QA-41) is declared once, in specs/QUALITY.contract.yml, and parsed once,
+# in tools/sanctioned_lockfiles.py, which check-drift (j) and unpin-deps.sh use
+# too. The rules call this helper and nothing else, so a rewrite of either rule
+# keeps the exception by keeping the call. Nothing here lists a path.
+try:
+    import sanctioned_lockfiles as _sanctioned
+except ImportError:  # a checker copied without its sibling: no exception at all
+    _sanctioned = None
+
+
+def hub_lockfile_exception(r) -> tuple[set[str], list[str]]:
+    """(tracked lockfile paths the hub-only exception covers, why any declared
+    entry does not qualify). Both are empty unless `r` is the hub itself: its
+    `origin` is bamr87/bamr87 (fleet-conformance checks the PR at `.` with the hub
+    checked out separately at `.fleet-hub`) or it is the hub checkout. The list
+    comes from r's own specs/QUALITY.contract.yml, never from r.hub."""
+    if not hasattr(r, "_hub_lock_exception"):
+        covered, why = set(), []
+        if _sanctioned is not None and _sanctioned.is_hub(r.path, r.hub):
+            try:
+                ok, why = _sanctioned.evaluate(r.path)
+                covered = set(ok)
+            except _sanctioned.ContractError as e:
+                why = [str(e)]
+        r._hub_lock_exception = (covered, why)
+    return r._hub_lock_exception
+
+
 @check("UPS-REPO-06")
 def _readme(r, k):
     return _ok() if r.has("README.md", "README.rst") else _no("no README.md at the root")
@@ -213,7 +237,7 @@ def _readme(r, k):
 
 @check("UPS-REPO-07")
 def _no_lockfiles(r, k):
-    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES or "node_modules/" in t]
+    bad = [t for t in r.tracked() if (Path(t).name in LOCKFILES and t not in hub_lockfile_exception(r)[0]) or "node_modules/" in t]
     return _ok() if not bad else _no(f"tracked: {', '.join(sorted(set(Path(b).name if 'node_modules' not in b else 'node_modules/' for b in bad))[:4])}")
 
 
@@ -437,47 +461,9 @@ def _release(r, k):
     return _ok() if r.has("release-please-config.json", ".release-please-manifest.json") else _no("no release-please config")
 
 
-def sanctioned_runtimes(r) -> tuple[dict[str, str], str]:
-    """The UPS-QA-40 exception, for the hub checking ITSELF only: {lockfile path:
-    dependabot directory} for every `sanctioned_lockfiles` entry of the hub's
-    specs/QUALITY.contract.yml whose `sanctioned_dependabot` entry exists and is
-    present in .github/dependabot.yml, plus a problem string naming any entry that
-    lacks one. Member repos get ({}, "") whatever they contain. (Read into
-    `qdefs`, a separate name from the WORK contract's `d`/`defs`, so the WORK
-    key guard of #328 never sees these keys.)"""
-    if r.path != r.hub:
-        return {}, ""
-    try:
-        qdefs = (yaml.safe_load((r.hub / QUALITY_CONTRACT_FILE).read_text(encoding="utf-8")) or {}).get("definitions") or {}
-    except (OSError, yaml.YAMLError, AttributeError):
-        return {}, ""
-    try:
-        dep = yaml.safe_load(r.read(".github/dependabot.yml")) or {}
-    except yaml.YAMLError:
-        dep = {}
-    present = {(u.get("package-ecosystem"), str(u.get("directory", "")).rstrip("/"))
-               for u in (dep.get("updates") or []) if isinstance(u, dict)}
-    declared = {(e.get("package-ecosystem"), str(e.get("directory", "")).rstrip("/"))
-                for e in qdefs.get("sanctioned_dependabot") or [] if isinstance(e, dict)}
-    ok, missing = {}, []
-    for e in qdefs.get("sanctioned_lockfiles") or []:
-        if not isinstance(e, dict) or not e.get("lockfile") or not e.get("dir"):
-            continue
-        want = "/" + str(e["dir"]).strip("/")
-        hit = [x for x in declared if x[1] == want and x in present]
-        if hit:
-            ok[str(e["lockfile"])] = want
-        else:
-            missing.append(f"{e['lockfile']} (no sanctioned Dependabot entry for {want} in .github/dependabot.yml)")
-    return ok, "; ".join(missing)
-
-
 @check("UPS-QA-40")
 def _always_latest(r, k):
-    exempt, missing = sanctioned_runtimes(r)
-    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES and t not in exempt]
-    if missing:
-        return _no("sanctioned lockfile without its Dependabot entry: " + missing)
+    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES and t not in hub_lockfile_exception(r)[0]]
     if bad:
         return _no("committed lockfile: " + ", ".join(sorted({Path(b).name for b in bad})[:3]))
     pinned = None
@@ -491,7 +477,10 @@ def _always_latest(r, k):
 
 @check("UPS-QA-41")
 def _dependabot(r, k):
-    return _ok() if r.has(".github/dependabot.yml") else _no("no .github/dependabot.yml")
+    if not r.has(".github/dependabot.yml"):
+        return _no("no .github/dependabot.yml")
+    why = hub_lockfile_exception(r)[1]  # hub only: a sanctioned runtime whose entry is missing
+    return _no("sanctioned runtime not covered: " + "; ".join(why)) if why else _ok()
 
 
 @check("UPS-FE-01")
@@ -1367,6 +1356,29 @@ def binds(req: dict, kinds: list[str], tier: str) -> bool:
     return bool(applies & set(kinds))
 
 
+QUALITY_CONTRACT_FILE = "specs/QUALITY.contract.yml"
+
+
+def quality_warn_only(r) -> dict[str, str]:
+    """warn_only() for specs/QUALITY.contract.yml: the rules (and related rows)
+    it marks `rollout: warn` report a would-be fail as a warning. Read from the
+    hub checkout like the WORK contract, into its own `qdata` (never `d`/`defs`,
+    which belong to WORK.contract.yml). Kept beside warn_only() rather than inside
+    it so either function can change without touching the other."""
+    if r.hub not in _QUALITY_ROLLOUT:
+        try:
+            qdata = yaml.safe_load((r.hub / QUALITY_CONTRACT_FILE).read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            qdata = None
+        qrules = {} if not isinstance(qdata, dict) else {**(qdata.get("rules") or {}), **(qdata.get("related") or {})}
+        _QUALITY_ROLLOUT[r.hub] = {rid: f"rollout: warn in {QUALITY_CONTRACT_FILE}" for rid, v in qrules.items()
+                                   if isinstance(v, dict) and v.get("rollout") == "warn"}
+    return _QUALITY_ROLLOUT[r.hub]
+
+
+_QUALITY_ROLLOUT: dict[Path, dict[str, str]] = {}
+
+
 def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
     results, unverified, warnings, manual = [], [], [], 0
     for req in specs.get("requirements", []):
@@ -1385,7 +1397,7 @@ def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
         if ok is None:  # not decidable offline
             unverified.append({"id": req["id"], "level": req["level"], "detail": detail})
             continue
-        rollout = warn_only(repo)
+        rollout = {**quality_warn_only(repo), **warn_only(repo)}
         if ok == WARN or (not ok and req["id"] in rollout):  # reported, never counted
             warnings.append({"id": req["id"], "level": req["level"], "detail": detail,
                              "why_warn": "deprecated shape (the rule's warn clause)" if ok == WARN else rollout[req["id"]],
