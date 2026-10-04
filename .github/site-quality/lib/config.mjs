@@ -17,6 +17,8 @@ export const DEFAULT_VIEWPORTS = [
   { name: 'mobile-390', width: 390, height: 844, mobile: true },
   { name: 'desktop-1366', width: 1366, height: 768, mobile: false },
 ];
+/** The one config format id this runtime reads (the schema's `schema` const). */
+export const CONFIG_SCHEMA = 'site-quality/v1';
 export const DEFAULT_AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
 
 /** Parse YAML text with the 1.1 schema (timestamps stay timestamps). Throws on syntax errors. */
@@ -33,6 +35,10 @@ export function loadSchema(path) {
 
 /** Validate a parsed config. Returns a list of human-readable errors (empty = valid). */
 export function validate(config, schema) {
+  // A pre-release draft used `version: 1`; say exactly what replaces it.
+  if (config && typeof config === 'object' && 'version' in config && !('schema' in config)) {
+    return [`(root): \`version\` is not a key; the first line is \`schema: ${CONFIG_SCHEMA}\` (the .github/sdlc.yml convention)`];
+  }
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
   const check = ajv.compile(schema);
@@ -72,7 +78,7 @@ export function resolve(config, overrides = {}) {
   const allow = config.allowlist || {};
   const expiredLevel = overrides.expiredLevel || allow.on_expired || 'warn';
   return {
-    version: config.version,
+    schema: config.schema,
     mode: overrides.mode || 'build',
     site: {
       source: overrides.source || site.source || '.',
@@ -115,20 +121,26 @@ export function resolve(config, overrides = {}) {
   };
 }
 
-/** Does allowlist entry `e` cover finding `f` ({rule, page, viewport?, nodes?: [text]})? */
+/** Is `page` a pattern covering many pages (`*` or a prefix ending in `*`)? */
+export const isWildcardPage = (page) => typeof page === 'string' && page.endsWith('*');
+
+/**
+ * Does allowlist entry `e` cover finding `f` ({rule, page, viewport?, matched?: [selector])?
+ * `selector` is a CSS selector matched IN THE BROWSER: the collectors (axe-check,
+ * contrast-check) record, per node, which allowlist selectors match it or one of
+ * its ancestors (`matched`). There is no text or HTML substring fallback.
+ * A `*` or prefix page needs a selector (the schema enforces it; this refuses
+ * such an entry too, so a hand-built config cannot blanket-allow a rule).
+ */
 export function entryMatches(e, f) {
   if (e.rule !== f.rule) return false;
+  if (isWildcardPage(e.page) && !e.selector) return false;
   if (e.page && e.page !== '*') {
     if (e.page.endsWith('*')) {
       if (!f.page?.startsWith(e.page.slice(0, -1))) return false;
     } else if (e.page !== f.page) return false;
   }
   if (e.viewport && f.viewport && e.viewport !== f.viewport) return false;
-  if (e.selector) {
-    // Browser-side match first (axe-check.mjs records which allowlist selectors
-    // each node matches); otherwise a substring of the reported selector/HTML.
-    const inBrowser = (f.matched || []).includes(e.selector);
-    if (!inBrowser && !(f.nodes || []).some((t) => t.includes(e.selector))) return false;
-  }
+  if (e.selector && !(f.matched || []).includes(e.selector)) return false;
   return true;
 }

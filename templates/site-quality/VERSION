@@ -15,10 +15,11 @@ changelog: |
   fleet contract: ONE reusable workflow with a build mode (build the Jekyll
   site against a fresh theme resolved to a commit SHA, serve _site) and a url
   mode (scan live URLs), exact-pinned tools with a committed lockfile, a
-  caller config validated by a JSON Schema (version: 1, quoted dates, an
+  caller config validated by a JSON Schema (schema: site-quality/v1, quoted dates, an
   allowlist where every known issue carries rule, selector and/or page,
-  reason, issue link and until date), and lenient defaults so adoption never
-  turns a caller red.
+  reason, issue link and until date), and lenient defaults: as seeded, no
+  scan finding fails a caller (an invalid config or a failed build still
+  does).
 notes: |
   - Additive-only, like every kit: an existing .github/site-quality.yml is
     never overwritten; the caller workflow is refreshed by --upgrade only when

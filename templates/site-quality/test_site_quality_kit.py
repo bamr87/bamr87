@@ -60,8 +60,8 @@ def _fallback_errors(doc, sch) -> list[str]:
         return ["not a mapping"]
     errs = [f"unknown key {k}" for k in doc if k not in sch["properties"]]
     errs += [f"missing {k}" for k in sch["required"] if k not in doc]
-    if doc.get("version") != 1:
-        errs.append("version != 1")
+    if doc.get("schema") != "site-quality/v1":
+        errs.append("schema != site-quality/v1")
     pages = doc.get("pages")
     if not isinstance(pages, list) or not pages or any(not str(p).startswith("/") for p in pages):
         errs.append("pages must be a non-empty list of /paths")
@@ -74,6 +74,8 @@ def _fallback_errors(doc, sch) -> list[str]:
                 errs.append(f"entry {i}: missing {k}")
         if "selector" not in e and "page" not in e:
             errs.append(f"entry {i}: needs selector or page")
+        if str(e.get("page", "")).endswith("*") and "selector" not in e:
+            errs.append(f"entry {i}: page `*` or a prefix needs a selector")
         if "until" in e and not (isinstance(e["until"], str) and DATE.match(e["until"])):
             errs.append(f"entry {i}: until must be a quoted YYYY-MM-DD")
         if "issue" in e and not str(e["issue"]).startswith("https://"):
@@ -92,7 +94,13 @@ def validate(doc) -> list[str]:
     except ImportError:
         return _fallback_errors(doc, sch)
     v = jsonschema.Draft202012Validator(sch, format_checker=jsonschema.FormatChecker())
-    return [f"{'/'.join(map(str, e.absolute_path)) or '(root)'}: {e.message}" for e in v.iter_errors(doc)]
+    out = []
+    for e in v.iter_errors(doc):
+        msg = e.message
+        if e.validator == "anyOf":   # name the alternatives instead of echoing the instance
+            msg = "needs one of: " + " | ".join(c.message for c in e.context)
+        out.append(f"{'/'.join(map(str, e.absolute_path)) or '(root)'}: {msg}")
+    return out
 
 
 def load(p: Path):
@@ -150,10 +158,13 @@ def t_schema() -> None:
     print("schema vs fixtures (UPS-QA-61)")
     sch = schema()
     check(sch.get("$schema", "").endswith("2020-12/schema"), "schema is JSON Schema 2020-12")
-    check(sch["properties"]["version"].get("const") == 1, "version: 1 is required")
+    check(sch["properties"]["schema"].get("const") == "site-quality/v1" and "schema" in sch["required"],
+          "schema: site-quality/v1 is a required const")
     entry = sch["$defs"]["allowEntry"]
     check(set(entry["required"]) == {"rule", "reason", "issue", "until"}, "allowlist entry requires rule, reason, issue, until")
     check({tuple(a["required"]) for a in entry["anyOf"]} == {("selector",), ("page",)}, "allowlist entry needs selector and/or page")
+    wild = [a for a in entry.get("allOf") or [] if (a.get("then") or {}).get("required") == ["selector"]]
+    check(bool(wild) and wild[0]["if"]["properties"]["page"]["pattern"] == "\\*$", "page `*` or a prefix requires selector")
     valid = sorted((KIT / "fixtures/configs/valid").glob("*.yml")) + [
         KIT / "site-quality.template.yml", KIT / "fixtures/pass-site/site-quality.yml", KIT / "fixtures/fail-site/site-quality.yml"]
     for p in valid:
@@ -161,11 +172,15 @@ def t_schema() -> None:
         check(not errs, f"valid   {p.relative_to(KIT)} {errs or ''}")
     for p in sorted((KIT / "fixtures/configs/invalid").glob("*.yml")):
         errs = validate(load(p))
-        check(bool(errs), f"invalid {p.relative_to(KIT)} ({len(errs)} error(s))")
+        # `# expect: <word>` on line 1 names what the error must mention.
+        m = re.match(r"#\s*expect:\s*(\S+)", p.read_text(encoding="utf-8"))
+        want = m.group(1).lower() if m else ""
+        check(bool(errs) and (not want or want in " ".join(errs).lower()),
+              f"invalid {p.relative_to(KIT)} ({len(errs)} error(s){', mentions ' + want if want else ''})")
 
 
 def t_template_lenient() -> None:
-    print("config template only reports (defaults never turn a caller red, #314)")
+    print("config template only reports (no finding gates as seeded, #314)")
     text = read("site-quality.template.yml")
     doc = yaml.safe_load(text)
     active = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))

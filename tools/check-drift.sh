@@ -395,12 +395,56 @@ for action, by_major in majors.items():
                     f"— fan-out would downgrade every repo it reaches")
 
 # 3. no committed lockfiles, no exact/ceiling pins in hub manifests.
-# ONE sanctioned exception (Platform Architect, site-quality kit): the runtime of
-# the reusable site-quality.yml workflow is pinned exactly with a committed
-# lockfile so every caller scans with the same lhci/axe-core/pa11y, and
-# Dependabot (npm, directory /.github/site-quality) moves it by PR. Nothing else
-# may join this set without the same sign-off (specs/QUALITY.md UPS-QA-40).
-LOCK_EXEMPT = {".github/site-quality/package-lock.json"}
+# The hub-only exception of UPS-QA-40/41 (the runtime of a hub reusable
+# workflow, pinned exactly with a committed lockfile and moved by Dependabot) is
+# declared once, in specs/QUALITY.contract.yml `sanctioned_lockfiles` /
+# `sanctioned_dependabot`, and read here; nothing in this script lists a path.
+# An entry outside `.github/`, under `templates/`, without its Dependabot entry,
+# or missing from the generated .gitignore block is itself a problem.
+import json
+try:
+    import yaml
+    qdefs = (yaml.safe_load(open(os.path.join(root, "specs/QUALITY.contract.yml"), encoding="utf-8")) or {}).get("definitions") or {}
+except (OSError, ImportError) as exc:
+    qdefs = {}
+    problems.append(f"specs/QUALITY.contract.yml: cannot read sanctioned_lockfiles ({exc})")
+sanctioned = qdefs.get("sanctioned_lockfiles") or []
+try:
+    dep_updates = (yaml.safe_load(open(os.path.join(root, ".github/dependabot.yml"), encoding="utf-8")) or {}).get("updates") or []
+except (OSError, NameError):
+    dep_updates = []
+dep_present = {(u.get("package-ecosystem"), str(u.get("directory", "")).rstrip("/")) for u in dep_updates if isinstance(u, dict)}
+dep_declared = {(e.get("package-ecosystem"), str(e.get("directory", "")).rstrip("/")) for e in qdefs.get("sanctioned_dependabot") or []}
+LOCK_EXEMPT = set()
+for e in sanctioned:
+    lock, mdir, man = e.get("lockfile", ""), e.get("dir", ""), e.get("manifest", "")
+    where = f"specs/QUALITY.contract.yml sanctioned_lockfiles `{lock}`"
+    if not lock.startswith(".github/") or not mdir.startswith(".github/") or "templates/" in lock + mdir:
+        problems.append(f"{where}: must live under .github/ and never under templates/")
+        continue
+    want = "/" + mdir.strip("/")
+    if not any(x[1] == want and x in dep_present for x in dep_declared):
+        problems.append(f"{where}: no sanctioned_dependabot entry for {want} present in .github/dependabot.yml")
+    if man and os.path.isfile(os.path.join(root, man)):
+        deps = json.load(open(os.path.join(root, man), encoding="utf-8"))
+        loose = [f"{k}@{v}" for sect in ("dependencies", "devDependencies") for k, v in (deps.get(sect) or {}).items()
+                 if not re.fullmatch(r"\d+\.\d+\.\d+", str(v))]
+        if loose:
+            problems.append(f"{man}: a sanctioned runtime pins exactly; loose: {', '.join(loose[:5])}")
+    LOCK_EXEMPT.add(lock)
+gi = open(os.path.join(root, ".gitignore"), encoding="utf-8").read().splitlines()
+try:
+    b = gi.index("# END sanctioned_lockfiles")
+    start = next(i for i, line in enumerate(gi) if line.startswith("# BEGIN sanctioned_lockfiles"))
+    block = {line[1:] for line in gi[start:b] if line.startswith("!")}
+    last_pattern = max((i for i, line in enumerate(gi) if line.strip() in LOCKS), default=-1)
+    if block != LOCK_EXEMPT:
+        problems.append(f".gitignore: the sanctioned_lockfiles block {sorted(block)} != specs/QUALITY.contract.yml {sorted(LOCK_EXEMPT)}")
+    if start < last_pattern:
+        problems.append(".gitignore: the sanctioned_lockfiles block must come after every lockfile pattern (a later pattern re-ignores it)")
+except (ValueError, StopIteration):
+    if LOCK_EXEMPT:
+        problems.append(".gitignore: no `# BEGIN/END sanctioned_lockfiles` block for the lockfiles in specs/QUALITY.contract.yml")
 for path in walk(".github", "templates", "tools", "_data", "pages"):
     if os.path.relpath(path, root) in LOCK_EXEMPT:
         continue

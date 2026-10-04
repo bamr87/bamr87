@@ -36,13 +36,14 @@ if (a.check) {
 const readJson = (p) => (p && existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null);
 const cfg = readJson(a.config);
 const theme = readJson(a.theme) || { kind: cfg.mode === 'url' ? 'live' : 'none' };
-// A collector that crashed left no raw file: report it as a load error (at the
-// caller's load_errors level) instead of silently treating the check as clean.
+// A collector that crashed left no raw file: report it (rule collector-crashed)
+// instead of silently treating the check as clean. It grades at load_errors,
+// or as an error whenever the caller's config gates that check (grade.mjs gated()).
 const crashed = (what) => `${what} produced no results (it crashed; see its step in the job log)`;
 let axeRaw = cfg.axe.enabled ? readJson(`${a.reports}/axe/axe-raw.json`) : null;
-if (cfg.axe.enabled && !axeRaw) axeRaw = { axe: '', tags: cfg.axe.tags, pages: [{ page: '*', viewport: '', error: crashed('axe') }] };
+if (cfg.axe.enabled && !axeRaw) axeRaw = { axe: '', tags: cfg.axe.tags, pages: [{ page: '*', viewport: '', crashed: true, error: crashed('axe') }] };
 let contrastRaw = cfg.contrast.enabled ? readJson(`${a.reports}/contrast/contrast-raw.json`) : null;
-if (cfg.contrast.enabled && !contrastRaw) contrastRaw = { pages: [{ path: '*', error: crashed('pa11y'), issues: [] }] };
+if (cfg.contrast.enabled && !contrastRaw) contrastRaw = { pages: [{ path: '*', crashed: true, error: crashed('pa11y'), issues: [] }] };
 
 let lighthouse = null;
 if (cfg.lighthouse.enabled) {

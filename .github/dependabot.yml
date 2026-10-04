@@ -47,8 +47,15 @@ updates:
   # no-lockfile policy, see tools/check-drift.sh (j)). Dependabot is what keeps
   # those pins moving: one grouped PR a week, and the site-quality self-test
   # (.github/workflows/site-quality-selftest.yml) runs both fixture sites on it.
-  # A bump that changes what callers see (a new axe rule that fails a green
-  # caller) needs a major workflow version under docs/WORKFLOW-VERSIONING.md.
+  # The entry and the lockfile are declared once in specs/QUALITY.contract.yml
+  # (`sanctioned_lockfiles` / `sanctioned_dependabot`); check-drift (j) and
+  # conformance UPS-QA-40 fail if they fall out of step.
+  # RELEASE POLICY: axe-core minor and major releases add or tighten rules, and
+  # a new rule can turn a green gated caller red. Dependabot therefore ignores
+  # those two update types for axe-core and @axe-core/playwright; a maintainer
+  # bumps them by hand, reads the self-test, and releases them deliberately
+  # (a minor of this workflow, or a major when a gated caller would fail, per
+  # docs/WORKFLOW-VERSIONING.md). Patch releases (rule fixes) still flow here.
   - package-ecosystem: "npm"
     directory: "/.github/site-quality"
     schedule:
@@ -63,3 +70,8 @@ updates:
       site-quality-runtime:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "axe-core"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "@axe-core/playwright"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]

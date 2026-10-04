@@ -25,6 +25,14 @@
 #      --frozen-lockfile/--immutable dropped, lockfile-keyed `cache:` lines
 #      removed, and `uses: owner/action@vX.Y.Z` floated to `@vX`.
 #
+# THE ONE EXCEPTION (UPS-QA-40/41, hub only): when the target is the hub itself
+#   (it carries specs/QUALITY.contract.yml), every `sanctioned_lockfiles` entry
+#   there (the runtime of a hub reusable workflow: dir, lockfile, manifest,
+#   workflow) is left alone: its lockfile is not removed, its manifest's exact
+#   pins stay, its workflow keeps `npm ci` and its lockfile cache, and the
+#   .gitignore block re-allows the lockfile. A member repo has no such contract,
+#   so nothing is exempt there.
+#
 # WHAT IT LEAVES (reported as follow-ups, for a human or the doctor agent):
 #   pyproject.toml/poetry/Pipfile dependency tables (no safe stdlib TOML
 #   writer), hash-pinned requirements files, npm overrides/resolutions,
@@ -43,10 +51,33 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 LOCKS=(package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock
        Gemfile.lock poetry.lock Pipfile.lock uv.lock composer.lock)
 
+# --- 0. the hub-only sanctioned runtimes (specs/QUALITY.contract.yml) ------
+# One path per line: "<kind>\t<path>" with kind dir|lockfile|manifest|workflow.
+SANCTIONED="$(python3 - <<'PY'
+import os
+p = "specs/QUALITY.contract.yml"
+if os.path.isfile(p):
+    import yaml
+    qdefs = (yaml.safe_load(open(p, encoding="utf-8")) or {}).get("definitions") or {}
+    for e in qdefs.get("sanctioned_lockfiles") or []:
+        for kind in ("dir", "lockfile", "manifest", "workflow"):
+            v = str(e.get(kind) or "")
+            # Only hub reusable-workflow runtimes under .github/ ever qualify.
+            if v.startswith(".github/") and "templates/" not in v:
+                print(f"{kind}\t{v}")
+PY
+)"
+sanctioned() { printf '%s\n' "$SANCTIONED" | awk -F'\t' -v k="$1" '$1 == k { print $2 }'; }
+export SANCTIONED
+
 # --- 1. drop committed lockfiles (any depth) --------------------------------
 spec=()
 for l in "${LOCKS[@]}"; do spec+=("$l" "*/$l"); done
 while IFS= read -r -d '' f; do
+  if sanctioned lockfile | grep -xF -- "$f" >/dev/null; then
+    echo "kept sanctioned lockfile: $f (specs/QUALITY.contract.yml)"
+    continue
+  fi
   git rm -q -f -- "$f"
   echo "removed lockfile: $f"
 done < <(git ls-files -z -- "${spec[@]}")
@@ -55,17 +86,31 @@ done < <(git ls-files -z -- "${spec[@]}")
 MARK="# --- always-latest dependency policy: lockfiles are local ephemera (bamr87/bamr87 docs/DEPENDENCIES.md) ---"
 if ! grep -qFx "$MARK" .gitignore 2>/dev/null; then
   if [ -f .gitignore ] && [ -n "$(tail -c1 .gitignore)" ]; then echo >> .gitignore; fi
-  { echo "$MARK"; printf '%s\n' "${LOCKS[@]}"; } >> .gitignore
+  { echo "$MARK"; printf '%s\n' "${LOCKS[@]}"
+    # Re-allow the sanctioned lockfiles AFTER the patterns (last match wins).
+    sanctioned lockfile | sed 's/^/!/'; } >> .gitignore
   echo "updated: .gitignore (lockfiles ignored)"
 fi
 
 # --- 3-6. manifest + workflow rewrites (python3 for reliable parsing) -------
 python3 - <<'PY'
-import json, re, subprocess, sys
+import json, os, re, subprocess, sys
 
 tracked = subprocess.run(["git", "ls-files", "-z"], capture_output=True,
                          check=True).stdout.decode().split("\0")
 tracked = [t for t in tracked if t]
+
+# The hub-only sanctioned runtimes (step 0): their manifests keep exact pins and
+# their workflows keep `npm ci` and the lockfile cache.
+SANCTIONED = {}
+for line in os.environ.get("SANCTIONED", "").splitlines():
+    kind, _, path = line.partition("\t")
+    if path:
+        SANCTIONED.setdefault(kind, set()).add(path)
+for kind in ("manifest", "workflow"):
+    for path in sorted(SANCTIONED.get(kind, ())):
+        print(f"kept sanctioned {kind}: {path} (specs/QUALITY.contract.yml)")
+tracked = [t for t in tracked if t not in SANCTIONED.get("manifest", set()) | SANCTIONED.get("workflow", set())]
 
 def read(p):
     with open(p, encoding="utf-8") as fh:

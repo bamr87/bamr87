@@ -21,7 +21,8 @@ name: site-quality
 # .github/site-quality.yml), validated against
 # templates/site-quality/site-quality.schema.json before anything runs. The
 # defaults here only REPORT: with no budgets, no axe.fail_on and no contrast
-# `max`, the job publishes the reports and stays green. Making a default
+# `max`, no finding fails the job (an invalid config, a failed build or a
+# scan that cannot run still does). Making a default
 # stricter would turn green callers red, which docs/WORKFLOW-VERSIONING.md
 # (#314) allows only in a new major version.
 #
@@ -63,6 +64,10 @@ on:
         description: "build mode: custom build command run from the source dir (overrides site.build_command)"
         type: string
         default: ""
+      build-command-token:
+        description: "build mode: also pass JEKYLL_GITHUB_TOKEN (this job's read-only github.token) to a custom build-command. The default jekyll build always gets it; a custom command gets no token unless the caller opts in here"
+        type: boolean
+        default: false
       theme-cache:
         description: "build mode: cache the theme checkout given to a custom build-command (SITE_QUALITY_THEME_DIR), keyed to the theme's resolved commit SHA"
         type: boolean
@@ -88,6 +93,7 @@ on:
         type: string
         default: ""
       node-version:
+        description: "Node for the runtime (empty = 22, the version the pinned runtime is tested on; the caller's NODE_VERSION variable is not read, so a fleet-wide toolchain pin cannot move the scanner)"
         type: string
         default: ""
       ruby-version:
@@ -117,7 +123,7 @@ permissions:
   contents: read
 
 env:
-  NODE_V: ${{ inputs.node-version || vars.NODE_VERSION || '20' }}
+  NODE_V: ${{ inputs.node-version || '22' }}
   RUBY_V: ${{ inputs.ruby-version || vars.RUBY_VERSION || '3.3' }}
   HUB_DIR: .site-quality-hub
 
@@ -281,12 +287,15 @@ jobs:
           THEME_CACHE: ${{ steps.theme-cache.outputs.cache-hit == 'true' && 'restored from the cache keyed to this SHA' || 'fresh checkout at this SHA' }}
           JEKYLL_ENV: production
           PAGES_REPO_NWO: ${{ github.repository }}
-          JEKYLL_GITHUB_TOKEN: ${{ github.token }}
+          # The default build always gets the token (remote_theme / github-metadata);
+          # a custom build-command only when the caller sets build-command-token.
+          JEKYLL_GITHUB_TOKEN: ${{ (steps.cfg.outputs.build_command == '' || inputs.build-command-token) && github.token || '' }}
         run: |
           set -euo pipefail
           cd "$SOURCE"
           status=0
           if [ -n "$BUILD_COMMAND" ]; then
+            if [ -z "$JEKYLL_GITHUB_TOKEN" ]; then unset JEKYLL_GITHUB_TOKEN; fi
             bash -c "$BUILD_COMMAND" || status=$?
           else
             bundle exec jekyll build --config "_config.yml,$SITE_QUALITY_OVERRIDE_CONFIG" -d "$SITE_DIR" || status=$?

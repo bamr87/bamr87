@@ -10,14 +10,15 @@
 #
 # EVERY threshold lives here. The hub's defaults only REPORT: with this file as
 # seeded, the job publishes Lighthouse scores, axe findings and contrast counts
-# and stays green. Tighten one gate at a time, after the report shows the site
+# and no finding fails it (an invalid config, a failed build or a scan that
+# cannot run still fails the job). Tighten one gate at a time, after the report shows the site
 # passes it (see the commented examples), so a gate never starts out red.
 #
 # Levels: `warn` reports (annotation + summary row); `error` fails the job.
 # Dates are QUOTED "YYYY-MM-DD" strings, as in .github/sdlc.yml: an unquoted
 # YAML date is rejected.
 # =============================================================================
-version: 1
+schema: site-quality/v1
 
 site:
   # Jekyll source directory, relative to the repo root.
@@ -76,8 +77,11 @@ contrast:
 
 # Known issues. Each entry needs `rule`, `selector` and/or `page`, a `reason`,
 # an `issue` link tracking the fix, and an `until` date. A matching finding is
-# reported as an allowlisted known issue instead of failing. Past `until`, the
-# entry is reported at `on_expired` (warn during rollout; error later).
+# reported as an allowlisted known issue instead of failing. `selector` is a
+# CSS selector matched in the browser against the failing node and its
+# ancestors (never a text match); `page` is a path, "*", or a prefix such as
+# /blog/*, and "*" or a prefix needs a selector. Past `until`, the entry is
+# reported at `on_expired` (warn during rollout; error later).
 allowlist:
   on_expired: warn
   entries: []

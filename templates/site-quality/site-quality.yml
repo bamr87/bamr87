@@ -14,9 +14,10 @@ name: Site quality
 #   Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast.
 #   Reports are uploaded as the `site-quality-report` artifact.
 #
-# The job fails only for what .github/site-quality.yml marks as `error` (or
-# `axe.fail_on`, or a contrast `max`). With the template config nothing is an
-# error yet, so adopting this workflow cannot turn CI red.
+# Findings fail the job only where .github/site-quality.yml marks them `error`
+# (or `axe.fail_on`, or a contrast `max`); the template config marks none, so
+# no finding fails it as seeded. The job still fails when the config is missing
+# or invalid, the site does not build, or the scan cannot run.
 #
 # Pinned @v1 (major tag; additive releases move it). Never pin a custom tag.
 # (__DEFAULT_BRANCH__ is substituted on adoption.)

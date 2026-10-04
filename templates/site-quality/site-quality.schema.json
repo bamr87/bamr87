@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/bamr87/bamr87/blob/main/templates/site-quality/site-quality.schema.json",
-  "title": "site-quality config v1 (.github/site-quality.yml)",
-  "description": "Caller config for the hub's reusable site-quality.yml workflow (Lighthouse CI, axe-core, pa11y contrast). Every threshold lives here: the workflow's own defaults only report and never fail. `version` and quoted dates follow .github/sdlc.yml. Unknown keys are rejected so typos fail loudly.",
+  "title": "site-quality/v1: the caller config of the reusable site-quality workflow (.github/site-quality.yml)",
+  "description": "Caller config for the hub's reusable site-quality.yml workflow (Lighthouse CI, axe-core, pa11y contrast). Every threshold lives here: the workflow's own defaults only report: no finding fails a run unless this file says so. The `schema` const and quoted dates follow .github/sdlc.yml (`schema: sdlc/v1`). Unknown keys are rejected so typos fail loudly.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "pages"],
+  "required": ["schema", "pages"],
   "properties": {
-    "version": {
-      "const": 1,
-      "description": "Config format version. Only 1 exists."
+    "schema": {
+      "const": "site-quality/v1",
+      "description": "Config format id, required, like `schema: sdlc/v1` in .github/sdlc.yml. Only site-quality/v1 exists."
     },
     "site": {
       "type": "object",
@@ -235,17 +235,24 @@
       "additionalProperties": false,
       "required": ["rule", "reason", "issue", "until"],
       "anyOf": [{ "required": ["selector"] }, { "required": ["page"] }],
+      "allOf": [
+        {
+          "if": { "required": ["page"], "properties": { "page": { "pattern": "\\*$" } } },
+          "then": { "required": ["selector"] },
+          "description": "A page of `*` or a prefix ending in `*` covers many pages, so it must name the nodes it covers with `selector`."
+        }
+      ],
       "properties": {
         "rule": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9:.-]*$",
-          "description": "An axe rule id (button-name), a Lighthouse assertion id (unsized-images, categories:performance, resource-summary:total:size), `contrast` (pa11y), or `page-load`."
+          "description": "An axe rule id (button-name), a Lighthouse assertion id (unsized-images, categories:performance, resource-summary:total:size), `contrast` (pa11y), or `page-load` (a page that did not load). A crashed collector (`collector-crashed`) is never covered by an entry."
         },
-        "selector": { "type": "string", "minLength": 1, "description": "Substring of the node's CSS selector path or HTML (axe, contrast)." },
+        "selector": { "type": "string", "minLength": 1, "description": "A CSS selector, matched in the browser: the entry covers an axe or contrast node that matches it or sits inside an element that matches it (element.matches / closest). Never a text or HTML substring. Lighthouse findings have no nodes, so a Lighthouse entry uses an exact `page` and no selector." },
         "page": {
           "type": "string",
           "pattern": "^(\\*|/.*)$",
-          "description": "A path, `*` for every page, or a prefix ending in `*` (e.g. /posts/*)."
+          "description": "A path, `*` for every page, or a prefix ending in `*` (e.g. /posts/*). `*` and a prefix require `selector`."
         },
         "viewport": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Limit an axe entry to one viewport name." },
         "reason": { "type": "string", "minLength": 10 },

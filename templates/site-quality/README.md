@@ -28,14 +28,14 @@ Jekyll repos only (a root `_config.yml`). Additive-only: an existing `.github/si
 | Site | `remote_theme` resolved to a commit SHA (`git ls-remote`), the build pinned to it (`remote_theme: owner/repo@<sha>`), `_site` served on 127.0.0.1:4000. No theme cache unless `theme-cache: true`, and then keyed to the SHA with no restore-keys. | the live base URL (`base-url` input or `site.base_url`) |
 | Scans | `lhci collect` (+ `assert` when the config has budgets), axe-core per page per viewport, pa11y contrast | same |
 | Report | `report.json` (`site-quality-report/v1`) + `summary.md` + Lighthouse HTML/JSON + raw axe/pa11y results in the artifact (`site-quality-report` by default); the job summary carries the same tables and the resolved theme ref | same |
-| Gate | fails only for findings the config marks `error` (`gate: false` reports only) | same |
+| Gate | fails for findings the config marks `error`, and for a collector that crashed while its check is gated (`gate: false` reports only). An invalid config or a failed build fails the job regardless. | same |
 
-The runtime (`.github/site-quality/`) is pinned exactly (`@lhci/cli`, `axe-core`, `@axe-core/playwright`, `pa11y`, `playwright`, `ajv`, `yaml`) with a committed `package-lock.json`, and Dependabot moves it. The runner always comes from the same hub commit as the workflow the caller pinned.
+The runtime (`.github/site-quality/`) is pinned exactly (`@lhci/cli`, `axe-core`, `@axe-core/playwright`, `pa11y`, `playwright`, `ajv`, `yaml`) with a committed `package-lock.json`, and Dependabot moves it, except axe-core and @axe-core/playwright minor/major bumps, which add rules and are reviewed and released by hand. The runner always comes from the same hub commit as the workflow the caller pinned.
 
 ## Config in one screen
 
 ```yaml
-version: 1                      # required; quoted dates, like .github/sdlc.yml
+schema: site-quality/v1         # required const; quoted dates, like .github/sdlc.yml
 pages: [/, /about/]
 lighthouse:
   categories: { accessibility: { min: 0.9, level: error } }
@@ -48,12 +48,14 @@ allowlist:
   on_expired: warn              # error once the rollout ends
   entries:
     - rule: color-contrast      # axe rule id, `contrast`, or a Lighthouse id like categories:performance
-      selector: ".site-footer .muted"   # selector and/or page (page may end in *)
+      selector: ".site-footer .muted"   # a CSS selector, matched in the browser (the node or an ancestor)
       page: /
       reason: Footer palette is replaced in the theme refresh.
       issue: https://github.com/OWNER/REPO/issues/123
       until: "2026-12-31"
 ```
+
+Allowlist matching: `rule` must equal the finding's rule; `page` is an exact path, `*`, or a prefix ending in `*`, and `*` or a prefix requires a `selector`; `selector` is a CSS selector matched in the browser against the failing node and its ancestors (`element.matches` / `closest`), never a text or HTML substring. Lighthouse findings have no nodes, so a Lighthouse entry uses an exact `page`. A crashed collector (`collector-crashed`) cannot be allowlisted.
 
 Levels are `warn` (reported) and `error` (fails the job). An allowlisted finding is reported as a known issue and never fails. An entry past `until` is reported at `allowlist.on_expired` (the `expired-allowlist-level` input overrides it fleet-wide). An entry that matched nothing is listed for deletion.
 

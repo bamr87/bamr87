@@ -50,7 +50,7 @@ for (const e of expired) {
 }
 
 writeFileSync(a.out, JSON.stringify(cfg, null, 2));
-console.log(`config OK: ${a.config} (version ${cfg.version}, mode ${cfg.mode}, ${cfg.pages.length} page(s), ${cfg.allowlist.entries.length} allowlist entr${cfg.allowlist.entries.length === 1 ? 'y' : 'ies'}, ${expired.length} expired)`);
+console.log(`config OK: ${a.config} (${cfg.schema}, mode ${cfg.mode}, ${cfg.pages.length} page(s), ${cfg.allowlist.entries.length} allowlist entr${cfg.allowlist.entries.length === 1 ? 'y' : 'ies'}, ${expired.length} expired)`);
 
 if (process.env.GITHUB_OUTPUT) {
   const eof = `EOF_${Math.random().toString(36).slice(2)}`;

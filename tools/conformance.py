@@ -42,11 +42,11 @@ HUB_DEFAULT = Path(__file__).resolve().parent.parent
 KINDS = ("site", "app", "api", "lib", "cli", "ext", "content", "fork")
 LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock",
              "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock")
-# The hub's ONE sanctioned lockfile (Platform Architect, site-quality kit): the
-# reusable site-quality.yml runtime is pinned exactly so every caller scans with
-# the same lhci/axe-core/pa11y; Dependabot (npm, /.github/site-quality) moves it.
-# Exempt only when the hub checks itself; tools/check-drift.sh (j) mirrors this.
-HUB_LOCK_EXEMPT = frozenset({".github/site-quality/package-lock.json"})
+# The hub-only lockfile exception of UPS-QA-40/41 is declared once, in the hub's
+# specs/QUALITY.contract.yml (`sanctioned_lockfiles`, `sanctioned_dependabot`),
+# and read by sanctioned_runtimes() below; tools/check-drift.sh (j) and
+# tools/unpin-deps.sh read the same keys. Nothing here lists a path.
+QUALITY_CONTRACT_FILE = "specs/QUALITY.contract.yml"
 TEXT_EXT = {".md", ".html", ".tsx", ".jsx", ".ts", ".js", ".py", ".rb", ".erb", ".liquid", ".yml", ".yaml",
             ".json", ".css", ".scss", ".toml", ".cfg", ".txt", ".sh"}
 SKIP_DIRS = {".git", "node_modules", "_site", "site", "dist", "build", ".venv", "venv", "vendor", "__pycache__",
@@ -437,10 +437,47 @@ def _release(r, k):
     return _ok() if r.has("release-please-config.json", ".release-please-manifest.json") else _no("no release-please config")
 
 
+def sanctioned_runtimes(r) -> tuple[dict[str, str], str]:
+    """The UPS-QA-40 exception, for the hub checking ITSELF only: {lockfile path:
+    dependabot directory} for every `sanctioned_lockfiles` entry of the hub's
+    specs/QUALITY.contract.yml whose `sanctioned_dependabot` entry exists and is
+    present in .github/dependabot.yml, plus a problem string naming any entry that
+    lacks one. Member repos get ({}, "") whatever they contain. (Read into
+    `qdefs`, a separate name from the WORK contract's `d`/`defs`, so the WORK
+    key guard of #328 never sees these keys.)"""
+    if r.path != r.hub:
+        return {}, ""
+    try:
+        qdefs = (yaml.safe_load((r.hub / QUALITY_CONTRACT_FILE).read_text(encoding="utf-8")) or {}).get("definitions") or {}
+    except (OSError, yaml.YAMLError, AttributeError):
+        return {}, ""
+    try:
+        dep = yaml.safe_load(r.read(".github/dependabot.yml")) or {}
+    except yaml.YAMLError:
+        dep = {}
+    present = {(u.get("package-ecosystem"), str(u.get("directory", "")).rstrip("/"))
+               for u in (dep.get("updates") or []) if isinstance(u, dict)}
+    declared = {(e.get("package-ecosystem"), str(e.get("directory", "")).rstrip("/"))
+                for e in qdefs.get("sanctioned_dependabot") or [] if isinstance(e, dict)}
+    ok, missing = {}, []
+    for e in qdefs.get("sanctioned_lockfiles") or []:
+        if not isinstance(e, dict) or not e.get("lockfile") or not e.get("dir"):
+            continue
+        want = "/" + str(e["dir"]).strip("/")
+        hit = [x for x in declared if x[1] == want and x in present]
+        if hit:
+            ok[str(e["lockfile"])] = want
+        else:
+            missing.append(f"{e['lockfile']} (no sanctioned Dependabot entry for {want} in .github/dependabot.yml)")
+    return ok, "; ".join(missing)
+
+
 @check("UPS-QA-40")
 def _always_latest(r, k):
-    exempt = HUB_LOCK_EXEMPT if r.path == r.hub else frozenset()
+    exempt, missing = sanctioned_runtimes(r)
     bad = [t for t in r.tracked() if Path(t).name in LOCKFILES and t not in exempt]
+    if missing:
+        return _no("sanctioned lockfile without its Dependabot entry: " + missing)
     if bad:
         return _no("committed lockfile: " + ", ".join(sorted({Path(b).name for b in bad})[:3]))
     pinned = None

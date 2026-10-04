@@ -710,7 +710,8 @@ requirements:
     section: "Site quality"
     level: SHOULD
     applies: [site]
-    requirement: "A Jekyll site (root `_config.yml`) carries a workflow calling `bamr87/bamr87/.github/workflows/site-quality.yml` with a ref that satisfies the UPS-WORK-10 rule (`@vN`, `@vX.Y.Z` or a full SHA; the kit pins `@v1`; never a branch or a custom tag such as `site-quality-v1`), in `mode: build`, so the site is scanned as built against a fresh theme resolved to a commit SHA."
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
+    requirement: "The site carries a workflow calling `bamr87/bamr87/.github/workflows/site-quality.yml` with a ref that satisfies the UPS-WORK-10 rule (`@vN`, `@vX.Y.Z` or a full SHA; the kit pins `@v1`; never a branch or a custom tag such as `site-quality-v1`), in `mode: build`, so the site is scanned as built against a fresh theme resolved to a commit SHA."
     satisfied_by: "caller present + pinned"
     seed: "`templates/site-quality/` (`tools/fanout.sh --kit site-quality`)"
     gap: false
@@ -719,7 +720,8 @@ requirements:
     section: "Site quality"
     level: SHOULD
     applies: [site]
-    requirement: "Its config (`.github/site-quality.yml`, or the caller's `config:` input) validates against `templates/site-quality/site-quality.schema.json`: `version: 1`, dates quoted, and every allowlist entry carries `rule`, `selector` and/or `page`, `reason`, `issue` (a link) and `until: \"YYYY-MM-DD\"`. Every threshold lives in this file; the workflow's defaults only report."
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
+    requirement: "Its config (`.github/site-quality.yml`, or the caller's `config:` input) validates against `templates/site-quality/site-quality.schema.json`: `schema: site-quality/v1` (a required const, like `schema: sdlc/v1`), dates quoted, and every allowlist entry carries `rule`, `selector` and/or `page`, `reason`, `issue` (a link) and `until: \"YYYY-MM-DD\"`; a `page` of `*` or a prefix ending in `*` also needs a `selector` (a CSS selector, matched in the browser). Every threshold lives in this file; the workflow's defaults only report."
     satisfied_by: "schema-valid config"
     seed: "`site-quality.template.yml`"
     gap: false
@@ -728,6 +730,7 @@ requirements:
     section: "Site quality"
     level: SHOULD
     applies: [site]
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
     requirement: "No allowlist entry is past its `until` date. During rollout the workflow reports an expired entry as a warning (`allowlist.on_expired: warn`); the level moves to `error` through the config or the `expired-allowlist-level` input, not through this row."
     satisfied_by: "no expired entries"
     seed: "renew the entry with a reason, or fix the linked issue and delete it"
@@ -737,6 +740,7 @@ requirements:
     section: "Site quality"
     level: SHOULD
     applies: [site]
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
     requirement: "Every run uploads its reports as an artifact (`report.json` in `site-quality-report/v1`, Lighthouse HTML/JSON, raw axe and pa11y results) and writes the job summary, including the resolved theme ref. Nothing disables the upload."
     satisfied_by: "the reusable workflow's upload step"
     seed: "`site-quality.yml` (reusable)"
@@ -838,7 +842,7 @@ requirements:
     section: "Dependencies"
     level: MUST
     applies: [all]
-    requirement: "Always-latest: no exact pins, no ceilings, no committed lockfiles; floors (`>=`) are fine. Exceptions: GitHub Actions and reusable workflows referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (optionally with a `# vX.Y.Z` comment), never a branch such as `@main`, with local `./` paths exempt (the same ref rule as UPS-WORK-10); pre-commit `rev:`; fleet toolchain versions."
+    requirement: "Always-latest: no exact pins, no ceilings, no committed lockfiles; floors (`>=`) are fine. Exceptions: GitHub Actions and reusable workflows referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (optionally with a `# vX.Y.Z` comment), never a branch such as `@main`, with local `./` paths exempt (the same ref rule as UPS-WORK-10); pre-commit `rev:`; fleet toolchain versions; and, in the hub only, the runtime of a hub reusable workflow kept under `.github/` (today `.github/site-quality/`, the runtime of `site-quality.yml`), which pins exactly in its `package.json` and commits its lockfile so every caller runs the same tools. Those paths are declared once in `QUALITY.contract.yml` `sanctioned_lockfiles`; a path under `templates/` never qualifies, fan-out never copies one into a member repo, and no member repo can claim the exception."
     satisfied_by: "drift checks (j)/(k)"
     seed: "`tools/unpin-deps.sh`, `deps-fanout.yml`"
     gap: false
@@ -847,7 +851,7 @@ requirements:
     section: "Dependencies"
     level: MUST
     applies: [all]
-    requirement: "Dependabot for `github-actions` weekly, grouped, `ci` prefix; no package-ecosystem entries (always-latest makes them redundant)."
+    requirement: "Dependabot for `github-actions` weekly, grouped, `ci` prefix; no package-ecosystem entries (always-latest makes them redundant), except, in the hub only, the entry that moves each sanctioned runtime's exact pins (`QUALITY.contract.yml` `sanctioned_dependabot`)."
     satisfied_by: "`.github/dependabot.yml`"
     seed: "`templates/community/.github/dependabot.yml`"
     gap: false

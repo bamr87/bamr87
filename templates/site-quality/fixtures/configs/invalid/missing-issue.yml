@@ -1,6 +1,6 @@
 # expect: issue
-version: 1
+schema: site-quality/v1
 pages: [/]
 allowlist:
   entries:
-    - { rule: region, page: /, reason: r, until: "2026-12-31" }
+    - { rule: region, page: /, reason: "a long enough reason", until: "2026-12-31" }

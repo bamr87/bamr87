@@ -74,12 +74,15 @@ test('expiredEntries compares quoted dates', () => {
 test('entryMatches: rule, page, wildcard, viewport, selector', () => {
   const f = { rule: 'link-name', page: '/blog/post/', viewport: 'mobile-390', nodes: ['a <a class="x">'], matched: ['a.icon-only'] };
   assert.ok(entryMatches({ rule: 'link-name', page: '/blog/post/' }, f));
-  assert.ok(entryMatches({ rule: 'link-name', page: '/blog/*' }, f));
-  assert.ok(entryMatches({ rule: 'link-name', page: '*' }, f));
+  assert.ok(entryMatches({ rule: 'link-name', page: '/blog/*', selector: 'a.icon-only' }, f));
+  assert.ok(entryMatches({ rule: 'link-name', page: '*', selector: 'a.icon-only' }, f));
+  assert.ok(!entryMatches({ rule: 'link-name', page: '/blog/*' }, f), 'a prefix page without a selector covers nothing');
+  assert.ok(!entryMatches({ rule: 'link-name', page: '*' }, f), 'a `*` page without a selector covers nothing');
   assert.ok(!entryMatches({ rule: 'label', page: '/blog/post/' }, f));
   assert.ok(!entryMatches({ rule: 'link-name', page: '/' }, f));
   assert.ok(!entryMatches({ rule: 'link-name', page: '/blog/post/', viewport: 'desktop-1366' }, f));
   assert.ok(entryMatches({ rule: 'link-name', selector: 'a.icon-only' }, f), 'browser-side match');
-  assert.ok(entryMatches({ rule: 'link-name', selector: 'class="x"' }, f), 'substring match');
+  assert.ok(!entryMatches({ rule: 'link-name', selector: 'class="x"' }, f), 'no HTML substring fallback');
+  assert.ok(!entryMatches({ rule: 'link-name', selector: 'a' }, { ...f, matched: [] }), 'unmatched in the browser = not covered');
   assert.ok(!entryMatches({ rule: 'link-name', selector: '.nope' }, f));
 });

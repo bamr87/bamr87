@@ -1,5 +1,5 @@
 # expect: reason
-version: 1
+schema: site-quality/v1
 pages: [/]
 allowlist:
   entries:

@@ -1,5 +1,5 @@
 # Every key the schema knows, at least once.
-version: 1
+schema: site-quality/v1
 site:
   source: docs
   build_command: "bash scripts/ci/build.sh"
@@ -60,12 +60,18 @@ allowlist:
       issue: https://github.com/bamr87/zer0-mistakes/issues/1
       until: "2026-12-31"
     - rule: categories:performance
-      page: /blog/*
+      page: /blog/
       reason: Blog index loads every card image; pagination is tracked.
       issue: https://github.com/bamr87/bamr87/issues/314
       until: "2027-03-31"
     - rule: link-name
       selector: a.icon-only
       reason: Selector-only entry (applies on every page).
+      issue: https://github.com/bamr87/bamr87/issues/314
+      until: "2027-01-15"
+    - rule: color-contrast
+      selector: ".post-card .meta"
+      page: /blog/*
+      reason: A prefix needs a selector; this covers the card meta line on every post page.
       issue: https://github.com/bamr87/bamr87/issues/314
       until: "2027-01-15"

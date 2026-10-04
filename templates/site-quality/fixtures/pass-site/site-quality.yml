@@ -2,7 +2,7 @@
 # Strict on purpose: every gate is at `error`, and the site passes them all.
 # The one allowlist entry has expired: during rollout that is a WARNING, so the
 # expected outcome is status `warn` with a green job.
-version: 1
+schema: site-quality/v1
 
 site:
   source: templates/site-quality/fixtures/pass-site

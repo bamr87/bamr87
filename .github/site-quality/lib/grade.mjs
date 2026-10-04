@@ -5,7 +5,8 @@
 // config. Every finding gets a level:
 //   error  the caller's config made it gating (axe.fail_on, a contrast `max`,
 //          a Lighthouse budget at level error, load_errors: error,
-//          allowlist.on_expired: error)
+//          allowlist.on_expired: error), or a collector crashed while
+//          its check is gated (collector-crashed, never allowlisted)
 //   warn   reported, never gating (the default for everything)
 //   info   moderate/minor axe notes outside fail_on
 // An allowlist entry that matches turns an error or warn into `allowed`
@@ -26,12 +27,36 @@ const pathOf = (url, base) => {
 /** Normalise an LHCI assertion result into the allowlist's rule id. */
 export const lhRule = (r) => r.auditProperty ? `${r.auditId}:${String(r.auditProperty).replace(/\./g, ':')}` : r.auditId;
 
+/**
+ * Does the caller's config make `check` gating anywhere? A collector that
+ * crashed while its check is gated grades as an error (not load_errors), so a
+ * dead axe/pa11y/LHCI can never let a gated caller go green.
+ */
+export function gated(cfg, check) {
+  if (check === 'axe') return !!cfg.axe.fail_on;
+  if (check === 'contrast') return cfg.contrast.pages.some((p) => typeof p.max === 'number');
+  if (check === 'lighthouse') {
+    const lh = cfg.lighthouse;
+    const levels = (b) => [
+      ...Object.values(b.categories || {}).map((x) => x?.level),
+      ...Object.values(b.metrics || {}).map((x) => x?.level),
+      ...Object.values(b.sizes || {}).map((x) => x?.level),
+      ...Object.values(b.audits || {}),
+    ];
+    return [lh, ...(lh.overrides || [])].some((b) => levels(b).includes('error'));
+  }
+  return false;
+}
+
 export function grade({ cfg, theme = { kind: 'none' }, axeRaw = null, contrastRaw = null, lighthouse = null, meta = {}, asOf }) {
   const entries = cfg.allowlist.entries;
   const used = new Set();
+  // A page that failed to load grades at load_errors; a collector that crashed
+  // (no results at all) is an error whenever its check is gated.
+  const crashLevel = (check, p) => (p.crashed && gated(cfg, check) ? 'error' : cfg.load_errors);
   const findings = [];
   const add = (f) => {
-    if (f.level === 'error' || f.level === 'warn') {
+    if ((f.level === 'error' || f.level === 'warn') && f.rule !== 'collector-crashed') {
       const hit = entries.find((e) => entryMatches(e, f));
       if (hit) { used.add(hit.index); f.allowed = { index: hit.index, issue: hit.issue, until: hit.until, reason: hit.reason, was: f.level }; f.level = 'allowed'; }
     }
@@ -43,7 +68,7 @@ export function grade({ cfg, theme = { kind: 'none' }, axeRaw = null, contrastRa
   if (axeRaw) {
     const fo = cfg.axe.fail_on;
     for (const p of axeRaw.pages) {
-      if (p.error) { add({ check: 'axe', rule: 'page-load', page: p.page, viewport: p.viewport, level: cfg.load_errors, message: p.error }); continue; }
+      if (p.error) { add({ check: 'axe', rule: p.crashed ? 'collector-crashed' : 'page-load', page: p.page, viewport: p.viewport, level: crashLevel('axe', p), message: p.error }); continue; }
       for (const v of p.violations) {
         const gating = fo && v.tags.some((t) => fo.tags.includes(t)) && fo.impacts.includes(v.impact);
         const level = gating ? 'error' : ['critical', 'serious'].includes(v.impact) ? 'warn' : 'info';
@@ -59,10 +84,10 @@ export function grade({ cfg, theme = { kind: 'none' }, axeRaw = null, contrastRa
   const contrastRows = [];
   if (contrastRaw) {
     for (const p of contrastRaw.pages) {
-      if (p.error) { add({ check: 'contrast', rule: 'page-load', page: p.path, level: cfg.load_errors, message: p.error }); contrastRows.push({ path: p.path, error: p.error, max: p.max }); continue; }
+      if (p.error) { add({ check: 'contrast', rule: p.crashed ? 'collector-crashed' : 'page-load', page: p.path, level: crashLevel('contrast', p), message: p.error }); contrastRows.push({ path: p.path, error: p.error, max: p.max }); continue; }
       const counted = [];
       for (const i of p.issues) {
-        const hit = entries.find((e) => entryMatches(e, { rule: 'contrast', page: p.path, nodes: [`${i.selector} ${i.context}`] }));
+        const hit = entries.find((e) => entryMatches(e, { rule: 'contrast', page: p.path, matched: i.matched || [] }));
         if (hit) { used.add(hit.index); findings.push({ check: 'contrast', rule: 'contrast', page: p.path, level: 'allowed', message: `contrast ${i.shape}`, target: i.selector,
           allowed: { index: hit.index, issue: hit.issue, until: hit.until, reason: hit.reason, was: typeof p.max === 'number' ? 'error' : 'warn' } }); }
         else counted.push(i);
@@ -79,7 +104,7 @@ export function grade({ cfg, theme = { kind: 'none' }, axeRaw = null, contrastRa
 
   // ---- Lighthouse: failed assertions at the level the caller set.
   if (lighthouse) {
-    if (!lighthouse.collected) add({ check: 'lighthouse', rule: 'page-load', page: '*', level: cfg.load_errors, message: 'Lighthouse collection failed (see the job log)' });
+    if (!lighthouse.collected) add({ check: 'lighthouse', rule: 'collector-crashed', page: '*', level: crashLevel('lighthouse', { crashed: true }), message: 'Lighthouse collection failed (see the job log)' });
     for (const r of lighthouse.assertions || []) {
       if (r.passed) continue;
       add({ check: 'lighthouse', rule: lhRule(r), page: pathOf(r.url, meta.base || ''), level: r.level === 'error' ? 'error' : 'warn',

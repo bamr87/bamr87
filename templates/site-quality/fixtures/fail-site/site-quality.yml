@@ -1,7 +1,9 @@
 # Self-test config for fixtures/fail-site. Gates at `error`; the page breaks
-# them, so the expected outcome is status `fail`. The live allowlist entry turns
-# exactly one node into a known issue; the expired entry only warns.
-version: 1
+# them, so the expected outcome is status `fail`. The live link-name entry turns
+# exactly one axe node into a known issue, the contrast entry exactly one pa11y
+# node (by an ancestor selector, matched in the browser); the expired entry only
+# warns.
+schema: site-quality/v1
 
 site:
   source: templates/site-quality/fixtures/fail-site
@@ -41,3 +43,9 @@ allowlist:
       reason: Expired and matching nothing, to exercise both hygiene reports.
       issue: https://github.com/bamr87/bamr87/issues/314
       until: "2026-01-01"
+    - rule: contrast
+      selector: .known-issue
+      page: /
+      reason: Covers the pa11y node inside .known-issue (matched in the browser via closest()), not the other faint paragraph.
+      issue: https://github.com/bamr87/bamr87/issues/314
+      until: "2099-12-31"
