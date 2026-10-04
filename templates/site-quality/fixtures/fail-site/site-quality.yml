@@ -1,0 +1,43 @@
+# Self-test config for fixtures/fail-site. Gates at `error`; the page breaks
+# them, so the expected outcome is status `fail`. The live allowlist entry turns
+# exactly one node into a known issue; the expired entry only warns.
+version: 1
+
+site:
+  source: templates/site-quality/fixtures/fail-site
+
+pages:
+  - /
+
+viewports:
+  - { name: mobile-390, width: 390, height: 844, mobile: true }
+  - { name: desktop-1366, width: 1366, height: 768 }
+
+lighthouse:
+  runs: 1
+  categories:
+    accessibility: { min: 0.95, level: error }
+
+axe:
+  fail_on:
+    tags: [wcag2a, wcag2aa, wcag21a, wcag21aa]
+    impacts: [critical, serious]
+
+contrast:
+  pages:
+    - { path: /, max: 0 }
+
+allowlist:
+  on_expired: warn
+  entries:
+    - rule: link-name
+      selector: a.icon-only
+      page: /
+      reason: The empty icon link stands in for a known issue a theme fix will close.
+      issue: https://github.com/bamr87/bamr87/issues/314
+      until: "2099-12-31"
+    - rule: label
+      page: /nowhere/
+      reason: Expired and matching nothing, to exercise both hygiene reports.
+      issue: https://github.com/bamr87/bamr87/issues/314
+      until: "2026-01-01"

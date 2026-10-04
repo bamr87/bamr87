@@ -395,7 +395,15 @@ for action, by_major in majors.items():
                     f"— fan-out would downgrade every repo it reaches")
 
 # 3. no committed lockfiles, no exact/ceiling pins in hub manifests.
+# ONE sanctioned exception (Platform Architect, site-quality kit): the runtime of
+# the reusable site-quality.yml workflow is pinned exactly with a committed
+# lockfile so every caller scans with the same lhci/axe-core/pa11y, and
+# Dependabot (npm, directory /.github/site-quality) moves it by PR. Nothing else
+# may join this set without the same sign-off (specs/QUALITY.md UPS-QA-40).
+LOCK_EXEMPT = {".github/site-quality/package-lock.json"}
 for path in walk(".github", "templates", "tools", "_data", "pages"):
+    if os.path.relpath(path, root) in LOCK_EXEMPT:
+        continue
     if os.path.basename(path) in LOCKS:
         problems.append(f"{os.path.relpath(path, root)}: committed lockfile — never committed (gitignored fleet-wide)")
 for fn in sorted(os.listdir(root)):

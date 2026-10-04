@@ -1,0 +1,31 @@
+kit: site-quality
+version: 0.1.0
+source: bamr87/bamr87 templates/site-quality/
+seeded-by: tools/fanout.sh --kit site-quality (Jekyll repos only; needs a root _config.yml)
+files: site-quality.yml, site-quality.template.yml, site-quality.schema.json, fixtures/
+targets: site-quality.yml -> .github/workflows/site-quality.yml; site-quality.template.yml -> .github/site-quality.yml (only when absent); site-quality.schema.json and fixtures/ stay in the hub
+spec: specs/QUALITY.md "Site quality" (UPS-QA-60..63, draft, rollout warn); checker contract specs/QUALITY.contract.yml; reusable workflow .github/workflows/site-quality.yml (runtime .github/site-quality/); cross-refs UPS-FE-50 (WCAG AA), UPS-FE-53 (Lighthouse budgets)
+tests: templates/site-quality/test_site_quality_kit.py (stdlib + PyYAML; jsonschema used when installed); .github/site-quality/tests (node --test); .github/workflows/site-quality-selftest.yml (pass + fail fixture sites, url mode)
+updated: 2026-10-04
+changelog: |
+  0.1.0 — initial kit, lifted from the two green implementations rather than
+  invented: bamr87/lifehacker.dev#683 and bamr87/it-journey#790 (both add
+  .github/workflows/site-quality.yml + .github/site-quality/ with lighthouserc,
+  axe and pa11y contrast scripts and a local server). What the kit adds is the
+  fleet contract: ONE reusable workflow with a build mode (build the Jekyll
+  site against a fresh theme resolved to a commit SHA, serve _site) and a url
+  mode (scan live URLs), exact-pinned tools with a committed lockfile, a
+  caller config validated by a JSON Schema (version: 1, quoted dates, an
+  allowlist where every known issue carries rule, selector and/or page,
+  reason, issue link and until date), and lenient defaults so adoption never
+  turns a caller red.
+notes: |
+  - Additive-only, like every kit: an existing .github/site-quality.yml is
+    never overwritten; the caller workflow is refreshed by --upgrade only when
+    it matches the kit or an archive/ snapshot.
+  - Repos that built their own site-quality workflow (lifehacker.dev,
+    it-journey) migrate by hand: move their thresholds into
+    .github/site-quality.yml, then replace the workflow with the caller.
+  - Callers pin @v1 (never a custom tag). The runner always comes from the
+    same hub commit as the workflow (job.workflow_sha, else hub-ref, else v1).
+  - Snapshot to archive/ before editing site-quality.yml or the template.

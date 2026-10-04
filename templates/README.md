@@ -164,3 +164,17 @@ OPT-IN continuous UX audit kit (spec: [`specs/FRONTEND.md`](../specs/FRONTEND.md
 | `prompts/` | specialist critique prompts for the hub loop |
 | `AGENT_PROMPT.md` | how a coding agent consumes an evidence bundle |
 
+## `site-quality/`
+
+The site quality kit (spec: [`specs/QUALITY.md`](../specs/QUALITY.md) "Site quality", UPS-QA-60..63, draft with `rollout: warn`; contract [`specs/QUALITY.contract.yml`](../specs/QUALITY.contract.yml)). One reusable workflow, [`.github/workflows/site-quality.yml`](../.github/workflows/site-quality.yml), runs Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast against a Jekyll site built with a fresh theme (`mode: build`) or against live URLs (`mode: url`), and grades the results with the caller's own config. Lifted from bamr87/lifehacker.dev#683 and bamr87/it-journey#790. Fanned out with `tools/fanout.sh --kit site-quality` (Jekyll repos only). See [`site-quality/README.md`](site-quality/README.md). Complements `ux-audit/` (opt-in R1–R13 critique): this kit is the measured, CI-gated half.
+
+| File | Purpose |
+| --- | --- |
+| `site-quality.yml` | Caller → `.github/workflows/site-quality.yml`, pinned `bamr87/bamr87/.github/workflows/site-quality.yml@v1` (never a custom tag) |
+| `site-quality.template.yml` | Config → `.github/site-quality.yml` (only when absent): `version: 1`, pages, budgets, axe `fail_on`, contrast `max`, the expiring allowlist. Seeded report-only |
+| `site-quality.schema.json` | JSON Schema 2020-12 the workflow validates every config against |
+| `fixtures/` | `pass-site/` + `fail-site/` (scanned by `site-quality-selftest.yml`), `configs/valid/` + `configs/invalid/` |
+| `test_site_quality_kit.py` | Kit test (stdlib + PyYAML; jsonschema when installed); `--target <repo>` validates a repo's config |
+| `VERSION` | Kit provenance + changelog |
+
+The runtime lives beside the workflow in `.github/site-quality/` (Node, exact pins, committed `package-lock.json`, Dependabot npm entry): the one sanctioned exception to the no-lockfile policy, exempted by name in `tools/check-drift.sh` (j) and `tools/conformance.py` UPS-QA-40.

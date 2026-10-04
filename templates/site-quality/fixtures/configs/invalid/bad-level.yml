@@ -1,0 +1,6 @@
+# expect: level
+version: 1
+pages: [/]
+lighthouse:
+  categories:
+    accessibility: { min: 0.9, level: fatal }

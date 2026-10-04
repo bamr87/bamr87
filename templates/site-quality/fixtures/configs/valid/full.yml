@@ -1,0 +1,71 @@
+# Every key the schema knows, at least once.
+version: 1
+site:
+  source: docs
+  build_command: "bash scripts/ci/build.sh"
+  site_dir: _site
+  base_url: https://example.com/project/
+pages: [/, /about/, /blog/]
+viewports:
+  - { name: mobile-390, width: 390, height: 844, mobile: true }
+  - { name: desktop-1366, width: 1366, height: 768 }
+load_errors: error
+lighthouse:
+  enabled: true
+  pages: [/, /about/]
+  runs: 3
+  form_factor: desktop
+  skip_audits: [uses-http2]
+  public_upload: false
+  categories:
+    performance: { min: 0.5, level: warn }
+    accessibility: { min: 0.9, level: error }
+    best-practices: { min: 0.8, level: warn }
+    seo: { min: 0.8, level: warn }
+  metrics:
+    largest-contentful-paint: { max: 4000, level: warn }
+    cumulative-layout-shift: { max: 0.1, level: error }
+  audits:
+    errors-in-console: error
+    unsized-images: warn
+  sizes:
+    total: { max_kib: 1500, level: warn }
+    script: { max_kib: 300, level: warn }
+  overrides:
+    - page: /blog/
+      metrics: { largest-contentful-paint: { max: 6000, level: warn } }
+      audits: { unsized-images: "off" }
+axe:
+  enabled: true
+  pages: [/, /about/]
+  tags: [wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22a, wcag22aa, best-practice]
+  fail_on:
+    tags: [wcag2a, wcag2aa]
+    impacts: [critical, serious]
+contrast:
+  enabled: true
+  pages:
+    - { path: /, max: 0 }
+    - { path: /about/ }
+  hide_elements: ".hero h1"
+  viewport: { width: 1366, height: 768 }
+allowlist:
+  on_expired: error
+  entries:
+    - rule: color-contrast
+      selector: ".site-footer .muted"
+      page: /
+      viewport: mobile-390
+      reason: Footer palette is replaced in the theme refresh.
+      issue: https://github.com/bamr87/zer0-mistakes/issues/1
+      until: "2026-12-31"
+    - rule: categories:performance
+      page: /blog/*
+      reason: Blog index loads every card image; pagination is tracked.
+      issue: https://github.com/bamr87/bamr87/issues/314
+      until: "2027-03-31"
+    - rule: link-name
+      selector: a.icon-only
+      reason: Selector-only entry (applies on every page).
+      issue: https://github.com/bamr87/bamr87/issues/314
+      until: "2027-01-15"

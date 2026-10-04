@@ -1,0 +1,181 @@
+name: site-quality self-test
+
+# Tests the reusable site-quality.yml workflow the way a caller uses it, on
+# every PR that touches it (spec: specs/QUALITY.md "Site quality"):
+#
+#   unit       node tests of the runner (.github/site-quality/tests) and the
+#              kit test (templates/site-quality/test_site_quality_kit.py):
+#              the schema against every fixture config, the template, the
+#              caller pin, the fan-out tokens.
+#   pass-site  build mode on fixtures/pass-site with STRICT gates: must pass.
+#              Its one expired allowlist entry must only warn (status warn).
+#   fail-site  build mode on fixtures/fail-site, which breaks axe, contrast and
+#              Lighthouse on purpose: status must be fail. It runs with
+#              gate: false (a job that calls a reusable workflow cannot be
+#              continue-on-error), and `expect` then asserts the fail status,
+#              the exact findings, and that the gate (report.mjs --check)
+#              exits non-zero on that report.
+#   url-mode   url mode against a live page with the DEFAULT (lenient) config:
+#              must stay green, which is the #314 promise to callers.
+
+on:
+  pull_request:
+    paths:
+      - ".github/site-quality/**"
+      - ".github/workflows/site-quality.yml"
+      - ".github/workflows/site-quality-selftest.yml"
+      - "templates/site-quality/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/site-quality/**"
+      - ".github/workflows/site-quality.yml"
+      - ".github/workflows/site-quality-selftest.yml"
+      - "templates/site-quality/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-quality-selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit + kit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+          cache: npm
+          cache-dependency-path: .github/site-quality/package-lock.json
+      - name: npm ci (exact pins)
+        working-directory: .github/site-quality
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci --no-audit --no-fund
+      - name: Runner tests
+        working-directory: .github/site-quality
+        run: npm test
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ vars.PYTHON_VERSION || '3.12' }}
+      - name: Kit test (schema vs fixtures, caller pin, tokens)
+        run: |
+          python -m pip install --quiet --upgrade pyyaml jsonschema
+          python templates/site-quality/test_site_quality_kit.py
+
+  pass-site:
+    name: pass fixture
+    uses: ./.github/workflows/site-quality.yml
+    permissions:
+      contents: read
+    with:
+      mode: build
+      config: templates/site-quality/fixtures/pass-site/site-quality.yml
+      hub-ref: ${{ github.sha }}
+      artifact-name: site-quality-pass-site
+
+  fail-site:
+    name: fail fixture
+    uses: ./.github/workflows/site-quality.yml
+    permissions:
+      contents: read
+    with:
+      mode: build
+      config: templates/site-quality/fixtures/fail-site/site-quality.yml
+      hub-ref: ${{ github.sha }}
+      artifact-name: site-quality-fail-site
+      gate: false
+
+  url-mode:
+    name: url mode, default config
+    uses: ./.github/workflows/site-quality.yml
+    permissions:
+      contents: read
+    with:
+      mode: url
+      config: templates/site-quality/fixtures/configs/valid/minimal.yml
+      base-url: https://example.com
+      hub-ref: ${{ github.sha }}
+      artifact-name: site-quality-url-mode
+
+  expect:
+    name: Outcomes are as expected
+    needs: [pass-site, fail-site, url-mode]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ vars.NODE_VERSION || '20' }}
+          cache: npm
+          cache-dependency-path: .github/site-quality/package-lock.json
+      - name: npm ci
+        working-directory: .github/site-quality
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v8
+        with:
+          path: reports
+          pattern: site-quality-*
+      - name: Check the three outcomes
+        env:
+          PASS_RESULT: ${{ needs.pass-site.result }}
+          PASS_STATUS: ${{ needs.pass-site.outputs.status }}
+          FAIL_RESULT: ${{ needs.fail-site.result }}
+          FAIL_STATUS: ${{ needs.fail-site.outputs.status }}
+          URL_RESULT: ${{ needs.url-mode.result }}
+          URL_STATUS: ${{ needs.url-mode.outputs.status }}
+        run: |
+          set -euo pipefail
+          problems=0
+          check() { if [ "$2" = "$3" ]; then echo "ok   $1: $2"; else echo "::error::$1 is '$2', expected '$3'"; problems=$((problems+1)); fi; }
+          has() { if jq -e "$2" "$1" > /dev/null; then echo "ok   $3"; else echo "::error::$3 (jq: $2)"; problems=$((problems+1)); fi; }
+
+          check "pass-site job" "$PASS_RESULT" success
+          check "pass-site status" "$PASS_STATUS" warn
+          check "fail-site job (gate off)" "$FAIL_RESULT" success
+          check "fail-site status" "$FAIL_STATUS" fail
+          check "url-mode job" "$URL_RESULT" success
+
+          P=reports/site-quality-pass-site/report.json
+          F=reports/site-quality-fail-site/report.json
+          U=reports/site-quality-url-mode/report.json
+          has "$P" '.counts.error == 0' "pass-site: no errors"
+          has "$P" '[.findings[] | select(.rule == "allowlist-expired" and .level == "warn")] | length == 1' "pass-site: expired allowlist entry warns"
+          has "$P" '.theme.kind == "none"' "pass-site: theme recorded"
+          has "$F" '.status == "fail"' "fail-site: report status fail"
+          for rule in image-alt label button-name color-contrast; do
+            has "$F" "[.findings[] | select(.check == \"axe\" and .rule == \"$rule\" and .level == \"error\")] | length >= 2" "fail-site: axe $rule is an error at both viewports"
+          done
+          has "$F" '[.findings[] | select(.check == "contrast" and .level == "error")] | length == 1' "fail-site: pa11y contrast over max"
+          has "$F" '[.findings[] | select(.rule == "categories:accessibility" and .level == "error")] | length == 1' "fail-site: Lighthouse accessibility budget"
+          has "$F" '[.findings[] | select(.rule == "link-name" and .level == "allowed")] | length == 2' "fail-site: allowlisted link-name at both viewports"
+          has "$F" '[.findings[] | select(.rule == "link-name" and .level == "error")] | length == 0' "fail-site: allowlisted node does not fail"
+          has "$F" '.allowlist.expired == [1]' "fail-site: expired entry detected"
+          has "$F" '[.findings[] | select(.rule == "allowlist-expired")][0].level == "warn"' "fail-site: expired entry is a warning"
+          has "$F" '[.allowlist.stale[].index] == [1]' "fail-site: unused entry reported"
+          has "$U" '.counts.error == 0 and .mode == "url"' "url-mode: lenient defaults never gate"
+
+          if node .github/site-quality/report.mjs --check "$F"; then
+            echo "::error::report.mjs --check passed the fail-site report; with gate: true that run would have been green"
+            problems=$((problems+1))
+          else
+            echo "ok   gate: report.mjs --check rejects the fail-site report"
+          fi
+          node .github/site-quality/report.mjs --check "$P"
+          [ "$problems" -eq 0 ] || exit 1

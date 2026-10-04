@@ -21,13 +21,13 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 216 requirements: 149 MUST, 59 SHOULD, 4 MAY; 62 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 220 requirements: 149 MUST, 63 SHOULD, 4 MAY; 62 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
 | REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 22 / 7 / 0 | 6 | Repository layout and required files |
 | AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 0 | Agent context |
-| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…53 | 25 / 7 / 0 | 17 | Quality gates |
+| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…63 | 25 / 11 / 0 | 17 | Quality gates |
 | FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 5 | Frontend: design system, core components, UX standards |
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
@@ -53,6 +53,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
 | [`sdlc/`](templates/sdlc/) | 0.1.0 | 2026-10-03 | Copied per repo (not inherited). | `AGENTS.template.md`, `CHANGELOG.template.md`, `CLAUDE.template.md`, `README.md`, `content-queue/backlog.yml`, `docs/README.template.md`, `docs/adr/0000-template.md`, `docs/adr/0001-record-architectu… |
+| [`site-quality/`](templates/site-quality/) | 0.1.0 | 2026-10-04 | tools/fanout.sh --kit site-quality (Jekyll repos only; needs a root _config.yml) | `README.md`, `fixtures/configs/invalid/bad-date-format.yml`, `fixtures/configs/invalid/bad-level.yml`, `fixtures/configs/invalid/bad-on-expired.yml`, `fixtures/configs/invalid/bad-version.yml`, `fixt… |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/standardize-fanout.yml (artifact `ci`) via tools/fanout.sh | `ci.yml` |
 | [`ux-audit/`](templates/ux-audit/) | 0.1.0 | 2026-09-18 | tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set) | `AGENT_PROMPT.md`, `README.md`, `prompts/a11y.md`, `prompts/design-system.md`, `prompts/interaction.md`, `prompts/microcopy.md`, `prompts/synthesizer.md`, `scripts/collect_evidence.mjs`, `scripts/ux_… |
 | [`verify/`](templates/verify/) | 0.1.0 | 2026-09-04 | tools/fanout.sh --kit verify (verify-fanout.yml); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
@@ -194,6 +195,8 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`repo-evolution.yml`](.github/workflows/repo-evolution.yml) | 🌿 Repo Evolution | **weekly Mon 09:00**, dispatch | **The proactive loop** — fourth sibling: `fleet-pulse` fixes broken *workflows*, `issue-pipeline` resolves filed *issues*, `token-rotation` keeps *credentials* current,… |
 | [`schema-fanout.yml`](.github/workflows/schema-fanout.yml) | schema-fanout | dispatch (per-repo or all) | Opens **Pyramid Schema** adoption PRs down into submodules via `tools/fanout.sh` (SCHEMA.md contracts + vendored linter + CI gate). |
 | [`schema-vendor.yml`](.github/workflows/schema-vendor.yml) | 🔺 Schema Vendor Sync | **weekly Mon 08:00**, dispatch | The **upward** half of the schema loop: `schema-fanout` pushes the kit down, drift check (i) compares submodule copies against the hub's, and this compares **the hub's a… |
+| [`site-quality-selftest.yml`](.github/workflows/site-quality-selftest.yml) | site-quality self-test | PR, push `main` (site-quality paths), dispatch | Pre-flight gate for the site-quality kit: runner unit tests + kit test, then the reusable workflow on `fixtures/pass-site` (must pass, expired allowlist entry only warns… |
+| [`site-quality.yml`](.github/workflows/site-quality.yml) | site-quality (reusable) | `workflow_call` (reusable) | **Site quality scan** (kit `site-quality`, spec `specs/QUALITY.md` "Site quality"): Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast. |
 | [`standard-ci.yml`](.github/workflows/standard-ci.yml) | standard-ci (reusable) | `workflow_call` | Reusable **lightweight** CI (detect stack → lint + test + build) in ONE job, adopted by a short caller. |
 | [`standardize-fanout.yml`](.github/workflows/standardize-fanout.yml) | standardize-fanout | dispatch (per-repo or all) | Opens standardization PRs **down** into submodules via `tools/fanout.sh`, seeding `.editorconfig`, the reusable `standard-ci.yml` caller, and on request the **agent-cont… |
 | [`token-rotation.yml`](.github/workflows/token-rotation.yml) | 🔑 Token Rotation | **weekly Mon 02:00**, dispatch | **The credential loop** — third sibling of `fleet-pulse.yml` (broken *workflows*) and `issue-pipeline.yml` (open *issues*): this one keeps *credentials* current. |

@@ -1,0 +1,4 @@
+# expect: lighthose
+version: 1
+pages: [/]
+lighthose: { runs: 1 }

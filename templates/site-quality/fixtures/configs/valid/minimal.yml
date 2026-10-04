@@ -1,0 +1,3 @@
+# Smallest valid config: the version and one page. Everything else defaults (report-only).
+version: 1
+pages: [/]

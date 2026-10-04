@@ -705,6 +705,42 @@ requirements:
     satisfied_by: "`dash features coverage`"
     seed: "`verify/runner.mjs --stamp`, the agent pass"
     gap: false
+  - id: UPS-QA-60
+    area: QA
+    section: "Site quality"
+    level: SHOULD
+    applies: [site]
+    requirement: "A Jekyll site (root `_config.yml`) carries a workflow calling `bamr87/bamr87/.github/workflows/site-quality.yml` with a ref that satisfies the UPS-WORK-10 rule (`@vN`, `@vX.Y.Z` or a full SHA; the kit pins `@v1`; never a branch or a custom tag such as `site-quality-v1`), in `mode: build`, so the site is scanned as built against a fresh theme resolved to a commit SHA."
+    satisfied_by: "caller present + pinned"
+    seed: "`templates/site-quality/` (`tools/fanout.sh --kit site-quality`)"
+    gap: false
+  - id: UPS-QA-61
+    area: QA
+    section: "Site quality"
+    level: SHOULD
+    applies: [site]
+    requirement: "Its config (`.github/site-quality.yml`, or the caller's `config:` input) validates against `templates/site-quality/site-quality.schema.json`: `version: 1`, dates quoted, and every allowlist entry carries `rule`, `selector` and/or `page`, `reason`, `issue` (a link) and `until: \"YYYY-MM-DD\"`. Every threshold lives in this file; the workflow's defaults only report."
+    satisfied_by: "schema-valid config"
+    seed: "`site-quality.template.yml`"
+    gap: false
+  - id: UPS-QA-62
+    area: QA
+    section: "Site quality"
+    level: SHOULD
+    applies: [site]
+    requirement: "No allowlist entry is past its `until` date. During rollout the workflow reports an expired entry as a warning (`allowlist.on_expired: warn`); the level moves to `error` through the config or the `expired-allowlist-level` input, not through this row."
+    satisfied_by: "no expired entries"
+    seed: "renew the entry with a reason, or fix the linked issue and delete it"
+    gap: false
+  - id: UPS-QA-63
+    area: QA
+    section: "Site quality"
+    level: SHOULD
+    applies: [site]
+    requirement: "Every run uploads its reports as an artifact (`report.json` in `site-quality-report/v1`, Lighthouse HTML/JSON, raw axe and pa11y results) and writes the job summary, including the resolved theme ref. Nothing disables the upload."
+    satisfied_by: "the reusable workflow's upload step"
+    seed: "`site-quality.yml` (reusable)"
+    gap: false
   - id: UPS-QA-20
     area: QA
     section: "CI"

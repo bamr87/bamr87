@@ -1,0 +1,6 @@
+# expect: reason
+version: 1
+pages: [/]
+allowlist:
+  entries:
+    - { rule: region, page: /, issue: "https://github.com/o/r/issues/1", until: "2026-12-31" }

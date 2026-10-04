@@ -1,0 +1,103 @@
+# =============================================================================
+# specs/QUALITY.contract.yml — the machine-checkable contract for UPS-QA site-quality rows
+# =============================================================================
+# DRAFT for Platform Architect review. Hand-written companion to specs/QUALITY.md
+# "Site quality" (NOT generated; tools/gen-specs-data.py reads only the .md
+# tables), in the shape of specs/WORK.contract.yml: QUALITY.md says what each
+# rule means; this file says exactly what a checker reads and matches, per rule
+# id. When the two disagree, fix both in the same PR; until then this file wins
+# for checker behaviour. Covers UPS-QA-60..63 only; the older QA rows keep their
+# checkers in tools/conformance.py.
+#
+# Result vocabulary (tools/conformance.py): pass | warn | fail | unverified, as in
+# WORK.contract.yml. Every rule here carries `rollout: warn`: while the fleet
+# adopts the kit, what would be a fail is reported as warn. Fleet Ops makes a
+# rule gate by deleting its marker (a contract change).
+# One failure per root cause: UPS-QA-60 owns "no caller"; 61..63 pass with a
+# detail naming 60 when there is no caller, and 62 passes naming 61 when the
+# config does not validate.
+# `mode`: offline = static tree checks; online = needs the GitHub API (fleet
+# scorecard only, never in the in-repo gate).
+#
+# Regexes are Python `re` syntax. Paths are relative to the repo root unless
+# prefixed `hub:` (relative to the bamr87/bamr87 checkout the checker runs from).
+# =============================================================================
+schema: quality-contract/v1
+spec: specs/QUALITY.md
+ups_version: "1.0"
+
+definitions:
+  jekyll_marker: _config.yml                       # at the repo root; absent = 60..63 do not apply
+  workflow_scope: [".github/workflows/*.yml", ".github/workflows/*.yaml"]
+  caller_uses_re: '^bamr87/bamr87/\.github/workflows/site-quality\.yml@(\S+)$'   # applied to a parsed jobs.<job>.uses value
+  pinned_ref_re: '^(v\d+|v\d+\.\d+\.\d+|[0-9a-f]{40})$'   # fullmatch; the same rule as specs/WORK.contract.yml (UPS-WORK-10)
+  kit_ref: v1                                      # what templates/site-quality/site-quality.yml pins
+  config_default: .github/site-quality.yml
+  config_input: "jobs.<caller job>.with.config (when set, it replaces config_default)"
+  config_schema: hub:templates/site-quality/site-quality.schema.json   # JSON Schema 2020-12
+  config_parse: "YAML 1.1 (PyYAML safe_load / yaml version 1.1): an unquoted date is a timestamp, not a string, and fails the schema"
+  allowlist_entry_required: [rule, reason, issue, until]
+  allowlist_entry_any_of: [selector, page]
+  until_re: '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+  expiry: "an entry is expired when until < today (UTC, YYYY-MM-DD string compare)"
+  report_schema: site-quality-report/v1            # report.json inside the artifact
+  report_artifact_default: site-quality-report     # the reusable workflow's artifact-name default
+
+rules:
+  UPS-QA-60:
+    level: SHOULD
+    applies: site
+    mode: offline
+    rollout: warn
+    reads: [jekyll_marker, workflow_scope, caller_uses_re, pinned_ref_re]
+    pass: >-
+      jekyll_marker exists and some workflow_scope file, parsed as YAML, has a job whose
+      `uses:` value matches caller_uses_re with a ref (group 1) that fullmatches
+      pinned_ref_re, and that job's `with.mode` is absent or "build".
+    warn: "only callers with `mode: url` (live scan without a build); name the file"
+    fail: >-
+      no caller; a caller whose ref fails pinned_ref_re (a branch such as @main, a custom
+      tag such as @site-quality-v1, @v1.2, a short SHA); a workflow_scope file that is not
+      valid YAML
+    note: "a repo without jekyll_marker is not a Jekyll site: the rule does not apply (not a pass)"
+
+  UPS-QA-61:
+    level: SHOULD
+    applies: site
+    mode: offline
+    rollout: warn
+    reads: [config_default, config_input, config_schema, config_parse]
+    pass: >-
+      The caller's config file (config_input, else config_default) exists, parses with
+      config_parse and validates against config_schema (version == 1; every allowlist
+      entry has allowlist_entry_required and one of allowlist_entry_any_of; issue is an
+      https link; until fullmatches until_re as a string).
+    fail: "config missing; YAML error; any schema violation (report the JSON pointer and, for an unquoted date, say to quote it)"
+
+  UPS-QA-62:
+    level: SHOULD
+    applies: site
+    mode: offline
+    rollout: warn
+    reads: [config_default, config_input, until_re, expiry]
+    pass: "the config validates (UPS-QA-61) and no allowlist entry is expired"
+    fail: "any expired entry; name each entry's rule, page/selector, until and issue"
+    note: >-
+      Independent of the workflow's allowlist.on_expired level: the workflow decides
+      whether a run fails, this rule reports the hygiene either way.
+
+  UPS-QA-63:
+    level: SHOULD
+    applies: site
+    mode: online
+    rollout: warn
+    reads: ["caller job (UPS-QA-60)", "GitHub API: artifacts of the latest completed run of that workflow on the default branch", report_artifact_default, report_schema]
+    pass: >-
+      The latest completed run on the default branch has an artifact named the caller's
+      `with.artifact-name` (else report_artifact_default) whose report.json carries
+      `schema: site-quality-report/v1` and a `theme` object.
+    unverified: "offline (the in-repo gate cannot see artifacts); no completed run yet"
+    fail: "the latest completed run has no such artifact (expired artifacts count as unverified)"
+    note: >-
+      The reusable workflow uploads unconditionally once the config validates, so a fail
+      means the run never reached the upload (an invalid config is UPS-QA-61's failure).

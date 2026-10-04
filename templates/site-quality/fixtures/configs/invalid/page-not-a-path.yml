@@ -1,0 +1,3 @@
+# expect: pages
+version: 1
+pages: [about/]

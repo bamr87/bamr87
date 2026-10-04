@@ -42,6 +42,11 @@ HUB_DEFAULT = Path(__file__).resolve().parent.parent
 KINDS = ("site", "app", "api", "lib", "cli", "ext", "content", "fork")
 LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock",
              "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock")
+# The hub's ONE sanctioned lockfile (Platform Architect, site-quality kit): the
+# reusable site-quality.yml runtime is pinned exactly so every caller scans with
+# the same lhci/axe-core/pa11y; Dependabot (npm, /.github/site-quality) moves it.
+# Exempt only when the hub checks itself; tools/check-drift.sh (j) mirrors this.
+HUB_LOCK_EXEMPT = frozenset({".github/site-quality/package-lock.json"})
 TEXT_EXT = {".md", ".html", ".tsx", ".jsx", ".ts", ".js", ".py", ".rb", ".erb", ".liquid", ".yml", ".yaml",
             ".json", ".css", ".scss", ".toml", ".cfg", ".txt", ".sh"}
 SKIP_DIRS = {".git", "node_modules", "_site", "site", "dist", "build", ".venv", "venv", "vendor", "__pycache__",
@@ -434,7 +439,8 @@ def _release(r, k):
 
 @check("UPS-QA-40")
 def _always_latest(r, k):
-    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES]
+    exempt = HUB_LOCK_EXEMPT if r.path == r.hub else frozenset()
+    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES and t not in exempt]
     if bad:
         return _no("committed lockfile: " + ", ".join(sorted({Path(b).name for b in bad})[:3]))
     pinned = None

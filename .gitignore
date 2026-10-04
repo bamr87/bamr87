@@ -18,6 +18,9 @@ __pycache__/
 # Lockfiles — never committed: fleet ALWAYS-LATEST dependency policy
 # (_data/fleet.yml `dependencies:` + docs/DEPENDENCIES.md)
 package-lock.json
+# ...except the ONE sanctioned lockfile: the reusable site-quality runtime
+# (Platform Architect decision; check-drift (j) and UPS-QA-40 exempt it too)
+!.github/site-quality/package-lock.json
 npm-shrinkwrap.json
 pnpm-lock.yaml
 yarn.lock
