@@ -7,12 +7,12 @@ How versioning, changelogs, releases, and the merge-to-main quality gate work ac
 - Write **[Conventional Commits](https://www.conventionalcommits.org/)**. That's the only manual step.
 - **[release-please](https://github.com/googleapis/release-please)** turns commits into a version bump + `CHANGELOG.md` via a **release PR**.
 - Merge the release PR → it tags `vX.Y.Z`, creates the GitHub Release, and publishes the package.
-- Every merge to `main` is gated by the reusable **`ci.yml`** (tests, lint, build, docs, commit-lint, CodeQL).
+- Merges to `main` are gated by the repo's CI. The shared gate is this hub's reusable **[`standard-ci.yml`](../.github/workflows/standard-ci.yml)** (stack-detected lint, test and build), called by 19 member repos (2026-10-03); other repos run their own CI or none. `bamr87/.github`'s reusable `ci.yml` has no callers.
 
 ## The pipeline
 
 ```
-feature branch ──PR──► ci.yml gate ──► merge to main
+feature branch ──PR──► CI gate ──► merge to main
                                            │
                                   release-please (on push)
                                            │
@@ -28,11 +28,10 @@ feature branch ──PR──► ci.yml gate ──► merge to main
                             (RubyGems / npm / PyPI / GHCR)
 ```
 
-Reusable building blocks (in `bamr87/.github`):
+The merge gate lives in this hub: [`.github/workflows/standard-ci.yml`](../.github/workflows/standard-ci.yml). The release building blocks live in `bamr87/.github`:
 
 | File | Role |
 | --- | --- |
-| `.github/workflows/ci.yml` | merge gate — detect stack → test/lint/build/docs/commitlint/codeql |
 | `.github/workflows/release-please.yml` | version bump + CHANGELOG + GitHub Release |
 | `.github/workflows/publish.yml` | publish to the detected registry + attach assets |
 | `.github/actions/detect-stack` | emits `node`/`ruby`/`gem`/`python`/`jekyll`/`docker` + `registry` |
@@ -46,7 +45,7 @@ Reusable building blocks (in `bamr87/.github`):
 | `feat!: …` or a `BREAKING CHANGE:` footer | major (**x**.0.0) |
 | `docs:` `chore:` `refactor:` `test:` `ci:` `perf:` `style:` `build:` | no release on their own |
 
-The **squash-merge subject** (= PR title) is what counts. The `commitlint` job enforces it.
+The **squash-merge subject** (= PR title) is what counts. `standard-ci.yml` does not lint it, so review the PR title before merging.
 
 ## Adopt the pipeline in a repo
 
@@ -65,6 +64,8 @@ release-please-config.json      # release-type: ruby | node | python | simple
 CHANGELOG.md                    # seeded if missing
 RELEASING.md                    # per-repo cheat-sheet
 ```
+
+The scaffolded `ci.yml` still calls `bamr87/.github`'s unused `ci.yml` gate (`templates/release-pipeline/ci.yml`). None of the five current adopters (fredgar-ai, zer0-CMS, zer0-image-generator, zer0-mistakes, zpl-viewer) calls it today; pointing the kit at `standard-ci.yml` is a separate change.
 
 `release-type` is chosen automatically: `ruby` (gemspec), `node` (publishable `package.json`), `python` (pyproject/setup with packaging metadata), else **`simple`** (version + changelog + GitHub Release, no package) — which covers docs, Jekyll, bash, and script repos.
 
