@@ -15,7 +15,12 @@
 #   unverified = the fact is not visible offline; never pass/fail.
 # `rollout: warn` on a rule: while the fleet adopts it, report what would be a fail
 # as warn. Fleet Ops makes the rule gate by deleting the marker (a contract change).
-# The rules carrying it drive conformance.py's WARN_ONLY table.
+# tools/conformance.py reads the markers from this file (warn_only()); there is no
+# hard-coded rule list in the checker.
+# `hard_fail:` on a rule: named cases that are correctness problems, not adoption
+# gaps. Each one is a fail even while the rule carries `rollout: warn`, so the
+# rollout never softens it (UPS-REPO-21 `double_release`: a repo that could cut
+# two releases).
 # One failure per root cause: when a file or heading another rule owns is missing,
 # the rules that only read it pass and name the owner in their detail. CHANGELOG.md
 # is owned by UPS-REPO-21 (so UPS-WORK-05 passes); AGENTS.md by UPS-AGENT-07 (so
@@ -101,7 +106,7 @@ definitions:
   release_files: [release-please-config.json, .release-please-manifest.json]
   # Matched against a job-level `uses:` value (uses_keys), up to the '@'.
   release_workflow: bamr87/bamr87/.github/workflows/release-please.yml
-  legacy_release_workflow: bamr87/.github/.github/workflows/release-please.yml   # warn; migrate per D3
+  legacy_release_workflow: bamr87/.github/.github/workflows/release-please.yml   # migrate per D3; with release_workflow too = hard fail
   # UPS-AGENT-07: AGENTS.md headings. Level-2 ATX headings (agents_heading_re, re.M),
   # trimmed and compared case-insensitively. Order is not enforced; extra headings are allowed.
   agents_file: AGENTS.md
@@ -339,9 +344,23 @@ related:
       bamr87/bamr87/.github/workflows/release-please.yml@v1 (decision D3)".
     rollout_effect: >-
       While this rule carries `rollout: warn`, every failure above, the legacy
-      caller included (pinned or unpinned at @main), is reported as warn. Once Fleet
-      Ops deletes the marker, each one fails. There is no separate `warn:` clause:
-      the legacy caller is not an accepted shape after the rollout.
+      caller included (pinned or unpinned at @main), is reported as warn, except
+      the hard_fail cases below, which fail regardless. Once Fleet Ops deletes the
+      marker, each one fails. There is no separate `warn:` clause: the legacy
+      caller is not an accepted shape after the rollout.
+    hard_fail:    # never softened by `rollout: warn` (see the header)
+      double_release:
+        # Both callers present in the repo's workflows (same file or not): the
+        # release_workflow caller at a ref that fullmatches pinned_ref_re, and a
+        # legacy_release_workflow caller at any ref, @main included. Each is a
+        # job-level `uses:` value (uses_keys, parsed YAML) compared up to the '@'.
+        all_of:
+          - {caller: release_workflow, ref_re: pinned_ref_re}
+          - {caller: legacy_release_workflow, ref_re: any}
+        reads: [release_workflow, legacy_release_workflow, uses_keys, pinned_ref_re]
+        result: fail
+        why: "both callers run release-please on the same pushes, so the repo can cut two releases and two CHANGELOG entries for one change"
+        detail: "two release-please callers (<release_workflow>@<ref> in <file>, <legacy_release_workflow>@<ref> in <file>): the repo can release twice; delete the bamr87/.github caller"
     replaces: UPS-REPO-13
   UPS-AGENT-07:
     level: MUST

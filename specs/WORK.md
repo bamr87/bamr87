@@ -87,6 +87,8 @@ Separately from the rollout, two accepted-but-deprecated shapes always warn: an 
 
 A release caller of `bamr87/.github`'s `release-please.yml` is different: it is a REPO-21 failure that the rollout reports as a warning. Once the marker is removed it fails at any ref, including when it is unpinned at `@main`. Migrate it to the hub's reusable workflow (D3).
 
+The rollout never softens a correctness failure. The contract lists those under a rule's `hard_fail:` key, and they fail while the rule still carries `rollout: warn`. Today there is one: a repo with **both** a pinned caller of the hub's `release-please.yml` and a leftover `bamr87/.github` caller fails REPO-21 (`double_release`), because it can release twice.
+
 ## Deviations
 
 A waived SHOULD row is listed in two places: `.github/sdlc.yml` `deviations: [{id, reason, until}]`, and the `## Standard deviations` section of `AGENTS.md` (D4). During the transition the checker also accepts that section in `CLAUDE.md`. A MUST row cannot be waived; if it is wrong for a whole family, change the spec.
@@ -119,3 +121,4 @@ Settled with Fleet Ops after #316 was re-keyed to the contract:
 19. **What WORK-10 reads:** only parsed `uses:` keys, never `run:` text.
 20. **WORK-02 applicability:** all except content and fork. Every contract rule now states `applies` / `applies_notes` exactly as `tools/gen-specs-data.py` writes them to `_data/specs.yml` (for WORK-02: `[all]` + `"all except content, fork"`), and `tools/test_work_contract.py` keeps them equal.
 21. **WORK-02 lint detection:** only parsed workflow values count (`backlog_lint_keys`, `backlog_lint_value_re`), the same way WORK-10 reads `uses_keys`.
+22. **Double release caller (REPO-21):** a pinned hub release-please caller plus a `bamr87/.github` caller in the same repo is a hard fail (`hard_fail: double_release`), not softened by `rollout: warn`, because the repo can release twice.
