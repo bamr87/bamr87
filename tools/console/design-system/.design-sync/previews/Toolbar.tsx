@@ -1,0 +1,2 @@
+import { Toolbar, Button, Select, TextInput, InlineLabel } from '@bamr87/harness-console-ui';
+export const Filters = () => (<Toolbar><TextInput placeholder="filter repos…"/><Select defaultValue="all"><option value="all">all stacks</option><option>jekyll</option><option>react</option></Select><InlineLabel label="only failing"><input type="checkbox"/></InlineLabel><Button variant="primary">Apply</Button></Toolbar>);
