@@ -29,6 +29,7 @@ AREAS = {
     "FB": ("FEEDBACK.md", "The universal feedback component"),
     "BE": ("BACKEND.md", "HTTP API conventions and the client contract"),
     "OPS": ("OPERATIONS.md", "Configuration, observability, security, data"),
+    "WORK": ("WORK.md", "Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning"),
 }
 KINDS = ["all", "site", "app", "api", "lib", "cli", "ext", "content", "fork"]
 ROW_RE = re.compile(r"^\|\s*(UPS-[A-Z]+-\d+)\s*\|(.*)\|\s*$")
@@ -43,6 +44,7 @@ def split_cells(line: str) -> list[str]:
 def parse_applies(text: str) -> tuple[list[str], list[str]]:
     """'app, api (server-rendered)' -> (['app','api'], ['api (server-rendered)'])"""
     kinds, notes = [], []
+    excepting = False  # inside an 'all except a, b' list: bare kinds extend the exception
     for chunk in text.split(","):
         chunk = chunk.strip()
         if not chunk:
@@ -51,7 +53,12 @@ def parse_applies(text: str) -> tuple[list[str], list[str]]:
         if m and m.group(1) == "all except":
             kinds.append("all")
             notes.append(chunk)
+            excepting = True
             continue
+        if excepting and chunk.strip("`") in KINDS:
+            notes[-1] += ", " + chunk
+            continue
+        excepting = False
         word = chunk.split()[0].strip("`")
         if word in KINDS:
             kinds.append(word)
@@ -76,7 +83,7 @@ def render() -> str:
         "# Do not hand-edit: change the spec table, then regenerate. The drift gate's",
         "# `--check` mode fails when this file is stale.",
         "#",
-        "# Per requirement: id, area, level (MUST|SHOULD|MAY), applies (stack kinds from",
+        "# Per requirement: id, area, level (MUST|SHOULD|MAY|retired), applies (stack kinds from",
         "# specs/STACKS.md; `all` binds every kind, notes carry exceptions), the prose",
         "# requirement, what satisfies it, and the kit/tool that seeds it (`—` = gap).",
         "# Consumed by: the UPS audit (dash audit --spec, roadmap) and the dash site.",

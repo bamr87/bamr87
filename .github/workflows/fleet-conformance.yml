@@ -14,11 +14,13 @@ name: fleet-conformance
 # where the code lives. Static and offline: file presence, byte parity, greps —
 # no build, no network beyond the two checkouts.
 #
-# Call it from a member repo:
+# Call it from a member repo, pinned to the floating major tag (never @main;
+# tag scheme and bump rules: docs/WORKFLOW-VERSIONING.md, history: CHANGELOG.md).
+# Pass the same ref as `hub-ref`, or the checker still comes from main:
 #   jobs:
 #     conformance:
-#       uses: bamr87/bamr87/.github/workflows/fleet-conformance.yml@main
-#       with: { kinds: "app,api" }   # optional — detected from the tree when empty
+#       uses: bamr87/bamr87/.github/workflows/fleet-conformance.yml@v1
+#       with: { kinds: "app,api", hub-ref: v1 }   # kinds optional — detected when empty
 
 on:
   workflow_call:

@@ -326,7 +326,7 @@ jobs:
       - name: Choose the Claude credential (ai_auth order)
         id: claude-auth
         if: ${{ inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}
-        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        uses: bamr87/bamr87/.github/actions/claude-auth@v1
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}

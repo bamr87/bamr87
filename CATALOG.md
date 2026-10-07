@@ -21,17 +21,18 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 198 requirements: 141 MUST, 53 SHOULD, 4 MAY; 67 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 216 requirements: 149 MUST, 59 SHOULD, 4 MAY; 62 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
-| REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 22 / 7 / 0 | 10 | Repository layout and required files |
-| AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 1 | Agent context |
-| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…53 | 25 / 7 / 0 | 18 | Quality gates |
-| FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 7 | Frontend: design system, core components, UX standards |
+| REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 22 / 7 / 0 | 6 | Repository layout and required files |
+| AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 0 | Agent context |
+| QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…53 | 25 / 7 / 0 | 17 | Quality gates |
+| FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 5 | Frontend: design system, core components, UX standards |
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
-| OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 15 | Configuration, observability, security, data |
+| OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 16 | Configuration, observability, security, data |
+| WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…14 | 8 / 6 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
 | — | [`STACKS.md`](specs/STACKS.md) | — | — | — | Stack-family profiles and the applicability matrix |
 | — | [`CONFORMANCE.md`](specs/CONFORMANCE.md) | — | — | — | Declaring, auditing, adoption order, the fleet gap list |
 
@@ -51,6 +52,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
+| [`sdlc/`](templates/sdlc/) | 0.1.0 | 2026-10-03 | Copied per repo (not inherited). | `AGENTS.template.md`, `CHANGELOG.template.md`, `CLAUDE.template.md`, `README.md`, `content-queue/backlog.yml`, `docs/README.template.md`, `docs/adr/0000-template.md`, `docs/adr/0001-record-architectu… |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/standardize-fanout.yml (artifact `ci`) via tools/fanout.sh | `ci.yml` |
 | [`ux-audit/`](templates/ux-audit/) | 0.1.0 | 2026-09-18 | tools/fanout.sh --kit ux-audit (OPT-IN; never in the default artifact set) | `AGENT_PROMPT.md`, `README.md`, `prompts/a11y.md`, `prompts/design-system.md`, `prompts/interaction.md`, `prompts/microcopy.md`, `prompts/synthesizer.md`, `scripts/collect_evidence.mjs`, `scripts/ux_… |
 | [`verify/`](templates/verify/) | 0.1.0 | 2026-09-04 | tools/fanout.sh --kit verify (verify-fanout.yml); `dash verify deploy` | `EVIDENCE-README.template.md`, `README.md`, `SKILL.template.md`, `features.template.yml`, `mcp.json`, `runner.mjs`, `scenario.template.yml`, `verifier.template.md`, `verify.template.yml`, `verify.yml` |
@@ -151,9 +153,11 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`seed-schema.sh`](tools/seed-schema.sh) | Seeds the schema kit into one repo (dry-run default) — see [docs/SCHEMA-FRAMEWORK.md](../docs/SCHEMA-FRAMEWORK.md) |
 | [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bamr87/chui](https://github.com/bamr87/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font with CoreText via `m… |
 | [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
+| [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
 | [`test_docker_view.py`](tools/test_docker_view.py) | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Py… |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
+| [`test_fleet_ci_gate.py`](tools/test_fleet_ci_gate.py) | Fixture tests for UPS-QA-20 in tools/conformance.py: `ci.yml` is a thin caller of the ONE shared gate, bamr87/bamr87's standard-ci.yml. |
 | [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/tui/fleet.py — the terminal dash data layer. |
 | [`unpin-deps.sh`](tools/unpin-deps.sh) | Converts one repo to the fleet's **always-latest** dependency policy — strips exact pins, deletes + gitignores lockfiles, adapts CI installs (idempotent; the `deps-lates… |
@@ -307,6 +311,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`DEPENDENCIES.md`](docs/DEPENDENCIES.md) | The always-latest dependency policy. |
 | [`DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Local setup for the hub — containers, the everyday loop, and the pre-PR checklist. |
 | [`DOCKER.md`](docs/DOCKER.md) | Image versions come from **one registry**, a tool rewrites each repo to match, |
+| [`DOCS-SYSTEM.md`](docs/DOCS-SYSTEM.md) | **Plan (2026-10-03):** documentation by role, not by generator — every page has one home: Jekyll front door, MkDocs guides, Sphinx API reference, one private Wiki.js han… |
 | [`ESTIMATION.md`](docs/ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
 | [`EVOLUTION.md`](docs/EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo. |
 | [`FLEET-COMPOSE.md`](docs/FLEET-COMPOSE.md) | One command brings up any project (or all of them) with its real database, |
@@ -324,6 +329,7 @@ Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of r
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | **Status:** v0 kit (`templates/ux-audit/` 0.1.0). |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard: the feature index every repo carries (`features/features.yml`), user scenarios a Playwright runner and a Claude Code pass both execute,… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
+| [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the hub's reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises callers, and how a release is cut and rolled back. |
 | [`automation-and-agents.md`](docs/automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |
 | [`local-development.md`](docs/local-development.md) | Clone, configure and run the site locally (Docker or Bundler + Jekyll). |
 | [`prerequisites.md`](docs/prerequisites.md) | What to install before the quick start. |

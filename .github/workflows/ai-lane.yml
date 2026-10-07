@@ -258,7 +258,7 @@ jobs:
       - name: Agent — ${{ inputs.agent || 'claude' }} (universal AI runner)
         id: agent
         continue-on-error: ${{ inputs.continue-on-error }}
-        uses: bamr87/bamr87/.github/actions/claude-run@main
+        uses: bamr87/bamr87/.github/actions/claude-run@v1
         with:
           prompt: ${{ inputs.prompt }}
           agent: ${{ inputs.agent }}
