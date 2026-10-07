@@ -65,6 +65,20 @@ The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](..
 | `archive/claude-0.1.0*.yml` | byte-exact archived machine-seed shapes (pristine 0.1.0, and 0.1.0 + the fleet-wide checkout@v7 bump); `fanout.sh --upgrade` refreshes a target's claude.yml only when it matches one of these — hand-modified copies are never touched |
 | `VERSION` | kit provenance + changelog + the declared fleet `.claude/` position |
 
+## `community/`
+
+The fleet's community-health files (spec: UPS-REPO-14/15/16/18/19, UPS-QA-41, UPS-AGENT-32, UPS-WORK-03/09). Distributed by **inheritance first**: the PR template, issue forms, CONTRIBUTING, SECURITY and Code of Conduct become the defaults in the owner `.github` repos (a Fleet Ops change), and a repo carries its own copy only to add gates. See [`community/README.md`](community/README.md) for the contract a conformance check lints.
+
+| File | Purpose |
+| --- | --- |
+| `.github/pull_request_template.md` | the ONE fleet Definition of Done between `<!-- fleet-dod:start v1 -->` and `<!-- fleet-dod:end -->`; overrides add items below the end marker only |
+| `.github/ISSUE_TEMPLATE/*.yml` | bug, feature and documentation forms (one fleet type label + `agent:queued`) and a URL-free `config.yml` |
+| `.github/CODEOWNERS`, `.github/dependabot.yml` | soft `* @bamr87` owner; weekly grouped `github-actions` updates with the `ci` prefix (copied: GitHub does not inherit these) |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | default guide (Issues backlog, AGENTS.md, release-please CHANGELOG), 7-day security window, Contributor Covenant pointer |
+| `labels.yml` | the fleet label taxonomy as a file, with colours, descriptions and renames; names must equal `_data/fleet.yml` `issue_pipeline.labels` |
+| `test_community_kit.py` | fixture tests for all of the above (`python3 templates/community/test_community_kit.py`) |
+| `VERSION`, `archive/` | kit provenance + changelog; pre-change snapshots |
+
 ## `conformance/`
 
 The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../specs/CONFORMANCE.md)) — a thin caller of the hub's reusable [`fleet-conformance.yml`](../.github/workflows/fleet-conformance.yml), seeded by `tools/fanout.sh --kit standardize --artifacts conformance`. Advisory (`gate: false`) until the repo's MUST rows pass. See [`conformance/README.md`](conformance/README.md).

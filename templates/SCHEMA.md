@@ -13,6 +13,7 @@ coverage: listed
 |---|---|---|---|
 | `README.md` | file | Index of kits and how fan-out works | required |
 | `agent-context/` | dir | Agent-context kit: CLAUDE.md scaffold + @claude OAuth workflow, seeded by standardize-fanout | terminal |
+| `community/` | dir | Community kit: the ONE PR template carrying the fleet Definition of Done (`fleet-dod` markers), issue forms with fleet labels, `labels.yml` taxonomy, CODEOWNERS, Dependabot, CONTRIBUTING, SECURITY, Code of Conduct; distributed by owner `.github` inheritance (UPS-REPO-14..19, UPS-QA-41, UPS-WORK-03/09) | terminal |
 | `standard-ci/` | dir | Reusable CI gate caller seeded by standardize-fanout | terminal |
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
 | `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
