@@ -8,11 +8,19 @@ Description: Executable Universal Project Standard (UPS) checker. Runs the
              _data/conformance.yml — the file the repo-evolution brief reads so
              the weekly agent pass closes real gaps).
              Static and offline: file presence, byte parity, small greps. Rows
-             with no implemented check are counted as `manual`.
+             with no implemented check are counted as `manual`; rows a check
+             cannot decide offline are listed as `unverified`; rows at spec
+             level `retired` are skipped. Results are pass | warn | fail |
+             unverified: a warning is reported but never counts toward
+             must_failed or `--gate`. Rules marked `rollout: warn` in the hub's
+             specs/WORK.contract.yml report a failure as a warning (delete the
+             marker to make the rule gate), except the rule's `hard_fail:` cases,
+             which always fail. The UPS-WORK, UPS-AGENT-07/08/09 and
+             UPS-REPO-21 rows are keyed to that contract.
 Author: bamr87
 Created: 2026-09-01
-Last Modified: 2026-09-01
-Version: 0.1.0
+Last Modified: 2026-10-04
+Version: 0.3.2
 Usage: python3 tools/conformance.py check [PATH] [--kinds site,app] [--tier active] [--gate] [--json] [--hub DIR]
        python3 tools/conformance.py fleet [--write _data/conformance.yml] [--json]
        python3 tools/conformance.py kinds [PATH]      # print detected kinds
@@ -22,6 +30,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
 import subprocess
 import sys
@@ -29,7 +38,7 @@ from pathlib import Path
 
 import yaml
 
-CHECKER_VERSION = "0.1.0"
+CHECKER_VERSION = "0.3.2"
 HUB_DEFAULT = Path(__file__).resolve().parent.parent
 KINDS = ("site", "app", "api", "lib", "cli", "ext", "content", "fork")
 LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock",
@@ -49,6 +58,7 @@ class Repo:
         self.hub = hub.resolve()
         self._tracked: list[str] | None = None
         self._files: list[Path] | None = None
+        self.registry_entry: dict | None = None   # hub registry entry; fleet mode sets it
 
     def has(self, *rel: str) -> bool:
         return any((self.path / r).exists() for r in rel)
@@ -192,6 +202,35 @@ def _no(msg: str) -> tuple[bool, str]:
     return False, msg
 
 
+# The hub-only lockfile exception (UPS-QA-40, UPS-REPO-07; its Dependabot half
+# is UPS-QA-41) is declared once, in specs/QUALITY.contract.yml, and parsed once,
+# in tools/sanctioned_lockfiles.py, which check-drift (j) and unpin-deps.sh use
+# too. The rules call this helper and nothing else, so a rewrite of either rule
+# keeps the exception by keeping the call. Nothing here lists a path.
+try:
+    import sanctioned_lockfiles as _sanctioned
+except ImportError:  # a checker copied without its sibling: no exception at all
+    _sanctioned = None
+
+
+def hub_lockfile_exception(r) -> tuple[set[str], list[str]]:
+    """(tracked lockfile paths the hub-only exception covers, why any declared
+    entry does not qualify). Both are empty unless `r` is the hub itself: its
+    `origin` is bamr87/bamr87 (fleet-conformance checks the PR at `.` with the hub
+    checked out separately at `.fleet-hub`) or it is the hub checkout. The list
+    comes from r's own specs/QUALITY.contract.yml, never from r.hub."""
+    if not hasattr(r, "_hub_lock_exception"):
+        covered, why = set(), []
+        if _sanctioned is not None and _sanctioned.is_hub(r.path, r.hub):
+            try:
+                ok, why = _sanctioned.evaluate(r.path)
+                covered = set(ok)
+            except _sanctioned.ContractError as e:
+                why = [str(e)]
+        r._hub_lock_exception = (covered, why)
+    return r._hub_lock_exception
+
+
 @check("UPS-REPO-06")
 def _readme(r, k):
     return _ok() if r.has("README.md", "README.rst") else _no("no README.md at the root")
@@ -199,7 +238,7 @@ def _readme(r, k):
 
 @check("UPS-REPO-07")
 def _no_lockfiles(r, k):
-    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES or "node_modules/" in t]
+    bad = [t for t in r.tracked() if (Path(t).name in LOCKFILES and t not in hub_lockfile_exception(r)[0]) or "node_modules/" in t]
     return _ok() if not bad else _no(f"tracked: {', '.join(sorted(set(Path(b).name if 'node_modules' not in b else 'node_modules/' for b in bad))[:4])}")
 
 
@@ -217,11 +256,6 @@ def _readme_sections(r, k):
 @check("UPS-REPO-12")
 def _license(r, k):
     return _ok() if r.glob1("LICENSE*") or r.glob1("COPYING*") else _no("no LICENSE file")
-
-
-@check("UPS-REPO-13")
-def _changelog(r, k):
-    return _ok() if r.has("CHANGELOG.md") else _no("no CHANGELOG.md (release-please owns it)")
 
 
 @check("UPS-REPO-14")
@@ -268,31 +302,6 @@ def _env_example(r, k):
     if not reads:
         return _ok("no env reads found")
     return _ok() if r.has(".env.example", ".env.sample", ".env.template") else _no(f"code reads env ({reads}) but no .env.example")
-
-
-@check("UPS-AGENT-01")
-def _agent_file(r, k):
-    return _ok() if r.has("CLAUDE.md", "AGENTS.md") else _no("no CLAUDE.md or AGENTS.md")
-
-
-@check("UPS-AGENT-02")
-def _agent_sections(r, k):
-    t = r.read("CLAUDE.md") or r.read("AGENTS.md")
-    if not t:
-        return _no("no agent context file")
-    if "<!-- TODO" in t:
-        return _no("CLAUDE.md still carries kit scaffold TODOs")
-    heads = " ".join(re.findall(r"^##\s+(.+)$", t, re.M)).lower()
-    missing = [n for n, rx in (("Stack & commands", r"stack|commands"), ("Conventions", r"convention"), ("Fleet context", r"fleet|submodule")) if not re.search(rx, heads)]
-    return _ok() if not missing else _no("CLAUDE.md missing sections: " + ", ".join(missing))
-
-
-@check("UPS-AGENT-03")
-def _kit_stamp(r, k):
-    t = r.read("CLAUDE.md")
-    if not t:
-        return _ok("AGENTS.md-only repo")
-    return _ok() if "<!-- kit: agent-context v" in t else _no("CLAUDE.md lacks the `<!-- kit: agent-context vX.Y.Z -->` stamp")
 
 
 @check("UPS-AGENT-06")
@@ -441,9 +450,11 @@ def _ci_caller(r, k):
     t = r.read(".github/workflows/ci.yml")
     if not t:
         return _no("no .github/workflows/ci.yml")
-    if re.search(r"uses:\s*bamr87/(bamr87/\.github/workflows/standard-ci\.yml|\.github/\.github/workflows/ci\.yml)@", t):
+    if re.search(r"uses:\s*bamr87/bamr87/\.github/workflows/standard-ci\.yml@", t):
         return _ok()
-    return _no("ci.yml is bespoke (not a thin caller of the shared gate)")
+    if re.search(r"uses:\s*bamr87/\.github/\.github/workflows/ci\.yml@", t):
+        return _no("ci.yml calls bamr87/.github ci.yml, which is retired — call bamr87/bamr87 standard-ci.yml")
+    return _no("ci.yml is bespoke (not a thin caller of the shared gate, bamr87/bamr87 standard-ci.yml)")
 
 
 @check("UPS-QA-32")
@@ -451,23 +462,91 @@ def _release(r, k):
     return _ok() if r.has("release-please-config.json", ".release-please-manifest.json") else _no("no release-please config")
 
 
+# Pin policy for `uses:` refs (UPS-QA-40). A ref is pinned when it names a
+# release: a moving major tag (`@v1`), an exact release (`@v1.2.3`), or a full
+# 40-char commit SHA (conventionally followed by a `# vX.Y.Z` comment, which is
+# not required). Branch refs (`@main`, `@master`, `@stable`), partial versions
+# (`@v1.2`), short SHAs and missing refs are not. Local paths (`./…`) carry no
+# ref because they resolve in the same commit; that is how the hub calls its own
+# workflows and actions. `docker://` images are out of scope.
+PIN_RE = re.compile(r"v\d+|v\d+\.\d+\.\d+|[0-9a-f]{40}")
+_USES_LINE = re.compile(r"""^\s*(?:-\s+)?uses:\s*(['"]?)([^\s'"#]+)\1""", re.M)
+
+
+def uses_refs(text: str) -> list[str]:
+    """Every `uses:` value in a workflow or action file: job-level reusable
+    calls, workflow steps, and composite-action steps. Parsed as YAML so `run:`
+    blocks that merely mention `uses:` are ignored; falls back to a line scan if
+    the file does not parse."""
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError:
+        doc = None
+    if not isinstance(doc, dict):
+        return [m.group(2) for m in _USES_LINE.finditer(text)]
+    out: list[str] = []
+
+    def steps(lst):
+        for st in lst if isinstance(lst, list) else []:
+            if isinstance(st, dict) and isinstance(st.get("uses"), str):
+                out.append(st["uses"].strip())
+
+    for job in (doc.get("jobs") or {}).values() if isinstance(doc.get("jobs"), dict) else []:
+        if isinstance(job, dict):
+            if isinstance(job.get("uses"), str):
+                out.append(job["uses"].strip())
+            steps(job.get("steps"))
+    if isinstance(doc.get("runs"), dict):
+        steps(doc["runs"].get("steps"))
+    return out
+
+
+def unpinned_ref(uses: str) -> str | None:
+    """None when `uses` satisfies the pin policy, else a short reason."""
+    if uses.startswith("./") or uses.startswith("docker://") or "${{" in uses:
+        return None
+    if "@" not in uses:
+        return "no ref"
+    ref = uses.rsplit("@", 1)[1]
+    if PIN_RE.fullmatch(ref):
+        return None
+    if re.fullmatch(r"[0-9a-f]{7,39}", ref):
+        return "short SHA"
+    if re.fullmatch(r"v?\d+(\.\d+)*", ref):
+        return "not vMAJOR or vMAJOR.MINOR.PATCH"
+    return "branch ref"
+
+
+def _workflow_files(r) -> list[Path]:
+    gh = r.path / ".github"
+    files = [p for ext in ("*.yml", "*.yaml") for p in (gh / "workflows").glob(ext)]
+    files += [p for name in ("action.yml", "action.yaml") for p in (gh / "actions").rglob(name)]
+    return sorted(set(files))
+
+
 @check("UPS-QA-40")
 def _always_latest(r, k):
-    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES]
+    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES and t not in hub_lockfile_exception(r)[0]]
     if bad:
         return _no("committed lockfile: " + ", ".join(sorted({Path(b).name for b in bad})[:3]))
-    pinned = None
-    for p in (r.path / ".github" / "workflows").glob("*.yml"):
-        m = re.search(r"uses:\s*\S+@(v?\d+\.\d+(\.\d+)?|[0-9a-f]{40})\b", p.read_text(encoding="utf-8", errors="replace"))
-        if m:
-            pinned = f"{p.name}@{m.group(1)}"
-            break
-    return _ok() if not pinned else _no(f"action pinned below major tag: {pinned}")
+    loose: list[str] = []
+    for p in _workflow_files(r):
+        for u in uses_refs(p.read_text(encoding="utf-8", errors="replace")):
+            why = unpinned_ref(u)
+            if why:
+                loose.append(f"{p.relative_to(r.path / '.github')}: {u} ({why})")
+    if not loose:
+        return _ok()
+    more = f" (+{len(loose) - 3} more)" if len(loose) > 3 else ""
+    return _no("uses: not pinned to @vN, @vX.Y.Z or a full SHA: " + "; ".join(loose[:3]) + more)
 
 
 @check("UPS-QA-41")
 def _dependabot(r, k):
-    return _ok() if r.has(".github/dependabot.yml") else _no("no .github/dependabot.yml")
+    if not r.has(".github/dependabot.yml"):
+        return _no("no .github/dependabot.yml")
+    why = hub_lockfile_exception(r)[1]  # hub only: a sanctioned runtime whose entry is missing
+    return _no("sanctioned runtime not covered: " + "; ".join(why)) if why else _ok()
 
 
 @check("UPS-FE-01")
@@ -569,6 +648,809 @@ def _env_not_tracked(r, k):
 
 
 # --------------------------------------------------------------------------- #
+# UPS-WORK — planning & delivery (specs/WORK.md), plus the rows that changed
+# with it: UPS-AGENT-07/08/09 (decision D4) and UPS-REPO-21 (decision D5).
+#
+# KEYED TO THE CONTRACT. specs/WORK.contract.yml (hub) is the machine contract
+# for these rows: every path, key, list and regex it names under `definitions:`
+# is read from it at run time (`_defs(r)`), never copied here. The few regexes
+# the contract states only inside a rule's `pass:` text are in `RULE_RX`, keyed
+# by rule id; tools/test_conformance_work.py fails if one stops appearing
+# verbatim in the contract. When the hub checkout has no contract (it predates
+# bamr87/bamr87#323), these rows report `unverified` instead of guessing.
+#
+# Result vocabulary (the contract's): pass | warn | fail | unverified. A check
+# returns True / WARN / False / None. WARN is a deprecated-but-accepted shape
+# (a rule's own `warn:` clause). Separately, every rule the contract marks
+# `rollout: warn` reports a would-be fail as a warning too (see warn_only()),
+# except a rule's `hard_fail:` cases (see hard_fail()), which always fail.
+#
+# One failure per root cause: a rule that only reads a file another rule owns
+# passes, naming the owner, when the file is missing (CHANGELOG.md belongs to
+# UPS-REPO-21; AGENTS.md and its `## Conventions` heading to UPS-AGENT-07).
+# --------------------------------------------------------------------------- #
+CONTRACT_FILE = "specs/WORK.contract.yml"
+WARN = "warn"
+FLEET_TYPES_FALLBACK = ("bug", "feature", "docs", "chore", "ci", "refactor", "test", "security", "question")
+SPEC_STALE_DAYS, BACKLOG_LAG_DAYS = 30, 60
+# Regexes and literals the contract states inside a rule's `pass:` prose (it has
+# no named definition for them). Each must appear verbatim in that rule's text.
+RULE_RX = {
+    "UPS-WORK-03": r"^- \[ \] \*\*(.+?)\*\*",
+    "UPS-WORK-05/unreleased": r"^##\s*\[?unreleased\b",
+    "UPS-WORK-05/tag": r"^v?\d+\.\d+\.\d+$",
+    "UPS-WORK-05/heading": r"^##\s*\[?v?(\d+\.\d+\.\d+)",
+    "UPS-WORK-11/task": r"^\s*[-*] \[[ xX]\] ",
+    "UPS-WORK-11/id": r"\b(BL-\d{8}-\d{2}|T-\d{3,})\b",
+    "UPS-WORK-11/hub-roadmap": "bamr87/bamr87/blob/main/_data/roadmap.yml",
+    "UPS-WORK-12/section": r"^##\s+Conventions\b",
+    "UPS-WORK-12/dod": r"Definition of Done|pull_request_template",
+    "UPS-REPO-21/no-profile": "simple|node|python|ruby",
+}
+
+_CONTRACTS: dict[Path, dict | None] = {}
+
+
+def contract(r) -> dict | None:
+    """The hub's WORK contract: {"defs", "rules", "related"}, or None if absent."""
+    if r.hub not in _CONTRACTS:
+        p = r.hub / CONTRACT_FILE
+        try:
+            data = yaml.safe_load(p.read_text(encoding="utf-8")) if p.is_file() else None
+        except (OSError, yaml.YAMLError):
+            data = None
+        _CONTRACTS[r.hub] = None if not isinstance(data, dict) else {
+            "defs": data.get("definitions") or {}, "rules": data.get("rules") or {}, "related": data.get("related") or {}}
+    return _CONTRACTS[r.hub]
+
+
+def _need_contract(fn):
+    """Decorator: report `unverified` (not pass/fail) when the hub has no contract."""
+    def wrapped(r, k):
+        if contract(r) is None:
+            return None, f"hub checkout has no {CONTRACT_FILE} (bamr87/bamr87#323); row not evaluated"
+        return fn(r, k)
+    wrapped.__name__, wrapped.__doc__ = fn.__name__, fn.__doc__
+    return wrapped
+
+
+def _defs(r) -> dict:
+    return (contract(r) or {}).get("defs") or {}
+
+
+def _rule(r, rid: str) -> dict:
+    c = contract(r) or {}
+    return (c.get("rules") or {}).get(rid) or (c.get("related") or {}).get(rid) or {}
+
+
+def warn_only(r) -> dict[str, str]:
+    """Rules the contract marks `rollout: warn`: a failure is reported as a
+    warning that never counts toward must_failed or `--gate`. Fleet Ops makes a
+    rule gate by deleting its marker in specs/WORK.contract.yml; nothing here
+    changes."""
+    c = contract(r) or {}
+    rules = {**(c.get("rules") or {}), **(c.get("related") or {})}
+    return {rid: "rollout: warn in specs/WORK.contract.yml"
+            + (" (rollout_effect: fails once the marker is removed)" if v.get("rollout_effect") else "")
+            for rid, v in rules.items() if isinstance(v, dict) and v.get("rollout") == "warn"}
+
+
+def _job_uses(r) -> list[tuple[str, str]]:
+    """(value, workflow file) for every job-level `uses:` (the uses_keys
+    workflow paths outside steps[]) in the repo's pin_scope workflows."""
+    keys = [k for k in (_defs(r).get("uses_keys") or {}).get("workflow") or [] if "steps" not in k]
+    return [(v, p.name) for p in _pin_files(r) if p.parent.name == "workflows" for v in (yaml_values(p, keys) or [])]
+
+
+def hard_fail(r, rid: str) -> list[str]:
+    """The rule's contract `hard_fail:` cases that hold, as details. Each case is
+    `all_of: [{caller: <definition>, ref_re: <definition> | any}, ...]` over the
+    job-level `uses:` values, compared up to the '@'. A hit is a fail even while
+    the rule carries `rollout: warn` (run_checks never softens it)."""
+    if contract(r) is None:
+        return []
+    d, out = _defs(r), []
+    cases = _rule(r, rid).get("hard_fail") or {}
+    calls = _job_uses(r) if cases else []
+    for name, case in cases.items():
+        if not isinstance(case, dict) or case.get("result", "fail") != "fail":
+            continue
+        found = []
+        for want in case.get("all_of") or []:
+            target = str(d.get(want.get("caller"), ""))
+            rx = None if want.get("ref_re") == "any" else re.compile(d[want["ref_re"]])
+            hit = next(((v, f) for v, f in calls if target and v.split("@", 1)[0] == target
+                        and (rx is None or ("@" in v and rx.fullmatch(v.split("@", 1)[1])))), None)
+            if hit is None:
+                break
+            found.append((want.get("caller"), hit))
+        else:
+            if not found:
+                continue
+            detail = str(case.get("detail") or f"hard_fail.{name}")
+            for caller, (v, f) in found:  # fill "<caller>@<ref> in <file>" in all_of order
+                detail = detail.replace(f"<{caller}>@<ref> in <file>", f"{v} in {f}", 1)
+            out.append(f"hard_fail.{name}: {detail}")
+    return out
+
+
+def _hub_path(r, ref: str) -> Path:
+    """A contract path: `hub:x` is relative to the hub checkout, anything else to the repo."""
+    ref = str(ref).split()[0]
+    return r.hub / ref[4:] if ref.startswith("hub:") else r.path / ref
+
+
+def _skip(msg: str) -> tuple[None, str]:
+    return None, msg
+
+
+def _git(r, *args: str) -> str:
+    try:
+        return subprocess.run(["git", "-C", str(r.path), *args], capture_output=True, text=True, check=True).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+
+
+def _last_commit(r, rel: str | None = None) -> dt.datetime | None:
+    out = _git(r, "log", "-1", "--format=%ct", *(["--", rel] if rel else []))
+    return dt.datetime.fromtimestamp(int(out), dt.timezone.utc) if out.isdigit() else None
+
+
+def _origin_nwo(r) -> str | None:
+    url = _git(r, "remote", "get-url", "origin")
+    if not url and r.path == Path.cwd().resolve():
+        url = os.environ.get("GITHUB_REPOSITORY", "")
+    m = re.search(r"(?:github\.com[:/])?([\w.-]+/[\w.-]+?)(?:\.git)?/?$", url)
+    return m.group(1).lower() if m else None
+
+
+def registry_entry(r) -> dict | None:
+    """The repo's hub registry entry: set by fleet mode, else matched on the origin remote."""
+    if r.registry_entry is None:
+        r.registry_entry = {}
+        nwo = _origin_nwo(r)
+        reg = r.hub / "_data" / "projects.yml"
+        if nwo and reg.is_file():
+            for e in yaml.safe_load(reg.read_text(encoding="utf-8")) or []:
+                if re.sub(r"^https://github\.com/", "", str(e.get("repo_url", ""))).rstrip("/").lower() == nwo:
+                    r.registry_entry = e
+                    break
+    return r.registry_entry or None
+
+
+def _jsonable(v):
+    """YAML -> JSON data model: an unquoted `until: 2027-01-01` loads as a date."""
+    if isinstance(v, dict):
+        return {str(k): _jsonable(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_jsonable(x) for x in v]
+    if isinstance(v, (dt.date, dt.datetime)):
+        return v.isoformat()
+    return v
+
+
+def sdlc_profile(r) -> tuple[dict | None, str, str | None]:
+    """(profile, source, error) per the contract's `profile_precedence`:
+    `.github/sdlc.yml` first, then the registry `sdlc:` block. A registry
+    `modules:` list is normalised to the canonical map (allowed there only)."""
+    if not hasattr(r, "_sdlc"):
+        f = str(_defs(r).get("sdlc_file") or ".github/sdlc.yml")
+        prof, src, err = None, "", None
+        if r.has(f):
+            src = f
+            try:
+                data = yaml.safe_load(r.read(f))
+                prof = _jsonable(data) if isinstance(data, dict) else {}
+                if not isinstance(data, dict):
+                    err = "not a YAML mapping"
+            except yaml.YAMLError as e:
+                prof, err = {}, f"YAML error: {str(e).splitlines()[0]}"
+        else:
+            e = registry_entry(r)
+            if e and isinstance(e.get("sdlc"), dict):
+                prof, src = _jsonable(e["sdlc"]), "registry `sdlc:` block"
+                if isinstance(prof.get("modules"), list):
+                    prof["modules"] = {str(m): True for m in prof["modules"]}
+        r._sdlc = (prof, src, err)
+    return r._sdlc
+
+
+def sdlc_modules(prof: dict | None) -> set[str]:
+    m = (prof or {}).get("modules")
+    if isinstance(m, dict):
+        return {str(k) for k, v in m.items() if v}
+    return {str(x) for x in m} if isinstance(m, list) else set()
+
+
+def profile_kinds(r) -> list[str] | None:
+    """Kinds from the profile (D6): `kinds:` if given, else the contract's
+    `type_kinds` default for `type:`. Marker kinds (`hub`) are dropped."""
+    prof = sdlc_profile(r)[0] or {}
+    ks = prof.get("kinds") or (_defs(r).get("type_kinds") or {}).get(prof.get("type"))
+    ks = [str(x) for x in ks or [] if str(x) in KINDS]
+    return ks or None
+
+
+def _backlog_decl(prof: dict | None) -> dict:
+    b = (prof or {}).get("backlog")
+    return b if isinstance(b, dict) else {}
+
+
+def _adr_path(r, prof: dict | None) -> str:
+    return str((prof or {}).get("adr_path") or _defs(r).get("adr_path_default") or "docs/adr").strip("/")
+
+
+def _workflow_texts(r) -> list[tuple[str, str]]:
+    d = r.path / ".github" / "workflows"
+    return [(p.name, p.read_text(encoding="utf-8", errors="replace")) for p in sorted(d.glob("*.y*ml"))] if d.is_dir() else []
+
+
+def _section(text: str, heading_rx: str) -> str | None:
+    m = re.search(heading_rx + r".*$", text, re.I | re.M)
+    if not m:
+        return None
+    nxt = re.search(r"^##\s", text[m.end():], re.M)
+    return text[m.end(): m.end() + nxt.start()] if nxt else text[m.end():]
+
+
+def _at(node, segs: list[str]) -> list:
+    """Values at a contract key path: `<name>` = every value of a mapping,
+    `key[]` = every item of the list at key, `key` = that key."""
+    if not segs:
+        return [node]
+    seg, rest = segs[0], segs[1:]
+    if seg.startswith("<") and seg.endswith(">"):
+        return [v for x in (node.values() if isinstance(node, dict) else []) for v in _at(x, rest)]
+    if seg.endswith("[]"):
+        items = node.get(seg[:-2]) if isinstance(node, dict) else None
+        return [v for x in (items if isinstance(items, list) else []) for v in _at(x, rest)]
+    return _at(node[seg], rest) if isinstance(node, dict) and seg in node else []
+
+
+def yaml_values(p: Path, keys: list[str]) -> list[str] | None:
+    """String values parsed (yaml.safe_load) from p at the contract key paths
+    `keys` (see _at). Raw text, comments and other keys never count.
+    None = the file is not valid YAML."""
+    try:
+        doc = yaml.safe_load(p.read_text(encoding="utf-8", errors="replace"))
+    except yaml.YAMLError:
+        return None
+    return [v.strip() for key in keys for v in _at(doc, str(key).split(".")) if isinstance(v, str)]
+
+
+def uses_values(r, p: Path, only: str | None = None) -> list[str] | None:
+    """The `uses:` values parsed from a pin_scope file at the contract's
+    uses_keys (workflow keys under .github/workflows/, action keys elsewhere);
+    `only` restricts to one key path. None = the file is not valid YAML."""
+    keys = (_defs(r).get("uses_keys") or {}).get("workflow" if p.parent.name == "workflows" else "action") or []
+    return yaml_values(p, [k for k in keys if only is None or k == only])
+
+
+def _pin_files(r) -> list[Path]:
+    """Contract pin_scope (globs relative to the repo root; `**` is recursive)."""
+    out: set[Path] = set()
+    for g in _defs(r).get("pin_scope") or []:
+        out.update(p for p in r.path.glob(g) if p.is_file())
+    return sorted(out)
+
+
+# --- a JSON Schema subset, enough for templates/sdlc/sdlc.schema.json ------ #
+# (PyYAML is the checker's only dependency; jsonschema is not installed in CI.)
+SCHEMA_KEYWORDS = {"$schema", "$id", "title", "description", "default", "type", "const", "enum", "required",
+                   "properties", "additionalProperties", "items", "minItems", "uniqueItems", "pattern",
+                   "minLength", "if", "then", "else", "not", "anyOf", "allOf"}
+_JSON_TYPES = {"object": dict, "array": list, "string": str, "boolean": bool}
+
+
+def schema_errors(inst, schema: dict, ptr: str = "") -> list[str]:
+    """Violations as `<json-pointer>: message` (empty list = valid)."""
+    errs: list[str] = []
+    at = ptr or "/"
+    unknown = set(schema) - SCHEMA_KEYWORDS
+    if unknown:
+        return [f"{at}: schema keyword(s) {', '.join(sorted(unknown))} not supported by the checker"]
+    t = schema.get("type")
+    if t:
+        py = _JSON_TYPES.get(t)
+        if py is None or not isinstance(inst, py) or (py is not bool and isinstance(inst, bool)):
+            return [f"{at}: expected {t}"]
+    if "const" in schema and inst != schema["const"]:
+        errs.append(f"{at}: must be {json.dumps(schema['const'])}")
+    if "enum" in schema and inst not in schema["enum"]:
+        errs.append(f"{at}: {json.dumps(inst)} is not one of {', '.join(map(str, schema['enum']))}")
+    if isinstance(inst, str):
+        if "pattern" in schema and not re.search(schema["pattern"], inst):
+            errs.append(f"{at}: {inst!r} does not match {schema['pattern']}")
+        if len(inst) < schema.get("minLength", 0):
+            errs.append(f"{at}: shorter than {schema['minLength']}")
+    if isinstance(inst, list):
+        if len(inst) < schema.get("minItems", 0):
+            errs.append(f"{at}: fewer than {schema['minItems']} item(s)")
+        if schema.get("uniqueItems") and len({json.dumps(x, sort_keys=True) for x in inst}) != len(inst):
+            errs.append(f"{at}: items are not unique")
+        if isinstance(schema.get("items"), dict):
+            for i, x in enumerate(inst):
+                errs += schema_errors(x, schema["items"], f"{ptr}/{i}")
+    if isinstance(inst, dict):
+        for req in schema.get("required", []):
+            if req not in inst:
+                errs.append(f"{at}: missing required `{req}`")
+        props = schema.get("properties") or {}
+        for key, val in inst.items():
+            if key in props:
+                errs += schema_errors(val, props[key], f"{ptr}/{key}")
+            elif schema.get("additionalProperties") is False:
+                errs.append(f"{ptr}/{key}: unknown key")
+    for sub in schema.get("allOf", []):
+        errs += schema_errors(inst, sub, ptr)
+    if "anyOf" in schema and not any(not schema_errors(inst, s, ptr) for s in schema["anyOf"]):
+        errs.append(f"{at}: matches none of anyOf")
+    if "not" in schema and not schema_errors(inst, schema["not"], ptr):
+        errs.append(f"{at}: matches a forbidden shape (not)")
+    if "if" in schema:
+        branch = schema.get("then") if not schema_errors(inst, schema["if"], ptr) else schema.get("else")
+        if branch:
+            errs += schema_errors(inst, branch, ptr)
+    return errs
+
+
+@check("UPS-WORK-01")
+@_need_contract
+def _sdlc_declared(r, k):
+    """Contract UPS-WORK-01: a profile (sdlc_file, else registry_block) valid against sdlc_schema."""
+    prof, src, err = sdlc_profile(r)
+    if prof is None:
+        return _no(f"no {_defs(r).get('sdlc_file')} and no registry `sdlc:` block")
+    if err:
+        return _no(f"{src}: {err}")
+    sp = _hub_path(r, _defs(r).get("sdlc_schema", "hub:templates/sdlc/sdlc.schema.json"))
+    if not sp.is_file():
+        return _skip(f"{src} found, but the hub checkout has no {sp.relative_to(r.hub)} (bamr87/bamr87#324) to validate it")
+    errs = schema_errors(prof, json.loads(sp.read_text(encoding="utf-8")))
+    if errs:
+        return _no(f"{src}: " + "; ".join(errs[:4]) + (f" (+{len(errs) - 4} more)" if len(errs) > 4 else ""))
+    return _ok(f"{src} (type {prof.get('type')})")
+
+
+@check("UPS-WORK-02")
+@_need_contract
+def _backlog_of_record(r, k):
+    """Contract UPS-WORK-02: file mode = backlog.file exists and, in a
+    backlog_lint_scope file parsed as YAML, a value at backlog_lint_keys matches
+    backlog_lint_value_re (re.I). Comments, `name:` and invalid YAML never count."""
+    b = _backlog_decl(sdlc_profile(r)[0])
+    if (b.get("mode") or "issues") != "file":
+        return _skip("issues mode: the fleet labels on Issues are not visible offline (UPS-WORK-14)")
+    f = b.get("file")
+    if not f or not r.has(f):
+        return _no(f"backlog.mode is file but backlog.file {f or '(unset)'} is missing")
+    d = _defs(r)
+    rx = re.compile(d["backlog_lint_value_re"], re.I)
+    keys = (d.get("backlog_lint_keys") or {}).get("workflow") or []
+    files = sorted({p for g in d.get("backlog_lint_scope") or [] for p in r.path.glob(g) if p.is_file()})
+    lint = next((p.name for p in files if any(rx.search(v) for v in yaml_values(p, keys) or [])), None)
+    return _ok(f"{f}, linted in {lint}") if lint else _no(f"{f} has no CI lint (no workflow step or job runs a backlog lint; a sync job is not one)")
+
+
+def _dod_block(text: str, rx: str) -> tuple[str, list[str]] | None:
+    m = re.search(rx, text, re.S)
+    return (m.group(1), re.findall(RULE_RX["UPS-WORK-03"], m.group(2), re.M)) if m else None
+
+
+@check("UPS-WORK-03")
+@_need_contract
+def _definition_of_done(r, k):
+    """Contract UPS-WORK-03: the first PR template carries the fleet-dod block with the reference boxes."""
+    d = _defs(r)
+    path = None
+    for p in d.get("pr_templates") or []:
+        path = r.glob1(p) if "*" in p else (p if r.has(p) else None)
+        if path:
+            break
+    if not path:
+        return _skip("no PR template in the tree; the owner's `.github` default applies and is not visible offline")
+    mine = _dod_block(r.read(path), d["dod_block_re"])
+    if not mine:
+        return _no(f"{path} has no `<!-- fleet-dod:start vN -->` … `<!-- fleet-dod:end -->` block")
+    ref_p = _hub_path(r, d["dod_reference"])
+    ref = _dod_block(ref_p.read_text(encoding="utf-8"), d["dod_block_re"]) if ref_p.is_file() else None
+    if not ref:
+        return _skip(f"{path} has a v{mine[0]} block; the hub has no reference template (bamr87/bamr87#319) to compare")
+    vers = _defs(r).get("dod_versions") or {"pass_offset": 0, "warn_offset": -1}
+    n, have = int(ref[0]), int(mine[0])
+    if have == n + int(vers.get("warn_offset", -1)) and have != n + int(vers.get("pass_offset", 0)):
+        return WARN, f"{path} carries fleet-dod v{have}; the hub kit is v{n} (previous version: update during the rollout)"
+    if have != n + int(vers.get("pass_offset", 0)):
+        return _no(f"{path} carries fleet-dod v{have}; the hub kit is v{n}")
+    if mine[1] != ref[1]:
+        missing = [b for b in ref[1] if b not in mine[1]]
+        return _no(f"{path} DoD boxes differ from the kit" + (f" (missing: {', '.join(missing)})" if missing else " (order or wording)"))
+    return _ok(f"{path} (fleet-dod v{mine[0]})")
+
+
+@check("UPS-WORK-04")
+@_need_contract
+def _adr_log(r, k):
+    """Contract UPS-WORK-04 (and WORK-13): <adr_path>/<adr_index> + >= 1 adr_file_re
+    file (adr_template_re never counts). adr_alias_re files (ADR-NNNN-slug.md)
+    count with a warning until the D2 rename."""
+    defs = _defs(r)
+    d = _adr_path(r, sdlc_profile(r)[0])
+    p = r.path / d
+    names = sorted(x.name for x in p.glob("*.md")) if p.is_dir() else []
+    tpl = re.compile(defs.get("adr_template_re") or r"^(ADR-)?0000-")
+    canon = [n for n in names if re.match(defs["adr_file_re"], n) and not tpl.match(n)]
+    alias = [n for n in names if re.match(defs["adr_alias_re"], n) and not tpl.match(n)]
+    index = str(defs.get("adr_index") or "README.md")
+    if not canon and not alias:
+        return _no(f"no ADRs in {d}/ (NNNN-slug.md)")
+    if not (p / index).is_file():
+        return _no(f"{d}/ has {len(canon) + len(alias)} ADR(s) but no {index} index")
+    if alias:
+        return WARN, f"{d}/: deprecated ADR- names, rename to NNNN-slug.md (D2): " + ", ".join(alias[:4]) + (f" (+{len(alias) - 4} more)" if len(alias) > 4 else "")
+    return _ok(f"{len(canon)} ADR(s) in {d}/")
+
+
+CHECKS["UPS-WORK-13"] = CHECKS["UPS-WORK-04"]  # contract: same_as UPS-WORK-04
+
+
+def _latest_tag(r) -> str | None:
+    tags = [t for t in _git(r, "tag", "--list", "--sort=-v:refname").splitlines() if re.match(RULE_RX["UPS-WORK-05/tag"], t)]
+    return tags[0] if tags else None
+
+
+@check("UPS-WORK-05")
+@_need_contract
+def _changelog_hygiene(r, k):
+    """Contract UPS-WORK-05: at most one [Unreleased]; newest heading == newest tag."""
+    t = r.read(str(_defs(r).get("changelog") or "CHANGELOG.md"))
+    if not t:
+        return _ok("no CHANGELOG.md, see UPS-REPO-21")
+    n = len(re.findall(RULE_RX["UPS-WORK-05/unreleased"], t, re.I | re.M))
+    if n > 1:
+        return _no(f"CHANGELOG.md has {n} `## [Unreleased]` headings (at most one)")
+    m = re.search(RULE_RX["UPS-WORK-05/heading"], t, re.M)
+    if not m:
+        return _ok("no released version headings yet")
+    tag = _latest_tag(r)
+    if tag is None:
+        return _ok(f"newest heading {m.group(1)}; no version tags in this checkout to compare")
+    return _ok(f"{m.group(1)} = {tag}") if m.group(1) == tag.lstrip("v") else _no(f"newest CHANGELOG heading {m.group(1)} ≠ newest tag {tag}")
+
+
+@check("UPS-WORK-06")
+@_need_contract
+def _features_hygiene(r, k):
+    """Contract UPS-WORK-06: one catalog, no hand-maintained version header."""
+    main = "features/features.yml"
+    if not r.has(main):
+        return _ok("no features/features.yml (presence is UPS-QA-50)")
+    t = r.read(main)
+    head = "\n".join(t.splitlines()[:40])
+    bad = (["duplicate _data/features.yml"] if r.has("_data/features.yml") else []) + (
+        ["hand-maintained version header"] if re.search(r"^\s*#.*\bversion\s*:\s*v?\d+\.\d+", head, re.I | re.M)
+        or re.search(r"^version\s*:", t, re.M) else [])
+    return _ok() if not bad else _no(f"{main}: " + ", ".join(bad))
+
+
+def _jobs(text: str) -> dict:
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError:
+        return {}
+    jobs = data.get("jobs") if isinstance(data, dict) else None
+    return jobs if isinstance(jobs, dict) else {}
+
+
+def _needs(job: dict) -> set[str]:
+    n = job.get("needs") if isinstance(job, dict) else None
+    return {n} if isinstance(n, str) else set(n or [])
+
+
+def _closure(jobs: dict, start: str) -> set[str]:
+    seen, todo = set(), [start]
+    while todo:
+        for n in _needs(jobs.get(todo.pop(), {})) - seen:
+            seen.add(n)
+            todo.append(n)
+    return seen
+
+
+@check("UPS-WORK-07")
+@_need_contract
+def _spec_gate(r, k):
+    """Contract UPS-WORK-07 (binds only with modules.spec_driven): spec packages,
+    BACKLOG.md, a spec-gate job every other job needs, backlog_lint in that
+    workflow, and the kit tools byte-identical to the hub's copies."""
+    if "spec_driven" not in sdlc_modules(sdlc_profile(r)[0]):
+        return _ok("module spec_driven not declared")
+    d = _defs(r)
+    problems = ([] if r.glob1("specs/[0-9][0-9][0-9]-*/spec.md") else ["no specs/NNN-slug/spec.md"]) + \
+               ([] if r.has("BACKLOG.md") else ["no BACKLOG.md"])
+    gate = None
+    for name, text in _workflow_texts(r):
+        jobs = _jobs(text)
+        for jid, job in jobs.items():
+            if "spec_validator.py" in yaml.safe_dump(job):
+                ungated = [o for o in jobs if o != jid and o not in _closure(jobs, jid) and jid not in _closure(jobs, o)]
+                gate = (name, jid, ungated, "backlog_lint.py" in text)
+                break
+        if gate:
+            break
+    if not gate:
+        problems.append("no CI job runs spec_validator.py (spec-gate)")
+    else:
+        name, jid, ungated, linted = gate
+        if not linted:
+            problems.append(f"{name} does not run backlog_lint.py")
+        if ungated:
+            problems.append(f"jobs in {name} not gated on `{jid}`: {', '.join(ungated)}")
+    kit, note = _hub_path(r, d.get("spec_driven_kit", "hub:templates/spec-driven/tools/")), ""
+    tools = set(d.get("spec_driven_tools") or [])
+    if kit.is_dir():
+        for rel in r.tracked():
+            base = Path(rel).name
+            if base in tools and (kit / base).is_file() and (r.path / rel).is_file() \
+                    and (r.path / rel).read_bytes() != (kit / base).read_bytes():
+                problems.append(f"{rel} differs from the hub kit")
+    else:
+        note = f"; hub kit {kit.relative_to(r.hub)}/ not in this checkout (bamr87/bamr87#325), tool parity unchecked"
+    return _no("; ".join(problems) + note) if problems else _ok(f"spec-gate `{gate[1]}` in {gate[0]}{note}")
+
+
+@check("UPS-WORK-08")
+@_need_contract
+def _freshness(r, k):
+    """Contract UPS-WORK-08 (scorecard, SHOULD): in-progress spec idle > 30 days;
+    backlog file last committed > 60 days before HEAD. The P0/P1 clause is online."""
+    head = _last_commit(r)
+    if head is None:
+        return _skip("no git history in this checkout")
+    now, flags = dt.datetime.now(dt.timezone.utc), []
+    for spec in sorted(r.path.glob("specs/*/spec.md")):
+        m = re.search(r"^\s*(?:[-*]\s*)?\**status\**\s*:\s*\**\s*([a-z-]+)", spec.read_text(encoding="utf-8", errors="replace"), re.I | re.M)
+        last = _last_commit(r, str(spec.parent.relative_to(r.path)))
+        if m and m.group(1).lower() == "in-progress" and last and (now - last).days > SPEC_STALE_DAYS:
+            flags.append(f"{spec.parent.name} in-progress, idle {(now - last).days}d")
+    b = _backlog_decl(sdlc_profile(r)[0]).get("file")
+    if b and r.has(b):
+        last = _last_commit(r, b)
+        if last and (head - last).days > BACKLOG_LAG_DAYS:
+            flags.append(f"{b} last touched {(head - last).days}d before the last commit")
+    return _ok() if not flags else _no("; ".join(flags))
+
+
+def fleet_types(r) -> set[str]:
+    """Contract labels_source: hub _data/fleet.yml issue_pipeline.labels (types)."""
+    try:
+        cfg = yaml.safe_load((r.hub / "_data" / "fleet.yml").read_text(encoding="utf-8")) or {}
+        types = cfg["issue_pipeline"]["labels"]["types"]
+        return {str(t) for t in types} if types else set(FLEET_TYPES_FALLBACK)
+    except (OSError, KeyError, TypeError, yaml.YAMLError):
+        return set(FLEET_TYPES_FALLBACK)
+
+
+def _form_labels(p: Path) -> list[str] | None:
+    t = p.read_text(encoding="utf-8", errors="replace")
+    if p.suffix == ".md":
+        m = re.match(r"^---\s*\n(.*?)\n---", t, re.S)
+        t = m.group(1) if m else ""
+    try:
+        labels = (yaml.safe_load(t) or {}).get("labels") or []
+    except (yaml.YAMLError, AttributeError):
+        return None
+    return [x.strip() for x in labels.split(",")] if isinstance(labels, str) else [str(x) for x in labels]
+
+
+@check("UPS-WORK-09")
+@_need_contract
+def _form_labels_check(r, k):
+    """Contract UPS-WORK-09: no duplicate_label_re label; exactly one fleet type label (form_label_exempt aside)."""
+    d = _defs(r)
+    dup_rx = re.compile(d["duplicate_label_re"], re.I)
+    exempt = set(d.get("form_label_exempt") or [])
+    fd = r.path / ".github" / "ISSUE_TEMPLATE"
+    forms = sorted(p for p in fd.glob("*") if p.suffix in (".yml", ".yaml", ".md") and p.stem != "config") if fd.is_dir() else []
+    if not forms:
+        return _skip("no issue forms in the tree (inherited forms are not visible offline)")
+    types, bad = fleet_types(r), []
+    for p in forms:
+        labels = _form_labels(p)
+        if labels is None:
+            bad.append(f"{p.name} unparseable")
+            continue
+        if dup := [x for x in labels if dup_rx.match(x)]:
+            bad.append(f"{p.name} applies {', '.join(dup)}")
+        n = len(set(labels) & types)
+        if p.stem not in exempt and n != 1:
+            bad.append(f"{p.name} applies {n} fleet type labels (exactly one)")
+    return _ok(f"{len(forms)} form(s); repo labels are UPS-WORK-14 (online)") if not bad else _no("; ".join(bad))
+
+
+@check("UPS-WORK-10")
+@_need_contract
+def _hub_refs_pinned(r, k):
+    """Contract UPS-WORK-10: every parsed `uses:` value (uses_keys) matching
+    fleet_uses_value_re has a ref that fullmatches pinned_ref_re. `run:` text,
+    other strings and comments are never inspected."""
+    d = _defs(r)
+    fleet, pin = re.compile(d["fleet_uses_value_re"]), re.compile(d["pinned_ref_re"])
+    floating, broken = [], []
+    for p in _pin_files(r):
+        vals = uses_values(r, p)
+        if vals is None:
+            broken.append(str(p.relative_to(r.path)))
+            continue
+        for v in vals:
+            m = fleet.match(v)
+            if m and not pin.fullmatch(m.group(2)):
+                floating.append(f"{p.name}: {m.group(1).rsplit('/', 1)[-1]}@{m.group(2)}")
+    problems = ([f"not valid YAML: {', '.join(broken)}"] if broken else []) + (
+        ["fleet workflow/action not pinned to @vN, @vX.Y.Z or a full SHA: " + ", ".join(floating[:4])
+         + (f" (+{len(floating) - 4} more)" if len(floating) > 4 else "")] if floating else [])
+    return _ok() if not problems else _no("; ".join(problems))
+
+
+def _strip_md_links(t: str) -> str:
+    return re.sub(r"!?\[[^\]]*\]\([^)]*\)|<https?://[^>]+>", "", t)
+
+
+@check("UPS-WORK-11")
+@_need_contract
+def _planning_files(r, k):
+    """Contract UPS-WORK-11: planning files hold no item list and link the backlog of record."""
+    b = _backlog_decl(sdlc_profile(r)[0])
+    link = b.get("file") if b.get("mode") == "file" and b.get("file") else "/issues"
+    bad = []
+    for f in _rule(r, "UPS-WORK-11").get("reads") or []:
+        t = r.read(f)
+        if not r.has(f):
+            continue
+        plain = _strip_md_links(t)
+        if re.search(RULE_RX["UPS-WORK-11/task"], t, re.M):
+            bad.append(f"{f} has task-list items")
+        if ids := re.findall(RULE_RX["UPS-WORK-11/id"], plain):
+            bad.append(f"{f} carries backlog ids ({', '.join(sorted(set(ids))[:3])})")
+        if link not in t and RULE_RX["UPS-WORK-11/hub-roadmap"] not in t:
+            bad.append(f"{f} does not link the backlog of record ({link})")
+    return _ok() if not bad else _no("; ".join(bad))
+
+
+@check("UPS-WORK-12")
+@_need_contract
+def _agents_conventions(r, k):
+    """Contract UPS-WORK-12: AGENTS.md § Conventions names the backlog, the DoD and
+    the literal adr_path (re.I; 'ADR' when the profile sets modules.adr: false).
+    A missing AGENTS.md or `## Conventions` heading is UPS-AGENT-07's failure
+    (Conventions is one of agents_required_headings); this row then passes."""
+    a = r.read(str(_defs(r).get("agents_file") or "AGENTS.md"))
+    if not a:
+        return _ok("no AGENTS.md, see UPS-AGENT-07")
+    sec = _section(a, RULE_RX["UPS-WORK-12/section"])
+    if sec is None:
+        return _ok("no `## Conventions` section, see UPS-AGENT-07")
+    prof = sdlc_profile(r)[0]
+    adr_off = isinstance((prof or {}).get("modules"), dict) and prof["modules"].get("adr") is False
+    adr = "ADR" if adr_off else _adr_path(r, prof)
+    missing = [n for n, ok in (("backlog", re.search(r"backlog", sec, re.I)),
+                               ("Definition of Done", re.search(RULE_RX["UPS-WORK-12/dod"], sec, re.I)),
+                               (f"ADR path `{adr}`", re.search(re.escape(adr), sec, re.I))) if not ok]
+    return _ok() if not missing else _no("AGENTS.md § Conventions does not name: " + ", ".join(missing))
+
+
+def _h2(r, text: str) -> list[str]:
+    rx = _defs(r).get("agents_heading_re") or r"^##[ \t]+(.+?)[ \t]*#*[ \t]*$"
+    return [h.strip() for h in re.findall(rx, text, re.M)]
+
+
+@check("UPS-AGENT-07")
+@_need_contract
+def _agents_md(r, k):
+    """Contract related.UPS-AGENT-07: agents_file has every agents_required_headings
+    name (trimmed, case-insensitive; agents_heading_order / agents_extra_headings
+    decide order and extras) and no agents_todo_re line."""
+    d = _defs(r)
+    a = r.read(str(d.get("agents_file") or "AGENTS.md"))
+    if not a:
+        return _no("no AGENTS.md (canonical agent file, D4)")
+    want = [str(x) for x in d.get("agents_required_headings") or []]
+    heads = [h.lower() for h in _h2(r, a)]
+    problems = []
+    absent = [w for w in want if w.lower() not in heads]
+    if absent:
+        problems.append("missing ## " + ", ".join(absent))
+    elif d.get("agents_heading_order") and [h for h in heads if h in {w.lower() for w in want}] != [w.lower() for w in want]:
+        problems.append("required headings out of order")
+    if d.get("agents_extra_headings") is False and (extra := [h for h in heads if h not in {w.lower() for w in want}]):
+        problems.append("extra headings: " + ", ".join(extra[:3]))
+    if re.search(d.get("agents_todo_re") or r"^TODO:", a, re.M):
+        problems.append("scaffold `TODO:` lines left")
+    return _ok() if not problems else _no("AGENTS.md: " + "; ".join(problems))
+
+
+@check("UPS-AGENT-08")
+@_need_contract
+def _claude_pointer(r, k):
+    """Contract related.UPS-AGENT-08: claude_file has a claude_pointer_re line, no
+    agents_required_headings heading, and <= claude_max_nonblank_lines non-blank lines."""
+    d = _defs(r)
+    t = r.read(str(d.get("claude_file") or "CLAUDE.md"))
+    if not t:
+        return _no("no CLAUDE.md pointer")
+    problems = []
+    if not re.search(d["claude_pointer_re"], t, re.M):
+        problems.append(f"no `{d.get('claude_pointer', '@AGENTS.md')}` import line")
+    want = {str(x).lower() for x in d.get("agents_required_headings") or []}
+    if dup := [h for h in _h2(r, t) if h.lower() in want]:
+        problems.append("carries AGENTS.md headings: " + ", ".join(dup[:3]))
+    limit = int(d.get("claude_max_nonblank_lines", 20))
+    n = sum(1 for line in t.splitlines() if line.strip())
+    if n > limit:
+        problems.append(f"{n} non-blank lines (max {limit})")
+    return _ok() if not problems else _no("CLAUDE.md: " + "; ".join(problems))
+
+
+@check("UPS-AGENT-09")
+@_need_contract
+def _agents_kit_stamp(r, k):
+    """Contract related.UPS-AGENT-09: kit_stamp.file matches kit_stamp.re. A
+    missing AGENTS.md is UPS-AGENT-07's failure."""
+    ks = _defs(r).get("kit_stamp") or {}
+    f = str(ks.get("file") or "AGENTS.md")
+    a = r.read(f)
+    if not a:
+        return _ok(f"no {f}, see UPS-AGENT-07")
+    m = re.search(ks["re"], a)
+    return _ok(f"kit {m.group(1)} v{m.group(2)}") if m else _no(f"{f} lacks the kit stamp {ks.get('format', '')}".rstrip())
+
+
+@check("UPS-REPO-21")
+@_need_contract
+def _release_please(r, k):
+    """Contract related.UPS-REPO-21: CHANGELOG.md; release_files parse; release-type
+    allowed for the repo type (release_types); a job-level `uses:` of
+    release_workflow at a pinned ref. A legacy_release_workflow caller (instead
+    of release_workflow) fails at any ref; `rollout: warn` reports it as a warning
+    (the rule's rollout_effect), like every other failure of this rule."""
+    d = _defs(r)
+    prof = sdlc_profile(r)[0] or {}
+    rtype = prof.get("type")
+    allowed_map = d.get("release_types") or {}
+    if rtype in allowed_map and not allowed_map[rtype]:
+        return _ok(f"type {rtype}: release-please does not apply")
+    allowed = allowed_map.get(rtype) if rtype in allowed_map else RULE_RX["UPS-REPO-21/no-profile"].split("|")
+    problems = [] if r.has(str(d.get("changelog") or "CHANGELOG.md")) else ["no CHANGELOG.md"]
+    cfg = None
+    for f in d.get("release_files") or []:
+        if not r.has(f):
+            problems.append(f"no {f}")
+            continue
+        try:
+            data = json.loads(r.read(f))
+        except json.JSONDecodeError:
+            problems.append(f"{f} is not valid JSON")
+            continue
+        if f == "release-please-config.json":
+            cfg = data
+    if isinstance(cfg, dict):
+        rt = ((cfg.get("packages") or {}).get(".") or {}).get("release-type")
+        if rt not in allowed:
+            problems.append(f"packages[\".\"].release-type is {rt!r} (allowed for {'type ' + rtype if rtype in allowed_map else 'a repo with no profile'}: {'|'.join(allowed)})")
+    job_key = next(iter((d.get("uses_keys") or {}).get("workflow") or []), None)
+    calls = [v for p in _pin_files(r) if p.parent.name == "workflows" for v in (uses_values(r, p, only=job_key) or [])]
+    pin = re.compile(d["pinned_ref_re"])
+    hub_refs = [v.split("@", 1)[1] for v in calls if v.split("@", 1)[0] == d["release_workflow"] and "@" in v]
+    legacy = [v for v in calls if v.split("@", 1)[0] == d.get("legacy_release_workflow")]
+    if hub_refs and not any(pin.fullmatch(x) for x in hub_refs):
+        problems.append(f"release-please.yml called at an unpinned ref (@{hub_refs[0]})")
+    elif not hub_refs and legacy:
+        problems.append(f"migrate to {d['release_workflow']}@v1 (decision D3); today it calls {legacy[0]}")
+    elif not hub_refs:
+        problems.append(f"no job calls {d['release_workflow']}")
+    return _no("; ".join(problems)) if problems else _ok()
+
+
+# --------------------------------------------------------------------------- #
 # running
 # --------------------------------------------------------------------------- #
 def load_specs(hub: Path) -> dict:
@@ -589,9 +1471,34 @@ def binds(req: dict, kinds: list[str], tier: str) -> bool:
     return bool(applies & set(kinds))
 
 
+QUALITY_CONTRACT_FILE = "specs/QUALITY.contract.yml"
+
+
+def quality_warn_only(r) -> dict[str, str]:
+    """warn_only() for specs/QUALITY.contract.yml: the rules (and related rows)
+    it marks `rollout: warn` report a would-be fail as a warning. Read from the
+    hub checkout like the WORK contract, into its own `qdata` (never `d`/`defs`,
+    which belong to WORK.contract.yml). Kept beside warn_only() rather than inside
+    it so either function can change without touching the other."""
+    if r.hub not in _QUALITY_ROLLOUT:
+        try:
+            qdata = yaml.safe_load((r.hub / QUALITY_CONTRACT_FILE).read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            qdata = None
+        qrules = {} if not isinstance(qdata, dict) else {**(qdata.get("rules") or {}), **(qdata.get("related") or {})}
+        _QUALITY_ROLLOUT[r.hub] = {rid: f"rollout: warn in {QUALITY_CONTRACT_FILE}" for rid, v in qrules.items()
+                                   if isinstance(v, dict) and v.get("rollout") == "warn"}
+    return _QUALITY_ROLLOUT[r.hub]
+
+
+_QUALITY_ROLLOUT: dict[Path, dict[str, str]] = {}
+
+
 def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
-    results, manual = [], 0
+    results, unverified, warnings, manual = [], [], [], 0
     for req in specs.get("requirements", []):
+        if req.get("level") == "retired":  # kept in the spec for history; never checked
+            continue
         if not binds(req, kinds, tier):
             continue
         fn = CHECKS.get(req["id"])
@@ -602,17 +1509,38 @@ def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
             ok, detail = fn(repo, kinds)
         except Exception as e:  # noqa: BLE001 — a checker bug must not hide the other results
             ok, detail = False, f"checker error: {e}"
+        try:
+            hard = hard_fail(repo, req["id"])
+        except Exception as e:  # noqa: BLE001
+            hard = [f"checker error (hard_fail): {e}"]
+        if hard:  # a contract hard_fail case: always a fail, never softened by rollout: warn
+            results.append({"id": req["id"], "level": req["level"], "ok": False, "hard_fail": True,
+                            "detail": "; ".join(hard + ([detail] if ok is False and detail else [])),
+                            "spec": req.get("area", "")})
+            continue
+        if ok is None:  # not decidable offline
+            unverified.append({"id": req["id"], "level": req["level"], "detail": detail})
+            continue
+        rollout = {**quality_warn_only(repo), **warn_only(repo)}
+        if ok == WARN or (not ok and req["id"] in rollout):  # reported, never counted
+            warnings.append({"id": req["id"], "level": req["level"], "detail": detail,
+                             "why_warn": "deprecated shape (the rule's warn clause)" if ok == WARN else rollout[req["id"]],
+                             "spec": f"specs/{area_file(req.get('area', ''), specs)}"})
+            continue
         results.append({"id": req["id"], "level": req["level"], "ok": bool(ok), "detail": detail,
                         "spec": req.get("area", "")})
     failing = [x for x in results if not x["ok"]]
     return {
         "path": str(repo.path), "kinds": kinds, "tier": tier,
-        "checked": len(results), "passed": len(results) - len(failing),
+        "checked": len(results) + len(warnings), "passed": len(results) - len(failing),
         "must_failed": sum(1 for x in failing if x["level"] == "MUST"),
         "should_failed": sum(1 for x in failing if x["level"] == "SHOULD"),
         "manual": manual,
+        "unverified": unverified,
+        "warnings": warnings,
         "failing": [{"id": x["id"], "level": x["level"], "detail": x["detail"],
-                     "spec": f"specs/{area_file(x['spec'], specs)}"} for x in failing],
+                     "spec": f"specs/{area_file(x['spec'], specs)}", **({"hard_fail": True} if x.get("hard_fail") else {})}
+                    for x in failing],
     }
 
 
@@ -626,9 +1554,15 @@ def area_file(area: str, specs: dict) -> str:
 def render_text(res: dict, name: str) -> str:
     lines = [f"UPS conformance — {name}  kinds={','.join(res['kinds'])} tier={res['tier']}",
              f"  checked {res['checked']}  passed {res['passed']}  MUST failing {res['must_failed']}  "
-             f"SHOULD failing {res['should_failed']}  manual {res['manual']}"]
+             f"SHOULD failing {res['should_failed']}  manual {res['manual']}"
+             + (f"  unverified {len(res['unverified'])}" if res.get("unverified") else "")
+             + (f"  warnings {len(res['warnings'])}" if res.get("warnings") else "")]
     for f in sorted(res["failing"], key=lambda x: (x["level"] != "MUST", x["id"])):
         lines.append(f"  {'✗' if f['level'] == 'MUST' else '~'} {f['id']:<14} {f['level']:<6} {f['detail']}  ({f['spec']})")
+    for w in res.get("warnings", []):
+        lines.append(f"  ! {w['id']:<14} WARN   {w['detail']}  ({w['spec']}; {w['why_warn']})")
+    for u in res.get("unverified", []):
+        lines.append(f"  ? {u['id']:<14} {u['level']:<6} {u['detail']}")
     return "\n".join(lines)
 
 
@@ -668,7 +1602,8 @@ def fleet(hub: Path, write: Path | None, as_json: bool) -> int:
             skipped.append({"name": e["name"], "reason": f"tier {tier}"})
             continue
         repo = Repo(path, hub)
-        kinds = kinds_from_stack(e) or detect_kinds(repo)
+        repo.registry_entry = e
+        kinds = kinds_from_stack(e) or profile_kinds(repo) or detect_kinds(repo)
         res = run_checks(repo, kinds, tier, specs)
         nwo = re.sub(r"^https://github\.com/", "", str(e.get("repo_url", ""))).rstrip("/")
         rec = {"name": e["name"], "nwo": nwo, "path": sub, **{k: v for k, v in res.items() if k != "path"}}
@@ -685,6 +1620,7 @@ def fleet(hub: Path, write: Path | None, as_json: bool) -> int:
             "conformant": sum(1 for r in repos if r["must_failed"] == 0),
             "must_failures": sum(r["must_failed"] for r in repos),
             "should_failures": sum(r["should_failed"] for r in repos),
+            "warnings": sum(len(r.get("warnings", [])) for r in repos),
             "top_failing_ids": top_ids(repos),
         },
         "skipped": skipped,
@@ -695,7 +1631,7 @@ def fleet(hub: Path, write: Path | None, as_json: bool) -> int:
     else:
         s = out["summary"]
         print(f"\nfleet: {s['repos']} repos, {s['conformant']} with no MUST failures, "
-              f"{s['must_failures']} MUST / {s['should_failures']} SHOULD failures; skipped {len(skipped)}")
+              f"{s['must_failures']} MUST / {s['should_failures']} SHOULD failures, {s['warnings']} warnings; skipped {len(skipped)}")
         print("most common MUST gaps: " + ", ".join(f"{i} ({n})" for i, n in s["top_failing_ids"][:8]))
     if write:
         header = ("# GENERATED by tools/conformance.py fleet — the fleet's UPS conformance snapshot.\n"
@@ -742,7 +1678,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "kinds":
         print(",".join(detect_kinds(repo)))
         return 0
-    kinds = [x.strip() for x in a.kinds.split(",") if x.strip()] if a.kinds else detect_kinds(repo)
+    kinds = [x.strip() for x in a.kinds.split(",") if x.strip()] if a.kinds else (profile_kinds(repo) or detect_kinds(repo))
     bad = [x for x in kinds if x not in KINDS]
     if bad:
         ap.error(f"unknown kinds: {bad} (valid: {', '.join(KINDS)})")

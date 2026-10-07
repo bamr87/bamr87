@@ -1,0 +1,4 @@
+# expect: lighthose
+schema: site-quality/v1
+pages: [/]
+lighthose: { runs: 1 }

@@ -27,6 +27,7 @@ coverage: listed
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
 | `sdlc/` | dir | SDLC kit (core, per repo): `.github/sdlc.yml` profile + its JSON Schema (`sdlc.schema.json`, the UPS-WORK-01 contract), canonical `AGENTS.md` + pointer `CLAUDE.md` (D4), law-ai-format ADR log (D2), release-please caller `@v1` + one config per release type + manifest + CHANGELOG seed (D5), content queue (UPS-WORK-01/04/05/12, AGENT-07/08/09, REPO-21) | terminal |
 | `verify/` | dir | Agent verification kit: feature index scaffold, verify run config, user scenario, Playwright runner + MCP config, fleet-verify caller, verify-feature skill + verifier agent (spec: specs/QUALITY.md UPS-QA-50..53; doc: docs/VERIFICATION.md) | terminal |
+| `site-quality/` | dir | Site quality kit: thin caller of the reusable site-quality.yml (pinned `@v1`; Lighthouse CI + axe-core 390/1366 px + pa11y contrast, fresh-theme build or live URLs), the `.github/site-quality.yml` config template + its JSON Schema, pass/fail fixture sites and schema fixtures; seeded by `fanout.sh --kit site-quality` (spec: specs/QUALITY.md UPS-QA-60..63) | terminal |
 
 ## Placement
 

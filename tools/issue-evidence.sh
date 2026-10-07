@@ -86,6 +86,15 @@ case "$ISSUE" in ''|*[!0-9]*) die "--issue must be a number, got '$ISSUE'" ;; es
 
 SLUG="${REPO##*/}-${ISSUE}"
 OUT="${OUT:-${REPO_ROOT}/.evidence/${SLUG}}"
+# Resolve --out to an absolute path. Every phase runs `cd "$WS" && ...`, so a
+# relative OUT (e.g. `--out .evidence/x`) would make LOGS/PHASES and the venv
+# paths resolve against the workspace instead of the caller's directory.
+mkdir -p "$OUT" || die "cannot create --out directory '$OUT'"
+if command -v realpath >/dev/null 2>&1; then
+  OUT="$(realpath "$OUT")"
+else
+  OUT="$(cd "$OUT" && pwd -P)"
+fi
 WS="${OUT}/workspace"
 LOGS="${OUT}/logs"
 SHOTS="${OUT}/screenshots"
@@ -285,9 +294,20 @@ phase_python() {
   run_sh python-venv install.log "cd '${WS}' && python3 -m venv .venv"
   [ -x "${WS}/.venv/bin/pip" ] || { skip python-install "venv creation failed"; return; }
   local pip="${WS}/.venv/bin/pip" py="${WS}/.venv/bin/python"
+  # Only install the project itself when it is a package: a setup.py, or a
+  # pyproject.toml that declares [project]/[build-system]/[tool.poetry] (a
+  # pyproject.toml holding only tool config is not installable).
+  local install_pkg=0
+  if [ -f "${WS}/setup.py" ] || { [ -f "${WS}/pyproject.toml" ] && \
+     grep -Eq '^\[(project|build-system|tool\.poetry)\]' "${WS}/pyproject.toml"; }; then
+    install_pkg=1
+  fi
+  # A failed install must be recorded as `fail`, not masked as `pass`: each
+  # step only runs when it applies, and a real pip error ends the phase
+  # non-zero (run_phase records it and carries on — the run itself never aborts).
   run_sh python-install install.log "cd '${WS}' && '${pip}' install --upgrade pip \
-&& { [ -f requirements.txt ] && '${pip}' install -r requirements.txt || true; } \
-&& { [ -f pyproject.toml ] || [ -f setup.py ]; } && '${pip}' install -e . || true"
+&& { [ ! -f requirements.txt ] || '${pip}' install -r requirements.txt; } \
+&& { [ ${install_pkg} -eq 0 ] || '${pip}' install -e . || '${pip}' install .; }"
   if [ -d "${WS}/tests" ] || compgen -G "${WS}/test_*.py" >/dev/null 2>&1 || \
      compgen -G "${WS}/**/test_*.py" >/dev/null 2>&1; then
     run_sh python-test test.log "cd '${WS}' && '${pip}' install pytest >/dev/null 2>&1; \

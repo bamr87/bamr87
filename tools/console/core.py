@@ -1412,7 +1412,6 @@ CONFIG_SECTIONS: list[dict] = [
          "PYTHON_VERSION": _f("value", "vars.PYTHON_VERSION"),
          "RUBY_VERSION": _f("value", "vars.RUBY_VERSION"),
          "FLEET_HUB": _f("value", "owner/repo of the hub"),
-         "FLEET_CI_WORKFLOW": _f("value", "the reusable CI workflow reference"),
      }},
 ]
 

@@ -40,10 +40,13 @@
   description: "The AO-SDLC gates law-ai and gitorio run (spec validator, backlog lint, id minter, evolve picker, gate-check hook) plus spec/BACKLOG/constitution templates. The four tools are byte-identity files (UPS-WORK-07); repo-specific review questions are data."
 - name: Seedable kits
   path: https://github.com/bamr87/bamr87/tree/main/templates
-  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback, elk, verify — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.
+  description: standard-ci, agent-context, prose, schema, release-pipeline, feedback, elk, verify, site-quality — versioned kits fanned out by tools/fanout.sh; ai-runner is consumed by reference instead.
 - name: Skill template
   path: https://github.com/bamr87/bamr87/tree/main/.claude/skills
   description: Author new skills with the skill-creator skill.
 - name: Agent verification kit
   path: https://github.com/bamr87/bamr87/tree/main/templates/verify
   description: Feature index + user scenarios + Playwright runner + fleet-verify CI caller + verify-feature skill — prove features work the way a user experiences them (docs/VERIFICATION.md).
+- name: Site quality kit
+  path: https://github.com/bamr87/bamr87/tree/main/templates/site-quality
+  description: "Lighthouse CI + axe-core (390/1366 px) + pa11y contrast through one reusable workflow pinned @v1 — a fresh-theme Jekyll build or live URLs, graded by each repo's schema-validated .github/site-quality.yml with an expiring known-issue allowlist. Fanned out with tools/fanout.sh --kit site-quality."

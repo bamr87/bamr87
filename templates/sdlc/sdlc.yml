@@ -33,4 +33,4 @@ release:
   type: simple            # release-please release-type: simple | node | python | ruby (decision D5)
 
 # Waived requirements, each also listed in AGENTS.md § Standard deviations.
-deviations: []            # - { id: UPS-WORK-07, reason: "…", until: 2027-01-01 }
+deviations: []            # - { id: UPS-WORK-07, reason: "…", until: "2027-01-01" }   # quote the date

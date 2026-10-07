@@ -74,7 +74,7 @@ jobs:
       # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
       - name: Choose the Claude credential (ai_auth order)
         id: claude-auth
-        uses: bamr87/bamr87/.github/actions/claude-auth@main
+        uses: ./.github/actions/claude-auth
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
@@ -180,7 +180,19 @@ jobs:
           fi
 
           [ "$STEP_OUTCOME" = "failure" ] || exit 0
-          if [ "$models" = "0" ] && [ "$cost" = "0" ]; then
+          # A 429 also leaves 0 cost and empty modelUsage, but the credential
+          # WORKED — the subscription's session/usage window is spent. Telling
+          # the operator to rotate a valid token sends them the wrong way.
+          api_status=$(printf '%s' "$result" | jq -r '.api_error_status // "" | tostring')
+          api_msg=$(printf '%s' "$result" | jq -r '.result // "" | tostring' | head -c 200)
+          if [ "$api_status" = "429" ] || printf '%s' "$api_msg" | grep -qiE 'session limit|usage limit|rate limit'; then
+            echo "::error::${TIER}: Claude usage limit hit (HTTP ${api_status:-429}): ${api_msg}. The credential is VALID — do NOT rotate it. Re-run after the reset, or move this cron away from the other agent loops."
+            {
+              echo ""
+              echo "**Claude usage limit hit.** \`api_error_status: ${api_status:-429}\` — ${api_msg}"
+              echo "The credential was accepted; the subscription's session window is exhausted. Re-run after the reset."
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$models" = "0" ] && [ "$cost" = "0" ]; then
             echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
             {
               echo ""

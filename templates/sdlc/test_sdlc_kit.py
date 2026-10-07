@@ -21,13 +21,21 @@ import yaml
 KIT = Path(__file__).resolve().parent
 HUB = KIT.parent.parent
 TOKENS = {"__PROJECT_NAME__", "__DEFAULT_BRANCH__", "__KIT_VERSION__"}
-AGENT_HEADINGS = ["What this repo is", "Stack & commands", "Layout", "Conventions", "Fleet context", "Standard deviations"]
-RELEASE_TYPES = ["simple", "node", "python", "ruby"]
 FAILS: list[str] = []
 
 _contract = HUB / "specs" / "WORK.contract.yml"
 DEFS = (yaml.safe_load(_contract.read_text(encoding="utf-8")) or {}).get("definitions", {}) if _contract.is_file() else {}
 PINNED_REF = re.compile(DEFS.get("pinned_ref_re", r"^(v\d+|v\d+\.\d+\.\d+|[0-9a-f]{40})$"))
+# Structured keys from the contract (UPS-AGENT-07/08/09, UPS-REPO-21), with the same values as fallbacks.
+AGENT_HEADINGS = DEFS.get("agents_required_headings") or ["What this repo is", "Stack & commands", "Layout",
+                                                          "Conventions", "Fleet context", "Standard deviations"]
+CLAUDE_MAX = int(DEFS.get("claude_max_nonblank_lines", 20))
+CLAUDE_POINTER_RE = re.compile(DEFS.get("claude_pointer_re", r"^@AGENTS\.md[ \t]*$"), re.M)
+STAMP_RE = re.compile((DEFS.get("kit_stamp") or {}).get("re", r"<!--\s*kit:\s*(sdlc|agent-context)\s+v(\d+\.\d+\.\d+)\b"))
+RELEASE_TYPES_BY_TYPE = DEFS.get("release_types") or {
+    "app": ["node", "python", "ruby", "simple"], "library": ["node", "python", "ruby", "simple"], "site": ["simple"],
+    "docs": ["simple"], "demo": ["simple"], "control-plane": ["simple"], "fork": []}
+RELEASE_TYPES = ["simple", "node", "python", "ruby"]
 TYPE_KINDS = DEFS.get("type_kinds") or {"app": ["app"], "library": ["lib"], "site": ["site"], "docs": ["content"],
                                          "demo": ["site"], "control-plane": ["site", "hub"], "fork": ["fork"]}
 
@@ -89,6 +97,8 @@ def _fallback_errors(doc, sch) -> list[str]:
     for d in doc.get("deviations") or []:
         if not (isinstance(d, dict) and re.match(r"^UPS-[A-Z]+-\d{2,}$", str(d.get("id", ""))) and d.get("reason")):
             errs.append(f"bad deviation {d}")
+        elif "until" in d and not (isinstance(d["until"], str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", d["until"])):
+            errs.append(f"deviation until must be a quoted YYYY-MM-DD string, got {d['until']!r}")
     return errs
 
 
@@ -151,6 +161,21 @@ def t_schema_and_profile() -> None:
     }
     for name, d in good.items():
         check(not validate(d), f"accepts: {name} {validate(d) or ''}")
+    # The commented deviation example, uncommented: `until` must stay a quoted string.
+    ex = re.search(r"^deviations: \[\]\s*#\s*(- \{.*\})", read("sdlc.yml"), re.M)
+    check(ex is not None and '"2027-01-01"' in ex.group(1), "sdlc.yml deviation example quotes until")
+    if ex:
+        devs = yaml.safe_load(ex.group(1))
+        check(isinstance(devs[0].get("until"), str), "the example's until parses as a string")
+        check(not validate({**base, "deviations": devs}), "the uncommented example validates")
+        unquoted = yaml.safe_load(ex.group(1).replace('"2027-01-01"', "2027-01-01"))
+        check(bool(validate({**base, "deviations": unquoted})), "an unquoted until (a YAML date) is rejected")
+    # Release types per repo type (contract release_types, UPS-REPO-21).
+    check(set(RELEASE_TYPES_BY_TYPE) == set(TYPE_KINDS), "release_types covers every repo type")
+    enum = set(sch["properties"]["release"]["properties"]["type"]["enum"])
+    check(set().union(*map(set, RELEASE_TYPES_BY_TYPE.values())) <= enum, "every allowed release type is in the schema enum")
+    check(RELEASE_TYPES_BY_TYPE["fork"] == [], "fork has no release type")
+    check(doc["release"]["type"] in RELEASE_TYPES_BY_TYPE[doc["type"]], "kit sdlc.yml release.type is allowed for its type")
 
 
 def _sections(text: str) -> list[str]:
@@ -160,10 +185,13 @@ def _sections(text: str) -> list[str]:
 def t_agents_and_claude() -> None:
     print("AGENTS.md canonical, CLAUDE.md pointer (decision D4)")
     a = read("AGENTS.template.md")
-    check(_sections(a) == AGENT_HEADINGS, f"AGENTS headings in order (UPS-AGENT-07): {_sections(a)}")
-    check(re.search(r"<!-- kit: (agent-context|sdlc) v", a) is not None, "kit stamp (UPS-AGENT-09)")
+    have = {h.lower() for h in _sections(a)}
+    missing = [h for h in AGENT_HEADINGS if h.lower() not in have]
+    check(not missing, f"AGENTS has the six required headings, any order (UPS-AGENT-07); missing {missing}")
+    check(_sections(a) == AGENT_HEADINGS, "kit template keeps the canonical heading order (a kit choice; AGENT-07 allows any)")
     stamped = a.replace("__KIT_VERSION__", "0.1.0")
-    check(re.search(r"<!-- kit: (agent-context|sdlc) v\d+\.\d+\.\d+", stamped) is not None, "stamp is semver after fan-out")
+    m = STAMP_RE.search(stamped)
+    check(m is not None and m.group(1) == "sdlc", "kit stamp matches kit_stamp.re after fan-out (UPS-AGENT-09)")
     check("TODO:" in a, "scaffold has TODO: markers to fill (AGENT-07 fails until they are gone)")
     conv = a.split("## Conventions", 1)[1].split("\n## ", 1)[0]
     doc = yaml.safe_load(read("sdlc.yml"))
@@ -174,9 +202,9 @@ def t_agents_and_claude() -> None:
         check(word in conv, f"do-not present: {word} (UPS-AGENT-04)")
     c = read("CLAUDE.template.md")
     nonblank = [l for l in c.splitlines() if l.strip()]
-    check(re.search(r"^@AGENTS\.md\s*$", c, re.M) is not None, "CLAUDE.md imports @AGENTS.md (UPS-AGENT-08)")
-    check(not set(_sections(c)) & set(AGENT_HEADINGS), "CLAUDE.md carries no AGENT-07 headings")
-    check(len(nonblank) < 20, f"CLAUDE.md under 20 non-blank lines ({len(nonblank)})")
+    check(CLAUDE_POINTER_RE.search(c) is not None, "CLAUDE.md imports @AGENTS.md (UPS-AGENT-08)")
+    check(not {h.lower() for h in _sections(c)} & {h.lower() for h in AGENT_HEADINGS}, "CLAUDE.md carries no AGENT-07 headings")
+    check(len(nonblank) <= CLAUDE_MAX, f"CLAUDE.md at most {CLAUDE_MAX} non-blank lines ({len(nonblank)})")
 
 
 def t_changelog() -> None:
