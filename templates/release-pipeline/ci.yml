@@ -1,7 +1,13 @@
 name: CI
 
-# Scaffolded by tools/adopt-release.sh — calls the shared reusable CI gate in
-# bamr87/.github. Do not edit the logic here; change it once in bamr87/.github.
+# Scaffolded by tools/adopt-release.sh. A thin caller of the fleet's ONE shared
+# CI gate, bamr87/bamr87/.github/workflows/standard-ci.yml (UPS-QA-20) — the
+# same gate templates/standard-ci/ seeds. Don't edit the logic here; change it
+# once in the hub. Repos that need more (CodeQL, e2e, …) add their own jobs in a
+# separate workflow beside this caller. bamr87/.github's ci.yml is retired.
+#
+# Pinned to the floating major tag, never a branch (UPS-WORK-10; tag scheme in
+# bamr87/bamr87 docs/WORKFLOW-VERSIONING.md).
 
 on:
   pull_request:
@@ -10,14 +16,12 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ci:
-    uses: bamr87/.github/.github/workflows/ci.yml@main
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
+    uses: bamr87/bamr87/.github/workflows/standard-ci.yml@v1
     secrets: inherit
