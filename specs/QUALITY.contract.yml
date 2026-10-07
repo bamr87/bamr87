@@ -1,0 +1,178 @@
+# =============================================================================
+# specs/QUALITY.contract.yml — the machine-checkable contract for UPS-QA site-quality rows
+# =============================================================================
+# DRAFT for Platform Architect review. Hand-written companion to specs/QUALITY.md
+# "Site quality" (NOT generated; tools/gen-specs-data.py reads only the .md
+# tables), in the shape of specs/WORK.contract.yml: QUALITY.md says what each
+# rule means; this file says exactly what a checker reads and matches, per rule
+# id. When the two disagree, fix both in the same PR; until then this file wins
+# for checker behaviour. Covers UPS-QA-60..63, plus (under `related:`) the
+# hub-only exception UPS-QA-40/41 and UPS-REPO-07 grant to a sanctioned workflow
+# runtime; the other rows keep their checkers in tools/conformance.py.
+#
+# Result vocabulary (tools/conformance.py): pass | warn | fail | unverified, as in
+# WORK.contract.yml. Every rule here carries `rollout: warn`: while the fleet
+# adopts the kit, what would be a fail is reported as warn. Fleet Ops makes a
+# rule gate by deleting its marker (a contract change).
+# One failure per root cause: UPS-QA-60 owns "no caller"; 61..63 pass with a
+# detail naming 60 when there is no caller, and 62 passes naming 61 when the
+# config does not validate.
+# `applies` / `applies_notes`: exactly what tools/gen-specs-data.py writes to
+# _data/specs.yml for the row (a kind list; qualifiers go in the notes), as in
+# specs/WORK.contract.yml. tools/test_quality_contract.py fails when they drift.
+# `binds_when`: the condition under which a rule binds at all. An unbound rule
+# passes; there is no separate not-applicable result. Here that is any repo
+# without a root `_config.yml`.
+# `mode`: offline = static tree checks; online = needs the GitHub API (fleet
+# scorecard only, never in the in-repo gate).
+#
+# Regexes are Python `re` syntax. Paths are relative to the repo root unless
+# prefixed `hub:` (relative to the bamr87/bamr87 checkout the checker runs from).
+# =============================================================================
+schema: quality-contract/v1
+spec: specs/QUALITY.md
+ups_version: "1.0"
+
+definitions:
+  jekyll_marker: _config.yml                       # at the repo root; absent = 60..63 are unbound and pass (binds_when)
+  workflow_scope: [".github/workflows/*.yml", ".github/workflows/*.yaml"]
+  caller_uses_re: '^bamr87/bamr87/\.github/workflows/site-quality\.yml@(\S+)$'   # applied to a parsed jobs.<job>.uses value
+  pinned_ref_re: '^(v\d+|v\d+\.\d+\.\d+|[0-9a-f]{40})$'   # fullmatch; the same rule as specs/WORK.contract.yml (UPS-WORK-10)
+  kit_ref: v1                                      # what templates/site-quality/site-quality.yml pins
+  config_default: .github/site-quality.yml
+  config_input: "jobs.<caller job>.with.config (when set, it replaces config_default)"
+  config_schema: hub:templates/site-quality/site-quality.schema.json   # JSON Schema 2020-12
+  config_parse: "YAML 1.1 (PyYAML safe_load / yaml version 1.1): an unquoted date is a timestamp, not a string, and fails the schema"
+  allowlist_entry_required: [rule, reason, issue, until]
+  allowlist_entry_any_of: [selector, page]
+  until_re: '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+  expiry: "an entry is expired when until < today (UTC, YYYY-MM-DD string compare)"
+  report_schema: site-quality-report/v1            # report.json inside the artifact
+  report_artifact_default: site-quality-report     # the reusable workflow's artifact-name default
+
+  # UPS-QA-40 / UPS-QA-41 / UPS-REPO-07: the hub-only exception for the runtime
+  # of a hub reusable workflow, declared ONCE here and parsed ONCE, by
+  # tools/sanctioned_lockfiles.py, which tools/conformance.py (QA-40, REPO-07,
+  # QA-41), tools/check-drift.sh (j) and tools/unpin-deps.sh (skips these paths
+  # when run on the hub) all use. The hub's .gitignore carries a generated block
+  # (check-drift (j) fails when it drifts from this list). "The hub" is the
+  # checkout whose origin is bamr87/bamr87 (hub_identity), and the list is read
+  # from that checkout's own copy of this file, not from a separate hub checkout.
+  # Constraints (tools/test_quality_contract.py): every path is under `.github/`
+  # and never under `templates/`; `workflow` is a hub reusable workflow
+  # (`on: workflow_call`) that runs the runtime from `dir`; `manifest` pins every
+  # dependency exactly (the "exact pins" half of the exception); `lockfile` is
+  # committed; fan-out (tools/fanout.sh) never copies `dir`; each entry has a
+  # matching sanctioned_dependabot entry, present in .github/dependabot.yml.
+  hub_identity: "origin remote bamr87/bamr87 (else $GITHUB_REPOSITORY when the checkout is the working directory), or the hub checkout itself; a copy of this file does not make a repo the hub"
+  sanctioned_lockfiles:
+    - dir: .github/site-quality
+      lockfile: .github/site-quality/package-lock.json
+      manifest: .github/site-quality/package.json
+      workflow: .github/workflows/site-quality.yml
+  sanctioned_dependabot:
+    - package-ecosystem: npm
+      directory: /.github/site-quality
+
+rules:
+  UPS-QA-60:
+    level: SHOULD
+    applies: [site]
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
+    binds_when: "a root `_config.yml` exists (jekyll_marker); otherwise the rule passes"
+    mode: offline
+    rollout: warn
+    reads: [jekyll_marker, workflow_scope, caller_uses_re, pinned_ref_re]
+    pass: >-
+      Some workflow_scope file, parsed as YAML, has a job whose
+      `uses:` value matches caller_uses_re with a ref (group 1) that fullmatches
+      pinned_ref_re, and that job's `with.mode` is absent or "build".
+    warn: "only callers with `mode: url` (live scan without a build); name the file"
+    fail: >-
+      no caller; a caller whose ref fails pinned_ref_re (a branch such as @main, a custom
+      tag such as @site-quality-v1, @v1.2, a short SHA); a workflow_scope file that is not
+      valid YAML
+
+  UPS-QA-61:
+    level: SHOULD
+    applies: [site]
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
+    binds_when: "a root `_config.yml` exists (jekyll_marker); otherwise the rule passes"
+    mode: offline
+    rollout: warn
+    reads: [config_default, config_input, config_schema, config_parse]
+    pass: >-
+      The caller's config file (config_input, else config_default) exists, parses with
+      config_parse and validates against config_schema (schema == "site-quality/v1", a
+      required const; every allowlist entry has allowlist_entry_required and one of
+      allowlist_entry_any_of, and a selector whenever page is `*` or ends in `*`; issue
+      is an https link; until fullmatches until_re as a string).
+    fail: "config missing; YAML error; any schema violation (report the JSON pointer and, for an unquoted date, say to quote it)"
+
+  UPS-QA-62:
+    level: SHOULD
+    applies: [site]
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
+    binds_when: "a root `_config.yml` exists (jekyll_marker); otherwise the rule passes"
+    mode: offline
+    rollout: warn
+    reads: [config_default, config_input, until_re, expiry]
+    pass: "the config validates (UPS-QA-61) and no allowlist entry is expired"
+    fail: "any expired entry; name each entry's rule, page/selector, until and issue"
+    note: >-
+      Independent of the workflow's allowlist.on_expired level: the workflow decides
+      whether a run fails, this rule reports the hygiene either way.
+
+  UPS-QA-63:
+    level: SHOULD
+    applies: [site]
+    applies_notes: ["site (Jekyll: root `_config.yml`)"]
+    binds_when: "a root `_config.yml` exists (jekyll_marker); otherwise the rule passes"
+    mode: online
+    rollout: warn
+    reads: ["caller job (UPS-QA-60)", "GitHub API: artifacts of the latest completed run of that workflow on the default branch", report_artifact_default, report_schema]
+    pass: >-
+      The latest completed run on the default branch has an artifact named the caller's
+      `with.artifact-name` (else report_artifact_default) whose report.json carries
+      `schema: site-quality-report/v1` and a `theme` object.
+    unverified: "offline (the in-repo gate cannot see artifacts); no completed run yet"
+    fail: "the latest completed run has no such artifact (expired artifacts count as unverified)"
+    note: >-
+      The reusable workflow uploads unconditionally once the config validates, so a fail
+      means the run never reached the upload (an invalid config is UPS-QA-61's failure).
+
+# The rows these sanctioned paths are an exception to. Their own checks stay in
+# tools/conformance.py (they predate this contract); only the exception is keyed
+# here, so `rollout` is absent (they are live MUST rows).
+related:
+  UPS-QA-40:
+    level: MUST
+    applies: [all]
+    reads: [hub_identity, sanctioned_lockfiles, sanctioned_dependabot]
+    exception: >-
+      Only when the checked repo is the hub (hub_identity): a tracked lockfile equal to
+      some sanctioned_lockfiles[].lockfile of the checked repo's own copy of this file
+      is not a committed-lockfile failure, provided every path of the entry is under
+      .github/ and outside templates/, and a sanctioned_dependabot entry with directory
+      "/" + its dir is declared and present in .github/dependabot.yml. The manifest's
+      exact pins are covered by the same entry.
+    fail: >-
+      any other committed lockfile, in the hub or a member repo, as before (a sanctioned
+      lockfile whose entry does not qualify counts as committed; UPS-QA-41 names why)
+  UPS-REPO-07:
+    level: MUST
+    applies: [all]
+    reads: [hub_identity, sanctioned_lockfiles, sanctioned_dependabot]
+    exception: "the same lockfiles as UPS-QA-40, under the same conditions; node_modules/, build output, .env and secrets have no exception"
+    fail: "any other tracked lockfile or node_modules/ path"
+  UPS-QA-41:
+    level: MUST
+    applies: [all]
+    reads: [hub_identity, sanctioned_dependabot]
+    exception: >-
+      Only in the hub: the package-ecosystem entries listed in sanctioned_dependabot are
+      allowed alongside github-actions; they are what moves the sanctioned exact pins.
+    fail: >-
+      no .github/dependabot.yml; in the hub, a sanctioned_lockfiles entry that does not
+      qualify (outside .github/, under templates/, Dependabot entry missing, or this file
+      malformed), named in the detail

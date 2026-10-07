@@ -1,0 +1,407 @@
+# =============================================================================
+# specs/WORK.contract.yml — the machine-checkable contract for UPS-WORK rows
+# =============================================================================
+# Hand-written companion to specs/WORK.md (NOT generated; tools/gen-specs-data.py
+# reads only the .md tables). WORK.md says what each rule means; this file says
+# exactly what a checker reads and matches, per rule id, so tools/conformance.py
+# can be keyed to it without interpreting prose. When the two disagree, fix both
+# in the same PR; until then this file wins for checker behaviour.
+#
+# Result vocabulary (tools/conformance.py):
+#   pass | warn | fail | unverified
+#   warn       = reported, never gating: a deprecated-but-accepted shape (a rule's
+#                own `warn:` clause, which stays a warning), or any fail of a rule
+#                marked `rollout: warn` (which becomes a fail when the marker goes).
+#   unverified = the fact is not visible offline; never pass/fail.
+# `rollout: warn` on a rule: while the fleet adopts it, report what would be a fail
+# as warn. Fleet Ops makes the rule gate by deleting the marker (a contract change).
+# tools/conformance.py reads the markers from this file (warn_only()); there is no
+# hard-coded rule list in the checker.
+# `hard_fail:` on a rule: named cases that are correctness problems, not adoption
+# gaps. Each one is a fail even while the rule carries `rollout: warn`, so the
+# rollout never softens it (UPS-REPO-21 `double_release`: a repo that could cut
+# two releases).
+# One failure per root cause: when a file or heading another rule owns is missing,
+# the rules that only read it pass and name the owner in their detail. CHANGELOG.md
+# is owned by UPS-REPO-21 (so UPS-WORK-05 passes); AGENTS.md by UPS-AGENT-07 (so
+# UPS-WORK-12 and UPS-AGENT-09 pass); the `## Conventions` heading also by
+# UPS-AGENT-07, which requires it (so UPS-WORK-12 passes).
+# `applies` / `applies_notes`: exactly what tools/gen-specs-data.py writes to
+# _data/specs.yml for the row (a kind list; `all except …` and other qualifiers go
+# in the notes). tools/test_work_contract.py fails when they drift apart.
+# `mode`: offline = static tree checks; online = needs the GitHub API (fleet
+# scorecard only, never in the in-repo gate); scorecard = reported, never gating.
+#
+# Regexes are Python `re` syntax. Paths are relative to the repo root unless
+# prefixed `hub:` (relative to the bamr87/bamr87 checkout the checker runs from).
+# =============================================================================
+schema: work-contract/v1
+spec: specs/WORK.md
+ups_version: "1.0"
+decisions: [D1, D2, D3, D4, D5, D6]   # all settled 2026-10-03; nothing below is switchable
+
+definitions:
+  sdlc_file: .github/sdlc.yml
+  sdlc_schema: hub:templates/sdlc/sdlc.schema.json     # JSON Schema 2020-12 for sdlc/v1
+  registry_block: hub:_data/projects.yml `sdlc:` key of the repo's entry (same keys as sdlc_file)
+  profile_precedence: [sdlc_file, registry_block]       # first one present wins; neither = WORK-01 fail
+  # D6: repo type -> default UPS kinds when `kinds:` is omitted.
+  type_kinds:
+    app: [app]
+    library: [lib]
+    site: [site]
+    docs: [content]
+    demo: [site]
+    control-plane: [site, hub]   # `hub` is a marker kind; no row targets it yet
+    fork: [fork]
+  # D5 / UPS-REPO-21: allowed release-please release-types by repo type (sdlc.yml
+  # `release.type` and release-please-config.json packages["."]["release-type"]).
+  release_types:
+    app: [node, python, ruby, simple]
+    library: [node, python, ruby, simple]
+    site: [simple]
+    docs: [simple]
+    demo: [simple]
+    control-plane: [simple]
+    fork: []          # forks keep upstream's changelog; UPS-REPO-21 does not apply
+  release_type_selection: >-
+    app/library: node with a package.json that is not private, python with pyproject.toml
+    packaging metadata, ruby with a *.gemspec, else simple (tools/adopt-release.sh).
+  modules_shape: >-
+    sdlc_file: a map of module name -> boolean (canonical). registry_block: a map
+    or a list of enabled module names (list accepted for the registry only).
+    Known modules: spec_driven, adr, features, issue_autopilot, content_queue, ai_lanes.
+  adr_path: "`adr_path` top-level key in the profile; adr_path_default when absent or when there is no profile; no trailing slash"
+  adr_path_default: docs/adr
+  adr_index: README.md                                       # required in <adr_path>/
+  adr_file_re: '^\d{4}-[a-z0-9][a-z0-9-]*\.md$'              # canonical (D2, law-ai): NNNN-slug.md
+  adr_alias_re: '^ADR-\d{4}-[A-Za-z0-9][A-Za-z0-9-]*\.md$'   # deprecated alias (year-of-ai): warn until the D2 rename
+  adr_template_re: '^(ADR-)?0000-'                            # the template; never counts as an ADR
+  backlog:
+    mode_key: backlog.mode            # issues | file; absent = issues (D1)
+    file_key: backlog.file            # BACKLOG.md | _data/backlog.yml; required when mode is file
+    mirror_key: backlog.mirror_to_issues
+  # UPS-WORK-02: the backlog lint is found in values parsed from the workflow YAML
+  # (yaml.safe_load) at backlog_lint_keys, the same way uses_keys works for
+  # UPS-WORK-10. Raw workflow text, comments, `name:` and other keys never count.
+  backlog_lint_scope: [".github/workflows/*.yml", ".github/workflows/*.yaml"]
+  backlog_lint_keys:
+    workflow: ["jobs.<job>.steps[].run", "jobs.<job>.steps[].uses", "jobs.<job>.uses"]
+  backlog_lint_value_re: 'backlog[_-]?lint|lint[_-]?backlog|validate[_-]?backlog'   # re.search, re.I, on each value
+  labels_source: hub:_data/fleet.yml issue_pipeline.labels    # authoritative names
+  labels_file: hub:templates/community/labels.yml            # names + colours + renames
+  duplicate_label_re: '^(enhancement|documentation|priority:\s*p\d)$'   # case-insensitive
+  form_label_exempt: [page_feedback]  # its label is owned by UPS-FB-07
+  pr_templates: [.github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, pull_request_template.md, docs/pull_request_template.md, ".github/PULL_REQUEST_TEMPLATE/*.md"]
+  dod_block_re: '<!-- fleet-dod:start v(\d+) -->\n(.*?)<!-- fleet-dod:end -->'   # re.S
+  dod_reference: hub:templates/community/.github/pull_request_template.md
+  # Marker versions, as offsets from N = the reference template's own vN.
+  dod_versions:
+    pass_offset: 0      # vN: pass when the block's boxes equal the reference's, in order
+    warn_offset: -1     # vN-1: warn during the rollout of vN; boxes not compared
+    # any other version (older than vN-1, or newer than vN) fails
+  spec_driven_kit: hub:templates/spec-driven/tools/          # canonical copies (kit path, top level)
+  spec_driven_tools: [spec_validator.py, backlog_lint.py, next_backlog_id.py, pick_backlog_item.py]
+  changelog: CHANGELOG.md
+  release_files: [release-please-config.json, .release-please-manifest.json]
+  # Matched against a job-level `uses:` value (uses_keys), up to the '@'.
+  release_workflow: bamr87/bamr87/.github/workflows/release-please.yml
+  legacy_release_workflow: bamr87/.github/.github/workflows/release-please.yml   # migrate per D3; with release_workflow too = hard fail
+  # UPS-AGENT-07: AGENTS.md headings. Level-2 ATX headings (agents_heading_re, re.M),
+  # trimmed and compared case-insensitively. Order is not enforced; extra headings are allowed.
+  agents_file: AGENTS.md
+  agents_required_headings: [What this repo is, Stack & commands, Layout, Conventions, Fleet context, Standard deviations]
+  agents_heading_re: '^##[ \t]+(.+?)[ \t]*#*[ \t]*$'
+  agents_heading_order: false
+  agents_extra_headings: true
+  agents_todo_re: '^TODO:'                                   # re.M; a left-over scaffold line fails
+  # UPS-AGENT-08: CLAUDE.md pointer.
+  claude_file: CLAUDE.md
+  claude_pointer: "@AGENTS.md"                               # required, on a line of its own
+  claude_pointer_re: '^@AGENTS\.md[ \t]*$'                   # re.M
+  claude_max_nonblank_lines: 20                              # inclusive
+  # UPS-AGENT-09: kit stamp in AGENTS.md (an HTML comment; anything may follow the version).
+  kit_stamp:
+    file: AGENTS.md
+    key: kit
+    format: "<!-- kit: <kit> vX.Y.Z ... -->"
+    kits: [sdlc, agent-context]                              # agent-context until that kit migrates to D4
+    re: '<!--\s*kit:\s*(sdlc|agent-context)\s+v(\d+\.\d+\.\d+)\b'
+  # UPS-WORK-10 / UPS-QA-40 ref rule (the spec wins over any older drift-gate wording).
+  # Only `uses:` values parsed from the YAML (yaml.safe_load) are inspected, never
+  # text inside `run:` scripts, strings or comments.
+  uses_keys:
+    workflow: ["jobs.<job>.uses", "jobs.<job>.steps[].uses"]   # files in pin_scope under .github/workflows/
+    action: ["runs.steps[].uses"]                               # composite action.yml / action.yaml
+  fleet_uses_value_re: '^(bamr87/(?:bamr87|\.github)/[^@\s]+)@(\S+)$'   # applied to a parsed uses value
+  pinned_ref_re: '^(v\d+|v\d+\.\d+\.\d+|[0-9a-f]{40})$'     # fullmatch; v1.2, 1.2.3, short SHAs, branches fail
+  pin_comment: "a `# vX.Y.Z` comment after a SHA is allowed, never required (a YAML parser drops it)"
+  pin_scope: [".github/workflows/*.yml", ".github/workflows/*.yaml", ".github/actions/**/action.yml", ".github/actions/**/action.yaml"]
+  pin_exempt: "local paths starting `./` (the hub calling its own workflows/actions) and `docker://`"
+  deviations: >-
+    A waived row is listed in BOTH the profile `deviations: [{id, reason, until?}]`
+    and AGENTS.md `## Standard deviations` (CLAUDE.md `## Standard deviations` is
+    accepted during the D4 transition). MUST rows cannot be waived.
+
+rules:
+  UPS-WORK-01:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    mode: offline
+    rollout: warn
+    reads: [sdlc_file, registry_block]
+    pass: >-
+      A profile is found (profile_precedence) and validates against sdlc_schema:
+      schema == "sdlc/v1"; type in type_kinds; tier; backlog.mode; modules is a map
+      (sdlc_file) of known modules; release.type unless type is fork.
+    fail: "no profile; YAML error; any schema violation (report the JSON pointer)"
+
+  UPS-WORK-02:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except content, fork"]
+    mode: offline
+    reads: [backlog.mode_key, backlog.file_key, backlog_lint_scope, backlog_lint_keys, backlog_lint_value_re]
+    pass: >-
+      mode == file: backlog.file exists AND, in some backlog_lint_scope file parsed as
+      YAML, a value at backlog_lint_keys (a step's `run:` or `uses:`, or a job-level
+      `uses:`) matches backlog_lint_value_re, 'backlog[_-]?lint|lint[_-]?backlog|validate[_-]?backlog'
+      (re.search, case-insensitive). Comments, `name:` and other keys never count, and a
+      file that is not valid YAML contributes nothing. A sync job (e.g. sync-backlog.rb)
+      alone does NOT satisfy the lint.
+    unverified: "mode == issues (labels live on GitHub; see UPS-WORK-14)"
+    fail: "mode == file and the file or the lint is missing"
+
+  UPS-WORK-03:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    mode: offline
+    reads: [pr_templates]
+    pass: >-
+      The first template found contains dod_block_re at the reference's version vN
+      (dod_versions.pass_offset), and the block's checkbox lines
+      '^- \[ \] \*\*(.+?)\*\*' equal the reference block's, in order. Extra boxes below
+      `fleet-dod:end` are allowed.
+    warn: "the block is at vN-1 (dod_versions.warn_offset); its boxes are not compared"
+    unverified: "no template in the tree (the owner .github default is inherited; online: community profile API)"
+    fail: "template present without the markers; a version other than vN or vN-1; at vN, the block's boxes differ"
+
+  UPS-WORK-04:
+    level: MUST
+    applies: [app, api, lib, cli, ext]
+    mode: offline
+    reads: [adr_path, adr_path_default, adr_index, adr_file_re, adr_alias_re, adr_template_re]
+    pass: >-
+      <adr_path>/ has adr_index and >= 1 file matching adr_file_re, not counting
+      adr_template_re, and no file matching adr_alias_re. D2 transition paths are
+      accepted when declared as adr_path: lineage/decisions (year-of-ai, Wave 4a);
+      docs/adr plus a frozen docs/DECISIONS.md (gitorio, Wave 2).
+    warn: >-
+      the pass conditions hold when adr_alias_re files count as ADRs, and >= 1 file
+      matches adr_alias_re (deprecated `ADR-NNNN-slug.md`; rename to NNNN-slug.md in
+      the D2 migration). Name the alias files in the detail.
+    fail: "no ADR in either form, or no README.md index"
+
+  UPS-WORK-05:
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except fork"]
+    mode: offline
+    reads: [changelog, "git tags in the checkout"]
+    pass: >-
+      CHANGELOG.md is absent (pass; detail "no CHANGELOG.md, see UPS-REPO-21", which
+      owns that failure). Otherwise: AT MOST ONE heading matches
+      '^##\s*\[?unreleased\b' (re.I|re.M) (zero is normal, release-please writes none),
+      and when the checkout has tags matching '^v?\d+\.\d+\.\d+$', the first heading
+      matching '^##\s*\[?v?(\d+\.\d+\.\d+)' equals the newest such tag.
+    fail: "CHANGELOG.md present with two or more [Unreleased] headings, or newest heading != newest tag"
+
+  UPS-WORK-06:
+    level: SHOULD
+    applies: [all]
+    mode: offline
+    reads: [features/features.yml, _data/features.yml]
+    pass: "features/features.yml absent, or present with no '^version\\s*:' key and no version comment in its first 40 lines, and no _data/features.yml"
+
+  UPS-WORK-07:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all (`modules.spec_driven: true` only)"]
+    binds_when: "modules.spec_driven is true; otherwise the rule passes"
+    mode: offline
+    rollout: warn
+    reads: ["specs/[0-9][0-9][0-9]-*/spec.md", BACKLOG.md, ".github/workflows/*.y*ml", spec_driven_tools]
+    pass: >-
+      >= 1 spec package; BACKLOG.md exists; one workflow job runs spec_validator.py and
+      every other job in that workflow transitively `needs` it (its own prerequisites
+      excepted); that workflow also runs backlog_lint.py; every tracked file whose
+      basename is in spec_driven_tools is byte-identical to spec_driven_kit/<basename>.
+    fail: "any clause above"
+
+  UPS-WORK-08:
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except content"]
+    mode: scorecard
+    reads: ["specs/*/spec.md status lines", "git log", backlog.file_key]
+    flag: >-
+      a spec whose status is in-progress with no commit under its dir for > 30 days;
+      the backlog file last committed > 60 days before HEAD. Online (Issues API):
+      a P0/P1 issue with no activity for > 30 days.
+
+  UPS-WORK-09:
+    level: MUST
+    applies: [all]
+    mode: offline
+    reads: [".github/ISSUE_TEMPLATE/*.yml|*.yaml|*.md (config.yml excluded)", labels_source]
+    pass: >-
+      Every form's `labels` (YAML forms; front matter for .md) contains none matching
+      duplicate_label_re and, unless its stem is in form_label_exempt, exactly one
+      fleet type label from labels_source.
+    unverified: "no forms in the tree (inherited)"
+
+  UPS-WORK-10:
+    level: MUST
+    applies: [all]
+    mode: offline
+    reads: [pin_scope, uses_keys]
+    pass: >-
+      Parse each pin_scope file as YAML and take only the values at uses_keys (job-level
+      and step-level `uses:`; composite action steps). Every value matching
+      fleet_uses_value_re has a ref (group 2) that fullmatches pinned_ref_re (pin_exempt
+      applies). Text inside `run:` scripts, other strings and comments is never matched.
+    fail: "any branch ref (@main, @master, @release/v1), partial version (@v1.2), unprefixed (@1.2.3) or short SHA; a file in pin_scope that is not valid YAML"
+    note: >-
+      Hub self-references count: a hub workflow calling bamr87/bamr87/...@main fails.
+      Non-reusable hub workflows use ./ paths; reusable ones (whose ./ resolves in the
+      caller) pin a tag. UPS-QA-40 uses the same ref rule for third-party actions.
+
+  UPS-WORK-11:
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except content"]
+    mode: offline
+    reads: [ROADMAP.md, TODO.md, PRD.md, docs/ROADMAP.md, docs/TODO.md, docs/PRD.md]
+    pass: >-
+      Each file present contains no task-list lines '^\s*[-*] \[[ xX]\] ' and no
+      backlog ids '\b(BL-\d{8}-\d{2}|T-\d{3,})\b' outside markdown links, AND contains a
+      link to the backlog of record: '/issues' (issues mode) or the backlog.file path
+      (file mode) or 'bamr87/bamr87/blob/main/_data/roadmap.yml'.
+    fail: "a planning file carries its own item list, or does not link the backlog"
+
+  UPS-WORK-12:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    mode: offline
+    rollout: warn
+    reads: [agents_file, adr_path, adr_path_default]
+    pass: >-
+      All matching is case-insensitive (re.I). The section headed
+      '^##\s+Conventions\b' (re.I|re.M; it runs to the next '^##\s') matches
+      'backlog' and 'Definition of Done|pull_request_template', and contains the
+      literal adr_path, re.escape'd. adr_path is the profile's; with no profile, or
+      no adr_path key, it is adr_path_default (docs/adr). When the profile sets
+      modules.adr to false, the word 'ADR' is enough instead. Also pass, naming
+      UPS-AGENT-07, when AGENTS.md is missing ("no AGENTS.md, see UPS-AGENT-07") or
+      has no Conventions heading ("no `## Conventions` section, see UPS-AGENT-07"):
+      "Conventions" is in agents_required_headings, so AGENT-07 owns that failure.
+    fail: "the Conventions section exists but misses any of the three (name them)"
+
+  UPS-WORK-13:
+    level: SHOULD
+    applies: [site]
+    mode: offline
+    same_as: UPS-WORK-04
+
+  UPS-WORK-14:
+    level: SHOULD
+    applies: [all]
+    mode: online
+    reads: ["gh label list --json name", labels_file]
+    pass: "every labels_file name in families state/type/priority/size exists, and no name matching duplicate_label_re exists"
+
+# Rows in other areas changed alongside WORK (same PR), with their checker contract.
+related:
+  UPS-REPO-21:
+    level: MUST
+    applies: [all]     # D5: content repos included
+    applies_notes: ["all except fork"]
+    rollout: warn
+    reads: [changelog, release_files, release_types, release_workflow, legacy_release_workflow, uses_keys]
+    pass: >-
+      CHANGELOG.md exists; release_files exist and parse as JSON; the config's
+      packages["."]["release-type"] is in release_types[<repo type>] (repo type from
+      the profile; with no profile, any of simple|node|python|ruby); and some workflow's
+      job-level `uses:` (uses_keys, parsed YAML) is release_workflow at a ref that
+      fullmatches pinned_ref_re.
+    fail: >-
+      any clause above. A workflow whose release caller is legacy_release_workflow
+      (bamr87/.github's release-please) instead of release_workflow fails this
+      clause at any ref, @main included. Detail: "migrate to
+      bamr87/bamr87/.github/workflows/release-please.yml@v1 (decision D3)".
+    rollout_effect: >-
+      While this rule carries `rollout: warn`, every failure above, the legacy
+      caller included (pinned or unpinned at @main), is reported as warn, except
+      the hard_fail cases below, which fail regardless. Once Fleet Ops deletes the
+      marker, each one fails. There is no separate `warn:` clause: the legacy
+      caller is not an accepted shape after the rollout.
+    hard_fail:    # never softened by `rollout: warn` (see the header)
+      double_release:
+        # Both callers present in the repo's workflows (same file or not): a
+        # release_workflow caller and a legacy_release_workflow caller, each at
+        # any ref (pinned or unpinned, @main included: an unpinned hub caller
+        # releases just the same). Each is a job-level `uses:` value (uses_keys,
+        # parsed YAML) compared up to the '@'.
+        all_of:
+          - {caller: release_workflow, ref_re: any}
+          - {caller: legacy_release_workflow, ref_re: any}
+        reads: [release_workflow, legacy_release_workflow, uses_keys]
+        result: fail
+        why: "both callers run release-please on the same pushes, so the repo can cut two releases and two CHANGELOG entries for one change"
+        detail: "two release-please callers (<release_workflow>@<ref> in <file>, <legacy_release_workflow>@<ref> in <file>): the repo can release twice; delete the bamr87/.github caller"
+    replaces: UPS-REPO-13
+  UPS-AGENT-07:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    rollout: warn
+    reads: [agents_file, agents_required_headings, agents_heading_re, agents_todo_re]
+    pass: >-
+      agents_file exists; every name in agents_required_headings equals (trimmed,
+      case-insensitive) some agents_heading_re heading, in any order
+      (agents_heading_order: false), with extra headings allowed
+      (agents_extra_headings: true); no line matches agents_todo_re.
+    fail: "no AGENTS.md; a required heading missing (name them); a TODO: line left"
+    replaces: [UPS-AGENT-01, UPS-AGENT-02]
+  UPS-AGENT-08:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    rollout: warn
+    reads: [claude_file, claude_pointer_re, claude_max_nonblank_lines, agents_required_headings]
+    pass: >-
+      claude_file exists, has a line matching claude_pointer_re (the claude_pointer
+      import), has no agents_heading_re heading equal (case-insensitive) to an
+      agents_required_headings name, and has at most claude_max_nonblank_lines
+      non-blank lines.
+    fail: "no CLAUDE.md; no @AGENTS.md line; carries an AGENT-07 heading; too long"
+    replaces: [UPS-AGENT-01, UPS-AGENT-02]
+  UPS-AGENT-09:
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    rollout: warn
+    reads: [kit_stamp]
+    pass: "kit_stamp.file contains a kit_stamp.re match (group 1 = kit, group 2 = version)"
+    fail: "no stamp (a missing AGENTS.md is UPS-AGENT-07's failure; this rule then passes with that detail)"
+    replaces: UPS-AGENT-03
+  UPS-QA-20:
+    pass: "ci.yml calls bamr87/bamr87/.github/workflows/standard-ci.yml (ref per UPS-WORK-10); bamr87/.github ci.yml callers fail"
+  UPS-QA-40:
+    pass: >-
+      Every `uses:` value parsed from the YAML at uses_keys (job-level and step-level,
+      the same way as UPS-WORK-10, never text in `run:`) has a ref that fullmatches
+      pinned_ref_re (pin_exempt applies); no committed lockfiles.

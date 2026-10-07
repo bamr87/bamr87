@@ -24,7 +24,9 @@ coverage: listed
 | `fleet-engines/` | dir | Fleet engines kit: the fleet/v1 manifest, workflow facts, the audit rulebook, harness scorecard — published to npm as `@bamr87/fleet-engines`, consumed by dependency by GitFactory and zer0-CMS | terminal |
 | `elk/` | dir | ELK kit: the vendored Filebeat shipper config, the `com.bamr87.fleet.*` label + rotation fragment (UPS-OPS-17), a standalone single-node ES+Kibana overlay, and one UPS-OPS-10 JSON emitter per stack with the UPS-OPS-12 redaction attached; seeded by `fanout.sh --kit elk` (docs/OBSERVABILITY.md) | terminal |
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
+| `sdlc/` | dir | SDLC kit (core, per repo): `.github/sdlc.yml` profile + its JSON Schema (`sdlc.schema.json`, the UPS-WORK-01 contract), canonical `AGENTS.md` + pointer `CLAUDE.md` (D4), law-ai-format ADR log (D2), release-please caller `@v1` + one config per release type + manifest + CHANGELOG seed (D5), content queue (UPS-WORK-01/04/05/12, AGENT-07/08/09, REPO-21) | terminal |
 | `verify/` | dir | Agent verification kit: feature index scaffold, verify run config, user scenario, Playwright runner + MCP config, fleet-verify caller, verify-feature skill + verifier agent (spec: specs/QUALITY.md UPS-QA-50..53; doc: docs/VERIFICATION.md) | terminal |
+| `site-quality/` | dir | Site quality kit: thin caller of the reusable site-quality.yml (pinned `@v1`; Lighthouse CI + axe-core 390/1366 px + pa11y contrast, fresh-theme build or live URLs), the `.github/site-quality.yml` config template + its JSON Schema, pass/fail fixture sites and schema fixtures; seeded by `fanout.sh --kit site-quality` (spec: specs/QUALITY.md UPS-QA-60..63) | terminal |
 
 ## Placement
 

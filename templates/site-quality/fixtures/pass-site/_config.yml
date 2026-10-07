@@ -1,0 +1,7 @@
+# Fixture: a small, accessible Jekyll site. The site-quality self-test builds it
+# with the default build (bundle exec jekyll build) and expects status warn and a
+# green job: every gate passes, and the one expired allowlist entry only warns.
+title: Site-quality pass fixture
+description: An accessible fixture site the hub's reusable site-quality workflow must pass.
+lang: en
+exclude: [site-quality.yml, Gemfile, Gemfile.lock, vendor]

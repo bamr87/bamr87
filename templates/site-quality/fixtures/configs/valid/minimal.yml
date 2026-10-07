@@ -1,0 +1,3 @@
+# Smallest valid config: the schema id and one page. Everything else defaults (report-only).
+schema: site-quality/v1
+pages: [/]

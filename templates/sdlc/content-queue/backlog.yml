@@ -1,0 +1,12 @@
+# kit: sdlc v__KIT_VERSION__ — content queue (module `content_queue`, pattern: bamr87/lifehacker.dev).
+# Lands at _data/backlog.yml. This is a CONTENT queue (posts and pages to write), NOT the
+# engineering backlog: engineering work still goes to GitHub Issues (decision D1).
+schema: content-queue/v1
+backlog:
+  - id: POST-001              # <KIND>-NNN, e.g. HACK-001, TOOL-001, POST-001
+    kind: post                # repo-defined kinds
+    title: "Title of the piece"
+    brief: "What it covers and why"
+    priority: P2              # P0..P3, the same names as the fleet priority labels
+    status: todo              # todo | drafting | done
+    published: null           # the permalink once done

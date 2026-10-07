@@ -17,6 +17,7 @@ coverage: listed
 | `run.sh` | file | Bootstraps `.venv-console` at latest and execs uvicorn (`tools/dash console`, the compose `console` service) | required |
 | `requirements.txt` | file | Always-latest deps: dash-gen's requirements + fastapi, uvicorn, ruamel.yaml, the OpenTelemetry SDK + OTLP/HTTP exporter (lake export) | required |
 | `test_console.py` | file | Fixture tests — allowlist refusals, argv shapes, confirm gate, job manager, state degradation, multi-section config round-trip, credential handling (values never returned, `.env` only on confirm, the kill switch) | required |
+| `design-system/` | dir | `@bamr87/harness-console-ui` — the console's tokens and components as a small React package (source in `src/`, built to `dist/`), and the `.design-sync/` config that publishes it to Claude Design | terminal |
 | `static/` | dir | The single-page front end (`index.html`: overview, harnesses, schedules, loops, costs, observe — the lake + Phoenix + logs — content — the content atlas + editorial approvals — fleet, config, auth, jobs) | terminal |
 
 ## Placement

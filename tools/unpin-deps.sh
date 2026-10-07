@@ -25,6 +25,15 @@
 #      --frozen-lockfile/--immutable dropped, lockfile-keyed `cache:` lines
 #      removed, and `uses: owner/action@vX.Y.Z` floated to `@vX`.
 #
+# THE ONE EXCEPTION (UPS-QA-40/41, UPS-REPO-07, hub only): when the target is
+#   the hub itself (its origin is bamr87/bamr87), every covered
+#   `sanctioned_lockfiles` entry of its specs/QUALITY.contract.yml (the
+#   runtime of a hub reusable workflow: dir, lockfile, manifest, workflow) is
+#   left alone: its lockfile is not removed, its manifest's exact
+#   pins stay, its workflow keeps `npm ci` and its lockfile cache, and the
+#   .gitignore block re-allows the lockfile. A member repo is never the hub, so
+#   nothing is exempt there, even if it carries a copy of the contract.
+#
 # WHAT IT LEAVES (reported as follow-ups, for a human or the doctor agent):
 #   pyproject.toml/poetry/Pipfile dependency tables (no safe stdlib TOML
 #   writer), hash-pinned requirements files, npm overrides/resolutions,
@@ -36,6 +45,7 @@
 set -euo pipefail
 
 TARGET_DIR="${1:-.}"
+HUB_TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$TARGET_DIR"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || { echo "unpin-deps: not a git work tree: $TARGET_DIR" >&2; exit 2; }
@@ -43,10 +53,25 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 LOCKS=(package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock
        Gemfile.lock poetry.lock Pipfile.lock uv.lock composer.lock)
 
+# --- 0. the hub-only sanctioned runtimes (specs/QUALITY.contract.yml) ------
+# One path per line: "<kind>\t<path>" with kind dir|lockfile|manifest|workflow,
+# from the shared parser (tools/sanctioned_lockfiles.py, also used by
+# conformance.py and check-drift (j)). It prints nothing unless this checkout is
+# the hub (origin bamr87/bamr87); a malformed contract stops the run (exit 2)
+# rather than silently unpinning the hub's sanctioned runtime.
+SANCTIONED="$(python3 "$HUB_TOOLS/sanctioned_lockfiles.py" paths .)" \
+  || { echo "unpin-deps: cannot read the sanctioned runtimes (see above); nothing changed" >&2; exit 2; }
+sanctioned() { printf '%s\n' "$SANCTIONED" | awk -F'\t' -v k="$1" '$1 == k { print $2 }'; }
+export SANCTIONED
+
 # --- 1. drop committed lockfiles (any depth) --------------------------------
 spec=()
 for l in "${LOCKS[@]}"; do spec+=("$l" "*/$l"); done
 while IFS= read -r -d '' f; do
+  if sanctioned lockfile | grep -xF -- "$f" >/dev/null; then
+    echo "kept sanctioned lockfile: $f (specs/QUALITY.contract.yml)"
+    continue
+  fi
   git rm -q -f -- "$f"
   echo "removed lockfile: $f"
 done < <(git ls-files -z -- "${spec[@]}")
@@ -55,17 +80,31 @@ done < <(git ls-files -z -- "${spec[@]}")
 MARK="# --- always-latest dependency policy: lockfiles are local ephemera (bamr87/bamr87 docs/DEPENDENCIES.md) ---"
 if ! grep -qFx "$MARK" .gitignore 2>/dev/null; then
   if [ -f .gitignore ] && [ -n "$(tail -c1 .gitignore)" ]; then echo >> .gitignore; fi
-  { echo "$MARK"; printf '%s\n' "${LOCKS[@]}"; } >> .gitignore
+  { echo "$MARK"; printf '%s\n' "${LOCKS[@]}"
+    # Re-allow the sanctioned lockfiles AFTER the patterns (last match wins).
+    sanctioned lockfile | sed 's/^/!/'; } >> .gitignore
   echo "updated: .gitignore (lockfiles ignored)"
 fi
 
 # --- 3-6. manifest + workflow rewrites (python3 for reliable parsing) -------
 python3 - <<'PY'
-import json, re, subprocess, sys
+import json, os, re, subprocess, sys
 
 tracked = subprocess.run(["git", "ls-files", "-z"], capture_output=True,
                          check=True).stdout.decode().split("\0")
 tracked = [t for t in tracked if t]
+
+# The hub-only sanctioned runtimes (step 0): their manifests keep exact pins and
+# their workflows keep `npm ci` and the lockfile cache.
+SANCTIONED = {}
+for line in os.environ.get("SANCTIONED", "").splitlines():
+    kind, _, path = line.partition("\t")
+    if path:
+        SANCTIONED.setdefault(kind, set()).add(path)
+for kind in ("manifest", "workflow"):
+    for path in sorted(SANCTIONED.get(kind, ())):
+        print(f"kept sanctioned {kind}: {path} (specs/QUALITY.contract.yml)")
+tracked = [t for t in tracked if t not in SANCTIONED.get("manifest", set()) | SANCTIONED.get("workflow", set())]
 
 def read(p):
     with open(p, encoding="utf-8") as fh:

@@ -1,0 +1,4 @@
+# Fixture site for the hub's site-quality self-test (always-latest: no pins, no lockfile).
+source "https://rubygems.org"
+
+gem "jekyll"
