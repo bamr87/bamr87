@@ -179,3 +179,17 @@ OPT-IN continuous UX audit kit (spec: [`specs/FRONTEND.md`](../specs/FRONTEND.md
 | `prompts/` | specialist critique prompts for the hub loop |
 | `AGENT_PROMPT.md` | how a coding agent consumes an evidence bundle |
 
+## `spec-driven/`
+
+The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [`specs/WORK.md`](../specs/WORK.md) UPS-WORK-07, contract: [`specs/WORK.contract.yml`](../specs/WORK.contract.yml)). A repo opts in with `modules: { spec_driven: true }` in `.github/sdlc.yml`. For now it is adopted by hand ([`spec-driven/README.md`](spec-driven/README.md) § Adoption); wiring it into `tools/fanout.sh --kit spec-driven` is a follow-up.
+
+| File | Purpose |
+| --- | --- |
+| `VERSION` | kit provenance + changelog |
+| `tools/{spec_validator,backlog_lint,next_backlog_id,pick_backlog_item}.py` | the stdlib gates; byte-identity files every adopter keeps identical (UPS-WORK-07) |
+| `hooks/gate-check.sh` | Claude Code PostToolUse hook that runs both gates after an edit to `BACKLOG.md` or `specs/` |
+| `specs/_template/` | spec, plan and tasks templates |
+| `BACKLOG.template.md`, `constitution.template.md` | seed-once `BACKLOG.md` and `docs/constitution.md` |
+| `review-questions.example.json` | the optional `specs/_review_questions.json` (law-ai's constitution §13 check, as data) |
+| `archive/` | byte-exact pre-kit copies from law-ai and gitorio (`*-0.0.0-*`) |
+| `test_spec_driven_kit.py` | kit tests; `--target <repo>` reports a repo's byte-identity |

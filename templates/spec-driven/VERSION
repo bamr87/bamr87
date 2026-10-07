@@ -1,0 +1,19 @@
+kit: spec-driven
+version: 0.1.0
+source: bamr87/bamr87 templates/spec-driven/
+seeded-by: none yet. Adopt by hand (README.md § Adoption); `tools/fanout.sh --kit spec-driven` is a follow-up
+files: tools/spec_validator.py, tools/backlog_lint.py, tools/next_backlog_id.py, tools/pick_backlog_item.py, hooks/gate-check.sh, specs/_template/spec.md, specs/_template/plan.md, specs/_template/tasks.md, BACKLOG.template.md, constitution.template.md, review-questions.example.json, archive/*-0.0.0-law-ai.*, archive/*-0.0.0-gitorio.*
+updated: 2026-10-03
+changelog: |
+  0.1.0: initial kit. The AO-SDLC gates (spec validator, backlog lint, id
+  minter, evolve picker, gate-check hook) lifted from bamr87/law-ai (the
+  superset) and genericized: every tool takes `--root`, the hook finds tools/
+  or scripts/, and law-ai's hard-coded constitution §13 ranking check becomes
+  data in an optional specs/_review_questions.json (review-questions.example.json
+  reproduces it exactly). Run against law-ai and gitorio, the kit tools give
+  output identical to each repo's own copy, and law-ai's
+  tests/test_specs_and_backlog.py and tests/test_backlog_picker.py pass with
+  the kit copies swapped in.
+  archive/ holds byte-exact copies of the pre-kit tools from both repos
+  (stamp 0.0.0) so an upgrader can tell an untouched copy from a hand-edited one.
+notes: The four tools/*.py files are byte-identity files (UPS-WORK-07). A repo keeps them identical to this kit and puts repo-specific behaviour in specs/_review_questions.json. Templates (spec/plan/tasks, BACKLOG, constitution) are seeded once and then owned by the repo.
