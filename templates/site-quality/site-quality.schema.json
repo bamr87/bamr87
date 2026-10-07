@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bamr87/bamr87/blob/main/templates/site-quality/site-quality.schema.json",
+  "title": "site-quality/v1: the caller config of the reusable site-quality workflow (.github/site-quality.yml)",
+  "description": "Caller config for the hub's reusable site-quality.yml workflow (Lighthouse CI, axe-core, pa11y contrast). Every threshold lives here: the workflow's own defaults only report: no finding fails a run unless this file says so. The `schema` const and quoted dates follow .github/sdlc.yml (`schema: sdlc/v1`). Unknown keys are rejected so typos fail loudly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "pages"],
+  "properties": {
+    "schema": {
+      "const": "site-quality/v1",
+      "description": "Config format id, required, like `schema: sdlc/v1` in .github/sdlc.yml. Only site-quality/v1 exists."
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where the site comes from. build mode reads source/build_command/site_dir; url mode reads base_url (the workflow's `base-url` input overrides it).",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "build mode: the Jekyll source directory, relative to the repo root. Default `.`."
+        },
+        "build_command": {
+          "type": "string",
+          "description": "build mode: a custom build that writes `site_dir`, run from `source`. Empty (default) = `bundle exec jekyll build` with remote_theme pinned to the resolved SHA. The command sees SITE_QUALITY_THEME_REPO, SITE_QUALITY_THEME_SHA and SITE_QUALITY_THEME_DIR (a fresh checkout of the theme at that SHA)."
+        },
+        "site_dir": {
+          "type": "string",
+          "minLength": 1,
+          "description": "build mode: the built site, relative to `source`. Default `_site`."
+        },
+        "base_url": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "url mode: the live base URL that `pages` are joined to."
+        }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/path" },
+      "description": "Paths scanned, relative to the base (both modes). axe runs on all of them unless axe.pages narrows it."
+    },
+    "viewports": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "width", "height"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "width": { "type": "integer", "minimum": 200, "maximum": 4000 },
+          "height": { "type": "integer", "minimum": 200, "maximum": 4000 },
+          "mobile": { "type": "boolean" }
+        }
+      },
+      "description": "axe viewports. Default: mobile-390 (390x844, mobile) and desktop-1366 (1366x768)."
+    },
+    "load_errors": {
+      "$ref": "#/$defs/level",
+      "description": "Level of a page that does not load (navigation error or HTTP >= 400). Default warn."
+    },
+    "lighthouse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "pages": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" },
+          "description": "Default: the first 3 of `pages`."
+        },
+        "runs": { "type": "integer", "minimum": 1, "maximum": 5, "description": "Runs per page; assertions use the median. Default 1." },
+        "form_factor": { "enum": ["mobile", "desktop"], "description": "Default mobile (simulated 4G/CPU throttling)." },
+        "skip_audits": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/auditId" } },
+        "public_upload": { "type": "boolean", "description": "Also upload to LHCI temporary public storage (public link, ~7 days). Honoured only when the calling repo is public; a private or internal repo keeps the reports in the run artifact. Default false." },
+        "categories": { "$ref": "#/$defs/categories" },
+        "metrics": { "$ref": "#/$defs/metrics" },
+        "audits": { "$ref": "#/$defs/audits" },
+        "sizes": { "$ref": "#/$defs/sizes" },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["page"],
+            "properties": {
+              "page": { "$ref": "#/$defs/path" },
+              "categories": { "$ref": "#/$defs/categories" },
+              "metrics": { "$ref": "#/$defs/metrics" },
+              "audits": { "$ref": "#/$defs/audits" },
+              "sizes": { "$ref": "#/$defs/sizes" }
+            }
+          },
+          "description": "Per-page replacements for individual budget keys."
+        }
+      }
+    },
+    "axe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "pages": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" }, "description": "Default: `pages`." },
+        "tags": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9.-]+$" },
+          "description": "axe rule tags to run. Default wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22a, wcag22aa."
+        },
+        "fail_on": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tags", "impacts"],
+          "properties": {
+            "tags": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9.-]+$" } },
+            "impacts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["critical", "serious", "moderate", "minor"] } }
+          },
+          "description": "A violation carrying one of `tags` with one of `impacts` is an error. Absent (default) = every violation is a warning."
+        }
+      }
+    },
+    "contrast": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "pages": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "$ref": "#/$defs/path" },
+              "max": { "type": "integer", "minimum": 0, "description": "Most contrast failures allowed before the page is an error. Absent = report-only." }
+            }
+          },
+          "description": "Default: the first of `pages`, report-only."
+        },
+        "hide_elements": { "type": "string", "description": "CSS selector list hidden before measuring (e.g. gradient hero headings that htmlcs misreads as 1:1)." },
+        "viewport": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 200, "maximum": 4000 },
+            "height": { "type": "integer", "minimum": 200, "maximum": 4000 }
+          }
+        }
+      }
+    },
+    "allowlist": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "on_expired": {
+          "$ref": "#/$defs/level",
+          "description": "What an entry past its `until` date does. warn (default, rollout) reports it and keeps it in force; error fails the run. The workflow input `expired-allowlist-level` overrides this."
+        },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/allowEntry" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^/", "description": "A site path starting with /." },
+    "level": { "enum": ["warn", "error"] },
+    "auditId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+      "description": "Quoted \"YYYY-MM-DD\" (an unquoted YAML date is not a string and is rejected)."
+    },
+    "minBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "level"],
+      "properties": { "min": { "type": "number", "minimum": 0, "maximum": 1 }, "level": { "$ref": "#/$defs/level" } }
+    },
+    "maxBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max", "level"],
+      "properties": { "max": { "type": "number", "minimum": 0 }, "level": { "$ref": "#/$defs/level" } }
+    },
+    "categories": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "performance": { "$ref": "#/$defs/minBudget" },
+        "accessibility": { "$ref": "#/$defs/minBudget" },
+        "best-practices": { "$ref": "#/$defs/minBudget" },
+        "seo": { "$ref": "#/$defs/minBudget" }
+      },
+      "description": "Minimum category scores, 0..1."
+    },
+    "metrics": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/auditId" },
+      "additionalProperties": { "$ref": "#/$defs/maxBudget" },
+      "description": "Maximum numeric values of metric audits (ms; unitless for cumulative-layout-shift), e.g. largest-contentful-paint, first-contentful-paint, total-blocking-time, cumulative-layout-shift."
+    },
+    "audits": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/auditId" },
+      "additionalProperties": { "enum": ["warn", "error", "off"] },
+      "description": "Must-pass audits (score 1), e.g. errors-in-console, unsized-images, label, button-name, link-name. `off` disables one inherited from the top level in an override."
+    },
+    "sizes": {
+      "type": "object",
+      "additionalProperties": false,
+      "propertyNames": { "enum": ["document", "font", "image", "media", "other", "script", "stylesheet", "third-party", "total"] },
+      "patternProperties": {
+        "^.*$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_kib", "level"],
+          "properties": { "max_kib": { "type": "number", "exclusiveMinimum": 0 }, "level": { "$ref": "#/$defs/level" } }
+        }
+      },
+      "description": "Transfer-size budgets per resource type, in KiB."
+    },
+    "allowEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "reason", "issue", "until"],
+      "anyOf": [{ "required": ["selector"] }, { "required": ["page"] }],
+      "allOf": [
+        {
+          "if": { "required": ["page"], "properties": { "page": { "pattern": "\\*$" } } },
+          "then": { "required": ["selector"] },
+          "description": "A page of `*` or a prefix ending in `*` covers many pages, so it must name the nodes it covers with `selector`."
+        }
+      ],
+      "properties": {
+        "rule": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9:.-]*$",
+          "description": "An axe rule id (button-name), a Lighthouse assertion id (unsized-images, categories:performance, resource-summary:total:size), `contrast` (pa11y), or `page-load` (a page that did not load). A crashed collector (`collector-crashed`) is never covered by an entry."
+        },
+        "selector": { "type": "string", "minLength": 1, "description": "A CSS selector, matched in the browser: the entry covers an axe or contrast node that matches it or sits inside an element that matches it (element.matches / closest). Never a text or HTML substring. Lighthouse findings have no nodes, so a Lighthouse entry uses an exact `page` and no selector." },
+        "page": {
+          "type": "string",
+          "pattern": "^(\\*|/.*)$",
+          "description": "A path, `*` for every page, or a prefix ending in `*` (e.g. /posts/*). `*` and a prefix require `selector`."
+        },
+        "viewport": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Limit an axe entry to one viewport name." },
+        "reason": { "type": "string", "minLength": 10 },
+        "issue": { "type": "string", "pattern": "^https://", "format": "uri", "description": "Link to the issue that tracks the fix." },
+        "until": { "$ref": "#/$defs/date" }
+      }
+    }
+  }
+}
