@@ -1,0 +1,156 @@
+name: release-please
+
+# The fleet's ONE release-please workflow (UPS-QA-32/33; the CHANGELOG rule
+# UPS-REPO-20 proposed with the UPS-WORK spec). Every repo, content repos
+# included (decision D5), keeps a CHANGELOG.md that release-please writes from
+# Conventional Commit PR titles, never by hand. The caller needs two files at
+# its root: release-please-config.json (release-type by repo type: `simple` for
+# docs/content, Jekyll sites, demos and the control plane; `node` / `python` /
+# `ruby` for packaged apps and libraries) and .release-please-manifest.json
+# (e.g. {".": "0.1.0"}). The SDLC kit (templates/sdlc/release/) ships the
+# caller and one config per release type.
+#
+# On every push to the default branch it opens or updates a "release PR" that
+# bumps the version and rewrites CHANGELOG.md. Merging that PR tags vX.Y.Z and
+# creates the GitHub Release. Publishing to a registry is NOT done here: callers
+# that publish chain their own job off the `release_created` output (same run,
+# so no PAT is needed to trigger it).
+#
+# Callers pin a tag, never @main (UPS-WORK-10; tag scheme in
+# docs/WORKFLOW-VERSIONING.md):
+#
+#   on:
+#     push:
+#       branches: [main]
+#   permissions:
+#     contents: read
+#   jobs:
+#     release:
+#       uses: bamr87/bamr87/.github/workflows/release-please.yml@v1
+#       permissions: { contents: write, pull-requests: write }
+#       secrets: inherit
+#
+# Home (decision D3): shared workflows live in the hub. This is the hub copy of
+# the logic that bamr87/.github's release-please.yml carries today; retiring or
+# shimming that one is Fleet Ops' change, not this file's. Tags (`v1`) are cut
+# by Fleet Ops.
+
+on:
+  workflow_call:
+    inputs:
+      config-file:
+        description: release-please config, relative to the caller's root
+        type: string
+        default: release-please-config.json
+      manifest-file:
+        description: release-please manifest, relative to the caller's root
+        type: string
+        default: .release-please-manifest.json
+      target-branch:
+        description: branch to release from; empty = the caller's default branch
+        type: string
+        default: ''
+      ruby-version:
+        description: Ruby used to re-lock Gemfile.lock on the release PR (empty = vars.RUBY_VERSION, then 3.3)
+        type: string
+        default: ''
+    secrets:
+      RELEASE_PLEASE_TOKEN:
+        description: >
+          Optional PAT so the release PR's commits trigger CI (commits made with
+          the default GITHUB_TOKEN do not trigger other workflows). Falls back to
+          GITHUB_TOKEN when unset.
+        required: false
+    outputs:
+      releases_created:
+        description: "true if any release was created on this run"
+        value: ${{ jobs.release-please.outputs.releases_created }}
+      release_created:
+        description: "true if the root component was released"
+        value: ${{ jobs.release-please.outputs.release_created }}
+      tag_name:
+        description: "the created tag (e.g. v1.2.3)"
+        value: ${{ jobs.release-please.outputs.tag_name }}
+      version:
+        description: "the released version (e.g. 1.2.3)"
+        value: ${{ jobs.release-please.outputs.version }}
+      prs_created:
+        description: "true if a release PR was opened/updated on this run"
+        value: ${{ jobs.release-please.outputs.prs_created }}
+      pr:
+        description: "JSON of the open release PR (headBranchName, number, ...)"
+        value: ${{ jobs.release-please.outputs.pr }}
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      releases_created: ${{ steps.rp.outputs.releases_created }}
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
+      prs_created: ${{ steps.rp.outputs.prs_created }}
+      pr: ${{ steps.rp.outputs.pr }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}
+          target-branch: ${{ inputs.target-branch || github.event.repository.default_branch }}
+
+  # release-please bumps the version file on the release PR, but not lockfiles
+  # that carry the project's own version (a path-gem in Gemfile.lock, the root
+  # entry of package-lock.json). Left stale, a frozen install breaks on the merge
+  # commit. Re-lock them on the PR branch in this same run. Repos that follow the
+  # fleet's no-lockfile policy (docs/DEPENDENCIES.md) skip both steps.
+  relock:
+    name: Sync release-PR lockfiles
+    needs: release-please
+    if: needs.release-please.outputs.prs_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+
+      - name: Set up Ruby
+        if: hashFiles('Gemfile.lock') != ''
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby-version || vars.RUBY_VERSION || '3.3' }}
+          bundler-cache: false
+      - name: Re-lock Gemfile.lock
+        if: hashFiles('Gemfile.lock') != ''
+        run: |
+          bundle config set --local frozen false
+          bundle lock   # re-resolves conservatively: only the path-gem version line moves
+
+      - name: Sync package-lock.json version
+        if: hashFiles('package-lock.json') != ''
+        run: |
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json"));const l=JSON.parse(fs.readFileSync("package-lock.json"));l.version=p.version;if(l.packages&&l.packages[""])l.packages[""].version=p.version;fs.writeFileSync("package-lock.json",JSON.stringify(l,null,2)+"\n")'
+
+      - name: Commit and push if changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -am "chore: sync lockfiles to released version"
+            git push
+          else
+            echo "Lockfiles already in sync."
+          fi
