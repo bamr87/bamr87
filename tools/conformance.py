@@ -462,18 +462,83 @@ def _release(r, k):
     return _ok() if r.has("release-please-config.json", ".release-please-manifest.json") else _no("no release-please config")
 
 
+# Pin policy for `uses:` refs (UPS-QA-40). A ref is pinned when it names a
+# release: a moving major tag (`@v1`), an exact release (`@v1.2.3`), or a full
+# 40-char commit SHA (conventionally followed by a `# vX.Y.Z` comment, which is
+# not required). Branch refs (`@main`, `@master`, `@stable`), partial versions
+# (`@v1.2`), short SHAs and missing refs are not. Local paths (`./…`) carry no
+# ref because they resolve in the same commit; that is how the hub calls its own
+# workflows and actions. `docker://` images are out of scope.
+PIN_RE = re.compile(r"v\d+|v\d+\.\d+\.\d+|[0-9a-f]{40}")
+_USES_LINE = re.compile(r"""^\s*(?:-\s+)?uses:\s*(['"]?)([^\s'"#]+)\1""", re.M)
+
+
+def uses_refs(text: str) -> list[str]:
+    """Every `uses:` value in a workflow or action file: job-level reusable
+    calls, workflow steps, and composite-action steps. Parsed as YAML so `run:`
+    blocks that merely mention `uses:` are ignored; falls back to a line scan if
+    the file does not parse."""
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError:
+        doc = None
+    if not isinstance(doc, dict):
+        return [m.group(2) for m in _USES_LINE.finditer(text)]
+    out: list[str] = []
+
+    def steps(lst):
+        for st in lst if isinstance(lst, list) else []:
+            if isinstance(st, dict) and isinstance(st.get("uses"), str):
+                out.append(st["uses"].strip())
+
+    for job in (doc.get("jobs") or {}).values() if isinstance(doc.get("jobs"), dict) else []:
+        if isinstance(job, dict):
+            if isinstance(job.get("uses"), str):
+                out.append(job["uses"].strip())
+            steps(job.get("steps"))
+    if isinstance(doc.get("runs"), dict):
+        steps(doc["runs"].get("steps"))
+    return out
+
+
+def unpinned_ref(uses: str) -> str | None:
+    """None when `uses` satisfies the pin policy, else a short reason."""
+    if uses.startswith("./") or uses.startswith("docker://") or "${{" in uses:
+        return None
+    if "@" not in uses:
+        return "no ref"
+    ref = uses.rsplit("@", 1)[1]
+    if PIN_RE.fullmatch(ref):
+        return None
+    if re.fullmatch(r"[0-9a-f]{7,39}", ref):
+        return "short SHA"
+    if re.fullmatch(r"v?\d+(\.\d+)*", ref):
+        return "not vMAJOR or vMAJOR.MINOR.PATCH"
+    return "branch ref"
+
+
+def _workflow_files(r) -> list[Path]:
+    gh = r.path / ".github"
+    files = [p for ext in ("*.yml", "*.yaml") for p in (gh / "workflows").glob(ext)]
+    files += [p for name in ("action.yml", "action.yaml") for p in (gh / "actions").rglob(name)]
+    return sorted(set(files))
+
+
 @check("UPS-QA-40")
 def _always_latest(r, k):
     bad = [t for t in r.tracked() if Path(t).name in LOCKFILES and t not in hub_lockfile_exception(r)[0]]
     if bad:
         return _no("committed lockfile: " + ", ".join(sorted({Path(b).name for b in bad})[:3]))
-    pinned = None
-    for p in (r.path / ".github" / "workflows").glob("*.yml"):
-        m = re.search(r"uses:\s*\S+@(v?\d+\.\d+(\.\d+)?|[0-9a-f]{40})\b", p.read_text(encoding="utf-8", errors="replace"))
-        if m:
-            pinned = f"{p.name}@{m.group(1)}"
-            break
-    return _ok() if not pinned else _no(f"action pinned below major tag: {pinned}")
+    loose: list[str] = []
+    for p in _workflow_files(r):
+        for u in uses_refs(p.read_text(encoding="utf-8", errors="replace")):
+            why = unpinned_ref(u)
+            if why:
+                loose.append(f"{p.relative_to(r.path / '.github')}: {u} ({why})")
+    if not loose:
+        return _ok()
+    more = f" (+{len(loose) - 3} more)" if len(loose) > 3 else ""
+    return _no("uses: not pinned to @vN, @vX.Y.Z or a full SHA: " + "; ".join(loose[:3]) + more)
 
 
 @check("UPS-QA-41")

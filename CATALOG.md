@@ -161,6 +161,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
 | [`test_fleet_ci_gate.py`](tools/test_fleet_ci_gate.py) | Fixture tests for UPS-QA-20 in tools/conformance.py: `ci.yml` is a thin caller of the ONE shared gate, bamr87/bamr87's standard-ci.yml. |
 | [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
+| [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/tui/fleet.py — the terminal dash data layer. |
 | [`test_work_contract.py`](tools/test_work_contract.py) | Consistency tests for specs/WORK.contract.yml against the generated _data/specs.yml. |
