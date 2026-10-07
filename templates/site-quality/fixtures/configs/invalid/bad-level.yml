@@ -1,0 +1,6 @@
+# expect: level
+schema: site-quality/v1
+pages: [/]
+lighthouse:
+  categories:
+    accessibility: { min: 0.9, level: fatal }

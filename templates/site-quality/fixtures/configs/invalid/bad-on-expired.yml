@@ -1,0 +1,4 @@
+# expect: on_expired
+schema: site-quality/v1
+pages: [/]
+allowlist: { on_expired: ignore, entries: [] }

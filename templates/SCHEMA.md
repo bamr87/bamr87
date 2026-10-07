@@ -13,11 +13,13 @@ coverage: listed
 |---|---|---|---|
 | `README.md` | file | Index of kits and how fan-out works | required |
 | `agent-context/` | dir | Agent-context kit: CLAUDE.md scaffold + @claude OAuth workflow, seeded by standardize-fanout | terminal |
+| `community/` | dir | Community kit: the ONE PR template carrying the fleet Definition of Done (`fleet-dod` markers), issue forms with fleet labels, `labels.yml` taxonomy, CODEOWNERS, Dependabot, CONTRIBUTING, SECURITY, Code of Conduct; distributed by owner `.github` inheritance (UPS-REPO-14..19, UPS-QA-41, UPS-WORK-03/09) | terminal |
 | `standard-ci/` | dir | Reusable CI gate caller seeded by standardize-fanout | terminal |
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
 | `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
 | `ux-audit/` | dir | OPT-IN UX audit kit: R1–R13 gate + axe evidence + critique prompts (UPS-FE-53/60) | terminal |
+| `spec-driven/` | dir | Spec-driven (AO-SDLC) kit: spec validator, backlog lint, id minter, evolve picker (byte-identity files, UPS-WORK-07), gate-check hook, spec/BACKLOG/constitution templates, VERSION + archive | terminal |
 | `feedback/` | dir | Universal feedback widget kit: `<fleet-feedback>` web component + taxonomy + issue form + stack adapters (spec: specs/FEEDBACK.md) | terminal |
 | `issue-autopilot/` | dir | Issue-autopilot kit (OPT-IN): the canonical issue-triage engine + verify-and-close gate + skill/agent skeletons, seeded by standardize-fanout. Policy stays in each repo's `.issues/config.yml`, which the kit never writes | terminal |
 | `ai-runner/` | dir | AI runner kit: the fleet's model step, consumed BY REFERENCE (`.github/actions/claude-run` + reusable `ai-lane.yml`) — caller template, contract tests, VERSION + archive | terminal |
@@ -26,6 +28,7 @@ coverage: listed
 | `schema/` | dir | Pyramid Schema seed kit: template, protocol snippet, CI check, provenance | required |
 | `sdlc/` | dir | SDLC kit (core, per repo): `.github/sdlc.yml` profile + its JSON Schema (`sdlc.schema.json`, the UPS-WORK-01 contract), canonical `AGENTS.md` + pointer `CLAUDE.md` (D4), law-ai-format ADR log (D2), release-please caller `@v1` + one config per release type + manifest + CHANGELOG seed (D5), content queue (UPS-WORK-01/04/05/12, AGENT-07/08/09, REPO-21) | terminal |
 | `verify/` | dir | Agent verification kit: feature index scaffold, verify run config, user scenario, Playwright runner + MCP config, fleet-verify caller, verify-feature skill + verifier agent (spec: specs/QUALITY.md UPS-QA-50..53; doc: docs/VERIFICATION.md) | terminal |
+| `site-quality/` | dir | Site quality kit: thin caller of the reusable site-quality.yml (pinned `@v1`; Lighthouse CI + axe-core 390/1366 px + pa11y contrast, fresh-theme build or live URLs), the `.github/site-quality.yml` config template + its JSON Schema, pass/fail fixture sites and schema fixtures; seeded by `fanout.sh --kit site-quality` (spec: specs/QUALITY.md UPS-QA-60..63) | terminal |
 
 ## Placement
 

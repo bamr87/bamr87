@@ -26,6 +26,11 @@ poetry.lock
 Pipfile.lock
 uv.lock
 composer.lock
+# BEGIN sanctioned_lockfiles: generated from specs/QUALITY.contract.yml
+# (UPS-QA-40 hub-only exception). One `!<lockfile>` per entry, after the
+# patterns above; tools/check-drift.sh (j) fails when this block drifts.
+!.github/site-quality/package-lock.json
+# END sanctioned_lockfiles
 
 # Build outputs
 site/

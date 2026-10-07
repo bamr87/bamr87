@@ -395,7 +395,28 @@ for action, by_major in majors.items():
                     f"— fan-out would downgrade every repo it reaches")
 
 # 3. no committed lockfiles, no exact/ceiling pins in hub manifests.
+# The hub-only exception of UPS-QA-40/41 and UPS-REPO-07 (the runtime of a hub
+# reusable workflow, pinned exactly with a committed lockfile and moved by
+# Dependabot) is declared once, in specs/QUALITY.contract.yml, and parsed once,
+# in tools/sanctioned_lockfiles.py (shared with conformance.py and
+# unpin-deps.sh). drift_problems() reports an entry outside `.github/` or under
+# `templates/`, a missing Dependabot entry, a loose pin in the manifest, a
+# .gitignore block that differs from the list, and any malformed file, as one
+# message each instead of a traceback.
+sys.path.insert(0, os.path.join(root, "tools"))
+try:
+    import sanctioned_lockfiles as sl
+    problems.extend(sl.drift_problems(root))
+    try:
+        LOCK_EXEMPT = sl.declared_lockfiles(root)
+    except sl.ContractError:
+        LOCK_EXEMPT = set()  # already reported by drift_problems()
+except ImportError as exc:
+    problems.append(f"tools/sanctioned_lockfiles.py: cannot load ({exc})")
+    LOCK_EXEMPT = set()
 for path in walk(".github", "templates", "tools", "_data", "pages"):
+    if os.path.relpath(path, root) in LOCK_EXEMPT:
+        continue
     if os.path.basename(path) in LOCKS:
         problems.append(f"{os.path.relpath(path, root)}: committed lockfile — never committed (gitignored fleet-wide)")
 for fn in sorted(os.listdir(root)):
@@ -418,7 +439,11 @@ for x in problems:
     print(x)
 PY
 )"
-if [[ -z "$dep_out" ]]; then
+dep_rc=$?
+if [[ $dep_rc -ne 0 ]]; then
+  bad "(j) checker exited $dep_rc before finishing (see the Python error above); the dependency policy is unchecked"
+fi
+if [[ -z "$dep_out" && $dep_rc -eq 0 ]]; then
   ok "no SHA pins, no stale seed templates, no lockfiles or version ceilings"
 else
   while IFS= read -r line; do bad "$line"; done <<< "$dep_out"

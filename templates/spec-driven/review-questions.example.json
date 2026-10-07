@@ -1,0 +1,13 @@
+{
+  "questions": [
+    {
+      "id": "constitution-13",
+      "answer_marker": "who is the stronger",
+      "hint_groups": [
+        ["rank", "ranking", "ranked", "score", "scoring", "centrality", "leading case", "most-cited", "citation count", "authority weight"],
+        ["authority", "citation", "precedent", "case law", "opinion", "holding", "jurisdiction"]
+      ],
+      "message": "§2 never answers the constitution §13 review question ({answer_marker} here, and what does this feature do for them?). Answer it in §2 — see specs/_template/spec.md."
+    }
+  ]
+}

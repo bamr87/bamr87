@@ -1,0 +1,41 @@
+# Self-test config for fixtures/pass-site (caller: .github/workflows/site-quality-selftest.yml).
+# Strict on purpose: every gate is at `error`, and the site passes them all.
+# The one allowlist entry has expired: during rollout that is a WARNING, so the
+# expected outcome is status `warn` with a green job.
+schema: site-quality/v1
+
+site:
+  source: templates/site-quality/fixtures/pass-site
+
+pages:
+  - /
+  - /about/
+
+load_errors: error
+
+lighthouse:
+  runs: 1
+  categories:
+    accessibility: { min: 0.9, level: error }
+    best-practices: { min: 0.8, level: warn }
+  audits:
+    errors-in-console: error
+    document-title: error
+
+axe:
+  fail_on:
+    tags: [wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22a, wcag22aa]
+    impacts: [critical, serious]
+
+contrast:
+  pages:
+    - { path: /, max: 0 }
+
+allowlist:
+  on_expired: warn
+  entries:
+    - rule: region
+      page: /about/
+      reason: Expired on purpose to prove an expired entry warns instead of failing.
+      issue: https://github.com/bamr87/bamr87/issues/314
+      until: "2026-01-01"

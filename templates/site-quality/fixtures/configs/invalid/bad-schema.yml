@@ -1,0 +1,3 @@
+# expect: schema
+schema: site-quality/v2
+pages: [/]

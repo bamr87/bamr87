@@ -1,0 +1,456 @@
+name: site-quality
+
+# Reusable SITE QUALITY scan: Lighthouse CI, axe-core (390 px + 1366 px) and
+# pa11y contrast against a Jekyll site, graded by the CALLER's config. The
+# in-repo half is the site-quality kit (templates/site-quality/: caller
+# workflow, config template, JSON Schema, fixtures; spec specs/QUALITY.md
+# "Site quality"). Lifted from the two green implementations,
+# bamr87/lifehacker.dev#683 and bamr87/it-journey#790.
+#
+#   mode: build  build the site with a FRESH theme and serve `_site` locally.
+#                remote_theme is resolved to a commit SHA (git ls-remote) and
+#                the build is pinned to it, so a stale cached theme can never
+#                produce a green run. A custom build-command also gets a fresh
+#                checkout of the theme at that SHA (SITE_QUALITY_THEME_DIR);
+#                `theme-cache: true` caches that checkout keyed to the SHA, with
+#                no restore-keys, so a cache hit is always the same commit.
+#   mode: url    scan live URLs (`base-url` input or `site.base_url`), e.g. the
+#                org hubs' weekly scan of their member sites.
+#
+# Every threshold comes from the caller's config (default
+# .github/site-quality.yml), validated against
+# templates/site-quality/site-quality.schema.json before anything runs. The
+# defaults here only REPORT: with no budgets, no axe.fail_on and no contrast
+# `max`, no finding fails the job (an invalid config, a failed build or a
+# scan that cannot run still does). Making a default
+# stricter would turn green callers red, which docs/WORKFLOW-VERSIONING.md
+# (#314) allows only in a new major version.
+#
+# Expired allowlist entries are reported at `allowlist.on_expired` (warn during
+# rollout); the `expired-allowlist-level` input overrides it so a fleet can
+# flip to `error` later without editing every config.
+#
+# Outputs: status (pass|warn|fail), errors, warnings, theme-repo, theme-sha,
+# report-artifact. The resolved theme ref is in the job summary and in
+# report.json (`theme`).
+#
+# Call it from a member repo (templates/site-quality/site-quality.yml):
+#   jobs:
+#     site-quality:
+#       uses: bamr87/bamr87/.github/workflows/site-quality.yml@v1
+#       permissions: { contents: read }
+#       with: { mode: build, config: .github/site-quality.yml }
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "build (build the Jekyll site and serve _site) or url (scan live URLs)"
+        type: string
+        default: "build"
+      config:
+        description: "Path of the caller's site-quality config"
+        type: string
+        default: ".github/site-quality.yml"
+      base-url:
+        description: "url mode: live base URL the config's pages are joined to (overrides site.base_url)"
+        type: string
+        default: ""
+      source:
+        description: "build mode: Jekyll source directory (overrides site.source)"
+        type: string
+        default: ""
+      build-command:
+        description: "build mode: custom build command run from the source dir (overrides site.build_command)"
+        type: string
+        default: ""
+      build-command-token:
+        description: "build mode: also pass JEKYLL_GITHUB_TOKEN (this job's read-only github.token) to a custom build-command. The default jekyll build always gets it; a custom command gets no token unless the caller opts in here"
+        type: boolean
+        default: false
+      theme-cache:
+        description: "build mode: cache the theme checkout given to a custom build-command (SITE_QUALITY_THEME_DIR), keyed to the theme's resolved commit SHA"
+        type: boolean
+        default: false
+      expired-allowlist-level:
+        description: "warn or error for allowlist entries past their until date (empty = the config's allowlist.on_expired)"
+        type: string
+        default: ""
+      gate:
+        description: "Fail the job when the graded status is fail (false = report only; read the status output)"
+        type: boolean
+        default: true
+      artifact-name:
+        description: "Name of the uploaded report artifact"
+        type: string
+        default: "site-quality-report"
+      retention-days:
+        description: "Report artifact retention"
+        type: number
+        default: 14
+      hub-ref:
+        description: "bamr87/bamr87 ref to take the runner from when the called workflow's own SHA is not exposed (empty = v1)"
+        type: string
+        default: ""
+      node-version:
+        description: "Node for the runtime (empty = 22, the version the pinned runtime is tested on; the caller's NODE_VERSION variable is not read, so a fleet-wide toolchain pin cannot move the scanner)"
+        type: string
+        default: ""
+      ruby-version:
+        type: string
+        default: ""
+    outputs:
+      status:
+        description: "pass, warn or fail"
+        value: ${{ jobs.scan.outputs.status }}
+      errors:
+        description: "Number of gating findings"
+        value: ${{ jobs.scan.outputs.errors }}
+      warnings:
+        description: "Number of warnings plus allowlisted known issues"
+        value: ${{ jobs.scan.outputs.warnings }}
+      theme-repo:
+        description: "build mode: the remote theme repository (empty for gem or no theme)"
+        value: ${{ jobs.scan.outputs.theme-repo }}
+      theme-sha:
+        description: "build mode: the commit SHA the theme was built from"
+        value: ${{ jobs.scan.outputs.theme-sha }}
+      report-artifact:
+        description: "Name of the uploaded report artifact"
+        value: ${{ inputs.artifact-name }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_V: ${{ inputs.node-version || '22' }}
+  RUBY_V: ${{ inputs.ruby-version || vars.RUBY_VERSION || '3.3' }}
+  HUB_DIR: .site-quality-hub
+
+jobs:
+  scan:
+    name: Lighthouse + axe + contrast (${{ inputs.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      status: ${{ steps.report.outputs.status }}
+      errors: ${{ steps.report.outputs.errors }}
+      warnings: ${{ steps.report.outputs.warnings }}
+      theme-repo: ${{ steps.theme.outputs.repo }}
+      theme-sha: ${{ steps.theme.outputs.sha }}
+    steps:
+      - name: Work directory (outside the caller's tree)
+        run: |
+          echo "SQ_WORK=$RUNNER_TEMP/site-quality" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/site-quality/reports"
+
+      - name: Checkout this repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The runner (.github/site-quality/) must come from the SAME hub commit as
+      # this workflow, so a caller pinned @v1 never mixes versions. GitHub
+      # exposes that commit as job.workflow_sha; when it does not, fall back to
+      # the hub-ref input, then the v1 tag.
+      - name: Resolve the hub commit
+        id: hub
+        env:
+          JOB_CTX: ${{ toJSON(job) }}
+          HUB_REF_INPUT: ${{ inputs.hub-ref }}
+        run: |
+          set -euo pipefail
+          repo=$(jq -r '.workflow_repository // empty' <<<"$JOB_CTX")
+          sha=$(jq -r '.workflow_sha // empty' <<<"$JOB_CTX")
+          if [ "$repo" = "bamr87/bamr87" ] && [ -n "$sha" ]; then
+            ref="$sha"; how="job.workflow_sha"
+          else
+            ref="${HUB_REF_INPUT:-v1}"; how="${HUB_REF_INPUT:+hub-ref input}"; how="${how:-default v1}"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "how=$how" >> "$GITHUB_OUTPUT"
+          echo "site-quality runner: bamr87/bamr87@$ref ($how)"
+
+      - name: Checkout the hub (runner + schema)
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ steps.hub.outputs.ref }}
+          path: ${{ env.HUB_DIR }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/site-quality
+            templates/site-quality/site-quality.schema.json
+          sparse-checkout-cone-mode: false
+
+      - name: Record the hub commit
+        id: hubsha
+        run: echo "sha=$(git -C "$HUB_DIR" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_V }}
+          cache: npm
+          cache-dependency-path: ${{ env.HUB_DIR }}/.github/site-quality/package-lock.json
+
+      # Exact pins from the committed lockfile, with install scripts disabled
+      # (--ignore-scripts): no dependency runs code at install time, and none
+      # needs to, since nothing downloads a browser. Browsers: Playwright drives the
+      # runner's Google Chrome (channel chrome); pa11y's puppeteer uses it via
+      # CHROME_PATH; lhci finds it itself. No browser downloads.
+      - name: Install the runner (npm ci)
+        working-directory: ${{ env.HUB_DIR }}/.github/site-quality
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          echo "SQ=$PWD" >> "$GITHUB_ENV"
+          echo "PATH_LHCI=$PWD/node_modules/.bin/lhci" >> "$GITHUB_ENV"
+
+      - name: Validate the config
+        id: cfg
+        env:
+          CONFIG: ${{ inputs.config }}
+          MODE: ${{ inputs.mode }}
+          BASE_URL: ${{ inputs.base-url }}
+          SOURCE: ${{ inputs.source }}
+          BUILD_COMMAND: ${{ inputs.build-command }}
+          EXPIRED_LEVEL: ${{ inputs.expired-allowlist-level }}
+        run: |
+          set -euo pipefail
+          args=(--config "$CONFIG" --schema "$HUB_DIR/templates/site-quality/site-quality.schema.json"
+                --out "$SQ_WORK/config.json" --mode "$MODE" --base-url "$BASE_URL" --source "$SOURCE"
+                --expired-level "$EXPIRED_LEVEL")
+          [ -n "$BUILD_COMMAND" ] && args+=(--build-command "$BUILD_COMMAND")
+          node "$SQ/validate-config.mjs" "${args[@]}"
+
+      # ------------------------------------------------------------ build mode
+      - name: Resolve the theme to a commit
+        id: theme
+        if: inputs.mode == 'build'
+        env:
+          SOURCE: ${{ steps.cfg.outputs.source }}
+        run: |
+          set -euo pipefail
+          node "$SQ/resolve-theme.mjs" --source "$SOURCE" --out "$SQ_WORK/reports/theme.json" \
+            --override-config "$SQ_WORK/override.yml"
+          echo "SITE_QUALITY_OVERRIDE_CONFIG=$SQ_WORK/override.yml" >> "$GITHUB_ENV"
+          echo "SITE_QUALITY_THEME_DIR=$SQ_WORK/theme" >> "$GITHUB_ENV"
+
+      - name: Restore the theme (keyed to its SHA)
+        id: theme-cache
+        if: inputs.mode == 'build' && inputs.theme-cache && steps.theme.outputs.sha != ''
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.SQ_WORK }}/theme
+          key: site-quality-theme-${{ steps.theme.outputs.repo }}-${{ steps.theme.outputs.sha }}
+
+      - name: Fetch the theme at that SHA
+        if: inputs.mode == 'build' && steps.theme.outputs.sha != '' && steps.theme-cache.outputs.cache-hit != 'true'
+        env:
+          THEME_REPO: ${{ steps.theme.outputs.repo }}
+          THEME_SHA: ${{ steps.theme.outputs.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf "$SITE_QUALITY_THEME_DIR"
+          git init -q "$SITE_QUALITY_THEME_DIR"
+          git -C "$SITE_QUALITY_THEME_DIR" fetch -q --depth 1 "https://github.com/$THEME_REPO.git" "$THEME_SHA"
+          git -C "$SITE_QUALITY_THEME_DIR" checkout -q FETCH_HEAD
+          echo "theme checkout: $THEME_REPO@$(git -C "$SITE_QUALITY_THEME_DIR" rev-parse HEAD)"
+
+      - name: Check for a Gemfile
+        id: gemfile
+        if: inputs.mode == 'build'
+        env:
+          SOURCE: ${{ steps.cfg.outputs.source }}
+        run: |
+          if [ -f "$SOURCE/Gemfile" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+
+      # @v1 on purpose, as in every other hub workflow (ai-lane, build-dash,
+      # fleet-verify, ai-runner-contract): the hub's action policy is major tags,
+      # and check-drift (j) fails a SHA-pinned or minor/patch-pinned `uses:` in hub
+      # YAML (docs/DEPENDENCIES.md). ruby/setup-ruby publishes v1 as a branch, not
+      # a tag; moving the hub off it is a fleet-wide policy change, not this PR's.
+      - uses: ruby/setup-ruby@v1
+        if: inputs.mode == 'build'
+        with:
+          ruby-version: ${{ env.RUBY_V }}
+          bundler-cache: ${{ steps.gemfile.outputs.present == 'true' }}
+          working-directory: ${{ steps.cfg.outputs.source }}
+
+      - name: Build the site
+        id: build
+        if: inputs.mode == 'build'
+        env:
+          SOURCE: ${{ steps.cfg.outputs.source }}
+          SITE_DIR: ${{ steps.cfg.outputs.site_dir }}
+          BUILD_COMMAND: ${{ steps.cfg.outputs.build_command }}
+          SITE_QUALITY_THEME_REPO: ${{ steps.theme.outputs.repo }}
+          SITE_QUALITY_THEME_SHA: ${{ steps.theme.outputs.sha }}
+          THEME_LABEL: ${{ steps.theme.outputs.label }}
+          THEME_CACHE: ${{ steps.theme-cache.outputs.cache-hit == 'true' && 'restored from the cache keyed to this SHA' || 'fresh checkout at this SHA' }}
+          JEKYLL_ENV: production
+          PAGES_REPO_NWO: ${{ github.repository }}
+          # The default build always gets the token (remote_theme / github-metadata);
+          # a custom build-command only when the caller sets build-command-token.
+          JEKYLL_GITHUB_TOKEN: ${{ (steps.cfg.outputs.build_command == '' || inputs.build-command-token) && github.token || '' }}
+        run: |
+          set -euo pipefail
+          cd "$SOURCE"
+          status=0
+          if [ -n "$BUILD_COMMAND" ]; then
+            if [ -z "$JEKYLL_GITHUB_TOKEN" ]; then unset JEKYLL_GITHUB_TOKEN; fi
+            bash -c "$BUILD_COMMAND" || status=$?
+          else
+            bundle exec jekyll build --config "_config.yml,$SITE_QUALITY_OVERRIDE_CONFIG" -d "$SITE_DIR" || status=$?
+          fi
+          if [ "$status" -ne 0 ] || [ ! -f "$SITE_DIR/index.html" ]; then
+            {
+              echo "## 🚦 site-quality: ❌ build failed"
+              echo
+              echo "Theme: $THEME_LABEL"
+              echo
+              echo "The site did not build (exit $status) or produced no \`$SITE_DIR/index.html\`; see the log above."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=site-quality build::site build failed with theme $THEME_LABEL"
+            exit 1
+          fi
+          # Record how the theme got here, and for a gem theme the version
+          # Bundler resolved, in theme.json (report.json `theme`, job summary).
+          [ -z "$BUILD_COMMAND" ] && THEME_CACHE="remote_theme pinned to this SHA for the build"
+          gem=$(jq -r '.gem // empty' "$SQ_WORK/reports/theme.json")
+          ver=""
+          if [ -n "$gem" ] && [ -f Gemfile.lock ]; then
+            ver=$(sed -n "s/^    $gem (\([^)]*\))$/\1/p" Gemfile.lock | head -1)
+          fi
+          jq --arg v "$ver" --arg c "$THEME_CACHE" '(if $v != "" then .version = $v else . end) | (if .sha != "" then .cache = $c else . end)' \
+            "$SQ_WORK/reports/theme.json" > "$SQ_WORK/theme.tmp" && mv "$SQ_WORK/theme.tmp" "$SQ_WORK/reports/theme.json"
+
+      - name: Serve _site
+        if: inputs.mode == 'build'
+        env:
+          SITE_PATH: ${{ steps.cfg.outputs.source }}/${{ steps.cfg.outputs.site_dir }}
+        run: |
+          set -euo pipefail
+          nohup node "$SQ/serve-site.mjs" "$SITE_PATH" 4000 > "$SQ_WORK/serve.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:4000/ && exit 0
+            sleep 1
+          done
+          cat "$SQ_WORK/serve.log"
+          echo "::error title=site-quality serve::the static server did not answer on :4000"
+          exit 1
+
+      # ------------------------------------------------------------- scanning
+      - name: Base URL
+        id: base
+        env:
+          MODE: ${{ inputs.mode }}
+          CFG_BASE: ${{ steps.cfg.outputs.base_url }}
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = "build" ]; then base="http://127.0.0.1:4000"; else base="$CFG_BASE"; fi
+          if [ -z "$base" ]; then
+            echo "::error title=site-quality config::url mode needs a base URL: the base-url input or site.base_url"
+            exit 1
+          fi
+          echo "url=$base" >> "$GITHUB_OUTPUT"
+          echo "CHROME_PATH=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium)" >> "$GITHUB_ENV"
+
+      - name: Lighthouse CI config
+        id: lhrc
+        if: steps.cfg.outputs.lighthouse == 'true'
+        env:
+          BASE: ${{ steps.base.outputs.url }}
+        run: node "$SQ/lighthouse-config.mjs" --config "$SQ_WORK/config.json" --base "$BASE" --out "$SQ_WORK/lighthouserc.json" --reports "$SQ_WORK/reports"
+
+      - name: Lighthouse CI collect
+        id: lhci
+        if: steps.cfg.outputs.lighthouse == 'true'
+        continue-on-error: true
+        working-directory: ${{ env.SQ_WORK }}
+        run: |
+          "$PATH_LHCI" collect --config=lighthouserc.json
+
+      - name: Lighthouse CI assert
+        if: steps.cfg.outputs.lighthouse == 'true' && steps.lhrc.outputs.has_assertions == 'true' && steps.lhci.outcome == 'success'
+        continue-on-error: true
+        working-directory: ${{ env.SQ_WORK }}
+        run: |
+          "$PATH_LHCI" assert --config=lighthouserc.json
+
+      # The public link (LHCI temporary-public-storage) is for public repos only:
+      # a private or internal repo's reports stay in the run's artifact, whatever
+      # the config says. Visibility comes from the event payload, else the API;
+      # anything other than "public" counts as private.
+      - name: Lighthouse CI upload (filesystem; public link only if the config opts in and the repo is public)
+        if: steps.cfg.outputs.lighthouse == 'true' && steps.lhci.outcome == 'success'
+        continue-on-error: true
+        working-directory: ${{ env.SQ_WORK }}
+        env:
+          PUBLIC: ${{ steps.cfg.outputs.public_upload }}
+          VISIBILITY: ${{ github.event.repository.visibility }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          "$PATH_LHCI" upload --config=lighthouserc.json
+          if [ "$PUBLIC" = "true" ]; then
+            vis="${VISIBILITY:-}"
+            [ -n "$vis" ] || vis="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .visibility 2>/dev/null || true)"
+            if [ "$vis" = "public" ]; then
+              "$PATH_LHCI" upload --target=temporary-public-storage || echo "::warning title=site-quality lighthouse::temporary public upload failed"
+            else
+              echo "::warning title=site-quality lighthouse::lighthouse.public_upload ignored: ${GITHUB_REPOSITORY} is ${vis:-not confirmed public}; the reports are in the run artifact only"
+            fi
+          fi
+          cp .lighthouseci/assertion-results.json reports/lighthouse/ 2>/dev/null || true
+
+      - name: axe-core (390 px + 1366 px)
+        if: steps.cfg.outputs.axe == 'true'
+        continue-on-error: true
+        env:
+          BASE: ${{ steps.base.outputs.url }}
+        run: node "$SQ/axe-check.mjs" --config "$SQ_WORK/config.json" --base "$BASE" --reports "$SQ_WORK/reports"
+
+      - name: pa11y contrast (WCAG 1.4.3)
+        if: steps.cfg.outputs.contrast == 'true'
+        continue-on-error: true
+        env:
+          BASE: ${{ steps.base.outputs.url }}
+        run: node "$SQ/contrast-check.mjs" --config "$SQ_WORK/config.json" --base "$BASE" --reports "$SQ_WORK/reports"
+
+      - name: Grade + job summary
+        id: report
+        if: always() && steps.base.outcome == 'success'
+        env:
+          BASE: ${{ steps.base.outputs.url }}
+          CONFIG: ${{ inputs.config }}
+          ARTIFACT: ${{ inputs.artifact-name }}
+          LH_COLLECTED: ${{ steps.lhci.outcome == 'success' }}
+          HUB_SHA: ${{ steps.hubsha.outputs.sha }}
+        run: |
+          set -euo pipefail
+          node "$SQ/report.mjs" --config "$SQ_WORK/config.json" --theme "$SQ_WORK/reports/theme.json" \
+            --reports "$SQ_WORK/reports" --base "$BASE" --lhci-dir "$SQ_WORK/.lighthouseci" \
+            --lh-collected "$LH_COLLECTED" --config-path "$CONFIG" --artifact "$ARTIFACT" \
+            --hub-repo bamr87/bamr87 --hub-sha "$HUB_SHA"
+
+      - name: Upload the reports
+        if: always() && steps.cfg.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ env.SQ_WORK }}/reports
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: warn
+
+      - name: Gate
+        if: inputs.gate && steps.report.outputs.status == 'fail'
+        env:
+          ERRORS: ${{ steps.report.outputs.errors }}
+        run: |
+          echo "::error title=site-quality::$ERRORS gating finding(s); see the job summary and the report artifact"
+          exit 1
