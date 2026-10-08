@@ -155,3 +155,19 @@
 	path = projects/git-with-the-program
 	url = https://github.com/bamr87/git-with-the-program.git
 	branch = main
+[submodule "projects/chui"]
+	path = projects/chui
+	url = https://github.com/bamr87/chui.git
+	branch = main
+[submodule "projects/raising-eliza"]
+	path = projects/raising-eliza
+	url = https://github.com/bamr87/raising-eliza.git
+	branch = main
+[submodule "projects/outbox"]
+	path = projects/outbox
+	url = https://github.com/bamr87/outbox.git
+	branch = main
+[submodule "projects/retro-pi"]
+	path = projects/retro-pi
+	url = https://github.com/bamr87/retro-pi.git
+	branch = main

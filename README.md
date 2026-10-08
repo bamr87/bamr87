@@ -245,6 +245,8 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[djangoerp](https://github.com/bamr87/djangoerp)**: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
 - **[ocrmd](https://github.com/bamr87/ocrmd)**: Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR voting) diffed against a Claude vision transcription, one page file with rich frontmatter each.
 - **[gitnexus](https://github.com/bamr87/gitnexus)**: App Builder sandbox workspace (Vite + React + PGlite) exported from Grok Build — an experiment in hosted, agent-built apps.
+- **[raising-eliza](https://github.com/bamr87/raising-eliza)**: Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated legacy-revival method — a port that ties out against the published 1966 conversation, with its reconciliation ledger and HTTP gate.
+- **[outbox](https://github.com/bamr87/outbox)**: Async competitive outbox harness for three Grok-class agents — mailbox protocol, injected environment lag, a confidence race, and a replay scorer.
 
 ### 🛠️ Developer Tools & Experiments
 
@@ -264,6 +266,8 @@ These public repositories reflect the same focus areas: documentation, enablemen
 - **[git-with-the-program](https://github.com/bamr87/git-with-the-program)**: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
 - **[SCHEMA](https://github.com/bamr87/SCHEMA)**: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
 - **[archify](https://github.com/tt-a1i/archify)**: Agent skill that compiles typed JSON IR into validated, self-contained HTML system diagrams — the hub vendors it to illustrate the harness and its loops (diagrams/, /harness/). Live at [https://tt-a1i.github.io/archify/](https://tt-a1i.github.io/archify/).
+- **[chui](https://github.com/bamr87/chui)**: Rebuildable macOS terminal environment — Oh My Zsh + Powerlevel10k + Zellij + modern CLI (fzf, zoxide, lazygit, btop), with a `chui` menu, a $HOME mapper, and backup/restore. The environment layer of the bashOS terminal framework.
+- **[retro-pi](https://github.com/bamr87/retro-pi)**: Portable retro gaming workspace for macOS and Raspberry Pi — declarative system manifests drive EmulationStation and RetroArch through one bash-3.2 CLI (`retropi doctor/install/build/package`).
 
 ### 🛰️ Dash
 

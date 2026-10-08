@@ -955,3 +955,78 @@
 
   docs_url: https://tt-a1i.github.io/archify/guide.html
   license: MIT
+
+# --- Added for the bashOS terminal consolidation (2026-10-01): live bamr87
+# repos with a terminal surface that were in neither .gitmodules nor the
+# registry (docs/TERMINAL-FRAMEWORK.md) ---------------------------------------
+- name: chui
+  slug: chui
+  submodule_path: projects/chui
+  branch: main
+  repo_url: https://github.com/bamr87/chui
+  description: Rebuildable macOS terminal environment — Oh My Zsh + Powerlevel10k + Zellij + modern CLI (fzf, zoxide, lazygit, btop), with a `chui` menu, a $HOME mapper, and backup/restore. The environment layer of the bashOS terminal framework.
+  stack: [shell, zsh, zellij, macos]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: raising-eliza
+  slug: raising-eliza
+  submodule_path: projects/raising-eliza
+  branch: main
+  repo_url: https://github.com/bamr87/raising-eliza
+  description: Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated legacy-revival method — a port that ties out against the published 1966 conversation, with its reconciliation ledger and HTTP gate.
+  stack: [python, ai, legacy]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  # MIT with a scope note: relic/ (Weizenbaum's papers) is CC0, not MIT —
+  # which is why GitHub reports the licence as NOASSERTION.
+  license: MIT
+
+- name: outbox
+  slug: outbox
+  submodule_path: projects/outbox
+  branch: main
+  repo_url: https://github.com/bamr87/outbox
+  description: Async competitive outbox harness for three Grok-class agents — mailbox protocol, injected environment lag, a confidence race, and a replay scorer.
+  stack: [python, ai, agents]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none     # its SCHEMA.md predates the Pyramid format (fails schema_lint)
+  license: MIT
+
+- name: retro-pi
+  slug: retro-pi
+  submodule_path: projects/retro-pi
+  branch: main
+  repo_url: https://github.com/bamr87/retro-pi
+  description: Portable retro gaming workspace for macOS and Raspberry Pi — declarative system manifests drive EmulationStation and RetroArch through one bash-3.2 CLI (`retropi doctor/install/build/package`).
+  stack: [shell, python, raspberry-pi, retroarch]
+  category: dev-tools
+  status: active
+  featured: false
+  maintained: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  # MIT for the tooling only; emulators, cores, BIOS images and ROMs carry their
+  # own terms (docs/legal.md) — hence GitHub's NOASSERTION.
+  license: MIT

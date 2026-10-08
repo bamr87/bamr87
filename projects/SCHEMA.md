@@ -28,6 +28,7 @@ coverage: listed
 | `bashcrawl/` | dir | Terminal game and command-line learning project. | terminal |
 | `bashos/` | dir | Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCo… | terminal |
 | `books/` | dir | Personal books and reference notes collection. | terminal |
+| `chui/` | dir | Rebuildable macOS terminal environment — Oh My Zsh + Powerlevel10k + Zellij + modern CLI (fzf, zoxi… | terminal |
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
 | `cv/` | dir | CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII… | terminal |
 | `cv-builder-pro/` | dir | AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor… | terminal |
@@ -44,6 +45,9 @@ coverage: listed
 | `lawmode/` | dir | Always-on AI lawyer concept for developers. | terminal |
 | `lifehacker.dev/` | dir | Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages. | terminal |
 | `ocrmd/` | dir | Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR vo… | terminal |
+| `outbox/` | dir | Async competitive outbox harness for three Grok-class agents — mailbox protocol, injected environme… | terminal |
+| `raising-eliza/` | dir | Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated legacy-revival method — a po… | terminal |
+| `retro-pi/` | dir | Portable retro gaming workspace for macOS and Raspberry Pi — declarative system manifests drive Emu… | terminal |
 | `rewind-arcade/` | dir | A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snak… | terminal |
 | `scripts/` | dir | Development and automation utilities for project setup, GitHub workflows, and local tooling. | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |
