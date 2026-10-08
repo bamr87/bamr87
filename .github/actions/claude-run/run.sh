@@ -14,7 +14,7 @@
 #
 #   scripts/ai/run.sh --prompt "..." [--agent name] [--tools "Bash,Read,..."] \
 #                     [--mcp cfg.json] [--system "..."] [--out file] \
-#                     [--model id] [--max-turns N]
+#                     [--model id] [--max-turns N] [--max-budget-usd USD]
 #   echo "..." | scripts/ai/run.sh            # stdin prompt
 #
 # Auth (either works for the primary Claude Code path):
@@ -36,6 +36,10 @@
 #   AI_MODEL      override the model from _data/ai.yml (also: --model)
 #   AI_FORCE_API  =1 skips Claude Code and goes straight to the API fallback
 #   AI_MAX_TURNS  cap the agent's turns (--max-turns); unset = the CLI default
+#   AI_MAX_BUDGET_USD  dollar ceiling for one call (--max-budget-usd); unset =
+#                 no cap. Turns bound ITERATIONS, not spend. The CLI's cost is a
+#                 client-side estimate (under OAuth a throughput ceiling, not an
+#                 invoice) - see bamr87/bamr87 _data/fleet.yml `budget:`.
 #   AI_USAGE_DIR  where usage.rb writes records (default $RUNNER_TEMP/ai-usage)
 #
 # Optional companions — present means used, absent means the runner degrades
@@ -104,6 +108,7 @@ if [ ${#auth_methods[@]} -eq 0 ] && { [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || [
 fi
 
 prompt=""; tools=""; mcp=""; system=""; out=""; agent=""; model_flag=""; max_turns="${AI_MAX_TURNS:-}"
+max_budget="${AI_MAX_BUDGET_USD:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --prompt|-p)  prompt="$2";     shift 2;;
@@ -114,6 +119,7 @@ while [ $# -gt 0 ]; do
     --agent)      agent="$2";      shift 2;;
     --model)      model_flag="$2"; shift 2;;
     --max-turns)  max_turns="$2";  shift 2;;
+    --max-budget-usd) max_budget="$2"; shift 2;;
     *) shift;;
   esac
 done
@@ -142,6 +148,9 @@ run_claude_code() {
   [ -n "$tools" ]     && args+=(--allowedTools "$tools")
   [ -n "$mcp" ]       && args+=(--mcp-config "$mcp")
   [ -n "$max_turns" ] && args+=(--max-turns "$max_turns")
+  # Dollar ceiling (Claude Code >= 2.1.217). A budget abort is a non-success
+  # result, so emit_result fails the step - same exit contract as any refusal.
+  [ -n "$max_budget" ] && args+=(--max-budget-usd "$max_budget")
   # Same system prompt the API fallback gets — appended so Claude Code's own
   # agent prompt (tools/permissions) stays intact. Without this, a guardrail
   # like "never merge" would only bind the fallback path, not the primary one.
@@ -219,6 +228,7 @@ claude_failure_reason() {
 # task that already spent its turns.
 claude_failure_class() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    *max_budget*|*"max budget"*) echo budget ;;
     *"usage limit"*|*rate_limit*|*"too many requests"*|*429*) echo quota ;;
     *authentication*|*unauthorized*|*"invalid api key"*|*invalid_api_key*|*expired*|*revoked*|*"/login"*|*401*|*403*) echo auth ;;
     *overloaded*|*529*|*503*|*502*) echo transient ;;
@@ -300,6 +310,13 @@ if [ "${AI_FORCE_API:-0}" != "1" ] && command -v claude >/dev/null 2>&1; then
     hint="$(claude_failure_hint "$reason" "$method")"
     [ -n "$hint" ] && echo "[ai] likely cause: $hint" >&2
     case "$(claude_failure_class "$reason")" in
+      budget)
+        # The dollar ceiling bound. It is a circuit breaker, not a refusal: no
+        # second credential and no API fallback, or the cap would only move the
+        # spend somewhere else. Fail the step with the reason.
+        echo "[ai] --max-budget-usd ${max_budget:-?} reached$via — stopping (no retry, no API fallback)." >&2
+        [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::AI step hit its dollar cap (--max-budget-usd ${max_budget:-?}; a client-side estimate, a throughput ceiling under OAuth) — the work is truncated."
+        exit 1 ;;
       auth|quota)
         if [ -n "$next_method" ]; then
           echo "[ai] $method was refused — retrying with $next_method (AI_AUTH_ORDER=$AUTH_ORDER)." >&2

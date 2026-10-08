@@ -6,6 +6,12 @@ name: 🚧 Drift Check
 # repo_urls still match GitHub reality — renamed / moved / deleted repos the
 # set-vs-set parity check can't see (uses GITHUB_TOKEN; self-skips if unreachable).
 #
+# Also runs the control plane's own fixture tests (.github/scripts/dash-gen/
+# test_*.py) — the computational sensors for every deterministic planner the
+# loops act on (budget caps, remediation guards, harness scorecard, schedule).
+# They were only ever run by hand (tools/run-all-tests.sh), so four suites went
+# red on main without anything noticing (2026-10-03).
+#
 # Deliberately submodule-content-agnostic and offline+API only — no Ruby/Jekyll
 # build. The internal-link check moved out of the gate (it was non-gating and
 # needed a full site build); run it locally with `tools/check-drift.sh --links`.
@@ -37,12 +43,38 @@ jobs:
           python-version: '3.12'
 
       - name: Install gate deps
-        run: pip install pyyaml   # the gate needs PyYAML + gh (preinstalled on the runner)
+        # The gate needs PyYAML + gh (preinstalled on the runner); the dash-gen
+        # fixture tests import the generators, which need the rest of this file.
+        run: pip install -r .github/scripts/dash-gen/requirements.txt
 
       - name: Run drift gate
         run: tools/check-drift.sh --ci
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same checkout, no extra runner (see the actionlint note below). Offline:
+      # each suite stubs its GitHub client. Runs even when the drift gate failed
+      # so one red signal cannot hide the other. A test file with no __main__
+      # runner exits 0 having run nothing — that is a failure here, not a pass.
+      - name: Run dash-gen fixture tests
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: |
+          shopt -s nullglob
+          failed=()
+          tests=(.github/scripts/dash-gen/test_*.py)
+          [ "${#tests[@]}" -gt 0 ] || { echo "::error::no dash-gen tests found"; exit 1; }
+          for t in "${tests[@]}"; do
+            name="$(basename "$t")"
+            if ! grep -q "__main__" "$t"; then
+              echo "::error file=$t::$name has no __main__ runner; python3 would exit 0 without running it"
+              failed+=("$name"); continue
+            fi
+            echo "::group::$name"
+            if python3 "$t"; then echo "::endgroup::"; else echo "::endgroup::"; echo "::error file=$t::$name failed"; failed+=("$name"); fi
+          done
+          echo "dash-gen: $(( ${#tests[@]} - ${#failed[@]} ))/${#tests[@]} suites passed"
+          [ "${#failed[@]}" -eq 0 ] || { printf 'FAILED: %s\n' "${failed[@]}"; exit 1; }
 
       # The workflows dir's own standard ("run actionlint after editing"). This
       # used to be a second job — a whole extra runner (and billed minute) on
