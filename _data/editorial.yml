@@ -163,8 +163,63 @@ sites:
         match:
           sections: [corp, business, muses]
           tags: [strategy, smb, small-business, total-cost-of-ownership]
-    directives: []
+    directives:
+      - key: unmapped
+        kind: pillar
+        priority: P2
+        title: Map the orphan topics
+        brief: "34% of documents match no pillar. Their top tags: toolkit, partners, migration, cloud-services, aws, azure, gcp, infrastructure. Either extend a pillar's match or declare a new one."
+        source: atlas
+        status: filed
+        decided: '2026-10-02'
 
+        issue: https://github.com/amr-bash/bash-365.com/issues/38
+      - key: hygiene:description-length
+        kind: fix
+        priority: P3
+        title: 'Fix 1 document(s): description length'
+        brief: Mechanical front-matter repair — the site's own normalizer or CMS lane can batch it.
+        source: atlas
+        status: filed
+        decided: '2026-10-02'
+        issue: https://github.com/amr-bash/bash-365.com/issues/39
+      - key: hygiene:missing-date
+        kind: fix
+        priority: P3
+        title: 'Fix 54 document(s): missing date'
+        brief: Mechanical front-matter repair — the site's own normalizer or CMS lane can batch it.
+        source: atlas
+        status: filed
+        decided: '2026-10-02'
+        issue: https://github.com/amr-bash/bash-365.com/issues/40
+      - key: pillar-over:smb-strategy
+        kind: hold
+        priority: P3
+        title: Rest “SMB strategy” for a cycle
+        brief: 53% of recent work against a 15% target — the mix is drifting toward this pillar at the others' expense.
+        pillar: smb-strategy
+        source: atlas
+        status: filed
+        decided: '2026-10-02'
+        issue: https://github.com/amr-bash/bash-365.com/issues/41
+      - key: hygiene:missing-description
+        kind: fix
+        priority: P3
+        title: 'Fix 11 document(s): missing description'
+        brief: Mechanical front-matter repair — the site's own normalizer or CMS lane can batch it.
+        source: atlas
+        status: filed
+        decided: '2026-10-02'
+        issue: https://github.com/amr-bash/bash-365.com/issues/42
+      - key: hygiene:missing-tags
+        kind: fix
+        priority: P3
+        title: 'Fix 22 document(s): missing tags'
+        brief: Mechanical front-matter repair — the site's own normalizer or CMS lane can batch it.
+        source: atlas
+        status: filed
+        decided: '2026-10-02'
+        issue: https://github.com/amr-bash/bash-365.com/issues/43
   irony-works:
     narrative: >-
       A self-growing encyclopedia of irony and of paradox, defined structurally:
