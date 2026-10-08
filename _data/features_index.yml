@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-07T06:09:15Z'
+generated_at: '2026-10-08T06:09:40Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -386,8 +386,9 @@ repos:
     covered: true
     evidenced: false
     dangling: []
-    summary: Write-capable local front end (FastAPI, 127.0.0.1:4001) that renders every committed signal, runs allowlisted
-      dash operations as jobs with live logs, dispatches workflows, and edits fleet.yml one block at a time.
+    summary: Write-capable local front end (FastAPI + a React/Mantine page, 127.0.0.1:4001) that renders every committed signal
+      with a drill-down page per project, loop, operation, job and content site; runs allowlisted dash operations as jobs
+      with live
     urls:
       link: https://github.com/bamr87/bamr87/blob/main/tools/console/
       docs: https://github.com/bamr87/bamr87/blob/main/docs/HARNESS-OPS.md
