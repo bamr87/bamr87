@@ -102,6 +102,7 @@ These are not documentation, but they answer the "how does this thing build and 
 | [`DEPENDENCIES.md`](DEPENDENCIES.md) | The always-latest dependency policy. |
 | [`SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
 | [`WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
+| [`TERMINAL-FRAMEWORK.md`](TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto **bashOS** — one framework in `bamr87/bashos` with a Python/Textual core (+ the `[ai]` extra), a portable JS runtime (formerly bashcrawl's TermForge), a bash kit and chui as the environment; the inventory, the common keymap (`keys v1`) measured against Zellij/VS Code/tmux, the per-repo plan, phases, and the decision record. |
 | [`quickstart.md`](quickstart.md) | Get a first clone running locally. |
 | [`prerequisites.md`](prerequisites.md) | What to install before the quick start. |
 | [`local-development.md`](local-development.md) | Clone, configure and run the site locally (Docker or Bundler + Jekyll). |
