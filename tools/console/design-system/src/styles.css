@@ -1,6 +1,6 @@
 /* Base roles mirror tools/fleetcore/theme.py (the bashOS palette), which the console page loads as /theme.css. */
 /* Harness Console design language — tokens and component styles, ported from
-   tools/console/static/index.html. Tokens live on :root and .hc-root; dark mode
+   the console's former hand-written page (the live page is tools/console/web). Tokens live on :root and .hc-root; dark mode
    follows the OS unless data-theme pins it. */
 :root, .hc-root {
   color-scheme: light;

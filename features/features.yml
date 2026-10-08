@@ -126,7 +126,7 @@ features:
       by: agent
   - id: HUB-013
     title: "Harness Console (local control plane UI)"
-    description: "Write-capable local front end (FastAPI, 127.0.0.1:4001) that renders every committed signal, runs allowlisted dash operations as jobs with live logs, dispatches workflows, and edits fleet.yml one block at a time."
+    description: "Write-capable local front end (FastAPI + a React/Mantine page, 127.0.0.1:4001) that renders every committed signal with a drill-down page per project, loop, operation, job and content site; runs allowlisted dash operations as jobs with live logs; dispatches workflows; edits fleet.yml one block at a time; runs the terminal dash in the page (Terminal, a pty over WebSocket); and connects to GitHub through an OAuth App (device or PKCE browser flow) to manage fleet repos' issues, runs and workflows."
     implemented: true
     surface: ui
     link: tools/console/

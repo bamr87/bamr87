@@ -547,6 +547,40 @@ def lake_review(days: int = 30, repo: str | None = None, limit: int = 10) -> dic
 
 
 # --------------------------------------------------------------------------- #
+# PROJECT — one registry project, every signal the console holds about it
+# --------------------------------------------------------------------------- #
+def project_detail(name: str) -> dict:
+    """The drill-down document for one registry project: its registry entry,
+    its harness deployment and crons, the attention findings that name it, and
+    its runs + workflows in the local lake. Every piece already exists in a
+    committed file or the lake; this only joins them on the project name, so
+    the page never has to fetch five whole documents to show one repo.
+
+    Raises KeyError for a name the registry does not carry.
+    """
+    if not NAME_RX.match(name or ""):
+        raise ValueError("invalid project name")
+    registry = load_yaml(DATA / "projects.yml") or []
+    entry = next((p for p in registry if isinstance(p, dict) and p.get("name") == name), None)
+    if entry is None:
+        raise KeyError(name)
+    hr = load_yaml(DATA / SOURCES["harness_registry"])
+    hr = hr if isinstance(hr, dict) else {}
+    # A run belongs to the project when its owner/name ends in /<name> — the
+    # lake keys on GitHub's nwo, the registry on the bare name.
+    owned = (lambda nwo: str(nwo or "").lower().endswith("/" + name.lower()))
+    return {
+        "name": name,
+        "registry": {k: v for k, v in entry.items() if not str(k).startswith("_")},
+        "harness": next((r for r in hr.get("repos") or [] if r.get("repo") == name), None),
+        "schedule": [s for s in hr.get("schedule") or [] if s.get("repo") == name],
+        "attention": [a for a in hr.get("attention") or [] if a.get("repo") == name],
+        "lake_runs": [r for r in lake_runs(500) if owned(r.get("nwo"))][:60],
+        "lake_lines": [w for w in lake_lines() if owned(w.get("nwo"))],
+    }
+
+
+# --------------------------------------------------------------------------- #
 # CONTENT — the content atlas + the editorial plan (docs/CONTENT-ATLAS.md)
 # --------------------------------------------------------------------------- #
 EDITORIAL = Path(os.environ.get("DASH_EDITORIAL_PLAN") or (DATA / "editorial.yml"))
@@ -1128,6 +1162,10 @@ class Job:
             "started": self.started.isoformat() if self.started else None,
             "finished": self.finished.isoformat() if self.finished else None,
             "exit_code": self.exit_code, "log_path": str(self.log_path),
+            # Validated operation parameters (names, flags, numbers — never a
+            # credential value: secrets-push takes a secret's NAME), so the page
+            # can show what a job ran with and offer to run it again.
+            "params": self.params,
         }
 
 
@@ -1706,6 +1744,19 @@ CREDENTIALS: dict[str, dict] = {
         "label": "GitHub token (Actions-style name)",
         "help": "Same role as GH_TOKEN; what the dash-gen generators read when GH_TOKEN is unset.",
         "url": "https://github.com/settings/tokens",
+    },
+    "GITHUB_OAUTH_CLIENT_ID": {
+        "label": "GitHub OAuth App client ID",
+        "help": "The console's own OAuth App (GitHub page → Connect). The ID alone runs the device flow — "
+                "tick “Enable Device Flow” in the app. Register the callback as "
+                "http://127.0.0.1/api/github/oauth/callback for the browser flow.",
+        "url": "https://github.com/settings/applications/new",
+    },
+    "GITHUB_OAUTH_CLIENT_SECRET": {
+        "label": "GitHub OAuth App client secret",
+        "help": "Only the browser (redirect) flow needs it, and revoking a token on disconnect. The device "
+                "flow works without it.",
+        "url": "https://github.com/settings/developers",
     },
     "CLAUDE_CODE_OAUTH_TOKEN": {
         "label": "Claude Code OAuth token",

@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.tsbuildinfo
+# The root .gitignore ignores public/ (Jekyll output); this one is source.
+!public/

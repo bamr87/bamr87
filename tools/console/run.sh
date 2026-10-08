@@ -16,6 +16,7 @@
 #                  loopback names only by default — the DNS-rebinding guard
 #   CONSOLE_UDS    also listen on this Unix socket (serve.py) — how the `tui`
 #                  compose service reaches the same runtime; ignored with RELOAD
+#   CONSOLE_SKIP_WEB  1 to skip (re)building the page (web/ → web/dist)
 #
 # Usage: tools/console/run.sh            (or: tools/dash console)
 # ============================================================================
@@ -36,6 +37,26 @@ fi
 if [[ "${CONSOLE_SKIP_INSTALL:-0}" != "1" ]]; then
   "$VENV/bin/pip" install --quiet --upgrade pip
   "$VENV/bin/pip" install --quiet --upgrade -r "$HERE/requirements.txt"
+fi
+
+# The page (web/, React + Mantine) is built into web/dist, which is gitignored.
+# Rebuild whenever a source file is newer than the last build — always-latest
+# like the venv (no lockfile: web/.npmrc sets package-lock=false). Without npm
+# the API still serves, and / explains how to build the page.
+WEB="$HERE/web"
+if [[ "${CONSOLE_SKIP_WEB:-0}" != "1" ]]; then
+  if command -v npm >/dev/null 2>&1; then
+    stamp="$WEB/dist/index.html"
+    if [[ ! -f "$stamp" ]] || [[ -n "$(find "$WEB/src" "$WEB/index.html" "$WEB/package.json" "$WEB/vite.config.ts" -newer "$stamp" -print -quit 2>/dev/null)" ]]; then
+      echo "console: building the page (web/ → web/dist)"
+      if [[ ! -d "$WEB/node_modules" || "$WEB/package.json" -nt "$WEB/node_modules" ]]; then
+        (cd "$WEB" && npm install --no-package-lock --loglevel=error) && touch "$WEB/node_modules"
+      fi
+      (cd "$WEB" && npm run --silent build) || echo "console: page build FAILED — serving the API only" >&2
+    fi
+  elif [[ ! -f "$WEB/dist/index.html" ]]; then
+    echo "console: npm not found — the API will serve, but the page is unbuilt (see web/README.md)" >&2
+  fi
 fi
 
 RELOAD=()

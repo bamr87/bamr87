@@ -44,6 +44,9 @@ CSS_ROLES = {
     "--muted": "muted", "--grid": "grid", "--border": "border", "--accent": "primary",
     "--good": "success", "--good-text": "success", "--warning": "warning",
     "--serious": "warning", "--critical": "error",
+    # The console's Mantine shell maps its own surface scale onto these, so a
+    # raised panel and the secondary/highlight hues come from here too.
+    "--panel": "panel", "--secondary": "secondary", "--highlight": "accent",
 }
 
 

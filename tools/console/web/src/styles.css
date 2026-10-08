@@ -1,0 +1,100 @@
+/* The console's own roles on top of /theme.css (tools/fleetcore/theme.py):
+   chart series, meter tracks, log colours. Base roles come from fleetcore. */
+:root {
+  /* Chart series — validated with the dataviz palette checker against the
+     light surface (lightness band, chroma, CVD and normal-vision separation). */
+  --series-1: #0096a6;
+  --series-2: #e0622e;
+  --track: color-mix(in srgb, var(--accent) 16%, transparent);
+  --warning-track: color-mix(in srgb, var(--warning) 22%, transparent);
+  --critical-track: color-mix(in srgb, var(--critical) 18%, transparent);
+  --good-track: color-mix(in srgb, var(--good) 18%, transparent);
+  --ansi-red: #c02b2b; --ansi-green: #006300; --ansi-yellow: #8a6100;
+  --ansi-blue: #1f63b8; --ansi-magenta: #9c3f9c; --ansi-cyan: #0f7180;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --series-1: #00a9b5; --series-2: #d95926;
+    --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
+    --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
+  }
+}
+:root[data-theme="dark"] {
+  --series-1: #00a9b5; --series-2: #d95926;
+  --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
+  --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
+}
+
+html, body { background: var(--page); color: var(--ink); }
+body { margin: 0; }
+a { color: var(--accent); }
+
+/* Data tables: dense, hairline rules, numeric columns right-aligned. */
+.dt { width: 100%; }
+.dt th { font-size: 12px; color: var(--ink-2); font-weight: 600; white-space: nowrap; user-select: none; }
+.dt th.sortable { cursor: pointer; }
+.dt th.sortable:hover { color: var(--ink); }
+.dt td { font-size: 13px; vertical-align: top; }
+.dt td.num, .dt th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dt tr.clickable { cursor: pointer; }
+.dt tr.clickable:hover > td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.dt tr.selected > td { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.dt tr.tone-crit > td:first-child { box-shadow: inset 3px 0 0 var(--critical); }
+.dt tr.tone-warn > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+.dt tr.muted-row > td { opacity: 0.6; }
+.dt .wrap-anywhere { overflow-wrap: anywhere; }
+
+/* Status pills: icon + label, never colour alone. */
+.st { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; line-height: 1.5; padding: 0 8px;
+      border-radius: 999px; border: 1px solid var(--grid); white-space: nowrap; color: var(--ink-2); }
+.st.good { color: var(--good-text); border-color: var(--good); background: var(--good-track); }
+.st.warn { color: var(--ink); border-color: var(--warning); background: var(--warning-track); }
+.st.crit { color: var(--ink); border-color: var(--critical); background: var(--critical-track); }
+.lvl-red { color: var(--critical); } .lvl-amber { color: var(--warning); } .lvl-green { color: var(--good); }
+
+/* Meters */
+.meter { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.meter > i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.meter.warn { background: var(--warning-track); } .meter.warn > i { background: var(--warning); }
+.meter.crit { background: var(--critical-track); } .meter.crit > i { background: var(--critical); }
+.meter.good > i { background: var(--good); }
+
+/* Column charts: thin marks, 4px rounded data end on the baseline, 2px gaps. */
+.cols { display: grid; gap: 2px; align-items: end; overflow-x: auto; }
+.cols .c { display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; min-width: 6px; }
+.cols .c i { display: block; width: 100%; background: var(--series-1); }
+.cols .c i:last-child { border-radius: 4px 4px 0 0; }
+.cols .c i.s2 { background: var(--series-2); }
+.cols .c i.crit { background: var(--critical); }
+.cols .c:hover i { filter: brightness(1.15); }
+.axis { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
+.axis span { white-space: nowrap; overflow: visible; }
+.legend { display: flex; gap: 12px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--series-1); margin-right: 5px; vertical-align: -1px; }
+.legend i.s2 { background: var(--series-2); }
+.hbar { display: grid; grid-template-columns: minmax(90px, 180px) 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; padding: 2px 0; }
+.hbar > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar .track > i { display: block; height: 8px; background: var(--series-1); border-radius: 0 4px 4px 0; }
+.pillar-meter { position: relative; height: 10px; border-radius: 5px; background: var(--track); min-width: 120px; }
+.pillar-meter > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--series-1); border-radius: 5px; }
+.pillar-meter > b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 1px; }
+
+/* Job logs: decoded SGR spans. */
+.log { margin: 0; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap;
+       word-break: break-word; background: var(--page); border: 1px solid var(--grid); border-radius: 8px;
+       padding: 12px; overflow: auto; }
+.log .a-red { color: var(--ansi-red); } .log .a-green { color: var(--ansi-green); }
+.log .a-yellow { color: var(--ansi-yellow); } .log .a-blue { color: var(--ansi-blue); }
+.log .a-magenta { color: var(--ansi-magenta); } .log .a-cyan { color: var(--ansi-cyan); }
+.log .a-grey { color: var(--muted); } .log .a-bold { font-weight: 650; } .log .a-dim { opacity: .65; }
+.log .a-under { text-decoration: underline; }
+
+/* Embedded planes: a real iframe needs a real height. */
+.embed { width: 100%; height: 680px; border: 1px solid var(--grid); border-radius: 8px; background: var(--surface); }
+
+/* The terminal dash. */
+.term-host { border-radius: 8px; padding: 8px; border: 1px solid var(--grid); height: calc(100vh - 230px); min-height: 360px; }
+.term-host .xterm { height: 100%; }
+
+kbd.k { font: 12px ui-monospace, Menlo, monospace; border: 1px solid var(--grid); border-bottom-width: 2px;
+        border-radius: 4px; padding: 0 5px; background: var(--page); color: var(--ink); }

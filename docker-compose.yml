@@ -171,6 +171,10 @@ services:
     volumes:
       - .:/workspace:cached
       - venv-console:/workspace/.venv-console
+      # The page's node_modules (tools/console/web). Vite's bundler ships
+      # platform-native binaries, so the macOS copy a native run installs
+      # cannot run here — the same reason the venv has its own volume.
+      - console-web-modules:/workspace/tools/console/web/node_modules
       # The console also listens on a Unix socket here (CONSOLE_UDS, serve.py).
       # Only `tui` mounts this volume too, so reaching the socket IS the
       # authorization: the terminal dash joins this runtime without a hostname
@@ -201,6 +205,10 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - DASH_CONSOLE_TOKEN=${DASH_CONSOLE_TOKEN:-}
       - DASH_CONSOLE_ALLOWED_HOSTS=${DASH_CONSOLE_ALLOWED_HOSTS:-}
+      # The console's GitHub OAuth App (GitHub page → Connect): the client ID runs
+      # the device flow; the secret adds the browser flow and token revocation.
+      - GITHUB_OAUTH_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
+      - GITHUB_OAUTH_CLIENT_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006     # traces go to the sibling service
       - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}  # what the console links to
       - DASH_LAKE_DIR=/workspace/.dash-lake
@@ -743,6 +751,8 @@ volumes:
   node-modules:
     driver: local
   venv-console:
+    driver: local
+  console-web-modules:
     driver: local
   venv-tui:
     driver: local

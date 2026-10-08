@@ -1,6 +1,6 @@
 # @bamr87/harness-console-ui
 
-The Harness Console's design language as React components: tokens, 25 components and one stylesheet, ported from the CSS in `../static/index.html`. The console page itself is still vanilla JS; this package is the reusable, documented form of its visual system and the source for the **Claude Design** sync.
+The Harness Console's earlier design language as React components: tokens, 25 components and one stylesheet, ported from the CSS of the hand-written page the console used until 2026-10. The live console page is now [`../web/`](../web/README.md) (React on Mantine, drawn from the same fleetcore palette); this package stays as the documented form of the earlier look and the source for the **Claude Design** sync.
 
 ```bash
 npm install && npm run build   # dist/index.js, dist/*.d.ts, dist/styles.css

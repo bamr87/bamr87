@@ -3,6 +3,9 @@
 -r ../../.github/scripts/dash-gen/requirements.txt
 fastapi
 uvicorn
+# The Terminal page's /api/tui is a WebSocket; without a WebSocket library
+# uvicorn answers every upgrade with a 404 ("Unsupported upgrade request").
+websockets
 ruamel.yaml
 # starlette's TestClient — what test_console.py's DNS-rebinding test drives the
 # app through. Starlette moved this dependency from httpx to httpx2, and since
@@ -12,3 +15,6 @@ httpx2
 # `dash-gen lake export` — OpenInference spans over OTLP/HTTP to the Phoenix service
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
+# The Terminal page runs the terminal dash (tools/tui/app.py) on a pty inside
+# this process's environment, so the TUI's own requirements ride along.
+-r ../tui/requirements.txt

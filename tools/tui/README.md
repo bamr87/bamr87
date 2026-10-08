@@ -7,6 +7,8 @@ tools/dash tui            # native: bootstraps .venv-tui at latest
 tools/dash tui --docker   # the same app in the `tui` compose service (see "In Docker")
 ```
 
+The Harness Console also runs it in the browser: its **Terminal** page starts this app on a pseudo-terminal and relays it over a WebSocket ([`tools/console/tui_bridge.py`](../console/tui_bridge.py)). There, `DASH_TUI_EMBEDDED=1` makes `o` / `l` open links in the operator's browser tab (a private OSC sequence the page handles) instead of on the host.
+
 ## What it reads
 
 | Source | Page twin | Committed? | Missing → |

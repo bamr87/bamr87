@@ -16,9 +16,12 @@ workflows and run --apply fan-outs with the operator's FLEET_TOKEN is a real
 lever. So every request's Host header is checked against a loopback allowlist
 (extend it with DASH_CONSOLE_ALLOWED_HOSTS when fronting the console with a
 proxy or a real hostname).
-A narrow Content-Security-Policy rides alongside that guard: frame-src names
-the three observability UIs the Observe tab embeds, and frame-ancestors 'none'
-stops anything embedding this console in turn.
+A Content-Security-Policy rides alongside that guard: the page is a built
+bundle with no inline script, so `script-src 'self'` holds; frame-src names
+the observability UIs the Observe pages embed, and frame-ancestors 'none'
+stops anything embedding this console in turn. The WebSocket the Terminal
+page uses never passes through HTTP middleware, so tui_bridge.py repeats the
+Host check and adds an Origin check of its own.
 Credentials: jobs inherit the process environment exactly like a terminal
 would, and every status document reports credential NAMES and presence only —
 never a value or a prefix. The /api/auth routes let the operator hand this
@@ -31,16 +34,18 @@ terminal". DASH_CONSOLE_AUTH=off refuses every credential write.
 from __future__ import annotations
 
 import os
+import re
 import secrets as _secrets
 import sys
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
-from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 import core
+import github_link as ghl
+import tui_bridge
 
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
 # renders, the keys v1 table, and the bashOS palette.
@@ -49,8 +54,9 @@ from fleetcore import keys as fkeys  # noqa: E402
 from fleetcore import theme as ftheme  # noqa: E402
 from fleetcore import views as fviews  # noqa: E402
 
-STATIC = Path(__file__).resolve().parent / "static"
-app = FastAPI(title="bamr87 Harness Console", version="0.4.0",
+# The page: a React + Mantine app (web/), built by run.sh into web/dist.
+WEB_DIST = Path(os.environ.get("CONSOLE_WEB_DIST") or (Path(__file__).resolve().parent / "web" / "dist"))
+app = FastAPI(title="bamr87 Harness Console", version="1.0.0",
               description="Local control plane for the fleet's AI harnesses and schedules — "
                           "with the local data lake, Phoenix traces and the content atlas.")
 jobs = core.JobManager()
@@ -61,6 +67,7 @@ jobs = core.JobManager()
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"} | {
     h.strip().lower() for h in (os.environ.get("DASH_CONSOLE_ALLOWED_HOSTS") or "").split(",") if h.strip()
 }
+tui = tui_bridge.TuiBridge(ALLOWED_HOSTS)
 
 
 @app.middleware("http")
@@ -74,27 +81,49 @@ async def guard_host(request: Request, call_next):
     return await call_next(request)
 
 
-@app.middleware("http")
-async def frame_policy(request: Request, call_next):
-    """Allow the Observe tab to embed Kibana, Grafana and Phoenix — and nothing
-    else to embed this console.
+# Paths FastAPI renders itself: Swagger UI loads its script from a CDN and
+# boots it inline, so the page's strict policy would blank it.
+_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+_HOST_RX = re.compile(r"^[A-Za-z0-9.\-]+(:\d{1,5})?$|^\[[0-9A-Fa-f:.]+\](:\d{1,5})?$")
 
-    Deliberately NARROW. index.html is one file of inline script and style, so
-    a policy with a `default-src` would have to carry 'unsafe-inline' to work
-    at all, which is a worse policy than none. With only frame-src and
-    frame-ancestors, scripts are untouched and two real things are gained: the
-    embeds are permitted (a browser refuses a cross-origin frame with nothing
-    but a console line), and this origin — which can dispatch workflows with
-    the operator's FLEET_TOKEN — can no longer be framed by anyone.
 
-    The allowlist is _data/fleet.yml `observability.portal.frame_src`, stated
-    once. A full nonce-based CSP (UPS-OPS-23) needs index.html templated and is
-    tracked separately.
+def content_policy(path: str, host: str) -> str:
+    """The Content-Security-Policy for one response.
+
+    The console page is a built bundle: every script is a file under
+    /assets, none is inline, so `script-src 'self'` holds and an injected
+    <script> cannot run — the policy the hand-written page (one file of inline
+    script) could never carry. Styles keep 'unsafe-inline' because Mantine and
+    xterm.js set style attributes; that admits no script.
+
+    frame-src names the observability UIs the Observe pages embed
+    (_data/fleet.yml `observability.portal.frame_src`) and frame-ancestors
+    'none' stops anything embedding this console — it can dispatch workflows
+    with the operator's FLEET_TOKEN. connect-src names the page's own ws://
+    origin explicitly, for the Terminal page, because older Safari does not
+    let 'self' cover WebSocket schemes; the Host is echoed only when it is a
+    plain host[:port], so a crafted Host cannot inject a directive.
     """
+    frames = " ".join(core.frame_src())
+    if path.startswith(_DOCS_PATHS):
+        return f"frame-src 'self' {frames}".strip() + "; frame-ancestors 'none'"
+    ws = f" ws://{host} wss://{host}" if host and _HOST_RX.match(host) else ""
+    return "; ".join([
+        "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
+        # The GitHub page shows the connected account's avatar.
+        "img-src 'self' data: https://avatars.githubusercontent.com", "font-src 'self' data:", f"connect-src 'self'{ws}",
+        f"frame-src 'self' {frames}".strip(), "frame-ancestors 'none'",
+        "object-src 'none'", "base-uri 'self'", "form-action 'self'",
+    ])
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
     response = await call_next(request)
-    sources = " ".join(core.frame_src())
-    response.headers["Content-Security-Policy"] = (
-        f"frame-src 'self' {sources}".strip() + "; frame-ancestors 'none'")
+    response.headers["Content-Security-Policy"] = content_policy(
+        request.url.path, (request.headers.get("host") or "").strip())
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 
@@ -138,6 +167,23 @@ class EditorialDecision(BaseModel):
 
 class EditorialSite(BaseModel):
     fields: dict
+
+
+class OAuthStart(BaseModel):
+    flow: str = "device"           # device | web
+    store: str = "session"         # session | gh | env
+    scopes: str = ""
+    confirm: bool = False
+
+
+class GithubDisconnect(BaseModel):
+    target: str = "session"        # session | gh
+
+
+class GithubAction(BaseModel):
+    action: str
+    params: dict = Field(default_factory=dict)
+    confirm: bool = False
 
 
 class GithubAuth(BaseModel):
@@ -373,6 +419,132 @@ def auth_github(req: GithubAuth) -> dict:
         raise HTTPException(status_code=501, detail=str(exc))
 
 
+@app.get("/api/project/{name}", dependencies=[Depends(require_token)])
+def project(name: str) -> dict:
+    """One project, every signal joined on its name: the registry entry, the
+    Apps row and its every open item (fleetcore — what the TUI shows), its
+    harness deployment and crons, the attention that names it, and its runs
+    and workflows in the lake. The page's project drill-down."""
+    try:
+        detail = core.project_detail(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no registry project named '{name}'")
+    view = fviews.dash_view(core.REPO_ROOT, repo=name)
+    detail["row"] = next((r for r in view["rows"] if r["name"] == name), None)
+    detail["inbox"] = view["inbox"]
+    return detail
+
+
+@app.get("/api/tui/status", dependencies=[Depends(require_token)])
+def tui_status() -> dict:
+    """Can the Terminal page start the terminal dash here, and how many run."""
+    return tui.status()
+
+
+@app.websocket("/api/tui")
+async def tui_socket(websocket: WebSocket) -> None:
+    """The terminal dash on a pty, relayed to xterm.js (tui_bridge.py: the
+    Host + Origin checks, the hello-frame token, the session cap)."""
+    await tui.serve(websocket)
+
+
+# --------------------------------------------------------------------------- #
+# GitHub — OAuth App sign-in + fleet repo management (github_link.py)
+# --------------------------------------------------------------------------- #
+def _gh_errors(fn):
+    try:
+        return fn()
+    except ghl.GitHubError as exc:
+        raise HTTPException(status_code=exc.status if 400 <= exc.status < 600 else 502, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
+@app.get("/api/github/status", dependencies=[Depends(require_token)])
+def github_status() -> dict:
+    """Who the console is on GitHub: login, token source and kind, scopes, rate
+    limit, and the OAuth App's configuration. Never a token."""
+    return ghl.status()
+
+
+@app.post("/api/github/oauth/start", dependencies=[Depends(require_token)])
+def github_oauth_start(req: OAuthStart, request: Request) -> dict:
+    """Begin an OAuth App sign-in: the device flow (a code to type at
+    github.com/login/device) or the browser flow (a URL to open)."""
+    if req.flow == "device":
+        return _gh_errors(lambda: ghl.start_device(req.store, req.scopes, req.confirm))
+    if req.flow == "web":
+        return _gh_errors(lambda: ghl.start_web(req.store, req.scopes, request.headers.get("host") or "", req.confirm))
+    raise HTTPException(status_code=400, detail="flow must be 'device' or 'web'")
+
+
+@app.get("/api/github/oauth/device/{flow_id}", dependencies=[Depends(require_token)])
+def github_oauth_poll(flow_id: str) -> dict:
+    try:
+        return _gh_errors(lambda: ghl.poll_device(flow_id))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="no such sign-in — start again")
+
+
+@app.get(ghl.CALLBACK_PATH, include_in_schema=False)
+def github_oauth_callback(code: str | None = None, state: str | None = None, error: str | None = None,
+                          error_description: str | None = None) -> RedirectResponse:
+    """GitHub sends the browser back here. A top-level navigation carries no
+    bearer token, so this route is guarded by the flow's single-use `state`
+    (minted by an authenticated /oauth/start) plus PKCE, and by the Host
+    allowlist like every route. The token never reaches the browser: the
+    page is redirected with a status word only."""
+    try:
+        result = ghl.finish_web(code, state, error_description or error)
+    except (PermissionError, ValueError, RuntimeError, ghl.GitHubError) as exc:
+        result = {"status": "error", "message": str(exc)}
+    from urllib.parse import urlencode
+    q = {"oauth": result.get("status") or "error"}
+    if result.get("status") != "connected":
+        q["message"] = (result.get("message") or "")[:200]
+    return RedirectResponse(f"/github?{urlencode(q)}", status_code=303)
+
+
+@app.post("/api/github/disconnect", dependencies=[Depends(require_token)])
+def github_disconnect(req: GithubDisconnect) -> dict:
+    return _gh_errors(lambda: ghl.disconnect(req.target))
+
+
+@app.get("/api/github/repos", dependencies=[Depends(require_token)])
+def github_repos() -> list[dict]:
+    """Every repo the connected account can see, newest push first, with the
+    fleet's own (writable) ones marked."""
+    return _gh_errors(ghl.list_repos)
+
+
+@app.get("/api/github/repos/{owner}/{repo}", dependencies=[Depends(require_token)])
+def github_repo(owner: str, repo: str) -> dict:
+    return _gh_errors(lambda: ghl.repo_detail(f"{owner}/{repo}"))
+
+
+@app.get("/api/github/repos/{owner}/{repo}/issues/{number}", dependencies=[Depends(require_token)])
+def github_issue(owner: str, repo: str, number: int) -> dict:
+    return _gh_errors(lambda: ghl.issue_thread(f"{owner}/{repo}", number))
+
+
+@app.post("/api/github/repos/{owner}/{repo}/actions", dependencies=[Depends(require_token)])
+def github_action(owner: str, repo: str, req: GithubAction) -> dict:
+    """One write to a fleet repo (issues, runs, workflows) — confirm-gated,
+    limited to repos the hub owns, recorded in the action log."""
+    return _gh_errors(lambda: ghl.act(f"{owner}/{repo}", req.action, req.params, req.confirm))
+
+
+@app.get("/api/github/log", dependencies=[Depends(require_token)])
+def github_log() -> list[dict]:
+    return ghl.action_log()
+
+
 @app.get("/api/fleet", dependencies=[Depends(require_token)])
 def fleet_view(q: str = Query(default="", max_length=120), sort: str = Query(default="featured", max_length=20),
                health: str | None = Query(default=None, max_length=10),
@@ -398,25 +570,62 @@ def keymap() -> list[dict]:
     return fkeys.as_json("web")
 
 
+@app.get("/api/theme")
+def theme_tokens() -> dict:
+    """The bashOS palette as data (fleetcore.theme.TOKENS): the Terminal page
+    colours xterm.js from the DARK roles, which the TUI always draws in."""
+    return {"tokens": ftheme.TOKENS, "levels": ftheme.LEVEL_ROLE}
+
+
 @app.get("/theme.css", include_in_schema=False)
 def theme_css() -> Response:
     return Response(ftheme.css(), media_type="text/css")
 
 
-@app.get("/", include_in_schema=False)
-def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
-
-
 @app.get("/api", include_in_schema=False)
 def api_root() -> JSONResponse:
-    return JSONResponse({"routes": ["/api/state", "/api/capabilities", "/api/ops", "/api/jobs",
-                                    "/api/lake", "/api/lake/runs", "/api/lake/lines",
-                                    "/api/lake/review",
-                                    "/api/observability",
-                                    "/api/contract", "/api/config", "/api/auth",
-                                    "/api/auth/credential", "/api/auth/github",
-                                    "/api/fleet", "/api/fleet/docker", "/api/keys", "/docs"]})
+    return JSONResponse({"routes": sorted({r.path for r in app.routes
+                                            if getattr(r, "path", "").startswith("/api/")})
+                         + ["/docs"]})
 
 
-app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
+# --------------------------------------------------------------------------- #
+# The page. Every path that is not an API route, /docs or /theme.css is the
+# single-page app: a file from web/dist when one exists there, index.html
+# otherwise, so /projects/zer0-mistakes is a deep link a reload keeps.
+# --------------------------------------------------------------------------- #
+_UNBUILT = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Harness Console</title>
+<link rel="stylesheet" href="/theme.css"><style>body{font:15px/1.5 system-ui,sans-serif;margin:0;
+background:var(--page);color:var(--ink)}main{max-width:640px;margin:12vh auto;padding:0 16px}
+code,pre{font-family:ui-monospace,Menlo,monospace}pre{background:var(--surface);padding:12px;
+border:1px solid var(--border);border-radius:8px}</style></head><body><main>
+<h1>Harness Console</h1><p>The API is running, but the page has not been built yet.</p>
+<pre>cd tools/console/web &amp;&amp; npm install &amp;&amp; npm run build</pre>
+<p><code>tools/dash console</code> does this on start whenever <code>npm</code> is on the PATH.
+The API itself is browsable at <a href="/docs">/docs</a>.</p></main></body></html>"""
+
+
+def _dist_file(path: str) -> Path | None:
+    if not path:
+        return None
+    root = WEB_DIST.resolve()
+    candidate = (root / path).resolve()
+    if candidate.is_file() and root in candidate.parents:
+        return candidate
+    return None
+
+
+@app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def spa(path: str) -> Response:
+    if path == "api" or path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="no such API route")
+    hit = _dist_file(path)
+    if hit:
+        # Vite fingerprints everything under assets/, so it can be cached for good.
+        cache = "public, max-age=31536000, immutable" if path.startswith("assets/") else "no-cache"
+        return FileResponse(hit, headers={"Cache-Control": cache})
+    index = WEB_DIST / "index.html"
+    if index.is_file():
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+    return HTMLResponse(_UNBUILT, status_code=503)

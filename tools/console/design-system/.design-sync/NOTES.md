@@ -1,6 +1,6 @@
 # Design-sync notes
 
-- The package is authored here (the console UI is one vanilla `static/index.html`); `src/styles.css` is a port of its CSS with an `hc-` prefix. Keep them in step.
+- The package is authored here (it ported the CSS of the console's old hand-written page, removed 2026-10; the live page is `../web/`, on Mantine). `src/styles.css` keeps that look with an `hc-` prefix.
 - Build before sync: `npm run build`, then stage `.ds-sync/` and run `resync.mjs` with `--entry ./dist/index.js --node-modules ./node_modules`.
 - playwright 1.56 in `.ds-sync` matches the preinstalled `chromium-1194`.
 

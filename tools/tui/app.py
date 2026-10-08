@@ -15,6 +15,7 @@ gate run (fleetcore.client).
 from __future__ import annotations
 
 import functools
+import os
 import re
 import subprocess
 import sys
@@ -41,6 +42,10 @@ from fleetcore import theme as ftheme  # noqa: E402
 from fleetcore.client import ConsoleClient, ConsoleError  # noqa: E402
 
 POLL_SECONDS = 15
+# Run by the console's Terminal page (tools/console/tui_bridge.py): links open
+# in the operator's browser tab through OSC_OPEN rather than on the host.
+EMBEDDED = os.environ.get("DASH_TUI_EMBEDDED") == "1"
+OSC_OPEN = 7777
 JOB_POLL_SECONDS = 2
 _T = ftheme.TOKENS["dark"]
 COLOR = {lv: ftheme.level_color(lv) for lv in fl.LEVELS}
@@ -914,10 +919,29 @@ class DashTui(App):
     def _open(self, url: str | None, missing: str = "No URL for this row") -> None:
         if not url:
             self.notify(missing)
+        elif EMBEDDED and self._open_in_page(url):
+            self.notify(url, title="Opened in a new browser tab", markup=False)
         elif not webbrowser.open(url):
             # No browser to hand it to — `tools/dash tui --docker`, or an SSH
             # session. Show the link instead of swallowing the key press.
             self.notify(url, title="No browser here — open the link yourself", markup=False, timeout=20)
+
+    def _open_in_page(self, url: str) -> bool:
+        """Inside the console's Terminal page, ask the PAGE to open the link.
+
+        webbrowser.open would open a browser on the machine running the
+        console — the wrong one when the page is the only screen the operator
+        has. OSC_OPEN is a private escape the page's xterm.js handler turns into
+        a new tab (http/https only); written through the driver, it is queued
+        with the frames and cannot split one.
+        """
+        if not url.startswith(("https://", "http://")):
+            return False
+        driver = getattr(self, "_driver", None)
+        if driver is None:
+            return False
+        driver.write(f"\x1b]{OSC_OPEN};{url}\x07")
+        return True
 
     def action_open_repo(self) -> None:
         table = self._active_table()

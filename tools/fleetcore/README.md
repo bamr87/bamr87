@@ -4,9 +4,9 @@ The Harness Console (browser, `tools/console/`) and the terminal dash (TTY, `too
 
 | Module | Browser console | Terminal dash |
 | --- | --- | --- |
-| `fleet.py` + `views.py` | `/api/fleet`, `/api/fleet/docker` → the **Apps** tab | Apps, Inbox, Attention, Monitor, Harness, Docker tabs |
+| `fleet.py` + `views.py` | `/api/fleet`, `/api/fleet/docker`, `/api/project/:name` → **Projects**, **Inbox**, **Containers** and each project's page | Apps, Inbox, Attention, Monitor, Harness, Docker tabs |
 | `keys.py` (keys v1) | `/api/keys` → the page's key handler and `?` sheet | its Bindings, footer and `?` panel |
-| `theme.py` (bashOS palette) | `/theme.css` | the `bashos-dark` Textual theme |
+| `theme.py` (bashOS palette) | `/theme.css` (Mantine's variables point at it) and `/api/theme` (the Terminal page's xterm colours) | the `bashos-dark` Textual theme |
 | `client.py` | — (the console *is* the runtime) | the **Jobs** tab and the `:` palette submit jobs to the console |
 | `mcp_server.py` | — | — (the third surface: AI agents, below) |
 

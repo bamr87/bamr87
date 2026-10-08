@@ -499,12 +499,13 @@ Each loaded the same YAML through its own loader, with its own idea of "stale" a
    confirm gate, one JobManager)             bashos-dark theme
      │ TCP 127.0.0.1:4001     │ unix socket ─── Jobs tab + `:` palette
      ▼                        │ (console-run volume, tui only)
-   browser page: Apps tab, keys v1, `?` sheet, `:` palette
+   browser page: Projects, keys v1, `?` sheet, `:` palette,
+   and the Terminal page — the TUI itself on a pty over /api/tui
 ```
 
 | Concern | Before | Now |
 | --- | --- | --- |
-| Data | `console/core.py` and `tui/fleet.py`, separately | `fleetcore/fleet.py` + `views.py`. The page's Apps tab is `/api/fleet`, filtered and sorted by the TUI's own functions on the server |
+| Data | `console/core.py` and `tui/fleet.py`, separately | `fleetcore/fleet.py` + `views.py`. The page's Projects view is `/api/fleet`, filtered and sorted by the TUI's own functions on the server |
 | Keys | TUI only, ad hoc | keys v1 as data (`fleetcore/keys.py`). The TUI builds its Bindings from it, and the page binds the same table from `/api/keys` |
 | Colour | a dataviz palette in the page, hex literals in the TUI | the bashOS palette (`fleetcore/theme.py`, mirrored from `bashos.desktop.theme`), served as `/theme.css` and registered as Textual `bashos-dark` |
 | Actions | page only | one runtime. The TUI's Jobs tab and `:` palette submit to the console's job API, so a job started in either shows in both, and the allowlist and confirm gate stay server-side |
@@ -516,7 +517,8 @@ Not yet converged, in the order worth doing:
 1. **The console's other ten tabs in the terminal.** Harnesses, Schedules, Loops and Costs come first, since they read committed YAML. For each, move its loader from `console/core.py` into `fleetcore`, serve it, and add a TUI tab. Content, Config and Auth are forms and stay browser-first.
 2. **theme v1 from bashOS itself.** `fleetcore/theme.py` copies bashOS's values today. When `bashos` publishes the tokens as data (Phase 2), the table becomes an import.
 3. **The bashOS desktop.** The fleet dash becomes a bashOS app: an `AppSpec` window that hosts the dash screens, loaded through the `bashos.apps` entry point (Phase 2's bridge). The bashOS GUI and this console are then two web front ends, and the decision is which one hosts the other. Recommendation: the console stays the fleet's runtime (it owns the allowlist and the credentials), and the bashOS GUI opens it as an app.
-4. **Docker in the browser.** The console holds no Docker socket on purpose: a write-capable service holding one would be root on the Docker host. Containers show in the TUI, and the page says so.
+4. ~~**The TUI in the browser.**~~ Done (2026-10): the console's Terminal page runs the real Textual app on a pty relayed over the `/api/tui` WebSocket and draws it with xterm.js in the bashOS dark palette. One program, two hosts; nothing re-implemented.
+5. **Docker in the browser.** The console holds no Docker socket on purpose: a write-capable service holding one would be root on the Docker host. Containers show in the TUI, and the page says so.
 
 ## 11. Next steps
 

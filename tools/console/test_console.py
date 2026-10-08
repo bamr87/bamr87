@@ -29,6 +29,7 @@ PyYAML (ruamel.yaml enables the round-trip test; absent, it is skipped):
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -490,9 +491,18 @@ def test_http_refuses_a_rebound_host():
     assert "frame-ancestors 'none'" in csp, csp
     for src in core.frame_src():
         assert src in csp, f"{src} is embedded but not in frame-src: {csp}"
-    # Deliberately narrow: index.html is one file of inline script and style,
-    # so a default-src would have to carry 'unsafe-inline' to work at all.
-    assert "default-src" not in csp, "a default-src here breaks the page it protects"
+    # The page is a built bundle with no inline script, so it carries a real
+    # policy: scripts from this origin only — never 'unsafe-inline' for script.
+    assert "default-src 'self'" in csp and "script-src 'self';" in csp, csp
+    script = next(d for d in csp.split(";") if d.strip().startswith("script-src"))
+    assert "unsafe-inline" not in script and "unsafe-eval" not in script, csp
+    assert "ws://127.0.0.1:4001" in csp, "the Terminal page's WebSocket needs connect-src"
+    # A crafted Host must not be able to inject a directive through connect-src.
+    hostile = console_app.content_policy("/", "localhost:4001; script-src *")
+    assert "script-src *" not in hostile and "ws://" not in hostile, hostile
+    # Swagger UI (/docs) boots inline from a CDN, so it keeps the narrow policy.
+    docs_csp = client.get("/docs").headers.get("content-security-policy", "")
+    assert "frame-ancestors 'none'" in docs_csp and "default-src" not in docs_csp, docs_csp
 
     assert client.get("/api/observability").status_code == 200
 
@@ -898,6 +908,335 @@ def test_the_tui_reaches_the_same_runtime_over_the_unix_socket():
             core.OPS.pop("_test-true", None)
             server.should_exit = True
             thread.join(10)
+
+
+def test_tui_socket_admits_only_this_consoles_own_page():
+    """The Terminal page's WebSocket runs a process, and no HTTP middleware
+    sees a WebSocket handshake — so the bridge repeats the Host check, and adds
+    the check CORS does not give a WebSocket: the Origin must be this console
+    (cross-site WebSocket hijacking). A browser cannot send a bearer token on
+    a WebSocket, so the first frame carries it when DASH_CONSOLE_TOKEN is set."""
+    import tui_bridge
+
+    ok = tui_bridge.origin_allowed
+    assert ok("http://127.0.0.1:4001", "127.0.0.1:4001", set())
+    assert ok("http://LOCALHOST:4001", "localhost:4001", set())
+    for origin in ("http://evil.example", "http://127.0.0.1:9999", "null", "", None):
+        assert not ok(origin, "127.0.0.1:4001", set()), origin
+    assert ok("http://localhost:5173", "127.0.0.1:4001", {"http://localhost:5173"}), "explicit dev origin"
+
+    bridge = tui_bridge.TuiBridge({"127.0.0.1", "localhost"})
+    assert bridge.refusal({"host": "127.0.0.1:4001", "origin": "http://127.0.0.1:4001"}) is None
+    assert bridge.refusal({"host": "rebind.example:4001", "origin": "http://rebind.example:4001"})[0] == 4403
+    assert bridge.refusal({"host": "127.0.0.1:4001", "origin": "http://evil.example"})[0] == 4403
+    assert bridge.refusal({"host": "127.0.0.1:4001"})[0] == 4403, "no Origin, no terminal"
+
+    saved = os.environ.pop("DASH_CONSOLE_TOKEN", None)
+    try:
+        assert tui_bridge.token_ok(None) is True
+        os.environ["DASH_CONSOLE_TOKEN"] = "s3cret-token"
+        assert tui_bridge.token_ok(" s3cret-token ") is True
+        assert tui_bridge.token_ok("wrong") is False and tui_bridge.token_ok(None) is False
+    finally:
+        os.environ.pop("DASH_CONSOLE_TOKEN", None)
+        if saved is not None:
+            os.environ["DASH_CONSOLE_TOKEN"] = saved
+
+    try:
+        from fastapi.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+    except ImportError:
+        print("    (socket half skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    # TestClient sends `Host: testserver` on a WebSocket whatever base_url says
+    # (and the bridge rightly refuses that), so every handshake names its Host.
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    # A foreign Origin is refused before any process exists.
+    try:
+        with client.websocket_connect("/api/tui", headers={"Host": "127.0.0.1:4001", "Origin": "http://evil.example"}) as ws:
+            ws.receive_text()
+        raise AssertionError("a foreign origin reached the terminal")
+    except WebSocketDisconnect as exc:
+        assert exc.code == 4403, exc.code
+    # The right Origin, but no hello frame → a protocol refusal, still no process.
+    before = console_app.tui.active
+    with client.websocket_connect("/api/tui", headers={"Host": "127.0.0.1:4001", "Origin": "http://127.0.0.1:4001"}) as ws:
+        ws.send_text("not json")
+        msg = ws.receive_json()
+        assert msg["type"] == "error" and "hello" in msg["message"], msg
+    assert console_app.tui.active == before
+    # With a console token set, a hello without it is refused.
+    os.environ["DASH_CONSOLE_TOKEN"] = "s3cret-token"
+    try:
+        with client.websocket_connect("/api/tui", headers={"Host": "127.0.0.1:4001", "Origin": "http://127.0.0.1:4001"}) as ws:
+            ws.send_text('{"type":"hello","cols":80,"rows":24}')
+            msg = ws.receive_json()
+            assert msg["type"] == "error" and "token" in msg["message"], msg
+    finally:
+        os.environ.pop("DASH_CONSOLE_TOKEN", None)
+        if saved is not None:
+            os.environ["DASH_CONSOLE_TOKEN"] = saved
+
+
+def test_page_routes_fall_back_to_the_app_and_api_404s_stay_json():
+    """Every non-API path is the single-page app (a reload on
+    /projects/zer0-mistakes keeps the deep link); an unknown /api path is a
+    JSON 404, never the page; and an unbuilt page says how to build it."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    tmp = Path(tempfile.mkdtemp())
+    saved = console_app.WEB_DIST
+    try:
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+        console_app.WEB_DIST = tmp
+        r = client.get("/projects/zer0-mistakes")
+        assert r.status_code == 503 and "npm run build" in r.text, r.status_code
+        (tmp / "assets").mkdir()
+        (tmp / "index.html").write_text("<!doctype html><title>spa</title>")
+        (tmp / "assets" / "app.js").write_text("console.log(1)")
+        for path in ("/", "/projects/zer0-mistakes", "/config/schedule"):
+            r = client.get(path)
+            assert r.status_code == 200 and "spa" in r.text, path
+        assert client.head("/jobs").status_code == 200
+        r = client.get("/assets/app.js")
+        assert r.status_code == 200 and "immutable" in r.headers.get("cache-control", "")
+        assert "spa" in client.get("/../../etc/passwd").text, "traversal must fall back to the page"
+        r = client.get("/api/no-such-route")
+        assert r.status_code == 404 and r.headers["content-type"].startswith("application/json")
+    finally:
+        console_app.WEB_DIST = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_project_detail_joins_one_projects_signals():
+    """The project drill-down: registry entry + harness deployment + crons +
+    attention + lake rows, joined on the name; unknown and malformed names are
+    refused rather than returning an empty document."""
+    registry = core.load_yaml(core.DATA / "projects.yml") or []
+    name = next(p["name"] for p in registry if isinstance(p, dict) and p.get("name"))
+    d = core.project_detail(name)
+    assert d["name"] == name and d["registry"].get("name") == name
+    assert all(s["repo"] == name for s in d["schedule"])
+    assert all(a.get("repo") == name for a in d["attention"])
+    json.dumps(d, default=str)
+    for bad, exc in (("no-such-project-xyz", KeyError), ("../etc", ValueError), ("", ValueError)):
+        try:
+            core.project_detail(bad)
+            raise AssertionError(f"{bad!r} was not refused")
+        except exc:
+            pass
+
+
+class _FakeGitHub:
+    """Stands in for github.com + api.github.com: records every call, answers
+    from a script. Lets the OAuth and repo-write paths run with no network."""
+    TOKEN = "gho_FAKEtokenFAKEtokenFAKEtoken0000"
+
+    def __init__(self):
+        self.calls = []
+        self.token_answers = []
+
+    def __call__(self, method, url, *, headers, body, timeout=20.0):
+        import urllib.parse as up
+        form = dict(up.parse_qsl(body.decode())) if body and headers.get("Content-Type", "").startswith("application/x-www-form") else None
+        payload = json.loads(body) if body and form is None else None
+        self.calls.append({"method": method, "url": url, "form": form, "json": payload, "headers": headers})
+        if url.endswith("/login/device/code"):
+            return 200, {}, {"device_code": "DEV-123", "user_code": "ABCD-1234",
+                             "verification_uri": "https://github.com/login/device", "expires_in": 900, "interval": 5}
+        if url.endswith("/login/oauth/access_token"):
+            return 200, {}, (self.token_answers.pop(0) if self.token_answers else {"access_token": self.TOKEN, "scope": "repo"})
+        if url.endswith("/user"):
+            return 200, {"X-OAuth-Scopes": "repo, workflow", "X-RateLimit-Remaining": "4999", "X-RateLimit-Limit": "5000"}, \
+                {"login": "octo", "name": "Octo Cat"}
+        if "/labels/" in url and method == "DELETE":
+            return 404, {}, {"message": "Label does not exist"}
+        return 201, {}, {"html_url": "https://github.com/x/y/issues/9", "number": 9}
+
+
+def _with_fake_github(fn):
+    import github_link as ghl
+    fake = _FakeGitHub()
+    saved_http, saved_env = ghl._http, {k: os.environ.get(k) for k in
+                                         ("GH_TOKEN", "GITHUB_TOKEN", "GITHUB_OAUTH_CLIENT_ID", "GITHUB_OAUTH_CLIENT_SECRET")}
+    saved_session = set(core._SESSION_CREDS)
+    ghl._http = fake
+    ghl._GH_CACHE.update(at=time.time(), token=None)       # pretend gh has no login
+    for k in saved_env:
+        os.environ.pop(k, None)
+    try:
+        fn(ghl, fake)
+    finally:
+        ghl._http = saved_http
+        ghl._GH_CACHE.update(at=0.0, token=None)
+        ghl._FLOWS.clear()
+        for k, v in saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        core._SESSION_CREDS.clear()
+        core._SESSION_CREDS.update(saved_session)
+
+
+def test_github_device_flow_delivers_the_token_server_side_only():
+    """Device flow: the page gets a user code, never the device code or the
+    token; GitHub is polled at most once per its interval however often the
+    page asks; slow_down widens the interval; the token lands in GH_TOKEN."""
+    def run(ghl, fake):
+        try:
+            ghl.start_device("session")
+            raise AssertionError("started without a client id")
+        except RuntimeError:
+            pass
+        os.environ["GITHUB_OAUTH_CLIENT_ID"] = "Ov23liTESTCLIENT01"
+        out = ghl.start_device("session", "repo workflow")
+        assert out["user_code"] == "ABCD-1234" and "device_code" not in json.dumps(out)
+        fid = out["flow_id"]
+        # Too early: no call to GitHub at all.
+        before = len(fake.calls)
+        assert ghl.poll_device(fid)["status"] == "pending" and len(fake.calls) == before
+        fake.token_answers = [{"error": "authorization_pending"}, {"error": "slow_down", "interval": 10}, {"access_token": fake.TOKEN}]
+        ghl._FLOWS[fid]["next_poll"] = 0
+        assert ghl.poll_device(fid)["status"] == "pending"
+        ghl._FLOWS[fid]["next_poll"] = 0
+        ghl.poll_device(fid)
+        assert ghl._FLOWS[fid]["interval"] == 10, "slow_down must widen the interval"
+        ghl._FLOWS[fid]["next_poll"] = 0
+        done = ghl.poll_device(fid)
+        assert done["status"] == "connected" and done["login"] == "octo", done
+        assert fake.TOKEN not in json.dumps(done)
+        assert os.environ.get("GH_TOKEN") == fake.TOKEN and "GH_TOKEN" in core._SESSION_CREDS
+        poll = [c for c in fake.calls if c["url"].endswith("/access_token")][-1]["form"]
+        assert poll["grant_type"] == "urn:ietf:params:oauth:grant-type:device_code" and "client_secret" not in poll
+        st = ghl.status()
+        assert st["connected"] and st["kind"] == "OAuth app" and st["scopes"] == ["repo", "workflow"]
+        assert fake.TOKEN not in json.dumps(st)
+        # .env needs an explicit confirm; a bad store or scope string is refused.
+        for bad in (lambda: ghl.start_device("env"), lambda: ghl.start_device("disk"),
+                    lambda: ghl.start_device("session", "repo; rm -rf")):
+            try:
+                bad()
+                raise AssertionError("accepted a bad request")
+            except (PermissionError, ValueError):
+                pass
+    _with_fake_github(run)
+
+
+def test_github_web_flow_uses_pkce_and_a_single_use_state():
+    def run(ghl, fake):
+        import base64 as b64
+        import hashlib
+        import urllib.parse as up
+        os.environ["GITHUB_OAUTH_CLIENT_ID"] = "Ov23liTESTCLIENT01"
+        try:
+            ghl.start_web("session", "", "127.0.0.1:4011")
+            raise AssertionError("the browser flow started without a client secret")
+        except RuntimeError:
+            pass
+        os.environ["GITHUB_OAUTH_CLIENT_SECRET"] = "s3cret-client-secret"
+        out = ghl.start_web("session", "", "127.0.0.1:4011")
+        q = dict(up.parse_qsl(up.urlsplit(out["authorize_url"]).query))
+        assert q["redirect_uri"] == "http://127.0.0.1:4011/api/github/oauth/callback", q
+        assert q["code_challenge_method"] == "S256" and len(q["code_challenge"]) == 43 and len(q["state"]) >= 32
+        try:
+            ghl.finish_web("code", "not-a-state")
+            raise AssertionError("an unknown state was accepted")
+        except PermissionError:
+            pass
+        done = ghl.finish_web("the-code", q["state"])
+        assert done["status"] == "connected", done
+        ex = [c for c in fake.calls if c["url"].endswith("/access_token")][-1]["form"]
+        challenge = b64.urlsafe_b64encode(hashlib.sha256(ex["code_verifier"].encode()).digest()).decode().rstrip("=")
+        assert challenge == q["code_challenge"] and ex["redirect_uri"] == q["redirect_uri"]
+        try:
+            ghl.finish_web("the-code", q["state"])
+            raise AssertionError("a state was used twice")
+        except PermissionError:
+            pass
+    _with_fake_github(run)
+
+
+def test_github_writes_are_fleet_scoped_confirmed_and_logged():
+    def run(ghl, fake):
+        os.environ["GH_TOKEN"] = fake.TOKEN
+        fleet = ghl.fleet_repos()
+        hub = (core.load_yaml(core.DATA / "fleet.yml") or {}).get("hub", {}).get("repo", "bamr87/bamr87")
+        assert hub.lower() in fleet and "microsoft/skills" not in fleet, "an external mirror must not be writable"
+        refusals = [
+            (lambda: ghl.act("microsoft/skills", "issue.comment", {"number": 1, "body": "x"}, True), PermissionError),
+            (lambda: ghl.act(hub, "issue.comment", {"number": 1, "body": "x"}, False), PermissionError),
+            (lambda: ghl.act(hub, "repo.delete", {}, True), ValueError),
+            (lambda: ghl.act(hub, "issue.comment", {"number": -1, "body": "x"}, True), ValueError),
+            (lambda: ghl.act(hub, "issue.close", {"number": 2, "reason": "spite"}, True), ValueError),
+            (lambda: ghl.act("../../etc", "issue.comment", {"number": 1, "body": "x"}, True), ValueError),
+        ]
+        for call, exc in refusals:
+            try:
+                call()
+                raise AssertionError("a write that should be refused went through")
+            except exc:
+                pass
+        assert not [c for c in fake.calls if c["method"] != "GET"], "a refused write reached GitHub"
+        e = ghl.act(hub, "issue.create", {"title": "From the console", "body": "hi", "labels": "a, b"}, True)
+        assert e["ok"] and e["target"] == "#9", e
+        c = fake.calls[-1]
+        assert c["method"] == "POST" and c["url"].endswith(f"/repos/{hub}/issues") and c["json"]["labels"] == ["a", "b"]
+        ghl.act(hub, "issue.labels", {"number": 3, "add": [], "remove": ["gone"]}, True)  # 404 on remove is fine
+        ghl.act(hub, "run.rerun_failed", {"run_id": 77}, True)
+        assert fake.calls[-1]["url"].endswith("/actions/runs/77/rerun-failed-jobs")
+        ghl.act(hub, "workflow.disable", {"workflow_id": 5}, True)
+        assert fake.calls[-1]["method"] == "PUT" and fake.calls[-1]["url"].endswith("/actions/workflows/5/disable")
+        log = ghl.action_log()
+        assert log[0]["action"] == "workflow.disable" and fake.TOKEN not in json.dumps(log)
+        saved = ghl.GITHUB_WRITES
+        ghl.GITHUB_WRITES = False
+        try:
+            ghl.act(hub, "run.cancel", {"run_id": 1}, True)
+            raise AssertionError("DASH_CONSOLE_GITHUB_WRITES=off did not stop a write")
+        except PermissionError:
+            pass
+        finally:
+            ghl.GITHUB_WRITES = saved
+    _with_fake_github(run)
+
+
+def test_github_callback_needs_no_bearer_but_everything_else_does():
+    """The OAuth callback is a browser navigation, which cannot carry the
+    console token, so it is guarded by the flow's state instead — and it must
+    never echo a token. Every other GitHub route still wants the bearer."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    saved = os.environ.get("DASH_CONSOLE_TOKEN")
+    os.environ["DASH_CONSOLE_TOKEN"] = "s3cret-token"
+    try:
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001", follow_redirects=False)
+        r = client.get("/api/github/oauth/callback?code=abc&state=forged")
+        assert r.status_code == 303 and r.headers["location"].startswith("/github?oauth=error"), r.headers
+        for path in ("/api/github/status", "/api/github/repos", "/api/github/log"):
+            assert client.get(path).status_code == 401, path
+        assert client.post("/api/github/oauth/start", json={"flow": "device"}).status_code == 401
+        assert client.post("/api/github/repos/bamr87/bamr87/actions", json={"action": "run.cancel"}).status_code == 401
+    finally:
+        if saved is None:
+            os.environ.pop("DASH_CONSOLE_TOKEN", None)
+        else:
+            os.environ["DASH_CONSOLE_TOKEN"] = saved
 
 
 def main() -> int:

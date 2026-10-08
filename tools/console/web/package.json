@@ -1,0 +1,37 @@
+{
+  "name": "@bamr87/harness-console-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The Harness Console front end \u2014 React + Mantine, served by tools/console/app.py",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@mantine/core": "*",
+    "@mantine/hooks": "*",
+    "@mantine/modals": "*",
+    "@mantine/notifications": "*",
+    "@mantine/spotlight": "*",
+    "@tabler/icons-react": "*",
+    "@tanstack/react-query": "*",
+    "@xterm/addon-fit": "*",
+    "@xterm/addon-unicode11": "*",
+    "@xterm/addon-web-links": "*",
+    "@xterm/xterm": "*",
+    "react": "*",
+    "react-dom": "*",
+    "react-router": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "@types/react": "*",
+    "@types/react-dom": "*",
+    "@vitejs/plugin-react": "*",
+    "typescript": "*",
+    "vite": "*"
+  }
+}

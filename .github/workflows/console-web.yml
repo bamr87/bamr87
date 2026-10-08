@@ -1,0 +1,55 @@
+# The Harness Console's page (tools/console/web): type-check and build it on
+# every PR that touches it — or the console that serves it.
+#
+# The page installs at LATEST (fleet dependency policy: `*` ranges, no
+# lockfile), so a new major of Mantine, React Router or Vite can break it with
+# no change in this repo. This is where that surfaces: in standard CI, for the
+# fleet-pulse doctor to triage, rather than on the operator's next
+# `tools/dash console` (whose run.sh would print "page build FAILED" and serve
+# the API alone).
+name: Console page
+
+on:
+  pull_request:
+    paths:
+      - 'tools/console/web/**'
+      - 'tools/console/app.py'
+      - '.github/workflows/console-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: console-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/console/web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Not vars.NODE_VERSION: the fleet's canonical value (20) is below
+          # what React Router 8 requires (>= 22.22). The current LTS, at
+          # latest like every dependency here.
+          node-version: lts/*
+
+      - name: Install (latest, no lockfile)
+        run: npm install --no-package-lock --no-audit --no-fund
+
+      - name: Type-check and build
+        run: npm run build
+
+      - name: The bundle carries no inline script (the console's CSP is script-src 'self')
+        run: |
+          if grep -Eq '<script>|<script [^>]*>[^<]+</script>' dist/index.html; then
+            echo "::error file=tools/console/web/index.html::inline script in the built page — app.py's CSP would block it"
+            exit 1
+          fi
