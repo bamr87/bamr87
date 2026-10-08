@@ -1,12 +1,13 @@
+/* Base roles mirror tools/fleetcore/theme.py (the bashOS palette), which the console page loads as /theme.css. */
 /* Harness Console design language — tokens and component styles, ported from
    tools/console/static/index.html. Tokens live on :root and .hc-root; dark mode
    follows the OS unless data-theme pins it. */
 :root, .hc-root {
   color-scheme: light;
-  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-  --grid: #e1e0d9; --border: rgba(11,11,11,0.10); --accent: #2a78d6; --accent-track: #cde2fb;
-  --good: #0ca30c; --good-text: #006300; --warning: #fab219; --warning-track: #fdeec6;
-  --serious: #ec835a; --critical: #d03b3b; --critical-track: #f6d2d2;
+  --page: #f4f6f8; --surface: #ffffff; --ink: #20262c; --ink-2: #4a545e; --muted: #6b7580;
+  --grid: #d9dee3; --border: rgba(32,38,44,0.12); --accent: #008a94; --accent-track: #c6eef1;
+  --good: #1f7a68; --good-text: #1f7a68; --warning: #8a6d1f; --warning-track: #fdeec6;
+  --serious: #8a6d1f; --critical: #c23434; --critical-track: #f6d2d2;
   --series-2: #eb6834; --series-3: #1baf7a;
   --ansi-red: #c02b2b; --ansi-green: #006300; --ansi-yellow: #8a6100;
   --ansi-blue: #1f63b8; --ansi-magenta: #9c3f9c; --ansi-cyan: #0f7180;
@@ -14,9 +15,9 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]), .hc-root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
-    --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
+    --page: #101418; --surface: #151a20; --ink: #d4d8de; --ink-2: #a9b1bb; --muted: #7b8591;
+    --grid: #2a323c; --border: rgba(212,216,222,0.12); --accent: #00b7c3; --accent-track: #0b4d52;
+    --good-text: #4ec9b0; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
     --series-2: #d95926; --series-3: #199e70;
     --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
     --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
@@ -24,9 +25,9 @@
 }
 :root[data-theme="dark"], .hc-root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-  --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
-  --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
+  --page: #101418; --surface: #151a20; --ink: #d4d8de; --ink-2: #a9b1bb; --muted: #7b8591;
+  --grid: #2a323c; --border: rgba(212,216,222,0.12); --accent: #00b7c3; --accent-track: #0b4d52;
+  --good-text: #4ec9b0; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
   --series-2: #d95926; --series-3: #199e70;
   --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
   --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
