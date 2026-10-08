@@ -177,6 +177,22 @@ if grep -qF -- "--max-turns 7" "$outf" && grep -qF -- "--model claude-sonnet-4-6
 else
   echo "FAIL: flags not passed: $(head -c 200 "$outf")"; fail=$((fail + 1))
 fi
+outf="$(mktemp)"
+env -i PATH="${argstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" CLAUDE_CODE_OAUTH_TOKEN="stub-token" \
+  bash "$SUT" --prompt "hello" --max-budget-usd 3 >"$outf" 2>/dev/null
+if grep -qF -- "--max-budget-usd 3" "$outf"; then
+  echo "PASS: --max-budget-usd is passed to the CLI"; pass=$((pass + 1))
+else
+  echo "FAIL: --max-budget-usd not passed: $(head -c 200 "$outf")"; fail=$((fail + 1))
+fi
+rm -f "$outf"; outf="$(mktemp)"
+env -i PATH="${argstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" CLAUDE_CODE_OAUTH_TOKEN="stub-token" AI_MAX_BUDGET_USD=4 \
+  bash "$SUT" --prompt "hello" >"$outf" 2>/dev/null
+if grep -qF -- "--max-budget-usd 4" "$outf"; then
+  echo "PASS: AI_MAX_BUDGET_USD reaches the CLI as --max-budget-usd"; pass=$((pass + 1))
+else
+  echo "FAIL: AI_MAX_BUDGET_USD not passed: $(head -c 200 "$outf")"; fail=$((fail + 1))
+fi
 rm -rf "$argstub" "$outf"
 
 # 8-12. AI_AUTH_ORDER — the per-repo credential order (ai_auth: in the hub's
@@ -247,6 +263,35 @@ for order in oauth oauth,api_key; do
   rm -f "$outf"
 done
 rm -rf "$kit" "$authstub"
+
+# 13-14. A BUDGET ABORT is a circuit breaker, not a refusal: it must fail the
+#    step, never hand over to the next credential, and never reach the API
+#    fallback — any of those would just move the spend somewhere else.
+budgetstub="$(mktemp -d)"
+cat > "$budgetstub/claude" <<'STUB'
+#!/usr/bin/env bash
+printf '{"type":"result","subtype":"error_max_budget_usd","is_error":true,"num_turns":12,"total_cost_usd":3.02,"usage":{"input_tokens":9,"output_tokens":9},"result":"Reached maximum budget ($3)"}'
+exit 1
+STUB
+chmod +x "$budgetstub/claude"
+kit="$(mktemp -d)"; mkdir -p "$kit/scripts/ai"
+cp "$SUT" "$kit/scripts/ai/run.sh"
+printf 'print "API FALLBACK"\n' > "$kit/scripts/ai/api_call.rb"
+outf="$(mktemp)"; errf="$(mktemp)"
+env -i PATH="${budgetstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" \
+  AI_AUTH_ORDER=oauth,api_key CLAUDE_CODE_OAUTH_TOKEN=o ANTHROPIC_API_KEY=k \
+  bash "$kit/scripts/ai/run.sh" --prompt "hello" --max-budget-usd 3 >"$outf" 2>"$errf"; rc=$?
+if [ "$rc" = 1 ] && grep -qF "max-budget-usd 3 reached" "$errf" && ! grep -qF "retrying with" "$errf"; then
+  echo "PASS: a budget abort exits 1 and does not retry with the next credential"; pass=$((pass + 1))
+else
+  echo "FAIL: budget abort: exit $rc; stderr=$(head -c 300 "$errf")"; fail=$((fail + 1))
+fi
+if ! grep -qF "API FALLBACK" "$outf"; then
+  echo "PASS: a budget abort never reaches the API fallback"; pass=$((pass + 1))
+else
+  echo "FAIL: budget abort reached the API fallback"; fail=$((fail + 1))
+fi
+rm -rf "$kit" "$budgetstub" "$outf" "$errf"
 
 echo
 echo "ai runner contract: $pass passed, $fail failed"

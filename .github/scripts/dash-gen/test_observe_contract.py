@@ -120,7 +120,10 @@ def test_grafana_also_carries_the_metrics_profile():
 
 def test_every_elk_service_follows_the_house_conventions():
     for name, svc in ELK.items():
-        assert svc.get("container_name") == f"bamr87-{name}", name
+        # No container_name: names are global to the Docker daemon, so the
+        # Docker standard (docs/DOCKER.md rule N1, enforced by the drift gate)
+        # drops them unless a script or config references the name.
+        assert "container_name" not in svc, f"{name} sets container_name (Docker standard N1)"
         # The shared fleet network, not a per-project one: the log plane has to
         # see containers from every compose project, which is the whole reason
         # the network is named and shared (docs/CONTAINERS.md).

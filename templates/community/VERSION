@@ -1,0 +1,34 @@
+kit: community
+version: 0.1.0
+source: bamr87/bamr87 templates/community/
+seeded-by: |
+  Distribution is by INHERITANCE first: the PR template, the issue forms,
+  CONTRIBUTING.md, SECURITY.md and CODE_OF_CONDUCT.md become the owner-level
+  defaults in bamr87/.github (and the new year-of-ai/.github and
+  ai-world-view/.github), which GitHub's community-health fallback applies to
+  every repo without its own copy. Updating those repos is Fleet Ops' change.
+  CODEOWNERS and dependabot.yml are not inherited by GitHub and are copied.
+  A repo copies a file only to ADD repo-specific gates (an override must keep
+  every DoD box; it may add more). labels.yml is applied by the label-sync job
+  (Repo Janitor), not copied. Per-repo fan-out through tools/fanout.sh is not
+  wired yet (Fleet Ops).
+files: .github/ISSUE_TEMPLATE/bug_report.yml, .github/ISSUE_TEMPLATE/feature_request.yml, .github/ISSUE_TEMPLATE/documentation.yml, .github/ISSUE_TEMPLATE/config.yml, .github/pull_request_template.md, .github/CODEOWNERS, .github/dependabot.yml, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, labels.yml
+spec: specs/REPOSITORY.md UPS-REPO-14/15/16/18/19, specs/QUALITY.md UPS-QA-41, specs/AGENT-CONTEXT.md UPS-AGENT-32, specs/WORK.md UPS-WORK-03/09
+tests: templates/community/test_community_kit.py (stdlib + PyYAML; run `python3 templates/community/test_community_kit.py`)
+updated: 2026-10-03
+changelog: |
+  0.1.0 — initial kit (SDLC harmonization Wave 1). Closes the `community` kit
+  gap in specs/CONFORMANCE.md. The PR template carries the ONE fleet Definition
+  of Done (UPS-WORK-03), merged from gitorio, zer0-mistakes, law-ai and the
+  bamr87/.github default. Issue forms apply fleet type labels plus
+  `agent:queued` (UPS-REPO-18, AGENT-32); `feature` replaces bamr87/.github's
+  `enhancement`. SECURITY.md states the 7-day window (UPS-REPO-14). Agent
+  instructions are AGENTS.md (decision D4); every repo keeps a release-please
+  CHANGELOG (decision D5).
+notes: |
+  - Placeholders are the fan-out tokens only: __PROJECT_NAME__,
+    __DEFAULT_BRANCH__, __KIT_VERSION__. Nothing else is repo-specific.
+  - Snapshot a file into archive/ BEFORE changing it, so `fanout.sh --upgrade`
+    can still recognise machine-seeded copies (same rule as every kit).
+  - The feedback widget's issue form (page_feedback.yml, UPS-REPO-18) is owned
+    by templates/feedback/ and is not duplicated here.

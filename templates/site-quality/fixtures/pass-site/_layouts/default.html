@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="{{ site.lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>{{ page.title }} | {{ site.title }}</title>
+  <meta name="description" content="{{ page.description | default: site.description }}">
+  <style>
+    body { font: 1.125rem/1.6 system-ui, sans-serif; color: #1a1a1a; background: #ffffff; margin: 0; }
+    header, main, footer { max-width: 40rem; margin: 0 auto; padding: 1rem; }
+    a { color: #0b4f9c; }
+    nav a { display: inline-block; min-width: 44px; min-height: 44px; padding: 0.5rem; }
+  </style>
+</head>
+<body>
+  <a href="#main">Skip to content</a>
+  <header>
+    <nav aria-label="Main"><a href="/">Home</a> <a href="/about/">About</a></nav>
+  </header>
+  <main id="main">
+    <h1>{{ page.title }}</h1>
+    {{ content }}
+  </main>
+  <footer><p>Fixture footer text with enough contrast.</p></footer>
+</body>
+</html>

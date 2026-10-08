@@ -345,6 +345,7 @@ jobs:
           claude_args: >-
             --model sonnet
             --max-turns ${{ inputs.max-turns }}
+            --max-budget-usd 10
             --mcp-config verify/mcp.json
             --allowedTools "mcp__playwright__*,Bash(node verify/runner.mjs:*),Bash(python3 .fleet-hub/tools/features_index.py:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(jq:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(mkdir:*),Read,Grep,Glob,Write,Edit"
           prompt: |

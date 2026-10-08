@@ -29,7 +29,7 @@ All six were settled on 2026-10-03. None is a switch.
 
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
-| UPS-WORK-02 | MUST | all except content, fork | There is exactly one **backlog of record**. `issues` mode (the default, D1): GitHub Issues carrying the fleet labels. `file` mode: the declared `BACKLOG.md` or `_data/backlog.yml`, linted by a CI job; a sync job alone is not a lint. Other planning files link to it (WORK-11). | file mode: file + CI lint step; issues mode: not visible offline (see WORK-14) | `templates/sdlc/`, `templates/spec-driven/tools/backlog_lint.py` |
+| UPS-WORK-02 | MUST | all except content, fork | There is exactly one **backlog of record**. `issues` mode (the default, D1): GitHub Issues carrying the fleet labels. `file` mode: the declared `BACKLOG.md` or `_data/backlog.yml`, linted by a CI job; a sync job alone is not a lint. The lint is found in parsed workflow values (a step's `run:` or `uses:`, or a job-level `uses:`), never in raw workflow text or comments. Other planning files link to it (WORK-11). | file mode: file + a parsed CI lint step; issues mode: not visible offline (see WORK-14) | `templates/sdlc/`, `templates/spec-driven/tools/backlog_lint.py` |
 | UPS-WORK-09 | MUST | all | Issue forms in the tree apply exactly one fleet type label (`_data/fleet.yml` `issue_pipeline.labels.types`) and never a GitHub-default duplicate (`enhancement`, `documentation`, `priority:Px`). `page_feedback.yml` is exempt from the type-label clause because UPS-FB-07 fixes its label. Inherited forms are not visible offline. | `.github/ISSUE_TEMPLATE/*` labels | `templates/community/.github/ISSUE_TEMPLATE/` |
 | UPS-WORK-14 | SHOULD | all | The repo's GitHub labels include every name in the fleet taxonomy (states, types, priorities, sizes), and the GitHub-default duplicates have been renamed into it rather than left beside it. Checked online by the fleet scorecard, never by the in-repo gate. | `gh label list` vs `labels.yml` | `templates/community/labels.yml` (label-sync job) |
 | UPS-WORK-11 | SHOULD | all except content | Planning files other than the backlog of record (`ROADMAP.md`, `TODO.md`, `PRD.md`, and the same names under `docs/`) hold no item lists: no task-list checkboxes and no backlog ids. Each one links to the backlog of record (the repo's Issues, or the declared backlog file) or to the hub's `_data/roadmap.yml`, where cross-repo initiatives (`FF-NNNN`) live. | no `- [ ]` lines or `BL-`/`T-` ids; a backlog link present | — |
@@ -43,7 +43,7 @@ All six were settled on 2026-10-03. None is a switch.
 | UPS-WORK-13 | SHOULD | site | Sites keep the same ADR log as WORK-04. | ≥1 ADR + index | `templates/sdlc/docs/adr/` |
 | UPS-WORK-05 | SHOULD | all except fork | Changelog hygiene: **at most one** `## [Unreleased]` heading (release-please writes none, so zero is normal), and the newest version heading equals the newest `vX.Y.Z` tag. A repo with no `CHANGELOG.md` passes this row; the missing file is UPS-REPO-21's failure, so one root cause fails one row. | parser check | `templates/sdlc/CHANGELOG.template.md` |
 | UPS-WORK-06 | SHOULD | all | The feature catalog lives in one place (`features/features.yml`, no `_data/features.yml` duplicate) and carries no hand-maintained version header. | parser check | `templates/verify/` |
-| UPS-WORK-12 | MUST | all except fork | `AGENTS.md § Conventions` names the backlog of record, the Definition of Done location and the ADR path (`adr_path`), so agents and humans follow one loop (D4). Matching is case-insensitive. With no profile (or no `adr_path` key) the expected path is `docs/adr`. | case-insensitive text check | `templates/sdlc/AGENTS.template.md` |
+| UPS-WORK-12 | MUST | all except fork | `AGENTS.md § Conventions` names the backlog of record, the Definition of Done location and the ADR path (`adr_path`), so agents and humans follow one loop (D4). Matching is case-insensitive. With no profile (or no `adr_path` key) the expected path is `docs/adr`. A missing `AGENTS.md` or a missing `## Conventions` heading is UPS-AGENT-07's failure; this row then passes and names it. | case-insensitive text check | `templates/sdlc/AGENTS.template.md` |
 
 ## Spec-driven module
 
@@ -83,7 +83,11 @@ All six were settled on 2026-10-03. None is a switch.
 
 Some rows are new for most of the fleet. While they roll out, the contract marks them `rollout: warn`: the checker reports what would be a failure as a warning, which never gates. Fleet Ops makes a row gate by deleting its marker. The marked rows are UPS-WORK-01, UPS-WORK-07, UPS-WORK-12, UPS-AGENT-07, UPS-AGENT-08, UPS-AGENT-09 and UPS-REPO-21.
 
-Separately from the rollout, a few accepted-but-deprecated shapes always warn: an `ADR-NNNN-slug.md` name (WORK-04), the previous Definition of Done marker version (WORK-03), and a release caller of `bamr87/.github`'s `release-please.yml` (REPO-21; migrate to the hub's reusable workflow, D3).
+Separately from the rollout, two accepted-but-deprecated shapes always warn: an `ADR-NNNN-slug.md` name (WORK-04) and the previous Definition of Done marker version (WORK-03).
+
+A release caller of `bamr87/.github`'s `release-please.yml` is different: it is a REPO-21 failure that the rollout reports as a warning. Once the marker is removed it fails at any ref, including when it is unpinned at `@main`. Migrate it to the hub's reusable workflow (D3).
+
+The rollout never softens a correctness failure. The contract lists those under a rule's `hard_fail:` key, and they fail while the rule still carries `rollout: warn`. Today there is one: a repo with **both** a caller of the hub's `release-please.yml` (pinned or at `@main`) and a leftover `bamr87/.github` caller fails REPO-21 (`double_release`), because it can release twice.
 
 ## Deviations
 
@@ -108,11 +112,13 @@ These were open in the Wave 1 draft (raised in #316) and are settled here and in
 Settled with Fleet Ops after #316 was re-keyed to the contract:
 
 12. **ADR names (WORK-04):** `NNNN-slug.md` is canonical. `ADR-NNNN-slug.md` counts but warns until the D2 migration.
-13. **One failure per root cause:** a missing `CHANGELOG.md` fails only UPS-REPO-21 (WORK-05 passes), and a missing `AGENTS.md` fails only UPS-AGENT-07 (WORK-12 and AGENT-09 pass).
+13. **One failure per root cause:** a missing `CHANGELOG.md` fails only UPS-REPO-21 (WORK-05 passes), and a missing `AGENTS.md` or `## Conventions` heading fails only UPS-AGENT-07 (WORK-12 passes; AGENT-09 also passes on a missing `AGENTS.md`).
 14. **WORK-12 matching:** case-insensitive; `docs/adr` when there is no profile.
 15. **AGENT-07 headings:** all six required, in any order; extra headings allowed.
 16. **DoD versions (WORK-03):** current passes, the previous one warns during rollout, older ones fail.
 17. **Structured keys:** AGENT-07/08/09 and REPO-21 read named contract keys (required headings, the `@AGENTS.md` pointer and line limit, the kit stamp, release types per repo type) instead of prose.
-18. **Legacy release caller (REPO-21):** calling `bamr87/.github`'s `release-please.yml` warns and points at the hub's reusable workflow (D3).
+18. **Legacy release caller (REPO-21):** calling `bamr87/.github`'s `release-please.yml` is a REPO-21 failure that warns only while REPO-21 carries `rollout: warn`. Once the marker is removed it fails at any ref, `@main` included. The detail points at the hub's reusable workflow (D3).
 19. **What WORK-10 reads:** only parsed `uses:` keys, never `run:` text.
-20. **WORK-02 applicability:** all except content and fork. The contract is the source of truth; `_data/specs.yml` now matches.
+20. **WORK-02 applicability:** all except content and fork. Every contract rule now states `applies` / `applies_notes` exactly as `tools/gen-specs-data.py` writes them to `_data/specs.yml` (for WORK-02: `[all]` + `"all except content, fork"`), and `tools/test_work_contract.py` keeps them equal.
+21. **WORK-02 lint detection:** only parsed workflow values count (`backlog_lint_keys`, `backlog_lint_value_re`), the same way WORK-10 reads `uses_keys`.
+22. **Double release caller (REPO-21):** a hub release-please caller at any ref (pinned or `@main`) plus a `bamr87/.github` caller in the same repo is a hard fail (`hard_fail: double_release`), not softened by `rollout: warn`, because the repo can release twice.

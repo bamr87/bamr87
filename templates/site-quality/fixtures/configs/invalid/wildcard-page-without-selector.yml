@@ -1,0 +1,6 @@
+# expect: selector
+schema: site-quality/v1
+pages: [/]
+allowlist:
+  entries:
+    - { rule: color-contrast, page: "*", reason: "covers every page with no selector", issue: "https://github.com/o/r/issues/1", until: "2026-12-31" }

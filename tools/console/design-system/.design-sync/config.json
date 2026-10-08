@@ -1,0 +1,12 @@
+{
+  "pkg": "@bamr87/harness-console-ui",
+  "globalName": "HarnessConsoleUI",
+  "shape": "package",
+  "buildCmd": "npm run build",
+  "cssEntry": "dist/styles.css",
+  "srcDir": "src",
+  "provider": {
+    "component": "ConsoleRoot"
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}

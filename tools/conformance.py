@@ -14,12 +14,13 @@ Description: Executable Universal Project Standard (UPS) checker. Runs the
              unverified: a warning is reported but never counts toward
              must_failed or `--gate`. Rules marked `rollout: warn` in the hub's
              specs/WORK.contract.yml report a failure as a warning (delete the
-             marker to make the rule gate). The UPS-WORK, UPS-AGENT-07/08/09 and
+             marker to make the rule gate), except the rule's `hard_fail:` cases,
+             which always fail. The UPS-WORK, UPS-AGENT-07/08/09 and
              UPS-REPO-21 rows are keyed to that contract.
 Author: bamr87
 Created: 2026-09-01
-Last Modified: 2026-10-03
-Version: 0.3.0
+Last Modified: 2026-10-04
+Version: 0.3.2
 Usage: python3 tools/conformance.py check [PATH] [--kinds site,app] [--tier active] [--gate] [--json] [--hub DIR]
        python3 tools/conformance.py fleet [--write _data/conformance.yml] [--json]
        python3 tools/conformance.py kinds [PATH]      # print detected kinds
@@ -37,7 +38,7 @@ from pathlib import Path
 
 import yaml
 
-CHECKER_VERSION = "0.3.0"
+CHECKER_VERSION = "0.3.2"
 HUB_DEFAULT = Path(__file__).resolve().parent.parent
 KINDS = ("site", "app", "api", "lib", "cli", "ext", "content", "fork")
 LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock",
@@ -201,6 +202,35 @@ def _no(msg: str) -> tuple[bool, str]:
     return False, msg
 
 
+# The hub-only lockfile exception (UPS-QA-40, UPS-REPO-07; its Dependabot half
+# is UPS-QA-41) is declared once, in specs/QUALITY.contract.yml, and parsed once,
+# in tools/sanctioned_lockfiles.py, which check-drift (j) and unpin-deps.sh use
+# too. The rules call this helper and nothing else, so a rewrite of either rule
+# keeps the exception by keeping the call. Nothing here lists a path.
+try:
+    import sanctioned_lockfiles as _sanctioned
+except ImportError:  # a checker copied without its sibling: no exception at all
+    _sanctioned = None
+
+
+def hub_lockfile_exception(r) -> tuple[set[str], list[str]]:
+    """(tracked lockfile paths the hub-only exception covers, why any declared
+    entry does not qualify). Both are empty unless `r` is the hub itself: its
+    `origin` is bamr87/bamr87 (fleet-conformance checks the PR at `.` with the hub
+    checked out separately at `.fleet-hub`) or it is the hub checkout. The list
+    comes from r's own specs/QUALITY.contract.yml, never from r.hub."""
+    if not hasattr(r, "_hub_lock_exception"):
+        covered, why = set(), []
+        if _sanctioned is not None and _sanctioned.is_hub(r.path, r.hub):
+            try:
+                ok, why = _sanctioned.evaluate(r.path)
+                covered = set(ok)
+            except _sanctioned.ContractError as e:
+                why = [str(e)]
+        r._hub_lock_exception = (covered, why)
+    return r._hub_lock_exception
+
+
 @check("UPS-REPO-06")
 def _readme(r, k):
     return _ok() if r.has("README.md", "README.rst") else _no("no README.md at the root")
@@ -208,7 +238,7 @@ def _readme(r, k):
 
 @check("UPS-REPO-07")
 def _no_lockfiles(r, k):
-    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES or "node_modules/" in t]
+    bad = [t for t in r.tracked() if (Path(t).name in LOCKFILES and t not in hub_lockfile_exception(r)[0]) or "node_modules/" in t]
     return _ok() if not bad else _no(f"tracked: {', '.join(sorted(set(Path(b).name if 'node_modules' not in b else 'node_modules/' for b in bad))[:4])}")
 
 
@@ -432,23 +462,91 @@ def _release(r, k):
     return _ok() if r.has("release-please-config.json", ".release-please-manifest.json") else _no("no release-please config")
 
 
+# Pin policy for `uses:` refs (UPS-QA-40). A ref is pinned when it names a
+# release: a moving major tag (`@v1`), an exact release (`@v1.2.3`), or a full
+# 40-char commit SHA (conventionally followed by a `# vX.Y.Z` comment, which is
+# not required). Branch refs (`@main`, `@master`, `@stable`), partial versions
+# (`@v1.2`), short SHAs and missing refs are not. Local paths (`./…`) carry no
+# ref because they resolve in the same commit; that is how the hub calls its own
+# workflows and actions. `docker://` images are out of scope.
+PIN_RE = re.compile(r"v\d+|v\d+\.\d+\.\d+|[0-9a-f]{40}")
+_USES_LINE = re.compile(r"""^\s*(?:-\s+)?uses:\s*(['"]?)([^\s'"#]+)\1""", re.M)
+
+
+def uses_refs(text: str) -> list[str]:
+    """Every `uses:` value in a workflow or action file: job-level reusable
+    calls, workflow steps, and composite-action steps. Parsed as YAML so `run:`
+    blocks that merely mention `uses:` are ignored; falls back to a line scan if
+    the file does not parse."""
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError:
+        doc = None
+    if not isinstance(doc, dict):
+        return [m.group(2) for m in _USES_LINE.finditer(text)]
+    out: list[str] = []
+
+    def steps(lst):
+        for st in lst if isinstance(lst, list) else []:
+            if isinstance(st, dict) and isinstance(st.get("uses"), str):
+                out.append(st["uses"].strip())
+
+    for job in (doc.get("jobs") or {}).values() if isinstance(doc.get("jobs"), dict) else []:
+        if isinstance(job, dict):
+            if isinstance(job.get("uses"), str):
+                out.append(job["uses"].strip())
+            steps(job.get("steps"))
+    if isinstance(doc.get("runs"), dict):
+        steps(doc["runs"].get("steps"))
+    return out
+
+
+def unpinned_ref(uses: str) -> str | None:
+    """None when `uses` satisfies the pin policy, else a short reason."""
+    if uses.startswith("./") or uses.startswith("docker://") or "${{" in uses:
+        return None
+    if "@" not in uses:
+        return "no ref"
+    ref = uses.rsplit("@", 1)[1]
+    if PIN_RE.fullmatch(ref):
+        return None
+    if re.fullmatch(r"[0-9a-f]{7,39}", ref):
+        return "short SHA"
+    if re.fullmatch(r"v?\d+(\.\d+)*", ref):
+        return "not vMAJOR or vMAJOR.MINOR.PATCH"
+    return "branch ref"
+
+
+def _workflow_files(r) -> list[Path]:
+    gh = r.path / ".github"
+    files = [p for ext in ("*.yml", "*.yaml") for p in (gh / "workflows").glob(ext)]
+    files += [p for name in ("action.yml", "action.yaml") for p in (gh / "actions").rglob(name)]
+    return sorted(set(files))
+
+
 @check("UPS-QA-40")
 def _always_latest(r, k):
-    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES]
+    bad = [t for t in r.tracked() if Path(t).name in LOCKFILES and t not in hub_lockfile_exception(r)[0]]
     if bad:
         return _no("committed lockfile: " + ", ".join(sorted({Path(b).name for b in bad})[:3]))
-    pinned = None
-    for p in (r.path / ".github" / "workflows").glob("*.yml"):
-        m = re.search(r"uses:\s*\S+@(v?\d+\.\d+(\.\d+)?|[0-9a-f]{40})\b", p.read_text(encoding="utf-8", errors="replace"))
-        if m:
-            pinned = f"{p.name}@{m.group(1)}"
-            break
-    return _ok() if not pinned else _no(f"action pinned below major tag: {pinned}")
+    loose: list[str] = []
+    for p in _workflow_files(r):
+        for u in uses_refs(p.read_text(encoding="utf-8", errors="replace")):
+            why = unpinned_ref(u)
+            if why:
+                loose.append(f"{p.relative_to(r.path / '.github')}: {u} ({why})")
+    if not loose:
+        return _ok()
+    more = f" (+{len(loose) - 3} more)" if len(loose) > 3 else ""
+    return _no("uses: not pinned to @vN, @vX.Y.Z or a full SHA: " + "; ".join(loose[:3]) + more)
 
 
 @check("UPS-QA-41")
 def _dependabot(r, k):
-    return _ok() if r.has(".github/dependabot.yml") else _no("no .github/dependabot.yml")
+    if not r.has(".github/dependabot.yml"):
+        return _no("no .github/dependabot.yml")
+    why = hub_lockfile_exception(r)[1]  # hub only: a sanctioned runtime whose entry is missing
+    return _no("sanctioned runtime not covered: " + "; ".join(why)) if why else _ok()
 
 
 @check("UPS-FE-01")
@@ -564,11 +662,12 @@ def _env_not_tracked(r, k):
 # Result vocabulary (the contract's): pass | warn | fail | unverified. A check
 # returns True / WARN / False / None. WARN is a deprecated-but-accepted shape
 # (a rule's own `warn:` clause). Separately, every rule the contract marks
-# `rollout: warn` reports a would-be fail as a warning too (see warn_only()).
+# `rollout: warn` reports a would-be fail as a warning too (see warn_only()),
+# except a rule's `hard_fail:` cases (see hard_fail()), which always fail.
 #
 # One failure per root cause: a rule that only reads a file another rule owns
 # passes, naming the owner, when the file is missing (CHANGELOG.md belongs to
-# UPS-REPO-21; AGENTS.md to UPS-AGENT-07).
+# UPS-REPO-21; AGENTS.md and its `## Conventions` heading to UPS-AGENT-07).
 # --------------------------------------------------------------------------- #
 CONTRACT_FILE = "specs/WORK.contract.yml"
 WARN = "warn"
@@ -577,7 +676,6 @@ SPEC_STALE_DAYS, BACKLOG_LAG_DAYS = 30, 60
 # Regexes and literals the contract states inside a rule's `pass:` prose (it has
 # no named definition for them). Each must appear verbatim in that rule's text.
 RULE_RX = {
-    "UPS-WORK-02": r"backlog[_-]?lint|lint[_-]?backlog|validate[_-]?backlog",
     "UPS-WORK-03": r"^- \[ \] \*\*(.+?)\*\*",
     "UPS-WORK-05/unreleased": r"^##\s*\[?unreleased\b",
     "UPS-WORK-05/tag": r"^v?\d+\.\d+\.\d+$",
@@ -632,8 +730,48 @@ def warn_only(r) -> dict[str, str]:
     changes."""
     c = contract(r) or {}
     rules = {**(c.get("rules") or {}), **(c.get("related") or {})}
-    return {rid: "rollout: warn in specs/WORK.contract.yml" for rid, v in rules.items()
-            if isinstance(v, dict) and v.get("rollout") == "warn"}
+    return {rid: "rollout: warn in specs/WORK.contract.yml"
+            + (" (rollout_effect: fails once the marker is removed)" if v.get("rollout_effect") else "")
+            for rid, v in rules.items() if isinstance(v, dict) and v.get("rollout") == "warn"}
+
+
+def _job_uses(r) -> list[tuple[str, str]]:
+    """(value, workflow file) for every job-level `uses:` (the uses_keys
+    workflow paths outside steps[]) in the repo's pin_scope workflows."""
+    keys = [k for k in (_defs(r).get("uses_keys") or {}).get("workflow") or [] if "steps" not in k]
+    return [(v, p.name) for p in _pin_files(r) if p.parent.name == "workflows" for v in (yaml_values(p, keys) or [])]
+
+
+def hard_fail(r, rid: str) -> list[str]:
+    """The rule's contract `hard_fail:` cases that hold, as details. Each case is
+    `all_of: [{caller: <definition>, ref_re: <definition> | any}, ...]` over the
+    job-level `uses:` values, compared up to the '@'. A hit is a fail even while
+    the rule carries `rollout: warn` (run_checks never softens it)."""
+    if contract(r) is None:
+        return []
+    d, out = _defs(r), []
+    cases = _rule(r, rid).get("hard_fail") or {}
+    calls = _job_uses(r) if cases else []
+    for name, case in cases.items():
+        if not isinstance(case, dict) or case.get("result", "fail") != "fail":
+            continue
+        found = []
+        for want in case.get("all_of") or []:
+            target = str(d.get(want.get("caller"), ""))
+            rx = None if want.get("ref_re") == "any" else re.compile(d[want["ref_re"]])
+            hit = next(((v, f) for v, f in calls if target and v.split("@", 1)[0] == target
+                        and (rx is None or ("@" in v and rx.fullmatch(v.split("@", 1)[1])))), None)
+            if hit is None:
+                break
+            found.append((want.get("caller"), hit))
+        else:
+            if not found:
+                continue
+            detail = str(case.get("detail") or f"hard_fail.{name}")
+            for caller, (v, f) in found:  # fill "<caller>@<ref> in <file>" in all_of order
+                detail = detail.replace(f"<{caller}>@<ref> in <file>", f"{v} in {f}", 1)
+            out.append(f"hard_fail.{name}: {detail}")
+    return out
 
 
 def _hub_path(r, ref: str) -> Path:
@@ -769,21 +907,23 @@ def _at(node, segs: list[str]) -> list:
     return _at(node[seg], rest) if isinstance(node, dict) and seg in node else []
 
 
-def uses_values(r, p: Path, only: str | None = None) -> list[str] | None:
-    """The `uses:` values parsed from a pin_scope file at the contract's
-    uses_keys (workflow keys under .github/workflows/, action keys elsewhere);
-    `only` restricts to one key path. None = the file is not valid YAML."""
-    keys = _defs(r).get("uses_keys") or {}
-    kind = "workflow" if p.parent.name == "workflows" else "action"
+def yaml_values(p: Path, keys: list[str]) -> list[str] | None:
+    """String values parsed (yaml.safe_load) from p at the contract key paths
+    `keys` (see _at). Raw text, comments and other keys never count.
+    None = the file is not valid YAML."""
     try:
         doc = yaml.safe_load(p.read_text(encoding="utf-8", errors="replace"))
     except yaml.YAMLError:
         return None
-    out = []
-    for key in keys.get(kind) or []:
-        if only is None or key == only:
-            out += [v.strip() for v in _at(doc, key.split(".")) if isinstance(v, str)]
-    return out
+    return [v.strip() for key in keys for v in _at(doc, str(key).split(".")) if isinstance(v, str)]
+
+
+def uses_values(r, p: Path, only: str | None = None) -> list[str] | None:
+    """The `uses:` values parsed from a pin_scope file at the contract's
+    uses_keys (workflow keys under .github/workflows/, action keys elsewhere);
+    `only` restricts to one key path. None = the file is not valid YAML."""
+    keys = (_defs(r).get("uses_keys") or {}).get("workflow" if p.parent.name == "workflows" else "action") or []
+    return yaml_values(p, [k for k in keys if only is None or k == only])
 
 
 def _pin_files(r) -> list[Path]:
@@ -875,15 +1015,21 @@ def _sdlc_declared(r, k):
 @check("UPS-WORK-02")
 @_need_contract
 def _backlog_of_record(r, k):
-    """Contract UPS-WORK-02: file mode = backlog.file exists and a workflow lints it."""
+    """Contract UPS-WORK-02: file mode = backlog.file exists and, in a
+    backlog_lint_scope file parsed as YAML, a value at backlog_lint_keys matches
+    backlog_lint_value_re (re.I). Comments, `name:` and invalid YAML never count."""
     b = _backlog_decl(sdlc_profile(r)[0])
     if (b.get("mode") or "issues") != "file":
         return _skip("issues mode: the fleet labels on Issues are not visible offline (UPS-WORK-14)")
     f = b.get("file")
     if not f or not r.has(f):
         return _no(f"backlog.mode is file but backlog.file {f or '(unset)'} is missing")
-    lint = next((n for n, t in _workflow_texts(r) if re.search(RULE_RX["UPS-WORK-02"], t, re.I)), None)
-    return _ok(f"{f}, linted in {lint}") if lint else _no(f"{f} has no CI lint (no workflow runs a backlog lint; a sync job is not one)")
+    d = _defs(r)
+    rx = re.compile(d["backlog_lint_value_re"], re.I)
+    keys = (d.get("backlog_lint_keys") or {}).get("workflow") or []
+    files = sorted({p for g in d.get("backlog_lint_scope") or [] for p in r.path.glob(g) if p.is_file()})
+    lint = next((p.name for p in files if any(rx.search(v) for v in yaml_values(p, keys) or [])), None)
+    return _ok(f"{f}, linted in {lint}") if lint else _no(f"{f} has no CI lint (no workflow step or job runs a backlog lint; a sync job is not one)")
 
 
 def _dod_block(text: str, rx: str) -> tuple[str, list[str]] | None:
@@ -1175,13 +1321,14 @@ def _planning_files(r, k):
 def _agents_conventions(r, k):
     """Contract UPS-WORK-12: AGENTS.md § Conventions names the backlog, the DoD and
     the literal adr_path (re.I; 'ADR' when the profile sets modules.adr: false).
-    A missing AGENTS.md is UPS-AGENT-07's failure."""
+    A missing AGENTS.md or `## Conventions` heading is UPS-AGENT-07's failure
+    (Conventions is one of agents_required_headings); this row then passes."""
     a = r.read(str(_defs(r).get("agents_file") or "AGENTS.md"))
     if not a:
         return _ok("no AGENTS.md, see UPS-AGENT-07")
     sec = _section(a, RULE_RX["UPS-WORK-12/section"])
     if sec is None:
-        return _no("AGENTS.md has no `## Conventions` section")
+        return _ok("no `## Conventions` section, see UPS-AGENT-07")
     prof = sdlc_profile(r)[0]
     adr_off = isinstance((prof or {}).get("modules"), dict) and prof["modules"].get("adr") is False
     adr = "ADR" if adr_off else _adr_path(r, prof)
@@ -1262,7 +1409,9 @@ def _agents_kit_stamp(r, k):
 def _release_please(r, k):
     """Contract related.UPS-REPO-21: CHANGELOG.md; release_files parse; release-type
     allowed for the repo type (release_types); a job-level `uses:` of
-    release_workflow at a pinned ref. A legacy_release_workflow caller warns."""
+    release_workflow at a pinned ref. A legacy_release_workflow caller (instead
+    of release_workflow) fails at any ref; `rollout: warn` reports it as a warning
+    (the rule's rollout_effect), like every other failure of this rule."""
     d = _defs(r)
     prof = sdlc_profile(r)[0] or {}
     rtype = prof.get("type")
@@ -1294,13 +1443,11 @@ def _release_please(r, k):
     legacy = [v for v in calls if v.split("@", 1)[0] == d.get("legacy_release_workflow")]
     if hub_refs and not any(pin.fullmatch(x) for x in hub_refs):
         problems.append(f"release-please.yml called at an unpinned ref (@{hub_refs[0]})")
-    elif not hub_refs and not legacy:
+    elif not hub_refs and legacy:
+        problems.append(f"migrate to {d['release_workflow']}@v1 (decision D3); today it calls {legacy[0]}")
+    elif not hub_refs:
         problems.append(f"no job calls {d['release_workflow']}")
-    if problems:
-        return _no("; ".join(problems))
-    if not hub_refs:
-        return WARN, f"migrate to {d['release_workflow']}@v1 (decision D3); today it calls {legacy[0]}"
-    return _ok()
+    return _no("; ".join(problems)) if problems else _ok()
 
 
 # --------------------------------------------------------------------------- #
@@ -1324,6 +1471,29 @@ def binds(req: dict, kinds: list[str], tier: str) -> bool:
     return bool(applies & set(kinds))
 
 
+QUALITY_CONTRACT_FILE = "specs/QUALITY.contract.yml"
+
+
+def quality_warn_only(r) -> dict[str, str]:
+    """warn_only() for specs/QUALITY.contract.yml: the rules (and related rows)
+    it marks `rollout: warn` report a would-be fail as a warning. Read from the
+    hub checkout like the WORK contract, into its own `qdata` (never `d`/`defs`,
+    which belong to WORK.contract.yml). Kept beside warn_only() rather than inside
+    it so either function can change without touching the other."""
+    if r.hub not in _QUALITY_ROLLOUT:
+        try:
+            qdata = yaml.safe_load((r.hub / QUALITY_CONTRACT_FILE).read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            qdata = None
+        qrules = {} if not isinstance(qdata, dict) else {**(qdata.get("rules") or {}), **(qdata.get("related") or {})}
+        _QUALITY_ROLLOUT[r.hub] = {rid: f"rollout: warn in {QUALITY_CONTRACT_FILE}" for rid, v in qrules.items()
+                                   if isinstance(v, dict) and v.get("rollout") == "warn"}
+    return _QUALITY_ROLLOUT[r.hub]
+
+
+_QUALITY_ROLLOUT: dict[Path, dict[str, str]] = {}
+
+
 def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
     results, unverified, warnings, manual = [], [], [], 0
     for req in specs.get("requirements", []):
@@ -1339,10 +1509,19 @@ def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
             ok, detail = fn(repo, kinds)
         except Exception as e:  # noqa: BLE001 — a checker bug must not hide the other results
             ok, detail = False, f"checker error: {e}"
+        try:
+            hard = hard_fail(repo, req["id"])
+        except Exception as e:  # noqa: BLE001
+            hard = [f"checker error (hard_fail): {e}"]
+        if hard:  # a contract hard_fail case: always a fail, never softened by rollout: warn
+            results.append({"id": req["id"], "level": req["level"], "ok": False, "hard_fail": True,
+                            "detail": "; ".join(hard + ([detail] if ok is False and detail else [])),
+                            "spec": req.get("area", "")})
+            continue
         if ok is None:  # not decidable offline
             unverified.append({"id": req["id"], "level": req["level"], "detail": detail})
             continue
-        rollout = warn_only(repo)
+        rollout = {**quality_warn_only(repo), **warn_only(repo)}
         if ok == WARN or (not ok and req["id"] in rollout):  # reported, never counted
             warnings.append({"id": req["id"], "level": req["level"], "detail": detail,
                              "why_warn": "deprecated shape (the rule's warn clause)" if ok == WARN else rollout[req["id"]],
@@ -1360,7 +1539,8 @@ def run_checks(repo: Repo, kinds: list[str], tier: str, specs: dict) -> dict:
         "unverified": unverified,
         "warnings": warnings,
         "failing": [{"id": x["id"], "level": x["level"], "detail": x["detail"],
-                     "spec": f"specs/{area_file(x['spec'], specs)}"} for x in failing],
+                     "spec": f"specs/{area_file(x['spec'], specs)}", **({"hard_fail": True} if x.get("hard_fail") else {})}
+                    for x in failing],
     }
 
 

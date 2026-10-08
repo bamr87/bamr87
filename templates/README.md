@@ -18,7 +18,7 @@ The per-repo glue for the standardized release pipeline (see [`docs/RELEASES.md`
 
 | File | Purpose |
 | --- | --- |
-| `ci.yml` | caller workflow → reusable `ci.yml@main` in `bamr87/.github` (`__DEFAULT_BRANCH__` is substituted) |
+| `ci.yml` | thin caller → the hub's shared gate `bamr87/bamr87/.github/workflows/standard-ci.yml@v1`, the same gate `standard-ci/` seeds (`__DEFAULT_BRANCH__` is substituted). `bamr87/.github`'s `ci.yml` is retired |
 | `release.yml` | caller workflow → reusable `release-please.yml` + `publish.yml` |
 | `RELEASING.md` | per-repo release cheat-sheet (`__REGISTRY__` / `__VERSION_SOURCE__` / `__SECRET__` substituted) |
 
@@ -64,6 +64,20 @@ The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](..
 | `agent-auditor.template.md` | parameterized meta-auditor agent → `.claude/agents/agent-auditor.md` (opt-in artifact `claude-agent-auditor`; seeded only when no auditor-role agent exists) |
 | `archive/claude-0.1.0*.yml` | byte-exact archived machine-seed shapes (pristine 0.1.0, and 0.1.0 + the fleet-wide checkout@v7 bump); `fanout.sh --upgrade` refreshes a target's claude.yml only when it matches one of these — hand-modified copies are never touched |
 | `VERSION` | kit provenance + changelog + the declared fleet `.claude/` position |
+
+## `community/`
+
+The fleet's community-health files (spec: UPS-REPO-14/15/16/18/19, UPS-QA-41, UPS-AGENT-32, UPS-WORK-03/09). Distributed by **inheritance first**: the PR template, issue forms, CONTRIBUTING, SECURITY and Code of Conduct become the defaults in the owner `.github` repos (a Fleet Ops change), and a repo carries its own copy only to add gates. See [`community/README.md`](community/README.md) for the contract a conformance check lints.
+
+| File | Purpose |
+| --- | --- |
+| `.github/pull_request_template.md` | the ONE fleet Definition of Done between `<!-- fleet-dod:start v1 -->` and `<!-- fleet-dod:end -->`; overrides add items below the end marker only |
+| `.github/ISSUE_TEMPLATE/*.yml` | bug, feature and documentation forms (one fleet type label + `agent:queued`) and a URL-free `config.yml` |
+| `.github/CODEOWNERS`, `.github/dependabot.yml` | soft `* @bamr87` owner; weekly grouped `github-actions` updates with the `ci` prefix (copied: GitHub does not inherit these) |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` | default guide (Issues backlog, AGENTS.md, release-please CHANGELOG), 7-day security window, Contributor Covenant pointer |
+| `labels.yml` | the fleet label taxonomy as a file, with colours, descriptions and renames; names must equal `_data/fleet.yml` `issue_pipeline.labels` |
+| `test_community_kit.py` | fixture tests for all of the above (`python3 templates/community/test_community_kit.py`) |
+| `VERSION`, `archive/` | kit provenance + changelog; pre-change snapshots |
 
 ## `conformance/`
 
@@ -150,6 +164,21 @@ The prose style kit, seeded by `tools/fanout.sh --kit prose` (branch `style/mark
 
 Placeholders use the `__NAME__` convention and are replaced by the tools via `sed`.
 
+## `site-quality/`
+
+The site quality kit (spec: [`specs/QUALITY.md`](../specs/QUALITY.md) "Site quality", UPS-QA-60..63, draft with `rollout: warn`; contract [`specs/QUALITY.contract.yml`](../specs/QUALITY.contract.yml)). One reusable workflow, [`.github/workflows/site-quality.yml`](../.github/workflows/site-quality.yml), runs Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast against a Jekyll site built with a fresh theme (`mode: build`) or against live URLs (`mode: url`), and grades the results with the caller's own config. Lifted from bamr87/lifehacker.dev#683 and bamr87/it-journey#790. Fanned out with `tools/fanout.sh --kit site-quality` (Jekyll repos only). See [`site-quality/README.md`](site-quality/README.md). Complements `ux-audit/` (opt-in R1–R13 critique): this kit is the measured, CI-gated half.
+
+| File | Purpose |
+| --- | --- |
+| `site-quality.yml` | Caller → `.github/workflows/site-quality.yml`, pinned `bamr87/bamr87/.github/workflows/site-quality.yml@v1` (never a custom tag) |
+| `site-quality.template.yml` | Config → `.github/site-quality.yml` (only when absent): `schema: site-quality/v1`, pages, budgets, axe `fail_on`, contrast `max`, the expiring allowlist. Seeded report-only |
+| `site-quality.schema.json` | JSON Schema 2020-12 the workflow validates every config against |
+| `fixtures/` | `pass-site/` + `fail-site/` (scanned by `site-quality-selftest.yml`), `configs/valid/` + `configs/invalid/` |
+| `test_site_quality_kit.py` | Kit test (stdlib + PyYAML; jsonschema when installed); `--target <repo>` validates a repo's config |
+| `VERSION` | Kit provenance + changelog |
+
+The runtime lives beside the workflow in `.github/site-quality/` (Node, exact pins, committed `package-lock.json`, Dependabot npm entry): the one sanctioned exception to the no-lockfile policy, exempted by name in `tools/check-drift.sh` (j) and `tools/conformance.py` UPS-QA-40.
+
 ## `ux-audit/`
 
 OPT-IN continuous UX audit kit (spec: [`specs/FRONTEND.md`](../specs/FRONTEND.md) UPS-FE-53/60, docs: [`docs/UX-HARNESS.md`](../docs/UX-HARNESS.md)). Seeded only when requested via `tools/fanout.sh --kit ux-audit` — never in the default standardize set.
@@ -164,3 +193,17 @@ OPT-IN continuous UX audit kit (spec: [`specs/FRONTEND.md`](../specs/FRONTEND.md
 | `prompts/` | specialist critique prompts for the hub loop |
 | `AGENT_PROMPT.md` | how a coding agent consumes an evidence bundle |
 
+## `spec-driven/`
+
+The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [`specs/WORK.md`](../specs/WORK.md) UPS-WORK-07, contract: [`specs/WORK.contract.yml`](../specs/WORK.contract.yml)). A repo opts in with `modules: { spec_driven: true }` in `.github/sdlc.yml`. For now it is adopted by hand ([`spec-driven/README.md`](spec-driven/README.md) § Adoption); wiring it into `tools/fanout.sh --kit spec-driven` is a follow-up.
+
+| File | Purpose |
+| --- | --- |
+| `VERSION` | kit provenance + changelog |
+| `tools/{spec_validator,backlog_lint,next_backlog_id,pick_backlog_item}.py` | the stdlib gates; byte-identity files every adopter keeps identical (UPS-WORK-07) |
+| `hooks/gate-check.sh` | Claude Code PostToolUse hook that runs both gates after an edit to `BACKLOG.md` or `specs/` |
+| `specs/_template/` | spec, plan and tasks templates |
+| `BACKLOG.template.md`, `constitution.template.md` | seed-once `BACKLOG.md` and `docs/constitution.md` |
+| `review-questions.example.json` | the optional `specs/_review_questions.json` (law-ai's constitution §13 check, as data) |
+| `archive/` | byte-exact pre-kit copies from law-ai and gitorio (`*-0.0.0-*`) |
+| `test_spec_driven_kit.py` | kit tests; `--target <repo>` reports a repo's byte-identity |

@@ -1,0 +1,6 @@
+# expect: selector
+schema: site-quality/v1
+pages: [/]
+allowlist:
+  entries:
+    - { rule: categories:performance, page: /blog/*, reason: "a prefix with no selector", issue: "https://github.com/o/r/issues/1", until: "2026-12-31" }

@@ -81,6 +81,10 @@ on:
         description: "Cap the agent's turns; empty = the CLI default"
         type: string
         default: ""
+      max-budget-usd:
+        description: "Dollar ceiling per run (--max-budget-usd); default = hub _data/fleet.yml budget.call_sites['ai-lane.yml:run']"
+        type: string
+        default: "10"
       out:
         description: "Write the agent's result text to this file instead of stdout"
         type: string
@@ -264,6 +268,7 @@ jobs:
           out: ${{ inputs.out }}
           model: ${{ inputs.model }}
           max-turns: ${{ inputs.max-turns }}
+          max-budget-usd: ${{ inputs.max-budget-usd }}
 
       - name: Post-run
         if: inputs.post-run != ''

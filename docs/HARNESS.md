@@ -55,7 +55,7 @@ The hub already practices the playbook's strongest guide discipline: rules are d
 | shellcheck, markdownlint, prettier, black/flake8 (pre-commit) | Computational | Every commit |
 | Per-repo CI via reusable `standard-ci.yml` | Computational | Every push, fleet-wide |
 | Self-healing markdown-oneline gate (CI fixes and pushes) | Computational | Every PR |
-| Fixture tests for every deterministic planner (`test_*.py` in `dash-gen/`) | Computational | Every PR |
+| Fixture tests for every deterministic planner (`test_*.py` in `dash-gen/`) | Computational | Every PR + push to `main` (`drift-check.yml` step, since 2026-10-03; before that only by hand via `tools/run-all-tests.sh`). Advisory until `main` requires the check (see the follow-up below) |
 | Fleet-pulse **doctor**, issue-pipeline tiers (Opus agents reading logs/evidence) | Inferential | Daily, capped |
 
 The playbook's ordering — computational sensors first, inferential only where semantics demand it — is already the hub's shape: the deterministic planners (`remediate`, `issues`, `targets`) pre-vet and cap everything before an LLM sees it, and the agents' outputs land as draft PRs behind the same computational sensors as human work.
@@ -163,7 +163,7 @@ Existing precedents to imitate (each one incident → strongest layer): the bare
 | 4 | Bounded retry + escalation | ✅ caps, turn budgets, brake labels, fallback issues |
 | 5 | State checkpoint to filesystem | ✅ `_data/` ledgers, labels-as-state |
 | 6 | Permission boundary | ✅ scoped tokens, draft-only, never-merge |
-| 7 | Token and cost budget | ⚠️ turn/time budgets enforced; dollar budgets tracked post-hoc, not enforced mid-run |
+| 7 | Token and cost budget | ✅ per run: every Claude call site passes `--max-turns` **and** `--max-budget-usd` (`_data/fleet.yml` `budget.call_sites`, including the `claude-run` action and `ai-lane`; asserted by `test_ai_budget.py`). Caveats: the cap uses the CLI's client-side cost *estimate*, which under OAuth is a throughput ceiling, not billed spend; the monthly total (`harnesses.budget`) is still a forecast, not a hard stop |
 | 8 | Structured logging | ✅ committed snapshots + run summaries |
 | 9 | Trip wire on cost/error rate | ✅ **added** — `dash-gen harness` |
 | 10 | Trusted/untrusted input split | ✅ deterministic work orders carry payloads as data |
@@ -176,7 +176,7 @@ Phase 2 (worth doing next, each one small):
 
 - ~~**Dash surface**~~ — done 2026-08-27: [`pages/_dash/harness.md`](../pages/_dash/harness.md) renders `_data/harness_health.yml` at `/harness/` (scorecard, wire panel with tripped state) and embeds the diagrams below.
 - ~~**Fleet deployment inventory**~~ — done 2026-08-31: the DEPLOYMENT-side counterpart of this scorecard. `dash-gen harnesses` scans every registry repo's harness workflows + crons into `_data/harness_registry.yml` daily, grades them against `_data/fleet.yml` `harnesses:` (baseline coverage, scheduled-throughput caps, budget forecast from trends), renders read-only at [`/harnesses/`](../pages/_dash/harnesses.md), and feeds `harness-fanout.yml`'s `gaps` deploy target. Operations doc: [`docs/HARNESS-OPS.md`](HARNESS-OPS.md).
-- **Enforced cost budget (checklist #7)**: a per-run token ceiling for the Claude loops, read from `fleet.yml` and passed to `claude-code-action`, closing the gap between shadow-priced tracking and mid-run enforcement.
+- ~~**Enforced cost budget (checklist #7)**~~: done per run. `budget.call_sites` in `fleet.yml` sets a `--max-budget-usd` ceiling for every `claude-code-action` step (bamr87#128), and since 2026-10-03 also for every `claude-run` / `ai-lane` / `fleet-verify` step. A budget abort fails the step and never falls back to another credential or the API. Still open: an *aggregate* (monthly or workspace) hard stop, e.g. Anthropic Console workspace spend limits. The per-run cap uses the CLI's estimate and does not bound the fleet total.
 - **Guide hygiene cadence**: fold a monthly guide review into the repo-evolution loop's hub pass — prune rules that sensors now enforce, reconcile contradictions, verify each standing rule still traces to a live constraint.
 - **Wire → doctor handoff**: let a tripped `cost-spike`/`standing-failures` wire annotate the remediation queue's ranking, so the alarm and the fix queue converge on the same candidates (today they compute independently from the same data).
 

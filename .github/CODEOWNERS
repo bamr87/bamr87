@@ -21,12 +21,12 @@
 
 # Root setup and tooling.
 /tools/ @bamr87
-/requirements*.txt @bamr87
 /docker-compose*.yml @bamr87
 
-# Submodule pointers. Changes inside these projects should be reviewed in
-# their own repositories before the parent pointer is updated here.
-/README @bamr87
-/cv @bamr87
-/scripts @bamr87
-/skills @bamr87
+# Submodule pointers (all submodules live under projects/ — see .gitmodules).
+# Changes inside these projects should be reviewed in their own repositories
+# before the parent pointer is updated here.
+/projects/README @bamr87
+/projects/cv @bamr87
+/projects/scripts @bamr87
+/projects/skills @bamr87

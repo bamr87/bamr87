@@ -106,6 +106,14 @@
 #                kit artifacts — the sanctioned exception to ".claude/ never
 #                fans out"). runner.mjs and verify.yml are upgradeable
 #                machine seeds (archive/<file>-<ver>.yml).
+#   site-quality branch ci/site-quality; the SITE QUALITY kit
+#                (templates/site-quality/, specs/QUALITY.md "Site quality"):
+#                the .github/workflows/site-quality.yml caller of the reusable
+#                site-quality.yml (pinned @v1; Lighthouse CI + axe-core at
+#                390/1366 px + pa11y contrast against a fresh-theme build) and
+#                a report-only .github/site-quality.yml config (only when
+#                absent). Jekyll repos only (a root _config.yml); anything
+#                else is skipped. The caller is an upgradeable machine seed.
 #
 # --upgrade (every templated artifact, not just claude.yml):
 #   Each kit dir carries a VERSION and an archive/ of the shapes it has seeded
@@ -150,9 +158,11 @@ AC_VERSION="$(kit_version agent-context)"
 PROSE_VERSION="$(kit_version prose)"
 CI_VERSION="$(kit_version standard-ci)"
 CONF_VERSION="$(kit_version conformance)"
+VERIFY_VERSION="$(kit_version verify)"
 FB_VERSION="$(kit_version feedback)"
 IA_VERSION="$(kit_version issue-autopilot)"
 ELK_VERSION="$(kit_version elk)"
+SQ_VERSION="$(kit_version site-quality)"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -223,8 +233,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk|verify) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -277,6 +287,12 @@ case "$KIT" in
     COMMIT_MSG="test: adopt the agent verification kit (feature index + user scenarios + evidence)"
     PR_TITLE="test: adopt the agent verification kit"
     PR_BODY="$(printf 'Automated by bamr87 verify-fanout (tools/fanout.sh --kit verify): seeds the fleet AGENT VERIFICATION standard — a feature index (features/features.yml, schema features/v1) every agent reads for what this product does and what proves it; verify/verify.yml (how to run the app like a user); a smoke user scenario + the Playwright runner (verify/runner.mjs → test/evidence/<id>/ screenshots + report.json); the Playwright MCP config; a thin verify.yml caller of the reusable fleet-verify.yml (scenarios on every PR, an OAuth Claude Code pass driving the live app on `verify`-labelled PRs — advisory until gate: true); and the repo-local verify-feature skill + verifier agent.\n\nAdditive-only — nothing the repo already has is overwritten. After merge: fill verify/verify.yml `app:` for this stack, `npm i -D @playwright/test yaml && npx playwright install --with-deps chromium`, replace the TODO feature entry, create the `verify` and `skip-evidence` labels. Coverage is graded fleet-wide at bamr87.github.io/bamr87/features/. See bamr87/bamr87 docs/VERIFICATION.md.')"
+    ;;
+  site-quality)
+    BRANCH="ci/site-quality"
+    COMMIT_MSG="ci: adopt the site-quality kit (Lighthouse CI + axe-core + pa11y contrast)"
+    PR_TITLE="ci: adopt the site-quality kit"
+    PR_BODY="$(printf 'Automated by bamr87 site-quality fan-out (tools/fanout.sh --kit site-quality): seeds the fleet SITE QUALITY standard — `.github/workflows/site-quality.yml`, a thin caller of the hub'"'"'s reusable site-quality.yml pinned `@v1`, which builds this Jekyll site against a FRESH theme (remote_theme resolved to a commit SHA, recorded in the job summary), serves `_site`, and runs Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast; and `.github/site-quality.yml`, this repo'"'"'s config (validated against templates/site-quality/site-quality.schema.json).\n\nReport-only as seeded: the config sets no budgets, no axe fail_on and no contrast max, so no scan finding fails the job. It still fails if the config is invalid, the site does not build, or the scan cannot run. Read the first run'"'"'s summary, then tighten one gate at a time; known issues go in the allowlist with rule, selector and/or page, reason, issue link and a quoted until date. Additive-only — an existing .github/site-quality.yml is never overwritten. See bamr87/bamr87 templates/site-quality/README.md and specs/QUALITY.md "Site quality".')"
     ;;
 esac
 
@@ -410,6 +426,47 @@ seed_prose() {
   python3 tools/unwrap-prose.py --write "${ex[@]}" >/dev/null 2>&1 || true
 }
 
+seed_verify() {
+  # cwd = target clone; $1 = repo name, $2 = default branch. Additive-only:
+  # every artifact is seeded only when the repo has nothing in its place. The
+  # feature index is the one artifact checked against EVERY shape the fleet
+  # already uses (features/, _data/, root) — a repo with a legacy index keeps
+  # it, because the hub reads legacy files as-is.
+  local name="$1" def="$2" tpl="$HUB/templates/verify"
+  if [[ ! -f features/features.yml && ! -f _data/features.yml && ! -f features.yml ]]; then
+    mkdir -p features
+    render_kit_template "$tpl/features.template.yml" "$name" "$def" "$VERIFY_VERSION" > features/features.yml
+    echo "features/features.yml: seeded (kit v${VERIFY_VERSION})"
+  else
+    echo "feature index: present — left alone"
+  fi
+  mkdir -p verify/scenarios
+  seed_workflow_artifact "verify/verify.yml" verify/verify.yml \
+    "$tpl/verify.template.yml" "$name" "$def" "$VERIFY_VERSION"
+  if ! compgen -G "verify/scenarios/*.yml" >/dev/null 2>&1 \
+     && ! compgen -G "verify/scenarios/*.yaml" >/dev/null 2>&1; then
+    render_kit_template "$tpl/scenario.template.yml" "$name" "$def" "$VERIFY_VERSION" > verify/scenarios/smoke-home.yml
+    echo "verify/scenarios/smoke-home.yml: seeded"
+  fi
+  seed_workflow_artifact "verify/runner.mjs" verify/runner.mjs \
+    "$tpl/runner.mjs" "$name" "$def" "$VERIFY_VERSION"
+  [[ -f verify/mcp.json ]] || { cp "$tpl/mcp.json" verify/mcp.json; echo "verify/mcp.json: seeded"; }
+  seed_workflow_artifact "verify.yml" .github/workflows/verify.yml \
+    "$tpl/verify.yml" "$name" "$def" "$VERIFY_VERSION"
+  # Dedicated kit artifacts (agent-context 0.4.0 exception): seeded only when
+  # no verification skill/agent of any authorship exists.
+  if [[ ! -f .claude/skills/verify-feature/SKILL.md && ! -f .github/skills/visual-evidence/SKILL.md ]]; then
+    mkdir -p .claude/skills/verify-feature
+    render_kit_template "$tpl/SKILL.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/skills/verify-feature/SKILL.md
+    echo ".claude/skills/verify-feature/SKILL.md: seeded"
+  fi
+  if [[ ! -f .claude/agents/verifier.md ]]; then
+    mkdir -p .claude/agents
+    render_kit_template "$tpl/verifier.template.md" "$name" "$def" "$VERIFY_VERSION" > .claude/agents/verifier.md
+    echo ".claude/agents/verifier.md: seeded"
+  fi
+}
+
 # Vendor one kit asset. Same posture as the workflow artifacts: seed when
 # absent, report when it matches, and refresh under --upgrade only when the
 # on-disk copy is byte-identical to the current kit file or to an ARCHIVED one
@@ -535,6 +592,28 @@ seed_elk() {
   fi
   [[ -n "$adapter" ]] && echo "    …and import .fleet/logging/${adapter} where logging is configured."
   echo
+}
+
+seed_site_quality() {
+  # cwd = target clone; $1 = repo name, $2 = default branch.
+  local name="$1" def="$2" kit="$HUB/templates/site-quality"
+  # The reusable workflow builds Jekyll (mode: build); other stacks would only
+  # get a red job, so they are skipped rather than seeded.
+  if [[ ! -f _config.yml ]]; then
+    echo "site-quality: no _config.yml — not a Jekyll site, skipped"
+    return 0
+  fi
+  seed_workflow_artifact "site-quality.yml" .github/workflows/site-quality.yml \
+    "$kit/site-quality.yml" "$name" "$def" "$SQ_VERSION"
+  # The config is the repo's own from the first edit on: seeded once, never
+  # compared, never upgraded (like features/features.yml in the verify kit).
+  if [[ -f .github/site-quality.yml ]]; then
+    echo "site-quality config: present — left alone"
+  else
+    mkdir -p .github
+    render_kit_template "$kit/site-quality.template.yml" "$name" "$def" "$SQ_VERSION" > .github/site-quality.yml
+    echo "site-quality config: seeded report-only (kit v${SQ_VERSION})"
+  fi
 }
 
 seed_feedback() {
@@ -737,12 +816,14 @@ run_one() {
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
       prose)       seed_prose "$(basename "${url%.git}")" "$def" ;;
       deps-latest) "$HUB/tools/unpin-deps.sh" . ;;
+      verify)      seed_verify "$(basename "${url%.git}")" "$def" ;;
       docker)      # --project keys the repo into _data/ports.yml so variable names
                    # match the fleet allocation (FREDGAR_API_PORT, not a derived one)
                    "${PYTHON:-python3}" "$HUB/tools/docker_harmonize.py" apply . --project "$name" ;;
       feedback)    seed_feedback "$(basename "${url%.git}")" "$def"
                    [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
       elk)         seed_elk "$(basename "${url%.git}")" "$def" ;;
+      site-quality) seed_site_quality "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0

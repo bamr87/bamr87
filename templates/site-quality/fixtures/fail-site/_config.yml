@@ -1,0 +1,9 @@
+# Fixture: a Jekyll site with deliberate WCAG failures. The site-quality
+# self-test expects status `fail` with axe errors (image-alt, label,
+# button-name, color-contrast), a pa11y contrast error and a Lighthouse
+# accessibility-score error, while the one
+# allowlisted node (link-name on a.icon-only) is reported as a known issue.
+title: Site-quality fail fixture
+description: A fixture site with deliberate accessibility failures.
+lang: en
+exclude: [site-quality.yml, Gemfile, Gemfile.lock, vendor]

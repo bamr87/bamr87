@@ -57,6 +57,13 @@ inputs:
   max-turns:
     description: Cap the agent's turns (Claude Code --max-turns). Empty = the CLI default.
     default: ""
+  max-budget-usd:
+    description: >-
+      Dollar ceiling for this call (Claude Code --max-budget-usd). Defaults to the
+      fleet fallback, bamr87/bamr87 _data/fleet.yml budget.default_usd (asserted by
+      test_ai_budget.py), so a caller that forgets it is still capped. Empty = no cap.
+      The cost is the CLI's client-side estimate: under OAuth a throughput ceiling.
+    default: "10"
 runs:
   using: composite
   steps:
@@ -70,6 +77,7 @@ runs:
         OUT: ${{ inputs.out }}
         MODEL: ${{ inputs.model }}
         MAX_TURNS: ${{ inputs.max-turns }}
+        MAX_BUDGET_USD: ${{ inputs.max-budget-usd }}
       run: |
         if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
           echo "::warning::no Claude auth (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) — AI step is a no-op."
@@ -93,6 +101,7 @@ runs:
         [ -n "$OUT" ]       && args+=(--out "$OUT")
         [ -n "$MODEL" ]     && args+=(--model "$MODEL")
         [ -n "$MAX_TURNS" ] && args+=(--max-turns "$MAX_TURNS")
+        [ -n "$MAX_BUDGET_USD" ] && args+=(--max-budget-usd "$MAX_BUDGET_USD")
         bash "$GITHUB_ACTION_PATH/run.sh" "${args[@]}"
 
     # ---- metering post-steps (always run, never fail the job) ----------------
