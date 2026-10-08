@@ -823,6 +823,83 @@ def test_push_reads_contract_names_from_env_file_never_values():
 
 
 # --------------------------------------------------------------------------- #
+def test_the_page_and_the_tui_share_one_core():
+    """The browser console and the terminal dash render from tools/fleetcore:
+    the same keymap, the same palette, the same rows in the same order — and the
+    new routes sit behind the same Host guard as the rest."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    from fleetcore import keys, theme, views
+
+    # The compose service sets DASH_CONSOLE_TOKEN; send it as the page would.
+    token = os.environ.get("DASH_CONSOLE_TOKEN")
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001",
+                        headers={"Authorization": f"Bearer {token}"} if token else {})
+    assert client.get("/api/keys").json() == keys.as_json("web")
+    css = client.get("/theme.css")
+    assert css.headers["content-type"].startswith("text/css")
+    assert theme.TOKENS["dark"]["primary"] in css.text and theme.TOKENS["light"]["background"] in css.text
+
+    got = client.get("/api/fleet", params={"sort": "name"}).json()
+    want = views.dash_view(core.REPO_ROOT, sort="name")
+    assert [r["name"] for r in got["rows"]] == [r["name"] for r in want["rows"]]
+    assert got["kpis"] == want["kpis"]
+    assert client.get("/api/fleet", params={"repo": "../etc"}).status_code == 422
+    assert client.get("/api/fleet", headers={"Host": "evil.example"}).status_code == 421
+
+
+def test_the_tui_reaches_the_same_runtime_over_the_unix_socket():
+    """`tools/dash tui --docker` talks to the console over a socket in a shared
+    volume (serve.py). One process, one job manager: a job submitted on the
+    socket is in the same list the browser reads."""
+    try:
+        import uvicorn
+    except ImportError:
+        print("    (skipped: uvicorn not installed)")
+        return
+    import threading
+    import time as _time
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+    import serve
+    from fleetcore.client import ConsoleClient
+
+    with tempfile.TemporaryDirectory(prefix="dc") as td:
+        path = str(Path(td) / "c.sock")
+        (Path(td) / "not-a-socket").write_text("x")
+        try:
+            serve.unix_socket(str(Path(td) / "not-a-socket"))
+            raise AssertionError("replaced a regular file")
+        except SystemExit:
+            pass
+        server = uvicorn.Server(uvicorn.Config(console_app.app, log_level="warning"))
+        thread = threading.Thread(target=server.run, kwargs={"sockets": [serve.unix_socket(path)]}, daemon=True)
+        thread.start()
+        deadline = _time.monotonic() + 10
+        while not server.started and _time.monotonic() < deadline:
+            _time.sleep(0.05)
+        # A test-only operation: every real one runs a tool that writes
+        # committed data (`harness` regenerates _data/harness_health.yml).
+        core.OPS["_test-true"] = dict(title="test: true", group="observe", argv=lambda p: ["true"],
+                                      needs_token=False)
+        try:
+            client = ConsoleClient(f"unix://{path}")
+            assert client.health()["ok"] is True
+            assert any(op["id"] == "harness" for op in client.ops())
+            job = client.submit("_test-true")
+            assert job["id"] in [j["id"] for j in console_app.jobs.list()]
+        finally:
+            core.OPS.pop("_test-true", None)
+            server.should_exit = True
+            thread.join(10)
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

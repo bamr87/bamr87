@@ -14,6 +14,8 @@
 #   DASH_CONSOLE_TOKEN  optional bearer token required on /api/* when set
 #   DASH_CONSOLE_ALLOWED_HOSTS  extra Host values to answer to (comma-separated);
 #                  loopback names only by default — the DNS-rebinding guard
+#   CONSOLE_UDS    also listen on this Unix socket (serve.py) — how the `tui`
+#                  compose service reaches the same runtime; ignored with RELOAD
 #
 # Usage: tools/console/run.sh            (or: tools/dash console)
 # ============================================================================
@@ -41,4 +43,8 @@ RELOAD=()
 
 echo "console: http://${HOST}:${PORT}/  (repo: $ROOT)"
 cd "$HERE"
+if [[ -n "${CONSOLE_UDS:-}" && ${#RELOAD[@]} -eq 0 ]]; then
+  export CONSOLE_HOST="$HOST" CONSOLE_PORT="$PORT"
+  exec "$VENV/bin/python" serve.py
+fi
 exec "$VENV/bin/python" -m uvicorn app:app --host "$HOST" --port "$PORT" ${RELOAD[@]+"${RELOAD[@]}"}

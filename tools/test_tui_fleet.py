@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fixture tests for tools/tui/fleet.py — the terminal dash data layer.
+"""Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share.
 
 Guards the same join/filter/sort rules the Jekyll command center uses, so the
 TUI cannot drift from `_data/projects.yml` + `_data/project_health.yml`.
@@ -16,10 +16,10 @@ from pathlib import Path
 
 import yaml
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "tui"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import fleet as fl  # noqa: E402
-import host as dh  # noqa: E402
+from fleetcore import fleet as fl  # noqa: E402
+from fleetcore import host as dh  # noqa: E402
 
 
 def write_reg(tmp: Path, projects, health=None) -> Path:
@@ -237,6 +237,8 @@ def test_docker_hosts_parsing():
         assert dh.docker_host() == "local"
         os.environ["DASH_DOCKER_HOST"] = ""
         assert dh.docker_hosts() == [] and dh.docker_host() == ""
+        del os.environ["DASH_DOCKER_HOST"]  # unset → the default, for every surface
+        assert dh.docker_hosts() == ["local", "ssh://forge"]
     finally:
         if old is None:
             os.environ.pop("DASH_DOCKER_HOST", None)

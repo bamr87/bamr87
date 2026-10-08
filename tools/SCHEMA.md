@@ -19,6 +19,7 @@ coverage: listed
 | `dash` | file | Dash CLI entrypoint (status, audit, work orders) | required |
 | `dash-gen` | file | Regenerates README AUTO spans and portfolio data from the registry | required |
 | `tui/` | dir | Terminal command center — the TTY twin of the dash (`dash tui`); see its README | |
+| `fleetcore/` | dir | The core the console and the TUI share — fleet views, keys v1, the bashOS palette, the console job-API client (one model, one runtime, two surfaces); see its README | |
 | `fleet-config.py` | file | Reads `_data/fleet.yml`; audits fleet secrets/variables against GitHub and projects the canonical variables onto every repo (`dash secrets`, `dash config`) | required |
 | `fleet-dev.sh` | file | Fleet dev-stack entry point (`dash dev`) — runs any submodule as its own compose project on the shared `fleet-net`, with the hub's generated port override layered on (docs/FLEET-COMPOSE.md) | required |
 | `fleet-compose.py` | file | Projects `_data/ports.yml` onto that stack (`.env.fleet`, `compose/overrides/*`, `compose.fleet.yml`) and gates the allocation as drift check (m) | required |

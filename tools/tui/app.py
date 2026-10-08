@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Terminal twin of the Jekyll command center (index.md, /monitor/, /triage/, /harness/).
 
-Reads the registry plus the dash's committed signals through `fleet.py`, and
-live containers through `host.py`. Does not invent a roster, and does not write:
-the only subprocesses are `docker ps` and, on demand, `dash-gen health`.
+Reads the registry plus the dash's committed signals through fleetcore
+(`tools/fleetcore/` — the same views the Harness Console serves at /api/fleet),
+and live containers through fleetcore.host. Keys come from fleetcore.keys
+(keys v1) and colours from fleetcore.theme (the bashOS palette), so this and the
+browser console bind the same keys and draw the same levels.
+
+It does not write. Its own subprocesses are `docker ps` and, on demand,
+`dash-gen health`; anything else — the Jobs tab and the `:` palette — is a job
+SUBMITTED to the console's API, where the allowlist and the confirm-before-write
+gate run (fleetcore.client).
 """
 from __future__ import annotations
 
 import functools
+import re
 import subprocess
 import sys
 import threading
@@ -18,17 +26,39 @@ from rich.markup import escape
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.command import DiscoveryHit, Hit, Hits, Provider
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
-from textual.widgets import DataTable, Footer, Header, Input, Static, TabbedContent, TabPane
+from textual.screen import ModalScreen
+from textual.widgets import Button, DataTable, Footer, Header, Input, Log, Static, TabbedContent, TabPane
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import fleet as fl  # noqa: E402
-import host as dh  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for fleetcore
+from fleetcore import fleet as fl  # noqa: E402
+from fleetcore import host as dh  # noqa: E402
+from fleetcore import keys as fk  # noqa: E402
+from fleetcore import theme as ftheme  # noqa: E402
+from fleetcore.client import ConsoleClient, ConsoleError  # noqa: E402
 
 POLL_SECONDS = 15
-COLOR = {"red": "#ef4444", "amber": "#f59e0b", "green": "#22c55e"}
+JOB_POLL_SECONDS = 2
+_T = ftheme.TOKENS["dark"]
+COLOR = {lv: ftheme.level_color(lv) for lv in fl.LEVELS}
+ACCENT, INK2, DIM = _T["primary"], _T["ink2"], _T["muted"]
+
+# keys v1 semantic action → this app's action (fleetcore.keys owns the keys).
+KEY_ACTIONS = {
+    "quit": "quit", "help": "toggle_help", "palette": "command_palette", "search": "focus_search",
+    "back": "back", "down": "cursor(1)", "up": "cursor(-1)", "top": "cursor_edge(0)",
+    "bottom": "cursor_edge(1)", "next_tab": "tab_step(1)", "prev_tab": "tab_step(-1)",
+    "refresh": "reload", "refresh_full": "refresh_health", "copy": "copy_link",
+    "open": "open_repo", "open_live": "open_live", "sort": "cycle_sort",
+}
+
+
+def _binding(k: fk.Key) -> Binding:
+    action = f"tab({k.action.split(':')[1]})" if k.action.startswith("tab:") else KEY_ACTIONS[k.action]
+    return Binding(k.key, action, k.label, show=k.show, key_display=k.dom if len(k.dom) == 1 else None)
 # Row keys carry what the open actions need: Apps rows are the registry name;
 # the other tabs prefix theirs (m:/a: name, i:<n>:<url>, h:<id>, d:<host>|<name>).
 
@@ -63,6 +93,22 @@ def _level(level: str | None, label: str | None = None) -> Text:
     return t
 
 
+# CSI (colour, cursor) and OSC (titles, hyperlinks) sequences, and a trailing
+# one cut off by the poll boundary, which waits for the next chunk.
+_ESC = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
+_ESC_TAIL = re.compile(r"\x1b(?:\[[0-?]*[ -/]*|\][^\x07\x1b]*)?$")
+
+
+def strip_ansi(buffered: str) -> tuple[str, str]:
+    """(printable text, held-back tail). The tools/ scripts colour their output;
+    written raw into a Log widget, an escape sequence reaches the terminal
+    inside the TUI's own frame and corrupts it."""
+    tail = _ESC_TAIL.search(buffered)
+    keep = buffered[tail.start():] if tail else ""
+    body = buffered[: tail.start()] if tail else buffered
+    return _ESC.sub("", body).replace("\r\n", "\n").replace("\r", "\n"), keep
+
+
 def _age(days: float | None) -> str:
     if days is None:
         return "?"
@@ -92,44 +138,106 @@ def _ui(fn):
     return wrapper
 
 
+class ConsoleOps(Provider):
+    """`:` (or ctrl+p) lists the console's allowlisted operations; picking one
+    submits it as a job. Nothing runs here — the console decides."""
+
+    def _hits(self):
+        app = self.app
+        for op in getattr(app, "ops", None) or []:
+            yield op, f"Run: {op['title']}"
+
+    async def discover(self) -> Hits:
+        for op, title in self._hits():
+            yield DiscoveryHit(title, functools.partial(self.app.run_op, op["id"]), help=op.get("desc") or None)
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for op, title in self._hits():
+            score = matcher.match(f"{title} {op['id']} {op.get('group', '')}")
+            if score > 0:
+                yield Hit(score, matcher.highlight(title), functools.partial(self.app.run_op, op["id"]),
+                          help=op.get("desc") or None)
+
+
+class Confirm(ModalScreen[bool]):
+    """Yes/no before a job the console says writes to GitHub or destroys data."""
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel"), Binding("y", "dismiss(True)", "Yes")]
+    DEFAULT_CSS = """
+    Confirm { align: center middle; }
+    Confirm > Vertical { width: 72; height: auto; border: thick $warning; background: $surface; padding: 1 2; }
+    Confirm Horizontal { height: auto; margin-top: 1; }
+    Confirm Button { margin-right: 2; }
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self.message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Static(Text(self.message))
+            with Horizontal():
+                yield Button("Run it (y)", id="yes", variant="warning")
+                yield Button("Cancel (esc)", id="no")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "yes")
+
+
 class DashTui(App):
     TITLE = "bamr87 · command center"
+    COMMANDS = App.COMMANDS | {ConsoleOps}
+    # Focus the table from the first frame. Textual's default focuses the first
+    # focusable widget — the search box — so keys typed while the app starts
+    # (a fast `7`, a pasted command) became a search filter.
+    AUTO_FOCUS = "#apps"
     CSS = """
-    Screen { background: #101418; }
-    #kpis { height: 1; color: #e8e4df; padding: 0 1; }
+    Screen { background: $background; }
+    #kpis { height: 1; color: $foreground; padding: 0 1; }
     #status { height: 1; padding: 0 1; }
     #search { margin: 0 1; }
     TabbedContent { height: 1fr; }
     TabPane { height: 1fr; padding: 0; }
     #apps-split { height: 1fr; }
-    #meta-wrap { width: 44; height: 1fr; border: solid #2a333c; padding: 0 1; }
+    #meta-wrap, #joblog-wrap { width: 44; height: 1fr; border: solid $panel-lighten-1; padding: 0 1; }
+    #jobs-split { height: 1fr; }
+    #joblog-wrap { width: 1fr; }
+    #joblog { height: 1fr; }
     DataTable { height: 1fr; }
-    .note { height: auto; color: #f59e0b; padding: 0 1; display: none; }
+    .note { height: auto; color: $warning; padding: 0 1; display: none; }
     .note.-show { display: block; }
     """
+    # keys v1 (fleetcore.keys — the same table the browser console binds), then
+    # the filters only this terminal view has. `x` is kept as the old name for
+    # clearing; `d` cancels a job on the Jobs tab (Docker re-polls on `r` now).
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
-        Binding("slash", "focus_search", "Search", key_display="/"),
-        Binding("escape", "leave_search", "Back", show=False),
-        Binding("s", "cycle_sort", "Sort"),
+        *[_binding(k) for k in fk.bindings_for("tui")],
         Binding("c", "cycle_cat", "Category"),
         Binding("t", "cycle_status", "Status"),
         Binding("h", "cycle_health", "Health"),
         Binding("f", "toggle_featured", "Featured"),
-        Binding("x", "clear_filters", "Clear"),
-        Binding("o", "open_repo", "Open"),
-        Binding("l", "open_live", "Live"),
-        Binding("r", "reload", "Reload"),
-        Binding("R", "refresh_health", "dash-gen health"),
-        Binding("d", "poll_host", "Docker"),
-        Binding("question_mark", "toggle_help", "Keys", key_display="?"),
-        *[Binding(str(i), f"tab({i})", show=False) for i in range(1, 7)],
+        Binding("x", "clear_filters", "Clear", show=False),
+        Binding("d", "cancel_job", "Cancel job", show=False),
     ]
-    TABS = ("tab-apps", "tab-inbox", "tab-attn", "tab-monitor", "tab-harness", "tab-docker")
+    TABS = ("tab-apps", "tab-inbox", "tab-attn", "tab-monitor", "tab-harness", "tab-docker", "tab-jobs")
 
-    def __init__(self, root: Path | None = None, hosts: list[str] | None = None) -> None:
+    def __init__(self, root: Path | None = None, hosts: list[str] | None = None,
+                 console: ConsoleClient | None = None) -> None:
         super().__init__()
         self.root = root or ROOT
+        # The console runtime the Jobs tab and the palette submit to (not
+        # `console`: that is Textual's Rich console). None (the
+        # default, and what the tests use) keeps the TUI purely read-only.
+        self.runtime = console if console is not None and console.enabled else None
+        self.ops: list[dict] = []
+        self.jobs: list[dict] = []
+        self.console_error: str | None = None
+        self._job_id: str | None = None   # the job whose log is shown
+        self._job_offset = 0
+        self._job_ansi = ""                # an escape sequence split across two polls
+        self._job_polling = False
         # Filter state. Plain attributes: `query` in particular must not be an
         # attribute here — it shadows DOMNode.query() and breaks every
         # `app.query(...)` call, Textual's own included.
@@ -182,6 +290,12 @@ class DashTui(App):
             with TabPane("6 Docker", id="tab-docker"):
                 yield Static(id="docker-note", classes="note")
                 yield DataTable(id="docker", cursor_type="row", zebra_stripes=True)
+            with TabPane("7 Jobs", id="tab-jobs"):
+                yield Static(id="jobs-note", classes="note")
+                with Horizontal(id="jobs-split"):
+                    yield DataTable(id="jobs", cursor_type="row", zebra_stripes=True)
+                    with Vertical(id="joblog-wrap"):
+                        yield Log(id="joblog", highlight=False)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -192,12 +306,18 @@ class DashTui(App):
             "monitor": (" ", "Repo", "CI", "Activity", "Issues", "PRs", "Sec", "Why"),
             "harness": (" ", "Signal", "Value", "Detail"),
             "docker": ("Host", "State", "Name", "Project", "Status", "Ports"),
+            "jobs": ("Status", "Operation", "Started", "Exit"),
         }
         for table_id, names in cols.items():
             self.query_one(f"#{table_id}", DataTable).add_columns(*names)
+        for theme in ftheme.textual_themes():
+            self.register_theme(theme)
+        self.theme = "bashos-dark"
         self.reload()
         self.set_interval(POLL_SECONDS, self._tick)
+        self.set_interval(JOB_POLL_SECONDS, self._poll_jobs)
         self.action_poll_host()
+        self._poll_jobs(force=True)
         self.query_one("#apps", DataTable).focus()
 
     # -------------------------------------------------------------------- data
@@ -239,6 +359,7 @@ class DashTui(App):
         self._paint_monitor()
         self._paint_harness()
         self._paint_docker()
+        self._paint_jobs()
         self._sync_selection()
 
     def _paint_header(self) -> None:
@@ -263,38 +384,44 @@ class DashTui(App):
             f"inbox {len(self.snapshot.inbox)}   sort:{self.sort_key}"
         )
         if chips:
-            line.append("  [" + " · ".join(chips) + "]", style="bold #93c5fd")
+            line.append("  [" + " · ".join(chips) + "]", style=f"bold {ACCENT}")
         self.query_one("#kpis", Static).update(line)
         self.query_one("#status", Static).update(self._status_line())
 
     def _status_line(self) -> Text:
         t = Text()
         if self._refreshing:
-            t.append(f"⟳ dash-gen health {self._progress}  ", style="bold #93c5fd")
+            t.append(f"⟳ dash-gen health {self._progress}  ", style=f"bold {ACCENT}")
         for s in self.snapshot.sources:
             if not s.present:
-                style, label = "#ef4444", f"{s.name} missing"
+                style, label = COLOR["red"], f"{s.name} missing"
             elif s.name in fl.UNDATED:
-                style, label = "#9ca3af", s.name
+                style, label = INK2, s.name
             elif s.age_days is None:
-                style, label = "#f59e0b", f"{s.name} undated"
+                style, label = COLOR["amber"], f"{s.name} undated"
             else:
-                style = "#f59e0b" if s.stale else "#9ca3af"
+                style = COLOR["amber"] if s.stale else INK2
                 label = f"{s.name} {_age(s.age_days)}" + (" STALE" if s.stale else "")
             t.append(label, style=style)
-            t.append(" · ", style="#4b5563")
+            t.append(" · ", style=DIM)
         if not self.snapshot.health_present and not self._refreshing:
-            t.append("R = live health  ", style="#f59e0b")
+            t.append("R = live health  ", style=COLOR["amber"])
         if self._hosts:
-            t.append(" docker ", style="#4b5563")
+            t.append(" docker ", style=DIM)
             for h in self._hosts:
                 label = dh.host_label(h)
                 if label in self.host_errors:
-                    t.append(f"{label} ✗ ", style="#ef4444")
+                    t.append(f"{label} ✗ ", style=COLOR["red"])
                     continue
                 mine = [c for c in self.containers if c.host == label]
                 up = sum(1 for c in mine if c.running)
-                t.append(f"{label} {up}/{len(mine)} ", style="#9ca3af")
+                t.append(f"{label} {up}/{len(mine)} ", style=INK2)
+        if self.runtime is not None:
+            running = sum(1 for j in self.jobs if j.get("status") in ("queued", "running"))
+            if self.console_error:
+                t.append(" console ✗", style=COLOR["red"])
+            else:
+                t.append(f" console ✓ {running} running", style=INK2)
         return t
 
     def _keep_cursor(self, table: DataTable, key: str | None, fallback_row: int) -> None:
@@ -579,14 +706,14 @@ class DashTui(App):
         if table is None or not table.row_count:
             return
         key = str(table.coordinate_to_cell_key((table.cursor_row, 0)).row_key.value)
-        kind, _, rest = key.partition(":") if key[:2] in ("i:", "m:", "a:", "h:", "d:") else ("", "", key)
+        kind, _, rest = key.partition(":") if key[:2] in ("i:", "m:", "a:", "h:", "d:", "j:") else ("", "", key)
         if kind == "i":
             self._selected_url = rest.split(":", 1)[1]
         elif kind == "d":
             host, _, name = rest.partition("|")  # a tcp:// host label has its own colon
             box = next((c for c in self.containers if c.host == host and c.name == name), None)
             self._selected = box.owner if box else None
-        elif kind != "h":
+        elif kind not in ("h", "j"):
             self._selected = rest
 
     # ----------------------------------------------------------------- actions
@@ -610,9 +737,44 @@ class DashTui(App):
     def action_focus_search(self) -> None:
         self.query_one("#search", Input).focus()
 
-    def action_leave_search(self) -> None:
+    def action_back(self) -> None:
+        """esc, keys v1's one way back: leave the search box, else leave an
+        inbox drill-down, else clear the filters."""
         if isinstance(self.focused, Input):
             self._focus_table()
+        elif self.repo_filter:
+            self.repo_filter = None
+            self._paint()
+        else:
+            self.action_clear_filters()
+
+    def action_tab_step(self, step: int) -> None:
+        tabs = self.query_one("#tabs", TabbedContent)
+        i = self.TABS.index(tabs.active) if tabs.active in self.TABS else 0
+        tabs.active = self.TABS[(i + step) % len(self.TABS)]
+
+    def action_cursor(self, step: int) -> None:
+        table = self._active_table()
+        if table is not None and table.row_count:
+            table.move_cursor(row=max(0, min(table.cursor_row + step, table.row_count - 1)))
+
+    def action_cursor_edge(self, end: int) -> None:
+        table = self._active_table()
+        if table is not None and table.row_count:
+            table.move_cursor(row=table.row_count - 1 if end else 0)
+
+    def action_copy_link(self) -> None:
+        """y: the selected row's link to the clipboard (OSC 52 — terminals that
+        refuse it still get the link on screen to copy by hand)."""
+        url = self._selected_url
+        if url is None:
+            row = self._row(self._selected)
+            url = row.repo_url if row else None
+        if not url:
+            self.notify("No link on this row")
+            return
+        self.copy_to_clipboard(url)
+        self.notify(url, title="Copied", markup=False)
 
     def action_toggle_help(self) -> None:
         if self.screen.query("HelpPanel"):
@@ -663,6 +825,9 @@ class DashTui(App):
         if table.id == "inbox":
             self._open(self._selected_url)
             return
+        if table.id == "jobs":
+            self._show_job(self._job_under_cursor())
+            return
         if table.id in ("apps", "attn", "monitor") and self._selected:
             self.repo_filter = self._selected
             self.query_one("#tabs", TabbedContent).active = "tab-inbox"
@@ -670,6 +835,8 @@ class DashTui(App):
 
     def action_reload(self) -> None:
         self.reload()
+        self.action_poll_host()
+        self._poll_jobs(force=True)
         self.notify("Reloaded")
 
     def action_poll_host(self) -> None:
@@ -744,11 +911,13 @@ class DashTui(App):
         else:
             self.notify(err or "dash-gen health failed", severity="error", timeout=12)
 
-    def _open(self, url: str | None) -> None:
-        if url:
-            webbrowser.open(url)
-        else:
-            self.notify("No URL for this row")
+    def _open(self, url: str | None, missing: str = "No URL for this row") -> None:
+        if not url:
+            self.notify(missing)
+        elif not webbrowser.open(url):
+            # No browser to hand it to — `tools/dash tui --docker`, or an SSH
+            # session. Show the link instead of swallowing the key press.
+            self.notify(url, title="No browser here — open the link yourself", markup=False, timeout=20)
 
     def action_open_repo(self) -> None:
         table = self._active_table()
@@ -760,14 +929,141 @@ class DashTui(App):
 
     def action_open_live(self) -> None:
         row = self._row(self._selected)
-        if row and row.live_url:
-            webbrowser.open(row.live_url)
+        self._open(row.live_url if row else None, missing="No live_url")
+
+
+    # -------------------------------------------------------------------- jobs
+    @_ui
+    def _paint_jobs(self) -> None:
+        if self.runtime is None:
+            self._note("jobs-note", "No console runtime (DASH_CONSOLE_URL is empty). Jobs run in the Harness "
+                                    "Console — start it with `tools/dash console`, then reopen this.")
+        elif self.console_error:
+            self._note("jobs-note", f"Console unreachable at {self.runtime.url}: {self.console_error}")
         else:
-            self.notify("No live_url")
+            self._note("jobs-note", None if self.jobs else
+                       "No jobs yet. `:` lists the console's operations; the browser's Jobs tab shows the same list.")
+        cells, keys = [], []
+        for j in self.jobs:
+            status = j.get("status") or "?"
+            style = {"succeeded": COLOR["green"], "failed": COLOR["red"], "running": ACCENT,
+                     "cancelled": DIM}.get(status, INK2)
+            started = (j.get("started") or j.get("created") or "")[11:19]
+            cells.append((Text(status, style=style), _clip(j.get("title") or j.get("op"), 60),
+                          _plain(started or "—"), _plain(j.get("exit_code"))))
+            keys.append(f"j:{j['id']}")
+        self._rebuild("jobs", cells, keys)
+
+    def _job_under_cursor(self) -> str | None:
+        table = self.query_one("#jobs", DataTable)
+        if not table.row_count:
+            return None
+        key = str(table.coordinate_to_cell_key((table.cursor_row, 0)).row_key.value)
+        return key[2:] if key.startswith("j:") else None
+
+    def _show_job(self, job_id: str | None) -> None:
+        if not job_id:
+            return
+        self._job_id, self._job_offset, self._job_ansi = job_id, 0, ""
+        self.query_one("#joblog", Log).clear()
+        self._poll_jobs(force=True)
+
+    def _poll_jobs(self, force: bool = False) -> None:
+        """Every 2 s while the Jobs tab is open or a shown job is still going,
+        on a thread — the console is a network call."""
+        if self.runtime is None or self._job_polling:
+            return
+        try:
+            on_tab = self.query_one("#tabs", TabbedContent).active == "tab-jobs"
+        except NoMatches:
+            return
+        live = any(j.get("id") == self._job_id and j.get("status") in ("queued", "running") for j in self.jobs)
+        if not (force or on_tab or live):
+            return
+        self._job_polling = True
+        job_id, offset, want_ops = self._job_id, self._job_offset, not self.ops
+
+        def work() -> None:
+            ops = jobs = tail = None
+            err = None
+            try:
+                jobs = self.runtime.jobs()
+                if want_ops:
+                    ops = self.runtime.ops()
+                if job_id:
+                    tail = self.runtime.tail(job_id, offset)
+            except ConsoleError as exc:
+                err = str(exc)
+            self.call_from_thread(self._jobs_done, jobs, ops, tail, err)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _jobs_done(self, jobs, ops, tail, err) -> None:
+        self._job_polling = False
+        self.console_error = err
+        if jobs is not None:
+            self.jobs = jobs
+        if ops is not None:
+            self.ops = ops
+        if tail and tail.get("job", {}).get("id") == self._job_id:
+            text, self._job_ansi = strip_ansi(self._job_ansi + (tail.get("text") or ""))
+            if text:
+                self.query_one("#joblog", Log).write(text)
+            self._job_offset = tail.get("offset", self._job_offset)
+        self._paint()
+
+    def run_op(self, op_id: str, confirm: bool = False) -> None:
+        """Submit one allowlisted operation. The console answers 409 when the
+        operation writes to GitHub (or destroys local data); that becomes a
+        yes/no here, and only a yes resubmits with confirm=true."""
+        if self.runtime is None:
+            self.notify("No console runtime — start it with `tools/dash console`", severity="warning")
+            return
+
+        def work() -> None:
+            try:
+                job = self.runtime.submit(op_id, {}, confirm=confirm)
+                self.call_from_thread(self._submitted, job)
+            except ConsoleError as exc:
+                self.call_from_thread(self._submit_failed, op_id, str(exc), confirm)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _submitted(self, job: dict) -> None:
+        self.notify(f"Started: {job.get('title') or job.get('op')}")
+        self.query_one("#tabs", TabbedContent).active = "tab-jobs"
+        self._show_job(job.get("id"))
+
+    def _submit_failed(self, op_id: str, err: str, confirmed: bool) -> None:
+        if "confirm" in err and not confirmed:
+            self.push_screen(Confirm(f"{op_id}: {err}"),
+                             lambda yes: self.run_op(op_id, confirm=True) if yes else None)
+        else:
+            self.notify(err, title=op_id, severity="error", markup=False, timeout=12)
+
+    def action_cancel_job(self) -> None:
+        table = self._active_table()
+        if self.runtime is None or table is None or table.id != "jobs":
+            return
+        job_id = self._job_under_cursor()
+        job = next((j for j in self.jobs if j.get("id") == job_id), None)
+        if not job or job.get("status") != "running":
+            self.notify("Only a running job can be cancelled")
+            return
+
+        def go(yes: bool | None) -> None:
+            if yes:
+                try:
+                    self.runtime.cancel(job_id)
+                except ConsoleError as exc:
+                    self.notify(str(exc), severity="error", markup=False)
+                self._poll_jobs(force=True)
+
+        self.push_screen(Confirm(f"Cancel {job.get('title') or job.get('op')}?"), go)
 
 
 def main() -> None:
-    DashTui().run()
+    DashTui(console=ConsoleClient.from_env()).run()
 
 
 if __name__ == "__main__":

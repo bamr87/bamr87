@@ -41,6 +41,12 @@
         "--output-dir",
         "test/evidence/agent"
       ]
+    },
+    "fleet": {
+      "command": "python3",
+      "args": [
+        "tools/fleetcore/mcp_server.py"
+      ]
     }
   }
 }

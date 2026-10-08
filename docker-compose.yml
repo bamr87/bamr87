@@ -171,6 +171,11 @@ services:
     volumes:
       - .:/workspace:cached
       - venv-console:/workspace/.venv-console
+      # The console also listens on a Unix socket here (CONSOLE_UDS, serve.py).
+      # Only `tui` mounts this volume too, so reaching the socket IS the
+      # authorization: the terminal dash joins this runtime without a hostname
+      # added to the DNS-rebinding allowlist and without a shared secret.
+      - console-run:/home/vscode/.dash-run
       # This machine's Claude Code transcripts, READ-ONLY. `dash lake sessions`
       # and `lake export --local` read them to trace the local plane, and the
       # console offers both as operations — without this mount those are the
@@ -187,6 +192,7 @@ services:
     environment:
       - CONSOLE_HOST=0.0.0.0
       - CONSOLE_PORT=4001
+      - CONSOLE_UDS=/home/vscode/.dash-run/console.sock
       - PYTHONDONTWRITEBYTECODE=1
       - GH_TOKEN=${GH_TOKEN:-${FLEET_TOKEN:-${GITHUB_TOKEN:-}}}
       - FLEET_TOKEN=${FLEET_TOKEN:-}
@@ -221,6 +227,71 @@ services:
       timeout: 5s
       retries: 3
       start_period: 90s
+
+  # --------------------------------------------------------------------------
+  # Terminal dash - tools/tui in a container (`tools/dash tui --docker`)
+  #
+  # Interactive, so it is RUN, never `up`: the `tui` profile keeps it out of
+  # `dash up` and plain `docker compose up`, and `docker compose run --rm tui`
+  # enables it by naming it. Same image as devenv; the Linux venv lives in its
+  # own volume over /workspace/.venv-tui, as console's does, so it never
+  # overwrites the macOS venv a native `tools/dash tui` uses.
+  #
+  # It is a client of the `console` service's runtime: the Jobs tab and the
+  # `:` palette submit to the console's job API over the socket in the shared
+  # `console-run` volume (fleetcore/client.py), so a job started here shows in
+  # the browser's Jobs tab and vice versa, and every gate stays server-side.
+  # `run` starts console first if it is not up (depends_on).
+  #
+  # Three grants make the Docker tab work here as it does natively:
+  #   - the Docker socket, for `local`. group_add gives uid 1000 the socket's
+  #     group: root (0) on Docker Desktop, set DOCKER_GID to the host's `docker`
+  #     group elsewhere. Like filebeat's, the :ro states intent and is not a
+  #     sandbox — the socket reaches the whole API either way, which is why the
+  #     next mount adds nothing a socket holder could not already reach.
+  #   - ~/.ssh read-only, for `ssh://forge`: the `forge` alias, its key and its
+  #     known_hosts. Point TUI_SSH_DIR at an empty directory to withhold it.
+  #   - GH_TOKEN (by name, from .env like console's), for `R` → dash-gen health.
+  #
+  # logging: none — the container's output is a full-screen TTY, so json-file
+  # would record every repaint and the fleet labels would have Filebeat ship
+  # them. Nothing here is a log.
+  # --------------------------------------------------------------------------
+  tui:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: python
+    logging:
+      driver: none
+    profiles: [tui]
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - .:/workspace:cached
+      - venv-tui:/workspace/.venv-tui
+      - console-run:/home/vscode/.dash-run
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${TUI_SSH_DIR:-~/.ssh}:/home/vscode/.ssh:ro
+    group_add:
+      - "${DOCKER_GID:-0}"
+    working_dir: /workspace
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - TERM=${TERM:-xterm-256color}
+      - COLORTERM=${COLORTERM:-}
+      - DASH_DOCKER_HOST=${DASH_DOCKER_HOST-local,ssh://forge}
+      - TUI_SKIP_INSTALL=${TUI_SKIP_INSTALL:-0}
+      - GH_TOKEN=${GH_TOKEN:-${FLEET_TOKEN:-${GITHUB_TOKEN:-}}}
+      - DASH_CONSOLE_URL=${DASH_CONSOLE_URL:-unix:///home/vscode/.dash-run/console.sock}
+      - DASH_CONSOLE_TOKEN=${DASH_CONSOLE_TOKEN:-}
+    depends_on:
+      - console
+    networks:
+      - fleet
+    stdin_open: true
+    tty: true
+    command: tools/tui/run.sh
 
   # --------------------------------------------------------------------------
   # Phoenix - LLM observability (Arize Phoenix): traces of every agent run
@@ -672,6 +743,10 @@ volumes:
   node-modules:
     driver: local
   venv-console:
+    driver: local
+  venv-tui:
+    driver: local
+  console-run:
     driver: local
   phoenix-data:
     driver: local

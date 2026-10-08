@@ -7,15 +7,16 @@
 <!-- Inline so the console needs no extra request and no binary in the tree;
      without it every page load logs a 404 for /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.95em' font-size='90'%3E%F0%9F%9B%A0%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/theme.css">
 <style>
-  /* Palette roles (dataviz reference instance): light on :root, dark under both
-     the OS media query and an explicit data-theme toggle. */
+  /* Base roles (page, ink, accent, the status colours) come from /theme.css —
+     tools/fleetcore/theme.py, the bashOS palette the TUI draws with too. What
+     stays here is the console's own: chart tracks, series, log colours. */
   :root {
     color-scheme: light;
-    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-    --grid: #e1e0d9; --border: rgba(11,11,11,0.10); --accent: #2a78d6; --accent-track: #cde2fb;
-    --good: #0ca30c; --good-text: #006300; --warning: #fab219; --warning-track: #fdeec6;
-    --serious: #ec835a; --critical: #d03b3b; --critical-track: #f6d2d2;
+    --accent-track: #c6eef1;
+    --warning-track: #fdeec6;
+    --critical-track: #f6d2d2;
     --series-2: #eb6834; --series-3: #1baf7a;
     /* Terminal colours for job logs. The tools/ scripts emit SGR codes, so the
        log view decodes them instead of printing the escapes; these are the
@@ -26,9 +27,8 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-      --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
-      --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
+      --accent-track: #0b4d52;
+      --warning-track: #4a3a0e; --critical-track: #4a1f1f;
       --series-2: #d95926; --series-3: #199e70;
       --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
       --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
@@ -36,14 +36,27 @@
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --border: rgba(255,255,255,0.10); --accent: #3987e5; --accent-track: #184f95;
-    --good-text: #0ca30c; --warning-track: #4a3a0e; --critical-track: #4a1f1f;
+    --accent-track: #0b4d52;
+    --warning-track: #4a3a0e; --critical-track: #4a1f1f;
     --series-2: #d95926; --series-3: #199e70;
     --ansi-red: #f08a8a; --ansi-green: #5fd35f; --ansi-yellow: #e5b53f;
     --ansi-blue: #6aa9f0; --ansi-magenta: #d69bd6; --ansi-cyan: #62c6d4;
   }
   * { box-sizing: border-box; }
+  /* Apps + keys v1 — shared with the terminal dash (tools/fleetcore). */
+  .lvl { font-size: 11px; } .lvl-red { color: var(--critical); } .lvl-amber { color: var(--warning); } .lvl-green { color: var(--good); }
+  tr.sel > td { background: var(--accent-track); }
+  #apps-table tbody tr { cursor: pointer; }
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 10vh 16px 16px; z-index: 50; }
+  .sheet[hidden] { display: none; }
+  .sheet-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; width: min(640px, 100%); max-height: 75vh; overflow: auto; }
+  .sheet-card h2 { margin-top: 0; }
+  .sheet-card input { width: 100%; margin-bottom: 8px; }
+  .keys { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
+  kbd { font-family: ui-monospace, Menlo, monospace; font-size: 12px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--page); }
+  .pal-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 6px 8px; color: var(--ink); cursor: pointer; }
+  .pal-item.sel, .pal-item:hover { background: var(--accent-track); }
+  .pal-item small { display: block; color: var(--ink-2); }
   body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   a { color: var(--accent); }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
@@ -202,6 +215,7 @@
 </header>
 <nav id="nav">
   <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="apps" title="The terminal dash's Apps view — the same data, filters and sort (tools/fleetcore)">Apps</button>
   <button data-tab="harnesses">Harnesses</button>
   <button data-tab="schedules">Schedules</button>
   <button data-tab="loops">Loops</button>
@@ -215,6 +229,7 @@
 </nav>
 <main>
   <section id="tab-overview"></section>
+  <section id="tab-apps" hidden></section>
   <section id="tab-harnesses" hidden></section>
   <section id="tab-schedules" hidden></section>
   <section id="tab-loops" hidden></section>
@@ -227,6 +242,7 @@
   <section id="tab-jobs" hidden></section>
 </main>
 <div id="toast" class="toast" hidden></div>
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-card"><h2 id="sheet-title"></h2><div id="sheet-body"></div></div></div>
 <div id="tip" class="tip" hidden></div>
 
 <script>
@@ -363,7 +379,7 @@ $('#nav').addEventListener('click', e => {
 });
 function renderTab(tab) {
   if (!STATE) return;
-  ({ overview: renderOverview, harnesses: renderHarnesses, schedules: renderSchedules, loops: renderLoops,
+  ({ overview: renderOverview, apps: renderApps, harnesses: renderHarnesses, schedules: renderSchedules, loops: renderLoops,
      costs: renderCosts, observe: renderObserve, content: renderContent, fleet: renderFleet, contract: renderConfig,
      auth: renderAuth, jobs: renderJobs })[tab]();
 }
@@ -1295,6 +1311,147 @@ $('#refresh').onclick = loadAll;
 $('#theme').onclick = () => { const r = document.documentElement; const cur = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); r.dataset.theme = cur === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('console_theme', r.dataset.theme); } catch (e) {} };
 try { const t = localStorage.getItem('console_theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 loadAll();
+
+// ------------------------------------------------------------------ apps (shared with the TUI)
+// The terminal dash's Apps tab, from the same view: /api/fleet is
+// tools/fleetcore/views.py, filtered and sorted by the TUI's own functions on
+// the server. Nothing here re-derives a level, a sort or a count.
+let FLEET = null, APPS = { q: '', sort: 'featured', health: '', repo: null, sel: 0 }, APPS_T = null;
+const dotLvl = lv => lv ? `<span class="lvl lvl-${esc(lv)}" title="${esc(lv)}">●</span>` : '<span class="muted">·</span>';
+async function loadFleet() {
+  const qs = new URLSearchParams({ q: APPS.q, sort: APPS.sort });
+  if (APPS.health) qs.set('health', APPS.health);
+  if (APPS.repo) qs.set('repo', APPS.repo);
+  FLEET = await api('/api/fleet?' + qs);
+}
+async function renderApps() {
+  const el = $('#tab-apps');
+  if (!$('#apps-q')) {
+    el.innerHTML = `<div class="toolbar"><input id="apps-q" type="search" placeholder="Search projects, stacks…  ( / )" size="34" aria-label="Search projects">
+      <label class="inl">sort <select id="apps-sort"></select></label>
+      <label class="inl">level <select id="apps-health"><option value="">any</option><option>red</option><option>amber</option><option>green</option></select></label>
+      <button class="btn" data-run='{"op":"health"}' title="R — dash-gen health, the live monitor columns">↻ live health</button>
+      <span class="muted" id="apps-kpis"></span></div>
+      <div class="wrap"><table id="apps-table"><thead><tr><th></th><th>project</th><th>status</th><th>CI</th><th class="num">age</th><th>triage</th><th class="num">issues</th><th class="num">PRs</th><th class="num">failing</th><th class="num">sec</th><th>docker</th></tr></thead><tbody></tbody></table></div>
+      <div class="split"><div><h2 id="apps-inbox-title">Inbox</h2><div class="sub" id="apps-inbox-sub"></div><div class="wrap"><table><thead><tr><th class="num">pri</th><th>item</th><th>why</th></tr></thead><tbody id="apps-inbox"></tbody></table></div></div>
+      <div><h2>Containers</h2><div id="apps-docker" class="muted">—</div></div></div>`;
+    $('#apps-q').oninput = e => { APPS.q = e.target.value; clearTimeout(APPS_T); APPS_T = setTimeout(refreshApps, 180); };
+    $('#apps-sort').onchange = e => { APPS.sort = e.target.value; refreshApps(); };
+    $('#apps-health').onchange = e => { APPS.health = e.target.value; refreshApps(); };
+    bindRunButtons('#tab-apps');
+    loadDocker();
+  }
+  await refreshApps();
+}
+async function refreshApps() {
+  try { await loadFleet(); } catch (e) { $('#tab-apps').innerHTML = status('crit', e.message); return; }
+  const v = FLEET, k = v.kpis, sortSel = $('#apps-sort');
+  if (!sortSel.options.length) sortSel.innerHTML = v.sorts.map(x => `<option>${esc(x)}</option>`).join('');
+  sortSel.value = APPS.sort;
+  $('#apps-kpis').textContent = `${v.rows.length}/${k.projects} shown · health ${k.red}/${k.amber}/${k.green} · triage ${k.triage_red}/${k.triage_amber} · ${k.failing} failing workflows`;
+  APPS.sel = Math.min(APPS.sel, Math.max(0, v.rows.length - 1));
+  $('#apps-table tbody').innerHTML = v.rows.map((r, i) => `<tr data-i="${i}" class="${i === APPS.sel ? 'sel' : ''}"><td>${dotLvl(r.worst_level)}</td>
+    <td><b>${esc(r.name)}</b>${r.featured ? ' ★' : ''}<br><span class="muted">${esc(r.category)}</span></td><td>${esc(r.status)}</td>
+    <td>${r.ci_last ? esc(r.ci_last) + (r.ci_pass != null ? ' ' + r.ci_pass + '%' : '') : '—'}</td><td class="num">${r.last_commit_days ?? '—'}</td>
+    <td>${dotLvl(r.triage_level)} ${r.triage_score ?? ''}</td><td class="num">${r.triage_issues ?? r.issues_open ?? '—'}</td><td class="num">${r.triage_prs ?? r.prs_open ?? '—'}</td>
+    <td class="num">${r.failing.length || ''}</td><td class="num">${r.security_alerts || ''}</td><td>${r.docker_total ? r.docker_up + '/' + r.docker_total : ''}</td></tr>`).join('')
+    || '<tr><td colspan="11" class="muted">no project matches</td></tr>';
+  $('#apps-table tbody').querySelectorAll('tr[data-i]').forEach(tr => {
+    tr.onclick = () => selectApp(+tr.dataset.i);
+    tr.ondblclick = () => drillApp();
+  });
+  $('#apps-inbox-title').textContent = APPS.repo ? `Inbox — ${APPS.repo} (every open item)` : 'Inbox (flagged, highest priority first)';
+  $('#apps-inbox-sub').innerHTML = APPS.repo ? 'esc returns to the fleet inbox' : 'enter (or double-click) a project for its own items';
+  $('#apps-inbox').innerHTML = v.inbox.slice(0, 60).map(i => `<tr><td class="num">${i.priority}</td><td><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.label)}</a><br><span class="muted">${esc(i.repo)} · ${esc(i.kind)}</span></td><td class="muted">${esc(i.why)}</td></tr>`).join('')
+    || '<tr><td colspan="3" class="muted">nothing open</td></tr>';
+}
+function selectApp(i) {
+  const rows = (FLEET && FLEET.rows) || []; if (!rows.length) return;
+  APPS.sel = Math.max(0, Math.min(i, rows.length - 1));
+  document.querySelectorAll('#apps-table tbody tr').forEach(tr => tr.classList.toggle('sel', +tr.dataset.i === APPS.sel));
+  const tr = $(`#apps-table tbody tr[data-i="${APPS.sel}"]`); if (tr) tr.scrollIntoView({ block: 'nearest' });
+}
+function selectedApp() { return FLEET && FLEET.rows[APPS.sel]; }
+function drillApp() { const r = selectedApp(); if (r) { APPS.repo = r.name; refreshApps(); } }
+async function loadDocker() {
+  const el = $('#apps-docker'); if (!el) return;
+  try {
+    const d = await api('/api/fleet/docker');
+    const errs = Object.entries(d.errors || {}).map(([h, e]) => `<div>${status('warn', h)} <span class="muted">${esc(String(e).slice(0, 160))}</span></div>`).join('');
+    el.innerHTML = errs + (d.containers.length ? `<div class="wrap"><table><thead><tr><th>host</th><th>state</th><th>name</th><th>project</th></tr></thead><tbody>${d.containers.map(c => `<tr><td>${esc(c.host)}</td><td>${c.running ? status('good', 'up') : esc(c.state)}</td><td><code>${esc(c.name)}</code></td><td>${esc(c.owner || '')}</td></tr>`).join('')}</tbody></table></div>`
+      : (errs ? '' : 'no containers')) + '<div class="sub">The terminal dash (<code>tools/dash tui --docker</code>) holds the Docker socket; this console does not.</div>';
+  } catch (e) { el.innerHTML = status('warn', e.message); }
+}
+
+// ------------------------------------------------------------------ keys v1
+// The same table the terminal dash binds (/api/keys ← tools/fleetcore/keys.py).
+// Typing in a field, or any key with ctrl/⌘/alt held, is left to the browser.
+let KEYS = [];
+const TAB_ORDER = () => [...document.querySelectorAll('#nav button[data-tab]')];
+function gotoTab(i) { const t = TAB_ORDER(); if (t.length) t[(i + t.length) % t.length].click(); }
+function activeTabIndex() { return TAB_ORDER().findIndex(b => b.dataset.tab === ACTIVE); }
+function openSheet(title, html) { $('#sheet-title').textContent = title; $('#sheet-body').innerHTML = html; $('#sheet').hidden = false; }
+function closeSheet() { $('#sheet').hidden = true; $('#sheet-body').innerHTML = ''; }
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+function showKeys() {
+  openSheet('Keys — the same in the terminal dash', `<div class="keys">${KEYS.filter(k => !k.action.startsWith('tab:')).map(k => `<kbd>${esc(k.dom === 'Escape' ? 'esc' : k.dom)}</kbd><span>${esc(k.label)}${k.group === 'dash' ? ' <span class="muted">(Apps)</span>' : ''}</span>`).join('')}<kbd>1</kbd><span>… <kbd>9</kbd> go to tab</span></div>`);
+}
+function showPalette() {
+  openSheet('Commands', `<input id="pal-q" type="search" placeholder="Run an operation…" aria-label="Filter operations"><div id="pal-list"></div>`);
+  let sel = 0, hits = [];
+  const draw = () => {
+    const q = $('#pal-q').value.toLowerCase();
+    hits = OPS.filter(o => !q || (o.title + ' ' + o.id + ' ' + o.group).toLowerCase().includes(q)).slice(0, 40);
+    sel = Math.min(sel, Math.max(0, hits.length - 1));
+    $('#pal-list').innerHTML = hits.map((o, i) => `<button class="pal-item ${i === sel ? 'sel' : ''}" data-i="${i}">${esc(o.title)}${o.remote_write ? ' ' + status('warn', 'can write') : ''}<small>${esc(o.id)} · ${esc(o.desc || '')}</small></button>`).join('') || '<p class="muted">no operation matches</p>';
+    $('#pal-list').querySelectorAll('.pal-item').forEach(b => b.onclick = () => { closeSheet(); runOp(hits[+b.dataset.i].id, {}); });
+  };
+  $('#pal-q').oninput = () => { sel = 0; draw(); };
+  $('#pal-q').onkeydown = e => {
+    if (e.key === 'ArrowDown') { sel++; draw(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); draw(); e.preventDefault(); }
+    else if (e.key === 'Enter' && hits[sel]) { closeSheet(); runOp(hits[sel].id, {}); }
+  };
+  draw(); $('#pal-q').focus();
+}
+function copyText(text) {
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('copied: ' + text), () => toast(text));
+  else toast(text);
+}
+const KEY_DO = {
+  help: showKeys, palette: showPalette, back: () => {
+    if (!$('#sheet').hidden) return closeSheet();
+    if (ACTIVE === 'apps' && APPS.repo) { APPS.repo = null; refreshApps(); }
+  },
+  search: () => { const f = document.querySelector(`#tab-${ACTIVE} input[type=search], #tab-${ACTIVE} input[type=text]`); if (f) f.focus(); },
+  down: () => ACTIVE === 'apps' && selectApp(APPS.sel + 1), up: () => ACTIVE === 'apps' && selectApp(APPS.sel - 1),
+  top: () => ACTIVE === 'apps' ? selectApp(0) : window.scrollTo(0, 0),
+  bottom: () => ACTIVE === 'apps' ? selectApp(1e9) : window.scrollTo(0, document.body.scrollHeight),
+  next_tab: () => gotoTab(activeTabIndex() + 1), prev_tab: () => gotoTab(activeTabIndex() - 1),
+  refresh: () => { FLEET = null; loadAll(); }, refresh_full: () => runOp('health', {}),
+  open: () => { const r = selectedApp(); if (ACTIVE === 'apps' && r) window.open(r.repo_url, '_blank', 'noopener'); },
+  open_live: () => { const r = selectedApp(); if (ACTIVE === 'apps' && r && r.live_url) window.open(r.live_url, '_blank', 'noopener'); },
+  copy: () => { const r = selectedApp(); if (ACTIVE === 'apps' && r) copyText(r.repo_url); },
+  sort: () => { if (ACTIVE !== 'apps' || !FLEET) return; const s = FLEET.sorts; APPS.sort = s[(s.indexOf(APPS.sort) + 1) % s.length]; refreshApps(); },
+};
+document.addEventListener('keydown', e => {
+  const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (typing) { if (e.key === 'Escape') { t.blur(); if (!$('#sheet').hidden && t.id !== 'pal-q') closeSheet(); else if (t.id === 'pal-q') closeSheet(); } return; }
+  if (e.key === 'Enter' && ACTIVE === 'apps' && $('#sheet').hidden) { drillApp(); e.preventDefault(); return; }
+  const k = KEYS.find(x => x.dom === e.key); if (!k) return;
+  if (!$('#sheet').hidden && k.action !== 'back') return;
+  if (k.action.startsWith('tab:')) { gotoTab(+k.action.slice(4) - 1); e.preventDefault(); return; }
+  const fn = KEY_DO[k.action]; if (fn) { fn(); e.preventDefault(); }
+});
+api('/api/keys').then(k => { KEYS = k; }).catch(() => {});
+
+// Jobs started anywhere — this page, the terminal dash, another tab — appear
+// while the Jobs tab is open: the console process is the one runtime.
+setInterval(async () => {
+  if (ACTIVE !== 'jobs' || document.hidden) return;
+  try { JOBS = await api('/api/jobs'); drawJobs(); } catch (_) {}
+}, 3000);
 </script>
 </body>
 </html>

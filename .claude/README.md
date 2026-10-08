@@ -34,7 +34,7 @@ Claude Code configuration that makes the dash self-managing.
 | `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |
 
-MCP servers (github, memory, sequentialthinking, context7, **playwright** — the browser the `verify-feature` skill drives) are configured in the repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN` env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
+MCP servers (github, memory, sequentialthinking, context7, **playwright** — the browser the `verify-feature` skill drives, and **fleet** — the fleet console itself: the dashboards' views plus the Harness Console's allowlisted, confirm-gated jobs, [`tools/fleetcore/mcp_server.py`](../tools/fleetcore/README.md)) are configured in the repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN` env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
 
 > **Templates vs. subagents:** `.github/agents/`, `.github/instructions/`, and `.github/prompts/` are **Copilot-format reference templates** (per `.github/docs/toolkit-retention-map.md`) consumed in place by hub skills (e.g. `evolve-project` reads the agent personas) — nothing seeds them into submodules, and Claude Code cannot Task-launch them. Only `.claude/agents/` (feature-scout) are real subagents. For a working-diff review use the native `/code-review` skill.
 

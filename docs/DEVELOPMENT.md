@@ -129,6 +129,7 @@ tools/dash ps                          # what is running fleet-wide
 docker compose up -d devenv            # or just the workspace, without the orchestrator
 docker compose exec devenv bash
 docker compose up -d console           # the Harness Console — http://127.0.0.1:4001 (or: tools/dash console)
+docker compose run --rm tui            # the terminal dash, interactive (or: tools/dash tui --docker)
 docker compose up -d phoenix           # Phoenix traces — http://127.0.0.1:6006 (tools/dash lake export ships traces to it)
 docker compose --profile elk up -d     # the log + metrics planes — Kibana :5601, Grafana :3001
                                        # (or: tools/dash observe up, which also installs ILM + dashboards)

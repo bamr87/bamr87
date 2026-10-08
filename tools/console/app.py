@@ -32,14 +32,22 @@ from __future__ import annotations
 
 import os
 import secrets as _secrets
+import sys
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import core
+
+# The core both surfaces share (tools/fleetcore): the fleet views the TUI
+# renders, the keys v1 table, and the bashOS palette.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fleetcore import keys as fkeys  # noqa: E402
+from fleetcore import theme as ftheme  # noqa: E402
+from fleetcore import views as fviews  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 app = FastAPI(title="bamr87 Harness Console", version="0.4.0",
@@ -365,6 +373,36 @@ def auth_github(req: GithubAuth) -> dict:
         raise HTTPException(status_code=501, detail=str(exc))
 
 
+@app.get("/api/fleet", dependencies=[Depends(require_token)])
+def fleet_view(q: str = Query(default="", max_length=120), sort: str = Query(default="featured", max_length=20),
+               health: str | None = Query(default=None, max_length=10),
+               repo: str | None = Query(default=None, pattern=r"^[A-Za-z0-9._-]{1,64}$")) -> dict:
+    """The terminal dash's Apps / Inbox / Harness data — fleetcore.views, the
+    same objects and the same filter/sort functions tools/tui renders with, so
+    the two surfaces cannot disagree."""
+    return fviews.dash_view(core.REPO_ROOT, q=q, sort=sort, health=health, repo=repo)
+
+
+@app.get("/api/fleet/docker", dependencies=[Depends(require_token)])
+def fleet_docker() -> dict:
+    """Containers on every DASH_DOCKER_HOST, attributed to registry rows. In
+    the compose service there is no Docker socket on purpose (a write-capable
+    console holding one would be root on the Docker host), so each host reports
+    its error and the terminal dash's Docker tab is where containers live."""
+    return fviews.dash_view(core.REPO_ROOT, docker=True)["docker"]
+
+
+@app.get("/api/keys")
+def keymap() -> list[dict]:
+    """keys v1 — the one keymap the page and the TUI both bind (fleetcore.keys)."""
+    return fkeys.as_json("web")
+
+
+@app.get("/theme.css", include_in_schema=False)
+def theme_css() -> Response:
+    return Response(ftheme.css(), media_type="text/css")
+
+
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
@@ -377,7 +415,8 @@ def api_root() -> JSONResponse:
                                     "/api/lake/review",
                                     "/api/observability",
                                     "/api/contract", "/api/config", "/api/auth",
-                                    "/api/auth/credential", "/api/auth/github", "/docs"]})
+                                    "/api/auth/credential", "/api/auth/github",
+                                    "/api/fleet", "/api/fleet/docker", "/api/keys", "/docs"]})
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")

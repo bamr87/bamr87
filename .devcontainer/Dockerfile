@@ -35,10 +35,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
+# docker-cli is the client only (Debian's package, no daemon): `tools/dash tui
+# --docker` lists containers through the host socket the `tui` service mounts.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     ca-certificates \
     curl \
+    docker-cli \
     gnupg \
     jq \
     less \
@@ -106,6 +109,7 @@ RUN mkdir -p /workspace && chown ${USERNAME}:${USERNAME} /workspace
 # /workspace/.venv-console/include") while `bundle-gems`, pre-created below,
 # worked fine. Keep in sync with the volume list in docker-compose.yml.
 RUN mkdir -p /workspace/.venv-console \
+             /workspace/.venv-tui \
              /workspace/.venv-docs \
              /workspace/projects/README/.venv \
              /workspace/projects/cv-builder-pro/node_modules \
@@ -118,6 +122,11 @@ RUN mkdir -p /workspace/.venv-console \
 ENV BUNDLE_PATH=/home/${USERNAME}/.bundle-gems
 ENV BUNDLE_APP_CONFIG=/home/${USERNAME}/.bundle-gems
 RUN mkdir -p "${BUNDLE_PATH}" && chown ${USERNAME}:${USERNAME} "${BUNDLE_PATH}"
+
+# The console's Unix socket lives here, in the `console-run` volume that only
+# `console` and `tui` mount — how the terminal dash reaches the same runtime
+# (tools/console/serve.py). Pre-created for the same ownership reason as above.
+RUN mkdir -p /home/${USERNAME}/.dash-run && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.dash-run
 
 # Version labels
 LABEL maintainer="bamr87"

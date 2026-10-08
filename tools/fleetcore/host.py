@@ -17,7 +17,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fleet import AppRow
+from .fleet import AppRow
 
 LOCAL = "local"
 # UPS-OPS-17 (specs/OPERATIONS.md) labels every compose service with
@@ -48,8 +48,14 @@ class Container:
         return next((self.labels[k] for k in PROJECT_LABELS if self.labels.get(k)), "")
 
 
+DEFAULT_HOSTS = "local,ssh://forge"  # this Mac's Docker + the forge host (docs/FORGE-HOST.md)
+
+
 def docker_hosts() -> list[str]:
-    raw = os.environ.get("DASH_DOCKER_HOST", "")
+    """DASH_DOCKER_HOST as a list. Unset means DEFAULT_HOSTS for every surface
+    (it used to be applied by tui/run.sh alone, so the console and the MCP
+    server polled nothing); an empty string still turns polling off."""
+    raw = os.environ.get("DASH_DOCKER_HOST", DEFAULT_HOSTS)
     hosts: list[str] = []
     for h in raw.split(","):
         h = h.strip()
@@ -89,7 +95,11 @@ def list_containers(host: str, timeout: int = 8) -> tuple[list[Container], str |
     if not host:
         return [], None
     try:
-        r = subprocess.run(_command(host), capture_output=True, text=True, timeout=timeout)
+        # start_new_session: no controlling terminal, so an ssh:// host that
+        # wants a password or a host-key answer fails fast instead of drawing
+        # its prompt over the TUI and reading the user's keys.
+        r = subprocess.run(_command(host), capture_output=True, text=True, timeout=timeout,
+                           stdin=subprocess.DEVNULL, start_new_session=True)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return [], str(exc)
     if r.returncode != 0:
