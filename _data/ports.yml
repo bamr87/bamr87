@@ -14,7 +14,7 @@
 # with an allocation, and drift check (m) gates it.
 #
 # Consumed by:
-#   tools/fleet-compose.py   → .env.fleet (gitignored) + compose/overrides/ validation
+#   tools/fleet-compose.py   → compose/fleet.env (committed) + compose/overrides/ validation
 #   tools/check-drift.sh (m) → collision + conformance gate
 #   .vscode/launch.json      → the per-app debug targets
 #
@@ -85,10 +85,10 @@ shared:
 # Projects.
 #
 #   host:     how the hub reaches it — `compose` (the project's own
-#             docker-compose.yml, included by compose.fleet.yml) or `devenv`
+#             docker-compose.yml, included by compose/fleet.yml) or `devenv`
 #             (no compose of its own; run via `docker compose exec devenv`).
 #   services: service name in that compose file → allocation.
-#   var:      the namespaced env var written into .env.fleet. Namespaced on
+#   var:      the namespaced env var written into compose/fleet.env. Namespaced on
 #             purpose: djangoerp and barodybroject both read POSTGRES_PORT, and
 #             zer0-cms and zer0-image-generator both read PORT, so the
 #             submodules' own variable names cannot be used in one shared file.

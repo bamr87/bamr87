@@ -1254,7 +1254,7 @@ projects:
     pinned:
     - postgres
     compose_files:
-    - compose.fleet.yml
+    - compose/fleet.yml
     - compose/shared.yml
     - compose/shared.yml
     - docker-compose.yml

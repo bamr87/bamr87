@@ -66,7 +66,7 @@ if ! PY="$(resolve_py)"; then
   exit 2
 fi
 
-ENV_FILE="$ROOT/.env.fleet"
+ENV_FILE="$ROOT/compose/fleet.env"
 NETWORK="fleet-net"
 DEBUG=0
 EXTRA=()
@@ -125,7 +125,7 @@ is_project() { reg_query compose-projects | grep -qx "$1"; }
 # --- preconditions ---------------------------------------------------------
 ensure_env() {
   if [[ ! -f "$ENV_FILE" ]]; then
-    c_dim "  .env.fleet missing — generating from _data/ports.yml"
+    c_dim "  compose/fleet.env missing — generating from _data/ports.yml"
     "$PY" "$ROOT/tools/fleet-compose.py" env >/dev/null
   fi
 }
@@ -145,14 +145,14 @@ ensure_submodule() {
 }
 
 # --- compose argv for one project -----------------------------------------
-# The hub is a pseudo-project backed by compose.fleet.yml; everything else is
+# The hub is a pseudo-project backed by compose/fleet.yml; everything else is
 # the submodule's own file plus the hub's generated override. `-f base -f
 # override` resolves relative paths against the FIRST file's directory, so the
 # submodule's build contexts stay correct while the hub owns the port mapping.
 compose_args() {
   local name="$1"
   if [[ "$name" == "hub" ]]; then
-    printf '%s\n' -p fleet-hub --env-file "$ENV_FILE" -f "$ROOT/compose.fleet.yml"
+    printf '%s\n' -p fleet-hub --env-file "$ENV_FILE" -f "$ROOT/compose/fleet.yml"
     return
   fi
   local path; path="$(reg_query compose-path "$name")"

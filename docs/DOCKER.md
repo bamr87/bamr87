@@ -53,7 +53,7 @@ Surgical **line edits**, never a YAML round-trip — the compose files' comments
 | L1 | a `COPY` of a lockfile the fleet forbids committing is trimmed; `npm ci` → `npm install` |
 | D1 | seed a `.dockerignore` beside a build context that has none — **additive**, never overwrites |
 
-Variable names come from the registry's `prefix:` in [`_data/ports.yml`](../_data/ports.yml), so a repo's variables share one stem with the ports already allocated there (`FREDGAR_API_PORT`, not `FREDGAR_AI_API_PORT`) and `.env.fleet` drives both the fleet stack and a standalone run.
+Variable names come from the registry's `prefix:` in [`_data/ports.yml`](../_data/ports.yml), so a repo's variables share one stem with the ports already allocated there (`FREDGAR_API_PORT`, not `FREDGAR_AI_API_PORT`) and `compose/fleet.env` drives both the fleet stack and a standalone run.
 
 The seeded `.dockerignore` is deliberately conservative: `.git`, `.env*` (keeping `.env.example`), dependency trees and caches — but **not** `dist/` or `build/`, because several repos `COPY` a pre-built frontend out of one. It lands beside the **build context** (which is what Docker resolves it against), not beside the Dockerfile, and never next to a `*.template` file, which is seed material for another repo rather than a build this one runs.
 

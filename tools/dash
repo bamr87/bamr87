@@ -220,8 +220,8 @@ ids=$(docker ps -aq)
 [[ -n "$ids" ]] && docker rm -f $ids
 docker volume ls -q | xargs -r docker volume rm
 cd "$HOME/dev/bamr87"
-docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin up -d --build
-docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin ps
+docker compose -f docker-compose.yml -f compose/forge.yml --env-file .env --profile full --profile admin up -d --build
+docker compose -f docker-compose.yml -f compose/forge.yml --env-file .env --profile full --profile admin ps
 REMOTE
       ;;
     *)

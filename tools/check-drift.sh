@@ -28,7 +28,7 @@
 #       ceiling pins in hub manifests (docs/DEPENDENCIES.md, `dependencies:` in
 #       _data/fleet.yml). Offline and hub-scoped, so it gates on every PR.
 #   (m) fleet dev-stack port allocation: _data/ports.yml has no collisions and
-#       is in band, and compose/overrides/* + compose.fleet.yml are in sync
+#       is in band, and compose/overrides/* + compose/fleet.yml are in sync
 #       with it. Offline, so it gates every PR. Advisory half: submodules
 #       still publishing a hardcoded port or setting a container_name.
 #   (n) the Docker standard: the hub's OWN Dockerfiles/compose files match the

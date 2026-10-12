@@ -71,4 +71,4 @@ The older `bamr87.project` label still works, but new services should use the st
 | Jekyll/site compose that is already small | Docker Desktop as the source of truth |
 | Portainer `:9443` | Binding `127.0.0.1` if you want LAN access from the Mac |
 
-The hub `docker-compose.forge.yml` overlay is only for a **checkout on forge**. Prefer per-app compose in `~/dev/<slug>`.
+The hub `compose/forge.yml` overlay is only for a **checkout on forge**. Prefer per-app compose in `~/dev/<slug>`.

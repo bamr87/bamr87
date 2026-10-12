@@ -140,7 +140,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`docker_view.py`](tools/docker_view.py) | The **consolidated Docker view** (`dash docker view --write`) — joins the port registry, the image contract, the smoke recording, the launch/attach configurations and th… |
 | [`fanout.sh`](tools/fanout.sh) | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `standardize-fanout.yml`, `schema-fanout.yml`, and `deps-fan… |
 | [`features_index.py`](tools/features_index.py) | **The fleet features index** (`dash features`): `check <repo>` validates a `features/features.yml` (schema `features/v1`; the legacy zer0/it-journey shape is accepted as… |
-| [`fleet-compose.py`](tools/fleet-compose.py) | Projects [`_data/ports.yml`](../_data/ports.yml) onto that stack — generates `.env.fleet`, `compose/overrides/*.yml` and `compose.fleet.yml`, and gates the allocation (b… |
+| [`fleet-compose.py`](tools/fleet-compose.py) | Projects [`_data/ports.yml`](../_data/ports.yml) onto that stack — generates `compose/fleet.env`, `compose/overrides/*.yml` and `compose/fleet.yml`, and gates the alloca… |
 | [`fleet-config.py`](tools/fleet-config.py) | Reads [`_data/fleet.yml`](../_data/fleet.yml), the fleet's central config. |
 | [`fleet-dev.sh`](tools/fleet-dev.sh) | **The fleet dev stack's entry point** (`dash dev`) — launch, debug and work on any submodule from the hub. |
 | [`fleet_smoke.py`](tools/fleet_smoke.py) | **The monorepo smoke test** (`dash dev smoke`) — connects to every running fleet container and exercises it for real (HTTP GET, TCP connect, a `select` through the conta… |

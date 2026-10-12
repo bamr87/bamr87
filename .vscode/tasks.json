@@ -13,7 +13,7 @@
     // ==========================================
     // ---------------------------------------------------------------- FLEET
     // tools/fleet-dev.sh is the single entry point for the dev stack: it
-    // ensures `fleet-net` and .env.fleet exist, then drives each project as its
+    // ensures `fleet-net` and compose/fleet.env exist, then drives each project as its
     // own compose project. See docs/FLEET-COMPOSE.md.
     {
       "label": "Fleet: up hub",
