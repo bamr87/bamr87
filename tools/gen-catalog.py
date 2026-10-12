@@ -259,7 +259,7 @@ def sec_copilot() -> list[str]:
 
 def sec_docs() -> list[str]:
     purposes = table_map(ROOT / "docs" / "README.md", 1)
-    out = ["## 9. Operator docs", "", "Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of record; lowercase are guides.", ""]
+    out = ["## 9. Operator docs", "", "Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern; start with [`DEVELOPMENT.md`](docs/DEVELOPMENT.md).", ""]
     out += header("Doc", "Purpose")
     for f in sorted((ROOT / "docs").glob("*.md")):
         if f.name in ("README.md", "SCHEMA.md"):

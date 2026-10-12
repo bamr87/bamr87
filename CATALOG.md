@@ -314,51 +314,45 @@ Reference templates consumed in place by hub skills (e.g. `evolve-project` reads
 
 ## 9. Operator docs
 
-Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of record; lowercase are guides.
+Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern; start with [`DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 | Doc | Purpose |
 | --- | --- |
-| [`AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth and the secrets matrix, loops, fleet propagation. |
-| [`COCKPIT.md`](docs/COCKPIT.md) | **Status:** Accepted direction (2026-09-18). |
-| [`CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | The public site is the console: the static snapshot, connecting GitHub or a running console from the page, what is never published. |
-| [`CONTAINERS.md`](docs/CONTAINERS.md) | How ~24 compose files run as one fleet — why it cannot be one compose project, the shared network and Postgres, the registry-driven port map, the generated per-project o… |
-| [`CONTENT-ATLAS.md`](docs/CONTENT-ATLAS.md) | Content observability and editorial direction for the content sites (lifehacker.dev, it-journey, bash-365.com, irony-works, the lineage orgs…): `dash content sync` extra… |
-| [`DAILY-ANALYSIS.md`](docs/DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`) — measure, rank, remediate. |
-| [`DASH.md`](docs/DASH.md) | The dash architecture — registry, surfaces, monitoring, drift gates, and the self-evolution loop. |
-| [`DEPENDENCIES.md`](docs/DEPENDENCIES.md) | The always-latest dependency policy. |
-| [`DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Local setup for the hub — containers, the everyday loop, and the pre-PR checklist. |
-| [`DOCKER.md`](docs/DOCKER.md) | Image versions come from **one registry**, a tool rewrites each repo to match, |
-| [`DOCS-SYSTEM.md`](docs/DOCS-SYSTEM.md) | **Plan (2026-10-03):** documentation by role, not by generator — every page has one home: Jekyll front door, MkDocs guides, Sphinx API reference, one private Wiki.js han… |
-| [`ESTIMATION.md`](docs/ESTIMATION.md) | Engagement estimation and cost tracking per registry project. |
-| [`EVOLUTION.md`](docs/EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo. |
-| [`FLEET-COMPOSE.md`](docs/FLEET-COMPOSE.md) | One command brings up any project (or all of them) with its real database, |
-| [`FORGE-HOST.md`](docs/FORGE-HOST.md) | Forge as the Docker host |
-| [`HARNESS-OPS.md`](docs/HARNESS-OPS.md) | Central management of the fleet's AI harnesses and schedules — the `harnesses:` contract, the daily inventory (`dash harnesses` → `/harnesses/`), mass deploy/update via… |
-| [`HARNESS.md`](docs/HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane — layer mapping, ratchet routing rule, health scorecard + trip wires, readine… |
-| [`ISSUE-PIPELINE.md`](docs/ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR. |
-| [`MACHINE-API.md`](docs/MACHINE-API.md) | Machine API |
-| [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The three local planes — logs (Elasticsearch/Kibana), metrics (Grafana) and traces (Phoenix) — the one `trace.id` that joins them, what ships from where, retention and t… |
-| [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
-| [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet. |
-| [`SMOKE.md`](docs/SMOKE.md) | `record` connects to every container in the local fleet and exercises it for |
-| [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline the fleet is held to; points to [`../specs/`](../specs/README.md), the Universal Project Standard that governs content and behaviour. |
-| [`TERMINAL-FRAMEWORK.md`](docs/TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto **bashOS** — one framework in `bamr87/bashos` with a Python/Textual core (+ the `[ai]` extra), a portable JS runti… |
-| [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint. |
-| [`UX-HARNESS.md`](docs/UX-HARNESS.md) | **Status:** v0 kit (`templates/ux-audit/` 0.1.0). |
-| [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard: the feature index every repo carries (`features/features.yml`), user scenarios a Playwright runner and a Claude Code pass both execute,… |
-| [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | Fleet-wide GitHub Actions audit and the record of what changed. |
-| [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the hub's reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises callers, and how a release is cut and rolled back. |
-| [`automation-and-agents.md`](docs/automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |
-| [`local-development.md`](docs/local-development.md) | Clone, configure and run the site and the console locally. |
-| [`prerequisites.md`](docs/prerequisites.md) | What to install before the quick start. |
-| [`quickstart.md`](docs/quickstart.md) | Get a first clone running locally. |
-| [`repository-layout.md`](docs/repository-layout.md) | Contributor-facing map of the monorepo. |
-| [`repository-map.md`](docs/repository-map.md) | Orientation guide to the top-level directories — "I want to change something, which directory do I open?" |
-| [`AGENTS.md`](AGENTS.md) | Instructions for AI coding agents working in this repository, following the conventional `AGENTS.md` location. |
-| [`CLAUDE.md`](CLAUDE.md) | Instructions specific to Claude Code. |
-| [`SUBMODULES.md`](SUBMODULES.md) | Working with the Git submodules this repository pulls in. |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute to this repository. |
-| [`SCHEMA.md`](SCHEMA.md) | Schema reference for the structured content in this repository — likely the front matter and/or the data files under `_data/`. |
+| [`AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | The AI layer — surfaces, Claude auth and the secrets matrix, loops, fleet propagation |
+| [`COCKPIT.md`](docs/COCKPIT.md) | Decision record (2026-09-18): Gitorio as the one front door for designing, running and refining harnesses, with this hub as its runtime |
+| [`CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | The public site is the console: the static snapshot, connecting GitHub or a running console from the page, and what is never published |
+| [`CONTAINERS.md`](docs/CONTAINERS.md) | How ~24 compose files run as one fleet — the shared network and Postgres, the registry-driven port map, the generated overrides, `dash up` |
+| [`CONTENT-ATLAS.md`](docs/CONTENT-ATLAS.md) | Content observability and editorial direction for the fleet's content sites, and the committed plan `_data/editorial.yml` |
+| [`DAILY-ANALYSIS.md`](docs/DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`) — measure, rank, remediate |
+| [`DASH.md`](docs/DASH.md) | The dash architecture — registry, surfaces, monitoring, drift gates and the self-evolution loop. |
+| [`DEPENDENCIES.md`](docs/DEPENDENCIES.md) | The always-latest dependency policy: no exact pins, no ceilings, no committed lockfiles |
+| [`DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Prerequisites, getting the source, running the console and the site, containers, and which check to run for what you changed |
+| [`DOCKER.md`](docs/DOCKER.md) | One image standard for every Dockerfile and compose file in the fleet, and the `/docker/` view |
+| [`DOCS-SYSTEM.md`](docs/DOCS-SYSTEM.md) | Plan (2026-10-03): documentation by role across the fleet — a Jekyll front door, MkDocs guides, Sphinx API reference, one shared content contract |
+| [`ESTIMATION.md`](docs/ESTIMATION.md) | Every project as a client — estimates, actuals, leverage |
+| [`EVOLUTION.md`](docs/EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo |
+| [`FLEET-COMPOSE.md`](docs/FLEET-COMPOSE.md) | Launching and debugging any submodule from the hub, on a port nobody else claims |
+| [`FORGE-HOST.md`](docs/FORGE-HOST.md) | Running the containers on the `forge` LAN host while the Mac runs the terminal dash |
+| [`HARNESS-OPS.md`](docs/HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules — the `harnesses:` contract, the daily inventory, mass deploy via harness-fanout, caps, cost forecasting, and the local s… |
+| [`HARNESS.md`](docs/HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane — layers, the ratchet rule, the health scorecard and trip wires |
+| [`ISSUE-PIPELINE.md`](docs/ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR |
+| [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON on Pages (`/api/v1/*.json`, `llms.txt`) |
+| [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The three local planes — logs, metrics, traces — joined on one `trace.id`; retention, the console's Observe portal, the code index |
+| [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet |
+| [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet |
+| [`SMOKE.md`](docs/SMOKE.md) | The live smoke test: record every container's probes, then check for regressions |
+| [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline; points to [`../specs/`](../specs/README.md), the Universal Project Standard |
+| [`TERMINAL-FRAMEWORK.md`](docs/TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto bashOS — inventory, `keys v1`, the per-repo plan and phases |
+| [`TOKEN-ROTATION.md`](docs/TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint |
+| [`UX-HARNESS.md`](docs/UX-HARNESS.md) | Continuous UI/UX audit for the fleet — the `ux-audit` kit and the hub's critique loop |
+| [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate, the fleet coverage index |
+| [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit and the record of what changed |
+| [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back |
+| [`AGENTS.md`](AGENTS.md) | The operating manual for any AI agent working in this repo |
+| [`CLAUDE.md`](CLAUDE.md) | Claude Code's context for this repo; its tooling lives in [`.claude/`](../.claude) and [`.mcp.json`](../.mcp.json) |
+| [`SUBMODULES.md`](SUBMODULES.md) | The submodule workflow, documented once: commit in the submodule first, then record its pointer here |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution process: README-first/README-last, branches, Conventional Commits, the submodule workflow, pull requests |
+| [`SCHEMA.md`](SCHEMA.md) | The root of the Pyramid Schema: what lives where and where a new file goes, linted by `tools/schema_lint.py` |
 
 ## 10. Dash surfaces
 

@@ -1,6 +1,6 @@
 # Machine API
 
-Stable, agent-facing JSON published on GitHub Pages so bots can prioritize fleet work without scraping the Bootstrap dash.
+Stable, agent-facing JSON published on GitHub Pages so bots can prioritize fleet work without driving the site's app (the console's own snapshot under `/snapshot/` is the other machine-readable surface — docs/CONSOLE-PAGES.md).
 
 **Start URL:** https://bamr87.github.io/bamr87/api/v1/index.json
 
