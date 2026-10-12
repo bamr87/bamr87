@@ -5,7 +5,7 @@
     "HUB-007"
   ],
   "path": "verify/scenarios/features.yml",
-  "started": "2026-09-05T05:12:43.635Z",
+  "started": "2026-10-12T15:56:41.117Z",
   "viewports": [
     {
       "name": "desktop",
@@ -15,9 +15,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/features/",
+          "arg": "/features",
           "ok": true,
-          "ms": 743
+          "ms": 598
         },
         {
           "step": "expect",
@@ -28,12 +28,12 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 18
+          "ms": 11
         },
         {
           "step": "expect",
@@ -41,19 +41,7 @@
             "text": "HUB-007"
           },
           "ok": true,
-          "ms": 4
-        },
-        {
-          "step": "expect",
-          "arg": {
-            "count": {
-              "selector": "main table",
-              "min": 1
-            }
-          },
-          "ok": true,
-          "value": 6,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
@@ -65,56 +53,22 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
           "arg": "features",
           "ok": true,
           "file": "test/evidence/features/desktop-features.png",
-          "ms": 51
-        },
-        {
-          "step": "expect",
-          "arg": {
-            "count": {
-              "selector": "a[href='#repo-zer0-mistakes']",
-              "min": 1
-            }
-          },
-          "ok": true,
-          "value": 2,
-          "ms": 2
-        },
-        {
-          "step": "goto",
-          "arg": "/features/#repo-zer0-mistakes",
-          "ok": true,
-          "ms": 2
-        },
-        {
-          "step": "expect",
-          "arg": {
-            "visible": "#repo-zer0-mistakes"
-          },
-          "ok": true,
-          "ms": 2
-        },
-        {
-          "step": "screenshot",
-          "arg": "features-repo",
-          "ok": true,
-          "file": "test/evidence/features/desktop-features-repo.png",
-          "ms": 61
+          "ms": 27
         }
       ],
       "console_errors": [],
       "screenshots": [
-        "test/evidence/features/desktop-features.png",
-        "test/evidence/features/desktop-features-repo.png"
+        "test/evidence/features/desktop-features.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/features/#repo-zer0-mistakes"
+      "final_url": "http://127.0.0.1:4320/features/"
     },
     {
       "name": "mobile",
@@ -124,9 +78,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/features/",
+          "arg": "/features",
           "ok": true,
-          "ms": 764
+          "ms": 600
         },
         {
           "step": "expect",
@@ -137,12 +91,12 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 22
+          "ms": 25
         },
         {
           "step": "expect",
@@ -150,19 +104,7 @@
             "text": "HUB-007"
           },
           "ok": true,
-          "ms": 3
-        },
-        {
-          "step": "expect",
-          "arg": {
-            "count": {
-              "selector": "main table",
-              "min": 1
-            }
-          },
-          "ok": true,
-          "value": 6,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
@@ -174,59 +116,25 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
           "arg": "features",
           "ok": true,
           "file": "test/evidence/features/mobile-features.png",
-          "ms": 51
-        },
-        {
-          "step": "expect",
-          "arg": {
-            "count": {
-              "selector": "a[href='#repo-zer0-mistakes']",
-              "min": 1
-            }
-          },
-          "ok": true,
-          "value": 2,
-          "ms": 2
-        },
-        {
-          "step": "goto",
-          "arg": "/features/#repo-zer0-mistakes",
-          "ok": true,
-          "ms": 1
-        },
-        {
-          "step": "expect",
-          "arg": {
-            "visible": "#repo-zer0-mistakes"
-          },
-          "ok": true,
-          "ms": 2
-        },
-        {
-          "step": "screenshot",
-          "arg": "features-repo",
-          "ok": true,
-          "file": "test/evidence/features/mobile-features-repo.png",
-          "ms": 46
+          "ms": 17
         }
       ],
       "console_errors": [],
       "screenshots": [
-        "test/evidence/features/mobile-features.png",
-        "test/evidence/features/mobile-features-repo.png"
+        "test/evidence/features/mobile-features.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/features/#repo-zer0-mistakes"
+      "final_url": "http://127.0.0.1:4320/features/"
     }
   ],
   "ok": true,
-  "finished": "2026-09-05T05:12:45.504Z",
-  "base": "http://127.0.0.1:4000"
+  "finished": "2026-10-12T15:56:42.471Z",
+  "base": "http://127.0.0.1:4320"
 }

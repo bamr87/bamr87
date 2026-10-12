@@ -5,7 +5,7 @@
     "HUB-015"
   ],
   "path": "verify/scenarios/roadmap.yml",
-  "started": "2026-09-05T05:12:50.579Z",
+  "started": "2026-10-12T15:56:49.041Z",
   "viewports": [
     {
       "name": "desktop",
@@ -15,9 +15,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/roadmap/",
+          "arg": "/roadmap",
           "ok": true,
-          "ms": 700
+          "ms": 613
         },
         {
           "step": "expect",
@@ -28,12 +28,12 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 21
+          "ms": 18
         },
         {
           "step": "expect",
@@ -41,7 +41,7 @@
             "text": "FF-"
           },
           "ok": true,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
@@ -53,14 +53,14 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 0
+          "ms": 1
         },
         {
           "step": "screenshot",
           "arg": "roadmap",
           "ok": true,
           "file": "test/evidence/roadmap/desktop-roadmap.png",
-          "ms": 50
+          "ms": 39
         }
       ],
       "console_errors": [],
@@ -68,7 +68,7 @@
         "test/evidence/roadmap/desktop-roadmap.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/roadmap/"
+      "final_url": "http://127.0.0.1:4320/roadmap/"
     },
     {
       "name": "mobile",
@@ -78,9 +78,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/roadmap/",
+          "arg": "/roadmap",
           "ok": true,
-          "ms": 708
+          "ms": 598
         },
         {
           "step": "expect",
@@ -91,12 +91,12 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 24
+          "ms": 21
         },
         {
           "step": "expect",
@@ -123,7 +123,7 @@
           "arg": "roadmap",
           "ok": true,
           "file": "test/evidence/roadmap/mobile-roadmap.png",
-          "ms": 23
+          "ms": 29
         }
       ],
       "console_errors": [],
@@ -131,10 +131,10 @@
         "test/evidence/roadmap/mobile-roadmap.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/roadmap/"
+      "final_url": "http://127.0.0.1:4320/roadmap/"
     }
   ],
   "ok": true,
-  "finished": "2026-09-05T05:12:52.208Z",
-  "base": "http://127.0.0.1:4000"
+  "finished": "2026-10-12T15:56:50.448Z",
+  "base": "http://127.0.0.1:4320"
 }

@@ -12,7 +12,7 @@ This page walks a newcomer from a fresh clone to a running local copy.
 > **Draft — commands below are inferred from files in the repository root, not from a
 > verified run.** Each step names the file it was inferred from. Steps marked
 > "needs verification" have not been executed against this repository; treat them as
-> a starting point and prefer whatever `rake -T`, `CONTRIBUTING.md` or the CI
+> a starting point and prefer whatever `tools/dash`, `CONTRIBUTING.md` or the CI
 > workflows in `.github/` say. If you confirm or correct a step, please delete its
 > warning block so the next person doesn't have to re-check it.
 
@@ -24,9 +24,9 @@ This page walks a newcomer from a fresh clone to a running local copy.
 
 | Evidence | What it suggests |
 |---|---|
-| `_config.yml`, `_config_dev.yml`, `index.md`, `pages/`, `assets/`, `Gemfile` | A **Jekyll** static site, with a separate development config |
+| `tools/console/`, `pages/`, `_data/profile.yml` | The public site — the Harness Console's page built static ([CONSOLE-PAGES.md](CONSOLE-PAGES.md)) |
 | `.gitmodules`, `SUBMODULES.md` | Content is composed from **git submodules** |
-| `Rakefile` | Repository tasks are exposed through **Rake** |
+| `tools/dash` | Repository tasks are exposed through the **dash CLI** |
 | `docker-compose.yml`, `.devcontainer/` | A **container-based** development path exists |
 | `.pre-commit-config.yaml`, `.husky/`, `.prettierrc`, `.editorconfig` | Automated formatting and pre-commit hooks |
 | `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.mcp.json`, `fleet.manifest.yml` | Automation/agent tooling conventions |
@@ -41,12 +41,8 @@ The repository's primary language is reported as **Shell**, and the default bran
 Install whichever path you plan to use.
 
 - **Git** — required for every path (this repo uses submodules).
-- **Ruby + Bundler** — for the local path. A `Gemfile` is present at the repository
-  root.
-  <!-- verify: check the Gemfile / .ruby-version / Gemfile.lock for the required Ruby version -->
-  > [!WARNING]
-  > The required Ruby version is **not documented here** because it was not verified.
-  > Check the `Gemfile` (and a `.ruby-version` file, if one exists) before installing.
+- **Python 3 and Node (current LTS)** — for the local path: the Harness Console
+  (`tools/console/`) and the public site build use nothing else.
 - **Docker** — for the container path (`docker-compose.yml` is present).
 - **VS Code + Dev Containers extension** — optional; a `.devcontainer/` directory is
   present, and `home.code-workspace` is the consolidated VS Code multi-root workspace.
@@ -98,26 +94,21 @@ Then fill in the values.
 ## 4. Install dependencies
 
 ```bash
-bundle install
+tools/dash console    # creates .venv-console and installs the page's packages on first run
+pip install pre-commit && pre-commit install
 ```
 
-This is inferred from the presence of a root `Gemfile`.
-
-> [!WARNING]
-> **Needs verification.** There may be additional dependency steps — for example a
-> Node/npm install (the repository contains `.husky/`, `.prettierrc` and
-> `.prettierignore`, which are Node-ecosystem tools) or a `pre-commit install` step
-> (`.pre-commit-config.yaml` is present). Check `CONTRIBUTING.md` and `rake -T`.
+Every install resolves the newest published versions (no lockfiles — [DEPENDENCIES.md](DEPENDENCIES.md)).
 
 ## 5. Discover the supported tasks
 
 Before running anything else, ask the repository what it supports:
 
 ```bash
-rake -T
+tools/dash            # every command, with a one-line description
 ```
 
-`rake -T` lists every documented Rake task with its description. Because a `Rakefile` exists at the repository root, **this is the most reliable way to find the real, current commands for this project** — more reliable than this page. No specific task name is claimed in this document, precisely because none has been verified.
+`tools/dash` is the repository's task entry point; it reuses the scripts under `tools/`.
 
 Also worth reading:
 
@@ -127,22 +118,14 @@ Also worth reading:
 
 ## 6. Serve the site locally
 
-The repository contains both `_config.yml` and `_config_dev.yml`, which is the standard Jekyll pattern of layering a development override on top of the production configuration:
-
 ```bash
-bundle exec jekyll serve --config _config.yml,_config_dev.yml
+tools/dash serve      # the public site, built static exactly as Pages publishes it → http://127.0.0.1:4000
+tools/dash console    # the same page live, with the console behind it → http://127.0.0.1:4001
 ```
-
-> [!WARNING]
-> **Needs verification.** This command is the conventional Jekyll invocation for a
-> layered config, not a confirmed command for this repository. In particular it is
-> unconfirmed that (a) `jekyll` is a dependency in the `Gemfile`, (b) `_config_dev.yml`
-> is meant to be layered rather than passed alone, and (c) there is not already a Rake
-> task that wraps this. **Run `rake -T` first** — if a serve task exists, prefer it.
 
 ### Container-based alternative
 
-A `docker-compose.yml` and a `.devcontainer/` directory are both present, so a container path exists and avoids installing Ruby locally.
+A `docker-compose.yml` and a `.devcontainer/` directory are both present, so a container path exists and avoids installing the toolchain locally.
 
 - **Dev Container:** open the folder in VS Code and choose *Reopen in Container*.
 - **Docker Compose:** the entry point is likely `docker compose up`.
@@ -158,7 +141,7 @@ A `docker-compose.yml` and a `.devcontainer/` directory are both present, so a c
 > **Not yet documented.** No test command has been verified for this repository. Rather
 > than guess, use these two sources of truth:
 >
-> 1. `rake -T` — look for tasks named `test`, `check`, `lint`, `validate` or similar.
+> 1. `tools/run-all-tests.sh` and `tools/check-drift.sh` — the aggregate suite and the drift gate.
 > 2. `.github/` — the CI workflow files define exactly what runs on a pull request.
 >    Whatever CI runs is what your change must pass.
 >
@@ -173,9 +156,9 @@ Top-level directories and what the surrounding files suggest they hold:
 
 | Path | Purpose (inferred) |
 |---|---|
-| `pages/` | Site pages |
+| `pages/` | Site content: `profile/*.md` and `posts/*.md` |
 | `projects/` | Project content, likely including git submodules |
-| `assets/` | Static assets for the site |
+| `tools/console/` | The Harness Console — and, built static, the public site |
 | `_data/` | Structured data consumed by the site; see [`SCHEMA.md`](../SCHEMA.md) |
 | `templates/` | Reusable templates |
 | `tools/` | Helper scripts (the repo's primary language is Shell) |
@@ -185,13 +168,13 @@ Top-level directories and what the surrounding files suggest they hold:
 | `.github/` | GitHub configuration and CI workflows |
 | `.claude/`, `.mcp.json` | Agent/automation tooling configuration; see [`AGENTS.md`](../AGENTS.md) and [`CLAUDE.md`](../CLAUDE.md) |
 
-Key root files: `README.md` (the profile page), `CONTRIBUTING.md`, `SUBMODULES.md`, `SCHEMA.md`, `AGENTS.md`, `CLAUDE.md`, `Rakefile`, `Gemfile`, `fleet.manifest.yml`, `home.code-workspace` (the consolidated VS Code workspace).
+Key root files: `README.md` (the profile page), `CONTRIBUTING.md`, `SUBMODULES.md`, `SCHEMA.md`, `AGENTS.md`, `CLAUDE.md`, `fleet.manifest.yml`, `home.code-workspace` (the consolidated VS Code workspace).
 
 ---
 
 ## If you get stuck
 
-1. `rake -T` — the definitive list of supported tasks.
+1. `tools/dash` — the list of supported tasks.
 2. [`CONTRIBUTING.md`](../CONTRIBUTING.md) — workflow and conventions.
 3. [`SUBMODULES.md`](../SUBMODULES.md) — anything submodule-related.
 4. `.github/` workflows — the exact commands CI runs, which always beat this page.

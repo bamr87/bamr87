@@ -1,6 +1,6 @@
 ---
 name: run-dash
-description: Run, drive, and orchestrate the bamr87 dash — the hub for ~40 submodule projects. Use to get the orchestration map, see project health/status, generate a per-project "work order" before dispatching Claude Code into a submodule, or serve/screenshot the Jekyll dash site. Triggers: "run the dash", "start the dash", "what should I work on", "orchestrate the submodules", "serve the dash site", "screenshot the dash". (For a plain read-only status readout, /dash-status owns that.)
+description: Run, drive, and orchestrate the bamr87 dash — the hub for ~40 submodule projects. Use to get the orchestration map, see project health/status, generate a per-project "work order" before dispatching Claude Code into a submodule, or serve/screenshot the dash site (the Harness Console's page, built static). Triggers: "run the dash", "start the dash", "what should I work on", "orchestrate the submodules", "serve the dash site", "screenshot the dash". (For a plain read-only status readout, /dash-status owns that.)
 ---
 
 # run-dash — orchestrate the bamr87 hub
@@ -11,7 +11,7 @@ Three surfaces, in the order you'll reach for them:
 
 1. **`driver.py`** (in this skill dir) — the orchestration map + per-project work order. **This is the primary agent path.** It joins the registry × `.gitmodules` × submodule checkout-state × health × local context files, and prints the exact copy-paste to enter a submodule on its correct branch.
 2. **`tools/dash`** — the project's own CLI for `status` / `monitor` / health.
-3. **The Jekyll dash site** — the human-facing portfolio/monitor at `:4000`.
+3. **The dash site** — the human-facing portfolio + console: the public static build at `:4000` (`tools/dash serve`), or the live console at `:4001` (`tools/dash console`).
 
 All paths below are relative to the repo root (the unit). The driver's own path from root is `.claude/skills/run-dash/driver.py`.
 
@@ -73,46 +73,31 @@ tools/dash monitor         # refresh health, print repos needing attention (🔴
 
 `tools/dash status` is read-only and fast. `tools/dash monitor` hits the GitHub API for all ~40 repos (≈30–60s).
 
-## Run the dash site (Jekyll) + screenshot
+## Run the dash site + screenshot
 
-⚠️ **`tools/dash serve` does not work on a clean machine** — see Gotchas. Use this standalone-container path instead. It serves from a temp copy so the worktree stays pristine, and uses a free port (`:4000` is often already taken):
+The site is the Harness Console's page built static, exactly as GitHub Pages publishes it (docs/CONSOLE-PAGES.md). It needs Python 3 with PyYAML and Node (current LTS), and nothing else:
 
 ```bash
-# 1. copy the site out (submodules are empty; theme comes from remote_theme)
-BUILD=/tmp/dash-preview
-rm -rf "$BUILD" && mkdir -p "$BUILD/projects"
-rsync -a --exclude='.git' --exclude='projects' --exclude='_site' --exclude='node_modules' ./ "$BUILD"/
-
-# 2. serve with the github-pages stack (Ruby 3.1 image), host port 4001
-docker rm -f dash-preview 2>/dev/null || true
-docker run -d --name dash-preview -v "$BUILD":/srv/jekyll -p 4001:4000 \
-  --entrypoint /bin/sh jekyll/jekyll:latest \
-  -c "cd /srv/jekyll && bundle install && bundle exec jekyll serve -H 0.0.0.0 -c _config.yml,_config_dev.yml"
-
-# 3. wait until it answers (first run does a full `bundle install`, a few minutes)
-until [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4001/)" = "200" ]; do sleep 5; done
-echo "dash up on http://localhost:4001/"
+tools/dash serve                      # builds at the root and serves http://127.0.0.1:4000
+DASH_SERVE_PORT=4002 tools/dash serve # :4000 is often taken by an unrelated container
+tools/dash console                    # the live console instead — same page, with every operation (:4001)
 ```
 
-The orchestration surfaces are `/dashboard/` (command center — counts + "needs attention"), `/monitor/` (the color-coded health board), and `/projects/` (portfolio). Screenshot one with headless Chrome (no chromium-cli on this machine):
+The orchestration surfaces are `/overview` (attention queue, KPIs, signal freshness), `/projects` (every project with health and triage) and `/portfolio` (the cards). Screenshot one with headless Chrome:
 
 ```bash
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headless=new --disable-gpu --hide-scrollbars --window-size=1440,2200 \
+  --headless=new --disable-gpu --hide-scrollbars --window-size=1440,2200 --virtual-time-budget=5000 \
   --screenshot="$PWD/.claude/skills/run-dash/dash-screenshot.png" \
-  http://localhost:4001/dashboard/
+  http://127.0.0.1:4000/overview
 ```
 
-The capture is a local, gitignored artifact (`.claude/skills/run-dash/*.png` is ignored) — never commit it. Tear down when done:
-
-```bash
-docker rm -f dash-preview && rm -rf /tmp/dash-preview
-```
+`--virtual-time-budget` matters: the page renders after it fetches its snapshot. The capture is a local, gitignored artifact (`.claude/skills/run-dash/*.png` is ignored) — never commit it.
 
 ## Gotchas (verified the hard way)
 
-- **`tools/dash serve` is broken on a clean machine.** Its docker path runs `docker compose exec devenv … bundle exec jekyll serve`, but `.devcontainer/` installs only node/python/docker — **no Ruby/Jekyll/Bundler**. Its native fallback needs Ruby ≥ 2.7 (`github-pages` gem), but system Ruby here is 2.6.10. Use the standalone `jekyll/jekyll` container above.
-- **`:4000` is often already in use** by an unrelated Jekyll container (the user runs several). `lsof -i :4000` to check; serve on `:4001` (or any free port).
+- **`:4000` is often already in use** by an unrelated container (the user runs several Jekyll sites). `lsof -i :4000` to check; `DASH_SERVE_PORT` picks another.
+- **A deep link 404s** only on a build made for the Pages subpath (`/bamr87/`) served at the root. `tools/dash serve` builds at the root; `tools/console/build-pages.sh` alone builds for Pages.
 - **Every submodule is uninitialized by default** — `git submodule status` shows a leading `-`, the dirs are empty. Init only the one you need; don't `--init --recursive` all 40 unless you mean it. The driver shows this as state `·`.
 - **Submodules land in detached HEAD.** All track **`main`** except `projects/sonic-pi` (**`dev`**, upstream fork) — but always `git checkout <declared-branch>` from the work order (the declared branch comes from `.gitmodules`), don't assume.
 - **In a git worktree, the drift gate reports every submodule as drifted** (it sees the worktree's branch name, e.g. `claude/…`, instead of the declared branch). This is a worktree artifact, not real drift — `tools/dash status` will show ~40 DRIFT lines that don't apply. Verify on the main checkout if in doubt.
@@ -124,7 +109,6 @@ docker rm -f dash-preview && rm -rf /tmp/dash-preview
 - **`driver.py` → `requires PyYAML` / `No module named 'yaml'`**: wrong interpreter. Use the `python3` that runs `tools/dash` (Homebrew 3.x here), or `python3 -m pip install pyyaml` for the one on your PATH. A bare login shell may resolve `/usr/bin/python3` 3.9, which lacks it.
 - **Health column blank / "no health data"**: run `tools/dash-gen health` (needs `gh` authenticated), then re-run the driver.
 - **`tools/dash monitor` errors or all-null health**: `gh auth status` — an expired token makes every repo degrade to null (the generator won't crash, just empty).
-- **Container serves but page is unstyled / 404 theme**: `remote_theme: bamr87/zer0-mistakes` needs network and may hit GitHub rate limits. Re-run, or set `remote_theme: false` per the note in `_config_dev.yml` and vendor the theme.
 
 ## After: authoring a per-submodule run skill
 

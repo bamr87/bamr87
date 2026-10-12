@@ -1,0 +1,20 @@
+# The public page's door to its write path: connect GitHub or a console.
+id: connect
+feature: HUB-022
+title: "The published snapshot says how old it is and how to act on it"
+description: "On the public build the header shows the snapshot's age, /connect offers a GitHub token and a console URL, a console-only operation explains what it needs instead of failing, and /auth (a console's credentials) lands on /connect."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /connect
+  - expect: { status: 200 }
+  - wait: { selector: "text=GitHub, from this browser" }
+  - expect: { text: "A running console" }
+  - expect: { text: "published snapshot" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: connect
+  - goto: /auth
+  - wait: { url: "/connect" }
+  - goto: /ops
+  - wait: { selector: "text=On the published page" }
+  - screenshot: ops-public

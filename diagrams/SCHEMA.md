@@ -23,7 +23,7 @@ coverage: listed
 
 ## Placement
 
-- New diagram → `<name>.<type>.json` here, then `tools/render-diagrams.sh`; link it from docs/HARNESS.md and `pages/_dash/harness.md` if it illustrates the harness.
+- New diagram → `<name>.<type>.json` here, then `tools/render-diagrams.sh`; link it from docs/HARNESS.md and add it to `DIAGRAMS` in `tools/console/web/src/pages/HealthPage.tsx` if it illustrates the harness.
 
 ## Forbidden
 

@@ -2,7 +2,7 @@
 """
 machine_api — publish a stable, agent-facing JSON surface on the dash site.
 
-The human dashboards (/monitor/, /triage/, /dashboard/) already render the
+The human pages (/inbox, /projects, /overview — the console's static build) render the
 fleet registries. Agents hitting those URLs get Bootstrap HTML. This module
 projects the same committed (and optional ephemeral) signals into compact
 JSON under ``{out}/api/v1/`` plus a root ``llms.txt`` discovery file, so a
@@ -18,7 +18,7 @@ Inputs (all optional — missing files degrade that endpoint, never crash):
   _data/issue_pipeline.yml     three-tier pipeline stages
   _data/projects.yml           registry (name/status/url only, for index)
 
-Output (written under ``--out``, default ``_site`` after Jekyll build):
+Output (written under ``--out``, default ``_site`` beside the console's static build):
 
   api/v1/index.json
   api/v1/fleet.json
@@ -147,7 +147,7 @@ def build_fleet(triage: dict | None) -> dict:
         "totals": triage.get("totals") or {},
         "inbox": compact_inbox(triage.get("inbox")),
         "by_repo": compact_by_repo(triage.get("by_repo")),
-        "human": f"{SITE_BASE}/triage/",
+        "human": f"{SITE_BASE}/inbox",
         "raw": f"{RAW_BASE}/_data/fleet_triage.yml",
     }
 
@@ -163,7 +163,7 @@ def build_health(health: Any, meta: dict | None) -> dict:
             "repos": [],
             "counts": {"red": 0, "amber": 0, "green": 0},
             "fallback": f"{SITE_BASE}/api/v1/fleet.json",
-            "human": f"{SITE_BASE}/monitor/",
+            "human": f"{SITE_BASE}/projects",
         }
 
     rows = health if isinstance(health, list) else (health.get("repos") or health.get("projects") or [])
@@ -218,7 +218,7 @@ def build_health(health: Any, meta: dict | None) -> dict:
         "source": "project_health",
         "counts": counts,
         "repos": repos,
-        "human": f"{SITE_BASE}/monitor/",
+        "human": f"{SITE_BASE}/projects",
     }
 
 
@@ -336,7 +336,7 @@ def build_index(*, fleet: dict, health: dict, harness: dict, issues: dict) -> di
             "GET /api/v1/index.json first",
             "Then GET /api/v1/fleet.json and work inbox[] in order (highest priority first)",
             "Use /api/v1/health.json for per-repo attention levels when present",
-            "Human mirrors: /triage/ and /monitor/",
+            "Human mirrors: /inbox and /projects; every console view reads snapshot/*.json",
         ],
         "priority_hint": priority_hint,
         "endpoints": [{"url": SITE_BASE + e["path"], **e} for e in endpoints],
@@ -348,9 +348,11 @@ def build_index(*, fleet: dict, health: dict, harness: dict, issues: dict) -> di
         },
         "human_hubs": {
             "home": f"{SITE_BASE}/",
-            "triage": f"{SITE_BASE}/triage/",
-            "monitor": f"{SITE_BASE}/monitor/",
-            "dashboard": f"{SITE_BASE}/dashboard/",
+            # Keys kept from the Jekyll era (consumers read them); the pages moved.
+            "triage": f"{SITE_BASE}/inbox",
+            "monitor": f"{SITE_BASE}/projects",
+            "dashboard": f"{SITE_BASE}/overview",
+            "snapshot": f"{SITE_BASE}/snapshot/manifest.json",
             "issue_pipeline": f"{SITE_BASE}/issue-pipeline/",
             "harness": f"{SITE_BASE}/harness/",
         },
@@ -381,9 +383,9 @@ def build_llms_txt(index: dict) -> str:
         "",
         "## Human mirrors",
         "",
-        f"- Triage: {SITE_BASE}/triage/",
-        f"- Monitor: {SITE_BASE}/monitor/",
-        f"- Dashboard: {SITE_BASE}/dashboard/",
+        f"- Inbox (triage): {SITE_BASE}/inbox",
+        f"- Projects (monitor): {SITE_BASE}/projects",
+        f"- Overview: {SITE_BASE}/overview",
         "",
         "## Raw registries (GitHub)",
         "",
@@ -458,7 +460,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "--out",
         type=Path,
         default=REPO_ROOT / "_site",
-        help="Site root to write into (default: _site after jekyll build)",
+        help="Site root to write into (default: _site, where build-dash.yml builds the page)",
     )
     parser.add_argument(
         "--data",

@@ -1,11 +1,11 @@
 {
   "id": "harnesses",
-  "title": "AI Harnesses board renders totals, attention, and the schedule",
+  "title": "Harness inventory renders the deployment matrix",
   "features": [
     "HUB-005"
   ],
   "path": "verify/scenarios/harnesses.yml",
-  "started": "2026-09-05T05:12:45.505Z",
+  "started": "2026-10-12T15:56:42.472Z",
   "viewports": [
     {
       "name": "desktop",
@@ -15,9 +15,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/harnesses/",
+          "arg": "/harnesses",
           "ok": true,
-          "ms": 709
+          "ms": 591
         },
         {
           "step": "expect",
@@ -28,20 +28,12 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 16
-        },
-        {
-          "step": "expect",
-          "arg": {
-            "text": "Attention"
-          },
-          "ok": true,
-          "ms": 3
+          "ms": 13
         },
         {
           "step": "expect",
@@ -53,34 +45,20 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 1
+          "ms": 2
         },
         {
           "step": "screenshot",
           "arg": "harnesses",
           "ok": true,
           "file": "test/evidence/harnesses/desktop-harnesses.png",
-          "ms": 48
-        }
-      ],
-      "console_errors": [],
-      "screenshots": [
-        "test/evidence/harnesses/desktop-harnesses.png"
-      ],
-      "evals": {},
-      "final_url": "http://127.0.0.1:4000/harnesses/"
-    },
-    {
-      "name": "mobile",
-      "width": 390,
-      "height": 844,
-      "ok": true,
-      "steps": [
+          "ms": 42
+        },
         {
           "step": "goto",
-          "arg": "/harnesses/",
+          "arg": "/harnesses/health",
           "ok": true,
-          "ms": 717
+          "ms": 567
         },
         {
           "step": "expect",
@@ -91,20 +69,56 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main h2"
           },
           "ok": true,
-          "ms": 21
+          "ms": 25
+        },
+        {
+          "step": "screenshot",
+          "arg": "harness-health",
+          "ok": true,
+          "file": "test/evidence/harnesses/desktop-harness-health.png",
+          "ms": 32
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/harnesses/desktop-harnesses.png",
+        "test/evidence/harnesses/desktop-harness-health.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4320/harnesses/health/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/harnesses",
+          "ok": true,
+          "ms": 652
         },
         {
           "step": "expect",
           "arg": {
-            "text": "Attention"
+            "status": 200
           },
           "ok": true,
-          "ms": 2
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table.dt"
+          },
+          "ok": true,
+          "ms": 10
         },
         {
           "step": "expect",
@@ -123,18 +137,48 @@
           "arg": "harnesses",
           "ok": true,
           "file": "test/evidence/harnesses/mobile-harnesses.png",
-          "ms": 51
+          "ms": 23
+        },
+        {
+          "step": "goto",
+          "arg": "/harnesses/health",
+          "ok": true,
+          "ms": 534
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main h2"
+          },
+          "ok": true,
+          "ms": 12
+        },
+        {
+          "step": "screenshot",
+          "arg": "harness-health",
+          "ok": true,
+          "file": "test/evidence/harnesses/mobile-harness-health.png",
+          "ms": 12
         }
       ],
       "console_errors": [],
       "screenshots": [
-        "test/evidence/harnesses/mobile-harnesses.png"
+        "test/evidence/harnesses/mobile-harnesses.png",
+        "test/evidence/harnesses/mobile-harness-health.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/harnesses/"
+      "final_url": "http://127.0.0.1:4320/harnesses/health/"
     }
   ],
   "ok": true,
-  "finished": "2026-09-05T05:12:47.160Z",
-  "base": "http://127.0.0.1:4000"
+  "finished": "2026-10-12T15:56:45.074Z",
+  "base": "http://127.0.0.1:4320"
 }

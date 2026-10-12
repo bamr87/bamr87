@@ -1,8 +1,12 @@
 name: 🛰️ Build & Deploy Dash
 
-# Builds the root Jekyll site (zer0-mistakes remote theme), regenerating live
-# monitoring data at build time so the Monitor board stays fresh without commits.
-# REPLACES build-docs.yml (MkDocs) as the published GitHub Pages surface.
+# Builds the PUBLIC site — https://bamr87.github.io/bamr87/ — which is the
+# Harness Console's own page (tools/console/web, React + Mantine) built static:
+# the portfolio and profile pages plus every console view, reading a snapshot
+# of the API documents that tools/console/snapshot.py renders with the SAME
+# Python the console runs (docs/CONSOLE-PAGES.md). Live monitoring data is
+# regenerated at build time so the boards stay fresh without commits.
+# Replaced the Jekyll (zer0-mistakes remote theme) site in 2026-10.
 
 on:
   push:
@@ -10,9 +14,8 @@ on:
     paths:
       - 'pages/**'
       - '_data/**'
-      - '_config.yml'
-      - 'index.md'
-      - 'assets/**'
+      - 'tools/console/**'
+      - 'tools/fleetcore/**'
       - 'README.md'
       - '.github/scripts/dash-gen/**'
       - '.github/actions/setup/dash-gen/**'
@@ -20,7 +23,8 @@ on:
   # Build (never deploy) on PRs touching the same paths. Without this the site
   # build was verified only AFTER merge, so a broken page reached main before
   # anything noticed — the same shape as the failure that froze the fleet's data
-  # for three weeks. The drift gate covers the registry, not Liquid or the theme.
+  # for three weeks. The drift gate covers the registry, not the page or the
+  # snapshot exporter.
   #
   # The list is duplicated rather than shared via a YAML anchor: anchors are
   # valid YAML and actionlint accepts them, but GitHub Actions' own workflow
@@ -30,9 +34,8 @@ on:
     paths:
       - 'pages/**'
       - '_data/**'
-      - '_config.yml'
-      - 'index.md'
-      - 'assets/**'
+      - 'tools/console/**'
+      - 'tools/fleetcore/**'
       - 'README.md'
       - '.github/scripts/dash-gen/**'
       - '.github/actions/setup/dash-gen/**'
@@ -69,19 +72,28 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - uses: actions/setup-node@v7
         with:
-          ruby-version: '3.3'
-          bundler-cache: true
+          # Not vars.NODE_VERSION: the fleet's canonical value (20) is below
+          # what React Router 8 requires — the same choice as console-web.yml.
+          node-version: lts/*
 
+      # The page (base /bamr87/, VITE_STATIC=1) and the snapshot beside it:
+      # every API document, a page per route, 404.html, sitemap, feed.
       - name: Build site
-        run: bundle exec jekyll build
+        run: tools/console/build-pages.sh
         env:
-          JEKYLL_ENV: production
+          OUT: ${{ github.workspace }}/_site
 
-      # Agents cannot scrape the Bootstrap dash. Project the same registries into
-      # stable JSON under _site/api/v1/ (+ llms.txt) after Jekyll so Pages serves
+      - name: The bundle carries no inline script (the page's CSP is script-src 'self')
+        run: |
+          if grep -Eq '<script>|<script [^>]*>[^<]+</script>' _site/index.html; then
+            echo "::error file=tools/console/web/index.html::inline script in the built page — its CSP would block it"
+            exit 1
+          fi
+
+      # Agents should not have to drive the app. Project the same registries into
+      # stable JSON under _site/api/v1/ (+ llms.txt) beside it so Pages serves
       # them as static files. Degraded endpoints still emit valid JSON.
       - name: Emit machine API (agent JSON + llms.txt)
         run: python .github/scripts/dash-gen/dash_gen.py machine-api --out _site

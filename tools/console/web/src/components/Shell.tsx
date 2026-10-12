@@ -9,11 +9,14 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { spotlight } from '@mantine/spotlight';
 import {
-  IconApi, IconBox, IconGitBranch, IconKey, IconMoonStars, IconRefresh, IconSearch, IconSun,
+  IconApi, IconBox, IconBrandGithub, IconCamera, IconGitBranch, IconKey, IconMoonStars, IconPlugConnected, IconRefresh, IconSearch, IconSun,
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, type ReactNode } from 'react';
-import { useCaps, useJobs, useStateDoc } from '../api/hooks';
+import { asset, consoleOrigin, hasConsole, mode } from '../api/backend';
+import { useCaps, useGithubStatus, useJobs, useManifest, useSite, useStateDoc } from '../api/hooks';
+import { clearSnapshotCache } from '../api/static';
+import { when } from '../lib/format';
 import { NAV, activeIndex, FLAT } from '../nav';
 import { to } from '../lib/links';
 
@@ -27,13 +30,39 @@ function Chip({ children, tone, href, title }: { children: ReactNode; tone?: 'go
   return <Tooltip label={title}>{body}</Tooltip>;
 }
 
+/** The public build without a console: how old the snapshot is, and GitHub. */
+function SnapshotStatus() {
+  const m = useManifest();
+  const gh = useGithubStatus();
+  return (
+    <Group gap={6} wrap="nowrap" visibleFrom="md" style={{ overflow: 'hidden' }}>
+      <Chip href={to.connect()} title={m.data ? `Published snapshot of commit ${m.data.commit.slice(0, 7)}, built ${m.data.generated_at}. Read-only — connect GitHub or a console to act.` : 'Published snapshot'}>
+        <IconCamera size={13} /> snapshot {m.data ? when(m.data.generated_at) : ''}
+      </Chip>
+      <Chip tone={gh.data?.connected ? 'good' : undefined} href={to.connect()} title={gh.data?.connected ? `Acting on GitHub as ${gh.data.login}, from this browser` : 'Connect a GitHub token to act on GitHub from this page'}>
+        <IconBrandGithub size={13} /> {gh.data?.connected ? gh.data.login : 'connect'}
+      </Chip>
+    </Group>
+  );
+}
+
 function HeaderStatus() {
+  if (!hasConsole()) return <SnapshotStatus />;
+  return <ConsoleStatus />;
+}
+
+function ConsoleStatus() {
   const state = useStateDoc();
   const caps = useCaps();
   const g = state.data?.git ?? {};
   const tokens = Object.entries(caps.data?.env_tokens ?? {}).filter(([, v]) => v).map(([k]) => k);
   return (
     <Group gap={6} wrap="nowrap" visibleFrom="md" style={{ overflow: 'hidden' }}>
+      {mode() === 'remote' ? (
+        <Chip tone="good" href={to.connect()} title="This public page is connected to a running console; every page acts through it.">
+          <IconPlugConnected size={13} /> {consoleOrigin().replace(/^https?:\/\//, '')}
+        </Chip>
+      ) : null}
       <Chip title="git branch and HEAD of the hub working tree">
         <IconGitBranch size={13} /> {g.branch ?? '?'} <Text span ff="monospace" fz={11}>{g.head ?? ''}</Text>
       </Chip>
@@ -82,7 +111,7 @@ function ThemeToggle() {
 
 // The hand-written page addressed tabs as /#harnesses; keep those bookmarks working.
 const LEGACY: Record<string, string> = {
-  overview: '/', apps: '/projects', harnesses: '/harnesses', schedules: '/schedules', loops: '/loops', costs: '/costs',
+  overview: '/overview', apps: '/projects', harnesses: '/harnesses', schedules: '/schedules', loops: '/loops', costs: '/costs',
   observe: '/observe/traces', content: '/content', fleet: '/projects', contract: '/config', auth: '/auth', jobs: '/jobs',
 };
 
@@ -95,12 +124,18 @@ export function Shell() {
     if (dest) navigate(dest, { replace: true });
   }, [pathname, hash, navigate]);
   const qc = useQueryClient();
+  const site = useSite();
+  const brand = site.data?.profile.site?.title ?? 'Harness Console';
   const active = activeIndex(pathname);
   useEffect(close, [pathname, close]);
   useEffect(() => {
     const item = FLAT[active];
-    document.title = item ? `${item.label} · Harness Console` : 'Harness Console';
-  }, [active]);
+    document.title = item && item.to !== '/' ? `${item.label} · ${brand}` : `${brand}${site.data?.profile.name ? ` — ${site.data.profile.name}` : ''}`;
+  }, [active, brand, site.data]);
+  const refresh = () => {
+    clearSnapshotCache();
+    void qc.invalidateQueries();
+  };
 
   return (
     <AppShell header={{ height: 54 }} navbar={{ width: 236, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="lg"
@@ -110,8 +145,9 @@ export function Shell() {
           <Group gap="sm" wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Menu" />
             <UnstyledButton component={Link} to="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src="/favicon.svg" width={24} height={24} alt="" />
-              <Text fw={650} fz={16} style={{ whiteSpace: 'nowrap' }}>Harness Console</Text>
+              <img src={asset('favicon.svg')} width={24} height={24} alt="" />
+              <Text fw={650} fz={16} style={{ whiteSpace: 'nowrap' }}>{brand}</Text>
+              <Text size="xs" c="dimmed" visibleFrom="lg" style={{ whiteSpace: 'nowrap' }}>Harness Console</Text>
             </UnstyledButton>
             <HeaderStatus />
           </Group>
@@ -123,12 +159,14 @@ export function Shell() {
             <ActionIcon variant="default" size="lg" hiddenFrom="xs" onClick={() => spotlight.open()} aria-label="Search"><IconSearch size={18} /></ActionIcon>
             <JobsIndicator />
             <Tooltip label="Re-read every document (r)">
-              <ActionIcon variant="default" size="lg" visibleFrom="xs" onClick={() => void qc.invalidateQueries()} aria-label="Refresh"><IconRefresh size={18} /></ActionIcon>
+              <ActionIcon variant="default" size="lg" visibleFrom="xs" onClick={refresh} aria-label="Refresh"><IconRefresh size={18} /></ActionIcon>
             </Tooltip>
             <ThemeToggle />
-            <Tooltip label="API docs (/docs)">
-              <ActionIcon component="a" href="/docs" target="_blank" rel="noopener" variant="default" size="lg" visibleFrom="sm" aria-label="API docs"><IconApi size={18} /></ActionIcon>
-            </Tooltip>
+            {hasConsole() ? (
+              <Tooltip label="API docs (/docs)">
+                <ActionIcon component="a" href={`${consoleOrigin()}/docs`} target="_blank" rel="noopener" variant="default" size="lg" visibleFrom="sm" aria-label="API docs"><IconApi size={18} /></ActionIcon>
+              </Tooltip>
+            ) : null}
           </Group>
         </Group>
       </AppShell.Header>

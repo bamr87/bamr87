@@ -9,7 +9,7 @@
 
 **bamr87 is the platform runtime** — registry, `fleet.yml` contract, kits, `tools/dash` / `dash-gen`, fan-out, data lake, and Phoenix. Humans should not need a second ops GUI.
 
-**GitHub Pages / Jekyll dash (:4000) is a static projection** of committed `_data/*.yml`. It is not the operator console.
+**GitHub Pages (`tools/dash serve`, :4000) is the console's page built static** — a projection of committed `_data/*.yml` that becomes write-capable only when a visitor connects GitHub or a running console ([CONSOLE-PAGES.md](CONSOLE-PAGES.md)).
 
 ```text
 Gitorio (cockpit) ──jobs/API──► bamr87 devenv (tools/dash, kits, fan-out)
@@ -30,7 +30,7 @@ The local stack already exists as three services (HARNESS-OPS):
 | --- | --- | --- |
 | Harness Console `:4001` | Write-capable ops UI over allowlisted `tools/dash` | **Bridge / job API** until Gitorio absorbs its tabs; then headless or removed |
 | Data lake + Phoenix `:6006` | Local extract/review/traces | Unchanged backend for Insight / Traces |
-| Jekyll dash `:4000` / Pages | Read-only twin | Unchanged static projection |
+| Pages / `tools/dash serve` `:4000` | The console's page, static (snapshot); GitHub or a console can be connected from it | Public face of whatever front door wins |
 
 Gitorio already owns Design (canvas/compiler), Fleet Observe, and a Harness tab that ports `dash-gen harness`. The gap is not philosophy — it is **one front door**.
 
@@ -68,7 +68,7 @@ Gitorio already owns Design (canvas/compiler), Fleet Observe, and a Harness tab 
 docker compose up -d devenv phoenix console   # engine + lake API bridge + traces
 # gitorio: app vite (compose service TBD)  → http://127.0.0.1:5173
 # phoenix                                  → http://127.0.0.1:6006
-# jekyll/pages (optional)                  → http://127.0.0.1:4000
+# pages build (tools/dash serve, optional) → http://127.0.0.1:4000
 # console bridge (until absorbed)          → http://127.0.0.1:4001
 ```
 

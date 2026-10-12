@@ -19,7 +19,7 @@ The `README.md` at the root of this repository is a **GitHub profile README**. I
 > Yes, this is a profile README - but it is also a living map of the projects and
 > systems I actively maintain.
 
-But this repository is also a **monorepo** with a real toolchain at its root: `Gemfile`, `Rakefile`, `_config.yml`, `docker-compose.yml`, `.devcontainer/`, `.husky/`, `.pre-commit-config.yaml`, `.github/`.
+But this repository is also a **monorepo** with a real toolchain at its root: `tools/dash`, `tools/console/`, `docker-compose.yml`, `.devcontainer/`, `.husky/`, `.pre-commit-config.yaml`, `.github/`.
 
 Those two audiences don't mix well in one file, so:
 
@@ -48,10 +48,9 @@ Everything at the repository root, and what it is. Entries whose purpose is infe
 
 | Path | What it is |
 | --- | --- |
-| `Gemfile` | Ruby dependency manifest. Open it for the required Ruby/gem versions. |
-| `Rakefile` | The task runner. **This is where the canonical build/serve/test commands live.** |
-| `_config.yml` | Primary site configuration. *(inferred: Jekyll-style)* |
-| `_config_dev.yml` | Development overrides layered on top of `_config.yml`. *(inferred)* |
+| `tools/dash` | The task runner. **This is where the canonical build/serve/test commands live** (run it with no arguments). |
+| `tools/console/` | The Harness Console; `build-pages.sh` builds it static as the public site ([CONSOLE-PAGES.md](CONSOLE-PAGES.md)). |
+| `_data/profile.yml` | The public site's identity (name, title, links). |
 | `docker-compose.yml` | Containerised local environment. |
 | `.devcontainer/` | VS Code / Codespaces dev container definition. |
 | `.env.example` | Template for local environment variables. |
@@ -165,14 +164,14 @@ cp .env.example .env
 
 The `Rakefile` is the task runner for this repository, and `.github/` should contain the workflows that run in CI. Between them they define the real, authoritative commands. Please fill in this section by:
 
-1. Running `rake -T` (or reading the `Rakefile`) and listing the tasks a
-   contributor actually needs: build, serve locally, test, lint, clean.
+1. Running `tools/dash` and listing the tasks a contributor actually needs:
+   build, serve locally, test, lint, clean.
 2. Reading `.github/workflows/*` and documenting exactly what CI runs, so a
    contributor can reproduce a CI failure locally.
-3. Explaining when `_config_dev.yml` is used instead of (or in addition to)
-   `_config.yml`.
+3. Explaining when to use `tools/dash serve` (the static public build) and when
+   `tools/dash console` (the live console).
 
-Do not guess these commands from the presence of a `Gemfile` — copy them from the files.
+Do not guess these commands — copy them from the files.
 
 ## Code quality and git hooks
 
@@ -211,7 +210,7 @@ Collected here so they're easy to close out. Each one is a gap that a newcomer w
 6. Where is the `package.json` that `.husky/` and Prettier imply?
 7. Which variables in `.env.example` are required for a local run?
 8. Which submodules are required for a normal build, per `SUBMODULES.md`?
-9. When is `_config_dev.yml` used instead of `_config.yml`?
+9. (Resolved: the site is the console built static — `tools/dash serve`; see [CONSOLE-PAGES.md](CONSOLE-PAGES.md).)
 10. Does `docs/` already contain a development guide that overlaps with this one?
 
 ## See also

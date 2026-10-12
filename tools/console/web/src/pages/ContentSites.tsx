@@ -2,11 +2,12 @@
 // publishes, about what, and how fresh — against the editorial plan a human
 // sets in _data/editorial.yml. A site opens its page; the page is where
 // suggestions are approved and directives filed.
+import { hasConsole } from '../api/backend';
 import { Group, Paper, SimpleGrid, Text } from '@mantine/core';
 import { useContent } from '../api/hooks';
 import type { Dict } from '../api/types';
 import { DataTable } from '../components/DataTable';
-import { Banner, External, Load, Mono, PageHeader, Section, StatTile, Status } from '../components/ui';
+import { Banner, LocalOnly, External, Load, Mono, PageHeader, Section, StatTile, Status } from '../components/ui';
 import { RunButton } from '../jobs/RunButton';
 import { ago, fmt, sharePct } from '../lib/format';
 import { to } from '../lib/links';
@@ -35,7 +36,7 @@ export function ContentSites() {
           if (!c.present) {
             return (
               <>
-                {c.error ? <Banner tone="crit">{String(c.error)}</Banner> : <Banner tone="info" title="The atlas is empty">Sync all sites: local checkouts are read where they exist and the rest are cloned (public repos need no token).</Banner>}
+                {!hasConsole() ? <LocalOnly what="The content atlas is extracted into the local data lake" /> : c.error ? <Banner tone="crit">{String(c.error)}</Banner> : <Banner tone="info" title="The atlas is empty">Sync all sites: local checkouts are read where they exist and the rest are cloned (public repos need no token).</Banner>}
                 <Section title={`Declared sites (${(c.declared ?? []).length})`}>
                   <DataTable<Row>
                     rows={(c.declared ?? []) as Row[]}

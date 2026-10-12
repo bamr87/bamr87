@@ -6,11 +6,12 @@
 // when gh is not signed in for an operation that needs it, submits the job,
 // and opens the job drawer on its live log — the page you were on stays put.
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Anchor, Badge, Button, Code, Drawer, Group, Stack, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
+import { githubToken, hasConsole } from '../api/backend';
 import { post } from '../api/client';
 import { useCaps, useOps } from '../api/hooks';
 import type { Job, Op } from '../api/types';
@@ -67,7 +68,14 @@ function confirm(title: string, body: ReactNode, label: string, danger: boolean)
   });
 }
 
+/** Where an operation can run from this page: anywhere with a console; on the
+ * public page, only a workflow dispatch, and only with a GitHub token. */
+export function runnableHere(opId: string): boolean {
+  return hasConsole() || (opId === 'dispatch' && Boolean(githubToken()));
+}
+
 export function JobRunner({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const ops = useOps();
   const caps = useCaps();
   const qc = useQueryClient();
@@ -80,6 +88,15 @@ export function JobRunner({ children }: { children: ReactNode }) {
       const op = ops.data?.find((o) => o.id === id);
       if (!op) {
         notifications.show({ color: 'red', title: 'Unknown operation', message: id });
+        return null;
+      }
+      if (!runnableHere(id)) {
+        const go = await confirm(id === 'dispatch' ? 'Connect GitHub to dispatch' : 'This runs on a console', (
+          <Text size="sm">{id === 'dispatch'
+            ? 'This page dispatches control-plane workflows from your browser, with a GitHub token you give it on the Connect page.'
+            : `“${op.title}” runs the hub's own tools in a working tree, so it needs a running console. Connect one (it can be the console on your own machine) and this page runs it with a live log.`}</Text>
+        ), 'Open Connect', false);
+        if (go) navigate(to.connect());
         return null;
       }
       const remote = remoteWrite(op, params);
@@ -109,7 +126,7 @@ export function JobRunner({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    [ops.data, caps.data, qc],
+    [ops.data, caps.data, qc, navigate],
   );
 
   const value = useMemo(() => ({ runOp, openJob: setJobId, isRemote }), [runOp, isRemote]);

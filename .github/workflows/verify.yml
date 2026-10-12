@@ -23,7 +23,7 @@ on:
       - "verify/**"
       - "pages/**"
       - "_data/features_index.yml"
-      - "_config.yml"
+      - "tools/console/**"
   push:
     branches: [main]
     paths:
@@ -31,6 +31,7 @@ on:
       - "features/**"
       - "verify/**"
       - "pages/**"
+      - "tools/console/**"
   workflow_dispatch:
     inputs:
       agent:
@@ -58,6 +59,10 @@ jobs:
       id-token: write
     with:
       gate: false
+      # The site is the console's page, built with React Router 8 (Node >= 22);
+      # the fleet's canonical NODE_VERSION (20) is below it — console-web.yml
+      # and build-dash.yml make the same choice.
+      node-version: lts/*
       hub-ref: ${{ github.event.pull_request.head.sha || github.sha }}
       agent: ${{ github.event_name == 'workflow_dispatch' && inputs.agent || contains(github.event.pull_request.labels.*.name, 'verify') }}
       only: ${{ github.event_name == 'workflow_dispatch' && inputs.only || '' }}

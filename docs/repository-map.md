@@ -30,29 +30,26 @@ These are the directories you are most likely to be looking for.
 
 | Path | What it is | Status |
 | --- | --- | --- |
-| `pages/` | ⚠️ Purpose not verified. The name, alongside `index.md` and `_config.yml`, suggests standalone site pages (as opposed to dated posts). A maintainer should confirm whether these are Jekyll pages, and what the naming/front-matter convention is. | ⚠️ Unverified |
+| `pages/` | The public site's Markdown: `profile/<slug>.md` (About, Experience, Services, Contact) and `posts/YYYY-MM-DD-<slug>.md`, read by `tools/console/site_docs.py`. | ✅ Confirmed |
 | `projects/` | ⚠️ Purpose not verified. Likely per-project content or subdirectories — note that `.gitmodules` exists, so some of these may be **git submodules** rather than files tracked here. See `SUBMODULES.md` before editing anything under this path. | ⚠️ Unverified |
 | `templates/` | ⚠️ Purpose not verified. The name suggests reusable scaffolding — either page/layout templates for the site, or file templates used when generating new content. Which one is unknown. | ⚠️ Unverified |
 | `tools/` | ⚠️ Purpose not verified. The repository's primary language is reported as **Shell**, so this is a plausible home for the scripts that make up that share of the codebase. Contents not inspected. | ⚠️ Unverified |
 | `docs/` | Documentation — this file lives here. Other contents were not inspected. | 🔍 Inferred |
-| `assets/` | Static assets (images, CSS, JS) for the site. Standard Jekyll convention. | 🔍 Inferred |
-| `index.md` | The site's landing page. | 🔍 Inferred |
+| `tools/console/` | The Harness Console — the local control plane and, built static, the public site ([CONSOLE-PAGES.md](CONSOLE-PAGES.md)). | ✅ Confirmed |
 
 ## Data and generated output
 
 | Path | What it is | Status |
 | --- | --- | --- |
-| `_data/` | Structured data files consumed by the site. In Jekyll, files here are exposed to templates via `site.data`. See `SCHEMA.md`, which likely documents their shape. | 🔍 Inferred |
+| `_data/` | The registries every surface reads (`projects.yml` is the source of truth, `profile.yml` the site's identity); `_data/SCHEMA.md` documents each file. | ✅ Confirmed |
 | `_reports/` | ⚠️ Purpose not verified. The name suggests **generated output** rather than hand-edited source. Confirm before editing by hand — if it is generated, edits here will be overwritten. | ⚠️ Unverified |
 
 ## Site configuration and build
 
 | Path | What it is | Status |
 | --- | --- | --- |
-| `_config.yml` | Primary site configuration. | 🔍 Inferred |
-| `_config_dev.yml` | A development-time configuration overlay. Jekyll supports layering configs, so this is likely applied *on top of* `_config.yml` for local work. The exact invocation is not documented here — see "Open questions". | 🔍 Inferred |
-| `Gemfile` | Ruby dependencies. Confirms this project has a Ruby/Bundler toolchain. | ✅ Confirmed |
-| `Rakefile` | Rake task definitions. This is where repo automation tasks are likely defined; run `rake -T` locally to list them. | ✅ Confirmed |
+| `tools/console/build-pages.sh` | Builds the public site (the console's page, static, plus the API snapshot); `build-dash.yml` runs it. | ✅ Confirmed |
+| `tools/dash` | The dash CLI — the task entry point; run it with no arguments to list commands. | ✅ Confirmed |
 | `docker-compose.yml` | Container service definitions for local development. Services not inspected. | ✅ Confirmed |
 
 ## Documentation at the root
@@ -113,9 +110,9 @@ The following could not be determined from the repository listing alone. Answeri
 2. Which of those directories, if any, are git submodules?
 3. Is `_reports/` generated output? If so, by what — a Rake task, a workflow in `.github/`, or
    the agent fleet?
-4. How is `_config_dev.yml` applied relative to `_config.yml`?
+4. (Resolved: there is no Jekyll config any more — see [CONSOLE-PAGES.md](CONSOLE-PAGES.md).)
 5. What are the canonical commands to install dependencies, serve the site locally, and run
-checks? (Candidates live in `Gemfile`, `Rakefile`, and `docker-compose.yml`, but were not verified — no commands are asserted here rather than risk publishing one that fails.)
+checks? (Candidates live in `tools/dash`, [`local-development.md`](local-development.md) and `docker-compose.yml`, but were not verified — no commands are asserted here rather than risk publishing one that fails.)
 6. Are Husky and pre-commit both active, or is one superseded?
 
 ## Contributing to this page

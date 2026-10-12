@@ -61,9 +61,8 @@ These are not documentation, but they answer the "how does this thing build and 
 
 | File | Notes |
 | --- | --- |
-| [`_config.yml`](../_config.yml) / [`_config_dev.yml`](../_config_dev.yml) | Jekyll site configuration — a production config and a development override. _(unverified)_ |
-| [`Gemfile`](../Gemfile) | Ruby dependencies for the site build. |
-| [`Rakefile`](../Rakefile) | Rake tasks for this repository. _(unverified)_ |
+| [`tools/console/build-pages.sh`](../tools/console/build-pages.sh) | Builds the public site: the Harness Console's page, static, plus the API snapshot. |
+| [`tools/dash`](../tools/dash) | The dash CLI — every task this repository runs. |
 | [`docker-compose.yml`](../docker-compose.yml) | Container setup for local development. _(unverified)_ |
 | [`.env.example`](../.env.example) | Template for the environment variables the project expects. Copy it and fill it in rather than editing it directly. |
 | [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) | Pre-commit hook configuration. |
@@ -105,7 +104,8 @@ These are not documentation, but they answer the "how does this thing build and 
 | [`TERMINAL-FRAMEWORK.md`](TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto **bashOS** — one framework in `bamr87/bashos` with a Python/Textual core (+ the `[ai]` extra), a portable JS runtime (formerly bashcrawl's TermForge), a bash kit and chui as the environment; the inventory, the common keymap (`keys v1`) measured against Zellij/VS Code/tmux, the per-repo plan, phases, and the decision record. |
 | [`quickstart.md`](quickstart.md) | Get a first clone running locally. |
 | [`prerequisites.md`](prerequisites.md) | What to install before the quick start. |
-| [`local-development.md`](local-development.md) | Clone, configure and run the site locally (Docker or Bundler + Jekyll). |
+| [`local-development.md`](local-development.md) | Clone, configure and run the site and the console locally. |
+| [`CONSOLE-PAGES.md`](CONSOLE-PAGES.md) | The public site is the console: the static snapshot, connecting GitHub or a running console from the page, what is never published. |
 | [`repository-layout.md`](repository-layout.md) | Contributor-facing map of the monorepo. |
 | [`repository-map.md`](repository-map.md) | Orientation guide to the top-level directories — "I want to change something, which directory do I open?" |
 | [`automation-and-agents.md`](automation-and-agents.md) | Index of the agent, AI-assistant and automation configuration files. |

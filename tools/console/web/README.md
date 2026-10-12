@@ -4,6 +4,7 @@ The browser front end of the [Harness Console](../README.md). It is a React + Ty
 
 ```bash
 npm install && npm run build   # dist/ — what the console serves (run.sh does this on start)
+../build-pages.sh              # dist-pages/ — the public site: base /bamr87/, VITE_STATIC=1, plus the snapshot
 npm run dev                    # :5173 with hot reload, proxied to a console on :4001 (CONSOLE_URL to change)
 npm run typecheck
 ```
@@ -18,16 +19,18 @@ Dependencies are always-latest (`*`), and `.npmrc` sets `package-lock=false`, so
 | `src/nav.ts` | The information architecture: eight sections of pages. keys v1's `1`–`8` and `]` / `[` follow it |
 | `src/theme.ts` | Points Mantine's CSS variables at the bashOS palette from `/theme.css` (`tools/fleetcore/theme.py`). No hex value lives here |
 | `src/styles.css` | Console-only roles: validated chart series, meter tracks, log colours |
-| `src/api/` | `client.ts` (fetch + the one-prompt console token), `types.ts` (API document shapes), `hooks.ts` (one Query hook per document) |
+| `src/api/` | `client.ts` (the one `api()` every page calls, + the one-prompt console token), `backend.ts` (which backend answers: the console, the published snapshot, or a remote console; the browser-held GitHub token), `static.ts` (an `/api` path → the snapshot file `../snapshot.py` wrote), `ghdirect.ts` (the console's GitHub routes and workflow dispatch, answered from the browser against api.github.com), `types.ts`, `hooks.ts` (one Query hook per document) |
 | `src/lib/` | `format.ts`, `ansi.ts` (SGR → HTML for job logs), `links.ts` (every internal route and GitHub link, in one place) |
 | `src/components/` | the shell, `DataTable` (sortable, linkable rows with keys v1 navigation), the palette, the global keymap, charts, small UI pieces |
 | `src/jobs/` | `JobRunner` (the confirm gate, submit, the live-log drawer), `OpForm`, `RunButton`, `JobLog` |
 | `src/github/` | the GitHub surface: `ConnectPanel` (OAuth App setup, device / browser flows), `RepoManager` (issues, PRs, runs, workflows), `useGhAction` (every write: say, ask, POST with confirm, log) |
-| `src/pages/` | one file per page, plus the drill-downs (`ProjectPage`, `ContentSite`, loop, job and operation pages) |
+| `src/pages/` | one file per page, plus the drill-downs (`ProjectPage`, `ContentSite`, loop, job and operation pages); the profile (`Home`, `Profile` — pages and posts, `Portfolio`), the registries (`Registries`: roadmap, features, engagements, toolbox) and `Connect` |
 
 Rules the code keeps:
 
 - Every entity links to its page through `lib/links.ts`, so a repo name or operation opens the same drill-down everywhere.
+- The public build lives under `/bamr87/`: navigate through React Router (it carries the `basename`), point at files with `asset()` from `api/backend.ts`, and never write a bare `/path` into an `href` or `src`.
+- A page never asks which backend it is on to fetch data — only to decide what to offer (`hasConsole()`): a lever that needs a console says so (`LocalOnly`, `runnableHere`) instead of failing.
 - Status is always an icon plus a label (`Status`), never colour alone. Chart series colours were validated for colour-vision deficiency in both themes, and every chart has a table view.
 - A view, key or colour the terminal dash shows too comes from `tools/fleetcore` through the API (`/api/fleet`, `/api/keys`, `/theme.css`, `/api/theme`) and is never copied here.
 - The bundle carries no inline script, so the console's `script-src 'self'` policy holds.

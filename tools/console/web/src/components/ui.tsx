@@ -174,6 +174,15 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
+/** What the published snapshot says where a console would offer a lever. */
+export function LocalOnly({ what }: { what: ReactNode }) {
+  return (
+    <Banner tone="info" title="Runs on a console">
+      {what} — this published page shows it read-only. <Anchor component={Link} to={to.connect()}>Connect a console</Anchor> to use it here.
+    </Banner>
+  );
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <Text size="sm" c="dimmed" py="sm">{children}</Text>;
 }

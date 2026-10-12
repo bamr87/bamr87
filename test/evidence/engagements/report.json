@@ -5,7 +5,7 @@
     "HUB-016"
   ],
   "path": "verify/scenarios/engagements.yml",
-  "started": "2026-09-05T05:12:41.975Z",
+  "started": "2026-10-12T15:56:39.674Z",
   "viewports": [
     {
       "name": "desktop",
@@ -15,9 +15,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/engagements/",
+          "arg": "/engagements",
           "ok": true,
-          "ms": 716
+          "ms": 688
         },
         {
           "step": "expect",
@@ -28,12 +28,20 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 21
+          "ms": 18
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Clients"
+          },
+          "ok": true,
+          "ms": 2
         },
         {
           "step": "expect",
@@ -52,7 +60,7 @@
           "arg": "engagements",
           "ok": true,
           "file": "test/evidence/engagements/desktop-engagements.png",
-          "ms": 57
+          "ms": 22
         }
       ],
       "console_errors": [],
@@ -60,7 +68,7 @@
         "test/evidence/engagements/desktop-engagements.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/engagements/"
+      "final_url": "http://127.0.0.1:4320/engagements/"
     },
     {
       "name": "mobile",
@@ -70,9 +78,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/engagements/",
+          "arg": "/engagements",
           "ok": true,
-          "ms": 712
+          "ms": 596
         },
         {
           "step": "expect",
@@ -83,12 +91,20 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 21
+          "ms": 22
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Clients"
+          },
+          "ok": true,
+          "ms": 2
         },
         {
           "step": "expect",
@@ -100,14 +116,14 @@
             "sw": 390,
             "cw": 390
           },
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "screenshot",
           "arg": "engagements",
           "ok": true,
           "file": "test/evidence/engagements/mobile-engagements.png",
-          "ms": 43
+          "ms": 11
         }
       ],
       "console_errors": [],
@@ -115,10 +131,10 @@
         "test/evidence/engagements/mobile-engagements.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/engagements/"
+      "final_url": "http://127.0.0.1:4320/engagements/"
     }
   ],
   "ok": true,
-  "finished": "2026-09-05T05:12:43.635Z",
-  "base": "http://127.0.0.1:4000"
+  "finished": "2026-10-12T15:56:41.117Z",
+  "base": "http://127.0.0.1:4320"
 }

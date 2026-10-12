@@ -45,6 +45,7 @@ from pydantic import BaseModel, Field
 
 import core
 import github_link as ghl
+import site_docs
 import tui_bridge
 
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
@@ -67,7 +68,20 @@ jobs = core.JobManager()
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"} | {
     h.strip().lower() for h in (os.environ.get("DASH_CONSOLE_ALLOWED_HOSTS") or "").split(",") if h.strip()
 }
-tui = tui_bridge.TuiBridge(ALLOWED_HOSTS)
+# The public site — this same page, built static for GitHub Pages — can be
+# pointed at a running console ("Connect a console" on its Connect page). That
+# is a page on another origin driving an API that can dispatch workflows and
+# write secrets, and https://bamr87.github.io is the origin of EVERY Pages site
+# the account publishes, not only this one. So the origin is admitted (CORS,
+# and the Terminal page's WebSocket) only while the console requires its bearer
+# token: without DASH_CONSOLE_TOKEN a remote page is told why it is refused.
+# DASH_CONSOLE_PAGES_ORIGIN overrides the default (empty switches it off);
+# DASH_CONSOLE_ALLOWED_ORIGINS adds more.
+_PAGES_ORIGIN = os.environ.get("DASH_CONSOLE_PAGES_ORIGIN", "https://bamr87.github.io")
+REMOTE_ORIGINS = {o.strip().rstrip("/").lower() for o in
+                  [_PAGES_ORIGIN, *(os.environ.get("DASH_CONSOLE_ALLOWED_ORIGINS") or "").split(",")]
+                  if o.strip()}
+tui = tui_bridge.TuiBridge(ALLOWED_HOSTS, REMOTE_ORIGINS)
 
 
 @app.middleware("http")
@@ -105,6 +119,12 @@ def content_policy(path: str, host: str) -> str:
     plain host[:port], so a crafted Host cannot inject a directive.
     """
     frames = " ".join(core.frame_src())
+    if path.startswith("/diagrams/"):
+        # The archify diagrams boot from inline script. They run sandboxed with
+        # no same-origin access (the page frames them the same way), so the
+        # script they need cannot reach this console's API or its token.
+        return ("sandbox allow-scripts allow-popups allow-downloads; default-src 'self' data: blob: 'unsafe-inline' "
+                "https://fonts.googleapis.com https://fonts.gstatic.com; frame-ancestors 'self'")
     if path.startswith(_DOCS_PATHS):
         return f"frame-src 'self' {frames}".strip() + "; frame-ancestors 'none'"
     ws = f" ws://{host} wss://{host}" if host and _HOST_RX.match(host) else ""
@@ -124,6 +144,40 @@ async def security_headers(request: Request, call_next):
         request.url.path, (request.headers.get("host") or "").strip())
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+def _cors(origin: str) -> dict:
+    return {"Access-Control-Allow-Origin": origin, "Vary": "Origin",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Max-Age": "600"}
+
+
+@app.middleware("http")
+async def remote_page(request: Request, call_next):
+    """CORS for the public site (REMOTE_ORIGINS above), and nothing else.
+
+    A preflight is always answered for a listed origin — including Chrome's
+    Private Network Access opt-in, since the page is public and this console is
+    on loopback — so the real request can arrive and be refused with a reason
+    the page can read. The refusal is the point: no token configured, no
+    remote page."""
+    origin = (request.headers.get("origin") or "").rstrip("/")
+    if not origin or origin.lower() not in REMOTE_ORIGINS or not request.url.path.startswith("/api"):
+        return await call_next(request)
+    headers = _cors(origin)
+    if request.method == "OPTIONS":
+        if request.headers.get("access-control-request-private-network") == "true":
+            headers["Access-Control-Allow-Private-Network"] = "true"
+        return Response(status_code=204, headers=headers)
+    if not os.environ.get("DASH_CONSOLE_TOKEN"):
+        return JSONResponse(status_code=403, headers=headers, content={
+            "detail": "this console admits a remote page only while it requires a token — "
+                      "restart it with DASH_CONSOLE_TOKEN set, then paste that token on the Connect page"})
+    response = await call_next(request)
+    for k, v in headers.items():
+        response.headers[k] = v
     return response
 
 
@@ -203,7 +257,7 @@ def state() -> dict:
 
 @app.get("/api/capabilities", dependencies=[Depends(require_token)])
 def caps() -> dict:
-    return core.capabilities()
+    return core.capabilities() | {"mode": "console"}
 
 
 @app.get("/api/ops", dependencies=[Depends(require_token)])
@@ -437,6 +491,41 @@ def project(name: str) -> dict:
     return detail
 
 
+# --------------------------------------------------------------------------- #
+# The site — profile, long-form pages, posts, public registries (site_docs.py).
+# The same documents the static Pages build writes, so Home, Portfolio and
+# Writing render here exactly as they do in public. Drafts show here only.
+# --------------------------------------------------------------------------- #
+def _site_errors(fn):
+    try:
+        return fn()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}")
+
+
+@app.get("/api/site", dependencies=[Depends(require_token)])
+def site_index() -> dict:
+    return site_docs.site_index(include_drafts=True)
+
+
+@app.get("/api/site/page/{slug}", dependencies=[Depends(require_token)])
+def site_page(slug: str) -> dict:
+    return _site_errors(lambda: site_docs.page(slug))
+
+
+@app.get("/api/site/post/{slug}", dependencies=[Depends(require_token)])
+def site_post(slug: str) -> dict:
+    return _site_errors(lambda: site_docs.post(slug, include_drafts=True))
+
+
+@app.get("/api/data/{name}", dependencies=[Depends(require_token)])
+def site_data(name: str):
+    """One committed registry from site_docs.PUBLIC_DATA, as JSON."""
+    return _site_errors(lambda: site_docs.data(name))
+
+
 @app.get("/api/tui/status", dependencies=[Depends(require_token)])
 def tui_status() -> dict:
     """Can the Terminal page start the terminal dash here, and how many run."""
@@ -516,6 +605,15 @@ def github_disconnect(req: GithubDisconnect) -> dict:
     return _gh_errors(lambda: ghl.disconnect(req.target))
 
 
+@app.get("/api/github/fleet", dependencies=[Depends(require_token)])
+def github_fleet() -> dict:
+    """Which repos are writable (the hub owns them) and which control-plane
+    workflows may be dispatched with which inputs — the rules the public page
+    applies to itself when it talks to GitHub directly."""
+    return {"owner": ghl._hub_owner(), "hub": ghl._hub(), "repos": ghl.fleet_repos(),
+            "dispatchable": {wf: sorted(inputs) for wf, inputs in core.DISPATCHABLE.items()}}
+
+
 @app.get("/api/github/repos", dependencies=[Depends(require_token)])
 def github_repos() -> list[dict]:
     """Every repo the connected account can see, newest push first, with the
@@ -587,6 +685,19 @@ def api_root() -> JSONResponse:
     return JSONResponse({"routes": sorted({r.path for r in app.routes
                                             if getattr(r, "path", "").startswith("/api/")})
                          + ["/docs"]})
+
+
+_DIAGRAM_RX = re.compile(r"^[a-z0-9-]+\.[a-z]+\.html$")
+
+
+@app.get("/diagrams/{name}", include_in_schema=False)
+def diagram(name: str) -> Response:
+    """diagrams/<name>.<type>.html — the Harness health page embeds them, as
+    the public build does from its own copy (build-pages.sh)."""
+    path = core.REPO_ROOT / "diagrams" / name
+    if not _DIAGRAM_RX.match(name) or not path.is_file():
+        raise HTTPException(status_code=404, detail="no such diagram")
+    return FileResponse(path, media_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
 # --------------------------------------------------------------------------- #

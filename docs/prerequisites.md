@@ -19,16 +19,14 @@ The repository root shows which toolchains are in play:
 
 | Toolchain | Evidence in the repo root | Required version | Authoritative source |
 | --- | --- | --- | --- |
-| Ruby | `Gemfile`, `_config.yml`, `_config_dev.yml`, `Rakefile` | `TODO (unverified)` | `Gemfile` (and `.ruby-version` if present) |
-| Bundler | `Gemfile` | `TODO (unverified)` | `BUNDLED WITH` section of `Gemfile.lock`, if the lockfile is committed |
-| Node.js | `.prettierrc`, `.prettierignore`, `.husky/` | `TODO (unverified)` | `package.json` `engines` field and/or `.nvmrc` |
-| Python | `.pre-commit-config.yaml` | `TODO (unverified)` | `default_language_version` in `.pre-commit-config.yaml` |
+| Node.js | `tools/console/web/package.json`, `.prettierrc`, `.husky/` | current LTS (the page's React Router requires ≥ 22) | `.github/workflows/console-web.yml` |
+| Python | `tools/console/requirements.txt`, `.pre-commit-config.yaml` | 3.12+ | `_data/fleet.yml` `toolchain:` |
 | Docker / Compose | `docker-compose.yml`, `.devcontainer/` | `TODO (unverified)` | `docker-compose.yml` and `.devcontainer/` |
 | Git | `.gitmodules`, `SUBMODULES.md` | any recent 2.x | — |
 
 Not every task needs every toolchain. Pick the row(s) that match what you are about to do:
 
-- **Editing site content or building the Jekyll site** → Ruby + Bundler.
+- **Editing site content, building the site or running the console** → Python + Node.js.
 - **Running the formatter or the git hooks** → Node.js (Prettier is configured
   via `.prettierrc`; hooks live in `.husky/`).
 - **Running `pre-commit`** → Python, per `.pre-commit-config.yaml`.

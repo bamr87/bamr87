@@ -3,13 +3,64 @@
 // holding one would be root on the Docker host); the terminal dash does.
 import { Link } from 'react-router';
 import { Anchor, Group, Stack, Text } from '@mantine/core';
-import { useDocker } from '../api/hooks';
-import type { Container } from '../api/types';
+import { hasConsole } from '../api/backend';
+import { useData, useDocker } from '../api/hooks';
+import type { Container, Dict } from '../api/types';
 import { DataTable } from '../components/DataTable';
-import { Banner, Load, Mono, PageHeader, Status } from '../components/ui';
+import { Banner, External, Load, Mono, PageHeader, Section, StatTile, Status } from '../components/ui';
+import { SimpleGrid } from '@mantine/core';
 import { to } from '../lib/links';
 
+type Row = Dict<any>;
+
+/** The committed Docker view (_data/docker.yml, `dash docker view --write`):
+ * every allocated endpoint with the state it was last recorded in. What the
+ * public page shows in place of live containers; a console shows it too. */
+function DockerContract() {
+  const d = useData<Row>('docker');
+  return (
+    <Load q={d}>
+      {(v) => (v ? (
+        <>
+          <SimpleGrid cols={{ base: 2, md: 5 }} spacing="sm">
+            <StatTile label="Projects" value={v.summary?.projects} sub={`${v.summary?.stacks} compose stacks`} />
+            <StatTile label="Endpoints" value={v.summary?.endpoints} sub={`${v.summary?.ok} ok · ${v.summary?.broken} broken`} />
+            <StatTile label="Services" value={v.summary?.services} />
+            <StatTile label="Image families behind" value={v.summary?.families_behind} tone={v.summary?.families_behind ? 'crit' : undefined} />
+            <StatTile label="Pending changes" value={v.summary?.pending_changes} sub="harmonizer audit" />
+          </SimpleGrid>
+          <Text size="xs" c="dimmed" mt={6}>Recorded {v.generated_at} on the operator's machine (local-first, like the smoke recording it reads). Contract: <External href="https://github.com/bamr87/bamr87/blob/main/docs/DOCKER.md" size="xs">docs/DOCKER.md</External>.</Text>
+          <Section title="Endpoints">
+            <DataTable<Row> rows={v.endpoints ?? []} keys rowKey={(e) => `${e.project}:${e.service}:${e.port}`} href={(e) => to.project(e.project)} minWidth={900}
+              tone={(e) => (e.verdict === 'broken' ? 'crit' : e.present === false ? 'muted' : undefined)}
+              columns={[
+                { key: 'p', header: 'project', sort: (e) => e.project, render: (e) => <Anchor component={Link} to={to.project(e.project)} size="sm">{e.project}</Anchor> },
+                { key: 's', header: 'service', sort: (e) => e.service, render: (e) => <Mono>{e.service}</Mono> },
+                { key: 'port', header: 'port', num: true, sort: (e) => e.port, render: (e) => e.port },
+                { key: 'k', header: 'kind', sort: (e) => e.kind, render: (e) => e.kind },
+                { key: 'st', header: 'state', sort: (e) => e.state ?? '', render: (e) => (e.state === 'running' ? <Status tone="good">{e.health ?? 'running'}</Status> : <Text size="xs" c="dimmed">{e.state ?? 'absent'}</Text>) },
+                { key: 'i', header: 'image', sort: (e) => e.image ?? '', render: (e) => <Mono dim>{e.image ?? ''}</Mono> },
+              ]} />
+          </Section>
+        </>
+      ) : <Text c="dimmed">No Docker view recorded yet.</Text>)}
+    </Load>
+  );
+}
+
 export function Containers() {
+  if (!hasConsole()) {
+    return (
+      <>
+        <PageHeader title="Containers" description="The fleet dev stack as last recorded: every allocated port, its service, image and state. Live containers are on each Docker host, which a console reads — connect one to see them." />
+        <DockerContract />
+      </>
+    );
+  }
+  return <LiveContainers />;
+}
+
+function LiveContainers() {
   const docker = useDocker();
   return (
     <>
@@ -45,6 +96,7 @@ export function Containers() {
           </Stack>
         )}
       </Load>
+      <Section title="The recorded contract"><DockerContract /></Section>
     </>
   );
 }

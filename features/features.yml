@@ -22,12 +22,12 @@ features:
   # --------------------------------------------------------------- surfaces
   - id: HUB-001
     title: "Portfolio + dashboard from the registry"
-    description: "Every dash surface renders from one registry (_data/projects.yml): the portfolio grid, the /dashboard/ project list, and the profile README's AUTO span."
+    description: "Every surface renders from one registry (_data/projects.yml): the public site's Home and /portfolio cards, the /projects table, and the profile README's AUTO span."
     implemented: true
     surface: ui
-    link: /dashboard/
+    link: /portfolio
     docs: docs/DASH.md
-    tags: [ dash, registry, jekyll ]
+    tags: [ dash, registry, portfolio ]
     date: 2025-12-01
     tests:
       - tools/check-drift.sh
@@ -37,12 +37,15 @@ features:
     evidence:
       - test/evidence/home
       - test/evidence/dashboard
+    verified:
+      date: 2026-10-12
+      by: agent
   - id: HUB-002
-    title: "Monitor board"
-    description: "Live-signal attention board (/monitor/) from the ephemeral project_health.yml gathered by dash-gen health; degrades to an explanatory panel when the snapshot is absent."
+    title: "Projects board"
+    description: "Every registry project with its live health (the ephemeral project_health.yml gathered by dash-gen health at build time) and triage state at /projects (formerly /monitor/), with a drill-down page per project; degrades to the committed triage signal when the health snapshot is absent."
     implemented: true
     surface: ui
-    link: /monitor/
+    link: /projects
     docs: docs/DASH.md
     tags: [ dash, monitoring ]
     scenarios:
@@ -50,14 +53,14 @@ features:
     evidence:
       - test/evidence/monitor
     verified:
-      date: 2026-09-05
+      date: 2026-10-12
       by: agent
   - id: HUB-003
     title: "Fleet triage inbox"
-    description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /triage/."
+    description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /inbox (formerly /triage/)."
     implemented: true
     surface: ui
-    link: /triage/
+    link: /inbox
     docs: docs/DAILY-ANALYSIS.md
     tags: [ dash, triage, fleet-pulse ]
     tests:
@@ -67,24 +70,24 @@ features:
     evidence:
       - test/evidence/triage
     verified:
-      date: 2026-09-05
+      date: 2026-10-12
       by: agent
   - id: HUB-004
     title: "Issue pipeline board"
-    description: "Three-tier issue loop state (queues, stages derived from labels, caps, taxonomy) rendered at /issue-pipeline/ from _data/issue_pipeline.yml."
+    description: "Three-tier issue loop state (queues, stages derived from labels, caps, taxonomy) rendered on the issue-pipeline loop page (/loops/issue_pipeline) from _data/issue_pipeline.yml."
     implemented: true
     surface: ui
-    link: /issue-pipeline/
+    link: /loops/issue_pipeline
     docs: docs/ISSUE-PIPELINE.md
     tags: [ dash, issues, agents ]
     tests:
       - .github/scripts/dash-gen/test_issue_pipeline.py
   - id: HUB-005
     title: "AI harnesses inventory board"
-    description: "Per-repo AI-harness deployments and cron schedules graded against fleet.yml `harnesses:` — baseline coverage, throughput vs caps, budget forecast, and the fan-out gap list — at /harnesses/."
+    description: "Per-repo AI-harness deployments and cron schedules graded against fleet.yml `harnesses:` — baseline coverage, throughput vs caps, budget forecast, and the fan-out gap list — at /harnesses."
     implemented: true
     surface: ui
-    link: /harnesses/
+    link: /harnesses
     docs: docs/HARNESS-OPS.md
     tags: [ dash, harness, schedule ]
     tests:
@@ -94,24 +97,24 @@ features:
     evidence:
       - test/evidence/harnesses
     verified:
-      date: 2026-09-05
+      date: 2026-10-12
       by: agent
   - id: HUB-006
     title: "Six-layer harness scorecard"
-    description: "The hub's own harness health scorecard + trip wires (/harness/), computed offline from the committed fleet signals against fleet.yml `harness:` thresholds."
+    description: "The hub's own harness health scorecard + trip wires (/harnesses/health), computed offline from the committed fleet signals against fleet.yml `harness:` thresholds."
     implemented: true
     surface: ui
-    link: /harness/
+    link: /harnesses/health
     docs: docs/HARNESS.md
     tags: [ dash, harness, scorecard ]
     tests:
       - .github/scripts/dash-gen/test_harness.py
   - id: HUB-007
     title: "Fleet features index"
-    description: "One listing of every feature in the fleet with its docs, tests, user scenarios, evidence bundles, screenshots, and verified stamp, plus per-repo coverage and the attention list of unverified UI features — at /features/ from _data/features_index.yml."
+    description: "One listing of every feature in the fleet with its docs, tests, user scenarios, evidence bundles, screenshots, and verified stamp, plus per-repo coverage and the attention list of unverified UI features — at /features from _data/features_index.yml."
     implemented: true
     surface: ui
-    link: /features/
+    link: /features
     docs: docs/VERIFICATION.md
     tags: [ dash, verification, coverage, agents ]
     date: 2026-09-04
@@ -122,7 +125,7 @@ features:
     evidence:
       - test/evidence/features
     verified:
-      date: 2026-09-05
+      date: 2026-10-12
       by: agent
   - id: HUB-013
     title: "Harness Console (local control plane UI)"
@@ -134,12 +137,31 @@ features:
     tags: [ console, local, fastapi ]
     tests:
       - tools/console/test_console.py
-  - id: HUB-015
-    title: "Roadmap"
-    description: "The Future-Features backlog (_data/roadmap.yml) rendered at /roadmap/; entries are authored by /future-features and the feature-scout agent, never backlogged without approval."
+  - id: HUB-022
+    title: "The public site is the console (GitHub Pages)"
+    description: "bamr87.github.io/bamr87 is the Harness Console's own page built static: the profile and portfolio plus every console view, reading a snapshot of the API documents rendered daily by the console's own Python (tools/console/snapshot.py) — never the lake, a credential or a local probe. On the Connect page a visitor can give it a GitHub token (live repo views, the console's issue/run/workflow writes, and dispatching the control-plane workflows, from the browser) or point it at a running console (everything, admitted only when that console requires its token). Retired Jekyll URLs redirect to the pages that replaced them."
     implemented: true
     surface: ui
-    link: /roadmap/
+    link: /connect
+    docs: docs/CONSOLE-PAGES.md
+    tags: [ dash, console, pages, portfolio, github ]
+    date: 2026-10-12
+    tests:
+      - tools/console/test_pages.py
+    scenarios:
+      - verify/scenarios/connect.yml
+      - verify/scenarios/home.yml
+    evidence:
+      - test/evidence/connect
+    verified:
+      date: 2026-10-12
+      by: agent
+  - id: HUB-015
+    title: "Roadmap"
+    description: "The Future-Features backlog (_data/roadmap.yml) rendered at /roadmap; entries are authored by /future-features and the feature-scout agent, never backlogged without approval."
+    implemented: true
+    surface: ui
+    link: /roadmap
     docs: .claude/README.md
     tags: [ dash, roadmap ]
     scenarios:
@@ -147,14 +169,14 @@ features:
     evidence:
       - test/evidence/roadmap
     verified:
-      date: 2026-09-05
+      date: 2026-10-12
       by: agent
   - id: HUB-016
     title: "Engagements ledger"
     description: "Every registry project as a client: deterministic estimates from open issues, actuals accrued from usage evidence, variance and rollups at /engagements/."
     implemented: true
     surface: ui
-    link: /engagements/
+    link: /engagements
     docs: docs/ESTIMATION.md
     tags: [ dash, finance ]
     scenarios:
@@ -162,14 +184,14 @@ features:
     evidence:
       - test/evidence/engagements
     verified:
-      date: 2026-09-05
+      date: 2026-10-12
       by: agent
   - id: HUB-017
     title: "Actions usage analytics"
     description: "Per-workflow GitHub Actions cost, effectiveness, and waste across the fleet at /actions/, refreshed daily by fleet-pulse."
     implemented: true
     surface: ui
-    link: /actions/
+    link: /costs
     docs: docs/DAILY-ANALYSIS.md
     tags: [ dash, actions, cost ]
     tests:

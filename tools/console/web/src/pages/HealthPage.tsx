@@ -1,9 +1,11 @@
 // The hub's own six-layer harness health (_data/harness_health.yml, docs/HARNESS.md):
 // trip wires first (tripped on top), then the scorecard with each metric's
 // desired direction and threshold. Shown in the TUI's Harness tab too.
+import { useState } from 'react';
 import { Link } from 'react-router';
-import { Anchor, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Anchor, Group, Paper, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconMinus } from '@tabler/icons-react';
+import { STATIC, asset } from '../api/backend';
 import { useStateDoc } from '../api/hooks';
 import { DataTable } from '../components/DataTable';
 import { External, Load, PageHeader, Section, Status } from '../components/ui';
@@ -12,9 +14,36 @@ import { fmt } from '../lib/format';
 import { gh, to } from '../lib/links';
 
 const WIRE_PAGE: Record<string, string> = {
-  'stale-data': '/', 'pass-rate-floor': '/inbox?kind=workflow', 'waste-ceiling': '/costs', 'budget': '/costs',
+  'stale-data': '/overview', 'pass-rate-floor': '/inbox?kind=workflow', 'waste-ceiling': '/costs', 'budget': '/costs',
   'standing-failures': '/inbox?kind=workflow', 'credential-age': '/auth',
 };
+
+/** The archify diagrams in diagrams/ (tools/render-diagrams.sh), in reading order. */
+export const DIAGRAMS: [string, string][] = [
+  ['harness-layers.architecture', 'The six layers, mapped onto the hub'],
+  ['fleet-pulse.workflow', 'fleet-pulse.yml — the daily loop'],
+  ['fleet-signals.dataflow', 'Fleet signals — from GitHub to the alarm panel'],
+  ['issue-pipeline.lifecycle', 'issue-pipeline.yml — labels as state'],
+  ['repo-evolution.sequence', "repo-evolution.yml — a draft PR into a submodule's own upstream"],
+];
+
+/** The published copy on Pages (build-pages.sh copies them), the console's /diagrams route otherwise. */
+const diagramUrl = (name: string) => (STATIC ? asset(`diagrams/${name}.html`) : `/diagrams/${name}.html`);
+
+function Diagrams() {
+  const [pick, setPick] = useState(DIAGRAMS[0][0]);
+  const title = DIAGRAMS.find(([n]) => n === pick)?.[1] ?? pick;
+  return (
+    <Section title="How the loops run" description={<>Interactive diagrams authored as typed JSON in <External href={gh.hubFile('diagrams')}>diagrams/</External> and compiled by the vendored archify skill (<code>tools/render-diagrams.sh</code>). Each opens standalone with search, focus, route tracing, theme and export.</>}
+      actions={<External href={diagramUrl(pick)} size="sm">open standalone</External>}>
+      <SegmentedControl size="xs" mb="sm" value={pick} onChange={setPick} data={DIAGRAMS.map(([value, label]) => ({ value, label: label.split(' — ')[0] }))} style={{ maxWidth: '100%', overflowX: 'auto' }} />
+      {/* Sandboxed without allow-same-origin: the diagram runs its own inline
+          script, and this origin may hold a console or GitHub token. */}
+      <iframe key={pick} src={diagramUrl(pick)} title={title} loading="lazy" sandbox="allow-scripts allow-popups allow-downloads"
+        style={{ width: '100%', height: 760, border: '1px solid var(--grid)', borderRadius: 8, background: 'var(--surface)' }} />
+    </Section>
+  );
+}
 
 export function HealthPage() {
   const state = useStateDoc();
@@ -67,6 +96,7 @@ export function HealthPage() {
                 })}
               </SimpleGrid>
             </Section>
+            <Diagrams />
           </>
         );
       }}

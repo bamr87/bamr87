@@ -21,7 +21,7 @@
   //
   // Groups:
   //   0-fleet       start/stop/inspect whole projects (tools/fleet-dev.sh)
-  //   1-view        the Jekyll dash in a browser
+  //   1-view        the hub site (tools/dash serve :4000, or the console :4001) in a browser
   //   2-generators  dash-gen / console / lake inside devenv
   //   3-verify      dash-gen fixture tests inside devenv
   //   4-docs        MkDocs

@@ -15,8 +15,7 @@ A newcomer's map of what lives at the root of this repository and why.
 
 This repository wears two hats at once, which is the main thing that confuses first-time readers:
 
-1. **A Jekyll site.** `_config.yml`, `Gemfile`, `index.md`, `_data/`, `pages/`
-and `assets/` are the ingredients of a static site. Even `README.md` opens with YAML front matter (`title:`, `author:`, `class:`, `updated:`), so it is both the GitHub profile README *and* site content.
+1. **A site that is also a control plane.** The public site at bamr87.github.io/bamr87 is the Harness Console (`tools/console/`) built static: `_data/` (the registries) and `pages/` (`profile/*.md`, `posts/*.md`) are its content, and `tools/console/build-pages.sh` builds it ([CONSOLE-PAGES.md](CONSOLE-PAGES.md)). `README.md` is the GitHub profile README.
 2. **A monorepo with automation around it.** `projects/`, `templates/`,
 `tools/`, `_reports/`, `fleet.manifest.yml`, `.mcp.json`, `AGENTS.md` and `CLAUDE.md` are about building, orchestrating and agent-driven workflows — not about the site's HTML.
 
@@ -42,18 +41,14 @@ Everything else at the root is developer-environment plumbing: linting, formatti
 
 ## Top-level map
 
-### Jekyll site sources
+### Site sources
 
 | Entry | Role | Confidence |
 | --- | --- | --- |
-| `_config.yml` | Jekyll site configuration. | verified (file exists; Jekyll's conventional config name) |
-| `_config_dev.yml` | A second Jekyll config, presumably layered over `_config.yml` for local development. | inferred — confirm how it's meant to be combined |
-| `Gemfile` | Ruby dependencies (Jekyll and plugins). Bundler reads this. | verified |
-| `index.md` | The site's home page source. | inferred |
-| `_data/` | Jekyll data files consumed by templates. | inferred (leading `_` + Jekyll's `_data` convention) |
-| `pages/` | Additional site pages. | inferred |
-| `assets/` | Static assets — CSS, JS, images — served by the site. | inferred |
-| `README.md` | Profile README; also carries Jekyll front matter, so it is site content too. | verified (front matter is visible in the file) |
+| `tools/console/` | The Harness Console: FastAPI + a React/Mantine page; built static, it is the public site. | verified |
+| `_data/` | The registries every surface reads; `profile.yml` is the site's identity. | verified |
+| `pages/` | The site's long-form content: `profile/*.md` and `posts/*.md`. | verified |
+| `README.md` | Profile README for github.com/bamr87. | verified |
 
 ### Monorepo content and tooling
 
@@ -63,7 +58,7 @@ Everything else at the root is developer-environment plumbing: linting, formatti
 | `templates/` | Reusable templates (scaffolding for new projects, pages, or documents). | inferred — purpose and consumer unconfirmed |
 | `tools/` | Scripts and utilities. The repository's primary language is reported as Shell, so this is a likely home for those scripts. | inferred |
 | `_reports/` | Generated reports/output. The leading underscore suggests generated-not-hand-written. | inferred — confirm what writes here and whether it's committed |
-| `Rakefile` | Rake tasks — the repository's task runner entry point. Run `rake -T` locally to list the real tasks. | verified that the file exists; task names unconfirmed |
+| `tools/dash` | The dash CLI — the repository's task entry point. Run it with no arguments to list commands. | verified |
 | `.gitmodules` | Git submodule definitions. See `SUBMODULES.md`. | verified |
 
 ### Agent and automation configuration
@@ -111,14 +106,14 @@ Everything else at the root is developer-environment plumbing: linting, formatti
 
 ## Getting set up — **not yet documented here**
 
-This page deliberately contains **no install, build, serve or test commands**. The author of this page could not read `Gemfile`, `Rakefile`, `_config.yml`, `docker-compose.yml` or `.devcontainer/`, and writing commands that were never verified is worse than writing none.
+This page deliberately contains **no install, build, serve or test commands**. The author of this page could not read `docker-compose.yml` or `.devcontainer/`, and writing commands that were never verified is worse than writing none.
 
 Until this section is filled in, the authoritative sources are, in rough order of usefulness:
 
 1. `.devcontainer/` — if a dev container is defined, opening the repo in it is
    usually the shortest path to a working environment.
-2. `Rakefile` — run `rake -T` in a checkout to list the available tasks.
-3. `Gemfile` — the Ruby/Jekyll dependency set; installed with Bundler.
+2. `tools/dash` — run it with no arguments to list the available commands.
+3. [`local-development.md`](local-development.md) — the console and the site build.
 4. `docker-compose.yml` — the local service definitions.
 5. `.github/` — CI workflows show the exact commands that must pass, which is
    the most reliable description of "how this project is built and tested".
@@ -153,9 +148,7 @@ This repository already carries a fair amount of documentation. This page is a *
 
 ## What this repository is
 
-A **monorepo** built around a [Jekyll](https://jekyllrb.com/) static site, with Git submodules pulling in related projects, plus the author's shell/dotfile and tooling configuration.
-
-The evidence for "Jekyll site" is in the root: a `Gemfile`, `_config.yml`, `_config_dev.yml`, `_data/`, `assets/`, `pages/`, and an `index.md` entry page — the standard Jekyll shape.
+A **monorepo** whose root is the control plane for its Git submodules — and whose public site is that control plane's own page, built static (see [CONSOLE-PAGES.md](CONSOLE-PAGES.md)) — plus the author's shell/dotfile and tooling configuration.
 
 ## Layout
 
@@ -163,13 +156,10 @@ The evidence for "Jekyll site" is in the root: a `Gemfile`, `_config.yml`, `_con
 
 | Path | What it is |
 |---|---|
-| `_config.yml` | Primary Jekyll configuration. |
-| `_config_dev.yml` | A second, development-oriented Jekyll config. ⚠️ *Verify:* whether this replaces `_config.yml` or is layered on top of it (Jekyll supports `--config a.yml,b.yml`), and which one local serving uses. |
-| `index.md` | Site entry page. |
-| `pages/` | Site pages. |
-| `_data/` | Structured data consumed by Jekyll templates. See [`SCHEMA.md`](../SCHEMA.md) for the expected shape of these files before editing them. |
-| `assets/` | Static assets (styles, scripts, images) served by the site. |
-| `templates/` | ⚠️ *Verify:* content scaffolds/boilerplate for new pages, as opposed to Jekyll layouts. |
+| `pages/` | Site content: `profile/*.md` (About, Experience, Services, Contact) and `posts/*.md`. |
+| `_data/` | The registries every surface reads. See [`SCHEMA.md`](../SCHEMA.md) for the expected shape of these files before editing them. |
+| `tools/console/web/` | The site's page (React + Mantine); `public/` holds its static files. |
+| `templates/` | Seedable kits fanned out to the submodules (see `templates/SCHEMA.md`). |
 | `projects/` | Project content and/or submodule mount points. Cross-check against [`SUBMODULES.md`](../SUBMODULES.md). |
 | `docs/` | Long-form documentation, including this page. |
 | `_reports/` | ⚠️ *Verify:* generated output (reports/audits). Confirm whether this is committed deliberately or generated locally. |
@@ -178,8 +168,7 @@ The evidence for "Jekyll site" is in the root: a `Gemfile`, `_config.yml`, `_con
 
 | Path | What it is |
 |---|---|
-| `Gemfile` | Ruby dependencies. Its `Gemfile.lock` is not committed at root level in the listing — ⚠️ *verify whether that is intentional.* |
-| `Rakefile` | Rake task definitions — likely the intended task entry point. ⚠️ *Verify:* run your Rake binary's task-listing flag to enumerate available tasks. |
+| `tools/dash` | The dash CLI — the task entry point (`tools/dash` with no arguments lists commands). |
 | `docker-compose.yml` | Containerized local environment. ⚠️ *Verify:* service names and published ports. |
 | `.devcontainer/` | VS Code / GitHub Codespaces dev container definition — the lowest-friction path if you use either. |
 | `tools/` | Repository tooling and scripts. The repository's primary language is reported as **Shell**, so expect executable scripts here. ⚠️ *Verify:* whether these are meant to be run directly or only via `Rakefile` tasks. |
@@ -226,19 +215,14 @@ A `docker-compose.yml` exists at the root.
 > # fill in from docker-compose.yml
 > ```
 
-### 3. Native Ruby toolchain
+### 3. Native toolchain
 
-With a `Gemfile` and a `Rakefile` present, dependencies are managed by Bundler and tasks are likely exposed through Rake.
+Python 3 and Node (current LTS):
 
-> ⚠️ **Needs verification:** required Ruby version (check for a `.ruby-version`
-> or the `ruby` directive in `Gemfile`), the install command, and the
-> serve/build tasks defined in `Rakefile`. Fill in below.
->
-> - Ruby version:
-> - Install dependencies:
-> - Serve locally (and how `_config_dev.yml` is applied):
-> - Build for production:
-> - Local URL:
+```sh
+tools/dash console   # the live console on http://127.0.0.1:4001
+tools/dash serve     # the public site, built static, on http://127.0.0.1:4000
+```
 
 ### Submodules
 
@@ -270,10 +254,10 @@ both present, so formatting and lint checks are expected to fire on commit. Do n
 | You want to… | Go to |
 |---|---|
 | Edit the profile page that shows on github.com/bamr87 | `README.md` (root) — note this is the *profile* README, not project docs |
-| Add or edit a site page | `pages/`, or `index.md` for the landing page |
+| Add or edit a site page | `pages/profile/` (and `PROFILE_PAGES` in `tools/console/web/src/nav.ts`), or `pages/posts/` for writing |
 | Change structured data behind the site | `_data/` — check [`SCHEMA.md`](../SCHEMA.md) first |
-| Change styling or static assets | `assets/` |
-| Add or change a build/automation task | `Rakefile` and/or `tools/` |
+| Change the site's pages or styling | `tools/console/web/` |
+| Add or change a build/automation task | `tools/` |
 | Change CI | `.github/` |
 | Add contributor documentation | `docs/` (this directory) |
 | Change something inside a submodule | The submodule's own upstream repository — see [`SUBMODULES.md`](../SUBMODULES.md) |
@@ -283,6 +267,6 @@ both present, so formatting and lint checks are expected to fire on commit. Do n
 Every ⚠️ marker above is an open question. If you resolve one — by reading the file, or by running the command successfully — please replace the marker with the verified answer in the same pull request as your other work. The goal is for this page to have zero ⚠️ markers.
 - [ ] Prerequisites (Ruby version, Node version, Docker — whatever is actually required)
 - [ ] First-time setup, including submodule initialisation (see `SUBMODULES.md`) and `.env` creation from `.env.example`
-- [ ] How to serve the site locally, and how `_config_dev.yml` participates
+- [ ] How to serve the site locally (`tools/dash serve`, `tools/dash console`)
 - [ ] How to run linters/formatters (`pre-commit`, Prettier, Husky hooks)
 - [ ] How to run tests, if any

@@ -2,6 +2,7 @@
 // tools/fleetcore/keys.py). Typing in a field, or any key with ctrl/⌘/alt
 // held, is left to the browser; the one exception is ⌘K / ctrl+K, the
 // browser-native way to open the same palette ':' opens.
+import { clearSnapshotCache } from '../api/static';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Group, SimpleGrid, Text } from '@mantine/core';
@@ -10,7 +11,7 @@ import { spotlight } from '@mantine/spotlight';
 import { useQueryClient } from '@tanstack/react-query';
 import { useKeys } from '../api/hooks';
 import { useRunner } from '../jobs/JobRunner';
-import { FLAT, NAV, activeIndex } from '../nav';
+import { FLAT, NAV, activeIndex, appPath } from '../nav';
 import { handlerFor } from './keyscope';
 
 function showKeys(keys: { dom: string; label: string; action: string; group: string }[]) {
@@ -87,9 +88,12 @@ export function GlobalKeys() {
         up: () => (handlerFor('move') ?? (() => scroll(-120)))(-1),
         top: () => (handlerFor('edge') ?? (() => window.scrollTo({ top: 0 })))(0),
         bottom: () => (handlerFor('edge') ?? (() => window.scrollTo({ top: document.body.scrollHeight })))(1),
-        next_tab: () => nav(activeIndex(window.location.pathname) + 1),
-        prev_tab: () => nav(activeIndex(window.location.pathname) - 1),
-        refresh: () => void qc.invalidateQueries(),
+        next_tab: () => nav(activeIndex(appPath(window.location.pathname)) + 1),
+        prev_tab: () => nav(activeIndex(appPath(window.location.pathname)) - 1),
+        refresh: () => {
+          clearSnapshotCache();
+          void qc.invalidateQueries();
+        },
         refresh_full: () => void runOp('health', {}),
         open: () => handlerFor('open')?.(),
         open_live: () => handlerFor('openLive')?.(),

@@ -4,9 +4,12 @@
 // everything at once (see jobs/JobRunner.tsx).
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api } from './client';
+import { STATIC } from './backend';
+import { manifest } from './static';
 import type {
   AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
+  SiteIndex, SitePage, SitePost, GithubFleet,
 } from './types';
 
 const minute = 60_000;
@@ -90,3 +93,16 @@ export const useGithubIssue = (nwo: string, n: number | null) =>
   useQuery({ queryKey: ['github', 'issue', nwo, n], queryFn: () => api<{ issue: GhIssue; comments: { id: number; user: string; body: string; created_at: string; html_url: string }[] }>(`/api/github/repos/${nwo}/issues/${n}`), enabled: n != null });
 export const useGithubLog = () =>
   useQuery({ queryKey: ['github', 'log'], queryFn: () => api<GhAction[]>('/api/github/log'), refetchInterval: 15_000 });
+
+// --- The site: profile, pages, posts, public registries (site_docs.py) -----
+export const useSite = () => useQuery({ queryKey: ['site'], queryFn: () => api<SiteIndex>('/api/site'), staleTime: 10 * minute });
+export const useSitePage = (slug: string) =>
+  useQuery({ queryKey: ['site', 'page', slug], queryFn: () => api<SitePage>(`/api/site/page/${encodeURIComponent(slug)}`), staleTime: 10 * minute });
+export const useSitePost = (slug: string) =>
+  useQuery({ queryKey: ['site', 'post', slug], queryFn: () => api<SitePost>(`/api/site/post/${encodeURIComponent(slug)}`), staleTime: 10 * minute });
+/** One committed registry (site_docs.PUBLIC_DATA). */
+export const useData = <T = any>(name: string) =>
+  useQuery({ queryKey: ['data', name], queryFn: () => api<T>(`/api/data/${encodeURIComponent(name)}`), staleTime: 5 * minute });
+export const useGithubFleet = () => useQuery({ queryKey: ['github', 'fleet'], queryFn: () => api<GithubFleet>('/api/github/fleet'), staleTime: Infinity });
+/** The published snapshot's own record (public build only). */
+export const useManifest = () => useQuery({ queryKey: ['manifest'], queryFn: manifest, enabled: STATIC, staleTime: 5 * minute });

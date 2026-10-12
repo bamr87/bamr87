@@ -35,6 +35,7 @@ composer.lock
 # Build outputs
 site/
 dist/
+dist-pages/
 build/
 *.egg-info/
 .eggs/

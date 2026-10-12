@@ -6,7 +6,7 @@ updated: 2026-08-25
 
 # Agent & Automation Configuration
 
-This repository keeps several agent/automation configuration artifacts at the top level, next to the usual Jekyll files (`_config.yml`, `Gemfile`, `index.md`, `pages/`, `assets/`). If you are new here, that can be confusing: there is more than one file that *looks* like it might be "the instructions for the AI".
+This repository keeps several agent/automation configuration artifacts at the top level, next to the site's content (`_data/`, `pages/`) and the console that renders it (`tools/console/`). If you are new here, that can be confusing: there is more than one file that *looks* like it might be "the instructions for the AI".
 
 This page is the map. It tells you **which files exist and where**, so you know what to open. It does **not** yet summarise what each one says — see [Status of this page](#status-of-this-page) below.
 
@@ -101,8 +101,8 @@ These also live at the repository root and are part of the wider automation stor
 - `.pre-commit-config.yaml` — pre-commit hook definitions.
 - `.editorconfig`, `.prettierrc`, `.prettierignore` — formatting configuration.
 - `tools/` — repository tooling (contents unreviewed).
-- `Rakefile`, `Gemfile`, `docker-compose.yml`, `_config_dev.yml` — build and local
-  development plumbing for the Jekyll site.
+- `tools/dash`, `tools/console/build-pages.sh`, `docker-compose.yml` — build and
+  local development plumbing for the console and the public site.
 - `.env.example` — template for local environment variables.
 
 ## Other documentation in this repository

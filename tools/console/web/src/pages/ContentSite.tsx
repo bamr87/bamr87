@@ -4,6 +4,7 @@
 // authors, hygiene, and every document. Every write goes to
 // _data/editorial.yml in the working tree, comments preserved, and the diff is
 // shown — the commit stays with you.
+import { hasConsole } from '../api/backend';
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
@@ -18,7 +19,7 @@ import { useContent, useContentDocs } from '../api/hooks';
 import type { Dict } from '../api/types';
 import { ColumnChart, HBars } from '../components/Charts';
 import { DataTable } from '../components/DataTable';
-import { Banner, External, Load, Mono, PageHeader, Section, StatTile, Status, type Tone } from '../components/ui';
+import { Banner, LocalOnly, External, Load, Mono, PageHeader, Section, StatTile, Status, type Tone } from '../components/ui';
 import { LogView } from '../jobs/JobLog';
 import { RunButton } from '../jobs/RunButton';
 import { ago, fmt, sharePct } from '../lib/format';
@@ -429,9 +430,9 @@ export function ContentSite() {
           <>
             <PageHeader crumbs={[{ label: 'Content sites', to: to.content() }, { label: site }]} title={site}
               actions={<RunButton op="content-sync" params={{ target: site }} variant="filled">Sync this site</RunButton>} />
-            <Banner tone={declared ? 'info' : 'warn'} title={declared ? 'Not synced yet' : 'Not a declared content site'}>
+            {!hasConsole() && declared ? <LocalOnly what="A site's documents and history are read into the local data lake" /> : <Banner tone={declared ? 'info' : 'warn'} title={declared ? 'Not synced yet' : 'Not a declared content site'}>
               {declared ? 'Sync it to read its documents and git history into the atlas.' : <>Declare it under <Mono>content.sites</Mono> in _data/fleet.yml first.</>}
-            </Banner>
+            </Banner>}
           </>
         );
       }}

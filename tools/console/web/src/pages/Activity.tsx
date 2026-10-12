@@ -2,6 +2,7 @@
 // SQL, no network): this machine's Claude Code sessions and the CI agent runs
 // claude-code-action produced. Cost, turns, tool use and failures, and the
 // ranked findings. Repos open their project page; runs open on GitHub.
+import { hasConsole } from '../api/backend';
 import { Link } from 'react-router';
 import { Anchor, Group, NumberInput, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useState } from 'react';
@@ -9,7 +10,7 @@ import { useLakeReview } from '../api/hooks';
 import type { Dict } from '../api/types';
 import { HBars } from '../components/Charts';
 import { DataTable } from '../components/DataTable';
-import { Banner, Conclusion, External, Load, Mono, PageHeader, Section, StatTile, Status } from '../components/ui';
+import { Banner, LocalOnly, Conclusion, External, Load, Mono, PageHeader, Section, StatTile, Status } from '../components/ui';
 import { RunButton } from '../jobs/RunButton';
 import { duration, fmt, repoName, usd } from '../lib/format';
 import { to } from '../lib/links';
@@ -40,7 +41,8 @@ export function Activity() {
           const findings = (r.findings ?? []) as Row[];
           return (
             <>
-              {r.present === false ? <Banner tone="warn" title="The lake is not readable">{String(r.error ?? 'build it first with Sync CI runs')}</Banner> : null}
+              {r.present === false && !hasConsole() ? <LocalOnly what="Agent activity is read from the local data lake, which is never published" /> : null}
+              {r.present === false && hasConsole() ? <Banner tone="warn" title="The lake is not readable">{String(r.error ?? 'build it first with Sync CI runs')}</Banner> : null}
               <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="md">
                 <StatTile label="Total agent cost" value={usd(totals.cost_usd)} sub={`${fmt(totals.turns)} turns · ${fmt(totals.traces)} traced, ${fmt(totals.untraced)} not`} />
                 <StatTile label="Local sessions" value={fmt(local.sessions)} sub={`${usd(local.cost_usd)} · ${fmt(local.tool_calls)} tool calls · ${fmt(local.tool_errors)} errors`} />

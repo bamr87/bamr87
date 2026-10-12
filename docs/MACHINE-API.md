@@ -35,7 +35,7 @@ Human mirrors: `/triage/`, `/monitor/`.
 python .github/scripts/dash-gen/dash_gen.py machine-api --out _site
 ```
 
-`build-dash.yml` runs this after `jekyll build` and before the Pages artifact upload. Outputs live under `_site/` only — they are **not** committed.
+`build-dash.yml` runs this after `tools/console/build-pages.sh` and before the Pages artifact upload. Outputs live under `_site/` only — they are **not** committed.
 
 ## Tests
 

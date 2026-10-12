@@ -1,11 +1,11 @@
 {
   "id": "triage",
-  "title": "Fleet triage inbox renders the committed snapshot",
+  "title": "Fleet inbox renders the committed snapshot",
   "features": [
     "HUB-003"
   ],
   "path": "verify/scenarios/triage.yml",
-  "started": "2026-09-05T05:12:52.209Z",
+  "started": "2026-10-12T15:56:50.449Z",
   "viewports": [
     {
       "name": "desktop",
@@ -17,23 +17,23 @@
           "step": "goto",
           "arg": "/triage/",
           "ok": true,
-          "ms": 740
+          "ms": 622
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "status": 200
+            "url": "/inbox"
           },
           "ok": true,
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 18
+          "ms": 13
         },
         {
           "step": "expect",
@@ -41,7 +41,7 @@
             "text": "Inbox"
           },
           "ok": true,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
@@ -53,14 +53,14 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 1
+          "ms": 0
         },
         {
           "step": "screenshot",
           "arg": "triage",
           "ok": true,
           "file": "test/evidence/triage/desktop-triage.png",
-          "ms": 45
+          "ms": 55
         }
       ],
       "console_errors": [],
@@ -68,7 +68,7 @@
         "test/evidence/triage/desktop-triage.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/triage/"
+      "final_url": "http://127.0.0.1:4320/inbox"
     },
     {
       "name": "mobile",
@@ -80,23 +80,23 @@
           "step": "goto",
           "arg": "/triage/",
           "ok": true,
-          "ms": 734
+          "ms": 616
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "status": 200
+            "url": "/inbox"
           },
           "ok": true,
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 26
+          "ms": 11
         },
         {
           "step": "expect",
@@ -104,7 +104,7 @@
             "text": "Inbox"
           },
           "ok": true,
-          "ms": 2
+          "ms": 1
         },
         {
           "step": "expect",
@@ -123,7 +123,7 @@
           "arg": "triage",
           "ok": true,
           "file": "test/evidence/triage/mobile-triage.png",
-          "ms": 61
+          "ms": 19
         }
       ],
       "console_errors": [],
@@ -131,10 +131,10 @@
         "test/evidence/triage/mobile-triage.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/triage/"
+      "final_url": "http://127.0.0.1:4320/inbox"
     }
   ],
   "ok": true,
-  "finished": "2026-09-05T05:12:53.930Z",
-  "base": "http://127.0.0.1:4000"
+  "finished": "2026-10-12T15:56:51.859Z",
+  "base": "http://127.0.0.1:4320"
 }

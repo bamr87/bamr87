@@ -1,0 +1,32 @@
+# =============================================================================
+# _data/profile.yml — WHO the site is about: the identity the public site
+# (bamr87.github.io/bamr87 — the Harness Console's static build) renders on its
+# Home page, header and feeds. Hand-edited. The long-form pages live in
+# pages/profile/*.md and pages/posts/*.md; this file is only the facts every
+# page shares. Replaces the identity block of the retired Jekyll _config.yml.
+# =============================================================================
+name: "Amr Abdel-Motaleb"
+handle: bamr87
+title: "Solutions Architect & ERP Specialist"
+tagline: "IT Wizard — People Over Profits."
+location: "Denver, CO"
+email: "amr.abdel@gmail.com"
+avatar: headshot.jpg              # under tools/console/web/public/
+summary: >-
+  Solutions Architect and ERP Specialist with 15+ years building sustainable
+  enterprise systems. This site is my portfolio and, at the same time, the
+  control plane I run my whole fleet of repositories from: every project, its
+  health, its AI harnesses and their cost, rebuilt from the repo every day.
+site:
+  title: "bamr87"
+  url: "https://bamr87.github.io/bamr87"
+  description: >-
+    Portfolio and agentic harness control plane: a live view of every
+    repository I build, its CI and security health, its AI agents and what
+    they cost — plus the orchestration to act on it.
+links:
+  - { label: "GitHub", icon: github, url: "https://github.com/bamr87" }
+  - { label: "LinkedIn", icon: linkedin, url: "https://linkedin.com/in/amrabdel" }
+  - { label: "Website", icon: world, url: "https://bashconsultants.com" }
+  - { label: "Email", icon: mail, url: "mailto:amr.abdel@gmail.com" }
+  - { label: "CV (PDF)", icon: file-cv, url: "https://github.com/bamr87/cv/blob/main/cv.pdf" }

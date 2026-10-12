@@ -1,6 +1,6 @@
 ---
 title: Local Development Guide
-description: How to clone, configure and run this monorepo locally with Docker or Bundler + Jekyll.
+description: How to clone, configure and run this monorepo locally — the Harness Console, the public site build, and the containers.
 ---
 
 # Local Development Guide
@@ -24,7 +24,7 @@ Pick **one** of the two paths below. You do not need both.
 | Path | You need |
 | --- | --- |
 | **Docker** (recommended for a first run) | Docker Desktop / Docker Engine with the `docker compose` plugin |
-| **Native Ruby** | Ruby + Bundler (`gem install bundler`) |
+| **Native** | Python 3 and Node (current LTS) — the console and the site build use nothing else |
 | **Dev Container** (VS Code) | VS Code + the *Dev Containers* extension + Docker |
 
 The repository ships a `.devcontainer/` directory, so VS Code will offer to "Reopen in Container" when you open the folder. That path handles the toolchain for you.
@@ -113,29 +113,21 @@ Open the port published by the service — read it from the `ports:` mapping sho
 > **TODO (maintainer):** replace the above with the concrete service name and
 > URL, e.g. `docker compose up <service>` → <http://localhost:PORT>.
 
-### Option B — Native Ruby / Bundler
+### Option B — Native (Python + Node)
 
-The root `Gemfile` declares the Ruby dependencies:
-
-```bash
-bundle install
-```
-
-Then run the Jekyll development server:
+The site and the control plane are one app, the Harness Console (`tools/console/`). Run it live, with every operation behind it:
 
 ```bash
-bundle exec jekyll serve
+tools/dash console            # http://127.0.0.1:4001 — bootstraps .venv-console and builds the page
 ```
 
-By default Jekyll reads `_config.yml`. This repository *also* contains `_config_dev.yml`, which suggests a development override is layered on top — Jekyll supports this with a comma-separated list:
+Or build the public site exactly as GitHub Pages publishes it, and serve it read-only:
 
 ```bash
-bundle exec jekyll serve --config _config.yml,_config_dev.yml
+tools/dash serve              # http://127.0.0.1:4000 — tools/console/build-pages.sh, then a static server
 ```
 
-> **TODO (maintainer):** confirm which invocation is correct here — whether
-> `_config_dev.yml` is layered as above, whether `docker-compose.yml` already
-> applies it, and what the local URL/port is.
+See [CONSOLE-PAGES.md](CONSOLE-PAGES.md) for how the two relate.
 
 ### Option C — Dev Container (VS Code / GitHub Codespaces)
 
@@ -146,7 +138,7 @@ folder, and choose **Reopen in Container** when prompted (or run *Dev Containers
 - **GitHub Codespaces:** create a codespace on the branch you want; the same
   definition is used automatically.
 
-Once the container is up, continue with the Bundler commands from Option B.
+Once the container is up, continue with the commands from Option B.
 
 > **TODO (maintainer):** state whether `.devcontainer/devcontainer.json` runs a
 > `postCreateCommand` that already installs dependencies, and which preview port
@@ -156,21 +148,14 @@ Once the container is up, continue with the Bundler commands from Option B.
 
 ## 5. Build and automation tasks
 
-A `Rakefile` sits at the repository root. Rather than memorising task names, ask Rake what it offers:
+Tasks run through the dash CLI, `tools/dash` — run it with no arguments for the full list. The ones a newcomer needs:
 
 ```bash
-bundle exec rake -T          # list all documented tasks with descriptions
-bundle exec rake -T build    # filter to tasks matching "build"
+tools/dash status             # submodules, registry and drift at a glance
+tools/run-all-tests.sh        # every checked-out project's own suite, plus the hub's
+tools/check-drift.sh          # the drift gate CI runs
+python3 tools/console/test_console.py && python3 tools/console/test_pages.py
 ```
-
-Run a task with:
-
-```bash
-bundle exec rake <task_name>
-```
-
-> **TODO (maintainer):** call out the two or three tasks a newcomer actually
-> needs (build, test, lint, deploy) so they don't have to guess from `rake -T`.
 
 ### Pre-commit hooks
 
@@ -191,17 +176,14 @@ The top level of the monorepo:
 
 | Path | What it is |
 | --- | --- |
-| `_config.yml`, `_config_dev.yml` | Jekyll site configuration (production and development) |
-| `_data/` | Jekyll data files |
+| `_data/` | The registries every surface reads (`projects.yml` is the source of truth; `profile.yml` is the site's identity) |
 | `_reports/` | Generated or checked-in reports |
-| `assets/` | Static assets for the site |
 | `docs/` | Documentation (you are here) |
-| `index.md`, `pages/` | Site content |
+| `pages/` | Site content: `profile/*.md` (About, Experience, …) and `posts/*.md` |
 | `projects/` | Project directories (several are git submodules — see `.gitmodules`) |
 | `templates/` | Reusable templates |
 | `tools/` | Repository tooling and scripts |
-| `Gemfile` | Ruby dependencies |
-| `Rakefile` | Automation tasks |
+| `tools/console/` | The Harness Console — the local control plane and, built static, the public site |
 | `docker-compose.yml` | Container definition for local development |
 | `fleet.manifest.yml` | Fleet/automation manifest |
 | `home.code-workspace` | Consolidated VS Code multi-root workspace (dash plus related clones) |
@@ -230,17 +212,11 @@ Shell dotfiles (`.zshrc`, `.zprofile`, `.gitconfig`) are tracked at the root —
 
 **Empty directories under `projects/`** — submodules were not initialised. Run `git submodule update --init --recursive`.
 
-**`bundler: command not found: jekyll`** — dependencies are not installed for the current Ruby. Re-run `bundle install`, and make sure you are prefixing commands with `bundle exec`.
-
-**`bundle: command not found`** — Bundler isn't installed for your Ruby: `gem install bundler`.
-
-**A native gem fails to build during `bundle install`** — use the Dev Container (Option C) or Docker Compose (Option A) instead; both exist precisely so you don't have to fight a local Ruby toolchain.
+**`console: page build FAILED`** — the page installs at the newest published versions, so a new major of a dependency can break it. Run `cd tools/console/web && npm install && npm run build` to see the error.
 
 **Port already in use with Docker** — something else is bound to the published port. Check with `docker compose ps` and `docker compose config`, then stop the conflicting process or change the mapping.
 
-**Changes not appearing in the browser** — Jekyll's watcher can miss files inside bind-mounted volumes on some platforms. Restart the server, or check whether the path is excluded in `_config.yml`.
-
-**Links or assets resolve incorrectly in the local preview** — the development config (`_config_dev.yml`) is probably not being applied; see the Bundler invocation under Option B.
+**A deep link 404s in a local preview** — serve the build with `tools/dash serve` (it builds at the root). The default build is for the `/bamr87/` Pages subpath.
 
 ---
 

@@ -1,10 +1,20 @@
-// The one fetch path to the console API.
+// The one fetch path to the console API — and, in the public build, to what
+// stands in for it (backend.ts says which): the snapshot's files for reads,
+// GitHub itself for the GitHub routes and dispatched jobs, or a console the
+// visitor connected. Pages call api('/api/...') and never know which answered.
 //
 // When the console runs with DASH_CONSOLE_TOKEN, every /api route wants
 // `Authorization: Bearer …`. The token is asked for ONCE however many requests
 // hit a 401 at the same moment (the first paint fires several in parallel): they
 // all wait on one prompt, and a rejected token is SAID rather than looking like
 // a failed load. The prompt itself is <TokenGate/>, which subscribes here.
+
+import { consoleOrigin, githubToken, hasConsole } from './backend';
+import { ApiError } from './errors';
+import { githubDirect, isGithubPath } from './ghdirect';
+import { staticGet } from './static';
+
+export { ApiError } from './errors';
 
 const STORE_KEY = 'console_token';
 
@@ -55,28 +65,47 @@ export function askToken(rejected: boolean): Promise<string | null> {
   return pending;
 }
 
-export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
+/** Set the console token without a prompt (the Connect page). */
+export function setConsoleToken(value: string | null): void {
+  setToken(value);
 }
 
 export async function api<T>(path: string, init: RequestInit = {}, attempt = 0): Promise<T> {
+  if (!hasConsole()) {
+    if (isGithubPath(path)) return githubDirect<T>(path, init);
+    if ((init.method ?? 'GET').toUpperCase() !== 'GET') {
+      throw new ApiError(405, 'This is the published snapshot, which is read-only — connect a console (the Connect page) to change anything here');
+    }
+    const doc = await staticGet<T>(path);
+    // The snapshot cannot know whether this browser holds a GitHub token.
+    if (path === '/api/capabilities') return { ...(doc as object), gh_authenticated: githubToken() ? true : null } as T;
+    return doc;
+  }
+  return consoleFetch<T>(path, init, attempt);
+}
+
+async function consoleFetch<T>(path: string, init: RequestInit, attempt: number): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const sent = token;
   if (sent) headers.set('Authorization', `Bearer ${sent}`);
-  const res = await fetch(path, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${consoleOrigin()}${path}`, { ...init, headers });
+  } catch (e) {
+    // Cross-origin, a refused preflight or a console that is not running
+    // look the same from here: a network error with no response to read.
+    if (consoleOrigin()) throw new ApiError(0, `cannot reach the console at ${consoleOrigin()} — is it running, and does it allow this page? (${(e as Error).message})`);
+    throw e;
+  }
   if (res.status === 401) {
     // Another request already obtained a new token while this one was in flight.
-    if (token && token !== sent) return api<T>(path, init, attempt);
+    if (token && token !== sent) return consoleFetch<T>(path, init, attempt);
     if (sent) setToken(null);
     if (attempt >= 3) throw new ApiError(401, 'console token rejected three times — check DASH_CONSOLE_TOKEN');
     const next = await askToken(Boolean(sent));
     if (!next) throw new ApiError(401, 'console token required');
-    return api<T>(path, init, attempt + 1);
+    return consoleFetch<T>(path, init, attempt + 1);
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
