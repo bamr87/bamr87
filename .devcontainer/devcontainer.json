@@ -81,7 +81,7 @@
     // Ports to forward from the container
     "forwardPorts": [
         3000,  // Wiki.js
-        4000,  // Jekyll
+        4000,  // the hub site (tools/dash serve)
         5000,  // CV Builder (Vite)
         5173,  // Vite HMR
         8000,  // MkDocs / Django
@@ -91,7 +91,7 @@
 
     "portsAttributes": {
         "3000": { "label": "Wiki.js",      "onAutoForward": "notify" },
-        "4000": { "label": "Jekyll",       "onAutoForward": "notify" },
+        "4000": { "label": "Hub site",     "onAutoForward": "notify" },
         "5000": { "label": "CV Builder",   "onAutoForward": "notify" },
         "5173": { "label": "Vite HMR",     "onAutoForward": "silent" },
         "8000": { "label": "MkDocs",       "onAutoForward": "notify" },

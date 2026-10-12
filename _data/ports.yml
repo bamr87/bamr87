@@ -104,7 +104,7 @@ projects:
     # other entry here names a real compose service, and the key must MATCH that
     # service's name or the probe cannot find it.
     services:
-      dash:     { port: 4000, band: hub,      var: JEKYLL_PORT,  served_by: devenv }
+      dash:     { port: 4000, band: hub,      var: SITE_PORT,    served_by: devenv }
       console:  { port: 4001, band: hub,      var: CONSOLE_PORT }
       vite-hmr: { port: 5173, band: frontend, var: VITE_HMR_PORT, served_by: devenv }
       # Two different MkDocs: one a human runs inside devenv, one a compose

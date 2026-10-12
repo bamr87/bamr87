@@ -9,7 +9,7 @@
 services:
   devenv:
     ports: !override
-      - "127.0.0.1:${JEKYLL_PORT:-4000}:4000"
+      - "127.0.0.1:${SITE_PORT:-4000}:4000"
       - "127.0.0.1:${VITE_HMR_PORT:-5173}:5173"
       - "127.0.0.1:${MKDOCS_PORT:-8000}:8000"
       - "127.0.0.1:${CV_PORT:-5000}:5000"   # cv-builder-pro

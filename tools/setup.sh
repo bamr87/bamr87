@@ -878,7 +878,7 @@ setup_docs() {
     log_info "Python: $(python3 --version)"
 
     # The hub no longer carries its own MkDocs config or requirements-docs.txt:
-    # build-dash.yml (Jekyll) is its sole Pages surface, and the docs site is
+    # build-dash.yml (the console, built static) is its sole Pages surface, and the docs site is
     # owned by the README submodule, whose venv is set up just below.
 
     # README submodule venv

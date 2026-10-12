@@ -157,14 +157,17 @@ cmd_docker() {
 
 # The public site, locally: the console's page built static exactly as
 # build-dash.yml builds it for Pages (tools/console/build-pages.sh), served at
-# the root on :4000 (DASH_SERVE_PORT). For the live, write-capable version run
-# `dash console` instead — it is the same page with an API behind it.
+# the root on :4000 (DASH_SERVE_PORT, else SITE_PORT — the port _data/ports.yml
+# allocates). Binds loopback unless DASH_SERVE_HOST says otherwise (devenv sets
+# 0.0.0.0 so its published port reaches it). For the live, write-capable
+# version run `dash console` — the same page with an API behind it.
 cmd_serve() {
   cd "$ROOT"
-  local port="${DASH_SERVE_PORT:-4000}" out="$ROOT/tools/console/web/dist-pages"
+  local port="${DASH_SERVE_PORT:-${SITE_PORT:-4000}}" host="${DASH_SERVE_HOST:-127.0.0.1}"
+  local out="$ROOT/tools/console/web/dist-pages"
   CONSOLE_BASE=/ SITE_URL="http://127.0.0.1:${port}" OUT="$out" PYTHON="${PY}" "${TOOLS}/console/build-pages.sh"
   echo "dash serve: http://127.0.0.1:${port}/  (the published snapshot; Ctrl-C to stop)"
-  exec "${PY}" -m http.server "$port" --bind 127.0.0.1 -d "$out"
+  exec "${PY}" -m http.server "$port" --bind "$host" -d "$out"
 }
 
 # The terminal command center: the public site's read-only twin in a TTY —

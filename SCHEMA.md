@@ -53,7 +53,6 @@ coverage: listed
 | `validate-vscode-terminal.sh` | file | Checks VS Code terminal integration with the local Zsh setup | |
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
 | `install_omz.sh` | file | Vendored copy of the upstream Oh My Zsh installer (ohmyzsh/ohmyzsh `tools/install.sh`) for local terminal setup; not a fleet tool | |
-| `bamr87.code-workspace` | file | Single-root VS Code workspace for this repo alone — Copilot enablement, Liquid/YAML file associations, and the Jekyll/Docker terminal env (the multi-root variant is `home.code-workspace`) | |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
 | `issue-workorder-t*.md` | pattern | Ephemeral per-tier issue work orders (`dash issues` → issue-pipeline.yml; gitignored) | generated |

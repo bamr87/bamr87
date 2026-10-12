@@ -1,10 +1,3 @@
----
-title: Amr Abdel-Motaleb - Solutions Architect & ERP Specialist
-author: Amr Abdel-Motaleb
-class: Solutions Architect
-updated: 2026-04-25
----
-
 <div align="center">
 
 # 👋 Hi, I'm Amr Abdel-Motaleb

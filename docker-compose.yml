@@ -87,8 +87,8 @@ services:
     working_dir: /workspace
     ports:
       # The hub's OWN site preview (`tools/dash serve` — the console's page built
-      # static; the variable keeps its Jekyll-era name, which _data/ports.yml and
-      # the generated overrides share), and nothing else. This used to publish ~30
+      # static; DASH_SERVE_HOST below lets it bind where this mapping reaches),
+      # and nothing else. This used to publish ~30
       # ports in ranges (4010-4020, 5174-5177, 8010-8013…) so that every
       # submodule's dev server could be run INSIDE this container by
       # `compose exec`. That made devenv a second, hand-maintained copy of the
@@ -104,7 +104,7 @@ services:
       # 0.0.0.0 mapping also opens an IPv6 ([::]) docker-proxy listener that
       # resets connections, and `localhost` often resolves to ::1 first — so
       # the dev server looks unreachable even though IPv4 works.
-      - "127.0.0.1:${JEKYLL_PORT:-4000}:4000"      # the hub site (tools/dash serve)
+      - "127.0.0.1:${SITE_PORT:-4000}:4000"        # the hub site (tools/dash serve)
       # …and the WORKSPACE block, for the nine projects that have no compose
       # file of their own and can only run by `compose exec` here. Ranges come
       # from _data/fleet.yml `containers.ports.workspace*`, deliberately clear
@@ -129,6 +129,9 @@ services:
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006
       - PHOENIX_UI_URL=http://127.0.0.1:${PHOENIX_PORT:-6006}
       - DASH_LAKE_DIR=/workspace/.dash-lake
+      # `tools/dash serve` inside the container must listen beyond its own
+      # loopback for the 127.0.0.1:4000 mapping above to reach it.
+      - DASH_SERVE_HOST=0.0.0.0
       # Server-side addresses for the log plane. The contract's URLs
       # (_data/fleet.yml `observability:`) are what a BROWSER must use and what
       # the console embeds; from inside a container 127.0.0.1 is this

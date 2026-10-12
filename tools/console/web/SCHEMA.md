@@ -15,7 +15,7 @@ coverage: listed
 | `SCHEMA.md` | file | This contract | required |
 | `package.json` | file | Manifest; always-latest (`*`) dependencies, no lockfile | required |
 | `.npmrc` | file | `package-lock=false` — npm never writes a lockfile here | required |
-| `.gitignore` | file | Ignores `node_modules/`, `dist/` and `*.tsbuildinfo`; re-includes `public/`, which the root `.gitignore` ignores as other stacks' build output | required |
+| `.gitignore` | file | Ignores `node_modules/`, the two build outputs (`dist/`, `dist-pages/`) and `*.tsbuildinfo` | required |
 | `tsconfig.json` | file | Strict TypeScript, type-check only (Vite bundles) | required |
 | `vite.config.ts` | file | Build to `dist/` (or `CONSOLE_OUT`) under `CONSOLE_BASE`; the public build's CSP `<meta>`; the dev server's proxy to a running console (HTTP + the `/api/tui` WebSocket) | required |
 | `index.html` | file | The entry document — links `/theme.css` (fleetcore's palette) and the bundle | required |

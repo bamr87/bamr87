@@ -2,5 +2,3 @@ node_modules/
 dist/
 dist-pages/
 *.tsbuildinfo
-# The root .gitignore ignores public/ (other stacks' build output); this one is source.
-!public/
