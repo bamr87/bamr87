@@ -1,6 +1,6 @@
 # diagrams/
 
-Illustrations of the six-layer harness and its loops, drawn as **typed, validated diagrams** rather than hand-made pictures. Each `<name>.<type>.json` is an [archify](https://github.com/tt-a1i/archify) specification (`type` ∈ architecture | workflow | sequence | dataflow | lifecycle); the vendored skill at `.claude/skills/archify/` compiles it into the self-contained interactive `<name>.<type>.html` beside it, which the dash serves at `/diagrams/` and embeds on [`/harness/`](../pages/_dash/harness.md).
+Illustrations of the six-layer harness and its loops, drawn as **typed, validated diagrams** rather than hand-made pictures. Each `<name>.<type>.json` is an [archify](https://github.com/tt-a1i/archify) specification (`type` ∈ architecture | workflow | sequence | dataflow | lifecycle); the vendored skill at `.claude/skills/archify/` compiles it into the self-contained interactive `<name>.<type>.html` beside it, which the site serves at `/diagrams/` (copied in by `tools/console/build-pages.sh`; the console serves them too) and embeds, sandboxed, on the Harness health page (`/harnesses/health`, [`HealthPage.tsx`](../tools/console/web/src/pages/HealthPage.tsx)).
 
 | Diagram | Shows |
 | --- | --- |

@@ -31,7 +31,7 @@
   // FILE ASSOCIATIONS & LANGUAGE SUPPORT
   // ==========================================
   "files.associations": {
-    "*.html": "liquid",
+    "**/projects/**/*.html": "liquid",
     "*.md": "markdown", 
     "*.yml": "yaml",
     "*.yaml": "yaml",

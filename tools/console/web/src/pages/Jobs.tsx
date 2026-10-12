@@ -1,5 +1,6 @@
 // Every job the console runtime holds — started from this page, the terminal
 // dash, or an agent through the fleet MCP server: one runtime, one list.
+import { hasConsole } from '../api/backend';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Anchor, Badge, Button, Code, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -32,7 +33,9 @@ export function Jobs() {
     <>
       <PageHeader
         title="Jobs"
-        description="Every job this console process holds, whichever surface started it — this page, the terminal dash, or an agent through the fleet MCP server. Logs are kept for the life of the process."
+        description={hasConsole()
+          ? 'Every job this console process holds, whichever surface started it — this page, the terminal dash, or an agent through the fleet MCP server. Logs are kept for the life of the process.'
+          : 'On the published page, a job is a control-plane workflow dispatched in the hub: its recent workflow_dispatch runs, read from GitHub with your token, each with its steps as the log.'}
         actions={<Button component={Link} to={to.ops()} size="xs">Run an operation</Button>}
       />
       <Load q={jobs}>

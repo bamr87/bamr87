@@ -8,6 +8,7 @@ import { IconSearch } from '@tabler/icons-react';
 import { useJobs, useOps, useStateDoc } from '../api/hooks';
 import type { Op } from '../api/types';
 import { DataTable } from '../components/DataTable';
+import { hasConsole } from '../api/backend';
 import { Banner, Load, Mono, PageHeader, Section } from '../components/ui';
 import { JobStatus } from '../jobs/JobStatus';
 import { OpForm } from '../jobs/OpForm';
@@ -51,6 +52,11 @@ export function Operations() {
         title="Operations"
         description="The allowlist. Parameters are validated by the server and become argv elements, never a shell string; anything that writes to GitHub needs an explicit confirm, and only one such job runs at a time. Press : anywhere to run one from the palette."
       />
+      {!hasConsole() ? (
+        <Banner tone="info" title="On the published page">
+          Operations run the hub's tools in a working tree, so they need a console. One runs from here anyway: <Link to={to.op('dispatch')}>dispatching a control-plane workflow</Link> in GitHub Actions, with a GitHub token from the <Link to={to.connect()}>Connect</Link> page.
+        </Banner>
+      ) : null}
       <TextInput data-page-search leftSection={<IconSearch size={15} />} placeholder="Filter operations…  ( / )" value={q} onChange={(e) => setQ(e.currentTarget.value)} w={320} mb="md" />
       <Load q={ops}>
         {(list) => (

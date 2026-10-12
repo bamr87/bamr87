@@ -65,7 +65,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash docker <cmd>${c_off}       the fleet Docker standard — audit|apply|check|tags|fleet; image versions live
                          in _data/fleet.yml \`images:\`, fan-out via docker-fanout.yml (docs/DOCKER.md).
                          \`view [--write]\` builds the consolidated /docker/ dashboard (_data/docker.yml)
-  ${c_bold}dash serve${c_off}             serve the Jekyll dash locally (docker, :4000)
+  ${c_bold}dash serve${c_off}             build the public site (the console, static) and serve it on :4000
   ${c_bold}dash tui [--docker]${c_off}    terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge)
   ${c_bold}dash host [setup|ps|up|rebuild]${c_off}  forge Docker host — rebuild hub from bamr87/.env, or up a submodule
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
@@ -155,19 +155,22 @@ cmd_docker() {
   "$PY" "${TOOLS}/docker_harmonize.py" "$@"
 }
 
+# The public site, locally: the console's page built static exactly as
+# build-dash.yml builds it for Pages (tools/console/build-pages.sh), served at
+# the root on :4000 (DASH_SERVE_PORT, else SITE_PORT — the port _data/ports.yml
+# allocates). Binds loopback unless DASH_SERVE_HOST says otherwise (devenv sets
+# 0.0.0.0 so its published port reaches it). For the live, write-capable
+# version run `dash console` — the same page with an API behind it.
 cmd_serve() {
   cd "$ROOT"
-  if docker compose ps >/dev/null 2>&1; then
-    docker compose up -d devenv
-    docker compose exec devenv bash -lc \
-      'cd /workspace && bundle install && bundle exec jekyll serve -H 0.0.0.0 -c _config.yml,_config_dev.yml'
-  else
-    echo "Docker not available; serving natively."
-    cd "$ROOT" && bundle install && bundle exec jekyll serve -c _config.yml,_config_dev.yml
-  fi
+  local port="${DASH_SERVE_PORT:-${SITE_PORT:-4000}}" host="${DASH_SERVE_HOST:-127.0.0.1}"
+  local out="$ROOT/tools/console/web/dist-pages"
+  CONSOLE_BASE=/ SITE_URL="http://127.0.0.1:${port}" OUT="$out" PYTHON="${PY}" "${TOOLS}/console/build-pages.sh"
+  echo "dash serve: http://127.0.0.1:${port}/  (the published snapshot; Ctrl-C to stop)"
+  exec "${PY}" -m http.server "$port" --bind "$host" -d "$out"
 }
 
-# The terminal command center: the Jekyll dash's read-only twin in a TTY —
+# The terminal command center: the public site's read-only twin in a TTY —
 # registry + health + triage inbox + harness wires, and live containers from
 # DASH_DOCKER_HOST (default: local Docker + ssh://forge). tools/tui/run.sh
 # bootstraps .venv-tui; --docker runs the same script in the `tui` compose
@@ -217,8 +220,8 @@ ids=$(docker ps -aq)
 [[ -n "$ids" ]] && docker rm -f $ids
 docker volume ls -q | xargs -r docker volume rm
 cd "$HOME/dev/bamr87"
-docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin up -d --build
-docker compose -f docker-compose.yml -f docker-compose.forge.yml --env-file .env --profile full --profile admin ps
+docker compose -f docker-compose.yml -f compose/forge.yml --env-file .env --profile full --profile admin up -d --build
+docker compose -f docker-compose.yml -f compose/forge.yml --env-file .env --profile full --profile admin ps
 REMOTE
       ;;
     *)

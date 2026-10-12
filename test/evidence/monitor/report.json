@@ -1,11 +1,11 @@
 {
   "id": "monitor",
-  "title": "Monitor board renders with or without live health data",
+  "title": "Projects table renders with or without live health data",
   "features": [
     "HUB-002"
   ],
   "path": "verify/scenarios/monitor.yml",
-  "started": "2026-09-05T05:12:48.952Z",
+  "started": "2026-10-12T15:56:46.510Z",
   "viewports": [
     {
       "name": "desktop",
@@ -15,9 +15,9 @@
       "steps": [
         {
           "step": "goto",
-          "arg": "/monitor/",
+          "arg": "/projects",
           "ok": true,
-          "ms": 719
+          "ms": 605
         },
         {
           "step": "expect",
@@ -28,12 +28,24 @@
           "ms": 0
         },
         {
-          "step": "expect",
+          "step": "wait",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "selector": "main table.dt"
           },
           "ok": true,
-          "ms": 18
+          "ms": 23
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main table.dt tbody tr",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 46,
+          "ms": 2
         },
         {
           "step": "expect",
@@ -45,34 +57,20 @@
             "sw": 1280,
             "cw": 1280
           },
-          "ms": 1
+          "ms": 4
         },
         {
           "step": "screenshot",
           "arg": "monitor",
           "ok": true,
           "file": "test/evidence/monitor/desktop-monitor.png",
-          "ms": 52
-        }
-      ],
-      "console_errors": [],
-      "screenshots": [
-        "test/evidence/monitor/desktop-monitor.png"
-      ],
-      "evals": {},
-      "final_url": "http://127.0.0.1:4000/monitor/"
-    },
-    {
-      "name": "mobile",
-      "width": 390,
-      "height": 844,
-      "ok": true,
-      "steps": [
+          "ms": 45
+        },
         {
           "step": "goto",
-          "arg": "/monitor/",
+          "arg": "/projects/zer0-mistakes",
           "ok": true,
-          "ms": 692
+          "ms": 539
         },
         {
           "step": "expect",
@@ -85,10 +83,66 @@
         {
           "step": "expect",
           "arg": {
-            "visible": "main, [role=main], #main-content"
+            "text": "zer0-mistakes"
           },
           "ok": true,
-          "ms": 15
+          "ms": 4
+        },
+        {
+          "step": "screenshot",
+          "arg": "project",
+          "ok": true,
+          "file": "test/evidence/monitor/desktop-project.png",
+          "ms": 34
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/monitor/desktop-monitor.png",
+        "test/evidence/monitor/desktop-project.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4320/projects/zer0-mistakes/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/projects",
+          "ok": true,
+          "ms": 607
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "main table.dt"
+          },
+          "ok": true,
+          "ms": 13
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main table.dt tbody tr",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 46,
+          "ms": 1
         },
         {
           "step": "expect",
@@ -107,18 +161,48 @@
           "arg": "monitor",
           "ok": true,
           "file": "test/evidence/monitor/mobile-monitor.png",
-          "ms": 33
+          "ms": 27
+        },
+        {
+          "step": "goto",
+          "arg": "/projects/zer0-mistakes",
+          "ok": true,
+          "ms": 536
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "zer0-mistakes"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "project",
+          "ok": true,
+          "file": "test/evidence/monitor/mobile-project.png",
+          "ms": 12
         }
       ],
       "console_errors": [],
       "screenshots": [
-        "test/evidence/monitor/mobile-monitor.png"
+        "test/evidence/monitor/mobile-monitor.png",
+        "test/evidence/monitor/mobile-project.png"
       ],
       "evals": {},
-      "final_url": "http://127.0.0.1:4000/monitor/"
+      "final_url": "http://127.0.0.1:4320/projects/zer0-mistakes/"
     }
   ],
   "ok": true,
-  "finished": "2026-09-05T05:12:50.578Z",
-  "base": "http://127.0.0.1:4000"
+  "finished": "2026-10-12T15:56:49.041Z",
+  "base": "http://127.0.0.1:4320"
 }

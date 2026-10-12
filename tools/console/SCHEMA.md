@@ -5,7 +5,7 @@ coverage: listed
 
 # SCHEMA — tools/console
 
-> The Harness Console: the local control plane's credentialed, write-capable front end (FastAPI + a React/Mantine page, with the terminal dash embedded) wrapping the allowlisted `tools/dash` operations — docs/HARNESS-OPS.md.
+> The Harness Console — and, built static, the public site at bamr87.github.io/bamr87 (docs/CONSOLE-PAGES.md): the local control plane's credentialed, write-capable front end (FastAPI + a React/Mantine page, with the terminal dash embedded) wrapping the allowlisted `tools/dash` operations — docs/HARNESS-OPS.md.
 
 ## Structure
 
@@ -19,6 +19,10 @@ coverage: listed
 | `tui_bridge.py` | file | The Terminal page's bridge: runs the terminal dash (`tools/tui/app.py`) on a pty and relays it over the `/api/tui` WebSocket — Host + Origin checks, the hello-frame token, the session cap, process-group hang-up | required |
 | `serve.py` | file | One uvicorn server on the TCP port AND `CONSOLE_UDS` — the Unix socket the `tui` service reaches the same runtime through | required |
 | `requirements.txt` | file | Always-latest deps: dash-gen's requirements + fastapi, uvicorn, ruamel.yaml, websockets (`/api/tui`), the TUI's requirements (Textual, for the Terminal page), the OpenTelemetry SDK + OTLP/HTTP exporter (lake export) | required |
+| `site_docs.py` | file | The site's own documents — `_data/profile.yml`, `pages/profile/*.md`, `pages/posts/*.md` and the public registries (`PUBLIC_DATA`) — served live at `/api/site*` + `/api/data/{name}` and written by `snapshot.py`, so both faces read one source | required |
+| `snapshot.py` | file | Builds the PUBLIC site's data: every GET document the page reads, rendered by the console's own functions, written as static JSON under `snapshot/` — never the lake, a credential, a local probe, a local path or a draft — plus a page per route, `404.html`, sitemap, feed and theme (docs/CONSOLE-PAGES.md) | required |
+| `build-pages.sh` | file | Builds the public site: the page with the Pages base path and `VITE_STATIC=1`, the diagrams, then `snapshot.py` (`build-dash.yml`, `tools/dash serve`, `verify/verify.yml`) | required |
+| `test_pages.py` | file | The public site's guarantees — nothing local/secret/draft in the snapshot, a page per app route, the retired URLs kept, the diagram sandbox, and the remote-page door (CORS only while a token is required) | required |
 | `test_console.py` | file | Fixture tests — allowlist refusals, argv shapes, confirm gate, job manager, state degradation, multi-section config round-trip, credential handling (values never returned, `.env` only on confirm, the kill switch), the page's CSP and fallback, the Terminal socket's Host/Origin/token refusals, the project drill-down | required |
 | `design-system/` | dir | `@bamr87/harness-console-ui` — the console's EARLIER hand-written look as a small React package, kept as the Claude Design sync source (the live page is `web/`) (source in `src/`, built to `dist/`), and the `.design-sync/` config that publishes it to Claude Design | terminal |
 | `web/` | dir | The page — React + TypeScript on Mantine, TanStack Query, React Router and xterm.js, built by Vite into `web/dist/` (gitignored) that `app.py` serves; `run.sh` rebuilds it when its sources change | terminal |

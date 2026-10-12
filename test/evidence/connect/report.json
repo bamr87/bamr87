@@ -1,0 +1,228 @@
+{
+  "id": "connect",
+  "title": "The published snapshot says how old it is and how to act on it",
+  "features": [
+    "HUB-022"
+  ],
+  "path": "verify/scenarios/connect.yml",
+  "started": "2026-10-12T15:56:33.125Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/connect",
+          "ok": true,
+          "ms": 659
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=GitHub, from this browser"
+          },
+          "ok": true,
+          "ms": 23
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "A running console"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "published snapshot"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "connect",
+          "ok": true,
+          "file": "test/evidence/connect/desktop-connect.png",
+          "ms": 44
+        },
+        {
+          "step": "goto",
+          "arg": "/auth",
+          "ok": true,
+          "ms": 541
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "url": "/connect"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "goto",
+          "arg": "/ops",
+          "ok": true,
+          "ms": 539
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=On the published page"
+          },
+          "ok": true,
+          "ms": 22
+        },
+        {
+          "step": "screenshot",
+          "arg": "ops-public",
+          "ok": true,
+          "file": "test/evidence/connect/desktop-ops-public.png",
+          "ms": 29
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/connect/desktop-connect.png",
+        "test/evidence/connect/desktop-ops-public.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4320/ops/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/connect",
+          "ok": true,
+          "ms": 602
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=GitHub, from this browser"
+          },
+          "ok": true,
+          "ms": 22
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "A running console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "published snapshot"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "connect",
+          "ok": true,
+          "file": "test/evidence/connect/mobile-connect.png",
+          "ms": 23
+        },
+        {
+          "step": "goto",
+          "arg": "/auth",
+          "ok": true,
+          "ms": 540
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "url": "/connect"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "goto",
+          "arg": "/ops",
+          "ok": true,
+          "ms": 538
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=On the published page"
+          },
+          "ok": true,
+          "ms": 15
+        },
+        {
+          "step": "screenshot",
+          "arg": "ops-public",
+          "ok": true,
+          "file": "test/evidence/connect/mobile-ops-public.png",
+          "ms": 18
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/connect/mobile-connect.png",
+        "test/evidence/connect/mobile-ops-public.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4320/ops/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-10-12T15:56:36.951Z",
+  "base": "http://127.0.0.1:4320"
+}

@@ -37,7 +37,7 @@ Meanwhile `.vscode/launch.json` routed all ~50 configurations through the single
 
 ## Why this is NOT one compose file
 
-The obvious design is `include:` in one `compose.fleet.yml`. It fails, and the reason is worth writing down so nobody re-attempts it:
+The obvious design is `include:` in one `compose/fleet.yml`. It fails, and the reason is worth writing down so nobody re-attempts it:
 
 **`include:` merges every included file into a single project namespace, and the fleet's service names collide.**
 
@@ -84,10 +84,10 @@ The submodule's file is never modified and still runs standalone.
 ```bash
 tools/fleet-compose.py show            # the table
 tools/fleet-compose.py check --audit   # gate + what is still hardcoded upstream
-tools/fleet-compose.py sync            # regenerate .env.fleet + overrides + compose.fleet.yml
+tools/fleet-compose.py sync            # regenerate compose/fleet.env + overrides + compose/fleet.yml
 ```
 
-`sync` writes `.env.fleet` (gitignored), `compose/overrides/*.yml`, `compose/overrides/hub.yml` (devenv's fleet-mode port map) and `compose.fleet.yml`. **Drift check (m)** fails the build if the allocation has a collision, is out of band, or the generated files have drifted from it.
+`sync` writes `compose/fleet.env` (committed), `compose/overrides/*.yml`, `compose/overrides/hub.yml` (devenv's fleet-mode port map) and `compose/fleet.yml`. **Drift check (m)** fails the build if the allocation has a collision, is out of band, or the generated files have drifted from it.
 
 Variables are namespaced (`DJANGOERP_DB_PORT`, not `POSTGRES_PORT`) because the submodules' own names collide: djangoerp and barodybroject both read `POSTGRES_PORT`; zer0-cms and zer0-image-generator both read `PORT`.
 

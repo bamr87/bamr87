@@ -14,6 +14,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { consoleOrigin, hasConsole } from '../api/backend';
 import { api, askToken, currentToken } from '../api/client';
 import { useTuiStatus } from '../api/hooks';
 import { Banner, PageHeader, Status } from '../components/ui';
@@ -55,7 +56,7 @@ export function TerminalPage() {
   useEffect(() => {
     let disposed = false;
     const el = host.current;
-    if (!el) return undefined;
+    if (!el || !hasConsole()) return undefined;
     setPhase('connecting');
     setMessage('');
 
@@ -86,8 +87,8 @@ export function TerminalPage() {
 
     try { fit.fit(); } catch { /* not laid out yet */ }
 
-    const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${scheme}://${window.location.host}/api/tui`);
+    // The console's own origin: this page's, or the remote console it is connected to.
+    const ws = new WebSocket(`${(consoleOrigin() || window.location.origin).replace(/^http/, 'ws')}/api/tui`);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
     const enc = new TextEncoder();
@@ -174,7 +175,8 @@ export function TerminalPage() {
           </>
         }
       />
-      {s && !s.available ? <Banner tone="warn" title="Textual is not installed here">The console's environment cannot start the terminal dash. Restart the console with <code>tools/dash console</code>, which installs requirements.txt (it includes the TUI's).</Banner> : null}
+      {!hasConsole() ? <Banner tone="info" title="The terminal dash runs in a console">It is a real process on a pseudo-terminal, so this published page cannot start one. <Link to={to.connect()}>Connect a console</Link> and it opens here.</Banner> : null}
+      {hasConsole() && s && !s.available ? <Banner tone="warn" title="Textual is not installed here">The console's environment cannot start the terminal dash. Restart the console with <code>tools/dash console</code>, which installs requirements.txt (it includes the TUI's).</Banner> : null}
       {phase === 'error' || phase === 'exited' ? (
         <Banner tone={phase === 'error' ? 'crit' : 'info'}>
           <Group gap="sm"><Text size="sm">{message || 'The session ended.'}</Text><Button size="compact-xs" onClick={restart}>Start a new session</Button></Group>

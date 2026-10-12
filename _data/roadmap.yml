@@ -5,8 +5,8 @@
 #   - `/future-features <idea>`  (manual entry point — one idea)
 #   - the `feature-scout` sub-agent (automatic — scans the session thread)
 #
-# This file is committed and reviewable. The dash Roadmap surface
-# (pages/_dash/roadmap.md) renders it, and entries optionally mirror to a
+# This file is committed and reviewable. The dash Roadmap page
+# (/roadmap — tools/console/web/src/pages/Registries.tsx) renders it, and entries optionally mirror to a
 # GitHub issue in the target repo once approved.
 #
 # WORKFLOW

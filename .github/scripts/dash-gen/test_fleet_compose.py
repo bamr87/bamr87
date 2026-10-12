@@ -47,7 +47,7 @@ def test_every_port_shape_the_fleet_actually_uses_parses():
     cases = {
         "4000:4000": (None, "4000", 4000),
         "127.0.0.1:4000:4000": ("127.0.0.1", "4000", 4000),
-        "${JEKYLL_PORT:-4000}:4000": (None, "${JEKYLL_PORT:-4000}", 4000),
+        "${SITE_PORT:-4000}:4000": (None, "${SITE_PORT:-4000}", 4000),
         # djangoerp writes a VARIABLE bind address. Before this parsed, its five
         # mappings fell through unremapped — a collision the map cannot see.
         "${BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5433}:5432":

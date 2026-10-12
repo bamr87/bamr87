@@ -1,6 +1,6 @@
 # Harness Console
 
-The local control plane's **front end**: one service that lets you view, manage, orchestrate, and deploy the fleet's AI harnesses from a browser, using exactly the `tools/` entrypoints the CLI and CI run. It is the credentialed, write-capable twin of the read-only Jekyll boards on GitHub Pages ([docs/HARNESS-OPS.md](../../docs/HARNESS-OPS.md), "The two planes").
+The local control plane's **front end**: one service that lets you view, manage, orchestrate, and deploy the fleet's AI harnesses from a browser, using exactly the `tools/` entrypoints the CLI and CI run. The same page, built static, **is** the public site on GitHub Pages — https://bamr87.github.io/bamr87/ — where it reads a snapshot of this API instead of the API itself, and where a visitor can connect GitHub or a running console to get the write path back ([docs/CONSOLE-PAGES.md](../../docs/CONSOLE-PAGES.md); [docs/HARNESS-OPS.md](../../docs/HARNESS-OPS.md), "The two planes").
 
 ## Run it
 
@@ -24,18 +24,19 @@ Credentials are inherited from the process environment (`gh auth login`, or `GH_
 
 A React + TypeScript app on **Mantine** (app shell, Spotlight palette, modals, notifications), **TanStack Query** (one cache for every API document) and **React Router** (every view is a URL), built with Vite from [`web/`](web/README.md) into `web/dist/`, which `app.py` serves. `run.sh` rebuilds it whenever a source file is newer than the last build, at latest versions and without a lockfile, like the venv. Without `npm` the API still serves, and `/` says how to build the page.
 
-Eight sections, each a group of pages, with a drill-down for every entity. Every repo name, operation, job, loop, site and config block is a link to its own page.
+Nine sections, each a group of pages, with a drill-down for every entity. Every repo name, operation, job, loop, site and config block is a link to its own page.
 
 | Section | Pages | Drill-downs |
 | --- | --- | --- |
-| **Overview** | attention count, eight KPI tiles (each a link to the page that explains it), the ranked attention queue with each finding's lever, signal freshness with a refresh per source | a finding → its project; its lever → the operation or page |
-| **Fleet** | **Projects** (the TUI's Apps view from `/api/fleet`, filtered and sorted by fleetcore on the server), **Inbox** (flagged items, filter by kind), **GitHub** (connect through the OAuth App; every repo the account sees; the action log), **Containers** | **`/projects/:name`** — everything joined on one project (`/api/project/:name`): health, CI, triage, open work, failing workflows, its harness workflows and crons, its runs and workflows in the lake, its content site, a live **GitHub** tab (below), and repo-scoped actions (deploy the kit, auth order, lake sync, evolution dispatch); `/github/:owner/:repo` — the same live view for any repo the account can see |
+| **Profile** | **Home** (who, the fleet's vital signs, featured projects, writing), **About**, **Experience**, **Portfolio** (every project as a card), **Writing**, **Services**, **Contact** | `/blog/:slug` — a post |
+| **Overview** (`/overview`) | attention count, eight KPI tiles (each a link to the page that explains it), the ranked attention queue with each finding's lever, signal freshness with a refresh per source | a finding → its project; its lever → the operation or page |
+| **Fleet** | **Projects** (the TUI's Apps view from `/api/fleet`, filtered and sorted by fleetcore on the server), **Inbox** (flagged items, filter by kind), **Roadmap**, **Features** (the fleet feature index), **Engagements** (the estimate/actuals ledger), **GitHub** (connect through the OAuth App; every repo the account sees; the action log), **Containers** | **`/projects/:name`** — everything joined on one project (`/api/project/:name`): health, CI, triage, open work, failing workflows, its harness workflows and crons, its runs and workflows in the lake, its content site, a live **GitHub** tab (below), and repo-scoped actions (deploy the kit, auth order, lake sync, evolution dispatch); `/github/:owner/:repo` — the same live view for any repo the account can see |
 | **Harnesses** | **Inventory** (the deployment matrix, deploy to gap repos), **Health** (trip wires + scorecard), **Schedules** (caps, AI crons per UTC hour, the calendar), **Loops** | `/loops/:id` — schedule, committed outputs and their freshness, the local-half operations, a CI dispatch, the loop's jobs |
 | **Spend** | **Costs** (Claude spend and Actions minutes vs budget), **Agent activity** (`/api/lake/review`: local sessions + CI agent runs, findings, cost by repo, tool use) | repos → their project's Runs tab; runs → GitHub |
 | **Observe** | **Traces** (the lake + Phoenix: sync, extract sessions, export), **Lines** (every workflow with provenance and kill switch), **Logs** (Kibana), **Metrics** (Grafana), **Code index** (Qdrant search + harmonize + coverage) | a plane that is not running renders as an invitation to start it |
 | **Content** | **Content sites** (the atlas) | `/content/:site` — plan (narrative, pillar targets, add a pillar), suggestions (approve / reject), directives (move, add, file as issues — dry run, then confirm-gated apply), activity charts, documents. Every write goes to `_data/editorial.yml` in the working tree and shows its diff |
-| **Operate** | **Jobs**, **Operations** (the allowlist, grouped), **Terminal** | `/jobs/:id` — live log, cancel, run again with the same parameters; `/ops/:id` — the parameter form, the loops it belongs to, its jobs |
-| **Settings** | **Config** (`_data/fleet.yml`, one top-level block per page: `/config/:section`), **Credentials** (this console's credentials, gh login, the token contract and ages, rotate from `.env`, Anthropic API keys, AI auth order) | — |
+| **Operate** | **Jobs**, **Operations** (the allowlist, grouped), **Toolbox** (scripts, skills, kits), **Terminal** | `/jobs/:id` — live log, cancel, run again with the same parameters; `/ops/:id` — the parameter form, the loops it belongs to, its jobs |
+| **Settings** | **Config** (`_data/fleet.yml`, one top-level block per page: `/config/:section`), **Connect** (on the public build: a GitHub token or a console), **Credentials** (this console's credentials, gh login, the token contract and ages, rotate from `.env`, Anthropic API keys, AI auth order) | — |
 
 Running an operation works the same from any button, form or palette pick. A GitHub-writing operation says in plain words what it will do and asks first (the server refuses a write without `confirm=true` anyway). The job then opens in a side drawer on its live log, so the page you were on stays put. A job that succeeds refreshes every document, because its output is new data in the working tree.
 
@@ -73,12 +74,23 @@ No HTTP middleware sees a WebSocket handshake, and CORS does not apply to one, s
 - the **Origin** must be this console's own page, which stops cross-site WebSocket hijacking (add a dev origin with `DASH_CONSOLE_ALLOWED_ORIGINS`);
 - when `DASH_CONSOLE_TOKEN` is set, the first frame must carry it, because a browser cannot put a bearer token on a WebSocket.
 
+## The public site
+
+`build-pages.sh` builds this page a second way — base `/bamr87/`, `VITE_STATIC=1` — and `snapshot.py` writes every GET document the page reads as a file beside it, rendered by the same functions the routes above call. That is what `build-dash.yml` publishes. It also adds the profile: Home, About, Experience, Portfolio, Writing, Services and Contact (`site_docs.py`, from `_data/profile.yml` and `pages/`), served here too at `/api/site*` and `/api/data/{name}`.
+
+On that page, `/connect` lets a visitor add:
+
+- **A GitHub token.** The page then makes this console's GitHub writes and workflow dispatches itself, from the browser, under the same rules.
+- **This console's URL and token.** `remote_page` answers CORS for `https://bamr87.github.io` (`DASH_CONSOLE_PAGES_ORIGIN`) only while `DASH_CONSOLE_TOKEN` is set, and the Terminal page's WebSocket follows the same rule. That origin is every Pages site the account has, so the token is what tells this one apart.
+
+The snapshot never carries the lake, a credential (not even its presence), a local probe, a local path or a draft; `test_pages.py` holds each of those. `/diagrams/<name>.html` serves the archify diagrams the Harness health page embeds, sandboxed.
+
 ## Keys
 
 keys v1, from `/api/keys` ([`tools/fleetcore/keys.py`](../fleetcore/keys.py)), the table the TUI binds:
 
 - `?` shows the sheet, and `:` (or ⌘K) opens the palette: every page, project, loop, content site, config block and operation.
-- `/` focuses the page's search box, `esc` goes back, `1`–`8` jump to a section, and `]` / `[` step through the pages.
+- `/` focuses the page's search box, `esc` goes back, `1`–`9` jump to a section (1 is the profile), and `]` / `[` step through the pages.
 - On a list, `j` / `k` / `g` / `G` move, `enter` opens the row's drill-down, `o` / `l` / `y` open the repo, open the live site, or copy the link, and `s` cycles the sort.
 - `r` re-reads every document and `R` runs the live health refresh.
 - Typing in a field, holding ctrl/⌘/alt, or focus inside the terminal leaves the key alone.

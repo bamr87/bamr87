@@ -5,12 +5,15 @@ import './styles.css';
 
 import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { MantineProvider, localStorageColorSchemeManager } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { BASENAME, hasConsole } from './api/backend';
+import { LEGACY_ROUTES } from './lib/legacy';
+import { PROFILE_PAGES } from './nav';
 import { resolver, theme } from './theme';
 import { Shell } from './components/Shell';
 import { GlobalKeys } from './components/GlobalKeys';
@@ -18,6 +21,11 @@ import { CommandCenter } from './components/CommandCenter';
 import { TokenGate } from './components/TokenGate';
 import { JobRunner } from './jobs/JobRunner';
 
+import { Home } from './pages/Home';
+import { Blog, Post, ProfilePage } from './pages/Profile';
+import { Portfolio } from './pages/Portfolio';
+import { Engagements, Features, Roadmap, Toolbox } from './pages/Registries';
+import { Connect } from './pages/Connect';
 import { Overview } from './pages/Overview';
 import { Projects } from './pages/Projects';
 import { ProjectPage } from './pages/ProjectPage';
@@ -56,14 +64,24 @@ createRoot(document.getElementById('root')!).render(
       <MantineProvider theme={theme} cssVariablesResolver={resolver} defaultColorScheme="auto" colorSchemeManager={colorSchemeManager}>
         <ModalsProvider>
           <Notifications position="bottom-right" limit={4} />
-          <BrowserRouter>
+          <BrowserRouter basename={BASENAME}>
             <JobRunner>
               <TokenGate />
               <GlobalKeys />
               <CommandCenter />
               <Routes>
                 <Route element={<Shell />}>
-                  <Route index element={<Overview />} />
+                  <Route index element={<Home />} />
+                  {PROFILE_PAGES.map((slug) => <Route key={slug} path={slug} element={<ProfilePage key={slug} slug={slug} />} />)}
+                  <Route path="portfolio" element={<Portfolio />} />
+                  <Route path="blog" element={<Blog />} />
+                  <Route path="blog/:slug" element={<Post />} />
+                  <Route path="overview" element={<Overview />} />
+                  <Route path="roadmap" element={<Roadmap />} />
+                  <Route path="features" element={<Features />} />
+                  <Route path="engagements" element={<Engagements />} />
+                  <Route path="toolbox" element={<Toolbox />} />
+                  <Route path="connect" element={<Connect />} />
                   <Route path="projects" element={<Projects />} />
                   <Route path="projects/:name" element={<ProjectPage />} />
                   <Route path="inbox" element={<Inbox />} />
@@ -91,7 +109,9 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="terminal" element={<Suspense fallback={null}><TerminalPage /></Suspense>} />
                   <Route path="config" element={<ConfigPage />} />
                   <Route path="config/:section" element={<ConfigPage />} />
-                  <Route path="auth" element={<AuthPage />} />
+                  {/* Credentials are a console's; the public page connects instead. */}
+                  <Route path="auth" element={hasConsole() ? <AuthPage /> : <Navigate to="/connect" replace />} />
+                  {Object.entries(LEGACY_ROUTES).map(([from, dest]) => <Route key={from} path={from} element={<Navigate to={dest} replace />} />)}
                   <Route path="*" element={<NotFound />} />
                 </Route>
               </Routes>

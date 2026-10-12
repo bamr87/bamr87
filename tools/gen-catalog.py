@@ -259,7 +259,7 @@ def sec_copilot() -> list[str]:
 
 def sec_docs() -> list[str]:
     purposes = table_map(ROOT / "docs" / "README.md", 1)
-    out = ["## 9. Operator docs", "", "Index in [`docs/README.md`](docs/README.md). UPPERCASE files are topic docs of record; lowercase are guides.", ""]
+    out = ["## 9. Operator docs", "", "Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern; start with [`DEVELOPMENT.md`](docs/DEVELOPMENT.md).", ""]
     out += header("Doc", "Purpose")
     for f in sorted((ROOT / "docs").glob("*.md")):
         if f.name in ("README.md", "SCHEMA.md"):
@@ -272,11 +272,21 @@ def sec_docs() -> list[str]:
 
 
 def sec_dash() -> list[str]:
-    out = ["## 10. Dash surfaces", "", "The Jekyll site's collections under [`pages/_dash/`](pages/_dash/), published at `bamr87.github.io/bamr87/`.", ""]
-    out += header("Surface", "Path", "Description")
-    for f in sorted((ROOT / "pages" / "_dash").glob("*.md")):
-        fm = frontmatter(f)
-        out.append(row(str(fm.get("title", f.stem)), f"`{fm.get('permalink', '/' + f.stem + '/')}`", short(str(fm.get("description", "—")))))
+    """Every page of the site, from the nav the app itself renders
+    (tools/console/web/src/nav.ts): section, label, route, hint."""
+    out = ["## 10. Dash surfaces", "", "The pages of the public site — the Harness Console built static ([`docs/CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md)) — "
+           "from its nav ([`tools/console/web/src/nav.ts`](tools/console/web/src/nav.ts)), published at `bamr87.github.io/bamr87/`.", ""]
+    out += header("Section", "Surface", "Path", "Description")
+    nav = (ROOT / "tools" / "console" / "web" / "src" / "nav.ts").read_text(encoding="utf-8")
+    body = nav[nav.index("export const NAV"):]
+    section = ""
+    for line in body.splitlines():
+        m = re.match(r"\s*\{ label: '([^']+)', items: \[", line) or re.match(r"\s*label: '([^']+)',$", line)
+        if m:
+            section = m.group(1)
+        for item in re.finditer(r"\{ label: '([^']+)', to: '([^']+)'([^}]*)\}", line):
+            hint = re.search(r"hint: '([^']*)'", item.group(3))
+            out.append(row(section, item.group(1), f"`{item.group(2)}`", short(hint.group(1) if hint else "—")))
     return out + [""]
 
 
@@ -309,7 +319,7 @@ def render() -> str:
         "| 7 | [AI layer](#7-ai-layer-claude) | `.claude/{skills,commands,agents,hooks}` |",
         "| 8 | [Copilot-format templates](#8-copilot-format-personas-instructions-prompts-github) | `.github/{agents,instructions,prompts,evolution}` |",
         "| 9 | [Operator docs](#9-operator-docs) | `docs/*.md` + root docs of record |",
-        "| 10 | [Dash surfaces](#10-dash-surfaces) | `pages/_dash/*.md` |",
+        "| 10 | [Dash surfaces](#10-dash-surfaces) | `tools/console/web/src/nav.ts` |",
         "| 11 | [Diagrams](#11-diagrams) | `diagrams/*.json` |",
         "",
     ]

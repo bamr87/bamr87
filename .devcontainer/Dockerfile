@@ -11,8 +11,10 @@
 # `make`, a hand-maintained RUBY_VERSION, and a Node/Python/Ruby trio that each
 # had its own upgrade story.
 #
-# Ruby is 3.4, NOT 4.0: the github-pages gem the dash site builds with declares
-# `Ruby >= 2.6, < 4.0`, so 4.0 cannot resolve it (see fleet.yml `images:`).
+# Ruby is here for the fleet's Jekyll sites run in this workspace (the devenv
+# workspace block in docker-compose.yml) — the hub's own site is the console,
+# built with Node + Python. Ruby is 3.4, NOT 4.0: the github-pages gem those
+# sites build with declares `Ruby >= 2.6, < 4.0` (see fleet.yml `images:`).
 
 # Declared BEFORE the first FROM so it is visible to every FROM below — an ARG
 # after a FROM belongs to that stage only, and `FROM ruby:${RUBY_VERSION}-trixie`

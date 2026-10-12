@@ -51,7 +51,7 @@ Status: **Phase 0 in progress**, 2026-10-01. §9 records the owner's decisions: 
 | `chui` *(registered 2026-10-01)* | Rebuildable macOS terminal: Oh My Zsh, Powerlevel10k, Zellij, fzf/zoxide/lazygit/btop. `chui` menu (`tui.sh`), `$HOME` mapper, `forge` remote box. Its Zellij config is live on the owner's machine via symlink. | zsh/bash, gum ×18, fzf ×37, Zellij ×24 |
 | `it-journey` | `journey.sh`: a gum + glow menu over quests, docs, Docker and workflows. Also the *Terminal Mastery* quests, incl. "Terminal Artificer" (build gum frontends). | bash, gum ×48 |
 | `amrchy` *(fork, not registered)* | Fork of an upstream Linux desktop distro; has its own plugin mechanism (`omarchy-plugin-add`) | bash, ~87k lines, gum ×219 |
-| hub root | `setup-terminal.sh` ("Terminal Enchantment"), `theme-benchmark.sh`, `validate-plugins.sh`, `validate-vscode-terminal.sh`, `install_omz.sh`: a second Oh My Zsh setup beside chui. (`tools/setup-terminal.sh` correctly delegates to chui.) | bash |
+| hub root | ~~a second Oh My Zsh setup beside chui~~ — deleted 2026-10; `tools/setup-terminal.sh` delegates to chui. | bash |
 
 **Subcommand CLIs**
 
@@ -81,7 +81,7 @@ Status: **Phase 0 in progress**, 2026-10-01. §9 records the owner's decisions: 
 | --- | --- |
 | A terminal desktop / compositor | bashOS WM (Python) **and** TermForge's compositor (JS) |
 | A live agent / fleet activity dashboard | hub TUI, wtd dashboard + `wtd fleet`, TermForge `agentwatch`, `outbox watch`, bashOS Health/Trace (five) |
-| The terminal environment install | chui **and** the hub-root `setup-terminal.sh` family; amrchy is the Linux analogue |
+| The terminal environment install | chui ~~**and** the hub-root `setup-terminal.sh` family~~ (removed 2026-10); amrchy is the Linux analogue |
 | Shell logging/prompt helpers | ≥64 shell files in 10 repos define their own `log_info()`-style functions; zer0-mistakes, bashcrawl and retro-pi each keep a private `lib/` |
 | CLI plumbing | Typer (bashos, wtd, ocrmd, drsai), Click (lawmode, aieo), argparse (README, wargames, outbox, raising-eliza, dash-gen), `parseArgs` (TermForge, gwtp), bash case-dispatch (dash, retropi, scripts, chui) |
 | Textual upgrades, absorbed alone by each app | bashos `textual>=8.2,<9` (a ceiling, against `docs/DEPENDENCIES.md`), wtd `textual>=0.47.0` (a floor 8 majors stale), hub unpinned |
@@ -209,7 +209,7 @@ Sizes: **S** ≈ a day, **M** ≈ a few days, **L** ≈ one to two weeks of focu
 | hub `tools/tui` | first external app plugin | generic widgets (above) → widget kit | `fleet.py`, `host.py`, the six tabs | `app.py` becomes an `app v1` plugin (`bamr87-dash`); `tools/dash tui` runs it standalone; keymap per §6.1 | 4 | M |
 | `wtd` | open: §9.4 | TODO-tree dashboard → widget kit tree view (either way) | per §9.4 | per §9.4 | 4 | S–M |
 | `chui` | environment layer | — | zsh / p10k / Zellij config | Zellij unlock-first + VS Code meta passthrough (§6.1); `tui.sh` → `bashos.sh`; palettes from `theme v1`; a Zellij layout opening the desktop + the fleet app; install bashOS; absorb the hub-root duplicates | 3, 5 | M |
-| hub root terminal scripts | duplicates of chui | whatever chui lacks → chui | `tools/setup-terminal.sh` (the delegator) | delete the five root scripts and their `SCHEMA.md` rows | 3 | S |
+| hub root terminal scripts | duplicates of chui | whatever chui lacks → chui | `tools/setup-terminal.sh` (the delegator) | **done 2026-10** — the five root scripts and their rows are deleted (`theme-benchmark.sh`, the one chui had no equivalent for, is in git history) | 3 | S |
 | `amrchy` (fork) | Linux environment | — | upstream code, untouched | an omarchy plugin that installs bashOS + the theme | 5 | S |
 | `it-journey` | teaching + content | — | quests, `journey.sh` | `journey.sh` → `bashos.sh` now; later a quest-browser app; live `<bashos-terminal>` practice in *Terminal Mastery* quests; a "Terminal Artificer II" quest that builds a bashOS app | 3, 5 | M |
 | `zer0-mistakes` | largest bash consumer; the theme | `scripts/lib/common.sh` helpers converge on `bashos.sh` (23 files define their own) | the toolchain | adopt `bashos.sh`; add `_includes/bashos-terminal.html` so every theme site can embed a terminal | 3, 5 | M |

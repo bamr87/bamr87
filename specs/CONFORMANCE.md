@@ -88,4 +88,4 @@ WORK  01 02 03 04 07 09 10 12
 | Cypress in 1 repo; pytest config in 3 places; `test/` vs `tests/` | QA-11, QA-12, REPO-02 | per-repo migration PRs (grandfather `test/`) |
 | `standard-ci` passes on zero tests; no Bash detection | QA-10, QA-04 | `standard-ci.yml` change |
 | Hub dash has no feedback path | FB-33 | mount the kit on the dash |
-| `_data/templates.yml` under-reports the kits; `.husky` vestigial | — | catalog refresh; delete `.husky` |
+| `_data/templates.yml` under-reports the kits; ~~`.husky` vestigial~~ (deleted 2026-10) | — | catalog refresh |

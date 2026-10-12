@@ -1,11 +1,22 @@
-// The console's information architecture: eight sections, each a group of
-// pages. keys v1's 1–8 jump to a section, ] / [ step through the pages in this
-// order — the same keys that move between tabs in the terminal dash.
+// The site's information architecture: nine sections, each a group of pages.
+// The first is the profile — what a visitor to the public site came for — and
+// the other eight are the console. keys v1's 1–9 jump to a section, ] / [ step
+// through the pages in this order — the same keys that move between tabs in
+// the terminal dash.
 import {
-  IconActivity, IconAppWindow, IconBox, IconBrandGithub, IconBrandDocker, IconCalendarTime, IconChartBar, IconCoin, IconFileText,
-  IconHeartbeat, IconHome, IconInbox, IconKey, IconListDetails, IconLogs, IconPlayerPlay, IconRepeat, IconRoute,
-  IconSearch, IconSettings, IconTerminal2, IconTopologyStar3, type Icon,
+  IconActivity, IconAppWindow, IconBox, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
+  IconFileText, IconGauge, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconListCheck, IconListDetails, IconLogs,
+  IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconSettings,
+  IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, type Icon,
 } from '@tabler/icons-react';
+
+import { BASENAME } from './api/backend';
+
+/** window.location.pathname without the base path (the router's own view of it). */
+export const appPath = (path: string): string => (BASENAME && path.startsWith(BASENAME) ? path.slice(BASENAME.length) || '/' : path);
+
+/** The long-form pages under pages/profile/, each at /<slug>. */
+export const PROFILE_PAGES = ['about', 'experience', 'services', 'contact'] as const;
 
 export interface NavItem {
   label: string;
@@ -23,12 +34,27 @@ export interface NavSection {
 }
 
 export const NAV: NavSection[] = [
-  { label: 'Overview', items: [{ label: 'Overview', to: '/', icon: IconHome, exact: true, hint: 'attention, KPIs, signal freshness' }] },
+  {
+    label: 'Profile',
+    items: [
+      { label: 'Home', to: '/', icon: IconHome, exact: true, hint: 'who, what the fleet looks like, what the site is for' },
+      { label: 'About', to: '/about', icon: IconUser, hint: 'background and stack' },
+      { label: 'Experience', to: '/experience', icon: IconBriefcase, hint: '15+ years across ERP, finance systems and engineering' },
+      { label: 'Portfolio', to: '/portfolio', icon: IconLayoutGrid, hint: 'every project, featured first' },
+      { label: 'Writing', to: '/blog', icon: IconPencil, hint: 'posts' },
+      { label: 'Services', to: '/services', icon: IconTool, hint: 'consulting' },
+      { label: 'Contact', to: '/contact', icon: IconMail, hint: 'get in touch' },
+    ],
+  },
+  { label: 'Overview', items: [{ label: 'Overview', to: '/overview', icon: IconGauge, hint: 'attention, KPIs, signal freshness' }] },
   {
     label: 'Fleet',
     items: [
       { label: 'Projects', to: '/projects', icon: IconAppWindow, hint: 'every registry project — the TUI’s Apps view' },
       { label: 'Inbox', to: '/inbox', icon: IconInbox, hint: 'flagged issues, PRs and failing workflows' },
+      { label: 'Roadmap', to: '/roadmap', icon: IconRoadSign, hint: 'feature specs across the fleet' },
+      { label: 'Features', to: '/features', icon: IconListCheck, hint: 'what each repo does and what proves it' },
+      { label: 'Engagements', to: '/engagements', icon: IconReceipt, hint: 'projects as clients: estimates and actuals' },
       { label: 'GitHub', to: '/github', icon: IconBrandGithub, hint: 'connect through the OAuth App; manage issues, runs and workflows' },
       { label: 'Containers', to: '/containers', icon: IconBrandDocker, hint: 'containers on every Docker host' },
     ],
@@ -65,6 +91,7 @@ export const NAV: NavSection[] = [
     items: [
       { label: 'Jobs', to: '/jobs', icon: IconBox, hint: 'every job, live logs' },
       { label: 'Operations', to: '/ops', icon: IconPlayerPlay, hint: 'the allowlisted operations' },
+      { label: 'Toolbox', to: '/toolbox', icon: IconTools, hint: 'scripts, skills and kits the hub provides' },
       { label: 'Terminal', to: '/terminal', icon: IconTerminal2, hint: 'the terminal dash, in the page' },
     ],
   },
@@ -73,6 +100,7 @@ export const NAV: NavSection[] = [
     items: [
       { label: 'Config', to: '/config', icon: IconSettings, hint: '_data/fleet.yml, block by block' },
       { label: 'Credentials', to: '/auth', icon: IconKey, hint: 'tokens, gh login, rotation' },
+      { label: 'Connect', to: '/connect', icon: IconPlugConnected, hint: 'give the public page GitHub, or a running console' },
     ],
   },
 ];

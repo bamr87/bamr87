@@ -1,6 +1,7 @@
 // The Kilo code index: semantic search over this worktree (Qdrant + a native
 // Ollama embedder), its coverage per submodule, and "harmonize" — which
 // projects share a pattern and which do not. A project row opens its page.
+import { hasConsole } from '../api/backend';
 import { Link } from 'react-router';
 import { Anchor, Button, Group, Paper, SegmentedControl, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
@@ -114,7 +115,7 @@ export function CodeIndex() {
                 <StatTile label="Points" value={fmt(p.points)} sub={((p.collections ?? []) as Row[]).map((c) => `${c.name} ${fmt(c.points)}`).join(', ') || 'no collection yet'} />
                 <StatTile label="Submodules checked out" value={`${fmt(subs.checked_out)}/${fmt(subs.declared)}`} sub={`${p.configured ? 'kilo.jsonc indexing on' : 'kilo.jsonc indexing OFF'}${empty.length ? ` · ${empty.length} not checked out` : ''}`} />
               </SimpleGrid>
-              {!p.reachable ? <Banner tone="info" title="Qdrant is not running">Start it with the log + metrics stack (Observe → Logs → Start), or <Mono>tools/dash observe up</Mono>.</Banner> : null}
+              {!p.reachable && hasConsole() ? <Banner tone="info" title="Qdrant is not running">Start it with the log + metrics stack (Observe → Logs → Start), or <Mono>tools/dash observe up</Mono>.</Banner> : null}
               {empty.length ? (
                 <Section title="Not checked out" description="In .gitmodules but with no working tree — git submodule update --init puts them in the index.">
                   <Group gap={6}>{empty.map((e) => <Mono key={e}>{e}</Mono>)}</Group>

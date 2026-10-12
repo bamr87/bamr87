@@ -2,7 +2,7 @@
 # compose/shared.yml — the hub's SHARED services layer
 # ============================================================================
 #
-# Overlaid on the hub's own docker-compose.yml by compose.fleet.yml. It exists
+# Overlaid on the hub's own docker-compose.yml by compose/fleet.yml. It exists
 # as a separate file so `docker compose up -d` at the repo root keeps working
 # byte-for-byte as before: nothing here is visible unless you go through the
 # fleet stack.

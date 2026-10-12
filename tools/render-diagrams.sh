@@ -2,7 +2,8 @@
 # render-diagrams.sh — validate and deliver every diagram in diagrams/ with the
 # vendored archify skill (.claude/skills/archify). Sources are typed JSON IR
 # (diagrams/<name>.<type>.json); outputs are self-contained HTML beside them,
-# served by the Jekyll dash at /diagrams/<name>.<type>.html and embedded on /harness/.
+# copied into the public site by tools/console/build-pages.sh (and served by the
+# console at /diagrams/<name>.<type>.html), embedded on the Harness health page.
 #
 # Usage: tools/render-diagrams.sh [--check]    # --check validates only, writes nothing
 # Exit non-zero if any diagram fails showcase validation or delivery.

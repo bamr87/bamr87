@@ -176,11 +176,15 @@ class TuiSession:
 class TuiBridge:
     """Admission control + the relay loop. One instance per console process."""
 
-    def __init__(self, allowed_hosts: set[str]):
+    def __init__(self, allowed_hosts: set[str], remote_origins: set[str] | frozenset = frozenset()):
         self.allowed_hosts = allowed_hosts
         self.allowed_origins = {o.strip().rstrip("/").lower() for o in
                                 (os.environ.get("DASH_CONSOLE_ALLOWED_ORIGINS") or "").split(",")
                                 if o.strip()}
+        # The public site (app.py REMOTE_ORIGINS) may open the terminal only on
+        # a console that requires its token: that origin is shared by every
+        # Pages site of the account, so the token is what tells them apart.
+        self.remote_origins = {o.rstrip("/").lower() for o in remote_origins}
         self.active = 0
 
     def status(self) -> dict:
@@ -203,7 +207,8 @@ class TuiBridge:
         host = host_header.rsplit(":", 1)[0].strip().lower()
         if host and host not in self.allowed_hosts:
             return CLOSE_FORBIDDEN, f"host '{host}' is not allowed"
-        if not origin_allowed(headers.get("origin"), host_header, self.allowed_origins):
+        extra = self.allowed_origins | (self.remote_origins if os.environ.get("DASH_CONSOLE_TOKEN") else set())
+        if not origin_allowed(headers.get("origin"), host_header, extra):
             return CLOSE_FORBIDDEN, "origin is not this console"
         return None
 

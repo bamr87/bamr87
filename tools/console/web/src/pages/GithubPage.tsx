@@ -8,8 +8,10 @@ import { useState } from 'react';
 import { useGithubLog, useGithubRepos, useGithubStatus } from '../api/hooks';
 import type { GhAction, GhRepo } from '../api/types';
 import { DataTable } from '../components/DataTable';
-import { External, Load, Mono, PageHeader, Section, Status } from '../components/ui';
+import { Banner, External, Load, Mono, PageHeader, Section, Status } from '../components/ui';
+import { hasConsole } from '../api/backend';
 import { ConnectPanel } from '../github/ConnectPanel';
+import { Button } from '@mantine/core';
 import { RepoManager } from '../github/RepoManager';
 import { includesText, when } from '../lib/format';
 import { gh, to } from '../lib/links';
@@ -96,12 +98,19 @@ export function GithubPage() {
     <>
       <PageHeader
         title="GitHub"
-        description={<>Connect the console to GitHub through its own OAuth App, then manage the fleet's repos from here: issues, pull-request conversations, workflow runs and workflows. Writes go only to repos the hub owns, each one confirmed and logged. Nothing here merges, deletes or pushes. See <External href={gh.hubFile('tools/console/README.md')} size="sm">the console README</External>.</>}
+        description={<>{hasConsole() ? 'Connect the console to GitHub through its own OAuth App' : 'Connect this page to GitHub with a token'}, then manage the fleet's repos from here: issues, pull-request conversations, workflow runs and workflows. Writes go only to repos the hub owns, each one confirmed and logged. Nothing here merges, deletes or pushes. See <External href={gh.hubFile('tools/console/README.md')} size="sm">the console README</External>.</>}
       />
       <Load q={status} rows={4}>
         {(s) => (
           <>
-            <ConnectPanel s={s} />
+            {hasConsole() ? <ConnectPanel s={s} /> : s.connected ? (
+              <Group gap="sm" mb="sm"><Status tone="good">acting as {s.login}, from this browser</Status><Anchor component={Link} to={to.connect()} size="sm">token settings</Anchor></Group>
+            ) : (
+              <Banner tone={s.error ? 'crit' : 'info'} title={s.error ? 'GitHub refused the token' : 'Connect GitHub to manage the fleet from here'}>
+                <Text size="sm" mb="xs">{s.error ?? 'This published page reads and writes GitHub from your browser with a token you give it. It never leaves this browser except to api.github.com.'}</Text>
+                <Button component={Link} to={to.connect()} size="xs">Connect</Button>
+              </Banner>
+            )}
             {s.connected ? (
               <>
                 <Section title="Repositories" description={`What ${s.login} can see, newest push first. Fleet repos (owned by ${s.fleet_owner} and in the registry, plus the hub) are managed here; everything else is read-only.`}>

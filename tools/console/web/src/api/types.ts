@@ -243,6 +243,7 @@ export interface FleetView {
   scorecard: Dict<ScoreMetric>;
   sorts: string[];
   rows: FleetRow[];
+  query?: { q: string; sort: string; health: string | null };
 }
 
 export interface Container {
@@ -411,4 +412,23 @@ export interface GhRepoDetail {
 
 export interface GhAction {
   at: string; action: string; label: string; repo: string; target: string; ok: boolean; url: string | null; error: string | null;
+}
+
+// --- The site (tools/console/site_docs.py) ---------------------------------
+export interface Profile {
+  name?: string; handle?: string; title?: string; tagline?: string; location?: string; email?: string; avatar?: string; summary?: string;
+  site?: { title?: string; url?: string; description?: string };
+  links?: { label: string; icon?: string; url: string }[];
+}
+export interface SitePageMeta { slug: string; title: string; description: string; order: number; icon: string }
+export interface SitePage extends SitePageMeta { markdown: string }
+export interface SitePostMeta { slug: string; date: string; title: string; excerpt: string; categories: string[]; tags: string[]; draft: boolean; words: number }
+export interface SitePost extends SitePostMeta { markdown: string }
+export interface SiteIndex { profile: Profile; pages: SitePageMeta[]; posts: SitePostMeta[] }
+
+export interface GithubFleet {
+  owner: string;
+  hub: { repo?: string; shared?: string; default_branch?: string };
+  repos: Record<string, string>;
+  dispatchable: Record<string, string[]>;
 }

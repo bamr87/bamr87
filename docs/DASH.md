@@ -11,8 +11,8 @@ This repo is a central **dash** that manages, showcases, monitors, and evolves a
                                  │
    ┌──────────────┬─────────────┼──────────────┬──────────────┬──────────────────┐
    ▼              ▼             ▼              ▼              ▼                  ▼
-Portfolio     Dashboard     Monitor        Toolbox       README.md          tools/check-drift.sh
-(/portfolio)  (/dashboard)  (/monitor)     (/toolbox)    AUTO:projects      (registry ↔ .gitmodules)
+Portfolio     Overview      Projects       Toolbox       README.md          tools/check-drift.sh
+(/portfolio)  (/overview)   (/projects)    (/toolbox)    AUTO:projects      (registry ↔ .gitmodules)
                                  ▲
                   _data/project_health.yml  ← gh API: stars · CI · issues · PRs ·
                                  │                activity · security → attention (red/amber/green)
@@ -27,15 +27,15 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | --- | --- | --- |
 | Registry | Single source of truth | `_data/projects.yml` |
 | Submodules | All projects, flat under one container | `projects/<name>/` (see [`projects/README.md`](../projects/README.md)) |
-| Dash site | Root Jekyll site (`bamr87/zer0-mistakes` theme); dash pages are the `dash` collection (portfolio, dashboard, monitor, triage, toolbox, actions, ai-activity, roadmap, resume, docs) | `pages/_dash/` → `bamr87.github.io/bamr87/` |
-| Terminal dash | Textual twin of the command center, `/monitor/`, `/triage/` and `/harness/` — same YAML, local TTY; live Docker from local + `ssh://forge`; a Jobs tab on the console's runtime. Shares `tools/fleetcore/` (views, keys v1, the bashOS palette) with the Harness Console | `tools/tui/` (`tools/dash tui [--docker]`) |
+| Dash site | The Harness Console's page (`tools/console/web`, React + Mantine) built static: the profile and portfolio plus every console view, reading a snapshot of the console's API rendered by `tools/console/snapshot.py`; a visitor can connect GitHub or a running console to act on it ([CONSOLE-PAGES.md](CONSOLE-PAGES.md)) | `tools/console/build-pages.sh` → `build-dash.yml` → `bamr87.github.io/bamr87/` |
+| Terminal dash | Textual twin of the site's Projects, Inbox and Harness health pages — same YAML, local TTY; live Docker from local + `ssh://forge`; a Jobs tab on the console's runtime. Shares `tools/fleetcore/` (views, keys v1, the bashOS palette) with the Harness Console | `tools/tui/` (`tools/dash tui [--docker]`) |
 | Container host | Forge LAN box runs app compose; Mac never bind-mounts into the remote daemon | [`docs/FORGE-HOST.md`](FORGE-HOST.md) |
 | Monitoring | Live GitHub signals + attention scoring | `.github/scripts/dash-gen` → `_data/project_health.yml` |
 | AI activity | Shadow-priced Claude Code usage per repo (local-only) | `.github/scripts/dash-gen/ai_activity.py` → `_data/ai_activity.yml` + `~/.claude/ai-activity-ledger.json` |
 | Actions usage | GitHub Actions cost/effectiveness analytics (via PyGithub, daily-committed) | `.github/scripts/dash-gen/actions_analytics.py` → `_data/actions_usage.yml` → `/actions/`; refreshed by `fleet-pulse.yml` |
 | AI usage ledger | Fleet-wide Claude Code transparency: CI runs (cost/turns from logs), Claude commits + PRs, opt-in local publishes | `.github/scripts/dash-gen/ai_usage_collector.py` → `_data/ai_usage.yml` → `/ai-usage/`; refreshed by `fleet-pulse.yml` (see [AI-INTEGRATION.md](AI-INTEGRATION.md#usage-dashboard-transparency--audit)) |
 | Daily analysis | Prior-day fleet digest, plus the ranked fix queue and the Opus agent that works it | `daily_report.py` → `_reports/daily/<date>.md` and `remediation.py` → the queue, both driven by `fleet-pulse.yml` (see [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md)) |
-| Fleet triage | Daily-committed open-state inventory: every open issue, PR (with CI state), failing workflow; prioritized inbox | `fleet_triage.py` → `_data/fleet_triage.yml` → `/triage/`; refreshed by `fleet-pulse.yml` |
+| Fleet triage | Daily-committed open-state inventory: every open issue, PR (with CI state), failing workflow; prioritized inbox | `fleet_triage.py` → `_data/fleet_triage.yml` → `/inbox`; refreshed by `fleet-pulse.yml` |
 | Engagements | Every project a client: deterministic estimates (AI/broker/platform decomposition), evidence-accrued actuals, variance + leverage | `engagements.py` (`dash estimate`/`dash ledger`) + `_data/engagement_rates.yml` → `_data/engagements.yml` → `/engagements/`; actuals settle daily via `fleet-pulse.yml` (see [ESTIMATION.md](ESTIMATION.md)) |
 | Generator | Health gathering + README AUTO regen + AI usage | `.github/scripts/dash-gen/dash_gen.py` (`tools/dash-gen`) |
 | CLI | One entrypoint for dash ops | `tools/dash` (`bamr87-dash`) |
@@ -58,10 +58,10 @@ tools/dash monitor        # refresh health, print repos needing attention
 tools/dash actions        # GitHub Actions usage analytics (cost/effectiveness by workflow)
 tools/dash daily          # prior-day fleet activity digest
 tools/dash remediate      # merge failing + expensive signals into one ranked fix queue
-tools/dash triage         # open issues/PRs/CI snapshot → _data/fleet_triage.yml (/triage/)
+tools/dash triage         # open issues/PRs/CI snapshot → _data/fleet_triage.yml (/inbox)
 tools/dash estimate       # draft client-engagement estimates from open issues (/engagements/)
 tools/dash ledger         # accrue engagement actuals + variance from usage evidence
-tools/dash serve          # serve the Jekyll dash locally (docker, :4000)
+tools/dash serve          # build the public site (the console, static) and serve it on :4000
 tools/dash tui            # terminal command center (registry, health, triage inbox, harness wires, Docker); --docker runs it in a container
 tools/dash sync           # update submodules + regenerate dash data
 tools/dash foreach <cmd>  # run a shell command in every checked-out submodule
@@ -87,7 +87,7 @@ tools/dash gen targets    # plan the repo-evolution run: JSON matrix + briefs in
 - 🟠 **amber** — too many open bugs, stale issues, flaky CI, or security alerts.
 - 🟢 **green** — healthy.
 
-Thresholds live in [`_data/health_thresholds.yml`](../_data/health_thresholds.yml). The board surfaces on the `/monitor/` page (and a "Needs Attention" strip on Home), in `tools/dash monitor`, in `tools/dash tui`, and as the input signal for the self-evolution loop.
+Thresholds live in [`_data/health_thresholds.yml`](../_data/health_thresholds.yml). The board surfaces on the `/projects` page (and the "Need attention" tile on Home), in `tools/dash monitor`, in `tools/dash tui`, and as the input signal for the self-evolution loop.
 
 ## AI activity (shadow-priced usage)
 

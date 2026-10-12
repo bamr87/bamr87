@@ -1,14 +1,17 @@
-# The monitor board — live-signal attention view (ephemeral data, so the page
-# must render sensibly with OR without _data/project_health.yml).
 id: monitor
 feature: HUB-002
-title: "Monitor board renders with or without live health data"
-description: "The /monitor/ page renders its board; when the gitignored health snapshot is absent it explains how to generate it instead of breaking."
+title: "Projects table renders with or without live health data"
+description: "The /projects table (the retired /monitor/ board) renders every registry project with its health and triage state; a project drill-down opens from it."
 viewports: [desktop, mobile]
-ignore_console: ["Failed to load resource", "net::ERR_", "giscus", "posthog"]
+ignore_console: ["Failed to load resource", "net::ERR_"]
 steps:
-  - goto: /monitor/
+  - goto: /projects
   - expect: { status: 200 }
-  - expect: { visible: "main, [role=main], #main-content" }
+  - wait: { selector: "main table.dt" }
+  - expect: { count: { selector: "main table.dt tbody tr", min: 10 } }
   - expect: { no_horizontal_scroll: true }
   - screenshot: monitor
+  - goto: /projects/zer0-mistakes
+  - expect: { status: 200 }
+  - expect: { text: "zer0-mistakes" }
+  - screenshot: project

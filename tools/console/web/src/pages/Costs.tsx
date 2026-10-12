@@ -2,13 +2,76 @@
 // month vs the ceiling (last-7-day average × 30.44), and the daily series.
 import { Link } from 'react-router';
 import { Anchor, Group, Paper, SimpleGrid, Stack, Table, Text } from '@mantine/core';
-import { useStateDoc } from '../api/hooks';
-import type { Trend } from '../api/types';
+import { useData, useStateDoc } from '../api/hooks';
+import type { Dict, Trend } from '../api/types';
+import { DataTable } from '../components/DataTable';
 import { ColumnChart } from '../components/Charts';
-import { External, Load, Meter, PageHeader, Section, Status } from '../components/ui';
+import { Load, Meter, Mono, PageHeader, RepoLink, Section, Status } from '../components/ui';
 import { RunButton } from '../jobs/RunButton';
-import { fmt, usd } from '../lib/format';
-import { to } from '../lib/links';
+import { fmt, repoName, usd } from '../lib/format';
+import { gh, to } from '../lib/links';
+
+type Row = Dict<any>;
+
+/** Where the minutes and the dollars go: the per-workflow and per-repo cuts of
+ * the two committed ledgers (actions_usage.yml, ai_usage.yml) — what the
+ * retired /actions/ and /ai-usage/ boards showed. */
+function Attribution() {
+  const actions = useData<Row>('actions_usage');
+  const ai = useData<Row>('ai_usage');
+  return (
+    <>
+      <Section title="Actions minutes by workflow" description="The most expensive workflows in the window. Effectiveness is the share of minutes in runs that succeeded; waste is the minutes in runs that failed or were cancelled.">
+        <Load q={actions}>
+          {(a) => (
+            <DataTable<Row> rows={(a?.workflows ?? []).filter((w: Row) => !w.external)} keys rowKey={(w) => `${w.repo}:${w.path}`} minWidth={900}
+              href={(w) => to.project(repoName(w.repo))} open={(w) => gh.workflowRuns(w.repo, w.path)}
+              initialSort={{ key: 'min', desc: true }} maxHeight={520}
+              tone={(w) => (w.effectiveness_pct != null && w.effectiveness_pct < 50 && w.total_min > 30 ? 'warn' : undefined)}
+              columns={[
+                { key: 'r', header: 'repo', sort: (w) => w.repo, render: (w) => <RepoLink nwo={w.repo} /> },
+                { key: 'w', header: 'workflow', sort: (w) => w.workflow, render: (w) => <Text size="sm">{w.workflow}</Text> },
+                { key: 't', header: 'type', sort: (w) => w.type, render: (w) => <Mono dim>{w.type}</Mono> },
+                { key: 'runs', header: 'runs', num: true, sort: (w) => w.runs, render: (w) => w.runs },
+                { key: 'min', header: 'minutes', num: true, sort: (w) => w.total_min, render: (w) => fmt(w.total_min, 0) },
+                { key: 'p95', header: 'p95', num: true, sort: (w) => w.p95_min, render: (w) => fmt(w.p95_min) },
+                { key: 'waste', header: 'waste', num: true, sort: (w) => w.waste_min, render: (w) => fmt(w.waste_min, 0) },
+                { key: 'eff', header: 'effective', num: true, sort: (w) => w.effectiveness_pct, render: (w) => (w.effectiveness_pct == null ? '—' : `${w.effectiveness_pct}%`) },
+              ]} />
+          )}
+        </Load>
+      </Section>
+      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
+        <Section title="Claude in CI by repo">
+          <Load q={ai}>
+            {(d) => (
+              <DataTable<Row> rows={d?.by_repo ?? []} rowKey={(r) => r.repo} href={(r) => to.project(repoName(r.repo))} initialSort={{ key: 'usd', desc: true }} maxHeight={420}
+                columns={[
+                  { key: 'r', header: 'repo', sort: (r) => r.repo, render: (r) => <RepoLink nwo={r.repo} /> },
+                  { key: 'runs', header: 'runs', num: true, sort: (r) => r.runs, render: (r) => r.runs },
+                  { key: 'turns', header: 'turns', num: true, sort: (r) => r.turns, render: (r) => r.turns },
+                  { key: 'usd', header: 'cost', num: true, sort: (r) => r.cost_usd, render: (r) => usd(r.cost_usd) },
+                ]} />
+            )}
+          </Load>
+        </Section>
+        <Section title="Claude in CI by workflow">
+          <Load q={ai}>
+            {(d) => (
+              <DataTable<Row> rows={d?.by_workflow ?? []} rowKey={(r) => r.workflow} initialSort={{ key: 'usd', desc: true }} maxHeight={420}
+                columns={[
+                  { key: 'w', header: 'workflow', sort: (r) => r.workflow, render: (r) => <Text size="sm">{r.workflow}</Text> },
+                  { key: 'runs', header: 'runs', num: true, sort: (r) => r.runs, render: (r) => r.runs },
+                  { key: 'min', header: 'minutes', num: true, sort: (r) => r.minutes, render: (r) => fmt(r.minutes, 0) },
+                  { key: 'usd', header: 'cost', num: true, sort: (r) => r.cost_usd, render: (r) => usd(r.cost_usd) },
+                ]} />
+            )}
+          </Load>
+        </Section>
+      </SimpleGrid>
+    </>
+  );
+}
 
 function TrendCard({ title, t, money }: { title: string; t: Trend; money: boolean }) {
   const f = (v: number | null | undefined) => (money ? usd(v) : `${fmt(v, 0)} min`);
@@ -42,7 +105,7 @@ export function Costs() {
           <>
             <PageHeader
               title="Costs"
-              description={<>From the committed ledgers. Ceilings and the growth threshold are <Anchor component={Link} to={to.config('harnesses')}>harnesses.budget</Anchor>. Per-run agent cost is on <Anchor component={Link} to={to.activity()}>Agent activity</Anchor>; deeper attribution on the Pages boards <External href="https://bamr87.github.io/bamr87/ai-usage/">/ai-usage/</External> and <External href="https://bamr87.github.io/bamr87/actions/">/actions/</External>.</>}
+              description={<>From the committed ledgers. Ceilings and the growth threshold are <Anchor component={Link} to={to.config('harnesses')}>harnesses.budget</Anchor>. Per-run agent cost is on <Anchor component={Link} to={to.activity()}>Agent activity</Anchor>; attribution by workflow and repo is below.</>}
               actions={
                 <>
                   <RunButton op="ai-usage">Refresh Claude ledger</RunButton>
@@ -69,6 +132,7 @@ export function Costs() {
                 </Paper>
               </Section>
             </SimpleGrid>
+            <Attribution />
           </>
         );
       }}

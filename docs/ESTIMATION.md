@@ -86,6 +86,6 @@ The `/engagements/` page re-renders on the next Pages deploy; the daily `fleet-p
 | `_data/engagements.yml` | The engagement register — committed; generator-managed with human-owned fields (status, plan, broker_hours, manual estimates) |
 | `_data/engagement_rates.yml` | The rate card — hand-edited; broker/traditional rates, tier effort profiles, contingency, type→tier map |
 | `.github/scripts/dash-gen/engagements.py` | `estimate` + `ledger` subcommands (registered in `dash_gen.py`; `tools/dash estimate` / `tools/dash ledger`) |
-| `pages/_dash/engagements.md` | The `/engagements/` portal page |
+| `tools/console/web/src/pages/Registries.tsx` | The `/engagements` page (`Engagements`) |
 | `.github/workflows/fleet-pulse.yml` | Daily evidence harvest + `ledger --no-local` accrual, published in the `pulse` job's single commit |
 | `.claude/skills/estimate-issue/` | Agent skill: deep-analyze one issue and refine its engagement (method: agent) |

@@ -2,10 +2,10 @@
 
 ## Boundaries and entrypoints
 
-- This root repo is the fleet control plane plus a GitHub profile and Jekyll site. `projects/*` are independent Git submodules with their own dependencies, tests, and releases; there is no shared package build. Read the target project's README and agent instructions before working there.
+- This root repo is the fleet control plane plus a GitHub profile and the public site (the Harness Console, built static). `projects/*` are independent Git submodules with their own dependencies, tests, and releases; there is no shared package build. Read the target project's README and agent instructions before working there.
 - `_data/projects.yml` is the project registry; `.gitmodules` must agree on submodule paths, URLs, and branches. Read those files instead of hardcoding a project list or assuming `main`. When committing submodule work, commit in that repo first, then record its SHA in the parent; see [SUBMODULES.md](SUBMODULES.md).
 - `tools/dash` is the shell command router. `tools/dash-gen` wraps `.github/scripts/dash-gen/dash_gen.py`; generator implementations and most control-plane tests live beside that Python entrypoint. `tools/console/` is the local FastAPI Harness Console.
-- The published Pages site is the root Jekyll site (`pages/_dash/`, `index.md`, `_config.yml`), built by `.github/workflows/build-dash.yml`. MkDocs belongs to `projects/README/`; its `docs/` contains aggregated copies, so edit the original project sources rather than those copies.
+- The published Pages site is the Harness Console's own page (`tools/console/web/`) built static, with a snapshot of its API documents (`tools/console/snapshot.py`) and the profile content in `_data/profile.yml` + `pages/profile/`, `pages/posts/`; `tools/console/build-pages.sh` builds it and `.github/workflows/build-dash.yml` publishes it ([docs/CONSOLE-PAGES.md](docs/CONSOLE-PAGES.md)). MkDocs belongs to `projects/README/`; its `docs/` contains aggregated copies, so edit the original project sources rather than those copies.
 - Orient through [SCHEMA.md](SCHEMA.md) and the schema chain to the target directory. Detailed references: [docs/DASH.md](docs/DASH.md) for architecture, [CATALOG.md](CATALOG.md) for available tools/kits, [CLAUDE.md](CLAUDE.md) for operational context, and `.github/instructions/*.instructions.md` by `applyTo` scope. House rule: read the relevant README first and update it to reflect the change.
 
 ## Development and focused verification
@@ -27,13 +27,13 @@ The generator requires PyYAML and PyGithub. CI uses Python 3.12 and Ruby 3.3; fl
 | One generator test file | `python3 .github/scripts/dash-gen/test_machine_api.py` — offline fixtures |
 | One unittest case | `python3 .github/scripts/dash-gen/test_machine_api.py MachineApiTests.test_degraded_without_inputs` |
 | CV projection tests | `python3 -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q` — requires pytest; this file has no standalone runner |
-| Root config smoke test | `bundle exec rake test` — parses Jekyll config and checks registry keys; no site build |
+| Public site | `python3 tools/console/test_pages.py` (snapshot guarantees, the remote-page door) and `tools/console/build-pages.sh` (the build itself) |
 | Shell changes | `shellcheck tools/*.sh tools/observability/*.sh` |
 | Workflow changes | `actionlint .github/workflows/*.yml` |
 
 - `tools/run-all-tests.sh` (also `tools/dash test`) runs root checks, direct `test_*.py` invocations under dash-gen and console, then checked-out submodule suites. It skips projects without installed local dependencies; green means only the executed checks passed. Run the CV pytest command separately when changing that projection.
-- Markdown prose is **one paragraph per line**. Check edited files with `python3 tools/unwrap-prose.py --check AGENTS.md README.md` (substitute the changed paths; `--write` fixes). Respect `.prettierignore`: Prettier can corrupt Liquid in `pages/` and `index.md`, and desynchronize generated Markdown.
-- Hook activation is clone-specific: Husky, pre-commit, and the global prose hook compete through `core.hooksPath`. Diagnose with `bash tools/audit-git-hooks.sh`. The root has no `package.json`, despite `.husky/pre-commit` invoking `pnpm lint-staged`.
+- Markdown prose is **one paragraph per line**. Check edited files with `python3 tools/unwrap-prose.py --check AGENTS.md README.md` (substitute the changed paths; `--write` fixes). Respect `.prettierignore`: Prettier can desynchronize generated Markdown.
+- Hook activation is clone-specific: pre-commit and the global prose hook (`tools/install-prose-hook.sh`, `~/.git-hooks`) compete through `core.hooksPath`. Diagnose with `bash tools/audit-git-hooks.sh`.
 
 ## Sources of truth and generated files
 
@@ -53,8 +53,8 @@ The generator requires PyYAML and PyGithub. CI uses Python 3.12 and Ruby 3.3; fl
 
 ## Site and fleet gotchas
 
-- `tools/dash serve` installs gems and serves the dash on port 4000 using `_config.yml,_config_dev.yml` (Docker, with native fallback). The dev override clears the production `/bamr87` base URL. `remote_theme: bamr87/zer0-mistakes` does **not** import the theme's config or data; required settings must exist here. Restart Jekyll after config changes.
-- Production build order is `bundle exec jekyll build` with `JEKYLL_ENV=production`, then `tools/dash-gen machine-api --out _site`. Jekyll alone does not emit the machine API. For fleet prioritization, start at [api/v1/index.json](https://bamr87.github.io/bamr87/api/v1/index.json), then the linked fleet inbox; see [docs/MACHINE-API.md](docs/MACHINE-API.md).
+- `tools/dash serve` builds the public site at the root (`CONSOLE_BASE=/`) and serves it on port 4000; `tools/dash console` serves the same page live on 4001. The Pages build runs under `/bamr87/`, so every in-app link goes through React Router's `basename` and every file URL through `asset()` (`web/src/api/backend.ts`) — never a bare `/path`. A new route needs a row in `snapshot.STATIC_ROUTES` (`test_pages.py` holds the two equal).
+- Production build order is `tools/console/build-pages.sh` (page + snapshot) into `_site`, then `tools/dash-gen machine-api --out _site`. The page build alone does not emit the machine API. For fleet prioritization, start at [api/v1/index.json](https://bamr87.github.io/bamr87/api/v1/index.json), then the linked fleet inbox; see [docs/MACHINE-API.md](docs/MACHINE-API.md).
 - Fleet apps run as **separate Compose projects** on the shared `fleet` network; combining their compose files with `include:` collides on service names. Use `tools/dash up <project>` or `tools/dash up --group jekyll`; generate port/network overrides with `tools/dash gen compose` from registry `dev_port` values. Overrides live in the hub's `.fleet/compose/`, never in submodules. The hub's Compose project name defaults to `fleet`, so worktrees share its services and volumes. See [docs/CONTAINERS.md](docs/CONTAINERS.md).
 
 - **Verify like a user, not just like a test.** Any change to what a user sees or does follows the agent verification standard ([`docs/VERIFICATION.md`](docs/VERIFICATION.md)): read `features/features.yml` for the feature, run the app per `verify/verify.yml`, drive it in a real browser (`verify-feature` skill / Playwright MCP / `verify/runner.mjs`), commit the evidence bundle under `test/evidence/<slug>/`, link it from the feature entry. A PASS cites a scenario and an evidence dir that exist; a non-visual change gets the `skip-evidence` label with a reason.

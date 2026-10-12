@@ -3,20 +3,21 @@
 # =============================================================================
 # kit: verify v0.1.0 — the hub practices what it seeds (templates/verify/).
 #
-# The dash is a Jekyll site (remote_theme bamr87/zer0-mistakes) published under
-# the /bamr87 project subpath. For verification it is built with an EMPTY
-# baseurl and served statically, so scenarios navigate to clean routes
-# (/dashboard/, /features/, …) exactly as they read on the nav — locally and in
-# fleet-verify.yml alike. Read by verify/runner.mjs, .github/workflows/
+# The dash is the Harness Console's page built static (tools/console/
+# build-pages.sh) and published under the /bamr87 project subpath. For
+# verification it is built at the ROOT (CONSOLE_BASE=/) and served statically —
+# every route has its own index.html, so a deep link answers 200 — and scenarios
+# navigate to clean routes (/portfolio, /features, …) exactly as they read on
+# the nav, locally and in fleet-verify.yml alike. Read by verify/runner.mjs, .github/workflows/
 # verify.yml (via fleet-verify.yml), and .claude/skills/verify-feature.
 #
-#   local:  bundle install && tools/dash verify            (builds + serves + runs)
-#           tools/dash verify --base http://127.0.0.1:4000/bamr87   (against `dash serve`)
+#   local:  tools/dash verify                              (builds + serves + runs)
+#           tools/dash verify --base http://127.0.0.1:4000  (against `dash serve`)
 # =============================================================================
 schema: verify/v1
 
 app:
-  build: "bundle exec jekyll build --baseurl '' --quiet"
+  build: "CONSOLE_BASE=/ SITE_URL=http://127.0.0.1:4000 OUT=_site tools/console/build-pages.sh"
   start: ""
   static_dir: _site
   url: http://127.0.0.1:4000
@@ -34,7 +35,8 @@ scenarios: verify/scenarios
 evidence_dir: test/evidence
 
 agent:
-  entry_routes: ["/", "/dashboard/", "/features/"]
+  entry_routes: ["/", "/portfolio", "/overview", "/features", "/connect"]
   never:
     - "follow links off 127.0.0.1 — the dash links to ~40 live repos and sites; verify THIS site"
-    - "dispatch workflows or edit GitHub state — the dash is read-only observation"
+    - "dispatch workflows or edit GitHub state — the published snapshot is read-only, and the Connect page's GitHub and console modes are for a human to enable"
+    - "paste a token into the Connect page"

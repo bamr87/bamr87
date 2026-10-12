@@ -457,7 +457,7 @@ endpoints:
   band: hub
   kind: web
   port: 4000
-  var: JEKYLL_PORT
+  var: SITE_PORT
   served_by: devenv
   url: http://127.0.0.1:4000/
   address: 127.0.0.1:4000
@@ -1224,7 +1224,7 @@ projects:
     band: hub
     kind: web
     port: 4000
-    var: JEKYLL_PORT
+    var: SITE_PORT
     served_by: devenv
     url: http://127.0.0.1:4000/
     address: 127.0.0.1:4000
@@ -1254,7 +1254,7 @@ projects:
     pinned:
     - postgres
     compose_files:
-    - compose.fleet.yml
+    - compose/fleet.yml
     - compose/shared.yml
     - compose/shared.yml
     - docker-compose.yml
@@ -2699,8 +2699,8 @@ hub_stack:
   image: requarks/wiki:2
 - service: devenv
   file: docker-compose.yml
-  spec: 127.0.0.1:${JEKYLL_PORT:-4000}:4000
-  var: JEKYLL_PORT
+  spec: 127.0.0.1:${SITE_PORT:-4000}:4000
+  var: SITE_PORT
   target: '4000'
   comment: Jekyll (hub dash)
   port: 4000

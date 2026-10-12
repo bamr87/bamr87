@@ -205,5 +205,5 @@ Without a Claude token the loop degrades to gather + publish — the data still 
 | `_data/fleet.yml` | central config: caps, cadences, toolchain, token contract |
 | `_reports/daily/<date>.md` | committed daily digests |
 | `_data/fleet_triage.yml` | committed open-state snapshot rendered at `/triage/` |
-| `pages/_dash/triage.md` | the Fleet Triage portal page |
+| `tools/console/web/src/pages/Inbox.tsx` | the Inbox page (`/inbox`, formerly `/triage/`) |
 | `remediation-workorder.md` | ephemeral agent brief (gitignored; also a run artifact) |

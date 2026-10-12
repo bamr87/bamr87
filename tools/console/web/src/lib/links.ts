@@ -7,6 +7,16 @@ const enc = encodeURIComponent;
 
 export const to = {
   home: () => '/',
+  overview: () => '/overview',
+  page: (slug: string) => `/${enc(slug)}`,
+  portfolio: (category?: string) => `/portfolio${category ? `?category=${enc(category)}` : ''}`,
+  blog: () => '/blog',
+  post: (slug: string) => `/blog/${enc(slug)}`,
+  roadmap: (project?: string) => `/roadmap${project ? `?q=${enc(project)}` : ''}`,
+  features: () => '/features',
+  engagements: () => '/engagements',
+  toolbox: () => '/toolbox',
+  connect: () => '/connect',
   projects: () => '/projects',
   project: (name: string, tab?: string) => `/projects/${enc(name)}${tab ? `?tab=${enc(tab)}` : ''}`,
   inbox: (kind?: string) => `/inbox${kind ? `?kind=${enc(kind)}` : ''}`,

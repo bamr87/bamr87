@@ -3,6 +3,7 @@
 // Saving rewrites only that block in the working tree, comments intact, and
 // shows the git diff; the commit and the PR stay with you. A key the file
 // does not declare is read-only: the console never invents contract structure.
+import { hasConsole } from '../api/backend';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
@@ -13,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { put } from '../api/client';
 import { useCaps, useConfig, useStateDoc } from '../api/hooks';
 import type { ConfigField, ConfigSection } from '../api/types';
-import { Banner, External, Load, Mono, PageHeader, Section, Status } from '../components/ui';
+import { Banner, LocalOnly, External, Load, Mono, PageHeader, Section, Status } from '../components/ui';
 import { LogView } from '../jobs/JobLog';
 import { RunButton } from '../jobs/RunButton';
 import { gh, to } from '../lib/links';
@@ -143,7 +144,8 @@ export function ConfigPage() {
               </Paper>
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 9 }}>
-              {!editable ? <Banner tone="warn">ruamel.yaml is missing — editing is disabled (pip install ruamel.yaml).</Banner> : null}
+              {!hasConsole() ? <LocalOnly what={<>Editing <Mono>_data/fleet.yml</Mono> writes the hub's working tree</>} />
+                : !editable ? <Banner tone="warn">ruamel.yaml is missing — editing is disabled (pip install ruamel.yaml).</Banner> : null}
               {current ? <SectionForm s={current} path={c.path} editable={editable} /> : <Banner tone="warn">No sections.</Banner>}
             </Grid.Col>
           </Grid>

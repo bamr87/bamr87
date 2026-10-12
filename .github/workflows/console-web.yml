@@ -1,5 +1,9 @@
 # The Harness Console's page (tools/console/web): type-check and build it on
-# every PR that touches it — or the console that serves it.
+# every PR that touches it — or the console that serves it — both ways: the
+# console's own build, and the static public build GitHub Pages publishes
+# (build-pages.sh: base /bamr87/, VITE_STATIC=1, plus the API snapshot).
+# build-dash.yml builds the public one too, but only for _data/ and pages/
+# changes on PRs that also reach those paths; this is the page's own gate.
 #
 # The page installs at LATEST (fleet dependency policy: `*` ranges, no
 # lockfile), so a new major of Mantine, React Router or Vite can break it with
@@ -14,6 +18,9 @@ on:
     paths:
       - 'tools/console/web/**'
       - 'tools/console/app.py'
+      - 'tools/console/snapshot.py'
+      - 'tools/console/site_docs.py'
+      - 'tools/console/build-pages.sh'
       - '.github/workflows/console-web.yml'
   workflow_dispatch:
 
@@ -53,3 +60,18 @@ jobs:
             echo "::error file=tools/console/web/index.html::inline script in the built page — app.py's CSP would block it"
             exit 1
           fi
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Build the public site (what Pages publishes)
+        working-directory: .
+        run: |
+          pip install --quiet pyyaml
+          OUT="$PWD/_site" tools/console/build-pages.sh
+          test -f _site/snapshot/manifest.json && test -f _site/portfolio/index.html
+          if grep -Eq '<script>|<script [^>]*>[^<]+</script>' _site/index.html; then
+            echo "::error::inline script in the public build — its CSP meta would block it"; exit 1
+          fi
+          grep -q 'http-equiv="Content-Security-Policy"' _site/index.html || { echo "::error::the public build lost its CSP meta"; exit 1; }
