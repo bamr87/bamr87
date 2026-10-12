@@ -62,7 +62,6 @@ This directory contains cross-platform scripts for bootstrapping, configuring, a
 bamr87/
 ├── .devcontainer/             # VS Code dev container config + image
 ├── .env.example               # Environment variable template
-├── .zprofile                  # Sources tools/devtools-env.sh
 ├── docker-compose.yml         # All services (dev, wiki, db, etc.)
 └── tools/                     # This directory — the Files table above is authoritative
     ├── environment setup      #   devtools.conf, devtools-env.sh, Brewfile, setup.sh

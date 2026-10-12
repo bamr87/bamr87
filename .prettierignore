@@ -14,14 +14,6 @@ SCHEMA.md
 # its own formatting lifecycle (committed there first, per CLAUDE.md).
 projects/*/
 
-# Jekyll/Liquid pages — Prettier's markdown parser doesn't understand {% %}
-# tags and merges them into prose, which breaks the rendered dash (e.g. it
-# collapses a {% for %} loop body onto one line). The dash collection is
-# prose-unwrapped by the Liquid-safe tools/unwrap-prose.py instead, wired as a
-# pre-commit hook. See .pre-commit-config.yaml.
-/index.md
-pages/
-
 # Vendored tt-a1i/archify skill — upstream bytes, refreshed not reformatted —
 # and the diagrams it compiles (JSON sources are frozen by `archify deliver`'s
 # receipt; the HTML is generated). See docs/HARNESS.md.

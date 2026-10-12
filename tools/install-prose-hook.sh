@@ -72,7 +72,7 @@ top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 candidates=("$git_dir/hooks/$name")
 # Only run .husky/<name> when husky is actually installed (its _/ runtime
 # exists); a checked-in .husky/ without `npm install` is a stale shim that
-# would fail every commit on a missing husky.sh — the hub's is exactly that.
+# would fail every commit on a missing husky.sh.
 if [[ -f "$top/.husky/_/h" || -f "$top/.husky/_/husky.sh" ]]; then
     candidates+=("$top/.husky/_/$name" "$top/.husky/$name")
 fi

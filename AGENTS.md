@@ -32,8 +32,8 @@ The generator requires PyYAML and PyGithub. CI uses Python 3.12 and Ruby 3.3; fl
 | Workflow changes | `actionlint .github/workflows/*.yml` |
 
 - `tools/run-all-tests.sh` (also `tools/dash test`) runs root checks, direct `test_*.py` invocations under dash-gen and console, then checked-out submodule suites. It skips projects without installed local dependencies; green means only the executed checks passed. Run the CV pytest command separately when changing that projection.
-- Markdown prose is **one paragraph per line**. Check edited files with `python3 tools/unwrap-prose.py --check AGENTS.md README.md` (substitute the changed paths; `--write` fixes). Respect `.prettierignore`: Prettier can corrupt Liquid in `pages/` and `index.md`, and desynchronize generated Markdown.
-- Hook activation is clone-specific: Husky, pre-commit, and the global prose hook compete through `core.hooksPath`. Diagnose with `bash tools/audit-git-hooks.sh`. The root has no `package.json`, despite `.husky/pre-commit` invoking `pnpm lint-staged`.
+- Markdown prose is **one paragraph per line**. Check edited files with `python3 tools/unwrap-prose.py --check AGENTS.md README.md` (substitute the changed paths; `--write` fixes). Respect `.prettierignore`: Prettier can desynchronize generated Markdown.
+- Hook activation is clone-specific: pre-commit and the global prose hook (`tools/install-prose-hook.sh`, `~/.git-hooks`) compete through `core.hooksPath`. Diagnose with `bash tools/audit-git-hooks.sh`.
 
 ## Sources of truth and generated files
 
