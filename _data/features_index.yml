@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-12T06:13:48Z'
+generated_at: '2026-10-13T06:11:37Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,21 +17,21 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 21
-  implemented: 21
-  covered: 21
-  evidenced: 7
-  verified: 6
-  ui: 11
-  ui_covered: 11
-  ui_verified: 6
-  scenarios: 8
-  screenshots: 18
+  features: 22
+  implemented: 22
+  covered: 22
+  evidenced: 8
+  verified: 8
+  ui: 12
+  ui_covered: 12
+  ui_verified: 8
+  scenarios: 9
+  screenshots: 28
   dangling: 0
 pct:
   coverage: 100
-  evidence: 33
-  verified: 29
+  evidence: 36
+  verified: 36
   ui_coverage: 100
 attention: []
 repos:
@@ -52,7 +52,7 @@ repos:
   kit:
     config: true
     runner: true
-    scenarios: 8
+    scenarios: 9
     workflow: true
     workflow_fleet_caller: true
     workflow_gate: false
@@ -62,19 +62,19 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 21
-    implemented: 21
-    covered: 21
-    evidenced: 7
-    verified: 6
-    ui: 11
-    ui_covered: 11
-    ui_verified: 6
+    features: 22
+    implemented: 22
+    covered: 22
+    evidenced: 8
+    verified: 8
+    ui: 12
+    ui_covered: 12
+    ui_verified: 8
     dangling: 0
   pct:
     coverage: 100
-    evidence: 33
-    verified: 29
+    evidence: 36
+    verified: 36
   last_run: null
   gaps: []
   items:
@@ -82,12 +82,12 @@ repos:
     title: Portfolio + dashboard from the registry
     surface: ui
     implemented: true
-    link: /dashboard/
+    link: /portfolio
     docs: docs/DASH.md
     tags:
     - dash
     - registry
-    - jekyll
+    - portfolio
     date: '2025-12-01'
     provenance: null
     tests:
@@ -100,18 +100,23 @@ repos:
     - test/evidence/home
     - test/evidence/dashboard
     screenshots:
+    - test/evidence/dashboard/desktop-dashboard-legacy.png
     - test/evidence/dashboard/desktop-dashboard.png
+    - test/evidence/dashboard/mobile-dashboard-legacy.png
     - test/evidence/dashboard/mobile-dashboard.png
-    - test/evidence/home/desktop-FAILED-step4.png
-    - test/evidence/home/mobile-FAILED-step4.png
-    verified: null
+    - test/evidence/home/desktop-home.png
+    - test/evidence/home/mobile-home.png
+    verified:
+      date: '2026-10-12'
+      by: agent
+      run: null
     covered: true
     evidenced: true
     dangling: []
-    summary: 'Every dash surface renders from one registry (_data/projects.yml): the portfolio grid, the /dashboard/ project
-      list, and the profile README''s AUTO span.'
+    summary: 'Every surface renders from one registry (_data/projects.yml): the public site''s Home and /portfolio cards,
+      the /projects table, and the profile README''s AUTO span.'
     urls:
-      link: https://bamr87.github.io/bamr87/dashboard/
+      link: https://bamr87.github.io/bamr87/portfolio
       docs: https://github.com/bamr87/bamr87/blob/main/docs/DASH.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/home
@@ -122,15 +127,17 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/home.yml
       - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/dashboard.yml
       screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/dashboard/desktop-dashboard-legacy.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/dashboard/desktop-dashboard.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/dashboard/mobile-dashboard-legacy.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/dashboard/mobile-dashboard.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/home/desktop-FAILED-step4.png
-      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/home/mobile-FAILED-step4.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/home/desktop-home.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/home/mobile-home.png
   - id: HUB-002
-    title: Monitor board
+    title: Projects board
     surface: ui
     implemented: true
-    link: /monitor/
+    link: /projects
     docs: docs/DASH.md
     tags:
     - dash
@@ -145,18 +152,21 @@ repos:
     - test/evidence/monitor
     screenshots:
     - test/evidence/monitor/desktop-monitor.png
+    - test/evidence/monitor/desktop-project.png
     - test/evidence/monitor/mobile-monitor.png
+    - test/evidence/monitor/mobile-project.png
     verified:
-      date: '2026-09-05'
+      date: '2026-10-12'
       by: agent
       run: null
     covered: true
     evidenced: true
     dangling: []
-    summary: Live-signal attention board (/monitor/) from the ephemeral project_health.yml gathered by dash-gen health; degrades
-      to an explanatory panel when the snapshot is absent.
+    summary: Every registry project with its live health (the ephemeral project_health.yml gathered by dash-gen health at
+      build time) and triage state at /projects (formerly /monitor/), with a drill-down page per project; degrades to the
+      committed triag
     urls:
-      link: https://bamr87.github.io/bamr87/monitor/
+      link: https://bamr87.github.io/bamr87/projects
       docs: https://github.com/bamr87/bamr87/blob/main/docs/DASH.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/monitor
@@ -165,12 +175,14 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/monitor.yml
       screenshots:
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/monitor/desktop-monitor.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/monitor/desktop-project.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/monitor/mobile-monitor.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/monitor/mobile-project.png
   - id: HUB-003
     title: Fleet triage inbox
     surface: ui
     implemented: true
-    link: /triage/
+    link: /inbox
     docs: docs/DAILY-ANALYSIS.md
     tags:
     - dash
@@ -189,16 +201,16 @@ repos:
     - test/evidence/triage/desktop-triage.png
     - test/evidence/triage/mobile-triage.png
     verified:
-      date: '2026-09-05'
+      date: '2026-10-12'
       by: agent
       run: null
     covered: true
     evidenced: true
     dangling: []
     summary: Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered
-      as one prioritized inbox at /triage/.
+      as one prioritized inbox at /inbox (formerly /triage/).
     urls:
-      link: https://bamr87.github.io/bamr87/triage/
+      link: https://bamr87.github.io/bamr87/inbox
       docs: https://github.com/bamr87/bamr87/blob/main/docs/DAILY-ANALYSIS.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/triage
@@ -213,7 +225,7 @@ repos:
     title: Issue pipeline board
     surface: ui
     implemented: true
-    link: /issue-pipeline/
+    link: /loops/issue_pipeline
     docs: docs/ISSUE-PIPELINE.md
     tags:
     - dash
@@ -231,10 +243,10 @@ repos:
     covered: true
     evidenced: false
     dangling: []
-    summary: Three-tier issue loop state (queues, stages derived from labels, caps, taxonomy) rendered at /issue-pipeline/
-      from _data/issue_pipeline.yml.
+    summary: Three-tier issue loop state (queues, stages derived from labels, caps, taxonomy) rendered on the issue-pipeline
+      loop page (/loops/issue_pipeline) from _data/issue_pipeline.yml.
     urls:
-      link: https://bamr87.github.io/bamr87/issue-pipeline/
+      link: https://bamr87.github.io/bamr87/loops/issue_pipeline
       docs: https://github.com/bamr87/bamr87/blob/main/docs/ISSUE-PIPELINE.md
       evidence: []
       tests:
@@ -245,7 +257,7 @@ repos:
     title: AI harnesses inventory board
     surface: ui
     implemented: true
-    link: /harnesses/
+    link: /harnesses
     docs: docs/HARNESS-OPS.md
     tags:
     - dash
@@ -261,19 +273,21 @@ repos:
     evidence:
     - test/evidence/harnesses
     screenshots:
+    - test/evidence/harnesses/desktop-harness-health.png
     - test/evidence/harnesses/desktop-harnesses.png
+    - test/evidence/harnesses/mobile-harness-health.png
     - test/evidence/harnesses/mobile-harnesses.png
     verified:
-      date: '2026-09-05'
+      date: '2026-10-12'
       by: agent
       run: null
     covered: true
     evidenced: true
     dangling: []
     summary: Per-repo AI-harness deployments and cron schedules graded against fleet.yml `harnesses:` — baseline coverage,
-      throughput vs caps, budget forecast, and the fan-out gap list — at /harnesses/.
+      throughput vs caps, budget forecast, and the fan-out gap list — at /harnesses.
     urls:
-      link: https://bamr87.github.io/bamr87/harnesses/
+      link: https://bamr87.github.io/bamr87/harnesses
       docs: https://github.com/bamr87/bamr87/blob/main/docs/HARNESS-OPS.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/harnesses
@@ -282,13 +296,15 @@ repos:
       scenarios:
       - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/harnesses.yml
       screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harness-health.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/desktop-harnesses.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harness-health.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/harnesses/mobile-harnesses.png
   - id: HUB-006
     title: Six-layer harness scorecard
     surface: ui
     implemented: true
-    link: /harness/
+    link: /harnesses/health
     docs: docs/HARNESS.md
     tags:
     - dash
@@ -306,10 +322,10 @@ repos:
     covered: true
     evidenced: false
     dangling: []
-    summary: The hub's own harness health scorecard + trip wires (/harness/), computed offline from the committed fleet signals
-      against fleet.yml `harness:` thresholds.
+    summary: The hub's own harness health scorecard + trip wires (/harnesses/health), computed offline from the committed
+      fleet signals against fleet.yml `harness:` thresholds.
     urls:
-      link: https://bamr87.github.io/bamr87/harness/
+      link: https://bamr87.github.io/bamr87/harnesses/health
       docs: https://github.com/bamr87/bamr87/blob/main/docs/HARNESS.md
       evidence: []
       tests:
@@ -320,7 +336,7 @@ repos:
     title: Fleet features index
     surface: ui
     implemented: true
-    link: /features/
+    link: /features
     docs: docs/VERIFICATION.md
     tags:
     - dash
@@ -342,16 +358,16 @@ repos:
     - test/evidence/features/mobile-features-repo.png
     - test/evidence/features/mobile-features.png
     verified:
-      date: '2026-09-05'
+      date: '2026-10-12'
       by: agent
       run: null
     covered: true
     evidenced: true
     dangling: []
     summary: One listing of every feature in the fleet with its docs, tests, user scenarios, evidence bundles, screenshots,
-      and verified stamp, plus per-repo coverage and the attention list of unverified UI features — at /features/ from _data/features_i
+      and verified stamp, plus per-repo coverage and the attention list of unverified UI features — at /features from _data/features_in
     urls:
-      link: https://bamr87.github.io/bamr87/features/
+      link: https://bamr87.github.io/bamr87/features
       docs: https://github.com/bamr87/bamr87/blob/main/docs/VERIFICATION.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/features
@@ -397,11 +413,63 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
       scenarios: []
       screenshots: []
+  - id: HUB-022
+    title: The public site is the console (GitHub Pages)
+    surface: ui
+    implemented: true
+    link: /connect
+    docs: docs/CONSOLE-PAGES.md
+    tags:
+    - dash
+    - console
+    - pages
+    - portfolio
+    - github
+    date: '2026-10-12'
+    provenance: null
+    tests:
+    - tools/console/test_pages.py
+    waived: []
+    scenarios:
+    - verify/scenarios/connect.yml
+    - verify/scenarios/home.yml
+    evidence:
+    - test/evidence/connect
+    screenshots:
+    - test/evidence/connect/desktop-connect.png
+    - test/evidence/connect/desktop-ops-public.png
+    - test/evidence/connect/mobile-connect.png
+    - test/evidence/connect/mobile-ops-public.png
+    verified:
+      date: '2026-10-12'
+      by: agent
+      run: null
+    covered: true
+    evidenced: true
+    dangling: []
+    summary: 'bamr87.github.io/bamr87 is the Harness Console''s own page built static: the profile and portfolio plus every
+      console view, reading a snapshot of the API documents rendered daily by the console''s own Python (tools/console/snapshot.py)
+      — neve'
+    urls:
+      link: https://bamr87.github.io/bamr87/connect
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/CONSOLE-PAGES.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/connect
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pages.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/connect.yml
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/home.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/connect/desktop-connect.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/connect/desktop-ops-public.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/connect/mobile-connect.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/connect/mobile-ops-public.png
   - id: HUB-015
     title: Roadmap
     surface: ui
     implemented: true
-    link: /roadmap/
+    link: /roadmap
     docs: .claude/README.md
     tags:
     - dash
@@ -418,16 +486,16 @@ repos:
     - test/evidence/roadmap/desktop-roadmap.png
     - test/evidence/roadmap/mobile-roadmap.png
     verified:
-      date: '2026-09-05'
+      date: '2026-10-12'
       by: agent
       run: null
     covered: true
     evidenced: true
     dangling: []
-    summary: The Future-Features backlog (_data/roadmap.yml) rendered at /roadmap/; entries are authored by /future-features
+    summary: The Future-Features backlog (_data/roadmap.yml) rendered at /roadmap; entries are authored by /future-features
       and the feature-scout agent, never backlogged without approval.
     urls:
-      link: https://bamr87.github.io/bamr87/roadmap/
+      link: https://bamr87.github.io/bamr87/roadmap
       docs: https://github.com/bamr87/bamr87/blob/main/.claude/README.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/roadmap
@@ -441,7 +509,7 @@ repos:
     title: Engagements ledger
     surface: ui
     implemented: true
-    link: /engagements/
+    link: /engagements
     docs: docs/ESTIMATION.md
     tags:
     - dash
@@ -458,7 +526,7 @@ repos:
     - test/evidence/engagements/desktop-engagements.png
     - test/evidence/engagements/mobile-engagements.png
     verified:
-      date: '2026-09-05'
+      date: '2026-10-12'
       by: agent
       run: null
     covered: true
@@ -467,7 +535,7 @@ repos:
     summary: 'Every registry project as a client: deterministic estimates from open issues, actuals accrued from usage evidence,
       variance and rollups at /engagements/.'
     urls:
-      link: https://bamr87.github.io/bamr87/engagements/
+      link: https://bamr87.github.io/bamr87/engagements
       docs: https://github.com/bamr87/bamr87/blob/main/docs/ESTIMATION.md
       evidence:
       - https://github.com/bamr87/bamr87/tree/main/test/evidence/engagements
@@ -481,7 +549,7 @@ repos:
     title: Actions usage analytics
     surface: ui
     implemented: true
-    link: /actions/
+    link: /costs
     docs: docs/DAILY-ANALYSIS.md
     tags:
     - dash
@@ -502,7 +570,7 @@ repos:
     summary: Per-workflow GitHub Actions cost, effectiveness, and waste across the fleet at /actions/, refreshed daily by
       fleet-pulse.
     urls:
-      link: https://bamr87.github.io/bamr87/actions/
+      link: https://bamr87.github.io/bamr87/costs
       docs: https://github.com/bamr87/bamr87/blob/main/docs/DAILY-ANALYSIS.md
       evidence: []
       tests:
