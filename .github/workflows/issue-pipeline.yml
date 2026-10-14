@@ -61,7 +61,7 @@ name: 🧭 Issue Pipeline
 
 on:
   schedule:
-    - cron: '37 7 * * *'  # daily 07:37 UTC, after build-dash republishes at 06:37
+    - cron: '4 13 * * *'  # staggered AI cron (bamr87/bamr87#348); was 37 7 * * *
   workflow_dispatch:
     inputs:
       tiers:

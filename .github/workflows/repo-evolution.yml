@@ -46,7 +46,7 @@ name: 🌿 Repo Evolution
 
 on:
   schedule:
-    - cron: '37 10 * * 1' # weekly, Monday 10:37 UTC — after the daily 05:37/07:37 agent loops,
+    - cron: '48 18 * * 1'  # staggered AI cron (bamr87/bamr87#348); was 37 10 * * 1
                           # in an hour no fleet repo schedules an agent (see fleet.yml schedule:)
   workflow_dispatch:
     inputs:
