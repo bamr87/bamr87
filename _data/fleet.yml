@@ -153,7 +153,9 @@ schedule:
   issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:)
   schema_vendor: "7 8 * * 1"      # weekly hub↔upstream SCHEMA kit parity PR
   repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
-  git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
+  # git_digs paused Oct 14 (Actions waste reduction): schedule commented out in git-digs.yml while
+  # GIT_DIGS_ENABLED is off; restore this line together with that schedule block.
+  # git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
 
 # --------------------------------------------------------------------------- #

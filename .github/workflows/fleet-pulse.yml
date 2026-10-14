@@ -43,7 +43,7 @@ name: 🩺 Fleet Pulse
 
 on:
   schedule:
-    - cron: '11 5 * * *'  # staggered AI cron (bamr87/bamr87#348); was 37 5 * * *
+    - cron: '37 5 * * *'  # daily 05:37 UTC — off the hour, and out of the 06:00 slot the fleet's own
                           # Monday agents share (build-dash republishes at 06:37)
   workflow_dispatch:
     inputs:
