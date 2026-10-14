@@ -42,6 +42,22 @@ on:
       ruby-version:
         type: string
         default: ""
+      # Docs-only skip (Actions waste reduction, Oct 14). A reusable workflow
+      # cannot take `paths-ignore`, so the gate decides itself: when EVERY file
+      # changed by the push/PR matches one of `docs-paths`, the `ci` job is
+      # skipped (a skipped job still satisfies a required check). Callers can
+      # opt out with `skip-docs-only: false` or replace the patterns.
+      skip-docs-only:
+        type: boolean
+        default: true
+      docs-paths:
+        description: Whitespace-separated globs treated as docs-only (`**` crosses directories).
+        type: string
+        default: "**/*.md **/*.markdown docs/** LICENSE* .github/ISSUE_TEMPLATE/** .github/*.md"
+      timeout-minutes:
+        description: Timeout for the ci job.
+        type: number
+        default: 30
 
 permissions:
   contents: read
@@ -52,9 +68,56 @@ env:
   RUBY_V: ${{ inputs.ruby-version || vars.RUBY_VERSION || '3.3' }}
 
 jobs:
-  ci:
+  changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKIP: ${{ inputs.skip-docs-only }}
+          PATTERNS: ${{ inputs.docs-paths }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # Fail open: anything unexpected means "run CI".
+          run=true
+          if [ "$SKIP" = "true" ] && { [ "$EVENT" = "pull_request" ] || [ "$EVENT" = "push" ]; } \
+             && [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ]; then
+            if files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$HEAD" --jq '.files[].filename' 2>/dev/null) \
+               && [ -n "$files" ] && [ "$(printf '%s\n' "$files" | wc -l)" -lt 300 ]; then
+              run=$(FILES="$files" python3 - <<'PY'
+          import fnmatch, os, re
+          pats = os.environ["PATTERNS"].split()
+          def rx(p):
+              # `**/` matches zero or more directories; `**` anything; `*` within a segment.
+              out, i = "", 0
+              while i < len(p):
+                  if p.startswith("**/", i): out += "(?:.*/)?"; i += 3
+                  elif p.startswith("**", i): out += ".*"; i += 2
+                  elif p[i] == "*": out += "[^/]*"; i += 1
+                  elif p[i] == "?": out += "[^/]"; i += 1
+                  else: out += re.escape(p[i]); i += 1
+              return re.compile(out + r"\Z")
+          rs = [rx(p) for p in pats]
+          files = [f for f in os.environ["FILES"].splitlines() if f]
+          docs_only = all(any(r.match(f) for r in rs) for f in files)
+          print("false" if docs_only else "true")
+          PY
+              )
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          if [ "$run" = "false" ]; then echo "::notice::docs-only change; skipping the ci job (set skip-docs-only: false to always run)"; fi
+
+  ci:
+    needs: changes
+    if: needs.changes.outputs.run != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@v7
 
