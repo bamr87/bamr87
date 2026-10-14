@@ -10,8 +10,10 @@ name: Git Digs
 # run before the model call.
 
 on:
-  schedule:
-    - cron: '17 11 * * *'
+  # Schedule paused (Actions waste reduction, Oct 14): the job is gated by vars.GIT_DIGS_ENABLED, which is
+  # currently off, so every scheduled run was skipped. To restore: set GIT_DIGS_ENABLED=true AND uncomment the block below.
+  # schedule:
+  #   - cron: '17 11 * * *'
   workflow_dispatch:
 
 permissions:
