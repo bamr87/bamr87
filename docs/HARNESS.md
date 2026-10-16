@@ -131,7 +131,7 @@ One new generator, one config block, one committed surface, wired into the exist
 
 | Wire | Playbook analogue | Why this fleet needs it |
 | --- | --- | --- |
-| `stale-data` | "Would you know within an hour if the agent started failing?" | The three-week silent data death, made structurally loud. Watches every input's `generated_at`, including its own inputs' absence |
+| `stale-data` | "Would you know within an hour if the agent started failing?" | The three-week silent data death, made structurally loud. Watches every input's `generated_at`, including its own inputs' absence, and the hand-regenerated `_data/conformance.yml` (`conformance_stale_days`, 14) |
 | `pass-rate-floor` | Sensor pass rate drops → quality regression | Fleet-wide CI success below 75% |
 | `waste-ceiling` | Cost exceeds average → runaway | Non-success minutes above 30% of all minutes |
 | `cost-spike` | Duration exceeds 3× → stuck/runaway | Workflows ≥3× the fleet *median* run time **and** ≥5 min absolute (the floor keeps a sub-minute-median fleet from alarming on ordinary CI) |
