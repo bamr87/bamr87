@@ -44,7 +44,7 @@ All settled on 2026-10-03; nothing here is a switch.
 
 All four configs share one Keep-a-Changelog section map (`feat` → Added, `fix` → Fixed, `perf`/`refactor`/`deps` → Changed, `revert` → Removed). They differ only in `release-type`, the ruby `version-file`, and whether `docs` is visible (only in `simple`). `tools/adopt-release.sh` picks the same release type by the same detection.
 
-The caller, `release/release.yml`, references `bamr87/bamr87/.github/workflows/release-please.yml@v1`. Tags are cut by Fleet Ops (scheme in `docs/WORKFLOW-VERSIONING.md`); never point it at `@main` (UPS-WORK-10).
+The caller, `release/release.yml`, references `bamr87/bamr87/.github/workflows/release-please.yml@v2`. Tags are cut by Fleet Ops (scheme in `docs/WORKFLOW-VERSIONING.md`); never point it at `@main` (UPS-WORK-10).
 
 ## Backlog of record, issue mode (the default)
 
