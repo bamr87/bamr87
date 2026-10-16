@@ -170,7 +170,7 @@ The site quality kit (spec: [`specs/QUALITY.md`](../specs/QUALITY.md) "Site qual
 
 | File | Purpose |
 | --- | --- |
-| `site-quality.yml` | Caller → `.github/workflows/site-quality.yml`, pinned `bamr87/bamr87/.github/workflows/site-quality.yml@v1` (never a custom tag) |
+| `site-quality.yml` | Caller → `.github/workflows/site-quality.yml`, pinned `bamr87/bamr87/.github/workflows/site-quality.yml@v2` (never a custom tag) |
 | `site-quality.template.yml` | Config → `.github/site-quality.yml` (only when absent): `schema: site-quality/v1`, pages, budgets, axe `fail_on`, contrast `max`, the expiring allowlist. Seeded report-only |
 | `site-quality.schema.json` | JSON Schema 2020-12 the workflow validates every config against |
 | `fixtures/` | `pass-site/` + `fail-site/` (scanned by `site-quality-selftest.yml`), `configs/valid/` + `configs/invalid/` |

@@ -134,7 +134,7 @@ def t_placeholders() -> None:
 
 
 def t_caller() -> None:
-    print("caller workflow: pinned @v1, read-only, stamped (UPS-QA-60)")
+    print("caller workflow: pinned @v2, read-only, stamped (UPS-QA-60)")
     text = read("site-quality.yml")
     doc = yaml.safe_load(text)
     check("# kit: site-quality v__KIT_VERSION__" in text, "kit stamp")
@@ -142,7 +142,8 @@ def t_caller() -> None:
     uses = [j.get("uses", "") for j in jobs.values()]
     check(len(uses) == 1 and uses[0].startswith(WORKFLOW + "@"), f"one job calling {WORKFLOW}")
     ref = uses[0].partition("@")[2] if uses else ""
-    check(ref == "v1", f"pinned @v1 (got @{ref})")
+    check(ref == "v2", f"pinned @v2 (got @{ref}); v1 predates site-quality.yml")
+    check(str((job_with := (next(iter(jobs.values()), {}).get("with") or {})).get("hub-ref")) == ref, "hub-ref matches the pin")
     check(PINNED_REF.match(ref) is not None, "pin satisfies WORK.contract.yml pinned_ref_re (no custom tags)")
     check(not re.search(r"site-quality-v\d", text), "no custom site-quality-vN tag anywhere")
     check(doc.get("permissions") == {"contents": "read"}, "top-level permissions: contents: read")

@@ -19,7 +19,9 @@ name: Site quality
 # no finding fails it as seeded. The job still fails when the config is missing
 # or invalid, the site does not build, or the scan cannot run.
 #
-# Pinned @v1 (major tag; additive releases move it). Never pin a custom tag.
+# Pinned @v2 (major tag; additive releases move it). Never pin a custom tag.
+# Not @v1: the hub's v1 tag (v1.0.0) predates site-quality.yml, so a @v1
+# caller fails at startup with "workflow file issue".
 # (__DEFAULT_BRANCH__ is substituted on adoption.)
 
 on:
@@ -37,9 +39,12 @@ concurrency:
 
 jobs:
   site-quality:
-    uses: bamr87/bamr87/.github/workflows/site-quality.yml@v1
+    uses: bamr87/bamr87/.github/workflows/site-quality.yml@v2
     permissions:
       contents: read
     with:
       mode: build
       config: .github/site-quality.yml
+      # The runner's fallback ref when job.workflow_sha is not exposed (its
+      # default is v1, which has no runner). Keep it equal to the pin above.
+      hub-ref: v2
