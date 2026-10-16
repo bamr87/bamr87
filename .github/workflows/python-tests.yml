@@ -13,9 +13,24 @@ name: 🐍 Python Tests
 #
 # Kept as its own workflow, separate from drift-check.yml, so it does not
 # collide with edits to that gate.
+#
+# Triggers: every PR, every push to main, and nightly. The console's
+# dependencies float (UPS-QA-40: always-latest, no pins, no lockfiles — the
+# hub-only lockfile exception in specs/QUALITY.contract.yml covers only a
+# reusable workflow's runtime under .github/, which tools/console is not), so
+# an upstream release can break main with no PR in flight: the httpx→httpx2
+# move silently disabled the DNS-rebinding test that way. The push and nightly
+# runs are the sensor for that drift, and every run records the exact versions
+# it resolved (job summary + `python-deps-resolved` artifact) so a red night
+# can be diffed against the last green one. Nightly at 09:17 UTC is declared in
+# _data/fleet.yml `schedule.python_tests` (test_schedule.py holds them equal).
 
 on:
   pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * *'  # nightly 09:17 UTC (_data/fleet.yml schedule.python_tests)
   workflow_dispatch:
 
 permissions:
@@ -39,7 +54,23 @@ jobs:
       - name: Install test deps
         run: |
           python -m pip install --upgrade pip
-          pip install pyyaml -r tools/console/requirements.txt
+          pip install pyyaml coverage -r tools/console/requirements.txt
+
+      # Always-latest means every run may resolve different versions. Record
+      # them (not a lockfile: nothing reads this back) so a drift break is a diff.
+      - name: Record resolved dependency versions
+        run: |
+          pip freeze --all | sort > python-deps-resolved.txt
+          {
+            echo "<details><summary>Resolved Python dependencies ($(wc -l < python-deps-resolved.txt))</summary>"
+            echo; echo '```'; cat python-deps-resolved.txt; echo '```'; echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-deps-resolved
+          path: python-deps-resolved.txt
+          retention-days: 30
 
       - name: Run tools/, tools/console and templates/issue-autopilot tests
         run: |
@@ -49,7 +80,7 @@ jobs:
           failed=()
           for t in "${files[@]}"; do
             echo "::group::$t"
-            if python "$t"; then
+            if python -m coverage run -p --source=tools/console,tools/fleetcore "$t"; then
               echo "::endgroup::"
             else
               echo "::endgroup::"
@@ -62,3 +93,16 @@ jobs:
             exit 1
           fi
           echo "All ${#files[@]} test files passed."
+
+      # Advisory: coverage of the console and fleetcore, one table in the job
+      # summary. Never gates — the tests above do.
+      - name: Coverage summary (console + fleetcore)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          python -m coverage combine -q
+          {
+            echo "### Coverage — tools/console + tools/fleetcore"
+            python -m coverage report --format=markdown --omit='*/test_*.py' --sort=cover
+          } >> "$GITHUB_STEP_SUMMARY"
+          python -m coverage report --omit='*/test_*.py' --sort=cover

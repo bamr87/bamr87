@@ -157,6 +157,7 @@ schedule:
   # GIT_DIGS_ENABLED is off; restore this line together with that schedule block.
   # git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
+  python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
