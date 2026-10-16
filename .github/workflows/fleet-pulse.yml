@@ -93,6 +93,7 @@ jobs:
       has_candidates: ${{ steps.remediate.outputs.has_candidates }}
       candidate_count: ${{ steps.remediate.outputs.candidate_count }}
       cross_repo_count: ${{ steps.remediate.outputs.cross_repo_count }}
+      billing_blocked_count: ${{ steps.remediate.outputs.billing_blocked_count }}
       publish_mode: ${{ steps.publish.outputs.mode }}
     env:
       # GH_TOKEN is NOT set here: the `token` step below exports the first
@@ -424,6 +425,13 @@ jobs:
             suggested angle. Act on the candidates listed, in order. Do not invent
             extra work and do not exceed the queue.
 
+            The work order may end with a section **"Rolled up under
+            bamr87/bamr87#268 — Actions billing block"**. Those private-repo runs
+            were refused at GitHub's billing gate because private-repo Actions
+            spend is held at $0 on purpose (#268, option B). They are NOT
+            candidates: never open a PR or issue for them, and never comment on
+            #268 from this loop.
+
             ## Step 2 — diagnose from evidence, not from the flags
             For EACH candidate, before changing anything:
             - Read the failing run's log:
@@ -611,5 +619,6 @@ jobs:
             echo ""
             echo "- Queue: \`${{ needs.pulse.outputs.candidate_count }}\` candidate(s), "
             echo "  \`${{ needs.pulse.outputs.cross_repo_count }}\` cross-repo."
+            echo "- Billing-blocked private runs rolled up under bamr87/bamr87#268: \`${{ needs.pulse.outputs.billing_blocked_count || 0 }}\`"
             echo "- Data publish route: \`${{ needs.pulse.outputs.publish_mode }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
