@@ -135,6 +135,67 @@ def test_rotation_ledger_gets_weekly_slack():
     assert not wires_by_id(wires)["stale-data"]["tripped"]
 
 
+def conformance(generated_at="2026-08-20T04:32:44Z") -> dict:
+    return {"generated_at": generated_at, "summary": {}}
+
+
+def test_conformance_snapshot_watched_with_its_own_limit():
+    # 7 days old: stale for a daily signal (3d), fresh for conformance (14d).
+    wires = harness.evaluate_trip_wires(CFG, usage(), triage(), pipeline(), rotation(), NOW,
+                                        conformance=conformance())
+    assert not wires_by_id(wires)["stale-data"]["tripped"], wires_by_id(wires)["stale-data"]
+
+
+def test_old_conformance_snapshot_trips_stale_data():
+    # The real incident: generated 2026-09-07, still there 38 days later.
+    wires = harness.evaluate_trip_wires(CFG, usage(), triage(), pipeline(), rotation(), NOW,
+                                        conformance=conformance("2026-07-20T04:32:44Z"))
+    w = wires_by_id(wires)["stale-data"]
+    assert w["tripped"] and w["summary"] != "all fleet signals fresh"
+    assert [(d["source"], d["why"]) for d in w["detail"]] == [("conformance", "older than 14d")], w
+
+
+def test_missing_conformance_snapshot_trips_but_unwatched_does_not():
+    w = wires_by_id(harness.evaluate_trip_wires(CFG, usage(), triage(), pipeline(), rotation(), NOW,
+                                                conformance={}))["stale-data"]
+    assert w["tripped"] and w["detail"][0] == {"source": "conformance", "age_days": None, "why": "missing"}
+    # callers that do not pass it keep the old four-source behaviour
+    assert not wires_by_id(harness.evaluate_trip_wires(CFG, usage(), triage(), pipeline(), rotation(),
+                                                       NOW))["stale-data"]["tripped"]
+
+
+def test_conformance_limit_comes_from_fleet_yml():
+    cfg = {"scorecard": CFG["scorecard"], "trip_wires": {**CFG["trip_wires"], "conformance_stale_days": 5}}
+    w = wires_by_id(harness.evaluate_trip_wires(cfg, usage(), triage(), pipeline(), rotation(), NOW,
+                                                conformance=conformance()))["stale-data"]
+    assert w["tripped"] and w["detail"][0]["why"] == "older than 5d"
+    live = harness.load_config(harness.FLEET_DEFAULT)["trip_wires"]
+    assert live["conformance_stale_days"] == 14, live
+
+
+def test_unquoted_yaml_timestamp_is_still_dated():
+    stamp = dt.datetime(2026, 8, 26, 4, 0)  # what yaml.safe_load makes of an unquoted ISO stamp
+    assert harness.source_age_days({"generated_at": stamp}, NOW) is not None
+
+
+def test_run_writes_conformance_into_sources(tmp_path=None):
+    import argparse
+    import tempfile
+    import yaml
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        (d / "conf.yml").write_text("generated_at: '2026-01-01T00:00:00Z'\n")
+        out = d / "out.yml"
+        ns = argparse.Namespace(fleet=str(d / "none.yml"), usage=str(d / "u.yml"), triage=str(d / "t.yml"),
+                                pipeline=str(d / "p.yml"), rotation=str(d / "r.yml"),
+                                conformance=str(d / "conf.yml"), out=str(out), quiet=True)
+        assert harness.run(ns) == 0
+        doc = yaml.safe_load(out.read_text())
+        assert doc["sources"]["conformance"]["present"] is True
+        stale = wires_by_id(doc["trip_wires"])["stale-data"]["detail"]
+        assert any(x["source"] == "conformance" for x in stale), stale
+
+
 def test_cost_spike_uses_median_not_mean():
     # Nine 2-minute workflows and one 60-minute runaway: the mean (~7.8) times 3
     # would be ~23 and still flag it, but a SECOND 20-minute workflow would

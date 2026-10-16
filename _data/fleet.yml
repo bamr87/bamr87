@@ -543,6 +543,9 @@ harness:
     # nothing said so). This wire makes that class of failure loud within days.
     # token_rotation gets 10 days of slack in the generator — it is weekly.
     stale_data_days: 3
+    # _data/conformance.yml (tools/conformance.py fleet --write) has no scheduled
+    # writer, so it gets a longer leash: older than this trips stale-data.
+    conformance_stale_days: 14
     pass_rate_floor_pct: 75       # fleet-wide quality regression
     waste_ceiling_pct: 30         # non-success minutes / total minutes
     # A workflow averaging this multiple of the fleet MEDIAN run time is a
