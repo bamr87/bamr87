@@ -101,7 +101,7 @@ jobs:
       pr: ${{ steps.rp.outputs.pr }}
     steps:
       - id: rp
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: ${{ inputs.config-file }}
