@@ -109,7 +109,7 @@
 #   site-quality branch ci/site-quality; the SITE QUALITY kit
 #                (templates/site-quality/, specs/QUALITY.md "Site quality"):
 #                the .github/workflows/site-quality.yml caller of the reusable
-#                site-quality.yml (pinned @v1; Lighthouse CI + axe-core at
+#                site-quality.yml (pinned @v2; Lighthouse CI + axe-core at
 #                390/1366 px + pa11y contrast against a fresh-theme build) and
 #                a report-only .github/site-quality.yml config (only when
 #                absent). Jekyll repos only (a root _config.yml); anything
@@ -292,7 +292,7 @@ case "$KIT" in
     BRANCH="ci/site-quality"
     COMMIT_MSG="ci: adopt the site-quality kit (Lighthouse CI + axe-core + pa11y contrast)"
     PR_TITLE="ci: adopt the site-quality kit"
-    PR_BODY="$(printf 'Automated by bamr87 site-quality fan-out (tools/fanout.sh --kit site-quality): seeds the fleet SITE QUALITY standard — `.github/workflows/site-quality.yml`, a thin caller of the hub'"'"'s reusable site-quality.yml pinned `@v1`, which builds this Jekyll site against a FRESH theme (remote_theme resolved to a commit SHA, recorded in the job summary), serves `_site`, and runs Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast; and `.github/site-quality.yml`, this repo'"'"'s config (validated against templates/site-quality/site-quality.schema.json).\n\nReport-only as seeded: the config sets no budgets, no axe fail_on and no contrast max, so no scan finding fails the job. It still fails if the config is invalid, the site does not build, or the scan cannot run. Read the first run'"'"'s summary, then tighten one gate at a time; known issues go in the allowlist with rule, selector and/or page, reason, issue link and a quoted until date. Additive-only — an existing .github/site-quality.yml is never overwritten. See bamr87/bamr87 templates/site-quality/README.md and specs/QUALITY.md "Site quality".')"
+    PR_BODY="$(printf 'Automated by bamr87 site-quality fan-out (tools/fanout.sh --kit site-quality): seeds the fleet SITE QUALITY standard — `.github/workflows/site-quality.yml`, a thin caller of the hub'"'"'s reusable site-quality.yml pinned `@v2` (`v1` predates it), which builds this Jekyll site against a FRESH theme (remote_theme resolved to a commit SHA, recorded in the job summary), serves `_site`, and runs Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast; and `.github/site-quality.yml`, this repo'"'"'s config (validated against templates/site-quality/site-quality.schema.json).\n\nReport-only as seeded: the config sets no budgets, no axe fail_on and no contrast max, so no scan finding fails the job. It still fails if the config is invalid, the site does not build, or the scan cannot run. Read the first run'"'"'s summary, then tighten one gate at a time; known issues go in the allowlist with rule, selector and/or page, reason, issue link and a quoted until date. Additive-only — an existing .github/site-quality.yml is never overwritten. See bamr87/bamr87 templates/site-quality/README.md and specs/QUALITY.md "Site quality".')"
     ;;
 esac
 
