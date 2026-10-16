@@ -64,6 +64,10 @@ Repo management reads every repo the account can see, and **writes only to fleet
 
 Each write states what it will do and asks first, and the server refuses one without `confirm=true`. Each is recorded in the action log on the GitHub page. Nothing merges, deletes, pushes or changes repo settings. `DASH_CONSOLE_GITHUB_WRITES=off` makes the surface read-only, and `DASH_CONSOLE_AUTH=off` also refuses connecting.
 
+### Per-project health on startup
+
+`_data/project_health.yml` is gitignored and only `dash-gen health` writes it, so a fresh clone used to show blank health and red/amber/green 0/0/0. On startup the console checks it (with `_data/project_health_meta.yml`) and, when it is missing, undated, or older than `harness.trip_wires.stale_data_days`, starts the allowlisted **health** operation as an ordinary job. The job shows on the Jobs page and runs in the background. It is cancelled after `CONSOLE_AUTO_HEALTH_TIMEOUT` seconds (default 300). It needs a GitHub token like the manual operation does; without one it fails and the page stays as before. `CONSOLE_AUTO_HEALTH=0` turns it off.
+
 ### The terminal dash, inside the page
 
 **Operate → Terminal** runs the real terminal dash (`tools/tui/app.py`, Textual), not a re-implementation. `tui_bridge.py` starts it on a pseudo-terminal and relays it over the `/api/tui` WebSocket, and xterm.js draws it in the TUI's own bashOS dark palette (`/api/theme`). It joins this process's runtime (`DASH_CONSOLE_URL` points back here), so a job its `:` palette starts appears on the Jobs page, behind the same allowlist and confirm gate. Its `o` / `l` keys open links in a new tab of *this* browser through a private OSC sequence, rather than on the machine running the console. At most `CONSOLE_TUI_MAX` (default 4) sessions run at once, and closing the page hangs up the session's whole process group.

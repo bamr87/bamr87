@@ -140,6 +140,18 @@ COST_SIGNALS = {"high-cost-low-value", "slow", "cancel-heavy"}
 # out of COST_SIGNALS because the interactive guard has no such implication.
 PRODUCTIVE_SUPPRESSES = COST_SIGNALS | {"cron-heavy"}
 
+# The account-level Actions billing block (bamr87/bamr87#268). Amr chose to keep
+# private-repo Actions spend at $0 ON PURPOSE (option B), so every job in a
+# private repo is refused before a runner is assigned: zero steps, no runner,
+# and a check-run annotation carrying GitHub's billing message. Such a run has
+# no log and nothing in the workflow to fix. Filing one doctor alert per red
+# private workflow (there were 20+) is pure noise, so these roll up under the
+# single standing issue instead of each taking a queue slot.
+BILLING_BLOCK_RE = re.compile(
+    r"recent account payments have failed|spending limit needs to be increased",
+    re.IGNORECASE,
+)
+
 
 # --------------------------------------------------------------------------- #
 # config
@@ -165,6 +177,7 @@ def load_config(path: Path) -> dict:
         "interactive_dispatch_pct": cfg.get("interactive_dispatch_pct", 60),
         "productive_schedule_pct": cfg.get("productive_schedule_pct", 90),
         "stale_after_days": cfg.get("stale_after_days", 7),
+        "billing_block_issue": cfg.get("billing_block_issue", 268),
         "severity": sev,
     }
 
@@ -279,6 +292,63 @@ def cross_repo_open_markers(nwos: list[str]) -> set[str]:
         for item in items or []:
             markers.update(MARKER_RE.findall(item.get("body") or ""))
     return markers
+
+
+# --------------------------------------------------------------------------- #
+# billing block (bamr87/bamr87#268)
+# --------------------------------------------------------------------------- #
+def jobs_billing_blocked(jobs: list[dict], annotations: list[dict]) -> bool:
+    """Pure verdict: was this run refused by the Actions billing block?
+
+    Requires BOTH tells, so a genuine failure is never hidden: every failed job
+    never started (no steps, no runner) AND the annotations carry GitHub's
+    billing message.
+    """
+    failed = [j for j in jobs or [] if (j.get("conclusion") or "") in
+              ("failure", "startup_failure")]
+    if not failed:
+        return False
+    if any((j.get("steps") or []) or (j.get("runner_name") or "") for j in failed):
+        return False
+    return any(BILLING_BLOCK_RE.search(a.get("message") or "")
+               for a in annotations or [])
+
+
+_BILLING_CACHE: dict[str, bool] = {}
+
+
+def run_billing_blocked(nwo: str, run_url: str) -> bool:
+    """Look up one run's jobs + first failed job's annotations via `gh api`.
+
+    Any lookup error answers False: an unreadable run stays on the queue
+    exactly as before (suppress only on positive evidence).
+    """
+    run_id = (run_url or "").rstrip("/").split("/")[-1]
+    if not run_id.isdigit():
+        return False
+    key = f"{nwo}:{run_id}"
+    if key in _BILLING_CACHE:
+        return _BILLING_CACHE[key]
+    verdict = False
+    data = _gh_json(["gh", "api", f"repos/{nwo}/actions/runs/{run_id}/jobs?per_page=50"])
+    jobs = (data or {}).get("jobs") if isinstance(data, dict) else None
+    if jobs:
+        failed = [j for j in jobs if (j.get("conclusion") or "") in
+                  ("failure", "startup_failure")]
+        if failed and failed[0].get("id"):
+            ann = _gh_json(["gh", "api",
+                            f"repos/{nwo}/check-runs/{failed[0]['id']}/annotations"])
+            verdict = jobs_billing_blocked(jobs, ann if isinstance(ann, list) else [])
+    _BILLING_CACHE[key] = verdict
+    return verdict
+
+
+def is_billing_blocked(cand: dict, private: set[str], checker=run_billing_blocked) -> bool:
+    """A private-repo candidate whose latest failing run hit the billing block."""
+    if cand["nwo"] not in private or "failing" not in cand["signals"]:
+        return False
+    runs = cand.get("failing_runs") or []
+    return bool(runs) and checker(cand["nwo"], runs[0].get("url") or "")
 
 
 # --------------------------------------------------------------------------- #
@@ -631,8 +701,27 @@ def fix_angle(signals: set[str]) -> str:
 # --------------------------------------------------------------------------- #
 # work order
 # --------------------------------------------------------------------------- #
+def render_billing_rollup(blocked: list[dict], cfg: dict, hub: str) -> list[str]:
+    if not blocked:
+        return []
+    issue = cfg["billing_block_issue"]
+    L = ["---", "",
+         f"## Rolled up under {hub}#{issue} — Actions billing block (not queued)", "",
+         f"{len(blocked)} private-repo workflow(s) failed only because GitHub refused "
+         "the jobs at the billing gate (\"recent account payments have failed or your "
+         "spending limit needs to be increased\"). Private-repo Actions spend is held "
+         f"at $0 on purpose ({hub}#{issue}, option B). There is no log and nothing in "
+         "the workflow to fix. **Do NOT open a PR or issue for any of these** — they "
+         f"are tracked by {hub}#{issue}.", ""]
+    for c in blocked:
+        url = (c.get("failing_runs") or [{}])[0].get("url") or ""
+        L.append(f"- {c['nwo']} · `{c['path']}` · {url}")
+    L.append("")
+    return L
+
+
 def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
-           stats: dict) -> str:
+           stats: dict, blocked: list[dict] | None = None) -> str:
     L: list[str] = []
     L.append("# Fleet doctor — remediation work order")
     L.append("")
@@ -651,6 +740,8 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
     L.append(f"Triage: {stats['total']} problem workflow(s) detected · "
              f"{stats['deduped']} already have an open issue/PR · "
              + (f"{retired} retired (workflow file deleted) · " if retired else "")
+             + (f"{len(blocked)} rolled up under {hub}#{cfg['billing_block_issue']} "
+                "(billing block) · " if blocked else "")
              + f"{len(cands)} on this run's queue "
              f"(cap {cfg['max_candidates']}, of which ≤{cfg['max_cross_repo']} cross-repo).")
     L.append("")
@@ -660,6 +751,7 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
                  "open issue or fix PR, or none crossed the thresholds. This is the "
                  "healthy steady state — do not invent work.")
         L.append("")
+        L.extend(render_billing_rollup(blocked or [], cfg, hub))
         return "\n".join(L)
 
     for i, c in enumerate(cands, 1):
@@ -725,6 +817,7 @@ def render(cands: list[dict], cfg: dict, hub: str, usage: dict, triage: dict,
                  f'-H "Accept: application/vnd.github.raw"`')
         L.append(f"- **Suggested angle:** {fix_angle(c['signals'])}")
         L.append("")
+    L.extend(render_billing_rollup(blocked or [], cfg, hub))
     return "\n".join(L)
 
 
@@ -756,6 +849,7 @@ def run(args: argparse.Namespace) -> int:
         emit_output("has_candidates", "false")
         emit_output("candidate_count", 0)
         emit_output("cross_repo_count", 0)
+        emit_output("billing_blocked_count", 0)
         return 0
 
     owner = args.hub.split("/", 1)[0]
@@ -777,10 +871,18 @@ def run(args: argparse.Namespace) -> int:
     # Apply the cross-repo sub-cap while filling the overall cap, so a burst of
     # submodule failures can't consume the whole queue and starve hub fixes the
     # agent could actually land today.
+    private = {r.get("nwo") for r in triage.get("by_repo", []) or [] if r.get("private")}
     selected: list[dict] = []
+    blocked: list[dict] = []
     cross = 0
     retired = 0
     for c in fresh:
+        # Billing-blocked private runs roll up under the standing issue instead
+        # of each taking a slot (bamr87/bamr87#268). Two gh calls per private
+        # failing candidate, cached per run.
+        if not args.no_billing_check and is_billing_blocked(c, private):
+            blocked.append(c)
+            continue
         # Checked HERE rather than during merge so the API cost is bounded by the
         # cap (a handful of calls), not by the 60+ workflows the signals surface.
         if not args.no_existence_check and not workflow_exists(c["nwo"], c["path"]):
@@ -796,18 +898,26 @@ def run(args: argparse.Namespace) -> int:
         c["_where"] = where
         selected.append(c)
         if len(selected) >= cfg["max_candidates"]:
+            # Keep classifying the rest so the roll-up is complete.
+            if args.no_billing_check:
+                break
+            blocked.extend(r for r in fresh[fresh.index(c) + 1:]
+                           if is_billing_blocked(r, private))
             break
 
     stats = {"total": total, "deduped": deduped, "retired": retired}
-    Path(args.out).write_text(render(selected, cfg, args.hub, usage, triage, stats))
+    Path(args.out).write_text(render(selected, cfg, args.hub, usage, triage, stats,
+                                     blocked))
 
     emit_output("has_candidates", "true" if selected else "false")
     emit_output("candidate_count", len(selected))
     emit_output("cross_repo_count", cross)
+    emit_output("billing_blocked_count", len(blocked))
 
     sys.stderr.write(
         f"fleet-doctor: {total} problem workflow(s), {deduped} already tracked, "
-        f"{retired} retired, {len(selected)} queued ({cross} cross-repo) → {args.out}\n")
+        f"{retired} retired, {len(blocked)} billing-blocked "
+        f"(→ {args.hub}#{cfg['billing_block_issue']}), {len(selected)} queued ({cross} cross-repo) → {args.out}\n")
     for c in selected:
         sys.stderr.write(f"  · [{c['_where']}] {c['nwo']}/{c['workflow']} "
                          f"[{', '.join(sorted(c['signals']))}]\n")
@@ -835,6 +945,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="skip the open-issue/PR dedupe (offline / debugging)")
     parser.add_argument("--no-existence-check", action="store_true",
                         help="skip verifying each candidate's workflow file still exists (offline)")
+    parser.add_argument("--no-billing-check", action="store_true",
+                        help="skip the billing-block roll-up lookup (offline)")
     parser.set_defaults(func=run)
 
 

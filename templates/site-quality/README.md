@@ -4,7 +4,7 @@
 
 | Template | Seeds | Purpose |
 | --- | --- | --- |
-| `site-quality.yml` | `.github/workflows/site-quality.yml` | Thin caller of the hub's reusable [`site-quality.yml`](../../.github/workflows/site-quality.yml), pinned `@v1`, `mode: build`, on every PR and push to the default branch. |
+| `site-quality.yml` | `.github/workflows/site-quality.yml` | Thin caller of the hub's reusable [`site-quality.yml`](../../.github/workflows/site-quality.yml), pinned `@v2` (with `hub-ref: v2`), `mode: build`, on every PR and push to the default branch. |
 | `site-quality.template.yml` | `.github/site-quality.yml` (only when absent) | The repo's config: pages, viewports, Lighthouse budgets, axe `fail_on`, contrast `max`, and the known-issue allowlist. Seeded report-only: nothing in it fails a run. |
 | `site-quality.schema.json` | (stays in the hub) | JSON Schema 2020-12 for the config. The workflow validates the caller's file against it before anything runs. |
 | `fixtures/` | (stays in the hub) | `pass-site/` and `fail-site/` (tiny Jekyll sites the self-test scans), `configs/valid/` and `configs/invalid/` (schema fixtures). |

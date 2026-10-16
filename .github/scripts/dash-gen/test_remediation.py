@@ -617,6 +617,33 @@ def main() -> int:
                                {"total": 0, "deduped": 0, "retired": 0})
     check("an empty queue says do nothing", "Nothing to do." in empty)
 
+    # --- billing block roll-up (bamr87/bamr87#268) ------------------------- #
+    msg = ("The job was not started because recent account payments have failed or "
+           "your spending limit needs to be increased. Please check the 'Billing & "
+           "plans' section in your settings")
+    never_ran = [{"conclusion": "failure", "steps": [], "runner_name": ""},
+                 {"conclusion": "skipped", "steps": [], "runner_name": None}]
+    check("billing block: never-started jobs + billing annotation are blocked",
+          remediation.jobs_billing_blocked(never_ran, [{"message": msg}]))
+    check("billing block: no billing annotation is a real failure",
+          not remediation.jobs_billing_blocked(never_ran, [{"message": "boom"}]))
+    ran = [{"conclusion": "failure", "steps": [{"name": "x"}], "runner_name": "r1"}]
+    check("billing block: a job that actually ran is never hidden",
+          not remediation.jobs_billing_blocked(ran, [{"message": msg}]))
+    bc = {"nwo": "bamr87/priv", "signals": {"failing"},
+          "failing_runs": [{"url": "https://github.com/bamr87/priv/actions/runs/1"}]}
+    yes = lambda nwo, url: True
+    check("billing block: private failing candidate rolls up",
+          remediation.is_billing_blocked(bc, {"bamr87/priv"}, yes))
+    check("billing block: public repos are never rolled up",
+          not remediation.is_billing_blocked(bc, set(), yes))
+    rolled = remediation.render([], {**CFG, "billing_block_issue": 268}, HUB, usage(),
+                                triage(), {"total": 1, "deduped": 0, "retired": 0},
+                                [{**bc, "path": ".github/workflows/ci.yml"}])
+    check("billing block: work order rolls blocked runs up under #268",
+          f"{HUB}#268" in rolled and "Do NOT open a PR or issue" in rolled
+          and "bamr87/priv" in rolled)
+
     # --- report ------------------------------------------------------------ #
     failed = [label for label, ok in CHECKS if not ok]
     print()
