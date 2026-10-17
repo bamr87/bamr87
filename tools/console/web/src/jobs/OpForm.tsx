@@ -102,10 +102,11 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
     <Stack gap="sm">
       {op.params.length ? op.params.map(field) : <Text size="sm" c="dimmed">This operation takes no parameters.</Text>}
       <Group gap="sm" mt="xs">
-        <Button leftSection={<IconPlayerPlay size={16} />} color={writes ? 'red' : undefined}
+        <Button leftSection={<IconPlayerPlay size={16} />} color={writes ? 'red' : undefined} disabled={Boolean(op.unavailable)}
           onClick={async () => { const job = await runOp(op.id, params); if (job) onStarted?.(job.id); }}>
           {writes ? 'Run — writes to GitHub' : 'Run'}
         </Button>
+        {op.unavailable ? <Text size="xs" c="dimmed">Not available in this console: {op.unavailable}</Text> : null}
         {op.remote_write && !writes ? <Text size="xs" c="dimmed">Dry run: nothing reaches GitHub.</Text> : null}
       </Group>
     </Stack>

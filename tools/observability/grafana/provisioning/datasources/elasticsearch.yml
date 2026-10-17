@@ -6,7 +6,7 @@
 # longer exists after any re-provision, which renders as empty panels with no
 # error — the same failure class the pinned dashboard ids guard against.
 #
-# FF-0003 appends a Prometheus datasource here; nothing else changes.
+# Prometheus (FF-0003) is provisioned beside this, in prometheus.yml.
 # ---------------------------------------------------------------------------
 apiVersion: 1
 

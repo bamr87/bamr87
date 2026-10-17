@@ -141,7 +141,7 @@ export interface StateDoc {
     ai: { window_days?: number; by_day?: { day: string; runs?: number; cost_usd?: number }[] };
   };
   loops: Loop[];
-  git: { branch?: string; head?: string; dirty_count?: number };
+  git: { available?: boolean; branch?: string; head?: string; dirty_count?: number };
 }
 
 export interface Capabilities {
@@ -165,6 +165,10 @@ export interface Op {
   needs_token: boolean;
   params: string[];
   remote_write: boolean;
+  /** Ops sharing this key never run at once (e.g. every writer of the lake). */
+  exclusive?: string | null;
+  /** Why this op cannot run in this console process at all (e.g. no Docker), or null. */
+  unavailable?: string | null;
 }
 
 export interface Job {
@@ -175,9 +179,12 @@ export interface Job {
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | string;
   remote_write?: boolean;
   params?: Dict<unknown>;
+  created?: string | null;
   started?: string | null;
   finished?: string | null;
   exit_code?: number | null;
+  /** The operation's group: observe, plan, verify, lake, content, deploy. */
+  group?: string | null;
 }
 
 export interface JobTail {

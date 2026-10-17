@@ -672,6 +672,7 @@ observability:
       actions: fleet.actions # GitHub Actions run logs, replayed from the lake
       container: fleet.container # docker stdout/stderr that did NOT parse as JSON
       app: fleet.app # UPS-OPS-10 structured lines (they have level + msg)
+      claude: fleet.claude # Claude Code's own OTel EVENTS (api_request, tool_result, …) via the collector
 
     # Retention is a day-one deliverable, not later hardening: the ingest
     # decision was "everything" (all repos, all runs, untruncated), and an
@@ -681,6 +682,7 @@ observability:
       actions: 90 # long enough to answer "when did this workflow start failing"
       container: 14 # noisiest, least durable value — dev-loop chatter
       app: 30 # one sprint of application behaviour
+      claude: 90 # one record per request/tool call, not per line — small, and "why was Thursday $9" looks back
 
     rollover: { max_primary_shard_size: 10gb, max_age: 1d }
     disk_budget_gb: 40 # `dash observe status` warns here, well before ES's 95% watermark
@@ -704,13 +706,88 @@ observability:
       # (ES_HEAP in .env) before widening `dash observe ship --days`.
       heap: { elasticsearch: 512m, logstash: 256m }
 
-  # ---- Metrics: Grafana (Prometheus joins later, FF-0003) ------------------ #
+  # ---- Metrics: Grafana over Elasticsearch AND Prometheus (FF-0003) -------- #
   metrics:
     engine: grafana
     grafana_version: '12.4' # Grafana DOES publish a floating minor tag, so this one tracks patches
     grafana: http://127.0.0.1:3001 # NOT 3000 — the wiki service owns that port
-    datasources: [elasticsearch] # a list because FF-0003 appends to it; no rework when it lands
-    prometheus: { status: planned, roadmap: FF-0003 }
+    datasources: [elasticsearch, prometheus]
+    profile: metrics # `docker compose --profile metrics` — otel-collector + prometheus (+ grafana)
+    # Prometheus holds Claude Code's OTel COUNTERS (cost, tokens, active time,
+    # lines, commits, PRs) scraped from the collector. A floating `v3` tag
+    # exists, but like the Elastic train this is toolchain-class: the panels'
+    # PromQL is written against it, so it is pinned and bumped deliberately.
+    prometheus: http://127.0.0.1:9090
+    prometheus_version: v3.13.4
+    # Retention is a day-one deliverable here too (FF-0003 risk): a TSDB with
+    # no limit grows until the Docker VM's disk is full. Both bounds apply;
+    # whichever is hit first wins.
+    retention: { time: 90d, size: 2GB }
+    scrape_interval: 30s
+
+  # ---- Claude Code's native OpenTelemetry → the three planes --------------- #
+  # Claude Code exports its own telemetry over OTLP: METRICS (cost/token/time
+  # counters), EVENTS as log records (one per prompt, API request, API error,
+  # tool result, permission decision, hook, compaction, subagent…) and, in
+  # beta, TRACES (interaction → llm_request / tool spans). Reference:
+  # https://code.claude.com/docs/en/monitoring-usage
+  #
+  # ONE collector receives all three and routes each to the plane that already
+  # owns that question — nothing new to learn and no second store:
+  #   metrics → Prometheus → Grafana          "how much, live"
+  #   events  → Logstash (enrich) → ES/Kibana "what exactly happened" — through
+  #             the SAME redaction pipeline every other input uses
+  #   traces  → Phoenix, mapped to OpenInference span kinds so they render as
+  #             LLM/TOOL/AGENT spans with token counts rather than opaque spans
+  #
+  # This is forward-looking and live. `dash lake sessions` stays the
+  # retroactive history (it reads transcripts back to day one); the two land in
+  # different Phoenix projects so neither double-counts the other.
+  #
+  # Claude Code IGNORES OTEL_* exporter variables in a repository's
+  # .claude/settings.json — a repo cannot enable telemetry or pick its
+  # destination. So the client side is this machine's USER settings
+  # (~/.claude/settings.json `env`), written by `dash observe claude enable`
+  # from the block below (dry run by default; `disable` removes exactly the
+  # keys it wrote).
+  claude_code:
+    collector_version: '0.163.1' # otel/opentelemetry-collector-contrib — publishes `latest` or exact tags, no floating minor
+    # OTLP/HTTP on the standard 4318. gRPC (4317) is NOT published: Phoenix
+    # already owns 127.0.0.1:4317 (_data/ports.yml shared.phoenix), and HTTP is
+    # also the only transport otelHeadersHelper works with.
+    endpoint: http://127.0.0.1:4318
+    protocol: http/protobuf
+    signals: { metrics: true, logs: true, traces: true }
+    traces_beta: true # CLAUDE_CODE_ENHANCED_TELEMETRY_BETA — spans are beta; set false to keep metrics + events only
+    export_interval_ms: { metrics: 30000, logs: 5000, traces: 5000 }
+    # CUMULATIVE, and session.id kept ON — deliberately, against FF-0003's
+    # first sketch. Without a per-process label, the counters of two
+    # concurrent sessions share one series and overwrite each other (cumulative)
+    # or break the collector's delta contiguity and reset (delta). On a
+    # one-person bench a series per session is tens a day, which retention
+    # bounds; per-session drill-down then works in Prometheus AND Kibana.
+    temporality: cumulative
+    attributes:
+      session_id: true # OTEL_METRICS_INCLUDE_SESSION_ID
+      version: true # app.version — "did the upgrade change spend"
+      entrypoint: true # app.entrypoint: cli, claude-vscode, sdk-cli…
+      repository: true # vcs.repository.name on metrics + events (Claude Code ≥ 2.1.269) — per-repo spend
+    # Content gates. Everything stays on THIS machine (loopback collector,
+    # security-off ES that is loopback-only), and the lake already holds the
+    # full transcripts on the same disk — so the one flag on is the one that
+    # makes the core question answerable: without OTEL_LOG_TOOL_DETAILS every
+    # hub skill, agent and MCP server is reported as `custom`, and "which skill
+    # burned the tokens" has no answer. Bash commands it adds still pass the
+    # Logstash redaction filter. Prompts, responses, tool output and raw API
+    # bodies stay off: they would make Kibana a second transcript store.
+    content:
+      user_prompts: false # OTEL_LOG_USER_PROMPTS
+      assistant_responses: false # OTEL_LOG_ASSISTANT_RESPONSES
+      tool_details: true # OTEL_LOG_TOOL_DETAILS
+      tool_content: false # OTEL_LOG_TOOL_CONTENT (spans only)
+      raw_api_bodies: false # OTEL_LOG_RAW_API_BODIES
+    phoenix_project: claude-code-otel # live spans; `dash lake export --local` writes claude-code-local
+    settings: ~/.claude/settings.json # USER scope — the only scope that can enable export besides managed settings
 
   # ---- Traces: the existing plane, recorded here so all three are in one place #
   traces:

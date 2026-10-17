@@ -36,6 +36,7 @@ from __future__ import annotations
 import datetime as dt
 import io
 import importlib.util
+import json
 import os
 import re
 import shutil
@@ -43,6 +44,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -435,6 +437,9 @@ def observability_planes(probe: bool = True) -> dict:
             "indexing": {"engine": indexing.get("engine"), "url": indexing.get("qdrant"),
                          "embedder": indexing.get("embedder"), "model": indexing.get("model"),
                          "reachable": None, "embedder_reachable": None},
+            "telemetry": {"engine": "otel-collector", "url": fo.claude_contract(contract)["endpoint"],
+                          "prometheus": metrics.get("prometheus"), "reachable": None,
+                          "prometheus_reachable": None},
         }
     planes["present"] = True
     planes["portal"] = contract.get("portal") or {}
@@ -467,12 +472,18 @@ def observe_status() -> dict:
             row = conn.execute("SELECT COUNT(*) c, MAX(shipped_at) last FROM shipments "
                                "WHERE sink = ?", (fo.SINK,)).fetchone()
             doc["shipments"] = {"count": row[0], "last": row[1]}
+            # Ship replays the lake, so an empty lake ships nothing — and a
+            # zero ledger beside indexed documents means they came from an
+            # earlier lake, not that shipping is broken.
+            doc["lake_runs"] = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
         except Exception:
             doc["shipments"] = {"count": 0, "last": None}
+            doc["lake_runs"] = None
         return doc
     except Exception as exc:
         return {"present": False, "error": f"{exc.__class__.__name__}: {exc}",
-                "planes": {}, "datasets": [], "embeds": {}, "shipments": {"count": 0, "last": None}}
+                "planes": {}, "datasets": [], "embeds": {}, "shipments": {"count": 0, "last": None},
+                "lake_runs": None}
 
 
 def observe_embeds(contract: dict) -> dict:
@@ -874,6 +885,9 @@ def _observe_ship(params: dict) -> list[str]:
 # ports. Held equal to the profile's membership by test_observe_contract.py.
 # qdrant is the Kilo code index; it starts with the plane so status can see it.
 ELK_SERVICES = ["elasticsearch", "logstash", "kibana", "filebeat", "grafana", "qdrant"]
+# Claude Code's native OTel path (FF-0003) — the `metrics` profile's own
+# services; grafana carries both profiles and is already named above.
+METRICS_SERVICES = ["otel-collector", "prometheus"]
 
 
 def _observe_compose(verb: str):
@@ -886,7 +900,8 @@ def _observe_compose(verb: str):
     assert verb in VERBS, verb
 
     def build(_params: dict) -> list[str]:
-        return ["docker", "compose", "--profile", "elk", *VERBS[verb], *ELK_SERVICES]
+        return ["docker", "compose", "--profile", "elk", "--profile", "metrics", *VERBS[verb],
+                *ELK_SERVICES, *METRICS_SERVICES]
     return build
 
 
@@ -964,12 +979,12 @@ OPS: dict[str, dict] = {
     "tests": dict(title="Control-plane fixture tests", group="verify", argv=_tests, needs_token=False,
                   desc="Every dash-gen and console test_*.py on a bare interpreter."),
     # lake (the local data lake + traces — writes only to disk and to Phoenix) ---
-    "lake-sync": dict(title="Lake: extract GitHub data into the local lake", group="lake",
+    "lake-sync": dict(title="Lake: extract GitHub data into the local lake", group="lake", exclusive="lake",
                       argv=_lake_sync, needs_token=True,
                       desc="dash-gen lake sync — runs → jobs → steps, run logs + claude-code-action facts, "
                            "issues, workflow files, .factory/** → .dash-lake/fleet.sqlite (gitignored).",
                       params=["days", "target", "jobs", "logs"]),
-    "lake-sessions": dict(title="Lake: extract local Claude Code sessions", group="lake",
+    "lake-sessions": dict(title="Lake: extract local Claude Code sessions", group="lake", exclusive="lake",
                           argv=_lake_sessions, needs_token=False,
                           desc="dash-gen lake sessions — this machine's ~/.claude transcripts → sessions, "
                                "turns and tool calls in the lake. Local disk only; no GitHub, no network.",
@@ -982,7 +997,7 @@ OPS: dict[str, dict] = {
     "lake-status": dict(title="Lake: status", group="lake",
                         argv=lambda p: [DASH_GEN, "lake", "status"], needs_token=False,
                         desc="Tables, freshness, per-repo counts, the export ledger, Phoenix reachability."),
-    "lake-export": dict(title="Lake: export traces to Phoenix", group="lake",
+    "lake-export": dict(title="Lake: export traces to Phoenix", group="lake", exclusive="lake",
                         argv=_lake_export, needs_token=False,
                         desc="OpenInference spans for the lake's agent runs (and this machine's Claude Code "
                              "sessions with local) → Phoenix over OTLP/HTTP. Dry run writes export-preview.json.",
@@ -994,19 +1009,20 @@ OPS: dict[str, dict] = {
                            argv=lambda p: [DASH_GEN, "observe", "status"], needs_token=False,
                            desc="Elasticsearch/Kibana, Grafana and Phoenix reachability; docs and bytes "
                                 "per data stream against the disk budget; how many runs are unshipped."),
-    "observe-up": dict(title="Observe: start the log + metrics stack", group="observe",
+    "observe-up": dict(title="Observe: start the log + metrics stack", group="observe", needs="docker",
                        argv=_observe_compose("up"), needs_token=False,
-                       desc="docker compose --profile elk up -d — Elasticsearch, Logstash, Kibana, "
-                            "Filebeat, Grafana and Qdrant (the Kilo code index). Run 'bootstrap' after "
-                            "it to install ILM + dashboards."),
+                       desc="docker compose --profile elk --profile metrics up -d — Elasticsearch, "
+                            "Logstash, Kibana, Filebeat, Grafana, Qdrant (the Kilo code index), and the "
+                            "OTel collector + Prometheus that receive Claude Code's native telemetry. "
+                            "Run 'bootstrap' after it to install ILM + dashboards."),
     "observe-bootstrap": dict(title="Observe: install ILM policies + dashboards", group="observe",
                               argv=_observe_bootstrap, needs_token=False,
                               desc="Idempotent: PUTs the rendered ILM policies and index templates, "
                                    "imports the Kibana saved objects, reports Grafana's provisioning."),
-    "observe-down": dict(title="Observe: stop the stack (keeps the data)", group="observe",
+    "observe-down": dict(title="Observe: stop the stack (keeps the data)", group="observe", needs="docker",
                          argv=_observe_compose("stop"), needs_token=False,
                          desc="Stops the elk profile. The volumes — and every indexed log line — survive."),
-    "observe-ship": dict(title="Observe: ship Actions logs from the lake", group="observe",
+    "observe-ship": dict(title="Observe: ship Actions logs from the lake", group="observe", exclusive="lake",
                          argv=_observe_ship, needs_token=False,
                          desc="dash-gen observe ship — replays the lake's completed runs into Logstash as "
                               "ECS documents, carrying the same trace.id Phoenix uses. Extract first with "
@@ -1016,7 +1032,7 @@ OPS: dict[str, dict] = {
     # take EVERY named volume in the file — db-data, wiki-data, phoenix-data
     # included — and the narrow teardown (remove the elk containers, then their
     # volumes by name) should exist in exactly one place.
-    "observe-reset": dict(title="Observe: destroy the indices and volumes", group="observe",
+    "observe-reset": dict(title="Observe: destroy the indices and volumes", group="observe", needs="docker",
                           argv=lambda p: [str(TOOLS / "dash"), "observe", "reset", "--yes"],
                           needs_token=False, remote=lambda p: True,
                           desc="Deletes every indexed log line, the Kilo code index, and the six elk "
@@ -1028,7 +1044,7 @@ OPS: dict[str, dict] = {
                                 "tools/observability files, and resolves every pinned dashboard id."),
     # content — the content atlas (docs/CONTENT-ATLAS.md). sync/report write only
     # to the lake; `content-file` with apply opens issues in a site's repo.
-    "content-sync": dict(title="Content: extract the content sites into the atlas", group="content",
+    "content-sync": dict(title="Content: extract the content sites into the atlas", group="content", exclusive="lake",
                          argv=_content_sync, needs_token=False,
                          desc="dash-gen content sync — every fleet.yml `content.sites` entry (or one, by "
                               "target) from its local checkout or a cached blob-less clone → front matter, "
@@ -1115,11 +1131,48 @@ OPS: dict[str, dict] = {
 }
 
 
+_DOCKER_CHECK: dict = {"at": 0.0, "reason": None}
+
+
+def docker_unavailable() -> str | None:
+    """Why `docker compose` cannot run from this process, or None if it can.
+
+    The console's own container has the docker CLI but neither the compose
+    plugin nor the daemon socket — on purpose: only the `tui` service is
+    handed the socket. So observe-up/down/reset failed every time there, with
+    "unknown flag: --profile" as the only explanation, behind buttons that
+    looked live. Cached for a minute: it is asked on every /api/ops.
+    """
+    now = time.time()
+    if now - _DOCKER_CHECK["at"] < 60:
+        return _DOCKER_CHECK["reason"]
+    reason = None
+    if not shutil.which("docker"):
+        reason = "no docker CLI in this process"
+    elif run_quiet(["docker", "compose", "version"], timeout=10)[0] != 0:
+        reason = "the docker CLI here has no compose plugin"
+    elif run_quiet(["docker", "info", "--format", "{{.ServerVersion}}"], timeout=10)[0] != 0:
+        reason = "no Docker daemon is reachable (this container is not given the socket)"
+    _DOCKER_CHECK.update(at=now, reason=reason)
+    return reason
+
+
+def op_unavailable(op_id: str) -> str | None:
+    """Why an operation cannot run here at all — independent of its params."""
+    if (OPS.get(op_id) or {}).get("needs") == "docker":
+        why = docker_unavailable()
+        if why:
+            return (f"{why}. Run it from a host terminal instead: "
+                    f"tools/dash observe {op_id.split('-', 1)[1]}")
+    return None
+
+
 def list_ops() -> list[dict]:
     return [
         {"id": op_id, "title": op["title"], "group": op["group"], "desc": op.get("desc", ""),
          "needs_token": op["needs_token"], "params": op.get("params", []),
-         "remote_write": "remote" in op}
+         "remote_write": "remote" in op, "exclusive": op.get("exclusive"),
+         "unavailable": op_unavailable(op_id)}
         for op_id, op in OPS.items()
     ]
 
@@ -1138,6 +1191,33 @@ def build_argv(op_id: str, params: dict | None = None) -> tuple[list[str], bool]
 # --------------------------------------------------------------------------- #
 # JOBS
 # --------------------------------------------------------------------------- #
+# A job in one of these states will never change again.
+FINISHED_STATES = ("succeeded", "failed", "cancelled", "interrupted")
+
+
+class JobUnavailable(RuntimeError):
+    """An operation that cannot run in this process at all (see op_unavailable)."""
+
+
+class JobConflict(RuntimeError):
+    """A job that must run alone already is.
+
+    Every op marked `exclusive="lake"` writes the one SQLite lake. Two of them
+    at once used to mean the second died within seconds on "database is
+    locked" — a double click on Extract, or an agent and a human both
+    refreshing — so the console now says which job holds the lake instead.
+    """
+_JOB_ID_RX = re.compile(r"^[0-9a-f]{12}$")
+ORPHAN_LOG_AGE_S = 86400
+
+
+def _parse_ts(value) -> dt.datetime | None:
+    try:
+        return dt.datetime.fromisoformat(value) if value else None
+    except (TypeError, ValueError):
+        return None
+
+
 class Job:
     def __init__(self, op_id: str, argv: list[str], remote: bool, params: dict):
         self.id = uuid.uuid4().hex[:12]
@@ -1166,7 +1246,33 @@ class Job:
             # credential value: secrets-push takes a secret's NAME), so the page
             # can show what a job ran with and offer to run it again.
             "params": self.params,
+            # The operation's group (observe, plan, verify, lake, content,
+            # deploy) — what the Jobs page groups and filters by.
+            "group": (OPS.get(self.op) or {}).get("group"),
         }
+
+    @classmethod
+    def from_dict(cls, d: dict, job_dir: Path) -> "Job":
+        """A job read back from the index — never re-run, only shown.
+
+        Built without __init__ because an operation can have been renamed or
+        removed since the job ran, and its history should still load.
+        """
+        job = cls.__new__(cls)
+        job.id = str(d["id"])
+        job.op = str(d.get("op") or "")
+        job.title = str(d.get("title") or job.op)
+        job.argv = list(d.get("argv") or [])
+        job.remote = bool(d.get("remote_write"))
+        job.params = dict(d.get("params") or {})
+        job.status = str(d.get("status") or "interrupted")
+        job.created = _parse_ts(d.get("created")) or dt.datetime.now(dt.timezone.utc)
+        job.started = _parse_ts(d.get("started"))
+        job.finished = _parse_ts(d.get("finished"))
+        job.exit_code = d.get("exit_code")
+        job.log_path = job_dir / f"{job.id}.log"
+        job.proc = None
+        return job
 
 
 def job_env() -> dict:
@@ -1190,14 +1296,94 @@ def job_env() -> dict:
 
 
 class JobManager:
+    """Every job this runtime started, with history that survives a restart.
+
+    The index (jobs.json beside the logs) is rewritten on every state change.
+    Without it the list vanished with the process while the log files stayed
+    in the job dir forever — including the logs of jobs evicted past
+    max_jobs — so the directory only ever grew and the page only ever forgot.
+    """
+
     def __init__(self, job_dir: Path = JOB_DIR, max_jobs: int = 200):
         self.job_dir = job_dir
         self.job_dir.mkdir(parents=True, exist_ok=True)
+        self.index_path = self.job_dir / "jobs.json"
         self.jobs: dict[str, Job] = {}
         self.order: list[str] = []
         self.max_jobs = max_jobs
         self._lock = threading.Lock()
+        self._io_lock = threading.Lock()
         self._remote_lock = threading.Lock()   # one GitHub-writing job at a time
+        self._load()
+
+    # -- persistence --------------------------------------------------------
+    def _load(self) -> None:
+        try:
+            rows = json.loads(self.index_path.read_text())
+        except (OSError, ValueError):
+            rows = []
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict) or not _JOB_ID_RX.match(str(row.get("id", ""))):
+                continue
+            job = Job.from_dict(row, self.job_dir)
+            # A job that was queued or running when the last process died has
+            # no process to finish it. Say so rather than show it spinning.
+            if job.status not in FINISHED_STATES:
+                job.status = "interrupted"
+            self.jobs[job.id] = job
+            self.order.append(job.id)
+        # Logs nobody indexes: written by a console that predates the index,
+        # or by one that died between the log and the index write. Only files
+        # named like a job id, and only once they are a day old — a fresh
+        # unindexed log can belong to ANOTHER live process on the same dir
+        # (a test run inside the console container deleted the running
+        # console's logs exactly that way).
+        cutoff = time.time() - ORPHAN_LOG_AGE_S
+        for log in self.job_dir.glob("*.log"):
+            if _JOB_ID_RX.match(log.stem) and log.stem not in self.jobs:
+                try:
+                    if log.stat().st_mtime < cutoff:
+                        log.unlink(missing_ok=True)
+                except OSError:
+                    pass
+        with self._lock:
+            self._evict()
+        self._save()
+
+    def _save(self) -> None:
+        with self._lock:
+            rows = [self.jobs[i].to_dict() for i in self.order if i in self.jobs]
+        with self._io_lock:
+            tmp = self.index_path.with_suffix(".json.tmp")
+            try:
+                tmp.write_text(json.dumps(rows))
+                tmp.replace(self.index_path)
+            except OSError:
+                pass   # history is a convenience; a full /tmp must not fail a job
+
+    def _evict(self) -> None:
+        """Drop the oldest jobs past max_jobs — and their logs. Caller holds _lock."""
+        while len(self.order) > self.max_jobs:
+            old = self.jobs.pop(self.order.pop(0), None)
+            if old is not None:
+                old.log_path.unlink(missing_ok=True)
+
+    def clear(self, statuses: tuple[str, ...] = FINISHED_STATES) -> dict:
+        """Forget finished jobs in `statuses`, logs included. Never a live one."""
+        bad = set(statuses) - set(FINISHED_STATES)
+        if bad:
+            raise ValueError(f"only finished jobs can be cleared, not {sorted(bad)}")
+        removed = 0
+        with self._lock:
+            for jid in list(self.order):
+                job = self.jobs.get(jid)
+                if job is not None and job.status in statuses:
+                    self.order.remove(jid)
+                    self.jobs.pop(jid, None)
+                    job.log_path.unlink(missing_ok=True)
+                    removed += 1
+        self._save()
+        return {"removed": removed, "remaining": len(self.order)}
 
     def submit(self, op_id: str, params: dict | None = None, confirm: bool = False) -> Job:
         params = params or {}
@@ -1206,14 +1392,24 @@ class JobManager:
             raise PermissionError(
                 f"'{op_id}' with these parameters writes to GitHub or destroys local data — "
                 "resubmit with confirm=true")
+        why = op_unavailable(op_id)
+        if why:
+            raise JobUnavailable(f"'{op_id}' cannot run here: {why}")
         job = Job(op_id, argv, remote, params)
         job.log_path = self.job_dir / f"{job.id}.log"
+        exclusive = OPS[op_id].get("exclusive")
         with self._lock:
+            if exclusive:
+                holder = next((j for j in self.jobs.values() if j.status in ("queued", "running")
+                               and (OPS.get(j.op) or {}).get("exclusive") == exclusive), None)
+                if holder is not None:
+                    raise JobConflict(
+                        f"'{holder.op}' (job {holder.id}) is already writing the {exclusive} — "
+                        f"wait for it to finish, then run '{op_id}'")
             self.jobs[job.id] = job
             self.order.append(job.id)
-            while len(self.order) > self.max_jobs:
-                old = self.order.pop(0)
-                self.jobs.pop(old, None)
+            self._evict()
+        self._save()
         threading.Thread(target=self._run, args=(job,), daemon=True).start()
         return job
 
@@ -1225,6 +1421,7 @@ class JobManager:
         try:
             job.started = dt.datetime.now(dt.timezone.utc)
             job.status = "running"
+            self._save()
             with job.log_path.open("w") as log:
                 log.write(f"$ {' '.join(job.argv)}\n")
                 log.flush()
@@ -1247,6 +1444,7 @@ class JobManager:
             job.finished = dt.datetime.now(dt.timezone.utc)
             if lock:
                 lock.release()
+            self._save()
 
     def list(self) -> list[dict]:
         with self._lock:
@@ -1267,7 +1465,7 @@ class JobManager:
                 new_offset = offset + len(chunk)
                 text = chunk.decode("utf-8", "replace")
         return {"job": job.to_dict(), "text": text, "offset": new_offset,
-                "done": job.status in ("succeeded", "failed", "cancelled")}
+                "done": job.status in FINISHED_STATES}
 
     def cancel(self, job_id: str) -> Job:
         job = self.jobs.get(job_id)
@@ -1279,6 +1477,7 @@ class JobManager:
                 os.killpg(os.getpgid(job.proc.pid), 15)
             except (ProcessLookupError, PermissionError):
                 pass
+            self._save()
         return job
 
 

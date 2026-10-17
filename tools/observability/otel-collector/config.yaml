@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# OpenTelemetry Collector — the ONE ingress for Claude Code's native telemetry.
+#
+# Claude Code exports three signals over OTLP (docs: code.claude.com/docs/en/
+# monitoring-usage). Each goes to the plane that already owns its question,
+# so this file routes and never stores:
+#
+#   metrics → prometheus exporter (:8889) ← scraped by the `prometheus` service
+#   logs    → Logstash :8089 (OTLP/JSON) → the shared `enrich` pipeline → ES
+#             Not straight to Elasticsearch: enrich is the ONE redaction point
+#             (tools/observability/logstash/pipelines.yml), and an exporter
+#             that bypassed it would be the third input nobody redacted.
+#   traces  → Phoenix /v1/traces, re-labelled into OpenInference span kinds
+#
+# Contract: _data/fleet.yml `observability.claude_code` · docs/OBSERVABILITY.md
+# test_observe_contract.py holds this file to the contract (ports, project).
+# ---------------------------------------------------------------------------
+receivers:
+  otlp:
+    protocols:
+      # 4318 is the published port Claude Code exports to. 4317 (gRPC) listens
+      # only on the fleet network: Phoenix already owns 127.0.0.1:4317.
+      http: { endpoint: 0.0.0.0:4318 }
+      grpc: { endpoint: 0.0.0.0:4317 }
+
+processors:
+  # First in every pipeline: the bench is memory-bound (Elasticsearch has been
+  # OOM-killed here), so the collector sheds load before it grows.
+  memory_limiter: { check_interval: 1s, limit_mib: 200, spike_limit_mib: 50 }
+  batch: { timeout: 5s, send_batch_size: 512 }
+
+  # Phoenix files spans by this resource attribute. Live OTel spans get their
+  # own project so they never double-count the transcript-derived spans that
+  # `dash lake export --local` writes to claude-code-local.
+  resource/phoenix:
+    attributes:
+      - { key: openinference.project.name, value: claude-code-otel, action: upsert }
+
+  # Claude Code's spans use their own attribute names. Phoenix reads
+  # OpenInference ones — without this mapping every span renders as an opaque
+  # "unknown" kind with no model, no token counts and no cost. Claude Code does
+  # not set gen_ai.usage.*, and its input_tokens EXCLUDE the prompt cache, so
+  # the prompt total is the three-way sum the monitoring docs prescribe.
+  # error_mode ignore: a statement that does not apply (a missing attribute)
+  # skips that statement, never the span.
+  transform/openinference:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(attributes["openinference.span.kind"], "AGENT") where name == "claude_code.interaction"
+          - set(attributes["openinference.span.kind"], "LLM") where name == "claude_code.llm_request"
+          - set(attributes["openinference.span.kind"], "TOOL") where name == "claude_code.tool"
+          - set(attributes["openinference.span.kind"], "CHAIN") where attributes["openinference.span.kind"] == nil
+          - set(attributes["llm.provider"], "anthropic") where name == "claude_code.llm_request"
+          - set(attributes["llm.system"], "anthropic") where name == "claude_code.llm_request"
+          - set(attributes["llm.model_name"], attributes["model"]) where attributes["model"] != nil
+          - set(attributes["llm.token_count.completion"], attributes["output_tokens"]) where attributes["output_tokens"] != nil
+          - set(attributes["llm.token_count.prompt_details.cache_read"], attributes["cache_read_tokens"]) where attributes["cache_read_tokens"] != nil
+          - set(attributes["llm.token_count.prompt_details.cache_write"], attributes["cache_creation_tokens"]) where attributes["cache_creation_tokens"] != nil
+          - set(attributes["llm.token_count.prompt"], attributes["input_tokens"] + attributes["cache_read_tokens"] + attributes["cache_creation_tokens"]) where attributes["input_tokens"] != nil and attributes["cache_read_tokens"] != nil and attributes["cache_creation_tokens"] != nil
+          - set(attributes["llm.token_count.total"], attributes["llm.token_count.prompt"] + attributes["output_tokens"]) where attributes["llm.token_count.prompt"] != nil and attributes["output_tokens"] != nil
+          - set(attributes["tool.name"], attributes["tool_name"]) where attributes["tool_name"] != nil
+          - set(attributes["input.value"], attributes["user_prompt"]) where attributes["user_prompt"] != nil and attributes["user_prompt"] != "<REDACTED>"
+
+exporters:
+  # Cumulative counters, one series per session (contract: temporality,
+  # attributes.session_id). Resource attributes stay OFF the labels — they are
+  # host/os facts that would multiply every series for nothing.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    metric_expiration: 60m
+    resource_to_telemetry_conversion: { enabled: false }
+
+  # JSON, uncompressed: Logstash's http input decodes it with the json codec
+  # and 20-otlp-in.conf flattens resourceLogs → one event per log record.
+  otlphttp/logstash:
+    logs_endpoint: http://logstash:8089/v1/logs
+    encoding: json
+    compression: none
+    retry_on_failure: { enabled: true, max_elapsed_time: 120s }
+    sending_queue: { enabled: true, queue_size: 2000 }
+
+  otlphttp/phoenix:
+    traces_endpoint: http://phoenix:6006/v1/traces
+    compression: none
+    retry_on_failure: { enabled: true, max_elapsed_time: 120s }
+
+extensions:
+  health_check: { endpoint: 0.0.0.0:13133 }
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs: { level: info }
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/logstash]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/phoenix, transform/openinference, batch]
+      exporters: [otlphttp/phoenix]

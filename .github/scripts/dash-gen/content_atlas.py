@@ -69,6 +69,7 @@ FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
 REGISTRY_DEFAULT = REPO_ROOT / "_data" / "projects.yml"
 PLAN_DEFAULT = Path(os.environ.get("DASH_EDITORIAL_PLAN") or (REPO_ROOT / "_data" / "editorial.yml"))
 LAKE_DIR_DEFAULT = Path(os.environ.get("DASH_LAKE_DIR") or (REPO_ROOT / ".dash-lake"))
+LOCK_TIMEOUT_S = 60               # = fleet_lake.LOCK_TIMEOUT_S — one file, one lock budget
 DB_NAME = "fleet.sqlite"          # the ONE lake file; these tables sit beside fleet_lake's
 PLAN_SCHEMA = "editorial/v1"
 MARKER = "editorial-directive"    # <!-- editorial-directive key=… site=… -->
@@ -516,7 +517,10 @@ def connect(lake_dir: Path | str | None = None, create: bool = True) -> sqlite3.
         d.mkdir(parents=True, exist_ok=True)
     elif not (d / DB_NAME).exists():
         raise FileNotFoundError(str(d / DB_NAME))
-    conn = sqlite3.connect(str(d / DB_NAME))
+    # Same file as fleet_lake, so the same lock wait (fleet_lake.LOCK_TIMEOUT_S):
+    # at sqlite's 5 s default a sync that held the write lock made this die on
+    # "database is locked" before writing a single site.
+    conn = sqlite3.connect(str(d / DB_NAME), timeout=LOCK_TIMEOUT_S)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA_SQL)
     return conn

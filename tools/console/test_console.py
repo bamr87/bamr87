@@ -38,6 +38,12 @@ import tempfile
 import time
 from pathlib import Path
 
+# Never the live console's job dir: importing `app` builds its JobManager,
+# which loads (and re-saves) the history it finds. Run inside the console
+# container — the console's own Tests job does — that was the RUNNING
+# console's index. core reads this at import, so it is set before any import.
+os.environ["DASH_CONSOLE_JOBS"] = tempfile.mkdtemp(prefix="console-test-jobs-")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import core  # noqa: E402
@@ -186,11 +192,13 @@ def test_observe_ops_argv_shapes_and_the_destructive_one_is_gated():
     # The elk services are NAMED, not left to the profile: a bare
     # `--profile elk up` also starts everything in the DEFAULT profile, so
     # "start the log plane" would bring up devenv, console, wiki and db too.
+    # The metrics profile rides along: the OTel collector + Prometheus that
+    # receive Claude Code's native telemetry (FF-0003).
     up = core.build_argv("observe-up", {})[0]
-    assert up[:6] == ["docker", "compose", "--profile", "elk", "up", "-d"], up
-    assert set(up[6:]) == set(core.ELK_SERVICES), up
+    assert up[:8] == ["docker", "compose", "--profile", "elk", "--profile", "metrics", "up", "-d"], up
+    assert set(up[8:]) == set(core.ELK_SERVICES) | set(core.METRICS_SERVICES), up
     down = core.build_argv("observe-down", {})[0]
-    assert down[:5] == ["docker", "compose", "--profile", "elk", "stop"], down
+    assert down[:7] == ["docker", "compose", "--profile", "elk", "--profile", "metrics", "stop"], down
     assert "-v" not in down, "down must not take the volumes with it"
 
     # The one that destroys data is gated even though it never touches GitHub,
@@ -202,7 +210,9 @@ def test_observe_ops_argv_shapes_and_the_destructive_one_is_gated():
     assert "down" not in argv and "-v" not in argv, "reset must not run compose down -v"
     assert remote is True, "deleting every indexed log line must require a confirm"
     try:
-        core.JobManager().submit("observe-reset", {}, confirm=False)
+        # Never the default job dir: that is a live console's, and a manager
+        # built on it loads (and tidies) that console's history.
+        core.JobManager(Path(tempfile.mkdtemp())).submit("observe-reset", {}, confirm=False)
     except PermissionError:
         pass
     else:
@@ -232,6 +242,12 @@ def test_observability_document_degrades_instead_of_exploding():
     assert doc["planes"]["indexing"]["submodules"]["declared"] > 0, \
         "the code index has no submodule scope to report"
     assert isinstance(doc["datasets"], list)
+    # The Logs/Metrics pages pick the embeds' time window from the newest
+    # line: without it they open on "last 7 days" and render "No data" over
+    # every document a stale plane holds.
+    for d in doc["datasets"]:
+        assert {"oldest", "newest"} <= d.keys(), d
+    assert "lake_runs" in doc, "a zero ship ledger beside indexed docs would be unexplained"
     assert doc["disk_budget_gb"] > 0
     json.dumps(doc)          # the API returns it verbatim
 
@@ -315,6 +331,122 @@ def test_job_manager_runs_confirms_and_tails():
         else:
             raise AssertionError("unknown job id tailed")
     finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _wait_done(jm, job_id):
+    for _ in range(150):
+        if jm.tail(job_id)["done"]:
+            return jm.tail(job_id)
+        time.sleep(0.1)
+    raise AssertionError(f"job {job_id} never finished")
+
+
+def test_job_history_survives_a_restart_and_a_dead_job_says_so():
+    """The list used to live only in memory: a console restart forgot every
+    job while its log stayed on disk. Now the index is reloaded — and a job
+    that was running when the process died comes back `interrupted`, not
+    spinning forever."""
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        jm = core.JobManager(job_dir=tmp)
+        done = _wait_done(jm, jm.submit("gaps").id)["job"]
+        assert done["group"] == "observe", done
+        rows = json.loads((tmp / "jobs.json").read_text())
+        rows.append(dict(rows[0], id="0123456789ab", status="running", finished=None))
+        (tmp / "jobs.json").write_text(json.dumps(rows))
+        (tmp / "0123456789ab.log").write_text("$ half a job\n")
+        (tmp / "fedcba987654.log").write_text("an orphan nobody indexes\n")
+        stale = time.time() - 2 * 86400
+        os.utime(tmp / "fedcba987654.log", (stale, stale))
+        # A FRESH unindexed log may belong to another live console sharing the
+        # dir (a test run inside the container did exactly that) — keep it.
+        (tmp / "abcdefabcdef.log").write_text("a sibling's running job\n")
+        (tmp / "notes.log").write_text("not ours — never touched\n")
+
+        again = core.JobManager(job_dir=tmp)
+        by_id = {j["id"]: j for j in again.list()}
+        assert by_id[done["id"]]["status"] == done["status"], "history lost on restart"
+        assert by_id["0123456789ab"]["status"] == "interrupted"
+        assert again.tail("0123456789ab")["done"], "an interrupted job must read as finished"
+        assert not (tmp / "fedcba987654.log").exists(), "orphan job log kept forever"
+        assert (tmp / "abcdefabcdef.log").exists(), "pruned a fresh log a live process may own"
+        assert (tmp / "notes.log").exists(), "pruned a file that is not a job log"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_clearing_and_eviction_take_the_logs_with_them():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        jm = core.JobManager(job_dir=tmp, max_jobs=2)
+        ids = [_wait_done(jm, jm.submit("gaps").id)["job"]["id"] for _ in range(3)]
+        assert [j["id"] for j in jm.list()] == ids[:0:-1], "newest first, oldest evicted"
+        assert not (tmp / f"{ids[0]}.log").exists(), "an evicted job's log leaked"
+        try:
+            jm.clear(("running",))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("clear accepted a live state")
+        out = jm.clear()
+        assert out == {"removed": 2, "remaining": 0}, out
+        assert not list(tmp.glob("*.log")), "cleared jobs left their logs"
+        assert json.loads((tmp / "jobs.json").read_text()) == []
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_lake_writers_run_one_at_a_time():
+    """Two lake writers at once used to mean the second died on "database is
+    locked" — a double click on Extract was enough. Now the second is refused
+    with the job that holds the lake, and allowed again once it finishes."""
+    writers = {k for k, v in core.OPS.items() if v.get("exclusive") == "lake"}
+    assert writers == {"lake-sync", "lake-sessions", "lake-export", "observe-ship", "content-sync"}, writers
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        jm = core.JobManager(job_dir=tmp)
+        holder = core.Job("lake-sync", ["true"], False, {})
+        holder.status = "running"
+        jm.jobs[holder.id] = holder
+        jm.order.append(holder.id)
+        try:
+            jm.submit("lake-sessions", {})
+        except core.JobConflict as exc:
+            assert holder.id in str(exc), exc
+        else:
+            raise AssertionError("a second lake writer started beside a running one")
+        jm.submit("gaps")            # not a lake writer — unaffected
+        holder.status = "succeeded"
+        assert jm.submit("lake-status").op == "lake-status"   # a reader is never blocked
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_docker_ops_say_why_they_cannot_run_instead_of_failing():
+    """In the console's own container there is no compose plugin and no
+    socket, so observe-up failed every time with "unknown flag: --profile".
+    Now the op is reported unavailable with the host command to use, and a
+    submit is refused with the same reason — never started to fail."""
+    needs = {k for k, v in core.OPS.items() if v.get("needs") == "docker"}
+    assert needs == {"observe-up", "observe-down", "observe-reset"}, needs
+    saved = dict(core._DOCKER_CHECK)
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        core._DOCKER_CHECK.update(at=time.time(), reason="no Docker daemon is reachable")
+        ops = {o["id"]: o for o in core.list_ops()}
+        assert "tools/dash observe up" in ops["observe-up"]["unavailable"], ops["observe-up"]
+        assert ops["status"]["unavailable"] is None, "an op that needs no docker was blocked"
+        try:
+            core.JobManager(tmp).submit("observe-up", {})
+        except core.JobUnavailable as exc:
+            assert "host terminal" in str(exc), exc
+        else:
+            raise AssertionError("observe-up started where it cannot run")
+        core._DOCKER_CHECK.update(at=time.time(), reason=None)
+        assert core.list_ops() and {o["id"]: o for o in core.list_ops()}["observe-up"]["unavailable"] is None
+    finally:
+        core._DOCKER_CHECK.clear(); core._DOCKER_CHECK.update(saved)
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -504,7 +636,11 @@ def test_http_refuses_a_rebound_host():
     docs_csp = client.get("/docs").headers.get("content-security-policy", "")
     assert "frame-ancestors 'none'" in docs_csp and "default-src" not in docs_csp, docs_csp
 
-    assert client.get("/api/observability").status_code == 200
+    # Inside the console container DASH_CONSOLE_TOKEN is set, so the API asks
+    # for it — send it as the page would, or this fails there and only there.
+    token = os.environ.get("DASH_CONSOLE_TOKEN")
+    auth = {"Authorization": f"Bearer {token}"} if token else {}
+    assert client.get("/api/observability", headers=auth).status_code == 200
 
 
 def test_config_editor_reaches_every_section_and_splices_each():

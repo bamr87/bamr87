@@ -286,6 +286,210 @@
       }
     }
   },
+  "fleet.claude-logs": {
+    "_meta": {
+      "contract": "_data/fleet.yml observability.logs",
+      "doc": "docs/OBSERVABILITY.md",
+      "managed_by": "tools/dash observe"
+    },
+    "data_stream": {},
+    "index_patterns": [
+      "logs-fleet.claude-*"
+    ],
+    "priority": 500,
+    "template": {
+      "mappings": {
+        "dynamic_templates": [
+          {
+            "claude_strings": {
+              "mapping": {
+                "ignore_above": 8191,
+                "type": "keyword"
+              },
+              "match_mapping_type": "string",
+              "path_match": "claude.*"
+            }
+          }
+        ],
+        "properties": {
+          "@timestamp": {
+            "type": "date"
+          },
+          "claude": {
+            "properties": {
+              "attempt": {
+                "type": "long"
+              },
+              "cache_creation_tokens": {
+                "type": "long"
+              },
+              "cache_read_tokens": {
+                "type": "long"
+              },
+              "cost_usd": {
+                "type": "double"
+              },
+              "cost_usd_micros": {
+                "type": "long"
+              },
+              "duration_ms": {
+                "type": "long"
+              },
+              "event_sequence": {
+                "type": "long"
+              },
+              "input_tokens": {
+                "type": "long"
+              },
+              "output_tokens": {
+                "type": "long"
+              },
+              "prompt_length": {
+                "type": "long"
+              },
+              "response_length": {
+                "type": "long"
+              },
+              "status_code": {
+                "type": "long"
+              },
+              "tool_input_size_bytes": {
+                "type": "long"
+              },
+              "tool_result_size_bytes": {
+                "type": "long"
+              },
+              "total_tokens": {
+                "type": "long"
+              },
+              "total_tool_uses": {
+                "type": "long"
+              }
+            }
+          },
+          "ecs": {
+            "properties": {
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "event": {
+            "properties": {
+              "action": {
+                "type": "keyword"
+              },
+              "dataset": {
+                "type": "keyword"
+              },
+              "kind": {
+                "type": "keyword"
+              },
+              "module": {
+                "type": "keyword"
+              }
+            }
+          },
+          "fleet": {
+            "properties": {
+              "category": {
+                "type": "keyword"
+              },
+              "project": {
+                "type": "keyword"
+              },
+              "repo": {
+                "type": "keyword"
+              },
+              "stack": {
+                "type": "keyword"
+              }
+            }
+          },
+          "host": {
+            "properties": {
+              "architecture": {
+                "type": "keyword"
+              },
+              "name": {
+                "type": "keyword"
+              },
+              "os": {
+                "properties": {
+                  "type": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          },
+          "log": {
+            "properties": {
+              "level": {
+                "type": "keyword"
+              },
+              "logger": {
+                "type": "keyword"
+              }
+            }
+          },
+          "message": {
+            "type": "match_only_text"
+          },
+          "service": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              },
+              "version": {
+                "type": "keyword"
+              }
+            }
+          },
+          "span": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "trace": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "request_id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "url": {
+            "properties": {
+              "full": {
+                "index": false,
+                "type": "keyword"
+              }
+            }
+          },
+          "user": {
+            "properties": {
+              "email": {
+                "type": "keyword"
+              },
+              "id": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "settings": {
+        "index.lifecycle.name": "fleet.claude-logs",
+        "index.number_of_replicas": 0,
+        "index.number_of_shards": 1
+      }
+    }
+  },
   "fleet.container-logs": {
     "_meta": {
       "contract": "_data/fleet.yml observability.logs",

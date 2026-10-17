@@ -123,7 +123,7 @@
   title: "AI cost METRICS via OpenTelemetry — otel-collector + Prometheus into the existing Grafana (finance-ai Layer 2; log half shipped as FF-0026)"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
-  status: approved
+  status: in-progress
   priority: P2
   effort: L
   category: infra
@@ -148,6 +148,14 @@
     prometheus to `observability.metrics.datasources` in _data/fleet.yml and add
     the live-gauge panels to the existing fleet-logs dashboard. Prompt-level
     drill-down that would have used Loki is served by the log plane instead.
+    WIDENED 2026-10-16 to all three signals, each into the plane that already
+    owns its question: one otel-collector (127.0.0.1:4318) routes metrics to
+    Prometheus, Claude Code's events through Logstash's shared enrich pipeline
+    into logs-fleet.claude-default, and beta traces to Phoenix (project
+    claude-code-otel) re-labelled as OpenInference spans. Client side is
+    `dash observe claude enable --apply` (user settings — repo settings cannot
+    enable OTEL_* export). Verified end to end with headless sessions; see
+    docs/OBSERVABILITY.md "Claude Code's own telemetry".
   acceptance:
     - "`docker compose --profile metrics up -d` starts otel-collector + prometheus alongside the already-provisioned grafana (which carries both the elk and metrics profiles)."
     - "A documented settings template (managed settings or ~/.claude/settings.json env block) enables telemetry and targets the local collector; no endpoints or tokens are hard-coded elsewhere."
@@ -166,7 +174,7 @@
       - Layer 3 Admin APIs (org-level reporting)
       - multi-user fleet rollout, auth hardening, cloud backends
       - replacing the JSONL ledger (OTel only captures forward from enablement)
-      - traces beta (CLAUDE_CODE_ENHANCED_TELEMETRY_BETA) beyond a docs note
+      - CI-side telemetry (claude-code-action runs cannot reach a loopback collector)
   risks:
     - Metric cardinality — session-id/account-uuid labels can explode Prometheus series; keep OTEL_METRICS_INCLUDE_SESSION_ID off by default.
     - Prometheus volumes grow unbounded without retention limits — set retention in the provisioned config, as observability.logs.retention_days does for the log plane.

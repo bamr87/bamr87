@@ -60,8 +60,9 @@ ECS_VERSION = "8.11.0"
 # rather than a KeyError, exactly as harness_registry.py does it.
 DEFAULT_LOGS = {
     "namespace": "default",
-    "datasets": {"actions": "fleet.actions", "container": "fleet.container", "app": "fleet.app"},
-    "retention_days": {"actions": 90, "container": 14, "app": 30},
+    "datasets": {"actions": "fleet.actions", "container": "fleet.container", "app": "fleet.app",
+                 "claude": "fleet.claude"},
+    "retention_days": {"actions": 90, "container": 14, "app": 30, "claude": 90},
     "rollover": {"max_primary_shard_size": "10gb", "max_age": "1d"},
     "disk_budget_gb": 40,
     "redact": ["sk-ant-", "ghp_", "github_pat_", "gho_", "ghs_", "AIza"],
@@ -157,6 +158,17 @@ def ilm_policy_name(dataset_key: str, contract: dict) -> str:
     return f"{contract['logs']['datasets'][dataset_key]}-logs"
 
 
+# Claude Code event attributes that are numbers (monitoring-usage reference),
+# as named after 20-otlp-in.conf flattens them.
+CLAUDE_DOUBLE_FIELDS = ("cost_usd",)
+CLAUDE_LONG_FIELDS = (
+    "cost_usd_micros", "duration_ms", "input_tokens", "output_tokens", "cache_read_tokens",
+    "cache_creation_tokens", "prompt_length", "response_length", "attempt", "status_code",
+    "tool_input_size_bytes", "tool_result_size_bytes", "event_sequence", "total_tokens",
+    "total_tool_uses",
+)
+
+
 def index_template_for(dataset_key: str, contract: dict) -> dict:
     """Mapping + settings for one dataset's data stream.
 
@@ -200,11 +212,36 @@ def index_template_for(dataset_key: str, contract: dict) -> dict:
             "model": {"type": "keyword"}, "cost_usd": {"type": "double"},
             "turns": {"type": "integer"}, "session_id": {"type": "keyword"},
         }}
+    elif dataset_key == "claude":
+        # Claude Code's OTel events, flattened by logstash/pipeline/20-otlp-in.conf
+        # into claude.<attribute> with dots as underscores. The numbers are
+        # declared so a first event that happens to carry an integer cost (0)
+        # cannot map cost_usd as long and truncate every later one; every
+        # other attribute is a keyword through the dynamic template below.
+        props["event"]["properties"].update({"action": {"type": "keyword"},
+                                             "kind": {"type": "keyword"}})
+        props["span"] = {"properties": {"id": {"type": "keyword"}}}
+        props["user"] = {"properties": {"email": {"type": "keyword"}, "id": {"type": "keyword"}}}
+        props["host"]["properties"].update({"architecture": {"type": "keyword"},
+                                            "os": {"properties": {"type": {"type": "keyword"}}}})
+        nums = {k: {"type": "double"} for k in CLAUDE_DOUBLE_FIELDS}
+        nums.update({k: {"type": "long"} for k in CLAUDE_LONG_FIELDS})
+        props["claude"] = {"properties": nums}
     else:
         props["container"] = {"properties": {
             "id": {"type": "keyword"}, "name": {"type": "keyword"},
             "image": {"properties": {"name": {"type": "keyword"}}},
         }}
+    mappings = {"properties": props}
+    if dataset_key == "claude":
+        mappings["dynamic_templates"] = [{"claude_strings": {
+            "path_match": "claude.*", "match_mapping_type": "string",
+            # keyword, not text: these are names, ids and enums to filter and
+            # aggregate on. ignore_above: a keyword term over Lucene's 32766-byte
+            # limit REJECTS the whole document, and a full Bash command or
+            # tool_input can exceed it — past the cap the value is kept in
+            # _source and simply not indexed.
+            "mapping": {"type": "keyword", "ignore_above": 8191}}}]
     return {
         "index_patterns": [f"logs-{dataset}-*"],
         "data_stream": {},
@@ -215,7 +252,7 @@ def index_template_for(dataset_key: str, contract: dict) -> dict:
                 "index.number_of_replicas": 0,   # single node: a replica can never allocate
                 "index.number_of_shards": 1,
             },
-            "mappings": {"properties": props},
+            "mappings": mappings,
         },
         "_meta": {
             "managed_by": "tools/dash observe",
@@ -247,8 +284,10 @@ def render_all(contract: dict) -> tuple[dict, dict]:
 # error in any log. `dash observe verify` resolves every pinned id against
 # these files, which is the check that catches it.
 # --------------------------------------------------------------------------- #
-DATA_VIEW_IDS = {"actions": "fleet-actions", "container": "fleet-container", "app": "fleet-app"}
+DATA_VIEW_IDS = {"actions": "fleet-actions", "container": "fleet-container", "app": "fleet-app",
+                 "claude": "fleet-claude"}
 GRAFANA_DS_UID = "fleet-elasticsearch"
+GRAFANA_PROM_UID = "fleet-prometheus"
 
 
 def kibana_saved_objects(contract: dict) -> list[dict]:
@@ -302,6 +341,17 @@ def kibana_saved_objects(contract: dict) -> list[dict]:
                'log.level : "error" or log.level : "warn"'),
         search("fleet-app-requests", "App — structured request lines", DATA_VIEW_IDS["app"],
                ["service.name", "log.level", "trace.request_id", "message"], "*"),
+        # Claude Code's own events. claude.prompt_id ties every event of one
+        # prompt together; trace.id is the same id as the span in Phoenix.
+        search("claude-requests", "Claude Code — API requests, cost and tokens", DATA_VIEW_IDS["claude"],
+               ["claude.session_id", "claude.model", "claude.query_source", "claude.cost_usd",
+                "claude.input_tokens", "claude.cache_read_tokens", "claude.output_tokens",
+                "claude.duration_ms", "trace.id"],
+               'event.action : "api_request"'),
+        search("claude-tools", "Claude Code — tool calls, decisions and failures", DATA_VIEW_IDS["claude"],
+               ["event.action", "claude.tool_name", "claude.success", "claude.decision",
+                "claude.source", "claude.duration_ms", "claude.error", "claude.tool_parameters"],
+               'event.action : ("tool_result" or "tool_decision") or log.level : ("error" or "warn")'),
     ]
     objs.extend(searches)
 
@@ -349,6 +399,12 @@ def kibana_saved_objects(contract: dict) -> list[dict]:
         "fleet-local", "Local stack",
         "Container and application logs from this machine's compose services.",
         ["fleet-local-errors", "fleet-app-requests"]))
+    objs.append(dashboard(
+        "claude-code", "Claude Code",
+        "This machine's Claude Code sessions, from their native OpenTelemetry events: every API "
+        "request with its cost and tokens, every tool call and permission decision. Live counters "
+        "are in Grafana; the span tree of each prompt is in Phoenix (project claude-code-otel).",
+        ["claude-requests", "claude-tools"]))
     return objs
 
 
@@ -404,6 +460,18 @@ def grafana_dashboard(contract: dict) -> dict:
                               "settings": {"size": "10", "order": "desc", "orderBy": "_count"}},
                              date_hist], "A")]},
     ]
+    if "prometheus" in ((contract.get("metrics") or {}).get("datasources") or []):
+        # Live counters FIRST: they are the only panels that move while you
+        # watch, and the console embeds this dashboard in a fixed-height pane,
+        # so whatever sits below the fold is effectively not on the page.
+        live = claude_prometheus_panels(y=0)
+        height = max(p["gridPos"]["y"] + p["gridPos"]["h"] for p in live)
+        for p in panels:
+            p["gridPos"]["y"] += height
+        panels = live + [{"id": 9, "type": "row", "title": "Fleet log plane (Elasticsearch)",
+                          "gridPos": {"h": 1, "w": 24, "x": 0, "y": height}, "collapsed": False,
+                          "panels": []}] + [dict(p, gridPos=dict(p["gridPos"], y=p["gridPos"]["y"] + 1))
+                                            for p in panels]
     return {
         "uid": meta.get("uid") or "fleet-logs",
         "title": meta.get("title") or "Fleet log volume & cost",
@@ -420,6 +488,179 @@ def grafana_dashboard(contract: dict) -> dict:
         "time": {"from": "now-7d", "to": "now"},
         "panels": panels,
     }
+
+
+def claude_prometheus_panels(y: int) -> list[dict]:
+    """Live Claude Code counters, from Prometheus (FF-0003).
+
+    Metric names are what the collector's prometheus exporter produces from
+    Claude Code's OTel names: claude_code.cost.usage (unit USD) becomes
+    claude_code_cost_usage_USD_total, and so on. Every series is one SESSION
+    (contract: attributes.session_id), so totals are sum(increase(...)) —
+    correct because Prometheus ingests a zero at each series' start
+    (created-timestamp-zero-ingestion in docker-compose.yml); without it a
+    short session's whole spend vanishes from increase().
+
+    Dollar figures are Claude Code's own estimate, not an invoice — the same
+    caveat as every other spend number on this bench.
+    """
+    ds = {"type": "prometheus", "uid": GRAFANA_PROM_UID}
+    cost = "claude_code_cost_usage_USD_total"
+    tokens = "claude_code_token_usage_tokens_total"
+
+    def q(expr: str, legend: str, ref: str = "A", instant: bool = False) -> dict:
+        return {"refId": ref, "datasource": ds, "expr": expr, "legendFormat": legend,
+                "instant": instant, "range": not instant}
+
+    def stat(pid: int, title: str, desc: str, expr: str, x: int, unit: str, decimals: int = 2) -> dict:
+        return {"id": pid, "type": "stat", "title": title, "description": desc,
+                "gridPos": {"h": 4, "w": 6, "x": x, "y": y}, "datasource": ds,
+                "fieldConfig": {"defaults": {"unit": unit, "decimals": decimals}, "overrides": []},
+                "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "none",
+                            "graphMode": "none"},
+                "targets": [q(expr, "", instant=True)]}
+
+    return [
+        {"id": 10, "type": "row", "title": "Claude Code — live (Prometheus, from native OTel)",
+         "gridPos": {"h": 1, "w": 24, "x": 0, "y": y}, "collapsed": False, "panels": []},
+        stat(11, "Spend in range", "Claude Code's own cost estimate across every session in the range.",
+             f"sum(increase({cost}[$__range]))", 0, "currencyUSD"),
+        stat(12, "Cache read share", "Share of prompt tokens served from the prompt cache. "
+             "Low means context is being re-sent rather than reused.",
+             f'sum(increase({tokens}{{type="cacheRead"}}[$__range])) / '
+             f'sum(increase({tokens}{{type=~"input|cacheRead|cacheCreation"}}[$__range]))',
+             6, "percentunit", 1),
+        stat(13, "Sessions started", "claude_code.session.count — fresh, resumed and continued.",
+             "sum(increase(claude_code_session_count_total[$__range]))", 12, "none", 0),
+        stat(14, "Active time", "Keyboard time plus tool/model time (claude_code.active_time.total).",
+             "sum(increase(claude_code_active_time_seconds_total[$__range]))", 18, "s", 0),
+        {"id": 15, "type": "timeseries", "title": "Burn rate by model (USD/hour)",
+         "description": "How fast spend is accruing right now, per model.",
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": y + 4}, "datasource": ds,
+         "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+         "targets": [q(f"sum by (model) (rate({cost}[$__rate_interval])) * 3600", "{{model}}")]},
+        {"id": 16, "type": "timeseries", "title": "Tokens by type",
+         "description": "input excludes the cache; cacheRead and cacheCreation are the cache's two sides.",
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": y + 4}, "datasource": ds,
+         "targets": [q(f"sum by (type) (increase({tokens}[$__rate_interval]))", "{{type}}")]},
+        {"id": 17, "type": "bargauge", "title": "Spend by source in range",
+         "description": "query_source: main (the conversation), subagent, auxiliary (titles, "
+                        "summaries), sdk (headless runs).",
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": y + 12}, "datasource": ds,
+         "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+         "options": {"orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
+         "targets": [q(f"sum by (query_source) (increase({cost}[$__range]))", "{{query_source}}",
+                       instant=True)]},
+        {"id": 18, "type": "bargauge", "title": "Spend by repository in range",
+         "description": "vcs.repository.name — needs Claude Code ≥ 2.1.269 with "
+                        "OTEL_METRICS_INCLUDE_REPOSITORY (contract: attributes.repository). "
+                        "Empty on older versions.",
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": y + 12}, "datasource": ds,
+         "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+         "options": {"orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
+         "targets": [q(f"sum by (vcs_repository_name) (increase({cost}[$__range]))",
+                       "{{vcs_repository_name}}", instant=True)]},
+    ]
+
+
+# --------------------------------------------------------------------------- #
+# pure: the CLIENT side — Claude Code's own telemetry settings
+# --------------------------------------------------------------------------- #
+# Every key `dash observe claude enable` may write. `disable` removes exactly
+# these and nothing else, so a variable the operator set by hand for some other
+# reason is never touched unless it is one of ours.
+CLAUDE_ENV_KEYS = (
+    "CLAUDE_CODE_ENABLE_TELEMETRY", "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
+    "OTEL_METRICS_EXPORTER", "OTEL_LOGS_EXPORTER", "OTEL_TRACES_EXPORTER",
+    "OTEL_EXPORTER_OTLP_PROTOCOL", "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE",
+    "OTEL_METRIC_EXPORT_INTERVAL", "OTEL_LOGS_EXPORT_INTERVAL", "OTEL_TRACES_EXPORT_INTERVAL",
+    "OTEL_METRICS_INCLUDE_SESSION_ID", "OTEL_METRICS_INCLUDE_VERSION",
+    "OTEL_METRICS_INCLUDE_ENTRYPOINT", "OTEL_METRICS_INCLUDE_REPOSITORY",
+    "OTEL_LOG_USER_PROMPTS", "OTEL_LOG_ASSISTANT_RESPONSES", "OTEL_LOG_TOOL_DETAILS",
+    "OTEL_LOG_TOOL_CONTENT", "OTEL_LOG_RAW_API_BODIES",
+)
+
+DEFAULT_CLAUDE = {
+    "endpoint": "http://127.0.0.1:4318", "protocol": "http/protobuf",
+    "signals": {"metrics": True, "logs": True, "traces": True}, "traces_beta": True,
+    "export_interval_ms": {"metrics": 30000, "logs": 5000, "traces": 5000},
+    "temporality": "cumulative",
+    "attributes": {"session_id": True, "version": True, "entrypoint": True, "repository": True},
+    "content": {"user_prompts": False, "assistant_responses": False, "tool_details": True,
+                "tool_content": False, "raw_api_bodies": False},
+    "phoenix_project": "claude-code-otel", "settings": "~/.claude/settings.json",
+}
+
+
+def claude_contract(contract: dict) -> dict:
+    """`observability.claude_code`, with DEFAULT_CLAUDE behind every key."""
+    raw = contract.get("claude_code") or {}
+    out = dict(DEFAULT_CLAUDE)
+    out.update(raw)
+    for key in ("signals", "export_interval_ms", "attributes", "content"):
+        merged = dict(DEFAULT_CLAUDE[key])
+        merged.update(raw.get(key) or {})
+        out[key] = merged
+    return out
+
+
+def claude_env(contract: dict) -> dict[str, str]:
+    """The `env` block that points this machine's Claude Code at the collector.
+
+    Values are strings because settings.json `env` is a string map. A content
+    gate that is off is written as "0"/absent rather than left to inherit, so
+    the contract — not whatever the shell happens to export — decides.
+    """
+    c = claude_contract(contract)
+    sig, iv, attrs, content = c["signals"], c["export_interval_ms"], c["attributes"], c["content"]
+    on = lambda b: "1" if b else "0"            # noqa: E731
+    flag = lambda b: "true" if b else "false"   # noqa: E731
+    env = {
+        "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+        "OTEL_METRICS_EXPORTER": "otlp" if sig.get("metrics") else "none",
+        "OTEL_LOGS_EXPORTER": "otlp" if sig.get("logs") else "none",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": str(c["protocol"]),
+        "OTEL_EXPORTER_OTLP_ENDPOINT": str(c["endpoint"]).rstrip("/"),
+        "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": str(c["temporality"]),
+        "OTEL_METRIC_EXPORT_INTERVAL": str(iv["metrics"]),
+        "OTEL_LOGS_EXPORT_INTERVAL": str(iv["logs"]),
+        "OTEL_METRICS_INCLUDE_SESSION_ID": flag(attrs.get("session_id")),
+        "OTEL_METRICS_INCLUDE_VERSION": flag(attrs.get("version")),
+        "OTEL_METRICS_INCLUDE_ENTRYPOINT": flag(attrs.get("entrypoint")),
+        "OTEL_METRICS_INCLUDE_REPOSITORY": flag(attrs.get("repository")),
+        "OTEL_LOG_USER_PROMPTS": on(content.get("user_prompts")),
+        "OTEL_LOG_ASSISTANT_RESPONSES": on(content.get("assistant_responses")),
+        "OTEL_LOG_TOOL_DETAILS": on(content.get("tool_details")),
+    }
+    if sig.get("traces") and c.get("traces_beta"):
+        env.update({
+            "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+            "OTEL_TRACES_EXPORTER": "otlp",
+            "OTEL_TRACES_EXPORT_INTERVAL": str(iv["traces"]),
+            "OTEL_LOG_TOOL_CONTENT": on(content.get("tool_content")),
+        })
+    if content.get("raw_api_bodies"):
+        env["OTEL_LOG_RAW_API_BODIES"] = "1"
+    assert set(env) <= set(CLAUDE_ENV_KEYS), set(env) - set(CLAUDE_ENV_KEYS)
+    return env
+
+
+def merge_claude_env(settings: dict, env: dict[str, str] | None) -> dict:
+    """settings.json with our keys set (env given) or removed (env None).
+
+    Only CLAUDE_ENV_KEYS are touched; every other setting and every other env
+    variable survives byte-for-byte in value.
+    """
+    out = dict(settings)
+    block = {k: v for k, v in dict(out.get("env") or {}).items() if k not in CLAUDE_ENV_KEYS}
+    if env:
+        block.update(env)
+    if block:
+        out["env"] = block
+    else:
+        out.pop("env", None)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -586,6 +827,17 @@ def _get_json(url: str, timeout: int = 10):
         return None
 
 
+def _query_json(url: str, payload, timeout: int = 10):
+    """POST a read query (an Elasticsearch _search) and return its body, or None."""
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as fh:   # noqa: S310 (loopback only)
+            return json.loads(fh.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+
+
 def _post_json(url: str, payload, timeout: int = 60) -> tuple[bool, str]:
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST",
@@ -608,7 +860,8 @@ def _post_json(url: str, payload, timeout: int = 60) -> tuple[bool, str]:
 # other two planes, and compose sets them on the services that do the probing.
 PROBE_ENV = {"elasticsearch": "ES_URL", "kibana": "KIBANA_URL",
              "grafana": "GRAFANA_URL", "phoenix": "PHOENIX_COLLECTOR_ENDPOINT",
-             "qdrant": "QDRANT_URL", "ollama": "OLLAMA_URL"}
+             "qdrant": "QDRANT_URL", "ollama": "OLLAMA_URL",
+             "prometheus": "PROMETHEUS_URL", "otel-collector": "OTEL_COLLECTOR_URL"}
 
 _GITMODULES_PATH = re.compile(r"^\s*path\s*=\s*(\S+)\s*$", re.M)
 
@@ -745,6 +998,7 @@ def plane_status(contract: dict) -> dict:
             "url": phoenix_url,
             "reachable": reachable(probe_url("phoenix", phoenix_url)) if phoenix_url else False,
         },
+        "telemetry": telemetry_status(contract),
         "indexing": {
             "engine": indexing.get("engine", "qdrant"),
             "url": qdrant_url,
@@ -761,8 +1015,48 @@ def plane_status(contract: dict) -> dict:
     }
 
 
+def telemetry_status(contract: dict) -> dict:
+    """Claude Code's OTel path: is the collector listening, is Prometheus up.
+
+    The collector's health_check extension is on :13133, which is only on the
+    fleet network — from the host (no OTEL_COLLECTOR_URL) the published OTLP
+    port is probed instead: any HTTP answer there means it is accepting.
+    """
+    metrics = contract.get("metrics") or {}
+    c = claude_contract(contract)
+    prom = metrics.get("prometheus") or ""
+    collector_probe = os.environ.get(PROBE_ENV["otel-collector"])
+    collector_up = (reachable(collector_probe) if collector_probe
+                    else _answers(f"{str(c['endpoint']).rstrip('/')}/v1/metrics"))
+    return {
+        "engine": "otel-collector",
+        "url": c["endpoint"],
+        "reachable": collector_up,
+        "prometheus": prom,
+        "prometheus_reachable": reachable(f"{probe_url('prometheus', prom)}/-/ready") if prom else False,
+        "phoenix_project": c["phoenix_project"],
+        "signals": c["signals"],
+    }
+
+
+def _answers(url: str) -> bool:
+    """True when anything HTTP answers — a 405 from an OTLP POST-only route counts."""
+    try:
+        with urllib.request.urlopen(url, timeout=5):      # noqa: S310 (loopback only)
+            return True
+    except urllib.error.HTTPError:
+        return True
+    except Exception:
+        return False
+
+
 def dataset_stats(contract: dict) -> list[dict]:
-    """Doc count and size per data stream, plus its ILM phase."""
+    """Doc count, size and time span per data stream.
+
+    The span is what tells a reader why a dashboard is empty: Kibana and
+    Grafana open on a relative window ("last 7 days"), so a plane whose newest
+    line is three weeks old renders "No data" over 400k documents.
+    """
     logs = contract["logs"]
     es = probe_url("elasticsearch", logs["elasticsearch"])
     out = []
@@ -770,7 +1064,16 @@ def dataset_stats(contract: dict) -> list[dict]:
         stream = data_stream_for(key, contract)
         stats = _get_json(f"{es}/{stream}/_stats/docs,store") or {}
         total = ((stats.get("_all") or {}).get("primaries") or {})
+        span = {}
+        if stats:
+            body = _query_json(f"{es}/{stream}/_search", {
+                "size": 0, "track_total_hits": False,
+                "aggs": {"oldest": {"min": {"field": "@timestamp"}},
+                         "newest": {"max": {"field": "@timestamp"}}}}) or {}
+            span = body.get("aggregations") or {}
         out.append({
+            "oldest": (span.get("oldest") or {}).get("value_as_string"),
+            "newest": (span.get("newest") or {}).get("value_as_string"),
             "dataset": key,
             "data_stream": stream,
             "docs": ((total.get("docs") or {}).get("count")),
@@ -1022,8 +1325,89 @@ def _gh_session():
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
+def _settings_path(args, contract: dict) -> Path:
+    raw = args.settings or claude_contract(contract)["settings"]
+    return Path(os.path.expanduser(str(raw)))
+
+
+def cmd_claude(args) -> int:
+    """Point THIS machine's Claude Code at the collector — or stop.
+
+    Writes the USER settings file (~/.claude/settings.json `env`), because
+    Claude Code ignores OTEL_* exporter variables in a repository's
+    .claude/settings.json: a repo cannot enable telemetry or pick where it
+    goes. Dry run unless --apply; `disable` removes exactly CLAUDE_ENV_KEYS.
+    Takes effect for sessions started AFTER the write.
+    """
+    contract = load_contract(args.fleet)
+    want = claude_env(contract)
+    action = args.action
+
+    if action == "env":
+        if args.shell:
+            for k, v in want.items():
+                print(f"export {k}={v}")
+        else:
+            print(json.dumps({"env": want}, indent=2))
+        return 0
+
+    path = _settings_path(args, contract)
+    try:
+        current = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError) as exc:
+        print(f"  cannot read {path}: {exc} — not touching it", file=sys.stderr)
+        return 1
+    have = {k: v for k, v in (current.get("env") or {}).items() if k in CLAUDE_ENV_KEYS}
+
+    if action == "status":
+        tel = telemetry_status(contract)
+        state = ("enabled" if have and have == want else "enabled, differs from the contract" if have
+                 else "not enabled")
+        doc = {"settings": str(path), "state": state, "have": have, "want": want, "telemetry": tel}
+        if args.json:
+            print(json.dumps(doc, indent=2))
+            return 0
+        print(f"  settings   {path}: {state}")
+        print(f"  collector  {'up  ' if tel['reachable'] else 'DOWN'} {tel['url']}")
+        print(f"  prometheus {'up  ' if tel['prometheus_reachable'] else 'DOWN'} {tel['prometheus']}")
+        print(f"  phoenix    project {tel['phoenix_project']}")
+        for k in sorted(set(have) | set(want)):
+            if have.get(k) != want.get(k):
+                print(f"    {k}: {have.get(k, '—')} → {want.get(k, '(removed)')}")
+        return 0
+
+    new = merge_claude_env(current, want if action == "enable" else None)
+    changes = sorted(k for k in set(have) | set(want if action == "enable" else {})
+                     if have.get(k) != (want.get(k) if action == "enable" else None))
+    if not changes:
+        print(f"  {path}: already {'enabled' if action == 'enable' else 'disabled'} — nothing to do")
+        return 0
+    for k in changes:
+        after = want.get(k) if action == "enable" else None
+        print(f"  {k}: {have.get(k, '—')} → {after if after is not None else '(removed)'}")
+    if not args.apply:
+        print(f"\n  dry run — re-run with --apply to write {path}")
+        return 0
+    if action == "enable":
+        tel = telemetry_status(contract)
+        if not tel["reachable"]:
+            print(f"  note: nothing answers at {tel['url']} yet — sessions will export into the void "
+                  "until `tools/dash observe up` (Claude Code itself is unaffected).")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    backup = path.with_name(path.name + ".pre-otel.bak")
+    if path.exists() and not backup.exists():
+        backup.write_text(path.read_text())
+        print(f"  backup     {backup}")
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(new, indent=2) + "\n")
+    tmp.replace(path)
+    print(f"  wrote {path} — applies to Claude Code sessions started from now on")
+    return 0
+
+
 def run(args) -> int:
-    return {"status": cmd_status, "ship": cmd_ship, "verify": cmd_verify}[args.observe_cmd](args)
+    return {"status": cmd_status, "ship": cmd_ship, "verify": cmd_verify,
+            "claude": cmd_claude}[args.observe_cmd](args)
 
 
 def add_arguments(parser) -> None:
@@ -1047,6 +1431,13 @@ def add_arguments(parser) -> None:
 
     p_verify = sub.add_parser("verify", help="render ILM/templates from the contract and diff the committed files")
     p_verify.add_argument("--write", action="store_true", help="write the rendered files instead of diffing")
+
+    p_claude = sub.add_parser("claude", help="point this machine's Claude Code OTel export at the collector")
+    p_claude.add_argument("action", choices=["status", "env", "enable", "disable"], nargs="?", default="status")
+    p_claude.add_argument("--apply", action="store_true", help="write the settings file (default: dry run)")
+    p_claude.add_argument("--settings", default=None, help="settings file (default: contract `settings`)")
+    p_claude.add_argument("--shell", action="store_true", help="env: print `export` lines for a shell")
+    p_claude.add_argument("--json", action="store_true", help="status: machine-readable")
 
     parser.set_defaults(func=run)
 

@@ -1,0 +1,23 @@
+# ---------------------------------------------------------------------------
+# Prometheus — Claude Code's live counters (FF-0003), scraped from the
+# otel-collector. Same rule as elasticsearch.yml: the uid is PINNED because the
+# generated dashboard (dashboards/fleet-logs.json) references it, and a minted
+# uid would leave those panels empty with no error after a re-provision.
+#
+# The datasource exists whether or not the `metrics` profile is up; its panels
+# then read "No data", which is the honest state.
+# ---------------------------------------------------------------------------
+apiVersion: 1
+
+datasources:
+  - name: Claude Code (Prometheus)
+    uid: fleet-prometheus
+    type: prometheus
+    access: proxy
+    # Service DNS: resolved by the Grafana container, not the browser.
+    url: http://prometheus:9090
+    isDefault: false
+    editable: false
+    jsonData:
+      timeInterval: 30s # = observability.metrics.scrape_interval
+      prometheusType: Prometheus

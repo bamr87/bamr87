@@ -289,10 +289,16 @@ def test_dashboard_grid_ids_match_their_panel_index():
 def test_grafana_panels_all_point_at_the_pinned_datasource():
     dash = fo.grafana_dashboard(CONTRACT)
     assert dash["panels"], "a dashboard with no panels is a blank embed"
+    pinned = {"elasticsearch": fo.GRAFANA_DS_UID, "prometheus": fo.GRAFANA_PROM_UID}
     for panel in dash["panels"]:
-        assert panel["datasource"]["uid"] == fo.GRAFANA_DS_UID, panel["title"]
+        if panel["type"] == "row":          # a section header queries nothing
+            continue
+        ds = panel["datasource"]
+        assert ds["uid"] == pinned[ds["type"]], panel["title"]
         for target in panel["targets"]:
-            assert target["timeField"] == "@timestamp"
+            assert target["datasource"]["uid"] == ds["uid"], panel["title"]
+            if ds["type"] == "elasticsearch":
+                assert target["timeField"] == "@timestamp"
 
 
 # --------------------------------------------------------------------------- #

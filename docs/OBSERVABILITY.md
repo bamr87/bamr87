@@ -48,6 +48,10 @@ tools/dash observe verify                 # re-render ILM + dashboards from flee
 tools/dash observe open                   # the Console's Observe tab — the front door
 tools/dash observe down                   # stop the stack, keep the data
 tools/dash observe reset                  # destroy the indices and volumes (asks first)
+tools/dash observe claude status          # is this machine's Claude Code exporting, and is the collector up
+tools/dash observe claude enable --apply  # write the OTel env block into ~/.claude/settings.json
+tools/dash observe claude disable --apply # remove exactly the keys enable wrote
+tools/dash observe claude env --shell     # the same block as `export` lines, for one headless run
 ```
 
 **Extract before you analyze.** `ship` replays what `lake sync` already pulled; it is not a second GitHub client. If the lake is empty, so is the index.
@@ -77,6 +81,31 @@ The read-only `/var/run/docker.sock` mount is required rather than convenient: o
 | `logs-fleet.container-default` | Everything else a container printed | 14 days |
 
 Forty repos × three sources would be 120 data streams to template, alias and expire. This is three, with `fleet.repo` as a keyword field — Kibana filters on it and ILM never has to know it exists. The app/container split is deliberate too: structured and unstructured output get different retention, so the difference stays *visible* instead of being averaged into one index.
+
+## Claude Code's own telemetry — native OpenTelemetry
+
+Claude Code exports its own telemetry over OTLP ([reference](https://code.claude.com/docs/en/monitoring-usage)): **metrics** (cost, tokens, active time, sessions, lines, commits, PRs — counters), **events** as log records (one per prompt, API request, API error, refusal, tool result, permission decision, hook, compaction, subagent, MCP connection…, joined by `prompt.id`), and in beta **traces** (`claude_code.interaction` → `llm_request` / `tool` → `tool.execution`, with `traceparent` carried into Bash subprocesses and accepted from the environment by `claude -p`). It needs no SDK, no wrapper and no LangChain: the instrumentation is inside Claude Code, and any OTLP receiver can take it.
+
+One **otel-collector** (`metrics` profile, `127.0.0.1:4318`, OTLP/HTTP) receives all three and routes each to the plane that already answers that question:
+
+| Signal | Route | Lands as |
+| --- | --- | --- |
+| metrics | collector `prometheus` exporter → **Prometheus** `:9090` → Grafana | `claude_code_cost_usage_USD_total`, `claude_code_token_usage_tokens_total`, `claude_code_active_time_seconds_total`, `claude_code_session_count_total` (+ lines/commits/PRs when they happen); the live row at the top of `fleet-logs` |
+| events | collector → Logstash `otlp-in` (OTLP/JSON, `:8089`, fleet network only) → the shared `enrich` → `logs-fleet.claude-default` | one document per event; every attribute under `claude.*` with dots as underscores; Kibana dashboard `claude-code` |
+| traces | collector → `transform/openinference` → **Phoenix** project `claude-code-otel` | AGENT / LLM / TOOL spans with `llm.model_name`, `llm.token_count.*`, `tool.name`, grouped by `session.id` |
+
+Decisions, each held by `test_observe_contract.py`:
+
+- **Events go through Logstash, not the collector's Elasticsearch exporter.** `enrich` is the one redaction point; a collector that wrote Elasticsearch directly would be exactly the third input nobody redacted. `otlp-in` only flattens OTLP's `resourceLogs → scopeLogs → logRecords` envelope into one event per record. Attributes are flattened to `claude.<name_with_underscores>` because Claude Code emits both `prompt` (text) and `prompt.id`, which as dotted Elasticsearch paths are a string and an object at the same name.
+- **OpenInference mapping in the collector.** Phoenix reads OpenInference attributes; Claude Code's spans use their own. Unmapped, every span renders as an opaque kind with no model or tokens. Claude Code's `input_tokens` excludes the prompt cache, so the prompt total is `input + cache_read + cache_creation`, as the reference prescribes. The project is `claude-code-otel`, never `claude-code-local` — that one is `dash lake export --local`'s transcript-derived history, and sharing it would double-count every session.
+- **Cumulative temporality, one series per session.** Without a per-process label, two concurrent sessions' counters share one series and overwrite each other. A series per session is tens a day on a one-person bench, and retention bounds it (`observability.metrics.retention`: 90d / 2 GB).
+- **Prometheus ingests a zero at each series' start** (`created-timestamp-zero-ingestion`, protobuf scrape). A per-session counter's first sample is already non-zero, so `increase()` silently drops the first step — for a short session, all of it. Measured: a $0.064 run read **$0** before the flag; after it a $0.0777 run reads $0.079 (range extrapolation).
+- **gRPC is not published.** Phoenix owns `127.0.0.1:4317`; the collector's gRPC listener stays on the fleet network.
+- **Client side is USER settings.** Claude Code ignores `OTEL_*` exporter variables in a repository's `.claude/settings.json` — a repo cannot enable telemetry or choose its destination — so `dash observe claude enable --apply` writes `~/.claude/settings.json` `env` from `observability.claude_code` (dry run by default; a one-time `.pre-otel.bak` backup; `disable` removes exactly `CLAUDE_ENV_KEYS`). It applies to sessions started afterwards, in every project and the VS Code extension. With the collector down, sessions are unaffected; their telemetry is dropped.
+- **Content gates.** Only `OTEL_LOG_TOOL_DETAILS` is on: without it every hub skill, agent and MCP server is reported as `custom`, so "which skill burned the tokens" has no answer. It adds Bash commands to `tool_result` events, which pass `enrich`'s redaction (`claude.tool_parameters`, `tool_input`, `error`, and the prompt/response fields should those gates ever open). Prompts, responses, tool output and raw API bodies stay off — Kibana is not a second transcript store; the lake already is one.
+- **Per-repo attribution** (`OTEL_METRICS_INCLUDE_REPOSITORY`) needs Claude Code ≥ 2.1.269. On older versions the "Spend by repository" panel is empty and events carry no `fleet.repo`; nothing else changes.
+
+**Live vs retroactive.** OTel is forward-only from the moment it is enabled; `dash lake sessions` reads transcripts back to day one. They answer different questions and both stay. Dollar figures from either are Claude Code's own estimates, not an invoice.
 
 ## The field contract
 
@@ -112,7 +141,7 @@ Retention lives in [`_data/fleet.yml`](../_data/fleet.yml) `observability.logs.r
 
 ## The portal
 
-The Console's **Observe** tab ([`tools/console/`](../tools/console/README.md)) embeds the pinned Kibana dashboard and the Grafana panels, with `Open full app ↗` beside each and the Traces pane unchanged. A plane that is not running renders as a **Start** button, never an error — the stack is opt-in behind a profile, so "not running" is the ordinary state.
+The Console's **Observe** tab ([`tools/console/`](../tools/console/README.md)) embeds the pinned Kibana dashboard and the Grafana panels, with `Open full app ↗` beside each and the Traces pane unchanged. A plane that is not running renders as a **Start** button, never an error — the stack is opt-in behind a profile, so "not running" is the ordinary state. A plane that is running but **stale** is the other quiet failure: both dashboards open on a relative window, so a plane whose newest line is older than that window renders "No data" over every document it holds. The Logs and Metrics pages therefore read each data stream's oldest/newest `@timestamp` (`dataset_stats`), open the embeds on the narrowest window (24h/7d/30d/90d, overridable with `?range=`) that contains the newest line, and say how old it is — with the two steps that refill the plane (extract every run's logs into the lake, then ship) when it is more than two days behind. The ship ledger lives in the lake, so the page also reports `lake_runs`: a ledger of zero beside indexed documents means the lake was rebuilt, not that shipping failed. The Grafana pane follows the console's light/dark theme.
 
 Two things make the embeds work, and both fail the same silent way when wrong — a blank iframe and one line in a browser console nobody has open:
 
@@ -151,9 +180,10 @@ Standalone mode (`compose.elk.yml`) is deliberately simpler than the hub's — n
 | Surface | What it shows |
 | --- | --- |
 | Harness Console `:4001` → **Observe** | All three planes, embedded, with the ops as jobs |
-| Kibana `:5601` | `fleet-ci` (failing steps + the agent runs behind them), `fleet-local` (container and app logs) |
-| Grafana `:3001` | `fleet-logs` — volume and error rate by repo, agent spend by model, CI failures by workflow |
-| Phoenix `:6006` | The trace tree for any `trace.id` seen in the other two |
+| Kibana `:5601` | `fleet-ci` (failing steps + the agent runs behind them), `fleet-local` (container and app logs), `claude-code` (every API request with cost and tokens; every tool call, decision and failure) |
+| Grafana `:3001` | `fleet-logs` — live Claude Code spend, burn rate, cache share, tokens, spend by source and repo (Prometheus); then volume and error rate by repo, agent spend by model, CI failures by workflow (Elasticsearch) |
+| Prometheus `:9090` | Claude Code's raw counters, per session |
+| Phoenix `:6006` | The trace tree for any `trace.id` seen in the other two; project `claude-code-otel` holds live Claude Code spans |
 | `tools/dash observe status` | The same numbers without a browser, plus whether Qdrant is up and which submodules are checked out |
 | `tools/dash index harmonize` | Which submodules share a pattern, and which do not — the harness gap list |
 | Harness Console `:4001` → **Observe** → **Index** | Store health, coverage bars, semantic search, and the harmonize gap list |
@@ -164,12 +194,12 @@ Nothing appears on the Pages dash. The committed `_data/*.yml` aggregates stay t
 
 | Path | What |
 | --- | --- |
-| [`_data/fleet.yml`](../_data/fleet.yml) `observability:` | The contract — retention, datasets, redaction prefixes, portal ids, image versions, and the code-index URLs |
+| [`_data/fleet.yml`](../_data/fleet.yml) `observability:` | The contract — retention, datasets, redaction prefixes, portal ids, image versions, the code-index URLs, and `claude_code:` (the OTel client settings) |
 | [`kilo.jsonc`](../kilo.jsonc) | Kilo Code indexing for this worktree. URLs and model must agree with `observability.indexing` |
-| [`tools/observability/`](../tools/observability/) | Logstash pipelines, the Filebeat config, and the rendered ES/Kibana/Grafana objects |
+| [`tools/observability/`](../tools/observability/) | Logstash pipelines, the Filebeat config, the OTel collector + Prometheus configs, and the rendered ES/Kibana/Grafana objects |
 | [`.github/scripts/dash-gen/fleet_observe.py`](../.github/scripts/dash-gen/fleet_observe.py) | Shipper, ECS mappers, renderers, status |
 | [`.github/scripts/dash-gen/fleet_lake.py`](../.github/scripts/dash-gen/fleet_lake.py) | `iter_log_entries()` and the `shipments` ledger |
 | [`templates/elk/`](../templates/elk/README.md) | The per-repo kit |
-| `docker-compose.yml` profile `elk` | The five services |
+| `docker-compose.yml` profiles `elk` + `metrics` | The log stack, plus `otel-collector` and `prometheus` (Claude Code's native telemetry) |
 
 Tests: `test_fleet_observe.py` (the mappers), `test_observe_contract.py` (compose ↔ `fleet.yml` ↔ saved objects, both directions), `templates/elk/tests/` (the kit). All offline, all in `tools/run-all-tests.sh`.

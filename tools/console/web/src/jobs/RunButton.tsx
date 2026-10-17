@@ -13,10 +13,16 @@ export function RunButton({
   const meta = ops.data?.find((o) => o.id === op);
   const writes = remoteWrite(meta, params);
   const icon = writes || op === 'dispatch' ? <IconCloudUpload size={15} /> : <IconPlayerPlay size={14} />;
+  // An op this console cannot run at all (no Docker in its container) is shown
+  // disabled with the reason — it used to start, and fail, every time.
+  const blocked = meta?.unavailable ?? null;
   const button = (
-    <Button size="xs" variant={variant} color={writes ? 'red' : undefined} leftSection={icon} onClick={() => void runOp(op, params ?? {})} {...rest}>
+    <Button size="xs" variant={variant} color={writes ? 'red' : undefined} leftSection={icon} disabled={Boolean(blocked)}
+      onClick={() => void runOp(op, params ?? {})} {...rest}>
       {children}
     </Button>
   );
-  return meta?.desc ? <Tooltip label={meta.desc}>{button}</Tooltip> : button;
+  const label = blocked ?? meta?.desc;
+  // A disabled button fires no pointer events, so the tooltip wraps a span.
+  return label ? <Tooltip label={label} multiline maw={360}><span style={{ display: 'inline-block' }}>{button}</span></Tooltip> : button;
 }
