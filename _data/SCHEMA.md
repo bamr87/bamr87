@@ -12,6 +12,7 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `profile.yml` | file | WHO the public site is about — name, title, links, avatar, the site's own title and description (hand-edited; read by `tools/console/site_docs.py`; replaced the identity block of the retired Jekyll `_config.yml`) | required |
+| `portfolio.yml` | file | HOW the profile README groups the portfolio — group headings, repo → group map, display-only extras (hand-edited; read by `.github/scripts/dash-gen` `readme`) | required |
 | `projects.yml` | file | THE project registry — cross-checked against .gitmodules by the drift gate | required |
 | `fleet.yml` | file | Central control-plane config: toolchain versions, cadences, remediation caps, the token contract, canonical repo variables (read by `tools/fleet-config.py`, `fleet-pulse.yml`, `remediation.py`) | required |
 | `ports.yml` | file | THE fleet port allocation — bands, shared services, and every project's published ports; projected onto the dev stack by `tools/fleet-compose.py`, gated by drift check (m) | required |

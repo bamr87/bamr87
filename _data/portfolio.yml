@@ -1,0 +1,144 @@
+# =============================================================================
+# _data/portfolio.yml — how the profile README groups the portfolio
+# =============================================================================
+# Read by .github/scripts/dash-gen (`dash-gen readme`) to render the profile
+# README.md <!-- AUTO:projects --> span. Display only: nothing else reads it,
+# so an entry under `extra:` is NOT a fleet member (no fan-out, drift, health or
+# UX audit). To make a repo a fleet member, add it to _data/projects.yml instead.
+#
+#   groups   ordered list of {key, heading, blurb}; the portfolio categories
+#            from the portfolio standard (topic taxonomy)
+#   members  repo name -> group key, for registry entries (_data/projects.yml)
+#            an unmapped registry entry falls back to its registry `category`
+#   extra    owned repos shown on the profile but kept out of the registry:
+#            {name, repo_url, description, group, status, live_url, fork}
+#
+# Status marks rendered after the description: experiment 🧪, maintenance 🛠️,
+# archived 💤 (registry) — and `github_archived: true` 🗄️, `fork: true` 🍴,
+# `private: true` 🔒 on extras.
+# =============================================================================
+groups:
+  - key: platform
+    heading: "🛰️ Fleet platform & standards"
+    blurb: "The control plane, shared CI and the standards every repo follows."
+  - key: zer0
+    heading: "🎨 zer0 Jekyll ecosystem"
+    blurb: "The zer0-mistakes theme and the plugins, CMS and demo sites built around it."
+  - key: sites
+    heading: "🌐 Websites"
+    blurb: "Personal and business sites."
+  - key: knowledge
+    heading: "📚 Knowledge bases & learning"
+    blurb: "Self-growing knowledge bases, study material and learning platforms."
+  - key: ai
+    heading: "🤖 AI applications & research"
+    blurb: "Applications and experiments built on LLMs."
+  - key: agents
+    heading: "🧠 AI agents & SDLC automation"
+    blurb: "Frameworks that put AI agents to work on repositories."
+  - key: business
+    heading: "💼 Business & career apps"
+    blurb: "ERP, finance data and CV tooling."
+  - key: devtools
+    heading: "🛠️ Developer tools & extensions"
+    blurb: "VS Code extensions and terminal tooling."
+  - key: games
+    heading: "🕹️ Games & retro computing"
+    blurb: "Games, game frameworks and retro emulation."
+  - key: related
+    heading: "🔗 Related projects (not owned by bamr87)"
+    blurb: "Upstreams vendored into the fleet hub, and repos that moved to other owners."
+  - key: forks
+    heading: "🍴 Forks"
+    blurb: "Personal forks of other projects."
+
+members:
+  "cv-builder-pro": business
+  "README": platform
+  "scripts": platform
+  "skills": related
+  "it-journey": knowledge
+  "wargames": knowledge
+  "zer0-mistakes": zer0
+  "zer0-image-generator": zer0
+  "gitorio": agents
+  "barodybroject": ai
+  "aieo": ai
+  "lawmode": ai
+  "law-ai": ai
+  "githubai": agents
+  "fredgar-ai": business
+  "drsai": ai
+  "ai-seed": agents
+  "wtd": agents
+  "vs-sonic-pi": devtools
+  "zpl-viewer": devtools
+  "csv-vscoode": related
+  "bashcrawl": games
+  "bamr87.github.io": sites
+  "lifehacker.dev": sites
+  "zer0-pages-remote": zer0
+  "bashconsultants": sites
+  "1987": knowledge
+  "2005": related
+  "djangoerp": business
+  "cv": business
+  "books": knowledge
+  "zer0-pages": zer0
+  "zer0-CMS": zer0
+  "bashos": agents
+  "ocrmd": ai
+  "rewind-arcade": games
+  "gitnexus": ai
+  "irony-works": knowledge
+  "git-with-the-program": agents
+  ".github": platform
+  "SCHEMA": platform
+  "archify": related
+  "chui": devtools
+  "raising-eliza": ai
+  "outbox": ai
+  "retro-pi": games
+
+extra:
+  - name: amrchy
+    repo_url: https://github.com/bamr87/amrchy
+    description: "Personal fork of Omarchy (omacom/omarchy), the opinionated Arch Linux + Hyprland desktop setup."
+    group: forks
+    status: active
+    live_url: null
+    fork: true
+  - name: bamr87
+    repo_url: https://github.com/bamr87/bamr87
+    description: "Amr's profile README and fleet control-plane monorepo: ~40 project submodules, shared standards, CI and dashboards."
+    group: platform
+    status: active
+    live_url: https://bamr87.github.io/bamr87/
+  - name: bash-365-apex
+    repo_url: https://github.com/bamr87/bash-365-apex
+    description: "Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Consulting."
+    group: sites
+    status: active
+    live_url: https://bash-365.com
+  - name: godotgo
+    repo_url: https://github.com/bamr87/godotgo
+    description: "Godot 4 game workspace: one reusable framework, five sample games and tooling that treats every project the same."
+    group: games
+    status: active
+    live_url: null
+  - name: zer0-demo-cookbook
+    repo_url: https://github.com/bamr87/zer0-demo-cookbook
+    description: "The Sunday Braise: a demo cookbook site for the zer0-mistakes Jekyll theme, generated by its Site Builder."
+    group: zer0
+    status: active
+    live_url: https://bamr87.github.io/zer0-demo-cookbook/
+  - name: zer0-demo-garden
+    repo_url: https://github.com/bamr87/zer0-demo-garden
+    description: "Marginalia: a demo digital garden for the zer0-mistakes Jekyll theme, with Obsidian wiki-links and backlinks."
+    group: zer0
+    status: active
+    live_url: https://bamr87.github.io/zer0-demo-garden/
+
+# Extra marks for registry entries: name -> [fork | private | github_archived]
+marks:
+  "zer0-CMS": [fork]
