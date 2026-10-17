@@ -37,6 +37,7 @@ import os
 import re
 import secrets as _secrets
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket
@@ -57,10 +58,22 @@ from fleetcore import views as fviews  # noqa: E402
 
 # The page: a React + Mantine app (web/), built by run.sh into web/dist.
 WEB_DIST = Path(os.environ.get("CONSOLE_WEB_DIST") or (Path(__file__).resolve().parent / "web" / "dist"))
+jobs = core.JobManager()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Per-project health is ephemeral: on a fresh clone (or after a week off)
+    # start `dash-gen health` as a normal, timed-out job so the Apps view is not
+    # blank. Non-blocking — the server answers while it runs (core.auto_health).
+    core.auto_health(jobs)
+    yield
+
+
 app = FastAPI(title="bamr87 Harness Console", version="1.0.0",
               description="Local control plane for the fleet's AI harnesses and schedules — "
-                          "with the local data lake, Phoenix traces and the content atlas.")
-jobs = core.JobManager()
+                          "with the local data lake, Phoenix traces and the content atlas.",
+              lifespan=lifespan)
 
 # Hosts this console answers to. Loopback names only by default; a deployment
 # behind a proxy or on a real hostname names itself in DASH_CONSOLE_ALLOWED_HOSTS

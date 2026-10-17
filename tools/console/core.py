@@ -1282,6 +1282,74 @@ class JobManager:
         return job
 
 
+# --------------------------------------------------------------------------- #
+# STARTUP HEALTH — per-project health on a fresh clone
+# --------------------------------------------------------------------------- #
+# _data/project_health.yml is ephemeral (gitignored, fleetcore/fleet.py SOURCES):
+# only `dash-gen health` writes it, so a fresh clone or a console left off for a
+# week showed every row's health as blank and the red/amber/green KPIs as 0/0/0
+# while triage said 20 repos were red. On startup the console now runs the same
+# allowlisted `health` operation itself when the file is missing or older than
+# the harness's stale_data_days — as an ordinary job (visible in the Jobs tab,
+# cancellable), off the request path, and cancelled after a timeout so a slow or
+# unauthenticated GitHub can never hold anything up. CONSOLE_AUTO_HEALTH=0 turns
+# it off; CONSOLE_AUTO_HEALTH_TIMEOUT sets the timeout in seconds.
+AUTO_HEALTH_TIMEOUT = 300
+
+
+def health_refresh_reason(root: Path = REPO_ROOT, now: dt.datetime | None = None) -> str | None:
+    """Why the health snapshot needs regenerating, or None when it is fresh."""
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    from fleetcore import fleet as _fleet
+
+    src = next((s for s in _fleet.read_sources(root, now=now) if s.name == "health"), None)
+    if src is None or not src.present:
+        return "missing"
+    if src.age_days is None:
+        return "undated"
+    if src.stale:
+        return f"stale ({src.age_days:.1f}d old, limit {_fleet.stale_days(root):g}d)"
+    return None
+
+
+def auto_health(jobs: "JobManager", root: Path = REPO_ROOT, now: dt.datetime | None = None,
+                timeout: float | None = None) -> Job | None:
+    """Start the `health` job when the snapshot is missing or stale. Never blocks,
+    never raises: a failure to start is reported and the console carries on."""
+    if (os.environ.get("CONSOLE_AUTO_HEALTH") or "1").strip().lower() in ("0", "off", "false", "no"):
+        return None
+    try:
+        reason = health_refresh_reason(root, now)
+    except Exception as exc:  # a broken signal file must not stop the console starting
+        sys.stderr.write(f"[console] health check skipped: {exc}\n")
+        return None
+    if reason is None:
+        return None
+    if timeout is None:
+        try:
+            timeout = float(os.environ.get("CONSOLE_AUTO_HEALTH_TIMEOUT") or AUTO_HEALTH_TIMEOUT)
+        except ValueError:
+            timeout = AUTO_HEALTH_TIMEOUT
+    try:
+        job = jobs.submit("health")
+    except Exception as exc:
+        sys.stderr.write(f"[console] could not start the health job: {exc}\n")
+        return None
+    sys.stderr.write(f"[console] project health {reason} — generating it (job {job.id}, "
+                     f"timeout {timeout:g}s)\n")
+
+    def _expire() -> None:
+        if job.status in ("queued", "running"):
+            sys.stderr.write(f"[console] health job {job.id} exceeded {timeout:g}s — cancelled\n")
+            jobs.cancel(job.id)
+
+    timer = threading.Timer(timeout, _expire)
+    timer.daemon = True
+    timer.start()
+    return job
+
+
 
 # --------------------------------------------------------------------------- #
 # CONFIG — comment-preserving edits to _data/fleet.yml
@@ -1378,6 +1446,7 @@ CONFIG_SECTIONS: list[dict] = [
          "scorecard.completion_rate_min_pct": _f("float", "fleet workflow success rate floor"),
          "scorecard.effectiveness_min_pct": _f("float", "minutes ending in success, as a share of all minutes"),
          "trip_wires.stale_data_days": _f("int", "a signal older than this is an alarm"),
+         "trip_wires.conformance_stale_days": _f("int", "conformance.yml older than this is an alarm"),
          "trip_wires.pass_rate_floor_pct": _f("float", "fleet-wide quality regression"),
          "trip_wires.waste_ceiling_pct": _f("float", "non-success minutes / total minutes"),
          "trip_wires.cost_spike_multiplier": _f("float", "× the fleet MEDIAN run time = runaway"),

@@ -32,6 +32,18 @@
 #   tools/fanout.sh --kit deps-latest --target <name|all> [--apply]
 #   tools/fanout.sh --kit docker --target <name|all> [--apply]
 #   tools/fanout.sh --kit feedback --target <name|all> [--apply] [--upgrade]
+#   tools/fanout.sh --kit community --target <name|all> [--apply] [--upgrade]
+#   tools/fanout.sh --kit sdlc --target <name|all> [--apply] [--upgrade]
+#   tools/fanout.sh --kit spec-driven --target <name|all> [--apply] [--upgrade]
+#   tools/fanout.sh --kit agent-context --target <name|all> [--apply] [--upgrade]
+#
+#   community / sdlc / spec-driven / agent-context seed the templates/ kits of
+#   the same name, additive-only: a missing file is seeded, an unmodified
+#   machine seed is reported (or refreshed with --upgrade), and a hand-modified
+#   file is never touched. sdlc follows decision D4 (AGENTS.md canonical,
+#   CLAUDE.md a `@AGENTS.md` pointer) and pins its release-please caller to
+#   the hub's current major tag (RP_PIN). agent-context is the standardize
+#   kit's agent-context artifacts as a kit of its own.
 #
 # Kits:
 #   standardize  branch chore/standardize-baseline; artifacts (default
@@ -109,7 +121,7 @@
 #   site-quality branch ci/site-quality; the SITE QUALITY kit
 #                (templates/site-quality/, specs/QUALITY.md "Site quality"):
 #                the .github/workflows/site-quality.yml caller of the reusable
-#                site-quality.yml (pinned @v1; Lighthouse CI + axe-core at
+#                site-quality.yml (pinned @v2; Lighthouse CI + axe-core at
 #                390/1366 px + pa11y contrast against a fresh-theme build) and
 #                a report-only .github/site-quality.yml config (only when
 #                absent). Jekyll repos only (a root _config.yml); anything
@@ -163,6 +175,13 @@ FB_VERSION="$(kit_version feedback)"
 IA_VERSION="$(kit_version issue-autopilot)"
 ELK_VERSION="$(kit_version elk)"
 SQ_VERSION="$(kit_version site-quality)"
+COMM_VERSION="$(kit_version community)"
+SDLC_VERSION="$(kit_version sdlc)"
+SD_VERSION="$(kit_version spec-driven)"
+# Major tag the sdlc release caller pins. The hub's reusable
+# release-please.yml first shipped in v2 (it is absent at v1), so @v1 would
+# point a caller at a workflow that does not exist. Bump with the hub major.
+RP_PIN="v2"
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -233,8 +252,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -292,7 +311,34 @@ case "$KIT" in
     BRANCH="ci/site-quality"
     COMMIT_MSG="ci: adopt the site-quality kit (Lighthouse CI + axe-core + pa11y contrast)"
     PR_TITLE="ci: adopt the site-quality kit"
-    PR_BODY="$(printf 'Automated by bamr87 site-quality fan-out (tools/fanout.sh --kit site-quality): seeds the fleet SITE QUALITY standard — `.github/workflows/site-quality.yml`, a thin caller of the hub'"'"'s reusable site-quality.yml pinned `@v1`, which builds this Jekyll site against a FRESH theme (remote_theme resolved to a commit SHA, recorded in the job summary), serves `_site`, and runs Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast; and `.github/site-quality.yml`, this repo'"'"'s config (validated against templates/site-quality/site-quality.schema.json).\n\nReport-only as seeded: the config sets no budgets, no axe fail_on and no contrast max, so no scan finding fails the job. It still fails if the config is invalid, the site does not build, or the scan cannot run. Read the first run'"'"'s summary, then tighten one gate at a time; known issues go in the allowlist with rule, selector and/or page, reason, issue link and a quoted until date. Additive-only — an existing .github/site-quality.yml is never overwritten. See bamr87/bamr87 templates/site-quality/README.md and specs/QUALITY.md "Site quality".')"
+    PR_BODY="$(printf 'Automated by bamr87 site-quality fan-out (tools/fanout.sh --kit site-quality): seeds the fleet SITE QUALITY standard — `.github/workflows/site-quality.yml`, a thin caller of the hub'"'"'s reusable site-quality.yml pinned `@v2` (`v1` predates it), which builds this Jekyll site against a FRESH theme (remote_theme resolved to a commit SHA, recorded in the job summary), serves `_site`, and runs Lighthouse CI, axe-core at 390 px and 1366 px, and pa11y contrast; and `.github/site-quality.yml`, this repo'"'"'s config (validated against templates/site-quality/site-quality.schema.json).\n\nReport-only as seeded: the config sets no budgets, no axe fail_on and no contrast max, so no scan finding fails the job. It still fails if the config is invalid, the site does not build, or the scan cannot run. Read the first run'"'"'s summary, then tighten one gate at a time; known issues go in the allowlist with rule, selector and/or page, reason, issue link and a quoted until date. Additive-only — an existing .github/site-quality.yml is never overwritten. See bamr87/bamr87 templates/site-quality/README.md and specs/QUALITY.md "Site quality".')"
+    ;;
+  community)
+    BRANCH="chore/community-kit"
+    COMMIT_MSG="chore(community): adopt the community kit (kit v${COMM_VERSION})"
+    PR_TITLE="chore(community): adopt the community kit"
+    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit community): seeds the fleet COMMUNITY kit files this repo is missing: the PR template with the fleet Definition of Done (UPS-WORK-03), the issue forms (UPS-REPO-18), CODEOWNERS, dependabot.yml, CONTRIBUTING.md, SECURITY.md (7-day window, UPS-REPO-14) and CODE_OF_CONDUCT.md.\n\nAdditive-only: an existing file is never overwritten, and a hand-modified one is left alone. labels.yml is applied by label-sync, not copied. A repo-level copy overrides the owner .github default; it may add gates but must keep every DoD box. See bamr87/bamr87 templates/community/README.md.')"
+    ;;
+  sdlc)
+    BRANCH="chore/sdlc-kit"
+    COMMIT_MSG="chore(sdlc): adopt the sdlc kit (kit v${SDLC_VERSION})"
+    PR_TITLE="chore(sdlc): adopt the sdlc kit"
+    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit sdlc): seeds the fleet SDLC kit files this repo is missing: `.github/sdlc.yml` (schema sdlc/v1), `AGENTS.md` as the canonical agent file with `CLAUDE.md` a `@AGENTS.md` pointer (decision D4), `CHANGELOG.md`, `docs/README.md`, the ADR log in `docs/adr/` (D2), and the release-please caller `.github/workflows/release.yml` pinned to the hub @%s, with a release-please config picked by stack (D5).\n\nAdditive-only: an existing CHANGELOG.md, AGENTS.md, CLAUDE.md, ADR log or release config is never overwritten. **Before merge**: fill every `TODO:` line in AGENTS.md (UPS-AGENT-07), check `type` and `release.type` in .github/sdlc.yml, and if CLAUDE.md was already hand-written, move its rules into AGENTS.md and replace it with the pointer. See bamr87/bamr87 templates/sdlc/README.md.' "$RP_PIN")"
+    ;;
+  spec-driven)
+    BRANCH="chore/spec-driven-kit"
+    COMMIT_MSG="chore(spec-driven): adopt the spec-driven kit (kit v${SD_VERSION})"
+    PR_TITLE="chore(spec-driven): adopt the spec-driven kit"
+    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit spec-driven): vendors the AO-SDLC gates byte-for-byte (tools/spec_validator.py, backlog_lint.py, next_backlog_id.py, pick_backlog_item.py and hooks/gate-check.sh; UPS-WORK-07 byte-identity files) and seeds specs/_template/, BACKLOG.md and docs/constitution.md only where absent.\n\nAdditive-only: a hand-modified copy is left alone (pre-kit copies matching the archive are upgradeable with --upgrade). **Before merge**: declare `modules: { spec_driven: true }` and `backlog: { mode: file, file: BACKLOG.md }` in .github/sdlc.yml, and add the CI job that runs both gates. See bamr87/bamr87 templates/spec-driven/README.md.')"
+    ;;
+  agent-context)
+    # Same artifacts the standardize kit seeds for agent context; the kit
+    # default replaces the standardize default (editorconfig,ci).
+    [[ "$ARTIFACTS" == "editorconfig,ci" ]] && ARTIFACTS="agent-context,claude,claude-settings,claude-guardrails,claude-agent-auditor"
+    BRANCH="chore/agent-context-kit"
+    COMMIT_MSG="chore(agents): adopt the agent-context kit (kit v${AC_VERSION}; ${ARTIFACTS})"
+    PR_TITLE="chore(agents): adopt the agent-context kit"
+    PR_BODY="Automated by bamr87 (tools/fanout.sh --kit agent-context): seeds the agent-context kit artifacts (${ARTIFACTS}). Additive-only: CLAUDE.md is seeded only when the repo has no agent file at all (AGENTS.md, CLAUDE.md, copilot-instructions, .cursorrules), and a hand-modified workflow is left alone. See bamr87/bamr87 templates/agent-context/."
     ;;
 esac
 
@@ -482,9 +528,9 @@ seed_verify() {
 # .yml payload, so both are now parameters: a hardcoded version stamps the
 # WRONG kit's number into the log, and a hardcoded extension means --upgrade
 # silently never matches that kit's archives.
-seed_vendored_asset() {  # $1 dest, $2 kit source, $3 label, [$4 version], [$5 archive ext]
+seed_vendored_asset() {  # $1 dest, $2 kit source, $3 label, [$4 version], [$5 archive ext], [$6 archive dir]
   local dest="$1" src="$2" label="$3" ver="${4:-$FB_VERSION}" ext="${5:-js}" dir base cand
-  dir="$(dirname "$src")/archive"; base="$(basename "$src")"; base="${base%".$ext"}"
+  dir="${6:-$(dirname "$src")/archive}"; base="$(basename "$src")"; base="${base%".$ext"}"
   if [[ ! -f "$dest" ]]; then
     mkdir -p "$(dirname "$dest")"
     cp "$src" "$dest"
@@ -775,6 +821,98 @@ for p in reg:
 PY
 }
 
+# Seed a kit file once: written when absent, never compared or upgraded after.
+seed_once() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch, $6 version
+  if [[ -e "$2" ]]; then echo "$1: present — left alone"; return 0; fi
+  mkdir -p "$(dirname "$2")"
+  render_kit_template "$3" "$4" "$5" "$6" > "$2"
+  echo "$1: seeded (kit v$6)"
+}
+
+seed_community() {  # cwd = target clone; $1 repo name, $2 default branch
+  local name="$1" def="$2" kit="$HUB/templates/community" f
+  # labels.yml is applied by label-sync, not copied (templates/community/VERSION).
+  for f in .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml \
+           .github/ISSUE_TEMPLATE/documentation.yml .github/ISSUE_TEMPLATE/config.yml \
+           .github/pull_request_template.md .github/CODEOWNERS .github/dependabot.yml \
+           CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md; do
+    seed_workflow_artifact "$f" "$f" "$kit/$f" "$name" "$def" "$COMM_VERSION"
+  done
+}
+
+seed_sdlc() {  # cwd = target clone; $1 repo name, $2 default branch
+  local name="$1" def="$2" kit="$HUB/templates/sdlc" rtype f tmp wired=1
+  # release-please type by stack (decision D5); simple for everything else.
+  if [[ -f package.json ]]; then rtype=node
+  elif [[ -f pyproject.toml || -f setup.py ]]; then rtype=python
+  elif compgen -G "*.gemspec" >/dev/null; then rtype=ruby
+  else rtype=simple; fi
+  if [[ -e .github/sdlc.yml ]]; then
+    echo "sdlc.yml: present — left alone"
+  else
+    mkdir -p .github
+    render_kit_template "$kit/sdlc.yml" "$name" "$def" "$SDLC_VERSION" \
+      | sed -E "s/^(  type: )simple( +#)/\1${rtype}\2/" > .github/sdlc.yml
+    echo "sdlc.yml: seeded (kit v${SDLC_VERSION}, release.type ${rtype})"
+  fi
+  # D4: AGENTS.md is canonical, CLAUDE.md a pointer. Neither is ever overwritten.
+  seed_once "AGENTS.md" AGENTS.md "$kit/AGENTS.template.md" "$name" "$def" "$SDLC_VERSION"
+  if [[ ! -e CLAUDE.md ]]; then
+    seed_once "CLAUDE.md" CLAUDE.md "$kit/CLAUDE.template.md" "$name" "$def" "$SDLC_VERSION"
+  elif grep -qx '@AGENTS.md' CLAUDE.md; then
+    echo "CLAUDE.md: already imports @AGENTS.md — left alone"
+  else
+    echo "CLAUDE.md: hand-written, not a @AGENTS.md pointer — left alone (move its rules into AGENTS.md by hand, D4)"
+  fi
+  seed_once "CHANGELOG.md" CHANGELOG.md "$kit/CHANGELOG.template.md" "$name" "$def" "$SDLC_VERSION"
+  seed_once "docs/README.md" docs/README.md "$kit/docs/README.template.md" "$name" "$def" "$SDLC_VERSION"
+  # The ADR log is the repo's once it exists (D2): seed it only into an absent dir.
+  if [[ -d docs/adr ]]; then
+    echo "docs/adr: present — left alone"
+  else
+    for f in "$kit"/docs/adr/*.md; do
+      seed_once "docs/adr/$(basename "$f")" "docs/adr/$(basename "$f")" "$f" "$name" "$def" "$SDLC_VERSION"
+    done
+  fi
+  # Release caller, pinned to the hub's current major tag (see RP_PIN).
+  tmp="$(mktemp)"
+  sed "s#release-please.yml@v1#release-please.yml@${RP_PIN}#" "$kit/release/release.yml" > "$tmp"
+  if [[ -e .github/workflows/release.yml ]] && ! grep -q 'release-please' .github/workflows/release.yml; then
+    echo "release.yml: an unrelated .github/workflows/release.yml exists — left alone (wire release-please by hand)"
+    wired=0
+  else
+    seed_workflow_artifact "release.yml" .github/workflows/release.yml "$tmp" "$name" "$def" "$SDLC_VERSION"
+  fi
+  rm -f "$tmp"
+  # Config + manifest are a pair; never seed one beside a hand-made other.
+  if [[ -e release-please-config.json || -e .release-please-manifest.json ]]; then
+    echo "release-please config: present — left alone"
+  elif [[ "$wired" -eq 0 ]]; then
+    echo "release-please config: not seeded — no release-please caller was wired"
+  else
+    render_kit_template "$kit/release/release-please-config.${rtype}.json" "$name" "$def" "$SDLC_VERSION" > release-please-config.json
+    cp "$kit/release/.release-please-manifest.json" .release-please-manifest.json
+    echo "release-please config: seeded (${rtype}, manifest 0.1.0)"
+  fi
+  # _data/backlog.yml belongs to the opt-in content_queue module: never seeded here.
+}
+
+seed_spec_driven() {  # cwd = target clone; $1 repo name, $2 default branch
+  local name="$1" def="$2" kit="$HUB/templates/spec-driven" f
+  # Byte-identity files (UPS-WORK-07): vendored verbatim, upgradeable from archive/.
+  for f in spec_validator backlog_lint next_backlog_id pick_backlog_item; do
+    seed_vendored_asset "tools/$f.py" "$kit/tools/$f.py" "tools/$f.py" "$SD_VERSION" py "$kit/archive"
+  done
+  seed_vendored_asset hooks/gate-check.sh "$kit/hooks/gate-check.sh" hooks/gate-check.sh "$SD_VERSION" sh "$kit/archive"
+  chmod +x tools/*.py hooks/gate-check.sh 2>/dev/null || true
+  # Templates: seeded once, then owned by the repo.
+  for f in spec plan tasks; do
+    seed_once "specs/_template/$f.md" "specs/_template/$f.md" "$kit/specs/_template/$f.md" "$name" "$def" "$SD_VERSION"
+  done
+  seed_once "BACKLOG.md" BACKLOG.md "$kit/BACKLOG.template.md" "$name" "$def" "$SD_VERSION"
+  seed_once "docs/constitution.md" docs/constitution.md "$kit/constitution.template.md" "$name" "$def" "$SD_VERSION"
+}
+
 run_one() {
   local path="$1" name sect url slug def work rc
   name="$(basename "$path")"
@@ -824,6 +962,10 @@ run_one() {
                    [[ "$APPLY" -eq 1 ]] && feedback_ensure_labels "$slug" || true ;;
       elk)         seed_elk "$(basename "${url%.git}")" "$def" ;;
       site-quality) seed_site_quality "$(basename "${url%.git}")" "$def" ;;
+      community)   seed_community "$(basename "${url%.git}")" "$def" ;;
+      sdlc)        seed_sdlc "$(basename "${url%.git}")" "$def" ;;
+      spec-driven) seed_spec_driven "$(basename "${url%.git}")" "$def" ;;
+      agent-context) seed_standardize "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0
