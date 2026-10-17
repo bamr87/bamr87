@@ -49,7 +49,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum(increase(claude_code_cost_usage_USD_total[$__range]))",
+          "expr": "sum(increase(claude_code_cost_usage_USD_total[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -94,7 +94,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum(increase(claude_code_token_usage_tokens_total{type=\"cacheRead\"}[$__range])) / sum(increase(claude_code_token_usage_tokens_total{type=~\"input|cacheRead|cacheCreation\"}[$__range]))",
+          "expr": "sum(increase(claude_code_token_usage_tokens_total{type=\"cacheRead\"}[$__range] anchored)) / sum(increase(claude_code_token_usage_tokens_total{type=~\"input|cacheRead|cacheCreation\"}[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -139,7 +139,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum(increase(claude_code_session_count_total[$__range]))",
+          "expr": "sum(increase(claude_code_session_count_total[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -184,7 +184,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum(increase(claude_code_active_time_seconds_total[$__range]))",
+          "expr": "sum(increase(claude_code_active_time_seconds_total[$__range] anchored))",
           "instant": true,
           "legendFormat": "",
           "range": false,
@@ -219,7 +219,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum by (model) (rate(claude_code_cost_usage_USD_total[$__rate_interval])) * 3600",
+          "expr": "sum by (model) (rate(claude_code_cost_usage_USD_total[$__rate_interval] anchored)) * 3600",
           "instant": false,
           "legendFormat": "{{model}}",
           "range": true,
@@ -248,7 +248,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum by (type) (increase(claude_code_token_usage_tokens_total[$__rate_interval]))",
+          "expr": "sum by (type) (increase(claude_code_token_usage_tokens_total[$__rate_interval] anchored))",
           "instant": false,
           "legendFormat": "{{type}}",
           "range": true,
@@ -291,7 +291,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum by (query_source) (increase(claude_code_cost_usage_USD_total[$__range]))",
+          "expr": "sum by (query_source) (increase(claude_code_cost_usage_USD_total[$__range] anchored))",
           "instant": true,
           "legendFormat": "{{query_source}}",
           "range": false,
@@ -334,7 +334,7 @@
             "type": "prometheus",
             "uid": "fleet-prometheus"
           },
-          "expr": "sum by (vcs_repository_name) (increase(claude_code_cost_usage_USD_total[$__range]))",
+          "expr": "sum by (vcs_repository_name) (increase(claude_code_cost_usage_USD_total[$__range] anchored))",
           "instant": true,
           "legendFormat": "{{vcs_repository_name}}",
           "range": false,

@@ -541,6 +541,16 @@ def test_prometheus_retention_and_start_timestamps_come_from_the_contract():
     # Without this a short session's spend vanishes from increase() — the
     # first sample of a per-session cumulative counter is already non-zero.
     assert "created-timestamp-zero-ingestion" in cmd
+    # …and every increase()/rate() in the panels is `anchored`, which only
+    # parses with this flag: unanchored, they extrapolate a short session's
+    # few samples (+15%..+93% measured). The flag and the queries go together.
+    assert "promql-extended-range-selectors" in cmd, cmd
+    exprs = [t["expr"] for p in fo.grafana_dashboard(CONTRACT)["panels"]
+             if (p.get("datasource") or {}).get("type") == "prometheus" for t in p.get("targets", [])]
+    assert exprs, "no Prometheus panel to check"
+    for expr in exprs:
+        for m in re.finditer(r"(increase|rate)\([^\[]*\[([^\]]+)\]([^)]*)\)", expr):
+            assert m.group(3).strip().startswith("anchored"), f"unanchored {m.group(1)} in: {expr}"
     prom = yaml.safe_load((CONFIG / "prometheus" / "prometheus.yml").read_text())
     assert prom["global"]["scrape_interval"] == CONTRACT["metrics"]["scrape_interval"]
     job = prom["scrape_configs"][0]

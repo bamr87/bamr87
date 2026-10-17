@@ -496,10 +496,13 @@ def claude_prometheus_panels(y: int) -> list[dict]:
     Metric names are what the collector's prometheus exporter produces from
     Claude Code's OTel names: claude_code.cost.usage (unit USD) becomes
     claude_code_cost_usage_USD_total, and so on. Every series is one SESSION
-    (contract: attributes.session_id), so totals are sum(increase(...)) —
-    correct because Prometheus ingests a zero at each series' start
-    (created-timestamp-zero-ingestion in docker-compose.yml); without it a
-    short session's whole spend vanishes from increase().
+    (contract: attributes.session_id), so totals are sum(increase(...)).
+    Two Prometheus features make that exact, and both are on in
+    docker-compose.yml: created-timestamp-zero-ingestion gives each session's
+    counter a zero to start from (without it a short session's whole spend
+    vanished), and `anchored` range selectors stop increase()/rate() from
+    extrapolating past the first and last samples — which, over a session's
+    handful of samples, read two $0.065/$0.078 sessions as +15% and +68%.
 
     Dollar figures are Claude Code's own estimate, not an invoice — the same
     caveat as every other spend number on this bench.
@@ -524,32 +527,32 @@ def claude_prometheus_panels(y: int) -> list[dict]:
         {"id": 10, "type": "row", "title": "Claude Code — live (Prometheus, from native OTel)",
          "gridPos": {"h": 1, "w": 24, "x": 0, "y": y}, "collapsed": False, "panels": []},
         stat(11, "Spend in range", "Claude Code's own cost estimate across every session in the range.",
-             f"sum(increase({cost}[$__range]))", 0, "currencyUSD"),
+             f"sum(increase({cost}[$__range] anchored))", 0, "currencyUSD"),
         stat(12, "Cache read share", "Share of prompt tokens served from the prompt cache. "
              "Low means context is being re-sent rather than reused.",
-             f'sum(increase({tokens}{{type="cacheRead"}}[$__range])) / '
-             f'sum(increase({tokens}{{type=~"input|cacheRead|cacheCreation"}}[$__range]))',
+             f'sum(increase({tokens}{{type="cacheRead"}}[$__range] anchored)) / '
+             f'sum(increase({tokens}{{type=~"input|cacheRead|cacheCreation"}}[$__range] anchored))',
              6, "percentunit", 1),
         stat(13, "Sessions started", "claude_code.session.count — fresh, resumed and continued.",
-             "sum(increase(claude_code_session_count_total[$__range]))", 12, "none", 0),
+             "sum(increase(claude_code_session_count_total[$__range] anchored))", 12, "none", 0),
         stat(14, "Active time", "Keyboard time plus tool/model time (claude_code.active_time.total).",
-             "sum(increase(claude_code_active_time_seconds_total[$__range]))", 18, "s", 0),
+             "sum(increase(claude_code_active_time_seconds_total[$__range] anchored))", 18, "s", 0),
         {"id": 15, "type": "timeseries", "title": "Burn rate by model (USD/hour)",
          "description": "How fast spend is accruing right now, per model.",
          "gridPos": {"h": 8, "w": 12, "x": 0, "y": y + 4}, "datasource": ds,
          "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
-         "targets": [q(f"sum by (model) (rate({cost}[$__rate_interval])) * 3600", "{{model}}")]},
+         "targets": [q(f"sum by (model) (rate({cost}[$__rate_interval] anchored)) * 3600", "{{model}}")]},
         {"id": 16, "type": "timeseries", "title": "Tokens by type",
          "description": "input excludes the cache; cacheRead and cacheCreation are the cache's two sides.",
          "gridPos": {"h": 8, "w": 12, "x": 12, "y": y + 4}, "datasource": ds,
-         "targets": [q(f"sum by (type) (increase({tokens}[$__rate_interval]))", "{{type}}")]},
+         "targets": [q(f"sum by (type) (increase({tokens}[$__rate_interval] anchored))", "{{type}}")]},
         {"id": 17, "type": "bargauge", "title": "Spend by source in range",
          "description": "query_source: main (the conversation), subagent, auxiliary (titles, "
                         "summaries), sdk (headless runs).",
          "gridPos": {"h": 8, "w": 12, "x": 0, "y": y + 12}, "datasource": ds,
          "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
          "options": {"orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
-         "targets": [q(f"sum by (query_source) (increase({cost}[$__range]))", "{{query_source}}",
+         "targets": [q(f"sum by (query_source) (increase({cost}[$__range] anchored))", "{{query_source}}",
                        instant=True)]},
         {"id": 18, "type": "bargauge", "title": "Spend by repository in range",
          "description": "vcs.repository.name — needs Claude Code ≥ 2.1.269 with "
@@ -558,7 +561,7 @@ def claude_prometheus_panels(y: int) -> list[dict]:
          "gridPos": {"h": 8, "w": 12, "x": 12, "y": y + 12}, "datasource": ds,
          "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
          "options": {"orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
-         "targets": [q(f"sum by (vcs_repository_name) (increase({cost}[$__range]))",
+         "targets": [q(f"sum by (vcs_repository_name) (increase({cost}[$__range] anchored))",
                        "{{vcs_repository_name}}", instant=True)]},
     ]
 

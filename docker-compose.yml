@@ -633,7 +633,11 @@ services:
       # step, which for a short session is all of it (a $0.064 run measured
       # $0). This injects a zero at the series' OTLP start time, carried in
       # the protobuf exposition (prometheus.yml scrape_protocols).
-      - '--enable-feature=created-timestamp-zero-ingestion'
+      # `anchored` range selectors (increase(x[1h] anchored)) do not extrapolate
+      # past the first and last samples. Plain increase() does, and a short
+      # session has only a few samples: two $0.065/$0.078 sessions read +15%
+      # and +68% in "Spend in range". Anchored, they read exactly.
+      - '--enable-feature=created-timestamp-zero-ingestion,promql-extended-range-selectors'
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
