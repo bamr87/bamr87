@@ -289,9 +289,22 @@ def submit_job(req: JobRequest) -> dict:
         job = jobs.submit(req.op, req.params, req.confirm)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    except PermissionError as exc:
+    except (PermissionError, core.JobConflict, core.JobUnavailable) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     return job.to_dict()
+
+
+@app.delete("/api/jobs", dependencies=[Depends(require_token)])
+def clear_jobs(status: str = Query(default="finished", max_length=64)) -> dict:
+    """Forget finished jobs and delete their logs. `finished` is every finished
+    state; otherwise a comma list of succeeded, failed, cancelled, interrupted.
+    A running or queued job is never cleared."""
+    wanted = core.FINISHED_STATES if status == "finished" else tuple(
+        s.strip() for s in status.split(",") if s.strip())
+    try:
+        return jobs.clear(wanted)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/jobs/{job_id}", dependencies=[Depends(require_token)])

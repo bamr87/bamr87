@@ -234,11 +234,19 @@ def lake_paths(lake_dir: Path | str | None = None) -> tuple[Path, Path]:
     return d, d / DB_NAME
 
 
+LOCK_TIMEOUT_S = 60
+
+
 def connect(lake_dir: Path | str | None = None, create: bool = True) -> sqlite3.Connection:
     d, db = lake_paths(lake_dir)
     if create:
         d.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db))
+    # Wait for a lock instead of failing at sqlite's 5 s default: a sync holds
+    # its write lock across a repo, so a reader or a second writer (the CLI
+    # beside the console) used to die on "database is locked" within seconds.
+    # Not WAL — the file is shared between macOS and the Docker VM, and WAL's
+    # shared-memory index does not work across that boundary.
+    conn = sqlite3.connect(str(db), timeout=LOCK_TIMEOUT_S)
     conn.row_factory = sqlite3.Row
     if create:
         conn.executescript(SCHEMA_SQL)
@@ -745,9 +753,12 @@ def cmd_sync(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 # status (offline)
 # --------------------------------------------------------------------------- #
-def phoenix_reachable(collector: str, timeout: float = 1.5) -> bool | None:
+def phoenix_reachable(collector: str, timeout: float = 3.0) -> bool | None:
     """Best-effort probe of the Phoenix collector (GET /healthz, then /). None
-    when the URL is malformed; never raises — the console renders the answer."""
+    when the URL is malformed; never raises — the console renders the answer.
+
+    3 s, not 1.5: with a dozen jobs running the console answered slower than
+    that and the Traces page called a healthy Phoenix "unreachable"."""
     if not collector:
         return None
     for path in ("/healthz", "/"):

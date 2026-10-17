@@ -66,8 +66,11 @@ function ConsoleStatus() {
       <Chip title="git branch and HEAD of the hub working tree">
         <IconGitBranch size={13} /> {g.branch ?? '?'} <Text span ff="monospace" fz={11}>{g.head ?? ''}</Text>
       </Chip>
-      <Chip tone={g.dirty_count ? undefined : 'good'} title="Uncommitted files. The console never commits: review generated data in git and commit it yourself.">
-        {g.dirty_count ? `✎ ${g.dirty_count} uncommitted` : '✓ clean tree'}
+      {/* git_info reports available=false when git refused to answer; that is
+          "unknown", never "clean" — the chip used to claim a clean tree then. */}
+      <Chip tone={g.available === false ? 'crit' : g.dirty_count ? undefined : 'good'}
+        title={g.available === false ? 'git did not answer in the console process, so the tree state is unknown.' : 'Uncommitted files. The console never commits: review generated data in git and commit it yourself.'}>
+        {g.available === false ? '? tree unknown' : g.dirty_count ? `✎ ${g.dirty_count} uncommitted` : '✓ clean tree'}
       </Chip>
       <Chip tone={caps.data?.gh_authenticated ? 'good' : 'crit'} href={to.github()} title="GitHub sign-in — open the GitHub page to connect through the OAuth App">
         {caps.data?.gh_authenticated ? '✓ gh' : '✖ gh signed out'}

@@ -1,9 +1,10 @@
 # ---------------------------------------------------------------------------
 # Logstash pipeline topology.
 #
-# Two inputs, ONE enrichment path. `beats-in` takes container stdout from
+# Three inputs, ONE enrichment path. `beats-in` takes container stdout from
 # Filebeat, `http-in` takes Actions run logs replayed from the lake by
-# `dash observe ship`, and both forward to `enrich` — where the ECS mapping,
+# `dash observe ship`, `otlp-in` takes Claude Code's OTel events from the
+# otel-collector, and all three forward to `enrich` — where the ECS mapping,
 # the secret redaction and the data-stream routing happen exactly once.
 #
 # The alternative (redact in each input) works right up until somebody adds a
@@ -15,6 +16,10 @@
 
 - pipeline.id: http-in
   path.config: '/usr/share/logstash/pipeline/10-http-in.conf'
+
+# Claude Code's OTel events, from the otel-collector (OTLP/JSON on :8089).
+- pipeline.id: otlp-in
+  path.config: '/usr/share/logstash/pipeline/20-otlp-in.conf'
 
 - pipeline.id: enrich
   path.config: '/usr/share/logstash/pipeline/90-enrich-out.conf'

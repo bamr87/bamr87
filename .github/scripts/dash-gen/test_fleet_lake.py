@@ -557,6 +557,17 @@ def test_the_shipments_ledger_exists_beside_the_exports_ledger():
 
 
 # --------------------------------------------------------------------------- #
+def test_every_writer_of_the_lake_waits_the_same_for_its_lock():
+    """fleet_lake and content_atlas open the SAME sqlite file. At sqlite's
+    5 s default, a sync holding the write lock made the other die on
+    "database is locked" — content-sync did, mid-refresh. Both wait now, and
+    for the same budget, so neither is the one that gives up first."""
+    import content_atlas
+    assert fl.LOCK_TIMEOUT_S >= 30, fl.LOCK_TIMEOUT_S
+    assert content_atlas.LOCK_TIMEOUT_S == fl.LOCK_TIMEOUT_S
+    assert content_atlas.DB_NAME == Path(fl.lake_paths(None)[1]).name
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

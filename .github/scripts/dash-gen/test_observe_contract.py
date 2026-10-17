@@ -43,6 +43,8 @@ CONTRACT_FLEET = yaml.safe_load((REPO_ROOT / "_data" / "fleet.yml").read_text())
 DC = yaml.safe_load(COMPOSE.read_text())
 SERVICES = DC["services"]
 ELK = {n: s for n, s in SERVICES.items() if "elk" in (s.get("profiles") or [])}
+METRICS = {n: s for n, s in SERVICES.items() if "metrics" in (s.get("profiles") or [])}
+COLLECTOR = yaml.safe_load((CONFIG / "otel-collector" / "config.yaml").read_text())
 ENV = dict(
     line.split("=", 1) for line in ENV_EXAMPLE.read_text().splitlines()
     if line and not line.startswith("#") and "=" in line
@@ -299,7 +301,8 @@ def test_probing_services_get_service_dns_not_loopback():
     """
     want = {"ES_URL": "http://elasticsearch:9200", "KIBANA_URL": "http://kibana:5601",
             "GRAFANA_URL": "http://grafana:3000", "LOGSTASH_URL": "http://logstash:8088",
-            "QDRANT_URL": "http://qdrant:6333",
+            "QDRANT_URL": "http://qdrant:6333", "PROMETHEUS_URL": "http://prometheus:9090",
+            "OTEL_COLLECTOR_URL": "http://otel-collector:13133",
             "OLLAMA_URL": "http://host.docker.internal:11434"}
     for svc in ("console", "devenv"):
         env = _env(SERVICES[svc])
@@ -322,7 +325,14 @@ def test_probing_services_get_service_dns_not_loopback():
         else:
             os.environ["GRAFANA_URL"] = old
     # With nothing set, the contract URL is the answer — the native case.
-    assert fo.probe_url("kibana", "http://127.0.0.1:5601") == "http://127.0.0.1:5601"
+    # "Nothing set" has to be made true: inside the console container (where
+    # the console's own Tests job runs this file) KIBANA_URL IS set.
+    old_kibana = os.environ.pop("KIBANA_URL", None)
+    try:
+        assert fo.probe_url("kibana", "http://127.0.0.1:5601") == "http://127.0.0.1:5601"
+    finally:
+        if old_kibana is not None:
+            os.environ["KIBANA_URL"] = old_kibana
 
 
 def test_qdrant_is_labelled_and_the_shipper_stack_is_not():
@@ -447,6 +457,188 @@ def test_every_free_text_field_is_redacted_not_just_message():
     for prefix in CONTRACT["logs"]["redact"]:
         stem = prefix.rstrip("_-")
         assert stem in conf, f"fleet.yml declares {prefix} but the pipeline never matches it"
+
+
+# --------------------------------------------------------------------------- #
+# Claude Code's native OpenTelemetry path (FF-0003): collector + Prometheus
+# --------------------------------------------------------------------------- #
+METRICS_OWN = {"otel-collector", "prometheus"}
+
+
+def test_the_metrics_profile_is_the_collector_prometheus_and_grafana():
+    assert set(METRICS) == METRICS_OWN | {"grafana"}, sorted(METRICS)
+
+
+def test_the_cli_and_the_console_name_exactly_the_metrics_services():
+    dash = (REPO_ROOT / "tools" / "dash").read_text()
+    m = re.search(r"METRICS_SERVICES=\(([^)]*)\)", dash)
+    assert m, "tools/dash no longer names the metrics services"
+    assert set(m.group(1).split()) == METRICS_OWN, m.group(1)
+    sys.path.insert(0, str(REPO_ROOT / "tools" / "console"))
+    import core  # noqa: WPS433
+    assert set(core.METRICS_SERVICES) == METRICS_OWN, core.METRICS_SERVICES
+    argv, _ = core.build_argv("observe-up", {})
+    assert "metrics" in argv, "the console's up command never enables the metrics profile"
+    for name in METRICS_OWN:
+        assert name in argv, f"{name} missing from the console's up command"
+
+
+def test_the_metrics_profile_stands_alone():
+    """`--profile metrics` alone was an invalid project: grafana carries that
+    profile but required elasticsearch, which only `elk` defines. FF-0003's
+    acceptance is that profile on its own, so the dependency is optional."""
+    dep = SERVICES["grafana"]["depends_on"]["elasticsearch"]
+    assert dep.get("required") is False, "grafana makes --profile metrics an invalid project"
+    assert dep.get("condition") == "service_healthy", "with elk up it must still wait for a cluster"
+
+
+def test_the_otel_services_follow_the_house_conventions():
+    net = (CONTRACT_FLEET.get("containers") or {}).get("network", "fleet")
+    for name in METRICS_OWN:
+        svc = SERVICES[name]
+        assert "container_name" not in svc, f"{name} sets container_name (Docker standard N1)"
+        assert net in (svc.get("networks") or []), f"{name} is off the {net} network"
+        for port in _ports(svc):
+            assert port.startswith("127.0.0.1:"), f"{name} publishes {port} on all interfaces"
+        # Shipper-side: a labelled shipper ships its own output (see qdrant test).
+        assert "labels" not in svc, f"{name} is labelled — Filebeat would ship the shipper"
+
+
+def test_the_collector_publishes_otlp_http_and_never_phoenix_grpc_port():
+    claude = fo.claude_contract(CONTRACT)
+    port = claude["endpoint"].rsplit(":", 1)[1]
+    published = _host_ports(SERVICES["otel-collector"])
+    assert port in published, f"contract exports to {claude['endpoint']}, compose publishes {published}"
+    assert "4317" not in published, "Phoenix owns 127.0.0.1:4317 (_data/ports.yml shared.phoenix)"
+    assert claude["protocol"].startswith("http/"), "the published port is OTLP/HTTP"
+    http = COLLECTOR["receivers"]["otlp"]["protocols"]["http"]["endpoint"]
+    assert http.endswith(":4318"), http
+
+
+def test_prometheus_is_published_where_the_contract_says():
+    url = CONTRACT["metrics"]["prometheus"]
+    assert url.rsplit(":", 1)[1] in _host_ports(SERVICES["prometheus"]), url
+    assert "prometheus" in CONTRACT["metrics"]["datasources"], "grafana would not list it"
+
+
+def test_otel_image_tags_agree_with_the_contract():
+    claude = CONTRACT["claude_code"]
+    assert f":-{claude['collector_version']}}}" in SERVICES["otel-collector"]["image"]
+    assert ENV.get("OTEL_COLLECTOR_VERSION") == claude["collector_version"]
+    want = CONTRACT["metrics"]["prometheus_version"]
+    assert f":-{want}}}" in SERVICES["prometheus"]["image"]
+    assert ENV.get("PROMETHEUS_VERSION") == want
+    for name in METRICS_OWN:
+        for ref in re.findall(r"\$\{([A-Z_][A-Z0-9_]*)(?::-[^}]*)?\}", yaml.safe_dump(SERVICES[name])):
+            assert ref in ENV, f"{name} reads ${ref} which .env.example never mentions"
+
+
+def test_prometheus_retention_and_start_timestamps_come_from_the_contract():
+    cmd = " ".join(SERVICES["prometheus"]["command"])
+    ret = CONTRACT["metrics"]["retention"]
+    assert f"--storage.tsdb.retention.time={ret['time']}" in cmd, cmd
+    assert f"--storage.tsdb.retention.size={ret['size']}" in cmd, cmd
+    # Without this a short session's spend vanishes from increase() — the
+    # first sample of a per-session cumulative counter is already non-zero.
+    assert "created-timestamp-zero-ingestion" in cmd
+    # …and every increase()/rate() in the panels is `anchored`, which only
+    # parses with this flag: unanchored, they extrapolate a short session's
+    # few samples (+15%..+93% measured). The flag and the queries go together.
+    assert "promql-extended-range-selectors" in cmd, cmd
+    exprs = [t["expr"] for p in fo.grafana_dashboard(CONTRACT)["panels"]
+             if (p.get("datasource") or {}).get("type") == "prometheus" for t in p.get("targets", [])]
+    assert exprs, "no Prometheus panel to check"
+    for expr in exprs:
+        for m in re.finditer(r"(increase|rate)\([^\[]*\[([^\]]+)\]([^)]*)\)", expr):
+            assert m.group(3).strip().startswith("anchored"), f"unanchored {m.group(1)} in: {expr}"
+    prom = yaml.safe_load((CONFIG / "prometheus" / "prometheus.yml").read_text())
+    assert prom["global"]["scrape_interval"] == CONTRACT["metrics"]["scrape_interval"]
+    job = prom["scrape_configs"][0]
+    assert job["static_configs"][0]["targets"] == ["otel-collector:8889"]
+    assert COLLECTOR["exporters"]["prometheus"]["endpoint"].endswith(":8889")
+    assert job["scrape_protocols"][0] == "PrometheusProto", "only protobuf carries created timestamps"
+
+
+def test_events_reach_elasticsearch_only_through_the_enrich_pipeline():
+    """The redaction invariant, for the third input: the collector forwards
+    events to Logstash's otlp-in, which forwards to enrich — no exporter in the
+    collector may write to Elasticsearch directly."""
+    exporters = COLLECTOR["exporters"]
+    assert not any(k.startswith("elasticsearch") for k in exporters), "bypasses redaction"
+    logs = COLLECTOR["service"]["pipelines"]["logs"]["exporters"]
+    assert logs == ["otlphttp/logstash"], logs
+    assert exporters["otlphttp/logstash"]["encoding"] == "json", "otlp-in decodes JSON"
+    port = exporters["otlphttp/logstash"]["logs_endpoint"].split(":")[2].split("/")[0]
+    conf = (CONFIG / "logstash" / "pipeline" / "20-otlp-in.conf").read_text()
+    assert f"port => {port}" in conf, f"collector sends to :{port}, otlp-in listens elsewhere"
+    assert 'send_to => ["enrich"]' in conf, "otlp-in must hand off to enrich"
+    assert '"claude"' in conf and fo.load_contract()["logs"]["datasets"]["claude"] == "fleet.claude"
+    pipes = yaml.safe_load((CONFIG / "logstash" / "pipelines.yml").read_text())
+    assert any(p["path.config"].endswith("20-otlp-in.conf") for p in pipes), "otlp-in is not registered"
+
+
+def test_claude_free_text_attributes_are_redacted_for_every_prefix():
+    conf = (CONFIG / "logstash" / "pipeline" / "90-enrich-out.conf").read_text()
+    for field in ("tool_parameters", "tool_input", "error", "prompt", "prompt_text", "response"):
+        rows = [l for l in conf.splitlines() if f'"[claude][{field}]"' in l]
+        assert rows, f"claude.{field} is never redacted"
+        for prefix in CONTRACT["logs"]["redact"]:
+            stem = prefix.rstrip("_-")
+            assert any(stem in r or (stem.startswith("gh") and "gh[pous]_" in r) for r in rows), \
+                f"claude.{field} is not redacted for {prefix}"
+
+
+def test_traces_go_to_phoenix_as_openinference_under_the_contract_project():
+    res = COLLECTOR["processors"]["resource/phoenix"]["attributes"]
+    project = next(a["value"] for a in res if a["key"] == "openinference.project.name")
+    assert project == fo.claude_contract(CONTRACT)["phoenix_project"], project
+    # The lake's transcript exporter writes another project; sharing one would
+    # double-count every local session.
+    import fleet_lake  # noqa: WPS433
+    assert project != fleet_lake.PROJECT_LOCAL_DEFAULT
+    pipe = COLLECTOR["service"]["pipelines"]["traces"]
+    assert "transform/openinference" in pipe["processors"]
+    assert pipe["exporters"] == ["otlphttp/phoenix"]
+    stmts = " ".join(COLLECTOR["processors"]["transform/openinference"]["trace_statements"][0]["statements"])
+    for kind, span in (("LLM", "claude_code.llm_request"), ("TOOL", "claude_code.tool"),
+                       ("AGENT", "claude_code.interaction")):
+        assert f'"{kind}") where name == "{span}"' in stmts, f"{span} is not mapped to {kind}"
+
+
+def test_the_grafana_prometheus_panels_use_the_pinned_datasource():
+    ds = yaml.safe_load((CONFIG / "grafana" / "provisioning" / "datasources" / "prometheus.yml").read_text())
+    uid = ds["datasources"][0]["uid"]
+    assert uid == fo.GRAFANA_PROM_UID
+    panels = [p for p in fo.grafana_dashboard(CONTRACT)["panels"]
+              if (p.get("datasource") or {}).get("type") == "prometheus"]
+    assert panels, "the contract lists prometheus but the dashboard has no panel for it"
+    for p in panels:
+        assert p["datasource"]["uid"] == uid, p["title"]
+
+
+def test_the_client_env_is_what_the_contract_says_and_only_ours():
+    env = fo.claude_env(CONTRACT)
+    claude = fo.claude_contract(CONTRACT)
+    assert set(env) <= set(fo.CLAUDE_ENV_KEYS)
+    assert env["CLAUDE_CODE_ENABLE_TELEMETRY"] == "1"
+    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == claude["endpoint"]
+    assert env["OTEL_EXPORTER_OTLP_PROTOCOL"] == claude["protocol"]
+    assert env["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] == claude["temporality"]
+    assert env["OTEL_LOG_USER_PROMPTS"] == ("1" if claude["content"]["user_prompts"] else "0")
+    assert env["OTEL_LOG_TOOL_DETAILS"] == ("1" if claude["content"]["tool_details"] else "0")
+    assert ("OTEL_TRACES_EXPORTER" in env) == bool(claude["signals"]["traces"] and claude["traces_beta"])
+    assert "OTEL_LOG_RAW_API_BODIES" not in env or claude["content"]["raw_api_bodies"]
+
+
+def test_enable_then_disable_restores_the_settings_exactly():
+    before = {"model": "opus", "env": {"MY_VAR": "x", "OTEL_LOG_TOOL_DETAILS": "0"},
+              "permissions": {"allow": ["Bash(ls:*)"]}}
+    on = fo.merge_claude_env(before, fo.claude_env(CONTRACT))
+    assert on["model"] == "opus" and on["permissions"] == before["permissions"]
+    assert on["env"]["MY_VAR"] == "x", "enable dropped a variable it does not own"
+    off = fo.merge_claude_env(on, None)
+    assert off == {"model": "opus", "env": {"MY_VAR": "x"}, "permissions": before["permissions"]}
+    assert "env" not in fo.merge_claude_env({"env": {"OTEL_LOGS_EXPORTER": "otlp"}}, None)
 
 
 # --------------------------------------------------------------------------- #

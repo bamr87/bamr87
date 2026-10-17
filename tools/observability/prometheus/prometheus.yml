@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# Prometheus — the live COUNTERS of Claude Code sessions on this machine.
+#
+# One job: scrape the otel-collector's prometheus exporter, which holds the
+# claude_code.* counters (cost, tokens, active time, lines, commits, PRs) that
+# Claude Code pushes over OTLP. Retention is set on the command line from
+# _data/fleet.yml `observability.metrics.retention` (docker-compose.yml), not
+# here — Prometheus does not read retention from this file.
+# ---------------------------------------------------------------------------
+global:
+  scrape_interval: 30s # observability.metrics.scrape_interval
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: claude-code
+    # The collector, by service DNS on the fleet network.
+    static_configs:
+      - targets: ['otel-collector:8889']
+    # Protobuf first: it is the only exposition that carries a counter's
+    # created timestamp, which created-timestamp-zero-ingestion (compose
+    # command) needs to give each session's counter a zero to start from.
+    scrape_protocols: [PrometheusProto, OpenMetricsText1.0.0, PrometheusText0.0.4]
+    # Keep the exporter's labels (model, type, session_id…) rather than
+    # letting the scrape's job/instance overwrite a clashing name.
+    honor_labels: true
