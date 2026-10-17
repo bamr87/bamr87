@@ -28,9 +28,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The kit's own engines.node (>=22), not the fleet's vars.NODE_VERSION:
+      # its devDependencies (vitest 5) require Node 22, and npm on Node 20
+      # crashes resolving them instead of reporting the engine mismatch.
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ vars.NODE_VERSION || '22' }}
+          node-version-file: templates/fleet-engines/package.json
 
       - name: Install (always-latest, no lockfile)
         run: npm install --no-audit --no-fund --no-package-lock
