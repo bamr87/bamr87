@@ -66,7 +66,7 @@
   submodule_path: projects/cv-builder-pro
   branch: main
   repo_url: https://github.com/bamr87/cv-builder-pro
-  description: AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor half of the bamr87/cv machine (React 19, TS, Vite 6, Firebase).
+  description: "React web app for building CVs and résumés with LaTeX templates, Markdown/PDF export and optional AI parsing."
   stack: [react, typescript, vite, tailwind, firebase]
   category: full-stack-ai
   # Revived 2026-08: the long-noted cv pairing is now exploited — bamr87/cv keeps
@@ -89,14 +89,14 @@
   submodule_path: projects/README
   branch: main
   repo_url: https://github.com/bamr87/README
-  description: Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js).
+  description: "Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every project, incl. MCP."
   stack: [python, mkdocs, wikijs]
   category: docs
   status: active
   featured: true
   maintained: true
   auto_evolve: true
-  live_url: null
+  live_url: https://bamr87.github.io/README/
   docs_url: null
   schema:
     status: none
@@ -107,7 +107,7 @@
   submodule_path: projects/scripts
   branch: main
   repo_url: https://github.com/bamr87/scripts
-  description: Development and automation utilities for project setup, GitHub workflows, and local tooling.
+  description: "Standalone Bash utilities for project scaffolding, GitHub repository management and multi-repo maintenance."
   stack: [bash, python]
   category: dev-tools
   status: active
@@ -142,7 +142,7 @@
   submodule_path: projects/it-journey
   branch: main
   repo_url: https://github.com/bamr87/it-journey
-  description: From-zero-to-hero docs, tools, and scripts supporting an IT learning journey.
+  description: "Gamified, open-source platform for learning IT and software development through hands-on quests, zer0 to her0."
   stack: [jekyll, ruby, markdown]
   category: docs
   status: active
@@ -170,13 +170,13 @@
   submodule_path: projects/wargames
   branch: main
   repo_url: https://github.com/bamr87/wargames
-  description: Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey.
+  description: "OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted from it-journey."
   stack: [python, shell, markdown]
   category: docs
   status: active
   featured: false
   maintained: true
-  live_url: null
+  live_url: https://bamr87.github.io/wargames/
   docs_url: null
   schema:
     status: none
@@ -187,7 +187,7 @@
   submodule_path: projects/zer0-mistakes
   branch: main
   repo_url: https://github.com/bamr87/zer0-mistakes
-  description: GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash.
+  description: "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem."
   stack: [jekyll, ruby, bootstrap]
   category: docs
   status: active
@@ -221,7 +221,7 @@
   submodule_path: projects/zer0-image-generator
   branch: main
   repo_url: https://github.com/bamr87/zer0-image-generator
-  description: AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Portable companion to the zer0-mistakes theme.
+  description: "Jekyll plugin, CLI and web app that generate AI preview and social images for any Jekyll site, directed by Claude."
   stack: [ruby, jekyll, python, ai]
   category: dev-tools
   status: active
@@ -246,7 +246,7 @@
   submodule_path: projects/gitorio
   branch: main
   repo_url: https://github.com/bamr87/gitorio
-  description: Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions workflows running Claude Code agents.
+  description: "Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows running Claude Code."
   stack: [typescript, github-actions, ai]
   category: dev-tools
   status: active
@@ -255,7 +255,7 @@
   dev_port:
     5174 # node range; `dash-gen compose` remaps this project's
     # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: null
+  live_url: https://bamr87.github.io/gitorio/
   docs_url: null
   schema:
     status: none
@@ -265,7 +265,7 @@
   submodule_path: projects/barodybroject
   branch: main
   repo_url: https://github.com/bamr87/barodybroject
-  description: Full-stack responsive web app with OpenAI integrations and CMS functionality.
+  description: "Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and Azure deploy."
   stack: [django, python, openai, postgres]
   category: full-stack-ai
   status: active
@@ -278,7 +278,7 @@
     true # gets a database + role on the hub's shared Postgres
     # (`db` on the fleet network). Its own Postgres still runs
     # until `shared_services: [postgres]` is set here too.
-  live_url: https://barodybroject.com
+  live_url: https://bamr87.github.io/barodybroject/
   ux:
     enabled: true
     tier: active
@@ -297,7 +297,7 @@
   submodule_path: projects/aieo
   branch: main
   repo_url: https://github.com/bamr87/aieo
-  description: AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI).
+  description: "AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude will cite it."
   stack: [python, fastapi, react, typescript, ai]
   category: full-stack-ai
   status: active
@@ -321,7 +321,7 @@
   submodule_path: projects/lawmode
   branch: main
   repo_url: https://github.com/bamr87/lawmode
-  description: Always-on AI lawyer concept for developers.
+  description: "Always-on AI legal reviewer for developers: checks code, prompts and commits, and gates non-compliant PRs."
   stack: [ai, python]
   category: full-stack-ai
   status: experiment
@@ -338,7 +338,7 @@
   submodule_path: projects/law-ai
   branch: main
   repo_url: https://github.com/bamr87/law-ai
-  description: LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ollama).
+  description: "Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, local-first via Ollama."
   stack: [python, ai, docker, ollama]
   category: full-stack-ai
   status: experiment
@@ -351,7 +351,7 @@
     true # gets a database + role on the hub's shared Postgres
     # (`db` on the fleet network). Its own Postgres still runs
     # until `shared_services: [postgres]` is set here too.
-  live_url: null
+  live_url: https://bamr87.github.io/law-ai/
   docs_url: null
   schema:
     status: none
@@ -361,7 +361,7 @@
   submodule_path: projects/githubai
   branch: main
   repo_url: https://github.com/bamr87/githubai
-  description: Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.
+  description: "Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs and cut releases."
   stack: [github-actions, ai, claude-code]
   category: full-stack-ai
   status: active
@@ -378,7 +378,7 @@
   submodule_path: projects/fredgar-ai
   branch: main
   repo_url: https://github.com/bamr87/fredgar-ai   # formerly edgar-data-parse; dir renamed to match 2026-09-07
-  description: SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.
+  description: "Django + React app for exploring SEC EDGAR company data and FRED macro series, with AI-assisted summaries."
   stack: [django, python, react, typescript]
   category: full-stack-ai
   status: active
@@ -391,7 +391,7 @@
     true # gets a database + role on the hub's shared Postgres
     # (`db` on the fleet network). Its own Postgres still runs
     # until `shared_services: [postgres]` is set here too.
-  live_url: null
+  live_url: https://bamr87.github.io/fredgar-ai/
   docs_url: null
   release:
     engine: release-please
@@ -408,13 +408,13 @@
   submodule_path: projects/drsai
   branch: main
   repo_url: https://github.com/bamr87/drsai
-  description: Dr. Seuss-style AI poetry generator.
+  description: "AI-assisted children's storybook platform: verse, OpenAI-rendered illustrations and picture books on GitHub Pages."
   stack: [python, ai]
   category: full-stack-ai
   status: experiment
   featured: false
   maintained: true
-  live_url: null
+  live_url: https://bamr87.github.io/drsai/
   docs_url: null
   schema:
     status: none
@@ -424,7 +424,7 @@
   submodule_path: projects/ai-seed
   branch: main
   repo_url: https://github.com/bamr87/ai-seed
-  description: AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human collaboration.
+  description: "Self-evolving project template: plant a kernel in any repo and let Claude Code Actions germinate and grow it."
   stack: [javascript, docker, ai]
   category: dev-tools
   # Last feature commit 2025-07-23 — thirteen months. A README-first project whose
@@ -449,7 +449,7 @@
   submodule_path: projects/wtd
   branch: main
   repo_url: https://github.com/bamr87/wtd
-  description: Recursive TODO engine experiment for AI-orchestrated task decomposition.
+  description: "WTD (What To Do): turns TODOs, issues and failing workflows into queued work for a fleet of Claude agents."
   stack: [python, ai]
   category: dev-tools
   # Last substantive commit 2026-05; the 2026-07/08 activity is entirely hub
@@ -469,7 +469,7 @@
   submodule_path: projects/vs-sonic-pi
   branch: main
   repo_url: https://github.com/bamr87/vs-sonic-pi
-  description: VS Code extension for writing and performing Sonic Pi music from the editor.
+  description: "VS Code extension to write and perform Sonic Pi music live: IntelliSense, hover docs, built-in tutorial, OSC control."
   stack: [typescript, vscode]
   category: dev-tools
   status: maintenance
@@ -486,7 +486,7 @@
   submodule_path: projects/zpl-viewer
   branch: main
   repo_url: https://github.com/bamr87/zpl-viewer
-  description: ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.
+  description: "Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2 thermal labels."
   stack: [typescript, vscode]
   category: dev-tools
   status: active
@@ -528,13 +528,13 @@
   submodule_path: projects/bashcrawl
   branch: main
   repo_url: https://github.com/bamr87/bashcrawl
-  description: Terminal game and command-line learning project.
+  description: "Learn real terminal skills by playing a fantasy dungeon crawl in your shell or in a free browser trainer."
   stack: [bash, python]
   category: dev-tools
   status: maintenance
   featured: false
   maintained: true
-  live_url: null
+  live_url: https://bamr87.github.io/bashcrawl/
   docs_url: null
   schema:
     status: none
@@ -545,7 +545,7 @@
   submodule_path: projects/bamr87.github.io
   branch: main
   repo_url: https://github.com/bamr87/bamr87.github.io
-  description: Personal profile and portfolio website.
+  description: "Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHub Pages."
   stack: [jekyll, ruby, markdown]
   category: docs
   status: active
@@ -570,7 +570,7 @@
   submodule_path: projects/lifehacker.dev
   branch: main
   repo_url: https://github.com/bamr87/lifehacker.dev
-  description: Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages.
+  description: "Tech knowledge, tools and comedy at lifehacker.dev: a Jekyll site on the zer0-mistakes theme, run by Claude Code."
   stack: [jekyll, ruby]
   category: docs
   status: active
@@ -594,7 +594,7 @@
   submodule_path: projects/zer0-pages-remote
   branch: main
   repo_url: https://github.com/bamr87/zer0-pages-remote
-  description: Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme.
+  description: "Minimal three-file GitHub Pages site showing the zer0-mistakes Jekyll remote theme with zero local setup."
   stack: [ruby, jekyll]
   category: docs
   # Eleven tracked files, of which eight are hub-seeded config — a smoke-test
@@ -609,7 +609,7 @@
   dev_port:
     4014 # jekyll range; `dash-gen compose` remaps this project's
     # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: null
+  live_url: https://bamr87.github.io/zer0-pages-remote/
   docs_url: null
   schema:
     status: none
@@ -619,7 +619,7 @@
   submodule_path: projects/bashconsultants
   branch: main
   repo_url: https://github.com/bamr87/bashconsultants
-  description: BASH Consulting — Denver-based IT consulting firm website.
+  description: "Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator VS Code extension."
   stack: [jekyll, shell]
   category: docs
   status: active
@@ -628,7 +628,7 @@
   dev_port:
     4018 # jekyll range; `dash-gen compose` remaps this project's
     # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: null
+  live_url: https://bash-365.com
   docs_url: null
   schema:
     status: none
@@ -639,13 +639,13 @@
   submodule_path: projects/1987
   branch: main
   repo_url: https://github.com/bamr87/1987
-  description: Self-growing knowledge base about the year 1987 — history, politics, science, and culture.
+  description: "Self-growing, AI-tended knowledge base about the year 1987: history, politics, science, culture and people."
   stack: [markdown, ai]
   category: docs
   status: experiment
   featured: false
   maintained: true
-  live_url: null
+  live_url: https://bamr87.github.io/1987/
   docs_url: null
   schema:
     status: none
@@ -675,7 +675,7 @@
   submodule_path: projects/djangoerp
   branch: main
   repo_url: https://github.com/bamr87/djangoerp
-  description: A Django-based ERP experiment exploring enterprise resource planning modules in Python.
+  description: "Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and MRP planning."
   stack: [django, python]
   category: full-stack-ai
   status: experiment
@@ -699,7 +699,7 @@
   submodule_path: projects/cv
   branch: main
   repo_url: https://github.com/bamr87/cv
-  description: CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII/LaTeX/HTML/PDF, published to Pages and releases; round-trips with cv-builder-pro.
+  description: "Amr's CV as code: one cv.json rendered to Markdown, LaTeX, HTML and PDF, with automated publishing and releases."
   stack: [latex, typescript, node]
   category: docs
   # Rebuilt 2026-08 as the fleet's CV machine: data/cv.json (cv-builder-pro's
@@ -711,7 +711,7 @@
   status: active
   featured: false
   maintained: true
-  live_url: https://bamr87.github.io/cv/
+  live_url: null
   ux:
     enabled: true
     tier: content
@@ -729,7 +729,7 @@
   submodule_path: projects/books
   branch: main
   repo_url: https://github.com/bamr87/books
-  description: Personal books and reference notes collection.
+  description: "Plain-markdown book-writing workspace with a CLI, a studio editor, validation checks and an AI writing assistant."
   stack: [markdown]
   category: docs
   status: experiment
@@ -745,7 +745,7 @@
   submodule_path: projects/zer0-pages
   branch: main
   repo_url: https://github.com/bamr87/zer0-pages
-  description: Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Dataview to GitHub Pages via the zer0-mistakes gem; the theme's second brain.
+  description: "Obsidian vault published as a Jekyll knowledge site via build-time bridge plugins; the second brain of zer0-mistakes."
   stack: [jekyll, ruby, obsidian, ai]
   category: docs
   status: experiment
@@ -754,7 +754,7 @@
   dev_port:
     4012 # jekyll range; `dash-gen compose` remaps this project's
     # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: null
+  live_url: https://bamr87.github.io/zer0-pages/
   docs_url: null
   schema:
     status: adopted
@@ -769,7 +769,7 @@
   # No longer a fork in substance: "refactor!: break free from the Front Matter
   # fork — a lightweight zer0-CMS extension" (2026-07-31). GitHub still reports
   # isFork:true because the upstream history was never detached.
-  description: zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.
+  description: "Fork of Front Matter CMS reworked into zer0-CMS: a governed VS Code + Rails CMS for zer0-themed markdown sites."
   stack: [typescript, vscode]
   category: dev-tools
   status: active
@@ -791,7 +791,7 @@
   submodule_path: projects/bashos
   branch: main
   repo_url: https://github.com/bamr87/bashos
-  description: Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCode engine, running on Claude Code OAuth.
+  description: "Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the OpenCode engine."
   stack: [python, langgraph, opencode, ai, cli]
   category: dev-tools
   status: active
@@ -811,7 +811,7 @@
   submodule_path: projects/ocrmd
   branch: main
   repo_url: https://github.com/bamr87/ocrmd
-  description: Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR voting) diffed against a Claude vision transcription, one page file with rich frontmatter each.
+  description: "Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, with full-text search."
   stack: [python, ocr, claude, cli]
   category: full-stack-ai
   status: active
@@ -828,7 +828,7 @@
   submodule_path: projects/rewind-arcade
   branch: main
   repo_url: https://github.com/bamr87/rewind-arcade
-  description: A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snake included; builds to static files and plays fully offline.
+  description: "Retro gaming workspace: browser arcade recreations, console emulation via ES-DE, and a physical game catalog."
   stack: [react, typescript, vite, canvas]
   category: dev-tools
   status: active
@@ -846,14 +846,14 @@
   docs_url: null
   schema:
     status: none
-  license: null
+  license: MIT
 
 - name: gitnexus
   slug: gitnexus
   submodule_path: projects/gitnexus
   branch: main
   repo_url: https://github.com/bamr87/gitnexus
-  description: App Builder sandbox workspace (Vite + React + PGlite) exported from Grok Build — an experiment in hosted, agent-built apps.
+  description: "Nexus Forge: a static rebuild-spec workbench (PRD, architecture, 14-step playbook) for reimplementing GitNexus."
   stack: [typescript, react, vite, pglite]
   category: full-stack-ai
   status: experiment
@@ -870,7 +870,7 @@
   submodule_path: projects/irony-works
   branch: main
   repo_url: https://github.com/bamr87/irony-works
-  description: The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.
+  description: "The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-mistakes."
   stack: [javascript, markdown, ai]
   category: docs
   status: active
@@ -894,7 +894,7 @@
   submodule_path: projects/git-with-the-program
   branch: main
   repo_url: https://github.com/bamr87/git-with-the-program
-  description: Agentic governance framework — distills git history into a versioned core memory, then scores changes as drift, regression, obsolescence, or alignment.
+  description: "Agentic governance framework that distills git history into a core memory and scores every change for drift."
   stack: [typescript, ai]
   category: dev-tools
   status: experiment
@@ -910,7 +910,7 @@
   submodule_path: null      # org-level repo; a hidden dir under projects/ would be fragile
   branch: main
   repo_url: https://github.com/bamr87/.github
-  description: Shared CI/release automation (reusable workflows, release-please, publish) + community health files for all bamr87 repos.
+  description: "Shared reusable GitHub Actions workflows, release-please setup and community health files for every bamr87 repo."
   stack: [github-actions]
   category: dash
   status: active
@@ -924,7 +924,7 @@
   submodule_path: null      # upstream of the vendored tools/schema_lint.py
   branch: main
   repo_url: https://github.com/bamr87/SCHEMA
-  description: Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.
+  description: "Pyramid Schema: the SCHEMA.md protocol and linter that let AI agents look up repo structure instead of guessing it."
   stack: [python, markdown]
   category: dev-tools
   status: active
@@ -964,7 +964,7 @@
   submodule_path: projects/chui
   branch: main
   repo_url: https://github.com/bamr87/chui
-  description: Rebuildable macOS terminal environment — Oh My Zsh + Powerlevel10k + Zellij + modern CLI (fzf, zoxide, lazygit, btop), with a `chui` menu, a $HOME mapper, and backup/restore. The environment layer of the bashOS terminal framework.
+  description: "Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backup and restore."
   stack: [shell, zsh, zellij, macos]
   category: dev-tools
   status: active
@@ -981,7 +981,7 @@
   submodule_path: projects/raising-eliza
   branch: main
   repo_url: https://github.com/bamr87/raising-eliza
-  description: Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated legacy-revival method — a port that ties out against the published 1966 conversation, with its reconciliation ledger and HTTP gate.
+  description: "Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated method and tied out to the original transcript."
   stack: [python, ai, legacy]
   category: full-stack-ai
   status: experiment
@@ -1000,7 +1000,7 @@
   submodule_path: projects/outbox
   branch: main
   repo_url: https://github.com/bamr87/outbox
-  description: Async competitive outbox harness for three Grok-class agents — mailbox protocol, injected environment lag, a confidence race, and a replay scorer.
+  description: "Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race and replay scorer."
   stack: [python, ai, agents]
   category: full-stack-ai
   status: experiment
@@ -1017,7 +1017,7 @@
   submodule_path: projects/retro-pi
   branch: main
   repo_url: https://github.com/bamr87/retro-pi
-  description: Portable retro gaming workspace for macOS and Raspberry Pi — declarative system manifests drive EmulationStation and RetroArch through one bash-3.2 CLI (`retropi doctor/install/build/package`).
+  description: "Portable retro-gaming workspace for macOS and Raspberry Pi: declarative manifests drive EmulationStation and RetroArch."
   stack: [shell, python, raspberry-pi, retroarch]
   category: dev-tools
   status: active

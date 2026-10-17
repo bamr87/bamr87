@@ -60,6 +60,7 @@ Every document in `docs/`, plus the guides at the repository root. The root [`RE
 | Document | What it covers |
 | --- | --- |
 | [`STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline; points to [`../specs/`](../specs/README.md), the Universal Project Standard |
+| [`PORTFOLIO.md`](PORTFOLIO.md) | The portfolio standard: repo descriptions, topic taxonomy, homepage rule, README skeleton and the profile index |
 | [`RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet |
 | [`CONTENT-ATLAS.md`](CONTENT-ATLAS.md) | Content observability and editorial direction for the fleet's content sites, and the committed plan `_data/editorial.yml` |
 | [`DOCS-SYSTEM.md`](DOCS-SYSTEM.md) | Plan (2026-10-03): documentation by role across the fleet — a Jekyll front door, MkDocs guides, Sphinx API reference, one shared content contract |
