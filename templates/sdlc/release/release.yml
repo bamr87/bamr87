@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   release:
-    uses: bamr87/bamr87/.github/workflows/release-please.yml@v1
+    uses: bamr87/bamr87/.github/workflows/release-please.yml@v2
     permissions:
       contents: write
       pull-requests: write
