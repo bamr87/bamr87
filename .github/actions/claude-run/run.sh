@@ -130,8 +130,8 @@ done
 MODEL="$(AI_MODEL="${model_flag:-${AI_MODEL:-}}" ruby -ryaml -e '
   c = (YAML.respond_to?(:unsafe_load) ? YAML.unsafe_load(File.read(ARGV[0])) : YAML.load(File.read(ARGV[0]))) rescue {}
   m = ENV["AI_MODEL"].to_s
-  puts(m.empty? ? ((c.is_a?(Hash) && c["model"]) || "claude-opus-4-8") : m)
-' "$REPO/_data/ai.yml" 2>/dev/null || echo "${model_flag:-${AI_MODEL:-claude-opus-4-8}}")"
+  puts(m.empty? ? ((c.is_a?(Hash) && c["model"]) || "claude-opus-5-5") : m)
+' "$REPO/_data/ai.yml" 2>/dev/null || echo "${model_flag:-${AI_MODEL:-claude-opus-5-5}}")"
 
 USAGE_RB="$REPO/scripts/ai/usage.rb"
 

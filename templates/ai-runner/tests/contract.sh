@@ -86,7 +86,7 @@ run_case() {
   rm -rf "$outf" "$errf" "$usage_dir"
 }
 
-OK_JSON='{"type":"result","subtype":"success","is_error":false,"duration_ms":1200,"num_turns":2,"session_id":"s1","total_cost_usd":0.01,"usage":{"input_tokens":10,"output_tokens":5},"modelUsage":{"claude-opus-4-8":{"inputTokens":10,"outputTokens":5,"costUSD":0.01}},"result":"THE ANSWER"}'
+OK_JSON='{"type":"result","subtype":"success","is_error":false,"duration_ms":1200,"num_turns":2,"session_id":"s1","total_cost_usd":0.01,"usage":{"input_tokens":10,"output_tokens":5},"modelUsage":{"claude-opus-5-5":{"inputTokens":10,"outputTokens":5,"costUSD":0.01}},"result":"THE ANSWER"}'
 # The shape a rejected call actually produced on 2026-08-22: one turn, ~1.8s,
 # zero tokens, no model, is_error — the request never reached the model.
 ERR_JSON='{"type":"result","subtype":"error_during_execution","is_error":true,"duration_ms":1803,"num_turns":1,"session_id":"s2","total_cost_usd":0,"usage":{"input_tokens":0,"output_tokens":0},"result":"Claude AI usage limit reached"}'
@@ -145,7 +145,7 @@ rm -rf "$s_ok" "$s_err" "$s_silent" "$s_err0"
 #    run.sh (no scripts/ai/usage.rb) must keep the same exit semantics via the
 #    inline emitter — success prints the result, is_error still exits 1.
 kit="$(mktemp -d)"; mkdir -p "$kit/scripts/ai" "$kit/_data"
-cp "$SUT" "$kit/scripts/ai/run.sh"; printf 'model: claude-opus-4-8\n' > "$kit/_data/ai.yml"
+cp "$SUT" "$kit/scripts/ai/run.sh"; printf 'model: claude-opus-5-5\n' > "$kit/_data/ai.yml"
 for want in ok err0; do
   stub="$(stub_claude 0 "$([ "$want" = ok ] && echo "$OK_JSON" || echo "$ERR0_JSON")")"
   outf="$(mktemp)"; errf="$(mktemp)"
@@ -171,8 +171,8 @@ printf '{"type":"result","subtype":"success","is_error":false,"usage":{"input_to
 STUB
 chmod +x "$argstub/claude"; outf="$(mktemp)"
 env -i PATH="${argstub}:/usr/local/bin:/usr/bin:/bin" HOME="${HOME:-/root}" AI_USAGE_DIR="$(mktemp -d)" CLAUDE_CODE_OAUTH_TOKEN="stub-token" \
-  bash "$SUT" --prompt "hello" --max-turns 7 --model claude-sonnet-4-6 >"$outf" 2>/dev/null
-if grep -qF -- "--max-turns 7" "$outf" && grep -qF -- "--model claude-sonnet-4-6" "$outf"; then
+  bash "$SUT" --prompt "hello" --max-turns 7 --model claude-sonnet-5-5 >"$outf" 2>/dev/null
+if grep -qF -- "--max-turns 7" "$outf" && grep -qF -- "--model claude-sonnet-5-5" "$outf"; then
   echo "PASS: --max-turns and --model are passed to the CLI"; pass=$((pass + 1))
 else
   echo "FAIL: flags not passed: $(head -c 200 "$outf")"; fail=$((fail + 1))
