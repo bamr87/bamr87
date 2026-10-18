@@ -26,6 +26,12 @@ import tempfile
 import time
 from pathlib import Path
 
+# Never the live console's job dir: importing `app` builds its JobManager,
+# which loads (and re-saves) the history it finds. Run inside the console
+# container — the console's own Tests job does — that was the RUNNING
+# console's index. core reads this at import, so it is set before any import.
+os.environ["DASH_CONSOLE_JOBS"] = tempfile.mkdtemp(prefix="console-test-jobs-")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import core  # noqa: E402
