@@ -65,7 +65,8 @@ LEDGER_DEFAULT = Path(
 ).expanduser()
 
 # USD per MTok at Anthropic API list prices (source: claude-api skill model
-# table, cached 2026-06-24; claude-opus-5 added 2026-08-31). Cache writes:
+# table, cached 2026-06-24; claude-opus-5 added 2026-08-31; 5.5 tier rows added
+# 2026-10-17 from platform.claude.com/docs/en/about-claude/pricing). Cache writes:
 # 1.25x input (5m TTL) / 2x (1h TTL); cache reads: 0.1x input. Unknown models
 # are counted but priced at 0 and surfaced in `unpriced_models` — add a row
 # here rather than guessing.
@@ -79,6 +80,9 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-mythos-5-1": {"in": 10.0, "out": 50.0},
     "claude-fable-5":   {"in": 10.0, "out": 50.0},
     "claude-mythos-5":  {"in": 10.0, "out": 50.0},
+    "claude-opus-5-5":  {"in": 4.0,  "out": 20.0},
+    "claude-sonnet-5-5": {"in": 2.0, "out": 10.0},
+    "claude-haiku-5-5": {"in": 0.10, "out": 0.50},
     "claude-opus-5":    {"in": 5.0,  "out": 25.0},
     "claude-opus-4-8":  {"in": 5.0,  "out": 25.0},
     "claude-opus-4-7":  {"in": 5.0,  "out": 25.0},
@@ -104,10 +108,10 @@ INTRO_PRICING_UNTIL: dict[str, str] = {
 # stale alias a plausible wrong number. Re-point these when a family's current
 # model changes.
 MODEL_ALIASES = {
-    "opus": "claude-opus-5",
-    "sonnet": "claude-sonnet-5",
-    "haiku": "claude-haiku-4-5",
-    "fable": "claude-fable-5",
+    "opus": "claude-opus-5-5",
+    "sonnet": "claude-sonnet-5-5",
+    "haiku": "claude-haiku-5-5",
+    "fable": "claude-fable-5-1",
 }
 DATE_SUFFIX = re.compile(r"-20\d{6}$")
 

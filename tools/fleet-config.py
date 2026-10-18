@@ -885,7 +885,7 @@ def api_keys_config(cfg: dict) -> dict:
         "lifetime_days": int(a.get("lifetime_days") or 7),
         "renew_before_days": int(a.get("renew_before_days") or 2),
         "workspaces": a.get("workspaces") or {},
-        "verify": {"model": "claude-opus-5", "max_tokens": 16, **(a.get("verify") or {})},
+        "verify": {"model": "claude-opus-5-5", "max_tokens": 16, **(a.get("verify") or {})},
         "ledger": a.get("ledger") or KEY_LEDGER_DEFAULT,
     }
 

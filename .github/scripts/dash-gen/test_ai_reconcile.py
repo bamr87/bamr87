@@ -110,9 +110,12 @@ def metrics(rows: list[dict]) -> set[str]:
 def test_current_opus_is_priced_and_aliased():
     """Fails on main: `claude-opus-5` had no PRICING row and `opus` pointed at 4-8."""
     assert "claude-opus-5" in ai_activity.PRICING, "claude-opus-5 is priced at $0"
-    assert ai_activity.MODEL_ALIASES["opus"] == "claude-opus-5", (
+    # The `opus` alias tracks the CURRENT Opus (5.5 since 2026-09-21); 5 stays priced
+    # so older ledger days keep their cost.
+    assert ai_activity.MODEL_ALIASES["opus"] == "claude-opus-5-5", (
         f"stale alias: opus -> {ai_activity.MODEL_ALIASES['opus']}"
     )
+    assert ai_activity.PRICING["claude-opus-5-5"] == {"in": 4.0, "out": 20.0}
     # $5/$25 per MTok, derived from ccusage's own costing of a real Opus 5 day
     # (48 in / 12,772 out / 76,954 cache-write@2x / 1,355,482 cache-read@0.1x
     # = $1.766821, an exact fit) and matching the rest of the Opus family.

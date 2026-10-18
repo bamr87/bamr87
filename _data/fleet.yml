@@ -1239,7 +1239,7 @@ api_keys:
     bash-365.com: { repos: [amr-bash/bash-365.com] }  # a content site outside the registry
     bashcrawl: { repos: [bashcrawl] }
   verify:                              # the cheap test — one call per key, a fraction of a cent
-    model: claude-opus-5
+    model: claude-opus-5-5
     max_tokens: 16
   ledger: _data/api_keys.yml           # key ids, names, dates, repos — never a value
 
