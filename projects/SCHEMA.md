@@ -17,49 +17,49 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `README.md` | file | Projects index page | |
-| `1987/` | dir | Self-growing knowledge base about the year 1987 — history, politics, science, and culture. | terminal |
+| `1987/` | dir | Self-growing, AI-tended knowledge base about the year 1987: history, politics, science, culture and… | terminal |
 | `2005/` | dir | Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into y… | terminal |
-| `README/` | dir | Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js). | terminal |
-| `ai-seed/` | dir | AI-Seed evolution engine — a container-first, self-evolving project template grown through AI-human… | terminal |
-| `aieo/` | dir | AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI). | terminal |
-| `bamr87.github.io/` | dir | Personal profile and portfolio website. | terminal |
-| `barodybroject/` | dir | Full-stack responsive web app with OpenAI integrations and CMS functionality. | terminal |
-| `bashconsultants/` | dir | BASH Consulting — Denver-based IT consulting firm website. | terminal |
-| `bashcrawl/` | dir | Terminal game and command-line learning project. | terminal |
-| `bashos/` | dir | Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCo… | terminal |
-| `books/` | dir | Personal books and reference notes collection. | terminal |
-| `chui/` | dir | Rebuildable macOS terminal environment — Oh My Zsh + Powerlevel10k + Zellij + modern CLI (fzf, zoxi… | terminal |
+| `README/` | dir | Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every pr… | terminal |
+| `ai-seed/` | dir | Self-evolving project template: plant a kernel in any repo and let Claude Code Actions germinate an… | terminal |
+| `aieo/` | dir | AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude wi… | terminal |
+| `bamr87.github.io/` | dir | Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHu… | terminal |
+| `barodybroject/` | dir | Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and… | terminal |
+| `bashconsultants/` | dir | Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator V… | terminal |
+| `bashcrawl/` | dir | Learn real terminal skills by playing a fantasy dungeon crawl in your shell or in a free browser tr… | terminal |
+| `bashos/` | dir | Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the Ope… | terminal |
+| `books/` | dir | Plain-markdown book-writing workspace with a CLI, a studio editor, validation checks and an AI writ… | terminal |
+| `chui/` | dir | Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backu… | terminal |
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
-| `cv/` | dir | CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII… | terminal |
-| `cv-builder-pro/` | dir | AI-powered CV/resume builder with LaTeX/Markdown/ASCII/JSON export and cv.json import — the editor… | terminal |
-| `djangoerp/` | dir | A Django-based ERP experiment exploring enterprise resource planning modules in Python. | terminal |
-| `drsai/` | dir | Dr. Seuss-style AI poetry generator. | terminal |
-| `fredgar-ai/` | dir | SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI. | terminal |
-| `git-with-the-program/` | dir | Agentic governance framework — distills git history into a versioned core memory, then scores chang… | terminal |
-| `githubai/` | dir | Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude in… | terminal |
-| `gitnexus/` | dir | App Builder sandbox workspace (Vite + React + PGlite) exported from Grok Build — an experiment in h… | terminal |
-| `gitorio/` | dir | Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions wo… | terminal |
-| `irony-works/` | dir | The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repo… | terminal |
-| `it-journey/` | dir | From-zero-to-hero docs, tools, and scripts supporting an IT learning journey. | terminal |
-| `law-ai/` | dir | LawGraph AI — AI-native dev environment for an open legal intelligence platform (local-first via Ol… | terminal |
-| `lawmode/` | dir | Always-on AI lawyer concept for developers. | terminal |
-| `lifehacker.dev/` | dir | Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages. | terminal |
-| `ocrmd/` | dir | Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR vo… | terminal |
-| `outbox/` | dir | Async competitive outbox harness for three Grok-class agents — mailbox protocol, injected environme… | terminal |
-| `raising-eliza/` | dir | Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated legacy-revival method — a po… | terminal |
-| `retro-pi/` | dir | Portable retro gaming workspace for macOS and Raspberry Pi — declarative system manifests drive Emu… | terminal |
-| `rewind-arcade/` | dir | A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snak… | terminal |
-| `scripts/` | dir | Development and automation utilities for project setup, GitHub workflows, and local tooling. | terminal |
+| `cv/` | dir | Amr's CV as code: one cv.json rendered to Markdown, LaTeX, HTML and PDF, with automated publishing… | terminal |
+| `cv-builder-pro/` | dir | React web app for building CVs and résumés with LaTeX templates, Markdown/PDF export and optional A… | terminal |
+| `djangoerp/` | dir | Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and M… | terminal |
+| `drsai/` | dir | AI-assisted children's storybook platform: verse, OpenAI-rendered illustrations and picture books o… | terminal |
+| `fredgar-ai/` | dir | Django + React app for exploring SEC EDGAR company data and FRED macro series, with AI-assisted sum… | terminal |
+| `git-with-the-program/` | dir | Agentic governance framework that distills git history into a core memory and scores every change f… | terminal |
+| `githubai/` | dir | Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs… | terminal |
+| `gitnexus/` | dir | Nexus Forge: a static rebuild-spec workbench (PRD, architecture, 14-step playbook) for reimplementi… | terminal |
+| `gitorio/` | dir | Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows runni… | terminal |
+| `irony-works/` | dir | The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-m… | terminal |
+| `it-journey/` | dir | Gamified, open-source platform for learning IT and software development through hands-on quests, ze… | terminal |
+| `law-ai/` | dir | Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, loca… | terminal |
+| `lawmode/` | dir | Always-on AI legal reviewer for developers: checks code, prompts and commits, and gates non-complia… | terminal |
+| `lifehacker.dev/` | dir | Tech knowledge, tools and comedy at lifehacker.dev: a Jekyll site on the zer0-mistakes theme, run b… | terminal |
+| `ocrmd/` | dir | Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, wi… | terminal |
+| `outbox/` | dir | Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race… | terminal |
+| `raising-eliza/` | dir | Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated method and tied out to the o… | terminal |
+| `retro-pi/` | dir | Portable retro-gaming workspace for macOS and Raspberry Pi: declarative manifests drive EmulationSt… | terminal |
+| `rewind-arcade/` | dir | Retro gaming workspace: browser arcade recreations, console emulation via ES-DE, and a physical gam… | terminal |
+| `scripts/` | dir | Standalone Bash utilities for project scaffolding, GitHub repository management and multi-repo main… | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |
-| `vs-sonic-pi/` | dir | VS Code extension for writing and performing Sonic Pi music from the editor. | terminal |
-| `wargames/` | dir | Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey. | terminal |
-| `wtd/` | dir | Recursive TODO engine experiment for AI-orchestrated task decomposition. | terminal |
-| `zer0-cms/` | dir | zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a… | terminal |
-| `zer0-image-generator/` | dir | AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Po… | terminal |
-| `zer0-mistakes/` | dir | GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash. | terminal |
-| `zer0-pages/` | dir | Obsidian-vault-as-source knowledge site — build-time bridge plugins publish wikilinks/callouts/Data… | terminal |
-| `zer0-pages-remote/` | dir | Remote-theme GitHub Pages companion for the zer0-mistakes Jekyll theme. | terminal |
-| `zpl-viewer/` | dir | ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully off… | terminal |
+| `vs-sonic-pi/` | dir | VS Code extension to write and perform Sonic Pi music live: IntelliSense, hover docs, built-in tuto… | terminal |
+| `wargames/` | dir | OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted f… | terminal |
+| `wtd/` | dir | WTD (What To Do): turns TODOs, issues and failing workflows into queued work for a fleet of Claude… | terminal |
+| `zer0-cms/` | dir | Fork of Front Matter CMS reworked into zer0-CMS: a governed VS Code + Rails CMS for zer0-themed mar… | terminal |
+| `zer0-image-generator/` | dir | Jekyll plugin, CLI and web app that generate AI preview and social images for any Jekyll site, dire… | terminal |
+| `zer0-mistakes/` | dir | AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as… | terminal |
+| `zer0-pages/` | dir | Obsidian vault published as a Jekyll knowledge site via build-time bridge plugins; the second brain… | terminal |
+| `zer0-pages-remote/` | dir | Minimal three-file GitHub Pages site showing the zer0-mistakes Jekyll remote theme with zero local… | terminal |
+| `zpl-viewer/` | dir | Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2… | terminal |
 
 ## Placement
 
