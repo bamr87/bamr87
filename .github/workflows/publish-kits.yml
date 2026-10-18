@@ -34,9 +34,6 @@ concurrency:
   group: publish-kits
   cancel-in-progress: false
 
-env:
-  NODE_V: ${{ vars.NODE_VERSION || '20' }}
-
 jobs:
   npm:
     name: npm kits
@@ -50,7 +47,13 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_V }}
+          # Not vars.NODE_VERSION: the fleet's canonical value (20) is below
+          # what fleet-engines declares (engines.node >=22; vitest 5 needs
+          # ^22.12), and npm 10.8.2 on Node 20 crashes resolving it ("Cannot
+          # read properties of null (reading 'edgesOut')") instead of reporting
+          # the engine mismatch. The current LTS, as in console-web.yml and
+          # fleet-engines-contract.yml (#356).
+          node-version: lts/*
           registry-url: https://registry.npmjs.org
 
       - name: Pack and publish every templates/*/package.json
