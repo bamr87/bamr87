@@ -21,9 +21,12 @@ coverage: listed
 | `2005/` | dir | Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into y… | terminal |
 | `README/` | dir | Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every pr… | terminal |
 | `ai-seed/` | dir | Self-evolving project template: plant a kernel in any repo and let Claude Code Actions germinate an… | terminal |
+| `ai-world-view.github.io/` | dir | AI World View — the root site of the self-growing country knowledge-base network; the per-country r… | terminal |
 | `aieo/` | dir | AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude wi… | terminal |
 | `bamr87.github.io/` | dir | Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHu… | terminal |
 | `barodybroject/` | dir | Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and… | terminal |
+| `bash-365-apex/` | dir | Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Cons… | terminal |
+| `bash-365.com/` | dir | BASH Consulting's website at bash-365.com — a content site the content atlas already tracks, now ch… | terminal |
 | `bashconsultants/` | dir | Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator V… | terminal |
 | `bashcrawl/` | dir | Learn real terminal skills by playing a fantasy dungeon crawl in your shell or in a free browser tr… | terminal |
 | `bashos/` | dir | Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the Ope… | terminal |
@@ -32,6 +35,7 @@ coverage: listed
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
 | `cv/` | dir | Amr's CV as code: one cv.json rendered to Markdown, LaTeX, HTML and PDF, with automated publishing… | terminal |
 | `cv-builder-pro/` | dir | React web app for building CVs and résumés with LaTeX templates, Markdown/PDF export and optional A… | terminal |
+| `cv-pro/` | dir | CV as code and the CV Builder Pro app in one repository: cv/ holds the data, the CVData contract an… | terminal |
 | `djangoerp/` | dir | Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and M… | terminal |
 | `drsai/` | dir | AI-assisted children's storybook platform: verse, OpenAI-rendered illustrations and picture books o… | terminal |
 | `fredgar-ai/` | dir | Django + React app for exploring SEC EDGAR company data and FRED macro series, with AI-assisted sum… | terminal |
@@ -39,6 +43,7 @@ coverage: listed
 | `githubai/` | dir | Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs… | terminal |
 | `gitnexus/` | dir | Nexus Forge: a static rebuild-spec workbench (PRD, architecture, 14-step playbook) for reimplementi… | terminal |
 | `gitorio/` | dir | Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows runni… | terminal |
+| `godotgo/` | dir | Godot 4 game workspace: one reusable framework, five sample games and tooling that treats every pro… | terminal |
 | `irony-works/` | dir | The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-m… | terminal |
 | `it-journey/` | dir | Gamified, open-source platform for learning IT and software development through hands-on quests, ze… | terminal |
 | `law-ai/` | dir | Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, loca… | terminal |
@@ -54,6 +59,7 @@ coverage: listed
 | `vs-sonic-pi/` | dir | VS Code extension to write and perform Sonic Pi music live: IntelliSense, hover docs, built-in tuto… | terminal |
 | `wargames/` | dir | OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted f… | terminal |
 | `wtd/` | dir | WTD (What To Do): turns TODOs, issues and failing workflows into queued work for a fleet of Claude… | terminal |
+| `year-of-ai.github.io/` | dir | Year of AI — the organization's root site and content hub, rendering the shared zer0-mistakes theme… | terminal |
 | `zer0-cms/` | dir | Fork of Front Matter CMS reworked into zer0-CMS: a governed VS Code + Rails CMS for zer0-themed mar… | terminal |
 | `zer0-image-generator/` | dir | Jekyll plugin, CLI and web app that generate AI preview and social images for any Jekyll site, dire… | terminal |
 | `zer0-mistakes/` | dir | AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as… | terminal |

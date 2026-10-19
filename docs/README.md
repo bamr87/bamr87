@@ -10,6 +10,7 @@ Every document in `docs/`, plus the guides at the repository root. The root [`RE
 | [`SCHEMA.md`](../SCHEMA.md) | The root of the Pyramid Schema: what lives where and where a new file goes, linted by `tools/schema_lint.py` |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | Contribution process: README-first/README-last, branches, Conventional Commits, the submodule workflow, pull requests |
 | [`SUBMODULES.md`](../SUBMODULES.md) | The submodule workflow, documented once: commit in the submodule first, then record its pointer here |
+| [`CONSOLIDATION.md`](CONSOLIDATION.md) | The 2026-10-19 repo consolidation: which repositories merged into which (full history, the zer0-CMS recipe), the hub's add/retire steps, and the decisions still open |
 | [`AGENTS.md`](../AGENTS.md) | The operating manual for any AI agent working in this repo |
 | [`CLAUDE.md`](../CLAUDE.md) | Claude Code's context for this repo; its tooling lives in [`.claude/`](../.claude) and [`.mcp.json`](../.mcp.json) |
 | [`CHANGELOG.md`](../CHANGELOG.md) | Versioned history of the hub's public interface (the reusable workflows and the checker) |
