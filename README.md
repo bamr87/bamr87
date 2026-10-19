@@ -137,7 +137,7 @@ Upstreams vendored into the fleet hub, and repos that moved to other owners.
 
 - **[2005](https://github.com/year-of-ai/2005)**: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011). · `🧪 experimental`
 - **[archify](https://github.com/tt-a1i/archify)**: Agent skill that compiles typed JSON IR into validated, self-contained HTML system diagrams — the hub vendors it to illustrate the harness and its loops (diagrams/, /harness/). · [live site](https://tt-a1i.github.io/archify/) · `🛠️ maintenance mode`
-- **[csv-vscoode](https://github.com/bamr87/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. · `💤 unmaintained`
+- **[csv-vscoode](https://github.com/bash-365/csv-vscoode)**: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. · `💤 unmaintained`
 - **[skills](https://github.com/microsoft/skills)**: Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding agents. · `🛠️ maintenance mode`
 
 ### 🍴 Forks
