@@ -8,9 +8,5 @@
 
 services:
   jekyll:
-    # env_file: made optional (named file absent from a fresh clone)
-    env_file: !override
-      - path: .env
-        required: false
     ports: !override
       - "127.0.0.1:${IT_JOURNEY_PORT:-4010}:4002"
