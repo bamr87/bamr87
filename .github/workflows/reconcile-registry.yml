@@ -102,17 +102,17 @@ jobs:
 
       # --- authoritative: apply + PR ------------------------------------
       - name: Apply authoritative fixes
-        if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
+        if: steps.detect.outputs.authoritative != '0' && (github.event_name != 'workflow_dispatch' || inputs.apply)
         run: python .github/scripts/dash-gen/dash_gen.py reconcile --apply
 
       - name: Configure Git
-        if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
+        if: steps.detect.outputs.authoritative != '0' && (github.event_name != 'workflow_dispatch' || inputs.apply)
         uses: ./.github/actions/setup/configure-git
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create pull request
-        if: steps.detect.outputs.authoritative != '0' && inputs.apply != false
+        if: steps.detect.outputs.authoritative != '0' && (github.event_name != 'workflow_dispatch' || inputs.apply)
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
