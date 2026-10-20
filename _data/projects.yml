@@ -142,23 +142,6 @@
     status: none
   license: MIT
 
-- name: wargames
-  slug: wargames
-  submodule_path: projects/wargames
-  branch: main
-  repo_url: https://github.com/bamr87/wargames
-  description: "OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted from it-journey."
-  stack: [python, shell, markdown]
-  category: docs
-  status: active
-  featured: false
-  maintained: true
-  live_url: https://bamr87.github.io/wargames/
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
 - name: zer0-mistakes
   slug: zer0-mistakes
   # No submodule since 2026-10-19: the theme lives in zer0-CMS packages/zer0-mistakes,
@@ -561,30 +544,6 @@
   schema:
     status: none
   license: MIT
-
-- name: irony-works
-  slug: irony-works
-  submodule_path: projects/irony-works
-  branch: main
-  repo_url: https://github.com/bamr87/irony-works
-  description: "The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-mistakes."
-  stack: [javascript, markdown, ai]
-  category: docs
-  status: active
-  featured: false
-  maintained: true
-  live_url: https://bamr87.github.io/irony-works/
-  ux:
-    enabled: true
-    tier: content
-    surfaces:
-      - url: https://bamr87.github.io/irony-works/
-        role: home
-    baselines: none
-
-  docs_url: null
-  schema:
-    status: none
 
 - name: .github
   slug: dot-github

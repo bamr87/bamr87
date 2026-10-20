@@ -239,14 +239,6 @@ projects:
     host: devenv
     services:
       jekyll: { port: 4013, band: jekyll, var: LIFEHACKER_PORT, livereload: 35733 }
-  wargames:
-    host: devenv
-    services:
-      jekyll: { port: 4015, band: jekyll, var: WARGAMES_PORT, livereload: 35735 }
-  irony-works:
-    host: devenv
-    services:
-      jekyll: { port: 4017, band: jekyll, var: IRONY_WORKS_PORT, livereload: 35737 }
   rewind-arcade:
     host: devenv
     services:

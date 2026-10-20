@@ -240,21 +240,6 @@
       "fleet_status": "active"
     },
     {
-      "id": "fleet-irony-works",
-      "name": "irony-works",
-      "description": "The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-mistakes.",
-      "technologies": [
-        "javascript",
-        "markdown",
-        "ai"
-      ],
-      "github": "https://github.com/bamr87/irony-works",
-      "startDate": "",
-      "url": "https://bamr87.github.io/irony-works/",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
       "id": "fleet-lifehacker.dev",
       "name": "lifehacker.dev",
       "description": "Tech knowledge, tools and comedy at lifehacker.dev: a Jekyll site on the zer0-mistakes theme, run by Claude Code.",
@@ -309,21 +294,6 @@
       ],
       "github": "https://github.com/bamr87/SCHEMA",
       "startDate": "",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
-      "id": "fleet-wargames",
-      "name": "wargames",
-      "description": "OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted from it-journey.",
-      "technologies": [
-        "python",
-        "shell",
-        "markdown"
-      ],
-      "github": "https://github.com/bamr87/wargames",
-      "startDate": "",
-      "url": "https://bamr87.github.io/wargames/",
       "featured": false,
       "fleet_status": "active"
     },

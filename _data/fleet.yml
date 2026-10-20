@@ -900,11 +900,17 @@ content:
     - name: bash-365.com
       live_url: https://bash-365.com
       quality: { description: [120, 155] }
-    - name: irony-works
+    - name: irony-works # moved to zer0-CMS sites/irony-works and bamr87/irony-works is archived (2026-10-20);
+      # the atlas reads repository roots only, so it reads the archived copy until it can follow a site
+      # into a monorepo sub-path.
+      repo: bamr87/irony-works
+      live_url: https://bamr87.github.io/irony-works/
       roots: [vault]
       exclude: [templates]
       quality: { min_words: 150, require: [title, status] }
-    - name: wargames
+    - name: wargames # moved to zer0-CMS sites/wargames, original archived (2026-10-20) — as irony-works
+      repo: bamr87/wargames
+      live_url: https://bamr87.github.io/wargames/
       roots: [overthewire]
       quality: { min_words: 100, require: [title] }
     # The two lineage orgs: the hub is the front door, the members hold the

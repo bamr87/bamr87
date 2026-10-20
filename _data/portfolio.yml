@@ -58,7 +58,6 @@ members:
   "scripts": platform
   "skills": related
   "it-journey": knowledge
-  "wargames": knowledge
   "zer0-mistakes": zer0
   "gitorio": agents
   "aieo": ai
@@ -82,7 +81,6 @@ members:
   "ocrmd": ai
   "rewind-arcade": games
   "gitnexus": ai
-  "irony-works": knowledge
   "git-with-the-program": agents
   ".github": platform
   "SCHEMA": platform
