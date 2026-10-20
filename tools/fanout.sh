@@ -831,18 +831,23 @@ PY
 # Every target for `--target all`: the submodules, plus registry entries that
 # have no submodule_path and are neither archived nor externally owned.
 all_targets() {
-  git config -f "$HUB/.gitmodules" --get-regexp '^submodule\..*\.path$' | awk '{print $2}'
+  # Submodules first (minus the ones the registry marks archived — GitHub
+  # refuses pushes to an archived repo), then registry rows without a checkout.
   "${PYTHON:-python3}" - "$HUB" "$FLEET_OWNERS" <<'PY' 2>/dev/null
-import sys
+import subprocess, sys
+root = sys.argv[1]
+paths = subprocess.run(["git", "config", "-f", f"{root}/.gitmodules", "--get-regexp", r"^submodule\..*\.path$"],
+                       capture_output=True, text=True).stdout.split()
+paths = [p for i, p in enumerate(paths) if i % 2 == 1]
 try:
     import yaml
-except ImportError:
-    raise SystemExit(0)
-root = sys.argv[1]
-try:
     reg = yaml.safe_load(open(f"{root}/_data/projects.yml")) or []
-except OSError:
-    raise SystemExit(0)
+except Exception:
+    reg = []
+archived = {p.get("submodule_path") for p in reg if isinstance(p, dict) and p.get("status") == "archived"}
+for p in paths:
+    if p not in archived:
+        print(p)
 for p in reg:
     if not isinstance(p, dict) or p.get("submodule_path"):
         continue
@@ -988,8 +993,11 @@ run_one() {
   # kit lands as one more commit on the alignment PR; else the default branch.
   if [[ -n "${FANOUT_BASE_BRANCH:-}" ]] && gh repo clone "$slug" "$work" -- --depth=1 --branch "$FANOUT_BASE_BRANCH" >/dev/null 2>&1; then
     echo "base: ${FANOUT_BASE_BRANCH}"
-  elif ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
-    echo "skip ${slug}: clone failed"; echo "::endgroup::"; rm -rf "$work"; return 0
+  else
+    rm -rf "$work"; mkdir -p "$work"   # a failed branch clone may leave a partial dir
+    if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
+      echo "skip ${slug}: clone failed"; echo "::endgroup::"; rm -rf "$work"; return 0
+    fi
   fi
   # gh authenticates the clone itself but not later pushes from this repo —
   # route git credentials through gh (uses GH_TOKEN in CI, keyring locally).
