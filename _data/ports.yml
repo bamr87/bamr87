@@ -188,14 +188,6 @@ projects:
       mcp-server and mcp-audit publish no host port. Its frontend has no compose
       service and stays on devenv (5176).
 
-  ai-seed:
-    host: compose
-    compose: projects/ai-seed/docker-compose.yml
-    services:
-      frontend: { port: 5112, band: frontend, var: AI_SEED_FRONTEND_PORT }
-      api:      { port: 8113, band: api,      var: AI_SEED_API_PORT }
-      database: { port: 5445, band: database, var: AI_SEED_DB_PORT, shared: false }
-
   gitorio:
     host: compose
     compose: projects/gitorio/docker-compose.yml
@@ -247,7 +239,3 @@ projects:
     host: devenv
     services:
       vite: { port: 5176, band: frontend, var: AIEO_FRONTEND_PORT }
-  ai-seed-docs:
-    host: devenv
-    services:
-      mkdocs: { port: 8003, band: docs, var: AI_SEED_MKDOCS_PORT }

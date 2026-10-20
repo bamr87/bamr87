@@ -1009,7 +1009,7 @@ containers:
     jekyll:
       [it-journey]
     web: [zer0-cms, gitorio]
-    ai: [law-ai, aieo, bashos, fredgar-ai, ai-seed]
+    ai: [law-ai, aieo, bashos, fredgar-ai]
     django: [djangoerp]
 
   # `dash up --all` refuses past this many projects unless forced: law-ai alone

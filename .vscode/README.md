@@ -14,7 +14,7 @@ Coverage: the local control-plane stack ([`docs/HARNESS-OPS.md`](../docs/HARNESS
 | **1-view** | Jekyll dash in Docker: Edge against `localhost:<port>` with compose up/stop, attach to a running browser, or force-rebuild first |
 | **2-generators** | `dash-gen` inside `devenv` (subcommand picker + harness inventory live / `--offline` / `--gaps`), Harness Console compose logs on :4001, lake sync/status/export |
 | **3-verify** | dash-gen fixture test (`test_*.py` are plain scripts, not pytest) via `devenv python3` |
-| **4-docs** | MkDocs compose service for `projects/README/` on **:8001**; `projects/ai-seed/` via devenv on **:8003** |
+| **4-docs** | MkDocs compose service for `projects/README/` on **:8001** |
 | **5-jekyll** | Submodule Jekyll sites via devenv on **4010–4020** (livereload 35730–35740) so they never collide with the hub dash on :4000 |
 | **6-apps** | Vite/Node via devenv: cv-builder-pro :5000, gitnexus :8080, gitorio :5174, rewind-arcade :5175, aieo UI :5176, fredgar-ai UI :5177, plus `cv` build/watch |
 | **7-python** | Django runserver via devenv (barodybroject :8010, fredgar-ai :8011, law-ai :8012, djangoerp :8013), aieo FastAPI :8002, pytest on the open file |
@@ -36,7 +36,6 @@ Submodule servers bind **0.0.0.0** inside `devenv` and publish on loopback:
 | 5174–5177 | Vite apps (gitorio, rewind-arcade, aieo, fredgar-ai) |
 | 8080 | gitnexus (`npm run dev`) |
 | 8002 | aieo FastAPI |
-| 8003 | ai-seed MkDocs |
 | 8010–8013 | Django fleet |
 
 If an existing `devenv` was started before those mappings existed, recreate it: `docker compose up -d --force-recreate devenv`.
@@ -46,7 +45,7 @@ If an existing `devenv` was started before those mappings existed, recreate it: 
 Silent preLaunch helpers:
 
 - `Docker: Ensure devenv` / `console` / `mkdocs` / `phoenix` / `lake stack`
-- `devenv: compile csv-vscoode` / `vs-sonic-pi` / `zpl-viewer` / `zer0-cms` (depends on Ensure devenv)
+- `devenv: compile vs-sonic-pi` / `zpl-viewer` / `zer0-cms` (depends on Ensure devenv)
 
 Gems, npm, and pip live **inside devenv**, not on the host. Install there, e.g. `docker compose exec -T -w /workspace/projects/<name> devenv npm install`.
 

@@ -19,4 +19,3 @@ services:
       - "127.0.0.1:${LIFEHACKER_LIVERELOAD_PORT:-35733}:35733"   # lifehacker.dev livereload
       - "127.0.0.1:${REWIND_ARCADE_PORT:-5175}:5175"   # rewind-arcade
       - "127.0.0.1:${AIEO_FRONTEND_PORT:-5176}:5176"   # aieo-frontend
-      - "127.0.0.1:${AI_SEED_MKDOCS_PORT:-8003}:8003"   # ai-seed-docs

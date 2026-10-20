@@ -153,20 +153,6 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-docs" }
     },
-    {
-      "name": "📚 MkDocs: Serve (ai-seed, devenv :8003)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/ai-seed devenv mkdocs serve --dev-addr=0.0.0.0:8003",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
-      "serverReadyAction": {
-        "pattern": "Serving on (https?://[^\\s]+)",
-        "uriFormat": "http://127.0.0.1:8003/",
-        "action": "openExternally"
-      },
-      "presentation": { "group": "4-docs", "order": 20 }
-    },
 
     // ---------------------------------------------------------------- JEKYLL
     // Compose-hosted sites run as their own project; devenv-hosted ones have no
@@ -254,21 +240,6 @@
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
         "uriFormat": "http://127.0.0.1:5115/",
-        "action": "openExternally"
-      },
-      "presentation": {
-        "group": "6-apps"
-      }
-    },
-    {
-      "name": "⚡ ai-seed/frontend (:5112)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "tools/fleet-dev.sh up ai-seed && tools/fleet-dev.sh logs ai-seed frontend",
-      "cwd": "${workspaceFolder}",
-      "serverReadyAction": {
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5112/",
         "action": "openExternally"
       },
       "presentation": {
@@ -505,16 +476,6 @@
       }
     },
     {
-      "name": "🐍 ai-seed: up stack (api :8113)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "tools/fleet-dev.sh up ai-seed && tools/fleet-dev.sh logs ai-seed api",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "7-python"
-      }
-    },
-    {
       "name": "🐍 bashos: up stack (langgraph-dev :8116)",
       "type": "node-terminal",
       "request": "launch",
@@ -635,15 +596,6 @@
     // ----------------------------------------------------------- EXTENSIONS
     // Compile inside devenv (container-first); Extension Host still runs on
     // the host because it is VS Code itself.
-    {
-      "name": "🧩 Ext: csv-vscoode",
-      "type": "extensionHost",
-      "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/csv-vscoode"],
-      "outFiles": ["${workspaceFolder}/projects/csv-vscoode/out/**/*.js"],
-      "preLaunchTask": "devenv: compile csv-vscoode",
-      "presentation": { "group": "8-ext" }
-    },
     {
       "name": "🧩 Ext: vs-sonic-pi",
       "type": "extensionHost",
@@ -771,7 +723,7 @@
       "id": "fleetProject",
       "description": "Fleet project (tools/fleet-dev.sh list)",
       "type": "pickString",
-      "options": ["hub", "law-ai", "djangoerp", "fredgar-ai", "aieo", "ai-seed", "gitorio", "bashos", "it-journey", "zer0-cms"],
+      "options": ["hub", "law-ai", "djangoerp", "fredgar-ai", "aieo", "gitorio", "bashos", "it-journey", "zer0-cms"],
       "default": "hub"
     },
     {

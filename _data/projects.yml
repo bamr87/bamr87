@@ -284,7 +284,9 @@
 
 - name: ai-seed
   slug: ai-seed
-  submodule_path: projects/ai-seed
+  # Checkout retired 2026-10-20: an archived repo is shown on the dash, not
+  # carried in every clone (docs/CONSOLIDATION.md). Archive it on GitHub too.
+  submodule_path: null
   branch: main
   repo_url: https://github.com/bamr87/ai-seed
   description: "Self-evolving project template: plant a kernel in any repo and let Claude Code Actions germinate and grow it."
@@ -295,13 +297,6 @@
   status: archived
   featured: false
   maintained: false
-  dev_port:
-    3014 # web range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
-  database:
-    true # gets a database + role on the hub's shared Postgres
-    # (`db` on the fleet network). Its own Postgres still runs
-    # until `shared_services: [postgres]` is set here too.
   live_url: null
   docs_url: null
   schema:
@@ -349,7 +344,9 @@
 
 - name: csv-vscoode
   slug: csv-vscoode
-  submodule_path: projects/csv-vscoode
+  # Checkout retired 2026-10-20: an archived repo is shown on the dash, not
+  # carried in every clone (docs/CONSOLIDATION.md). Archive it on GitHub too.
+  submodule_path: null
   branch: main
   repo_url: https://github.com/bash-365/csv-vscoode
   description: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.

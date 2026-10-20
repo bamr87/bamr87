@@ -270,16 +270,6 @@
     },
 
     {
-      "label": "devenv: compile csv-vscoode",
-      "type": "shell",
-      "command": "docker",
-      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/csv-vscoode", "devenv", "npm", "run", "compile"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "dependsOn": "Docker: Ensure devenv",
-      "problemMatcher": [],
-      "detail": "Compile csv-vscoode inside devenv before Extension Host"
-    },
-    {
       "label": "devenv: compile vs-sonic-pi",
       "type": "shell",
       "command": "docker",
