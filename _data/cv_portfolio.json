@@ -6,7 +6,7 @@
     {
       "id": "fleet-barodybroject",
       "name": "barodybroject",
-      "description": "Full-stack responsive web app with OpenAI integrations and CMS functionality.",
+      "description": "Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and Azure deploy.",
       "technologies": [
         "django",
         "python",
@@ -15,14 +15,14 @@
       ],
       "github": "https://github.com/bamr87/barodybroject",
       "startDate": "",
-      "url": "https://barodybroject.com",
+      "url": "https://bamr87.github.io/barodybroject/",
       "featured": true,
       "fleet_status": "active"
     },
     {
       "id": "fleet-djangoerp",
       "name": "djangoerp",
-      "description": "A Django-based ERP experiment exploring enterprise resource planning modules in Python.",
+      "description": "Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and MRP planning.",
       "technologies": [
         "django",
         "python"
@@ -35,7 +35,7 @@
     {
       "id": "fleet-it-journey",
       "name": "it-journey",
-      "description": "From-zero-to-hero docs, tools, and scripts supporting an IT learning journey.",
+      "description": "Gamified, open-source platform for learning IT and software development through hands-on quests, zer0 to her0.",
       "technologies": [
         "jekyll",
         "ruby",
@@ -50,7 +50,7 @@
     {
       "id": "fleet-README",
       "name": "README",
-      "description": "Documentation aggregation system organizing technical docs across repositories (MkDocs + Wiki.js).",
+      "description": "Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every project, incl. MCP.",
       "technologies": [
         "python",
         "mkdocs",
@@ -58,13 +58,14 @@
       ],
       "github": "https://github.com/bamr87/README",
       "startDate": "",
+      "url": "https://bamr87.github.io/README/",
       "featured": true,
       "fleet_status": "active"
     },
     {
       "id": "fleet-scripts",
       "name": "scripts",
-      "description": "Development and automation utilities for project setup, GitHub workflows, and local tooling.",
+      "description": "Standalone Bash utilities for project scaffolding, GitHub repository management and multi-repo maintenance.",
       "technologies": [
         "bash",
         "python"
@@ -77,7 +78,7 @@
     {
       "id": "fleet-zer0-mistakes",
       "name": "zer0-mistakes",
-      "description": "GitHub Pages compatible Jekyll theme using Bootstrap 5 — the theme powering this dash.",
+      "description": "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem.",
       "technologies": [
         "jekyll",
         "ruby",
@@ -92,7 +93,7 @@
     {
       "id": "fleet-dot-github",
       "name": ".github",
-      "description": "Shared CI/release automation (reusable workflows, release-please, publish) + community health files for all bamr87 repos.",
+      "description": "Shared reusable GitHub Actions workflows, release-please setup and community health files for every bamr87 repo.",
       "technologies": [
         "github-actions"
       ],
@@ -102,9 +103,24 @@
       "fleet_status": "active"
     },
     {
+      "id": "fleet-ai-world-view.github.io",
+      "name": "ai-world-view.github.io",
+      "description": "AI World View — the root site of the self-growing country knowledge-base network; the per-country repos hang off it.",
+      "technologies": [
+        "jekyll",
+        "ruby",
+        "ai"
+      ],
+      "github": "https://github.com/ai-world-view/ai-world-view.github.io",
+      "startDate": "",
+      "url": "https://ai-world-view.github.io/",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
       "id": "fleet-aieo",
       "name": "aieo",
-      "description": "AI Engine Optimization — optimize content for AI engine citations (FastAPI backend + React UI).",
+      "description": "AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude will cite it.",
       "technologies": [
         "python",
         "fastapi",
@@ -120,7 +136,7 @@
     {
       "id": "fleet-bamr87.github.io",
       "name": "bamr87.github.io",
-      "description": "Personal profile and portfolio website.",
+      "description": "Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHub Pages.",
       "technologies": [
         "jekyll",
         "ruby",
@@ -133,22 +149,37 @@
       "fleet_status": "active"
     },
     {
+      "id": "fleet-bash-365.com",
+      "name": "bash-365.com",
+      "description": "BASH Consulting's website at bash-365.com — a content site the content atlas already tracks, now checked out in the hub too.",
+      "technologies": [
+        "python",
+        "jekyll"
+      ],
+      "github": "https://github.com/bash-365/bash-365.com",
+      "startDate": "",
+      "url": "https://bash-365.com/",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
       "id": "fleet-bashconsultants",
       "name": "bashconsultants",
-      "description": "BASH Consulting — Denver-based IT consulting firm website.",
+      "description": "Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator VS Code extension.",
       "technologies": [
         "jekyll",
         "shell"
       ],
       "github": "https://github.com/bamr87/bashconsultants",
       "startDate": "",
+      "url": "https://bash-365.com",
       "featured": false,
       "fleet_status": "active"
     },
     {
       "id": "fleet-bashos",
       "name": "bashos",
-      "description": "Terminal-first AI runtime — Claude slash commands routed through a LangGraph kernel onto the OpenCode engine, running on Claude Code OAuth.",
+      "description": "Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the OpenCode engine.",
       "technologies": [
         "python",
         "langgraph",
@@ -162,9 +193,24 @@
       "fleet_status": "active"
     },
     {
+      "id": "fleet-chui",
+      "name": "chui",
+      "description": "Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backup and restore.",
+      "technologies": [
+        "shell",
+        "zsh",
+        "zellij",
+        "macos"
+      ],
+      "github": "https://github.com/bamr87/chui",
+      "startDate": "",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
       "id": "fleet-cv",
       "name": "cv",
-      "description": "CV build/maintain/publish machine — canonical cv.json + hand-tuned LaTeX rendered to Markdown/ASCII/LaTeX/HTML/PDF, published to Pages and releases; round-trips with cv-builder-pro.",
+      "description": "Amr's CV as code: one cv.json rendered to Markdown, LaTeX, HTML and PDF, with automated publishing and releases.",
       "technologies": [
         "latex",
         "typescript",
@@ -172,14 +218,28 @@
       ],
       "github": "https://github.com/bamr87/cv",
       "startDate": "",
-      "url": "https://bamr87.github.io/cv/",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
+      "id": "fleet-cv-pro",
+      "name": "cv-pro",
+      "description": "CV as code and the CV Builder Pro app in one repository: cv/ holds the data, the CVData contract and every render; app/ is the React builder.",
+      "technologies": [
+        "typescript",
+        "react",
+        "latex",
+        "node"
+      ],
+      "github": "https://github.com/bamr87/cv-pro",
+      "startDate": "",
       "featured": false,
       "fleet_status": "active"
     },
     {
       "id": "fleet-fredgar-ai",
       "name": "fredgar-ai",
-      "description": "SEC EDGAR + FRED data backend (Django REST) with a Vite/React UI.",
+      "description": "Django + React app for exploring SEC EDGAR company data and FRED macro series, with AI-assisted summaries.",
       "technologies": [
         "django",
         "python",
@@ -188,13 +248,14 @@
       ],
       "github": "https://github.com/bamr87/fredgar-ai",
       "startDate": "",
+      "url": "https://bamr87.github.io/fredgar-ai/",
       "featured": false,
       "fleet_status": "active"
     },
     {
       "id": "fleet-githubai",
       "name": "githubai",
-      "description": "Claude Code SDLC framework — reusable hardened workflows and a composite action that wire Claude into triage, implementation, review, auto-merge, maintenance, and releases.",
+      "description": "Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs and cut releases.",
       "technologies": [
         "github-actions",
         "ai",
@@ -208,7 +269,7 @@
     {
       "id": "fleet-gitorio",
       "name": "gitorio",
-      "description": "Factorio-style factory builder for GitHub automation — blueprints compile to real GitHub Actions workflows running Claude Code agents.",
+      "description": "Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows running Claude Code.",
       "technologies": [
         "typescript",
         "github-actions",
@@ -216,13 +277,14 @@
       ],
       "github": "https://github.com/bamr87/gitorio",
       "startDate": "",
+      "url": "https://bamr87.github.io/gitorio/",
       "featured": false,
       "fleet_status": "active"
     },
     {
       "id": "fleet-irony-works",
       "name": "irony-works",
-      "description": "The perpetual encyclopedia of irony — a self-growing knowledge base in the lineage of the year repos.",
+      "description": "The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-mistakes.",
       "technologies": [
         "javascript",
         "markdown",
@@ -237,7 +299,7 @@
     {
       "id": "fleet-lifehacker.dev",
       "name": "lifehacker.dev",
-      "description": "Personal site at lifehacker.dev, built with the zer0-mistakes Jekyll remote theme on GitHub Pages.",
+      "description": "Tech knowledge, tools and comedy at lifehacker.dev: a Jekyll site on the zer0-mistakes theme, run by Claude Code.",
       "technologies": [
         "jekyll",
         "ruby"
@@ -251,7 +313,7 @@
     {
       "id": "fleet-ocrmd",
       "name": "ocrmd",
-      "description": "Incremental webcam/image scanning to cross-checked Markdown — local OCR (Apple Vision + RapidOCR voting) diffed against a Claude vision transcription, one page file with rich frontmatter each.",
+      "description": "Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, with full-text search.",
       "technologies": [
         "python",
         "ocr",
@@ -264,9 +326,24 @@
       "fleet_status": "active"
     },
     {
+      "id": "fleet-retro-pi",
+      "name": "retro-pi",
+      "description": "Portable retro-gaming workspace for macOS and Raspberry Pi: declarative manifests drive EmulationStation and RetroArch.",
+      "technologies": [
+        "shell",
+        "python",
+        "raspberry-pi",
+        "retroarch"
+      ],
+      "github": "https://github.com/bamr87/retro-pi",
+      "startDate": "",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
       "id": "fleet-rewind-arcade",
       "name": "rewind-arcade",
-      "description": "A client-side retro arcade portal on a small pluggable game engine — JezzBall, Minesweeper and Snake included; builds to static files and plays fully offline.",
+      "description": "Retro gaming workspace: browser arcade recreations, console emulation via ES-DE, and a physical game catalog.",
       "technologies": [
         "react",
         "typescript",
@@ -282,7 +359,7 @@
     {
       "id": "fleet-schema",
       "name": "SCHEMA",
-      "description": "Pyramid Schema — the SCHEMA.md protocol and its linter; upstream of the copy vendored into this hub and fanned out by schema-fanout.",
+      "description": "Pyramid Schema: the SCHEMA.md protocol and linter that let AI agents look up repo structure instead of guessing it.",
       "technologies": [
         "python",
         "markdown"
@@ -295,7 +372,7 @@
     {
       "id": "fleet-wargames",
       "name": "wargames",
-      "description": "Curated OverTheWire security wargames (vendored, MIT) — extracted from it-journey.",
+      "description": "OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted from it-journey.",
       "technologies": [
         "python",
         "shell",
@@ -303,13 +380,29 @@
       ],
       "github": "https://github.com/bamr87/wargames",
       "startDate": "",
+      "url": "https://bamr87.github.io/wargames/",
+      "featured": false,
+      "fleet_status": "active"
+    },
+    {
+      "id": "fleet-year-of-ai.github.io",
+      "name": "year-of-ai.github.io",
+      "description": "Year of AI — the organization's root site and content hub, rendering the shared zer0-mistakes theme via remote_theme; the lineage's year repos hang off it.",
+      "technologies": [
+        "jekyll",
+        "ruby",
+        "ai"
+      ],
+      "github": "https://github.com/year-of-ai/year-of-ai.github.io",
+      "startDate": "",
+      "url": "https://year-of-ai.github.io/",
       "featured": false,
       "fleet_status": "active"
     },
     {
       "id": "fleet-zer0-cms",
       "name": "zer0-CMS",
-      "description": "zer0-CMS — a lightweight CMS for a markdown repo inside VS Code — front matter as real controls, a content dashboard, and a human publish gate.",
+      "description": "Fork of Front Matter CMS reworked into zer0-CMS: a governed VS Code + Rails CMS for zer0-themed markdown sites.",
       "technologies": [
         "typescript",
         "vscode"
@@ -322,7 +415,7 @@
     {
       "id": "fleet-zer0-image-generator",
       "name": "zer0-image-generator",
-      "description": "AI preview/social images for any Jekyll site — Claude directs & reviews, an image model renders. Portable companion to the zer0-mistakes theme.",
+      "description": "Jekyll plugin, CLI and web app that generate AI preview and social images for any Jekyll site, directed by Claude.",
       "technologies": [
         "ruby",
         "jekyll",
@@ -337,7 +430,7 @@
     {
       "id": "fleet-zpl-viewer",
       "name": "zpl-viewer",
-      "description": "ZPL Viewer — VS Code extension to render, validate, and export Zebra (ZPL II) label files fully offline.",
+      "description": "Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2 thermal labels.",
       "technologies": [
         "typescript",
         "vscode"
@@ -354,6 +447,7 @@
       "skills": [
         "agents",
         "ai",
+        "arch-linux",
         "bash",
         "bootstrap",
         "canvas",
@@ -365,11 +459,17 @@
         "docker",
         "fastapi",
         "firebase",
+        "gdscript",
         "github-actions",
+        "github-pages",
+        "godot",
+        "html",
         "javascript",
         "jekyll",
         "langgraph",
         "latex",
+        "legacy",
+        "macos",
         "markdown",
         "mcp",
         "mkdocs",
@@ -382,14 +482,18 @@
         "pglite",
         "postgres",
         "python",
+        "raspberry-pi",
         "react",
+        "retroarch",
         "ruby",
         "shell",
         "tailwind",
         "typescript",
         "vite",
         "vscode",
-        "wikijs"
+        "wikijs",
+        "zellij",
+        "zsh"
       ]
     }
   ]

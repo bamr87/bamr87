@@ -171,3 +171,27 @@
 	path = projects/retro-pi
 	url = https://github.com/bamr87/retro-pi.git
 	branch = main
+[submodule "projects/godotgo"]
+	path = projects/godotgo
+	url = https://github.com/bamr87/godotgo.git
+	branch = main
+[submodule "projects/bash-365-apex"]
+	path = projects/bash-365-apex
+	url = https://github.com/bamr87/bash-365-apex.git
+	branch = main
+[submodule "projects/year-of-ai.github.io"]
+	path = projects/year-of-ai.github.io
+	url = https://github.com/year-of-ai/year-of-ai.github.io.git
+	branch = main
+[submodule "projects/ai-world-view.github.io"]
+	path = projects/ai-world-view.github.io
+	url = https://github.com/ai-world-view/ai-world-view.github.io.git
+	branch = main
+[submodule "projects/bash-365.com"]
+	path = projects/bash-365.com
+	url = https://github.com/bash-365/bash-365.com.git
+	branch = main
+[submodule "projects/cv-pro"]
+	path = projects/cv-pro
+	url = https://github.com/bamr87/cv-pro.git
+	branch = main
