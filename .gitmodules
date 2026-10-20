@@ -51,10 +51,6 @@
 	path = projects/zpl-viewer
 	url = https://github.com/bamr87/zpl-viewer.git
 	branch = main
-[submodule "projects/wtd"]
-	path = projects/wtd
-	url = https://github.com/bamr87/wtd.git
-	branch = main
 [submodule "projects/aieo"]
 	path = projects/aieo
 	url = https://github.com/bamr87/aieo.git
@@ -94,10 +90,6 @@
 [submodule "projects/irony-works"]
 	path = projects/irony-works
 	url = https://github.com/bamr87/irony-works.git
-	branch = main
-[submodule "projects/chui"]
-	path = projects/chui
-	url = https://github.com/bamr87/chui.git
 	branch = main
 [submodule "projects/raising-eliza"]
 	path = projects/raising-eliza

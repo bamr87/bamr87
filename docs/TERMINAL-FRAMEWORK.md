@@ -48,7 +48,7 @@ Status: **Phase 0 in progress**, 2026-10-01. §9 records the owner's decisions: 
 
 | Repo | What it is | Stack |
 | --- | --- | --- |
-| `chui` *(registered 2026-10-01)* | Rebuildable macOS terminal: Oh My Zsh, Powerlevel10k, Zellij, fzf/zoxide/lazygit/btop. `chui` menu (`tui.sh`), `$HOME` mapper, `forge` remote box. Its Zellij config is live on the owner's machine via symlink. | zsh/bash, gum ×18, fzf ×37, Zellij ×24 |
+| `chui` *(registered 2026-10-01; merged into bashOS `chui/` 2026-10-17, submodule retired)* | Rebuildable macOS terminal: Oh My Zsh, Powerlevel10k, Zellij, fzf/zoxide/lazygit/btop. `chui` menu (`tui.sh`), `$HOME` mapper, `forge` remote box. Its Zellij config is live on the owner's machine via symlink. | zsh/bash, gum ×18, fzf ×37, Zellij ×24 |
 | `it-journey` | `journey.sh`: a gum + glow menu over quests, docs, Docker and workflows. Also the *Terminal Mastery* quests, incl. "Terminal Artificer" (build gum frontends). | bash, gum ×48 |
 | `amrchy` *(fork, not registered)* | Fork of an upstream Linux desktop distro; has its own plugin mechanism (`omarchy-plugin-add`) | bash, ~87k lines, gum ×219 |
 | hub root | ~~a second Oh My Zsh setup beside chui~~ — deleted 2026-10; `tools/setup-terminal.sh` delegates to chui. | bash |

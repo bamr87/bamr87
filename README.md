@@ -92,7 +92,6 @@ Frameworks that put AI agents to work on repositories.
 - **[bashos](https://github.com/bamr87/bashos)**: Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the OpenCode engine.
 - **[githubai](https://github.com/bamr87/githubai)**: Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs and cut releases.
 - **[gitorio](https://github.com/bamr87/gitorio)**: Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows running Claude Code. · [live site](https://bamr87.github.io/gitorio/)
-- **[wtd](https://github.com/bamr87/wtd)**: WTD (What To Do): turns TODOs, issues and failing workflows into queued work for a fleet of Claude agents. · `💤 unmaintained`
 
 ### 💼 Business & career apps
 
@@ -105,7 +104,6 @@ ERP, finance data and CV tooling.
 
 VS Code extensions and terminal tooling.
 
-- **[chui](https://github.com/bamr87/chui)**: Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backup and restore.
 - **[vs-sonic-pi](https://github.com/bamr87/vs-sonic-pi)**: VS Code extension to write and perform Sonic Pi music live: IntelliSense, hover docs, built-in tutorial, OSC control. · `🛠️ maintenance mode`
 - **[zpl-viewer](https://github.com/bamr87/zpl-viewer)**: Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2 thermal labels.
 

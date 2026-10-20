@@ -180,21 +180,6 @@
       "fleet_status": "active"
     },
     {
-      "id": "fleet-chui",
-      "name": "chui",
-      "description": "Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backup and restore.",
-      "technologies": [
-        "shell",
-        "zsh",
-        "zellij",
-        "macos"
-      ],
-      "github": "https://github.com/bamr87/chui",
-      "startDate": "",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
       "id": "fleet-cv-pro",
       "name": "cv-pro",
       "description": "CV as code and the CV Builder Pro app in one repository: cv/ holds the data, the CVData contract and every render; app/ is the React builder.",
@@ -398,7 +383,6 @@
         "langgraph",
         "latex",
         "legacy",
-        "macos",
         "markdown",
         "mcp",
         "mkdocs",
@@ -415,9 +399,7 @@
         "vite",
         "vscode",
         "wagtail",
-        "wikijs",
-        "zellij",
-        "zsh"
+        "wikijs"
       ]
     }
   ]

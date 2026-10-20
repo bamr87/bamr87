@@ -109,7 +109,7 @@ AVG_DAYS_PER_MONTH = 30.44
 # tools/fanout.sh's agent-context guard).
 AGENT_CONTEXT_FILES = ["CLAUDE.md", "AGENTS.md", ".cursorrules"]
 COPILOT_CONTEXT_PATH = ".github/copilot-instructions.md"
-MANIFEST_FILE = "fleet.manifest.yml"  # fleet/v1 lane manifest (bamr87/wtd spec)
+MANIFEST_FILE = "fleet.manifest.yml"  # fleet/v1 lane manifest (gitorio packages/wtd spec)
 
 # Mirrors the `harnesses:` block in _data/fleet.yml — that file is the
 # contract, these are the fallbacks when a key (or the whole block) is absent.

@@ -3,8 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-CHUI_ROOT="${CHUI_ROOT:-$HOME/github/chui}"
-CHUI_REPO="${CHUI_REPO:-https://github.com/bamr87/chui.git}"
+# chui lives in bashOS (chui/) since bamr87/chui was merged there (2026-10).
+BASHOS_ROOT="${BASHOS_ROOT:-$HOME/github/bashos}"
+BASHOS_REPO="${BASHOS_REPO:-https://github.com/bamr87/bashos.git}"
+CHUI_ROOT="${BASHOS_ROOT}/chui"
 LOCAL_ZSH="${HOME}/.config/chui/local.zsh"
 ZPROFILE="${HOME}/.zprofile"
 DRY_RUN=false
@@ -29,7 +31,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [--dry-run] [--verbose]
 
-Bootstrap the macOS terminal CHUI (bamr87/chui): Oh My Zsh, Powerlevel10k,
+Bootstrap the macOS terminal CHUI (bashOS chui/): Oh My Zsh, Powerlevel10k,
 MesloLGS Nerd Font, Apple Terminal keys/font, and bamr87 env in
 ~/.config/chui/local.zsh.
 
@@ -52,16 +54,16 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 ensure_chui() {
-    log_step "Ensuring bamr87/chui at ${CHUI_ROOT}"
-    if [[ -d "${CHUI_ROOT}/.git" ]]; then
-        log_info "chui already cloned"
+    log_step "Ensuring bamr87/bashos at ${BASHOS_ROOT}"
+    if [[ -d "${BASHOS_ROOT}/.git" ]]; then
+        log_info "bashos already cloned"
         return 0
     fi
-    run_cmd mkdir -p "$(dirname "$CHUI_ROOT")"
+    run_cmd mkdir -p "$(dirname "$BASHOS_ROOT")"
     if command -v gh >/dev/null 2>&1; then
-        run_cmd gh repo clone bamr87/chui "$CHUI_ROOT"
+        run_cmd gh repo clone bamr87/bashos "$BASHOS_ROOT"
     else
-        run_cmd git clone "$CHUI_REPO" "$CHUI_ROOT"
+        run_cmd git clone "$BASHOS_REPO" "$BASHOS_ROOT"
     fi
 }
 

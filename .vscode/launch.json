@@ -725,7 +725,7 @@
       "name": "⌨️ CLI: wtd --help",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/wtd devenv python3 -m wtd.cli --help",
+      "command": "docker compose exec -T -w /workspace/projects/gitorio/packages/wtd devenv python3 -m wtd.cli --help",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }

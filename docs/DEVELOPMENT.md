@@ -29,7 +29,7 @@ The root is the **control plane** for ~45 projects, each a Git submodule under `
 | bash ≥ 4 | `tools/check-drift.sh` (macOS ships 3.2; `brew install bash`) |
 | `pre-commit`, `shellcheck` | The hooks and the shell gate |
 
-`tools/setup.sh` installs and wires most of this (`--help` for its options; `--skip-terminal` skips the macOS terminal step, which delegates to [bamr87/chui](https://github.com/bamr87/chui)).
+`tools/setup.sh` installs and wires most of this (`--help` for its options; `--skip-terminal` skips the macOS terminal step, which delegates to [bashOS `chui/`](https://github.com/bamr87/bashos/tree/main/chui), formerly bamr87/chui).
 
 ## Get the source
 
