@@ -19,7 +19,7 @@ Coverage: the local control-plane stack ([`docs/HARNESS-OPS.md`](../docs/HARNESS
 | **6-apps** | Vite/Node via devenv: cv-builder-pro :5000, gitnexus :8080, gitorio :5174, rewind-arcade :5175, aieo UI :5176, fredgar-ai UI :5177, plus `cv` build/watch |
 | **7-python** | Django runserver via devenv (barodybroject :8010, fredgar-ai :8011, law-ai :8012, djangoerp :8013), aieo FastAPI :8002, pytest on the open file |
 | **8-ext** | Compile inside devenv (`devenv: compile …` tasks), then Extension Host on the host |
-| **9-cli** | Python/Node CLIs via devenv defaulting to `--help` (bashos, ocrmd, lawmode, wtd, books, gwtp) plus bashcrawl `npm test` and pytest for githubai / zer0-image-generator |
+| **9-cli** | Python/Node CLIs via devenv defaulting to `--help` (bashos, ocrmd, lawmode, gitorio/packages/wtd, books, gwtp) plus bashcrawl `npm test` and pytest for githubai / zer0-image-generator |
 | **10-content** | scripts (current file via devenv `python3`), 1987 `index.md` and microsoft/skills `Agents.md` via devenv `head` (no host `code`) |
 
 Live `dash-gen` gathers use compose env (`GH_TOKEN`/`FLEET_TOKEN`/`GITHUB_TOKEN`); every generator degrades rather than dies without it. `lake` takes a sub-subcommand, which is why it has its own entries rather than a slot in the picker.

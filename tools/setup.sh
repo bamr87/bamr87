@@ -160,7 +160,7 @@ usage() {
     echo "  -q, --quiet           Suppress non-error output"
     echo "  --skip-deps           Skip OS-level dependency installation"
     echo "  --skip-submodules     Skip git submodule initialization"
-    echo "  --skip-terminal       Skip macOS terminal CHUI (bamr87/chui)"
+    echo "  --skip-terminal       Skip macOS terminal CHUI (bashOS chui/)"
     echo "  --docker              Set up Docker/dev container environment only"
     echo "  --local               Set up local (non-Docker) development only"
     echo "  --all                 Set up everything (default)"
@@ -1142,8 +1142,8 @@ print_summary() {
         && echo -e "  ${GREEN}✓${NC} Pre-commit hooks" \
         || echo -e "  ${YELLOW}○${NC} Pre-commit (not installed)"
     if [[ "$OS" == "macos" ]]; then
-        [[ -L "${HOME}/.zshrc" && -d "${HOME}/github/chui/.git" ]] \
-            && echo -e "  ${GREEN}✓${NC} Terminal CHUI (~/github/chui)" \
+        [[ "$(readlink "${HOME}/.zshrc" 2>/dev/null)" == */bashos/chui/config/zshrc ]] \
+            && echo -e "  ${GREEN}✓${NC} Terminal CHUI (~/github/bashos/chui)" \
             || echo -e "  ${YELLOW}○${NC} Terminal CHUI (run tools/setup-terminal.sh)"
     fi
     echo ""

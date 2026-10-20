@@ -61,7 +61,7 @@ As React/Vite, plus: App Router, `app/{layout,not-found,(app)/{loading,error}}.t
 | CI | shared active gate; `pytest --cov` |
 | Release | release-please `python` |
 
-### FastAPI service (`api`) — aieo/backend, wtd
+### FastAPI service (`api`) — aieo/backend, gitorio/packages/wtd
 
 As Django for ops/API rows; layout `app/{main,api/v1,core/{settings,logging},models,schemas}`, pydantic-settings, `tests/`.
 
@@ -69,7 +69,7 @@ As Django for ops/API rows; layout `app/{main,api/v1,core/{settings,logging},mod
 
 Rails 8, Turbo/Stimulus, `app/views/layouts/application.html.erb` as the shell (breadcrumbs, flash → toast, feedback snippet), PWA manifest already present; lograge for OPS-10; release-please `ruby` for the gem.
 
-### Python library / CLI (`lib`, `cli`) — README, ai-seed, zer0-cms/packages/books, githubai, law-ai/lawmode, wtd, bashos, ocrmd, scripts (bash)
+### Python library / CLI (`lib`, `cli`) — README, ai-seed, zer0-cms/packages/books, githubai, law-ai/lawmode, gitorio/packages/wtd, bashos, ocrmd, scripts (bash)
 
 | Aspect | Canonical |
 | --- | --- |
@@ -109,9 +109,9 @@ Rely on upstream; standardize only bamr87-added surfaces; never fan out kits wit
 | --- | --- |
 | site | bamr87.github.io, bash-365.com, it-journey, lifehacker.dev, wargames, irony-works, zer0-cms/sites/* (drsai, zer0-pages, zer0-pages-remote, 1987, 2005), zer0-cms/packages/zer0-mistakes, README (MkDocs), ai-seed (MkDocs) |
 | app | cv-pro/app, gitorio, aieo, fredgar-ai, law-ai, barodybroject, djangoerp, rewind-arcade, gitorio/packages/gitnexus, zer0-image-generator/web, ai-seed/src/frontend, zer0-cms/packages/books (studio) |
-| api | aieo/backend, wtd, djangoerp, barodybroject, fredgar-ai/backend, law-ai/backend, githubai (worker) |
+| api | aieo/backend, gitorio/packages/wtd, djangoerp, barodybroject, fredgar-ai/backend, law-ai/backend, githubai (worker) |
 | lib | zer0-mistakes (gem), zer0-image-generator (gem), README, ai-seed, githubai, gitorio/packages/git-with-the-program |
-| cli | scripts, bashcrawl, zer0-cms/packages/books, law-ai/lawmode, wtd, cv-pro/cv (builder), bashos, ocrmd, gitorio/packages/git-with-the-program |
+| cli | scripts, bashcrawl, zer0-cms/packages/books, law-ai/lawmode, gitorio/packages/wtd, cv-pro/cv (builder), bashos, ocrmd, gitorio/packages/git-with-the-program |
 | ext | zpl-viewer, vs-sonic-pi, zer0-cms, csv-vscoode, law-ai/lawmode/vscode-extension |
 | content | 1987, 2005, zer0-cms/packages/books/library, cv-pro/cv, zer0-pages, irony-works/vault |
 | fork | skills, wargames (content mirror) |

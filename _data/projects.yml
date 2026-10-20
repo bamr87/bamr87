@@ -324,26 +324,6 @@
   schema:
     status: none
 
-- name: wtd
-  slug: wtd
-  submodule_path: projects/wtd
-  branch: main
-  repo_url: https://github.com/bamr87/wtd
-  description: "WTD (What To Do): turns TODOs, issues and failing workflows into queued work for a fleet of Claude agents."
-  stack: [python, ai]
-  category: dev-tools
-  # Last substantive commit 2026-05; the 2026-07/08 activity is entirely hub
-  # fan-out. Its concept space (self-evolving AI automation) is carried by
-  # githubai, which has a working artifact.
-  status: archived
-  featured: false
-  maintained: false
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
 - name: vs-sonic-pi
   slug: vs-sonic-pi
   submodule_path: projects/vs-sonic-pi
@@ -660,23 +640,6 @@
 # --- Added for the bashOS terminal consolidation (2026-10-01): live bamr87
 # repos with a terminal surface that were in neither .gitmodules nor the
 # registry (docs/TERMINAL-FRAMEWORK.md) ---------------------------------------
-- name: chui
-  slug: chui
-  submodule_path: projects/chui
-  branch: main
-  repo_url: https://github.com/bamr87/chui
-  description: "Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backup and restore."
-  stack: [shell, zsh, zellij, macos]
-  category: dev-tools
-  status: active
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
 - name: raising-eliza
   slug: raising-eliza
   submodule_path: projects/raising-eliza

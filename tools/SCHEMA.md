@@ -30,7 +30,7 @@ coverage: listed
 | `test_docker_view.py` | file | Tests for the consolidated Docker view — contract-precision version comparison, the image census, pin/ceiling/floating classification, and that a missing checkout is never reported as conformance (run by drift check (n)) | required |
 | `pg-major-upgrade.sh` | file | Postgres MAJOR upgrade for a compose service without data loss: raw-volume backup + `pg_dumpall` + restore; `--check` powers the `dash dev up` preflight (`dash dev db-upgrade`) | required |
 | `Brewfile` | file | macOS dev dependencies | |
-| `setup-terminal.sh` | file | macOS CHUI bootstrap (`bamr87/chui` + Meslo CoreText registration) | |
+| `setup-terminal.sh` | file | macOS CHUI bootstrap (bashOS `chui/` + Meslo CoreText registration) | |
 | `devtools.conf` | file | Shared config for the devtools scripts | |
 | `fanout.sh` | file | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard (called by standardize-fanout.yml, schema-fanout.yml, and deps-fanout.yml) | |
 | `unpin-deps.sh` | file | Converts one repo to the always-latest dependency policy — strips pins, removes + gitignores lockfiles, adapts CI installs (used by the deps-latest fan-out kit; docs/DEPENDENCIES.md) | |

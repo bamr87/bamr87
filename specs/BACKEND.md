@@ -2,7 +2,7 @@
 
 > Every service in the fleet answers the same shape of request the same way, so one client module, one error type, and one health probe work against all of them.
 
-Evidence base: FastAPI (aieo, wtd), Django + DRF (djangoerp, barodybroject, edgar/fredgar), Rails (zer0-image-generator), a Cloudflare Worker (githubai), and a stdlib server (zer0-cms/packages/books). Three frontend fetch wrappers carry three different `ApiError` shapes (`{status,detail,body,isAuth,isRateLimit}` · `{code,status,retryAfter}` · bare `Response`). No repo publishes an OpenAPI document in CI; no shared health contract exists; the hub monitors repos from GitHub metadata only. The `.github/instructions/development` "RESTful API Design" section is advice with no gate.
+Evidence base: FastAPI (aieo, gitorio/packages/wtd), Django + DRF (djangoerp, barodybroject, edgar/fredgar), Rails (zer0-image-generator), a Cloudflare Worker (githubai), and a stdlib server (zer0-cms/packages/books). Three frontend fetch wrappers carry three different `ApiError` shapes (`{status,detail,body,isAuth,isRateLimit}` · `{code,status,retryAfter}` · bare `Response`). No repo publishes an OpenAPI document in CI; no shared health contract exists; the hub monitors repos from GitHub metadata only. The `.github/instructions/development` "RESTful API Design" section is advice with no gate.
 
 ## Surface
 
