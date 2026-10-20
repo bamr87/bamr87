@@ -111,7 +111,6 @@ tier_overrides:
   # amrs-project consolidation, the fleet's accounting/ERP system of record.
   # It is held to the full active-tier baseline like any other first-party repo.
   zer0-CMS: fork
-  # pure content / knowledge bases (no build, no tests)
-  "1987": content
-  "2005": content
-  cv: content
+  # pure content / knowledge bases (no build, no tests) — none registered at
+  # present; the 1987, 2005 and cv entries were retired with their repos
+  # (cv now lives in cv-pro). Add a `name: content` line here when one returns.
