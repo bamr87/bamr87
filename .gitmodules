@@ -59,10 +59,6 @@
 	path = projects/zpl-viewer
 	url = https://github.com/bamr87/zpl-viewer.git
 	branch = main
-[submodule "projects/lawmode"]
-	path = projects/lawmode
-	url = https://github.com/bamr87/lawmode.git
-	branch = main
 [submodule "projects/wtd"]
 	path = projects/wtd
 	url = https://github.com/bamr87/wtd.git
@@ -91,10 +87,6 @@
 	path = projects/2005
 	url = https://github.com/year-of-ai/2005.git
 	branch = main
-[submodule "projects/books"]
-	path = projects/books
-	url = https://github.com/bamr87/books.git
-	branch = main
 [submodule "projects/zer0-pages"]
 	path = projects/zer0-pages
 	url = https://github.com/bamr87/zer0-pages.git
@@ -106,14 +98,6 @@
 [submodule "projects/zer0-cms"]
 	path = projects/zer0-cms
 	url = https://github.com/bamr87/zer0-CMS.git
-	branch = main
-[submodule "projects/cv-builder-pro"]
-	path = projects/cv-builder-pro
-	url = https://github.com/bamr87/cv-builder-pro.git
-	branch = main
-[submodule "projects/cv"]
-	path = projects/cv
-	url = https://github.com/bamr87/cv.git
 	branch = main
 [submodule "projects/zer0-image-generator"]
 	path = projects/zer0-image-generator
@@ -135,10 +119,6 @@
 	path = projects/bashos
 	url = https://github.com/bamr87/bashos.git
 	branch = main
-[submodule "projects/gitnexus"]
-	path = projects/gitnexus
-	url = https://github.com/bamr87/gitnexus.git
-	branch = main
 [submodule "projects/ocrmd"]
 	path = projects/ocrmd
 	url = https://github.com/bamr87/ocrmd.git
@@ -151,10 +131,6 @@
 	path = projects/irony-works
 	url = https://github.com/bamr87/irony-works.git
 	branch = main
-[submodule "projects/git-with-the-program"]
-	path = projects/git-with-the-program
-	url = https://github.com/bamr87/git-with-the-program.git
-	branch = main
 [submodule "projects/chui"]
 	path = projects/chui
 	url = https://github.com/bamr87/chui.git
@@ -166,10 +142,6 @@
 [submodule "projects/outbox"]
 	path = projects/outbox
 	url = https://github.com/bamr87/outbox.git
-	branch = main
-[submodule "projects/retro-pi"]
-	path = projects/retro-pi
-	url = https://github.com/bamr87/retro-pi.git
 	branch = main
 [submodule "projects/godotgo"]
 	path = projects/godotgo

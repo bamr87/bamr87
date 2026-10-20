@@ -75,7 +75,6 @@ Personal and business sites.
 Self-growing knowledge bases, study material and learning platforms.
 
 - **[1987](https://github.com/bamr87/1987)**: Self-growing, AI-tended knowledge base about the year 1987: history, politics, science, culture and people. · [live site](https://bamr87.github.io/1987/) · `🧪 experimental`
-- **[books](https://github.com/bamr87/books)**: Plain-markdown book-writing workspace with a CLI, a studio editor, validation checks and an AI writing assistant. · `🧪 experimental`
 - **[irony-works](https://github.com/bamr87/irony-works)**: The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-mistakes. · [live site](https://bamr87.github.io/irony-works/)
 - **[it-journey](https://github.com/bamr87/it-journey)**: Gamified, open-source platform for learning IT and software development through hands-on quests, zer0 to her0. · [live site](https://it-journey.dev)
 - **[wargames](https://github.com/bamr87/wargames)**: OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted from it-journey. · [live site](https://bamr87.github.io/wargames/)
@@ -87,9 +86,7 @@ Applications and experiments built on LLMs.
 - **[aieo](https://github.com/bamr87/aieo)**: AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude will cite it.
 - **[barodybroject](https://github.com/bamr87/barodybroject)**: Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and Azure deploy. · [live site](https://bamr87.github.io/barodybroject/)
 - **[drsai](https://github.com/bamr87/drsai)**: AI-assisted children's storybook platform: verse, OpenAI-rendered illustrations and picture books on GitHub Pages. · [live site](https://bamr87.github.io/drsai/) · `🧪 experimental`
-- **[gitnexus](https://github.com/bamr87/gitnexus)**: Nexus Forge: a static rebuild-spec workbench (PRD, architecture, 14-step playbook) for reimplementing GitNexus. · `🧪 experimental`
 - **[law-ai](https://github.com/bamr87/law-ai)**: Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, local-first via Ollama. · [live site](https://bamr87.github.io/law-ai/) · `🧪 experimental`
-- **[lawmode](https://github.com/bamr87/lawmode)**: Always-on AI legal reviewer for developers: checks code, prompts and commits, and gates non-compliant PRs. · `🧪 experimental`
 - **[ocrmd](https://github.com/bamr87/ocrmd)**: Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, with full-text search.
 - **[outbox](https://github.com/bamr87/outbox)**: Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race and replay scorer. · `🧪 experimental`
 - **[raising-eliza](https://github.com/bamr87/raising-eliza)**: Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated method and tied out to the original transcript. · `🧪 experimental`
@@ -100,7 +97,6 @@ Frameworks that put AI agents to work on repositories.
 
 - **[ai-seed](https://github.com/bamr87/ai-seed)**: Self-evolving project template: plant a kernel in any repo and let Claude Code Actions germinate and grow it. · `💤 unmaintained`
 - **[bashos](https://github.com/bamr87/bashos)**: Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the OpenCode engine.
-- **[git-with-the-program](https://github.com/bamr87/git-with-the-program)**: Agentic governance framework that distills git history into a core memory and scores every change for drift. · `🧪 experimental`
 - **[githubai](https://github.com/bamr87/githubai)**: Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs and cut releases.
 - **[gitorio](https://github.com/bamr87/gitorio)**: Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows running Claude Code. · [live site](https://bamr87.github.io/gitorio/)
 - **[wtd](https://github.com/bamr87/wtd)**: WTD (What To Do): turns TODOs, issues and failing workflows into queued work for a fleet of Claude agents. · `💤 unmaintained`
@@ -109,8 +105,6 @@ Frameworks that put AI agents to work on repositories.
 
 ERP, finance data and CV tooling.
 
-- **[cv](https://github.com/bamr87/cv)**: Amr's CV as code: one cv.json rendered to Markdown, LaTeX, HTML and PDF, with automated publishing and releases.
-- **[cv-builder-pro](https://github.com/bamr87/cv-builder-pro)**: React web app for building CVs and résumés with LaTeX templates, Markdown/PDF export and optional AI parsing. · `🛠️ maintenance mode`
 - **[djangoerp](https://github.com/bamr87/djangoerp)**: Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and MRP planning. · `🧪 experimental`
 - **[fredgar-ai](https://github.com/bamr87/fredgar-ai)**: Django + React app for exploring SEC EDGAR company data and FRED macro series, with AI-assisted summaries. · [live site](https://bamr87.github.io/fredgar-ai/)
 
@@ -128,7 +122,6 @@ Games, game frameworks and retro emulation.
 
 - **[bashcrawl](https://github.com/bamr87/bashcrawl)**: Learn real terminal skills by playing a fantasy dungeon crawl in your shell or in a free browser trainer. · [live site](https://bamr87.github.io/bashcrawl/) · `🛠️ maintenance mode`
 - **[godotgo](https://github.com/bamr87/godotgo)**: Godot 4 game workspace: one reusable framework, five sample games and tooling that treats every project the same.
-- **[retro-pi](https://github.com/bamr87/retro-pi)**: Portable retro-gaming workspace for macOS and Raspberry Pi: declarative manifests drive EmulationStation and RetroArch.
 - **[rewind-arcade](https://github.com/bamr87/rewind-arcade)**: Retro gaming workspace: browser arcade recreations, console emulation via ES-DE, and a physical game catalog. · [live site](https://bamr87.github.io/rewind-arcade/)
 
 ### 🔗 Related projects (not owned by bamr87)

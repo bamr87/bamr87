@@ -995,7 +995,7 @@ containers:
     # a compose file and a `dev_port` and it graduates out of this block.
     workspace: [4040, 4069] # Jekyll-in-devenv
     workspace_livereload: [35760, 35789]
-    workspace_node: [5000, 5019] # Vite-in-devenv (cv-builder-pro, rewind-arcade)
+    workspace_node: [5000, 5019] # Vite-in-devenv (cv-pro, rewind-arcade)
 
   # Named groups for `dash up --group <name>`. A project may appear in several.
   groups:

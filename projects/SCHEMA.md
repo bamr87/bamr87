@@ -30,29 +30,22 @@ coverage: listed
 | `bashconsultants/` | dir | Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator V… | terminal |
 | `bashcrawl/` | dir | Learn real terminal skills by playing a fantasy dungeon crawl in your shell or in a free browser tr… | terminal |
 | `bashos/` | dir | Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the Ope… | terminal |
-| `books/` | dir | Plain-markdown book-writing workspace with a CLI, a studio editor, validation checks and an AI writ… | terminal |
 | `chui/` | dir | Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backu… | terminal |
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
-| `cv/` | dir | Amr's CV as code: one cv.json rendered to Markdown, LaTeX, HTML and PDF, with automated publishing… | terminal |
-| `cv-builder-pro/` | dir | React web app for building CVs and résumés with LaTeX templates, Markdown/PDF export and optional A… | terminal |
 | `cv-pro/` | dir | CV as code and the CV Builder Pro app in one repository: cv/ holds the data, the CVData contract an… | terminal |
 | `djangoerp/` | dir | Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and M… | terminal |
 | `drsai/` | dir | AI-assisted children's storybook platform: verse, OpenAI-rendered illustrations and picture books o… | terminal |
 | `fredgar-ai/` | dir | Django + React app for exploring SEC EDGAR company data and FRED macro series, with AI-assisted sum… | terminal |
-| `git-with-the-program/` | dir | Agentic governance framework that distills git history into a core memory and scores every change f… | terminal |
 | `githubai/` | dir | Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs… | terminal |
-| `gitnexus/` | dir | Nexus Forge: a static rebuild-spec workbench (PRD, architecture, 14-step playbook) for reimplementi… | terminal |
 | `gitorio/` | dir | Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows runni… | terminal |
 | `godotgo/` | dir | Godot 4 game workspace: one reusable framework, five sample games and tooling that treats every pro… | terminal |
 | `irony-works/` | dir | The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-m… | terminal |
 | `it-journey/` | dir | Gamified, open-source platform for learning IT and software development through hands-on quests, ze… | terminal |
 | `law-ai/` | dir | Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, loca… | terminal |
-| `lawmode/` | dir | Always-on AI legal reviewer for developers: checks code, prompts and commits, and gates non-complia… | terminal |
 | `lifehacker.dev/` | dir | Tech knowledge, tools and comedy at lifehacker.dev: a Jekyll site on the zer0-mistakes theme, run b… | terminal |
 | `ocrmd/` | dir | Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, wi… | terminal |
 | `outbox/` | dir | Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race… | terminal |
 | `raising-eliza/` | dir | Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated method and tied out to the o… | terminal |
-| `retro-pi/` | dir | Portable retro-gaming workspace for macOS and Raspberry Pi: declarative manifests drive EmulationSt… | terminal |
 | `rewind-arcade/` | dir | Retro gaming workspace: browser arcade recreations, console emulation via ES-DE, and a physical gam… | terminal |
 | `scripts/` | dir | Standalone Bash utilities for project scaffolding, GitHub repository management and multi-repo main… | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |

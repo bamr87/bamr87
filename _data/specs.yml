@@ -620,7 +620,7 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all with JS/TS (non-ext)"]
-    requirement: "**vitest** + Testing Library for units; **Playwright** for e2e and visual. Cypress is retired (migrate `cv-builder-pro`). Tests colocated as `*.test.ts(x)` or under `tests/`."
+    requirement: "**vitest** + Testing Library for units; **Playwright** for e2e and visual. Cypress is retired (migrate `cv-pro/app`). Tests colocated as `*.test.ts(x)` or under `tests/`."
     satisfied_by: "`vitest.config.ts`, `playwright.config.ts`"
     seed: "—"
     gap: true
@@ -711,7 +711,7 @@ requirements:
     level: SHOULD
     applies: [site]
     applies_notes: ["site (Jekyll: root `_config.yml`)"]
-    requirement: "The site carries a workflow calling `bamr87/bamr87/.github/workflows/site-quality.yml` with a ref that satisfies the UPS-WORK-10 rule (`@vN`, `@vX.Y.Z` or a full SHA; the kit pins `@v1`; never a branch or a custom tag such as `site-quality-v1`), in `mode: build`, so the site is scanned as built against a fresh theme resolved to a commit SHA."
+    requirement: "The site carries a workflow calling `bamr87/bamr87/.github/workflows/site-quality.yml` with a ref that satisfies the UPS-WORK-10 rule (`@vN`, `@vX.Y.Z` or a full SHA; the kit pins `@v2`, since `v1` predates the workflow; never a branch or a custom tag such as `site-quality-v1`), in `mode: build`, so the site is scanned as built against a fresh theme resolved to a commit SHA."
     satisfied_by: "caller present + pinned"
     seed: "`templates/site-quality/` (`tools/fanout.sh --kit site-quality`)"
     gap: false
@@ -1024,7 +1024,7 @@ requirements:
     applies: [site, app]
     component: "Toast / announcer"
     requirement: "One toast system: `role=\"status\" aria-live=\"polite\"`, variants success/error/info, keyboard-dismissable, timeout respects reduced motion. Replaces `alert()`."
-    seed: "fredgar `lib/toast.tsx`; zer0 `ui-helpers.js`; cv-builder-pro `sonner` (acceptable)"
+    seed: "fredgar `lib/toast.tsx`; zer0 `ui-helpers.js`; cv-pro/app `sonner` (acceptable)"
     gap: false
   - id: UPS-FE-19
     area: FE
@@ -1033,7 +1033,7 @@ requirements:
     applies: [app]
     component: "Form field"
     requirement: "`Field(label, hint, error, required)` primitive with `aria-describedby` wiring; validation via `react-hook-form` + `zod` in React, the framework's forms in Django/Rails. Errors are inline and announced."
-    seed: "aieo `ui/Field.tsx` + cv-builder-pro `ui/form.tsx`"
+    seed: "aieo `ui/Field.tsx` + cv-pro/app `ui/form.tsx`"
     gap: false
   - id: UPS-FE-20
     area: FE
@@ -1628,9 +1628,9 @@ requirements:
     level: SHOULD
     applies: [api]
     applies_notes: ["api + app"]
-    requirement: "Cross-repo contracts (e.g. the `CVData` schema shared by `cv` and `cv-builder-pro`) are vendored as a JSON Schema under `contract/` with a `contract-check` test on both sides."
+    requirement: "Cross-repo contracts (e.g. the `CVData` schema shared by `cv-pro/cv` and `cv-pro/app`) are vendored as a JSON Schema under `contract/` with a `contract-check` test on both sides."
     satisfied_by: "`contract/*.schema.json`"
-    seed: "cv-builder-pro `scripts/contract-check.mjs`"
+    seed: "cv-pro/app `scripts/contract-check.mjs`"
     gap: false
   - id: UPS-BE-40
     area: BE
@@ -1682,9 +1682,9 @@ requirements:
     section: "Auth"
     level: SHOULD
     applies: [app]
-    requirement: "Browser apps needing user identity use Firebase Auth (the fleet's one proven provider, cv-builder-pro) behind a `Protected` route wrapper and an `AuthContext`; server apps use the framework's session auth. New providers need a documented reason."
+    requirement: "Browser apps needing user identity use Firebase Auth (the fleet's one proven provider, cv-pro/app) behind a `Protected` route wrapper and an `AuthContext`; server apps use the framework's session auth. New providers need a documented reason."
     satisfied_by: "code"
-    seed: "cv-builder-pro `context/AuthContext.tsx`"
+    seed: "cv-pro/app `context/AuthContext.tsx`"
     gap: false
   - id: UPS-OPS-01
     area: OPS

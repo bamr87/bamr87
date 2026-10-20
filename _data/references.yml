@@ -57,13 +57,13 @@
   reference_for: [UPS-FE-06, UPS-OPS-23]
   note: Only file allowed to name --vscode-* (CI grep); strict CSP with nonce (see also zpl-viewer).
 - name: Forms with validation
-  repo: cv-builder-pro
-  path: src/components/ui/form.tsx, src/context/AuthContext.tsx
+  repo: cv-pro
+  path: app/src/components/ui/form.tsx, app/src/context/AuthContext.tsx
   reference_for: [UPS-FE-19, UPS-BE-51]
   note: react-hook-form + zod wiring; Firebase auth behind a Protected route.
 - name: Cross-repo data contract
-  repo: cv-builder-pro
-  path: contract/cv.schema.json, scripts/contract-check.mjs
+  repo: cv-pro
+  path: app/contract/cv.schema.json, app/scripts/contract-check.mjs
   reference_for: [UPS-BE-32]
   note: Vendored JSON Schema from bamr87/cv with a contract gate on both sides.
 - name: Server-rendered shell with meta block

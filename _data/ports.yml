@@ -36,7 +36,7 @@ bands:
   hub:        { range: [4000, 4009], purpose: "Hub's own surfaces: dash, console" }
   jekyll:     { range: [4010, 4039], purpose: "Jekyll/static sites, one per project" }
   livereload: { range: [35730, 35759], purpose: "Jekyll livereload, mirrors the jekyll band" }
-  frontend:   { range: [5000, 5199], purpose: "Vite/Node frontends and static previews (5000 = cv-builder-pro, grandfathered)" }
+  frontend:   { range: [5000, 5199], purpose: "Vite/Node frontends and static previews (5000 = cv-pro, grandfathered)" }
   api:        { range: [8100, 8149], purpose: "HTTP APIs and server-rendered apps" }
   docs:       { range: [8000, 8009], purpose: "Hub/devenv documentation servers (MkDocs)" }
   debug:      { range: [5700, 5749], purpose: "debugpy / node --inspect attach points" }
@@ -278,15 +278,10 @@ projects:
     services:
       web: { port: 8119, band: api, var: ZER0_IMAGEGEN_PORT }
 
-  lawmode:
-    host: compose
-    compose: projects/lawmode/docker-compose.yml
-    services: {}
-    notes: "Batch scanner — publishes no ports. Included so `dash dev up lawmode` works."
 
   # ---- devenv-hosted: no compose of their own --------------------------------
   # Run via `docker compose exec devenv`; ports published by the devenv service.
-  cv-builder-pro:
+  cv-pro:
     host: devenv
     services:
       vite: { port: 5000, band: frontend, var: CV_PORT }
@@ -322,10 +317,6 @@ projects:
     host: devenv
     services:
       vite: { port: 5176, band: frontend, var: AIEO_FRONTEND_PORT }
-  gitnexus:
-    host: devenv
-    services:
-      vite: { port: 5177, band: frontend, var: GITNEXUS_PORT }
   ai-seed-docs:
     host: devenv
     services:

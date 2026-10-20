@@ -843,20 +843,20 @@ setup_docker() {
 setup_cv() {
     if ! should_install "cv"; then return 0; fi
     if [[ "$DEV_MODE" == "docker" ]]; then return 0; fi
-    if [[ ! -d "${PROJECT_ROOT}/projects/cv-builder-pro" ]]; then
+    if [[ ! -d "${PROJECT_ROOT}/projects/cv-pro/app" ]]; then
         log_warn "cv/ directory not found; skipping CV Builder setup"
         return 0
     fi
 
     log_step "Setting up CV Builder (Node.js/React)..."
 
-    cd "${PROJECT_ROOT}/projects/cv-builder-pro"
+    cd "${PROJECT_ROOT}/projects/cv-pro/app"
 
     if command_exists node; then
         log_info "Node.js: $(node --version)"
         log_info "Installing npm dependencies..."
         run_cmd npm install
-        log_info "CV Builder ready. Start with: cd projects/cv-builder-pro && npm run dev"
+        log_info "CV Builder ready. Start with: cd projects/cv-pro/app && npm run dev"
     else
         log_warn "Node.js not found; skipping CV Builder setup"
     fi
@@ -1123,7 +1123,7 @@ print_summary() {
     echo ""
 
     echo -e "${BOLD}Component Status:${NC}"
-    [[ -d "${PROJECT_ROOT}/projects/cv-builder-pro/node_modules" ]] \
+    [[ -d "${PROJECT_ROOT}/projects/cv-pro/app/node_modules" ]] \
         && echo -e "  ${GREEN}✓${NC} CV Builder (Node.js)" \
         || echo -e "  ${YELLOW}○${NC} CV Builder (not set up locally)"
     [[ -d "${PROJECT_ROOT}/.venv-docs" ]] \
@@ -1177,7 +1177,7 @@ print_summary() {
         echo "  Dev Shell:    docker compose exec app bash"
     fi
     if [[ "$DEV_MODE" == "local" || "$DEV_MODE" == "all" ]]; then
-        echo "  CV Builder:   cd projects/cv-builder-pro && npm run dev"
+        echo "  CV Builder:   cd projects/cv-pro/app && npm run dev"
         echo "  Dash site:    tools/dash serve"
         echo "  Docs site:    cd projects/README && mkdocs serve"
     fi

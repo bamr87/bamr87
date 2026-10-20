@@ -76,8 +76,8 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | State set + HTTP client | `fredgar-ai` · `frontend/src/components/ui/states.tsx, frontend/src/lib/http.ts, frontend/src/lib/toast.tsx` | UPS-FE-17, UPS-FE-18, UPS-FE-20, UPS-BE-40, UPS-BE-41, UPS-BE-43 | Loading/Skeleton/Empty/Error + Query wrapper; ApiError with isAuth/isRateLimit; aria-live toaster. |
 | Token-literal leak test | `gitorio` · `app/src/theme.test.ts` | UPS-FE-01 | Asserts only the token file may contain colour literals. |
 | Webview token isolation | `zer0-cms` · `media/tokens.css, src/webview/shared/dom.ts` | UPS-FE-06, UPS-OPS-23 | Only file allowed to name --vscode-* (CI grep); strict CSP with nonce (see also zpl-viewer). |
-| Forms with validation | `cv-builder-pro` · `src/components/ui/form.tsx, src/context/AuthContext.tsx` | UPS-FE-19, UPS-BE-51 | react-hook-form + zod wiring; Firebase auth behind a Protected route. |
-| Cross-repo data contract | `cv-builder-pro` · `contract/cv.schema.json, scripts/contract-check.mjs` | UPS-BE-32 | Vendored JSON Schema from bamr87/cv with a contract gate on both sides. |
+| Forms with validation | `cv-pro` · `app/src/components/ui/form.tsx, app/src/context/AuthContext.tsx` | UPS-FE-19, UPS-BE-51 | react-hook-form + zod wiring; Firebase auth behind a Protected route. |
+| Cross-repo data contract | `cv-pro` · `app/contract/cv.schema.json, app/scripts/contract-check.mjs` | UPS-BE-32 | Vendored JSON Schema from bamr87/cv with a contract gate on both sides. |
 | Server-rendered shell with meta block | `barodybroject` · `src/parodynews/templates/base.html` | UPS-FE-25, UPS-FE-06 | data-bs-theme auto, og meta block, i18n load; the TODO there is the feedback widget. |
 | PWA manifest + service worker | `zer0-image-generator` · `web/app/views/pwa/` | UPS-FE-29 | The fleet's one installable app. |
 | Evidence bundle credential scrubbing | `bamr87` · `tools/issue-evidence.sh` | UPS-OPS-12, UPS-OPS-24 | Redaction list for token prefixes; never executes commands from issue bodies. |
@@ -86,7 +86,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (55 projects: 29 active, 4 archived, 13 experiment, 9 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (48 projects: 27 active, 4 archived, 9 experiment, 8 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |
@@ -242,7 +242,7 @@ Indexed by [`.claude/README.md`](.claude/README.md). Skills and commands are Cla
 | [`run-dash`](.claude/skills/run-dash/SKILL.md) | Run, drive, and orchestrate the bamr87 dash — the hub for ~40 submodule projects. |
 | [`standardize-audit`](.claude/skills/standardize-audit/SKILL.md) | Audit the submodule fleet against the tiered standardization baseline and explain each required gap with the concrete fix. |
 | [`standardize-project`](.claude/skills/standardize-project/SKILL.md) | Bring one existing submodule up to its standardization tier baseline — add the missing README/LICENSE/.editorconfig/CI/agent-context and open a PR in the submodule's own… |
-| [`sync-cv`](.claude/skills/sync-cv/SKILL.md) | Synchronize the CV (bamr87/cv data/cv.json) with the fleet — regenerate the registry's cv_portfolio.json projection, diff it against the CV's projects/skills, and propos… |
+| [`sync-cv`](.claude/skills/sync-cv/SKILL.md) | Synchronize the CV (bamr87/cv-pro cv/data/cv.json) with the fleet — regenerate the registry's cv_portfolio.json projection, diff it against the CV's projects/skills, and… |
 | [`sync-project-docs`](.claude/skills/sync-project-docs/SKILL.md) | Pull each project's current README summary and status from GitHub into the registry descriptions. |
 | [`triage-attention`](.claude/skills/triage-attention/SKILL.md) | Read the Monitor board health data, explain why each repo needs attention, and propose the next concrete action per repo. |
 | [`update-registry`](.claude/skills/update-registry/SKILL.md) | Reconcile _data/projects.yml (the project registry) with .gitmodules and GitHub repo metadata. |

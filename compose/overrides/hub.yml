@@ -12,7 +12,7 @@ services:
       - "127.0.0.1:${SITE_PORT:-4000}:4000"
       - "127.0.0.1:${VITE_HMR_PORT:-5173}:5173"
       - "127.0.0.1:${MKDOCS_PORT:-8000}:8000"
-      - "127.0.0.1:${CV_PORT:-5000}:5000"   # cv-builder-pro
+      - "127.0.0.1:${CV_PORT:-5000}:5000"   # cv-pro
       - "127.0.0.1:${BAMR87_IO_PORT:-4012}:4012"   # bamr87.github.io
       - "127.0.0.1:${BAMR87_IO_LIVERELOAD_PORT:-35732}:35732"   # bamr87.github.io livereload
       - "127.0.0.1:${LIFEHACKER_PORT:-4013}:4013"   # lifehacker.dev
@@ -27,5 +27,4 @@ services:
       - "127.0.0.1:${Y2005_LIVERELOAD_PORT:-35738}:35738"   # 2005 livereload
       - "127.0.0.1:${REWIND_ARCADE_PORT:-5175}:5175"   # rewind-arcade
       - "127.0.0.1:${AIEO_FRONTEND_PORT:-5176}:5176"   # aieo-frontend
-      - "127.0.0.1:${GITNEXUS_PORT:-5177}:5177"   # gitnexus
       - "127.0.0.1:${AI_SEED_MKDOCS_PORT:-8003}:8003"   # ai-seed-docs
