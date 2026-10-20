@@ -12,6 +12,7 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `*.md` | pattern | One UPPERCASE-TOPIC.md per concern; README.md is the index | required |
+| `adr/` | dir | Architecture Decision Records — `NNNN-slug.md` + a README index (UPS-WORK-04, decision D2); the hub's `.github/sdlc.yml` names it as `adr_path` | required |
 
 ## Placement
 

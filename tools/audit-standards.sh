@@ -28,11 +28,13 @@
 #     Upgrade path: standardize-fanout with upgrade=true.
 # ============================================================================
 set -uo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# DASH_ROOT lets a test (or a checkout without submodules) point the audit at
+# another hub tree; the default is the hub this script lives in.
+ROOT="${DASH_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PY="${PYTHON:-python3}"
 
 exec "$PY" - "$ROOT" "$@" <<'PY'
-import sys, os, json
+import sys, os, json, glob as _glob
 
 try:
     import yaml
@@ -56,7 +58,20 @@ with open(os.path.join(root, '_data/standards.yml')) as fh:
 artifacts   = std['artifacts']
 tiers       = std['tiers']
 status_tier = std.get('status_tier', {})
-overrides   = std.get('tier_overrides', {})
+overrides   = std.get('tier_overrides', {}) or {}
+kind_overrides = std.get('kind_overrides', {}) or {}
+
+# ---- override hygiene (FF-0028) ----
+# A tier_overrides key that matches no registry name silently no-ops — the exact
+# way a renamed or retired repo loses its tier unnoticed. Report every offender;
+# --json carries them as `stale_overrides` and drift check (f) fails on them.
+reg_names = {p.get('name') for p in reg if isinstance(p, dict)}
+stale_overrides = []
+for k, v in overrides.items():
+    if k not in reg_names:
+        stale_overrides.append({'key': k, 'tier': v, 'reason': 'not a registry name'})
+    elif v not in tiers:
+        stale_overrides.append({'key': k, 'tier': v, 'reason': f"unknown tier (declared: {', '.join(tiers)})"})
 
 ART_ORDER = ['readme','license','gitignore','editorconfig','ci','agent_context','claude_workflow','tests','container','release']
 ART_SHORT = {'readme':'RDM','license':'LIC','gitignore':'GIT','editorconfig':'EDC',
@@ -66,8 +81,40 @@ TIER_ORDER = ['active','experiment','content','fork','archived']
 def tier_for(p):
     if p.get('tier'): return p['tier']
     n = p.get('name')
-    if n in overrides: return overrides[n]
+    if n in overrides and overrides[n] in tiers: return overrides[n]
     return status_tier.get(p.get('status'), 'experiment')
+
+# ---- kinds (FF-0028) ----
+# Registry `kinds:` → .github/sdlc.yml (`kinds:`, else `type:` mapped exactly as
+# the sdlc kit documents) → detection: a root _config.yml is a Jekyll site.
+SDLC_TYPE_KINDS = {'app': ['app'], 'library': ['lib'], 'site': ['site'], 'docs': ['content'],
+                   'demo': ['site'], 'control-plane': ['site', 'hub'], 'fork': ['fork']}
+def kinds_for(p, base):
+    k = p.get('kinds')
+    if k: return [str(x) for x in k]
+    sd = os.path.join(base, '.github', 'sdlc.yml')
+    if os.path.isfile(sd):
+        try:
+            with open(sd) as fh:
+                d = yaml.safe_load(fh) or {}
+            if d.get('kinds'): return [str(x) for x in d['kinds']]
+            if d.get('type') in SDLC_TYPE_KINDS: return list(SDLC_TYPE_KINDS[d['type']])
+        except (OSError, yaml.YAMLError):
+            pass
+    if os.path.isfile(os.path.join(base, '_config.yml')): return ['site']
+    return []
+
+LEVEL_RANK = {'required': 2, 'recommended': 1, 'na': 0}
+def effective_levels(tier, kinds):
+    """The tier's levels, LOWERED (never raised) by kind_overrides for each of the
+    repo's kinds. Returns (levels, {artifact: kind that lowered it})."""
+    lv = dict(tiers.get(tier, {})); lowered = {}
+    for k in kinds:
+        for aid, level in (kind_overrides.get(k) or {}).items():
+            if aid not in ART_ORDER: continue
+            if LEVEL_RANK.get(level, 0) < LEVEL_RANK.get(lv.get(aid, 'na'), 0):
+                lv[aid] = level; lowered[aid] = k
+    return lv, lowered
 
 # ---- agent-context kit awareness (FF-0017) ----
 KIT_VERSION = None
@@ -130,7 +177,11 @@ def has_artifact(base, aid):
             return any(f.endswith(('.yml', '.yaml')) for f in os.listdir(d))
         return False
     for pth in artifacts[aid]:
-        if os.path.exists(os.path.join(base, pth)):
+        pth = str(pth)
+        if any(ch in pth for ch in '*?['):          # glob: multi-surface layouts
+            if _glob.glob(os.path.join(base, pth)):
+                return True
+        elif os.path.exists(os.path.join(base, pth)):
             return True
     return False
 
@@ -152,10 +203,11 @@ for p in reg:
         continue
     base = os.path.join(root, sp)
     tier = tier_for(p)
-    treq = tiers.get(tier, {})
     if not os.path.isdir(base) or not os.listdir(base):
         skipped.append((name, tier))
         continue
+    kinds = kinds_for(p, base)
+    treq, lowered = effective_levels(tier, kinds)
     cells, fails, warns = {}, [], []
     for aid in ART_ORDER:
         level = treq.get(aid, 'na')
@@ -173,14 +225,16 @@ for p in reg:
         warns.append('agent_context(scaffold)')
     if fails:
         gate_fail += 1
-    rows.append({'name': name, 'tier': tier, 'cells': cells, 'fails': fails, 'warns': warns,
+    rows.append({'name': name, 'tier': tier, 'kinds': kinds, 'kind_lowered': lowered,
+                 'cells': cells, 'fails': fails, 'warns': warns,
                  'kit_state': ks, 'kit_version': kv, 'claude_md_scaffold': scaffold})
 
 if as_json:
-    print(json.dumps({'rows': rows, 'not_checked_out': skipped,
+    print(json.dumps({'rows': rows, 'not_checked_out': skipped, 'stale_overrides': stale_overrides,
                       'summary': {'audited': len(rows), 'with_required_gaps': gate_fail,
-                                  'not_checked_out': len(skipped)}}, indent=2))
-    sys.exit(1 if (gate and gate_fail) else 0)
+                                  'not_checked_out': len(skipped),
+                                  'stale_overrides': len(stale_overrides)}}, indent=2))
+    sys.exit(1 if (gate and (gate_fail or stale_overrides)) else 0)
 
 # ---- single-repo verbose ----
 if only:
@@ -188,9 +242,11 @@ if only:
         print(f"'{only}' is not a checked-out submodule in the registry.")
         sys.exit(2)
     r = rows[0]
-    print(f"\n{col(r['name'], 'bold')}  tier={col(r['tier'], 'cyan')}  ({tiers.get(r['tier'],{}).get('label','')})\n")
+    kinds_s = ','.join(r['kinds']) or 'unknown'
+    print(f"\n{col(r['name'], 'bold')}  tier={col(r['tier'], 'cyan')}  kinds={col(kinds_s, 'cyan')}  ({tiers.get(r['tier'],{}).get('label','')})\n")
+    levels, _ = effective_levels(r['tier'], r['kinds'])
     for aid in ART_ORDER:
-        level = tiers.get(r['tier'], {}).get(aid, 'na')
+        level = levels.get(aid, 'na')
         g, c = GLYPH[r['cells'][aid]]
         state = r['cells'][aid]
         if state == 'scaffold':
@@ -199,6 +255,8 @@ if only:
             note = f"  <- {level} & missing"
         else:
             note = ''
+        if aid in r['kind_lowered']:
+            note += f"  (lowered by kind: {r['kind_lowered'][aid]})"
         print(f"  {col(g, c)}  {aid:<14} [{level}]{note}")
     kdesc = {'absent': 'no claude.yml', 'current': f'current (v{KIT_VERSION})',
              'stale': f"stale (v{r['kit_version']}; latest v{KIT_VERSION})",
@@ -211,7 +269,9 @@ if only:
         print("\n" + col(f"  OK (required met); recommended missing: {', '.join(r['warns'])}", 'yellow'))
     else:
         print("\n" + col("  ✓ meets its tier baseline", 'green'))
-    sys.exit(1 if (gate and r['fails']) else 0)
+    if stale_overrides:
+        print("\n" + col("  stale tier_overrides: " + ', '.join(f"{o['key']} ({o['reason']})" for o in stale_overrides), 'red'))
+    sys.exit(1 if (gate and (r['fails'] or stale_overrides)) else 0)
 
 # ---- full matrix ----
 w = 22
@@ -251,8 +311,16 @@ scaff = [r['name'] for r in rows if r.get('claude_md_scaffold')]
 if scaff:
     shown = ', '.join(scaff[:12]) + ('…' if len(scaff) > 12 else '')
     print(col(f"  {len(scaff)} CLAUDE.md still an unfilled scaffold (fill: standardize-fanout agent_fill, or accept for dormant repos): {shown}", 'yellow'))
+lowered_rows = [r for r in rows if r['kind_lowered']]
+if lowered_rows:
+    print(col(f"  {len(lowered_rows)} judged by kind (standards.yml kind_overrides): " +
+              ', '.join(f"{r['name']} [{','.join(r['kinds'])}]" for r in lowered_rows[:12]) +
+              ('…' if len(lowered_rows) > 12 else ''), 'grey'))
+if stale_overrides:
+    print(col("  STALE tier_overrides (drift check (f) fails on these): " +
+              ', '.join(f"{o['key']} ({o['reason']})" for o in stale_overrides), 'red'))
 if skipped:
     print(col(f"  {len(skipped)} not checked out (excluded): " + ', '.join(n for n, _ in skipped), 'grey'))
 print()
-sys.exit(1 if (gate and gate_fail) else 0)
+sys.exit(1 if (gate and (gate_fail or stale_overrides)) else 0)
 PY

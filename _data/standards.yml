@@ -17,6 +17,18 @@
 #   2. tier_overrides below (by project name) — forks, pure content, archived
 #   3. status_tier below (derived from the registry `status`)
 #   4. fallback: experiment
+#
+# KIND ADJUSTMENT (applied after the tier, never raising a level):
+#   kind_overrides below lowers an artifact's level for a stack kind — a Jekyll
+#   site proves itself with a build gate and user scenarios, not a tests/ dir.
+#   Kinds come from the registry `kinds:` field, else `.github/sdlc.yml`
+#   (`kinds:`, or `type:` mapped per the sdlc kit), else detection (a root
+#   `_config.yml` is a site).
+#
+# OVERRIDE HYGIENE: every tier_overrides key must be a registry `name` and every
+# value a declared tier. `dash audit` lists offenders as `stale_overrides` and
+# drift check (f) FAILS on them — a stale key used to silently no-op, which is
+# how a renamed repo lost its tier without anyone noticing.
 # =============================================================================
 
 # Canonical artifact ids + the paths that satisfy each (first match wins).
@@ -29,7 +41,15 @@ artifacts:
   ci:            [.github/workflows]
   agent_context: [CLAUDE.md, AGENTS.md, .github/copilot-instructions.md, .cursorrules]
   claude_workflow: [.github/workflows/claude.yml]
-  tests:         [tests, test, spec, __tests__, cypress, pytest.ini, jest.config.js, jest.config.ts, vitest.config.ts]
+  # Globs are allowed: a multi-surface repo (UPS-REPO-05) keeps each surface's
+  # tests beside it (app/cypress, backend/tests, packages/x/tests), and a Django
+  # project keeps tests.py per app. verify/scenarios/ (the agent-verification
+  # kit's user scenarios) counts too: a product proved by being used is tested.
+  tests:         [tests, test, spec, __tests__, cypress,
+                  pytest.ini, jest.config.js, jest.config.ts, vitest.config.ts, vitest.config.mts, vitest.config.mjs,
+                  playwright.config.ts, playwright.config.js, .vscode-test.mjs,
+                  "*/tests", "*/test", "*/__tests__", "*/cypress", "*/tests.py", "packages/*/tests", "packages/*/test",
+                  verify/scenarios]
   container:     [Dockerfile, .devcontainer, docker-compose.yml, compose.yml]
   release:       [release-please-config.json, .release-please-manifest.json, CHANGELOG.md]
 
@@ -100,9 +120,17 @@ status_tier:
   experiment: experiment
   archived: archived
 
+# Kind-aware adjustments (see KIND ADJUSTMENT above). Only lowering is honoured.
+kind_overrides:
+  site:
+    tests: recommended     # build-validation + verify/scenarios prove a site
+  content:
+    tests: na
+
 # Explicit per-project tier overrides (project name -> tier).
-# Keys MUST be exact registry `name` values from _data/projects.yml —
-# stale/mismatched entries silently no-op.
+# Keys MUST be exact registry `name` values from _data/projects.yml and values
+# MUST be declared tiers — `dash audit` reports anything else as stale and the
+# drift gate fails on it.
 tier_overrides:
   # forks: standardize only what bamr87 adds; upstream owns the baseline
   skills: fork
@@ -110,7 +138,10 @@ tier_overrides:
   # "PostHog fork" note; the repo is bamr87's own Django ERP and, since the
   # amrs-project consolidation, the fleet's accounting/ERP system of record.
   # It is held to the full active-tier baseline like any other first-party repo.
-  zer0-CMS: fork
+  # zer0-CMS: NOT a fork either. The `fork` override dated from the
+  # vscode-front-matter import; the repo is bamr87's own CMS monorepo (Wagtail,
+  # Rails, the VS Code extension and the zer0-mistakes theme) and is held to the
+  # active baseline since 2026-10-20.
   # pure content / knowledge bases (no build, no tests) — none registered at
   # present; the 1987, 2005 and cv entries were retired with their repos
   # (cv now lives in cv-pro). Add a `name: content` line here when one returns.
