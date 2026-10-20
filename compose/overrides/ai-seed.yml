@@ -8,9 +8,6 @@
 
 services:
   frontend:
-    # environment: URLs repointed at the remapped host port(s)
-    environment:
-      VITE_API_URL: "http://localhost:${AI_SEED_API_PORT:-8113}"
     ports: !override
       - "127.0.0.1:${AI_SEED_FRONTEND_PORT:-5112}:3000"
   api:
