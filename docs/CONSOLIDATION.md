@@ -14,21 +14,29 @@ The same one [zer0-CMS documents](https://github.com/bamr87/zer0-CMS/blob/main/d
 
 | Source | Target | Path | PR | Status |
 |---|---|---|---|---|
-| bamr87/lawmode | bamr87/law-ai | `lawmode/` | [law-ai#174](https://github.com/bamr87/law-ai/pull/174) | PR open |
-| bamr87/gitnexus | bamr87/gitorio | `packages/gitnexus/` | [gitorio#136](https://github.com/bamr87/gitorio/pull/136) | PR open |
-| bamr87/git-with-the-program | bamr87/gitorio | `packages/git-with-the-program/` | [gitorio#136](https://github.com/bamr87/gitorio/pull/136) | PR open |
-| bamr87/retro-pi | bamr87/rewind-arcade | `retro-pi/` | [rewind-arcade#36](https://github.com/bamr87/rewind-arcade/pull/36) | PR open |
-| bamr87/1987 | bamr87/zer0-CMS | `sites/1987/` | [zer0-CMS#36](https://github.com/bamr87/zer0-CMS/pull/36) | PR open |
-| year-of-ai/2005 | bamr87/zer0-CMS | `sites/2005/` | [zer0-CMS#36](https://github.com/bamr87/zer0-CMS/pull/36) | PR open |
+| bamr87/lawmode | bamr87/law-ai | `lawmode/` | [law-ai#174](https://github.com/bamr87/law-ai/pull/174) | merged (squash — history not on `main`, see below) |
+| bamr87/gitnexus | bamr87/gitorio | `packages/gitnexus/` | [gitorio#136](https://github.com/bamr87/gitorio/pull/136) | merged (squash — history not on `main`, see below) |
+| bamr87/git-with-the-program | bamr87/gitorio | `packages/git-with-the-program/` | [gitorio#136](https://github.com/bamr87/gitorio/pull/136) | merged (squash — history not on `main`, see below) |
+| bamr87/retro-pi | bamr87/rewind-arcade | `retro-pi/` | [rewind-arcade#36](https://github.com/bamr87/rewind-arcade/pull/36) | merged (squash — history not on `main`, see below) |
+| bamr87/1987 | bamr87/zer0-CMS | `sites/1987/` | [zer0-CMS#36](https://github.com/bamr87/zer0-CMS/pull/36) | merged (squash — restored by [zer0-CMS#39](https://github.com/bamr87/zer0-CMS/pull/39)) |
+| year-of-ai/2005 | bamr87/zer0-CMS | `sites/2005/` | [zer0-CMS#36](https://github.com/bamr87/zer0-CMS/pull/36) | merged (squash — restored by [zer0-CMS#39](https://github.com/bamr87/zer0-CMS/pull/39)) |
 | bamr87/cv | bamr87/cv-pro (new) | `cv/` | [cv-pro](https://github.com/bamr87/cv-pro) | pushed to `main` |
 | bamr87/cv-builder-pro | bamr87/cv-pro (new) | `app/` | [cv-pro](https://github.com/bamr87/cv-pro) | pushed to `main` |
-| bamr87/zer0-mistakes, zer0-image-generator, books, drsai, zer0-pages, zer0-pages-remote, zer0-demo-garden, zer0-demo-cookbook, barodybroject | bamr87/zer0-CMS | `packages/`, `sites/`, `apps/` | done earlier | imported; originals still authoritative for releases and Pages (see below) |
+| bamr87/zer0-mistakes, zer0-image-generator, books, drsai, zer0-pages, zer0-pages-remote, zer0-demo-garden, zer0-demo-cookbook, barodybroject | bamr87/zer0-CMS | `packages/`, `sites/`, `apps/` | zer0-CMS#29 (squash — restored by [#39](https://github.com/bamr87/zer0-CMS/pull/39)) | imported; cutover per [zer0-CMS ADR 0002](https://github.com/bamr87/zer0-CMS/blob/main/docs/adr/0002-one-home-cutover.md) ([#38](https://github.com/bamr87/zer0-CMS/pull/38)) |
 
 ## The hub's side
 
 **Add (this record's PR):** `godotgo`, `bash-365-apex`, `year-of-ai.github.io`, `ai-world-view.github.io` and `bash-365.com` become submodules — live repositories under the owner's accounts that the registry never listed — and so does the new `cv-pro`. `amrchy` (a 248 MB personal fork of Omarchy) and the two zer0 demo sites (already in zer0-CMS `sites/`) are registered without a submodule: shown on the dash, not checked out.
 
 **Retire (a follow-up PR, after the merges land):** the `lawmode`, `gitnexus`, `git-with-the-program`, `retro-pi`, `cv`, `cv-builder-pro` and `books` submodules leave `.gitmodules` and the registry, their references in the hub's own docs and port map move to the targets, and the originals are archived. `books` qualifies now: zer0-CMS reports its CI fully ported and nothing left depending on the original.
+
+## The squash merges dropped the imported history
+
+Every merge PR above was **squash**-merged (and so were zer0-CMS #29 and #36), so each target's `main` carries the imported tree as one commit: `git log`/`git blame` under `lawmode/`, `packages/gitnexus/`, `retro-pi/` or any zer0-CMS import path stop at the squash. The rewritten histories are intact in each PR's `refs/pull/<n>/head` and in the originals — and `bamr87/1987` has since been deleted, so its PR ref is the last copy. The repair is zer0-CMS's `tools/history/graft.sh`: a branch that lifts the paths out, merges the rewritten histories back and replays the later commits, ending on a tree identical to `main`, landed as a **fast-forward** (a merge commit keeps the history reachable but blame still stops at the squash). zer0-CMS#39 does it for zer0-CMS; law-ai, gitorio and rewind-arcade need the same before any of their originals is archived. Merge an import with a merge commit or a fast-forward — never a squash.
+
+## Decided since (zer0 stack)
+
+zer0-CMS [ADR 0002](https://github.com/bamr87/zer0-CMS/blob/main/docs/adr/0002-one-home-cutover.md) settles open decision 1 for the zer0 family: zer0-CMS is the only home; every original is archived except `bamr87/zer0-mistakes`, which becomes a read-only mirror because `remote_theme` only loads from a repository root; releases are cut in zer0-CMS with component-prefixed tags; every site publishes from one Pages deploy on `zer0-mistakes.com` under its own sub-path (`sites/2005` is built by `year-of-ai.github.io`); and content goes DB-first in Wagtail one site at a time. Its cutover milestones C0–C7 end with the hub retiring the eight remaining zer0 submodules. `bamr87/1987` was deleted on GitHub; `sites/1987/` in zer0-CMS is its only home.
 
 ## Open decisions
 
