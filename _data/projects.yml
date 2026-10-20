@@ -61,29 +61,6 @@
 # ---------------------------------------------------------------------------
 # Submodules (must stay in sync with .gitmodules — enforced by check-drift.sh)
 # ---------------------------------------------------------------------------
-- name: cv-builder-pro
-  slug: cv-builder-pro
-  submodule_path: projects/cv-builder-pro
-  branch: main
-  repo_url: https://github.com/bamr87/cv-builder-pro
-  description: "React web app for building CVs and résumés with LaTeX templates, Markdown/PDF export and optional AI parsing."
-  stack: [react, typescript, vite, tailwind, firebase]
-  category: full-stack-ai
-  # Revived 2026-08: the long-noted cv pairing is now exploited — bamr87/cv keeps
-  # the CV of record as data/cv.json in this app's CVData shape (a two-repo
-  # contract), its builder/ engine is a Node port of this app's exporters, and
-  # the app gained cv.json import/export to close the loop. Kept off the front
-  # page pending sustained activity.
-  status: maintenance
-  featured: false
-  maintained: true
-  auto_evolve: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
 - name: README
   slug: README
   submodule_path: projects/README
@@ -184,18 +161,17 @@
 
 - name: zer0-mistakes
   slug: zer0-mistakes
-  submodule_path: projects/zer0-mistakes
+  # No submodule since 2026-10-19: the theme lives in zer0-CMS packages/zer0-mistakes,
+  # and this repository is its read-only mirror (zer0-CMS ADR 0002), kept only because
+  # GitHub Pages loads `remote_theme: bamr87/zer0-mistakes` from a repository root.
   branch: main
   repo_url: https://github.com/bamr87/zer0-mistakes
-  description: "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem."
+  description: "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem; developed in zer0-CMS, mirrored here for remote_theme."
   stack: [jekyll, ruby, bootstrap]
   category: docs
   status: active
   featured: true
   maintained: true
-  dev_port:
-    4016 # jekyll range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
   live_url: https://zer0-mistakes.com
   ux:
     enabled: true
@@ -206,37 +182,6 @@
     baselines: none
 
   docs_url: https://zer0-mistakes.com
-  release:
-    engine: release-please
-    type: ruby
-    registries: [rubygems, github]
-    status: pending          # reference migration
-    pr: https://github.com/bamr87/zer0-mistakes/pull/170
-  schema:
-    status: none
-  license: MIT
-
-- name: zer0-image-generator
-  slug: zer0-image-generator
-  submodule_path: projects/zer0-image-generator
-  branch: main
-  repo_url: https://github.com/bamr87/zer0-image-generator
-  description: "Jekyll plugin, CLI and web app that generate AI preview and social images for any Jekyll site, directed by Claude."
-  stack: [ruby, jekyll, python, ai]
-  category: dev-tools
-  status: active
-  featured: false
-  maintained: true
-  dev_port:
-    3012 # web range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: null
-  docs_url: null
-  release:
-    engine: release-please
-    type: ruby
-    registries: [rubygems, github]   # CI publish still needs the RUBYGEMS_API_KEY secret
-    status: adopted
   schema:
     status: none
   license: MIT
@@ -260,38 +205,6 @@
   schema:
     status: none
 
-- name: barodybroject
-  slug: barodybroject
-  submodule_path: projects/barodybroject
-  branch: main
-  repo_url: https://github.com/bamr87/barodybroject
-  description: "Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and Azure deploy."
-  stack: [django, python, openai, postgres]
-  category: full-stack-ai
-  status: active
-  featured: true
-  maintained: true
-  dev_port:
-    4020 # jekyll range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
-  database:
-    true # gets a database + role on the hub's shared Postgres
-    # (`db` on the fleet network). Its own Postgres still runs
-    # until `shared_services: [postgres]` is set here too.
-  live_url: https://bamr87.github.io/barodybroject/
-  ux:
-    enabled: true
-    tier: active
-    surfaces:
-      - url: https://barodybroject.com/
-        role: home
-    baselines: none
-
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
 - name: aieo
   slug: aieo
   submodule_path: projects/aieo
@@ -310,23 +223,6 @@
     true # gets a database + role on the hub's shared Postgres
     # (`db` on the fleet network). Its own Postgres still runs
     # until `shared_services: [postgres]` is set here too.
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
-- name: lawmode
-  slug: lawmode
-  submodule_path: projects/lawmode
-  branch: main
-  repo_url: https://github.com/bamr87/lawmode
-  description: "Always-on AI legal reviewer for developers: checks code, prompts and commits, and gates non-compliant PRs."
-  stack: [ai, python]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
   live_url: null
   docs_url: null
   schema:
@@ -402,22 +298,6 @@
   schema:
     status: none
   license: MIT
-
-- name: drsai
-  slug: drsai
-  submodule_path: projects/drsai
-  branch: main
-  repo_url: https://github.com/bamr87/drsai
-  description: "AI-assisted children's storybook platform: verse, OpenAI-rendered illustrations and picture books on GitHub Pages."
-  stack: [python, ai]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: https://bamr87.github.io/drsai/
-  docs_url: null
-  schema:
-    status: none
 
 - name: ai-seed
   slug: ai-seed
@@ -589,86 +469,6 @@
   schema:
     status: none
 
-- name: zer0-pages-remote
-  slug: zer0-pages-remote
-  submodule_path: projects/zer0-pages-remote
-  branch: main
-  repo_url: https://github.com/bamr87/zer0-pages-remote
-  description: "Minimal three-file GitHub Pages site showing the zer0-mistakes Jekyll remote theme with zero local setup."
-  stack: [ruby, jekyll]
-  category: docs
-  # Eleven tracked files, of which eight are hub-seeded config — a smoke-test
-  # harness for `remote_theme`. zer0-mistakes already carries the same coverage in
-  # test/fixtures/consumer-remote/, and four real sites (lifehacker.dev, wargames,
-  # 2005, drsai) exercise remote_theme against actual content. Its one unique
-  # asset is the `layout: welcome` wizard demo, which belongs in the theme's
-  # examples/ before this repo goes.
-  status: archived
-  featured: false
-  maintained: false
-  dev_port:
-    4014 # jekyll range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: https://bamr87.github.io/zer0-pages-remote/
-  docs_url: null
-  schema:
-    status: none
-
-- name: bashconsultants
-  slug: bashconsultants
-  submodule_path: projects/bashconsultants
-  branch: main
-  repo_url: https://github.com/bamr87/bashconsultants
-  description: "Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator VS Code extension."
-  stack: [jekyll, shell]
-  category: docs
-  status: active
-  featured: false
-  maintained: true
-  dev_port:
-    4018 # jekyll range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: https://bash-365.com
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
-- name: "1987"
-  slug: "1987"
-  submodule_path: projects/1987
-  branch: main
-  repo_url: https://github.com/bamr87/1987
-  description: "Self-growing, AI-tended knowledge base about the year 1987: history, politics, science, culture and people."
-  stack: [markdown, ai]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: https://bamr87.github.io/1987/
-  docs_url: null
-  schema:
-    status: none
-
-- name: "2005"
-  slug: "2005"
-  submodule_path: projects/2005
-  branch: main
-  repo_url: https://github.com/year-of-ai/2005   # moved to the year-of-ai org; local dir kept as 2005
-  # The self-growing framework consolidated into year-of-ai/2005-2011 (June 2026);
-  # this repo is now static content + Pages config. The year-of-ai org successors
-  # are deliberately out of fleet scope — only this original member is tracked.
-  description: Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into year-of-ai/2005-2011).
-  stack: [markdown, ai]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: false
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-
 # --- Accounting / finance Django experiments -------------------------------
 - name: djangoerp
   slug: djangoerp
@@ -694,72 +494,6 @@
     status: none
 
 # --- Personal content / CV -------------------------------------------------
-- name: cv
-  slug: cv
-  submodule_path: projects/cv
-  branch: main
-  repo_url: https://github.com/bamr87/cv
-  description: "Amr's CV as code: one cv.json rendered to Markdown, LaTeX, HTML and PDF, with automated publishing and releases."
-  stack: [latex, typescript, node]
-  category: docs
-  # Rebuilt 2026-08 as the fleet's CV machine: data/cv.json (cv-builder-pro's
-  # CVData contract) + a builder/ engine ported from that app, CI-gated generated
-  # CV.md, weekly publish + freshness loops, snapshot releases, and the jd/
-  # tailoring loop. The old housekeeping debts (tracked LaTeX byproducts, four
-  # ~2MB PDF renders, no README) were cleared in the same change; the real data
-  # doubles as the engine's golden test fixture.
-  status: active
-  featured: false
-  maintained: true
-  live_url: null
-  ux:
-    enabled: true
-    tier: content
-    surfaces:
-      - url: https://bamr87.github.io/cv/
-        role: home
-    baselines: none
-
-  docs_url: null
-  schema:
-    status: none
-
-- name: books
-  slug: books
-  submodule_path: projects/books
-  branch: main
-  repo_url: https://github.com/bamr87/books
-  description: "Plain-markdown book-writing workspace with a CLI, a studio editor, validation checks and an AI writing assistant."
-  stack: [markdown]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-
-- name: zer0-pages
-  slug: zer0-pages
-  submodule_path: projects/zer0-pages
-  branch: main
-  repo_url: https://github.com/bamr87/zer0-pages
-  description: "Obsidian vault published as a Jekyll knowledge site via build-time bridge plugins; the second brain of zer0-mistakes."
-  stack: [jekyll, ruby, obsidian, ai]
-  category: docs
-  status: experiment
-  featured: false
-  maintained: true
-  dev_port:
-    4012 # jekyll range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: https://bamr87.github.io/zer0-pages/
-  docs_url: null
-  schema:
-    status: adopted
-    pr: https://github.com/bamr87/zer0-pages/pull/4
-
 # --- Formerly forked tools (now first-party in substance) -------------------
 - name: zer0-CMS
   slug: zer0-cms
@@ -769,11 +503,11 @@
   # No longer a fork in substance: "refactor!: break free from the Front Matter
   # fork — a lightweight zer0-CMS extension" (2026-07-31). GitHub still reports
   # isFork:true because the upstream history was never detached.
-  description: "Fork of Front Matter CMS reworked into zer0-CMS: a governed VS Code + Rails CMS for zer0-themed markdown sites."
-  stack: [typescript, vscode]
+  description: "The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails experience plane, VS Code extension) plus the theme, image generator, books app, barodybroject and the zer0 sites, each imported with its history."
+  stack: [typescript, vscode, django, wagtail, rails, jekyll]
   category: dev-tools
   status: active
-  featured: false
+  featured: true
   maintained: true
   dev_port:
     3010 # web range; `dash-gen compose` remaps this project's
@@ -848,23 +582,6 @@
     status: none
   license: MIT
 
-- name: gitnexus
-  slug: gitnexus
-  submodule_path: projects/gitnexus
-  branch: main
-  repo_url: https://github.com/bamr87/gitnexus
-  description: "Nexus Forge: a static rebuild-spec workbench (PRD, architecture, 14-step playbook) for reimplementing GitNexus."
-  stack: [typescript, react, vite, pglite]
-  category: full-stack-ai
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: null
-
 - name: irony-works
   slug: irony-works
   submodule_path: projects/irony-works
@@ -885,22 +602,6 @@
         role: home
     baselines: none
 
-  docs_url: null
-  schema:
-    status: none
-
-- name: git-with-the-program
-  slug: git-with-the-program
-  submodule_path: projects/git-with-the-program
-  branch: main
-  repo_url: https://github.com/bamr87/git-with-the-program
-  description: "Agentic governance framework that distills git history into a core memory and scores every change for drift."
-  stack: [typescript, ai]
-  category: dev-tools
-  status: experiment
-  featured: false
-  maintained: true
-  live_url: null
   docs_url: null
   schema:
     status: none
@@ -1012,25 +713,6 @@
     status: none     # its SCHEMA.md predates the Pyramid format (fails schema_lint)
   license: MIT
 
-- name: retro-pi
-  slug: retro-pi
-  submodule_path: projects/retro-pi
-  branch: main
-  repo_url: https://github.com/bamr87/retro-pi
-  description: "Portable retro-gaming workspace for macOS and Raspberry Pi: declarative manifests drive EmulationStation and RetroArch."
-  stack: [shell, python, raspberry-pi, retroarch]
-  category: dev-tools
-  status: active
-  featured: false
-  maintained: true
-  live_url: null
-  docs_url: null
-  schema:
-    status: none
-  # MIT for the tooling only; emulators, cores, BIOS images and ROMs carry their
-  # own terms (docs/legal.md) — hence GitHub's NOASSERTION.
-  license: MIT
-
 # --- Added in the 2026-10-19 consolidation (docs/CONSOLIDATION.md): live repos
 # under bamr87 and the lineage orgs' root sites that were not registered, plus
 # cv-pro, the merge of cv + cv-builder-pro. ----------------------------------
@@ -1072,7 +754,7 @@
   slug: bash-365-apex
   submodule_path: projects/bash-365-apex
   branch: main
-  repo_url: https://github.com/bamr87/bash-365-apex
+  repo_url: https://github.com/bash-365/bash-365-apex
   description: "Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Consulting."
   stack: [html, github-pages]
   category: docs
@@ -1149,38 +831,6 @@
   featured: false
   maintained: false
   live_url: null
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
-- name: zer0-demo-garden
-  slug: zer0-demo-garden
-  branch: main
-  repo_url: https://github.com/bamr87/zer0-demo-garden
-  description: "Marginalia: a demo digital garden for the zer0-mistakes theme (Obsidian wiki-links and backlinks); consolidated into zer0-CMS sites/, the repo still publishes its Pages site."
-  stack: [jekyll, ruby]
-  category: docs
-  status: maintenance
-  featured: false
-  maintained: true
-  live_url: https://bamr87.github.io/zer0-demo-garden/
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
-- name: zer0-demo-cookbook
-  slug: zer0-demo-cookbook
-  branch: main
-  repo_url: https://github.com/bamr87/zer0-demo-cookbook
-  description: "The Sunday Braise: a demo cookbook site generated by the zer0-mistakes Site Builder; consolidated into zer0-CMS sites/, the repo still publishes its Pages site."
-  stack: [jekyll, ruby]
-  category: docs
-  status: maintenance
-  featured: false
-  maintained: true
-  live_url: https://bamr87.github.io/zer0-demo-cookbook/
   docs_url: null
   schema:
     status: none

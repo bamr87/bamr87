@@ -80,7 +80,7 @@ services:
       dockerfile: .devcontainer/Dockerfile
     volumes:
       - .:/workspace:cached
-      - node-modules:/workspace/projects/cv-builder-pro/node_modules
+      - node-modules:/workspace/projects/cv-pro/app/node_modules
       - venv-docs:/workspace/.venv-docs
       - venv-readme:/workspace/projects/README/.venv
       - bundle-gems:/home/vscode/.bundle-gems
@@ -116,7 +116,7 @@ services:
       - "127.0.0.1:35760-35769:35760-35769"        # …their livereload
       - "127.0.0.1:5000-5001:5000-5001"            # Vite-in-devenv
       - "127.0.0.1:${MKDOCS_PORT:-8000}:8000"      # MkDocs-in-devenv
-      - "127.0.0.1:${BAMR87_DEVENV_8080_PORT:-8080}:8080"  # gitnexus (npm run dev)
+      - "127.0.0.1:${BAMR87_DEVENV_8080_PORT:-8080}:8080"  # gitorio packages/gitnexus (npm run dev)
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PYTHONDONTWRITEBYTECODE=1

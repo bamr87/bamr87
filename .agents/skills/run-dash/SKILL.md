@@ -38,14 +38,14 @@ This prints every project ranked by attention (🔴/🟠/🟢 when health data e
 Then get a **work order** for the project you're about to touch:
 
 ```bash
-python3 .Codex/skills/run-dash/driver.py project cv-builder-pro
+python3 .Codex/skills/run-dash/driver.py project cv-pro
 ```
 
 It prints the repo URL, stack, live health, the **declared branch**, the checkout state, and a copy-paste _dispatch_ block — e.g. for an uninitialized submodule:
 
 ```text
-  git submodule update --init projects/cv-builder-pro
-  cd projects/cv-builder-pro
+  git submodule update --init projects/cv-pro
+  cd projects/cv-pro
   git checkout main     # submodules land in detached HEAD
   git pull --ff-only
 ```

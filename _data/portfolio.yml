@@ -60,15 +60,12 @@ members:
   "it-journey": knowledge
   "wargames": knowledge
   "zer0-mistakes": zer0
-  "zer0-image-generator": zer0
   "gitorio": agents
-  "barodybroject": ai
   "aieo": ai
   "lawmode": ai
   "law-ai": ai
   "githubai": agents
   "fredgar-ai": business
-  "drsai": ai
   "ai-seed": agents
   "wtd": agents
   "vs-sonic-pi": devtools
@@ -77,14 +74,9 @@ members:
   "bashcrawl": games
   "bamr87.github.io": sites
   "lifehacker.dev": sites
-  "zer0-pages-remote": zer0
-  "bashconsultants": sites
-  "1987": knowledge
-  "2005": related
   "djangoerp": business
   "cv": business
   "books": knowledge
-  "zer0-pages": zer0
   "zer0-CMS": zer0
   "bashos": agents
   "ocrmd": ai
@@ -115,7 +107,7 @@ extra:
     status: active
     live_url: https://bamr87.github.io/bamr87/
   - name: bash-365-apex
-    repo_url: https://github.com/bamr87/bash-365-apex
+    repo_url: https://github.com/bash-365/bash-365-apex
     description: "Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Consulting."
     group: sites
     status: active

@@ -169,7 +169,7 @@ The `.zprofile` (and CHUI `local.zsh`) source `tools/devtools-env.sh`, which:
 # Available after sourcing (or opening a new terminal):
 bamr87-setup           # Run tools/setup.sh
 bamr87-update          # Run tools/update-submodules.sh
-bamr87-cv              # cd projects/cv-builder-pro && npm run dev
+bamr87-cv              # cd projects/cv-pro/app && npm run dev
 bamr87-dash            # Run tools/dash (unified dash CLI)
 bamr87-docs            # tools/dash serve — Jekyll dash via docker (:4000)
 bamr87-dc              # docker compose (from project root)

@@ -10,10 +10,10 @@ A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (c
 
 | Path | Upstream | Branch | Stack |
 | --- | --- | --- | --- |
-| `projects/cv-builder-pro/` | `bamr87/cv-builder-pro` | `main` | React, TypeScript, Vite, Tailwind, Firebase |
+| `projects/cv-pro/` | `bamr87/cv-pro` | `main` | `cv/`: LaTeX + Node renders of cv.json; `app/`: React, TypeScript, Vite, Tailwind, Firebase |
 | `projects/README/` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
 | `projects/scripts/` | `bamr87/scripts` | `main` | Bash, Python |
-| `projects/zer0-mistakes/` | `bamr87/zer0-mistakes` | `main` | Jekyll theme (powers this dash) |
+| `projects/zer0-cms/` | `bamr87/zer0-CMS` | `main` | The zer0 stack in one repo: headless CMS (Django/Wagtail, Rails, VS Code extension) + the Jekyll theme at `packages/zer0-mistakes/` (mirrored read-only to `bamr87/zer0-mistakes` for `remote_theme`) |
 | `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
 | `projects/skills/` | `microsoft/skills` (external) | `main`, `update = merge` | Markdown skills, MCP |
 
@@ -23,16 +23,16 @@ A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (c
 
 ## Submodule workflow (critical, non-obvious)
 
-Submodules are full clones of other repos. A change inside `projects/cv-builder-pro/`, `projects/README/`, `projects/scripts/`, or `projects/skills/` is **not** committed by the root repo — you commit it _in the submodule's own repo first_, then update the pointer in root:
+Submodules are full clones of other repos. A change inside `projects/cv-pro/`, `projects/README/`, `projects/scripts/`, or `projects/skills/` is **not** committed by the root repo — you commit it _in the submodule's own repo first_, then update the pointer in root:
 
 ```bash
-cd projects/cv-builder-pro
+cd projects/cv-pro
 git checkout main                      # submodules often land in detached HEAD; check out the branch first
 # ...edit, then:
 git add . && git commit -m "feat: ..."
-git push origin main                   # pushes to bamr87/cv-builder-pro, NOT this repo
+git push origin main                   # pushes to bamr87/cv-pro, NOT this repo
 cd ../..
-git add projects/cv-builder-pro && git commit -m "chore: update cv submodule"   # root only records the new commit SHA
+git add projects/cv-pro && git commit -m "chore: update cv-pro submodule"   # root only records the new commit SHA
 ```
 
 Consequences:
@@ -48,10 +48,10 @@ Clone fresh with `git clone --recurse-submodules ...`; bootstrap everything with
 
 Run project commands **inside the relevant submodule** — each has its own dependencies.
 
-**CV Builder (`projects/cv-builder-pro/`)** — Vite dev server (serves on port 5000 per the compose/`kill` config; docs sometimes cite Vite's default 5173):
+**CV Builder (`projects/cv-pro/app/`)** — Vite dev server (serves on port 5000 per the compose/`kill` config; docs sometimes cite Vite's default 5173):
 
 ```bash
-cd projects/cv-builder-pro
+cd projects/cv-pro/app
 npm install
 npm run dev
 npm run build        # tsc -b --noCheck && vite build
@@ -59,7 +59,7 @@ npm run lint         # eslint .
 npm run kill         # frees port 5000
 ```
 
-Note: `npm test` in `projects/cv-builder-pro/` is the **CVData contract gate** (`scripts/contract-check.mjs` against the vendored `contract/cv.schema.json` from bamr87/cv); e2e tests are Cypress specs under `projects/cv-builder-pro/cypress/e2e/` (`npx cypress run` against a running dev server).
+Note: `npm test` in `projects/cv-pro/app/` is the **CVData contract gate** (`scripts/contract-check.mjs` against the vendored `contract/cv.schema.json`, whose source is `cv/data/cv.schema.json` in the same repo); e2e tests are Cypress specs under `projects/cv-pro/app/cypress/e2e/` (`npx cypress run` against a running dev server).
 
 **Documentation (`projects/README/`)** — Python + pytest:
 
@@ -78,7 +78,7 @@ cd projects/README && pip install -r requirements.txt && mkdocs serve
 **Aggregate verification** — delegates to each project's own checks; skips any whose tooling/deps are absent:
 
 ```bash
-./tools/run-all-tests.sh       # fans out over EVERY checked-out submodule, running each project's own suite when its deps are installed and skipping (with a reason) otherwise; plus shellcheck of tools/ and the README submodule's mkdocs build. cv and cv-builder-pro both carry real npm test suites (sync gates / the CVData contract gate).
+./tools/run-all-tests.sh       # fans out over EVERY checked-out submodule, running each project's own suite when its deps are installed and skipping (with a reason) otherwise; plus shellcheck of tools/ and the README submodule's mkdocs build. cv-pro's `cv/` and `app/` both carry real npm test suites (sync gates / the CVData contract gate).
 ```
 
 **Shell scripts** — `shellcheck tools/*.sh` (CI uses `--severity=warning`). `projects/scripts/` shellchecks itself in its own CI; the hub deliberately does not gate it a second time.

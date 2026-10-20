@@ -2,7 +2,7 @@
 
 > Every service in the fleet answers the same shape of request the same way, so one client module, one error type, and one health probe work against all of them.
 
-Evidence base: FastAPI (aieo, wtd), Django + DRF (djangoerp, barodybroject, edgar/fredgar), Rails (zer0-image-generator), a Cloudflare Worker (githubai), and a stdlib server (books). Three frontend fetch wrappers carry three different `ApiError` shapes (`{status,detail,body,isAuth,isRateLimit}` · `{code,status,retryAfter}` · bare `Response`). No repo publishes an OpenAPI document in CI; no shared health contract exists; the hub monitors repos from GitHub metadata only. The `.github/instructions/development` "RESTful API Design" section is advice with no gate.
+Evidence base: FastAPI (aieo, wtd), Django + DRF (djangoerp, barodybroject, edgar/fredgar), Rails (zer0-image-generator), a Cloudflare Worker (githubai), and a stdlib server (zer0-cms/packages/books). Three frontend fetch wrappers carry three different `ApiError` shapes (`{status,detail,body,isAuth,isRateLimit}` · `{code,status,retryAfter}` · bare `Response`). No repo publishes an OpenAPI document in CI; no shared health contract exists; the hub monitors repos from GitHub metadata only. The `.github/instructions/development` "RESTful API Design" section is advice with no gate.
 
 ## Surface
 
@@ -38,7 +38,7 @@ Evidence base: FastAPI (aieo, wtd), Django + DRF (djangoerp, barodybroject, edga
 | --- | --- | --- | --- | --- | --- |
 | UPS-BE-30 | MUST | api | Breaking changes bump `v<N>`; the previous version keeps serving for one release cycle with a `Deprecation` header and a `Sunset` date. Additive changes never bump. | changelog + headers | — |
 | UPS-BE-31 | MUST | api | The OpenAPI document is committed (`openapi.json` at the surface root) and CI regenerates and diffs it (QA-17); the frontend's types are generated from it (`openapi-typescript`) rather than hand-written. | CI step + generated types | — |
-| UPS-BE-32 | SHOULD | api + app | Cross-repo contracts (e.g. the `CVData` schema shared by `cv` and `cv-builder-pro`) are vendored as a JSON Schema under `contract/` with a `contract-check` test on both sides. | `contract/*.schema.json` | cv-builder-pro `scripts/contract-check.mjs` |
+| UPS-BE-32 | SHOULD | api + app | Cross-repo contracts (e.g. the `CVData` schema shared by `cv-pro/cv` and `cv-pro/app`) are vendored as a JSON Schema under `contract/` with a `contract-check` test on both sides. | `contract/*.schema.json` | cv-pro/app `scripts/contract-check.mjs` |
 
 ## Client contract (what the frontend HTTP client MUST do)
 
@@ -54,4 +54,4 @@ Evidence base: FastAPI (aieo, wtd), Django + DRF (djangoerp, barodybroject, edga
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
 | UPS-BE-50 | MUST | api | Bearer tokens in `Authorization: Bearer …` or an `X-API-Key` header; never in query strings; tokens never logged (OPS-12). | review | — |
-| UPS-BE-51 | SHOULD | app | Browser apps needing user identity use Firebase Auth (the fleet's one proven provider, cv-builder-pro) behind a `Protected` route wrapper and an `AuthContext`; server apps use the framework's session auth. New providers need a documented reason. | code | cv-builder-pro `context/AuthContext.tsx` |
+| UPS-BE-51 | SHOULD | app | Browser apps needing user identity use Firebase Auth (the fleet's one proven provider, cv-pro/app) behind a `Protected` route wrapper and an `AuthContext`; server apps use the framework's session auth. New providers need a documented reason. | code | cv-pro/app `context/AuthContext.tsx` |

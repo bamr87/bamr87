@@ -36,7 +36,7 @@ bands:
   hub:        { range: [4000, 4009], purpose: "Hub's own surfaces: dash, console" }
   jekyll:     { range: [4010, 4039], purpose: "Jekyll/static sites, one per project" }
   livereload: { range: [35730, 35759], purpose: "Jekyll livereload, mirrors the jekyll band" }
-  frontend:   { range: [5000, 5199], purpose: "Vite/Node frontends and static previews (5000 = cv-builder-pro, grandfathered)" }
+  frontend:   { range: [5000, 5199], purpose: "Vite/Node frontends and static previews (5000 = cv-pro, grandfathered)" }
   api:        { range: [8100, 8149], purpose: "HTTP APIs and server-rendered apps" }
   docs:       { range: [8000, 8009], purpose: "Hub/devenv documentation servers (MkDocs)" }
   debug:      { range: [5700, 5749], purpose: "debugpy / node --inspect attach points" }
@@ -175,28 +175,6 @@ projects:
       tika: [9998]
     notes: "db and redis publish no host port — nothing to deconflict."
 
-  barodybroject:
-    host: compose
-    prefix: BARODY
-    compose: projects/barodybroject/docker-compose.yml
-    services:
-      web-prod: { port: 8114, band: api,      var: BARODY_API_PORT }
-      jekyll:   { port: 4021, band: jekyll,   var: BARODY_JEKYLL_PORT }
-      docs:     { port: 8121, band: api,      var: BARODY_DOCS_PORT }
-      barodydb: { port: 5444, band: database, var: BARODY_DB_PORT, shared: false }
-    exclude:
-      # DJANGO_SETTINGS_MODULE is hardcoded to settings.production, which
-      # raises ImproperlyConfigured("SECRET_KEY must be set for production")
-      # and crash-loops. It is a PRODUCTION service; the dev server (with
-      # debugpy on 5678) lives in .devcontainer/docker-compose_dev.yml, which
-      # the hub does not drive. Supplying a fake SECRET_KEY here would be the
-      # hub changing what a service IS, which an override must never do.
-      web-prod: "production settings; needs a real SECRET_KEY (dev stack is in .devcontainer/)"
-    # No debug: allocation. docker-compose.yml's web-prod runs gunicorn with no
-    # debugpy and no source bind-mount; the 5678 in this repo belongs to the
-    # .devcontainer stack's `python` service, which the hub does not drive.
-    # Offering an attach target here would produce a config that never connects.
-
   aieo:
     host: compose
     compose: projects/aieo/docker-compose.yml
@@ -239,30 +217,6 @@ projects:
     services:
       jekyll: { port: 4010, band: jekyll, var: IT_JOURNEY_PORT, livereload: 35730 }
 
-  zer0-mistakes:
-    host: compose
-    compose: projects/zer0-mistakes/docker-compose.yml
-    services:
-      jekyll: { port: 4011, band: jekyll, var: ZER0_MISTAKES_PORT, livereload: 35731 }
-
-  bashconsultants:
-    host: compose
-    compose: projects/bashconsultants/docker-compose.yml
-    services:
-      jekyll: { port: 4014, band: jekyll, var: BASHCONSULTANTS_PORT, livereload: 35734 }
-
-  zer0-pages:
-    host: compose
-    compose: projects/zer0-pages/docker-compose.yml
-    services:
-      site: { port: 4019, band: jekyll, var: ZER0_PAGES_PORT, livereload: 35739 }
-
-  zer0-pages-remote:
-    host: compose
-    compose: projects/zer0-pages-remote/docker-compose.yml
-    services:
-      jekyll: { port: 4020, band: jekyll, var: ZER0_PAGES_REMOTE_PORT, livereload: 35740 }
-
   # ---- compose-hosted: single-service ---------------------------------------
   zer0-cms:
     host: compose
@@ -271,22 +225,9 @@ projects:
       cms:      { port: 8117, band: api, var: ZER0_CMS_PORT }
       imagegen: { port: 8118, band: api, var: ZER0_CMS_IMAGEGEN_PORT }
 
-  zer0-image-generator:
-    host: compose
-    prefix: ZER0_IMAGEGEN
-    compose: projects/zer0-image-generator/docker-compose.yml
-    services:
-      web: { port: 8119, band: api, var: ZER0_IMAGEGEN_PORT }
-
-  lawmode:
-    host: compose
-    compose: projects/lawmode/docker-compose.yml
-    services: {}
-    notes: "Batch scanner — publishes no ports. Included so `dash dev up lawmode` works."
-
   # ---- devenv-hosted: no compose of their own --------------------------------
   # Run via `docker compose exec devenv`; ports published by the devenv service.
-  cv-builder-pro:
+  cv-pro:
     host: devenv
     services:
       vite: { port: 5000, band: frontend, var: CV_PORT }
@@ -302,18 +243,10 @@ projects:
     host: devenv
     services:
       jekyll: { port: 4015, band: jekyll, var: WARGAMES_PORT, livereload: 35735 }
-  drsai:
-    host: devenv
-    services:
-      jekyll: { port: 4016, band: jekyll, var: DRSAI_PORT, livereload: 35736 }
   irony-works:
     host: devenv
     services:
       jekyll: { port: 4017, band: jekyll, var: IRONY_WORKS_PORT, livereload: 35737 }
-  "2005":
-    host: devenv
-    services:
-      jekyll: { port: 4018, band: jekyll, var: Y2005_PORT, livereload: 35738 }
   rewind-arcade:
     host: devenv
     services:
@@ -322,10 +255,6 @@ projects:
     host: devenv
     services:
       vite: { port: 5176, band: frontend, var: AIEO_FRONTEND_PORT }
-  gitnexus:
-    host: devenv
-    services:
-      vite: { port: 5177, band: frontend, var: GITNEXUS_PORT }
   ai-seed-docs:
     host: devenv
     services:

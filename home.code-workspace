@@ -19,9 +19,6 @@
 			"path": "../github/bash-365.com"
 		},
 		{
-			"path": "projects/bashconsultants"
-		},
-		{
 			"path": "projects/gitorio"
 		},
 		{
@@ -49,15 +46,6 @@
 		{
 			"name": "zer0-CMS",
 			"path": "projects/zer0-cms"
-		},
-		{
-			"path": "projects/zer0-image-generator"
-		},
-		{
-			"path": "projects/zer0-mistakes"
-		},
-		{
-			"path": "projects/zer0-pages-remote"
 		}
 	],
 	"settings": {

@@ -16,7 +16,7 @@ That join is what this driver produces.
 Usage:
   python3 .claude/skills/run-dash/driver.py            # the orchestration map (all projects)
   python3 .claude/skills/run-dash/driver.py map        # same, explicit
-  python3 .claude/skills/run-dash/driver.py project cv-builder-pro   # work order for one project
+  python3 .claude/skills/run-dash/driver.py project cv-pro   # work order for one project
   python3 .claude/skills/run-dash/driver.py map --json              # machine-readable
   python3 .claude/skills/run-dash/driver.py project README --json
 

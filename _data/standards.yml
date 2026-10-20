@@ -114,6 +114,4 @@ tier_overrides:
   # pure content / knowledge bases (no build, no tests)
   "1987": content
   "2005": content
-  books: content
   cv: content
-  zer0-pages: content

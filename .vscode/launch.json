@@ -173,21 +173,6 @@
     // compose file of their own and are served from inside the workspace
     // container. Both land on the port _data/ports.yml allocates them.
     {
-  "name": "💎 Jekyll: barodybroject (:4021)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "tools/fleet-dev.sh up barodybroject && tools/fleet-dev.sh logs barodybroject",
-  "cwd": "${workspaceFolder}",
-  "serverReadyAction": {
-    "pattern": "Server address: (https?://\\\\S+)",
-    "uriFormat": "http://127.0.0.1:4021/",
-    "action": "openExternally"
-  },
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
   "name": "💎 Jekyll: it-journey (:4010)",
   "type": "node-terminal",
   "request": "launch",
@@ -196,66 +181,6 @@
   "serverReadyAction": {
     "pattern": "Server address: (https?://\\\\S+)",
     "uriFormat": "http://127.0.0.1:4010/",
-    "action": "openExternally"
-  },
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: zer0-mistakes (:4011)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "tools/fleet-dev.sh up zer0-mistakes && tools/fleet-dev.sh logs zer0-mistakes",
-  "cwd": "${workspaceFolder}",
-  "serverReadyAction": {
-    "pattern": "Server address: (https?://\\\\S+)",
-    "uriFormat": "http://127.0.0.1:4011/",
-    "action": "openExternally"
-  },
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: bashconsultants (:4014)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "tools/fleet-dev.sh up bashconsultants && tools/fleet-dev.sh logs bashconsultants",
-  "cwd": "${workspaceFolder}",
-  "serverReadyAction": {
-    "pattern": "Server address: (https?://\\\\S+)",
-    "uriFormat": "http://127.0.0.1:4014/",
-    "action": "openExternally"
-  },
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: zer0-pages (:4019)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "tools/fleet-dev.sh up zer0-pages && tools/fleet-dev.sh logs zer0-pages",
-  "cwd": "${workspaceFolder}",
-  "serverReadyAction": {
-    "pattern": "Server address: (https?://\\\\S+)",
-    "uriFormat": "http://127.0.0.1:4019/",
-    "action": "openExternally"
-  },
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: zer0-pages-remote (:4020)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "tools/fleet-dev.sh up zer0-pages-remote && tools/fleet-dev.sh logs zer0-pages-remote",
-  "cwd": "${workspaceFolder}",
-  "serverReadyAction": {
-    "pattern": "Server address: (https?://\\\\S+)",
-    "uriFormat": "http://127.0.0.1:4020/",
     "action": "openExternally"
   },
   "presentation": {
@@ -296,32 +221,10 @@
   }
 },
     {
-  "name": "💎 Jekyll: drsai (:4016, devenv)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "docker compose exec -T -w /workspace/projects/drsai devenv bundle exec jekyll serve --host 0.0.0.0 --port 4016 --livereload --livereload-port 35736",
-  "cwd": "${workspaceFolder}",
-  "preLaunchTask": "Fleet: up hub",
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
   "name": "💎 Jekyll: irony-works (:4017, devenv)",
   "type": "node-terminal",
   "request": "launch",
   "command": "docker compose exec -T -w /workspace/projects/irony-works devenv bundle exec jekyll serve --host 0.0.0.0 --port 4017 --livereload --livereload-port 35737",
-  "cwd": "${workspaceFolder}",
-  "preLaunchTask": "Fleet: up hub",
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: 2005 (:4018, devenv)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "docker compose exec -T -w /workspace/projects/2005 devenv bundle exec jekyll serve --host 0.0.0.0 --port 4018 --livereload --livereload-port 35738",
   "cwd": "${workspaceFolder}",
   "preLaunchTask": "Fleet: up hub",
   "presentation": {
@@ -624,16 +527,6 @@
       }
     },
     {
-      "name": "🐍 barodybroject: up stack (web-prod :8114)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "tools/fleet-dev.sh up barodybroject && tools/fleet-dev.sh logs barodybroject web-prod",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "7-python"
-      }
-    },
-    {
       "name": "🐍 ai-seed: up stack (api :8113)",
       "type": "node-terminal",
       "request": "launch",
@@ -873,30 +766,12 @@
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "9-cli" }
     },
-    {
-      "name": "🧪 pytest: zer0-image-generator",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/zer0-image-generator devenv python3 -m pytest -v",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
-    },
     // -------------------------------------------------------------- CONTENT
     {
       "name": "📝 scripts: current file",
       "type": "node-terminal",
       "request": "launch",
       "command": "docker compose exec -T -w /workspace/projects/scripts devenv python3 \"/workspace/${relativeFile}\"",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "10-content" }
-    },
-    {
-      "name": "📝 1987: show index.md",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T devenv head -n 80 /workspace/projects/1987/index.md",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Docker: Ensure devenv",
       "presentation": { "group": "10-content" }
@@ -918,7 +793,7 @@
       "id": "fleetProject",
       "description": "Fleet project (tools/fleet-dev.sh list)",
       "type": "pickString",
-      "options": ["hub", "law-ai", "djangoerp", "fredgar-ai", "barodybroject", "aieo", "ai-seed", "gitorio", "bashos", "it-journey", "zer0-mistakes", "bashconsultants", "zer0-pages", "zer0-pages-remote", "zer0-cms", "zer0-image-generator", "lawmode"],
+      "options": ["hub", "law-ai", "djangoerp", "fredgar-ai", "aieo", "ai-seed", "gitorio", "bashos", "it-journey", "zer0-cms"],
       "default": "hub"
     },
     {

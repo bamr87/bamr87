@@ -52,7 +52,7 @@ The full catalogue — every spec, kit, reference implementation, registry, tool
 | Fleet config (versions, caps, tokens, labels) | `_data/fleet.yml` | every loop |
 | Skills, commands, agents for the hub | `.claude/` | Claude Code in the hub |
 | Copilot-format personas, instructions, prompts | `.github/{agents,instructions,prompts}` | hub skills, read in place |
-| Reference UI implementation | `projects/zer0-mistakes/` (`_design-system/`, `_includes/components/`) | Jekyll sites via `remote_theme`; other stacks via the extracted kits |
+| Reference UI implementation | `projects/zer0-cms/packages/zer0-mistakes/` (`_design-system/`, `_includes/components/`; mirrored to `bamr87/zer0-mistakes`) | Jekyll sites via `remote_theme`; other stacks via the extracted kits |
 
 Rule: **a standard is not real until it has (a) a row here, (b) a satisfying artifact a repo can hold, and (c) a seed or an audit.** A row with `seed: —` and no audit is a proposal, and belongs on the roadmap until one of those exists.
 

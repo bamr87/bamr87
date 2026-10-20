@@ -898,8 +898,6 @@ content:
     - name: it-journey
       quality: { require: [title, description, date, author, categories, tags], description: [120, 160] }
     - name: bash-365.com
-      registry: bashconsultants
-      repo: amr-bash/bash-365.com
       live_url: https://bash-365.com
       quality: { description: [120, 155] }
     - name: irony-works
@@ -915,7 +913,10 @@ content:
     - name: year-of-ai.github.io
       repo: year-of-ai/year-of-ai.github.io
       live_url: https://year-of-ai.github.io
-    - name: '2005' # registry entry; a year-of-ai member
+    - name: '2005' # a year-of-ai member. Its content moved to zer0-CMS sites/2005 and year-of-ai/2005 is
+      # archived (2026-10-19); the atlas reads repository roots only, so it reads the archived copy until
+      # it can follow a site into a monorepo sub-path.
+      repo: year-of-ai/2005
       dates: git # front-matter `date` is the subject's date (2005), not when it was published
     - name: ai-world-view.github.io
       repo: ai-world-view/ai-world-view.github.io
@@ -995,15 +996,15 @@ containers:
     # a compose file and a `dev_port` and it graduates out of this block.
     workspace: [4040, 4069] # Jekyll-in-devenv
     workspace_livereload: [35760, 35789]
-    workspace_node: [5000, 5019] # Vite-in-devenv (cv-builder-pro, rewind-arcade)
+    workspace_node: [5000, 5019] # Vite-in-devenv (cv-pro, rewind-arcade)
 
   # Named groups for `dash up --group <name>`. A project may appear in several.
   groups:
     jekyll:
-      [it-journey, zer0-pages, zer0-pages-remote, zer0-mistakes, bashconsultants, barodybroject]
-    web: [zer0-cms, zer0-image-generator, gitorio]
+      [it-journey]
+    web: [zer0-cms, gitorio]
     ai: [law-ai, aieo, bashos, fredgar-ai, ai-seed]
-    django: [djangoerp, barodybroject]
+    django: [djangoerp]
 
   # `dash up --all` refuses past this many projects unless forced: law-ai alone
   # pulls neo4j, ollama, vllm and Phoenix, and this bench OOM-killed
