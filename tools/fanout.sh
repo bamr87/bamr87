@@ -51,6 +51,11 @@
 #                                "## <kit title>" section to its body instead of
 #                                opening another PR (FANOUT_PR_TITLE retitles it)
 #   FANOUT_PR_DRAFT=1            open new PRs as drafts
+#   FANOUT_SUBMODULES_ONLY=1     `--target all` means the checked-out submodules
+#                                only — not the registry rows without a checkout
+#                                (the zer0-mistakes mirror, the .github defaults
+#                                repo, the SCHEMA kit source, forks), which take a
+#                                kit only when named explicitly
 #   Together they turn N kit PRs per repo into ONE alignment PR per repo with one
 #   commit per kit — what the 2026-10-20 fleet alignment used on chore/root-tidy.
 #
@@ -833,7 +838,7 @@ PY
 all_targets() {
   # Submodules first (minus the ones the registry marks archived — GitHub
   # refuses pushes to an archived repo), then registry rows without a checkout.
-  "${PYTHON:-python3}" - "$HUB" "$FLEET_OWNERS" <<'PY' 2>/dev/null
+  "${PYTHON:-python3}" - "$HUB" "$FLEET_OWNERS" "${FANOUT_SUBMODULES_ONLY:-0}" <<'PY' 2>/dev/null
 import subprocess, sys
 root = sys.argv[1]
 paths = subprocess.run(["git", "config", "-f", f"{root}/.gitmodules", "--get-regexp", r"^submodule\..*\.path$"],
@@ -848,6 +853,8 @@ archived = {p.get("submodule_path") for p in reg if isinstance(p, dict) and p.ge
 for p in paths:
     if p not in archived:
         print(p)
+if len(sys.argv) > 3 and sys.argv[3] == "1":
+    raise SystemExit(0)
 for p in reg:
     if not isinstance(p, dict) or p.get("submodule_path"):
         continue
