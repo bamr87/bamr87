@@ -70,9 +70,7 @@ Personal and business sites.
 
 Self-growing knowledge bases, study material and learning platforms.
 
-- **[irony-works](https://github.com/bamr87/irony-works)**: The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-mistakes. · [live site](https://bamr87.github.io/irony-works/)
 - **[it-journey](https://github.com/bamr87/it-journey)**: Gamified, open-source platform for learning IT and software development through hands-on quests, zer0 to her0. · [live site](https://it-journey.dev)
-- **[wargames](https://github.com/bamr87/wargames)**: OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted from it-journey. · [live site](https://bamr87.github.io/wargames/)
 
 ### 🤖 AI applications & research
 

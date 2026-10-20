@@ -33,7 +33,6 @@ coverage: listed
 | `githubai/` | dir | Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs… | terminal |
 | `gitorio/` | dir | Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows runni… | terminal |
 | `godotgo/` | dir | Godot 4 game workspace: one reusable framework, five sample games and tooling that treats every pro… | terminal |
-| `irony-works/` | dir | The perpetual encyclopedia of irony: a self-growing, AI-tended Obsidian vault published with zer0-m… | terminal |
 | `it-journey/` | dir | Gamified, open-source platform for learning IT and software development through hands-on quests, ze… | terminal |
 | `law-ai/` | dir | Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, loca… | terminal |
 | `lifehacker.dev/` | dir | Tech knowledge, tools and comedy at lifehacker.dev: a Jekyll site on the zer0-mistakes theme, run b… | terminal |
@@ -44,7 +43,6 @@ coverage: listed
 | `scripts/` | dir | Standalone Bash utilities for project scaffolding, GitHub repository management and multi-repo main… | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |
 | `vs-sonic-pi/` | dir | VS Code extension to write and perform Sonic Pi music live: IntelliSense, hover docs, built-in tuto… | terminal |
-| `wargames/` | dir | OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted f… | terminal |
 | `year-of-ai.github.io/` | dir | Year of AI — the organization's root site and content hub, rendering the shared zer0-mistakes theme… | terminal |
 | `zer0-cms/` | dir | The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails… | terminal |
 | `zpl-viewer/` | dir | Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2… | terminal |

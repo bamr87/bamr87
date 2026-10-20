@@ -209,28 +209,6 @@
     "group": "5-jekyll"
   }
 },
-    {
-  "name": "💎 Jekyll: wargames (:4015, devenv)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "docker compose exec -T -w /workspace/projects/wargames devenv bundle exec jekyll serve --host 0.0.0.0 --port 4015 --livereload --livereload-port 35735",
-  "cwd": "${workspaceFolder}",
-  "preLaunchTask": "Fleet: up hub",
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: irony-works (:4017, devenv)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "docker compose exec -T -w /workspace/projects/irony-works devenv bundle exec jekyll serve --host 0.0.0.0 --port 4017 --livereload --livereload-port 35737",
-  "cwd": "${workspaceFolder}",
-  "preLaunchTask": "Fleet: up hub",
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
     // ------------------------------------------------------------------ APPS
     // NOTE: the devenv entries below run `npx vite` against a BIND-MOUNTED
     // source tree that has no node_modules of its own — install inside the

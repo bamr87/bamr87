@@ -71,10 +71,6 @@
 	path = projects/lifehacker.dev
 	url = https://github.com/bamr87/lifehacker.dev.git
 	branch = main
-[submodule "projects/wargames"]
-	path = projects/wargames
-	url = https://github.com/bamr87/wargames.git
-	branch = main
 [submodule "projects/bashos"]
 	path = projects/bashos
 	url = https://github.com/bamr87/bashos.git
@@ -86,10 +82,6 @@
 [submodule "projects/rewind-arcade"]
 	path = projects/rewind-arcade
 	url = https://github.com/bamr87/rewind-arcade.git
-	branch = main
-[submodule "projects/irony-works"]
-	path = projects/irony-works
-	url = https://github.com/bamr87/irony-works.git
 	branch = main
 [submodule "projects/raising-eliza"]
 	path = projects/raising-eliza

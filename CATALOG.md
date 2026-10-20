@@ -49,7 +49,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`elk/`](templates/elk/) | 0.1.0 | 2026-09-22 | tools/fanout.sh --kit elk --target <name> [--apply] | `README.md`, `SCHEMA.md`, `adapters/django-logging.py`, `adapters/node-pino.mjs`, `adapters/python-logging.py`, `adapters/rails-lograge.rb`, `compose.elk.yml`, `compose.labels.yml`, `filebeat.fleet.y… |
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
 | [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
-| [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/f… | `README.md`, `SKILL.template.md`, `__pycache__/triage.cpython-314.pyc`, `__pycache__/verify_close.cpython-314.pyc`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-ve… |
+| [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/f… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
@@ -86,7 +86,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (36 projects: 23 active, 2 archived, 5 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (34 projects: 21 active, 2 archived, 5 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |
