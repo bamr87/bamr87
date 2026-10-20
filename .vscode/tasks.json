@@ -338,8 +338,10 @@
       "type": "shell",
       // Was `docker-compose exec jekyll ...`: the hub's compose has no
       // `jekyll` service (that is barodybroject's name), so this never ran.
-      "command": "tools/fleet-dev.sh",
-      "args": ["exec", "zer0-mistakes", "jekyll", "bundle", "exec", "jekyll", "build"],
+      // The theme lives in zer0-CMS since 2026-10-19 (packages/zer0-mistakes); it has no
+      // compose project of its own any more, so it builds inside the workspace container.
+      "command": "docker",
+      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/zer0-cms/packages/zer0-mistakes", "devenv", "bundle", "exec", "jekyll", "build"],
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
       "dependsOn": "Docker: Compose Up (Detached)",

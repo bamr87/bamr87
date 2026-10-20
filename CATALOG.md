@@ -78,15 +78,15 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | Webview token isolation | `zer0-cms` · `media/tokens.css, src/webview/shared/dom.ts` | UPS-FE-06, UPS-OPS-23 | Only file allowed to name --vscode-* (CI grep); strict CSP with nonce (see also zpl-viewer). |
 | Forms with validation | `cv-pro` · `app/src/components/ui/form.tsx, app/src/context/AuthContext.tsx` | UPS-FE-19, UPS-BE-51 | react-hook-form + zod wiring; Firebase auth behind a Protected route. |
 | Cross-repo data contract | `cv-pro` · `app/contract/cv.schema.json, app/scripts/contract-check.mjs` | UPS-BE-32 | Vendored JSON Schema from bamr87/cv with a contract gate on both sides. |
-| Server-rendered shell with meta block | `barodybroject` · `src/parodynews/templates/base.html` | UPS-FE-25, UPS-FE-06 | data-bs-theme auto, og meta block, i18n load; the TODO there is the feedback widget. |
-| PWA manifest + service worker | `zer0-image-generator` · `web/app/views/pwa/` | UPS-FE-29 | The fleet's one installable app. |
+| Server-rendered shell with meta block | `zer0-cms` · `apps/barodybroject/src/parodynews/templates/base.html` | UPS-FE-25, UPS-FE-06 | data-bs-theme auto, og meta block, i18n load; the TODO there is the feedback widget. |
+| PWA manifest + service worker | `zer0-cms` · `packages/zer0-image-generator/web/app/views/pwa/` | UPS-FE-29 | The fleet's one installable app. |
 | Evidence bundle credential scrubbing | `bamr87` · `tools/issue-evidence.sh` | UPS-OPS-12, UPS-OPS-24 | Redaction list for token prefixes; never executes commands from issue bodies. |
 | Feature registry + visual evidence standard | `zer0-mistakes` · `features/features.yml, test/visual/evidence-kit.mjs, test/visual/evidence/, .github/skills/visual-evidence/SKILL.md` | UPS-QA-50, UPS-QA-51, UPS-QA-52, UPS-QA-53 | The precedent the verify kit was lifted from — 84-entry feature index with tests + provenance, before/after screenshot montages with measured overflow, evidence as a PR… |
 | Minimal feature index | `it-journey` · `features/features.yml` | UPS-QA-50 | The smallest valid index (id/title/description/implemented/link/tags/date); features/v1 is a strict superset, so it validates unchanged. |
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (48 projects: 27 active, 4 archived, 9 experiment, 8 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (39 projects: 25 active, 3 archived, 5 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |

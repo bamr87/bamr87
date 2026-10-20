@@ -251,9 +251,9 @@ def test_db_init_is_idempotent_by_construction():
 # --------------------------------------------------------------------------- #
 def test_groups_resolve_to_registered_projects():
     projects = [{"slug": s, "dev_port": 4010 + i}
-                for i, s in enumerate(["it-journey", "zer0-pages"])]
+                for i, s in enumerate(["it-journey", "bashconsultants"])]
     targets, problems = fc.resolve_targets(projects, CONTRACT, [], "jekyll", False)
-    assert {t["slug"] for t in targets} == {"it-journey", "zer0-pages"}
+    assert {t["slug"] for t in targets} == {"it-journey", "bashconsultants"}
     # The rest of the group is not checked out here — reported, never fatal.
     assert all("not a registered project" in p for p in problems)
 

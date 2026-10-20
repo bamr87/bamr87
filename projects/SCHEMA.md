@@ -17,14 +17,11 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `README.md` | file | Projects index page | |
-| `1987/` | dir | Self-growing, AI-tended knowledge base about the year 1987: history, politics, science, culture and… | terminal |
-| `2005/` | dir | Year-2005 knowledge base — content archive of the year-of-ai lineage (framework consolidated into y… | terminal |
 | `README/` | dir | Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every pr… | terminal |
 | `ai-seed/` | dir | Self-evolving project template: plant a kernel in any repo and let Claude Code Actions germinate an… | terminal |
 | `ai-world-view.github.io/` | dir | AI World View — the root site of the self-growing country knowledge-base network; the per-country r… | terminal |
 | `aieo/` | dir | AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude wi… | terminal |
 | `bamr87.github.io/` | dir | Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHu… | terminal |
-| `barodybroject/` | dir | Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and… | terminal |
 | `bash-365-apex/` | dir | Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Cons… | terminal |
 | `bash-365.com/` | dir | BASH Consulting's website at bash-365.com — a content site the content atlas already tracks, now ch… | terminal |
 | `bashconsultants/` | dir | Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator V… | terminal |
@@ -34,7 +31,6 @@ coverage: listed
 | `csv-vscoode/` | dir | CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells. | terminal |
 | `cv-pro/` | dir | CV as code and the CV Builder Pro app in one repository: cv/ holds the data, the CVData contract an… | terminal |
 | `djangoerp/` | dir | Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and M… | terminal |
-| `drsai/` | dir | AI-assisted children's storybook platform: verse, OpenAI-rendered illustrations and picture books o… | terminal |
 | `fredgar-ai/` | dir | Django + React app for exploring SEC EDGAR company data and FRED macro series, with AI-assisted sum… | terminal |
 | `githubai/` | dir | Claude Code SDLC framework: reusable GitHub Actions that triage issues, implement work, review PRs… | terminal |
 | `gitorio/` | dir | Factorio-style factory builder for GitHub automation: blueprints compile to Actions workflows runni… | terminal |
@@ -53,11 +49,7 @@ coverage: listed
 | `wargames/` | dir | OverTheWire security wargames (Bandit, Natas and more) mirrored as a Jekyll study site, extracted f… | terminal |
 | `wtd/` | dir | WTD (What To Do): turns TODOs, issues and failing workflows into queued work for a fleet of Claude… | terminal |
 | `year-of-ai.github.io/` | dir | Year of AI — the organization's root site and content hub, rendering the shared zer0-mistakes theme… | terminal |
-| `zer0-cms/` | dir | Fork of Front Matter CMS reworked into zer0-CMS: a governed VS Code + Rails CMS for zer0-themed mar… | terminal |
-| `zer0-image-generator/` | dir | Jekyll plugin, CLI and web app that generate AI preview and social images for any Jekyll site, dire… | terminal |
-| `zer0-mistakes/` | dir | AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as… | terminal |
-| `zer0-pages/` | dir | Obsidian vault published as a Jekyll knowledge site via build-time bridge plugins; the second brain… | terminal |
-| `zer0-pages-remote/` | dir | Minimal three-file GitHub Pages site showing the zer0-mistakes Jekyll remote theme with zero local… | terminal |
+| `zer0-cms/` | dir | The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails… | terminal |
 | `zpl-viewer/` | dir | Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2… | terminal |
 
 ## Placement

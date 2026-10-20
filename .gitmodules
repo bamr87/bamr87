@@ -31,10 +31,6 @@
 	path = projects/githubai
 	url = https://github.com/bamr87/githubai.git
 	branch = main
-[submodule "projects/zer0-mistakes"]
-	path = projects/zer0-mistakes
-	url = https://github.com/bamr87/zer0-mistakes.git
-	branch = main
 [submodule "projects/fredgar-ai"]
 	path = projects/fredgar-ai
 	url = https://github.com/bamr87/fredgar-ai.git
@@ -63,33 +59,9 @@
 	path = projects/wtd
 	url = https://github.com/bamr87/wtd.git
 	branch = main
-[submodule "projects/barodybroject"]
-	path = projects/barodybroject
-	url = https://github.com/bamr87/barodybroject.git
-	branch = main
-[submodule "projects/zer0-pages-remote"]
-	path = projects/zer0-pages-remote
-	url = https://github.com/bamr87/zer0-pages-remote.git
-	branch = main
-[submodule "projects/drsai"]
-	path = projects/drsai
-	url = https://github.com/bamr87/drsai.git
-	branch = main
 [submodule "projects/aieo"]
 	path = projects/aieo
 	url = https://github.com/bamr87/aieo.git
-	branch = main
-[submodule "projects/1987"]
-	path = projects/1987
-	url = https://github.com/bamr87/1987.git
-	branch = main
-[submodule "projects/2005"]
-	path = projects/2005
-	url = https://github.com/year-of-ai/2005.git
-	branch = main
-[submodule "projects/zer0-pages"]
-	path = projects/zer0-pages
-	url = https://github.com/bamr87/zer0-pages.git
 	branch = main
 [submodule "projects/djangoerp"]
 	path = projects/djangoerp
@@ -98,10 +70,6 @@
 [submodule "projects/zer0-cms"]
 	path = projects/zer0-cms
 	url = https://github.com/bamr87/zer0-CMS.git
-	branch = main
-[submodule "projects/zer0-image-generator"]
-	path = projects/zer0-image-generator
-	url = https://github.com/bamr87/zer0-image-generator.git
 	branch = main
 [submodule "projects/gitorio"]
 	path = projects/gitorio

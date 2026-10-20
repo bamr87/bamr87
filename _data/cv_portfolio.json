@@ -4,22 +4,6 @@
   "source": "_data/projects.yml",
   "projects": [
     {
-      "id": "fleet-barodybroject",
-      "name": "barodybroject",
-      "description": "Django + React web app that generates and publishes AI-written parody news, with a Jekyll site and Azure deploy.",
-      "technologies": [
-        "django",
-        "python",
-        "openai",
-        "postgres"
-      ],
-      "github": "https://github.com/bamr87/barodybroject",
-      "startDate": "",
-      "url": "https://bamr87.github.io/barodybroject/",
-      "featured": true,
-      "fleet_status": "active"
-    },
-    {
       "id": "fleet-djangoerp",
       "name": "djangoerp",
       "description": "Modular Django REST ERP: double-entry accounting, inventory, purchasing, sales, manufacturing and MRP planning.",
@@ -76,9 +60,26 @@
       "fleet_status": "active"
     },
     {
+      "id": "fleet-zer0-cms",
+      "name": "zer0-CMS",
+      "description": "The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails experience plane, VS Code extension) plus the theme, image generator, books app, barodybroject and the zer0 sites, each imported with its history.",
+      "technologies": [
+        "typescript",
+        "vscode",
+        "django",
+        "wagtail",
+        "rails",
+        "jekyll"
+      ],
+      "github": "https://github.com/bamr87/zer0-CMS",
+      "startDate": "",
+      "featured": true,
+      "fleet_status": "active"
+    },
+    {
       "id": "fleet-zer0-mistakes",
       "name": "zer0-mistakes",
-      "description": "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem.",
+      "description": "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem; developed in zer0-CMS, mirrored here for remote_theme.",
       "technologies": [
         "jekyll",
         "ruby",
@@ -371,34 +372,6 @@
       "fleet_status": "active"
     },
     {
-      "id": "fleet-zer0-cms",
-      "name": "zer0-CMS",
-      "description": "Fork of Front Matter CMS reworked into zer0-CMS: a governed VS Code + Rails CMS for zer0-themed markdown sites.",
-      "technologies": [
-        "typescript",
-        "vscode"
-      ],
-      "github": "https://github.com/bamr87/zer0-CMS",
-      "startDate": "",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
-      "id": "fleet-zer0-image-generator",
-      "name": "zer0-image-generator",
-      "description": "Jekyll plugin, CLI and web app that generate AI preview and social images for any Jekyll site, directed by Claude.",
-      "technologies": [
-        "ruby",
-        "jekyll",
-        "python",
-        "ai"
-      ],
-      "github": "https://github.com/bamr87/zer0-image-generator",
-      "startDate": "",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
       "id": "fleet-zpl-viewer",
       "name": "zpl-viewer",
       "description": "Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2 thermal labels.",
@@ -444,19 +417,18 @@
         "mcp",
         "mkdocs",
         "node",
-        "obsidian",
         "ocr",
         "ollama",
-        "openai",
         "opencode",
-        "postgres",
         "python",
+        "rails",
         "react",
         "ruby",
         "shell",
         "typescript",
         "vite",
         "vscode",
+        "wagtail",
         "wikijs",
         "zellij",
         "zsh"
