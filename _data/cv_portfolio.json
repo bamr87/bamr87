@@ -119,22 +119,6 @@
       "fleet_status": "active"
     },
     {
-      "id": "fleet-aieo",
-      "name": "aieo",
-      "description": "AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude will cite it.",
-      "technologies": [
-        "python",
-        "fastapi",
-        "react",
-        "typescript",
-        "ai"
-      ],
-      "github": "https://github.com/bamr87/aieo",
-      "startDate": "",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
       "id": "fleet-bamr87.github.io",
       "name": "bamr87.github.io",
       "description": "Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHub Pages.",
@@ -342,7 +326,6 @@
         "diagrams",
         "django",
         "docker",
-        "fastapi",
         "gdscript",
         "github-actions",
         "github-pages",
@@ -352,7 +335,6 @@
         "jekyll",
         "langgraph",
         "latex",
-        "legacy",
         "markdown",
         "mcp",
         "mkdocs",

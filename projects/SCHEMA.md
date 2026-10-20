@@ -19,7 +19,6 @@ coverage: listed
 | `README.md` | file | Projects index page | |
 | `README/` | dir | Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every pr… | terminal |
 | `ai-world-view.github.io/` | dir | AI World View — the root site of the self-growing country knowledge-base network; the per-country r… | terminal |
-| `aieo/` | dir | AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude wi… | terminal |
 | `bamr87.github.io/` | dir | Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHu… | terminal |
 | `bash-365-apex/` | dir | Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Cons… | terminal |
 | `bash-365.com/` | dir | BASH Consulting's website at bash-365.com — a content site the content atlas already tracks, now ch… | terminal |
@@ -36,7 +35,6 @@ coverage: listed
 | `lifehacker.dev/` | dir | Tech knowledge, tools and comedy at lifehacker.dev: a Jekyll site on the zer0-mistakes theme, run b… | terminal |
 | `ocrmd/` | dir | Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, wi… | terminal |
 | `outbox/` | dir | Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race… | terminal |
-| `raising-eliza/` | dir | Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated method and tied out to the o… | terminal |
 | `rewind-arcade/` | dir | Retro gaming workspace: browser arcade recreations, console emulation via ES-DE, and a physical gam… | terminal |
 | `scripts/` | dir | Standalone Bash utilities for project scaffolding, GitHub repository management and multi-repo main… | terminal |
 | `skills/` | dir | Microsoft Agent Skills — reusable markdown skills, MCP servers, and custom agents to ground coding… | terminal |

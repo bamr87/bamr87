@@ -5,7 +5,7 @@
 # the Phoenix alias every submodule's tracing points at.
 #
 #   tools/fleet-dev.sh up hub          # this file
-#   tools/fleet-dev.sh up law-ai       # one of the 8 submodule projects
+#   tools/fleet-dev.sh up law-ai       # one of the 7 submodule projects
 #   tools/fleet-dev.sh up --all        # everything
 #
 # The submodules are deliberately NOT included here. `include:` merges

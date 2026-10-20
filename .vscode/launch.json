@@ -309,22 +309,6 @@
       }
     },
     {
-      "name": "⚡ aieo-frontend (:5176, devenv)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/aieo/frontend devenv npx vite --host 0.0.0.0 --port 5176",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
-      "serverReadyAction": {
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5176/",
-        "action": "openExternally"
-      },
-      "presentation": {
-        "group": "6-apps"
-      }
-    },
-    {
       "name": "⚡ gitnexus (:5177, devenv)",
       "type": "node-terminal",
       "request": "launch",
@@ -723,7 +707,7 @@
       "id": "fleetProject",
       "description": "Fleet project (tools/fleet-dev.sh list)",
       "type": "pickString",
-      "options": ["hub", "law-ai", "djangoerp", "fredgar-ai", "aieo", "gitorio", "bashos", "it-journey", "zer0-cms"],
+      "options": ["hub", "law-ai", "djangoerp", "fredgar-ai", "gitorio", "bashos", "it-journey", "zer0-cms"],
       "default": "hub"
     },
     {

@@ -86,7 +86,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (34 projects: 21 active, 2 archived, 5 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (32 projects: 20 active, 2 archived, 4 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |

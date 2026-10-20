@@ -16,8 +16,8 @@ Coverage: the local control-plane stack ([`docs/HARNESS-OPS.md`](../docs/HARNESS
 | **3-verify** | dash-gen fixture test (`test_*.py` are plain scripts, not pytest) via `devenv python3` |
 | **4-docs** | MkDocs compose service for `projects/README/` on **:8001** |
 | **5-jekyll** | Submodule Jekyll sites via devenv on **4010–4020** (livereload 35730–35740) so they never collide with the hub dash on :4000 |
-| **6-apps** | Vite/Node via devenv: cv-builder-pro :5000, gitnexus :8080, gitorio :5174, rewind-arcade :5175, aieo UI :5176, fredgar-ai UI :5177, plus `cv` build/watch |
-| **7-python** | Django runserver via devenv (barodybroject :8010, fredgar-ai :8011, law-ai :8012, djangoerp :8013), aieo FastAPI :8002, pytest on the open file |
+| **6-apps** | Vite/Node via devenv: cv-builder-pro :5000, gitnexus :8080, gitorio :5174, rewind-arcade :5175, fredgar-ai UI :5177, plus `cv` build/watch |
+| **7-python** | Django runserver via devenv (barodybroject :8010, fredgar-ai :8011, law-ai :8012, djangoerp :8013), pytest on the open file |
 | **8-ext** | Compile inside devenv (`devenv: compile …` tasks), then Extension Host on the host |
 | **9-cli** | Python/Node CLIs via devenv defaulting to `--help` (bashos, ocrmd, lawmode, gitorio/packages/wtd, books, gwtp) plus bashcrawl `npm test` and pytest for githubai / zer0-image-generator |
 | **10-content** | scripts (current file via devenv `python3`), 1987 `index.md` and microsoft/skills `Agents.md` via devenv `head` (no host `code`) |
@@ -33,9 +33,8 @@ Submodule servers bind **0.0.0.0** inside `devenv` and publish on loopback:
 | Range | Use |
 | --- | --- |
 | 4010–4020 / 35730–35740 | Jekyll + LiveReload |
-| 5174–5177 | Vite apps (gitorio, rewind-arcade, aieo, fredgar-ai) |
+| 5174–5177 | Vite apps (gitorio, rewind-arcade, fredgar-ai) |
 | 8080 | gitnexus (`npm run dev`) |
-| 8002 | aieo FastAPI |
 | 8010–8013 | Django fleet |
 
 If an existing `devenv` was started before those mappings existed, recreate it: `docker compose up -d --force-recreate devenv`.

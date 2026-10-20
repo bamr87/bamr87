@@ -34,7 +34,7 @@ Reference: `zer0-mistakes` (theme), consumers via `remote_theme: bamr87/zer0-mis
 | Feedback | theme widget (FB-31 makes it work on consumers) |
 | Release | release-please `simple` |
 
-### React / Vite app (`app`) — cv-pro/app, gitorio, aieo/frontend, fredgar-ai/frontend, rewind-arcade, gitorio/packages/gitnexus
+### React / Vite app (`app`) — cv-pro/app, gitorio, fredgar-ai/frontend, rewind-arcade, gitorio/packages/gitnexus
 
 | Aspect | Canonical |
 | --- | --- |
@@ -61,7 +61,7 @@ As React/Vite, plus: App Router, `app/{layout,not-found,(app)/{loading,error}}.t
 | CI | shared active gate; `pytest --cov` |
 | Release | release-please `python` |
 
-### FastAPI service (`api`) — aieo/backend, gitorio/packages/wtd
+### FastAPI service (`api`) — gitorio/packages/wtd
 
 As Django for ops/API rows; layout `app/{main,api/v1,core/{settings,logging},models,schemas}`, pydantic-settings, `tests/`.
 
@@ -108,8 +108,8 @@ Rely on upstream; standardize only bamr87-added surfaces; never fan out kits wit
 | Kind | Repos |
 | --- | --- |
 | site | bamr87.github.io, bash-365.com, it-journey, lifehacker.dev, zer0-cms/sites/* (drsai, zer0-pages, zer0-pages-remote, 1987, 2005, irony-works, wargames), zer0-cms/packages/zer0-mistakes, README (MkDocs) |
-| app | cv-pro/app, gitorio, aieo, fredgar-ai, law-ai, barodybroject, djangoerp, rewind-arcade, gitorio/packages/gitnexus, zer0-image-generator/web, zer0-cms/packages/books (studio) |
-| api | aieo/backend, gitorio/packages/wtd, djangoerp, barodybroject, fredgar-ai/backend, law-ai/backend, githubai (worker) |
+| app | cv-pro/app, gitorio, fredgar-ai, law-ai, barodybroject, djangoerp, rewind-arcade, gitorio/packages/gitnexus, zer0-image-generator/web, zer0-cms/packages/books (studio) |
+| api | gitorio/packages/wtd, djangoerp, barodybroject, fredgar-ai/backend, law-ai/backend, githubai (worker) |
 | lib | zer0-mistakes (gem), zer0-image-generator (gem), README, githubai, gitorio/packages/git-with-the-program |
 | cli | scripts, bashcrawl, zer0-cms/packages/books, law-ai/lawmode, gitorio/packages/wtd, cv-pro/cv (builder), bashos, ocrmd, gitorio/packages/git-with-the-program |
 | ext | zpl-viewer, vs-sonic-pi, zer0-cms, law-ai/lawmode/vscode-extension |

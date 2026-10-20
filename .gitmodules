@@ -2,10 +2,6 @@
 	path = projects/ai-world-view.github.io
 	url = https://github.com/ai-world-view/ai-world-view.github.io.git
 	branch = main
-[submodule "projects/aieo"]
-	path = projects/aieo
-	url = https://github.com/bamr87/aieo.git
-	branch = main
 [submodule "projects/bamr87.github.io"]
 	path = projects/bamr87.github.io
 	url = https://github.com/bamr87/bamr87.github.io.git
@@ -69,10 +65,6 @@
 [submodule "projects/outbox"]
 	path = projects/outbox
 	url = https://github.com/bamr87/outbox.git
-	branch = main
-[submodule "projects/raising-eliza"]
-	path = projects/raising-eliza
-	url = https://github.com/bamr87/raising-eliza.git
 	branch = main
 [submodule "projects/README"]
 	path = projects/README

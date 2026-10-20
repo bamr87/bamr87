@@ -60,7 +60,6 @@ members:
   "it-journey": knowledge
   "zer0-mistakes": zer0
   "gitorio": agents
-  "aieo": ai
   "lawmode": ai
   "law-ai": ai
   "githubai": agents
@@ -86,7 +85,6 @@ members:
   "SCHEMA": platform
   "archify": related
   "chui": devtools
-  "raising-eliza": ai
   "outbox": ai
   "retro-pi": games
 
