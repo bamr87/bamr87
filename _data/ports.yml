@@ -217,12 +217,6 @@ projects:
     services:
       jekyll: { port: 4010, band: jekyll, var: IT_JOURNEY_PORT, livereload: 35730 }
 
-  bashconsultants:
-    host: compose
-    compose: projects/bashconsultants/docker-compose.yml
-    services:
-      jekyll: { port: 4014, band: jekyll, var: BASHCONSULTANTS_PORT, livereload: 35734 }
-
   # ---- compose-hosted: single-service ---------------------------------------
   zer0-cms:
     host: compose

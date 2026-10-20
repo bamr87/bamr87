@@ -469,26 +469,6 @@
   schema:
     status: none
 
-- name: bashconsultants
-  slug: bashconsultants
-  submodule_path: projects/bashconsultants
-  branch: main
-  repo_url: https://github.com/bamr87/bashconsultants
-  description: "Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator VS Code extension."
-  stack: [jekyll, shell]
-  category: docs
-  status: active
-  featured: false
-  maintained: true
-  dev_port:
-    4018 # jekyll range; `dash-gen compose` remaps this project's
-    # published HOST ports from here (_data/fleet.yml containers.ports)
-  live_url: https://bash-365.com
-  docs_url: null
-  schema:
-    status: none
-  license: MIT
-
 # --- Accounting / finance Django experiments -------------------------------
 - name: djangoerp
   slug: djangoerp
@@ -774,7 +754,7 @@
   slug: bash-365-apex
   submodule_path: projects/bash-365-apex
   branch: main
-  repo_url: https://github.com/bamr87/bash-365-apex
+  repo_url: https://github.com/bash-365/bash-365-apex
   description: "Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Consulting."
   stack: [html, github-pages]
   category: docs

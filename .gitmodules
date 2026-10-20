@@ -35,10 +35,6 @@
 	path = projects/fredgar-ai
 	url = https://github.com/bamr87/fredgar-ai.git
 	branch = main
-[submodule "projects/bashconsultants"]
-	path = projects/bashconsultants
-	url = https://github.com/bamr87/bashconsultants.git
-	branch = main
 [submodule "projects/vs-sonic-pi"]
 	path = projects/vs-sonic-pi
 	url = https://github.com/bamr87/vs-sonic-pi.git
@@ -117,7 +113,7 @@
 	branch = main
 [submodule "projects/bash-365-apex"]
 	path = projects/bash-365-apex
-	url = https://github.com/bamr87/bash-365-apex.git
+	url = https://github.com/bash-365/bash-365-apex.git
 	branch = main
 [submodule "projects/year-of-ai.github.io"]
 	path = projects/year-of-ai.github.io

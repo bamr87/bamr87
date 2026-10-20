@@ -107,7 +107,7 @@ Rely on upstream; standardize only bamr87-added surfaces; never fan out kits wit
 
 | Kind | Repos |
 | --- | --- |
-| site | 2005, bamr87.github.io, bashconsultants, drsai, it-journey, lifehacker.dev, wargames, zer0-mistakes, zer0-pages, zer0-pages-remote, irony-works, README (MkDocs), ai-seed (MkDocs) |
+| site | bamr87.github.io, bash-365.com, it-journey, lifehacker.dev, wargames, irony-works, zer0-cms/sites/* (drsai, zer0-pages, zer0-pages-remote, 1987, 2005), zer0-cms/packages/zer0-mistakes, README (MkDocs), ai-seed (MkDocs) |
 | app | cv-pro/app, gitorio, aieo, fredgar-ai, law-ai, barodybroject, djangoerp, rewind-arcade, gitorio/packages/gitnexus, zer0-image-generator/web, ai-seed/src/frontend, zer0-cms/packages/books (studio) |
 | api | aieo/backend, wtd, djangoerp, barodybroject, fredgar-ai/backend, law-ai/backend, githubai (worker) |
 | lib | zer0-mistakes (gem), zer0-image-generator (gem), README, ai-seed, githubai, gitorio/packages/git-with-the-program |

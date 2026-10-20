@@ -164,20 +164,6 @@
       "fleet_status": "active"
     },
     {
-      "id": "fleet-bashconsultants",
-      "name": "bashconsultants",
-      "description": "Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator VS Code extension.",
-      "technologies": [
-        "jekyll",
-        "shell"
-      ],
-      "github": "https://github.com/bamr87/bashconsultants",
-      "startDate": "",
-      "url": "https://bash-365.com",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
       "id": "fleet-bashos",
       "name": "bashos",
       "description": "Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the OpenCode engine.",

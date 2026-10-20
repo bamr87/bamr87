@@ -24,7 +24,6 @@ coverage: listed
 | `bamr87.github.io/` | dir | Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHu… | terminal |
 | `bash-365-apex/` | dir | Client-side redirect from the bash-365.com apex domain to www, served by GitHub Pages for BASH Cons… | terminal |
 | `bash-365.com/` | dir | BASH Consulting's website at bash-365.com — a content site the content atlas already tracks, now ch… | terminal |
-| `bashconsultants/` | dir | Source of bash-365.com, BASH Consulting's IT consulting site (Jekyll), plus a Prompt Orchestrator V… | terminal |
 | `bashcrawl/` | dir | Learn real terminal skills by playing a fantasy dungeon crawl in your shell or in a free browser tr… | terminal |
 | `bashos/` | dir | Terminal-first AI runtime that routes Claude slash commands through a LangGraph kernel onto the Ope… | terminal |
 | `chui/` | dir | Rebuildable macOS terminal setup: Oh My Zsh, Powerlevel10k, Zellij and modern CLI tools, with backu… | terminal |
