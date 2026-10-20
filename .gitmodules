@@ -53,7 +53,7 @@
 	branch = main
 [submodule "projects/csv-vscoode"]
 	path = projects/csv-vscoode
-	url = https://github.com/bamr87/csv-vscoode.git
+	url = https://github.com/bash-365/csv-vscoode.git
 	branch = main
 [submodule "projects/zpl-viewer"]
 	path = projects/zpl-viewer

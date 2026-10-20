@@ -508,7 +508,7 @@
   slug: csv-vscoode
   submodule_path: projects/csv-vscoode
   branch: main
-  repo_url: https://github.com/bamr87/csv-vscoode
+  repo_url: https://github.com/bash-365/csv-vscoode
   description: CSV Grid Viewer — VS Code extension to view .csv files in a grid and sum selected cells.
   stack: [typescript, vscode]
   category: dev-tools
