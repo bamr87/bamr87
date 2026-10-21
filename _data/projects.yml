@@ -144,13 +144,13 @@
 
 - name: zer0-mistakes
   slug: zer0-mistakes
-  # No submodule since 2026-10-19: the theme lives in zer0-CMS packages/zer0-mistakes,
-  # and this repository is its read-only mirror (zer0-CMS ADR 0002), kept only because
-  # GitHub Pages loads `remote_theme: bamr87/zer0-mistakes` from a repository root.
+  # A submodule again since 2026-10-21 (zer0-CMS ADR 0005): the theme is developed
+  # here, with zer0 studio — its Rails workbench — at studio/; zer0-CMS consumes releases.
+  submodule_path: projects/zer0-mistakes
   branch: main
   repo_url: https://github.com/bamr87/zer0-mistakes
-  description: "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem; developed in zer0-CMS, mirrored here for remote_theme."
-  stack: [jekyll, ruby, bootstrap]
+  description: "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem, with zer0 studio — the Rails workbench that designs, customizes and updates it."
+  stack: [jekyll, ruby, bootstrap, rails]
   category: docs
   status: active
   featured: true
@@ -439,7 +439,7 @@
   # No longer a fork in substance: "refactor!: break free from the Front Matter
   # fork — a lightweight zer0-CMS extension" (2026-07-31). GitHub still reports
   # isFork:true because the upstream history was never detached.
-  description: "The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails experience plane, VS Code extension) plus the theme, image generator, books app, barodybroject and the zer0 sites, each imported with its history."
+  description: "The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails experience plane, VS Code extension) plus the image generator, books app, barodybroject and the zer0 sites, each imported with its history; the theme is developed in bamr87/zer0-mistakes again (ADR 0005)."
   stack: [typescript, vscode, django, wagtail, rails, jekyll]
   category: dev-tools
   status: active
