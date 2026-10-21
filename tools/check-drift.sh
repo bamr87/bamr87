@@ -190,14 +190,22 @@ for d in "$ROOT"/*/; do
 done
 if [[ ${#missing[@]} -eq 0 ]]; then ok "all module dirs have a README"; else bad "missing README in: ${missing[*]}"; fi
 
-# --- (f): standardization conformance (report/warn, non-gating) ------------
+# --- (f): standardization conformance (artifact gaps warn; stale overrides gate)
 # Filesystem-based via audit-standards.sh — most complete locally where the
-# submodules are checked out; in a submodule-less CI checkout it self-skips.
+# submodules are checked out; in a submodule-less CI checkout the artifact half
+# self-skips. The override-hygiene half is offline and gates every PR: a
+# `tier_overrides` key that is not a registry name silently no-ops (FF-0028),
+# which is how a renamed repo loses its tier without anyone noticing.
 echo "(f) standardization conformance"
 if [[ -x "$ROOT/tools/audit-standards.sh" ]]; then
   summary="$("$ROOT/tools/audit-standards.sh" --json --no-color 2>/dev/null)"
   if [[ -n "$summary" ]]; then
-    read -r audited failn < <(printf '%s' "$summary" | "$PY" -c 'import sys,json; d=json.load(sys.stdin)["summary"]; print(d["audited"], d["with_required_gaps"])' 2>/dev/null)
+    read -r audited failn stalen < <(printf '%s' "$summary" | "$PY" -c 'import sys,json; d=json.load(sys.stdin); s=d["summary"]; print(s["audited"], s["with_required_gaps"], len(d.get("stale_overrides", [])))' 2>/dev/null)
+    if [[ "${stalen:-0}" != "0" ]]; then
+      bad "_data/standards.yml tier_overrides: ${stalen} key(s) match no registry name or no declared tier — fix or drop: $(printf '%s' "$summary" | "$PY" -c 'import sys,json; print(", ".join(o["key"] for o in json.load(sys.stdin).get("stale_overrides", [])))' 2>/dev/null)"
+    else
+      ok "standards.yml tier_overrides all name registry projects"
+    fi
     if [[ "${audited:-0}" == "0" ]]; then warn "standardization: skipped (no submodules checked out)"
     elif [[ "${failn:-0}" == "0" ]]; then ok "all ${audited} checked-out submodules meet their tier baseline"
     else warn "${failn}/${audited} submodules missing required artifacts (run: tools/dash audit)"; fi

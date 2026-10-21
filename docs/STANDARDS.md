@@ -26,6 +26,14 @@ Tier is assigned by (in precedence order): an explicit `tier:` on the registry e
 
 `required` missing → **fail** (red). `recommended` missing → **warn** (amber). Not-expected → grey.
 
+### Kinds adjust the tier
+
+Tier is lifecycle; **kind** is stack. `kind_overrides` in `standards.yml` lowers an artifact's level for a kind, applied after the tier and never raising anything: a Jekyll `site` proves itself with its build gate and `verify/scenarios/`, so `tests` is **recommended** rather than required there, and a `content` repo has no tests at all. A repo's kinds come from the registry `kinds:` field, else its `.github/sdlc.yml` (`kinds:`, or `type:` mapped as the sdlc kit documents), else detection (a root `_config.yml` is a site). `tools/dash audit <name>` prints the kinds it used and marks every cell a kind lowered.
+
+### Override hygiene
+
+Every `tier_overrides` key must be a registry `name` and every value a declared tier. The audit lists offenders (`stale_overrides` in `--json`) and **drift check (f) fails on them**, offline, on every PR. Before this gate a stale key silently no-opped, which is how a renamed repo lost its tier and three retired names (`1987`, `2005`, `cv`) sat in the file for months.
+
 ## Beyond presence: the Universal Project Standard
 
 The tiers above say which files a repo must *have*. [`specs/`](../specs/README.md) (UPS 1.0, machine-readable twin [`_data/specs.yml`](../_data/specs.yml)) says what they must *contain* and what every product must *do*: repository layout and file contracts, agent context, quality gates per stack, the design-token and core-component set every UI ships (including the universal feedback → GitHub issue widget from [`templates/feedback/`](../templates/feedback/)), API/error/health conventions, and configuration/logging/security/data rules. Rows are `MUST`/`SHOULD`/`MAY` and bind by stack kind ([`specs/STACKS.md`](../specs/STACKS.md)); adoption order and the 2026-09 fleet gap list are in [`specs/CONFORMANCE.md`](../specs/CONFORMANCE.md). Check a repo with `tools/dash spec check <path>`, snapshot the fleet with `tools/dash spec fleet --write` (→ `_data/conformance.yml`, read by the weekly repo-evolution brief), and gate it in the repo's own CI with the `conformance` fan-out artifact.
@@ -40,7 +48,7 @@ The tiers above say which files a repo must *have*. [`specs/`](../specs/README.m
 | .editorconfig | `.editorconfig` (a copy of the root [`.editorconfig`](../.editorconfig) is the canonical template) |
 | CI | `.github/workflows/` with ≥1 workflow |
 | Agent context | `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md` / `.cursorrules` |
-| Tests | a test dir or runner config (`tests/`, `pytest.ini`, `cypress/`, `*.config.ts`…) |
+| Tests | a test dir at the root or one level down (`tests/`, `test/`, `*/tests`, `app/cypress`, `*/tests.py`, `packages/*/tests`), a runner config (`pytest.ini`, `vitest.config.*`, `playwright.config.*`, `.vscode-test.mjs`…), or `verify/scenarios/` from the agent-verification kit |
 | Container | `Dockerfile` / `.devcontainer/` / `docker-compose.yml` / `compose.yml` |
 | Release automation | `release-please-config.json` / `.release-please-manifest.json` / `CHANGELOG.md` |
 

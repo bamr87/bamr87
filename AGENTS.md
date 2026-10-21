@@ -58,3 +58,9 @@ The generator requires PyYAML and PyGithub. CI uses Python 3.12 and Ruby 3.3; fl
 - Fleet apps run as **separate Compose projects** on the shared `fleet` network; combining their compose files with `include:` collides on service names. Use `tools/dash up <project>` or `tools/dash up --group jekyll`; generate port/network overrides with `tools/dash gen compose` from registry `dev_port` values. Overrides live in the hub's `.fleet/compose/`, never in submodules. The hub's Compose project name defaults to `fleet`, so worktrees share its services and volumes. See [docs/CONTAINERS.md](docs/CONTAINERS.md).
 
 - **Verify like a user, not just like a test.** Any change to what a user sees or does follows the agent verification standard ([`docs/VERIFICATION.md`](docs/VERIFICATION.md)): read `features/features.yml` for the feature, run the app per `verify/verify.yml`, drive it in a real browser (`verify-feature` skill / Playwright MCP / `verify/runner.mjs`), commit the evidence bundle under `test/evidence/<slug>/`, link it from the feature entry. A PASS cites a scenario and an evidence dir that exist; a non-visual change gets the `skip-evidence` label with a reason.
+
+## Standard deviations
+
+Declared in `.github/sdlc.yml` `deviations:` (the hub's own SDLC profile, UPS-WORK-01):
+
+- UPS-REPO-21 waived until 2027-04-01: the hub's public interface (reusable workflows + checker) versions by hand-cut major tags (`v1`, `v2`) per `docs/WORKFLOW-VERSIONING.md`, and `CHANGELOG.md` is maintained with those cuts rather than by release-please.

@@ -124,6 +124,10 @@ hub:
   default_branch: main
   bot_name: bamr87-bot
   bot_email: "10567847+bamr87@users.noreply.github.com"
+  # GitHub owners whose repos ARE the fleet (tools/fanout.sh targets them; an
+  # upstream under any other owner — microsoft/skills, tt-a1i/archify — is an
+  # external mirror and is never written to). The three orgs are bamr87's own.
+  owners: [bamr87, bash-365, year-of-ai, ai-world-view]
 
 # --------------------------------------------------------------------------- #
 # Loop cadence (UTC) — the hub's SCHEDULE MAP. Every hub workflow that carries

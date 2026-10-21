@@ -12,8 +12,9 @@
 # Guarantees:
 #   - DRY RUN by default: builds the branch, prints the diffstat, no push/PR
 #   - never pushes to a default branch (PR only, --force-with-lease)
-#   - skips submodules whose upstream isn't github.com/bamr87 (external
-#     mirrors like microsoft/skills)
+#   - skips submodules whose upstream is not under a FLEET OWNER — the GitHub
+#     owners listed in _data/fleet.yml `hub.owners` (bamr87 and its three
+#     orgs); external mirrors like microsoft/skills are never written to
 #   - additive-only seeding for the seeding kits (standardize/schema/prose):
 #     never overwrites a file the target already has. The deps-latest kit is
 #     the deliberate exception — converting a repo to the always-latest
@@ -36,6 +37,27 @@
 #   tools/fanout.sh --kit sdlc --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit spec-driven --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit agent-context --target <name|all> [--apply] [--upgrade]
+#
+#   community takes --artifacts too (default: everything): pr-template,
+#   issue-forms,codeowners,dependabot,contributing,security,coc. Repos under an
+#   owner with a `.github` repo inherit all but codeowners and dependabot
+#   (templates/community/README.md), so bamr87 repos usually take just those two.
+#
+# Stacking mode (environment, all optional — the defaults are the behaviour above):
+#   FANOUT_BASE_BRANCH=<branch>  clone that branch when the repo has it (else the
+#                                default branch) so the kit lands on top of it
+#   FANOUT_BRANCH=<branch>       push to that branch instead of the kit's own
+#   FANOUT_PR_APPEND=1           when an open PR already has that head, append a
+#                                "## <kit title>" section to its body instead of
+#                                opening another PR (FANOUT_PR_TITLE retitles it)
+#   FANOUT_PR_DRAFT=1            open new PRs as drafts
+#   FANOUT_SUBMODULES_ONLY=1     `--target all` means the checked-out submodules
+#                                only — not the registry rows without a checkout
+#                                (the zer0-mistakes mirror, the .github defaults
+#                                repo, the SCHEMA kit source, forks), which take a
+#                                kit only when named explicitly
+#   Together they turn N kit PRs per repo into ONE alignment PR per repo with one
+#   commit per kit — what the 2026-10-20 fleet alignment used on chore/root-tidy.
 #
 #   community / sdlc / spec-driven / agent-context seed the templates/ kits of
 #   the same name, additive-only: a missing file is seeded, an unmodified
@@ -182,6 +204,23 @@ SD_VERSION="$(kit_version spec-driven)"
 # release-please.yml first shipped in v2 (it is absent at v1), so @v1 would
 # point a caller at a workflow that does not exist. Bump with the hub major.
 RP_PIN="v2"
+
+# Fleet owners (_data/fleet.yml `hub.owners`): the GitHub owners whose repos
+# this engine may write to. Anything else is an external mirror.
+FLEET_OWNERS="$("${PYTHON:-python3}" - "$HUB" <<'PY' 2>/dev/null || echo bamr87
+import sys
+try:
+    import yaml
+    d = yaml.safe_load(open(f"{sys.argv[1]}/_data/fleet.yml")) or {}
+    print(" ".join((d.get("hub") or {}).get("owners") or ["bamr87"]))
+except Exception:
+    print("bamr87")
+PY
+)"
+owner_of_url() {  # github.com/<owner>/<repo>(.git) or github.com:<owner>/<repo> → owner
+  local u="${1%.git}"; u="${u#*github.com/}"; u="${u#*github.com:}"; echo "${u%%/*}"
+}
+is_fleet_owner() { local o; for o in $FLEET_OWNERS; do [[ "$1" == "$o" ]] && return 0; done; return 1; }
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -341,6 +380,8 @@ case "$KIT" in
     PR_BODY="Automated by bamr87 (tools/fanout.sh --kit agent-context): seeds the agent-context kit artifacts (${ARTIFACTS}). Additive-only: CLAUDE.md is seeded only when the repo has no agent file at all (AGENTS.md, CLAUDE.md, copilot-instructions, .cursorrules), and a hand-modified workflow is left alone. See bamr87/bamr87 templates/agent-context/."
     ;;
 esac
+# Stacking mode: one branch for every kit (see the header).
+[[ -n "${FANOUT_BRANCH:-}" ]] && BRANCH="$FANOUT_BRANCH"
 
 seed_standardize() {
   # cwd = target clone; $1 = repo name, $2 = default branch
@@ -795,17 +836,24 @@ PY
 # Every target for `--target all`: the submodules, plus registry entries that
 # have no submodule_path and are neither archived nor externally owned.
 all_targets() {
-  git config -f "$HUB/.gitmodules" --get-regexp '^submodule\..*\.path$' | awk '{print $2}'
-  "${PYTHON:-python3}" - "$HUB" <<'PY' 2>/dev/null
-import sys
+  # Submodules first (minus the ones the registry marks archived — GitHub
+  # refuses pushes to an archived repo), then registry rows without a checkout.
+  "${PYTHON:-python3}" - "$HUB" "$FLEET_OWNERS" "${FANOUT_SUBMODULES_ONLY:-0}" <<'PY' 2>/dev/null
+import subprocess, sys
+root = sys.argv[1]
+paths = subprocess.run(["git", "config", "-f", f"{root}/.gitmodules", "--get-regexp", r"^submodule\..*\.path$"],
+                       capture_output=True, text=True).stdout.split()
+paths = [p for i, p in enumerate(paths) if i % 2 == 1]
 try:
     import yaml
-except ImportError:
-    raise SystemExit(0)
-root = sys.argv[1]
-try:
     reg = yaml.safe_load(open(f"{root}/_data/projects.yml")) or []
-except OSError:
+except Exception:
+    reg = []
+archived = {p.get("submodule_path") for p in reg if isinstance(p, dict) and p.get("status") == "archived"}
+for p in paths:
+    if p not in archived:
+        print(p)
+if len(sys.argv) > 3 and sys.argv[3] == "1":
     raise SystemExit(0)
 for p in reg:
     if not isinstance(p, dict) or p.get("submodule_path"):
@@ -816,7 +864,8 @@ for p in reg:
     name = p.get("name")
     # The external-upstream guard in run_one would skip these anyway; filtering
     # here keeps `all` from printing a skip line for every mirror.
-    if name and ("github.com/bamr87/" in url or "github.com:bamr87/" in url):
+    owner = url.replace("github.com:", "github.com/").split("github.com/", 1)[-1].split("/", 1)[0]
+    if name and owner in sys.argv[2].split():
         print(f"projects/{name}")
 PY
 }
@@ -830,12 +879,25 @@ seed_once() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch, $6 version
 }
 
 seed_community() {  # cwd = target clone; $1 repo name, $2 default branch
-  local name="$1" def="$2" kit="$HUB/templates/community" f
+  local name="$1" def="$2" kit="$HUB/templates/community" f want="$ARTIFACTS" tok
+  # --artifacts narrows the kit; the standardize default means "everything".
+  # Tokens: pr-template issue-forms codeowners dependabot contributing security coc.
+  [[ "$want" == "editorconfig,ci" ]] && want="all"
   # labels.yml is applied by label-sync, not copied (templates/community/VERSION).
   for f in .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml \
            .github/ISSUE_TEMPLATE/documentation.yml .github/ISSUE_TEMPLATE/config.yml \
            .github/pull_request_template.md .github/CODEOWNERS .github/dependabot.yml \
            CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md; do
+    case "$f" in
+      .github/pull_request_template.md) tok=pr-template ;;
+      .github/ISSUE_TEMPLATE/*)         tok=issue-forms ;;
+      .github/CODEOWNERS)               tok=codeowners ;;
+      .github/dependabot.yml)           tok=dependabot ;;
+      CONTRIBUTING.md)                  tok=contributing ;;
+      SECURITY.md)                      tok=security ;;
+      CODE_OF_CONDUCT.md)               tok=coc ;;
+    esac
+    if [[ "$want" != "all" ]]; then case ",$want," in *,"$tok",*) ;; *) continue ;; esac; fi
     seed_workflow_artifact "$f" "$f" "$kit/$f" "$name" "$def" "$COMM_VERSION"
   done
 }
@@ -927,15 +989,22 @@ run_one() {
     fi
     echo "note ${name}: not a submodule — target resolved from the registry"
   fi
-  case "$url" in
-    *github.com/bamr87/*|*github.com:bamr87/*) ;;
-    *) echo "skip ${name}: external upstream (${url})"; return 0 ;;
-  esac
-  slug="bamr87/$(basename "${url%.git}")"
+  local owner; owner="$(owner_of_url "$url")"
+  if ! is_fleet_owner "$owner"; then
+    echo "skip ${name}: external upstream (${url}; fleet owners: ${FLEET_OWNERS})"; return 0
+  fi
+  slug="${owner}/$(basename "${url%.git}")"
   work="$(mktemp -d)"
   echo "::group::${slug}"
-  if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
-    echo "skip ${slug}: clone failed"; echo "::endgroup::"; rm -rf "$work"; return 0
+  # Stacking mode: start from FANOUT_BASE_BRANCH when the repo has it, so the
+  # kit lands as one more commit on the alignment PR; else the default branch.
+  if [[ -n "${FANOUT_BASE_BRANCH:-}" ]] && gh repo clone "$slug" "$work" -- --depth=1 --branch "$FANOUT_BASE_BRANCH" >/dev/null 2>&1; then
+    echo "base: ${FANOUT_BASE_BRANCH}"
+  else
+    rm -rf "$work"; mkdir -p "$work"   # a failed branch clone may leave a partial dir
+    if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
+      echo "skip ${slug}: clone failed"; echo "::endgroup::"; rm -rf "$work"; return 0
+    fi
   fi
   # gh authenticates the clone itself but not later pushes from this repo —
   # route git credentials through gh (uses GH_TOKEN in CI, keyring locally).
@@ -948,7 +1017,7 @@ run_one() {
     set -e
     def="$(gh api "repos/${slug}" --jq .default_branch)"
     cd "$work"
-    git checkout -b "$BRANCH"
+    [[ "$(git rev-parse --abbrev-ref HEAD)" == "$BRANCH" ]] || git checkout -b "$BRANCH"
     case "$KIT" in
       standardize) seed_standardize "$(basename "${url%.git}")" "$def" ;;
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
@@ -988,8 +1057,19 @@ run_one() {
     else
       git push -u origin "$BRANCH"
     fi
-    gh pr create --repo "$slug" --base "$def" --head "$BRANCH" \
-      --title "$PR_TITLE" --body "$PR_BODY" \
+    if [[ "${FANOUT_PR_APPEND:-0}" == "1" ]]; then
+      prnum="$(gh pr list --repo "$slug" --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
+      if [[ -n "$prnum" && "$prnum" != "null" ]]; then
+        prbody="$(gh pr view "$prnum" --repo "$slug" --json body --jq .body)"
+        gh pr edit "$prnum" --repo "$slug" ${FANOUT_PR_TITLE:+--title "$FANOUT_PR_TITLE"} \
+          --body "$(printf '%s\n\n## %s\n\n%s' "$prbody" "$PR_TITLE" "$PR_BODY")" >/dev/null
+        echo "${slug}: appended to PR #${prnum}"
+        exit 0
+      fi
+      PR_BODY="$(printf '## %s\n\n%s' "$PR_TITLE" "$PR_BODY")"
+    fi
+    gh pr create --repo "$slug" --base "$def" --head "$BRANCH" ${FANOUT_PR_DRAFT:+--draft} \
+      --title "${FANOUT_PR_TITLE:-$PR_TITLE}" --body "$PR_BODY" \
       || echo "${slug}: PR may already exist"
   )
   rc=$?
