@@ -76,11 +76,9 @@ Self-growing knowledge bases, study material and learning platforms.
 
 Applications and experiments built on LLMs.
 
-- **[aieo](https://github.com/bamr87/aieo)**: AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude will cite it.
 - **[law-ai](https://github.com/bamr87/law-ai)**: Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, local-first via Ollama. · [live site](https://bamr87.github.io/law-ai/) · `🧪 experimental`
 - **[ocrmd](https://github.com/bamr87/ocrmd)**: Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, with full-text search.
 - **[outbox](https://github.com/bamr87/outbox)**: Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race and replay scorer. · `🧪 experimental`
-- **[raising-eliza](https://github.com/bamr87/raising-eliza)**: Weizenbaum's 1966 MAD-SLIP ELIZA, revived by an AI agent under a gated method and tied out to the original transcript. · `🧪 experimental`
 
 ### 🧠 AI agents & SDLC automation
 

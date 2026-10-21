@@ -1,117 +1,101 @@
-[submodule "README"]
-	path = projects/README
-	url = https://github.com/bamr87/README.git
-	branch = main
-[submodule "scripts"]
-	path = projects/scripts
-	url = https://github.com/bamr87/scripts.git
-	branch = main
-[submodule "skills"]
-	path = projects/skills
-	url = https://github.com/microsoft/skills.git
-	branch = main
-	update = merge
-[submodule "projects/ai-seed"]
-	path = projects/ai-seed
-	url = https://github.com/bamr87/ai-seed.git
-	branch = main
-[submodule "projects/law-ai"]
-	path = projects/law-ai
-	url = https://github.com/bamr87/law-ai.git
+[submodule "projects/ai-world-view.github.io"]
+	path = projects/ai-world-view.github.io
+	url = https://github.com/ai-world-view/ai-world-view.github.io.git
 	branch = main
 [submodule "projects/bamr87.github.io"]
 	path = projects/bamr87.github.io
 	url = https://github.com/bamr87/bamr87.github.io.git
 	branch = main
-[submodule "projects/bashcrawl"]
-	path = projects/bashcrawl
-	url = https://github.com/bamr87/bashcrawl.git
-	branch = main
-[submodule "projects/githubai"]
-	path = projects/githubai
-	url = https://github.com/bamr87/githubai.git
-	branch = main
-[submodule "projects/fredgar-ai"]
-	path = projects/fredgar-ai
-	url = https://github.com/bamr87/fredgar-ai.git
-	branch = main
-[submodule "projects/vs-sonic-pi"]
-	path = projects/vs-sonic-pi
-	url = https://github.com/bamr87/vs-sonic-pi.git
-	branch = main
-[submodule "projects/it-journey"]
-	path = projects/it-journey
-	url = https://github.com/bamr87/it-journey.git
-	branch = main
-[submodule "projects/csv-vscoode"]
-	path = projects/csv-vscoode
-	url = https://github.com/bash-365/csv-vscoode.git
-	branch = main
-[submodule "projects/zpl-viewer"]
-	path = projects/zpl-viewer
-	url = https://github.com/bamr87/zpl-viewer.git
-	branch = main
-[submodule "projects/aieo"]
-	path = projects/aieo
-	url = https://github.com/bamr87/aieo.git
-	branch = main
-[submodule "projects/djangoerp"]
-	path = projects/djangoerp
-	url = https://github.com/bamr87/djangoerp.git
-	branch = main
-[submodule "projects/zer0-cms"]
-	path = projects/zer0-cms
-	url = https://github.com/bamr87/zer0-CMS.git
-	branch = main
-[submodule "projects/gitorio"]
-	path = projects/gitorio
-	url = https://github.com/bamr87/gitorio.git
-	branch = main
-[submodule "projects/lifehacker.dev"]
-	path = projects/lifehacker.dev
-	url = https://github.com/bamr87/lifehacker.dev.git
-	branch = main
-[submodule "projects/bashos"]
-	path = projects/bashos
-	url = https://github.com/bamr87/bashos.git
-	branch = main
-[submodule "projects/ocrmd"]
-	path = projects/ocrmd
-	url = https://github.com/bamr87/ocrmd.git
-	branch = main
-[submodule "projects/rewind-arcade"]
-	path = projects/rewind-arcade
-	url = https://github.com/bamr87/rewind-arcade.git
-	branch = main
-[submodule "projects/raising-eliza"]
-	path = projects/raising-eliza
-	url = https://github.com/bamr87/raising-eliza.git
-	branch = main
-[submodule "projects/outbox"]
-	path = projects/outbox
-	url = https://github.com/bamr87/outbox.git
-	branch = main
-[submodule "projects/godotgo"]
-	path = projects/godotgo
-	url = https://github.com/bamr87/godotgo.git
-	branch = main
 [submodule "projects/bash-365-apex"]
 	path = projects/bash-365-apex
 	url = https://github.com/bash-365/bash-365-apex.git
-	branch = main
-[submodule "projects/year-of-ai.github.io"]
-	path = projects/year-of-ai.github.io
-	url = https://github.com/year-of-ai/year-of-ai.github.io.git
-	branch = main
-[submodule "projects/ai-world-view.github.io"]
-	path = projects/ai-world-view.github.io
-	url = https://github.com/ai-world-view/ai-world-view.github.io.git
 	branch = main
 [submodule "projects/bash-365.com"]
 	path = projects/bash-365.com
 	url = https://github.com/bash-365/bash-365.com.git
 	branch = main
+[submodule "projects/bashcrawl"]
+	path = projects/bashcrawl
+	url = https://github.com/bamr87/bashcrawl.git
+	branch = main
+[submodule "projects/bashos"]
+	path = projects/bashos
+	url = https://github.com/bamr87/bashos.git
+	branch = main
 [submodule "projects/cv-pro"]
 	path = projects/cv-pro
 	url = https://github.com/bamr87/cv-pro.git
+	branch = main
+[submodule "projects/djangoerp"]
+	path = projects/djangoerp
+	url = https://github.com/bamr87/djangoerp.git
+	branch = main
+[submodule "projects/fredgar-ai"]
+	path = projects/fredgar-ai
+	url = https://github.com/bamr87/fredgar-ai.git
+	branch = main
+[submodule "projects/githubai"]
+	path = projects/githubai
+	url = https://github.com/bamr87/githubai.git
+	branch = main
+[submodule "projects/gitorio"]
+	path = projects/gitorio
+	url = https://github.com/bamr87/gitorio.git
+	branch = main
+[submodule "projects/godotgo"]
+	path = projects/godotgo
+	url = https://github.com/bamr87/godotgo.git
+	branch = main
+[submodule "projects/it-journey"]
+	path = projects/it-journey
+	url = https://github.com/bamr87/it-journey.git
+	branch = main
+[submodule "projects/law-ai"]
+	path = projects/law-ai
+	url = https://github.com/bamr87/law-ai.git
+	branch = main
+[submodule "projects/lifehacker.dev"]
+	path = projects/lifehacker.dev
+	url = https://github.com/bamr87/lifehacker.dev.git
+	branch = main
+[submodule "projects/ocrmd"]
+	path = projects/ocrmd
+	url = https://github.com/bamr87/ocrmd.git
+	branch = main
+[submodule "projects/outbox"]
+	path = projects/outbox
+	url = https://github.com/bamr87/outbox.git
+	branch = main
+[submodule "projects/README"]
+	path = projects/README
+	url = https://github.com/bamr87/README.git
+	branch = main
+[submodule "projects/rewind-arcade"]
+	path = projects/rewind-arcade
+	url = https://github.com/bamr87/rewind-arcade.git
+	branch = main
+[submodule "projects/scripts"]
+	path = projects/scripts
+	url = https://github.com/bamr87/scripts.git
+	branch = main
+[submodule "projects/skills"]
+	path = projects/skills
+	url = https://github.com/microsoft/skills.git
+	branch = main
+	update = merge
+[submodule "projects/vs-sonic-pi"]
+	path = projects/vs-sonic-pi
+	url = https://github.com/bamr87/vs-sonic-pi.git
+	branch = main
+[submodule "projects/year-of-ai.github.io"]
+	path = projects/year-of-ai.github.io
+	url = https://github.com/year-of-ai/year-of-ai.github.io.git
+	branch = main
+[submodule "projects/zer0-cms"]
+	path = projects/zer0-cms
+	url = https://github.com/bamr87/zer0-CMS.git
+	branch = main
+[submodule "projects/zpl-viewer"]
+	path = projects/zpl-viewer
+	url = https://github.com/bamr87/zpl-viewer.git
 	branch = main
