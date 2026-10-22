@@ -95,6 +95,10 @@
 	path = projects/zer0-cms
 	url = https://github.com/bamr87/zer0-CMS.git
 	branch = main
+[submodule "projects/zer0-mistakes"]
+	path = projects/zer0-mistakes
+	url = https://github.com/bamr87/zer0-mistakes.git
+	branch = main
 [submodule "projects/zpl-viewer"]
 	path = projects/zpl-viewer
 	url = https://github.com/bamr87/zpl-viewer.git

@@ -13,7 +13,8 @@ A **monorepo of ~40 Git submodules** that doubles as a self-managing **dash** (c
 | `projects/cv-pro/` | `bamr87/cv-pro` | `main` | `cv/`: LaTeX + Node renders of cv.json; `app/`: React, TypeScript, Vite, Tailwind, Firebase |
 | `projects/README/` | `bamr87/README` | `main` | Python, MkDocs, Wiki.js |
 | `projects/scripts/` | `bamr87/scripts` | `main` | Bash, Python |
-| `projects/zer0-cms/` | `bamr87/zer0-CMS` | `main` | The zer0 stack in one repo: headless CMS (Django/Wagtail, Rails, VS Code extension) + the Jekyll theme at `packages/zer0-mistakes/` (mirrored read-only to `bamr87/zer0-mistakes` for `remote_theme`) |
+| `projects/zer0-cms/` | `bamr87/zer0-CMS` | `main` | The zer0 stack in one repo: headless CMS (Django/Wagtail, Rails, VS Code extension), the image generator, the books app and the zer0 sites |
+| `projects/zer0-mistakes/` | `bamr87/zer0-mistakes` | `main` | `jekyll-theme-zer0`, the Jekyll theme gem every zer0 site renders with, plus **zer0 studio** — its Rails workbench at `studio/` (zer0-CMS ADR 0005: the theme is developed here, the CMS consumes releases) |
 | `projects/it-journey/` | `bamr87/it-journey` | `main` | Jekyll, Ruby |
 | `projects/skills/` | `microsoft/skills` (external) | `main`, `update = merge` | Markdown skills, MCP |
 

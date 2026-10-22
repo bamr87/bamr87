@@ -41,6 +41,7 @@ coverage: listed
 | `vs-sonic-pi/` | dir | VS Code extension to write and perform Sonic Pi music live: IntelliSense, hover docs, built-in tuto… | terminal |
 | `year-of-ai.github.io/` | dir | Year of AI — the organization's root site and content hub, rendering the shared zer0-mistakes theme… | terminal |
 | `zer0-cms/` | dir | The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails… | terminal |
+| `zer0-mistakes/` | dir | AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as… | terminal |
 | `zpl-viewer/` | dir | Label Studio: offline VS Code extension to read, preview, create, merge and deploy ZPL II and EPL2… | terminal |
 
 ## Placement
