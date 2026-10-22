@@ -286,15 +286,20 @@ def is_site_page(text):
     return "layout" in meta or "permalink" in meta
 
 
-def collect(root, opts, index=INDEX):
-    """Every document the index lists, as dicts grouped by section."""
-    files = list_files(root)
+def collect(root, opts, index=INDEX, files=None, reader=None):
+    """Every document the index lists, as dicts grouped by section.
+
+    `files` (repository-relative paths) and `reader(path) -> text` default to
+    the working tree; a caller holding a blob-less clone passes its own.
+    """
+    files = list_files(root) if files is None else sorted(files)
+    reader = reader or (lambda path: read(root, path))
     md = [p for p in files if p.lower().endswith(".md") and not excluded(p, opts["exclude"])]
     docs = []
 
     if opts["root"]:
         for path in [p for p in md if "/" not in p and p not in ROOT_SKIP and p != index]:
-            text = read(root, path)
+            text = reader(path) or ""
             if is_site_page(text):
                 continue
             title, summary, source, h1 = describe(text)
@@ -303,8 +308,17 @@ def collect(root, opts, index=INDEX):
             docs.append(dict(path=path, group="", title=title, summary=rebase(summary, path, index),
                              source=source, h1=h1))
 
+    index_dir = os.path.dirname(index)
     for droot in opts["roots"]:
         prefix = droot + "/"
+        own = next((prefix + n for n in ("README.md", "index.md") if (prefix + n) in files), None)
+        if own and own != index and droot != index_dir:
+            # A root below the index's folder that has its own index is one row.
+            parent = droot.rsplit("/", 1)[0] + "/" if "/" in droot else ""
+            title, summary, source, h1 = describe(reader(own) or "")
+            docs.append(dict(path=own, group=parent, title=title, summary=rebase(summary, own, index),
+                             source=source, h1=h1, directory=prefix))
+            continue
         for p in [p for p in md if p.startswith(prefix) and p != index]:
             parts = p[len(prefix):].split("/")
             owner, group = None, prefix + "".join(d + "/" for d in parts[:-1])
@@ -317,7 +331,7 @@ def collect(root, opts, index=INDEX):
                     break
             if owner == "skip":
                 continue
-            title, summary, source, h1 = describe(read(root, p))
+            title, summary, source, h1 = describe(reader(p) or "")
             docs.append(dict(path=p, group=group, title=title, summary=rebase(summary, p, index),
                              source=source, h1=h1, directory=owner))
     return docs
@@ -377,12 +391,15 @@ def repo_name(root):
         return os.path.basename(os.path.abspath(root))
 
 
-def build(root, index=INDEX):
-    """Return (current text or None, regenerated text)."""
-    current = read(root, index) if os.path.isfile(os.path.join(root, index)) else None
+def build(root, index=INDEX, files=None, reader=None):
+    """Return (current text or None, regenerated text); `files`/`reader` as in collect()."""
+    if reader is None:
+        current = read(root, index) if os.path.isfile(os.path.join(root, index)) else None
+    else:
+        current = reader(index) if files is None or index in files else None
     if current is None:
         opts = parse_options("")
-        span = render(collect(root, opts, index), index, " ")
+        span = render(collect(root, opts, index, files, reader), index, " ")
         fresh = "# %s documentation\n\n> Every document in this repository, one line each.\n\n%s\n" % (repo_name(root), span)
         return None, fresh
     where = locate(current)
@@ -390,7 +407,7 @@ def build(root, index=INDEX):
         return current, None
     start, end, opts_text = where
     opts = parse_options(opts_text)
-    span = render(collect(root, opts, index), index, opts_text)
+    span = render(collect(root, opts, index, files, reader), index, opts_text)
     return current, current[:start] + span + current[end:]
 
 

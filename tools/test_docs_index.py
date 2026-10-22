@@ -122,6 +122,12 @@ class CollectionTests(Fixture):
         self.assertEqual(d["docs/adr/README.md"]["group"], "docs/")
         self.assertNotIn("docs/adr/0001-x.md", d)
 
+    def test_a_sub_root_with_its_own_index_is_one_row(self):
+        d = self.docs("roots=docs/adr")
+        self.assertEqual(d["docs/adr/README.md"]["directory"], "docs/adr/")
+        self.assertEqual(d["docs/adr/README.md"]["group"], "docs/")
+        self.assertNotIn("docs/adr/0001-x.md", d)
+
     def test_marker_options(self):
         d = self.docs("roots=docs exclude=docs/media/ root=no")
         self.assertNotIn("docs/media/notes.md", d)
@@ -155,6 +161,17 @@ class CliTests(Fixture):
         self.assertEqual(run("--check", "--root", self.root)[0], 0)
         write(self.root, "docs/NEW.md", "# New\n\n> Fresh.\n")
         self.assertEqual(run("--check", "--root", self.root)[0], 1)
+
+    def test_files_and_reader_can_be_injected(self):
+        files = ["AGENTS.md", "docs/ARCH.md", "docs/README.md"]
+        texts = {"AGENTS.md": "# demo\n\n> Agents.\n", "docs/ARCH.md": "# A\n\n> Arch.\n",
+                 "docs/README.md": "# i\n\n<!-- AUTO:docs-index:start -->\n<!-- AUTO:docs-index:end -->\n"}
+        docs = di.collect("/nonexistent", di.parse_options(""), files=files, reader=texts.get)
+        self.assertEqual([d["path"] for d in docs], ["AGENTS.md", "docs/ARCH.md"])
+        current, fresh = di.build("/nonexistent", files=files, reader=texts.get)
+        self.assertEqual(current, texts["docs/README.md"])
+        self.assertIn("[`docs/ARCH.md`](ARCH.md) | Arch.", fresh)
+        self.assertIsNone(di.build("/nonexistent", files=files[:2], reader=texts.get)[0])
 
     def test_write_refuses_an_index_without_markers(self):
         write(self.root, "docs/README.md", "# hand-written\n")

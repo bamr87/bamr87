@@ -2084,9 +2084,9 @@ requirements:
   - id: UPS-DOC-04
     area: DOC
     section: "Homes: one place per fact"
-    level: MUST
+    level: SHOULD
     applies: [all]
-    requirement: "The root holds docs of record only (UPS-REPO-01): `README`, `AGENTS`, `CLAUDE`, `CHANGELOG`, `LICENSE`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `SCHEMA`, `PRD`, `BACKLOG` (a declared file backlog), and reports a tool writes there (`CATALOG.md`, `SITE_HEALTH.md`). Plans, proposals, guides, runbooks and quick references go in `docs/`."
+    requirement: "The root holds docs of record only (UPS-REPO-01): `README`, `AGENTS`, `CLAUDE`, `CHANGELOG`, `LICENSE`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `SCHEMA`, `PRD`, `BACKLOG` (a declared file backlog), and reports a tool writes there (`CATALOG.md`, `SITE_HEALTH.md`). Plans, proposals, guides, runbooks and quick references go in `docs/`. A repo whose `docs/` is generated content (the README aggregator's corpus) keeps its operator docs at the root and says so under **Standard deviations**."
     satisfied_by: "survey root-docs check"
     seed: "—"
     gap: true

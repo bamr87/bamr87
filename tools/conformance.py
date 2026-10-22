@@ -269,6 +269,13 @@ def _docs_index(r):
     return _DOCS_INDEX[path]
 
 
+def _waived(r, rid: str) -> bool:
+    """A SHOULD row named under AGENTS.md's `## Standard deviations` heading."""
+    a = r.read("AGENTS.md")
+    m = re.search(r"^##[ \t]+Standard deviations[ \t]*$(.*?)(?=^##[ \t]|\Z)", a, re.M | re.S | re.I)
+    return bool(m and re.search(re.escape(rid) + r"\b", m.group(1)))
+
+
 def _prose_words(text: str) -> int:
     text = re.sub(r"<!-- AUTO:([\w-]+):start.*?<!-- AUTO:\1:end -->", " ", text, flags=re.S)
     text = re.sub(r"^```.*?^```", " ", text, flags=re.S | re.M)
@@ -335,6 +342,8 @@ def _root_docs(r, k):
         if re.match(r"\s*<!--\s*generated\b", head, re.I):  # a report a tool writes at the root
             continue
         stray.append(t)
+    if stray and _waived(r, "UPS-DOC-04"):
+        return _ok("waived under Standard deviations: " + ", ".join(sorted(stray)[:6]))
     return _ok() if not stray else _no("not docs of record — move to docs/: " + ", ".join(sorted(stray)[:6]))
 
 
@@ -347,7 +356,7 @@ def _doc_budgets(r, k):
             over.append(f"{f} {n} words")
     if not over:
         return _ok()
-    if re.search(r"UPS-DOC-08", r.read("AGENTS.md").split("Standard deviations", 1)[-1]):
+    if _waived(r, "UPS-DOC-08"):
         return _ok("over budget, waived under Standard deviations: " + ", ".join(over))
     return _no(f"over the {DOC_WORD_BUDGET}-word budget: " + ", ".join(over))
 
