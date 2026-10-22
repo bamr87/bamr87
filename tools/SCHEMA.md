@@ -38,6 +38,8 @@ coverage: listed
 | `features_index.py` | file | The fleet features index — validates a repo's `features/features.yml`, grades verification coverage from files on disk, aggregates every submodule → `_data/features_index.yml` (`dash features`; docs/VERIFICATION.md) | |
 | `test_fleet_config.py` | file | Fixture tests for fleet-config.py's per-repo AI auth order — precedence, category groups, conflict/unknown errors, order-aware secret targets, the projected variable (run by run-all-tests.sh) | |
 | `test_features_index.py` | file | Fixture tests for features_index.py (run by run-all-tests.sh) | |
+| `governance_lint.py` | file | The fleet governance check — constitution + amendment log + PRD ↔ feature catalog links (UPS-WORK-15/16); `prd-ids` / `prd-sync` generate the PRD requirement ids and Feature catalog block; `fleet` checks every submodule | |
+| `test_governance_lint.py` | file | Fixture tests for governance_lint.py | |
 | `test_fleetcore_mcp.py` | file | Fixture tests for `fleetcore/mcp_server.py` — console tools pass exactly their arguments (confirm defaults false), refusals and bad arguments are tool errors, log truncation, the `.env` token parsed never sourced, the stdio loop (run by run-all-tests.sh) | |
 | `test_fleetcore_host.py` | file | Fixture tests for `fleetcore/host.py` — DASH_DOCKER_HOST parsing, `docker ps` against a fake binary (errors and timeouts per host, never raised), label-authoritative and longest-key container attribution, `attach()` (run by run-all-tests.sh) | |
 | `render-diagrams.sh` | file | Validates + delivers every `diagrams/*.json` archify spec to its self-contained HTML via the vendored `.claude/skills/archify` renderer (`--check` validates only; docs/HARNESS.md) | |
