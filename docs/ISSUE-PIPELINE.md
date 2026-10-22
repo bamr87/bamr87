@@ -1,5 +1,7 @@
 # Issue Pipeline
 
+> The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes.
+
 The loop that turns an **open issue** into a **merge-ready pull request**, in three tiers. Sibling of the [daily fleet-pulse loop](DAILY-ANALYSIS.md): that one fixes broken *workflows*, this one resolves *issues*.
 
 | | | |

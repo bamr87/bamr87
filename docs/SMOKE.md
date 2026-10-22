@@ -1,5 +1,7 @@
 # SMOKE — the monorepo's live smoke test
 
+> The live smoke test: record every running container's probes, then re-run them and fail on any regression.
+
 > `record` connects to every container in the local fleet and exercises it for
 > real; `check` re-runs those probes and fails on any move away from what was
 > recorded. The topology comes from [`_data/ports.yml`](../_data/ports.yml), so a

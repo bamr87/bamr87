@@ -1,5 +1,7 @@
 # Repo Evolution
 
+> The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository.
+
 The fleet's weekly **proactive** loop. The three loops it sits beside all *react* to a signal — [`fleet-pulse`](DAILY-ANALYSIS.md) fixes broken *workflows*, [`issue-pipeline`](ISSUE-PIPELINE.md) resolves filed *issues*, [`token-rotation`](TOKEN-ROTATION.md) keeps *credentials* current. This one improves what nobody filed a ticket for — documentation accuracy, onboarding, clarity, small correctness gaps — in each opted-in submodule's **own upstream repository**, delivered as a **draft pull request there**.
 
 | | | |

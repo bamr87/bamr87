@@ -1,5 +1,7 @@
 # Machine API
 
+> The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it.
+
 Stable, agent-facing JSON published on GitHub Pages so bots can prioritize fleet work without driving the site's app (the console's own snapshot under `/snapshot/` is the other machine-readable surface — docs/CONSOLE-PAGES.md).
 
 **Start URL:** https://bamr87.github.io/bamr87/api/v1/index.json

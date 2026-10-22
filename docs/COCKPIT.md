@@ -1,5 +1,7 @@
 # Cockpit — Gitorio as the one-stop harness & orchestration platform
 
+> Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime.
+
 > **Status:** Accepted direction (2026-09-18). Implementation phased; this ADR is the contract.
 > **Related:** [HARNESS.md](./HARNESS.md) (six-layer architecture), [HARNESS-OPS.md](./HARNESS-OPS.md) (fleet ops + local stack), [UX-HARNESS.md](./UX-HARNESS.md) (UX capability kit), [DASH.md](./DASH.md) (registry + CLI).
 

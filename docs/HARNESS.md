@@ -1,5 +1,7 @@
 # Harness Engineering — the six-layer architecture, mapped onto this control plane
 
+> The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane: the layers, the ratchet rule, the health scorecard and the trip wires.
+
 > **Formula:** Agent = Model + Harness. The model provides reasoning; the harness provides everything else — guides that prevent known failures, sensors that catch new ones, bounded loops, persistent memory, enforced permissions, and full observability.
 >
 > Source framework: the 2026 "Harness Engineering: Agent = Model + Harness" playbook (`harness_final.pdf` — a synthesis of Mitchell Hashimoto's ratchet methodology, OpenAI's Codex field report, Martin Fowler's guides-and-sensors taxonomy, and LangChain/Cursor engineering material). This document is the hub's **adoption of that framework**: the architecture mapping, the gap analysis, what was implemented, and the plan for what remains.
@@ -19,7 +21,7 @@ The audit's headline: five of six layers were already strong. The gap was in Lay
 ```text
 +------------------+     +------------------+     +------------------+
 |     GUIDES       |     |   AGENTIC LOOP   |     |    SENSORS       |
-| CLAUDE.md        |     | fleet-pulse      |     | drift gate (a–l) |
+| AGENTS.md        |     | fleet-pulse      |     | drift gate (a–l) |
 | AGENTS.md        +---->+ issue-pipeline   +---->+ schema_lint      |
 | SCHEMA.md chain  |     | token-rotation   |     | per-repo CI      |
 | .github/instr.   |     | repo-evolution   |     | pre-commit       |
@@ -38,13 +40,13 @@ The audit's headline: five of six layers were already strong. The gap was in Lay
 
 | Playbook component | Hub implementation |
 | --- | --- |
-| Primary guide file | [`CLAUDE.md`](../CLAUDE.md) — build/test/lint commands, submodule workflow, conventions |
+| Primary guide file | [`AGENTS.md`](../AGENTS.md) (imported by `CLAUDE.md`) — build/test/lint commands, submodule workflow, conventions |
 | Agent operating manual | [`AGENTS.md`](../AGENTS.md) + scoped [`.github/instructions/*.instructions.md`](../.github/instructions/) |
 | Structural contract | The `SCHEMA.md` pyramid — one lintable placement contract per directory ([`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md)) |
-| Rules traced to failures | The **standing rules** in `CLAUDE.md`, each born from a named incident: never end a workflow in a bare `git push` to a protected branch; prefer `needs:` over `workflow_run`; CI-bearing PRs cannot use `GITHUB_TOKEN`; fleet-wide secrets are written hub-first |
+| Rules traced to failures | The **standing rules** in `AGENTS.md`, each born from a named incident: never end a workflow in a bare `git push` to a protected branch; prefer `needs:` over `workflow_run`; CI-bearing PRs cannot use `GITHUB_TOKEN`; fleet-wide secrets are written hub-first |
 | Per-repo guides | The agent-context kit (`templates/agent-context/`) seeds `CLAUDE.md` scaffolds into submodules via `standardize-fanout.yml` |
 
-The hub already practices the playbook's strongest guide discipline: rules are dated by their incidents, encoded where they bind (a standing rule in `CLAUDE.md` *and* a drift-gate check where checkable), and the guide file outranks the conversation.
+The hub already practices the playbook's strongest guide discipline: rules are dated by their incidents, encoded where they bind (a standing rule in `AGENTS.md` *and* a drift-gate check where checkable), and the guide file outranks the conversation.
 
 ### Layer 2 — Sensors (feedback: catch what guides couldn't prevent)
 
@@ -82,7 +84,7 @@ The playbook's recommended implementation — files over vector stores — is ex
 | Playbook layer | Hub implementation |
 | --- | --- |
 | Artifact store | `_data/*.yml` registries + ledgers, `_reports/daily/` digests — all in git |
-| Decision log | Standing rules in `CLAUDE.md` with their incidents; workflow header comments narrating *why* |
+| Decision log | Standing rules in `AGENTS.md` with their incidents; workflow header comments narrating *why* |
 | Checkpoint / recovery | Labels-as-state in the issue pipeline: any run resumes from current label state, no event chain to lose |
 | Scratchpad | Ephemeral work orders (`remediation-workorder.md`, `evolution-workorders/`) — gitignored, rebuilt each run |
 | Cleanup (stale-checkpoint hygiene) | Evidence bundles expire by TTL (`evidence.ttl_days`); ephemera are regenerated, never trusted stale |
@@ -147,7 +149,7 @@ The playbook's core discipline — every failure becomes a permanent fix at the 
 | Rung (reliability ↑) | Hub form | Use when |
 | --- | --- | --- |
 | Prompt / conversation | A correction in-session | Never as the *final* fix |
-| Guide rule | A dated standing rule in `CLAUDE.md` / `AGENTS.md`, with its incident | The failure needs judgment to avoid |
+| Guide rule | A dated standing rule in `AGENTS.md`, with its incident | The failure needs judgment to avoid |
 | Sensor | A drift-gate check, fixture test, or lint rule | The rule is checkable without interpretation |
 | Environment / permission | A `fleet.yml` cap, workflow constraint, token scope, or ruleset | The failure should be structurally impossible |
 
@@ -157,7 +159,7 @@ Existing precedents to imitate (each one incident → strongest layer): the bare
 
 | # | Requirement | Status |
 | --- | --- | --- |
-| 1 | Guide file with build/test/lint | ✅ `CLAUDE.md`, per-repo scaffolds |
+| 1 | Guide file with build/test/lint | ✅ `AGENTS.md` (+ the `CLAUDE.md` pointer), per-repo scaffolds |
 | 2 | 5+ guide rules from failures | ✅ standing rules, each with a named incident |
 | 3 | Computational sensor per task | ✅ drift gate + CI + fixture tests |
 | 4 | Bounded retry + escalation | ✅ caps, turn budgets, brake labels, fallback issues |

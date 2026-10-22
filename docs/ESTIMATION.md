@@ -1,5 +1,7 @@
 # Engagement estimation & cost tracking
 
+> Every project as a client: deterministic estimates from open issues, actuals from usage evidence, and the leverage between them.
+
 The dash's delivery-finance layer: every registry project is treated as a **client**, every analyzed work item becomes an **engagement** — a statement of work with a deterministic estimate, a plan, evidence-accrued actuals, and a variance that closes the loop. Rendered at `/engagements/`; stored in [`_data/engagements.yml`](../_data/engagements.yml); priced by the rate card [`_data/engagement_rates.yml`](../_data/engagement_rates.yml); implemented in [`.github/scripts/dash-gen/engagements.py`](../.github/scripts/dash-gen/engagements.py).
 
 ## Why

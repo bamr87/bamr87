@@ -1,5 +1,7 @@
 # Standardization
 
+> The tiered standardization baseline — which files each kind of repository must have — and the way to the Universal Project Standard in `specs/`.
+
 The dash holds ~40 submodules to a shared baseline so any one of them is navigable, buildable, and safe to hand to an agent. A flat checklist would punish experiments and forks unfairly, so the baseline is **tiered by what a repo is**.
 
 The machine-readable definition is **[`_data/standards.yml`](../_data/standards.yml)**; this page is its narrative. Enforcement and reporting:
@@ -60,4 +62,4 @@ The tiers above say which files a repo must *have*. [`specs/`](../specs/README.m
 4. LICENSE / release automation: `tools/adopt-release.sh <name>` scaffolds the release-please pipeline; add the SPDX id to the registry `license:` field.
 5. CI: adopt the reusable [`standard-ci.yml`](../.github/workflows/standard-ci.yml) via a short caller workflow (what the fan-out drops in).
 
-Changes are always committed in the submodule's own repo first, then the pointer is bumped in root — see [SUBMODULES.md](../SUBMODULES.md).
+Changes are always committed in the submodule's own repo first, then the pointer is bumped in root — see [SUBMODULES.md](SUBMODULES.md).

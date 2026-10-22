@@ -168,12 +168,19 @@ PY
 if [[ $? -eq 0 ]]; then ok "registry/submodule parity"; else bad "registry/submodule parity (see DRIFT lines above)"; fi
 
 # --- (b): README AUTO:projects freshness ----------------------------------
-echo "(b) README AUTO:projects freshness"
+echo "(b) README AUTO:projects + dash CLI reference freshness"
 if "$ROOT/tools/dash-gen" readme --check >/dev/null 2>&1; then
   ok "README AUTO:projects up to date"
 else
   rc=$?
   if [[ $rc -eq 1 ]]; then bad "README AUTO:projects is stale (run: tools/dash-gen readme)"; else warn "could not check README (dash-gen error)"; fi
+fi
+# The dash CLI reference in docs/DASH.md is generated from `tools/dash help`
+# (specs/DOCS.md UPS-DOC-05); a command added to the CLI must reach the doc.
+if "$PY" "$ROOT/tools/gen-dash-cli-doc.py" --check >/dev/null 2>&1; then
+  ok "docs/DASH.md dash CLI reference up to date"
+else
+  bad "docs/DASH.md dash CLI reference is stale (run: python3 tools/gen-dash-cli-doc.py)"
 fi
 
 # --- (d): missing READMEs --------------------------------------------------

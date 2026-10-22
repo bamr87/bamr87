@@ -29,7 +29,7 @@ The machine-readable copy is [`_data/specs.yml`](../_data/specs.yml). Prose here
 
 | Spec | Area id | What it governs | Lifted mainly from |
 | --- | --- | --- | --- |
-| [REPOSITORY.md](REPOSITORY.md) | `REPO` | Layout, required files and their content, README/CHANGELOG/SECURITY/CONTRIBUTING contracts, containers, `tools/` | hub `.editorconfig`, `README.template.md`, `SUBMODULES.md`, zer0-mistakes |
+| [REPOSITORY.md](REPOSITORY.md) | `REPO` | Layout, required files and their content, README/CHANGELOG/SECURITY/CONTRIBUTING contracts, containers, `tools/` | hub `.editorconfig`, `README.template.md`, `docs/SUBMODULES.md`, zer0-mistakes |
 | [AGENT-CONTEXT.md](AGENT-CONTEXT.md) | `AGENT` | `AGENTS.md` (canonical) required sections and the `CLAUDE.md` pointer, `.claude/` baseline, SCHEMA.md pyramid, guardrails, MCP, what never fans out | `templates/agent-context/`, `templates/schema/`, `AGENTS.md` |
 | [QUALITY.md](QUALITY.md) | `QA` | Lint/format/test/CI per stack, coverage floor, pre-commit, commits, branches, releases, dependency policy, site quality (Lighthouse/axe/contrast). Machine contract for the site-quality rows: [`QUALITY.contract.yml`](QUALITY.contract.yml) | `standard-ci.yml`, `docs/RELEASES.md`, `docs/DEPENDENCIES.md`, ruff/vitest/playwright usage across the fleet |
 | [FRONTEND.md](FRONTEND.md) | `FE` | Design tokens, theming, the core component set, accessibility, SEO/meta, analytics + consent, the UX audit gate | zer0-mistakes `_design-system/`, law-ai `ux_audit.py`, fredgar `states.tsx`, gitorio `theme.test.ts` |

@@ -1,5 +1,7 @@
 # AI Integration — surfaces, auth, and the loops
 
+> The AI layer — every surface where Claude runs, the Claude auth order and secrets matrix, the loops, and how all of it propagates to the fleet.
+
 One page for the whole AI layer: what runs where, how it authenticates, and the feedback loops it powers. If you're setting up Claude for this repo (or a fleet repo), start at [Auth & secrets](#auth--secrets).
 
 ## The four AI surfaces

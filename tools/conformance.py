@@ -277,7 +277,10 @@ def _waived(r, rid: str) -> bool:
 
 
 def _prose_words(text: str) -> int:
-    text = re.sub(r"<!-- AUTO:([\w-]+):start.*?<!-- AUTO:\1:end -->", " ", text, flags=re.S)
+    # Generated spans in every marker style the fleet uses (`:start`/`:end`,
+    # `:begin`/`:end`, ` START`/` END`) are not prose anyone has to read.
+    text = re.sub(r"<!-- AUTO:([\w-]+)[: ](?:start|begin)\b.*?<!-- AUTO:\1[: ]end\b.*?-->", " ", text,
+                  flags=re.S | re.I)
     text = re.sub(r"^```.*?^```", " ", text, flags=re.S | re.M)
     text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
     return len(text.split())

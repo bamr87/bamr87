@@ -1,5 +1,7 @@
 # Observability — the three local planes and the one front door
 
+> The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index.
+
 > **`docs/HARNESS-OPS.md` is how the fleet's harnesses are operated; this is how you see what they did.** Phoenix already held traces. This document is the plane that was missing — logs — and the portal that puts all three in one place.
 
 ## The model in one paragraph

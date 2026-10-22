@@ -73,7 +73,7 @@ SUMMARY_MAX = 240
 WELL_KNOWN = {
     "AGENTS.md": "How to work in this repository — commands, layout, conventions; canonical for agents and contributors.",
     "CONTRIBUTING.md": "How to contribute: branches, commits, local gates and pull requests.",
-    "CHANGELOG.md": "Release history, written by release-please from the merged pull request titles.",
+    "CHANGELOG.md": "Release history: the notable changes in each version, newest first.",
     "SECURITY.md": "Supported versions and how to report a vulnerability privately.",
     "CODE_OF_CONDUCT.md": "The standards of behaviour for everyone taking part.",
     "SCHEMA.md": "Where everything lives and where a new file goes (the Pyramid Schema root, linted by tools/schema_lint.py).",

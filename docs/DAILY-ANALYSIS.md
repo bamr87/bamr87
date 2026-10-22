@@ -1,5 +1,7 @@
 # The Daily Fleet Loop
 
+> The daily fleet loop (`fleet-pulse.yml`): gather every signal, rank the failing and expensive workflows into one queue, and let the doctor open the fixes.
+
 The dash's **continuous analysis → remediation cycle**. Once a day it measures the whole fleet, records what it found as durable data in the monorepo, and dispatches a Claude Code agent to **fix** the workflows that are broken or burning time — opening the fix as a draft PR in whichever repo owns it.
 
 One workflow does all of it: [`fleet-pulse.yml`](../.github/workflows/fleet-pulse.yml).

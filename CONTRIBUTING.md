@@ -120,7 +120,7 @@ bamr87/
 └── (root)       # Profile README and coordination
 ```
 
-The submodule workflow is documented once, in [SUBMODULES.md](SUBMODULES.md); the architecture around it is in [docs/DASH.md](docs/DASH.md).
+The submodule workflow is documented once, in [docs/SUBMODULES.md](docs/SUBMODULES.md); the architecture around it is in [docs/DASH.md](docs/DASH.md).
 
 ### Contributing to Root Repository
 

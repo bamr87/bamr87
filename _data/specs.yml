@@ -837,7 +837,7 @@ requirements:
     level: MUST
     applies: [all]
     requirement: "Submodule rule: commit and push in the project repo first; the hub bumps the pointer. Never bundle several submodules in one PR."
-    satisfied_by: "`SUBMODULES.md`"
+    satisfied_by: "`docs/SUBMODULES.md`"
     seed: "—"
     gap: true
   - id: UPS-QA-40

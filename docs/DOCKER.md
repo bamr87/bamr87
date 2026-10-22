@@ -1,5 +1,7 @@
 # DOCKER — one standard for every Dockerfile and compose file in the fleet
 
+> One image standard for every Dockerfile and compose file in the fleet — versions from `_data/fleet.yml`, a harmonizer, a fan-out — and the `/docker/` view.
+
 > Image versions come from **one registry**, a tool rewrites each repo to match,
 > and a fan-out delivers it as PRs — so "latest, consistent, and scalable" is a
 > property of the machinery, not of forty people remembering.
