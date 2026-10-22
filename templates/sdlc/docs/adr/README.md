@@ -1,7 +1,9 @@
 <!-- kit: sdlc v__KIT_VERSION__ · ADR index (UPS-WORK-04, decision D2: law-ai format) -->
 # Architecture Decision Records
 
-This directory records decisions for __PROJECT_NAME__ that are hard to reverse: the stack, data model, security model, public interfaces, and any relaxation of a gate. Add an ADR in the same PR as the change it justifies.
+> Decisions for __PROJECT_NAME__ that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each.
+
+Add an ADR in the same PR as the change it justifies.
 
 ## Format
 

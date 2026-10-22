@@ -1,6 +1,6 @@
 # bamr87 portfolio standard
 
-Applies to every repository owned by [bamr87](https://github.com/bamr87). It sits alongside the hub's Universal Project Standard ([`specs/REPOSITORY.md`](https://github.com/bamr87/bamr87/blob/main/specs/REPOSITORY.md)): this file covers what a visitor sees (GitHub metadata, README, profile index), and it is written to satisfy the hub's README check (UPS-REPO-10, UPS-REPO-15).
+Applies to every repository owned by [bamr87](https://github.com/bamr87). It sits alongside the hub's Universal Project Standard ([`specs/REPOSITORY.md`](https://github.com/bamr87/bamr87/blob/main/specs/REPOSITORY.md)): this file covers what a visitor sees (GitHub metadata, README, profile index), and its README skeleton is the hub's README rule (UPS-DOC-10, with UPS-REPO-15 for the contributing link).
 
 ## 1. Description
 

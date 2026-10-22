@@ -21,11 +21,11 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 220 requirements: 149 MUST, 63 SHOULD, 4 MAY; 62 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 231 requirements: 157 MUST, 65 SHOULD, 4 MAY; 67 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
-| REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 22 / 7 / 0 | 6 | Repository layout and required files |
+| REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 21 / 7 / 0 | 7 | Repository layout and required files |
 | AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 0 | Agent context |
 | QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…63 | 25 / 11 / 0 | 17 | Quality gates |
 | FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 5 | Frontend: design system, core components, UX standards |
@@ -33,6 +33,7 @@
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
 | OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 16 | Configuration, observability, security, data |
 | WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…14 | 8 / 6 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
+| DOC | [`DOCS.md`](specs/DOCS.md) | UPS-DOC-01…20 | 9 / 2 / 0 | 4 | Documentation: one home per fact, document shape, generated reference, fleet review |
 | — | [`STACKS.md`](specs/STACKS.md) | — | — | — | Stack-family profiles and the applicability matrix |
 | — | [`CONFORMANCE.md`](specs/CONFORMANCE.md) | — | — | — | Declaring, auditing, adoption order, the fleet gap list |
 
@@ -53,7 +54,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
-| [`sdlc/`](templates/sdlc/) | 0.1.0 | 2026-10-03 | Copied per repo (not inherited). | `AGENTS.template.md`, `CHANGELOG.template.md`, `CLAUDE.template.md`, `README.md`, `content-queue/backlog.yml`, `docs/README.template.md`, `docs/adr/0000-template.md`, `docs/adr/0001-record-architectu… |
+| [`sdlc/`](templates/sdlc/) | 0.2.0 | 2026-10-22 | Copied per repo (not inherited). | `AGENTS.template.md`, `CHANGELOG.template.md`, `CLAUDE.template.md`, `README.md`, `content-queue/backlog.yml`, `docs/README.template.md`, `docs/adr/0000-template.md`, `docs/adr/0001-record-architectu… |
 | [`site-quality/`](templates/site-quality/) | 0.1.0 | 2026-10-04 | tools/fanout.sh --kit site-quality (Jekyll repos only; needs a root _config.yml) | `README.md`, `fixtures/configs/invalid/bad-date-format.yml`, `fixtures/configs/invalid/bad-level.yml`, `fixtures/configs/invalid/bad-on-expired.yml`, `fixtures/configs/invalid/bad-schema.yml`, `fixtu… |
 | [`spec-driven/`](templates/spec-driven/) | 0.1.0 | 2026-10-03 | none yet. Adopt by hand (README.md § Adoption); `tools/fanout.sh --kit spec-driven` is a… | `BACKLOG.template.md`, `README.md`, `constitution.template.md`, `hooks/gate-check.sh`, `review-questions.example.json`, `specs/_template/plan.md`, `specs/_template/spec.md`, `specs/_template/tasks.md… |
 | [`standard-ci/`](templates/standard-ci/) | 0.1.0 | 2026-08-09 | .github/workflows/standardize-fanout.yml (artifact `ci`) via tools/fanout.sh | `ci.yml` |
@@ -138,6 +139,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`devtools.conf`](tools/devtools.conf) | **Central manifest** — declares all tools, packages, and env vars by platform |
 | [`docker_harmonize.py`](tools/docker_harmonize.py) | The **fleet Docker standard** (`dash docker`) — brings a repo's Dockerfiles and compose files to it from ONE version registry (`_data/fleet.yml` `images:`): variant kept… |
 | [`docker_view.py`](tools/docker_view.py) | The **consolidated Docker view** (`dash docker view --write`) — joins the port registry, the image contract, the smoke recording, the launch/attach configurations and th… |
+| [`docs_index.py`](tools/docs_index.py) | **The generated docs index** (specs/DOCS.md UPS-DOC-02/03): writes the `AUTO:docs-index` span in a repo's `docs/README.md` from each document's own summary line (front-m… |
 | [`fanout.sh`](tools/fanout.sh) | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard, called by `standardize-fanout.yml`, `schema-fanout.yml`, and `deps-fan… |
 | [`features_index.py`](tools/features_index.py) | **The fleet features index** (`dash features`): `check <repo>` validates a `features/features.yml` (schema `features/v1`; the legacy zer0/it-journey shape is accepted as… |
 | [`fleet-compose.py`](tools/fleet-compose.py) | Projects [`_data/ports.yml`](../_data/ports.yml) onto that stack — generates `compose/fleet.env`, `compose/overrides/*.yml` and `compose/fleet.yml`, and gates the alloca… |
@@ -163,6 +165,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
 | [`test_docker_view.py`](tools/test_docker_view.py) | Tests for `docker_view.py` — each one a mistake it actually made before it shipped: comparing majors instead of the contract's precision (which reported five repos on Py… |
+| [`test_docs_index.py`](tools/test_docs_index.py) | Fixture tests for `docs_index.py` — run by `run-all-tests.sh` |
 | [`test_features_index.py`](tools/test_features_index.py) | Fixture tests for `features_index.py` — run by `run-all-tests.sh` |
 | [`test_fleet_ci_gate.py`](tools/test_fleet_ci_gate.py) | Fixture tests for UPS-QA-20 in tools/conformance.py: `ci.yml` is a thin caller of the ONE shared gate, bamr87/bamr87's standard-ci.yml. |
 | [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
