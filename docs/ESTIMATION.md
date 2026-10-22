@@ -52,16 +52,12 @@ and freezes the accrual window; `reconciled` **closes the books**: a closed enga
 
 ## Guardrails
 
-- **Determinism** — estimator-v1 is pure code: no AI in the pricing path, no
-  timestamps in the math, sweeps sorted and windowed so re-runs are no-ops.
-- **Human approval** — status transitions are the broker's; the generator
-  never advances one, and evidence never accrues to an unapproved estimate.
-- **Evidence or it didn't happen** — actuals only enter via URL-deduped ledger
-  rows; manual overrides live in human-owned fields, visible in the diff.
+- **Determinism** — estimator-v1 is pure code: no AI in the pricing path, no timestamps in the math, sweeps sorted and windowed so re-runs are no-ops.
+- **Human approval** — status transitions are the broker's; the generator never advances one, and evidence never accrues to an unapproved estimate.
+- **Evidence or it didn't happen** — actuals only enter via URL-deduped ledger rows; manual overrides live in human-owned fields, visible in the diff.
 - **Attribution is explicit** — one evidence row goes to exactly one
 engagement (oldest-open-first). Concurrent engagements on one client share imperfectly; split windows or reconcile promptly. The limitation is by design — better a stated rule than a hidden model.
-- **Public-data discipline** — the register is site data: titles, URLs,
-  prices; no secrets (`_data/SCHEMA.md` Forbidden).
+- **Public-data discipline** — the register is site data: titles, URLs, prices; no secrets (`_data/SCHEMA.md` Forbidden).
 
 ## Running it
 

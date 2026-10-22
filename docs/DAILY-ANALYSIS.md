@@ -56,8 +56,7 @@ Then `dash-gen remediate` ([`remediation.py`](../.github/scripts/dash-gen/remedi
 - **failing** — from `fleet_triage.yml`: every workflow whose latest completed run
 is red. This is *standing* state, so a workflow broken for three weeks stays on the queue until it's fixed — the class of failure a prior-day-only scan misses.
   <br>**Tracked branch only.** See [Which runs count as failing](#which-runs-count-as-failing).
-- **expensive** — from `actions_usage.yml`: slow, flaky, cancel-heavy,
-  cron-heavy, or high-cost-low-value.
+- **expensive** — from `actions_usage.yml`: slow, flaky, cancel-heavy, cron-heavy, or high-cost-low-value.
 
 Candidates are keyed on `owner/repo:workflow-path`, so a workflow that is *both* red and slow is **one** entry with both signals — not two tickets, which is how the previous split loops turned a queue into noise. Each is then classified `hub` (fixable in this checkout) or `submodule` (needs a cross-repo PR), ranked by severity then wasted minutes, de-duplicated against open issues **and** open PRs in both the hub and the target repo, and capped.
 
@@ -115,10 +114,8 @@ The first two came out of [#92](https://github.com/bamr87/bamr87/issues/92), whe
 
 For each candidate the Opus agent reads the failing run's log and the workflow definition, forms a specific root cause, and then:
 
-- **hub** (`bamr87/bamr87`) → branches in the checkout, makes the minimal fix,
-  opens a **draft PR** here;
-- **submodule** → clones that repo to a scratch dir (never into `projects/`),
-  fixes it there, opens a **draft PR in that repo**. Requires `FLEET_TOKEN`;
+- **hub** (`bamr87/bamr87`) → branches in the checkout, makes the minimal fix, opens a **draft PR** here;
+- **submodule** → clones that repo to a scratch dir (never into `projects/`), fixes it there, opens a **draft PR in that repo**. Requires `FLEET_TOKEN`;
 - **can't fix safely** → files ONE tracking issue in the hub.
 
 The agent proposes; humans dispose. Draft PRs flow through the normal review + CI gate.
@@ -131,8 +128,7 @@ ranking, and caps all run in `remediation.py`. The AI only investigates and auth
 and `max_cross_repo` (default 3). The cross-repo sub-cap stops a burst of submodule failures from starving hub fixes that could land the same day.
 - **The cap is paid for out of a turn budget.** `doctor` runs the agent with
 `--max-turns 160`, and one candidate costs ~40 turns: 2 reads to diagnose it (run log + workflow definition) and 7 to author the fix (clone, branch, read, edit, commit, push, `gh pr create`), plus margin for a wrong first guess. The cap and the budget are therefore one number, stated in two files — the workflow's `--limit` fallback shadows the registry value, so both move together or neither does. `.github/scripts/dash-gen/test_fleet_pulse_doctor.py` fails if they drift, or if the budget stops covering the cap. Set at 6 with a 120-turn budget, the agent exhausted its turns mid-queue and the run produced **nothing** — an unfinishable queue delivers fewer fixes than a shorter one.
-- **The agent's allowlist has to cover its own prompt.** The prompt tells it to
-  read `gh run view --log-failed`; a pipeline is permission-matched per segment,
+- **The agent's allowlist has to cover its own prompt.** The prompt tells it to read `gh run view --log-failed`; a pipeline is permission-matched per segment,
   so `Bash(gh:*)` does not cover the filter on the right of the `|`. The
 log-triage filters (`grep`, `head`, `tail`, `wc`, `jq`, …) are in `--allowedTools` for that reason, and the same test asserts it — a prompt that instructs a command nobody granted turns the budget into denials, silently.
 - **Dedupe is marker-based.** Every PR/issue body starts with
@@ -143,8 +139,7 @@ force-pushes, never touches submodule working trees under `projects/`, and never
 history forever, so one deleted while red stays "currently failing" in the triage data permanently. Each candidate's file is verified to still exist on its default branch before it is queued — checked at selection time, so the API cost is bounded by the cap. Ambiguity resolves toward *keeping* the candidate: an unreachable private repo 404s exactly like a deleted file, and dropping real work silently is worse than carrying one stale entry.
 - **Token validity is probed, not assumed.** A secret can be set and still be
 expired. `pulse` probes the write token against the API and reports the degraded capability, rather than inferring health from the secret's presence.
-- **No green-washing.** The agent is explicitly forbidden from adding
-  `continue-on-error` or blanket retries to make a red workflow look healthy.
+- **No green-washing.** The agent is explicitly forbidden from adding `continue-on-error` or blanket retries to make a red workflow look healthy.
 - **Degrades, never blocks.** Without Claude auth the fixer is skipped and the
 data still lands. Without `FLEET_TOKEN` cross-repo fixes downgrade to hub issues. Both are reported in the run summary.
 

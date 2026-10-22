@@ -72,8 +72,7 @@ is held at Python 3.13 because `crewai>=1.14` publishes no release for 3.14 (eve
 
 Both kits are idempotent and independent, but a runtime bump on top of a stale exact pin can break a build. barodybroject is the worked example:
 
-1. `psycopg2-binary==2.9.10` has no Python 3.14 wheel (2.9.13 does) → the docker
-   PR reports `pinned-deps` and the build fails in `pip install`.
+1. `psycopg2-binary==2.9.10` has no Python 3.14 wheel (2.9.13 does) → the docker PR reports `pinned-deps` and the build fails in `pip install`.
 2. Run `deps-fanout` first: it unpins **and deletes lockfiles**.
 3. Re-run docker: rule L1 now fires (`npm ci` had nothing to install from).
 
@@ -83,12 +82,10 @@ After that barodybroject's remaining failure is its own frontend — the latest 
 
 The new server refuses data written by an older major, and Postgres 18 also moved its data directory. Dev data is disposable (`docker compose down -v`) — but you should not have to guess:
 
-- `tools/dash dev up` runs a **preflight** and, for a volume behind its image,
-  names the exact command instead of letting the database crash-loop.
+- `tools/dash dev up` runs a **preflight** and, for a volume behind its image, names the exact command instead of letting the database crash-loop.
 - `tools/dash dev db-upgrade <project> [--service S] [--yes]` stops the service,
 copies the **raw volume** to `<volume>-pre<major>`, takes a `pg_dumpall` from a throwaway server of the *old* major into `~/.fleet-backups/`, **verifies the dump is complete before removing anything**, recreates the volume on the new layout, and restores. Dry run without `--yes`; a second run is a no-op. Tested end to end: 15.19 → 18.6 with data intact.
-- TimescaleDB (aieo) is refused: its dump needs the extension in the *old*
-  server, and guessing that image is how data gets lost. Do it by hand.
+- TimescaleDB (aieo) is refused: its dump needs the extension in the *old* server, and guessing that image is how data gets lost. Do it by hand.
 
 ## Two hazards the design deliberately handles
 
@@ -124,12 +121,9 @@ It also reports two gaps nothing else covers: repos carrying Docker files with n
 
 ## Gates
 
-- **Drift check (n)** — the hub's own Dockerfiles/compose match the standard
-  (gating) and the transformer's tests pass; submodule drift is advisory.
-- `docker-fanout.yml` runs the transformer's tests **before** it touches anyone's
-  repo, dry-run by default, PR-only, external upstreams skipped.
-- `tools/test_docker_harmonize.py` — 37 fixture tests: every rule, pin logic,
-  never-downgrade, fixtures untouched, comment preservation, idempotency.
+- **Drift check (n)** — the hub's own Dockerfiles/compose match the standard (gating) and the transformer's tests pass; submodule drift is advisory.
+- `docker-fanout.yml` runs the transformer's tests **before** it touches anyone's repo, dry-run by default, PR-only, external upstreams skipped.
+- `tools/test_docker_harmonize.py` — 37 fixture tests: every rule, pin logic, never-downgrade, fixtures untouched, comment preservation, idempotency.
 
 ## See also
 

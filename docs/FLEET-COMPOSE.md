@@ -117,8 +117,7 @@ barodybroject deliberately has **no** attach target: its `web-prod` runs no debu
 
 ## Adding a project
 
-1. Add a `projects:` entry to `_data/ports.yml` (`host: compose` or `devenv`),
-   picking ports inside the right bands.
+1. Add a `projects:` entry to `_data/ports.yml` (`host: compose` or `devenv`), picking ports inside the right bands.
 2. `tools/fleet-compose.py sync`
 3. Commit the registry **and** the generated files. Drift check (m) gates both.
 

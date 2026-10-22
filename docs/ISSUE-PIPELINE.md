@@ -26,8 +26,7 @@ log excerpts trimmed to the failing lines, a screenshot for stacks that render o
 3. **A rewritten body** in the house template — context, reproduction, expected
 vs actual, scope, mechanically checkable acceptance criteria, references — with the reporter's original words preserved verbatim in a collapsed section.
 4. **Labels**: type, priority, size, plus an assignee.
-5. **A decision**: `agent:ready` (tier 2 may implement it) or `agent:blocked`
-   with one specific question and a recommendation.
+5. **A decision**: `agent:ready` (tier 2 may implement it) or `agent:blocked` with one specific question and a recommendation.
 
 ### Tier 2 — implement
 
@@ -59,10 +58,8 @@ new ───▶│ (no tag) │ ───────────────�
 
 Stage is **derived from labels**, so every run reconciles current state instead of replaying events. That is deliberate:
 
-- a cancelled run, a missed webhook, or a token that stopped firing downstream
-  events costs one cycle of latency, not a stuck issue;
-- a human re-queues, skips, or stops any issue by editing one label — no tooling,
-  no commit;
+- a cancelled run, a missed webhook, or a token that stopped firing downstream events costs one cycle of latency, not a stuck issue;
+- a human re-queues, skips, or stops any issue by editing one label — no tooling, no commit;
 - the pipeline is idempotent, so re-running it is always safe.
 
 This repo has already lost three weeks of fleet data to a silently broken `workflow_run` chain. The sweep design is the direct answer to that.
@@ -97,8 +94,7 @@ The agents act on a pre-vetted, capped, deduped list — the same guarantee that
 
 - **Priority** — a base per type, plus severity keywords, plus a bump when the
 repo's CI is already red (from `_data/fleet_triage.yml`), plus repo status, engagement, and a capped age factor → `P0`–`P3`.
-- **Readiness** — `100 − Σ gap weights`. Below `readiness.min_score` (70), tier 1
-  must not pass the issue on.
+- **Readiness** — `100 − Σ gap weights`. Below `readiness.min_score` (70), tier 1 must not pass the issue on.
 - **Gaps** carry `by: agent` (closable from the code and the evidence) or
 `by: human` (a product decision no evidence resolves). A remaining `human` gap is precisely what makes an issue `agent:blocked` rather than `agent:ready`.
 
@@ -157,10 +153,8 @@ Dispatch inputs: `tiers` (`all`/`1`/`2`/`3`/`1-2`/`2-3`), `repos`, the three cap
 
 ## Safety properties
 
-- **Draft PRs only. No tier may merge.** `autonomy.never_merge` is `true` and
-  every prompt says so explicitly.
-- **Nothing under `projects/` is ever edited** — those are submodule working
-  trees. Cross-repo work happens in a scratch clone.
+- **Draft PRs only. No tier may merge.** `autonomy.never_merge` is `true` and every prompt says so explicitly.
+- **Nothing under `projects/` is ever edited** — those are submodule working trees. Cross-repo work happens in a scratch clone.
 - **Issue text is never executed.** Anyone can open an issue and the runner holds
 a fleet token, so `issue-evidence.sh` *extracts and reports* candidate repro commands but only runs what a caller passes via `--cmd`. The issue body reaches the harness through a file, never through argv.
 - **Credentials are scrubbed** from every log the harness writes, and the clone
@@ -169,8 +163,7 @@ command is redacted before it is echoed — the logs are published as artifacts 
 `_data/*_usage.yml`, `_data/fleet_triage.yml`, `_data/issue_pipeline.yml`, the README AUTO span, `projects/SCHEMA.md`).
 - **No bare `git push` to a protected branch** — the snapshot publishes through
 [`utilities/publish-data`](../.github/actions/utilities/publish-data/action.yml), which falls back to a pull request.
-- **Turn the whole thing off** with `issue_pipeline.enabled: false` in
-  `_data/fleet.yml`.
+- **Turn the whole thing off** with `issue_pipeline.enabled: false` in `_data/fleet.yml`.
 
 ## See also
 
