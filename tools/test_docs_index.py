@@ -103,6 +103,10 @@ class SummaryTests(Fixture):
     def test_pipes_are_escaped_for_the_table(self):
         self.assertEqual(di.clean("a | b"), "a \\| b")
 
+    def test_comments_are_stripped_even_across_lines(self):
+        self.assertEqual(di.clean("Keep <!-- one --> this <!-- two\nlines --> and <!-- odd --!> that."),
+                         "Keep this and that.")
+
 
 class CollectionTests(Fixture):
     def test_root_group_skips_readme_claude_and_site_pages(self):
