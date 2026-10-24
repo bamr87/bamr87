@@ -1260,6 +1260,46 @@ def _features_hygiene(r, k):
     return _ok() if not bad else _no(f"{main}: " + ", ".join(bad))
 
 
+def _governance(r):
+    """Run hub tools/governance_lint.py check on the repo (cached per repo)."""
+    if getattr(r, "_gov", None) is None:
+        import importlib.util
+        if not (r.hub / "tools" / "governance_lint.py").is_file():
+            return None
+        spec = importlib.util.spec_from_file_location("governance_lint", r.hub / "tools" / "governance_lint.py")
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        r._gov = mod.check(r.path)
+    return r._gov
+
+
+_GOV_15 = re.compile(r"feature|prd|catalog|TODO-", re.I)
+
+
+@check("UPS-WORK-15")
+@_need_contract
+def _prd_features_link(r, k):
+    """Contract UPS-WORK-15: PRD <-> feature catalog linked both ways (governance_lint)."""
+    g = _governance(r)
+    if g is None:
+        return None, "hub has no tools/governance_lint.py"
+    errs = [e for e in g["errors"] if _GOV_15.search(e) and "constitution" not in e and "amendment" not in e]
+    return (_ok(f"{g['features']} <-> {g['prd']}") if not errs else _no("; ".join(errs[:3])))
+
+
+@check("UPS-WORK-16")
+@_need_contract
+def _constitution(r, k):
+    """Contract UPS-WORK-16: constitution + numbered amendment log (governance_lint)."""
+    g = _governance(r)
+    if g is None:
+        return None, "hub has no tools/governance_lint.py"
+    errs = [e for e in g["errors"] if re.search(r"constitution|amendment", e, re.I)]
+    return (_ok(f"{g['constitution']}, {len(g['amendments'])} amendment(s)") if not errs else _no("; ".join(errs[:3])))
+
+
 def _jobs(text: str) -> dict:
     try:
         data = yaml.safe_load(text) or {}

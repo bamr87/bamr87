@@ -2033,6 +2033,26 @@ requirements:
     satisfied_by: "parser check"
     seed: "`templates/verify/`"
     gap: false
+  - id: UPS-WORK-15
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "The PRD and the feature catalog link both ways: every `features/features.yml` entry has a stable id, a `status` (`shipped`, `partial`, `planned`, `deprecated`, `tbd`) and `prd:` refs to the PRD requirement ids (`FRn` / `NFRn`, or `§N` for a PRD without ids) it serves, every ref resolves in the PRD, no kit placeholder (`TODO-001`) remains, and the PRD carries the generated `<!-- features:start v1 … -->` \"Feature catalog\" block (feature table + requirement → feature trace), current with the catalog. A PRD outside `PRD.md` / `docs/PRD.md` is named by the catalog's top-level `prd:` key."
+    satisfied_by: "`tools/governance_lint.py check`"
+    seed: "`templates/governance/` (`tools/fanout.sh --kit governance`)"
+    gap: false
+  - id: UPS-WORK-16
+    area: WORK
+    section: "Delivery: Definition of Done, decisions, changelog"
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "The repo has a constitution (`docs/constitution.md`; a legacy `CONSTITUTION.md` counts) with an Amendments section, and an append-only amendment log `docs/amendments/` (`README.md` index, `0000-template.md`, and numbered `NNNN-kebab-slug.md` records carrying `Status` (`proposed`, `ratified`, `rejected`, `superseded`, `withdrawn`), `Date`, `Ratified by` (the merged PR) and `Affects` (constitution §, PRD ids, feature ids)); `0001` ratifies the constitution. `AGENTS.md` (or `CLAUDE.md`) references the constitution so agents read it first. Ratification is by a human merging the PR; an agent never merges its own amendment."
+    satisfied_by: "`tools/governance_lint.py check`"
+    seed: "`templates/governance/`"
+    gap: false
   - id: UPS-WORK-12
     area: WORK
     section: "Delivery: Definition of Done, decisions, changelog"
