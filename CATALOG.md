@@ -21,7 +21,7 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 220 requirements: 149 MUST, 63 SHOULD, 4 MAY; 62 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 222 requirements: 149 MUST, 65 SHOULD, 4 MAY; 62 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
@@ -32,7 +32,7 @@
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
 | OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 16 | Configuration, observability, security, data |
-| WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…14 | 8 / 6 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
+| WORK | [`WORK.md`](specs/WORK.md) | UPS-WORK-01…16 | 8 / 8 / 0 | 2 | Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning |
 | — | [`STACKS.md`](specs/STACKS.md) | — | — | — | Stack-family profiles and the applicability matrix |
 | — | [`CONFORMANCE.md`](specs/CONFORMANCE.md) | — | — | — | Declaring, auditing, adoption order, the fleet gap list |
 
@@ -49,7 +49,8 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`elk/`](templates/elk/) | 0.1.0 | 2026-09-22 | tools/fanout.sh --kit elk --target <name> [--apply] | `README.md`, `SCHEMA.md`, `adapters/django-logging.py`, `adapters/node-pino.mjs`, `adapters/python-logging.py`, `adapters/rails-lograge.rb`, `compose.elk.yml`, `compose.labels.yml`, `filebeat.fleet.y… |
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
 | [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
-| [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/f… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
+| [`governance/`](templates/governance/) | 0.1.0 | 2026-10-21 | tools/fanout.sh --kit governance (branch docs/feature-catalog); validated by tools/govern… | `README.md`, `constitution.template.md`, `docs/amendments/0000-template.md`, `docs/amendments/0001-ratify-constitution.template.md`, `docs/amendments/README.template.md` |
+| [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/f… | `README.md`, `SKILL.template.md`, `__pycache__/triage.cpython-313.pyc`, `__pycache__/verify_close.cpython-313.pyc`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-ve… |
 | [`prose/`](templates/prose/) | 0.3.0 | 2026-08-26 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / schema-fanout.yml | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
@@ -86,7 +87,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (34 projects: 21 active, 2 archived, 5 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (32 projects: 20 active, 2 archived, 4 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |
@@ -109,8 +110,6 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`portfolio.yml`](_data/portfolio.yml) | HOW the profile README groups the portfolio — group headings, repo → group map, display-only extras (hand-edited; read by `.github/scripts/dash-gen` `readme`) | required |
 | [`ports.yml`](_data/ports.yml) | THE fleet port allocation — bands, shared services, and every project's published ports; projected onto the dev stack by `tools/fleet-compose.py`, gated by drift check (… | required |
 | [`profile.yml`](_data/profile.yml) | WHO the public site is about — name, title, links, avatar, the site's own title and description (hand-edited; read by `tools/console/site_docs.py`; replaced the identity… | required |
-| [`project_health.yml`](_data/project_health.yml) | Ephemeral live-signal snapshot (gitignored; written by dash-gen health, never committed) | generated |
-| [`project_health_meta.yml`](_data/project_health_meta.yml) | Ephemeral metadata for the health snapshot (gitignored) | generated |
 | [`projects.yml`](_data/projects.yml) | THE project registry — cross-checked against .gitmodules by the drift gate | required |
 | [`references.yml`](_data/references.yml) | Hand-edited map of reference implementations in the fleet (repo + path) to the UPS requirement ids they exemplify; rendered into CATALOG.md | — |
 | [`roadmap.yml`](_data/roadmap.yml) | Feature roadmap entries surfaced on the dash | — |
@@ -149,6 +148,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`gen-catalog.py`](tools/gen-catalog.py) | Regenerates the root `CATALOG.md` — the master index of specs, kits, references, registries, tools, workflows, AI layer, docs, dash surfaces, diagrams — from disk + each… |
 | [`gen-projects-schema.py`](tools/gen-projects-schema.py) | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
 | [`gen-specs-data.py`](tools/gen-specs-data.py) | Regenerates `_data/specs.yml` (the machine-readable Universal Project Standard) from the requirement tables in `specs/*.md` (`--check` gates staleness) |
+| [`governance_lint.py`](tools/governance_lint.py) | The fleet GOVERNANCE check: validate, and keep in sync, the chain |
 | [`install-prose-hook.sh`](tools/install-prose-hook.sh) | Installs a **global** git `pre-commit` hook (`~/.git-hooks`, `core.hooksPath`) that runs `unwrap-prose.py` over the staged markdown and restages it, so a commit is born… |
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
@@ -171,6 +171,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore.py`](tools/test_fleetcore.py) | Fixture tests for tools/fleetcore's shared contracts — keys v1, the theme, the console client. |
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
+| [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
@@ -354,6 +355,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate, the fleet coverage index |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit and the record of what changed |
 | [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back |
+| [`constitution.md`](docs/constitution.md) | The rules every change to this repo must satisfy, whoever makes it — a human or an AI agent. |
 | [`AGENTS.md`](AGENTS.md) | The operating manual for any AI agent working in this repo |
 | [`CLAUDE.md`](CLAUDE.md) | Claude Code's context for this repo; its tooling lives in [`.claude/`](../.claude) and [`.mcp.json`](../.mcp.json) |
 | [`SUBMODULES.md`](SUBMODULES.md) | The submodule workflow, documented once: commit in the submodule first, then record its pointer here |

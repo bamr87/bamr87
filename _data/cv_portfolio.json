@@ -62,7 +62,7 @@
     {
       "id": "fleet-zer0-cms",
       "name": "zer0-CMS",
-      "description": "The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails experience plane, VS Code extension) plus the theme, image generator, books app, barodybroject and the zer0 sites, each imported with its history.",
+      "description": "The zer0 stack in one repository: an agent-native headless CMS (Django/Wagtail content plane, Rails experience plane, VS Code extension) plus the image generator, books app, barodybroject and the zer0 sites, each imported with its history; the theme is developed in bamr87/zer0-mistakes again (ADR 0005).",
       "technologies": [
         "typescript",
         "vscode",
@@ -79,11 +79,12 @@
     {
       "id": "fleet-zer0-mistakes",
       "name": "zer0-mistakes",
-      "description": "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem; developed in zer0-CMS, mirrored here for remote_theme.",
+      "description": "AI-native, Docker-first Jekyll theme for GitHub Pages sites, built on Bootstrap 5 and published as a Ruby gem, with zer0 studio — the Rails workbench that designs, customizes and updates it.",
       "technologies": [
         "jekyll",
         "ruby",
-        "bootstrap"
+        "bootstrap",
+        "rails"
       ],
       "github": "https://github.com/bamr87/zer0-mistakes",
       "startDate": "",
@@ -115,22 +116,6 @@
       "github": "https://github.com/ai-world-view/ai-world-view.github.io",
       "startDate": "",
       "url": "https://ai-world-view.github.io/",
-      "featured": false,
-      "fleet_status": "active"
-    },
-    {
-      "id": "fleet-aieo",
-      "name": "aieo",
-      "description": "AI Engine Optimization: score and optimize website content so AI engines like ChatGPT and Claude will cite it.",
-      "technologies": [
-        "python",
-        "fastapi",
-        "react",
-        "typescript",
-        "ai"
-      ],
-      "github": "https://github.com/bamr87/aieo",
-      "startDate": "",
       "featured": false,
       "fleet_status": "active"
     },
@@ -342,7 +327,6 @@
         "diagrams",
         "django",
         "docker",
-        "fastapi",
         "gdscript",
         "github-actions",
         "github-pages",
@@ -352,7 +336,6 @@
         "jekyll",
         "langgraph",
         "latex",
-        "legacy",
         "markdown",
         "mcp",
         "mkdocs",

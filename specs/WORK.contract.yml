@@ -225,6 +225,25 @@ rules:
     reads: [features/features.yml, _data/features.yml]
     pass: "features/features.yml absent, or present with no '^version\\s*:' key and no version comment in its first 40 lines, and no _data/features.yml"
 
+  UPS-WORK-15:
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except fork"]
+    mode: offline
+    rollout: warn
+    reads: [features/features.yml, PRD.md, docs/PRD.md, "the file the catalog's top-level prd: key names"]
+    pass: "hub:tools/governance_lint.py check reports no PRD/feature error: catalog present without TODO- ids, every feature status in the vocabulary and every prd: ref found in the PRD, and the PRD's features:start v1 block equal to prd-sync output"
+    fail: "any of the above; a repo with no PRD warns only"
+
+  UPS-WORK-16:
+    level: SHOULD
+    applies: [all]
+    applies_notes: ["all except fork"]
+    mode: offline
+    rollout: warn
+    reads: [docs/constitution.md, CONSTITUTION.md, docs/amendments/, AGENTS.md, CLAUDE.md]
+    pass: "hub:tools/governance_lint.py check reports no constitution/amendment error: constitution with an Amendments heading, docs/amendments/ with >=1 NNNN record (Status, Date, Affects; Ratified by when ratified), unique numbers, and AGENTS.md/CLAUDE.md mentioning the constitution"
+
   UPS-WORK-07:
     level: MUST
     applies: [all]

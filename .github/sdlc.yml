@@ -1,0 +1,33 @@
+# kit: sdlc v0.1.0 — the repo's SDLC declaration (UPS-WORK-01). Lands at .github/sdlc.yml.
+# Contract: templates/sdlc/sdlc.schema.json in bamr87/bamr87 (validated by the conformance check).
+# The hub practices what it seeds: this is bamr87/bamr87's own profile.
+schema: sdlc/v1
+
+# Repo type (decision D6): app | library | site | docs | demo | control-plane | fork
+type: control-plane
+kinds: [site, hub]
+tier: active
+
+backlog:
+  mode: issues            # GitHub Issues with the fleet labels (decision D1); _data/roadmap.yml holds the cross-repo FF-NNNN initiatives
+  mirror_to_issues: false
+
+# Optional modules. Always a map of name -> true/false (never a list).
+modules:
+  spec_driven: false
+  adr: true               # docs/adr/ (UPS-WORK-04)
+  features: true          # features/features.yml (features/v1)
+  issue_autopilot: false
+  content_queue: false
+  ai_lanes: true          # fleet.manifest.yml + the <LANE>_ENABLED kill switches on every scheduled agent loop
+
+adr_path: docs/adr
+
+release:
+  type: simple
+
+# Waived requirements, each also listed in AGENTS.md § Standard deviations.
+deviations:
+  - id: UPS-REPO-21
+    reason: "The hub's public interface (reusable workflows + checker) versions by hand-cut major tags (v1, v2) per docs/WORKFLOW-VERSIONING.md; CHANGELOG.md is maintained with those cuts, not by release-please."
+    until: "2027-04-01"

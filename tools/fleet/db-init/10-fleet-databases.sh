@@ -26,9 +26,6 @@ ensure() {  # $1 = database, $2 = role
   echo "  fleet-db: ensured $1 (owner $2)"
 }
 
-ensure "barodybroject" "barodybroject"
-ensure "aieo" "aieo"
 ensure "law_ai" "law_ai"
 ensure "fredgar_ai" "fredgar_ai"
-ensure "ai_seed" "ai_seed"
 ensure "djangoerp" "djangoerp"

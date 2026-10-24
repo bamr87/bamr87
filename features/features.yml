@@ -24,6 +24,8 @@ features:
     title: "Portfolio + dashboard from the registry"
     description: "Every surface renders from one registry (_data/projects.yml): the public site's Home and /portfolio cards, the /projects table, and the profile README's AUTO span."
     implemented: true
+    status: shipped
+    prd: [FR2, FR5]
     surface: ui
     link: /portfolio
     docs: docs/DASH.md
@@ -44,6 +46,8 @@ features:
     title: "Projects board"
     description: "Every registry project with its live health (the ephemeral project_health.yml gathered by dash-gen health at build time) and triage state at /projects (formerly /monitor/), with a drill-down page per project; degrades to the committed triage signal when the health snapshot is absent."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /projects
     docs: docs/DASH.md
@@ -59,6 +63,8 @@ features:
     title: "Fleet triage inbox"
     description: "Daily snapshot of every open issue, PR (with CI status), and failing workflow across the fleet, scored and rendered as one prioritized inbox at /inbox (formerly /triage/)."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /inbox
     docs: docs/DAILY-ANALYSIS.md
@@ -76,6 +82,8 @@ features:
     title: "Issue pipeline board"
     description: "Three-tier issue loop state (queues, stages derived from labels, caps, taxonomy) rendered on the issue-pipeline loop page (/loops/issue_pipeline) from _data/issue_pipeline.yml."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /loops/issue_pipeline
     docs: docs/ISSUE-PIPELINE.md
@@ -86,6 +94,8 @@ features:
     title: "AI harnesses inventory board"
     description: "Per-repo AI-harness deployments and cron schedules graded against fleet.yml `harnesses:` — baseline coverage, throughput vs caps, budget forecast, and the fan-out gap list — at /harnesses."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /harnesses
     docs: docs/HARNESS-OPS.md
@@ -103,6 +113,8 @@ features:
     title: "Six-layer harness scorecard"
     description: "The hub's own harness health scorecard + trip wires (/harnesses/health), computed offline from the committed fleet signals against fleet.yml `harness:` thresholds."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /harnesses/health
     docs: docs/HARNESS.md
@@ -113,6 +125,8 @@ features:
     title: "Fleet features index"
     description: "One listing of every feature in the fleet with its docs, tests, user scenarios, evidence bundles, screenshots, and verified stamp, plus per-repo coverage and the attention list of unverified UI features — at /features from _data/features_index.yml."
     implemented: true
+    status: shipped
+    prd: [FR4, FR5]
     surface: ui
     link: /features
     docs: docs/VERIFICATION.md
@@ -131,6 +145,8 @@ features:
     title: "Harness Console (local control plane UI)"
     description: "Write-capable local front end (FastAPI + a React/Mantine page, 127.0.0.1:4001) that renders every committed signal with a drill-down page per project, loop, operation, job and content site; runs allowlisted dash operations as jobs with live logs; dispatches workflows; edits fleet.yml one block at a time; runs the terminal dash in the page (Terminal, a pty over WebSocket); and connects to GitHub through an OAuth App (device or PKCE browser flow) to manage fleet repos' issues, runs and workflows."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: tools/console/
     docs: docs/HARNESS-OPS.md
@@ -141,6 +157,8 @@ features:
     title: "The public site is the console (GitHub Pages)"
     description: "bamr87.github.io/bamr87 is the Harness Console's own page built static: the profile and portfolio plus every console view, reading a snapshot of the API documents rendered daily by the console's own Python (tools/console/snapshot.py) — never the lake, a credential or a local probe. On the Connect page a visitor can give it a GitHub token (live repo views, the console's issue/run/workflow writes, and dispatching the control-plane workflows, from the browser) or point it at a running console (everything, admitted only when that console requires its token). Retired Jekyll URLs redirect to the pages that replaced them."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /connect
     docs: docs/CONSOLE-PAGES.md
@@ -160,6 +178,8 @@ features:
     title: "Roadmap"
     description: "The Future-Features backlog (_data/roadmap.yml) rendered at /roadmap; entries are authored by /future-features and the feature-scout agent, never backlogged without approval."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /roadmap
     docs: .claude/README.md
@@ -175,6 +195,8 @@ features:
     title: "Engagements ledger"
     description: "Every registry project as a client: deterministic estimates from open issues, actuals accrued from usage evidence, variance and rollups at /engagements/."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /engagements
     docs: docs/ESTIMATION.md
@@ -190,6 +212,8 @@ features:
     title: "Actions usage analytics"
     description: "Per-workflow GitHub Actions cost, effectiveness, and waste across the fleet at /actions/, refreshed daily by fleet-pulse."
     implemented: true
+    status: shipped
+    prd: [FR5]
     surface: ui
     link: /costs
     docs: docs/DAILY-ANALYSIS.md
@@ -202,6 +226,8 @@ features:
     title: "Drift gate"
     description: "Offline+API gate on every PR: registry↔.gitmodules parity, stray project dirs, stale README span, SCHEMA.md pyramid, vendored-tool parity, composite-action manifests; advisory GitHub-reality drift."
     implemented: true
+    status: shipped
+    prd: [FR1, FR2]
     surface: infra
     link: tools/check-drift.sh
     docs: docs/DASH.md
@@ -212,6 +238,8 @@ features:
     title: "Fan-out engine"
     description: "One clone→branch→seed→commit→PR engine for every downward kit (standardize, schema, prose, deps-latest, verify): dry-run default, PRs only, additive-only, external-upstream guard, byte-identical --upgrade."
     implemented: true
+    status: shipped
+    prd: [FR6]
     surface: infra
     link: tools/fanout.sh
     docs: docs/STANDARDS.md
@@ -222,6 +250,8 @@ features:
     title: "Agent verification kit + fleet-verify gate"
     description: "The verify kit (feature index scaffold, user scenarios, Playwright runner, MCP config, CI caller, verify-feature skill + verifier agent) fanned out by verify-fanout, and the reusable fleet-verify.yml that runs scenarios on every PR and hands the live app to a Claude Code pass on `verify`-labelled PRs."
     implemented: true
+    status: shipped
+    prd: [FR6]
     surface: infra
     link: templates/verify/
     docs: docs/VERIFICATION.md
@@ -233,6 +263,8 @@ features:
     title: "Repo evolution loop"
     description: "Weekly proactive pass: deterministic planner selects registry opt-ins, writes briefs from fleet signals, one Opus agent per repo on a credential-free checkout, the workflow opens the draft PR."
     implemented: true
+    status: shipped
+    prd: [NFR3]
     surface: infra
     link: .github/workflows/repo-evolution.yml
     docs: docs/EVOLUTION.md
@@ -243,6 +275,8 @@ features:
     title: "Fleet pulse + remediation doctor"
     description: "THE daily loop: gather every fleet signal off one checkout, publish in one commit, merge failing + expensive workflows into one ranked fix queue, and let an Opus agent open draft PRs with fixes."
     implemented: true
+    status: shipped
+    prd: [NFR3]
     surface: infra
     link: .github/workflows/fleet-pulse.yml
     docs: docs/DAILY-ANALYSIS.md
@@ -254,6 +288,8 @@ features:
     title: "Local data lake + Phoenix traces"
     description: "dash lake sync/sessions/review/export: GitHub runs/jobs/logs and local Claude Code sessions extracted into .dash-lake/fleet.sqlite, analysed offline, exported as OpenInference traces."
     implemented: true
+    status: shipped
+    prd: [TBD]
     surface: cli
     link: .github/scripts/dash-gen/fleet_lake.py
     docs: docs/HARNESS-OPS.md
@@ -264,6 +300,8 @@ features:
     title: "Registry reconciliation"
     description: "Nightly comparison of the registry, .gitmodules, and GitHub reality; authoritative drift (renames, url mismatches) is auto-fixed by PR, advisory drift (404s, branch) becomes a tracking issue."
     implemented: true
+    status: shipped
+    prd: [FR1]
     surface: infra
     link: .github/workflows/reconcile-registry.yml
     docs: docs/DASH.md
@@ -274,6 +312,8 @@ features:
     title: "Schema vendor loop"
     description: "Weekly comparison of the vendored Pyramid Schema kit against upstream bamr87/SCHEMA via its content-addressed manifest; strict-parity drift is re-vendored by PR."
     implemented: true
+    status: shipped
+    prd: [FR6]
     surface: infra
     link: .github/workflows/schema-vendor.yml
     docs: docs/SCHEMA-FRAMEWORK.md
@@ -284,6 +324,8 @@ features:
     title: "Terminal command center"
     description: "Textual twin of the Jekyll command center (index.md + /monitor/): lists every registry app, joins ephemeral project_health.yml, filters/sorts like the web dash, degrades when health is missing."
     implemented: true
+    status: shipped
+    prd: [TBD]
     surface: cli
     link: tools/tui/app.py
     docs: docs/DASH.md
@@ -295,9 +337,25 @@ features:
     title: "CV projection"
     description: "Projects the registry into bamr87/cv's CVData contract (_data/cv_portfolio.json) for the human-curated sync-cv skill."
     implemented: true
+    status: shipped
+    prd: [TBD]
     surface: infra
     link: .github/scripts/dash-gen/cv_fragment.py
     docs: .claude/skills/sync-cv/SKILL.md
     tags: [ cv, projection ]
     tests:
       - .github/scripts/dash-gen/test_cv_fragment.py
+  # -------------------------------------------------------------- governance
+  - id: HUB-023
+    title: "Governance kit: constitution, amendments, PRD and feature link"
+    description: "Seeds and validates the fleet governing chain in every repo: docs/constitution.md, the numbered docs/amendments/ log, and a features/features.yml catalog whose ids the PRD generated Feature catalog block links (UPS-WORK-15, UPS-WORK-16)."
+    implemented: true
+    status: shipped
+    prd: [FR4, FR6]
+    surface: infra
+    link: tools/governance_lint.py
+    docs: templates/governance/README.md
+    tags: [ governance, features, prd, fan-out ]
+    date: 2026-10-21
+    tests:
+      - tools/test_governance_lint.py

@@ -70,7 +70,7 @@ shared:
       Available behind `--profile shared-db`, NOT default. Sharing a server is
       correct for plain-Postgres consumers (one server, one database per app)
       but it is a behaviour change to a working stack, and two consumers cannot
-      join at all: aieo needs timescale/timescaledb and law-ai pins its major
+      join at all: law-ai pins its major
       version with a dump/restore note. Those keep their own, on a
       deconflicted `database:` band port.
   redis:
@@ -175,27 +175,6 @@ projects:
       tika: [9998]
     notes: "db and redis publish no host port — nothing to deconflict."
 
-  aieo:
-    host: compose
-    compose: projects/aieo/docker-compose.yml
-    services:
-      postgres: { port: 5443, band: database, var: AIEO_DB_PORT, shared: false }
-      redis:    { port: 6392, band: cache,    var: AIEO_REDIS_PORT, shared: false }
-    unique:
-      qdrant: [6333, 6334]
-    notes: >-
-      Cannot join the shared Postgres — it runs timescale/timescaledb:latest-pg16.
-      mcp-server and mcp-audit publish no host port. Its frontend has no compose
-      service and stays on devenv (5176).
-
-  ai-seed:
-    host: compose
-    compose: projects/ai-seed/docker-compose.yml
-    services:
-      frontend: { port: 5112, band: frontend, var: AI_SEED_FRONTEND_PORT }
-      api:      { port: 8113, band: api,      var: AI_SEED_API_PORT }
-      database: { port: 5445, band: database, var: AI_SEED_DB_PORT, shared: false }
-
   gitorio:
     host: compose
     compose: projects/gitorio/docker-compose.yml
@@ -243,11 +222,3 @@ projects:
     host: devenv
     services:
       vite: { port: 5175, band: frontend, var: REWIND_ARCADE_PORT }
-  aieo-frontend:
-    host: devenv
-    services:
-      vite: { port: 5176, band: frontend, var: AIEO_FRONTEND_PORT }
-  ai-seed-docs:
-    host: devenv
-    services:
-      mkdocs: { port: 8003, band: docs, var: AI_SEED_MKDOCS_PORT }

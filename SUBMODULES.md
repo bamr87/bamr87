@@ -17,6 +17,10 @@ tools/dash status                 # registry + drift summary
 ./tools/update-submodules.sh --status   # declared vs. checked-out branch
 ```
 
+### Naming convention
+
+Every `.gitmodules` section is named by its path — `[submodule "projects/<name>"]` — and the file is kept sorted by path. A repo whose registry row has `submodule_path: null` (archived or external: `zer0-mistakes`, `amrchy`, `ai-seed`, `csv-vscoode`) is shown on the dash but never checked out here. If a clone predates a rename, run `git submodule sync` once; the checked-out trees keep pointing at their existing gitdirs.
+
 ### Branch conventions
 
 All submodules track `main` (the former `sonic-pi` fork that tracked `dev` no longer exists; `vs-sonic-pi` is on `main`). `skills` is an external `microsoft/skills` mirror on `main` (`update = merge`). Always read the branch from `.gitmodules` — never assume.

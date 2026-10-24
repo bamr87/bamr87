@@ -12,8 +12,9 @@
 # Guarantees:
 #   - DRY RUN by default: builds the branch, prints the diffstat, no push/PR
 #   - never pushes to a default branch (PR only, --force-with-lease)
-#   - skips submodules whose upstream isn't github.com/bamr87 (external
-#     mirrors like microsoft/skills)
+#   - skips submodules whose upstream is not under a FLEET OWNER — the GitHub
+#     owners listed in _data/fleet.yml `hub.owners` (bamr87 and its three
+#     orgs); external mirrors like microsoft/skills are never written to
 #   - additive-only seeding for the seeding kits (standardize/schema/prose):
 #     never overwrites a file the target already has. The deps-latest kit is
 #     the deliberate exception — converting a repo to the always-latest
@@ -36,6 +37,28 @@
 #   tools/fanout.sh --kit sdlc --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit spec-driven --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit agent-context --target <name|all> [--apply] [--upgrade]
+#   tools/fanout.sh --kit governance --target <name|all> [--apply]
+#
+#   community takes --artifacts too (default: everything): pr-template,
+#   issue-forms,codeowners,dependabot,contributing,security,coc. Repos under an
+#   owner with a `.github` repo inherit all but codeowners and dependabot
+#   (templates/community/README.md), so bamr87 repos usually take just those two.
+#
+# Stacking mode (environment, all optional — the defaults are the behaviour above):
+#   FANOUT_BASE_BRANCH=<branch>  clone that branch when the repo has it (else the
+#                                default branch) so the kit lands on top of it
+#   FANOUT_BRANCH=<branch>       push to that branch instead of the kit's own
+#   FANOUT_PR_APPEND=1           when an open PR already has that head, append a
+#                                "## <kit title>" section to its body instead of
+#                                opening another PR (FANOUT_PR_TITLE retitles it)
+#   FANOUT_PR_DRAFT=1            open new PRs as drafts
+#   FANOUT_SUBMODULES_ONLY=1     `--target all` means the checked-out submodules
+#                                only — not the registry rows without a checkout
+#                                (the zer0-mistakes mirror, the .github defaults
+#                                repo, the SCHEMA kit source, forks), which take a
+#                                kit only when named explicitly
+#   Together they turn N kit PRs per repo into ONE alignment PR per repo with one
+#   commit per kit — what the 2026-10-20 fleet alignment used on chore/root-tidy.
 #
 #   community / sdlc / spec-driven / agent-context seed the templates/ kits of
 #   the same name, additive-only: a missing file is seeded, an unmodified
@@ -118,6 +141,19 @@
 #                kit artifacts — the sanctioned exception to ".claude/ never
 #                fans out"). runner.mjs and verify.yml are upgradeable
 #                machine seeds (archive/<file>-<ver>.yml).
+#   governance   branch docs/feature-catalog; the GOVERNANCE kit
+#                (templates/governance/, specs/WORK.md UPS-WORK-15/16):
+#                docs/constitution.md (only when neither it nor CONSTITUTION.md
+#                exists), the docs/amendments/ log (README, 0000 template, 0001
+#                ratification record — each only when absent), a features/
+#                features.yml scaffold (only when the repo has no catalog), then
+#                tags untagged PRD requirement bullets FRn/NFRn and regenerates
+#                the PRD "Feature catalog" block (tools/governance_lint.py
+#                prd-ids / prd-sync — the block is generated, like the README
+#                AUTO span). Seeds carry TODO: lines and the TODO-001 placeholder:
+#                tools/governance_lint.py check fails until a human or agent
+#                grounds them in the repo, so the PR is a starting point, not
+#                a finished catalog.
 #   site-quality branch ci/site-quality; the SITE QUALITY kit
 #                (templates/site-quality/, specs/QUALITY.md "Site quality"):
 #                the .github/workflows/site-quality.yml caller of the reusable
@@ -178,10 +214,28 @@ SQ_VERSION="$(kit_version site-quality)"
 COMM_VERSION="$(kit_version community)"
 SDLC_VERSION="$(kit_version sdlc)"
 SD_VERSION="$(kit_version spec-driven)"
+GOV_VERSION="$(kit_version governance)"
 # Major tag the sdlc release caller pins. The hub's reusable
 # release-please.yml first shipped in v2 (it is absent at v1), so @v1 would
 # point a caller at a workflow that does not exist. Bump with the hub major.
 RP_PIN="v2"
+
+# Fleet owners (_data/fleet.yml `hub.owners`): the GitHub owners whose repos
+# this engine may write to. Anything else is an external mirror.
+FLEET_OWNERS="$("${PYTHON:-python3}" - "$HUB" <<'PY' 2>/dev/null || echo bamr87
+import sys
+try:
+    import yaml
+    d = yaml.safe_load(open(f"{sys.argv[1]}/_data/fleet.yml")) or {}
+    print(" ".join((d.get("hub") or {}).get("owners") or ["bamr87"]))
+except Exception:
+    print("bamr87")
+PY
+)"
+owner_of_url() {  # github.com/<owner>/<repo>(.git) or github.com:<owner>/<repo> → owner
+  local u="${1%.git}"; u="${u#*github.com/}"; u="${u#*github.com:}"; echo "${u%%/*}"
+}
+is_fleet_owner() { local o; for o in $FLEET_OWNERS; do [[ "$1" == "$o" ]] && return 0; done; return 1; }
 
 # Render a kit template exactly as seeding would, so an on-disk copy can be
 # compared byte-for-byte against it.
@@ -252,8 +306,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -331,6 +385,12 @@ case "$KIT" in
     PR_TITLE="chore(spec-driven): adopt the spec-driven kit"
     PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit spec-driven): vendors the AO-SDLC gates byte-for-byte (tools/spec_validator.py, backlog_lint.py, next_backlog_id.py, pick_backlog_item.py and hooks/gate-check.sh; UPS-WORK-07 byte-identity files) and seeds specs/_template/, BACKLOG.md and docs/constitution.md only where absent.\n\nAdditive-only: a hand-modified copy is left alone (pre-kit copies matching the archive are upgradeable with --upgrade). **Before merge**: declare `modules: { spec_driven: true }` and `backlog: { mode: file, file: BACKLOG.md }` in .github/sdlc.yml, and add the CI job that runs both gates. See bamr87/bamr87 templates/spec-driven/README.md.')"
     ;;
+  governance)
+    BRANCH="docs/feature-catalog"
+    COMMIT_MSG="docs: add feature catalog, constitution and amendments; link PRD (governance kit v${GOV_VERSION})"
+    PR_TITLE="docs: add feature catalog, constitution and amendments; link PRD"
+    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit governance): seeds what this repo is missing of the fleet GOVERNANCE kit: docs/constitution.md, the docs/amendments/ log with the 0001 ratification record, and a features/features.yml catalog (features/v1); tags PRD requirement bullets FRn/NFRn and regenerates the PRD Feature catalog block that links every feature id.\n\nAdditive-only: an existing constitution, amendment record or catalog is never overwritten. **Before merge**: replace every TODO: line and the TODO-001 placeholder with facts from this repo (unknown = TBD), give each feature `status` and `prd:` refs, link the constitution from AGENTS.md, and run `python3 <hub>/tools/governance_lint.py check .` until clean. Merging ratifies amendment 0001. See bamr87/bamr87 templates/governance/README.md.')"
+    ;;
   agent-context)
     # Same artifacts the standardize kit seeds for agent context; the kit
     # default replaces the standardize default (editorconfig,ci).
@@ -341,6 +401,8 @@ case "$KIT" in
     PR_BODY="Automated by bamr87 (tools/fanout.sh --kit agent-context): seeds the agent-context kit artifacts (${ARTIFACTS}). Additive-only: CLAUDE.md is seeded only when the repo has no agent file at all (AGENTS.md, CLAUDE.md, copilot-instructions, .cursorrules), and a hand-modified workflow is left alone. See bamr87/bamr87 templates/agent-context/."
     ;;
 esac
+# Stacking mode: one branch for every kit (see the header).
+[[ -n "${FANOUT_BRANCH:-}" ]] && BRANCH="$FANOUT_BRANCH"
 
 seed_standardize() {
   # cwd = target clone; $1 = repo name, $2 = default branch
@@ -795,17 +857,24 @@ PY
 # Every target for `--target all`: the submodules, plus registry entries that
 # have no submodule_path and are neither archived nor externally owned.
 all_targets() {
-  git config -f "$HUB/.gitmodules" --get-regexp '^submodule\..*\.path$' | awk '{print $2}'
-  "${PYTHON:-python3}" - "$HUB" <<'PY' 2>/dev/null
-import sys
+  # Submodules first (minus the ones the registry marks archived — GitHub
+  # refuses pushes to an archived repo), then registry rows without a checkout.
+  "${PYTHON:-python3}" - "$HUB" "$FLEET_OWNERS" "${FANOUT_SUBMODULES_ONLY:-0}" <<'PY' 2>/dev/null
+import subprocess, sys
+root = sys.argv[1]
+paths = subprocess.run(["git", "config", "-f", f"{root}/.gitmodules", "--get-regexp", r"^submodule\..*\.path$"],
+                       capture_output=True, text=True).stdout.split()
+paths = [p for i, p in enumerate(paths) if i % 2 == 1]
 try:
     import yaml
-except ImportError:
-    raise SystemExit(0)
-root = sys.argv[1]
-try:
     reg = yaml.safe_load(open(f"{root}/_data/projects.yml")) or []
-except OSError:
+except Exception:
+    reg = []
+archived = {p.get("submodule_path") for p in reg if isinstance(p, dict) and p.get("status") == "archived"}
+for p in paths:
+    if p not in archived:
+        print(p)
+if len(sys.argv) > 3 and sys.argv[3] == "1":
     raise SystemExit(0)
 for p in reg:
     if not isinstance(p, dict) or p.get("submodule_path"):
@@ -816,7 +885,8 @@ for p in reg:
     name = p.get("name")
     # The external-upstream guard in run_one would skip these anyway; filtering
     # here keeps `all` from printing a skip line for every mirror.
-    if name and ("github.com/bamr87/" in url or "github.com:bamr87/" in url):
+    owner = url.replace("github.com:", "github.com/").split("github.com/", 1)[-1].split("/", 1)[0]
+    if name and owner in sys.argv[2].split():
         print(f"projects/{name}")
 PY
 }
@@ -830,12 +900,25 @@ seed_once() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch, $6 version
 }
 
 seed_community() {  # cwd = target clone; $1 repo name, $2 default branch
-  local name="$1" def="$2" kit="$HUB/templates/community" f
+  local name="$1" def="$2" kit="$HUB/templates/community" f want="$ARTIFACTS" tok
+  # --artifacts narrows the kit; the standardize default means "everything".
+  # Tokens: pr-template issue-forms codeowners dependabot contributing security coc.
+  [[ "$want" == "editorconfig,ci" ]] && want="all"
   # labels.yml is applied by label-sync, not copied (templates/community/VERSION).
   for f in .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml \
            .github/ISSUE_TEMPLATE/documentation.yml .github/ISSUE_TEMPLATE/config.yml \
            .github/pull_request_template.md .github/CODEOWNERS .github/dependabot.yml \
            CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md; do
+    case "$f" in
+      .github/pull_request_template.md) tok=pr-template ;;
+      .github/ISSUE_TEMPLATE/*)         tok=issue-forms ;;
+      .github/CODEOWNERS)               tok=codeowners ;;
+      .github/dependabot.yml)           tok=dependabot ;;
+      CONTRIBUTING.md)                  tok=contributing ;;
+      SECURITY.md)                      tok=security ;;
+      CODE_OF_CONDUCT.md)               tok=coc ;;
+    esac
+    if [[ "$want" != "all" ]]; then case ",$want," in *,"$tok",*) ;; *) continue ;; esac; fi
     seed_workflow_artifact "$f" "$f" "$kit/$f" "$name" "$def" "$COMM_VERSION"
   done
 }
@@ -913,6 +996,33 @@ seed_spec_driven() {  # cwd = target clone; $1 repo name, $2 default branch
   seed_once "docs/constitution.md" docs/constitution.md "$kit/constitution.template.md" "$name" "$def" "$SD_VERSION"
 }
 
+seed_governance() {  # cwd = target clone; $1 repo name, $2 default branch
+  local name="$1" def="$2" kit="$HUB/templates/governance" f today
+  today="$(date +%Y-%m-%d)"
+  if [[ -e docs/constitution.md || -e CONSTITUTION.md ]]; then
+    echo "constitution: present — left alone (conform it by hand; governance_lint.py check names the gaps)"
+  else
+    seed_once "docs/constitution.md" docs/constitution.md "$kit/constitution.template.md" "$name" "$def" "$GOV_VERSION"
+  fi
+  seed_once "docs/amendments/README.md" docs/amendments/README.md "$kit/docs/amendments/README.template.md" "$name" "$def" "$GOV_VERSION"
+  seed_once "docs/amendments/0000-template.md" docs/amendments/0000-template.md "$kit/docs/amendments/0000-template.md" "$name" "$def" "$GOV_VERSION"
+  if compgen -G "docs/amendments/0001-*.md" >/dev/null; then
+    echo "docs/amendments/0001: present — left alone"
+  else
+    seed_once "docs/amendments/0001-ratify-constitution.md" docs/amendments/0001-ratify-constitution.md \
+      "$kit/docs/amendments/0001-ratify-constitution.template.md" "$name" "$def" "$GOV_VERSION"
+    sed -i.bak "s/__DATE__/${today}/" docs/amendments/0001-ratify-constitution.md && rm -f docs/amendments/0001-ratify-constitution.md.bak
+  fi
+  if [[ -e features/features.yml || -e _data/features.yml ]]; then
+    echo "feature catalog: present — left alone"
+  else
+    seed_once "features/features.yml" features/features.yml "$HUB/templates/verify/features.template.yml" "$name" "$def" "$VERIFY_VERSION"
+  fi
+  "${PYTHON:-python3}" "$HUB/tools/governance_lint.py" prd-ids . --write || echo "PRD: none found — block not written"
+  "${PYTHON:-python3}" "$HUB/tools/governance_lint.py" prd-sync . --write || true
+  "${PYTHON:-python3}" "$HUB/tools/governance_lint.py" check . || echo "governance_lint: gaps above must be grounded by hand before merge"
+}
+
 run_one() {
   local path="$1" name sect url slug def work rc
   name="$(basename "$path")"
@@ -927,15 +1037,22 @@ run_one() {
     fi
     echo "note ${name}: not a submodule — target resolved from the registry"
   fi
-  case "$url" in
-    *github.com/bamr87/*|*github.com:bamr87/*) ;;
-    *) echo "skip ${name}: external upstream (${url})"; return 0 ;;
-  esac
-  slug="bamr87/$(basename "${url%.git}")"
+  local owner; owner="$(owner_of_url "$url")"
+  if ! is_fleet_owner "$owner"; then
+    echo "skip ${name}: external upstream (${url}; fleet owners: ${FLEET_OWNERS})"; return 0
+  fi
+  slug="${owner}/$(basename "${url%.git}")"
   work="$(mktemp -d)"
   echo "::group::${slug}"
-  if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
-    echo "skip ${slug}: clone failed"; echo "::endgroup::"; rm -rf "$work"; return 0
+  # Stacking mode: start from FANOUT_BASE_BRANCH when the repo has it, so the
+  # kit lands as one more commit on the alignment PR; else the default branch.
+  if [[ -n "${FANOUT_BASE_BRANCH:-}" ]] && gh repo clone "$slug" "$work" -- --depth=1 --branch "$FANOUT_BASE_BRANCH" >/dev/null 2>&1; then
+    echo "base: ${FANOUT_BASE_BRANCH}"
+  else
+    rm -rf "$work"; mkdir -p "$work"   # a failed branch clone may leave a partial dir
+    if ! gh repo clone "$slug" "$work" -- --depth=1 >/dev/null 2>&1; then
+      echo "skip ${slug}: clone failed"; echo "::endgroup::"; rm -rf "$work"; return 0
+    fi
   fi
   # gh authenticates the clone itself but not later pushes from this repo —
   # route git credentials through gh (uses GH_TOKEN in CI, keyring locally).
@@ -948,7 +1065,7 @@ run_one() {
     set -e
     def="$(gh api "repos/${slug}" --jq .default_branch)"
     cd "$work"
-    git checkout -b "$BRANCH"
+    [[ "$(git rev-parse --abbrev-ref HEAD)" == "$BRANCH" ]] || git checkout -b "$BRANCH"
     case "$KIT" in
       standardize) seed_standardize "$(basename "${url%.git}")" "$def" ;;
       schema)      "$HUB/tools/seed-schema.sh" "$work" --apply --default-branch "$def" ;;
@@ -966,6 +1083,7 @@ run_one() {
       sdlc)        seed_sdlc "$(basename "${url%.git}")" "$def" ;;
       spec-driven) seed_spec_driven "$(basename "${url%.git}")" "$def" ;;
       agent-context) seed_standardize "$(basename "${url%.git}")" "$def" ;;
+      governance)  seed_governance "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0
@@ -988,8 +1106,19 @@ run_one() {
     else
       git push -u origin "$BRANCH"
     fi
-    gh pr create --repo "$slug" --base "$def" --head "$BRANCH" \
-      --title "$PR_TITLE" --body "$PR_BODY" \
+    if [[ "${FANOUT_PR_APPEND:-0}" == "1" ]]; then
+      prnum="$(gh pr list --repo "$slug" --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
+      if [[ -n "$prnum" && "$prnum" != "null" ]]; then
+        prbody="$(gh pr view "$prnum" --repo "$slug" --json body --jq .body)"
+        gh pr edit "$prnum" --repo "$slug" ${FANOUT_PR_TITLE:+--title "$FANOUT_PR_TITLE"} \
+          --body "$(printf '%s\n\n## %s\n\n%s' "$prbody" "$PR_TITLE" "$PR_BODY")" >/dev/null
+        echo "${slug}: appended to PR #${prnum}"
+        exit 0
+      fi
+      PR_BODY="$(printf '## %s\n\n%s' "$PR_TITLE" "$PR_BODY")"
+    fi
+    gh pr create --repo "$slug" --base "$def" --head "$BRANCH" ${FANOUT_PR_DRAFT:+--draft} \
+      --title "${FANOUT_PR_TITLE:-$PR_TITLE}" --body "$PR_BODY" \
       || echo "${slug}: PR may already exist"
   )
   rc=$?
