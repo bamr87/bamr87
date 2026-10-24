@@ -34,7 +34,7 @@ The agent verification loop, runnable from a Claude Code session in the hub — 
 
 7. **Link back + stamp.** `scenarios:` and `evidence:` on the entry; `node verify/runner.mjs --feature <ID> --stamp --by agent` (or `--by human` when the user drove). `tools/dash features check <repo>` must be clean.
 
-8. **Deliver per the submodule rule.** Changes in a submodule are committed and pushed there first (`SUBMODULES.md`), one repo per PR; the hub bumps the pointer. Never bundle several submodules. Then `tools/dash features fleet --write` so the fleet index reflects it.
+8. **Deliver per the submodule rule.** Changes in a submodule are committed and pushed there first (`docs/SUBMODULES.md`), one repo per PR; the hub bumps the pointer. Never bundle several submodules. Then `tools/dash features fleet --write` so the fleet index reflects it.
 
 ## Seeding the kit
 

@@ -1,7 +1,9 @@
 <!-- kit: sdlc v0.1.0 · ADR index (UPS-WORK-04, decision D2: law-ai format) -->
 # Architecture Decision Records
 
-This directory records decisions for bamr87 that are hard to reverse: the stack, data model, security model, public interfaces, and any relaxation of a gate. Add an ADR in the same PR as the change it justifies.
+> Decisions for bamr87 that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each.
+
+Add an ADR in the same PR as the change it justifies.
 
 ## Format
 

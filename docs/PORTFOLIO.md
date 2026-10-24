@@ -1,6 +1,8 @@
 # bamr87 portfolio standard
 
-Applies to every repository owned by [bamr87](https://github.com/bamr87). It sits alongside the hub's Universal Project Standard ([`specs/REPOSITORY.md`](https://github.com/bamr87/bamr87/blob/main/specs/REPOSITORY.md)): this file covers what a visitor sees (GitHub metadata, README, profile index), and it is written to satisfy the hub's README check (UPS-REPO-10, UPS-REPO-15).
+> The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index.
+
+Applies to every repository owned by [bamr87](https://github.com/bamr87). It sits alongside the hub's Universal Project Standard ([`specs/REPOSITORY.md`](https://github.com/bamr87/bamr87/blob/main/specs/REPOSITORY.md)): this file covers what a visitor sees (GitHub metadata, README, profile index), and its README skeleton is the hub's README rule (UPS-DOC-10, with UPS-REPO-15 for the contributing link).
 
 ## 1. Description
 
@@ -67,14 +69,15 @@ Every non-fork README has, in this order (sections that do not apply may be omit
 3. A badge row: **CI** (only if `.github/workflows/ci.yml` exists), **License** (only if a LICENSE file exists), **Live site** (only if a homepage is set). Existing badges stay.
 4. `## Overview`: what it is and why it exists. Existing intro text moves here.
 5. `## Features`: a short bullet list, written from the code and existing docs. An existing equivalent section ("What it does", "What's in the box") counts.
-6. `## Quick start` (and/or `## Usage`): copy-pasteable commands that match `CLAUDE.md` / `AGENTS.md`.
-7. Existing deep-dive sections (architecture, configuration, guides) stay in their original order.
-8. `## Project structure`: a brief table or tree of the top-level folders.
-9. `## Development`: build, test and lint commands, plus a link to `AGENTS.md` (canonical) or `CLAUDE.md`.
-10. `## Contributing`: links `CONTRIBUTING.md`, or the hub's `CONTRIBUTING.md` when the repo has none, plus the agent guide.
-11. `## Changelog`: links `CHANGELOG.md`, or the commit history when there is none yet, plus the releases page when releases exist.
-12. `## License`: the license and a link to the LICENSE file. If there is no LICENSE file, say so.
-13. The footer, after a `---` rule:
+6. `## Quick start` (and/or `## Usage`): copy-pasteable commands that match `AGENTS.md` **Stack & commands**.
+7. Existing deep-dive sections (architecture, configuration, guides) stay in their original order — short ones; a long deep dive belongs in `docs/` behind a link (UPS-DOC-08).
+8. `## Documentation`: when the repo has a `docs/` directory, a link to its generated index `docs/README.md` (UPS-DOC-10), plus the few documents a reader should open first.
+9. `## Project structure`: a brief table or tree of the top-level folders.
+10. `## Development`: build, test and lint commands, plus a link to `AGENTS.md`.
+11. `## Contributing`: links `CONTRIBUTING.md`, or the hub's `CONTRIBUTING.md` when the repo has none, plus the agent guide.
+12. `## Changelog`: links `CHANGELOG.md`, or the commit history when there is none yet, plus the releases page when releases exist.
+13. `## License`: the license and a link to the LICENSE file. If there is no LICENSE file, say so.
+14. The footer, after a `---` rule:
 
 ```markdown
 <!-- bamr87-portfolio-footer -->

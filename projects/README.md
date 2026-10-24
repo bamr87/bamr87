@@ -29,4 +29,4 @@ tools/check-drift.sh         # verify .gitmodules ↔ registry parity
 
 ## Working with submodules
 
-A change inside a submodule is committed in **its own repo first**, then the pointer is recorded here. See the root [`CLAUDE.md`](../CLAUDE.md) and [`SUBMODULES.md`](../SUBMODULES.md) for the full workflow. At scale, check out only what you need: `tools/dash sync` supports a per-project/category subset rather than cloning all submodules.
+A change inside a submodule is committed in **its own repo first**, then the pointer is recorded here. See [`docs/SUBMODULES.md`](../docs/SUBMODULES.md) for the full workflow. At scale, check out only what you need: `tools/dash sync` supports a per-project/category subset rather than cloning all submodules.

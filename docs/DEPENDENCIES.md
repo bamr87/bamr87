@@ -1,5 +1,7 @@
 # DEPENDENCIES — the always-latest policy
 
+> The always-latest dependency policy: no exact pins, no ceilings, no committed lockfiles, and the few sanctioned exceptions.
+
 **Every repo installs the newest published version of every dependency, at every build. No exact pins, no version ceilings, no committed lockfiles.**
 
 Declared in [`_data/fleet.yml`](../_data/fleet.yml) under `dependencies:` (adopted 2026-08). This replaces per-repo update chores (lockfile bumps, Dependabot PRs per library) with a standing posture: currency is automatic, and breakage is handled by the machinery that already watches the fleet.

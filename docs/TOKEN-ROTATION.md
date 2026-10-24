@@ -1,5 +1,7 @@
 # Token Rotation — the weekly credential loop
 
+> The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger.
+
 The fleet is ~40 repositories, each carrying its own `CLAUDE_CODE_OAUTH_TOKEN` for the seeded `claude.yml` workflow. Until this loop existed, every one of those secrets was placed by hand and never looked at again: nobody knew how old any copy was, a newly-registered repo silently had none, and a credential that had been deleted or had expired announced itself only when somebody's `@claude` mention started failing with a 401.
 
 This is the third of the fleet's reconciliation loops. [`fleet-pulse.yml`](../.github/workflows/fleet-pulse.yml) fixes broken **workflows**; [`issue-pipeline.yml`](../.github/workflows/issue-pipeline.yml) resolves open **issues**; [`token-rotation.yml`](../.github/workflows/token-rotation.yml) keeps **credentials** current. All three read their guardrails from [`_data/fleet.yml`](../_data/fleet.yml).

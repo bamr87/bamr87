@@ -1,5 +1,7 @@
 # Repo Evolution
 
+> The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository.
+
 The fleet's weekly **proactive** loop. The three loops it sits beside all *react* to a signal — [`fleet-pulse`](DAILY-ANALYSIS.md) fixes broken *workflows*, [`issue-pipeline`](ISSUE-PIPELINE.md) resolves filed *issues*, [`token-rotation`](TOKEN-ROTATION.md) keeps *credentials* current. This one improves what nobody filed a ticket for — documentation accuracy, onboarding, clarity, small correctness gaps — in each opted-in submodule's **own upstream repository**, delivered as a **draft pull request there**.
 
 | | | |
@@ -49,10 +51,8 @@ triage    │  │             focus + goals +      │artifact│  · workflow 
 submodule, its upstream is owned by the hub's owner, and it is not `status: archived`. The owner guard is the same one [`tools/fanout.sh`](../tools/fanout.sh) applies — an external mirror such as `microsoft/skills` must never receive a pull request from us, whatever the registry says.
 - **Dedupe.** A repo whose previous evolution PR is still open is skipped, recognised by the
 `ai-evolution/` branch prefix **or** the hidden marker in its body (`<!-- repo-evolution key="owner/repo" -->`), so a renamed branch cannot fool it. One unreviewed draft is a proposal; a stack of them is noise. `force` overrides for one run.
-- **Cap.** `evolution.max_targets` bounds the run; anything dropped is listed in the run
-  summary, never silently truncated.
-- **Brief.** One `evolution-workorders/evolution-workorder-<name>.md` per survivor, uploaded as
-  the `evolution-workorders` artifact. See [Reading the brief](#reading-the-brief).
+- **Cap.** `evolution.max_targets` bounds the run; anything dropped is listed in the run summary, never silently truncated.
+- **Brief.** One `evolution-workorders/evolution-workorder-<name>.md` per survivor, uploaded as the `evolution-workorders` artifact. See [Reading the brief](#reading-the-brief).
 
 The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-expired PAT has silently degraded this fleet before) and requires Claude auth, and fails *before* any agent runs when either is missing — a pass that cannot be delivered is money burned.
 
@@ -61,8 +61,7 @@ The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-exp
 Each matrix job checks the target repository out at its declared branch, downloads its brief into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus Claude Code agent with a prompt whose hard rules are fixed in the workflow:
 
 - the brief's **Conformance gaps** section (from `_data/conformance.yml`, written by `dash spec fleet --write`) is the agent's adoption lane: failing Universal Project Standard rows, MUST first, each pointing at its spec file and a reference implementation in `_data/references.yml`;
-- the agent reads the brief, then orients README-First (`README.md`, `CLAUDE.md`,
-  `AGENTS.md`, `CONTRIBUTING.md`, `SCHEMA.md` — house rules there override the prompt);
+- the agent reads the brief, then orients README-First (`README.md`, `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `SCHEMA.md` — house rules there override the prompt);
 - it makes a **small number** of high-leverage, obviously-correct changes in the brief's
 priority order — documentation → clarity → functionality — verifies with the repo's own lint/tests, and leaves the tree clean;
 - its **final message becomes the PR body** (what changed / why / verification / not done);
@@ -161,11 +160,9 @@ The agent step receives `FLEET_TOKEN` only for read-only `gh` verbs (`issue view
 
 ## Safety model
 
-- **Draft PRs only, opened by the workflow.** The agent has no credential to push with and no
-  publishing command on its allowlist. Nothing merges automatically.
+- **Draft PRs only, opened by the workflow.** The agent has no credential to push with and no publishing command on its allowlist. Nothing merges automatically.
 - **Signal-led, not speculative.** The brief is built from the committed triage snapshot;
 the agent is told to prefer many precise fixes over one rewrite and that *no change* is a valid result.
-- **Bounded.** Registry opt-in per repo, owner + archived guards, caps in `fleet.yml`, one
-  open PR per repo, `fail-fast: false` so one repo's failure strands nothing else.
+- **Bounded.** Registry opt-in per repo, owner + archived guards, caps in `fleet.yml`, one open PR per repo, `fail-fast: false` so one repo's failure strands nothing else.
 - **Observable.** The credential-rejected classifier (zero billed turns + empty
 `modelUsage`) names the secret to rotate instead of reporting "Claude execution failed"; every exclusion the planner makes is listed in the run summary.

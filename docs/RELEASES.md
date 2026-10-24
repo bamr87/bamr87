@@ -1,5 +1,7 @@
 # Release & Versioning Methodology
 
+> Release and versioning methodology across the fleet.
+
 How versioning, changelogs, releases, and the merge-to-main quality gate work across every repo in this monorepo. The shared implementation lives in **[bamr87/.github](https://github.com/bamr87/.github)**; this doc is the operator's guide.
 
 ## TL;DR

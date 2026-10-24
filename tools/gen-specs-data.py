@@ -30,6 +30,7 @@ AREAS = {
     "BE": ("BACKEND.md", "HTTP API conventions and the client contract"),
     "OPS": ("OPERATIONS.md", "Configuration, observability, security, data"),
     "WORK": ("WORK.md", "Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning"),
+    "DOC": ("DOCS.md", "Documentation: one home per fact, document shape, generated reference, fleet review"),
 }
 KINDS = ["all", "site", "app", "api", "lib", "cli", "ext", "content", "fork"]
 ROW_RE = re.compile(r"^\|\s*(UPS-[A-Z]+-\d+)\s*\|(.*)\|\s*$")

@@ -1,5 +1,7 @@
 # FLEET-COMPOSE — launching and debugging any submodule from the hub
 
+> Launching and debugging any submodule from the hub with its real services, on a port nobody else claims, without a commit in the submodule.
+
 > One command brings up any project (or all of them) with its real database,
 > cache and queue, on a port nobody else claims, joined to one shared network —
 > without a commit in the submodule's own repo.
@@ -95,7 +97,7 @@ Variables are namespaced (`DJANGOERP_DB_PORT`, not `POSTGRES_PORT`) because the 
 
 | Service | Shared by default | Why |
 | --- | --- | --- |
-| **Phoenix** (`fleet-phoenix`) | **Yes** | A trace sink with no schema coupling, and CLAUDE.md already designates one Phoenix as the local stack's trace store that `dash lake export` feeds. law-ai and bashos each ran a third copy on the same 6006/4317. Their own is profiled out and the shared one carries the network alias `phoenix`, so their `PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006` keeps working untouched. |
+| **Phoenix** (`fleet-phoenix`) | **Yes** | A trace sink with no schema coupling, and the hub already designates one Phoenix as the local stack's trace store that `dash lake export` feeds. law-ai and bashos each ran a third copy on the same 6006/4317. Their own is profiled out and the shared one carries the network alias `phoenix`, so their `PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006` keeps working untouched. |
 | **Postgres** (`fleet-db`) | No — `--profile shared-db` | One server, one database per app is correct for plain-Postgres consumers, but it changes the behaviour of a working stack, and two consumers cannot join at all: aieo runs `timescale/timescaledb`, and law-ai pins its major version with a documented dump/restore step. Those keep their own, on a deconflicted port. |
 | **Redis** (`fleet-redis`) | No — `--profile shared-db` | Safe in principle (a logical DB index per app); default-off until each consumer is moved deliberately. |
 
@@ -115,8 +117,7 @@ barodybroject deliberately has **no** attach target: its `web-prod` runs no debu
 
 ## Adding a project
 
-1. Add a `projects:` entry to `_data/ports.yml` (`host: compose` or `devenv`),
-   picking ports inside the right bands.
+1. Add a `projects:` entry to `_data/ports.yml` (`host: compose` or `devenv`), picking ports inside the right bands.
 2. `tools/fleet-compose.py sync`
 3. Commit the registry **and** the generated files. Drift check (m) gates both.
 
@@ -134,4 +135,4 @@ hub-published GHCR base images (a runtime dependency on a private registry, for 
 - [`_data/ports.yml`](../_data/ports.yml) — the allocation
 - [`compose/SCHEMA.md`](../compose/SCHEMA.md) — what lives in `compose/`
 - [`specs/REPOSITORY.md`](../specs/REPOSITORY.md) — UPS-REPO-30/34/35/36
-- [`SUBMODULES.md`](../SUBMODULES.md) — committing inside a submodule
+- [`SUBMODULES.md`](SUBMODULES.md) — committing inside a submodule

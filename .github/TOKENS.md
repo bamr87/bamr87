@@ -34,12 +34,10 @@ Every Actions job gets a `GITHUB_TOKEN` automatically. You do not configure it, 
 the workflow run. It cannot read a sibling repository, open an issue elsewhere, or push to another repo in the fleet.
 - **Permissions are declared, not inherited.** What it may do is whatever the
 `permissions:` block on the workflow or job says (subject to the repository's default workflow permissions). Omitting `permissions:` does not mean "full access"; it means "whatever the repository default is", which is why every workflow should declare the minimum it needs explicitly.
-- **Read-only for pull requests from forks.** This is a platform rule, not a
-  configuration choice. See [Fork behaviour](#fork-behaviour).
+- **Read-only for pull requests from forks.** This is a platform rule, not a configuration choice. See [Fork behaviour](#fork-behaviour).
 - **Does not trigger downstream workflows.** Commits, tags, and pull requests
 created using `GITHUB_TOKEN` deliberately do **not** start new workflow runs. This prevents infinite loops, and it is the single most common reason an automation-generated PR appears to have "no checks".
-- **Acts as `github-actions[bot]`.** Commits and comments are attributed to the
-  bot rather than to a named identity.
+- **Acts as `github-actions[bot]`.** Commits and comments are attributed to the bot rather than to a named identity.
 
 ### `FLEET_TOKEN` — the elevated token
 
@@ -93,8 +91,7 @@ Concretely, if you are contributing from a fork:
 
 - `secrets.FLEET_TOKEN` evaluates to the **empty string** — not an error, not
   `null`. The `||` therefore falls through to `GITHUB_TOKEN`.
-- Read-only jobs (build, lint, test, link-check, docs generation) run normally
-  and their results are meaningful.
+- Read-only jobs (build, lint, test, link-check, docs generation) run normally and their results are meaningful.
 - Any step that writes — pushing a commit, labelling, commenting, creating a
 release, dispatching to another repo — will fail, typically with `403 Resource not accessible by integration` or `Bad credentials`.
 - **This is expected and is not something you need to fix in your PR.** A
@@ -104,13 +101,10 @@ Do **not** "fix" a fork permission error by switching a workflow to `pull_reques
 
 ## Checklist for a new workflow
 
-- [ ] Use `${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}` — do not invent a
-      new precedence, and do not hardcode either token alone.
+- [ ] Use `${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}` — do not invent a new precedence, and do not hardcode either token alone.
 - [ ] Declare an explicit `permissions:` block with the minimum required.
-- [ ] Ask whether the job actually needs `FLEET_TOKEN`. Single-repo read/write
-      work does not; only cross-repo access and downstream-triggering pushes do.
-- [ ] If the job cannot work without `FLEET_TOKEN`, guard it so fork PRs skip it
-      cleanly instead of failing with an opaque auth error.
+- [ ] Ask whether the job actually needs `FLEET_TOKEN`. Single-repo read/write work does not; only cross-repo access and downstream-triggering pushes do.
+- [ ] If the job cannot work without `FLEET_TOKEN`, guard it so fork PRs skip it cleanly instead of failing with an opaque auth error.
 - [ ] Link to this file from the workflow where the token is resolved.
 
 ## Troubleshooting

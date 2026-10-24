@@ -173,7 +173,7 @@ bamr87/
 └── docs/        # monorepo documentation
 ```
 
-### 🚀 Quick start
+## 🚀 Quick start
 
 Clone with all submodules:
 
@@ -186,16 +186,21 @@ cd bamr87
 ./tools/setup.sh
 ```
 
-### 📖 Documentation
+## 📖 Documentation
 
-- **[AGENTS.md](AGENTS.md)**: Compact agent guide — repository boundaries, focused checks, generated files, and operational gotchas
-- **[SUBMODULES.md](SUBMODULES.md)**: The submodule workflow — commit in the submodule, then bump the pointer
+- **[docs/README.md](docs/README.md)**: The index of every document in the hub, generated from each document's summary line
+- **[AGENTS.md](AGENTS.md)**: How to work in the hub — commands, layout, conventions, the standing rules and the loops (canonical for agents and contributors)
+- **[docs/SUBMODULES.md](docs/SUBMODULES.md)**: The submodule workflow — commit in the submodule, then bump the pointer
 - **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**: Development environment setup
 - **[docs/DASH.md](docs/DASH.md)**: The dash architecture — registry, surfaces, gates, AI loop
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
 - **[docs/PORTFOLIO.md](docs/PORTFOLIO.md)**: The portfolio standard — descriptions, topic taxonomy, homepage rule and README skeleton
 
 To change this index, edit [`_data/projects.yml`](_data/projects.yml) (fleet members) or [`_data/portfolio.yml`](_data/portfolio.yml) (grouping and display-only extras), then run `tools/dash-gen readme`. The `AUTO:projects` block is regenerated daily by the refresh-dash workflow.
+
+## 📄 License
+
+The hub's own machinery is [MIT-licensed](LICENSE); every project under `projects/` carries its own license.
 
 ---
 
