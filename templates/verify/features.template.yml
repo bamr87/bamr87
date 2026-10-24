@@ -35,6 +35,14 @@
 #   screenshots   optional  direct image paths, when a bundle is overkill
 #   verified      optional  { date, by: agent|human|ci, run: <url> } — last verification
 #   deviations    optional  free text: why a MUST row is waived for this feature
+#   status        optional  shipped | partial | planned | deprecated | tbd (default from
+#                           `implemented`; governance kit, UPS-WORK-15)
+#   prd           optional  PRD requirement ids this feature serves, e.g. [FR1, NFR2]
+#                           (or `§4` for a PRD without ids; [TBD] when unknown)
+#
+# Top level (optional): `prd: path/to/PRD.md` when the PRD is not PRD.md or
+# docs/PRD.md. The PRD's "Feature catalog" block is GENERATED from this file:
+#   python3 <hub>/tools/governance_lint.py prd-sync . --write   (check: … check .)
 # =============================================================================
 schema: features/v1
 repo: bamr87/__PROJECT_NAME__
@@ -52,3 +60,5 @@ features:
     scenarios:
       - verify/scenarios/smoke-home.yml
     evidence: []
+    status: tbd
+    prd: [TBD]
