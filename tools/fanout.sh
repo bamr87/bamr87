@@ -37,6 +37,7 @@
 #   tools/fanout.sh --kit sdlc --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit spec-driven --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit agent-context --target <name|all> [--apply] [--upgrade]
+#   tools/fanout.sh --kit governance --target <name|all> [--apply]
 #
 #   community takes --artifacts too (default: everything): pr-template,
 #   issue-forms,codeowners,dependabot,contributing,security,coc. Repos under an
@@ -140,6 +141,19 @@
 #                kit artifacts — the sanctioned exception to ".claude/ never
 #                fans out"). runner.mjs and verify.yml are upgradeable
 #                machine seeds (archive/<file>-<ver>.yml).
+#   governance   branch docs/feature-catalog; the GOVERNANCE kit
+#                (templates/governance/, specs/WORK.md UPS-WORK-15/16):
+#                docs/constitution.md (only when neither it nor CONSTITUTION.md
+#                exists), the docs/amendments/ log (README, 0000 template, 0001
+#                ratification record — each only when absent), a features/
+#                features.yml scaffold (only when the repo has no catalog), then
+#                tags untagged PRD requirement bullets FRn/NFRn and regenerates
+#                the PRD "Feature catalog" block (tools/governance_lint.py
+#                prd-ids / prd-sync — the block is generated, like the README
+#                AUTO span). Seeds carry TODO: lines and the TODO-001 placeholder:
+#                tools/governance_lint.py check fails until a human or agent
+#                grounds them in the repo, so the PR is a starting point, not
+#                a finished catalog.
 #   site-quality branch ci/site-quality; the SITE QUALITY kit
 #                (templates/site-quality/, specs/QUALITY.md "Site quality"):
 #                the .github/workflows/site-quality.yml caller of the reusable
@@ -200,6 +214,7 @@ SQ_VERSION="$(kit_version site-quality)"
 COMM_VERSION="$(kit_version community)"
 SDLC_VERSION="$(kit_version sdlc)"
 SD_VERSION="$(kit_version spec-driven)"
+GOV_VERSION="$(kit_version governance)"
 # Major tag the sdlc release caller pins. The hub's reusable
 # release-please.yml first shipped in v2 (it is absent at v1), so @v1 would
 # point a caller at a workflow that does not exist. Bump with the hub major.
@@ -291,8 +306,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -369,6 +384,12 @@ case "$KIT" in
     COMMIT_MSG="chore(spec-driven): adopt the spec-driven kit (kit v${SD_VERSION})"
     PR_TITLE="chore(spec-driven): adopt the spec-driven kit"
     PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit spec-driven): vendors the AO-SDLC gates byte-for-byte (tools/spec_validator.py, backlog_lint.py, next_backlog_id.py, pick_backlog_item.py and hooks/gate-check.sh; UPS-WORK-07 byte-identity files) and seeds specs/_template/, BACKLOG.md and docs/constitution.md only where absent.\n\nAdditive-only: a hand-modified copy is left alone (pre-kit copies matching the archive are upgradeable with --upgrade). **Before merge**: declare `modules: { spec_driven: true }` and `backlog: { mode: file, file: BACKLOG.md }` in .github/sdlc.yml, and add the CI job that runs both gates. See bamr87/bamr87 templates/spec-driven/README.md.')"
+    ;;
+  governance)
+    BRANCH="docs/feature-catalog"
+    COMMIT_MSG="docs: add feature catalog, constitution and amendments; link PRD (governance kit v${GOV_VERSION})"
+    PR_TITLE="docs: add feature catalog, constitution and amendments; link PRD"
+    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit governance): seeds what this repo is missing of the fleet GOVERNANCE kit: docs/constitution.md, the docs/amendments/ log with the 0001 ratification record, and a features/features.yml catalog (features/v1); tags PRD requirement bullets FRn/NFRn and regenerates the PRD Feature catalog block that links every feature id.\n\nAdditive-only: an existing constitution, amendment record or catalog is never overwritten. **Before merge**: replace every TODO: line and the TODO-001 placeholder with facts from this repo (unknown = TBD), give each feature `status` and `prd:` refs, link the constitution from AGENTS.md, and run `python3 <hub>/tools/governance_lint.py check .` until clean. Merging ratifies amendment 0001. See bamr87/bamr87 templates/governance/README.md.')"
     ;;
   agent-context)
     # Same artifacts the standardize kit seeds for agent context; the kit
@@ -975,6 +996,33 @@ seed_spec_driven() {  # cwd = target clone; $1 repo name, $2 default branch
   seed_once "docs/constitution.md" docs/constitution.md "$kit/constitution.template.md" "$name" "$def" "$SD_VERSION"
 }
 
+seed_governance() {  # cwd = target clone; $1 repo name, $2 default branch
+  local name="$1" def="$2" kit="$HUB/templates/governance" f today
+  today="$(date +%Y-%m-%d)"
+  if [[ -e docs/constitution.md || -e CONSTITUTION.md ]]; then
+    echo "constitution: present — left alone (conform it by hand; governance_lint.py check names the gaps)"
+  else
+    seed_once "docs/constitution.md" docs/constitution.md "$kit/constitution.template.md" "$name" "$def" "$GOV_VERSION"
+  fi
+  seed_once "docs/amendments/README.md" docs/amendments/README.md "$kit/docs/amendments/README.template.md" "$name" "$def" "$GOV_VERSION"
+  seed_once "docs/amendments/0000-template.md" docs/amendments/0000-template.md "$kit/docs/amendments/0000-template.md" "$name" "$def" "$GOV_VERSION"
+  if compgen -G "docs/amendments/0001-*.md" >/dev/null; then
+    echo "docs/amendments/0001: present — left alone"
+  else
+    seed_once "docs/amendments/0001-ratify-constitution.md" docs/amendments/0001-ratify-constitution.md \
+      "$kit/docs/amendments/0001-ratify-constitution.template.md" "$name" "$def" "$GOV_VERSION"
+    sed -i.bak "s/__DATE__/${today}/" docs/amendments/0001-ratify-constitution.md && rm -f docs/amendments/0001-ratify-constitution.md.bak
+  fi
+  if [[ -e features/features.yml || -e _data/features.yml ]]; then
+    echo "feature catalog: present — left alone"
+  else
+    seed_once "features/features.yml" features/features.yml "$HUB/templates/verify/features.template.yml" "$name" "$def" "$VERIFY_VERSION"
+  fi
+  "${PYTHON:-python3}" "$HUB/tools/governance_lint.py" prd-ids . --write || echo "PRD: none found — block not written"
+  "${PYTHON:-python3}" "$HUB/tools/governance_lint.py" prd-sync . --write || true
+  "${PYTHON:-python3}" "$HUB/tools/governance_lint.py" check . || echo "governance_lint: gaps above must be grounded by hand before merge"
+}
+
 run_one() {
   local path="$1" name sect url slug def work rc
   name="$(basename "$path")"
@@ -1035,6 +1083,7 @@ run_one() {
       sdlc)        seed_sdlc "$(basename "${url%.git}")" "$def" ;;
       spec-driven) seed_spec_driven "$(basename "${url%.git}")" "$def" ;;
       agent-context) seed_standardize "$(basename "${url%.git}")" "$def" ;;
+      governance)  seed_governance "$(basename "${url%.git}")" "$def" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0
