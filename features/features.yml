@@ -359,12 +359,12 @@ features:
     date: 2026-10-21
     tests:
       - tools/test_governance_lint.py
-  - id: HUB-025
+  - id: HUB-027
     title: "Backlog fan-out routine"
     description: "Scheduled (daily default, weekly option) routine that reads the pending hub backlog (open issues, PRD requirements no shipped feature serves, catalog features not shipped), maps each item to the fleet repos it applies to (labels, applies_to, title, config), and opens or updates one idempotent tracking PR per item and repo through tools/fanout.sh --kit backlog, linking feature ids to PRD requirements; never merges, dry run until _data/backlog_fanout.yml apply: true. Emits every fanned-out/skipped/failed decision to the fleet activity log queue (schema from the activity-log PRD, bamr87/bamr87#409, HUB-024); the store and flusher endpoint arrive with that PRD, so events are queued locally and uploaded as an artifact for now."
     implemented: true
     status: partial
-    prd: [FR6, FR16, FR17]
+    prd: [FR6, FR22, FR23]
     surface: infra
     link: .github/workflows/backlog-fanout.yml
     docs: docs/BACKLOG-FANOUT.md

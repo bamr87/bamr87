@@ -1,6 +1,6 @@
 name: backlog-fanout
 
-# The BACKLOG FAN-OUT routine (HUB-025, PRD FR16/FR17; docs/BACKLOG-FANOUT.md):
+# The BACKLOG FAN-OUT routine (HUB-027, PRD FR22/FR23; docs/BACKLOG-FANOUT.md):
 # reads the hub's pending backlog (open issues, PRD requirements with no
 # shipped feature, catalog features not shipped), maps each item to the fleet
 # repos it applies to, and opens or UPDATES one tracking PR per (item, repo)

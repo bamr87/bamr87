@@ -1,8 +1,8 @@
 # =============================================================================
-# _data/backlog_fanout.yml — config for the BACKLOG FAN-OUT routine (HUB-025)
+# _data/backlog_fanout.yml — config for the BACKLOG FAN-OUT routine (HUB-027)
 # =============================================================================
 # Read by tools/backlog_fanout.py and .github/workflows/backlog-fanout.yml.
-# Doc: docs/BACKLOG-FANOUT.md. PRD: FR16, FR17.
+# Doc: docs/BACKLOG-FANOUT.md. PRD: FR22, FR23.
 schema: backlog-fanout/v1
 
 # How often the routine acts. The workflow fires DAILY (cron in _data/fleet.yml

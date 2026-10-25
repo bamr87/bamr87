@@ -1,6 +1,6 @@
 # Backlog fan-out
 
-The backlog fan-out routine (HUB-025, PRD FR16 and FR17) turns the hub's pending backlog into tracking PRs in the fleet repos each item applies to. Engine: `tools/backlog_fanout.py`. Workflow: `.github/workflows/backlog-fanout.yml`. Config: `_data/backlog_fanout.yml`. Push and PR mechanics: `tools/fanout.sh --kit backlog` (FR6: kits reach fleet repos only as PRs opened by fanout.sh).
+The backlog fan-out routine (HUB-027, PRD FR22 and FR23) turns the hub's pending backlog into tracking PRs in the fleet repos each item applies to. Engine: `tools/backlog_fanout.py`. Workflow: `.github/workflows/backlog-fanout.yml`. Config: `_data/backlog_fanout.yml`. Push and PR mechanics: `tools/fanout.sh --kit backlog` (FR6: kits reach fleet repos only as PRs opened by fanout.sh).
 
 ## What counts as pending
 

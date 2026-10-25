@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 File: tools/backlog_fanout.py
-Purpose: the BACKLOG FAN-OUT routine (HUB-025, PRD FR16/FR17).
+Purpose: the BACKLOG FAN-OUT routine (HUB-027, PRD FR22/FR23).
 
 Reads the hub's pending backlog, maps each item to the fleet repos it applies
 to, and opens or updates ONE tracking PR per (item, repo) through the existing
@@ -243,7 +243,7 @@ def render_body(item: dict, reqs: dict[str, str], target: dict) -> str:
         f"**Source:** [{item['ref']}]({item['url']}) — {item['title']}\n\n"
         f"**Features:** {feats}\n\n| Feature | PRD requirements |\n| --- | --- |\n{rows}\n\n"
         f"**Requirements**\n\n{req_lines}\n\n"
-        f"See bamr87/bamr87 docs/BACKLOG-FANOUT.md (HUB-025, FR16/FR17). Activity-log events follow the schema proposed in bamr87/bamr87#409 (dependency, HUB-024)."
+        f"See bamr87/bamr87 docs/BACKLOG-FANOUT.md (HUB-027, FR22/FR23). Activity-log events follow the schema proposed in bamr87/bamr87#409 (dependency, HUB-024)."
     )
 
 
