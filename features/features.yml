@@ -359,3 +359,16 @@ features:
     date: 2026-10-21
     tests:
       - tools/test_governance_lint.py
+  # ------------------------------------------------------------ observability
+  - id: HUB-024
+    title: "Fleet activity log (proposed)"
+    description: "Design only (Draft): append-only log of bot decisions incl. declined, blocked-handoff and retry events, linked to amendments, written fire-and-forget, with a standard-version drift query, read by the Harness Console."
+    implemented: false
+    status: planned
+    prd: [FR7, FR8, FR9, FR10, FR11, FR12, FR13, FR14, FR15, NFR4, NFR5, NFR6]
+    surface: infra
+    docs: docs/prd/FLEET-ACTIVITY-LOG.md
+    tags: [ fleet, observability, governance, prd ]
+    date: 2026-10-25
+    tests:
+      - {na: "design-only PRD; nothing implemented yet"}
