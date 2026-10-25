@@ -68,6 +68,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-021](features/features.yml) | Terminal command center | shipped | [`tools/tui/app.py`](tools/tui/app.py) · [`docs/DASH.md`](docs/DASH.md) | TBD |
 | [HUB-020](features/features.yml) | CV projection | shipped | [`.github/scripts/dash-gen/cv_fragment.py`](.github/scripts/dash-gen/cv_fragment.py) · [`.claude/skills/sync-cv/SKILL.md`](.claude/skills/sync-cv/SKILL.md) | TBD |
 | [HUB-023](features/features.yml) | Governance kit: constitution, amendments, PRD and feature link | shipped | [`tools/governance_lint.py`](tools/governance_lint.py) · [`templates/governance/README.md`](templates/governance/README.md) | FR4, FR6 |
+| [HUB-024](features/features.yml) | Fleet activity log (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-LOG.md`](docs/prd/FLEET-ACTIVITY-LOG.md) | FR7, FR8, FR9, FR10, FR11, FR12, FR13, FR14, FR15, NFR4, NFR5, NFR6 |
 
 **Requirement → feature trace**
 
@@ -80,6 +81,18 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
+| FR7 | HUB-024 |
+| FR8 | HUB-024 |
+| FR9 | HUB-024 |
+| FR10 | HUB-024 |
+| FR11 | HUB-024 |
+| FR12 | HUB-024 |
+| FR13 | HUB-024 |
+| FR14 | HUB-024 |
+| FR15 | HUB-024 |
+| NFR4 | HUB-024 |
+| NFR5 | HUB-024 |
+| NFR6 | HUB-024 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -92,12 +105,16 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR4: Every fleet repo carries a feature catalog (`features/features.yml`) linked both ways to its PRD, plus a constitution and an amendment log (specs/WORK.md UPS-WORK-15, UPS-WORK-16), checked by `tools/governance_lint.py`
 - FR5: Dashboards, catalog and portfolio pages are generated from committed data (registry, snapshots), not written by hand
 - FR6: Standards and kits reach fleet repos only as PRs opened by `tools/fanout.sh` (additive, never to a default branch)
+- FR7–FR15 (proposed, Draft): fleet activity log — append-only event schema (FR7), standard version stamped from the target repo's AGENTS.md (FR8), event→amendment link table (FR9), fire-and-forget handler wrapper (FR10), drift query (FR11), declined (FR12), blocked-handoff (FR13) and retry (FR14) events, Harness Console reader (FR15); see [docs/prd/FLEET-ACTIVITY-LOG.md](docs/prd/FLEET-ACTIVITY-LOG.md)
 
 **Non-functional**
 
 - NFR1: CI on Python 3.12 / Ruby 3.3 (fleet toolchain in `_data/fleet.yml`)
 - NFR2: Dependency policy floats versions (no exact pins, no committed lockfiles)
 - NFR3: Scheduled AI lanes gated by arming variables (see `fleet.manifest.yml`)
+- NFR4 (proposed): fleet activity logging never blocks, stalls or fails bot work
+- NFR5 (proposed): bounded local event spool, at-least-once idempotent flush, losses counted
+- NFR6 (proposed): activity events contain no secrets
 
 ## 6. Success metrics (proposed — not defined in sources)
 
@@ -110,8 +127,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 
 - Formal SLOs for fleet automation: TBD
 - Which documents are the canonical roadmap (docs/ vs issues): TBD
+- Fleet activity log (Draft): open questions in [docs/prd/FLEET-ACTIVITY-LOG.md](docs/prd/FLEET-ACTIVITY-LOG.md)
 
 ## 8. Links
 
-- [docs/constitution.md](docs/constitution.md) · [docs/amendments/](docs/amendments/) · [features/features.yml](features/features.yml)
+- [docs/constitution.md](docs/constitution.md) · [docs/amendments/](docs/amendments/) · [features/features.yml](features/features.yml) · [docs/prd/](docs/prd/) (sub-PRDs)
 - [README.md](README.md) · [AGENTS.md](AGENTS.md) · [CLAUDE.md](CLAUDE.md) · [CATALOG.md](CATALOG.md) · [SCHEMA.md](SCHEMA.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/DASH.md](docs/DASH.md)
