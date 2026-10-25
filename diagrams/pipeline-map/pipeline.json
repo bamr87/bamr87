@@ -1,0 +1,312 @@
+{
+  "schema": "pipeline-map/v1",
+  "title": "bamr87 fleet: harness loops and AI routines",
+  "lanes": [
+    {
+      "id": "schedule",
+      "label": "Scheduled loops"
+    },
+    {
+      "id": "routing",
+      "label": "Router"
+    },
+    {
+      "id": "bots",
+      "label": "Bots (task handlers) 1–4"
+    },
+    {
+      "id": "bots-2",
+      "label": "Bots (task handlers) 5–7"
+    },
+    {
+      "id": "log",
+      "label": "Activity log"
+    },
+    {
+      "id": "reader",
+      "label": "Readers"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fanout-routine",
+      "label": "Backlog fan-out routine",
+      "kind": "loop",
+      "lane": "schedule",
+      "col": 0,
+      "match": {
+        "bot_id": "fanout-routine"
+      },
+      "job": "backlog-fanout",
+      "notes": "Daily/weekly. Dry-run by default; opens PRs, never merges."
+    },
+    {
+      "id": "fanout-dry-run",
+      "label": "Dry-run gate",
+      "kind": "routine",
+      "lane": "schedule",
+      "col": 1,
+      "match": {
+        "bot_id": "fanout-routine",
+        "decision_prefix": "dry_run"
+      },
+      "notes": "Default mode: plans PRs, writes nothing to repos."
+    },
+    {
+      "id": "fanout-merge-block",
+      "label": "Merge block",
+      "kind": "routine",
+      "lane": "schedule",
+      "col": 2,
+      "match": {
+        "bot_id": "fanout-routine",
+        "event_type": "declined"
+      },
+      "notes": "Merge is always declined (reason=policy); a human merges."
+    },
+    {
+      "id": "router",
+      "label": "Router (Grok Bot)",
+      "kind": "router",
+      "lane": "routing",
+      "col": 1,
+      "match": {
+        "bot_id": "router"
+      },
+      "notes": "Routes each task to one of seven bots; blocked handoffs logged."
+    },
+    {
+      "id": "bot-fleet-ops",
+      "label": "Fleet Ops",
+      "kind": "bot",
+      "lane": "bots",
+      "col": 0,
+      "match": {
+        "bot_id": "fleet-ops"
+      }
+    },
+    {
+      "id": "bot-platform-architect",
+      "label": "Platform Architect",
+      "kind": "bot",
+      "lane": "bots",
+      "col": 1,
+      "match": {
+        "bot_id": "platform-architect"
+      }
+    },
+    {
+      "id": "bot-bashcrawl-games",
+      "label": "Bashcrawl & Games",
+      "kind": "bot",
+      "lane": "bots",
+      "col": 2,
+      "match": {
+        "bot_id": "bashcrawl-games"
+      }
+    },
+    {
+      "id": "bot-law-ai-lead",
+      "label": "Law AI Lead",
+      "kind": "bot",
+      "lane": "bots",
+      "col": 3,
+      "match": {
+        "bot_id": "law-ai-lead"
+      }
+    },
+    {
+      "id": "bot-sites",
+      "label": "Sites",
+      "kind": "bot",
+      "lane": "bots-2",
+      "col": 1,
+      "match": {
+        "bot_id": "sites"
+      }
+    },
+    {
+      "id": "bot-tools",
+      "label": "Tools",
+      "kind": "bot",
+      "lane": "bots-2",
+      "col": 2,
+      "match": {
+        "bot_id": "tools"
+      }
+    },
+    {
+      "id": "bot-content-comms",
+      "label": "Content & Comms",
+      "kind": "bot",
+      "lane": "bots-2",
+      "col": 3,
+      "match": {
+        "bot_id": "content-comms"
+      }
+    },
+    {
+      "id": "log-wrapper",
+      "label": "Fire-and-forget log wrapper",
+      "kind": "routine",
+      "lane": "log",
+      "col": 1,
+      "match": {
+        "any": true
+      },
+      "notes": "emit() to local spool, never raises (FR10, NFR4)."
+    },
+    {
+      "id": "log-flusher",
+      "label": "Spool flusher",
+      "kind": "routine",
+      "lane": "log",
+      "col": 2,
+      "job": "log-flush",
+      "notes": "Background batch flush, at-least-once, idempotent on event_id (NFR5)."
+    },
+    {
+      "id": "fleet-event",
+      "label": "fleet_event + fleet_event_amendment",
+      "kind": "store",
+      "lane": "log",
+      "col": 3,
+      "match": {
+        "any": true
+      }
+    },
+    {
+      "id": "drift-query",
+      "label": "Drift query",
+      "kind": "query",
+      "lane": "log",
+      "col": 4,
+      "match": {
+        "drift": true
+      },
+      "notes": "standard_version vs current (FR11)."
+    },
+    {
+      "id": "console",
+      "label": "Harness Console",
+      "kind": "reader",
+      "lane": "reader",
+      "col": 3,
+      "notes": "Reads only (FR15)."
+    }
+  ],
+  "edges": [
+    {
+      "from": "fanout-routine",
+      "to": "fanout-dry-run",
+      "label": "plan"
+    },
+    {
+      "from": "fanout-dry-run",
+      "to": "fanout-merge-block",
+      "label": "--apply: open PR"
+    },
+    {
+      "from": "fanout-routine",
+      "to": "router",
+      "label": "backlog tasks"
+    },
+    {
+      "from": "router",
+      "to": "bot-fleet-ops"
+    },
+    {
+      "from": "router",
+      "to": "bot-platform-architect"
+    },
+    {
+      "from": "router",
+      "to": "bot-bashcrawl-games"
+    },
+    {
+      "from": "router",
+      "to": "bot-law-ai-lead"
+    },
+    {
+      "from": "router",
+      "to": "bot-sites"
+    },
+    {
+      "from": "router",
+      "to": "bot-tools"
+    },
+    {
+      "from": "router",
+      "to": "bot-content-comms"
+    },
+    {
+      "from": "bot-fleet-ops",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "bot-platform-architect",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "bot-bashcrawl-games",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "bot-law-ai-lead",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "bot-sites",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "bot-tools",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "bot-content-comms",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "fanout-routine",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "router",
+      "to": "log-wrapper",
+      "kind": "emit"
+    },
+    {
+      "from": "log-wrapper",
+      "to": "log-flusher",
+      "label": "spool"
+    },
+    {
+      "from": "log-flusher",
+      "to": "fleet-event",
+      "label": "batch insert"
+    },
+    {
+      "from": "fleet-event",
+      "to": "drift-query"
+    },
+    {
+      "from": "fleet-event",
+      "to": "console",
+      "kind": "read"
+    },
+    {
+      "from": "drift-query",
+      "to": "console",
+      "kind": "read"
+    }
+  ]
+}

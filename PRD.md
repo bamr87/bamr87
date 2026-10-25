@@ -68,6 +68,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-021](features/features.yml) | Terminal command center | shipped | [`tools/tui/app.py`](tools/tui/app.py) · [`docs/DASH.md`](docs/DASH.md) | TBD |
 | [HUB-020](features/features.yml) | CV projection | shipped | [`.github/scripts/dash-gen/cv_fragment.py`](.github/scripts/dash-gen/cv_fragment.py) · [`.claude/skills/sync-cv/SKILL.md`](.claude/skills/sync-cv/SKILL.md) | TBD |
 | [HUB-023](features/features.yml) | Governance kit: constitution, amendments, PRD and feature link | shipped | [`tools/governance_lint.py`](tools/governance_lint.py) · [`templates/governance/README.md`](templates/governance/README.md) | FR4, FR6 |
+| [HUB-025](features/features.yml) | Harness pipeline map (proposed) | planned | [`docs/prd/HARNESS-PIPELINE-MAP.md`](docs/prd/HARNESS-PIPELINE-MAP.md) | FR16, FR17, FR18, FR19, FR20, NFR7 |
+| [HUB-026](features/features.yml) | GitHub workflow nodes on the pipeline map (proposed) | planned | [`docs/prd/HARNESS-PIPELINE-MAP.md`](docs/prd/HARNESS-PIPELINE-MAP.md) | FR21 |
 
 **Requirement → feature trace**
 
@@ -80,6 +82,13 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
+| FR16 | HUB-025 |
+| FR17 | HUB-025 |
+| FR18 | HUB-025 |
+| FR19 | HUB-025 |
+| FR20 | HUB-025 |
+| NFR7 | HUB-025 |
+| FR21 | HUB-026 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -92,12 +101,15 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR4: Every fleet repo carries a feature catalog (`features/features.yml`) linked both ways to its PRD, plus a constitution and an amendment log (specs/WORK.md UPS-WORK-15, UPS-WORK-16), checked by `tools/governance_lint.py`
 - FR5: Dashboards, catalog and portfolio pages are generated from committed data (registry, snapshots), not written by hand
 - FR6: Standards and kits reach fleet repos only as PRs opened by `tools/fanout.sh` (additive, never to a default branch)
+- FR16–FR20 (proposed, Draft): harness pipeline map — pipeline definition of every loop and AI routine as nodes and edges (FR16), reads the activity log's `fleet_event` / `fleet_event_amendment` only (FR17), running/idle/failed/unknown status per node from the log and job status (FR18), drill-down to events, PRs, standard version and amendment links (FR19), polled and on-demand refresh that renders with an empty or unavailable log (FR20); see [docs/prd/HARNESS-PIPELINE-MAP.md](docs/prd/HARNESS-PIPELINE-MAP.md)
+- FR21 (proposed): Every GitHub workflow is a node in the pipeline map showing its triggers (push, pull_request, schedule, workflow_dispatch, …), its cron schedule and its last run status (pass/fail), retrieved from the GitHub API and refreshable on demand from the Harness Console
 
 **Non-functional**
 
 - NFR1: CI on Python 3.12 / Ruby 3.3 (fleet toolchain in `_data/fleet.yml`)
 - NFR2: Dependency policy floats versions (no exact pins, no committed lockfiles)
 - NFR3: Scheduled AI lanes gated by arming variables (see `fleet.manifest.yml`)
+- NFR7 (proposed): the pipeline map is read-only and never prints, logs or embeds a token
 
 ## 6. Success metrics (proposed — not defined in sources)
 
@@ -110,6 +122,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 
 - Formal SLOs for fleet automation: TBD
 - Which documents are the canonical roadmap (docs/ vs issues): TBD
+- Harness pipeline map (Draft): open questions in [docs/prd/HARNESS-PIPELINE-MAP.md](docs/prd/HARNESS-PIPELINE-MAP.md)
 
 ## 8. Links
 
