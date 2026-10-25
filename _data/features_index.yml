@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-24T06:03:28Z'
+generated_at: '2026-10-25T06:03:52Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,9 +17,9 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 22
-  implemented: 22
-  covered: 22
+  features: 23
+  implemented: 23
+  covered: 23
   evidenced: 8
   verified: 8
   ui: 12
@@ -30,8 +30,8 @@ totals:
   dangling: 0
 pct:
   coverage: 100
-  evidence: 36
-  verified: 36
+  evidence: 35
+  verified: 35
   ui_coverage: 100
 attention: []
 repos:
@@ -62,9 +62,9 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 22
-    implemented: 22
-    covered: 22
+    features: 23
+    implemented: 23
+    covered: 23
     evidenced: 8
     verified: 8
     ui: 12
@@ -73,8 +73,8 @@ repos:
     dangling: 0
   pct:
     coverage: 100
-    evidence: 36
-    verified: 36
+    evidence: 35
+    verified: 35
   last_run: null
   gaps: []
   items:
@@ -895,6 +895,39 @@ repos:
       evidence: []
       tests:
       - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_cv_fragment.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-023
+    title: 'Governance kit: constitution, amendments, PRD and feature link'
+    surface: infra
+    implemented: true
+    link: tools/governance_lint.py
+    docs: templates/governance/README.md
+    tags:
+    - governance
+    - features
+    - prd
+    - fan-out
+    date: '2026-10-21'
+    provenance: null
+    tests:
+    - tools/test_governance_lint.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Seeds and validates the fleet governing chain in every repo: docs/constitution.md, the numbered docs/amendments/
+      log, and a features/features.yml catalog whose ids the PRD generated Feature catalog block links (UPS-WORK-15, UPS-WORK-16).'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/governance_lint.py
+      docs: https://github.com/bamr87/bamr87/blob/main/templates/governance/README.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_governance_lint.py
       scenarios: []
       screenshots: []
   truncated: false
