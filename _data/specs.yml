@@ -39,6 +39,9 @@ areas:
   - id: WORK
     file: specs/WORK.md
     title: "Planning & delivery: SDLC profile, backlog, Definition of Done, ADRs, changelog, pinning"
+  - id: DOC
+    file: specs/DOCS.md
+    title: "Documentation: one home per fact, document shape, generated reference, fleet review"
 requirements:
   - id: UPS-REPO-01
     area: REPO
@@ -115,12 +118,12 @@ requirements:
   - id: UPS-REPO-10
     area: REPO
     section: "Required files — content contracts"
-    level: MUST
+    level: retired
     applies: [all]
-    requirement: "`README.md` opens with `# <name>`, a one-sentence tagline in a blockquote, then a badge row (CI, release, license), then sections in this order: **What it is · Quick start · Usage · Development · Testing · Deployment (if any) · Contributing · License**. Content repos may collapse Usage/Development/Testing into one **Working with this repo** section."
-    satisfied_by: "headings present in order"
-    seed: "`.github/templates/README.template.md` (to be extended)"
-    gap: false
+    requirement: "**Retired 2026-10-22 → [UPS-DOC-10](DOCS.md)**, which states the portfolio skeleton the fleet's READMEs actually follow ([`docs/PORTFOLIO.md`](../docs/PORTFOLIO.md) §4). Was: `README.md` opens with `# <name>`, a tagline blockquote and a badge row, then What it is · Quick start · Usage · Development · Testing · Deployment · Contributing · License."
+    satisfied_by: "—"
+    seed: "—"
+    gap: true
   - id: UPS-REPO-11
     area: REPO
     section: "Required files — content contracts"
@@ -834,7 +837,7 @@ requirements:
     level: MUST
     applies: [all]
     requirement: "Submodule rule: commit and push in the project repo first; the hub bumps the pointer. Never bundle several submodules in one PR."
-    satisfied_by: "`SUBMODULES.md`"
+    satisfied_by: "`docs/SUBMODULES.md`"
     seed: "—"
     gap: true
   - id: UPS-QA-40
@@ -2089,3 +2092,105 @@ requirements:
     satisfied_by: "scorecard"
     seed: "—"
     gap: true
+  - id: UPS-DOC-01
+    area: DOC
+    section: "Homes: one place per fact"
+    level: MUST
+    applies: [all]
+    requirement: "**Each fact has one home.** `README.md` is for visitors: what it is and why, Quick start, a layout pointer, links onward. `AGENTS.md` is for agents and contributors: exact commands, layout, conventions, invariants. `docs/` holds depth, one topic per file. `CHANGELOG.md` holds history, `SCHEMA.md` placement. A file links to another file's fact rather than restating it. The one sanctioned copy is the Quick start command block, which matches `AGENTS.md` **Stack & commands** (UPS-REPO-11)."
+    satisfied_by: "review; the survey's repeated-paragraph check"
+    seed: "—"
+    gap: true
+  - id: UPS-DOC-04
+    area: DOC
+    section: "Homes: one place per fact"
+    level: SHOULD
+    applies: [all]
+    requirement: "The root holds docs of record only (UPS-REPO-01): `README`, `AGENTS`, `CLAUDE`, `CHANGELOG`, `LICENSE`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `SCHEMA`, `PRD`, `BACKLOG` (a declared file backlog), and reports a tool writes there (`CATALOG.md`, `SITE_HEALTH.md`). Plans, proposals, guides, runbooks and quick references go in `docs/`. A repo whose `docs/` is generated content (the README aggregator's corpus) keeps its operator docs at the root and says so under **Standard deviations**."
+    satisfied_by: "survey root-docs check"
+    seed: "—"
+    gap: true
+  - id: UPS-DOC-06
+    area: DOC
+    section: "Homes: one place per fact"
+    level: MUST
+    applies: [all]
+    requirement: "Superseded, one-off and historical documents — status reports, \"summary of changes\", fix write-ups, notes for a migration that finished, plans that shipped — are **deleted**, not banner-marked. Git history and `CHANGELOG.md` keep them. Records that are append-only by design stay: ADRs (UPS-WORK-04), a declared file backlog, `CHANGELOG.md`. A moved document leaves no stub unless an external URL depends on it, and then a one-line pointer."
+    satisfied_by: "review"
+    seed: "—"
+    gap: true
+  - id: UPS-DOC-02
+    area: DOC
+    section: "Shape: every document"
+    level: MUST
+    applies: [all]
+    requirement: "Every Markdown document has **one H1** (a Jekyll page may use front-matter `title:` instead) and a **one-sentence summary**: front-matter `description:` in a file that has front matter, otherwise a `>` blockquote directly under the H1. The summary is what the docs index, the README survey and answer engines show for the page."
+    satisfied_by: "`python3 tools/docs_index.py --lint`"
+    seed: "`tools/docs_index.py`"
+    gap: false
+  - id: UPS-DOC-07
+    area: DOC
+    section: "Shape: every document"
+    level: MUST
+    applies: [all]
+    requirement: "Hygiene: one paragraph per line (`tools/unwrap-prose.py --check`), every relative link resolves, no `TODO:` scaffold lines in docs of record, and file names follow UPS-REPO-03 (`UPPERCASE-TOPIC.md` operator docs, lowercase guides)."
+    satisfied_by: "prose gate; survey D8"
+    seed: "`tools/fanout.sh --kit prose`"
+    gap: false
+  - id: UPS-DOC-08
+    area: DOC
+    section: "Shape: every document"
+    level: SHOULD
+    applies: [all]
+    requirement: "Budgets keep the files every session loads effective: `CLAUDE.md` at most 20 non-blank lines (UPS-AGENT-08), `AGENTS.md` at most 2,000 words, `README.md` at most 2,000 words outside generated spans. Over budget means a section belongs in `docs/` behind a link. A justified overage is a **Standard deviations** line."
+    satisfied_by: "survey budget check"
+    seed: "—"
+    gap: true
+  - id: UPS-DOC-09
+    area: DOC
+    section: "Shape: every document"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "`AGENTS.md` opens with `# <repo name>` (never `# CLAUDE.md`), carries the six UPS-AGENT-07 headings, and keeps no migration leftovers: the D4 \"Claude Code notes — moved verbatim\" blocks are folded into those headings with the duplicates dropped."
+    satisfied_by: "survey agent-file check; `tools/conformance.py` UPS-AGENT-07/08"
+    seed: "`templates/sdlc/AGENTS.template.md`"
+    gap: false
+  - id: UPS-DOC-10
+    area: DOC
+    section: "Shape: every document"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all except fork"]
+    requirement: "`README.md` follows the portfolio skeleton ([`docs/PORTFOLIO.md`](../docs/PORTFOLIO.md) §4): `# <name>`, a `>` tagline, badges, then **Overview · Features · Quick start/Usage** · deep-dive sections · **Project structure · Development · Contributing · Changelog · License**, then the portfolio footer. Content repos may fold Usage and Development into one **Working with this repo** section. When `docs/` exists, the README links `docs/README.md`. Replaces UPS-REPO-10, whose order predated the skeleton."
+    satisfied_by: "`tools/conformance.py` UPS-DOC-10; survey G2"
+    seed: "`.github/templates/README.template.md`"
+    gap: false
+  - id: UPS-DOC-03
+    area: DOC
+    section: "Generated, not written"
+    level: MUST
+    applies: [all]
+    applies_notes: ["all with `docs/`"]
+    requirement: "`docs/README.md` is the **docs index**: one row per document — the root docs of record, then every file under the doc roots (a subdirectory with its own `README.md` is one row) — inside an `<!-- AUTO:docs-index:start -->` span generated from the UPS-DOC-02 summaries. Hand prose may sit above the span. Extra roots and exclusions ride on the start marker (`roots=docs,specs exclude=docs/media/`)."
+    satisfied_by: "`python3 tools/docs_index.py --check`"
+    seed: "`python3 tools/docs_index.py --write`"
+    gap: false
+  - id: UPS-DOC-05
+    area: DOC
+    section: "Generated, not written"
+    level: MUST
+    applies: [all]
+    requirement: "Reference that can be derived from source is **generated**: CLI help, VS Code `contributes` (commands, settings, keybindings), Make/npm/rake targets, HTTP routes, management commands, configuration keys and defaults, workflow inventories, registries. It lives in `docs/reference/` (or an `<!-- AUTO:<name> -->` span), opens with a `GENERATED` comment that names the command that rebuilds it, and a test or `--check` mode fails when it is stale. Hand-written prose explains; it does not re-list."
+    satisfied_by: "the repo's own check; survey generated-marker check"
+    seed: "per repo"
+    gap: false
+  - id: UPS-DOC-20
+    area: DOC
+    section: "Fleet review"
+    level: SHOULD
+    applies: [all]
+    requirement: "The README repo's survey is the fleet's consolidated documentation review. `python3 -m scripts.context_engine survey --workspace <dir>` reads every checkout under `<dir>`, applies these rows, and writes `context/reports/docs_review.{json,md}`: each repository's document inventory (path, words, summary) and its findings, ranked. The weekly survey reads the same checks from shallow clones."
+    satisfied_by: "the committed report"
+    seed: "bamr87/README `scripts/context_engine/`"
+    gap: false

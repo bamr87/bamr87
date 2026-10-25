@@ -47,8 +47,7 @@ An agent transcript is an **append-only file that is still being written**. Yest
 There are three plausible designs and only one is right:
 
 1. *Insert everything, every time.* Duplicates on every run. Obviously wrong.
-2. *Insert only what is new.* Requires knowing what "new" means, and a transcript can be
-   rewritten, not just extended.
+2. *Insert only what is new.* Requires knowing what "new" means, and a transcript can be rewritten, not just extended.
 3. *Replace the session's rows wholesale.* The rows always mirror the file. Correct.
 
 I went with (3), plus an mtime check so unchanged transcripts are skipped entirely. The test that matters is not "does re-running produce the same count" — it is **"does re-running a *shortened* transcript shrink the table"**. If it does not, you are accumulating history and calling it state.

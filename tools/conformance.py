@@ -242,15 +242,142 @@ def _no_lockfiles(r, k):
     return _ok() if not bad else _no(f"tracked: {', '.join(sorted(set(Path(b).name if 'node_modules' not in b else 'node_modules/' for b in bad))[:4])}")
 
 
-@check("UPS-REPO-10")
+# --- UPS-DOC: documentation (specs/DOCS.md) --------------------------------- #
+# The index and summary rows reuse the hub's own tools/docs_index.py — the
+# generator every repo vendors — so the checker and the repo can never disagree
+# about what a fresh index or a summary line is.
+
+DOC_ROOT_RECORDS = {
+    "README.md", "AGENTS.md", "CLAUDE.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md",
+    "CODE_OF_CONDUCT.md", "SCHEMA.md", "PRD.md", "BACKLOG.md", "ATTRIBUTION.md",
+}
+DOC_WORD_BUDGET = 2000
+_DOCS_INDEX: dict = {}
+
+
+def _docs_index(r):
+    """The hub's tools/docs_index.py as a module (None when the hub has none)."""
+    path = r.hub / "tools" / "docs_index.py"
+    if path not in _DOCS_INDEX:
+        mod = None
+        if path.is_file():
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("docs_index", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        _DOCS_INDEX[path] = mod
+    return _DOCS_INDEX[path]
+
+
+def _waived(r, rid: str) -> bool:
+    """A SHOULD row named under AGENTS.md's `## Standard deviations` heading."""
+    a = r.read("AGENTS.md")
+    m = re.search(r"^##[ \t]+Standard deviations[ \t]*$(.*?)(?=^##[ \t]|\Z)", a, re.M | re.S | re.I)
+    return bool(m and re.search(re.escape(rid) + r"\b", m.group(1)))
+
+
+def _prose_words(text: str) -> int:
+    # Generated spans in every marker style the fleet uses (`:start`/`:end`,
+    # `:begin`/`:end`, ` START`/` END`) are not prose anyone has to read.
+    text = re.sub(r"<!-- AUTO:([\w-]+)[: ](?:start|begin)\b.*?<!-- AUTO:\1[: ]end\b.*?-->", " ", text,
+                  flags=re.S | re.I)
+    text = re.sub(r"^```.*?^```", " ", text, flags=re.S | re.M)
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
+    return len(text.split())
+
+
+@check("UPS-DOC-10")
 def _readme_sections(r, k):
     t = r.read("README.md")
     h2 = re.findall(r"^##\s+(.+)$", t, re.M)
     if len(h2) < 3:
-        return _no(f"README has {len(h2)} H2 sections (need Quick start … License)")
+        return _no(f"README has {len(h2)} H2 sections (need Overview … Quick start … License)")
     joined = " | ".join(h2).lower()
-    missing = [n for n, rx in (("Quick start/Usage", r"quick ?start|getting started|usage|install"), ("License", r"licen[cs]e")) if not re.search(rx, joined)]
-    return _ok() if not missing else _no("README missing sections: " + ", ".join(missing))
+    missing = [n for n, rx in (("Quick start/Usage", r"quick ?start|getting started|usage|install|working with this repo"), ("License", r"licen[cs]e")) if not re.search(rx, joined)]
+    if (r.path / "docs").is_dir() and not re.search(r"\]\((\./)?docs/(README\.md)?(#[^)]*)?\)", t):
+        missing.append("a link to docs/README.md")
+    return _ok() if not missing else _no("README missing: " + ", ".join(missing))
+
+
+@check("UPS-DOC-02")
+def _doc_summaries(r, k):
+    di = _docs_index(r)
+    if di is None:
+        return None, "hub tools/docs_index.py not found"
+    index = r.read("docs/README.md")
+    where = di.locate(index) if index else None
+    docs = di.collect(str(r.path), di.parse_options(where[2] if where else ""))
+    unsummarised = [doc["path"] for doc in docs if doc["source"] in ("fallback", "none")]
+    multi_h1 = [doc["path"] for doc in docs if doc["h1"] > 1]
+    problems = []
+    if unsummarised:
+        problems.append(f"{len(unsummarised)} document(s) without a summary line (e.g. {', '.join(unsummarised[:3])})")
+    if multi_h1:
+        problems.append(f"{len(multi_h1)} with several H1s (e.g. {', '.join(multi_h1[:3])})")
+    return _ok(f"{len(docs)} documents") if not problems else _no("; ".join(problems) + " — python3 tools/docs_index.py --lint")
+
+
+@check("UPS-DOC-03")
+def _docs_index_fresh(r, k):
+    if not (r.path / "docs").is_dir():
+        return _ok("no docs/")
+    di = _docs_index(r)
+    if di is None:
+        return None, "hub tools/docs_index.py not found"
+    current, fresh = di.build(str(r.path))
+    if current is None:
+        return _no("no docs/README.md index — python3 tools/docs_index.py --write")
+    if fresh is None:
+        return _no("docs/README.md has no <!-- AUTO:docs-index:start --> span")
+    return _ok() if current == fresh else _no("docs/README.md index is stale — python3 tools/docs_index.py --write")
+
+
+@check("UPS-DOC-04")
+def _root_docs(r, k):
+    stray = []
+    for t in r.tracked():
+        if "/" in t or not t.lower().endswith(".md") or t in DOC_ROOT_RECORDS:
+            continue
+        head = r.read(t, 4000)
+        fm = head.split("---", 2)[1] if head.startswith("---") and head.count("---") >= 2 else ""
+        if re.search(r"^(layout|permalink):", fm, re.M):  # a Jekyll page, not a document
+            continue
+        if re.match(r"\s*<!--\s*generated\b", head, re.I):  # a report a tool writes at the root
+            continue
+        stray.append(t)
+    if stray and _waived(r, "UPS-DOC-04"):
+        return _ok("waived under Standard deviations: " + ", ".join(sorted(stray)[:6]))
+    return _ok() if not stray else _no("not docs of record — move to docs/: " + ", ".join(sorted(stray)[:6]))
+
+
+@check("UPS-DOC-08")
+def _doc_budgets(r, k):
+    over = []
+    for f in ("AGENTS.md", "README.md"):
+        n = _prose_words(r.read(f))
+        if n > DOC_WORD_BUDGET:
+            over.append(f"{f} {n} words")
+    if not over:
+        return _ok()
+    if _waived(r, "UPS-DOC-08"):
+        return _ok("over budget, waived under Standard deviations: " + ", ".join(over))
+    return _no(f"over the {DOC_WORD_BUDGET}-word budget: " + ", ".join(over))
+
+
+@check("UPS-DOC-09")
+def _agents_shape(r, k):
+    a = r.read("AGENTS.md")
+    if not a:
+        return _ok("no AGENTS.md, see UPS-AGENT-07")
+    problems = []
+    m = re.search(r"^#[ \t]+(.+?)[ \t]*$", a, re.M)
+    if not m:
+        problems.append("no H1")
+    elif re.search(r"(?i)^agents\.md\b|claude\.md", m.group(1)):
+        problems.append(f"titled `# {m.group(1)}` (title it with the repo name)")
+    if re.search(r"(?i)moved verbatim from the former CLAUDE\.md", a):
+        problems.append("an unfolded D4 \"moved verbatim\" block")
+    return _ok() if not problems else _no("AGENTS.md: " + "; ".join(problems))
 
 
 @check("UPS-REPO-12")

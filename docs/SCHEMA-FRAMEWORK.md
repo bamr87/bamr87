@@ -1,5 +1,7 @@
 # SCHEMA-FRAMEWORK — Pyramid Schema across the fleet
 
+> The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them.
+
 How the dash carries, enforces, and propagates `SCHEMA.md` structural contracts — and how fleet experience flows back into the framework.
 
 **One sentence:** every directory carries a small, lintable `SCHEMA.md` describing its contents one level deep, so stateless agents _look up_ structure instead of re-exploring it; the hub seeds that discipline into every submodule and gates it in CI.

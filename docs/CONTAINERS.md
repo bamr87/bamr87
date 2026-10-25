@@ -1,5 +1,7 @@
 # Containers — how ~24 compose files become one runnable fleet
 
+> How some two dozen compose files run as one fleet: the shared network, Postgres and Redis, the registry-driven port map, the generated overrides, and `dash up`.
+
 > **`docs/DEVELOPMENT.md` is how you set a machine up; this is how the fleet runs on it.** One shared plane, many independent projects, and a port map nobody maintains by hand.
 
 ## The model in one paragraph

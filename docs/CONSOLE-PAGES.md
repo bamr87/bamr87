@@ -1,5 +1,7 @@
 # The public site is the console
 
+> The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published.
+
 `https://bamr87.github.io/bamr87/` is the Harness Console's own page, built static. It used to be a separate Jekyll site with its own boards. Since 2026-10 it is one React app (`tools/console/web/`) built two ways:
 
 | Build | Served by | Data comes from | Base |

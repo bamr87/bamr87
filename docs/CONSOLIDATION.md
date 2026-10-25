@@ -1,5 +1,7 @@
 # Fleet consolidation — fewer repos, one place per concern
 
+> The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open.
+
 > Decision record for the 2026-10-19 consolidation: which repositories merge into which, how the merge is done, what the hub does on each side, and the decisions still open. Status lines here are updated as the pull requests land.
 
 ## Why

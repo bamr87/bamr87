@@ -1,13 +1,15 @@
 # Submodules
 
-This repository is a **dash** (control plane) whose projects live as ~40 Git submodules under [`projects/`](projects/). Each submodule is a separate repository with its own stack, branch, and release cycle.
+> The submodule workflow, documented once: where the project list lives, how a change moves (commit in the submodule first, then record its pointer here), and what the automation does in each direction.
+
+This repository is a **dash** (control plane) whose projects live as ~40 Git submodules under [`projects/`](../projects/). Each submodule is a separate repository with its own stack, branch, and release cycle.
 
 ## Where the list lives (do not hardcode it here)
 
 The authoritative list is the registry, cross-checked against `.gitmodules`:
 
-- **[`_data/projects.yml`](_data/projects.yml)** — the single source of truth (name, `submodule_path`, `branch`, stack, category, status, standards tier).
-- **[`.gitmodules`](.gitmodules)** — the Git-level definitions.
+- **[`_data/projects.yml`](../_data/projects.yml)** — the single source of truth (name, `submodule_path`, `branch`, stack, category, status, standards tier).
+- **[`.gitmodules`](../.gitmodules)** — the Git-level definitions.
 
 `tools/check-drift.sh` fails CI if these two disagree, so this document intentionally does **not** repeat the list — read the registry or run:
 
@@ -35,7 +37,7 @@ git submodule update --init --recursive
 
 ## Working inside a submodule
 
-A change inside a submodule is committed **in its own repo first**, then the pointer is recorded in root (see [`CLAUDE.md`](CLAUDE.md) for the full flow):
+A change inside a submodule is committed **in its own repo first**, then the pointer is recorded in root:
 
 ```bash
 cd projects/<name>
@@ -53,7 +55,7 @@ Don't bundle changes across multiple submodules into one PR.
 
 `.github/workflows/update-submodules.yml` runs daily (or on demand) and commits submodule pointers **up** into root **directly on the base branch — no pull request**. A pointer bump records a SHA that was already reviewed and merged in the submodule's own repo, so a hub PR reviews nothing; it was pure queue. Publishing goes through `publish-data`, which pushes straight to the branch when allowed and falls back to a stable-branch PR only if a ruleset rejects the push. The commit carries `[skip ci]` — nothing needs to run on a pointer bump.
 
-It still never modifies submodule contents: content changes belong to the submodule's own repo. The complementary **downward** flow (`.github/workflows/standardize-fanout.yml`) opens standardization PRs _into_ submodules; see [`docs/STANDARDS.md`](docs/STANDARDS.md).
+It still never modifies submodule contents: content changes belong to the submodule's own repo. The complementary **downward** flow (`.github/workflows/standardize-fanout.yml`) opens standardization PRs _into_ submodules; see [`docs/STANDARDS.md`](STANDARDS.md).
 
 Local refresh (safe by default — skips submodules with uncommitted/diverged work):
 

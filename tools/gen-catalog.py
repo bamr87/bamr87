@@ -265,7 +265,7 @@ def sec_docs() -> list[str]:
         if f.name in ("README.md", "SCHEMA.md"):
             continue
         out.append(row(f"[`{f.name}`](docs/{f.name})", short(purposes.get(f.name) or self_purpose(f) or "—")))
-    for f in ("AGENTS.md", "CLAUDE.md", "SUBMODULES.md", "CONTRIBUTING.md", "SCHEMA.md"):
+    for f in ("AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", "SCHEMA.md"):
         if (ROOT / f).exists():
             out.append(row(f"[`{f}`]({f})", short(purposes.get(f) or self_purpose(ROOT / f) or "—")))
     return out + [""]
@@ -326,7 +326,7 @@ def render() -> str:
     for sec in (sec_specs, sec_kits, sec_refs, sec_data, sec_tools, sec_workflows, sec_ai, sec_copilot, sec_docs, sec_dash, sec_diagrams):
         lines += sec()
     lines += ["## Fleet", "",
-              "The projects themselves are submodules under [`projects/`](projects/) — the registry [`_data/projects.yml`](_data/projects.yml) is authoritative and [`projects/SCHEMA.md`](projects/SCHEMA.md) is generated from it. Each is a separate repo with its own pyramid; commit there first, then bump the pointer here ([`SUBMODULES.md`](SUBMODULES.md)).", ""]
+              "The projects themselves are submodules under [`projects/`](projects/) — the registry [`_data/projects.yml`](_data/projects.yml) is authoritative and [`projects/SCHEMA.md`](projects/SCHEMA.md) is generated from it. Each is a separate repo with its own pyramid; commit there first, then bump the pointer here ([`docs/SUBMODULES.md`](docs/SUBMODULES.md)).", ""]
     return "\n".join(lines)
 
 

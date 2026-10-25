@@ -1,5 +1,7 @@
 # Versioning the hub's reusable workflows
 
+> How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back.
+
 Member repos call workflows in this repo by reference (`uses: bamr87/bamr87/.github/workflows/<file>@<ref>`). A reference to `@main` means every merge here changes every caller's CI at once, with no review on the caller's side and no way to roll back one repo. This page defines the tags that make those workflows pinnable, what each kind of version bump promises, and how a release is cut.
 
 The plan this implements is the SDLC harmonization plan, Wave 1 ("tag the reusable workflows"); the rule callers will be measured against is the proposed UPS-WORK-10 (reusable workflows referenced by tag or SHA, never `@main`).

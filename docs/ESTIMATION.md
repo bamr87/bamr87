@@ -1,5 +1,7 @@
 # Engagement estimation & cost tracking
 
+> Every project as a client: deterministic estimates from open issues, actuals from usage evidence, and the leverage between them.
+
 The dash's delivery-finance layer: every registry project is treated as a **client**, every analyzed work item becomes an **engagement** — a statement of work with a deterministic estimate, a plan, evidence-accrued actuals, and a variance that closes the loop. Rendered at `/engagements/`; stored in [`_data/engagements.yml`](../_data/engagements.yml); priced by the rate card [`_data/engagement_rates.yml`](../_data/engagement_rates.yml); implemented in [`.github/scripts/dash-gen/engagements.py`](../.github/scripts/dash-gen/engagements.py).
 
 ## Why
@@ -50,16 +52,12 @@ and freezes the accrual window; `reconciled` **closes the books**: a closed enga
 
 ## Guardrails
 
-- **Determinism** — estimator-v1 is pure code: no AI in the pricing path, no
-  timestamps in the math, sweeps sorted and windowed so re-runs are no-ops.
-- **Human approval** — status transitions are the broker's; the generator
-  never advances one, and evidence never accrues to an unapproved estimate.
-- **Evidence or it didn't happen** — actuals only enter via URL-deduped ledger
-  rows; manual overrides live in human-owned fields, visible in the diff.
+- **Determinism** — estimator-v1 is pure code: no AI in the pricing path, no timestamps in the math, sweeps sorted and windowed so re-runs are no-ops.
+- **Human approval** — status transitions are the broker's; the generator never advances one, and evidence never accrues to an unapproved estimate.
+- **Evidence or it didn't happen** — actuals only enter via URL-deduped ledger rows; manual overrides live in human-owned fields, visible in the diff.
 - **Attribution is explicit** — one evidence row goes to exactly one
 engagement (oldest-open-first). Concurrent engagements on one client share imperfectly; split windows or reconcile promptly. The limitation is by design — better a stated rule than a hidden model.
-- **Public-data discipline** — the register is site data: titles, URLs,
-  prices; no secrets (`_data/SCHEMA.md` Forbidden).
+- **Public-data discipline** — the register is site data: titles, URLs, prices; no secrets (`_data/SCHEMA.md` Forbidden).
 
 ## Running it
 

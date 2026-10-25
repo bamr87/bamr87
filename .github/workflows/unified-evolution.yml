@@ -104,7 +104,7 @@ jobs:
                they are the fleet's live attention signals.
             2. Make ONE focused, surgical improvement in the hub tree. Hub only:
                everything under projects/ is a separate repo and MUST NOT be
-               edited from here (see the submodule workflow in SUBMODULES.md).
+               edited from here (see the submodule workflow in docs/SUBMODULES.md).
             3. Prefer correctness and accuracy fixes over new abstractions. Do not
                add a feature nobody asked for.
 

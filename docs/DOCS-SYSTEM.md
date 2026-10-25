@@ -1,6 +1,8 @@
 # Docs System — one content contract, one front door, specialist backends
 
-> **Status: PLAN, revision 2 (2026-10-03).** Nothing below is built yet. The plan harmonizes, standardizes and modernizes documentation across the fleet using Jekyll, MkDocs, Sphinx and Wiki.js, each **by role**. Revision 1 rendered every page four ways; [Design history](#design-history) records why that was dropped. Once adopted, the requirement rows move into `specs/DOCS.md` (area `DOC`) and this file becomes the operator doc for the machinery.
+> Plan (2026-10-03) for documentation by role across the fleet — a Jekyll front door, MkDocs guides, Sphinx API reference and a private handbook, on one content contract; its repo layer is now specs/DOCS.md.
+
+> **Status: PLAN, revision 2 (2026-10-03); repo layer adopted 2026-10-22.** The per-repository part — one home per fact, a summary line per document, the generated docs index (`tools/docs_index.py`), generated reference, and the README repo's survey as the fleet review — is now [`specs/DOCS.md`](../specs/DOCS.md) (area `DOC`). The engine surfaces, the handbook and versioning below are still a plan. The plan harmonizes, standardizes and modernizes documentation across the fleet using Jekyll, MkDocs, Sphinx and Wiki.js, each **by role**. Revision 1 rendered every page four ways; [Design history](#design-history) records why that was dropped. As each phase is adopted, its requirement rows join `specs/DOCS.md` and this file becomes the operator doc for the machinery.
 
 ## The decision in one paragraph
 
@@ -37,7 +39,7 @@ These are the Phase 3 backlog seed: each is one page or tree living in two syste
 | **zer0-mistakes** | `docs/` (75, e.g. `docs/installation/*`) vs `pages/_docs/` (95, e.g. `installation.md`) | Same topics in two trees in one repo. |
 | **lifehacker.dev** | `docs/` (13) vs `pages/_docs/` (65) | To be checked for overlap. |
 | **barodybroject** | Sphinx tree + a Jekyll Pages workflow | Two publishing paths in one repo. |
-| **Hub ↔ README docs copies** | `projects/README/docs/{scripts,skills}/` mirror the submodules | Already flagged in CLAUDE.md "Docs aggregation gotcha". |
+| **Hub ↔ README docs copies** | `projects/README/docs/{scripts,skills}/` mirror the submodules | Already flagged in AGENTS.md § Submodules. |
 
 ### Two external facts that shape the plan
 

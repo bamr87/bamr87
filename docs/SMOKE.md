@@ -1,5 +1,7 @@
 # SMOKE — the monorepo's live smoke test
 
+> The live smoke test: record every running container's probes, then re-run them and fail on any regression.
+
 > `record` connects to every container in the local fleet and exercises it for
 > real; `check` re-runs those probes and fails on any move away from what was
 > recorded. The topology comes from [`_data/ports.yml`](../_data/ports.yml), so a
@@ -35,8 +37,7 @@ Everything the daemon knows is recorded too: state, health, image, and the conta
 Four verdicts, and the difference matters:
 
 - **ok** — running and every probe answered.
-- **broken** — running but something it should answer does not. The only one
-  that is an incident.
+- **broken** — running but something it should answer does not. The only one that is an incident.
 - **optional** — not running because a compose **profile** gates it
 (`--profile celery` starts djangoerp's worker; nothing else does). 7 of the fleet's 9 stopped services are this, and calling them failures would bury the one that is not.
 - **absent** — not running and nothing explains why.
@@ -56,8 +57,7 @@ Facts the recording makes visible that nothing else did:
 (vscode), `fredgar-ai/web` (appuser), `zer0-cms/cms` (rails). UPS-REPO-31 has said this for a while; this is the first time it is measured per service.
 - **`barodybroject/docs` reports `unhealthy` while serving HTTP 200** — the
 `localhost`/`::1` healthcheck trap (docs/DOCKER.md rule H1), now a recorded fact rather than an anecdote.
-- **The hub's MkDocs redirects `/` → `/README/` → …** in a loop. The probe
-  records the 302 and does not chase it.
+- **The hub's MkDocs redirects `/` → `/README/` → …** in a loop. The probe records the 302 and does not chase it.
 
 ## Two failure modes the tool is built around
 

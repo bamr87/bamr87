@@ -1,5 +1,5 @@
 kit: sdlc
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/sdlc/
 seeded-by: |
   Copied per repo (not inherited). Run by hand or by an adoption PR until
@@ -11,8 +11,12 @@ files: sdlc.yml, sdlc.schema.json, AGENTS.template.md, CLAUDE.template.md, CHANG
 targets: sdlc.yml -> .github/sdlc.yml; AGENTS.template.md -> AGENTS.md; CLAUDE.template.md -> CLAUDE.md; CHANGELOG.template.md -> CHANGELOG.md; docs/README.template.md -> docs/README.md; docs/adr/* -> docs/adr/; release/release.yml -> .github/workflows/release.yml; release/release-please-config.<type>.json -> release-please-config.json; release/.release-please-manifest.json -> .release-please-manifest.json; content-queue/backlog.yml -> _data/backlog.yml (module content_queue only); sdlc.schema.json stays in the hub
 spec: specs/WORK.md UPS-WORK-01/04/05/12, specs/AGENT-CONTEXT.md UPS-AGENT-07/08/09, specs/REPOSITORY.md UPS-REPO-21, specs/QUALITY.md UPS-QA-32/33; checker contract specs/WORK.contract.yml
 tests: templates/sdlc/test_sdlc_kit.py (stdlib + PyYAML; jsonschema used when installed)
-updated: 2026-10-03
+updated: 2026-10-22
 changelog: |
+  0.2.0 — docs framework (specs/DOCS.md). docs/README.template.md is now the
+  generated docs index: an AUTO:docs-index span that tools/docs_index.py fills
+  from each document's summary line (UPS-DOC-02/03). docs/adr/README.md opens
+  with a `>` summary line under its H1. Earlier copies are in archive/.
   0.1.0 — initial kit (SDLC harmonization Wave 1). The core per-repo SDLC
   files. `.github/sdlc.yml` (schema sdlc/v1, validated by sdlc.schema.json)
   declares type (decision D6), backlog mode (D1: Issues by default), modules,

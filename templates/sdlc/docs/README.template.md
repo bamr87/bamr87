@@ -1,11 +1,9 @@
-<!-- kit: sdlc v__KIT_VERSION__ · docs index. Lands at docs/README.md. -->
+<!-- kit: sdlc v__KIT_VERSION__ · docs index (UPS-DOC-03). Lands at docs/README.md; tools/docs_index.py --write fills the span from each document's summary line. -->
 # __PROJECT_NAME__ documentation
 
-| Where | What |
-| --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | How to work in this repo: commands, layout, conventions (canonical for humans and agents) |
-| [`adr/`](adr/README.md) | Architecture decisions, one file each |
-| [`../CHANGELOG.md`](../CHANGELOG.md) | Release history, written by release-please |
-| [`../.github/sdlc.yml`](../.github/sdlc.yml) | This repo's SDLC profile: type, backlog of record, modules |
+> Every document in this repository, one line each — start with the root README, and see AGENTS.md for how to work here.
 
 **Backlog of record:** GitHub Issues with the fleet labels, unless `.github/sdlc.yml` declares a file backlog.
+
+<!-- AUTO:docs-index:start -->
+<!-- AUTO:docs-index:end -->
