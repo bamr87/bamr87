@@ -1,0 +1,120 @@
+name: backlog-fanout
+
+# The BACKLOG FAN-OUT routine (HUB-025, PRD FR16/FR17; docs/BACKLOG-FANOUT.md):
+# reads the hub's pending backlog (open issues, PRD requirements with no
+# shipped feature, catalog features not shipped), maps each item to the fleet
+# repos it applies to, and opens or UPDATES one tracking PR per (item, repo)
+# on a stable branch backlog/<item-id> through tools/fanout.sh --kit backlog.
+# Never merges. Every decision is emitted to the fleet activity log queue
+# (tools/fleet_activity.py, schema from the activity-log PRD, bamr87/bamr87#409)
+# and uploaded as an artifact with the JSON report.
+#
+# Fires DAILY (cron = _data/fleet.yml schedule.backlog_fanout); the cadence
+# (daily | weekly + weekly_day) lives in _data/backlog_fanout.yml, and a weekly
+# cadence exits early on the other days.
+#
+# SAFETY: a SCHEDULED run is a DRY RUN unless _data/backlog_fanout.yml has
+# `apply: true` (false as shipped). A manual dispatch is a dry run unless
+# dry_run is unchecked. Applying requires the FLEET_TOKEN secret (fine-grained
+# PAT: contents:write + pull-requests:write on the targets), probed with
+# `gh api user` — set-but-expired fails loudly. Dry runs fall back to the
+# read-only GITHUB_TOKEN when FLEET_TOKEN is absent.
+
+on:
+  schedule:
+    - cron: '27 8 * * *'  # daily 08:27 UTC (_data/fleet.yml schedule.backlog_fanout)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Plan only — push nothing, open nothing"
+        type: boolean
+        default: true
+      cadence:
+        description: "Cadence override (config = _data/backlog_fanout.yml)"
+        type: choice
+        options: [config, daily, weekly]
+        default: config
+      force:
+        description: "Run even if the cadence says today is not due"
+        type: boolean
+        default: false
+      max_prs:
+        description: "Per-run cap on PRs opened/updated (blank = config)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: backlog-fanout
+  cancel-in-progress: false
+
+jobs:
+  fanout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: python -m pip install pyyaml
+
+      - name: Decide mode
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          cfg_apply="$(python -c "import yaml;print(str(bool((yaml.safe_load(open('_data/backlog_fanout.yml')) or {}).get('apply'))).lower())")"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$IN_DRY_RUN" = "false" ]; then apply=true; else apply=false; fi
+          else
+            apply="$cfg_apply"
+          fi
+          echo "apply=$apply" >> "$GITHUB_OUTPUT"
+          echo "Mode: $([ "$apply" = true ] && echo APPLY || echo 'DRY RUN') (event $EVENT, config apply: $cfg_apply)"
+
+      - name: Probe FLEET_TOKEN (apply only)
+        if: steps.mode.outputs.apply == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ] || ! gh api user --jq .login >/dev/null 2>&1; then
+            echo "::error::FLEET_TOKEN is missing or not usable (probed with gh api user). Apply needs a fine-grained PAT with contents:write + pull-requests:write on the targets — see docs/BACKLOG-FANOUT.md. Nothing was pushed."
+            exit 1
+          fi
+
+      - name: Run backlog fan-out
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || github.token }}
+          APPLY: ${{ steps.mode.outputs.apply }}
+          CADENCE: ${{ inputs.cadence || 'config' }}
+          FORCE: ${{ inputs.force }}
+          MAX_PRS: ${{ inputs.max_prs }}
+          FLEET_ACTIVITY_QUEUE: ${{ runner.temp }}/fleet-activity/queue.jsonl
+        run: |
+          set -euo pipefail
+          FLAGS=(--cadence "$CADENCE" --report backlog-fanout-report.json --summary backlog-fanout-summary.md)
+          if [ "$APPLY" = "true" ]; then FLAGS+=(--apply); else FLAGS+=(--dry-run); fi
+          if [ "$FORCE" = "true" ]; then FLAGS+=(--force); fi
+          if [ -n "${MAX_PRS:-}" ]; then FLAGS+=(--max-prs "$MAX_PRS"); fi
+          python tools/backlog_fanout.py "${FLAGS[@]}"
+
+      - name: Upload report + activity queue
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: backlog-fanout-${{ github.run_id }}
+          path: |
+            backlog-fanout-report.json
+            backlog-fanout-summary.md
+            ${{ runner.temp }}/fleet-activity/queue.jsonl
+          if-no-files-found: warn
+          retention-days: 30

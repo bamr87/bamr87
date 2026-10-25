@@ -68,6 +68,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-021](features/features.yml) | Terminal command center | shipped | [`tools/tui/app.py`](tools/tui/app.py) · [`docs/DASH.md`](docs/DASH.md) | TBD |
 | [HUB-020](features/features.yml) | CV projection | shipped | [`.github/scripts/dash-gen/cv_fragment.py`](.github/scripts/dash-gen/cv_fragment.py) · [`.claude/skills/sync-cv/SKILL.md`](.claude/skills/sync-cv/SKILL.md) | TBD |
 | [HUB-023](features/features.yml) | Governance kit: constitution, amendments, PRD and feature link | shipped | [`tools/governance_lint.py`](tools/governance_lint.py) · [`templates/governance/README.md`](templates/governance/README.md) | FR4, FR6 |
+| [HUB-025](features/features.yml) | Backlog fan-out routine | partial | [`.github/workflows/backlog-fanout.yml`](.github/workflows/backlog-fanout.yml) · [`docs/BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | FR6, FR16, FR17 |
 
 **Requirement → feature trace**
 
@@ -77,9 +78,11 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
-| FR6 | HUB-009, HUB-010, HUB-019, HUB-023 |
+| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-025 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
+| FR16 | HUB-025 |
+| FR17 | HUB-025 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -92,6 +95,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR4: Every fleet repo carries a feature catalog (`features/features.yml`) linked both ways to its PRD, plus a constitution and an amendment log (specs/WORK.md UPS-WORK-15, UPS-WORK-16), checked by `tools/governance_lint.py`
 - FR5: Dashboards, catalog and portfolio pages are generated from committed data (registry, snapshots), not written by hand
 - FR6: Standards and kits reach fleet repos only as PRs opened by `tools/fanout.sh` (additive, never to a default branch)
+- FR16: Pending backlog items (open hub issues, PRD requirements with no shipped feature, catalog features not shipped) are fanned out on a configurable cadence (daily default, weekly option) as idempotent PRs — one stable branch per item — in the fleet repos each item applies to, through `tools/fanout.sh`, linking feature ids to requirement ids; the routine never merges and is a dry run until explicitly switched on (`_data/backlog_fanout.yml`)
+- FR17: Every backlog fan-out decision (fanned out, skipped, failed, retried) is emitted to the fleet activity log (event schema proposed in bamr87/bamr87#409) through a fire-and-forget local queue, so an unavailable log never blocks or fails the run
 
 **Non-functional**
 
