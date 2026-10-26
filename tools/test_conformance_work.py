@@ -504,6 +504,26 @@ jobs:
       - run: python3 tools/spec_validator.py
       - run: python3 tools/backlog_lint.py
 """
+BYREF_CI = """
+jobs:
+  changes:
+    steps: [{run: echo}]
+  spec-gate:
+    name: Spec Drift Gate
+    needs: changes
+    uses: bamr87/bamr87/.github/workflows/spec-gate.yml@v2
+    with: {strict: true}
+  tests:
+    needs: [spec-gate, changes]
+    steps: [{run: pytest}]
+"""
+BYREF_UNGATED_CI = """
+jobs:
+  spec-gate:
+    uses: bamr87/bamr87/.github/workflows/spec-gate.yml@v2
+  build:
+    steps: [{run: make}]
+"""
 
 
 def test_work07_spec_gate_and_kit_parity():
@@ -529,6 +549,13 @@ def test_work07_spec_gate_and_kit_parity():
         h2 = hub(t / "h2", with_=("specs/WORK.contract.yml",))
         ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": LAW_CI}, name="nokit"), h2)
         assert ok is True and "parity unchecked" in msg, msg
+        # by reference (law-ai since 2026-10-25): a `uses:` of the hub's reusable
+        # gate is the spec-gate job; it runs backlog_lint itself, and a consumer
+        # that vendors nothing has no parity to check.
+        ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": BYREF_CI}, name="byref"), h)
+        assert ok is True and "by reference" in msg and "spec-gate" in msg, msg
+        ok, msg = run("UPS-WORK-07", repo(t, {**base, ".github/workflows/ci.yml": BYREF_UNGATED_CI}, name="byref-ungated"), h)
+        assert ok is False and "build" in msg, msg
 
 
 def test_work08_freshness():

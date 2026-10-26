@@ -193,7 +193,7 @@
   submodule_path: projects/law-ai
   branch: main
   repo_url: https://github.com/bamr87/law-ai
-  description: "Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, local-first via Ollama."
+  description: "Open legal-intelligence platform for prospective law students (LSAT lab), law students and practicing lawyers: Django + CrewAI/LangGraph agents over a Neo4j knowledge graph, Claude-first provider chain with a local Ollama tier. Runs the fleet's spec-driven loop by reference."
   stack: [python, ai, docker, ollama]
   category: full-stack-ai
   status: experiment

@@ -1327,27 +1327,31 @@ def _closure(jobs: dict, start: str) -> set[str]:
 @_need_contract
 def _spec_gate(r, k):
     """Contract UPS-WORK-07 (binds only with modules.spec_driven): spec packages,
-    BACKLOG.md, a spec-gate job every other job needs, backlog_lint in that
-    workflow, and the kit tools byte-identical to the hub's copies."""
+    BACKLOG.md, a spec-gate job every other job needs — either a `uses:` of the
+    hub's reusable spec_gate_workflow (by reference; it runs both tools from the
+    kit) or an in-repo job that runs spec_validator.py and backlog_lint.py —
+    and any vendored kit tools byte-identical to the hub's copies."""
     if "spec_driven" not in sdlc_modules(sdlc_profile(r)[0]):
         return _ok("module spec_driven not declared")
     d = _defs(r)
     problems = ([] if r.glob1("specs/[0-9][0-9][0-9]-*/spec.md") else ["no specs/NNN-slug/spec.md"]) + \
                ([] if r.has("BACKLOG.md") else ["no BACKLOG.md"])
+    gate_wf = str(d.get("spec_gate_workflow") or "bamr87/bamr87/.github/workflows/spec-gate.yml")
     gate = None
     for name, text in _workflow_texts(r):
         jobs = _jobs(text)
         for jid, job in jobs.items():
-            if "spec_validator.py" in yaml.safe_dump(job):
+            by_ref = str((job or {}).get("uses") or "").split("@")[0] == gate_wf
+            if by_ref or "spec_validator.py" in yaml.safe_dump(job):
                 ungated = [o for o in jobs if o != jid and o not in _closure(jobs, jid) and jid not in _closure(jobs, o)]
-                gate = (name, jid, ungated, "backlog_lint.py" in text)
+                gate = (name, jid, ungated, by_ref or "backlog_lint.py" in text, by_ref)
                 break
         if gate:
             break
     if not gate:
-        problems.append("no CI job runs spec_validator.py (spec-gate)")
+        problems.append(f"no CI job runs spec_validator.py or `uses:` {gate_wf} (spec-gate)")
     else:
-        name, jid, ungated, linted = gate
+        name, jid, ungated, linted, by_ref = gate
         if not linted:
             problems.append(f"{name} does not run backlog_lint.py")
         if ungated:
@@ -1362,7 +1366,8 @@ def _spec_gate(r, k):
                 problems.append(f"{rel} differs from the hub kit")
     else:
         note = f"; hub kit {kit.relative_to(r.hub)}/ not in this checkout (bamr87/bamr87#325), tool parity unchecked"
-    return _no("; ".join(problems) + note) if problems else _ok(f"spec-gate `{gate[1]}` in {gate[0]}{note}")
+    how = " (by reference)" if gate and gate[4] else ""
+    return _no("; ".join(problems) + note) if problems else _ok(f"spec-gate `{gate[1]}` in {gate[0]}{how}{note}")
 
 
 @check("UPS-WORK-08")

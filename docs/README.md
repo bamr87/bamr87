@@ -23,6 +23,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | Document | What it covers |
 | --- | --- |
 | [`docs/AI-INTEGRATION.md`](AI-INTEGRATION.md) | The AI layer — every surface where Claude runs, the Claude auth order and secrets matrix, the loops, and how all of it propagates to the fleet. |
+| [`docs/BACKLOG-FANOUT.md`](BACKLOG-FANOUT.md) | The backlog fan-out routine (HUB-027, PRD FR22 and FR23) turns the hub's pending backlog into tracking PRs in the fleet repos each item applies to. |
 | [`docs/COCKPIT.md`](COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`docs/CONSOLE-PAGES.md`](CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
 | [`docs/CONSOLIDATION.md`](CONSOLIDATION.md) | The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open. |
@@ -49,6 +50,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`docs/SCHEMA.md`](SCHEMA.md) | Operator documentation for the dash machinery — how the hub, gates, and fleet workflows are meant to be run. |
 | [`docs/SMOKE.md`](SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
+| [`docs/SPEC-DRIVEN.md`](SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a persistent, machine-checked record: `BACKLOG.md` → `/specify` → `/clarify` → `/plan` → `/tasks` → `/implement` → gates → PR → follow-ups → `BACKLOG.md`. |
 | [`docs/STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline — which files each kind of repository must have — and the way to the Universal Project Standard in `specs/`. |
 | [`docs/SUBMODULES.md`](SUBMODULES.md) | The submodule workflow, documented once: where the project list lives, how a change moves (commit in the submodule first, then record its pointer here), and what the automation does in each direction. |
 | [`docs/TERMINAL-FRAMEWORK.md`](TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto bashOS: the inventory, `keys v1`, the per-repo plan and the phases. |
@@ -64,7 +66,8 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 
 | Document | What it covers |
 | --- | --- |
+| [`docs/prd/FLEET-ACTIVITY-LOG.md`](prd/FLEET-ACTIVITY-LOG.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-024` in [`features/features.yml`](../features/features.yml) (`status: planned`). Requirements: FR7–FR15, NFR4–NFR6 in the root… |
 | [`docs/prd/HARNESS-PIPELINE-MAP.md`](prd/HARNESS-PIPELINE-MAP.md) | **Status: Draft / proposed.** Data layer implemented in this PR; the console page is specified, not built. Features: `HUB-025` (pipeline map) and `HUB-026` (GitHub workflow nodes) in [`features/features.yml`](../features/features.yml).… |
-| [`docs/prd/SCHEMA.md`](prd/SCHEMA.md) | Sub-PRDs: detail for feature areas whose requirement ids are owned by the root `PRD.md`. |
+| [`docs/prd/SCHEMA.md`](prd/SCHEMA.md) | Sub-PRDs: detailed product requirements for one feature area. The root `PRD.md` owns every requirement id (`FRn`/`NFRn`); a sub-PRD expands them and is linked from it and from the feature's `docs:` in `features/features.yml`. |
 
 <!-- AUTO:docs-index:end -->

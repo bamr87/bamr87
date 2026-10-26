@@ -102,6 +102,9 @@ definitions:
     # any other version (older than vN-1, or newer than vN) fails
   spec_driven_kit: hub:templates/spec-driven/tools/          # canonical copies (kit path, top level)
   spec_driven_tools: [spec_validator.py, backlog_lint.py, next_backlog_id.py, pick_backlog_item.py]
+  # By-reference consumption: a job-level `uses:` value (uses_keys) matched up to the '@'.
+  # The reusable gate runs both tools from the hub kit, so a caller vendors nothing.
+  spec_gate_workflow: bamr87/bamr87/.github/workflows/spec-gate.yml
   changelog: CHANGELOG.md
   release_files: [release-please-config.json, .release-please-manifest.json]
   # Matched against a job-level `uses:` value (uses_keys), up to the '@'.
@@ -251,12 +254,15 @@ rules:
     binds_when: "modules.spec_driven is true; otherwise the rule passes"
     mode: offline
     rollout: warn
-    reads: ["specs/[0-9][0-9][0-9]-*/spec.md", BACKLOG.md, ".github/workflows/*.y*ml", spec_driven_tools]
+    reads: ["specs/[0-9][0-9][0-9]-*/spec.md", BACKLOG.md, ".github/workflows/*.y*ml", spec_driven_tools, spec_gate_workflow]
     pass: >-
-      >= 1 spec package; BACKLOG.md exists; one workflow job runs spec_validator.py and
-      every other job in that workflow transitively `needs` it (its own prerequisites
-      excepted); that workflow also runs backlog_lint.py; every tracked file whose
-      basename is in spec_driven_tools is byte-identical to spec_driven_kit/<basename>.
+      >= 1 spec package; BACKLOG.md exists; one workflow job is the spec gate — it either
+      `uses:` spec_gate_workflow (by reference, any ref; UPS-WORK-10 governs the ref) or
+      runs spec_validator.py itself — and every other job in that workflow transitively
+      `needs` it (its own prerequisites excepted); an in-repo gate also runs
+      backlog_lint.py in that workflow (the reusable gate runs it for the caller); every
+      tracked file whose basename is in spec_driven_tools is byte-identical to
+      spec_driven_kit/<basename> (a by-reference consumer tracks none).
     fail: "any clause above"
 
   UPS-WORK-08:

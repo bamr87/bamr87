@@ -76,7 +76,7 @@ Self-growing knowledge bases, study material and learning platforms.
 
 Applications and experiments built on LLMs.
 
-- **[law-ai](https://github.com/bamr87/law-ai)**: Open legal intelligence platform prototype: Django, CrewAI agents and a Neo4j knowledge graph, local-first via Ollama. · [live site](https://bamr87.github.io/law-ai/) · `🧪 experimental`
+- **[law-ai](https://github.com/bamr87/law-ai)**: Open legal-intelligence platform for prospective law students (LSAT lab), law students and practicing lawyers: Django + CrewAI/LangGraph agents over a Neo4j knowledge graph, Claude-first provider chain with a local Ollama tier. Runs the fleet's spec-driven loop by reference. · [live site](https://bamr87.github.io/law-ai/) · `🧪 experimental`
 - **[ocrmd](https://github.com/bamr87/ocrmd)**: Scan books and pages into cross-checked Markdown: local OCR diffed against a Claude vision read, with full-text search.
 - **[outbox](https://github.com/bamr87/outbox)**: Async competitive outbox harness for three agents: mailbox protocol, injected lag, confidence race and replay scorer. · `🧪 experimental`
 

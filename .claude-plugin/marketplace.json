@@ -1,0 +1,14 @@
+{
+  "name": "bamr87",
+  "owner": { "name": "bamr87", "url": "https://github.com/bamr87" },
+  "description": "Claude Code plugins published by the bamr87 fleet hub. Each plugin is a kit under templates/ that member repos consume by reference instead of vendoring.",
+  "plugins": [
+    {
+      "name": "spec-driven",
+      "source": "./templates/spec-driven",
+      "description": "The fleet's spec-driven SDLC loop (/spec-driven:specify … /spec-driven:evolve), the spec/backlog gate hook, and the backlog-triager agent. Docs: docs/SPEC-DRIVEN.md.",
+      "category": "development",
+      "tags": ["sdlc", "specs", "backlog"]
+    }
+  ]
+}

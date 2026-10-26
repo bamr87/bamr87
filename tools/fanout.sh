@@ -64,7 +64,10 @@
 #   community / sdlc / spec-driven / agent-context seed the templates/ kits of
 #   the same name, additive-only: a missing file is seeded, an unmodified
 #   machine seed is reported (or refreshed with --upgrade), and a hand-modified
-#   file is never touched. sdlc follows decision D4 (AGENTS.md canonical,
+#   file is never touched. spec-driven seeds both consumption modes: the
+#   by-reference files (tools/fleet-kit.sh, the spec-gate.yml caller) and the
+#   vendored tools; the Claude Code plugin half is enabled per repo in
+#   .claude/settings.json (templates/spec-driven/README.md). sdlc follows decision D4 (AGENTS.md canonical,
 #   CLAUDE.md a `@AGENTS.md` pointer) and pins its release-please caller to
 #   the hub's current major tag (RP_PIN). agent-context is the standardize
 #   kit's agent-context artifacts as a kit of its own.
@@ -390,7 +393,7 @@ case "$KIT" in
     BRANCH="chore/spec-driven-kit"
     COMMIT_MSG="chore(spec-driven): adopt the spec-driven kit (kit v${SD_VERSION})"
     PR_TITLE="chore(spec-driven): adopt the spec-driven kit"
-    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit spec-driven): vendors the AO-SDLC gates byte-for-byte (tools/spec_validator.py, backlog_lint.py, next_backlog_id.py, pick_backlog_item.py and hooks/gate-check.sh; UPS-WORK-07 byte-identity files) and seeds specs/_template/, BACKLOG.md and docs/constitution.md only where absent.\n\nAdditive-only: a hand-modified copy is left alone (pre-kit copies matching the archive are upgradeable with --upgrade). **Before merge**: declare `modules: { spec_driven: true }` and `backlog: { mode: file, file: BACKLOG.md }` in .github/sdlc.yml, and add the CI job that runs both gates. See bamr87/bamr87 templates/spec-driven/README.md.')"
+    PR_BODY="$(printf 'Automated by bamr87 (tools/fanout.sh --kit spec-driven): seeds the spec-driven kit — the by-reference half (tools/fleet-kit.sh, the resolver `make lint-specs` runs the hub tools through, and the .github/workflows/spec-gate.yml caller of the reusable fleet spec gate) plus the vendored tools for repos that keep local copies (tools/spec_validator.py, backlog_lint.py, next_backlog_id.py, pick_backlog_item.py and hooks/gate-check.sh; UPS-WORK-07 byte-identity files), and specs/_template/, BACKLOG.md and docs/constitution.md only where absent.\n\nAdditive-only: a hand-modified copy is left alone (pre-kit copies matching the archive are upgradeable with --upgrade). **Before merge**: declare `modules: { spec_driven: true }` and `backlog: { mode: file, file: BACKLOG.md }` in .github/sdlc.yml; enable the `spec-driven@bamr87` Claude Code plugin in .claude/settings.json; and either keep the seeded caller or move its `uses:` job into ci.yml so the other jobs can `needs:` it. See bamr87/bamr87 templates/spec-driven/README.md and docs/SPEC-DRIVEN.md.')"
     ;;
   governance)
     BRANCH="docs/feature-catalog"
@@ -1005,7 +1008,14 @@ seed_spec_driven() {  # cwd = target clone; $1 repo name, $2 default branch
     seed_vendored_asset "tools/$f.py" "$kit/tools/$f.py" "tools/$f.py" "$SD_VERSION" py "$kit/archive"
   done
   seed_vendored_asset hooks/gate-check.sh "$kit/hooks/gate-check.sh" hooks/gate-check.sh "$SD_VERSION" sh "$kit/archive"
-  chmod +x tools/*.py hooks/gate-check.sh 2>/dev/null || true
+  # By-reference half (kit 0.2.0): the resolver `make lint-specs` runs the hub's
+  # tools through, and the caller of the reusable spec-gate.yml. A repo that
+  # keeps its gate inside ci.yml (so other jobs can `needs:` it) deletes the
+  # standalone caller after moving the `uses:` job there.
+  seed_vendored_asset tools/fleet-kit.sh "$kit/fleet-kit.sh" tools/fleet-kit.sh "$SD_VERSION" sh "$kit/archive"
+  seed_workflow_artifact "spec-gate.yml" .github/workflows/spec-gate.yml \
+    "$kit/workflows/spec-gate.yml" "$name" "$def" "$SD_VERSION"
+  chmod +x tools/*.py tools/fleet-kit.sh hooks/gate-check.sh 2>/dev/null || true
   # Templates: seeded once, then owned by the repo.
   for f in spec plan tasks; do
     seed_once "specs/_template/$f.md" "specs/_template/$f.md" "$kit/specs/_template/$f.md" "$name" "$def" "$SD_VERSION"
