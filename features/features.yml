@@ -372,3 +372,30 @@ features:
     date: 2026-10-25
     tests:
       - {na: "design-only PRD; nothing implemented yet"}
+  # ------------------------------------------------------------ pipeline map
+  - id: HUB-025
+    title: "Harness pipeline map (proposed)"
+    description: "One map of every harness loop and AI routine — fan-out routine (dry-run, merge block), router, seven bot task handlers, fire-and-forget log wrapper, log store, drift query, console — with running/idle/failed status from the activity log (HUB-024) and job status, and a drill-down to events, PRs, standard version and amendment links. Data layer built (tools/pipeline_map.py); console page specified."
+    implemented: false
+    status: planned
+    prd: [FR16, FR17, FR18, FR19, FR20, NFR7]
+    surface: infra
+    link: docs/prd/HARNESS-PIPELINE-MAP.md
+    docs: docs/prd/HARNESS-PIPELINE-MAP.md
+    tags: [ harness, console, diagrams, activity-log ]
+    date: 2026-10-25
+    tests:
+      - tools/test_pipeline_map.py
+  - id: HUB-026
+    title: "GitHub workflow nodes on the pipeline map (proposed)"
+    description: "Every .github/workflows file is a node on the pipeline map showing its triggers, cron schedule and last run status (pass/fail), retrieved from the GitHub API and refreshable on demand (tools/pipeline_map.py --refresh-runs; console Refresh button specified)."
+    implemented: false
+    status: planned
+    prd: [FR21]
+    surface: infra
+    link: docs/prd/HARNESS-PIPELINE-MAP.md
+    docs: docs/prd/HARNESS-PIPELINE-MAP.md
+    tags: [ harness, console, github, workflows ]
+    date: 2026-10-25
+    tests:
+      - tools/test_pipeline_map.py

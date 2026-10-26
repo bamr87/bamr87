@@ -27,6 +27,8 @@ coverage: listed
 | `docker_harmonize.py` | file | The fleet Docker standard's transformer (`dash docker`, `fanout.sh --kit docker`): image versions from `_data/fleet.yml` `images:`, loopback env-overridable ports, no container_name, 127.0.0.1 healthchecks, Postgres 18 mount — line edits that preserve comments; idempotent (docs/DOCKER.md) | required |
 | `docker_view.py` | file | Builds the consolidated `/docker/` dashboard: joins `_data/ports.yml`, `_data/fleet.yml` `images:`, `_data/smoke.yml`, `.vscode/launch.json` and the read-only harmonizer audit into `_data/docker.yml` (`dash docker view --write`) | required |
 | `test_docker_harmonize.py` | file | Fixture tests for the transformer — every rule, pin logic, never-downgrade, idempotency | required |
+| `pipeline_map.py` | file | Builds the harness pipeline map view model (HUB-025, HUB-026): pipeline definition + activity-log events + job and workflow run status → node statuses and drill-downs; read-only (docs/prd/HARNESS-PIPELINE-MAP.md) | |
+| `test_pipeline_map.py` | file | Offline tests for the pipeline map: definition integrity, status rules over the example fixture, unavailable log, workflow triggers/schedule/last run | |
 | `test_docker_view.py` | file | Tests for the consolidated Docker view — contract-precision version comparison, the image census, pin/ceiling/floating classification, and that a missing checkout is never reported as conformance (run by drift check (n)) | required |
 | `pg-major-upgrade.sh` | file | Postgres MAJOR upgrade for a compose service without data loss: raw-volume backup + `pg_dumpall` + restore; `--check` powers the `dash dev up` preflight (`dash dev db-upgrade`) | required |
 | `Brewfile` | file | macOS dev dependencies | |
