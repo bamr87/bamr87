@@ -1,11 +1,13 @@
 kit: governance
-version: 0.1.0
+version: 0.1.1
 source: bamr87/bamr87 templates/governance/
 seeded-by: tools/fanout.sh --kit governance (branch docs/feature-catalog); validated by tools/governance_lint.py
 files: constitution.template.md, docs/amendments/README.template.md, docs/amendments/0000-template.md, docs/amendments/0001-ratify-constitution.template.md
 spec: specs/WORK.md UPS-WORK-15 (PRD <-> feature catalog), UPS-WORK-16 (constitution + amendment log)
-updated: 2026-10-21
+updated: 2026-10-26
 changelog: |
+  0.1.1: docs/amendments/README gains a `> summary` line under its H1, so a
+    seeded repo passes docs_index.py --lint (law-ai main went red on it).
   0.1.0: initial kit. Lifted, not invented:
   - constitution: bamr87/law-ai docs/constitution.md (the fleet's only ratified
     constitution: mission, locked stack, gates, HITL, spec workflow, autonomy,
