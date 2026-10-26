@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-25T06:03:52Z'
+generated_at: '2026-10-26T06:08:59Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,9 +17,9 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 23
-  implemented: 23
-  covered: 23
+  features: 27
+  implemented: 24
+  covered: 27
   evidenced: 8
   verified: 8
   ui: 12
@@ -29,9 +29,9 @@ totals:
   screenshots: 28
   dangling: 0
 pct:
-  coverage: 100
-  evidence: 35
-  verified: 35
+  coverage: 112
+  evidence: 33
+  verified: 33
   ui_coverage: 100
 attention: []
 repos:
@@ -62,9 +62,9 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 23
-    implemented: 23
-    covered: 23
+    features: 27
+    implemented: 24
+    covered: 27
     evidenced: 8
     verified: 8
     ui: 12
@@ -73,8 +73,8 @@ repos:
     dangling: 0
   pct:
     coverage: 100
-    evidence: 35
-    verified: 35
+    evidence: 33
+    verified: 33
   last_run: null
   gaps: []
   items:
@@ -928,6 +928,138 @@ repos:
       evidence: []
       tests:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_governance_lint.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-024
+    title: Fleet activity log (proposed)
+    surface: infra
+    implemented: false
+    link: null
+    docs: docs/prd/FLEET-ACTIVITY-LOG.md
+    tags:
+    - fleet
+    - observability
+    - governance
+    - prd
+    date: '2026-10-25'
+    provenance: null
+    tests: []
+    waived:
+    - design-only PRD; nothing implemented yet
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Design only (Draft): append-only log of bot decisions incl. declined, blocked-handoff and retry events, linked
+      to amendments, written fire-and-forget, with a standard-version drift query, read by the Harness Console.'
+    urls:
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/FLEET-ACTIVITY-LOG.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-025
+    title: Harness pipeline map (proposed)
+    surface: infra
+    implemented: false
+    link: docs/prd/HARNESS-PIPELINE-MAP.md
+    docs: docs/prd/HARNESS-PIPELINE-MAP.md
+    tags:
+    - harness
+    - console
+    - diagrams
+    - activity-log
+    date: '2026-10-25'
+    provenance: null
+    tests:
+    - tools/test_pipeline_map.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: One map of every harness loop and AI routine — fan-out routine (dry-run, merge block), router, seven bot task
+      handlers, fire-and-forget log wrapper, log store, drift query, console — with running/idle/failed status from the activity
+      log (HU
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/HARNESS-PIPELINE-MAP.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/HARNESS-PIPELINE-MAP.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_pipeline_map.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-026
+    title: GitHub workflow nodes on the pipeline map (proposed)
+    surface: infra
+    implemented: false
+    link: docs/prd/HARNESS-PIPELINE-MAP.md
+    docs: docs/prd/HARNESS-PIPELINE-MAP.md
+    tags:
+    - harness
+    - console
+    - github
+    - workflows
+    date: '2026-10-25'
+    provenance: null
+    tests:
+    - tools/test_pipeline_map.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Every .github/workflows file is a node on the pipeline map showing its triggers, cron schedule and last run status
+      (pass/fail), retrieved from the GitHub API and refreshable on demand (tools/pipeline_map.py --refresh-runs; console
+      Refresh b
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/HARNESS-PIPELINE-MAP.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/HARNESS-PIPELINE-MAP.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_pipeline_map.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-027
+    title: Backlog fan-out routine
+    surface: infra
+    implemented: true
+    link: .github/workflows/backlog-fanout.yml
+    docs: docs/BACKLOG-FANOUT.md
+    tags:
+    - fan-out
+    - backlog
+    - automation
+    - activity-log
+    date: '2026-10-25'
+    provenance: null
+    tests:
+    - tools/test_backlog_fanout.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Scheduled (daily default, weekly option) routine that reads the pending hub backlog (open issues, PRD requirements
+      no shipped feature serves, catalog features not shipped), maps each item to the fleet repos it applies to (labels, applies_to
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.github/workflows/backlog-fanout.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/BACKLOG-FANOUT.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_backlog_fanout.py
       scenarios: []
       screenshots: []
   truncated: false
