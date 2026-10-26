@@ -26,6 +26,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/COCKPIT.md`](COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`docs/CONSOLE-PAGES.md`](CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
 | [`docs/CONSOLIDATION.md`](CONSOLIDATION.md) | The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open. |
+| [`docs/constitution.md`](constitution.md) | The rules every change to this repo must satisfy, whoever makes it — a human or an AI agent. Agents read this before [AGENTS.md](../AGENTS.md) conventions, the [PRD](../PRD.md), or the [feature catalog](../features/features.yml). Ratified… |
 | [`docs/CONTAINERS.md`](CONTAINERS.md) | How some two dozen compose files run as one fleet: the shared network, Postgres and Redis, the registry-driven port map, the generated overrides, and `dash up`. |
 | [`docs/CONTENT-ATLAS.md`](CONTENT-ATLAS.md) | Content observability and editorial direction for the fleet's content sites, and the committed editorial plan in `_data/editorial.yml`. |
 | [`docs/DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`): gather every signal, rank the failing and expensive workflows into one queue, and let the doctor open the fixes. |
@@ -57,5 +58,13 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
 | [`docs/WORKFLOW-VERSIONING.md`](WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back. |
 | [`docs/adr/`](adr/README.md) | Decisions for bamr87 that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each. |
+| [`docs/amendments/`](amendments/README.md) | The append-only log of changes to [the constitution](constitution.md). |
+
+### `docs/prd/`
+
+| Document | What it covers |
+| --- | --- |
+| [`docs/prd/HARNESS-PIPELINE-MAP.md`](prd/HARNESS-PIPELINE-MAP.md) | **Status: Draft / proposed.** Data layer implemented in this PR; the console page is specified, not built. Features: `HUB-025` (pipeline map) and `HUB-026` (GitHub workflow nodes) in [`features/features.yml`](../features/features.yml).… |
+| [`docs/prd/SCHEMA.md`](prd/SCHEMA.md) | Sub-PRDs: detail for feature areas whose requirement ids are owned by the root `PRD.md`. |
 
 <!-- AUTO:docs-index:end -->

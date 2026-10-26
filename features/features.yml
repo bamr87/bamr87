@@ -359,6 +359,46 @@ features:
     date: 2026-10-21
     tests:
       - tools/test_governance_lint.py
+  # ------------------------------------------------------------ observability
+  - id: HUB-024
+    title: "Fleet activity log (proposed)"
+    description: "Design only (Draft): append-only log of bot decisions incl. declined, blocked-handoff and retry events, linked to amendments, written fire-and-forget, with a standard-version drift query, read by the Harness Console."
+    implemented: false
+    status: planned
+    prd: [FR7, FR8, FR9, FR10, FR11, FR12, FR13, FR14, FR15, NFR4, NFR5, NFR6]
+    surface: infra
+    docs: docs/prd/FLEET-ACTIVITY-LOG.md
+    tags: [ fleet, observability, governance, prd ]
+    date: 2026-10-25
+    tests:
+      - {na: "design-only PRD; nothing implemented yet"}
+  # ------------------------------------------------------------ pipeline map
+  - id: HUB-025
+    title: "Harness pipeline map (proposed)"
+    description: "One map of every harness loop and AI routine — fan-out routine (dry-run, merge block), router, seven bot task handlers, fire-and-forget log wrapper, log store, drift query, console — with running/idle/failed status from the activity log (HUB-024) and job status, and a drill-down to events, PRs, standard version and amendment links. Data layer built (tools/pipeline_map.py); console page specified."
+    implemented: false
+    status: planned
+    prd: [FR16, FR17, FR18, FR19, FR20, NFR7]
+    surface: infra
+    link: docs/prd/HARNESS-PIPELINE-MAP.md
+    docs: docs/prd/HARNESS-PIPELINE-MAP.md
+    tags: [ harness, console, diagrams, activity-log ]
+    date: 2026-10-25
+    tests:
+      - tools/test_pipeline_map.py
+  - id: HUB-026
+    title: "GitHub workflow nodes on the pipeline map (proposed)"
+    description: "Every .github/workflows file is a node on the pipeline map showing its triggers, cron schedule and last run status (pass/fail), retrieved from the GitHub API and refreshable on demand (tools/pipeline_map.py --refresh-runs; console Refresh button specified)."
+    implemented: false
+    status: planned
+    prd: [FR21]
+    surface: infra
+    link: docs/prd/HARNESS-PIPELINE-MAP.md
+    docs: docs/prd/HARNESS-PIPELINE-MAP.md
+    tags: [ harness, console, github, workflows ]
+    date: 2026-10-25
+    tests:
+      - tools/test_pipeline_map.py
   - id: HUB-027
     title: "Backlog fan-out routine"
     description: "Scheduled (daily default, weekly option) routine that reads the pending hub backlog (open issues, PRD requirements no shipped feature serves, catalog features not shipped), maps each item to the fleet repos it applies to (labels, applies_to, title, config), and opens or updates one idempotent tracking PR per item and repo through tools/fanout.sh --kit backlog, linking feature ids to PRD requirements; never merges, dry run until _data/backlog_fanout.yml apply: true. Emits every fanned-out/skipped/failed decision to the fleet activity log queue (schema from the activity-log PRD, bamr87/bamr87#409, HUB-024); the store and flusher endpoint arrive with that PRD, so events are queued locally and uploaded as an artifact for now."

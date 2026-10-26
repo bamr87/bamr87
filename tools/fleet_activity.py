@@ -22,7 +22,17 @@ Event fields: event_id, ts (UTC), bot_id, repo, task_ref, run_id, event_type
 (start|finish|declined|blocked_handoff|retry), standard_version,
 standard_source, decision, outcome (success|failure|skipped|pending|unknown),
 detail (JSON), amendments ([{amendment, repo, relation}] — the
-fleet_event_amendment rows, FR9).
+fleet_event_amendment rows, FR9). Top-level fields are exactly the
+fleet_event columns of docs/prd/FLEET-ACTIVITY-LOG.md §3; run-local flags such
+as dry_run live in ``detail``. Typed events carry the required ``detail``
+fields of §4 (missing ones are filled with null, enums normalised):
+
+  declined         reason (out_of_scope|policy|needs_approval|insufficient_info|other),
+                   reason_text, rule_ref (optional)                       FR12
+  blocked_handoff  blocked_by, handoff_to, why, resolution
+                   (resolved|abandoned|open), resolution_text, resolved_ts FR13
+  retry            attempt (1-based), max_attempts, cause,
+                   final_outcome (success|gave_up|pending)                FR14
 
 Stdlib only. Used by tools/backlog_fanout.py; reusable by any lane.
 """
@@ -38,6 +48,41 @@ from pathlib import Path
 EVENT_TYPES = {"start", "finish", "declined", "blocked_handoff", "retry"}
 OUTCOMES = {"success", "failure", "skipped", "pending", "unknown"}
 DEFAULT_MAX_EVENTS = 5000
+RELATIONS = {"followed", "cited_for_decline", "conflicted"}
+
+# docs/prd/FLEET-ACTIVITY-LOG.md §4: required detail fields + enum values (None = free).
+TYPED_DETAIL: dict[str, dict[str, set | None]] = {
+    "declined": {"reason": {"out_of_scope", "policy", "needs_approval", "insufficient_info", "other"},
+                 "reason_text": None, "rule_ref": None},
+    "blocked_handoff": {"blocked_by": None, "handoff_to": None, "why": None,
+                        "resolution": {"resolved", "abandoned", "open"},
+                        "resolution_text": None, "resolved_ts": None},
+    "retry": {"attempt": None, "max_attempts": None, "cause": None,
+              "final_outcome": {"success", "gave_up", "pending"}},
+}
+_ENUM_FALLBACK = {"reason": "other", "resolution": "open", "final_outcome": "pending"}
+
+
+def typed_detail(event_type: str, detail: dict | None) -> dict:
+    """Fill/normalise the §4 type-specific detail fields for ``event_type``."""
+    d = dict(detail or {})
+    for key, allowed in TYPED_DETAIL.get(event_type, {}).items():
+        val = d.get(key)
+        if allowed is not None and val not in allowed:
+            val = _ENUM_FALLBACK[key]
+        d[key] = val
+    return d
+
+
+def amendment_rows(amendments: list[dict] | None) -> list[dict]:
+    """fleet_event_amendment rows (FR9): amendment, repo, relation."""
+    rows = []
+    for a in amendments or []:
+        rel = a.get("relation")
+        rows.append({"amendment": str(a.get("amendment", "")),
+                     "repo": a.get("repo") or "bamr87/bamr87",
+                     "relation": rel if rel in RELATIONS else "followed"})
+    return rows
 
 _SECRET_RX = re.compile(
     r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}"
@@ -98,6 +143,10 @@ class Activity:
              standard_source: str = "", detail: dict | None = None,
              amendments: list[dict] | None = None) -> dict | None:
         try:
+            if event_type not in EVENT_TYPES:
+                event_type = "finish"
+            detail = typed_detail(event_type, detail)
+            detail.setdefault("dry_run", self.dry_run)
             ev = {
                 "event_id": str(uuid.uuid4()),
                 "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -105,14 +154,13 @@ class Activity:
                 "repo": repo,
                 "task_ref": task_ref,
                 "run_id": self.run_id,
-                "event_type": event_type if event_type in EVENT_TYPES else "finish",
+                "event_type": event_type,
                 "standard_version": standard or "unknown",
                 "standard_source": standard_source,
                 "decision": decision,
                 "outcome": outcome if outcome in OUTCOMES else "unknown",
-                "detail": detail or {},
-                "amendments": amendments or [],
-                "dry_run": self.dry_run,
+                "detail": detail,
+                "amendments": amendment_rows(amendments),
             }
             ev = redact(ev)
             self._append(ev)
@@ -121,6 +169,27 @@ class Activity:
         except Exception:  # NFR4: logging never fails the work
             self.errors += 1
             return None
+
+    def declined(self, *, repo: str, task_ref: str, decision: str, reason: str,
+                 reason_text: str = "", rule_ref: str | None = None, **kw) -> dict | None:
+        detail = {**kw.pop("detail", {}), "reason": reason, "reason_text": reason_text, "rule_ref": rule_ref}
+        kw.setdefault("outcome", "skipped")
+        return self.emit("declined", repo=repo, task_ref=task_ref, decision=decision, detail=detail, **kw)
+
+    def blocked_handoff(self, *, repo: str, task_ref: str, decision: str, blocked_by: str,
+                        handoff_to: str, why: str, resolution: str = "open",
+                        resolution_text: str = "", resolved_ts: str | None = None, **kw) -> dict | None:
+        detail = {**kw.pop("detail", {}), "blocked_by": blocked_by, "handoff_to": handoff_to, "why": why,
+                  "resolution": resolution, "resolution_text": resolution_text, "resolved_ts": resolved_ts}
+        kw.setdefault("outcome", "pending")
+        return self.emit("blocked_handoff", repo=repo, task_ref=task_ref, decision=decision, detail=detail, **kw)
+
+    def retry(self, *, repo: str, task_ref: str, decision: str, attempt: int, max_attempts: int,
+              cause: str, final_outcome: str = "pending", **kw) -> dict | None:
+        detail = {**kw.pop("detail", {}), "attempt": attempt, "max_attempts": max_attempts,
+                  "cause": cause, "final_outcome": final_outcome}
+        kw.setdefault("outcome", "failure")
+        return self.emit("retry", repo=repo, task_ref=task_ref, decision=decision, detail=detail, **kw)
 
     def _append(self, ev: dict) -> None:
         self.queue.parent.mkdir(parents=True, exist_ok=True)
@@ -140,7 +209,7 @@ class Activity:
             "bot_id": self.bot_id, "repo": "", "task_ref": "", "run_id": self.run_id,
             "event_type": "finish", "standard_version": "unknown", "standard_source": "",
             "decision": "spool overflow", "outcome": "unknown",
-            "detail": {"dropped": dropped}, "amendments": [], "dry_run": self.dry_run,
+            "detail": {"dropped": dropped, "dry_run": self.dry_run}, "amendments": [],
         }
         self.queue.write_text("\n".join(keep + [json.dumps(marker, sort_keys=True)]) + "\n",
                               encoding="utf-8")

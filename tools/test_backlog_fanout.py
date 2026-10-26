@@ -148,7 +148,7 @@ class DryRun(unittest.TestCase):
         self.assertIn("skip label agent:blocked", reasons)
         self.assertIn("unmapped: no applies_to target", reasons)
         evs = events(self.q)
-        self.assertTrue(all(e["dry_run"] for e in evs))
+        self.assertTrue(all(e["detail"]["dry_run"] for e in evs))
         self.assertIn("declined", {e["event_type"] for e in evs})
         self.assertEqual(r["activity"]["flush"], "kept-dry-run")
         alpha = next(e for e in evs if e["repo"] == "bamr87/alpha")
@@ -219,6 +219,31 @@ class GracefulDegradation(unittest.TestCase):
         evs = events(q)
         self.assertEqual(len(evs), 3)
         self.assertIn("dropped", evs[-1]["detail"])
+
+
+class SchemaConformance(unittest.TestCase):
+    """Events match docs/prd/FLEET-ACTIVITY-LOG.md §3/§4 (HUB-024)."""
+    COLUMNS = {"event_id", "ts", "bot_id", "repo", "task_ref", "run_id", "event_type", "standard_version",
+               "standard_source", "decision", "outcome", "detail", "amendments"}
+
+    def test_typed_events_and_columns(self):
+        q = Path(tempfile.mkdtemp()) / "q.jsonl"
+        a = fa.Activity("backlog-fanout", queue=q)
+        a.declined(repo="r", task_ref="t", decision="skip", reason="bogus", reason_text="x")
+        a.blocked_handoff(repo="r", task_ref="t", decision="wait", blocked_by="human", handoff_to="ops", why="approval")
+        a.retry(repo="r", task_ref="t", decision="retry", attempt=1, max_attempts=2, cause="boom")
+        a.emit("finish", repo="r", task_ref="t", decision="d",
+               amendments=[{"amendment": "0001", "relation": "followed"}])
+        evs = events(q)
+        for e in evs:
+            self.assertEqual(set(e), self.COLUMNS)
+        d, b, r, f = (e["detail"] for e in evs)
+        self.assertEqual(d["reason"], "other")
+        self.assertIn("rule_ref", d)
+        self.assertEqual(set(fa.TYPED_DETAIL["blocked_handoff"]) - set(b), set())
+        self.assertEqual(b["resolution"], "open")
+        self.assertEqual(r["final_outcome"], "pending")
+        self.assertEqual(evs[3]["amendments"], [{"amendment": "0001", "repo": "bamr87/bamr87", "relation": "followed"}])
 
 
 if __name__ == "__main__":

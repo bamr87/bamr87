@@ -160,6 +160,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
 | [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`): backs up the raw volume, dumps, verifies, recreates on the new layout, r… |
+| [`pipeline_map.py`](tools/pipeline_map.py) | pipeline_map.py — the data layer of the harness pipeline map (HUB-025, HUB-026). |
 | [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
 | [`render-diagrams.sh`](tools/render-diagrams.sh) | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
 | [`run-all-tests.sh`](tools/run-all-tests.sh) | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
@@ -181,6 +182,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
+| [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |

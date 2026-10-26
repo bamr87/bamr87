@@ -356,7 +356,7 @@ def run(args, gh: Gh | None = None, now: datetime | None = None, runner=None) ->
                 act.emit("retry", repo=t["slug"], task_ref=item["ref"], decision=f"retry {action}", outcome="failure",
                          standard=std, standard_source=std_src,
                          detail={"attempt": a, "max_attempts": 2, "cause": last,
-                                 "final_outcome": "success" if ok else "gave_up"})
+                                 "final_outcome": ("success" if ok else "gave_up") if a == n - 1 else "pending"})
             entry["log"] = last
             (report["succeeded"] if ok else report["failed"]).append(entry)
             act.emit("finish", repo=t["slug"], task_ref=item["ref"], decision=f"{action} on {branch}",
