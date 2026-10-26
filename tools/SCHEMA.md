@@ -35,6 +35,9 @@ coverage: listed
 | `setup-terminal.sh` | file | macOS CHUI bootstrap (bashOS `chui/` + Meslo CoreText registration) | |
 | `devtools.conf` | file | Shared config for the devtools scripts | |
 | `fanout.sh` | file | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard (called by standardize-fanout.yml, schema-fanout.yml, and deps-fanout.yml) | |
+| `backlog_fanout.py` | file | The backlog fan-out routine (HUB-027, FR22) — pending hub issues / unserved PRD requirements / unshipped features → idempotent `backlog/<item>` PRs in the repos they apply to via `fanout.sh --kit backlog`; dry-run default, never merges (backlog-fanout.yml; docs/BACKLOG-FANOUT.md) | |
+| `fleet_activity.py` | file | Fire-and-forget fleet activity log client (FR23) — event schema from the activity-log PRD (#409), bounded redacted JSONL spool, best-effort flush; never raises | |
+| `test_backlog_fanout.py` | file | Fixture tests for backlog_fanout.py + fleet_activity.py — mapping, idempotent update, cadence, cap, retries, graceful degradation of the activity log (run by python-tests.yml) | |
 | `unpin-deps.sh` | file | Converts one repo to the always-latest dependency policy — strips pins, removes + gitignores lockfiles, adapts CI installs (used by the deps-latest fan-out kit; docs/DEPENDENCIES.md) | |
 | `issue-evidence.sh` | file | Builds one issue's evidence bundle in an isolated virtual environment — clone, toolchain install, lint/test/build, screenshots, candidate files (tier 1 of docs/ISSUE-PIPELINE.md) | |
 | `features_index.py` | file | The fleet features index — validates a repo's `features/features.yml`, grades verification coverage from files on disk, aggregates every submodule → `_data/features_index.yml` (`dash features`; docs/VERIFICATION.md) | |

@@ -38,6 +38,7 @@
 #   tools/fanout.sh --kit spec-driven --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit agent-context --target <name|all> [--apply] [--upgrade]
 #   tools/fanout.sh --kit governance --target <name|all> [--apply]
+#   tools/fanout.sh --kit backlog --target <name> [--apply]   (env from tools/backlog_fanout.py)
 #
 #   community takes --artifacts too (default: everything): pr-template,
 #   issue-forms,codeowners,dependabot,contributing,security,coc. Repos under an
@@ -141,6 +142,12 @@
 #                kit artifacts — the sanctioned exception to ".claude/ never
 #                fans out"). runner.mjs and verify.yml are upgradeable
 #                machine seeds (archive/<file>-<ver>.yml).
+#   backlog      branch backlog/<item-id> (FANOUT_BRANCH); ONE hub backlog
+#                item per call, driven by tools/backlog_fanout.py — seeds
+#                FANOUT_BACKLOG_FILE at FANOUT_BACKLOG_PATH, PR title/body from
+#                FANOUT_PR_TITLE/FANOUT_BACKLOG_BODY; with FANOUT_PR_UPDATE=1 an
+#                open PR on the branch is edited instead of duplicated
+#                (docs/BACKLOG-FANOUT.md)
 #   governance   branch docs/feature-catalog; the GOVERNANCE kit
 #                (templates/governance/, specs/WORK.md UPS-WORK-15/16):
 #                docs/constitution.md (only when neither it nor CONSTITUTION.md
@@ -306,8 +313,8 @@ seed_workflow_artifact() {  # $1 label, $2 dest, $3 template, $4 name, $5 branch
 }
 
 case "$KIT" in
-  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance) ;;
-  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance> --target <name|all> [--artifacts csv] [--apply]" >&2
+  standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog) ;;
+  *) echo "usage: tools/fanout.sh --kit <standardize|schema|prose|deps-latest|docker|feedback|elk|verify|site-quality|community|sdlc|spec-driven|agent-context|governance|backlog> --target <name|all> [--artifacts csv] [--apply]" >&2
      exit 2 ;;
 esac
 [[ -n "$TARGET" ]] || { echo "--target is required (submodule name, or 'all')" >&2; exit 2; }
@@ -399,6 +406,17 @@ case "$KIT" in
     COMMIT_MSG="chore(agents): adopt the agent-context kit (kit v${AC_VERSION}; ${ARTIFACTS})"
     PR_TITLE="chore(agents): adopt the agent-context kit"
     PR_BODY="Automated by bamr87 (tools/fanout.sh --kit agent-context): seeds the agent-context kit artifacts (${ARTIFACTS}). Additive-only: CLAUDE.md is seeded only when the repo has no agent file at all (AGENTS.md, CLAUDE.md, copilot-instructions, .cursorrules), and a hand-modified workflow is left alone. See bamr87/bamr87 templates/agent-context/."
+    ;;
+  backlog)
+    # Driven by tools/backlog_fanout.py (docs/BACKLOG-FANOUT.md): one item per
+    # call, everything item-specific arrives in FANOUT_BACKLOG_* env vars.
+    : "${FANOUT_BRANCH:?backlog kit needs FANOUT_BRANCH (set by tools/backlog_fanout.py)}"
+    : "${FANOUT_BACKLOG_FILE:?backlog kit needs FANOUT_BACKLOG_FILE}"
+    : "${FANOUT_BACKLOG_PATH:?backlog kit needs FANOUT_BACKLOG_PATH}"
+    BRANCH="$FANOUT_BRANCH"
+    COMMIT_MSG="chore(backlog): track ${FANOUT_BACKLOG_PATH##*/} from the hub backlog"
+    PR_TITLE="${FANOUT_PR_TITLE:-chore(backlog): hub backlog item}"
+    PR_BODY="${FANOUT_BACKLOG_BODY:-Automated by bamr87 backlog-fanout (tools/fanout.sh --kit backlog). See bamr87/bamr87 docs/BACKLOG-FANOUT.md.}"
     ;;
 esac
 # Stacking mode: one branch for every kit (see the header).
@@ -1084,6 +1102,9 @@ run_one() {
       spec-driven) seed_spec_driven "$(basename "${url%.git}")" "$def" ;;
       agent-context) seed_standardize "$(basename "${url%.git}")" "$def" ;;
       governance)  seed_governance "$(basename "${url%.git}")" "$def" ;;
+      backlog)     mkdir -p "$(dirname "$FANOUT_BACKLOG_PATH")"
+                   cp "$FANOUT_BACKLOG_FILE" "$FANOUT_BACKLOG_PATH"
+                   echo "backlog: ${FANOUT_BACKLOG_PATH} written" ;;
     esac
     if [[ -z "$(git status --porcelain)" ]]; then
       echo "${slug}: already conformant"; exit 0
@@ -1116,6 +1137,16 @@ run_one() {
         exit 0
       fi
       PR_BODY="$(printf '## %s\n\n%s' "$PR_TITLE" "$PR_BODY")"
+    fi
+    # Update mode (backlog kit): re-runs REPLACE the open PR's title/body with
+    # the current rendering instead of opening a duplicate.
+    if [[ "${FANOUT_PR_UPDATE:-0}" == "1" ]]; then
+      prnum="$(gh pr list --repo "$slug" --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
+      if [[ -n "$prnum" && "$prnum" != "null" ]]; then
+        gh pr edit "$prnum" --repo "$slug" --title "${FANOUT_PR_TITLE:-$PR_TITLE}" --body "$PR_BODY" >/dev/null
+        echo "${slug}: updated PR #${prnum}"
+        exit 0
+      fi
     fi
     gh pr create --repo "$slug" --base "$def" --head "$BRANCH" ${FANOUT_PR_DRAFT:+--draft} \
       --title "${FANOUT_PR_TITLE:-$PR_TITLE}" --body "$PR_BODY" \

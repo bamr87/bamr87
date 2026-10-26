@@ -71,6 +71,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-024](features/features.yml) | Fleet activity log (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-LOG.md`](docs/prd/FLEET-ACTIVITY-LOG.md) | FR7, FR8, FR9, FR10, FR11, FR12, FR13, FR14, FR15, NFR4, NFR5, NFR6 |
 | [HUB-025](features/features.yml) | Harness pipeline map (proposed) | planned | [`docs/prd/HARNESS-PIPELINE-MAP.md`](docs/prd/HARNESS-PIPELINE-MAP.md) | FR16, FR17, FR18, FR19, FR20, NFR7 |
 | [HUB-026](features/features.yml) | GitHub workflow nodes on the pipeline map (proposed) | planned | [`docs/prd/HARNESS-PIPELINE-MAP.md`](docs/prd/HARNESS-PIPELINE-MAP.md) | FR21 |
+| [HUB-027](features/features.yml) | Backlog fan-out routine | partial | [`.github/workflows/backlog-fanout.yml`](.github/workflows/backlog-fanout.yml) · [`docs/BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | FR6, FR22, FR23 |
 
 **Requirement → feature trace**
 
@@ -80,7 +81,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
-| FR6 | HUB-009, HUB-010, HUB-019, HUB-023 |
+| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
 | FR7 | HUB-024 |
@@ -102,6 +103,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR20 | HUB-025 |
 | NFR7 | HUB-025 |
 | FR21 | HUB-026 |
+| FR22 | HUB-027 |
+| FR23 | HUB-027 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -117,6 +120,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR7–FR15 (proposed, Draft): fleet activity log — append-only event schema (FR7), standard version stamped from the target repo's AGENTS.md (FR8), event→amendment link table (FR9), fire-and-forget handler wrapper (FR10), drift query (FR11), declined (FR12), blocked-handoff (FR13) and retry (FR14) events, Harness Console reader (FR15); see [docs/prd/FLEET-ACTIVITY-LOG.md](docs/prd/FLEET-ACTIVITY-LOG.md)
 - FR16–FR20 (proposed, Draft): harness pipeline map — pipeline definition of every loop and AI routine as nodes and edges (FR16), reads the activity log's `fleet_event` / `fleet_event_amendment` only (FR17), running/idle/failed/unknown status per node from the log and job status (FR18), drill-down to events, PRs, standard version and amendment links (FR19), polled and on-demand refresh that renders with an empty or unavailable log (FR20); see [docs/prd/HARNESS-PIPELINE-MAP.md](docs/prd/HARNESS-PIPELINE-MAP.md)
 - FR21 (proposed): Every GitHub workflow is a node in the pipeline map showing its triggers (push, pull_request, schedule, workflow_dispatch, …), its cron schedule and its last run status (pass/fail), retrieved from the GitHub API and refreshable on demand from the Harness Console
+- FR22: Pending backlog items (open hub issues, PRD requirements with no shipped feature, catalog features not shipped) are fanned out on a configurable cadence (daily default, weekly option) as idempotent PRs — one stable branch per item — in the fleet repos each item applies to, through `tools/fanout.sh`, linking feature ids to requirement ids; the routine never merges and is a dry run until explicitly switched on (`_data/backlog_fanout.yml`)
+- FR23: Every backlog fan-out decision (fanned out, skipped, failed, retried) is emitted to the fleet activity log (event schema proposed in bamr87/bamr87#409) through a fire-and-forget local queue, so an unavailable log never blocks or fails the run
 
 **Non-functional**
 
