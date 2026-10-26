@@ -49,7 +49,7 @@ All six were settled on 2026-10-03. None is a switch.
 
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
-| UPS-WORK-07 | MUST | all (`modules.spec_driven: true` only) | Spec packages `specs/NNN-slug/{spec,plan,tasks}.md` are validated by `spec_validator.py`, and `BACKLOG.md` by `backlog_lint.py`, in a CI spec-gate job that every other job in its workflow `needs`. The four shared tools are byte-identical to the hub kit's copies. | CI job + byte parity | `templates/spec-driven/` |
+| UPS-WORK-07 | MUST | all (`modules.spec_driven: true` only) | Spec packages `specs/NNN-slug/{spec,plan,tasks}.md` are validated by `spec_validator.py`, and `BACKLOG.md` by `backlog_lint.py`, in a CI spec-gate job that every other job in its workflow `needs`. The gate is consumed **by reference** (a `uses:` of the hub's reusable `spec-gate.yml`, which runs both tools from the kit; nothing vendored) or, for a repo that still vendors the tools, in-repo — and then the four shared tools are byte-identical to the hub kit's copies. | CI job (by reference or in-repo) + byte parity of any vendored copy | `templates/spec-driven/` (plugin + `spec-gate.yml` + `fleet-kit.sh`) |
 
 ## Shared workflows
 
@@ -106,6 +106,7 @@ These were open in the Wave 1 draft (raised in #316) and are settled here and in
 7. **`page_feedback`:** exempt from WORK-09's type-label clause (UPS-FB-07 owns its label), but still may not use a duplicate label.
 8. **WORK-10 vs QA-40:** the spec wins, and both rows use the same ref rule (`@vN`, `@vX.Y.Z`, full SHA; no branches). The hub's remote self-references count; local `./` paths are exempt.
 9. **Kit path:** the spec-driven tools live in `templates/spec-driven/` (a top-level kit, versioned on its own), not `templates/sdlc/spec-driven/`.
+10. **By reference (2026-10-25):** the kit is also a Claude Code plugin (`bamr87` marketplace at the hub root) and a reusable workflow (`spec-gate.yml`), so a repo need not vendor the tools at all; `tools/fleet-kit.sh` is the one file a by-reference consumer carries, for `make lint-specs` on a laptop. UPS-WORK-07 accepts either form; the byte-parity clause binds only copies a repo actually tracks. See [`docs/SPEC-DRIVEN.md`](../docs/SPEC-DRIVEN.md).
 10. **DoD wording:** the `fleet-dod` markers and the kit's box titles are the contract, not keywords.
 11. **WORK-11:** rewritten as a file check (no item lists in planning files, plus a backlog link) instead of the undefined "link check".
 

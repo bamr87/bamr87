@@ -195,13 +195,17 @@ OPT-IN continuous UX audit kit (spec: [`specs/FRONTEND.md`](../specs/FRONTEND.md
 
 ## `spec-driven/`
 
-The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [`specs/WORK.md`](../specs/WORK.md) UPS-WORK-07, contract: [`specs/WORK.contract.yml`](../specs/WORK.contract.yml)). A repo opts in with `modules: { spec_driven: true }` in `.github/sdlc.yml`. For now it is adopted by hand ([`spec-driven/README.md`](spec-driven/README.md) § Adoption); wiring it into `tools/fanout.sh --kit spec-driven` is a follow-up.
+The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [`specs/WORK.md`](../specs/WORK.md) UPS-WORK-07, contract: [`specs/WORK.contract.yml`](../specs/WORK.contract.yml), doc: [`docs/SPEC-DRIVEN.md`](../docs/SPEC-DRIVEN.md)). A repo opts in with `modules: { spec_driven: true }` in `.github/sdlc.yml` and consumes the kit **by reference**: the `spec-driven` Claude Code plugin (this directory, published by the root `.claude-plugin/marketplace.json`), the reusable `.github/workflows/spec-gate.yml`, and `fleet-kit.sh` for `make lint-specs`. `tools/fanout.sh --kit spec-driven` opens the adoption PR.
 
 | File | Purpose |
 | --- | --- |
 | `VERSION` | kit provenance + changelog |
-| `tools/{spec_validator,backlog_lint,next_backlog_id,pick_backlog_item}.py` | the stdlib gates; byte-identity files every adopter keeps identical (UPS-WORK-07) |
-| `hooks/gate-check.sh` | Claude Code PostToolUse hook that runs both gates after an edit to `BACKLOG.md` or `specs/` |
+| `.claude-plugin/plugin.json`, `skills/{specify,clarify,plan,tasks,implement,evolve}/SKILL.md`, `agents/backlog-triager.md`, `hooks/hooks.json` | the Claude Code plugin: the chain and the autopilot as namespaced skills, the triage agent, the gate hook |
+| `tools/{spec_validator,backlog_lint,next_backlog_id,pick_backlog_item}.py` | the stdlib gates; byte-identity files for any adopter that still vendors them (UPS-WORK-07) |
+| `tools/evolve_audit.py` | the discovery audit `/spec-driven:evolve` runs on an empty backlog (TODO scan, missing docs, coverage shortfall) |
+| `fleet-kit.sh` | the resolver a consumer vendors as `tools/fleet-kit.sh`: prints the kit directory (explicit env, a parent hub checkout, or a cached sparse clone) |
+| `workflows/spec-gate.yml` | caller template for the reusable `spec-gate.yml` |
+| `hooks/gate-check.sh` | the PostToolUse gate hook (plugin mode via `${CLAUDE_PLUGIN_ROOT}`, or vendored at `.claude/hooks/`) |
 | `specs/_template/` | spec, plan and tasks templates |
 | `BACKLOG.template.md`, `constitution.template.md` | seed-once `BACKLOG.md` and `docs/constitution.md` |
 | `review-questions.example.json` | the optional `specs/_review_questions.json` (law-ai's constitution §13 check, as data) |

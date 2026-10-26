@@ -1,10 +1,25 @@
 kit: spec-driven
-version: 0.1.0
+version: 0.2.0
 source: bamr87/bamr87 templates/spec-driven/
-seeded-by: none yet. Adopt by hand (README.md § Adoption); `tools/fanout.sh --kit spec-driven` is a follow-up
-files: tools/spec_validator.py, tools/backlog_lint.py, tools/next_backlog_id.py, tools/pick_backlog_item.py, hooks/gate-check.sh, specs/_template/spec.md, specs/_template/plan.md, specs/_template/tasks.md, BACKLOG.template.md, constitution.template.md, review-questions.example.json, archive/*-0.0.0-law-ai.*, archive/*-0.0.0-gitorio.*
-updated: 2026-10-03
+seeded-by: tools/fanout.sh --kit spec-driven (resolver + spec-gate caller + vendored tools; plugin enabled per repo in .claude/settings.json)
+files: .claude-plugin/plugin.json, skills/specify/SKILL.md, skills/clarify/SKILL.md, skills/plan/SKILL.md, skills/tasks/SKILL.md, skills/implement/SKILL.md, skills/evolve/SKILL.md, agents/backlog-triager.md, hooks/hooks.json, hooks/gate-check.sh, tools/spec_validator.py, tools/backlog_lint.py, tools/next_backlog_id.py, tools/pick_backlog_item.py, tools/evolve_audit.py, fleet-kit.sh, workflows/spec-gate.yml, specs/_template/spec.md, specs/_template/plan.md, specs/_template/tasks.md, BACKLOG.template.md, constitution.template.md, review-questions.example.json, archive/*-0.0.0-law-ai.*, archive/*-0.0.0-gitorio.*
+updated: 2026-10-25
 changelog: |
+  0.2.0: consumed by reference. The kit is now ALSO a Claude Code plugin
+  (`spec-driven`, published by the hub's root .claude-plugin/marketplace.json):
+  the chain and the autopilot as namespaced skills (/spec-driven:specify …
+  :evolve, lifted from law-ai's prompts/ and genericized), the backlog-triager
+  agent, and hooks/hooks.json wiring gate-check.sh with ${CLAUDE_PLUGIN_ROOT}.
+  The CI half is the hub's reusable .github/workflows/spec-gate.yml (caller
+  template in workflows/), and fleet-kit.sh is the one file a consumer vendors
+  so `make lint-specs` can run the hub's tools from a parent hub checkout or a
+  cached sparse clone. tools/evolve_audit.py (law-ai's discovery audit,
+  genericized: TODO scan, missing docs, Cobertura coverage; the LegalBench scan
+  stays in law-ai's own harness) joins the tools; its pre-kit copy is archived.
+  gate-check.sh resolves the plugin's tools first, then tools/ or scripts/.
+  UPS-WORK-07 accepts a `uses:` of spec-gate.yml as the gate job. law-ai is the
+  first by-reference consumer (its prompts/, scripts/ gates, .claude chain
+  commands, hook and evolve workflow were deleted in the same change).
   0.1.0: initial kit. The AO-SDLC gates (spec validator, backlog lint, id
   minter, evolve picker, gate-check hook) lifted from bamr87/law-ai (the
   superset) and genericized: every tool takes `--root`, the hook finds tools/
@@ -16,4 +31,4 @@ changelog: |
   the kit copies swapped in.
   archive/ holds byte-exact copies of the pre-kit tools from both repos
   (stamp 0.0.0) so an upgrader can tell an untouched copy from a hand-edited one.
-notes: The four tools/*.py files are byte-identity files (UPS-WORK-07). A repo keeps them identical to this kit and puts repo-specific behaviour in specs/_review_questions.json. Templates (spec/plan/tasks, BACKLOG, constitution) are seeded once and then owned by the repo.
+notes: The four tools/*.py gate files are byte-identity files (UPS-WORK-07) for any repo that still vendors them; a by-reference consumer vendors only fleet-kit.sh (byte-identical too). Repo-specific behaviour lives in specs/_review_questions.json. Templates (spec/plan/tasks, BACKLOG, constitution) are seeded once and then owned by the repo. plugin.json `version` tracks this file's `version` (the kit test asserts it).

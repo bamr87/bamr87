@@ -33,6 +33,7 @@ Claude Code configuration that makes the dash self-managing.
 | `agents/feature-scout.md` | sub-agent that scans the session thread for latent feature ideas and proposes roadmap-ready specs (review/approval before backlog) |
 | `hooks/` | `SessionStart` + `Stop` hooks that make the Future-Features pipeline active in **every** session (see `hooks/README.md`) |
 | `settings.json` | registers the hooks above |
+| [`../.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) | the **`bamr87` plugin marketplace**: kits under `templates/` published as Claude Code plugins a member repo enables from its own `.claude/settings.json` instead of vendoring. Today: `spec-driven` ([`templates/spec-driven/`](../templates/spec-driven/README.md), [`docs/SPEC-DRIVEN.md`](../docs/SPEC-DRIVEN.md)) — the `/spec-driven:specify … :evolve` skills, the `backlog-triager` agent, the spec/backlog gate hook |
 
 MCP servers (github, memory, sequentialthinking, context7, **playwright** — the browser the `verify-feature` skill drives, and **fleet** — the fleet console itself: the dashboards' views plus the Harness Console's allowlisted, confirm-gated jobs, [`tools/fleetcore/mcp_server.py`](../tools/fleetcore/README.md)) are configured in the repo-root [`.mcp.json`](../.mcp.json). The `github` server needs a `GITHUB_TOKEN` env var (referenced as `${GITHUB_TOKEN}` in `.mcp.json`).
 

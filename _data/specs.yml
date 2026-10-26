@@ -2046,9 +2046,9 @@ requirements:
     level: MUST
     applies: [all]
     applies_notes: ["all (`modules.spec_driven: true` only)"]
-    requirement: "Spec packages `specs/NNN-slug/{spec,plan,tasks}.md` are validated by `spec_validator.py`, and `BACKLOG.md` by `backlog_lint.py`, in a CI spec-gate job that every other job in its workflow `needs`. The four shared tools are byte-identical to the hub kit's copies."
-    satisfied_by: "CI job + byte parity"
-    seed: "`templates/spec-driven/`"
+    requirement: "Spec packages `specs/NNN-slug/{spec,plan,tasks}.md` are validated by `spec_validator.py`, and `BACKLOG.md` by `backlog_lint.py`, in a CI spec-gate job that every other job in its workflow `needs`. The gate is consumed **by reference** (a `uses:` of the hub's reusable `spec-gate.yml`, which runs both tools from the kit; nothing vendored) or, for a repo that still vendors the tools, in-repo — and then the four shared tools are byte-identical to the hub kit's copies."
+    satisfied_by: "CI job (by reference or in-repo) + byte parity of any vendored copy"
+    seed: "`templates/spec-driven/` (plugin + `spec-gate.yml` + `fleet-kit.sh`)"
     gap: false
   - id: UPS-WORK-10
     area: WORK

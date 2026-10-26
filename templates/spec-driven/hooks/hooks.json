@@ -1,0 +1,17 @@
+{
+  "description": "spec-driven kit: after any Write/Edit to BACKLOG.md or specs/, run spec_validator.py + backlog_lint.py from this plugin and block on failure so the model fixes it before moving on.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-check.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

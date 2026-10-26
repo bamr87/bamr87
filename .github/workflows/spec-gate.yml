@@ -1,0 +1,192 @@
+name: spec-gate
+
+# Reusable spec gate — the CI half of the spec-driven kit (templates/spec-driven/,
+# spec: specs/WORK.md UPS-WORK-07, doc: docs/SPEC-DRIVEN.md). A member repo
+# adopts it with the short caller in templates/spec-driven/workflows/spec-gate.yml,
+# or as one `uses:` job inside its own ci.yml so the other jobs can `needs:` it.
+# It checks out the kit beside the caller's tree and runs the kit's own tools
+# against the caller, so the gates are versioned once and nothing is vendored:
+#
+#   spec_validator.py --root . [--strict]   specs/NNN-slug/{spec,plan,tasks}.md
+#   backlog_lint.py --root .                BACKLOG.md (format + append-only vs HEAD^1)
+#   backlog_lint.py --stale-report          optional: items idle past `stale-days`,
+#                                           filed as ONE idempotent issue (file-issue)
+#
+# Permissions are deliberately not declared here: a called workflow inherits the
+# caller job's permissions and can only narrow them. `contents: read` is enough
+# for the gate; a caller that sets `file-issue: true` declares `issues: write`.
+#
+# Call it from a member repo, pinned to the floating major tag (never @main;
+# tag scheme and bump rules: docs/WORKFLOW-VERSIONING.md, history: CHANGELOG.md).
+# Pass the same ref as `hub-ref` to keep the kit on the workflow's version;
+# the default follows the fleet's always-latest policy:
+#   jobs:
+#     spec-gate:
+#       name: Spec Drift Gate
+#       uses: bamr87/bamr87/.github/workflows/spec-gate.yml@v2
+#       with: { strict: true }
+
+on:
+  workflow_call:
+    inputs:
+      strict:
+        description: "Promote review-question warnings (specs/_review_questions.json) to failures: spec_validator.py --strict"
+        type: boolean
+        default: true
+      backlog-lint-base:
+        description: "Git ref the append-only check compares BACKLOG.md against (the checked-out tree IS HEAD in CI, so HEAD^1)"
+        type: string
+        default: "HEAD^1"
+      stale-report:
+        description: "Also run backlog_lint.py --stale-report (items under ## Open older than stale-days); never fails the job"
+        type: boolean
+        default: false
+      stale-days:
+        description: "Age in days past which an open item counts as stale"
+        type: number
+        default: 60
+      file-issue:
+        description: "With stale-report: open or update ONE issue (issue-label / issue-title) when something is stale or a spec is inconsistent. Caller needs `issues: write`."
+        type: boolean
+        default: false
+      issue-label:
+        type: string
+        default: "backlog-triage"
+      issue-title:
+        type: string
+        default: "backlog: stale open items need triage"
+      hub-ref:
+        description: "bamr87/bamr87 ref to take the spec-driven kit from"
+        type: string
+        default: "main"
+      python-version:
+        type: string
+        default: ""
+    outputs:
+      stale:
+        description: "true when the stale report listed at least one item"
+        value: ${{ jobs.gate.outputs.stale }}
+
+env:
+  PYTHON_V: ${{ inputs.python-version || vars.PYTHON_VERSION || '3.12' }}
+  KIT: .fleet-hub/templates/spec-driven
+
+jobs:
+  gate:
+    name: Spec gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      stale: ${{ steps.stale.outputs.stale }}
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v7
+        with:
+          # The append-only check diffs BACKLOG.md against backlog-lint-base;
+          # depth 2 makes HEAD^1 available (previous commit on push; base-branch
+          # tip on a PR merge commit).
+          fetch-depth: 2
+
+      - name: Checkout the hub's spec-driven kit
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ inputs.hub-ref }}
+          path: .fleet-hub
+          sparse-checkout: templates/spec-driven
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_V }}
+
+      - name: Validate specs
+        env:
+          STRICT: ${{ inputs.strict }}
+        run: |
+          set -euo pipefail
+          args=(--root .)
+          [ "$STRICT" = "true" ] && args+=(--strict)
+          python3 "$KIT/tools/spec_validator.py" "${args[@]}" 2>&1 | tee specs.txt
+
+      - name: Validate BACKLOG.md
+        env:
+          BACKLOG_LINT_BASE: ${{ inputs.backlog-lint-base }}
+        run: |
+          set -euo pipefail
+          python3 "$KIT/tools/backlog_lint.py" --root . 2>&1 | tee backlog.txt
+
+      - name: Stale backlog report
+        id: stale
+        if: ${{ inputs.stale-report }}
+        env:
+          STALE_DAYS: ${{ inputs.stale-days }}
+        run: |
+          set -euo pipefail
+          python3 "$KIT/tools/backlog_lint.py" --root . --stale-report --stale-days "$STALE_DAYS" | tee stale.md
+          if grep -q '^No ## Open items older than' stale.md; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## Spec gate"
+            echo
+            echo '```text'
+            cat specs.txt 2>/dev/null || echo "(validator did not run)"
+            echo '---'
+            cat backlog.txt 2>/dev/null || echo "(backlog lint did not run)"
+            echo '```'
+            if [ -f stale.md ]; then
+              echo
+              echo "### Stale backlog items (> ${{ inputs.stale-days }} days)"
+              echo
+              cat stale.md
+            fi
+            echo
+            echo "Kit: [bamr87/bamr87 templates/spec-driven](https://github.com/bamr87/bamr87/tree/${{ inputs.hub-ref }}/templates/spec-driven) · doc: docs/SPEC-DRIVEN.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # One idempotent issue, matched by TITLE under the label — deliberately
+      # not `gh issue list --search`: the title contains a colon, which GitHub
+      # search reads as a qualifier, so the lookup misses and every run opens
+      # another issue. Tolerated end to end: GitHub being briefly unavailable
+      # must not redden a gate whose checks all passed.
+      - name: File or update the triage issue
+        if: ${{ inputs.stale-report && inputs.file-issue && !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: ${{ inputs.issue-title }}
+          LABEL: ${{ inputs.issue-label }}
+          STALE: ${{ steps.stale.outputs.stale }}
+        run: |
+          if [ "$STALE" != "true" ]; then
+            echo "Backlog is triaged; no issue needed."
+            exit 0
+          fi
+          {
+            cat stale.md
+            echo
+            echo "## Spec consistency"
+            echo
+            echo '```text'
+            cat specs.txt
+            echo '```'
+            echo
+            echo "_Filed by the fleet spec gate (bamr87/bamr87 spec-gate.yml, run ${{ github.run_id }})._"
+          } > triage.md
+          existing=$(gh issue list --state open --label "$LABEL" --json number,title \
+            --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty") || existing=""
+          if [ -n "$existing" ]; then
+            echo "Updating existing issue #$existing"
+            gh issue comment "$existing" --body-file triage.md || true
+          else
+            gh label create "$LABEL" --description "Spec/backlog drift flagged by the fleet spec gate" --color ededed 2>/dev/null || true
+            gh issue create --title "$TITLE" --label "$LABEL" --body-file triage.md || true
+          fi

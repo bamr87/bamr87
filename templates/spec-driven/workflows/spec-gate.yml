@@ -1,0 +1,31 @@
+name: Spec gate
+
+# kit: spec-driven v__KIT_VERSION__
+# Thin caller of the fleet's reusable spec gate (bamr87/bamr87
+# .github/workflows/spec-gate.yml): spec_validator.py --strict and
+# backlog_lint.py from the hub's spec-driven kit, consumed by reference —
+# nothing is vendored into this repo. Pinned to the floating major tag (never
+# @main; scheme: bamr87/bamr87 docs/WORKFLOW-VERSIONING.md).
+#
+# UPS-WORK-07 wants every other job in the gate's workflow to `needs:` it. When
+# this repo's CI lives in one workflow, put this same `uses:` job inside ci.yml
+# instead of keeping this file. (__DEFAULT_BRANCH__ is substituted on adoption.)
+
+on:
+  pull_request:
+  push:
+    branches: [__DEFAULT_BRANCH__]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spec-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spec-gate:
+    name: Spec Drift Gate
+    uses: bamr87/bamr87/.github/workflows/spec-gate.yml@v2
+    with:
+      strict: true

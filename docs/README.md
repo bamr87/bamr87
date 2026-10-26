@@ -35,7 +35,9 @@ Every document in `docs/`, plus the guides at the repository root. The root [`RE
 | [`DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`) — measure, rank, remediate |
 | [`ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR |
 | [`TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop — propagate, audit, re-mint |
+| [`SPEC-DRIVEN.md`](SPEC-DRIVEN.md) | The spec-driven loop (AO-SDLC) run from the hub — spec packages, the append-only backlog, the spec gate as a Claude Code plugin, a reusable workflow and a resolver, and how a repo adopts it by reference |
 | [`EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repo |
+| [`SCOUT.md`](SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline |
 | [`HARNESS.md`](HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane — layers, the ratchet rule, the health scorecard and trip wires |
 | [`HARNESS-OPS.md`](HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules — the `harnesses:` contract, the daily inventory, mass deploy via harness-fanout, caps, cost forecasting, and the local stack (console, data lake, Phoenix) |
 | [`COCKPIT.md`](COCKPIT.md) | Decision record (2026-09-18): Gitorio as the one front door for designing, running and refining harnesses, with this hub as its runtime |
