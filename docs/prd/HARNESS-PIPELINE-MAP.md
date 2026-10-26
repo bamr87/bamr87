@@ -3,7 +3,7 @@
 > **Status: Draft / proposed.** Data layer implemented in this PR; the console page is specified, not built.
 > Features: `HUB-025` (pipeline map) and `HUB-026` (GitHub workflow nodes) in [`features/features.yml`](../../features/features.yml).
 > Requirements: FR16–FR21, NFR7 in the root [`PRD.md`](../../PRD.md), which owns the ids; this document gives the detail.
-> Depends on: [#409](https://github.com/bamr87/bamr87/pull/409) (fleet activity log PRD, `HUB-024`, FR7–FR15). Field names below are that PRD's, verbatim. The scheduled backlog fan-out routine PRD had no open PR when this was written; its node uses the `bot_id` `fanout-routine` and the job name `backlog-fanout` as placeholders to align once it lands.
+> Depends on: [#409](https://github.com/bamr87/bamr87/pull/409) (fleet activity log PRD, `HUB-024`, FR7–FR15). Field names below are that PRD's, verbatim. The scheduled backlog fan-out routine ([#411](https://github.com/bamr87/bamr87/pull/411), `HUB-027`) logs with `bot_id` `backlog-fanout` from the `backlog-fanout` workflow; the map's `fanout-routine` node uses that `bot_id` and job name.
 > Governing rules: [`docs/constitution.md`](../constitution.md) and [`docs/amendments/`](../amendments/).
 
 ## 1. Problem

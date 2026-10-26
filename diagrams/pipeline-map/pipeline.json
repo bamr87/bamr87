@@ -35,7 +35,7 @@
       "lane": "schedule",
       "col": 0,
       "match": {
-        "bot_id": "fanout-routine"
+        "bot_id": "backlog-fanout"
       },
       "job": "backlog-fanout",
       "notes": "Daily/weekly. Dry-run by default; opens PRs, never merges."
@@ -47,7 +47,7 @@
       "lane": "schedule",
       "col": 1,
       "match": {
-        "bot_id": "fanout-routine",
+        "bot_id": "backlog-fanout",
         "decision_prefix": "dry_run"
       },
       "notes": "Default mode: plans PRs, writes nothing to repos."
@@ -59,7 +59,7 @@
       "lane": "schedule",
       "col": 2,
       "match": {
-        "bot_id": "fanout-routine",
+        "bot_id": "backlog-fanout",
         "event_type": "declined"
       },
       "notes": "Merge is always declined (reason=policy); a human merges."
