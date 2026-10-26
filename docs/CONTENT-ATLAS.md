@@ -1,5 +1,7 @@
 # Content atlas
 
+> Content observability and editorial direction for the fleet's content sites, and the committed editorial plan in `_data/editorial.yml`.
+
 The control plane already watches the fleet's machinery: workflow runs and their cost (Actions analytics), agent spend and turns (the lake, Phoenix), and what CI said (the log plane). None of that answers what the owner of a content site asks: what does this site publish, about what, how fresh is it, which topics are growing and which were dropped, and does the mix still match the story the site is meant to tell?
 
 The **content atlas** answers those questions for every content site in the fleet. It also works in the other direction. A human records an **editorial plan** (a narrative plus pillars with target shares), approves or rejects the atlas's suggestions against it, and files the approved directives as issues in each site's own repository, where that site's content loop or a person picks them up.

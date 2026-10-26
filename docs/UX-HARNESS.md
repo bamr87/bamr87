@@ -1,5 +1,7 @@
 # UX Harness — continuous UI/UX audit for the fleet
 
+> Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop.
+
 > **Status:** v0 kit (`templates/ux-audit/` 0.1.0). Computational gate is real; hub critique loop is designed here and capped in `_data/fleet.yml` but not fully wired as a cron yet.
 
 ## Why it lives in bamr87

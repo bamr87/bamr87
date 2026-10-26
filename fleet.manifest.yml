@@ -9,6 +9,21 @@ summary: The dash — control plane for ~40 submodule repos. Runs the daily flee
   loop, the three-tier issue pipeline, the weekly repo-evolution pass, registry reconciliation,
   and the standardization fan-outs.
 lanes:
+- id: backlog-fanout
+  kind: fanout
+  harness: engine
+  implementation: .github/workflows/backlog-fanout.yml
+  description: backlog-fanout
+  triggers:
+  - kind: schedule
+    cron: 27 8 * * *
+  - kind: dispatch
+  switch: null
+  uses_tokens:
+  - FLEET_TOKEN
+  guardrails:
+    never_merges: true
+    opens_pull_requests: true
 - id: build-dash
   kind: other
   harness: engine

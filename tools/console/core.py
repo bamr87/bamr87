@@ -104,6 +104,7 @@ DISPATCHABLE = {
     "reconcile-registry": set(),
     "refresh-dash": set(),
     "update-submodules": set(),
+    "backlog-fanout": {"dry_run", "cadence", "force", "max_prs"},
 }
 
 
@@ -206,9 +207,12 @@ LOOPS = [
     {"id": "refresh_dash", "title": "README / registry refresh", "workflow": "refresh-dash",
      "schedule_key": "refresh_dash", "doc": "docs/DASH.md", "outputs": [], "local_ops": ["readme"]},
     {"id": "update_submodules", "title": "Submodule pointer bump", "workflow": "update-submodules",
-     "schedule_key": "update_submodules", "doc": "SUBMODULES.md", "outputs": [], "local_ops": []},
+     "schedule_key": "update_submodules", "doc": "docs/SUBMODULES.md", "outputs": [], "local_ops": []},
     {"id": "build_dash", "title": "Build & deploy the dash (Pages)", "workflow": "build-dash",
      "schedule_key": "build_dash", "doc": "docs/DASH.md", "outputs": [], "local_ops": []},
+    {"id": "backlog_fanout", "title": "Backlog fan-out — pending items → fleet PRs (dry run by default)",
+     "workflow": "backlog-fanout", "schedule_key": "backlog_fanout", "doc": "docs/BACKLOG-FANOUT.md",
+     "outputs": [], "local_ops": []},
 ]
 
 

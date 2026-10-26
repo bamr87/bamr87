@@ -71,7 +71,7 @@ Measured quality for Jekyll sites, run the same way everywhere: Lighthouse CI, a
 | UPS-QA-31 | MUST | all | Default branch is `main`; work branches `feature/ fix/ docs/ refactor/ test/ chore/`; automation branches use their declared prefixes (`agent/issue-*`, `ai-evolution/*`, `chore/standardize-baseline`). | branch names | — |
 | UPS-QA-32 | MUST | app, api, lib, cli, ext | **release-please** manages versions and `CHANGELOG.md` (`release-type` per ecosystem, `simple` for the rest); `release.yml` calls the shared publish workflow; registry `release:` block filled. Kit gains `VERSION` + `archive/` like every other kit. | files present | `tools/adopt-release.sh`, `templates/sdlc/release/` |
 | UPS-QA-33 | MUST | site, content | Sites and content repos tag releases via release-please `simple` so the CHANGELOG exists (UPS-REPO-21, decision D5); publishing is Pages, not a registry. | config present | `templates/sdlc/release/release-please-config.simple.json` |
-| UPS-QA-34 | MUST | all | Submodule rule: commit and push in the project repo first; the hub bumps the pointer. Never bundle several submodules in one PR. | `SUBMODULES.md` | — |
+| UPS-QA-34 | MUST | all | Submodule rule: commit and push in the project repo first; the hub bumps the pointer. Never bundle several submodules in one PR. | `docs/SUBMODULES.md` | — |
 
 ## Dependencies
 

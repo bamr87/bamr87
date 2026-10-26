@@ -1,10 +1,12 @@
 # Development Guide
 
+> Prerequisites, getting the source, running the console and the site, containers, and which check to run for what you changed.
+
 How to get the hub running on your machine, change it, and check it before a pull request. The root [`README.md`](../README.md) is a GitHub profile; this is the contributor's entry point. Contribution process: [`CONTRIBUTING.md`](../CONTRIBUTING.md). Where everything lives: [`SCHEMA.md`](../SCHEMA.md), the authoritative map, and [`CATALOG.md`](../CATALOG.md), the index of what the hub provides.
 
 ## What this repository is
 
-The root is the **control plane** for ~45 projects, each a Git submodule under `projects/` with its own stack, branch and release cycle ([`SUBMODULES.md`](../SUBMODULES.md)). The root itself is the machinery that manages them:
+The root is the **control plane** for ~45 projects, each a Git submodule under `projects/` with its own stack, branch and release cycle ([`SUBMODULES.md`](SUBMODULES.md)). The root itself is the machinery that manages them:
 
 | Part | Where |
 | --- | --- |
@@ -40,7 +42,7 @@ cp .env.example .env          # ports and optional credentials; .env is never co
 pip install pre-commit && pre-commit install
 ```
 
-Already cloned without submodules? `git submodule update --init --recursive`. Submodules land in detached HEAD — check out the branch `.gitmodules` declares before working in one, and commit there first ([`SUBMODULES.md`](../SUBMODULES.md)).
+Already cloned without submodules? `git submodule update --init --recursive`. Submodules land in detached HEAD — check out the branch `.gitmodules` declares before working in one, and commit there first ([`SUBMODULES.md`](SUBMODULES.md)).
 
 `.env` needs no edits for a first run: every port has a default. Credentials (`GH_TOKEN` / `FLEET_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`) only matter for operations that call GitHub or Claude, and the console can be handed them on its Credentials page instead. The token contract is in [`_data/fleet.yml`](../_data/fleet.yml) and [AI-INTEGRATION.md](AI-INTEGRATION.md).
 

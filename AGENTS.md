@@ -1,60 +1,127 @@
-# Agent guide — bamr87 dash
+<!-- kit: sdlc v0.1.0 · AGENTS.md is the CANONICAL agent instructions file (decision D4, UPS-AGENT-07/08). -->
 
-## Boundaries and entrypoints
+# bamr87
 
-- This root repo is the fleet control plane plus a GitHub profile and the public site (the Harness Console, built static). `projects/*` are independent Git submodules with their own dependencies, tests, and releases; there is no shared package build. Read the target project's README and agent instructions before working there.
-- `_data/projects.yml` is the project registry; `.gitmodules` must agree on submodule paths, URLs, and branches. Read those files instead of hardcoding a project list or assuming `main`. When committing submodule work, commit in that repo first, then record its SHA in the parent; see [SUBMODULES.md](SUBMODULES.md).
-- `tools/dash` is the shell command router. `tools/dash-gen` wraps `.github/scripts/dash-gen/dash_gen.py`; generator implementations and most control-plane tests live beside that Python entrypoint. `tools/console/` is the local FastAPI Harness Console.
-- The published Pages site is the Harness Console's own page (`tools/console/web/`) built static, with a snapshot of its API documents (`tools/console/snapshot.py`) and the profile content in `_data/profile.yml` + `pages/profile/`, `pages/posts/`; `tools/console/build-pages.sh` builds it and `.github/workflows/build-dash.yml` publishes it ([docs/CONSOLE-PAGES.md](docs/CONSOLE-PAGES.md)). MkDocs belongs to `projects/README/`; its `docs/` contains aggregated copies, so edit the original project sources rather than those copies.
-- Orient through [SCHEMA.md](SCHEMA.md) and the schema chain to the target directory. Detailed references: [docs/DASH.md](docs/DASH.md) for architecture, [CATALOG.md](CATALOG.md) for available tools/kits, [CLAUDE.md](CLAUDE.md) for operational context, and `.github/instructions/*.instructions.md` by `applyTo` scope. House rule: read the relevant README first and update it to reflect the change.
+> The fleet's control plane: about forty projects mounted as Git submodules and managed, monitored and standardized from one hub, which is also the GitHub profile and the public Harness Console site.
 
-## Development and focused verification
+## What this repo is
 
-Run the following from the repository root. Prefer the `devenv` container (`/workspace`); create `.env` from `.env.example` before first startup if it is absent.
+A monorepo of Git submodules under `projects/` that doubles as a self-managing **dash** and a GitHub profile README. Each submodule is a separate repository with its own stack, branch and release cycle; there is no shared build. The root (`tools/`, `.github/`, `_data/`, `specs/`, `templates/`, `docs/`, `pages/`) is the machinery that manages, monitors, documents and standardizes them, and the published site at bamr87.github.io/bamr87 is the Harness Console built static.
+
+A change is done when `tools/check-drift.sh` is green, the focused tests for what you touched pass (table below), the nearest `README.md` and `SCHEMA.md` say what changed, and any generated projection you affected has been regenerated.
+
+## Stack & commands
+
+Python 3.12 (stdlib + PyYAML, PyGithub), Bash, a FastAPI + React console, GitHub Actions. Toolchain versions live in `_data/fleet.yml` `toolchain:`. Prefer the `devenv` container (`/workspace`); copy `.env.example` to `.env` before the first start.
 
 ```bash
-tools/dash up                         # shared workspace, console, Postgres, Redis
-docker compose exec devenv bash      # commands below run from /workspace
+tools/dash up                                                  # shared core: devenv, console, one Postgres, one Redis
+docker compose exec devenv bash                                # a shell in the workspace
 python3 -m pip install -r .github/scripts/dash-gen/requirements.txt
+tools/check-drift.sh                                           # the hub gate (registry parity, generated files, schema, policy)
+tools/run-all-tests.sh                                         # root checks + dash-gen + console + checked-out submodule suites
+python3 tools/schema_lint.py check .                           # SCHEMA pyramid (warnings fail the gate too)
+python3 tools/unwrap-prose.py --check <changed .md files>      # one paragraph per line
+python3 tools/docs_index.py --check                            # docs/README.md index is fresh
 ```
 
-The generator requires PyYAML and PyGithub. CI uses Python 3.12 and Ruby 3.3; fleet defaults live in `_data/fleet.yml` under `toolchain`. `tools/dash-gen` and `tools/check-drift.sh` honor `PYTHON=/path/to/python` when using a local virtual environment.
-
-| Scope | Command / behavior |
+| Scope | Command |
 | --- | --- |
-| Root drift gate | `tools/check-drift.sh` — registry parity, generated README, schema, dependency policy, action manifests; `--ci` also makes advisory GitHub API checks |
-| Schema only | `python3 tools/schema_lint.py check .` — schema warnings also fail the drift gate |
-| One generator test file | `python3 .github/scripts/dash-gen/test_machine_api.py` — offline fixtures |
+| One generator test file | `python3 .github/scripts/dash-gen/test_machine_api.py` (offline fixtures; any `test_*.py` there runs the same way) |
 | One unittest case | `python3 .github/scripts/dash-gen/test_machine_api.py MachineApiTests.test_degraded_without_inputs` |
-| CV projection tests | `python3 -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q` — requires pytest; this file has no standalone runner |
-| Public site | `python3 tools/console/test_pages.py` (snapshot guarantees, the remote-page door) and `tools/console/build-pages.sh` (the build itself) |
-| Shell changes | `shellcheck tools/*.sh tools/observability/*.sh` |
-| Workflow changes | `actionlint .github/workflows/*.yml` |
+| CV projection | `python3 -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q` (pytest only; no standalone runner) |
+| Hub tools | `python3 tools/test_<name>.py` (conformance, docs index, docker, fleet config, …) |
+| Public site | `python3 tools/console/test_pages.py`, then `tools/console/build-pages.sh` |
+| Shell / workflows | `shellcheck tools/*.sh tools/observability/*.sh` · `actionlint .github/workflows/*.yml` |
+| Specs / catalog | `python3 tools/gen-specs-data.py --check` · `python3 tools/gen-catalog.py --check` |
 
-- `tools/run-all-tests.sh` (also `tools/dash test`) runs root checks, direct `test_*.py` invocations under dash-gen and console, then checked-out submodule suites. It skips projects without installed local dependencies; green means only the executed checks passed. Run the CV pytest command separately when changing that projection.
-- Markdown prose is **one paragraph per line**. Check edited files with `python3 tools/unwrap-prose.py --check AGENTS.md README.md` (substitute the changed paths; `--write` fixes). Respect `.prettierignore`: Prettier can desynchronize generated Markdown.
-- Hook activation is clone-specific: pre-commit and the global prose hook (`tools/install-prose-hook.sh`, `~/.git-hooks`) compete through `core.hooksPath`. Diagnose with `bash tools/audit-git-hooks.sh`.
+`tools/dash` is the command router for everything else; its full reference is generated in [docs/DASH.md](docs/DASH.md#the-dash-cli). `tools/dash-gen` and `tools/check-drift.sh` honour `PYTHON=/path/to/python`. `run-all-tests.sh` skips projects whose dependencies are not installed, so green means only that what ran passed.
 
-## Sources of truth and generated files
+## Layout
 
-- `_data/fleet.yml` owns control-plane settings (toolchains, schedules, budgets, token names, container groups); `_data/standards.yml` owns tier requirements. `_data/` is public site data, not a place for credential values.
-- After registry/submodule changes, regenerate affected projections rather than editing their output:
+See [`SCHEMA.md`](SCHEMA.md) and the chain of `SCHEMA.md` files down to where you work, and [`CATALOG.md`](CATALOG.md) for everything the hub provides. In brief:
 
-  ```bash
-  tools/dash-gen readme                 # README AUTO:projects span only
-  tools/gen-projects-schema.py          # projects/SCHEMA.md
-  tools/dash-gen cv                     # _data/cv_portfolio.json proposal
-  tools/check-drift.sh
-  ```
+| Path | What lives there |
+| --- | --- |
+| `projects/` | The submodules — separate pyramids, terminal to the hub's schema. The list is the registry, not this file. |
+| `_data/` | `projects.yml` (the registry), `fleet.yml` (the control plane's settings), `standards.yml`, `specs.yml`, and the committed fleet snapshots the site renders |
+| `tools/` | `dash` (CLI), the gates (`check-drift.sh`, `conformance.py`, `schema_lint.py`), generators, `fanout.sh`, the console (`console/`), the TUI (`tui/`) and their shared core (`fleetcore/`) |
+| `.github/` | Workflows (the loops), composite actions, the `dash-gen` generator (`scripts/dash-gen/`); `agents|instructions|prompts/` are Copilot-format reference templates read in place by hub skills |
+| `specs/` | The Universal Project Standard every fleet repo is built to (machine twin `_data/specs.yml`) |
+| `templates/` | Kits fanned out into the fleet (CI, agent context, sdlc, schema, feedback, verify, …) |
+| `docs/` | Operator documentation, indexed in [`docs/README.md`](docs/README.md) |
+| `pages/`, `compose/`, `diagrams/` | Site Markdown, compose overrides, harness diagrams |
+| `features/`, `verify/`, `test/` | The hub's own feature index, user scenarios and evidence ([docs/VERIFICATION.md](docs/VERIFICATION.md)) |
+| `.claude/`, `.mcp.json` | The AI layer: skills, commands, agents, hooks, the `fleet` MCP server ([`.claude/README.md`](.claude/README.md)) |
 
-- Add/remove/rename files in the nearest `SCHEMA.md` in the same change. New directories need their own schema and a parent Structure row; follow `Placement` and `Forbidden`. `projects/*` are terminal boundaries of the hub schema. Regenerate `CATALOG.md` with `tools/gen-catalog.py` after adding catalogued tools/docs/kits; regenerate `_data/specs.yml` with `tools/gen-specs-data.py` after editing requirement tables in `specs/`.
-- `_data/project_health.yml`, `_data/project_health_meta.yml`, `_data/ai_activity.yml`, `_site/`, and `.fleet/compose/` are ephemeral/ignored. Other snapshots such as `_data/fleet_triage.yml` and `_data/actions_usage.yml` are intentionally committed; check the generator's README before refreshing data.
-- Dependency policy deliberately floats versions: no exact package pins, upper bounds, or committed lockfiles. Actions use major tags; pre-commit revisions and fleet-governed toolchain versions are exceptions. See [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md). `tools/schema_lint.py` is vendored from `bamr87/SCHEMA`: fixes go upstream, then are re-vendored.
+## Conventions
 
-## Site and fleet gotchas
+- **Backlog of record:** GitHub Issues with the fleet labels; cross-repo initiatives in `_data/roadmap.yml`. **Definition of Done:** `.github/pull_request_template.md`. **Decisions:** `docs/adr/`.
+- **Commits:** Conventional Commits (`feat fix docs style refactor test chore perf ci`). **Branches:** `feature/`, `fix/`, `docs/`, `refactor/`, `test/`.
+- **README-First, README-Last:** read the nearest `README.md` before changing a directory and update it after.
+- **SCHEMA protocol:** place files per the nearest `SCHEMA.md` `## Placement`; a new directory is created with its `SCHEMA.md` (from `templates/schema/SCHEMA.template.md`) and a row in its parent; any add, remove or rename updates the local `SCHEMA.md` in the same commit. `python3 tools/schema_lint.py check . --fix` fixes mechanical drift. The kit is vendored from bamr87/SCHEMA: improvements go upstream first, then re-vendor ([docs/SCHEMA-FRAMEWORK.md](docs/SCHEMA-FRAMEWORK.md)).
+- **Dependencies are always latest:** no exact pins, no ceilings, no committed lockfiles. Actions ride major tags; pre-commit `rev:` pins and `toolchain:` versions are the exceptions ([docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)).
+- **Generated, never hand-edited:** the README `AUTO:projects` span (`tools/dash-gen readme`), `projects/SCHEMA.md` (`tools/gen-projects-schema.py`), `_data/specs.yml` (`tools/gen-specs-data.py`), `CATALOG.md` (`tools/gen-catalog.py`), `_data/cv_portfolio.json` (`tools/dash-gen cv`), the dash CLI reference in `docs/DASH.md` (`tools/gen-dash-cli-doc.py`) and the `docs/README.md` index (`tools/docs_index.py`). The committed fleet snapshots (`_data/fleet_triage.yml`, `_data/actions_usage.yml`, …) belong to their workflows; read the generator's README before refreshing one. `_data/project_health*.yml`, `_data/ai_activity.yml`, `_site/` and `.fleet/compose/` are ephemeral.
+- **Central configuration is `_data/fleet.yml`** — toolchains, schedules, caps, budgets, the token contract and the canonical repo variables; read it with `tools/dash config show [key]`. `bamr87` is a personal account with no org-level secrets or variables, so the contract is declared here and projected onto the fleet (`dash config sync`, `dash secrets sync`). Reusable CI resolves a toolchain version as caller input → the repo's `vars.*` → the built-in default, so a bump here reaches every repo.
+- **Secrets:** `_data/` is public site data. Secret values live only in GitHub secrets or `.env`; `fleet.yml` names them, never holds them.
+- **Markdown** is one paragraph per line; respect `.prettierignore` (Prettier can desynchronize generated Markdown). Hooks compete through `core.hooksPath` — `bash tools/audit-git-hooks.sh` diagnoses.
+- **Verify like a user:** a change to what someone sees or does follows [docs/VERIFICATION.md](docs/VERIFICATION.md) — feature index, scenario, evidence bundle under `test/evidence/<slug>/`; a non-visual change gets `skip-evidence` with a reason.
+- **Never:** push to `main`, merge your own PR, commit lockfiles or secrets, suppress type errors, leave empty exception handlers, or edit generated files by hand.
 
-- `tools/dash serve` builds the public site at the root (`CONSOLE_BASE=/`) and serves it on port 4000; `tools/dash console` serves the same page live on 4001. The Pages build runs under `/bamr87/`, so every in-app link goes through React Router's `basename` and every file URL through `asset()` (`web/src/api/backend.ts`) — never a bare `/path`. A new route needs a row in `snapshot.STATIC_ROUTES` (`test_pages.py` holds the two equal).
-- Production build order is `tools/console/build-pages.sh` (page + snapshot) into `_site`, then `tools/dash-gen machine-api --out _site`. The page build alone does not emit the machine API. For fleet prioritization, start at [api/v1/index.json](https://bamr87.github.io/bamr87/api/v1/index.json), then the linked fleet inbox; see [docs/MACHINE-API.md](docs/MACHINE-API.md).
-- Fleet apps run as **separate Compose projects** on the shared `fleet` network; combining their compose files with `include:` collides on service names. Use `tools/dash up <project>` or `tools/dash up --group jekyll`; generate port/network overrides with `tools/dash gen compose` from registry `dev_port` values. Overrides live in the hub's `.fleet/compose/`, never in submodules. The hub's Compose project name defaults to `fleet`, so worktrees share its services and volumes. See [docs/CONTAINERS.md](docs/CONTAINERS.md).
+## Submodules
 
-- **Verify like a user, not just like a test.** Any change to what a user sees or does follows the agent verification standard ([`docs/VERIFICATION.md`](docs/VERIFICATION.md)): read `features/features.yml` for the feature, run the app per `verify/verify.yml`, drive it in a real browser (`verify-feature` skill / Playwright MCP / `verify/runner.mjs`), commit the evidence bundle under `test/evidence/<slug>/`, link it from the feature entry. A PASS cites a scenario and an evidence dir that exist; a non-visual change gets the `skip-evidence` label with a reason.
+Commit inside the submodule's own repository first (submodules land in detached HEAD — check out the branch `.gitmodules` declares), push there, then record the new pointer in the hub. One submodule per PR; never bundle. The registry (`_data/projects.yml`) and `.gitmodules` must agree on paths, URLs and branches — read them, never assume `main`. The full workflow is [docs/SUBMODULES.md](docs/SUBMODULES.md).
+
+The MkDocs site belongs to `projects/README/`; paths such as `projects/README/docs/scripts/` are aggregated copies of other submodules, so edit the original sources, never those copies.
+
+## Standing rules for workflows and agents
+
+Each of these came from an incident; the linked doc tells it.
+
+- **Never end a workflow in a bare `git push` to a protected branch** — publish through `.github/actions/utilities/publish-data`, which falls back to a PR ([docs/DAILY-ANALYSIS.md](docs/DAILY-ANALYSIS.md)).
+- **Prefer `needs:` over `workflow_run`** — a skipped upstream silently skips the follower.
+- **A PR that must run CI is opened with `FLEET_TOKEN`, never `GITHUB_TOKEN`** (GitHub fires no workflow events for refs it pushes), and the token is probed with `gh api user`, not presence-checked ([docs/ISSUE-PIPELINE.md](docs/ISSUE-PIPELINE.md)).
+- **A fleet-wide secret is written hub-first**, and the fan-out aborts if the hub refuses. Every fleet-scoped secret is named in `token-rotation.yml`'s `env:` (a workflow cannot enumerate `secrets.*`; drift check (l) gates the list) ([docs/TOKEN-ROTATION.md](docs/TOKEN-ROTATION.md)).
+- **No hub cron fires on the hour** (`:07` housekeeping, `:37` the daily agent chain, fleet AI crons at 11:00 UTC or later); every hub `schedule:` is declared in `_data/fleet.yml` `schedule:` (`test_schedule.py`).
+- **Every scheduled agent loop has a `vars.<NAME>_ENABLED` kill switch** that a manual dispatch bypasses; one added to a running loop defaults on (`!= 'false'`).
+- **Actions cost is read from GitHub's billing meter**, never from run wall-clock; external mirrors never enter fleet totals ([docs/WORKFLOW-OPTIMIZATION.md](docs/WORKFLOW-OPTIMIZATION.md)).
+- **Claude auth follows each repo's `CLAUDE_AUTH_ORDER`** (default `oauth,api_key`, set in `_data/fleet.yml` `ai_auth:`), and every headless call is capped by `--max-budget-usd` from `fleet.yml` `budget:` (`test_ai_budget.py`); a budget hit fails the cost step ([docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md)).
+- **No expression in a composite action's `description:`** — the manifest is a template and the action fails before any step runs (drift check (l)).
+- **Fan-outs are dry-run by default, PR-only and additive** (`tools/fanout.sh`); agents open PRs and never merge.
+
+## The loops and surfaces
+
+| Loop / surface | What it does | Doc |
+| --- | --- | --- |
+| `fleet-pulse.yml` | Daily: gather every fleet signal in one commit, rank failing + expensive workflows, the Opus `doctor` opens fix PRs | [DAILY-ANALYSIS.md](docs/DAILY-ANALYSIS.md) |
+| `issue-pipeline.yml` | Label-driven three-tier loop: intake with an evidence bundle → implement → complete; never merges; `agent:hold` / `human-review` brake it | [ISSUE-PIPELINE.md](docs/ISSUE-PIPELINE.md) |
+| `token-rotation.yml`, `api-keys.yml` | Weekly credential propagate / audit / re-mint; Anthropic Console key expiry | [TOKEN-ROTATION.md](docs/TOKEN-ROTATION.md) |
+| `repo-evolution.yml` | Weekly draft improvement PRs in each `auto_evolve` submodule's own repo | [EVOLUTION.md](docs/EVOLUTION.md) |
+| `drift-check.yml`, `refresh-dash.yml`, `reconcile-registry.yml`, `update-submodules.yml` | The hard drift gate; nightly README/registry refresh; registry ↔ GitHub reconciliation; daily pointer bumps | [DASH.md](docs/DASH.md) |
+| `standardize-`, `schema-`, `feedback-`, `harness-`, `deps-`, `docker-`, `verify-fanout.yml` | Kits pushed down into the fleet as PRs | [STANDARDS.md](docs/STANDARDS.md), [HARNESS-OPS.md](docs/HARNESS-OPS.md), [DOCKER.md](docs/DOCKER.md), [VERIFICATION.md](docs/VERIFICATION.md) |
+| `build-dash.yml` | Builds the console page static with its API snapshot and deploys Pages | [CONSOLE-PAGES.md](docs/CONSOLE-PAGES.md) |
+| `tools/dash console` / `tui` | The write-capable local console (127.0.0.1:4001) and the terminal dash; never commits or merges | [HARNESS-OPS.md](docs/HARNESS-OPS.md) |
+| `tools/dash lake` / `observe` / `content` | The local data lake, the log/metrics/trace planes, the content atlas | [HARNESS-OPS.md](docs/HARNESS-OPS.md), [OBSERVABILITY.md](docs/OBSERVABILITY.md), [CONTENT-ATLAS.md](docs/CONTENT-ATLAS.md) |
+| `tools/dash up` / `dev` / `docker` | The container plane, per-project dev stacks, the image standard | [CONTAINERS.md](docs/CONTAINERS.md), [FLEET-COMPOSE.md](docs/FLEET-COMPOSE.md), [DOCKER.md](docs/DOCKER.md) |
+
+## Gotchas
+
+- **The site:** `tools/dash serve` builds it at `/` on :4000; Pages serves it under `/bamr87/`, so every in-app link goes through React Router's `basename` and every file URL through `asset()` (`web/src/api/backend.ts`) — never a bare `/path`. A new route needs a row in `snapshot.STATIC_ROUTES` (`test_pages.py` holds them equal). Production builds `tools/console/build-pages.sh` into `_site`, then `tools/dash-gen machine-api --out _site` ([docs/MACHINE-API.md](docs/MACHINE-API.md)).
+- **The fleet is many compose projects, not one:** `include:` would silently keep one of five services called `jekyll`. Each repo is its own project on the shared `fleet` network, with one Postgres and Redis and one port map (`dev_port` in the registry; overrides from `tools/dash gen compose` into `.fleet/compose/`, never into a submodule). The project name is pinned to `fleet` so worktrees share volumes ([docs/CONTAINERS.md](docs/CONTAINERS.md)).
+- **Images:** versions come from `_data/fleet.yml` `images:` (Ruby is 3.4, not 4.0: `github-pages` caps it). A Postgres major bump orphans local volumes; migrate with `tools/dash dev db-upgrade <project> --yes` ([docs/DOCKER.md](docs/DOCKER.md)).
+- **Shared surface code lives in `tools/fleetcore/`:** a view, key binding, colour or job-API call the console and the TUI both use goes there, never into one of them. The `fleet` MCP server (`.mcp.json`) is built on the same core.
+- **Consumed interfaces:** `_data/harness_registry.yml` (`schema: harness-registry/v1`) is read by GitFactory's Fleet Studio — additive changes are free, renames bump the marker ([docs/HARNESS-OPS.md](docs/HARNESS-OPS.md)).
+
+## Fleet context
+
+This is the hub. It owns the fleet's standards (`specs/`, including the documentation framework [specs/DOCS.md](specs/DOCS.md)), the kits that seed them, and the vendored payloads it holds byte-identical across the fleet (`tools/unwrap-prose.py`, `tools/schema_lint.py`, `tools/docs_index.py`, the feedback widget; drift check (i)). The fleet's documentation is reviewed in one place by the README submodule's survey ([`context/reports/docs_review.md`](https://github.com/bamr87/README/blob/main/context/reports/docs_review.md)).
+
+## Standard deviations
+
+Declared in `.github/sdlc.yml` `deviations:` (the hub's SDLC profile, UPS-WORK-01):
+
+- UPS-REPO-21 waived until 2027-04-01: the hub's public interface (reusable workflows + checker) versions by hand-cut major tags (`v1`, `v2`) per `docs/WORKFLOW-VERSIONING.md`, and `CHANGELOG.md` is maintained with those cuts rather than by release-please.
+
+## Governance
+
+Read [`docs/constitution.md`](docs/constitution.md) before changing anything: it is the highest-precedence rule set here and wins over this file when they disagree. It changes only through a numbered record in [`docs/amendments/`](docs/amendments/), ratified by the maintainer merging the PR; agents propose, never merge. Every user-facing feature has a stable id in [`features/features.yml`](features/features.yml) with `status`, location and the PRD requirement ids it serves; the PRD's "Feature catalog" block is generated from it (`python3 <bamr87/bamr87>/tools/governance_lint.py prd-sync . --write`; check with `… check .`). Never hand-edit that block or `CHANGELOG.md`.

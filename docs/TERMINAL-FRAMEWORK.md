@@ -1,5 +1,7 @@
 # bashOS — consolidating the fleet's CLIs and TUIs into one terminal framework
 
+> The plan to consolidate the fleet's CLIs and TUIs onto bashOS: the inventory, `keys v1`, the per-repo plan and the phases.
+
 A plan to put every fleet repo with a terminal surface on one framework, **bashOS**, so each repo extends a shared foundation for its own purpose instead of rebuilding one. Together they form a single, comprehensive terminal tool.
 
 Status: **Phase 0 in progress**, 2026-10-01. §9 records the owner's decisions: two remain open (wtd, optional scope). The four unregistered repos are now registered (§9.5). On 2026-10-07 the hub's two front ends, the Harness Console and the terminal dash, were put on one shared core and one runtime (§10). That is the first slice of keys v1, theme v1 and the bridge.
@@ -445,7 +447,7 @@ The hub TUI and wtd avoid this, using single keys, but they disagree with each o
   - npm (`@bamr87/bashos`, a new job in the same repo, `docs/RELEASES.md`).
   - `bashos.sh` is vendored, and drift check (i) holds its parity.
 - **Agents:** loops pause on bashos and bashcrawl for Phase 1 only. Afterwards the evolution brief gains an adoption lane, and the issue pipeline can take "adopt `bashos.sh`" issues.
-- **PR hygiene:** one PR per repo, never bundled across submodules (`SUBMODULES.md`). Kit delivery goes through `tools/fanout.sh` (dry-run default, PRs only). Private repos need `FLEET_TOKEN`, because a repo-scoped token 404s on them.
+- **PR hygiene:** one PR per repo, never bundled across submodules (`docs/SUBMODULES.md`). Kit delivery goes through `tools/fanout.sh` (dry-run default, PRs only). Private repos need `FLEET_TOKEN`, because a repo-scoped token 404s on them.
 
 ## 8. Risks
 

@@ -1,10 +1,17 @@
 kit: prose
-version: 0.3.0
+version: 0.4.0
 source: bamr87/bamr87 templates/prose/
 seeded-by: tools/fanout.sh --kit prose
 files: markdown-oneline.yml, archive/markdown-oneline-{0.1.0,0.2.0}.yml (vendors tools/unwrap-prose.py)
-updated: 2026-08-26
+updated: 2026-10-22
 changelog: |
+  0.4.0 — the vendored tools/unwrap-prose.py unwraps list items. A wrapped
+  item's indented continuation lines join the item line (a flush-left line
+  after an item stays put: in a raw-read prompt it is a new instruction), and a later
+  indented paragraph of an item is joined in place with its indent kept. The
+  0.3 tool stripped that indent, which moved an item's second paragraph out of
+  its list. Fixture-tested in tools/test_unwrap_prose.py. Re-vendoring makes a
+  repo's --check fail once on its hard-wrapped list items; --write fixes them.
   0.3.0 — the gate is SELF-HEALING. It was check-only in all 34 deployed
   copies: it ran --check, printed "Run: unwrap-prose.py --write", and exited 1
   with the fixer sitting vendored in the same checkout. Across the fleet's last

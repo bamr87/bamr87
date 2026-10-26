@@ -14,15 +14,10 @@ The estimation loop: `tools/dash estimate` (estimator-v1) drafts deterministic e
 2. Read the real work item:
 `gh issue view <n> -R <owner>/<repo> --json title,body,labels,comments` and, when the repo is a checked-out submodule, the code the issue touches (README-first). Judge true scope: files affected, tests needed, unknowns, cross-repo coupling.
 3. Refine the engagement entry in `_data/engagements.yml`:
-   - `estimate.tier` / `confidence` if the body changes the picture; keep the
-     tier's effort/cost numbers consistent with the rate card
-     (`_data/engagement_rates.yml`) — recompute, don't invent.
-   - `estimate.method: agent` and append your reasoning to `estimate.drivers`
-     (e.g. `agent: touches 3 layouts + JS, needs cypress spec -> tier m`).
-   - `plan.approach` / `deliverables` / `acceptance` — make them concrete
-     enough that delivery is checkable.
-4. Settle the books: `tools/dash ledger` (recomputes rollups; use
-   `--no-local` if local session costs shouldn't fold in).
+   - `estimate.tier` / `confidence` if the body changes the picture; keep the tier's effort/cost numbers consistent with the rate card (`_data/engagement_rates.yml`) — recompute, don't invent.
+   - `estimate.method: agent` and append your reasoning to `estimate.drivers` (e.g. `agent: touches 3 layouts + JS, needs cypress spec -> tier m`).
+   - `plan.approach` / `deliverables` / `acceptance` — make them concrete enough that delivery is checkable.
+4. Settle the books: `tools/dash ledger` (recomputes rollups; use `--no-local` if local session costs shouldn't fold in).
 5. Present the estimate to the human for approval. NEVER set
 `status: approved` yourself — approval is the broker's signature (`tools/dash ledger --set-status ENG-NNNN=approved`).
 

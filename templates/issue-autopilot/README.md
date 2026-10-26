@@ -60,7 +60,7 @@ Everything else the two forks had diverged on is **unconditional**, because it i
 
 ## Adoption
 
-Each repo adopts in **one PR in its own repo** (never bundled — see [`SUBMODULES.md`](../../SUBMODULES.md)):
+Each repo adopts in **one PR in its own repo** (never bundled — see [`docs/SUBMODULES.md`](../../docs/SUBMODULES.md)):
 
 ```bash
 # dry run first — the default

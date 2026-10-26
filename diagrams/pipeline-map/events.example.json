@@ -1,0 +1,22 @@
+{
+  "_example": "EXAMPLE DATA ONLY: fictional fixture for the pipeline map. Not real fleet activity. Field names follow docs/prd/FLEET-ACTIVITY-LOG.md (PR #409).",
+  "generated_at": "2026-10-25T20:00:00Z",
+  "current_standard_version": "sdlc v0.1.0",
+  "events": [
+    {"event_id": "00000000-0000-4000-8000-000000000001", "ts": "2026-10-25T19:00:00Z", "bot_id": "backlog-fanout", "repo": "bamr87/bamr87", "task_ref": "run:example-1", "run_id": "r1", "event_type": "start", "standard_version": "sdlc v0.1.0", "standard_source": "AGENTS.md@example", "decision": "dry_run: plan 3 PRs", "outcome": "pending", "detail": {}},
+    {"event_id": "00000000-0000-4000-8000-000000000002", "ts": "2026-10-25T19:01:00Z", "bot_id": "backlog-fanout", "repo": "bamr87/bamr87", "task_ref": "run:example-1", "run_id": "r1", "event_type": "declined", "standard_version": "sdlc v0.1.0", "standard_source": "AGENTS.md@example", "decision": "merge", "outcome": "skipped", "detail": {"reason": "policy", "reason_text": "routine never merges", "rule_ref": "0001"}},
+    {"event_id": "00000000-0000-4000-8000-000000000003", "ts": "2026-10-25T19:02:00Z", "bot_id": "backlog-fanout", "repo": "bamr87/bamr87", "task_ref": "run:example-1", "run_id": "r1", "event_type": "finish", "standard_version": "sdlc v0.1.0", "standard_source": "AGENTS.md@example", "decision": "dry_run: 3 PRs planned", "outcome": "success", "detail": {}},
+    {"event_id": "00000000-0000-4000-8000-000000000004", "ts": "2026-10-25T19:30:00Z", "bot_id": "router", "repo": "bamr87/example-site", "task_ref": "bamr87/example-site#12", "run_id": "r2", "event_type": "blocked_handoff", "standard_version": "sdlc v0.1.0", "standard_source": "AGENTS.md@example", "decision": "route to sites", "outcome": "pending", "detail": {"blocked_by": "human", "handoff_to": "sites", "why": "needs approval", "resolution": "open"}},
+    {"event_id": "00000000-0000-4000-8000-000000000005", "ts": "2026-10-25T19:40:00Z", "bot_id": "tools", "repo": "bamr87/example-tool", "task_ref": "bamr87/example-tool#7", "run_id": "r3", "event_type": "start", "standard_version": "sdlc v0.0.9", "standard_source": "AGENTS.md@example", "decision": "fix lint", "outcome": "pending", "detail": {}},
+    {"event_id": "00000000-0000-4000-8000-000000000006", "ts": "2026-10-25T19:20:00Z", "bot_id": "content-comms", "repo": "bamr87/example-blog", "task_ref": "bamr87/example-blog#3", "run_id": "r4", "event_type": "retry", "standard_version": "sdlc v0.1.0", "standard_source": "AGENTS.md@example", "decision": "publish post", "outcome": "failure", "detail": {"attempt": 3, "max_attempts": 3, "cause": "example timeout", "final_outcome": "gave_up"}},
+    {"event_id": "00000000-0000-4000-8000-000000000007", "ts": "2026-10-25T19:21:00Z", "bot_id": "content-comms", "repo": "bamr87/example-blog", "task_ref": "bamr87/example-blog#3", "run_id": "r4", "event_type": "finish", "standard_version": "sdlc v0.1.0", "standard_source": "AGENTS.md@example", "decision": "publish post", "outcome": "failure", "detail": {}}
+  ],
+  "amendment_links": [
+    {"event_id": "00000000-0000-4000-8000-000000000002", "amendment": "0001", "repo": "bamr87/bamr87", "relation": "cited_for_decline"},
+    {"event_id": "00000000-0000-4000-8000-000000000003", "amendment": "0001", "repo": "bamr87/bamr87", "relation": "followed"}
+  ],
+  "jobs": [
+    {"job": "backlog-fanout", "status": "completed", "conclusion": "success", "updated_at": "2026-10-25T19:02:00Z"},
+    {"job": "log-flush", "status": "in_progress", "conclusion": null, "updated_at": "2026-10-25T19:59:00Z"}
+  ]
+}

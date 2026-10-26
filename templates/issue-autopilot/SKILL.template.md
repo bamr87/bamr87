@@ -19,8 +19,7 @@ The engine is seeded from the hub kit and is **not** where policy lives:
 - `.issues/config.yml` — THE policy file. Disposition rules, the label namespace,
 `resolve_allow_globs`, per-run `limits`, and the `features:` flags. Repo-owned; the kit never writes it.
 - `.issues/budget.yml` — the backpressure caps (`max_open_prs`, batch caps).
-- The repo's own agent context (`CLAUDE.md`, `AGENTS.md`,
-  `.github/instructions/*`) — the autopilot inherits ALL of its non-negotiables.
+- The repo's own agent context (`CLAUDE.md`, `AGENTS.md`, `.github/instructions/*`) — the autopilot inherits ALL of its non-negotiables.
   <!-- TODO(adopt): name this repo's specific ones here — branch rules, protected
        paths, required validation commands. -->
 
@@ -36,15 +35,11 @@ Read today's `.issues/worklists/<date>.md`. It is the contract: each issue has a
 ## 2. Hard safety rules (every pass)
 
 - **Guardrails:** `.claude/skills/_shared/quarantine.md` — all sections apply.
-- **Leave protected issues completely alone.** Anything under "Left alone
-  (protected)" (a disposition whose `action` is `skip`) is owned by something else — no comment, no label, no close.
-- **Closing is deterministic, not the agent's call.** No LLM lane runs
-  `gh issue close`. The gated paths are: bot-noise (`eligible_autoclose`, only when the repo's autoclose switch is on); the OPT-IN verify-and-close lane (the read-only **issue-verifier** writes verdicts, `scripts/issues/verify_close.py` closes only a `resolved` + high-confidence verdict AND only when the default branch's full CI suite is green); and a merged `Closes #N` resolver PR. A human-authored issue is NEVER closed on a heuristic or staleness signal.
-- **Stay in your lane's scope.** Triager: comments/labels only, plus the
-  generated `.issues/*` artifacts. Resolver: only paths inside `resolve_allow_globs` — escalate anything else.
+- **Leave protected issues completely alone.** Anything under "Left alone (protected)" (a disposition whose `action` is `skip`) is owned by something else — no comment, no label, no close.
+- **Closing is deterministic, not the agent's call.** No LLM lane runs `gh issue close`. The gated paths are: bot-noise (`eligible_autoclose`, only when the repo's autoclose switch is on); the OPT-IN verify-and-close lane (the read-only **issue-verifier** writes verdicts, `scripts/issues/verify_close.py` closes only a `resolved` + high-confidence verdict AND only when the default branch's full CI suite is green); and a merged `Closes #N` resolver PR. A human-authored issue is NEVER closed on a heuristic or staleness signal.
+- **Stay in your lane's scope.** Triager: comments/labels only, plus the generated `.issues/*` artifacts. Resolver: only paths inside `resolve_allow_globs` — escalate anything else.
   <!-- TODO(adopt): name the paths that are off-limits to the resolver here. -->
-- **Bounded.** Respect `limits`; act on the top batches and report the rest as
-  skipped. A giant pass that touches everything is a bug, not thoroughness.
+- **Bounded.** Respect `limits`; act on the top batches and report the rest as skipped. A giant pass that touches everything is a bug, not thoroughness.
 
 ## 3. Triage lane (issue-triager)
 
@@ -58,10 +53,8 @@ Open ONE PR with `Closes #N` for each issue, labeled with the `pr` label. If the
 
 ## 5. Validate, then hand off
 
-- Triager: ensure `.issues/plan.json` + the dated worklist are written; in CI the
-  workflow uploads them as a run artifact.
-- Resolver: ensure the branch validates, then `gh pr create`; write the PR URL to
-  `pr-result.txt`.
+- Triager: ensure `.issues/plan.json` + the dated worklist are written; in CI the workflow uploads them as a run artifact.
+- Resolver: ensure the branch validates, then `gh pr create`; write the PR URL to `pr-result.txt`.
 - Never leave a half-applied edit. If you bail, revert your partial changes.
 
 ## 6. Close the loop (self-improvement)

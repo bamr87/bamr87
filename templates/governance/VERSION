@@ -1,0 +1,32 @@
+kit: governance
+version: 0.1.1
+source: bamr87/bamr87 templates/governance/
+seeded-by: tools/fanout.sh --kit governance (branch docs/feature-catalog); validated by tools/governance_lint.py
+files: constitution.template.md, docs/amendments/README.template.md, docs/amendments/0000-template.md, docs/amendments/0001-ratify-constitution.template.md
+spec: specs/WORK.md UPS-WORK-15 (PRD <-> feature catalog), UPS-WORK-16 (constitution + amendment log)
+updated: 2026-10-26
+changelog: |
+  0.1.1: docs/amendments/README gains a `> summary` line under its H1, so a
+    seeded repo passes docs_index.py --lint (law-ai main went red on it).
+  0.1.0: initial kit. Lifted, not invented:
+  - constitution: bamr87/law-ai docs/constitution.md (the fleet's only ratified
+    constitution: mission, locked stack, gates, HITL, spec workflow, autonomy,
+    "amendments require an ADR and a human maintainer") via the spec-driven
+    kit's constitution.template.md, which this kit supersedes as the seed.
+    Adds the sections law-ai keeps in AGENTS.md: authority/precedence, the
+    human-vs-agent role split, and how PRD / features / ADRs / CHANGELOG /
+    AGENTS.md relate.
+  - amendments: law-ai's inline dated amendments ("amended 2026-09-04, ADR 0007")
+    and gitorio's proposals/PROPOSED-*-amendment.md, made into numbered
+    records (docs/amendments/NNNN-slug.md) beside the sdlc kit's ADR log
+    (docs/adr/, same NNNN numbering, law-ai format), and year-of-ai's
+    lineage/decisions ratify-by-merge practice.
+  - feature catalog: the verify kit's features/features.yml (features/v1),
+    extended additively with `status`, per-feature `prd:` refs and a top-level
+    `prd:` path, and a generated PRD "Feature catalog" block.
+notes: |
+  - Additive-only: an existing docs/constitution.md (or CONSTITUTION.md) is
+    never overwritten; the kit adds the amendment log and the PRD block and
+    the lint says what to conform by hand.
+  - The PRD block is generated (governance_lint.py prd-sync). Like the README
+    AUTO span and CHANGELOG.md, never hand-edit it.

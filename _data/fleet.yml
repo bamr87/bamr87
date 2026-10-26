@@ -124,6 +124,10 @@ hub:
   default_branch: main
   bot_name: bamr87-bot
   bot_email: "10567847+bamr87@users.noreply.github.com"
+  # GitHub owners whose repos ARE the fleet (tools/fanout.sh targets them; an
+  # upstream under any other owner — microsoft/skills, tt-a1i/archify — is an
+  # external mirror and is never written to). The three orgs are bamr87's own.
+  owners: [bamr87, bash-365, year-of-ai, ai-world-view]
 
 # --------------------------------------------------------------------------- #
 # Loop cadence (UTC) — the hub's SCHEDULE MAP. Every hub workflow that carries
@@ -158,6 +162,7 @@ schedule:
   # git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
+  backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.

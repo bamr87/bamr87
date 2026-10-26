@@ -1,0 +1,33 @@
+# =============================================================================
+# _data/backlog_fanout.yml — config for the BACKLOG FAN-OUT routine (HUB-027)
+# =============================================================================
+# Read by tools/backlog_fanout.py and .github/workflows/backlog-fanout.yml.
+# Doc: docs/BACKLOG-FANOUT.md. PRD: FR22, FR23.
+schema: backlog-fanout/v1
+
+# How often the routine acts. The workflow fires DAILY (cron in _data/fleet.yml
+# schedule.backlog_fanout); with `weekly` it exits early (a "cadence skip") on
+# every day but `weekly_day`. workflow_dispatch can override both.
+cadence: daily            # daily | weekly
+weekly_day: monday        # monday … sunday (UTC), used only when cadence: weekly
+
+# SAFETY SWITCH. false ⇒ every SCHEDULED run is a dry run: it reads the backlog,
+# plans, writes the summary + activity-log queue, and opens/pushes NOTHING.
+# Flip to true (by a reviewed PR) only once FLEET_TOKEN is provisioned and verified.
+apply: false
+
+max_prs_per_run: 10       # blast radius: target PRs opened/updated per run
+
+sources:
+  issues: true            # open issues in bamr87/bamr87
+  requirements: true      # PRD FRn/NFRn with no shipped feature serving them
+  features: true          # features/features.yml entries whose status is not shipped
+
+# Issues carrying any of these labels are declined (logged, never fanned out).
+skip_labels: [agent:blocked, wontfix, hub-only, duplicate]
+
+# Mapping: which fleet repos a PRD requirement applies to. Requirements are hub
+# product requirements, so the default is NONE (reported as unmapped). Use
+# fan-out target names (projects/<name>) or `all`.
+#   FR3: [zer0-mistakes, it-journey]
+requirements: {}

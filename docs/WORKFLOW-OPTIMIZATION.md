@@ -1,5 +1,7 @@
 # Workflow Optimization
 
+> The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it.
+
 A fleet-wide audit of every GitHub Actions workflow in the hub and its submodules, and the record of what was changed.
 
 Baseline: `_data/actions_usage.yml` (14-day window ending 2026-07-13) plus a static read of all workflow files in the checked-out submodules.

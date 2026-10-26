@@ -1,5 +1,7 @@
 # Forge as the Docker host
 
+> Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash.
+
 The Mac runs the terminal dash (`tools/dash tui`). **Forge runs the containers.** The registry is still `_data/projects.yml` — Docker is live state, not a second inventory.
 
 ```

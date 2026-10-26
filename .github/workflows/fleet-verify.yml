@@ -186,23 +186,30 @@ jobs:
         run: |
           set -uo pipefail
           # Always-latest fleet policy: install, never ci; no lockfiles.
-          if [ -n "$INSTALL" ]; then bash -c "$INSTALL"
+          # Best-effort: a failed install is a warning here, and the scenarios
+          # that need it fail on their own with a real error.
+          if [ -n "$INSTALL" ]; then bash -c "$INSTALL" || echo "::warning::install override failed"
           else
-            [ -f package.json ] && npm install --no-audit --no-fund
-            [ -f Gemfile ] && bundle install --quiet
-            [ -f requirements.txt ] && pip install --quiet -r requirements.txt
-            [ -f pyproject.toml ] && pip install --quiet -e . 2>/dev/null
+            if [ -f package.json ]; then npm install --no-audit --no-fund || echo "::warning::npm install failed"; fi
+            if [ -f Gemfile ]; then bundle install --quiet || echo "::warning::bundle install failed"; fi
+            if [ -f requirements.txt ]; then pip install --quiet -r requirements.txt || echo "::warning::pip install -r requirements.txt failed"; fi
+            # A pyproject.toml that only configures tools ([tool.pytest], [tool.ruff])
+            # is not installable — `pip install -e .` would fail on it.
+            if [ -f pyproject.toml ] && grep -qE '^\[(project|build-system)\]' pyproject.toml; then
+              pip install --quiet -e . || echo "::warning::pip install -e . failed"
+            fi
           fi
-          true
 
       - name: Install the runner's dependencies + Chromium
         if: ${{ steps.cfg.outputs.present == 'true' }}
         run: |
           set -euo pipefail
-          # Resolved from <repo>/node_modules by verify/runner.mjs. --no-save so a
-          # repo without package.json (Jekyll, Django) gets nothing written back.
-          npm install --no-save --no-audit --no-fund --no-package-lock @playwright/test yaml
-          npx playwright install --with-deps chromium
+          # Installed into verify/node_modules, which verify/runner.mjs resolves
+          # first, so the repo's own package.json / lockfile / node_modules are
+          # never touched: installing on top of an existing tree crashes npm
+          # ("Cannot read properties of null (reading 'edgesOut')").
+          npm install --prefix verify --no-save --no-audit --no-fund --no-package-lock @playwright/test yaml
+          verify/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Start the app the way a user would
         if: ${{ steps.cfg.outputs.present == 'true' }}

@@ -2,7 +2,7 @@
 # Secret NAMES, AGES, and outcomes only; never a credential value.
 # Variables are not secret, so their VALUES are recorded — this is the
 # only committed record of what the fleet is meant to hold.
-generated_at: 2026-10-19 02:34 UTC
+generated_at: 2026-10-26 02:35 UTC
 mode: apply
 tokens:
 - name: CLAUDE_CODE_OAUTH_TOKEN
@@ -11,254 +11,164 @@ tokens:
   minted: false
   max_age_days: 45
   lifetime_days: 365
-  oldest_age_days: 18
+  oldest_age_days: 25
   attention: []
   counts:
-    repos: 40
-    ok: 40
+    repos: 25
+    ok: 22
     stale: 0
-    missing: 0
+    missing: 3
     unreachable: 0
-    written: 0
+    written: 3
     failed: 0
   repos:
   - nwo: bamr87/.github
     state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:28Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/1987
-    state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:28Z'
     behind_hub: false
     action: none
   - nwo: bamr87/README
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:30Z'
     behind_hub: false
     action: none
   - nwo: bamr87/SCHEMA
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:31Z'
     behind_hub: false
     action: none
-  - nwo: bamr87/aieo
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:31Z'
+  - nwo: bamr87/amrchy
+    state: missing
+    age_days: null
+    updated_at: null
     behind_hub: false
-    action: none
+    action: written
   - nwo: bamr87/bamr87
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:27Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bamr87.github.io
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:33Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/barodybroject
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:34Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/bashconsultants
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:35Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bashcrawl
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:36Z'
     behind_hub: false
     action: none
   - nwo: bamr87/bashos
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:36Z'
     behind_hub: false
     action: none
-  - nwo: bamr87/books
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:38Z'
+  - nwo: bamr87/cv-pro
+    state: missing
+    age_days: null
+    updated_at: null
     behind_hub: false
-    action: none
-  - nwo: bamr87/chui
-    state: ok
-    age_days: 6
-    updated_at: '2026-10-12T02:47:33Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/cv
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:39Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/cv-builder-pro
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:40Z'
-    behind_hub: false
-    action: none
+    action: written
   - nwo: bamr87/djangoerp
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:41Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/drsai
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:42Z'
     behind_hub: false
     action: none
   - nwo: bamr87/fredgar-ai
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:43Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/git-with-the-program
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:44Z'
     behind_hub: false
     action: none
   - nwo: bamr87/githubai
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:45Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/gitnexus
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:46Z'
     behind_hub: false
     action: none
   - nwo: bamr87/gitorio
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:47Z'
     behind_hub: false
     action: none
-  - nwo: bamr87/irony-works
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:48Z'
+  - nwo: bamr87/godotgo
+    state: missing
+    age_days: null
+    updated_at: null
     behind_hub: false
-    action: none
+    action: written
   - nwo: bamr87/it-journey
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:49Z'
     behind_hub: false
     action: none
   - nwo: bamr87/law-ai
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:50Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/lawmode
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:51Z'
     behind_hub: false
     action: none
   - nwo: bamr87/lifehacker.dev
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:52Z'
     behind_hub: false
     action: none
   - nwo: bamr87/ocrmd
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:53Z'
     behind_hub: false
     action: none
   - nwo: bamr87/outbox
     state: ok
-    age_days: 6
+    age_days: 13
     updated_at: '2026-10-12T02:47:34Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/raising-eliza
-    state: ok
-    age_days: 6
-    updated_at: '2026-10-12T02:47:34Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/retro-pi
-    state: ok
-    age_days: 6
-    updated_at: '2026-10-12T02:47:35Z'
     behind_hub: false
     action: none
   - nwo: bamr87/rewind-arcade
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:54Z'
     behind_hub: false
     action: none
   - nwo: bamr87/scripts
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:55Z'
     behind_hub: false
     action: none
   - nwo: bamr87/vs-sonic-pi
     state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:57Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/wargames
-    state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:57Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-CMS
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:27:58Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/zer0-image-generator
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:27:59Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zer0-mistakes
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:28:00Z'
-    behind_hub: false
-    action: none
-  - nwo: bamr87/zer0-pages
-    state: ok
-    age_days: 18
-    updated_at: '2026-09-30T03:28:02Z'
     behind_hub: false
     action: none
   - nwo: bamr87/zpl-viewer
     state: ok
-    age_days: 18
+    age_days: 25
     updated_at: '2026-09-30T03:28:03Z'
     behind_hub: false
     action: none
@@ -282,59 +192,40 @@ variables:
     FLEET_HUB: bamr87/bamr87
   auth_order:
     bamr87/.github: oauth,api_key
-    bamr87/1987: oauth,api_key
     bamr87/README: oauth,api_key
     bamr87/SCHEMA: oauth,api_key
-    bamr87/aieo: oauth,api_key
+    bamr87/amrchy: oauth,api_key
     bamr87/bamr87: oauth,api_key
     bamr87/bamr87.github.io: oauth,api_key
-    bamr87/barodybroject: oauth,api_key
-    bamr87/bashconsultants: oauth,api_key
     bamr87/bashcrawl: oauth,api_key
     bamr87/bashos: oauth,api_key
-    bamr87/books: oauth,api_key
-    bamr87/chui: oauth,api_key
-    bamr87/cv: oauth,api_key
-    bamr87/cv-builder-pro: oauth,api_key
+    bamr87/cv-pro: oauth,api_key
     bamr87/djangoerp: oauth,api_key
-    bamr87/drsai: oauth,api_key
     bamr87/fredgar-ai: oauth,api_key
-    bamr87/git-with-the-program: oauth,api_key
     bamr87/githubai: oauth,api_key
-    bamr87/gitnexus: oauth,api_key
     bamr87/gitorio: oauth,api_key
-    bamr87/irony-works: oauth,api_key
+    bamr87/godotgo: oauth,api_key
     bamr87/it-journey: oauth,api_key
     bamr87/law-ai: oauth,api_key
-    bamr87/lawmode: oauth,api_key
     bamr87/lifehacker.dev: oauth,api_key
     bamr87/ocrmd: oauth,api_key
     bamr87/outbox: oauth,api_key
-    bamr87/raising-eliza: oauth,api_key
-    bamr87/retro-pi: oauth,api_key
     bamr87/rewind-arcade: oauth,api_key
     bamr87/scripts: oauth,api_key
     bamr87/vs-sonic-pi: oauth,api_key
-    bamr87/wargames: oauth,api_key
     bamr87/zer0-CMS: oauth,api_key
-    bamr87/zer0-image-generator: oauth,api_key
     bamr87/zer0-mistakes: oauth,api_key
-    bamr87/zer0-pages: oauth,api_key
     bamr87/zpl-viewer: oauth,api_key
   counts:
-    repos: 40
-    ok: 37
-    stale: 3
-    missing: 0
+    repos: 25
+    ok: 20
+    stale: 2
+    missing: 3
     unreachable: 0
-    written: 3
+    written: 5
     failed: 0
   repos:
   - nwo: bamr87/.github
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/1987
     state: ok
     differing: []
     action: none
@@ -346,24 +237,20 @@ variables:
     state: ok
     differing: []
     action: none
-  - nwo: bamr87/aieo
-    state: ok
-    differing: []
-    action: none
+  - nwo: bamr87/amrchy
+    state: missing
+    differing:
+    - CLAUDE_AUTH_ORDER
+    - FLEET_HUB
+    - NODE_VERSION
+    - PYTHON_VERSION
+    - RUBY_VERSION
+    action: written
   - nwo: bamr87/bamr87
     state: ok
     differing: []
     action: none
   - nwo: bamr87/bamr87.github.io
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/barodybroject
-    state: stale
-    differing:
-    - RUBY_VERSION
-    action: written
-  - nwo: bamr87/bashconsultants
     state: ok
     differing: []
     action: none
@@ -375,27 +262,16 @@ variables:
     state: ok
     differing: []
     action: none
-  - nwo: bamr87/books
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/chui
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/cv
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/cv-builder-pro
-    state: ok
-    differing: []
-    action: none
+  - nwo: bamr87/cv-pro
+    state: missing
+    differing:
+    - CLAUDE_AUTH_ORDER
+    - FLEET_HUB
+    - NODE_VERSION
+    - PYTHON_VERSION
+    - RUBY_VERSION
+    action: written
   - nwo: bamr87/djangoerp
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/drsai
     state: ok
     differing: []
     action: none
@@ -403,15 +279,7 @@ variables:
     state: ok
     differing: []
     action: none
-  - nwo: bamr87/git-with-the-program
-    state: ok
-    differing: []
-    action: none
   - nwo: bamr87/githubai
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/gitnexus
     state: ok
     differing: []
     action: none
@@ -419,10 +287,15 @@ variables:
     state: ok
     differing: []
     action: none
-  - nwo: bamr87/irony-works
-    state: ok
-    differing: []
-    action: none
+  - nwo: bamr87/godotgo
+    state: missing
+    differing:
+    - CLAUDE_AUTH_ORDER
+    - FLEET_HUB
+    - NODE_VERSION
+    - PYTHON_VERSION
+    - RUBY_VERSION
+    action: written
   - nwo: bamr87/it-journey
     state: stale
     differing:
@@ -431,10 +304,6 @@ variables:
     - RUBY_VERSION
     action: written
   - nwo: bamr87/law-ai
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/lawmode
     state: ok
     differing: []
     action: none
@@ -453,14 +322,6 @@ variables:
     state: ok
     differing: []
     action: none
-  - nwo: bamr87/raising-eliza
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/retro-pi
-    state: ok
-    differing: []
-    action: none
   - nwo: bamr87/rewind-arcade
     state: ok
     differing: []
@@ -473,23 +334,11 @@ variables:
     state: ok
     differing: []
     action: none
-  - nwo: bamr87/wargames
-    state: ok
-    differing: []
-    action: none
   - nwo: bamr87/zer0-CMS
     state: ok
     differing: []
     action: none
-  - nwo: bamr87/zer0-image-generator
-    state: ok
-    differing: []
-    action: none
   - nwo: bamr87/zer0-mistakes
-    state: ok
-    differing: []
-    action: none
-  - nwo: bamr87/zer0-pages
     state: ok
     differing: []
     action: none

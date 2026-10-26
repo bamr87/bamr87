@@ -1,5 +1,7 @@
 # Agent Verification — proving features work the way a user experiences them
 
+> The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index.
+
 > Tests prove the code. **Verification proves the product** — by running it and using it the way a person does, with a real browser, and leaving behind evidence someone else can open. This document is the fleet standard for that: the feature index every agent reads for context, the user scenarios both a runner and an AI agent execute, the evidence bundles linked back to the feature, the CI gate, and the fleet-wide coverage index at `/features/`.
 
 Spec rows: [`specs/QUALITY.md`](../specs/QUALITY.md) "Verification" (UPS-QA-50..53). Kit: [`templates/verify/`](../templates/verify/). Gate: [`fleet-verify.yml`](../.github/workflows/fleet-verify.yml). Aggregator: [`tools/features_index.py`](../tools/features_index.py) (`dash features`). Surface: [`/features/`](https://bamr87.github.io/bamr87/features/).

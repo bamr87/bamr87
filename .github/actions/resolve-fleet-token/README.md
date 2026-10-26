@@ -84,9 +84,7 @@ genuinely sufficient there, and adding a network round-trip per job to confirm s
 
 ## Safety notes
 
-- Every non-empty candidate is `::add-mask::`ed *before* any probe runs, so even
-  a rejected candidate cannot appear in logs.
+- Every non-empty candidate is `::add-mask::`ed *before* any probe runs, so even a rejected candidate cannot appear in logs.
 - The probe is a read-only `GET`; re-running it has no side effects.
 - Only the HTTP status code is captured; the response body goes to `/dev/null`.
-- Tokens are passed to the script through `env:`, never interpolated into the
-  script body.
+- Tokens are passed to the script through `env:`, never interpolated into the script body.
