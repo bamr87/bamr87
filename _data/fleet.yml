@@ -905,18 +905,20 @@ content:
     - name: bash-365.com
       live_url: https://bash-365.com
       quality: { description: [120, 155] }
-    - name: irony-works # moved to zer0-CMS sites/irony-works and bamr87/irony-works is archived (2026-10-20);
-      # the atlas reads repository roots only, so it reads the archived copy until it can follow a site
-      # into a monorepo sub-path.
-      repo: bamr87/irony-works
-      live_url: https://bamr87.github.io/irony-works/
-      roots: [vault]
+    # irony-works, wargames and 2005 live in the zer0-CMS monorepo now (sites/<name>/, imported with
+    # their history); the original repos were deleted or archived on 2026-10-20. `registry:` points the
+    # atlas at the zer0-CMS checkout and `roots:` at the site's sub-path inside it, so each site keeps
+    # its own name, narrative and pillars in editorial.yml while reading from the monorepo.
+    - name: irony-works
+      registry: zer0-CMS
+      roots: [sites/irony-works/vault]
       exclude: [templates]
       quality: { min_words: 150, require: [title, status] }
-    - name: wargames # moved to zer0-CMS sites/wargames, original archived (2026-10-20) — as irony-works
-      repo: bamr87/wargames
-      live_url: https://bamr87.github.io/wargames/
-      roots: [overthewire]
+      # No live_url: bamr87.github.io/irony-works went away with the repo, and zer0-CMS's sites.yml does
+      # not deploy irony-works yet (its irony-works.yml only builds).
+    - name: wargames
+      registry: zer0-CMS
+      roots: [sites/wargames/overthewire]
       quality: { min_words: 100, require: [title] }
     # The two lineage orgs: the hub is the front door, the members hold the
     # content. Members are declared individually so each subject gets its own
@@ -924,10 +926,10 @@ content:
     - name: year-of-ai.github.io
       repo: year-of-ai/year-of-ai.github.io
       live_url: https://year-of-ai.github.io
-    - name: '2005' # a year-of-ai member. Its content moved to zer0-CMS sites/2005 and year-of-ai/2005 is
-      # archived (2026-10-19); the atlas reads repository roots only, so it reads the archived copy until
-      # it can follow a site into a monorepo sub-path.
-      repo: year-of-ai/2005
+    - name: '2005' # a year-of-ai member; its content lives in zer0-CMS sites/2005 (year-of-ai/2005 is archived)
+      registry: zer0-CMS
+      roots: [sites/2005/_posts]
+      live_url: https://year-of-ai.github.io/2005/
       dates: git # front-matter `date` is the subject's date (2005), not when it was published
     - name: ai-world-view.github.io
       repo: ai-world-view/ai-world-view.github.io
