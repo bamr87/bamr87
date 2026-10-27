@@ -64,7 +64,11 @@ FAILING_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
 # so the branch filter alone does not exclude pull-request runs.
 PR_EVENTS = {"pull_request", "pull_request_target"}
 
-DEFAULT_THRESHOLDS = {"stale_issue_days": 30, "stale_pr_days": 14}
+# stale_failure_days: a workflow whose LAST run failed longer ago than this is
+# not a standing failure but a retired line (a legacy Pages builder superseded
+# by a deploy workflow, a cron that was removed) — it would otherwise sit on the
+# inbox at priority 90 forever with nothing to fix.
+DEFAULT_THRESHOLDS = {"stale_issue_days": 30, "stale_pr_days": 14, "stale_failure_days": 60}
 
 # The control-plane repo is not a registry project, but its open state (and
 # failing workflows) belong on the portal like everyone else's.
@@ -176,6 +180,7 @@ def latest_runs_on_branch(runs, branch: str, scan_cap: int = FAILING_RUNS_SCAN) 
             "conclusion": run.conclusion or "?",
             "run_url": run.html_url,
             "run_at": created.strftime("%Y-%m-%d %H:%M UTC") if created else "?",
+            "run_age_days": (now_utc() - created).days if created else None,
         }
     return latest
 
@@ -314,8 +319,12 @@ def collect_repo(gh, project: dict, th: dict, pr_ci_cap: int) -> dict | None:
             latest = latest_runs_on_branch(
                 repo.get_workflow_runs(branch=branch), branch
             )
+            stale_after = th.get("stale_failure_days", DEFAULT_THRESHOLDS["stale_failure_days"])
             rec["workflows"]["failing"] = [
-                v for v in latest.values() if v["conclusion"] in FAILING_CONCLUSIONS
+                v for v in latest.values()
+                if v["conclusion"] in FAILING_CONCLUSIONS
+                # fail OPEN on an unknown age, like the branch/event guards above
+                and (v.get("run_age_days") is None or v["run_age_days"] <= stale_after)
             ]
         except GithubException:
             pass
@@ -367,7 +376,10 @@ def build_inbox(repos: list[dict]) -> list[dict]:
     """
     inbox: list[dict] = []
     for r in repos:
-        if r["external"]:
+        # External mirrors are not ours to act on, and an archived repo is
+        # read-only on GitHub — a failing workflow or a stale bug there would
+        # sit at the top of the queue forever with no lever behind it.
+        if r["external"] or r.get("archived"):
             continue
         for f in r["workflows"]["failing"]:
             inbox.append({

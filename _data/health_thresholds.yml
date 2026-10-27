@@ -10,6 +10,11 @@ stale_issue_days: 30
 # Days since an open PR was updated before it counts as "stale".
 stale_pr_days: 14
 
+# Days since a workflow's LAST run before its failure stops counting as a
+# standing failure on the triage inbox: a line that has not run in this long
+# is retired (a legacy Pages builder, a removed cron), not red.
+stale_failure_days: 60
+
 # Open `bug`-labeled issues at/above this count raise an amber flag.
 bug_issue_amber: 3
 

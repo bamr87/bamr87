@@ -329,6 +329,24 @@ def compute_attention(project: dict, health: dict, th: dict) -> None:
     reasons: list[str] = []
     level = "green"
 
+    # An archived project is read-only on GitHub: its last CI verdict, open
+    # bugs and stale issues are history, not work. Ranking it red put ai-seed
+    # and csv-vscoode at the top of "need attention" with nothing to do.
+    if project.get("status") == "archived" or project.get("github_archived"):
+        health["attention"]["level"] = "green"
+        health["attention"]["reasons"] = ["archived — read-only, not monitored"]
+        health["attention_rank"] = 2
+        return
+    # An external mirror (microsoft/skills, tt-a1i/archify) is consumed, not
+    # maintained here: its red CI is nobody's lever on this board. Same rule
+    # fleet_triage.score_attention applies ("external mirror — informational").
+    repo_url = str(project.get("repo_url") or "").lower().rstrip("/")
+    if repo_url and "github.com/bamr87/" not in repo_url + "/":
+        health["attention"]["level"] = "green"
+        health["attention"]["reasons"] = ["external mirror — informational only"]
+        health["attention_rank"] = 2
+        return
+
     if health["ci"]["last"] not in ("success", None):
         reasons.append(f"CI failing ({health['ci']['last']})")
         level = "red"
