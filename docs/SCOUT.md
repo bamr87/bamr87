@@ -1,5 +1,7 @@
 # Repo Scout
 
+> The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline.
+
 The fleet's daily **proactive issue loop**. [`repo-evolution`](EVOLUTION.md) writes *code* (a weekly draft PR in opted-in repos); the scout writes *tickets*. Every day it visits a small sample of the fleet's repositories, has an agent read each one the way a new maintainer would, and files a few well-formed issues there — fixes, updates, features — for the [issue pipeline](ISSUE-PIPELINE.md) to triage, implement and complete. Together the two loops are the "find the next thing worth doing, then do it" cycle the user asked for: the scout proposes, the pipeline delivers, and a human reviews the draft PR at the end.
 
 | | | |
