@@ -137,7 +137,11 @@ def parse_stamp(value) -> dt.datetime | None:
 def source_meta(data, now: dt.datetime) -> dict:
     if not isinstance(data, dict):
         return {"present": False, "generated_at": None, "age_days": None}
-    stamp = data.get("generated_at") or data.get("generated")
+    # Most signals stamp themselves at the top. The engagement ledger stamps
+    # summary.updated_at instead (moved only when content moves), which used to
+    # render as "no stamp" on the Overview's freshness tiles.
+    summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    stamp = data.get("generated_at") or data.get("generated") or data.get("updated_at") or summary.get("updated_at")
     ts = parse_stamp(stamp)
     return {
         "present": True,
