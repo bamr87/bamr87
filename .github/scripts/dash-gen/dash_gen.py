@@ -83,6 +83,7 @@ import cv_fragment
 import daily_report
 import engagements
 import evolution
+import repo_scout
 import fleet_compose
 import content_atlas
 import fleet_lake
@@ -677,6 +678,17 @@ def main(argv: list[str] | None = None) -> int:
         help="weekly repo-evolution plan: select opted-in submodules, skip open passes, write briefs -> JSON matrix (feeds repo-evolution.yml)",
     )
     evolution.add_arguments(p_targets)
+
+    p_scout = sub.add_parser(
+        "scout",
+        help="daily repo-scout plan: today's sample of owned repos, backpressure, briefs -> JSON matrix (feeds repo-scout.yml)",
+    )
+    repo_scout.add_plan_arguments(p_scout)
+    p_scout_file = sub.add_parser(
+        "scout-file",
+        help="file a scout agent's proposals.json as issues: validate, dedupe against open issues, cap, label (dry run without --apply)",
+    )
+    repo_scout.add_file_arguments(p_scout_file)
 
     args = parser.parse_args(argv)
     return args.func(args)
