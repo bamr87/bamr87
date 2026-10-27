@@ -41,4 +41,4 @@ Led global accounting systems strategy for a multi-billion dollar agriculture an
 
 ---
 
-> For complete experience and credentials, review the [full CV (PDF)](https://github.com/bamr87/cv/blob/main/cv.pdf).
+> For complete experience and credentials, review the [full CV (PDF)](https://github.com/bamr87/cv-pro/blob/main/cv/cv.pdf).

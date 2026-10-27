@@ -6,7 +6,7 @@
 
 I build sustainable enterprise systems and empower internal teams, transforming technology from a cost center into a strategic advantage.
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/amrabdel) [![Portfolio](https://img.shields.io/badge/Portfolio-bashconsultants.com-green?style=for-the-badge&logo=googlechrome)](https://bashconsultants.com) [![Email](https://img.shields.io/badge/Email-amr.abdel%40gmail.com-red?style=for-the-badge&logo=gmail)](mailto:amr.abdel@gmail.com) [![CV](https://img.shields.io/badge/CV-Download-orange?style=for-the-badge&logo=adobeacrobatreader)](https://github.com/bamr87/cv/blob/main/cv.pdf)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/amrabdel) [![Portfolio](https://img.shields.io/badge/Portfolio-bashconsultants.com-green?style=for-the-badge&logo=googlechrome)](https://bashconsultants.com) [![Email](https://img.shields.io/badge/Email-amr.abdel%40gmail.com-red?style=for-the-badge&logo=gmail)](mailto:amr.abdel@gmail.com) [![CV](https://img.shields.io/badge/CV-Download-orange?style=for-the-badge&logo=adobeacrobatreader)](https://github.com/bamr87/cv-pro/blob/main/cv/cv.pdf)
 
 </div>
 
@@ -425,7 +425,7 @@ mindmap
 - 💼 **LinkedIn**: [linkedin.com/in/amrabdel](https://linkedin.com/in/amrabdel)
 - 🌐 **Website**: [bashconsultants.com](https://bashconsultants.com)
 - 📧 **Email**: [amr.abdel@gmail.com](mailto:amr.abdel@gmail.com)
-- 📄 **CV**: [Download PDF](https://github.com/bamr87/cv/blob/main/cv.pdf)
+- 📄 **CV**: [Download PDF](https://github.com/bamr87/cv-pro/blob/main/cv/cv.pdf)
 - 🐙 **GitHub**: [@bamr87](https://github.com/bamr87)
 
 ---
