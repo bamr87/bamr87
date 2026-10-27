@@ -5,7 +5,7 @@
 import { clearSnapshotCache } from '../api/static';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Group, SimpleGrid, Text } from '@mantine/core';
+import { Group, Kbd, SimpleGrid, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,13 +23,13 @@ function showKeys(keys: { dom: string; label: string; action: string; group: str
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={6} verticalSpacing={6}>
         {keys.filter((k) => !k.action.startsWith('tab:')).map((k) => (
           <Group key={k.action} gap={8} wrap="nowrap">
-            <kbd className="k">{label(k.dom)}</kbd>
+            <Kbd>{label(k.dom)}</Kbd>
             <Text size="sm">{k.label}{k.group === 'dash' ? <Text span c="dimmed" size="xs"> (lists)</Text> : null}</Text>
           </Group>
         ))}
-        <Group gap={8} wrap="nowrap"><kbd className="k">1</kbd><Text size="sm">… <kbd className="k">{NAV.length}</kbd> go to a section</Text></Group>
-        <Group gap={8} wrap="nowrap"><kbd className="k">enter</kbd><Text size="sm">Open the selected row</Text></Group>
-        <Group gap={8} wrap="nowrap"><kbd className="k">⌘K</kbd><Text size="sm">Search and commands</Text></Group>
+        <Group gap={8} wrap="nowrap"><Kbd>1</Kbd><Text size="sm">… <Kbd>{NAV.length}</Kbd> go to a section</Text></Group>
+        <Group gap={8} wrap="nowrap"><Kbd>enter</Kbd><Text size="sm">Open the selected row</Text></Group>
+        <Group gap={8} wrap="nowrap"><Kbd>⌘K</Kbd><Text size="sm">Search and commands</Text></Group>
       </SimpleGrid>
     ),
   });

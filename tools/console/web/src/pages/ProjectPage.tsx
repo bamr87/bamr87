@@ -17,6 +17,7 @@ import { duration, fmt, parseList, usd } from '../lib/format';
 import { gh, to } from '../lib/links';
 import { AttentionTable } from './Overview';
 import { RepoManager } from '../github/RepoManager';
+import u from '../styles/utils.module.css';
 
 export function InboxTable({ rows, showRepo = false }: { rows: InboxItem[]; showRepo?: boolean }) {
   return (
@@ -148,7 +149,7 @@ function ContentTab({ name }: { name: string }) {
             {mine.map((s) => {
               const site = String(s.site ?? s.name);
               return (
-                <Paper key={site} p="md" component={Link} to={to.site(site)} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Paper key={site} p="md" component={Link} to={to.site(site)} className={u.tileLink}>
                   <Group justify="space-between">
                     <Text fw={600}>{site}</Text>
                     <Text size="sm" c="dimmed">{s.totals ? `${fmt(s.totals.docs)} documents · ${fmt((s.suggestions ?? []).length)} suggestions` : 'not synced yet'}</Text>
@@ -167,7 +168,7 @@ function RegistryFacts({ d }: { d: ProjectDetail }) {
   const skip = new Set(['name', 'description']);
   const rows = Object.entries(d.registry).filter(([k, v]) => !skip.has(k) && v !== null && v !== '' && !(Array.isArray(v) && !v.length));
   return (
-    <Table className="dt" verticalSpacing={4}>
+    <Table verticalSpacing={4}>
       <Table.Tbody>
         {rows.map(([k, v]) => (
           <Table.Tr key={k}>
@@ -195,7 +196,7 @@ function Signals({ d }: { d: ProjectDetail }) {
         <StatTile label="CI" value={r?.ci_last ?? '—'} sub={r?.ci_pass != null ? `${r.ci_pass}% pass rate` : 'no CI data'} tone={r?.ci_last === 'failure' ? 'crit' : undefined} />
         <StatTile label="Triage" value={<LevelDot level={r?.triage_level} label={r?.triage_score ?? '—'} />} sub={(r?.triage_reasons ?? []).join(' · ') || 'open-state score'} />
         <StatTile label="Open work" value={`${fmt(r?.triage_issues ?? r?.issues_open)} · ${fmt(r?.triage_prs ?? r?.prs_open)}`} sub="issues · pull requests" href={`?tab=work`} />
-        <StatTile label="Failing workflows" value={fmt(r?.failing.length ?? 0)} tone={r?.failing.length ? 'crit' : undefined} href={`?tab=work`} sub="latest run failed" />
+        <StatTile label="Failing workflows" value={fmt(r?.failing.length ?? 0)} tone={r?.failing.length ? 'crit' : undefined} href={`?tab=work`} sub={r?.failing?.length ? 'latest run failed' : 'none failing'} />
         <StatTile label="Last commit" value={r?.last_commit_days == null ? '—' : `${r.last_commit_days}d ago`} sub={`${fmt(r?.commits_30d)} commits in 30 days`} />
         <StatTile label="AI harnesses" value={fmt(h?.harnesses?.length ?? 0)} href={`?tab=harness`}
           sub={h ? (h.coverage?.exempt ? 'exempt from baseline' : h.coverage?.ok ? 'at baseline' : `missing: ${(h.coverage?.missing ?? []).join(', ')}`) : 'not in the harness inventory'} />

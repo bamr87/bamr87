@@ -19,6 +19,9 @@ import { api, askToken, currentToken } from '../api/client';
 import { useTuiStatus } from '../api/hooks';
 import { Banner, PageHeader, Status } from '../components/ui';
 import { to } from '../lib/links';
+import u from '../styles/utils.module.css';
+import classes from './TerminalPage.module.css';
+import type { CSSProperties } from 'react';
 
 type Phase = 'connecting' | 'ready' | 'exited' | 'error';
 interface Palette { tokens: Record<'dark' | 'light', Record<string, string>> }
@@ -182,8 +185,8 @@ export function TerminalPage() {
           <Group gap="sm"><Text size="sm">{message || 'The session ended.'}</Text><Button size="compact-xs" onClick={restart}>Start a new session</Button></Group>
         </Banner>
       ) : null}
-      <div className="term-host" style={{ background: bg }} onClick={() => termRef.current?.focus()}>
-        <div ref={host} style={{ height: '100%', width: '100%' }} />
+      <div className={classes.host} style={{ '--term-bg': bg } as CSSProperties} onClick={() => termRef.current?.focus()}>
+        <div ref={host} className={u.fill} />
       </div>
       <Text size="xs" c="dimmed" mt="xs">
         In Docker the console has no Docker socket, so the terminal dash's Docker tab reports each host's error; <code>tools/dash tui --docker</code> runs the TUI with the socket.

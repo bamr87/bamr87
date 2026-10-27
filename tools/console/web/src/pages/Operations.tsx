@@ -14,6 +14,7 @@ import { JobStatus } from '../jobs/JobStatus';
 import { OpForm } from '../jobs/OpForm';
 import { includesText, when } from '../lib/format';
 import { to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 const GROUPS: [string, string][] = [
   ['observe', 'Observe — read the fleet, refresh signals'],
@@ -26,7 +27,7 @@ const GROUPS: [string, string][] = [
 
 function OpCard({ o }: { o: Op }) {
   return (
-    <Paper p="sm" component={Link} to={to.op(o.id)} style={{ textDecoration: 'none', color: 'inherit' }}>
+    <Paper p="sm" component={Link} to={to.op(o.id)} className={u.tileLink}>
       <Stack gap={4}>
         <Group justify="space-between" gap={6} wrap="nowrap" align="flex-start">
           <Text size="sm" fw={600}>{o.title}</Text>

@@ -19,6 +19,7 @@ import { Banner, External, Load, Mono, PageHeader, Section, StatTile, Status } f
 import { RunButton } from '../jobs/RunButton';
 import { age, dash, fmt, when } from '../lib/format';
 import { to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 type Row = Dict<any>;
 
@@ -114,7 +115,7 @@ function Freshness({ o, range, setRange, days, target }: {
 
 function PlaneOff({ label, why, running }: { label: string; why: string; running?: boolean }) {
   return (
-    <Paper p="xl" style={{ borderStyle: 'dashed', textAlign: 'center' }}>
+    <Paper p="xl" className={u.dashed}>
       <Stack gap="sm" align="center">
         <Text fw={600}>{running ? `${label} is not embedded here.` : `${label} is not running.`}</Text>
         <Text size="sm" c="dimmed">{why}</Text>
@@ -133,7 +134,7 @@ function PlaneOff({ label, why, running }: { label: string; why: string; running
 }
 
 function Embed({ src, title }: { src: string; title: string }) {
-  return <iframe className="embed" src={src} loading="lazy" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title={title} />;
+  return <iframe className={u.embed} src={src} loading="lazy" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title={title} />;
 }
 
 function LogsBody({ o, days, target }: { o: Row; days: number; target: string }) {

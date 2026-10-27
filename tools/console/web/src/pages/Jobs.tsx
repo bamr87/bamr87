@@ -25,6 +25,7 @@ import { useRunner } from '../jobs/JobRunner';
 import { JobStatus } from '../jobs/JobStatus';
 import { duration, includesText, when } from '../lib/format';
 import { to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 const shortArgv = (j: Job) => j.argv.map((a) => a.replace(/^.*\/tools\//, 'tools/')).join(' ');
 const stamp = (j: Job) => j.started ?? j.created ?? j.finished ?? '';
@@ -170,7 +171,7 @@ export function Jobs() {
                   minWidth={900}
                   columns={[
                     { key: 'status', header: 'status', sort: (j) => j.status, render: (j) => <JobStatus status={j.status} /> },
-                    { key: 'op', header: 'operation', sort: (j) => j.title, render: (j) => <div><Text size="sm" fw={600}>{j.title}{j.remote_write ? <Badge ml={6} size="xs" color="yellow" variant="light">remote</Badge> : null}</Text><Code style={{ fontSize: 11, overflowWrap: 'anywhere' }}>{shortArgv(j)}</Code></div> },
+                    { key: 'op', header: 'operation', sort: (j) => j.title, render: (j) => <div><Text size="sm" fw={600}>{j.title}{j.remote_write ? <Badge ml={6} size="xs" color="yellow" variant="light">remote</Badge> : null}</Text><Code fz={11} className={u.anywhere}>{shortArgv(j)}</Code></div> },
                     { key: 'group', header: 'group', sort: (j) => j.group ?? '', render: (j) => (j.group ? <Badge size="xs" variant="outline">{j.group}</Badge> : null) },
                     { key: 'started', header: 'started', sort: stamp, render: (j) => <Text size="xs" c="dimmed">{when(j.started ?? j.created)}</Text> },
                     { key: 'dur', header: 'took', num: true, render: took },
@@ -243,12 +244,12 @@ export function JobPage() {
       {j ? (
         <Paper p="sm" mb="md">
           <Stack gap={4}>
-            <Code block style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{shortArgv(j)}</Code>
+            <Code block className={u.preWrap}>{shortArgv(j)}</Code>
             <Group gap="lg">
               <Text size="xs" c="dimmed">started {when(j.started)}</Text>
               {j.finished ? <Text size="xs" c="dimmed">finished {when(j.finished)}</Text> : null}
               {j.exit_code != null ? <Text size="xs" c="dimmed">exit {j.exit_code}</Text> : null}
-              {j.params && Object.keys(j.params).length ? <Text size="xs" c="dimmed" style={{ minWidth: 0 }}>params <Code style={{ overflowWrap: 'anywhere' }}>{JSON.stringify(j.params)}</Code></Text> : null}
+              {j.params && Object.keys(j.params).length ? <Text size="xs" c="dimmed" miw={0}>params <Code className={u.anywhere}>{JSON.stringify(j.params)}</Code></Text> : null}
             </Group>
           </Stack>
         </Paper>

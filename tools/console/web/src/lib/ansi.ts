@@ -5,15 +5,18 @@
 // chunk: a sequence can straddle two chunks.
 
 const COLOUR: Record<number, string> = {
-  30: 'a-grey', 31: 'a-red', 32: 'a-green', 33: 'a-yellow', 34: 'a-blue', 35: 'a-magenta', 36: 'a-cyan', 37: '',
-  90: 'a-grey', 91: 'a-red', 92: 'a-green', 93: 'a-yellow', 94: 'a-blue', 95: 'a-magenta', 96: 'a-cyan', 97: '',
+  30: 'grey', 31: 'red', 32: 'green', 33: 'yellow', 34: 'blue', 35: 'magenta', 36: 'cyan', 37: '',
+  90: 'grey', 91: 'red', 92: 'green', 93: 'yellow', 94: 'blue', 95: 'magenta', 96: 'cyan', 97: '',
 };
-const STYLE: Record<number, string> = { 1: 'a-bold', 2: 'a-dim', 4: 'a-under' };
+const STYLE: Record<number, string> = { 1: 'bold', 2: 'dim', 4: 'under' };
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
-export function ansiToHtml(input: string): string {
+/** Roles the decoder emits; the caller maps each to its own class (a CSS module). */
+export type AnsiRole = 'grey' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'bold' | 'dim' | 'under';
+
+export function ansiToHtml(input: string, cls: (role: AnsiRole) => string = (r) => r): string {
   const text = input.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '');
   const csi = /\x1b\[([0-9;]*)([A-Za-z])/g;
   let out = '';
@@ -31,9 +34,9 @@ export function ansiToHtml(input: string): string {
         open = 0;
         continue;
       }
-      const cls = STYLE[code] ?? COLOUR[code];
-      if (cls) {
-        out += `<span class="${cls}">`;
+      const cls_ = STYLE[code] ?? COLOUR[code];
+      if (cls_) {
+        out += `<span class="${cls(cls_ as AnsiRole)}">`;
         open++;
       }
     }

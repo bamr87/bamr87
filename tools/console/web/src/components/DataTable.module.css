@@ -1,0 +1,5 @@
+.frame {
+  border: rem(1px) solid var(--grid);
+  border-radius: var(--mantine-radius-md);
+  background: var(--surface);
+}

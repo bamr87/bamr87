@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { ScrollArea, Table, Text } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useKeyScope } from './keyscope';
+import classes from './DataTable.module.css';
 
 export interface Column<T> {
   key: string;
@@ -102,7 +103,7 @@ export function DataTable<T>(p: DataTableProps<T>) {
     const active = sort?.key === c.key;
     const onClick = c.sort ? () => setSort(active ? { key: c.key, desc: !sort?.desc } : { key: c.key, desc: Boolean(c.num) }) : undefined;
     return (
-      <Table.Th key={c.key} className={`${c.num ? 'num' : ''} ${c.sort ? 'sortable' : ''}`} onClick={onClick} style={{ width: c.width }} title={c.title}>
+      <Table.Th key={c.key} data-num={c.num || undefined} data-sortable={c.sort ? true : undefined} onClick={onClick} w={c.width} title={c.title}>
         {c.header}
         {active ? (sort?.desc ? <IconChevronDown size={12} /> : <IconChevronUp size={12} />) : null}
       </Table.Th>
@@ -110,7 +111,7 @@ export function DataTable<T>(p: DataTableProps<T>) {
   };
 
   const table = (
-    <Table className="dt" striped={false} highlightOnHover={false} verticalSpacing={p.dense ? 4 : 7} horizontalSpacing="sm" miw={p.minWidth} stickyHeader={Boolean(p.maxHeight)}>
+    <Table verticalSpacing={p.dense ? 4 : 7} miw={p.minWidth} stickyHeader={Boolean(p.maxHeight)}>
       <Table.Thead>
         <Table.Tr>{p.columns.map(header)}</Table.Tr>
       </Table.Thead>
@@ -118,17 +119,14 @@ export function DataTable<T>(p: DataTableProps<T>) {
         {sorted.length ? (
           sorted.map((row, i) => {
             const t = p.tone?.(row);
-            const cls = [
-              clickable ? 'clickable' : '',
-              p.keys && i === sel ? 'selected' : '',
-              t === 'crit' ? 'tone-crit' : t === 'warn' ? 'tone-warn' : t === 'muted' ? 'muted-row' : '',
-            ].join(' ');
             return (
               <Table.Tr
                 key={p.rowKey(row, i)}
                 data-dt={tid}
                 data-dt-row={i}
-                className={cls}
+                data-clickable={clickable || undefined}
+                data-selected={(p.keys && i === sel) || undefined}
+                data-tone={t || undefined}
                 onClick={(e) => {
                   if (!clickable) return;
                   // Let real links, buttons and inputs inside the row do their own thing.
@@ -138,7 +136,7 @@ export function DataTable<T>(p: DataTableProps<T>) {
                 }}
               >
                 {p.columns.map((c) => (
-                  <Table.Td key={c.key} className={c.num ? 'num' : ''}>{c.render(row)}</Table.Td>
+                  <Table.Td key={c.key} data-num={c.num || undefined}>{c.render(row)}</Table.Td>
                 ))}
               </Table.Tr>
             );
@@ -155,7 +153,7 @@ export function DataTable<T>(p: DataTableProps<T>) {
   );
 
   return (
-    <ScrollArea.Autosize mah={p.maxHeight} type="auto" offsetScrollbars style={{ border: '1px solid var(--grid)', borderRadius: 8, background: 'var(--surface)' }}>
+    <ScrollArea.Autosize mah={p.maxHeight} type="auto" offsetScrollbars className={classes.frame}>
       {table}
     </ScrollArea.Autosize>
   );

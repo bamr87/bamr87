@@ -16,6 +16,7 @@ import type { FleetRow, SitePostMeta } from '../api/types';
 import { LevelDot, Load, Section, StatTile } from '../components/ui';
 import { fmt, usd, when } from '../lib/format';
 import { to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 const LINK_ICON: Record<string, Icon> = { github: IconBrandGithub, linkedin: IconBrandLinkedin, world: IconWorld, mail: IconMail, 'file-cv': IconFileCv };
 
@@ -25,7 +26,7 @@ function Hero() {
   return (
     <Group align="flex-start" gap="xl" wrap="wrap" mb="xl">
       <Avatar src={p?.avatar ? asset(p.avatar) : undefined} size={112} radius={112} alt={p?.name ?? ''} />
-      <Stack gap={6} style={{ flex: 1, minWidth: 260 }}>
+      <Stack gap={6} className={u.flexFill} miw={260}>
         <Text size="sm" c="dimmed" ff="monospace">{p?.handle ? `@${p.handle}` : ''}{p?.location ? ` · ${p.location}` : ''}</Text>
         <Title order={1} fz={{ base: 28, sm: 34 }} lh={1.15}>{p?.name ?? ' '}</Title>
         <Text fz="lg" fw={500}>{p?.title}</Text>
@@ -82,7 +83,7 @@ function Pillar({ icon: Ico, title, body, links }: { icon: Icon; title: string; 
 
 export function ProjectCard({ r }: { r: FleetRow }) {
   return (
-    <Card padding="md" component={Link} to={to.project(r.name)} className="tile-link" style={{ textDecoration: 'none', color: 'inherit' }}>
+    <Card padding="md" component={Link} to={to.project(r.name)} className={u.tileLink}>
       <Group justify="space-between" wrap="nowrap" mb={4}>
         <Text fw={600} ff="monospace" fz="sm">{r.name}</Text>
         <LevelDot level={r.worst_level ?? r.health} />
@@ -128,6 +129,8 @@ function Freshness() {
 export function Home() {
   const fleet = useFleet({ sort: 'featured' });
   const site = useSite();
+  const state = useStateDoc();
+  const repos = state.data?.registry?.count;
   return (
     <>
       <Hero />
@@ -137,7 +140,7 @@ export function Home() {
           links={[{ label: 'Portfolio', to: to.portfolio() }, { label: 'Experience', to: '/experience' }, { label: 'Writing', to: to.blog() }]} />
         <Pillar icon={IconRobot} title="Agentic harness management" body="Where the fleet's AI agents are deployed, what they are scheduled to do, whether the loops are healthy, and what they cost against budget."
           links={[{ label: 'Harnesses', to: to.harnesses() }, { label: 'Health', to: to.health() }, { label: 'Costs', to: to.costs() }]} />
-        <Pillar icon={IconTopologyStar3} title="GitHub orchestration" body="The ranked inbox of failing workflows, issues and pull requests across ~45 repos — and the control-plane loops and fan-outs that act on them."
+        <Pillar icon={IconTopologyStar3} title="GitHub orchestration" body={`The ranked inbox of failing workflows, issues and pull requests across ${repos ? `the registry's ${repos} repos` : 'every registry repo'} — and the control-plane loops and fan-outs that act on them.`}
           links={[{ label: 'Overview', to: to.overview() }, { label: 'Inbox', to: to.inbox() }, { label: 'Loops', to: to.loops() }]} />
       </SimpleGrid>
       <Section title="Featured projects" actions={<Anchor component={Link} to={to.portfolio()} size="sm">All projects →</Anchor>}>

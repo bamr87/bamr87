@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router';
-import { Anchor, Text } from '@mantine/core';
+import { Anchor, Text , Kbd } from '@mantine/core';
 import { PageHeader } from '../components/ui';
 
 export function NotFound() {
@@ -7,7 +7,7 @@ export function NotFound() {
   return (
     <>
       <PageHeader title="Not found" description={<>Nothing lives at <code>{pathname}</code>.</>} />
-      <Text size="sm">Press <kbd className="k">:</kbd> to search every page, project and operation, or go to the <Anchor component={Link} to="/">overview</Anchor>.</Text>
+      <Text size="sm">Press <Kbd>:</Kbd> to search every page, project and operation, or go to the <Anchor component={Link} to="/">overview</Anchor>.</Text>
     </>
   );
 }

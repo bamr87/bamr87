@@ -18,6 +18,7 @@ import { Banner, LocalOnly, External, Load, Mono, PageHeader, Section, Status } 
 import { LogView } from '../jobs/JobLog';
 import { RunButton } from '../jobs/RunButton';
 import { gh, to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 type Values = Record<string, unknown>;
 
@@ -75,9 +76,9 @@ function SectionForm({ s, path, editable }: { s: ConfigSection; path: string; ed
       <Paper p="md">
         <Stack gap={0}>
           {s.fields.map((f) => (
-            <Group key={f.key} justify="space-between" align="center" wrap="wrap" gap="xs" py={9} style={{ borderBottom: '1px solid var(--grid)' }}>
-              <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-                <Text ff="monospace" fz={12.5} style={{ overflowWrap: 'anywhere' }}>{f.path}{dirty.includes(f.key) ? <Text span c="var(--warning)"> ●</Text> : null}</Text>
+            <Group key={f.key} justify="space-between" align="center" wrap="wrap" gap="xs" py={9} className={u.rule}>
+              <div className={u.flexFillWide}>
+                <Text ff="monospace" fz={12.5} className={u.anywhere}>{f.path}{dirty.includes(f.key) ? <Text span c="var(--warning)"> ●</Text> : null}</Text>
                 <Text size="xs" c="dimmed">{f.help}</Text>
               </div>
               <FieldInput f={f} value={values[f.key]} onChange={(v) => setValues((x) => ({ ...x, [f.key]: v }))} />
@@ -133,7 +134,7 @@ export function ConfigPage() {
               </Paper>
               <Paper p="md" mt="md" visibleFrom="md">
                 <Text fw={600} size="sm" mb={4}>Read-only here</Text>
-                <Table className="dt" verticalSpacing={2}>
+                <Table verticalSpacing={2}>
                   <Table.Tbody>
                     {Object.entries(state.data?.contract.hub ?? {}).map(([k, v]) => (
                       <Table.Tr key={k}><Table.Td><Mono dim>{k}</Mono></Table.Td><Table.Td className="wrap-anywhere"><Text size="xs">{String(v)}</Text></Table.Td></Table.Tr>

@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
   Anchor, Button, Checkbox, Code, Group, Paper, PasswordInput, Select, SimpleGrid, Stack, Table, Tabs, Text,
-} from '@mantine/core';
+Box, } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,6 +20,8 @@ import { Banner, External, Load, Mono, PageHeader, Section, Status } from '../co
 import { RunButton } from '../jobs/RunButton';
 import { fmt } from '../lib/format';
 import { gh, to } from '../lib/links';
+import u from '../styles/utils.module.css';
+import { LogView } from '../jobs/JobLog';
 
 const ask = (title: string, body: string, label: string, danger = false) =>
   new Promise<boolean | null>((resolve) =>
@@ -66,7 +68,7 @@ function CredentialRow({ c, a, age }: { c: Credential; a: AuthDoc; age?: string 
   return (
     <Paper p="sm">
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="xs">
-        <div style={{ minWidth: 0, flex: 1 }}>
+        <div className={u.flexFill}>
           <Group gap={6} wrap="wrap">
             <Mono>{c.name}</Mono>
             {c.present ? <Status tone="good">{c.source === 'session' ? 'set in this console' : 'in the environment'}</Status> : <Status tone="warn">absent</Status>}
@@ -128,7 +130,7 @@ function GitHubCard({ a }: { a: AuthDoc }) {
         {g.authenticated ? <Button size="xs" color="red" variant="light" onClick={() => void logout()} disabled={!a.writes_enabled}>Sign out</Button> : null}
         <External href="https://github.com/settings/personal-access-tokens" size="xs">create a token</External>
       </Group>
-      {g.message ? <pre className="log" style={{ maxHeight: 120, marginTop: 10 }}>{g.message}</pre> : null}
+      {g.message ? <Box mt={10}><LogView raw={g.message} height={120} /></Box> : null}
     </Paper>
   );
 }
@@ -142,7 +144,7 @@ function PushCard({ a }: { a: AuthDoc }) {
     <Paper p="md">
       <Text fw={600} mb={4}>Rotate from <Mono>.env</Mono></Text>
       <Text size="xs" c="dimmed" mb="sm">Put the new value in {a.env_file.path} (or Set it with "also write to .env"), then push. Only the contract's names are read — the file is parsed, never sourced. Every secret goes to the hub first; a fleet-scoped one then fans out, and a hub refusal aborts that secret's fan-out. Hub only stops at the hub and lets the weekly token-rotation propagate it.</Text>
-      <Table className="dt" verticalSpacing={3} mb="sm">
+      <Table verticalSpacing={3} mb="sm">
         <Table.Tbody>
           {a.push.map((t) => (
             <Table.Tr key={t.name}><Table.Td><Mono>{t.name}</Mono></Table.Td><Table.Td><Text size="xs">{t.scope}</Text></Table.Td><Table.Td>{t.in_env_file ? <Status tone="good">in .env</Status> : <Status tone="warn">not in .env</Status>}</Table.Td></Table.Tr>
@@ -197,7 +199,7 @@ export function AuthPage() {
                     </Paper>
                     <Paper p="md">
                       <Text fw={600} mb="xs">Where values live</Text>
-                      <Table className="dt" verticalSpacing={4}>
+                      <Table verticalSpacing={4}>
                         <Table.Tbody>
                           <Table.Tr><Table.Td fw={600}>this process</Table.Td><Table.Td><Text size="sm">every credential you Set — inherited by jobs, gone when the console stops</Text></Table.Td></Table.Tr>
                           <Table.Tr><Table.Td><Mono>{a.env_file.path}</Mono></Table.Td><Table.Td><Text size="sm">{a.env_file.exists ? 'exists' : 'absent'}{a.env_file.names?.length ? ` · declares ${a.env_file.names.join(', ')}` : ''} — gitignored, mode 600, written only on an explicit confirm</Text></Table.Td></Table.Tr>

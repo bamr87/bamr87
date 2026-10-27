@@ -11,6 +11,7 @@ import { JobStatus } from '../jobs/JobStatus';
 import { RunButton } from '../jobs/RunButton';
 import { age, when } from '../lib/format';
 import { SOURCE_HOME, gh, to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 const DISPATCH_INPUTS: Record<string, Record<string, unknown>> = {
   'harness-fanout': { target: 'gaps', dry_run: true }, 'fleet-pulse': { dry_run: true }, 'repo-evolution': { target: 'all', dry_run: true },
@@ -35,7 +36,7 @@ export function Loops() {
             {s.loops.map((l) => {
               const f = freshness(l);
               return (
-                <Paper key={l.id} p="md" component={Link} to={to.loop(l.id)} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Paper key={l.id} p="md" component={Link} to={to.loop(l.id)} className={u.tileLink}>
                   <Stack gap={6}>
                     <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
                       <Text fw={600}>{l.title}</Text>

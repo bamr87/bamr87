@@ -1,0 +1,24 @@
+/* Job logs: decoded SGR spans. Colours are the --ansi-* roles the theme's
+   CSS-variables resolver defines per colour scheme (src/theme.ts). */
+.log {
+  margin: 0;
+  font: rem(12.5px) / 1.45 var(--mantine-font-family-monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--page);
+  border: rem(1px) solid var(--grid);
+  border-radius: var(--mantine-radius-md);
+  padding: var(--mantine-spacing-sm);
+  overflow: auto;
+}
+
+.red { color: var(--ansi-red); }
+.green { color: var(--ansi-green); }
+.yellow { color: var(--ansi-yellow); }
+.blue { color: var(--ansi-blue); }
+.magenta { color: var(--ansi-magenta); }
+.cyan { color: var(--ansi-cyan); }
+.grey { color: var(--muted); }
+.bold { font-weight: 650; }
+.dim { opacity: 0.65; }
+.under { text-decoration: underline; }

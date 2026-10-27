@@ -1,0 +1,26 @@
+/* Horizontal bar lists (top tools, topics, authors): a label, a meter, a value. */
+.row {
+  display: grid;
+  grid-template-columns: minmax(rem(90px), rem(180px)) 1fr auto;
+  gap: var(--mantine-spacing-xs);
+  align-items: center;
+  padding: rem(2px) 0;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.rowButton {
+  composes: row;
+  width: 100%;
+  cursor: pointer;
+  border-radius: var(--mantine-radius-sm);
+
+  @mixin hover {
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

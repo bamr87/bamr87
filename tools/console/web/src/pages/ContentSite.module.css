@@ -1,0 +1,16 @@
+/* Pillar coverage: a Progress meter with the target share drawn as a tick. */
+.pillar {
+  position: relative;
+  min-width: rem(120px);
+}
+
+.tick {
+  position: absolute;
+  top: rem(-3px);
+  bottom: rem(-3px);
+  left: calc(var(--tick) - rem(1px));
+  width: rem(2px);
+  border-radius: rem(1px);
+  background: var(--mantine-color-text);
+  pointer-events: none;
+}
