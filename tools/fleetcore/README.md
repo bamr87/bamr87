@@ -32,6 +32,7 @@ The console process owns the operation allowlist and the job manager. The browse
 | `fleet_apps` | the Apps view: filter by text and level, sort like the dashboards | no |
 | `fleet_inbox` | the flagged inbox, or every open item of one repo | no |
 | `fleet_docker` | containers on every `DASH_DOCKER_HOST`, attributed to projects | no |
+| `fleet_work` | the Work board in the loops' order: lanes, each loop's cap and next run, the human's pins and overrides first ([docs/WORK-BOARD.md](../../docs/WORK-BOARD.md)) | no |
 | `console_ops` | the console's allowlisted operations and which can write to GitHub | yes |
 | `console_run` | run one as a job, the same job the browser and the TUI list. A writing operation is refused unless `confirm=true` | yes |
 | `console_jobs` · `console_job_log` · `console_cancel` | list jobs, follow a log by offset, cancel | yes |

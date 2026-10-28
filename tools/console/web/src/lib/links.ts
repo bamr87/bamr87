@@ -13,6 +13,15 @@ export const to = {
   blog: () => '/blog',
   post: (slug: string) => `/blog/${enc(slug)}`,
   roadmap: (project?: string) => `/roadmap${project ? `?q=${enc(project)}` : ''}`,
+  work: (f: { view?: 'board' | 'priority' | 'flow'; repo?: string; kind?: string; item?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (f.view && f.view !== 'board') qs.set('view', f.view);
+    if (f.repo) qs.set('repo', f.repo);
+    if (f.kind) qs.set('kind', f.kind);
+    if (f.item) qs.set('item', f.item);
+    const s = qs.toString();
+    return `/work${s ? `?${s}` : ''}`;
+  },
   features: () => '/features',
   engagements: () => '/engagements',
   toolbox: () => '/toolbox',

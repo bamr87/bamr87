@@ -412,3 +412,22 @@ features:
     date: 2026-10-25
     tests:
       - tools/test_backlog_fanout.py
+  - id: HUB-028
+    title: "Work board: rebalance the loops' work by drag and drop"
+    description: "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item on six lanes at /work, in the order the loops take them, with each loop's next-run picks marked by the issue pipeline's own queue builder. Drag within a lane to pin the order, across lanes to move an issue (agent: labels) or a roadmap spec (status), across P0-P3 to reprioritise; every change is previewed, then applied after one confirm. The order and overrides land in _data/work_queue.yml, which the issue pipeline and repo-evolution read. Drill-downs show issue gaps, the spec packages a PR changes read at its head, roadmap entries, spec tasks and open questions. Throughput shows each loop's cap, drain time and per-repo share. The fleet_work MCP tool reads the same board."
+    implemented: true
+    status: shipped
+    prd: [FR5, FR6]
+    surface: ui
+    link: /work
+    docs: docs/WORK-BOARD.md
+    tags: [ console, issue-pipeline, roadmap, spec-driven, prioritisation ]
+    date: 2026-10-27
+    tests:
+      - .github/scripts/dash-gen/test_work_board.py
+      - tools/console/test_console.py
+      - tools/test_fleetcore_mcp.py
+    scenarios:
+      - verify/scenarios/work.yml
+    evidence:
+      - test/evidence/work

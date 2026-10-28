@@ -1172,6 +1172,160 @@ def test_project_detail_joins_one_projects_signals():
             pass
 
 
+def test_work_board_reads_the_committed_signals():
+    """The Work board builds from the committed snapshots (and whatever
+    submodules are checked out) without a network, serialises, and keeps its
+    six lanes; the published variant carries no spec or BACKLOG item."""
+    doc = core.work_board()
+    json.dumps(doc)
+    assert [lane["id"] for lane in doc["lanes"]] == ["triage", "ready", "doing", "review", "blocked", "hold"]
+    assert {lp["id"] for lp in doc["loops"]} == {"t1", "t2", "t3", "evolve", "human"}
+    assert doc["queue_path"] == "_data/work_queue.yml"
+    pub = core.work_board(local=False)
+    assert not [i for i in pub["items"] if i["kind"] in ("spec", "backlog")]
+    assert pub["sources"]["local"]["scanned"] is False
+
+
+def test_work_apply_moves_labels_through_github_and_files_in_the_tree():
+    """A board plan: the issue move goes to the label writer (only with
+    confirm), the roadmap priority to roadmap.yml (header kept), the BACKLOG /
+    issue priority to work_queue.yml — and the moved card stays in its new lane
+    until the snapshot catches up. Nothing is committed."""
+    tmp = Path(tempfile.mkdtemp(prefix="console-work-"))
+    saved = core.WORK_QUEUE, core.ROADMAP, dict(core.WORK_MOVES)
+    core.WORK_QUEUE, core.ROADMAP = tmp / "work_queue.yml", tmp / "roadmap.yml"
+    shutil.copy(core.DATA / "roadmap.yml", core.ROADMAP)
+    try:
+        board = core.work_board(local=False)
+        issue = next((i for i in board["items"] if i["kind"] == "issue" and "ready" in i["movable"]), None)
+        road = next((i for i in board["items"] if i["kind"] == "roadmap"), None)
+        assert issue and road, "the committed snapshots carry no movable issue or roadmap spec"
+        new_prio = "P0" if road["priority"] != "P0" else "P3"
+        plan = {"stage": {issue["key"]: "ready"}, "priority": {road["key"]: new_prio, issue["key"]: "P1"}}
+        try:
+            core.work_apply(plan, confirm=False, label_writer=lambda *a: {})
+            raise AssertionError("a label move went through without confirm")
+        except PermissionError:
+            pass
+        assert not core.WORK_QUEUE.exists(), "a refused plan wrote the queue anyway"
+        calls = []
+
+        def writer(nwo, number, add, remove):
+            calls.append((nwo, number, add, remove))
+            return {"at": "2999-01-01T00:00:00+00:00", "ok": True}
+
+        r = core.work_apply(plan, confirm=True, label_writer=writer)
+        state = core.work_inputs(local=False)["cfg"]["labels"]["state"]
+        add, remove = core._work_module().label_move(issue["stage"], "ready", state)
+        assert calls == [(issue["nwo"], issue["detail"]["number"], add, remove)] and add == ["agent:ready"], calls
+        assert all(x["ok"] for x in r["results"]), r["results"]
+        text = core.ROADMAP.read_text()
+        assert text.startswith("# ====") and f"  priority: {new_prio}" in text
+        queued = core.load_yaml(core.WORK_QUEUE)
+        assert queued["priority"] == {issue["key"]: "P1"} and queued["schema"] == "work-queue/v1"
+        after = {i["key"]: i for i in r["board"]["items"]}
+        assert after[issue["key"]]["lane"] == "ready", "the moved card snapped back to its old lane"
+        assert after[road["key"]]["priority"] == new_prio
+        assert "new file" in r["diff"] or r["diff"] == ""     # outside the repo: no git diff to show
+        try:
+            core.work_apply({"stage": {"pr:bamr87/bamr87#1": "ready"}}, confirm=True, label_writer=writer)
+            raise AssertionError("a key that is not on the board was accepted")
+        except ValueError:
+            pass
+        failing = core.work_apply({"stage": {issue["key"]: "hold"}}, confirm=True,
+                                  label_writer=lambda *a: (_ for _ in ()).throw(RuntimeError("GitHub 403: no")))
+        assert failing["results"][0]["ok"] is False and "403" in failing["results"][0]["error"]
+    finally:
+        core.WORK_QUEUE, core.ROADMAP = saved[0], saved[1]
+        core.WORK_MOVES.clear()
+        core.WORK_MOVES.update(saved[2])
+
+
+def test_work_routes_gate_labels_and_refuse_bad_plans():
+    """Over HTTP: the board answers, a preview of a bad plan is a 400 that
+    names the change, a plan that moves labels without confirm is a 403 and
+    writes nothing, and an unknown item is a 404."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    tmp = Path(tempfile.mkdtemp(prefix="console-work-http-"))
+    saved = core.WORK_QUEUE
+    core.WORK_QUEUE = tmp / "work_queue.yml"
+    try:
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+        board = client.get("/api/work")
+        assert board.status_code == 200 and board.json()["schema"] == "work-board/v1"
+        issue = next((i for i in board.json()["items"] if i["kind"] == "issue" and "hold" in i["movable"]), None)
+        assert issue, "no movable issue in the committed snapshot"
+        r = client.post("/api/work/preview", json={"plan": {"stage": {"pr:bamr87/bamr87#1": "ready"}}})
+        assert r.status_code == 400 and "not on the board" in r.json()["detail"], r.text
+        r = client.post("/api/work/preview", json={"plan": {"stage": {issue["key"]: "hold"}}})
+        assert r.status_code == 200 and r.json()["preview"] and r.json()["changes"][0]["target"] == "github"
+        r = client.post("/api/work/apply", json={"plan": {"stage": {issue["key"]: "hold"}}})
+        assert r.status_code == 403 and "confirm" in r.json()["detail"], r.text
+        assert not core.WORK_QUEUE.exists()
+        assert client.get("/api/work/item", params={"key": "issue:nobody/nothing#1"}).status_code == 404
+        assert client.get("/api/work/item", params={"key": "../../etc/passwd"}).status_code == 404
+    finally:
+        core.WORK_QUEUE = saved
+
+
+def test_pull_specs_reads_each_spec_at_the_pr_head():
+    """A PR's drill-down: the spec packages it changes, read at its head sha
+    with the kit's rules, the ones it only mentions, and the BACKLOG.md lines
+    it adds or moves (a moved line is one '-' and one '+')."""
+    import base64 as b64
+    import github_link as ghl
+
+    spec = "# Spec: Thing\n\n- **Status**: in-progress\n\nFR-1 a. FR-2 b.\n\nOPEN QUESTION OQ-1: x?\n"
+    tasks = "## T-001 — A\n- **Status**: `[x]`\nFR-1\n\n## T-002 — B\n- **Status**: `[ ]`\n\n## Follow-ups Discovered\n"
+    patch = ("@@ -1,3 +1,3 @@\n-- **BL-20261001-01** — *feature, med* — Old place.\n"
+             "+- **BL-20261001-01** — *feature, med* — claimed-by:specs/007-thing — Old place.\n"
+             "+- **BL-20261027-01** — *test-gap, high* — A new gap.\n")
+    seen = []
+
+    def fake(method, url, *, headers, body, timeout=20.0):
+        seen.append(url)
+        if url.endswith("/pulls/12"):
+            return 200, {}, {"title": "feat: thing (specs/007-thing, specs/003-other)", "html_url": "u", "state": "open",
+                             "draft": True, "head": {"sha": "abc123", "ref": "feat/thing"}, "base": {"ref": "main"},
+                             "user": {"login": "bamr87"}, "labels": [], "body": "see specs/009-later"}
+        if "/pulls/12/files" in url:
+            return 200, {}, [{"filename": "specs/007-thing/spec.md"}, {"filename": "specs/007-thing/tasks.md"},
+                             {"filename": "BACKLOG.md", "patch": patch}, {"filename": "src/x.py"}]
+        if "/contents/" in url:
+            assert "ref=abc123" in url, url
+            text = spec if url.split("?")[0].endswith("spec.md") else tasks if "tasks.md" in url else None
+            if text is None:
+                return 404, {}, {"message": "Not Found"}
+            return 200, {}, {"encoding": "base64", "content": b64.b64encode(text.encode()).decode()}
+        return 404, {}, {"message": "Not Found"}
+
+    saved_http, saved_tok = ghl._http, os.environ.get("GH_TOKEN")
+    ghl._http, os.environ["GH_TOKEN"] = fake, "gho_FAKEtokenFAKEtokenFAKEtoken0000"
+    try:
+        d = ghl.pull_specs("bamr87/law-ai", 12)
+    finally:
+        ghl._http = saved_http
+        if saved_tok is None:
+            os.environ.pop("GH_TOKEN", None)
+        else:
+            os.environ["GH_TOKEN"] = saved_tok
+    s = d["specs"][0]
+    assert [x["slug"] for x in d["specs"]] == ["007-thing"] and s["changed"] == ["spec", "tasks"]
+    assert s["status"] == "in-progress" and s["tasks"] == {"total": 2, "done": 1, "doing": 0}
+    assert s["open_questions"] == ["OQ-1"] and s["requirements"]["uncovered"] == ["FR-2"]
+    assert d["mentioned"] == ["003-other", "009-later"]
+    assert d["backlog"]["moved"] == ["BL-20261001-01"] and [i["id"] for i in d["backlog"]["added"]] == ["BL-20261027-01"]
+    assert d["files"]["total"] == 4 and d["files"]["by_area"]["specs"] == 2
+    assert not [u for u in seen if "/contents/specs/003" in u], "a merely mentioned spec was fetched"
+
+
 class _FakeGitHub:
     """Stands in for github.com + api.github.com: records every call, answers
     from a script. Lets the OAuth and repo-write paths run with no network."""

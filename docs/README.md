@@ -57,6 +57,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/TOKEN-ROTATION.md`](TOKEN-ROTATION.md) | The weekly credential loop: what rotating a browser-minted token can mean, the propagate / audit / re-mint split, and the values-free ledger. |
 | [`docs/UX-HARNESS.md`](UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`docs/VERIFICATION.md`](VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
+| [`docs/WORK-BOARD.md`](WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and reprioritise that work and a file the loops read back. |
 | [`docs/WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
 | [`docs/WORKFLOW-VERSIONING.md`](WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back. |
 | [`docs/adr/`](adr/README.md) | Decisions for bamr87 that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each. |

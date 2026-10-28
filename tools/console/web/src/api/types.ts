@@ -439,3 +439,140 @@ export interface GithubFleet {
   repos: Record<string, string>;
   dispatchable: Record<string, string[]>;
 }
+
+// --- The Work board (/api/work — dash-gen work_board.py) -------------------
+export type WorkKind = 'issue' | 'pr' | 'roadmap' | 'spec' | 'backlog';
+export type WorkLaneId = 'triage' | 'ready' | 'doing' | 'review' | 'blocked' | 'hold';
+export type WorkLoopId = 't1' | 't2' | 't3' | 'evolve' | 'human' | 'none';
+
+export interface WorkItem {
+  key: string;
+  kind: WorkKind;
+  ref: string;
+  title: string;
+  url: string | null;
+  repo: string;
+  nwo: string | null;
+  lane: WorkLaneId;
+  stage: string;
+  priority: string;
+  priority_auto: string;
+  priority_source: 'override' | 'computed' | 'label' | 'default' | 'derived' | 'roadmap' | 'severity';
+  rank: number | null;
+  size: string | null;
+  age_days: number | null;
+  idle_days: number | null;
+  readiness: number | null;
+  autonomy: string | null;
+  autonomy_reason: string | null;
+  labels: string[];
+  movable: WorkLaneId[];
+  moved: { lane: WorkLaneId; at: string | null; pending: boolean } | null;
+  progress: { done: number; total: number } | null;
+  note: string | null;
+  loop: WorkLoopId;
+  next_run: number | null;
+  detail: Dict<any>;
+}
+
+export interface WorkLane {
+  id: WorkLaneId;
+  label: string;
+  hint: string;
+  count: number;
+  pinned: number;
+  loops: WorkLoopId[];
+}
+
+export interface WorkLoop {
+  id: WorkLoopId;
+  label: string;
+  lane: WorkLaneId;
+  kind: WorkKind | null;
+  schedule: string | null;
+  runs_per_week: number | null;
+  cap: number | null;
+  sub_cap: { label: string; value: number } | null;
+  eligible: number;
+  next_run: number;
+  drain_runs: number | null;
+  drain_days: number | null;
+  by_repo: { repo: string; eligible: number; picked: number }[];
+  config: string | null;
+  on_demand?: boolean;
+  note?: string;
+  breakdown?: Dict<number>;
+}
+
+export interface WorkHint {
+  tone: 'good' | 'warn' | 'crit' | 'info';
+  lever: string | null;
+  text: string;
+}
+
+export interface WorkChange {
+  key: string | null;
+  target: 'github' | 'roadmap' | 'work_queue';
+  what: string;
+}
+
+export interface WorkBoard {
+  schema: string;
+  generated_at: string;
+  preview: boolean;
+  lanes: WorkLane[];
+  items: WorkItem[];
+  loops: WorkLoop[];
+  repos: (Dict<number> & { repo: string; total: number; next_run: number })[];
+  totals: { items: number; next_run: number; by_kind: Record<WorkKind, number>; by_priority: Dict<number> };
+  sources: {
+    issue_pipeline: { generated_at: string | null; full: boolean; age_days: number | null; private_omitted: number };
+    fleet_triage: { generated_at: string | null };
+    roadmap: { entries: number };
+    local: { scanned: boolean; repos: Dict<any>[]; reason?: string };
+    work_queue: { updated_at: string | null; pinned: number; priority_overrides: number; stale_keys: string[] };
+  };
+  labels: Dict<string>;
+  priorities: string[];
+  roadmap_statuses: string[];
+  hints: WorkHint[];
+  changes?: WorkChange[];
+  queue_path?: string;
+}
+
+/** What a drag or a drill-down stages; POST /api/work/preview | /apply. */
+export interface WorkPlan {
+  stage?: Record<string, WorkLaneId>;
+  priority?: Record<string, string | null>;
+  pins?: Partial<Record<WorkLaneId, string[]>>;
+  unpin?: string[];
+  notes?: Record<string, string | null>;
+  roadmap_status?: Record<string, string>;
+  roadmap_reason?: Record<string, string>;
+}
+
+export interface WorkApplyResult {
+  results: (WorkChange & { ok: boolean; error: string | null })[];
+  pruned: string[];
+  diff: string;
+  board: WorkBoard;
+}
+
+export interface WorkItemDetail {
+  item: WorkItem;
+  loop: WorkLoop | null;
+  entry?: Dict<any> | null;
+  spec?: Dict<any> & { task_list: { id: string; title: string; state: 'done' | 'doing' | 'todo' }[]; markdown: string; open_question_lines: string[] };
+  backlog?: Dict<any> | null;
+  mentions?: string[];
+}
+
+export interface PullSpecs {
+  pr: Dict<any>;
+  specs: (Dict<any> & { slug: string; title: string; status: string; tasks: { total: number; done: number; doing: number };
+    open_questions: string[]; requirements: { FR: number; NFR: number; AC: number; uncovered: string[] }; changed: string[]; url: string | null })[];
+  specs_truncated: number;
+  mentioned: string[];
+  backlog: { added: Dict<string>[]; removed: Dict<string>[]; moved: string[] };
+  files: { total: number; by_area: Dict<number> };
+}

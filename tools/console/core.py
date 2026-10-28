@@ -700,6 +700,102 @@ def content_brief(site: str) -> dict:
     return {"site": site, "markdown": _content_module().render_brief(doc["sites"][0])}
 
 
+# --------------------------------------------------------------------------- #
+# WORK — the board of every open item and the order the loops take them in
+# (dash-gen's work_board.py + work_queue.py; docs/WORK-BOARD.md)
+# --------------------------------------------------------------------------- #
+WORK_QUEUE = Path(os.environ.get("DASH_WORK_QUEUE") or (DATA / "work_queue.yml"))
+ROADMAP = DATA / "roadmap.yml"
+# Label moves this process made, newest per issue, overlaid on the board until
+# the issue-pipeline snapshot is newer than the move — otherwise a card would
+# snap back to its old lane the moment the move succeeds.
+WORK_MOVES: dict[str, dict] = {}
+_WORK_LOCK = threading.Lock()
+
+
+def _work_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import work_board  # noqa: WPS433
+    return work_board
+
+
+def work_inputs(local: bool = True) -> dict:
+    return _work_module().load_inputs(REPO_ROOT, local=local, queue_path=WORK_QUEUE, roadmap_path=ROADMAP,
+                                      moves=dict(WORK_MOVES))
+
+
+def work_board(plan: dict | None = None, local: bool = True) -> dict:
+    """The /api/work document; with a plan, the board as it would be (nothing written)."""
+    doc = _work_module().build(work_inputs(local), plan)
+    doc["queue_path"] = _rel(WORK_QUEUE)
+    return doc
+
+
+def work_item(key: str) -> dict:
+    return _work_module().item_detail(work_inputs(), key)
+
+
+def _work_diff() -> str:
+    paths = [str(WORK_QUEUE), str(ROADMAP)]
+    rc, diff = run_quiet(["git", "diff", "--no-color", "--", *paths])
+    out = diff if rc == 0 else ""
+    rc2, _ = run_quiet(["git", "ls-files", "--error-unmatch", str(WORK_QUEUE)])
+    if rc2 != 0 and WORK_QUEUE.exists():
+        out = f"(new file: {_rel(WORK_QUEUE)} — not yet tracked)\n" + WORK_QUEUE.read_text(encoding="utf-8") + out
+    return out
+
+
+def work_apply(plan: dict, confirm: bool = False, label_writer=None) -> dict:
+    """Apply a board plan: issue label moves on GitHub (each through
+    `label_writer`, i.e. github_link.act — fleet-scoped, logged), then the
+    roadmap.yml edits and the work_queue.yml entries in the working tree.
+
+    Nothing is committed: the diff comes back for the human to review and
+    commit, as with every other console write. A plan that moves labels needs
+    confirm=true. Keys for items that no longer exist are pruned."""
+    wb = _work_module()
+    with _WORK_LOCK:
+        inp = work_inputs()
+        board = wb.build(inp)
+        resolved = wb.resolve_plan(board["items"], plan or {}, inp["queue"], inp["cfg"]["labels"]["state"])
+        if not resolved["changes"]:
+            raise ValueError("the plan changes nothing")
+        if resolved["labels"] and not confirm:
+            raise PermissionError("moving an issue changes its labels on GitHub — it needs confirm=true")
+        if resolved["labels"] and label_writer is None:
+            raise RuntimeError("no GitHub writer is available to this console")
+
+        results: list[dict] = []
+        for mv in resolved["labels"]:
+            what = next(c["what"] for c in resolved["changes"] if c["key"] == mv["key"])
+            try:
+                entry = label_writer(mv["nwo"], mv["number"], mv["add"], mv["remove"])
+                WORK_MOVES[mv["key"]] = {"lane": mv["to"], "at": entry.get("at")}
+                results.append({"key": mv["key"], "target": "github", "what": what, "ok": True, "error": None})
+            except Exception as exc:  # report it; the file half of the plan still applies
+                results.append({"key": mv["key"], "target": "github", "what": what, "ok": False,
+                                "error": _scrub(str(exc))})
+
+        if resolved["roadmap"]:
+            text = ROADMAP.read_text(encoding="utf-8")
+            for ff, fields in resolved["roadmap"].items():
+                text = wb.edit_roadmap(text, ff, status=fields.get("status"), priority=fields.get("priority"),
+                                       reason=fields.get("reason"))
+            ROADMAP.write_text(text, encoding="utf-8")
+        q = resolved["queue"]
+        stale = set(board["sources"]["work_queue"]["stale_keys"])
+        pruned: list[str] = []
+        if q["pins"] or q["unpin"] or q["priority"] or q["notes"] or stale:
+            new = wb.preview_queue(inp["queue"], resolved)
+            keys = {*new["order"], *new["priority"], *new["notes"]}
+            new, pruned = wb.wq.prune(new, keys - stale)
+            wb.wq.save(WORK_QUEUE, {**new, "updated_at": dt.date.today().isoformat()})
+        for c in resolved["changes"]:
+            if c["target"] != "github":
+                results.append({**c, "ok": True, "error": None})
+    return {"results": results, "pruned": pruned, "diff": _work_diff(), "board": work_board()}
+
+
 def _content_sync(params: dict) -> list[str]:
     argv = [DASH_GEN, "content", "sync"]
     if str(params.get("target") or "").strip():

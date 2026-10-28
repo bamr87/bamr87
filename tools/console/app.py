@@ -236,6 +236,11 @@ class EditorialSite(BaseModel):
     fields: dict
 
 
+class WorkPlan(BaseModel):
+    plan: dict = Field(default_factory=dict)
+    confirm: bool = False
+
+
 class OAuthStart(BaseModel):
     flow: str = "device"           # device | web
     store: str = "session"         # session | gh | env
@@ -397,6 +402,50 @@ def content_docs(site: str, view: str = Query(default="all", max_length=80),
 def content_brief(site: str) -> dict:
     try:
         return core.content_brief(site)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/work", dependencies=[Depends(require_token)])
+def work() -> dict:
+    """The Work board: every open issue, PR, roadmap spec, spec package and
+    BACKLOG.md item on six lanes, in the order the loops take them, with each
+    loop's capacity and the next run's cut line (dash-gen work_board.py)."""
+    return core.work_board()
+
+
+@app.post("/api/work/preview", dependencies=[Depends(require_token)])
+def work_preview(req: WorkPlan) -> dict:
+    """The board as a plan would leave it — nothing is written."""
+    try:
+        return core.work_board(req.plan)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/work/apply", dependencies=[Depends(require_token)])
+def work_apply(req: WorkPlan) -> dict:
+    """Apply a board plan: issue label moves through the GitHub write path
+    (confirm-gated, fleet-scoped, logged), roadmap.yml and work_queue.yml in
+    the working tree. Returns per-change results and the git diff; never commits."""
+    def labels(nwo: str, number: int, add: list[str], remove: list[str]) -> dict:
+        return ghl.act(nwo, "issue.labels", {"number": number, "add": add, "remove": remove}, confirm=True)
+    try:
+        return core.work_apply(req.plan, req.confirm, label_writer=labels)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
+@app.get("/api/work/item", dependencies=[Depends(require_token)])
+def work_item(key: str = Query(..., max_length=200)) -> dict:
+    """One item's drill-down: the board's row plus its source record (the
+    roadmap entry, the spec's tasks and text, the BACKLOG.md line)."""
+    try:
+        return core.work_item(key)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -655,6 +704,13 @@ def github_repo(owner: str, repo: str) -> dict:
 @app.get("/api/github/repos/{owner}/{repo}/issues/{number}", dependencies=[Depends(require_token)])
 def github_issue(owner: str, repo: str, number: int) -> dict:
     return _gh_errors(lambda: ghl.issue_thread(f"{owner}/{repo}", number))
+
+
+@app.get("/api/github/repos/{owner}/{repo}/pulls/{number}/specs", dependencies=[Depends(require_token)])
+def github_pull_specs(owner: str, repo: str, number: int) -> dict:
+    """The spec packages a pull request touches, read at its head with the
+    spec-driven kit's rules, and the BACKLOG.md items it adds or moves."""
+    return _gh_errors(lambda: ghl.pull_specs(f"{owner}/{repo}", number))
 
 
 @app.post("/api/github/repos/{owner}/{repo}/actions", dependencies=[Depends(require_token)])

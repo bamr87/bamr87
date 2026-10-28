@@ -25,6 +25,7 @@ import { Home } from './pages/Home';
 import { Blog, Post, ProfilePage } from './pages/Profile';
 import { Portfolio } from './pages/Portfolio';
 import { Engagements, Features, Roadmap, Toolbox } from './pages/Registries';
+import { Work } from './pages/Work';
 import { Connect } from './pages/Connect';
 import { Overview } from './pages/Overview';
 import { Projects } from './pages/Projects';
@@ -93,6 +94,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="schedules" element={<Schedules />} />
                   <Route path="loops" element={<Loops />} />
                   <Route path="loops/:id" element={<LoopPage />} />
+                  <Route path="work" element={<Work />} />
                   <Route path="costs" element={<Costs />} />
                   <Route path="activity" element={<Activity />} />
                   <Route path="observe/traces" element={<Traces />} />

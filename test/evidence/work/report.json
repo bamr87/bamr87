@@ -1,0 +1,240 @@
+{
+  "id": "work",
+  "title": "The Work board shows every open item in the order the loops take it",
+  "features": [
+    "HUB-028"
+  ],
+  "path": "verify/scenarios/work.yml",
+  "started": "2026-10-28T02:10:15.590Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/work",
+          "ok": true,
+          "ms": 702
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "section[aria-label^='Triage lane']"
+          },
+          "ok": true,
+          "ms": 28
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Next run"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Runs on a console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "work-board",
+          "ok": true,
+          "file": "test/evidence/work/desktop-work-board.png",
+          "ms": 49
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Throughput/]",
+          "ok": true,
+          "ms": 74
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=By repository"
+          },
+          "ok": true,
+          "ms": 30
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Issue pipeline · T1 intake"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "work-throughput",
+          "ok": true,
+          "file": "test/evidence/work/desktop-work-throughput.png",
+          "ms": 24
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/work/desktop-work-board.png",
+        "test/evidence/work/desktop-work-throughput.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/work/?view=flow"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/work",
+          "ok": true,
+          "ms": 603
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "section[aria-label^='Triage lane']"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Next run"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Runs on a console"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "work-board",
+          "ok": true,
+          "file": "test/evidence/work/mobile-work-board.png",
+          "ms": 33
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Throughput/]",
+          "ok": true,
+          "ms": 43
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=By repository"
+          },
+          "ok": true,
+          "ms": 97
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Issue pipeline · T1 intake"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "work-throughput",
+          "ok": true,
+          "file": "test/evidence/work/mobile-work-throughput.png",
+          "ms": 22
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/work/mobile-work-board.png",
+        "test/evidence/work/mobile-work-throughput.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/work/?view=flow"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-10-28T02:10:17.529Z",
+  "base": "http://127.0.0.1:4020"
+}

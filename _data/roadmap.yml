@@ -1135,3 +1135,176 @@
   source: session
   created: 2026-09-22
   issue_url: null
+
+- id: FF-0029
+  title: "spec-driven kit: let /spec-driven:evolve's picker honour the hub's Work-board order (pins + priority overrides)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    A maintainer's pin or P0–P3 override on a `backlog:<repo>/BL-…` or
+    `spec:<repo>/NNN-slug` card lands in the hub's _data/work_queue.yml, which
+    only hub code reads (issue_pipeline.py, and evolution.py's "The
+    maintainer's order" brief section). `/spec-driven:evolve`, run inside the
+    member repo, picks with the kit's
+    templates/spec-driven/tools/pick_backlog_item.py (severity → tech-debt /
+    test-gap → oldest id) and never consults it, so the interactive autopilot
+    and the board can disagree about what is next without either saying so. In
+    plugin mode the picker cannot even reach the file: ${CLAUDE_PLUGIN_ROOT}
+    and fleet-kit.sh's sparse clone carry only .claude-plugin/ and
+    templates/spec-driven/.
+  proposal: >-
+    Teach the kit's picker an optional hub order, off unless supplied:
+    `pick_backlog_item.py --queue <work_queue.yml> --repo <registry name>`.
+    Pinned `backlog:<repo>/BL-…` keys still under `## Open` come first, in
+    `order:` sequence; a `priority:` override replaces that item's severity
+    bucket (P0 ahead of high, P1 = high, P2 = med, P3 = low); everything else
+    keeps today's ordering. The read stays stdlib-only — a strict reader for
+    the two blocks the board writes, gated on a schema marker in
+    work_queue.yml, which refuses (non-zero exit) on a shape it does not know
+    instead of mis-ordering. The JSON output gains `source:
+    hub-order|kit-order`, the pins it applied and skipped (not open / another
+    repo), and any `spec:<repo>/…` pins so the skill can offer to resume a
+    pinned spec. The evolve SKILL locates the file: $FLEET_WORK_QUEUE, else a
+    hub checkout the repo is a submodule of (the walk fleet-kit.sh step 3
+    already does, covering the maintainer's usual projects/<name> setup), else
+    none — and prints one line saying which order it used. Bump the kit to
+    0.3.0 and re-sync every repo that still vendors the picker.
+  acceptance:
+    - "Without --queue, pick_backlog_item.py's output is byte-for-byte unchanged on the existing kit tests and on law-ai's and gitorio's BACKLOG.md."
+    - "With --queue/--repo, open pinned items come first in `order:` sequence, a `priority:` override moves its item to the mapped bucket, and unpinned items keep severity → debt-kind → oldest-id order — fixture tests in test_spec_driven_kit.py cover all three."
+    - "Pins not in `## Open`, or naming another repo, are listed as skipped in the JSON output, never silently dropped; `spec:<repo>/…` pins are reported, never auto-picked."
+    - "The picker stays stdlib-only; a work_queue.yml with an unknown schema marker or shape makes it exit non-zero with a message naming the file."
+    - "skills/evolve/SKILL.md locates the queue ($FLEET_WORK_QUEUE, then a parent hub checkout) and states 'hub order' or 'kit order' before claiming an item; with no hub reachable behaviour is exactly today's."
+    - "templates/spec-driven/VERSION is bumped with a changelog entry, every repo still tracking a pick_backlog_item.py copy is re-synced in the same rollout so UPS-WORK-07 byte-identity stays green, and docs/SPEC-DRIVEN.md + docs/WORK-BOARD.md document the round trip."
+  scope:
+    in:
+      - "optional --queue/--repo ordering in the kit picker"
+      - "evolve skill locating the queue file"
+      - "kit tests, VERSION bump, re-sync of vendored copies"
+    out:
+      - "writing work_queue.yml from a member repo (the board stays the only writer)"
+      - "extending fleet-kit.sh's sparse clone to fetch _data/work_queue.yml (a resolver change means re-vendoring every consumer; a follow-up if standalone clones need it)"
+      - "changing repo-evolution's brief, which already carries the order"
+  risks:
+    - "work_queue.yml becomes a consumed interface of the kit, like harness_registry.yml for GitFactory — a board-side shape change must bump the marker the reader gates on."
+    - "pick_backlog_item.py is a UPS-WORK-07 byte-identity file and gitorio (tools/) and law-ai (scripts/) may still track copies, so the kit change turns their conformance red until re-synced. Alternative: leave the picker untouched and add a non-byte-identical kit tool (like evolve_audit.py) that re-sorts the picker's items."
+    - "Mapping P0–P3 onto severity buckets is a judgement call — confirm in /clarify against how issue_pipeline.py applies the same override."
+    - "Registry name vs GitHub repo name: a --repo that does not match the key's <repo> silently makes every pin 'another repo'; the skipped list surfaces it."
+    - "Once both loops follow the same pins, an interactive /evolve and the weekly repo-evolution run are likelier to claim the same item; the skill's existing open-PR check matters more."
+  source: session
+  created: 2026-10-27
+  issue_url: null
+
+- id: FF-0030
+  title: "Work board on the public page: issue lane moves through the browser's GitHub write path"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P3
+  effort: M
+  category: enhancement
+  problem: >-
+    The published /work board is read-only because every move goes through a
+    console. A visitor who connected a GitHub token on /connect can already
+    label, comment on and close fleet issues from the same page
+    (tools/console/web/src/api/ghdirect.ts), yet cannot move an issue card
+    between lanes even though that move is only an `agent:` label change, so
+    triaging away from the laptop means editing labels on github.com by hand.
+  proposal: >-
+    In snapshot + GitHub mode, enable cross-lane moves of issue cards and route
+    them through ghdirect.ts: a router handler for the board's preview and
+    apply calls (modelled on the jobs POST, which answers 501 for anything but
+    dispatch). Preview re-reads each moved issue's live labels from
+    api.github.com, computes the `agent:` labels to add and remove from the
+    board's lane map, and shows the plan including any drift from the
+    snapshot; apply runs the existing `issue.labels` action — confirm-gated,
+    fleet repos the hub owns only, every write in the tab's action log — so
+    ghdirect keeps exactly the nine write actions github_link.act has. Moves
+    that write a file — in-lane pins and P0–P3 overrides (work_queue.yml),
+    roadmap `status:` edits (roadmap.yml) — stay disabled with a stated reason
+    and the router answers 501 for them. A moved card is marked applied live
+    until the next published build catches up.
+  acceptance:
+    - "With a GitHub token connected, dragging an issue card across lanes previews the labels to add and remove computed from the issue's LIVE labels, and after confirm applies them through ghdirect's existing issue.labels action, recorded in the action log."
+    - "ghdirect.ts still exposes exactly the nine write actions github_link.act has; the board composes issue.labels and adds no new GitHub write."
+    - "On the public page, in-lane pins, P0–P3 moves and roadmap / spec / backlog card moves are disabled with a visible reason, and the board's apply route answers 501 for them."
+    - "A snapshot-only visitor (no token) sees today's read-only board; a write to a non-fleet repo is refused like any other ghdirect write."
+    - "When live labels differ from the snapshot, the preview shows the drift before anything is written."
+    - "A moved card is marked applied-live (not yet in the published snapshot), and the mark survives a reload in the same tab (sessionStorage, like the action log)."
+    - "A user scenario plus an evidence bundle under test/evidence/<slug>/ (docs/VERIFICATION.md); docs/CONSOLE-PAGES.md lists lane moves under the GitHub mode and docs/WORK-BOARD.md states which moves work in which build."
+  scope:
+    in:
+      - "issue cross-lane moves on the public page via ghdirect issue.labels"
+      - "disabled-with-reason affordances for file-writing moves"
+    out:
+      - "any write to _data/work_queue.yml or _data/roadmap.yml from the browser (the documented token has Contents read only)"
+      - "new write actions in ghdirect.ts or github_link.act"
+      - "OAuth flows on the public page (still console-only)"
+  risks:
+    - "A lane move can trigger automation — adding `agent:ready` hands the issue to the issue pipeline's implement tier — so the confirm must name that consequence, as the console's does."
+    - "Issue priority is also a label (P0–P3), which tempts doing priority moves by label swap on the public page; the console records them as work_queue.yml overrides that take precedence, so doing it two ways would make the builds disagree — keep it out unless the console switches to labels too."
+    - "The lane → label map must come from the same source the console uses (the snapshot), not a hand-copied TypeScript table, or the two builds drift."
+    - "Depends on the Work board (bamr87/bamr87 PR 421) landing on main."
+  source: session
+  created: 2026-10-27
+  issue_url: null
+
+- id: FF-0031
+  title: "Committed spec/backlog snapshot for the published Work board, read through the GitHub API"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: M
+  category: infra
+  problem: >-
+    work_board.py reads spec packages (specs/NNN-slug/) and BACKLOG.md items
+    from submodule checkouts — a local probe tools/console/snapshot.py must
+    never publish — so the public /work board shows issues, PRs and roadmap
+    specs but no spec packages or backlog items: two of its five sources are
+    missing for every visitor, and spec / backlog state is in no committed
+    data the machine API or other hub generators could use.
+  proposal: >-
+    A dash-gen generator (`tools/dash-gen work-sources`, name open) writes a
+    committed `_data/work_sources.yml` (schema marker) for each registry repo
+    whose `.github/sdlc.yml` declares `modules.spec_driven` or `backlog.mode:
+    file`: its BACKLOG.md items (id, kind, severity, section, title) and spec
+    packages (NNN-slug, Status, title), each with the source file's blob sha.
+    It reads only through the GitHub API — one recursive tree call per repo,
+    then file fetches only where the sha changed since the committed scan —
+    and runs as a continue-on-error gather step in fleet-pulse.yml with the
+    probed token and the existing publish path (no new cron), keeping a
+    repo's previous rows, marked stale, when the API fails. The BACKLOG.md
+    and spec.md parsers move out of work_board.py into shared functions (text
+    in, items out) so a checkout and the snapshot cannot disagree on the same
+    file; in snapshot mode work_board.py takes spec and backlog cards from the
+    committed file and shows its freshness.
+  acceptance:
+    - "`tools/dash-gen work-sources` writes _data/work_sources.yml (schema marker, generated_at, per-repo rows with the source file's blob sha) from the GitHub API alone, with offline fixture tests in .github/scripts/dash-gen/."
+    - "work_board.py and the generator parse BACKLOG.md and spec.md with the same functions; a fixture test yields identical items from a checkout and from the API text of the same file."
+    - "The published /work board shows spec-package and backlog cards from the committed file with its freshness, and test_pages.py asserts the board document carries no absolute path and no submodule-checkout read."
+    - "fleet-pulse.yml gains one continue-on-error gather step and no new schedule; an API failure keeps the previous rows marked stale, and the gather summary reports it."
+    - "An unchanged rescan costs one tree call per repo and no file fetches."
+    - "Private repos follow a declared policy (counts only, or excluded) and a test asserts no private repo's item titles reach the published snapshot."
+    - "_data/SCHEMA.md registers the file as generated; .github/scripts/dash-gen/README.md, docs/WORK-BOARD.md and docs/CONSOLE-PAGES.md describe it; the drift and schema gates stay green."
+  scope:
+    in:
+      - "generator, committed snapshot, fleet-pulse gather step"
+      - "shared parsers extracted from work_board.py"
+      - "snapshot-mode board reading the committed file"
+    out:
+      - "changing the console's local read path (checkouts stay authoritative on a laptop; falling back to the snapshot for submodules that are not checked out is a follow-up)"
+      - "making spec / backlog cards movable on the public page (moving them means writing files in member repos)"
+      - "a machine-API (/api/v1) projection of the file (a cheap follow-up)"
+  risks:
+    - "Publishing private repos' backlog titles on the public site is a disclosure decision; the generator must apply fleet_triage.yml's per-repo `private` flag before writing."
+    - "GITHUB_TOKEN 404s on about 11 private fleet repos; a 404 must be recorded as unreadable, never as 'no backlog', the same rule the hub applies to repos that look deleted."
+    - "The snapshot can be up to a day old while the local board reads the working tree, so the same item can sit in different places in the two builds — show freshness on every card."
+    - "Depends on the Work board (bamr87/bamr87 PR 421) landing on main; row keys must match the board's `spec:<repo>/NNN-slug` and `backlog:<repo>/BL-…` keys so pins resolve on the public build."
+  source: session
+  created: 2026-10-27
+  issue_url: null

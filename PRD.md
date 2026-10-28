@@ -72,16 +72,17 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-025](features/features.yml) | Harness pipeline map (proposed) | planned | [`docs/prd/HARNESS-PIPELINE-MAP.md`](docs/prd/HARNESS-PIPELINE-MAP.md) | FR16, FR17, FR18, FR19, FR20, NFR7 |
 | [HUB-026](features/features.yml) | GitHub workflow nodes on the pipeline map (proposed) | planned | [`docs/prd/HARNESS-PIPELINE-MAP.md`](docs/prd/HARNESS-PIPELINE-MAP.md) | FR21 |
 | [HUB-027](features/features.yml) | Backlog fan-out routine | partial | [`.github/workflows/backlog-fanout.yml`](.github/workflows/backlog-fanout.yml) · [`docs/BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | FR6, FR22, FR23 |
+| [HUB-028](features/features.yml) | Work board: rebalance the loops' work by drag and drop | shipped | route `/work` · [`docs/WORK-BOARD.md`](docs/WORK-BOARD.md) | FR5, FR6 |
 
 **Requirement → feature trace**
 
 | Requirement | Features |
 | --- | --- |
 | FR2 | HUB-001, HUB-008 |
-| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017 |
+| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
-| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027 |
+| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
 | FR7 | HUB-024 |

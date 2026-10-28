@@ -7,9 +7,9 @@ again for an AI client: Claude Code, Claude Desktop, the bashOS kernel or any
 other MCP host gets the views a person sees and can run what a person can run —
 no more.
 
-  read     fleet_overview · fleet_apps · fleet_inbox · fleet_docker
-           straight from fleetcore.views over the committed signals; work with
-           no console running
+  read     fleet_overview · fleet_apps · fleet_inbox · fleet_docker ·
+           fleet_work — straight from fleetcore.views (and dash-gen's
+           work_board) over the committed signals; work with no console running
   act      console_ops · console_run · console_jobs · console_job_log ·
            console_cancel — through fleetcore.client to the console, so the
            allowlist, parameter validation and the confirm-before-GitHub-write
@@ -95,6 +95,31 @@ def t_docker(_: dict) -> dict:
     return views.docker_view(fl.load_snapshot(ROOT).rows)
 
 
+WORK_FIELDS = ("key", "kind", "repo", "ref", "title", "lane", "priority", "priority_source", "rank", "loop",
+               "next_run", "url", "note")
+
+
+def t_work(a: dict) -> dict:
+    """The Work board, in the order the loops take it, with the human's pins
+    and overrides applied (_data/work_queue.yml) — what to pick up next."""
+    sys.path.insert(0, str(ROOT / ".github" / "scripts" / "dash-gen"))
+    import work_board  # noqa: WPS433 — dash-gen's own module, only when asked
+
+    doc = work_board.build(work_board.load_inputs(ROOT, local=True))
+    rows = [it for it in doc["items"]
+            if (not a.get("lane") or it["lane"] == a["lane"]) and (not a.get("repo") or it["repo"] == a["repo"])
+            and (not a.get("kind") or it["kind"] == a["kind"]) and (not a.get("next_only") or it["next_run"])]
+    limit = int(a.get("limit") or 25)
+    return {
+        "lanes": {lane["id"]: lane["count"] for lane in doc["lanes"]},
+        "loops": [{k: lp.get(k) for k in ("id", "label", "cap", "eligible", "next_run", "drain_runs", "drain_days")}
+                  for lp in doc["loops"]],
+        "hints": [h["text"] for h in doc["hints"]],
+        "count": len(rows),
+        "items": [{k: it.get(k) for k in WORK_FIELDS} for it in rows[:limit]],
+    }
+
+
 def t_ops(_: dict) -> dict:
     return {"ops": console().ops()}
 
@@ -141,6 +166,15 @@ TOOLS: dict[str, dict] = {
             "limit": {"type": "integer", "minimum": 1, "maximum": 150}})),
     "fleet_docker": dict(fn=t_docker, annotations={"readOnlyHint": True, "openWorldHint": True},
                          schema=_schema(), description="Containers on every DASH_DOCKER_HOST, attributed to projects."),
+    "fleet_work": dict(fn=t_work, annotations=READ, description=(
+        "Every open issue, PR, roadmap spec, spec package and BACKLOG.md item, in the order the loops take "
+        "it (the Work board): the human's pins and priority overrides first, the next run's picks marked, "
+        "each loop's capacity and drain time. Read it before choosing what to work on."), schema=_schema({
+            "lane": {"type": "string", "enum": ["triage", "ready", "doing", "review", "blocked", "hold"]},
+            "repo": {"type": "string", "description": "registry name"},
+            "kind": {"type": "string", "enum": ["issue", "pr", "roadmap", "spec", "backlog"]},
+            "next_only": {"type": "boolean", "description": "only what a loop's next run takes"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 200}})),
     "console_ops": dict(fn=t_ops, annotations=READ, schema=_schema(), description=(
         "The Harness Console's allowlisted operations: id, title, params, and whether one can write to GitHub.")),
     "console_run": dict(fn=t_run, description=(
