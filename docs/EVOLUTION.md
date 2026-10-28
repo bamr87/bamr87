@@ -87,6 +87,8 @@ The brief *tells* the agent about the repo's failing workflows and open issues a
 ## Repository (from the registry)                ← upstream, branch, category, stack, status, description
 ## Signals (the fleet's current view)            ← from _data/fleet_triage.yml: attention level + reasons,
                                                    failing workflows, open issues (bugs first), open PRs
+## The maintainer's order (the Work board)       ← this repo's pins and priority overrides from
+                                                   _data/work_queue.yml (docs/WORK-BOARD.md), in order
 ## Focus for this run                            ← the dispatch `focus` input, or "none given"
 ## Goals / ## Method                             ← .github/evolution/evolve-prompt.md, rendered
 ## Category emphasis                             ← .github/evolution/categories/<category>.md

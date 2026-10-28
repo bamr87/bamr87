@@ -1,0 +1,22 @@
+# =============================================================================
+# _data/work_queue.yml — the human's order and priority overrides (work-queue/v1)
+# =============================================================================
+# Written by the Harness Console's Work board (/work) in the working tree;
+# committing it is the approval. Read by the issue pipeline
+# (.github/scripts/dash-gen/issue_pipeline.py) when it builds its queues, and
+# by the board. Doc: docs/WORK-BOARD.md. Module: dash-gen/work_queue.py.
+#
+#   order:    keys that come FIRST in their lane, in this order
+#   priority: replaces the computed priority wherever a loop ranks the item
+#   notes:    why (shown on the board, never read by a loop)
+#
+# Keys: issue:<owner>/<repo>#<n> · pr:<owner>/<repo>#<n> · roadmap:FF-NNNN ·
+#       spec:<project>/<NNN-slug> · backlog:<project>/BL-YYYYMMDD-NN
+# A roadmap entry's priority/status are edited in _data/roadmap.yml itself;
+# an issue's stage lives in its labels. Comments below this header are not kept.
+# =============================================================================
+schema: work-queue/v1
+updated_at: null
+order: []
+priority: {}
+notes: {}

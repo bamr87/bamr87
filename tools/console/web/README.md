@@ -24,7 +24,7 @@ Dependencies are always-latest (`*`), and `.npmrc` sets `package-lock=false`, so
 | `src/components/` | the shell, `DataTable` (sortable, linkable rows with keys v1 navigation), the palette, the global keymap, charts, small UI pieces |
 | `src/jobs/` | `JobRunner` (the confirm gate, submit, the live-log drawer), `OpForm`, `RunButton`, `JobLog` |
 | `src/github/` | the GitHub surface: `ConnectPanel` (OAuth App setup, device / browser flows), `RepoManager` (issues, PRs, runs, workflows), `useGhAction` (every write: say, ask, POST with confirm, log) |
-| `src/pages/` | one file per page, plus the drill-downs (`ProjectPage`, `ContentSite`, loop, job and operation pages); the profile (`Home`, `Profile` — pages and posts, `Portfolio`), the registries (`Registries`: roadmap, features, engagements, toolbox) and `Connect` |
+| `src/pages/` | one file per page, plus the drill-downs (`ProjectPage`, `ContentSite`, loop, job and operation pages); the profile (`Home`, `Profile` — pages and posts, `Portfolio`), the registries (`Registries`: roadmap, features, engagements, toolbox), the Work board (`Work`, with `WorkBoard` — lanes, cards and drag and drop, `WorkItem` — the drawer, `WorkFlow` — throughput, `workPlan` — the staged plan) and `Connect` |
 
 Rules the code keeps:
 

@@ -156,6 +156,10 @@ def test_read_tools_over_the_committed_signals():
         assert not err and apps["count"] == 0 and apps["rows"] == []
         docker, err = call("fleet_docker")
         assert not err and docker["hosts"] == [] and docker["containers"] == []
+        work, err = call("fleet_work", {"next_only": True, "limit": 5})
+        assert not err and set(work["lanes"]) == {"triage", "ready", "doing", "review", "blocked", "hold"}
+        assert len(work["items"]) <= 5 and all(i["next_run"] for i in work["items"])
+        assert {lp["id"] for lp in work["loops"]} >= {"t1", "t2", "t3"}
 
 
 class Env:

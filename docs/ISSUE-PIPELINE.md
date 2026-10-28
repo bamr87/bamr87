@@ -75,6 +75,10 @@ This repo has already lost three weeks of fleet data to a silently broken `workf
 
 Some issues get `human-review` behaviour without the label — `assisted` autonomy is forced for `security` types and `size:xl` issues (configurable under `issue_pipeline.autonomy`).
 
+### The human's order
+
+Labels say *where* an issue is; they cannot say *which comes first*, and the pipeline computes priority rather than reading a `priority:` label (T1 writes that label from its own score). [`_data/work_queue.yml`](../_data/work_queue.yml) is where a person overrules both. A key in its `order:` list goes ahead of every unpinned issue in its tier, in that order (still within the per-repo and cross-repo sub-caps). A `priority:` entry replaces the computed priority, which T1's work order then applies as the label. The [Work board](WORK-BOARD.md) (`/work`) writes the file by drag and drop and shows the next run's cut line before you commit. The snapshot carries every open issue under `backlog:` and every pipeline PR under `pipeline_prs:`, so the board can show what waits behind the capped queues.
+
 ## What is deterministic vs what the AI decides
 
 Everything selective happens in Python, before any model runs:
@@ -170,4 +174,5 @@ command is redacted before it is echoed — the logs are published as artifacts 
 - [`docs/DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) — the workflow-fixing sibling loop
 - [`docs/AI-INTEGRATION.md`](AI-INTEGRATION.md) — Claude auth and the AI surfaces
 - [`docs/DASH.md`](DASH.md) — the dash architecture
+- [`docs/WORK-BOARD.md`](WORK-BOARD.md) — reorder and reprioritise the queues by drag and drop
 - [`docs/ESTIMATION.md`](ESTIMATION.md) — issues as client engagements
