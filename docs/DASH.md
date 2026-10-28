@@ -70,6 +70,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash vendor` | vendored Pyramid Schema kit vs upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files |
 | `tools/dash remediate` | merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse) |
 | `tools/dash spec [check\|fleet\|kinds]` | Universal Project Standard checker (specs/): `check [path] [--kinds a,b] [--gate]` one repo; `fleet --write` every submodule → _data/conformance.yml (feeds the repo-evolution brief) |
+| `tools/dash workflows [list\|show\|lint\|health\|new]` | the WORKFLOW ATLAS — the hub's workflows + composite actions as one model; `lint [--strict]` holds them to the README standards; `health [--days N]` classifies why runs failed (from the lake); `new --kind loop\|agent-loop\|gate\|reusable\|dispatch --id ID [--write]` scaffolds one inside the standards (docs/WORKFLOW-ATLAS.md) |
 | `tools/dash harness` | six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md) |
 | `tools/dash harnesses [gaps\|deploy]` | fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); `gaps` prints fan-out-deployable gap repos; `deploy [--gaps\|--target N] [--artifacts csv] [--upgrade] [--apply]` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md) |
 | `tools/dash features [check\|coverage] [path]` | validate / grade one repo's feature index (features/features.yml); `fleet [--write\|--check]` aggregates every submodule → _data/features_index.yml (/features/ portal; docs/VERIFICATION.md) |
@@ -108,7 +109,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash ps` | what is running fleet-wide, and who is on the shared network |
 | `tools/dash doctor` | environment checks (setup.sh --dry-run) |
 | `tools/dash test` | run the aggregate test suite |
-| `tools/dash gen <health\|readme\|ai\|ai-check\|ai-run\|ai-usage\|actions\|daily\|triage\|harness\|harnesses\|lake\|content\|observe\|remediate\|issues\|reconcile\|vendor\|estimate\|ledger\|targets\|all>` | run the registry generator |
+| `tools/dash gen <health\|readme\|ai\|ai-check\|ai-run\|ai-usage\|actions\|daily\|triage\|harness\|harnesses\|lake\|content\|observe\|remediate\|issues\|reconcile\|vendor\|estimate\|ledger\|targets\|workflows\|all>` | run the registry generator |
 | `tools/dash help` | this help |
 <!-- AUTO:dash-cli:end -->
 

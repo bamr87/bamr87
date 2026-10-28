@@ -1,0 +1,384 @@
+{
+  "id": "workflows",
+  "title": "The Workflows page shows every hub workflow, the standards it is held to, and its drill-down",
+  "features": [
+    "HUB-029"
+  ],
+  "path": "verify/scenarios/workflows.yml",
+  "started": "2026-10-28T17:21:48.176Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/workflows",
+          "ok": true,
+          "ms": 712
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Composite actions"
+          },
+          "ok": true,
+          "ms": 26
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "fleet-pulse.yml"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "FLEET_PULSE_ENABLED"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "workflows-catalog",
+          "ok": true,
+          "file": "test/evidence/workflows/desktop-workflows-catalog.png",
+          "ms": 45
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Standards/]",
+          "ok": true,
+          "ms": 84
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=enforced by test_ai_budget.py"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "A spent Claude window is capacity, not a defect"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "workflows-standards",
+          "ok": true,
+          "file": "test/evidence/workflows/desktop-workflows-standards.png",
+          "ms": 62
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Run health/]",
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Runs on a console"
+          },
+          "ok": true,
+          "ms": 25
+        },
+        {
+          "step": "goto",
+          "arg": "/workflows/fleet-pulse",
+          "ok": true,
+          "ms": 570
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Claude call sites"
+          },
+          "ok": true,
+          "ms": 18
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "fleet-pulse.yml:doctor"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "max_candidates"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "workflow-fleet-pulse",
+          "ok": true,
+          "file": "test/evidence/workflows/desktop-workflow-fleet-pulse.png",
+          "ms": 37
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/workflows/desktop-workflows-catalog.png",
+        "test/evidence/workflows/desktop-workflows-standards.png",
+        "test/evidence/workflows/desktop-workflow-fleet-pulse.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/workflows/fleet-pulse/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/workflows",
+          "ok": true,
+          "ms": 603
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Composite actions"
+          },
+          "ok": true,
+          "ms": 21
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "fleet-pulse.yml"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "FLEET_PULSE_ENABLED"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "workflows-catalog",
+          "ok": true,
+          "file": "test/evidence/workflows/mobile-workflows-catalog.png",
+          "ms": 20
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Standards/]",
+          "ok": true,
+          "ms": 28
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=enforced by test_ai_budget.py"
+          },
+          "ok": true,
+          "ms": 59
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "A spent Claude window is capacity, not a defect"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "workflows-standards",
+          "ok": true,
+          "file": "test/evidence/workflows/mobile-workflows-standards.png",
+          "ms": 13
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Run health/]",
+          "ok": true,
+          "ms": 27
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Runs on a console"
+          },
+          "ok": true,
+          "ms": 27
+        },
+        {
+          "step": "goto",
+          "arg": "/workflows/fleet-pulse",
+          "ok": true,
+          "ms": 567
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Claude call sites"
+          },
+          "ok": true,
+          "ms": 19
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "fleet-pulse.yml:doctor"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "max_candidates"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "workflow-fleet-pulse",
+          "ok": true,
+          "file": "test/evidence/workflows/mobile-workflow-fleet-pulse.png",
+          "ms": 25
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/workflows/mobile-workflows-catalog.png",
+        "test/evidence/workflows/mobile-workflows-standards.png",
+        "test/evidence/workflows/mobile-workflow-fleet-pulse.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/workflows/fleet-pulse/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-10-28T17:21:51.437Z",
+  "base": "http://127.0.0.1:4020"
+}

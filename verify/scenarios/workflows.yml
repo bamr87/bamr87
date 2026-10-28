@@ -1,0 +1,29 @@
+# The workflow atlas on the published site: the catalog, the standards as checks, one workflow's drill-down.
+id: workflows
+feature: HUB-029
+title: "The Workflows page shows every hub workflow, the standards it is held to, and its drill-down"
+description: "/workflows lists every workflow with its group, schedule, Claude call sites, kill switch and standards verdict; the Standards tab shows each rule with why it exists and its gate; a workflow's page shows its triggers, jobs, Claude call sites and typed dispatch inputs. The public build says run health and the designer run on a console, and nothing scrolls sideways."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /workflows
+  - expect: { status: 200 }
+  - wait: { selector: "text=Composite actions" }
+  - expect: { text: "fleet-pulse.yml" }
+  - expect: { text: "FLEET_PULSE_ENABLED" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: workflows-catalog
+  - click: "role=tab[name=/Standards/]"
+  - wait: { selector: "text=enforced by test_ai_budget.py" }
+  - expect: { text: "A spent Claude window is capacity, not a defect" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: workflows-standards
+  - click: "role=tab[name=/Run health/]"
+  - wait: { selector: "text=Runs on a console" }
+  - goto: /workflows/fleet-pulse
+  - expect: { status: 200 }
+  - wait: { selector: "text=Claude call sites" }
+  - expect: { text: "fleet-pulse.yml:doctor" }
+  - expect: { text: "max_candidates" }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: workflow-fleet-pulse

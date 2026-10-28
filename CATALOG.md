@@ -364,6 +364,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`UX-HARNESS.md`](docs/UX-HARNESS.md) | Continuous UI/UX audit for the fleet: the `ux-audit` kit's computational gate and the hub's critique loop. |
 | [`VERIFICATION.md`](docs/VERIFICATION.md) | The agent verification standard — feature index, user scenarios, evidence bundles, the `fleet-verify.yml` gate and the fleet coverage index. |
 | [`WORK-BOARD.md`](docs/WORK-BOARD.md) | Every open issue, pull request, roadmap spec, spec package and backlog item in one place, in the order the loops will take it, with drag and drop to reorder, move and re… |
+| [`WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | The hub's own GitHub Actions read as one model: what each workflow and composite action does, the standards they are held to, why their runs fail, what can be retired, a… |
 | [`WORKFLOW-OPTIMIZATION.md`](docs/WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
 | [`WORKFLOW-VERSIONING.md`](docs/WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back. |
 | [`constitution.md`](docs/constitution.md) | The rules every change to this repo must satisfy, whoever makes it — a human or an AI agent. |
@@ -397,6 +398,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Harnesses | Health | `/harnesses/health` | trip wires and the six-layer scorecard |
 | Harnesses | Schedules | `/schedules` | crons, caps and collisions |
 | Harnesses | Loops | `/loops` | the control-plane loops |
+| Harnesses | Workflows | `/workflows` | every hub workflow and action: standards, failures, retirement, design |
 | Harnesses | Work board | `/work` | every open item in the order the loops take it — drag to reprioritise |
 | Spend | Costs | `/costs` | Claude spend and Actions minutes vs budget |
 | Spend | Agent activity | `/activity` | local sessions + CI agent runs, from the lake |
