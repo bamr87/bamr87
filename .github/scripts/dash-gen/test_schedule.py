@@ -38,7 +38,7 @@ KEY_OVERRIDES = {"token-rotation": "rotate_tokens"}
 
 
 def key_for(stem: str) -> str:
-    return KEY_OVERRIDES.get(stem, stem.replace("-", "_"))
+    return KEY_OVERRIDES.get(stem, re.sub(r"[^a-z0-9]+", "_", stem.lower()).strip("_"))
 
 
 SWITCH_RX = re.compile(r"vars\.([A-Z][A-Z0-9_]*_ENABLED)\b")

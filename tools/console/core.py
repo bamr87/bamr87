@@ -700,15 +700,31 @@ def _atlas_module():
     return workflow_atlas
 
 
+def _default_branch_text(rel: str) -> str | None:
+    """A file as the hub's default branch holds it — what `gh workflow run`
+    runs — from the last fetch; None when git cannot say."""
+    branch = str(((load_yaml(DATA / "fleet.yml") or {}).get("hub") or {}).get("default_branch") or "main")
+    rc, out = run_quiet(["git", "show", f"origin/{branch}:{rel}"], timeout=10)
+    return out if rc == 0 and out.strip() else None
+
+
 def dispatch_inputs() -> dict[str, list[dict]]:
     """Each allowlisted workflow → the inputs its file declares (name, type,
-    default, options), so the console's form and its validation follow the file."""
+    default, options), so the console's form and its validation follow the
+    file. Read from the default branch, which is the file GitHub runs, else
+    from the working tree; a file that cannot be read offers no inputs rather
+    than breaking every other dispatch."""
     atlas = _atlas_module()
     out: dict[str, list[dict]] = {}
     for wf in DISPATCH_WORKFLOWS:
         path = REPO_ROOT / ".github" / "workflows" / f"{wf}.yml"
-        if path.is_file():
-            out[wf] = atlas.parse_workflow(_rel(path), path.read_text(encoding="utf-8"))["dispatch_inputs"]
+        text = _default_branch_text(_rel(path)) or (path.read_text(encoding="utf-8") if path.is_file() else None)
+        if text is None:
+            continue
+        try:
+            out[wf] = atlas.parse_workflow(_rel(path), text)["dispatch_inputs"]
+        except Exception:  # one unreadable file must not take dispatch down for the other eight
+            out[wf] = []
     return out
 
 
@@ -930,9 +946,9 @@ def _dispatch(params: dict) -> list[str]:
             raise ValueError(f"input '{k}' is a boolean: true or false")
         if kind == "choice" and options and v not in options:
             raise ValueError(f"input '{k}' must be one of {options}")
-        if kind == "number" and not re.match(r"^-?\d+(\.\d+)?$", v):
+        if kind == "number" and not re.fullmatch(r"-?\d+(\.\d+)?", v):
             raise ValueError(f"input '{k}' is a number")
-        if not FIELD_RX.match(v):
+        if not FIELD_RX.fullmatch(v):
             raise ValueError(f"input '{k}' has characters the console refuses to pass")
         argv += ["-f", f"{k}={v}"]
     return argv
@@ -955,7 +971,7 @@ def _workflow_new(params: dict) -> list[str]:
         if not CRON_RX.match(cron):
             raise ValueError("cron must be a 5-field cron expression")
         argv += ["--cron", cron]
-    purpose = str(params.get("purpose") or "").strip()
+    purpose = str(params.get("purpose") or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if purpose:
         if len(purpose) > 2000 or re.search(r"[\x00-\x08\x0b-\x1f\x7f]", purpose):
             raise ValueError("purpose is plain text, at most 2000 characters")

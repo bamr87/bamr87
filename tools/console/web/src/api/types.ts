@@ -589,7 +589,7 @@ export interface WfJob {
 }
 export interface WfRef { ref: string; kind: 'action' | 'workflow' | 'external' | 'docker' | 'unknown'; target: string; version: string | null; owner?: string | null; jobs: string[] }
 export interface WfAiSite {
-  site: string; job: string; kind: string; step: string; continue_on_error: boolean; max_budget_usd: number | null; max_turns: number | null;
+  site: string; job: string; kind: string; step: string; continue_on_error: boolean | 'expression'; max_budget_usd: number | null; budget_from_input?: boolean; max_turns: number | null;
   model: string | null; cost_step: boolean; usage_limit: string | null; declared_usd: number | null;
 }
 export interface Tally { error: number; warn: number; info: number }
@@ -603,7 +603,7 @@ export interface Workflow {
 }
 export interface WfAction {
   id: string; file: string; name: string | null; description: string; using: string | null; inputs: WfInput[]; outputs: string[];
-  steps: number; uses: string[]; lines: number; parse_error: string | null; used_by: string[]; documented: boolean; readme: boolean; findings: Tally;
+  steps: number; uses: string[]; lines: number; parse_error: string | null; used_by: string[]; documented: boolean; readme: boolean; findings: Tally; description_exprs?: string[];
 }
 export interface Finding { rule: string; severity: Severity; kind: 'workflow' | 'action'; target: string; file: string; line: number | null; job: string | null; message: string }
 export interface Rule { id: string; severity: Severity; title: string; why: string; fix: string; doc: string; gate: string | null }

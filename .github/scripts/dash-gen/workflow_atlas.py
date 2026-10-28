@@ -48,6 +48,7 @@ import copy
 import datetime as dt
 import json
 import re
+import shlex
 import sys
 import textwrap
 from pathlib import Path
@@ -143,13 +144,33 @@ SECRET_RX = re.compile(r"\bsecrets\.([A-Za-z_][A-Za-z0-9_]*)")
 VAR_RX = re.compile(r"\bvars\.([A-Za-z_][A-Za-z0-9_]*)")
 EXPR_RX = re.compile(r"\$\{\{(.*?)\}\}", re.S)
 INPUT_REF_RX = re.compile(r"\$\{\{\s*inputs\.([\w-]+)\s*\}\}")
-NULL_CMP_RX = re.compile(r"inputs\.([\w-]+)\s*[!=]=\s*false\b|\bfalse\s*[!=]=\s*inputs\.([\w-]+)")
-PUSH_MAIN_RX = re.compile(r"\bgit\s+push\b[^\n#;|&]*?[\s:/](main|master)\b")
-PUSH_BARE_RX = re.compile(r"\bgit\s+push\s*(?:$|[;&|#])", re.M)
-GITHUB_TOKEN_RX = re.compile(r"github\.token|secrets\.GITHUB_TOKEN")
+# `inputs.x == false`, `inputs.x != false` and `!inputs.x`: each reads a null
+# (a run that is not a dispatch) the same as false.
+NULL_CMP_RX = re.compile(r"inputs\.([\w-]+)\s*[!=]=\s*false\b|\bfalse\s*[!=]=\s*inputs\.([\w-]+)"
+                         r"|!\s*inputs\.([\w-]+)(?!\s*[!=]=)")
+# A guard that keeps a non-dispatch run away from the input names the event.
+EVENT_GUARD_RX = re.compile(r"github\.event_name\s*[!=]=\s*'(?:workflow_dispatch|schedule)'")
+ONLY_JOB_TOKEN_RX = re.compile(r"^\s*(?:\$\{\{\s*)?(?:github\.token|secrets\.GITHUB_TOKEN)(?:\s*\}\})?\s*$")
+DEFAULT_BRANCHES = ("main", "master")
 CLAUDE_ACTION = "anthropics/claude-code-action"
 ID_RX = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
-NAME_RX = re.compile(r"^[^\n\r\"'`$\\]{1,80}$")
+NAME_RX = re.compile(r"^(?![-\s])[^\n\r\"'`$\\]{1,80}$")
+# A draft that expands past this many YAML nodes is refused before anything
+# walks it: an alias chain of a few hundred bytes otherwise expands into hours.
+MAX_NODES = 50_000
+
+
+class _Loader(yaml.SafeLoader):
+    """GitHub reads workflows as YAML 1.2, where only true/false are booleans:
+    `on:` stays a key and a choice option `yes` stays "yes" (PyYAML's YAML 1.1
+    default turns both into True)."""
+
+
+_Loader.yaml_implicit_resolvers = {
+    ch: [(tag, rx) for tag, rx in rs if tag != "tag:yaml.org,2002:bool"]
+    for ch, rs in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+_Loader.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
+                              list("tTfF"))
 
 
 def is_claude_run(uses: str) -> bool:
@@ -187,6 +208,66 @@ def _truthy(value) -> bool:
     return value is True or str(value).strip().lower() == "true"
 
 
+def _coe(value) -> bool | str:
+    """`continue-on-error`: True, False, or "expression" when it is decided at run time."""
+    if value is None or value is False or str(value).strip().lower() == "false":
+        return False
+    return True if _truthy(value) else "expression"
+
+
+def _oversized(data, limit: int = MAX_NODES) -> str | None:
+    """Why a parsed document must not be walked: a cycle, or more than `limit`
+    nodes once aliases are expanded (each shared node is sized once)."""
+    memo: dict[int, int] = {}
+    active: set[int] = set()
+
+    def size(node) -> int:
+        if not isinstance(node, (dict, list)):
+            return 1
+        key = id(node)
+        if key in active:
+            raise ValueError("a YAML alias refers to itself")
+        if key in memo:
+            return memo[key]
+        active.add(key)
+        total = 1
+        for item in (list(node.keys()) + list(node.values())) if isinstance(node, dict) else node:
+            total += size(item)
+            if total > limit:
+                break
+        active.discard(key)
+        memo[key] = total
+        return total
+
+    try:
+        return f"expands past {limit:,} nodes through YAML aliases" if size(data) > limit else None
+    except ValueError as exc:
+        return str(exc)
+    except RecursionError:
+        return "nested too deeply"
+
+
+def _load(text: str):
+    """(document, None) or (None, why it cannot be read)."""
+    try:
+        data = yaml.load(text, Loader=_Loader)  # noqa: S506 — a SafeLoader subclass
+    except yaml.YAMLError as exc:
+        return None, str(exc).splitlines()[0][:200]
+    except RecursionError:
+        return None, "nested too deeply"
+    why = _oversized(data)
+    return (None, why) if why else (data, None)
+
+
+def _on(data: dict) -> dict:
+    on = data.get("on", data.get(True))
+    if isinstance(on, str):
+        return {on: None}
+    if isinstance(on, list):
+        return {str(k): None for k in on}
+    return on if isinstance(on, dict) else {}
+
+
 def _plain(md: str) -> str:
     """Markdown cell → plain text (links to their label, no emphasis or code ticks)."""
     out = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", md or "")
@@ -212,15 +293,17 @@ def header_comment(text: str) -> str:
 
 
 def _inputs(block) -> list[dict]:
-    if not isinstance(block, dict):
+    inputs = block.get("inputs") if isinstance(block, dict) else None
+    if not isinstance(inputs, dict):
         return []
     out = []
-    for name, spec in (block.get("inputs") or {}).items():
+    for name, spec in inputs.items():
         spec = spec if isinstance(spec, dict) else {}
+        options = spec.get("options")
         out.append({"name": str(name), "type": str(spec.get("type") or "string"),
                     "default": spec.get("default"), "required": bool(spec.get("required")),
                     "description": str(spec.get("description") or "").strip(),
-                    "options": [str(o) for o in spec.get("options") or []]})
+                    "options": [str(o) for o in options] if isinstance(options, list) else []})
     return out
 
 
@@ -287,8 +370,9 @@ def parse_actions_readme(text: str) -> set[str]:
 # --------------------------------------------------------------------------- #
 # MODEL — one workflow file
 # --------------------------------------------------------------------------- #
-def _resolve_inputs(args: str, call_inputs: list[dict]) -> str:
-    defaults = {i["name"]: i["default"] for i in call_inputs}
+def _resolve_inputs(args: str, inputs: list[dict]) -> str:
+    """`${{ inputs.x }}` → x's declared default; one with no default stays as written."""
+    defaults = {i["name"]: i["default"] for i in inputs if i["default"] is not None}
     return INPUT_REF_RX.sub(lambda m: str(defaults.get(m.group(1), m.group(0))), args)
 
 
@@ -301,22 +385,18 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
         "concurrency": None, "jobs": [], "uses": [], "secrets": [], "vars": [], "switch": None,
         "switches": [], "ai_sites": [], "publishes": [], "opens_prs": False, "env": {},
     }
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        wf["parse_error"] = str(exc).splitlines()[0][:200]
+    data, why = _load(text)
+    if why:
+        wf["parse_error"] = why
         return wf
     if not isinstance(data, dict):
         wf["parse_error"] = "not a YAML mapping"
         return wf
+    if not isinstance(data.get("jobs") or {}, dict):
+        wf["parse_error"] = "`jobs:` must be a mapping of job ids"
+        return wf
     wf["name"] = str(data.get("name") or stem)
-    on = data.get("on", data.get(True))
-    if isinstance(on, str):
-        on = {on: None}
-    elif isinstance(on, list):
-        on = {str(k): None for k in on}
-    elif not isinstance(on, dict):
-        on = {}
+    on = _on(data)
     wf["triggers"] = [str(k) for k in on]
     for trig, spec in on.items():
         spec = spec if isinstance(spec, dict) else {}
@@ -327,7 +407,8 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
             if spec.get(key):
                 ev[key] = _list(spec[key])
         wf["events"].append(ev)
-    for entry in on.get("schedule") or []:
+    sched = on.get("schedule")
+    for entry in sched if isinstance(sched, list) else []:
         if isinstance(entry, dict) and entry.get("cron"):
             cron = str(entry["cron"]).strip()
             parsed = hr.parse_cron(cron)
@@ -338,7 +419,8 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
     wf["dispatch_inputs"] = _inputs(on.get("workflow_dispatch"))
     call = on.get("workflow_call")
     wf["call_inputs"] = _inputs(call)
-    wf["call_secrets"] = sorted(str(k) for k in ((call or {}).get("secrets") or {})) if isinstance(call, dict) else []
+    secrets = call.get("secrets") if isinstance(call, dict) else None
+    wf["call_secrets"] = sorted(str(k) for k in secrets) if isinstance(secrets, dict) else []
     perms = data.get("permissions")
     wf["permissions"] = perms if isinstance(perms, (dict, str)) else None
     conc = data.get("concurrency")
@@ -358,7 +440,7 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
     for jid, job in (data.get("jobs") or {}).items():
         if not isinstance(job, dict):
             continue
-        steps = [s for s in job.get("steps") or [] if isinstance(s, dict)]
+        steps = [s for s in job.get("steps") or [] if isinstance(s, dict)] if isinstance(job.get("steps"), list) else []
         jperms = job.get("permissions")
         jrow = {"id": str(jid), "name": str(job.get("name") or jid), "line": _job_line(text, str(jid)),
                 "runs_on": str(job.get("runs-on")) if job.get("runs-on") is not None else None,
@@ -394,7 +476,7 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
                 args = " ".join(f"--{k} {with_[k]}" for k in ("max-turns", "max-budget-usd") if str(with_.get(k, "")).strip())
             else:
                 continue
-            args = _resolve_inputs(args, wf["call_inputs"])
+            args = _resolve_inputs(args, wf["call_inputs"] + wf["dispatch_inputs"])
             budget = hr.MAX_BUDGET_RX.search(args)
             model = hr.MODEL_RX.search(args)
             turns = hr.MAX_TURNS_RX.search(args)
@@ -402,8 +484,10 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
             wf["ai_sites"].append({
                 "site": f"{Path(rel).name}:{jid}", "job": str(jid), "kind": kind,
                 "step": str(step.get("name") or step.get("id") or uses),
-                "continue_on_error": _truthy(step.get("continue-on-error")),
+                "continue_on_error": _coe(step.get("continue-on-error")),
                 "max_budget_usd": float(budget.group(1)) if budget else None,
+                # a cap passed through an input with no default: present, but not checkable here
+                "budget_from_input": not budget and re.search(r"max-budget-usd\s+\$\{\{", args) is not None,
                 "max_turns": int(turns.group(1)) if turns else None,
                 "model": model.group(1) if model else (str(with_.get("model")) if with_.get("model") else None),
                 "cost_step": bool(cost),
@@ -418,11 +502,10 @@ def parse_workflow(rel: str, text: str, hub: str = HUB_DEFAULT) -> dict:
 def parse_action(rel: str, text: str) -> dict:
     act = {"id": str(Path(rel).parent.relative_to(".github/actions").as_posix()), "file": rel,
            "name": None, "description": "", "using": None, "inputs": [], "outputs": [], "steps": 0,
-           "uses": [], "lines": text.count("\n") + 1, "parse_error": None, "used_by": []}
-    try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
-        act["parse_error"] = str(exc).splitlines()[0][:200]
+           "uses": [], "lines": text.count("\n") + 1, "parse_error": None, "used_by": [], "description_exprs": []}
+    data, why = _load(text)
+    if why:
+        act["parse_error"] = why
         return act
     if not isinstance(data, dict):
         act["parse_error"] = "not a YAML mapping"
@@ -431,9 +514,16 @@ def parse_action(rel: str, text: str) -> dict:
     act["description"] = str(data.get("description") or "").strip()
     runs = data.get("runs") if isinstance(data.get("runs"), dict) else {}
     act["using"] = str(runs.get("using") or "") or None
-    act["inputs"] = _inputs({"inputs": data.get("inputs") or {}})
-    act["outputs"] = sorted(str(k) for k in (data.get("outputs") or {}))
-    steps = [s for s in runs.get("steps") or [] if isinstance(s, dict)]
+    act["inputs"] = _inputs({"inputs": data.get("inputs")})
+    outputs = data.get("outputs") if isinstance(data.get("outputs"), dict) else {}
+    act["outputs"] = sorted(str(k) for k in outputs)
+    # GitHub evaluates `${{` in any description of a manifest (check-drift (l)).
+    act["description_exprs"] = (["description"] if "${{" in act["description"] else []) + [
+        f"{kind}.{name}.description"
+        for kind, block in (("inputs", data.get("inputs")), ("outputs", outputs)) if isinstance(block, dict)
+        for name, spec in block.items()
+        if isinstance(spec, dict) and "${{" in str(spec.get("description") or "")]
+    steps = [s for s in runs.get("steps") or [] if isinstance(s, dict)] if isinstance(runs.get("steps"), list) else []
     act["steps"] = len(steps)
     act["uses"] = sorted({_ref(str(s["uses"]))["ref"] for s in steps if s.get("uses")})
     return act
@@ -463,8 +553,11 @@ def scan(root: Path | str = ROOT_DEFAULT, fleet: dict | None = None, hub: str | 
     workflows = []
     for p in sorted(list(wf_dir.glob("*.yml")) + list(wf_dir.glob("*.yaml"))):
         rel = p.relative_to(root).as_posix()
-        texts[rel] = p.read_text(encoding="utf-8")
-        wf = parse_workflow(rel, texts[rel], hub)
+        texts[rel] = p.read_text(encoding="utf-8", errors="replace")
+        try:
+            wf = parse_workflow(rel, texts[rel], hub)
+        except Exception as exc:  # the atlas reports a file it cannot read; it never dies on one
+            wf = parse_workflow(rel, "", hub) | {"parse_error": f"{exc.__class__.__name__}: {exc}"[:200]}
         row = readme["rows"].get(p.name)
         wf["documented"] = row is not None
         wf["group"] = (row or {}).get("group") or derive_group(wf)
@@ -476,8 +569,11 @@ def scan(root: Path | str = ROOT_DEFAULT, fleet: dict | None = None, hub: str | 
     if act_dir.is_dir():
         for p in sorted(act_dir.rglob("action.y*ml")):
             rel = p.relative_to(root).as_posix()
-            texts[rel] = p.read_text(encoding="utf-8")
-            act = parse_action(rel, texts[rel])
+            texts[rel] = p.read_text(encoding="utf-8", errors="replace")
+            try:
+                act = parse_action(rel, texts[rel])
+            except Exception as exc:
+                act = parse_action(rel, "") | {"parse_error": f"{exc.__class__.__name__}: {exc}"[:200]}
             act["documented"] = act_listed is None or act["id"] in act_listed
             act["readme"] = (p.parent / "README.md").is_file()
             actions.append(act)
@@ -623,27 +719,80 @@ def _expressions(node, key: str | None = None):
         return
 
 
+PUSH_VALUE_OPTS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+
+
+def _pushes(run: str) -> list[tuple[str, str]]:
+    """Each `git … push` in a script that lands on the default branch:
+    (the line, "to `main`") when a refspec names it, (the line, "with no
+    branch") when it names none or only HEAD — which, on a run that checked
+    out the default branch, pushes straight to it."""
+    out = []
+    for line in run.splitlines():
+        for seg in re.split(r"&&|\|\||[;|&]", line.split(" #")[0]):
+            try:
+                toks = shlex.split(seg)
+            except ValueError:
+                toks = seg.split()
+            if "git" not in toks:
+                continue
+            rest = toks[toks.index("git") + 1:]
+            if "push" not in rest:
+                continue
+            args, skip = [], False
+            for t in rest[rest.index("push") + 1:]:
+                if skip:
+                    skip = False
+                elif t in PUSH_VALUE_OPTS:
+                    skip = True
+                elif not t.startswith("-"):
+                    args.append(t)
+            dests = [r.split(":")[-1].lstrip("+").removeprefix("refs/heads/") for r in args[1:]]
+            if any(d in DEFAULT_BRANCHES for d in dests):
+                out.append((line.strip(), f"to `{next(d for d in dests if d in DEFAULT_BRANCHES)}`"))
+            elif not dests or dests == ["HEAD"]:
+                out.append((line.strip(), "with no branch"))
+    return out
+
+
+def _token_of(*envs: dict) -> str:
+    """The token `gh` would use: GH_TOKEN, else GITHUB_TOKEN, innermost env first."""
+    for env in envs:
+        for name in ("GH_TOKEN", "GITHUB_TOKEN"):
+            if env.get(name):
+                return str(env[name])
+    return ""
+
+
 def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> list[dict]:
     out: list[dict] = []
     wid, file = wf["id"], wf["file"]
     if wf["parse_error"]:
         return [_finding("parse-error", "workflow", wid, file, wf["parse_error"])]
+    data, _ = _load(text)
+    data = data if isinstance(data, dict) else {}
     triggers = set(wf["triggers"])
     reusable_only = triggers <= {"workflow_call"}
-    if not reusable_only and wf["permissions"] is None:
-        out.append(_finding("permissions", "workflow", wid, file, "No top-level `permissions:` block.", 1))
+    jobs = wf["jobs"]
+    if not reusable_only and wf["permissions"] is None and not (jobs and all(j["permissions"] is not None for j in jobs)):
+        out.append(_finding("permissions", "workflow", wid, file,
+                            "No top-level `permissions:` block, and not every job declares its own.", 1))
     elif wf["permissions"] in ("write-all",):
         out.append(_finding("permissions", "workflow", wid, file, "`permissions: write-all`.",
                             _line_of(text, r"^permissions:")))
-    for job in wf["jobs"]:
+    for job in jobs:
         if not job["uses"] and job["timeout"] is None:
             out.append(_finding("timeout", "workflow", wid, file, f"Job `{job['id']}` has no `timeout-minutes`.",
                                 job["line"], job["id"]))
-    writes = any("write" in json.dumps(p) for p in [wf["permissions"]] + [j["permissions"] for j in wf["jobs"]] if p)
-    serialized = wf["concurrency"] is not None or (wf["jobs"] and all(j["concurrency"] for j in wf["jobs"]))
-    if triggers & {"schedule", "workflow_dispatch"} and writes and not serialized:
+
+    def writes(p) -> bool:
+        return p is not None and "write" in json.dumps(p)
+    writers = [j for j in jobs if writes(j["permissions"]) or (j["permissions"] is None and writes(wf["permissions"]))]
+    if (triggers & {"schedule", "workflow_dispatch"} and writers and wf["concurrency"] is None
+            and not all(j["concurrency"] for j in writers)):
+        names = ", ".join(f"`{j['id']}`" for j in writers)
         out.append(_finding("concurrency", "workflow", wid, file,
-                            "Writes on a schedule or dispatch without a `concurrency:` group.", 1))
+                            f"Writes on a schedule or dispatch without a `concurrency:` group (on the workflow, or on {names}).", 1))
     for r in wf["uses"]:
         if r["kind"] in ("external", "action", "workflow") and r.get("version") and SHA_RX.match(str(r["version"])):
             out.append(_finding("sha-pin", "workflow", wid, file, f"`{r['ref']}` is pinned to a SHA.",
@@ -664,8 +813,10 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
                             "Scheduled Claude loop with no `vars.*_ENABLED` kill switch.", 1))
     for s in wf["ai_sites"]:
         line = _job_line(text, s["job"])
-        if s["max_budget_usd"] is None:
+        if s["max_budget_usd"] is None and not s.get("budget_from_input"):
             out.append(_finding("ai-budget", "workflow", wid, file, f"`{s['site']}` passes no `--max-budget-usd`.", line, s["job"]))
+        elif s["max_budget_usd"] is None:
+            pass  # the cap comes from an input with no default: test_ai_budget.py owns that case
         elif hub_rules and s["declared_usd"] is None:
             out.append(_finding("ai-budget", "workflow", wid, file,
                                 f"`{s['site']}` is not declared under `budget.call_sites` in _data/fleet.yml.", line, s["job"]))
@@ -673,7 +824,7 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
             out.append(_finding("ai-budget", "workflow", wid, file,
                                 f"`{s['site']}` caps at ${s['max_budget_usd']:g} but fleet.yml declares ${s['declared_usd']:g}.",
                                 line, s["job"]))
-        if scheduled and s["kind"] == "claude-code-action":
+        if scheduled and s["kind"] == "claude-code-action" and s["continue_on_error"] != "expression":
             skip = s["usage_limit"] == "skip"
             if s["continue_on_error"] != skip or not s["cost_step"]:
                 half = ("no claude-cost step" if not s["cost_step"]
@@ -681,54 +832,50 @@ def lint_workflow(wf: dict, text: str, fleet: dict, hub_rules: bool = True) -> l
                         else "`usage-limit: skip` without `continue-on-error`" if skip
                         else "neither `continue-on-error` nor `usage-limit: skip`")
                 out.append(_finding("usage-limit", "workflow", wid, file, f"`{s['site']}`: {half}.", line, s["job"]))
-    dispatch_inputs = {i["name"] for i in wf["dispatch_inputs"]}
-    if dispatch_inputs and triggers - {"workflow_dispatch", "workflow_call"}:
-        try:
-            data = yaml.safe_load(text)
-        except yaml.YAMLError:
-            data = {}
+    # A null input reads as false. That only changes behaviour when the input
+    # defaults to true: then a cron run and a default dispatch disagree.
+    truthy = {i["name"] for i in wf["dispatch_inputs"] if _truthy(i["default"])}
+    others = triggers - {"workflow_dispatch", "workflow_call"}
+    if truthy and others:
         seen: set[str] = set()
-        for expr in _expressions((data or {}).get("jobs") or {}):
-            if "github.event_name" in expr:
+        for expr in _expressions(data.get("jobs") or {}):
+            if EVENT_GUARD_RX.search(expr):
                 continue
             for m in NULL_CMP_RX.finditer(expr):
-                name = m.group(1) or m.group(2)
-                if name in dispatch_inputs and expr not in seen:
+                name = m.group(1) or m.group(2) or m.group(3)
+                if name in truthy and expr not in seen:
                     seen.add(expr)
                     out.append(_finding("null-input", "workflow", wid, file,
-                                        f"`{m.group(0)}` — `inputs.{name}` is null on "
-                                        f"{', '.join(sorted(triggers - {'workflow_dispatch'}))} runs, and null == false.",
+                                        f"`{m.group(0).strip()}` — `inputs.{name}` defaults to true, but on "
+                                        f"{', '.join(sorted(others))} runs it is null, which reads as false.",
                                         _line_of(text, re.escape(m.group(0)))))
     if "workflow_run" in triggers:
         out.append(_finding("workflow-run", "workflow", wid, file, "Triggered by `workflow_run`.",
                             _line_of(text, r"^\s+workflow_run:")))
-    try:
-        data = yaml.safe_load(text) or {}
-    except yaml.YAMLError:
-        data = {}
     wf_env = data.get("env") if isinstance(data.get("env"), dict) else {}
     for jid, job in (data.get("jobs") or {}).items():
         if not isinstance(job, dict):
             continue
         job_env = job.get("env") if isinstance(job.get("env"), dict) else {}
-        for step in job.get("steps") or []:
+        for step in job.get("steps") if isinstance(job.get("steps"), list) else []:
             if not isinstance(step, dict):
                 continue
             run = _code(str(step.get("run") or ""))
-            if "gh pr create" in run:
-                env = step.get("env") if isinstance(step.get("env"), dict) else {}
-                token = str(env.get("GH_TOKEN") or job_env.get("GH_TOKEN") or wf_env.get("GH_TOKEN") or "")
-                if GITHUB_TOKEN_RX.search(token):
-                    out.append(_finding("pr-token", "workflow", wid, file,
-                                        f"Job `{jid}` opens a PR with GITHUB_TOKEN; its CI will not run.",
-                                        _job_line(text, str(jid)), str(jid)))
-            m = PUSH_MAIN_RX.search(run)
-            bare = PUSH_BARE_RX.search(run) and not reusable_only and triggers & {"schedule", "push"}
-            if m or bare:
+            env = step.get("env") if isinstance(step.get("env"), dict) else {}
+            uses = str(step.get("uses") or "")
+            with_ = step.get("with") if isinstance(step.get("with"), dict) else {}
+            token = (_token_of(env, job_env, wf_env) if "gh pr create" in run
+                     else str(with_.get("token") or "${{ github.token }}") if "create-pull-request" in uses else None)
+            if token is not None and ONLY_JOB_TOKEN_RX.match(token):
+                out.append(_finding("pr-token", "workflow", wid, file,
+                                    f"Job `{jid}` opens a PR with GITHUB_TOKEN; its CI will not run.",
+                                    _job_line(text, str(jid)), str(jid)))
+            if reusable_only:
+                continue
+            for line, how in _pushes(run):
                 out.append(_finding("bare-push", "workflow", wid, file,
-                                    f"Job `{jid}` pushes {'to `' + m.group(1) + '`' if m else 'with no refspec'} "
-                                    "instead of publishing through publish-data.",
-                                    _line_of(text, r"git\s+push"), str(jid)))
+                                    f"Job `{jid}` pushes {how} instead of publishing through publish-data: `{line[:120]}`",
+                                    _line_of(text, re.escape(line)), str(jid)))
     if hub_rules and not wf.get("documented", True):
         out.append(_finding("undocumented", "workflow", wid, file, f"`{Path(file).name}` has no row in {README_DOC}."))
     return out
@@ -738,9 +885,9 @@ def lint_action(act: dict) -> list[dict]:
     out = []
     if act["parse_error"]:
         return [_finding("parse-error", "action", act["id"], act["file"], act["parse_error"])]
-    if "${{" in act["description"]:
+    for field in act.get("description_exprs") or []:
         out.append(_finding("action-description-expr", "action", act["id"], act["file"],
-                            "The description contains `${{`; the manifest fails to load.", 1))
+                            f"`{field}` contains `${{{{`; the manifest fails to load."))
     if not act["used_by"]:
         out.append(_finding("action-unused", "action", act["id"], act["file"], "No workflow or action calls it."))
     if not act.get("documented", True):
@@ -752,7 +899,10 @@ def lint_action(act: dict) -> list[dict]:
 def lint(atlas: dict, fleet: dict, texts: dict[str, str], hub_rules: bool = True) -> list[dict]:
     out: list[dict] = []
     for wf in atlas["workflows"]:
-        out += lint_workflow(wf, texts.get(wf["file"], ""), fleet, hub_rules)
+        try:
+            out += lint_workflow(wf, texts.get(wf["file"], ""), fleet, hub_rules)
+        except Exception as exc:  # a rule that cannot read a file reports it, never takes the atlas down
+            out.append(_finding("parse-error", "workflow", wf["id"], wf["file"], f"{exc.__class__.__name__}: {exc}"[:200]))
     for act in atlas["actions"]:
         out += lint_action(act)
     for orphan in atlas.get("readme_orphans") or []:
@@ -769,7 +919,10 @@ def lint_text(text: str, fleet: dict | None = None, file: str = ".github/workflo
     fleet = fleet or {}
     wf = parse_workflow(file, text, hub)
     join([wf], [], fleet, hub)
-    findings = lint_workflow(wf, text, fleet, hub_rules=bool(fleet))
+    try:
+        findings = lint_workflow(wf, text, fleet, hub_rules=bool(fleet))
+    except Exception as exc:
+        findings = [_finding("parse-error", "workflow", wf["id"], file, f"{exc.__class__.__name__}: {exc}"[:200])]
     return {"workflow": wf, "findings": findings, "tally": _tally(findings)}
 
 
@@ -784,18 +937,27 @@ CLASSES = {
     "dependency": "Upstream: a package or Dependabot update. Override, pin the range, or wait for a release.",
     "defect": "The workflow or the code it checks is wrong. Open the log and fix it.",
 }
-# Order is priority: the 429 run also prints "is_error:true", which must not win.
+# Order is priority: the 429 run also prints "is_error:true", which must not
+# win, and a push rejected by a ruleset says "failed", which must not read as
+# a test. Each pattern is matched against one log line.
 CAUSES: list[tuple[str, str, re.Pattern]] = [
     ("usage-limit", "capacity", re.compile(
-        r"usage limit hit|hit your (?:weekly|session|5-hour|daily|monthly) limit|\bHTTP 429\b|rate_limit_error"
-        r"|Claude AI usage limit", re.I)),
+        r"usage limit hit|hit your (?:weekly|session|5-hour|daily|monthly) limit|rate_limit_error|Claude AI usage limit"
+        r"|Claude[^\n]*\b429\b|\b429\b[^\n]*Claude", re.I)),
     ("budget-cap", "capacity", re.compile(r"max-budget-usd|budget (?:cap )?(?:hit|exceeded)|exceeded (?:its|the) budget", re.I)),
     ("turn-limit", "capacity", re.compile(r"error_max_turns|reached (?:the )?max(?:imum)? (?:number of )?turns", re.I)),
     ("actions-permission", "config", re.compile(
-        r"not permitted to create or approve pull requests|Resource not accessible by integration", re.I)),
+        r"not permitted to create or approve pull requests|Resource not accessible by (?:integration|personal access token)"
+        r"|refusing to allow a GitHub App to create or update workflow", re.I)),
+    ("push-rejected", "config", re.compile(
+        r"failed to push some refs|\bGH0(?:06|13)\b|protected branch|Changes must be made through a pull request"
+        r"|Permission to \S+ denied", re.I)),
     ("auth", "config", re.compile(
-        r"Bad credentials|\b401\b|Unauthorized|token (?:has )?expired|expired token|Invalid API key|invalid x-api-key"
-        r"|authentication_error|Requires authentication|could not read Username|refused credential", re.I)),
+        r"Bad credentials|\bHTTP 401\b|\b401 Unauthorized\b|status(?: code)?:? 401\b|\bUnauthorized\b"
+        r"|token (?:has )?expired|expired token|credential was REJECTED|expired or revoked|Invalid API key"
+        r"|invalid x-api-key|authentication_error|Requires authentication|could not read Username|refused credential"
+        r"|\bToken required\b",
+        re.I)),
     ("api-rate-limit", "transient", re.compile(
         r"API rate limit exceeded|secondary rate limit|abuse detection|submitted too quickly", re.I)),
     ("missing-ref", "config", re.compile(
@@ -811,44 +973,64 @@ CAUSES: list[tuple[str, str, re.Pattern]] = [
         r"|HTTP 50[234]\b", re.I)),
     ("timeout", "transient", re.compile(r"exceeded the maximum execution time|has timed out", re.I)),
     ("agent-error", "defect", re.compile(r"Claude execution failed|is_error:\s*true", re.I)),
-    ("code", "defect", re.compile(
-        r"error TS\d+|SyntaxError|TypeError|NameError|ImportError|ModuleNotFoundError|ReferenceError", re.I)),
-    ("test", "defect", re.compile(r"AssertionError|\bFAILED\b|Tests? failed|failing tests?|\b\d+ failed\b", re.I)),
-    ("gate", "defect", re.compile(r"drift|out of date|not up to date|!= ?manifest|would reformat|needs regenerat", re.I)),
+    ("code", "defect", re.compile(r"error TS\d+|\b\w*(?:Syntax|Type|Name|Import|Reference|Attribute|Key|Value|Index)Error\b"
+                                  r"|ModuleNotFoundError")),
+    ("test", "defect", re.compile(r"\bFAILED\b|AssertionError|\b[1-9]\d* (?:failed|failing)\b|(?i:\btests? failed\b|\bfailing tests?\b)")),
+    ("gate", "defect", re.compile(r"\bgate failed\b|\bdrifts? from\b|has drifted|\bis stale\b|out of date|not up to date|!= ?manifest"
+                                  r"|would reformat|needs regenerat", re.I)),
 ]
 CAUSE_CLASS = {c: k for c, k, _ in CAUSES} | {"timeout": "transient", "startup": "config", "exit-code": "defect"}
 TS_RX = re.compile(r"^\ufeff?\d{4}-\d\d-\d\dT[\d:.]+Z\s?")
-# GitHub echoes each step's script before running it, in bold cyan; a script
-# that PRINTS "usage limit hit" is not a run that hit it.
+# GitHub echoes each step before running it — the script in bold cyan and its
+# `with:` / `env:` inside a `##[group]Run …` block. A step that PRINTS "usage
+# limit hit", or a prompt that mentions it, is not a run that hit it.
 ECHO_RX = re.compile(r"\[36;1m|^shell: |^env:$")
-GENERIC_RX = re.compile(r"^Process completed with exit code \d+\.?$|^The operation was canceled\.?$")
+GENERIC_RX = re.compile(r"^Process completed with exit code \d+\.?$|^The operation was canceled\.?$"
+                        r"|complete log of this run|^npm (?:ERR!|error)\s*$")
+# What an error looks like in plain output: a keyword, or a `SomethingError:` / `…Exception:` line.
+# A line about a retry is a symptom the step survived, not the reason it failed.
+RETRY_RX = re.compile(r"(?i)\bretrying\b|\bwill retry\b")
+TAIL_RX = re.compile(r"(?i)\b(?:error|fatal|failed|failure|denied|refused|exceeded|timed out|no space)\b"
+                     r"|\b\w*(?:Error|Exception)\b")
 
 
-def _error_lines(text: str) -> tuple[list[str], list[str]]:
-    """(annotation lines, error-looking lines from each log's tail)."""
-    errors, tail = [], []
-    lines = [TS_RX.sub("", line).strip() for line in text.splitlines()]
-    lines = [s for s in lines if not ECHO_RX.search(s)]
-    for s in lines:
-        for mark in ("##[error]", "##[warning]"):
-            if mark in s:
-                errors.append(s.split(mark, 1)[1].strip())
-    for s in lines[-300:]:
-        if re.search(r"\b(error|fatal|failed|failure)\b", s, re.I) and "##[" not in s:
-            tail.append(s)
-    return errors, tail
+def _error_lines(texts) -> tuple[list[str], list[str], list[str]]:
+    """(error annotations, error-looking lines from the end of each log entry,
+    warning annotations), with GitHub's echo of each step left out. Each entry
+    (one per job) is read on its own, so a later job's output cannot push the
+    failing job's lines out of the tail."""
+    errors, tail, warnings = [], [], []
+    for text in ([texts] if isinstance(texts, str) else texts or []):
+        kept, echo = [], False
+        for raw in (text or "").splitlines():
+            line = TS_RX.sub("", raw).strip()
+            if line.startswith("##[group]Run "):
+                echo = True
+            elif line.startswith("##[endgroup]"):
+                echo = False
+            elif not echo and not ECHO_RX.search(line):
+                kept.append(line)
+        for line in kept:
+            if "##[error]" in line:
+                errors.append(line.split("##[error]", 1)[1].strip())
+            elif "##[warning]" in line:
+                warnings.append(line.split("##[warning]", 1)[1].strip())
+        tail += [line for line in kept[-300:] if "##[" not in line and not RETRY_RX.search(line)
+                 and (TAIL_RX.search(line) or any(rx.search(line) for _, _, rx in CAUSES))]
+    return errors, tail, warnings
 
 
-def classify_failure(text: str, conclusion: str | None = None, failed_step: str | None = None) -> dict:
-    """One failed run's log text → {cause, class, evidence, hint}. Matches the
-    annotation lines first and the error-looking tail second, so a prompt that
-    merely MENTIONS a 429 does not make a run a capacity failure."""
+def classify_failure(texts, conclusion: str | None = None, failed_step: str | None = None) -> dict:
+    """One failed run's log (a text, or one text per job) → {cause, class,
+    evidence, hint}. Error annotations are read first, the error-looking tail
+    of each job second, warnings last — a cache warning or another job's
+    usage-limit skip must not explain a failure."""
     if conclusion == "startup_failure":
         cause, evidence = "startup", "The workflow failed before any job started (invalid file or action manifest)."
     else:
         cause, evidence = None, ""
-        errors, tail = _error_lines(text or "")
-        for pool in (errors, tail):
+        errors, tail, warnings = _error_lines(texts)
+        for pool in (errors, tail, warnings):
             for name, _cls, rx in CAUSES:
                 hit = next((line for line in pool if rx.search(line)), None)
                 if hit:
@@ -858,7 +1040,9 @@ def classify_failure(text: str, conclusion: str | None = None, failed_step: str 
                 break
         if not cause:
             cause = "timeout" if conclusion == "timed_out" else "exit-code"
-            evidence = next((e for e in errors if not GENERIC_RX.match(e)), errors[0] if errors else (tail[-1] if tail else ""))
+            specific = [e for e in errors if not GENERIC_RX.search(e)]
+            plain = [t for t in tail[-20:] if not GENERIC_RX.search(t)]
+            evidence = (specific or plain or errors or tail or [""])[0]
     cls = CAUSE_CLASS[cause]
     return {"cause": cause, "class": cls, "evidence": evidence[:300], "hint": CLASSES[cls],
             "failed_step": failed_step}
@@ -868,13 +1052,14 @@ FAILED = ("failure", "timed_out", "startup_failure")
 USAGE_SKIP_RX = re.compile(r"usage limit hit|HTTP 429|hit your (?:weekly|session|5-hour) limit", re.I)
 
 
-def run_health(runs: list[dict], logs: dict[int, str], failed_steps: dict[int, str],
+def run_health(runs: list[dict], logs: dict, failed_steps: dict[int, str],
                known: set[str], now: dt.datetime | None = None) -> dict:
     """Roll runs up per workflow file. Pure: rows in, document out.
 
     runs: dicts with id, workflow_path, event, status, conclusion, created_at,
-    run_started_at, updated_at, html_url. logs: run id → joined log text (any
-    subset). known: the workflow files that exist, so the rest are ghosts."""
+    run_started_at, updated_at, html_url. logs: run id → its log, one text per
+    job (or one text), for any subset. known: the workflow files that exist,
+    so the rest are ghosts."""
     per: dict[str, dict] = {}
     for r in sorted(runs, key=lambda x: str(x.get("created_at") or ""), reverse=True):
         path = str(r.get("workflow_path") or "")
@@ -894,15 +1079,17 @@ def run_health(runs: list[dict], logs: dict[int, str], failed_steps: dict[int, s
         if w["last"] is None and r.get("status") == "completed":
             w["last"] = brief
         if concl in FAILED:
-            c = classify_failure(logs.get(r["id"], ""), concl, failed_steps.get(r["id"]))
+            c = classify_failure(logs.get(r["id"]) or [], concl, failed_steps.get(r["id"]))
             w["causes"][c["cause"]] = w["causes"].get(c["cause"], 0) + 1
             w["classes"][c["class"]] = w["classes"].get(c["class"], 0) + 1
             row = {**brief, **c}
             w["failures"].append(row)
             if w["last_failure"] is None:
                 w["last_failure"] = row
-        elif concl == "success" and any(USAGE_SKIP_RX.search(e) for e in _error_lines(logs.get(r["id"], "") or "")[0]):
-            w["capacity_skips"] += 1
+        elif concl == "success":
+            errors, _, warnings = _error_lines(logs.get(r["id"]) or [])
+            if any(USAGE_SKIP_RX.search(e) for e in errors + warnings):
+                w["capacity_skips"] += 1
     rows = []
     for w in per.values():
         d = sorted(w.pop("durations"))
@@ -953,12 +1140,13 @@ def lake_health(lake_dir: Path | str | None = None, nwo: str = HUB_DEFAULT, days
             "run_started_at, updated_at, html_url FROM runs WHERE nwo=? AND created_at>=? "
             "ORDER BY created_at DESC LIMIT 5000", (nwo, since))]
         ids = [r["id"] for r in runs if r["conclusion"] in FAILED or r["conclusion"] == "success"]
-        logs: dict[int, str] = {}
+        logs: dict[int, list[str]] = {}
         steps: dict[int, str] = {}
         for chunk in (ids[i:i + 400] for i in range(0, len(ids), 400)):
             marks = ",".join("?" * len(chunk))
-            for rid, text in conn.execute(f"SELECT run_id, text FROM logs WHERE run_id IN ({marks})", chunk):
-                logs[rid] = logs.get(rid, "") + "\n" + (text or "")
+            for rid, text in conn.execute(
+                    f"SELECT run_id, text FROM logs WHERE run_id IN ({marks}) ORDER BY run_id, entry", chunk):
+                logs.setdefault(rid, []).append(text or "")
             for rid, job, step in conn.execute(
                     f"SELECT j.run_id, j.name, s.name FROM jobs j JOIN steps s ON s.job_id=j.id "
                     f"WHERE j.run_id IN ({marks}) AND s.conclusion='failure' ORDER BY s.number", chunk):
@@ -1002,6 +1190,7 @@ def _switch_name(wid: str) -> str:
 
 
 def _template(kind: str, wid: str, name: str, cron: str | None, purpose: str, budget: int) -> str:
+    name = json.dumps(name, ensure_ascii=False)   # a JSON string is a valid YAML double-quoted scalar
     purpose = purpose.strip() or "TODO: say what this workflow is for, and what would be lost without it."
     head = "\n".join(f"# {line}".rstrip() for para in purpose.splitlines()
                      for line in (textwrap.wrap(para, 76) or [""]))
@@ -1238,13 +1427,19 @@ def scaffold(kind: str, wid: str, name: str | None = None, cron: str | None = No
     name = (name or wid.replace("-", " ").title()).strip()
     if not NAME_RX.match(name):
         raise ValueError("name must be one line without quotes, backticks, `$` or backslashes")
-    if len(purpose) > 2000:
-        raise ValueError("purpose is limited to 2000 characters")
+    purpose = (purpose or "").replace("\r\n", "\n").replace("\r", "\n")
+    if len(purpose) > 2000 or re.search(r"[\x00-\x08\x0b-\x1f\x7f]", purpose):
+        raise ValueError("purpose is plain text, at most 2000 characters")
     root = Path(root)
     fleet = load_fleet(root) if fleet is None else fleet
     file = f".github/workflows/{wid}.yml"
     exists = (root / file).exists()
     schedule = dict(fleet.get("schedule") or {})
+    key, site = schedule_key_for(wid), f"{wid}.yml:agent"
+    if kind in SCHEDULED_KINDS and key in schedule:
+        raise ValueError(f"schedule.{key} is already declared in _data/fleet.yml (`{schedule[key]}`) — choose another id")
+    if kind == "agent-loop" and site in (((fleet.get("budget") or {}).get("call_sites")) or {}):
+        raise ValueError(f"budget.call_sites already declares {site} — choose another id")
     if kind in SCHEDULED_KINDS:
         cron = (cron or "").strip() or suggest_cron(kind, [str(v) for v in schedule.values()])
         p = hr.parse_cron(cron)
@@ -1256,7 +1451,7 @@ def scaffold(kind: str, wid: str, name: str | None = None, cron: str | None = No
         cron = None
     budget = int(((fleet.get("budget") or {}).get("default_usd")) or 10)
     text = _template(kind, wid, name, cron, purpose, budget)
-    key, switch, site = schedule_key_for(wid), _switch_name(wid), f"{wid}.yml:agent"
+    switch = _switch_name(wid)
     companion = []
     after = copy.deepcopy(fleet)
     if cron:
@@ -1375,11 +1570,17 @@ def cmd_new(args: argparse.Namespace) -> int:
     for c in out["companion"]:
         print(f"# {c['file']} ({c['where']}): {c['snippet']}   — {c['why']}", file=sys.stderr)
     if args.write:
+        if any(f["rule"] == "parse-error" for f in out["findings"]):
+            sys.stderr.write("workflows new: the scaffold does not parse; nothing written\n")
+            return 1
         target = Path(args.root) / out["file"]
-        if target.exists():
+        try:
+            # "x": create only — refuses any existing path, a dangling symlink included
+            with open(target, "x", encoding="utf-8") as fh:
+                fh.write(out["text"])
+        except FileExistsError:
             sys.stderr.write(f"workflows new: {out['file']} already exists; not overwriting\n")
             return 1
-        target.write_text(out["text"], encoding="utf-8")
         print(f"wrote {out['file']} — make the companion edits above, then `tools/dash workflows lint`.", file=sys.stderr)
     return 0
 

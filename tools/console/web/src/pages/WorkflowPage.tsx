@@ -159,7 +159,9 @@ function WorkflowBody({ w, a }: { w: Workflow; a: WorkflowAtlas }) {
               { key: 'model', header: 'model', render: (s) => <Text size="sm">{s.model ?? '—'}</Text> },
               { key: 'turns', header: 'max turns', num: true, render: (s) => <Text size="sm">{s.max_turns ?? '—'}</Text> },
               { key: 'cap', header: 'cap', render: (s) => <Text size="sm">${s.max_budget_usd ?? '?'} {s.declared_usd != null && s.declared_usd !== s.max_budget_usd ? <Status tone="crit">fleet.yml ${s.declared_usd}</Status> : null}</Text> },
-              { key: 'limit', header: 'on a 429', render: (s) => (s.usage_limit === 'skip' && s.continue_on_error ? <Status tone="good">warning, green run</Status> : <Status tone={w.crons.length ? 'crit' : 'info'}>{s.cost_step ? 'fails the job' : 'no cost step'}</Status>) },
+              { key: 'limit', header: 'on a 429', render: (s) => (s.continue_on_error === 'expression' ? <Status tone="info">decided at run time</Status>
+                : s.usage_limit === 'skip' && s.continue_on_error ? <Status tone="good">warning, green run</Status>
+                  : <Status tone={w.crons.length ? 'crit' : 'info'}>{s.cost_step ? 'fails the job' : 'no cost step'}</Status>) },
             ]}
           />
         </Section>

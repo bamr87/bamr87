@@ -405,7 +405,12 @@ function Design({ a }: { a: WorkflowAtlas }) {
   const [purpose, setPurpose] = useState('');
   const [draft, setDraft] = useState('');
   const [draftId, setDraftId] = useState('draft');
-  const [params] = useDebouncedValue(id ? { kind, id, name, cron, purpose } : null, 300);
+  // Only a scheduled kind carries a cron: a stale one from another kind would be refused on Write.
+  const scheduled = kind === 'loop' || kind === 'agent-loop';
+  // One object per distinct value: the debounce re-arms on identity, and a new
+  // literal every render would keep the tab re-rendering every 300 ms.
+  const draftParams = useMemo(() => (id ? { kind, id, name, cron: scheduled ? cron : '', purpose } : null), [kind, id, name, cron, purpose, scheduled]);
+  const [params] = useDebouncedValue(draftParams, 300);
   const [draftText] = useDebouncedValue(draft, 400);
   const sc = useScaffold(params);
   const [lintId] = useDebouncedValue(/^[a-z][a-z0-9-]{1,40}$/.test(draftId) ? draftId : 'draft', 300);
@@ -423,7 +428,7 @@ function Design({ a }: { a: WorkflowAtlas }) {
           <TextInput label="File id" placeholder="nightly-audit" value={id} error={idErr ?? (exists ? 'a workflow with this id exists' : null)} onChange={(e) => setId(e.currentTarget.value.trim())} />
           <TextInput label="Name" placeholder="Nightly Audit" value={name} onChange={(e) => setName(e.currentTarget.value)} />
         </Group>
-        {kind === 'loop' || kind === 'agent-loop'
+        {scheduled
           ? <TextInput label="Cron (UTC)" placeholder={sc.data?.cron ?? (kind === 'agent-loop' ? '37 11 * * *' : '7 1 * * *')} description={sc.data?.cron_human ? `${sc.data.cron_human}${cron ? '' : ' — the first free slot'}` : 'blank: the first free :07 / :37 slot'} value={cron} onChange={(e) => setCron(e.currentTarget.value)} />
           : null}
         <Textarea label="Purpose" description="Becomes the header comment and the README row: what it is for, and what breaks without it." autosize minRows={3} value={purpose} onChange={(e) => setPurpose(e.currentTarget.value)} />
@@ -443,7 +448,7 @@ function Design({ a }: { a: WorkflowAtlas }) {
               </Stack>
             </Section>
             <Group>
-              <RunButton op="workflow-new" params={{ kind, id, name, cron, purpose }} variant="filled" disabled={Boolean(idErr || exists || sc.data.exists)}>Write {sc.data.file}</RunButton>
+              <RunButton op="workflow-new" params={draftParams ?? {}} variant="filled" disabled={Boolean(idErr || exists || sc.data.exists)}>Write {sc.data.file}</RunButton>
               <CopyButton value={sc.data.text}>
                 {({ copied, copy }) => <Button size="xs" variant="default" leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />} onClick={copy}>{copied ? 'Copied' : 'Copy YAML'}</Button>}
               </CopyButton>

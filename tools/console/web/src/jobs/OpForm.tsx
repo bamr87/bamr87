@@ -47,7 +47,7 @@ function clean(op: Op, values: Params): Params {
           if (key.trim()) f[key.trim()] = rest.join('=').trim();
         });
         out.fields = f;
-      } else if (v && typeof v === 'object') out.fields = v;
+      } else if (v && typeof v === 'object') out.fields = dispatchFields(v as Record<string, string | boolean>);
       continue;
     }
     if (typeof v === 'boolean') out[k] = v;
@@ -100,7 +100,7 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
           return (
             <Stack key={k} gap={4}>
               <Text size="sm" fw={500}>Inputs <Text span size="xs" c="dimmed">— declared by {wf.id}.yml</Text></Text>
-              <DispatchInputs inputs={wf.dispatch_inputs} values={shown} onChange={(v) => set(k, dispatchFields(v))} />
+              <DispatchInputs inputs={wf.dispatch_inputs} values={shown} onChange={(v) => set(k, v)} />
             </Stack>
           );
         }

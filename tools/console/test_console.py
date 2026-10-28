@@ -110,7 +110,8 @@ def test_dispatch_validates_workflow_and_inputs():
                    {"workflow": "fleet-pulse", "fields": {"evil": "x"}},
                    {"workflow": "fanout", "fields": {"target": "$(id)"}},
                    {"workflow": "fanout", "fields": {"kit": "nope"}},           # a choice outside its options
-                   {"workflow": "fleet-pulse", "fields": {"dry_run": "yes"}}):  # a boolean that is not one
+                   {"workflow": "fleet-pulse", "fields": {"dry_run": "yes"}},   # a boolean that is not one
+                   {"workflow": "fleet-pulse", "fields": {"days": "14\n"}}):    # a trailing newline
         try:
             core.build_argv("dispatch", params)
         except ValueError:
@@ -123,7 +124,10 @@ def test_workflow_new_argv_is_validated_and_local():
                                                      "cron": "37 12 * * *", "purpose": "Audit: the fleet."})
     assert argv[1:] == ["workflows", "new", "--kind", "agent-loop", "--id", "nightly-audit", "--write", "--name",
                         "Nightly Audit", "--cron", "37 12 * * *", "--purpose", "Audit: the fleet."] and remote is False
+    argv, _ = core.build_argv("workflow-new", {"kind": "gate", "id": "doc-check", "purpose": "Line one.\r\nLine two."})
+    assert argv[-1] == "Line one.\nLine two.", "a pasted CRLF purpose is normalised, not refused"
     for bad in ({"kind": "nope", "id": "x-y"}, {"kind": "gate", "id": "Bad Id"}, {"kind": "gate", "id": "ok", "name": "a$b"},
+                {"kind": "gate", "id": "ok", "name": "-beta"},
                 {"kind": "loop", "id": "ok", "cron": "$(id) * * * *"}, {"kind": "gate", "id": "ok", "purpose": "a\x07b"}):
         try:
             core.build_argv("workflow-new", bad)

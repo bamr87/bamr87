@@ -27,7 +27,9 @@ The 2026-10-27 overhaul ([#422](https://github.com/bamr87/bamr87/pull/422), [WOR
 
 Each composite action carries its inputs, outputs and callers. The README's tables give each workflow its group and purpose, and its `## Retired` table becomes the graveyard.
 
-The console adds two joins only it knows: which loop a workflow is, and whether it is on the dispatch allowlist. That allowlist, `DISPATCH_WORKFLOWS` in [`tools/console/core.py`](../tools/console/core.py), is a list of names, a deliberate choice. Each workflow's inputs and their types are read from its file, so the dispatch form and its validation follow the file: a boolean is a checkbox, a choice is a select, and a value outside the options is refused.
+The console adds two joins only it knows: which loop a workflow is, and whether it is on the dispatch allowlist. That allowlist, `DISPATCH_WORKFLOWS` in [`tools/console/core.py`](../tools/console/core.py), is a list of names, a deliberate choice. Each workflow's inputs and their types are read from its file as the default branch holds it, because that is the file `gh workflow run` runs (the working tree is the fallback when git cannot say). The dispatch form and its validation follow that file: a boolean is a checkbox, a choice is a select, and a value outside the options is refused.
+
+Workflows are read as YAML 1.2, as GitHub reads them: only `true`/`false` are booleans, so a choice option `yes` stays `"yes"`. A document that expands past 50,000 nodes through YAML aliases is refused before anything walks it. A file that cannot be read is a `parse-error` finding, never a crash.
 
 ## The rules
 
@@ -36,33 +38,43 @@ Each rule names the incident behind it. Where another gate already enforces a ru
 | Rule | Severity | Checks | Gate |
 | --- | --- | --- | --- |
 | `parse-error` | error | the file parses | actionlint |
-| `permissions` | warn | a top-level `permissions:` block (a called workflow is exempt: it inherits) | atlas |
+| `permissions` | warn | a top-level `permissions:` block, or one on every job (a called workflow is exempt: it inherits) | atlas |
 | `timeout` | warn | every job with steps sets `timeout-minutes` | atlas |
-| `concurrency` | warn | a workflow that writes on a schedule or dispatch has a `concurrency:` group | atlas |
+| `concurrency` | warn | a workflow that writes on a schedule or dispatch has a `concurrency:` group, on the workflow or on every writing job | atlas |
 | `sha-pin` | error | actions ride major tags | check-drift (j) |
 | `cron-declared` | error | each cron is `schedule.<stem_with_underscores>` in fleet.yml (one override: `token-rotation` → `rotate_tokens`) | `test_schedule.py` |
 | `cron-on-hour` | error | no hub cron fires at minute 0 | `test_schedule.py` |
 | `kill-switch` | error | a scheduled Claude loop reads a `vars.*_ENABLED` switch | atlas |
-| `ai-budget` | error | each Claude site passes `--max-budget-usd` equal to its `budget.call_sites` entry | `test_ai_budget.py` |
-| `usage-limit` | error | a scheduled site pairs `continue-on-error: true` with `usage-limit: skip` | `test_ai_budget.py` |
-| `null-input` | error | no `inputs.x == false` / `!= false` without a `github.event_name` guard in a workflow with other triggers (null equals false on a cron run) | atlas |
+| `ai-budget` | error | each Claude site passes `--max-budget-usd` equal to its `budget.call_sites` entry (a cap taken from an input with no default is left to the gate) | `test_ai_budget.py` |
+| `usage-limit` | error | a scheduled site pairs `continue-on-error: true` with `usage-limit: skip` (a `continue-on-error` decided by an expression is not checked) | `test_ai_budget.py` |
+| `null-input` | error | for a dispatch input that defaults to `true`, no `inputs.x == false`, `!= false` or `!inputs.x` in a workflow with other triggers, unless the expression guards on `github.event_name` against `workflow_dispatch` or `schedule`: on a cron run the input is null, which reads as false, so the cron and a default dispatch disagree | atlas |
 | `workflow-run` | warn | no `workflow_run` trigger (prefer `needs:`) | atlas |
-| `pr-token` | warn | `gh pr create` is not run with `GITHUB_TOKEN` (its CI would never fire) | atlas |
-| `bare-push` | warn | no `git push` to `main`, and no refspec-less push on a schedule or push run | atlas |
+| `pr-token` | warn | `gh pr create` (through `GH_TOKEN` or `GITHUB_TOKEN`) or `peter-evans/create-pull-request` does not run with the job token alone (its CI would never fire; a probed token with the job token as fallback passes) | atlas |
+| `bare-push` | warn | no `git push` whose refspec names `main` or `master`, and none that names no branch or only `HEAD` (on a run that checked out the default branch, both land on it); called workflows are exempt | atlas |
 | `undocumented` | warn | every workflow and action has a README row, and every README row has a file | atlas |
-| `action-description-expr` | error | no `${{` in an action's `description:` | check-drift (l) |
+| `action-description-expr` | error | no `${{` in an action's description, or in any input's or output's | check-drift (l) |
 | `action-unused` | warn | every composite action has a caller | atlas |
 
 Run against `main` before #422, the rules report what that pass found by hand: `null-input` on `schema-vendor.yml`, `usage-limit` on all five scheduled agent sites, `pr-token` on the retired `unified-evolution.yml`, and nine workflows missing from the README.
 
+**Known limits.** `kill-switch` checks that a scheduled Claude loop reads a `vars.*_ENABLED` variable somewhere, not that the variable gates every agent job. A scheduled workflow that reaches Claude only through a called workflow (a job with `uses: …/ai-lane.yml`) is not followed into it, so neither `kill-switch` nor `ai-budget` sees that call. The lane carries its own switch and cap inputs. `test_schedule.py` and `test_ai_budget.py` remain the authority for what they cover.
+
 ## Run health
 
-`lake_health()` reads the hub's runs from the [local lake](HARNESS-OPS.md) (`tools/dash lake sync`), and `classify_failure()` sorts each failed run into a cause and a class, using the run's error and warning annotations first and the error-looking tail of its log second. Script source that GitHub echoes before a step runs is skipped, so a script that only prints "usage limit hit" does not count as a run that hit the limit. Causes are tried in a fixed order. A 429 run that also reports `is_error:true` is therefore classed as capacity, not as an agent error.
+`lake_health()` reads the hub's runs from the [local lake](HARNESS-OPS.md) (`tools/dash lake sync`), and `classify_failure()` sorts each failed run into a cause and a class. It reads three pools in order:
+
+1. the run's error annotations;
+2. the error-looking lines at the end of each job's log, each job read on its own so a later job cannot push the failing one out;
+3. the warning annotations, last, so a cache warning or another job's usage-limit skip never explains a failure.
+
+The echo GitHub prints before each step (the script, its `with:` and `env:`) is skipped, so a step or prompt that only mentions "usage limit hit" does not count as a run that hit it, and a line about a retry is a symptom, not the cause. Causes are tried in a fixed order: a 429 run that also reports `is_error:true` is capacity, not an agent error, and a push a ruleset rejected says "failed" but is config, not a test. A 429 counts as capacity only when the line names Claude. When nothing matches, the evidence is the first specific error line, never "Process completed with exit code 1." if anything better exists.
+
+The patterns were checked against every failed run in the lake (87 across 23 repos), not only the hub's.
 
 | Class | Causes | What it means |
 | --- | --- | --- |
 | **capacity** | `usage-limit`, `budget-cap`, `turn-limit` | A shared limit was spent. It clears by itself; scheduled sites should be in skip mode |
-| **config** | `actions-permission`, `auth`, `missing-ref`, `startup` | A setting or a credential, not the code |
+| **config** | `actions-permission`, `push-rejected`, `auth`, `missing-ref`, `startup` | A setting or a credential, not the code |
 | **transient** | `api-rate-limit`, `infra`, `timeout` | Re-run it; if it repeats, it is not transient |
 | **dependency** | `dependabot`, `deps-install` | Upstream: override, pin a range, or wait |
 | **defect** | `agent-error`, `code`, `test`, `gate`, `exit-code` | The workflow or the code it checks is wrong |
@@ -89,7 +101,7 @@ The Retire tab gathers four kinds of candidate: ghost workflows, scheduled workf
 | `reusable` | `workflow_call` with no permissions (inherited), timeout |
 | `dispatch` | `workflow_dispatch` with a `dry_run` input defaulting to true |
 
-The companion edits are printed, never applied: the `schedule:` key, the `budget.call_sites` entry, the kill-switch variable, the README row and, for a loop, the AGENTS.md loop table. The console's Config page does not invent keys `fleet.yml` does not already carry, and neither does the scaffold. `tools/dash workflows new --write` (or **Write** on the Design tab, the `workflow-new` operation) creates the file. It never overwrites an existing file and commits nothing.
+Names are written as quoted YAML strings, so `Audit: nightly` or `[wip] audit` stays a name. An id whose `schedule:` key or `budget.call_sites` entry is already taken is refused, because its companion edit would overwrite another workflow's. The companion edits are printed, never applied: the `schedule:` key, the `budget.call_sites` entry, the kill-switch variable, the README row and, for a loop, the AGENTS.md loop table. The console's Config page does not invent keys `fleet.yml` does not already carry, and neither does the scaffold. `tools/dash workflows new --write` (or **Write** on the Design tab, the `workflow-new` operation) creates the file. It creates the file only if nothing is at that path (a symlink included), refuses a scaffold that does not parse, and commits nothing.
 
 The Design tab also lints any draft you paste or edit against the same rules, and agents can do the same with the `workflow_lint` MCP tool.
 
