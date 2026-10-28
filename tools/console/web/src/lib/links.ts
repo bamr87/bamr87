@@ -34,6 +34,15 @@ export const to = {
   health: () => '/harnesses/health',
   schedules: (repo?: string) => `/schedules${repo ? `?q=${enc(repo)}` : ''}`,
   loops: () => '/loops',
+  workflows: (tab?: string, q?: string) => {
+    const qs = new URLSearchParams();
+    if (tab) qs.set('tab', tab);
+    if (q) qs.set('q', q);
+    const s = qs.toString();
+    return `/workflows${s ? `?${s}` : ''}`;
+  },
+  workflow: (id: string) => `/workflows/${enc(id)}`,
+  action: (id: string) => `/workflows/actions/${id.split('/').map(enc).join('/')}`,
   loop: (id: string) => `/loops/${enc(id)}`,
   costs: () => '/costs',
   activity: () => '/activity',
@@ -54,7 +63,7 @@ export const to = {
 
 export const gh = {
   repo: (nwo: string) => `https://github.com/${nwo}`,
-  hubFile: (path: string) => `https://github.com/${HUB}/blob/main/${path}`,
+  hubFile: (path: string, line?: number | null) => `https://github.com/${HUB}/blob/main/${path}${line ? `#L${line}` : ''}`,
   workflow: (nwo: string, path: string) => `https://github.com/${nwo}/blob/HEAD/${path}`,
   workflowRuns: (nwo: string, file: string) => `https://github.com/${nwo}/actions/workflows/${file.replace(/^.*\//, '')}`,
   hubWorkflowRuns: (wf: string) => `https://github.com/${HUB}/actions/workflows/${wf}.yml`,

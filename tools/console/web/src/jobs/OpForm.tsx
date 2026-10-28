@@ -2,15 +2,14 @@
 // value again (regex / range → argv elements, never a shell string); this form
 // only makes the valid shapes easy to enter.
 import { useEffect, useState } from 'react';
-import { Button, Checkbox, Group, NumberInput, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Checkbox, Group, NumberInput, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { IconPlayerPlay } from '@tabler/icons-react';
+import { useWorkflows } from '../api/hooks';
 import type { Op } from '../api/types';
+import { DispatchInputs, dispatchFields, inputDefaults } from './DispatchInputs';
 import { remoteWrite, useRunner } from './JobRunner';
 
 type Params = Record<string, unknown>;
-
-const WORKFLOWS = ['fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution',
-  'build-dash', 'reconcile-registry', 'update-submodules', 'backlog-fanout'];
 
 const BOOL: Record<string, string> = {
   upgrade: 'Upgrade machine seeds',
@@ -23,7 +22,7 @@ const BOOL: Record<string, string> = {
   allow_long_lived: 'Allow keys that outlive the lifetime policy',
 };
 
-const DEFAULTS: Params = { days: 14, artifacts: 'claude', dry_run: true, jobs: 'ai', logs: 'ai', workflow: 'fanout' };
+const DEFAULTS: Params = { days: 14, artifacts: 'claude', dry_run: true, jobs: 'ai', logs: 'ai', workflow: 'fanout', kind: 'loop' };
 
 export function initialParams(op: Op, preset: Params = {}): Params {
   const out: Params = {};
@@ -59,6 +58,10 @@ function clean(op: Op, values: Params): Params {
 
 export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onStarted?: (id: string) => void }) {
   const { runOp } = useRunner();
+  // The dispatchable workflows and their inputs come from the workflow files
+  // (the atlas), never from a list kept here: that list had drifted.
+  const atlas = useWorkflows();
+  const dispatchable = (atlas.data?.workflows ?? []).filter((w) => w.dispatchable);
   const [values, setValues] = useState<Params>(() => initialParams(op, preset));
   const presetKey = JSON.stringify(preset ?? {});
   // Reset when the operation or the preset's CONTENT changes (not its identity).
@@ -83,13 +86,30 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
       case 'secret':
         return <TextInput key={k} label="Secret name" description="Blank: every contract secret in .env" value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
       case 'workflow':
-        return <Select key={k} label="Workflow" data={WORKFLOWS} value={String(values[k] ?? '')} onChange={(v) => set(k, v ?? '')} allowDeselect={false} />;
-      case 'fields':
+        return <Select key={k} label="Workflow" data={dispatchable.map((w) => ({ value: w.id, label: w.name.toLowerCase() === w.id ? w.id : `${w.id} — ${w.name}` }))} value={String(values[k] ?? '')}
+          onChange={(v) => { set(k, v ?? ''); set('fields', {}); }} allowDeselect={false} />;
+      case 'kind':
+        return <Select key={k} label="Kind" data={Object.entries(atlas.data?.kinds ?? {}).map(([value, d]) => ({ value, label: `${value} — ${d}` }))} value={String(values[k] ?? '')} onChange={(v) => set(k, v ?? '')} allowDeselect={false} />;
+      case 'purpose':
+        return <Textarea key={k} label="Purpose" description="The header comment: what it is for" autosize minRows={2} value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
+      case 'fields': {
+        const wf = dispatchable.find((w) => w.id === values.workflow);
+        if (wf) {
+          const current = (values[k] && typeof values[k] === 'object' ? values[k] : {}) as Record<string, string | boolean>;
+          const shown = inputDefaults(wf.dispatch_inputs, current);
+          return (
+            <Stack key={k} gap={4}>
+              <Text size="sm" fw={500}>Inputs <Text span size="xs" c="dimmed">— declared by {wf.id}.yml</Text></Text>
+              <DispatchInputs inputs={wf.dispatch_inputs} values={shown} onChange={(v) => set(k, dispatchFields(v))} />
+            </Stack>
+          );
+        }
         return (
           <TextInput key={k} label="Inputs" placeholder="key=value,key=value" description="workflow_dispatch inputs (only the ones that workflow declares are accepted)"
             value={typeof values[k] === 'string' ? (values[k] as string) : Object.entries((values[k] as Record<string, unknown>) ?? {}).map(([a, b]) => `${a}=${String(b)}`).join(',')}
             onChange={(e) => set(k, e.currentTarget.value)} />
         );
+      }
       case 'jobs':
       case 'logs':
         return <Select key={k} label={k === 'jobs' ? 'Jobs + steps for' : 'Logs for'} w={200} data={['ai', 'all', 'none']} value={String(values[k] ?? 'ai')} onChange={(v) => set(k, v ?? 'ai')} allowDeselect={false} />;

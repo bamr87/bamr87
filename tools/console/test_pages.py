@@ -210,7 +210,8 @@ def test_the_console_serves_the_site_documents_with_drafts():
         if drafts:
             assert client.get(f"/api/site/post/{drafts[0]['slug']}").status_code == 200, "drafts show on a console"
         fleet = client.get("/api/github/fleet").json()
-        assert set(fleet["dispatchable"]) == set(console_app.core.DISPATCHABLE)
+        assert fleet["dispatchable"] == console_app.core.dispatchable()
+        assert set(fleet["dispatchable"]) == set(console_app.core.DISPATCH_WORKFLOWS)
         assert client.get("/api/capabilities").json()["mode"] == "console"
     finally:
         if saved is not None:

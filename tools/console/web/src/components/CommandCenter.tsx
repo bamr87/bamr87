@@ -1,15 +1,15 @@
 // One palette for going anywhere and running anything: ':' (keys v1) or ⌘K.
-// Pages, every registry project, loops, config blocks, content sites and the
+// Pages, every registry project, loops, workflows, config blocks, content sites and the
 // allowlisted operations. Picking an operation that takes parameters opens its
 // page with the form; one that takes none runs (through the same confirm gate).
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Spotlight, type SpotlightActionGroupData } from '@mantine/spotlight';
 import { Badge } from '@mantine/core';
-import { IconAppWindow, IconFileText, IconPlayerPlay, IconRepeat, IconSearch, IconSettings } from '@tabler/icons-react';
+import { IconAppWindow, IconFileText, IconGitBranch, IconPlayerPlay, IconRepeat, IconSearch, IconSettings } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOps, useStateDoc } from '../api/hooks';
-import type { Dict } from '../api/types';
+import type { Dict, WorkflowAtlas } from '../api/types';
 import { useRunner } from '../jobs/JobRunner';
 import { FLAT } from '../nav';
 import { to } from '../lib/links';
@@ -41,6 +41,12 @@ export function CommandCenter() {
       const name = String(s.site ?? s.name);
       return { id: `site:${name}`, label: name, description: 'content site', keywords: ['content', 'site'], leftSection: <IconFileText size={18} stroke={1.6} />, onClick: go(to.site(name)) };
     });
+    // Workflows likewise come from the cache (the Workflows page, an op form).
+    const atlas = qc.getQueryData<WorkflowAtlas>(['workflows']);
+    const workflows = (atlas?.workflows ?? []).map((w) => ({
+      id: `workflow:${w.id}`, label: `${w.id}.yml`, description: `${w.name} · ${w.purpose_text ?? ''}`.slice(0, 140), keywords: ['workflow', w.group, ...w.triggers],
+      leftSection: <IconGitBranch size={18} stroke={1.6} />, onClick: go(to.workflow(w.id)),
+    }));
     const config = ['toolchain', 'schedule', 'remediation', 'issue_pipeline', 'evolution', 'harness', 'harnesses', 'rotation', 'variables'].map((k) => ({
       id: `config:${k}`, label: `${k}:`, description: 'fleet.yml block', keywords: ['config', 'fleet.yml'], leftSection: <IconSettings size={18} stroke={1.6} />, onClick: go(to.config(k)),
     }));
@@ -55,6 +61,7 @@ export function CommandCenter() {
       { group: 'Run an operation', actions: operations },
       { group: 'Projects', actions: projects },
       { group: 'Loops', actions: loops },
+      { group: 'Workflows', actions: workflows },
       { group: 'Content sites', actions: sites },
       { group: 'Config', actions: config },
     ];

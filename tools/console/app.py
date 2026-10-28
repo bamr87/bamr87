@@ -241,6 +241,19 @@ class WorkPlan(BaseModel):
     confirm: bool = False
 
 
+class WorkflowDraft(BaseModel):
+    text: str = Field(..., max_length=200_000)
+    id: str = Field("draft", max_length=64)
+
+
+class WorkflowScaffold(BaseModel):
+    kind: str
+    id: str = Field(..., max_length=64)
+    name: str = Field("", max_length=120)
+    cron: str = Field("", max_length=64)
+    purpose: str = Field("", max_length=2000)
+
+
 class OAuthStart(BaseModel):
     flow: str = "device"           # device | web
     store: str = "session"         # session | gh | env
@@ -448,6 +461,40 @@ def work_item(key: str = Query(..., max_length=200)) -> dict:
         return core.work_item(key)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/workflows", dependencies=[Depends(require_token)])
+def workflows() -> dict:
+    """The workflow atlas: every hub workflow and composite action — triggers,
+    crons, inputs, jobs, actions used, secrets, kill switch, Claude call sites —
+    with the lint findings and the README's retirement table."""
+    return core.workflow_atlas()
+
+
+@app.get("/api/workflows/health", dependencies=[Depends(require_token)])
+def workflows_health(days: int = Query(30, ge=1, le=365)) -> dict:
+    """Run health per workflow from the local lake, each failure classified
+    (capacity · config · transient · dependency · defect)."""
+    return core.workflow_health(days)
+
+
+@app.post("/api/workflows/lint", dependencies=[Depends(require_token)])
+def workflows_lint(req: WorkflowDraft) -> dict:
+    """Lint a draft workflow against the hub's standards. Nothing is written."""
+    try:
+        return core.workflow_lint(req.text, req.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/workflows/scaffold", dependencies=[Depends(require_token)])
+def workflows_scaffold(req: WorkflowScaffold) -> dict:
+    """Preview a new workflow from a template that passes every rule, with the
+    companion edits. Nothing is written — the `workflow-new` operation writes."""
+    try:
+        return core.workflow_scaffold(req.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.post("/api/editorial/decision", dependencies=[Depends(require_token)])
@@ -686,7 +733,7 @@ def github_fleet() -> dict:
     workflows may be dispatched with which inputs — the rules the public page
     applies to itself when it talks to GitHub directly."""
     return {"owner": ghl._hub_owner(), "hub": ghl._hub(), "repos": ghl.fleet_repos(),
-            "dispatchable": {wf: sorted(inputs) for wf, inputs in core.DISPATCHABLE.items()}}
+            "dispatchable": core.dispatchable()}
 
 
 @app.get("/api/github/repos", dependencies=[Depends(require_token)])

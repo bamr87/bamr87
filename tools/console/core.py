@@ -90,20 +90,13 @@ SOURCES = {
 # ones the console itself can be handed (CREDENTIALS, a superset of these).
 TOKEN_ENV = ["FLEET_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]
 
-# Workflows the console may dispatch through `gh workflow run`, with the
-# input names each accepts (anything else is refused before argv is built).
-DISPATCHABLE = {
-    # ONE fan-out workflow for every kit (`kit` chooses it; see fanout.yml).
-    "fanout": {"kit", "target", "artifacts", "dry_run", "upgrade", "agent_fill"},
-    "fleet-pulse": {"days", "max_candidates", "dry_run", "skip_publish"},
-    "issue-pipeline": set(),
-    "token-rotation": set(),
-    "repo-evolution": {"target", "dry_run", "force", "focus"},
-    "build-dash": set(),
-    "reconcile-registry": set(),
-    "update-submodules": set(),
-    "backlog-fanout": {"dry_run", "cadence", "force", "max_prs"},
-}
+# Workflows the console may dispatch through `gh workflow run`. The NAMES are
+# the allowlist — a decision, kept here. The inputs each accepts are a FACT,
+# read from the workflow's own `workflow_dispatch.inputs` (dispatch_inputs()):
+# a hand-kept copy of them had drifted and refused every input of
+# issue-pipeline, token-rotation, reconcile-registry and update-submodules.
+DISPATCH_WORKFLOWS = ("fanout", "fleet-pulse", "issue-pipeline", "token-rotation", "repo-evolution",
+                      "build-dash", "reconcile-registry", "update-submodules", "backlog-fanout")
 
 
 # --------------------------------------------------------------------------- #
@@ -697,6 +690,76 @@ def content_brief(site: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# WORKFLOWS — the hub's own GitHub Actions as one model (dash-gen
+# workflow_atlas.py; docs/WORKFLOW-ATLAS.md): structure + lint from the
+# checkout (also in the public snapshot), run health from the lake (local).
+# --------------------------------------------------------------------------- #
+def _atlas_module():
+    sys.path.insert(0, str(DASH_GEN_DIR))
+    import workflow_atlas  # noqa: WPS433
+    return workflow_atlas
+
+
+def dispatch_inputs() -> dict[str, list[dict]]:
+    """Each allowlisted workflow → the inputs its file declares (name, type,
+    default, options), so the console's form and its validation follow the file."""
+    atlas = _atlas_module()
+    out: dict[str, list[dict]] = {}
+    for wf in DISPATCH_WORKFLOWS:
+        path = REPO_ROOT / ".github" / "workflows" / f"{wf}.yml"
+        if path.is_file():
+            out[wf] = atlas.parse_workflow(_rel(path), path.read_text(encoding="utf-8"))["dispatch_inputs"]
+    return out
+
+
+def dispatchable() -> dict[str, list[str]]:
+    return {wf: sorted(i["name"] for i in inputs) for wf, inputs in dispatch_inputs().items()}
+
+
+def workflow_atlas() -> dict:
+    """The /api/workflows document: the atlas, joined with what only the
+    console knows — which loop a workflow is, and whether it may dispatch it."""
+    doc = _atlas_module().scan(REPO_ROOT)
+    loops = {loop["workflow"]: loop["id"] for loop in LOOPS}
+    for wf in doc["workflows"]:
+        wf["loop"] = loops.get(wf["id"])
+        wf["dispatchable"] = wf["id"] in DISPATCH_WORKFLOWS and "workflow_dispatch" in wf["triggers"]
+    doc["kinds"] = _atlas_module().KINDS
+    return doc
+
+
+def workflow_health(days: int = 30) -> dict:
+    """The /api/workflows/health document: the lake's runs of the hub per
+    workflow, with each failure's cause and class. Local only."""
+    atlas = _atlas_module()
+    hub = str(((load_yaml(DATA / "fleet.yml") or {}).get("hub") or {}).get("repo") or atlas.HUB_DEFAULT)
+    try:
+        return atlas.lake_health(LAKE_DIR, hub, days, REPO_ROOT)
+    except Exception as exc:
+        return {"present": False, "error": f"{exc.__class__.__name__}: {exc}", "nwo": hub, "days": days,
+                "workflows": [], "totals": {}, "classes": {}, "ghosts": [], "class_hints": atlas.CLASSES}
+
+
+def workflow_lint(text: str, wid: str = "draft") -> dict:
+    """Lint a draft workflow against the hub's fleet.yml (nothing is written).
+    `wid` is the file stem it would have — its schedule key and call sites."""
+    atlas = _atlas_module()
+    if len(text) > 200_000:
+        raise ValueError("a workflow draft is limited to 200 KB")
+    if not atlas.ID_RX.match(wid or ""):
+        raise ValueError("id must be lowercase letters, digits and dashes, starting with a letter")
+    return atlas.lint_text(text, load_yaml(DATA / "fleet.yml") or {}, f".github/workflows/{wid}.yml")
+
+
+def workflow_scaffold(params: dict) -> dict:
+    """Preview a new workflow (the designer); `workflow-new` writes it."""
+    atlas = _atlas_module()
+    return atlas.scaffold(str(params.get("kind") or ""), str(params.get("id") or "").strip(),
+                          str(params.get("name") or "").strip() or None, str(params.get("cron") or "").strip() or None,
+                          str(params.get("purpose") or ""), REPO_ROOT)
+
+
+# --------------------------------------------------------------------------- #
 # WORK — the board of every open item and the order the loops take them in
 # (dash-gen's work_board.py + work_queue.py; docs/WORK-BOARD.md)
 # --------------------------------------------------------------------------- #
@@ -850,19 +913,53 @@ def _deploy(params: dict, target_mode: str) -> list[str]:
 
 def _dispatch(params: dict) -> list[str]:
     wf = str(params.get("workflow") or "").strip()
-    if wf not in DISPATCHABLE:
-        raise ValueError(f"workflow must be one of {sorted(DISPATCHABLE)}")
+    inputs = dispatch_inputs()
+    if wf not in inputs:
+        raise ValueError(f"workflow must be one of {sorted(inputs)}")
+    spec = {i["name"]: i for i in inputs[wf]}
     argv = ["gh", "workflow", "run", f"{wf}.yml"]
     fields = params.get("fields") or {}
     if not isinstance(fields, dict):
         raise ValueError("fields must be an object")
     for k, v in fields.items():
-        if k not in DISPATCHABLE[wf]:
+        if k not in spec:
             raise ValueError(f"{wf} does not accept input '{k}'")
         v = "true" if v is True else "false" if v is False else str(v)
+        kind, options = spec[k]["type"], spec[k]["options"]
+        if kind == "boolean" and v not in ("true", "false"):
+            raise ValueError(f"input '{k}' is a boolean: true or false")
+        if kind == "choice" and options and v not in options:
+            raise ValueError(f"input '{k}' must be one of {options}")
+        if kind == "number" and not re.match(r"^-?\d+(\.\d+)?$", v):
+            raise ValueError(f"input '{k}' is a number")
         if not FIELD_RX.match(v):
             raise ValueError(f"input '{k}' has characters the console refuses to pass")
         argv += ["-f", f"{k}={v}"]
+    return argv
+
+
+def _workflow_new(params: dict) -> list[str]:
+    atlas = _atlas_module()
+    kind = _choice(params, "kind", tuple(atlas.KINDS), "")
+    wid = str(params.get("id") or "").strip()
+    if not atlas.ID_RX.match(wid):
+        raise ValueError("id must be lowercase letters, digits and dashes, starting with a letter")
+    argv = [DASH_GEN, "workflows", "new", "--kind", kind, "--id", wid, "--write"]
+    name = str(params.get("name") or "").strip()
+    if name:
+        if not atlas.NAME_RX.match(name):
+            raise ValueError("name must be one line without quotes, backticks, `$` or backslashes")
+        argv += ["--name", name]
+    cron = str(params.get("cron") or "").strip()
+    if cron:
+        if not CRON_RX.match(cron):
+            raise ValueError("cron must be a 5-field cron expression")
+        argv += ["--cron", cron]
+    purpose = str(params.get("purpose") or "").strip()
+    if purpose:
+        if len(purpose) > 2000 or re.search(r"[\x00-\x08\x0b-\x1f\x7f]", purpose):
+            raise ValueError("purpose is plain text, at most 2000 characters")
+        argv += ["--purpose", purpose]
     return argv
 
 
@@ -1222,8 +1319,19 @@ OPS: dict[str, dict] = {
                         params=["apply"]),
     "dispatch": dict(title="Dispatch a control-plane workflow in CI", group="deploy",
                      argv=_dispatch, needs_token=True, remote=lambda p: True,
-                     desc="`gh workflow run <workflow>.yml -f key=value` for the allowlisted workflows.",
+                     desc="`gh workflow run <workflow>.yml -f key=value` for the allowlisted workflows; "
+                          "the inputs and their types are read from each workflow file.",
                      params=["workflow", "fields"]),
+    # workflows — the atlas (dash-gen workflow_atlas.py; docs/WORKFLOW-ATLAS.md)
+    "workflows-lint": dict(title="Lint the hub's workflows and actions", group="verify",
+                           argv=lambda p: [DASH_GEN, "workflows", "lint"], needs_token=False,
+                           desc="The README standards and the AGENTS.md standing rules as checks; "
+                                "fails on an error, exactly as test_workflow_atlas.py does in CI."),
+    "workflow-new": dict(title="Scaffold a new workflow", group="plan", argv=_workflow_new, needs_token=False,
+                         desc="Writes .github/workflows/<id>.yml from a template that passes every rule "
+                              "(never overwrites) and prints the fleet.yml / README edits that go with it. "
+                              "Commits nothing.",
+                         params=["kind", "id", "name", "cron", "purpose"]),
 }
 
 
