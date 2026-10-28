@@ -2,7 +2,7 @@ name: 🔺 Schema Vendor Sync
 
 # The upward half of the Pyramid Schema loop.
 #
-# schema-fanout.yml pushes the kit DOWN into submodules. tools/check-drift.sh
+# fanout.yml (kit: schema) pushes the kit DOWN into submodules. tools/check-drift.sh
 # check (i) compares each submodule's copy against the HUB's. Nothing compared
 # the hub's copy against UPSTREAM — so bamr87/SCHEMA could move, or sit still
 # for months, and every gate in the fleet would still read green while
@@ -61,13 +61,21 @@ jobs:
 
       - uses: ./.github/actions/setup/dash-gen
 
+      # Probed, never presence-checked; the winner is GH_TOKEN for every step
+      # below — including the re-vendor PR, which then gets CI (drift check (i)
+      # is exactly what must run on it).
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
+
       # Report first, so the routing decision is made from a clean read.
       # Exit 2 is "upstream unreachable", which is not drift and must not be
       # dressed up as one — a network blip should never open a PR.
       - name: Compare against upstream
         id: detect
-        env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set +e
           python .github/scripts/dash-gen/dash_gen.py vendor --json > /tmp/vendor.json
@@ -104,21 +112,15 @@ jobs:
       # --- mechanical: re-vendor + PR ------------------------------------
       - name: Re-vendor the strict-parity files
         if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
-        env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         run: python .github/scripts/dash-gen/dash_gen.py vendor --apply || true
-
-      - name: Configure Git
-        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
-        uses: ./.github/actions/setup/configure-git
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create pull request
         if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.token.outputs.token }}
+          committer: bamr87-bot <10567847+bamr87@users.noreply.github.com>
+          author: bamr87-bot <10567847+bamr87@users.noreply.github.com>
           commit-message: "chore(schema): re-vendor the Pyramid Schema kit from upstream"
           title: "chore(schema): re-vendor the Pyramid Schema kit from upstream"
           body: |
@@ -136,7 +138,7 @@ jobs:
             loop. Substantive drift in those is raised as an issue instead.
 
             After merge, re-run the schema fan-out so the submodules pick the
-            new linter up: `schema-fanout.yml`, or
+            new linter up: `fanout.yml` (kit `schema`), or
             `tools/fanout.sh --kit schema --target <name> --apply`.
           branch: chore/schema-vendor-sync
           delete-branch: true
@@ -145,10 +147,12 @@ jobs:
             automated
 
       # --- judgement calls: issue, never auto-written --------------------
-      - name: File / update tracking issue
+      # ONE issue, updated in place (exact-title dedupe), so a week's findings
+      # replace last week's instead of growing a comment thread.
+      - name: Render the tracking issue
+        id: judgement
         if: steps.detect.outputs.actionable != '0' && steps.detect.outputs.actionable != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -172,15 +176,14 @@ jobs:
                 "the local reflow. Then `dash vendor` should read CURRENT.\n")
           print(f"[Run log]({os.environ['RUN_URL']})")
           PY
-          if [ ! -s /tmp/issue_body.md ]; then
-            echo "no judgement-call findings — nothing to file"; exit 0
-          fi
-          TITLE="Pyramid Schema kit needs a hand-reviewed re-vendor"
-          existing="$(gh issue list --state open --search "$MARKER in:body" \
-                      --json number --jq '.[0].number // empty' || true)"
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body-file /tmp/issue_body.md
-          else
-            gh issue create --title "$TITLE" --body-file /tmp/issue_body.md \
-              --label schema --label automated
-          fi
+          if [ -s /tmp/issue_body.md ]; then echo "file=true" >> "$GITHUB_OUTPUT"
+          else echo "no judgement-call findings — nothing to file"; echo "file=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: File / update tracking issue
+        if: steps.judgement.outputs.file == 'true'
+        uses: ./.github/actions/utilities/upsert-issue
+        with:
+          token: ${{ github.token }}
+          title: "Pyramid Schema kit needs a hand-reviewed re-vendor"
+          body-file: /tmp/issue_body.md
+          labels: schema,automated

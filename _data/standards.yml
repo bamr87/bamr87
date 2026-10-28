@@ -5,7 +5,7 @@
 # actually is. Consumed by:
 #   - tools/audit-standards.sh   (`dash audit`) — per-repo conformance matrix
 #   - tools/check-drift.sh       — the standardization slice of the drift gate
-#   - .github/workflows/standardize-fanout.yml — what to propagate downward
+#   - .github/workflows/fanout.yml (kit: standardize) — what to propagate downward
 #
 # Per artifact, each tier declares a level:
 #   required     -> missing = FAIL (red)      counts against the gate

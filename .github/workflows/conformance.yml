@@ -8,11 +8,31 @@ name: Conformance
 # before it can reach `main` and the fleet. Advisory (gate: false): the hub is
 # a `site`-kind repo that is also the control plane, and its own MUST gaps are
 # listed in specs/CONFORMANCE.md.
+#
+# Path-filtered to exactly that purpose: it is the reusable gate's pre-flight,
+# not a per-PR check on the hub's own tree (which `dash spec fleet --write`
+# snapshots into _data/conformance.yml). It used to run on every PR and push
+# and was never read — ~50 runs a fortnight. The member-repo caller stays
+# unfiltered: there the repo's own conformance is the point.
 
 on:
   pull_request:
+    paths:
+      - "specs/**"
+      - "_data/specs.yml"
+      - "tools/conformance.py"
+      - "tools/gen-specs-data.py"
+      - "templates/conformance/**"
+      - ".github/workflows/fleet-conformance.yml"
+      - ".github/workflows/conformance.yml"
   push:
     branches: [main]
+    paths:
+      - "specs/**"
+      - "_data/specs.yml"
+      - "tools/conformance.py"
+      - "templates/conformance/**"
+      - ".github/workflows/fleet-conformance.yml"
 
 permissions:
   contents: read

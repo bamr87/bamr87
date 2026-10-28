@@ -1,6 +1,6 @@
 # templates/schema — the Pyramid Schema seed kit
 
-The fleet-facing distribution of the [Pyramid Schema](../../docs/SCHEMA-FRAMEWORK.md) paradigm: everything a submodule needs to adopt `SCHEMA.md` structural contracts, seeded by `tools/seed-schema.sh` locally or the `schema-fanout` workflow in CI.
+The fleet-facing distribution of the [Pyramid Schema](../../docs/SCHEMA-FRAMEWORK.md) paradigm: everything a submodule needs to adopt `SCHEMA.md` structural contracts, seeded by `tools/seed-schema.sh` locally or `fanout.yml` (kit `schema`) in CI.
 
 | file | lands in the submodule as | purpose |
 | --- | --- | --- |

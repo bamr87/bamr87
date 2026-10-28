@@ -14,9 +14,11 @@ name: 🔀 Update Submodules
 #
 # Requires FLEET_TOKEN (see _data/fleet.yml) because GITHUB_TOKEN 404s on the
 # fleet's private submodules, so a recursive checkout with it dies before the
-# update step ever runs. Both call sites fall back to GITHUB_TOKEN (degraded:
-# public repos only) — and on the PR fallback route a GITHUB_TOKEN-opened PR
-# fires no workflow events, so its checks never run.
+# update step ever runs. This is the one loop that still picks the token by
+# PRESENCE (`FLEET_TOKEN || GITHUB_TOKEN`) rather than through
+# .github/actions/resolve-fleet-token: the checkout is the first step, and a
+# local action cannot run before the tree it lives in is checked out. A dead
+# PAT fails the checkout loudly rather than silently degrading.
 
 on:
   schedule:

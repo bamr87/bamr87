@@ -4,7 +4,7 @@
 #
 # One safety posture for every fan-out: clone each target repo, create the
 # kit branch, seed files, commit, and (only with --apply) push + open a PR.
-# Called by .github/workflows/standardize-fanout.yml and schema-fanout.yml;
+# Called by .github/workflows/fanout.yml (every kit, one dispatch surface);
 # runs locally too. Auth (`gh` / FLEET_TOKEN) needs contents:write +
 # pull-requests:write AND workflows:write on the targets — every kit can seed
 # .github/workflows/* files, which GitHub refuses to push without it.
@@ -333,7 +333,7 @@ case "$KIT" in
     BRANCH="chore/schema-adoption"
     COMMIT_MSG="docs: adopt Pyramid Schema (SCHEMA.md contracts + linter + CI)"
     PR_TITLE="docs: adopt Pyramid Schema structural contracts"
-    PR_BODY="$(printf 'Automated by bamr87 schema-fanout: seeds SCHEMA.md contracts in every directory, the vendored schema_lint.py, a schema-check CI gate, and the agent protocol in CLAUDE.md.\n\nScaffold purposes are TODO until the agent/human pass fills them (dispatch schema-fanout with agent_fill, or edit by hand). See bamr87/bamr87 docs/SCHEMA-FRAMEWORK.md.')"
+    PR_BODY="$(printf 'Automated by bamr87 schema-fanout: seeds SCHEMA.md contracts in every directory, the vendored schema_lint.py, a schema-check CI gate, and the agent protocol in CLAUDE.md.\n\nScaffold purposes are TODO until the agent/human pass fills them (dispatch fanout.yml with kit=schema and agent_fill, or edit by hand). See bamr87/bamr87 docs/SCHEMA-FRAMEWORK.md.')"
     ;;
   prose)
     BRANCH="style/markdown-oneline"

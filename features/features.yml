@@ -248,7 +248,7 @@ features:
       - { na: "shellcheck in the drift gate; each kit is exercised by its dispatch workflow in dry-run" }
   - id: HUB-010
     title: "Agent verification kit + fleet-verify gate"
-    description: "The verify kit (feature index scaffold, user scenarios, Playwright runner, MCP config, CI caller, verify-feature skill + verifier agent) fanned out by verify-fanout, and the reusable fleet-verify.yml that runs scenarios on every PR and hands the live app to a Claude Code pass on `verify`-labelled PRs."
+    description: "The verify kit (feature index scaffold, user scenarios, Playwright runner, MCP config, CI caller, verify-feature skill + verifier agent) fanned out by fanout.yml (kit verify), and the reusable fleet-verify.yml that runs scenarios on every PR and hands the live app to a Claude Code pass on `verify`-labelled PRs."
     implemented: true
     status: shipped
     prd: [FR6]

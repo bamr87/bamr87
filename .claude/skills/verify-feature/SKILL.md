@@ -15,7 +15,7 @@ The agent verification loop, runnable from a Claude Code session in the hub — 
 | Evidence | `<repo>/test/evidence/<slug>/` (screenshots, `report.json`, README) |
 | Browser | Playwright MCP — `browser_navigate`, `browser_snapshot`, `browser_click`, `browser_fill_form`, `browser_resize`, `browser_console_messages`, `browser_take_screenshot` (hub `.mcp.json` registers it; a repo's `verify/mcp.json` is the same server) |
 | CI | `fleet-verify.yml` (reusable) ← each repo's `verify.yml`; the `verify` PR label requests the agent pass |
-| Kit + fan-out | `templates/verify/` · `tools/dash verify deploy [--gaps|--target N] [--apply]` · `verify-fanout.yml` |
+| Kit + fan-out | `templates/verify/` · `tools/dash verify deploy [--gaps|--target N] [--apply]` · `fanout.yml` (kit `verify`) |
 | Config | `_data/fleet.yml` → `verification:` (labels, agent model/turns, coverage floors, fan-out caps) |
 
 ## Steps

@@ -13,8 +13,7 @@ import { age, when } from '../lib/format';
 import { SOURCE_HOME, gh, to } from '../lib/links';
 
 const DISPATCH_INPUTS: Record<string, Record<string, unknown>> = {
-  'harness-fanout': { target: 'gaps', dry_run: true }, 'fleet-pulse': { dry_run: true }, 'repo-evolution': { target: 'all', dry_run: true },
-  'standardize-fanout': { target: 'all', dry_run: true }, 'schema-fanout': { target: 'all', dry_run: true },
+  'fanout': { kit: 'harness', target: 'gaps', dry_run: true }, 'fleet-pulse': { dry_run: true }, 'repo-evolution': { target: 'all', dry_run: true },
 };
 
 function freshness(l: Loop): { tone: Tone; text: string } {

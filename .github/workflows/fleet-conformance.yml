@@ -3,7 +3,7 @@ name: fleet-conformance
 # Reusable Universal Project Standard (UPS) gate — the in-repo half of the
 # spec in bamr87/bamr87 specs/. A member repo adopts it with the short caller in
 # templates/conformance/conformance.yml (artifact `conformance` in
-# standardize-fanout / tools/fanout.sh). It checks out the hub beside the
+# fanout.yml kit standardize / tools/fanout.sh). It checks out the hub beside the
 # caller's tree and runs tools/conformance.py, so the rules are versioned once
 # and every repo is measured by the same checker the hub uses for
 # _data/conformance.yml.

@@ -73,7 +73,7 @@ is held at Python 3.13 because `crewai>=1.14` publishes no release for 3.14 (eve
 Both kits are idempotent and independent, but a runtime bump on top of a stale exact pin can break a build. barodybroject is the worked example:
 
 1. `psycopg2-binary==2.9.10` has no Python 3.14 wheel (2.9.13 does) → the docker PR reports `pinned-deps` and the build fails in `pip install`.
-2. Run `deps-fanout` first: it unpins **and deletes lockfiles**.
+2. Run the `deps-latest` fan-out first (`fanout.yml`, kit `deps-latest`): it unpins **and deletes lockfiles**.
 3. Re-run docker: rule L1 now fires (`npm ci` had nothing to install from).
 
 After that barodybroject's remaining failure is its own frontend — the latest TypeScript rejects side-effect CSS imports without a type declaration (`TS2882`; add `/// <reference types="vite/client" />`). That is an always-latest breakage in application code, which the fleet policy accepts and the daily doctor triages.
@@ -122,7 +122,7 @@ It also reports two gaps nothing else covers: repos carrying Docker files with n
 ## Gates
 
 - **Drift check (n)** — the hub's own Dockerfiles/compose match the standard (gating) and the transformer's tests pass; submodule drift is advisory.
-- `docker-fanout.yml` runs the transformer's tests **before** it touches anyone's repo, dry-run by default, PR-only, external upstreams skipped.
+- `fanout.yml` (kit `docker`) runs the transformer's tests **before** it touches anyone's repo, dry-run by default, PR-only, external upstreams skipped.
 - `tools/test_docker_harmonize.py` — 37 fixture tests: every rule, pin logic, never-downgrade, fixtures untouched, comment preservation, idempotency.
 
 ## See also

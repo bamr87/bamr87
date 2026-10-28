@@ -41,14 +41,13 @@ on:
       - '.github/actions/setup/dash-gen/**'
       - '.github/workflows/build-dash.yml'
   schedule:
-    # Daily, AFTER the data-refresh jobs have landed (refresh-dash 04:07,
-    # reconcile-registry 05:07, fleet-pulse 05:37). Those commits use
-    # GITHUB_TOKEN so they can't trigger this workflow themselves — this run is
-    # what republishes them. It was every 6h, but three of those four daily
-    # builds landed before any new data existed and only rebuilt an unchanged
-    # site; the Monitor board's live signals are regenerated here at build time
-    # either way.
-    - cron: '37 6 * * *'  # daily 06:37 UTC — after fleet-pulse (05:37) has published
+    # Daily, AFTER the last generated-data push of the morning (fleet-pulse
+    # 05:37, issue-pipeline 07:37). Those commits carry `[skip ci]` so they wake
+    # no workflow — this run is what republishes them, exactly once a day. It
+    # was every 6h, then 06:37 (which missed the issue-pipeline snapshot by an
+    # hour and was then re-run by the data push itself); the Monitor board's
+    # live signals are regenerated here at build time either way.
+    - cron: '37 8 * * *'  # daily 08:37 UTC (_data/fleet.yml schedule.build_dash)
   workflow_dispatch:
 
 permissions:

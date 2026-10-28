@@ -49,7 +49,7 @@ The order is chosen so each step is a small PR that leaves the repo better even 
 4. **Quality** — CI caller, formatter, linter, test runner with ≥1 test, release-please and its CHANGELOG (QA-*, REPO-21). Kits: `standardize --artifacts ci`, `sdlc` (`release/`), `adopt-release`.
 4a. **Planning & delivery** — `.github/sdlc.yml`, the Definition of Done, ADR log, pinned shared workflows (WORK-*). Kits: `sdlc`, `community`, and `spec-driven` for spec-driven repos. Contract: [`WORK.contract.yml`](WORK.contract.yml).
 5. **Schema** — SCHEMA.md pyramid + gate (AGENT-20). Kit: `schema`.
-6. **Feedback** — vendor the widget, mount it, enable on consumer sites (FB-*). Kit: `feedback` (`tools/fanout.sh --kit feedback`, or dispatch `feedback-fanout.yml`). Theme consumers need no kit: `page_feedback.enabled: true` in their own `_config.yml`.
+6. **Feedback** — vendor the widget, mount it, enable on consumer sites (FB-*). Kit: `feedback` (`tools/fanout.sh --kit feedback`, or dispatch `fanout.yml` (kit `feedback`)). Theme consumers need no kit: `page_feedback.enabled: true` in their own `_config.yml`.
 7. **Design tokens + shell** — token file, colour mode, AppShell, skip link, 404, error boundary, toast, states (FE-01..20). Kit: `design-tokens` (to build); components lifted per the FE seed column.
 8. **Meta, consent, analytics** — FE-24/25. Kit: `design-tokens` snippets.
 9. **API + ops** — envelope, health/version, settings, logging, security headers (BE-*, OPS-*). Kit: `api` (to build).

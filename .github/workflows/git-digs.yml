@@ -10,10 +10,11 @@ name: Git Digs
 # run before the model call.
 
 on:
-  # Schedule paused (Actions waste reduction, Oct 14): the job is gated by vars.GIT_DIGS_ENABLED, which is
-  # currently off, so every scheduled run was skipped. To restore: set GIT_DIGS_ENABLED=true AND uncomment the block below.
-  # schedule:
-  #   - cron: '17 11 * * *'
+  # Dispatch-only since 2026-10-14 (Actions waste reduction): the schedule was
+  # paused while GIT_DIGS_ENABLED is off. To restore, set the variable to true
+  # AND add back `schedule: [{cron: '17 11 * * *'}]` here plus the matching
+  # `git_digs:` line in _data/fleet.yml `schedule:` (test_schedule.py holds
+  # the two equal).
   workflow_dispatch:
 
 permissions:
@@ -29,25 +30,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - name: Require a usable delivery token and a Claude credential
+      - uses: actions/checkout@v7
+
+      - name: Require a Claude credential
         env:
-          PAT: ${{ secrets.FLEET_TOKEN }}
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          set -euo pipefail
           if [ -z "$OAUTH" ] && [ -z "$KEY" ]; then
             echo "::notice::Git Digs idle: no Claude credential."
             echo "skip=true" >> "$GITHUB_ENV"
-            exit 0
           fi
-          if [ -z "$PAT" ] || ! GH_TOKEN="$PAT" gh api user -q .login >/dev/null; then
-            echo "::error::FLEET_TOKEN is missing or rejected. Refusing to spend a model call that cannot open a pull request."
-            exit 1
-          fi
-          echo "GH_TOKEN=$PAT" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v7
+      # A working PAT or nothing — refusing to spend a model call that cannot
+      # open a pull request. Exports GH_TOKEN.
+      - name: Require a usable delivery token
+        if: env.skip != 'true'
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
 
       - name: Check out IT-Journey
         if: env.skip != 'true'
@@ -89,8 +90,6 @@ jobs:
 
       - name: Validate and open one draft pull request
         if: env.skip != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
         run: |
           set -euo pipefail
           cd it-journey

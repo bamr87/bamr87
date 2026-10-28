@@ -41,7 +41,7 @@ MCP servers (github, memory, sequentialthinking, context7, **playwright** — th
 
 ## Standardization
 
-`standardize-audit` (see what's off-standard, via `tools/dash audit` + [`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one repo, PR into its own repo) → the `standardize-fanout.yml` workflow (fleet-wide `.editorconfig` + reusable `standard-ci.yml` adoption, plus the `agent-context,claude` artifacts: `CLAUDE.md` scaffold, `@claude` mention workflow, and the minimal `.claude/settings.json` baseline from [`templates/agent-context/`](../templates/agent-context/)). The full standard lives in [`docs/STANDARDS.md`](../docs/STANDARDS.md).
+`standardize-audit` (see what's off-standard, via `tools/dash audit` + [`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one repo, PR into its own repo) → the `fanout.yml` (kit `standardize`) workflow (fleet-wide `.editorconfig` + reusable `standard-ci.yml` adoption, plus the `agent-context,claude` artifacts: `CLAUDE.md` scaffold, `@claude` mention workflow, and the minimal `.claude/settings.json` baseline from [`templates/agent-context/`](../templates/agent-context/)). The full standard lives in [`docs/STANDARDS.md`](../docs/STANDARDS.md).
 
 ## The Future-Features pipeline
 

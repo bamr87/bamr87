@@ -94,12 +94,13 @@ def test_argv_shapes_are_exact_and_never_shell():
 
 
 def test_dispatch_validates_workflow_and_inputs():
-    argv, remote = core.build_argv("dispatch", {"workflow": "harness-fanout",
-                                                 "fields": {"target": "gaps", "dry_run": True}})
-    assert argv == ["gh", "workflow", "run", "harness-fanout.yml", "-f", "target=gaps", "-f", "dry_run=true"]
+    argv, remote = core.build_argv("dispatch", {"workflow": "fanout",
+                                                 "fields": {"kit": "harness", "target": "gaps", "dry_run": True}})
+    assert argv == ["gh", "workflow", "run", "fanout.yml", "-f", "kit=harness", "-f", "target=gaps", "-f", "dry_run=true"]
     assert remote is True  # every dispatch is a remote write
-    for params in ({"workflow": "claude"}, {"workflow": "fleet-pulse", "fields": {"evil": "x"}},
-                   {"workflow": "harness-fanout", "fields": {"target": "$(id)"}}):
+    for params in ({"workflow": "claude"}, {"workflow": "harness-fanout"}, {"workflow": "refresh-dash"},
+                   {"workflow": "fleet-pulse", "fields": {"evil": "x"}},
+                   {"workflow": "fanout", "fields": {"target": "$(id)"}}):
         try:
             core.build_argv("dispatch", params)
         except ValueError:

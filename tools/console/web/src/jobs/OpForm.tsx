@@ -9,8 +9,8 @@ import { remoteWrite, useRunner } from './JobRunner';
 
 type Params = Record<string, unknown>;
 
-const WORKFLOWS = ['harness-fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution', 'standardize-fanout',
-  'schema-fanout', 'build-dash', 'reconcile-registry', 'refresh-dash', 'update-submodules', 'backlog-fanout'];
+const WORKFLOWS = ['fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution',
+  'build-dash', 'reconcile-registry', 'update-submodules', 'backlog-fanout'];
 
 const BOOL: Record<string, string> = {
   upgrade: 'Upgrade machine seeds',
@@ -23,7 +23,7 @@ const BOOL: Record<string, string> = {
   allow_long_lived: 'Allow keys that outlive the lifetime policy',
 };
 
-const DEFAULTS: Params = { days: 14, artifacts: 'claude', dry_run: true, jobs: 'ai', logs: 'ai', workflow: 'harness-fanout' };
+const DEFAULTS: Params = { days: 14, artifacts: 'claude', dry_run: true, jobs: 'ai', logs: 'ai', workflow: 'fanout' };
 
 export function initialParams(op: Op, preset: Params = {}): Params {
   const out: Params = {};

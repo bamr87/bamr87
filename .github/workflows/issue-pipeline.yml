@@ -129,12 +129,19 @@ jobs:
       complete_count: ${{ steps.queues.outputs.complete_count }}
       evidence_targets: ${{ steps.queues.outputs.evidence_targets }}
       publish_mode: ${{ steps.publish.outputs.mode }}
-    env:
-      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.DAILY_ANALYSIS_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup/dash-gen
+
+      # Probe, never presence-check: FLEET_TOKEN against `GET /user`, exported
+      # as GH_TOKEN; GITHUB_TOKEN is the unprobed last resort (hub + public).
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
 
       # Resolved once, read by every tier's `if:`. Job-level `if:` cannot see
       # workflow `env:`, so it has to travel as a job output.
@@ -208,7 +215,9 @@ jobs:
         uses: ./.github/actions/utilities/publish-data
         with:
           paths: "_data/issue_pipeline.yml"
-          message: "chore(data): refresh issue pipeline snapshot"
+          # `[skip ci]`: generated data needs none of the PR gates; build-dash
+          # republishes the site on its own cron after this (fleet.yml schedule:).
+          message: "chore(data): refresh issue pipeline snapshot [skip ci]"
           branch: chore/issue-pipeline
           title: "chore(data): issue pipeline snapshot"
           body: |
@@ -219,7 +228,7 @@ jobs:
             branch was refused by branch protection. This branch is regenerated
             on every run — review the diff, not the history.
           labels: automation,data
-          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.token.outputs.token }}
 
   # ========================================================================= #
   # 1. INTAKE — evidence, enrichment, labels, priority, owner
@@ -240,9 +249,17 @@ jobs:
       actions: read
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
-      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+
+      # Probe, never presence-check: FLEET_TOKEN against `GET /user`, exported
+      # as GH_TOKEN; GITHUB_TOKEN is the unprobed last resort (hub + public).
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v8
         with:
@@ -329,12 +346,10 @@ jobs:
         id: enrich
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
         uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
-          github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          github_token: ${{ env.GH_TOKEN }}
           # Turn budget must clear a FULL-capacity intake run: tiers.intake.max_issues (8)
           # issues plus evidence.max_runs (6) bundles to read. A run at exactly that
           # capacity measured 182 turns, so the previous 150 failed the job after the
@@ -491,114 +506,18 @@ jobs:
               a comment, you have already done this one — skip it.
             - Redact anything credential-shaped before quoting a log.
 
-      # Spend on EVERY run, plus two loud classifications when the step is red.
-      #
-      # The spend line used to be gated on `failure()`, so a green run — the
-      # common case, and the one whose cost accumulates unnoticed — reported no
-      # dollar figure at all. The extraction itself is unchanged and is NOT a
-      # new cost pipeline: ai_usage_collector.py and fleet_lake.py still own the
-      # durable record. This is the per-run readout beside the cap.
-      #
-      # (a) BUDGET ABORT. `--max-budget-usd` stops the agent MID-TASK, which
-      #     otherwise looks like any other failed step.
-      # (b) REJECTED CREDENTIAL. `claude-code-action` surfaces one as a bare
-      #     `is_error: true` with NO message, so the annotation reads "Claude
-      #     execution failed" and names nothing. That is how an expired
-      #     CLAUDE_CODE_OAUTH_TOKEN kept tiers 1 and 3 red from 2026-08-15 to
-      #     08-24 without anyone being told which secret to rotate. The result
-      #     record does carry the tell: a credential rejected at the first API
-      #     call bills nothing, so `total_cost_usd == 0` AND an empty
-      #     `modelUsage` means the model was never reached — as opposed to a
-      #     genuine agent failure, which always has usage against it.
-      #     HAS_CLAUDE_AUTH only tests that the secret is non-empty, exactly the
-      #     present-but-expired trap `Probe fleet write token` catches for
-      #     FLEET_TOKEN. Classify it so the next expiry costs one run, not ten
-      #     days.
+      # Spend on EVERY run, a budget abort FAILS the step (and publishes
+      # `budget_hit`), a refused credential and a 429 are each classified —
+      # one script, .github/actions/claude-cost, asserted by test_ai_budget.py.
       - name: Report Claude run cost
         id: cost
         if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
-        env:
-          TIER: Tier 1 — intake
-          ICON: 🧭
-          BUDGET_USD: '40'
-          STEP_OUTCOME: ${{ steps.enrich.outcome }}
-        run: |
-          log="${RUNNER_TEMP}/claude-execution-output.json"
-          result=""
-          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
-          if [ -z "$result" ]; then
-            if [ "$STEP_OUTCOME" = "failure" ]; then
-              echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
-            fi
-            exit 0
-          fi
-
-          # The fleet's cost collector (ai_usage_collector.py) regex-scrapes
-          # `"total_cost_usd"` out of the RUN LOG, so it sees a run only if the
-          # action's own output reached that log. Echo the record ourselves:
-          # the collector takes the LAST occurrence and this is the same record,
-          # so the value is unchanged — it just can no longer go missing on the
-          # abort path, which is precisely where the spend matters most.
-          printf 'claude-run-result %s\n' "$result"
-          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
-          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
-          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
-          subtype=$(printf '%s' "$result" | jq -r '.subtype // ""')
-          is_error=$(printf '%s' "$result" | jq -r '.is_error // false')
-          pct=$(awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { printf "%d", (b + 0 > 0) ? (c / b) * 100 : 0 }')
-          {
-            echo "### ${ICON} ${TIER} — run cost"
-            echo ""
-            echo "| spend | cap | used | turns | models |"
-            echo "| ---: | ---: | ---: | ---: | ---: |"
-            echo "| \$${cost} | \$${BUDGET_USD} | ${pct}% | ${turns} | ${models} |"
-            echo ""
-            echo "Cap from \`_data/fleet.yml\` \`budget.call_sites\`. Subscription auth bills nothing per token — this is shadow accounting, not an invoice."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          budget_hit=false
-          case "$subtype" in *budget*) budget_hit=true ;; esac
-          if [ "$is_error" = "true" ] && awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { exit !(b + 0 > 0 && c + 0 >= b + 0) }'; then
-            budget_hit=true
-          fi
-          echo "budget_hit=${budget_hit}" >> "$GITHUB_OUTPUT"
-          if [ "$budget_hit" = "true" ]; then
-            echo "::error::${TIER}: BUDGET CAP HIT — metered \$${cost} against a \$${BUDGET_USD} ceiling after ${turns} turn(s) (a priced estimate under subscription auth, not an invoice — see _data/fleet.yml \`budget\`). The agent was stopped MID-TASK and its work is probably partial. Raise \`budget.call_sites\` in _data/fleet.yml if this spend is legitimate, or shrink the queue."
-            {
-              echo ""
-              echo "> **⛔ Budget cap hit.** \$${cost} of a \$${BUDGET_USD} ceiling, ${turns} turn(s)."
-              echo "> The run was aborted mid-task, so its work is probably partial."
-              echo "> Raise \`budget.call_sites\` in \`_data/fleet.yml\` or shrink the queue."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
-          [ "$STEP_OUTCOME" = "failure" ] || exit 0
-          # A 429 also leaves 0 cost and empty modelUsage, but the credential
-          # WORKED — the subscription's session/usage window is spent. Telling
-          # the operator to rotate a valid token sends them the wrong way.
-          api_status=$(printf '%s' "$result" | jq -r '.api_error_status // "" | tostring')
-          api_msg=$(printf '%s' "$result" | jq -r '.result // "" | tostring' | head -c 200)
-          if [ "$api_status" = "429" ] || printf '%s' "$api_msg" | grep -qiE 'session limit|usage limit|rate limit'; then
-            echo "::error::${TIER}: Claude usage limit hit (HTTP ${api_status:-429}): ${api_msg}. The credential is VALID — do NOT rotate it. Re-run after the reset, or move this cron away from the other agent loops."
-            {
-              echo ""
-              echo "**Claude usage limit hit.** \`api_error_status: ${api_status:-429}\` — ${api_msg}"
-              echo "The credential was accepted; the subscription's session window is exhausted. Re-run after the reset."
-            } >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$models" = "0" ] && [ "$cost" = "0" ]; then
-            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
-            {
-              echo ""
-              echo "**Claude credential rejected.** No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
-              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
-              echo ""
-              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
-          fi
-
+        uses: ./.github/actions/claude-cost
+        with:
+          tier: Tier 1 — intake
+          icon: 🧭
+          budget-usd: "40"
+          outcome: ${{ steps.enrich.outcome }}
       - name: Summary
         if: always()
         run: |
@@ -629,11 +548,31 @@ jobs:
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
-      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup/dash-gen
+
+      # A secret can be SET and still be dead. It matters twice here: cross-repo
+      # pushes need a working PAT, AND a PR opened with GITHUB_TOKEN never
+      # triggers its own CI, which would leave tier 3 with nothing to read.
+      # Probe, never presence-check: FLEET_TOKEN against `GET /user`, exported
+      # as GH_TOKEN; GITHUB_TOKEN is the unprobed last resort (hub + public).
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
+
+      - name: Report degraded capability
+        if: ${{ steps.token.outputs.pat != 'true' }}
+        run: |
+          {
+            echo "### 🧭 Tier 2 — degraded"
+            echo ""
+            echo "- ⚠️ No usable \`FLEET_TOKEN\`. Cross-repo issues cannot get a PR in their own repo, and PRs opened with \`GITHUB_TOKEN\` do not trigger their own CI — so tier 3 will have no checks to read. Rotate the token."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Re-scan rather than reuse the start-of-run queue: tier 1 has just marked
       # issues `agent:ready`, and the point of a pipeline is that they flow
@@ -645,31 +584,6 @@ jobs:
           [ -n "${{ inputs.repos }}" ] && args+=(--repos "${{ inputs.repos }}")
           [ -n "${{ inputs.max_implement }}" ] && args+=(--max-implement "${{ inputs.max_implement }}")
           tools/dash-gen "${args[@]}"
-
-      # A secret can be SET and still be dead. A set-but-expired FLEET_TOKEN has
-      # already cost this fleet a day of silently degraded automation, so probe
-      # it for real. It matters twice here: cross-repo pushes need it, AND a PR
-      # opened with GITHUB_TOKEN never triggers its own CI, which would leave
-      # tier 3 with nothing to read.
-      - name: Probe fleet write token
-        id: probe
-        run: |
-          ok=false
-          if [ -n "${FLEET_WRITE_TOKEN}" ]; then
-            if GH_TOKEN="${FLEET_WRITE_TOKEN}" gh api user --jq .login >/dev/null 2>&1; then
-              ok=true
-            else
-              echo "::warning::FLEET_TOKEN is set but rejected by the API (expired or revoked)."
-            fi
-          fi
-          echo "write_token_ok=$ok" >> "$GITHUB_OUTPUT"
-          if [ "$ok" != "true" ]; then
-            {
-              echo "### 🧭 Tier 2 — degraded"
-              echo ""
-              echo "- ⚠️ No usable \`FLEET_TOKEN\`. Cross-repo issues cannot get a PR in their own repo, and PRs opened with \`GITHUB_TOKEN\` do not trigger their own CI — so tier 3 will have no checks to read. Rotate the token."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
 
       # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
       # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
@@ -687,13 +601,12 @@ jobs:
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' && steps.queue.outputs.has_implement == 'true' }}
         uses: anthropics/claude-code-action@v1
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
-          WRITE_TOKEN_OK: ${{ steps.probe.outputs.write_token_ok }}
+          WRITE_TOKEN_OK: ${{ steps.token.outputs.pat }}
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
-          github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          github_token: ${{ env.GH_TOKEN }}
           # Turn budget must be sized against `timeout-minutes: 90`, not guessed:
           # T2 implements up to `tiers.implement.max_issues` (3) issues end to end
           # — read, edit, test, docs, commit, push, PR — so ~66 turns per issue at
@@ -824,95 +737,18 @@ jobs:
             - `assisted` issues get the same full implementation — the
               difference is that tier 3 will leave the PR as a draft for a human.
 
-      # See the tier-1 copy of this step for the full rationale: spend is
-      # reported on every run, a `--max-budget-usd` abort and a refused
-      # credential are each called out loudly, and zero billed turns + empty
-      # modelUsage is what distinguishes the second from an agent failure.
+      # Spend on EVERY run, a budget abort FAILS the step (and publishes
+      # `budget_hit`), a refused credential and a 429 are each classified —
+      # one script, .github/actions/claude-cost, asserted by test_ai_budget.py.
       - name: Report Claude run cost
         id: cost
         if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
-        env:
-          TIER: Tier 2 — implement
-          ICON: 🧭
-          BUDGET_USD: '60'
-          STEP_OUTCOME: ${{ steps.implement.outcome }}
-        run: |
-          log="${RUNNER_TEMP}/claude-execution-output.json"
-          result=""
-          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
-          if [ -z "$result" ]; then
-            if [ "$STEP_OUTCOME" = "failure" ]; then
-              echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
-            fi
-            exit 0
-          fi
-
-          # The fleet's cost collector (ai_usage_collector.py) regex-scrapes
-          # `"total_cost_usd"` out of the RUN LOG, so it sees a run only if the
-          # action's own output reached that log. Echo the record ourselves:
-          # the collector takes the LAST occurrence and this is the same record,
-          # so the value is unchanged — it just can no longer go missing on the
-          # abort path, which is precisely where the spend matters most.
-          printf 'claude-run-result %s\n' "$result"
-          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
-          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
-          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
-          subtype=$(printf '%s' "$result" | jq -r '.subtype // ""')
-          is_error=$(printf '%s' "$result" | jq -r '.is_error // false')
-          pct=$(awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { printf "%d", (b + 0 > 0) ? (c / b) * 100 : 0 }')
-          {
-            echo "### ${ICON} ${TIER} — run cost"
-            echo ""
-            echo "| spend | cap | used | turns | models |"
-            echo "| ---: | ---: | ---: | ---: | ---: |"
-            echo "| \$${cost} | \$${BUDGET_USD} | ${pct}% | ${turns} | ${models} |"
-            echo ""
-            echo "Cap from \`_data/fleet.yml\` \`budget.call_sites\`. Subscription auth bills nothing per token — this is shadow accounting, not an invoice."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          budget_hit=false
-          case "$subtype" in *budget*) budget_hit=true ;; esac
-          if [ "$is_error" = "true" ] && awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { exit !(b + 0 > 0 && c + 0 >= b + 0) }'; then
-            budget_hit=true
-          fi
-          echo "budget_hit=${budget_hit}" >> "$GITHUB_OUTPUT"
-          if [ "$budget_hit" = "true" ]; then
-            echo "::error::${TIER}: BUDGET CAP HIT — metered \$${cost} against a \$${BUDGET_USD} ceiling after ${turns} turn(s) (a priced estimate under subscription auth, not an invoice — see _data/fleet.yml \`budget\`). The agent was stopped MID-TASK and its work is probably partial. Raise \`budget.call_sites\` in _data/fleet.yml if this spend is legitimate, or shrink the queue."
-            {
-              echo ""
-              echo "> **⛔ Budget cap hit.** \$${cost} of a \$${BUDGET_USD} ceiling, ${turns} turn(s)."
-              echo "> The run was aborted mid-task, so its work is probably partial."
-              echo "> Raise \`budget.call_sites\` in \`_data/fleet.yml\` or shrink the queue."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
-          [ "$STEP_OUTCOME" = "failure" ] || exit 0
-          # A 429 also leaves 0 cost and empty modelUsage, but the credential
-          # WORKED — the subscription's session/usage window is spent. Telling
-          # the operator to rotate a valid token sends them the wrong way.
-          api_status=$(printf '%s' "$result" | jq -r '.api_error_status // "" | tostring')
-          api_msg=$(printf '%s' "$result" | jq -r '.result // "" | tostring' | head -c 200)
-          if [ "$api_status" = "429" ] || printf '%s' "$api_msg" | grep -qiE 'session limit|usage limit|rate limit'; then
-            echo "::error::${TIER}: Claude usage limit hit (HTTP ${api_status:-429}): ${api_msg}. The credential is VALID — do NOT rotate it. Re-run after the reset, or move this cron away from the other agent loops."
-            {
-              echo ""
-              echo "**Claude usage limit hit.** \`api_error_status: ${api_status:-429}\` — ${api_msg}"
-              echo "The credential was accepted; the subscription's session window is exhausted. Re-run after the reset."
-            } >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$models" = "0" ] && [ "$cost" = "0" ]; then
-            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
-            {
-              echo ""
-              echo "**Claude credential rejected.** No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
-              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
-              echo ""
-              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
-          fi
-
+        uses: ./.github/actions/claude-cost
+        with:
+          tier: Tier 2 — implement
+          icon: 🧭
+          budget-usd: "60"
+          outcome: ${{ steps.implement.outcome }}
       - name: Summary
         if: always()
         run: |
@@ -920,7 +756,7 @@ jobs:
             echo "### 🧭 Tier 2 — implement"
             echo ""
             echo "- Queue after refresh: \`${{ steps.queue.outputs.implement_count || 0 }}\` issue(s)"
-            echo "- Fleet write token usable: \`${{ steps.probe.outputs.write_token_ok }}\`"
+            echo "- Fleet write token usable: \`${{ steps.token.outputs.pat }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ========================================================================= #
@@ -944,9 +780,17 @@ jobs:
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
-      GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+
+      # Probe, never presence-check: FLEET_TOKEN against `GET /user`, exported
+      # as GH_TOKEN; GITHUB_TOKEN is the unprobed last resort (hub + public).
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v8
         with:
@@ -968,12 +812,11 @@ jobs:
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
         uses: anthropics/claude-code-action@v1
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
-          github_token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          github_token: ${{ env.GH_TOKEN }}
           # Same sizing as T2, and T3 is the more turn-hungry of the two: its loop
           # is "read checks -> read failing log -> fix -> push -> re-check" over up
           # to `tiers.complete.max_prs` (4) PRs, where each CI round trip costs
@@ -1079,95 +922,18 @@ jobs:
             - Do not open new PRs — you finish existing ones.
             - Be specific in every comment. Quote the failing line, name the fix.
 
-      # See the tier-1 copy of this step for the full rationale: spend is
-      # reported on every run, a `--max-budget-usd` abort and a refused
-      # credential are each called out loudly, and zero billed turns + empty
-      # modelUsage is what distinguishes the second from an agent failure.
+      # Spend on EVERY run, a budget abort FAILS the step (and publishes
+      # `budget_hit`), a refused credential and a 429 are each classified —
+      # one script, .github/actions/claude-cost, asserted by test_ai_budget.py.
       - name: Report Claude run cost
         id: cost
         if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
-        env:
-          TIER: Tier 3 — complete
-          ICON: 🧭
-          BUDGET_USD: '60'
-          STEP_OUTCOME: ${{ steps.complete.outcome }}
-        run: |
-          log="${RUNNER_TEMP}/claude-execution-output.json"
-          result=""
-          [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
-          if [ -z "$result" ]; then
-            if [ "$STEP_OUTCOME" = "failure" ]; then
-              echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
-            fi
-            exit 0
-          fi
-
-          # The fleet's cost collector (ai_usage_collector.py) regex-scrapes
-          # `"total_cost_usd"` out of the RUN LOG, so it sees a run only if the
-          # action's own output reached that log. Echo the record ourselves:
-          # the collector takes the LAST occurrence and this is the same record,
-          # so the value is unchanged — it just can no longer go missing on the
-          # abort path, which is precisely where the spend matters most.
-          printf 'claude-run-result %s\n' "$result"
-          cost=$(printf '%s' "$result" | jq -r '.total_cost_usd // 0')
-          models=$(printf '%s' "$result" | jq -r '(.modelUsage // {}) | length')
-          turns=$(printf '%s' "$result" | jq -r '.num_turns // 0')
-          subtype=$(printf '%s' "$result" | jq -r '.subtype // ""')
-          is_error=$(printf '%s' "$result" | jq -r '.is_error // false')
-          pct=$(awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { printf "%d", (b + 0 > 0) ? (c / b) * 100 : 0 }')
-          {
-            echo "### ${ICON} ${TIER} — run cost"
-            echo ""
-            echo "| spend | cap | used | turns | models |"
-            echo "| ---: | ---: | ---: | ---: | ---: |"
-            echo "| \$${cost} | \$${BUDGET_USD} | ${pct}% | ${turns} | ${models} |"
-            echo ""
-            echo "Cap from \`_data/fleet.yml\` \`budget.call_sites\`. Subscription auth bills nothing per token — this is shadow accounting, not an invoice."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          budget_hit=false
-          case "$subtype" in *budget*) budget_hit=true ;; esac
-          if [ "$is_error" = "true" ] && awk -v c="$cost" -v b="$BUDGET_USD" 'BEGIN { exit !(b + 0 > 0 && c + 0 >= b + 0) }'; then
-            budget_hit=true
-          fi
-          echo "budget_hit=${budget_hit}" >> "$GITHUB_OUTPUT"
-          if [ "$budget_hit" = "true" ]; then
-            echo "::error::${TIER}: BUDGET CAP HIT — metered \$${cost} against a \$${BUDGET_USD} ceiling after ${turns} turn(s) (a priced estimate under subscription auth, not an invoice — see _data/fleet.yml \`budget\`). The agent was stopped MID-TASK and its work is probably partial. Raise \`budget.call_sites\` in _data/fleet.yml if this spend is legitimate, or shrink the queue."
-            {
-              echo ""
-              echo "> **⛔ Budget cap hit.** \$${cost} of a \$${BUDGET_USD} ceiling, ${turns} turn(s)."
-              echo "> The run was aborted mid-task, so its work is probably partial."
-              echo "> Raise \`budget.call_sites\` in \`_data/fleet.yml\` or shrink the queue."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
-          [ "$STEP_OUTCOME" = "failure" ] || exit 0
-          # A 429 also leaves 0 cost and empty modelUsage, but the credential
-          # WORKED — the subscription's session/usage window is spent. Telling
-          # the operator to rotate a valid token sends them the wrong way.
-          api_status=$(printf '%s' "$result" | jq -r '.api_error_status // "" | tostring')
-          api_msg=$(printf '%s' "$result" | jq -r '.result // "" | tostring' | head -c 200)
-          if [ "$api_status" = "429" ] || printf '%s' "$api_msg" | grep -qiE 'session limit|usage limit|rate limit'; then
-            echo "::error::${TIER}: Claude usage limit hit (HTTP ${api_status:-429}): ${api_msg}. The credential is VALID — do NOT rotate it. Re-run after the reset, or move this cron away from the other agent loops."
-            {
-              echo ""
-              echo "**Claude usage limit hit.** \`api_error_status: ${api_status:-429}\` — ${api_msg}"
-              echo "The credential was accepted; the subscription's session window is exhausted. Re-run after the reset."
-            } >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$models" = "0" ] && [ "$cost" = "0" ]; then
-            echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
-            {
-              echo ""
-              echo "**Claude credential rejected.** No billed API call (\`total_cost_usd: 0\`, \`modelUsage: {}\`, \`num_turns: $turns\`)."
-              echo "The secret is present — \`HAS_CLAUDE_AUTH\` only tests that — but the API refused it."
-              echo ""
-              echo "**Fix:** rotate \`CLAUDE_CODE_OAUTH_TOKEN\`, then run \`token-rotation.yml\` to propagate it."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
-          fi
-
+        uses: ./.github/actions/claude-cost
+        with:
+          tier: Tier 3 — complete
+          icon: 🧭
+          budget-usd: "60"
+          outcome: ${{ steps.complete.outcome }}
       - name: Summary
         if: always()
         run: |

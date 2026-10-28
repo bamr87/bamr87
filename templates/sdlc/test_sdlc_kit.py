@@ -226,7 +226,7 @@ def t_release() -> None:
     job = wf["jobs"]["release"]
     path, _, ref = job["uses"].partition("@")
     check(path == "bamr87/bamr87/.github/workflows/release-please.yml", "calls the hub's reusable release-please.yml")
-    check(ref == "v1" and PINNED_REF.fullmatch(ref) is not None, f"pinned @v1 (UPS-WORK-10), got @{ref}")
+    check(PINNED_REF.fullmatch(ref) is not None and ref != "main", f"pinned to a tag or SHA, never @main (UPS-WORK-10), got @{ref}")
     check(job.get("permissions") == {"contents": "write", "pull-requests": "write"}, "job grants contents+pull-requests write")
     check(wf.get("permissions") == {"contents": "read"}, "top-level permissions are read-only")
     check(job.get("secrets") == "inherit", "secrets: inherit (optional RELEASE_PLEASE_TOKEN)")

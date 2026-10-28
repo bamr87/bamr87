@@ -34,7 +34,7 @@ coverage: listed
 | `Brewfile` | file | macOS dev dependencies | |
 | `setup-terminal.sh` | file | macOS CHUI bootstrap (bashOS `chui/` + Meslo CoreText registration) | |
 | `devtools.conf` | file | Shared config for the devtools scripts | |
-| `fanout.sh` | file | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard (called by standardize-fanout.yml, schema-fanout.yml, and deps-fanout.yml) | |
+| `fanout.sh` | file | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard (called by .github/workflows/fanout.yml for every kit, and by dash harnesses/verify deploy) | |
 | `backlog_fanout.py` | file | The backlog fan-out routine (HUB-027, FR22) — pending hub issues / unserved PRD requirements / unshipped features → idempotent `backlog/<item>` PRs in the repos they apply to via `fanout.sh --kit backlog`; dry-run default, never merges (backlog-fanout.yml; docs/BACKLOG-FANOUT.md) | |
 | `fleet_activity.py` | file | Fire-and-forget fleet activity log client (FR23) — event schema from the activity-log PRD (#409), bounded redacted JSONL spool, best-effort flush; never raises | |
 | `test_backlog_fanout.py` | file | Fixture tests for backlog_fanout.py + fleet_activity.py — mapping, idempotent update, cadence, cap, retries, graceful degradation of the activity log (run by python-tests.yml) | |

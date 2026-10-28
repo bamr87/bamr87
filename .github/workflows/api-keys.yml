@@ -74,28 +74,21 @@ jobs:
           python3 tools/fleet-config.py keys watch --attention-file key-attention.md || rc=$?
           echo "rc=$rc"
 
+      # ONE issue while anything needs a human, closed the day nothing does.
+      # Filed with the job token on purpose — never a FLEET_TOKEN fallback: an
+      # alarm must not ride on the credential most likely to be dead.
+      - name: Stamp the report
+        if: always() && steps.keys.outcome == 'success' && steps.keys.outputs.attention == 'true'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: printf "\n_Filed by [\`api-keys.yml\`](%s) · updated in place daily._\n" "$RUN_URL" >> key-attention.md
+
       - name: Open, update, or close the key issue
         if: always() && steps.keys.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ATTENTION: ${{ steps.keys.outputs.attention }}
-          TITLE: "🔑 Anthropic API keys need a human"
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title \
-            --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty" || true)
-          if [ "$ATTENTION" != "true" ]; then
-            if [ -n "$existing" ]; then
-              gh issue close "$existing" --comment "Every deployed key is inside its policy and the hub's key passed the cheap test ([run]($RUN_URL))."
-              echo "::notice::Closed key issue #$existing — nothing needs a human."
-            fi
-            exit 0
-          fi
-          printf "\n_Filed by [\`api-keys.yml\`](%s) · updated in place daily._\n" "$RUN_URL" >> key-attention.md
-          if [ -n "$existing" ]; then
-            gh issue edit "$existing" --body-file key-attention.md
-            echo "::notice::Updated key issue #$existing"
-          else
-            gh issue create --title "$TITLE" --body-file key-attention.md
-          fi
+        uses: ./.github/actions/utilities/upsert-issue
+        with:
+          token: ${{ github.token }}
+          title: "🔑 Anthropic API keys need a human"
+          body-file: key-attention.md
+          state: ${{ steps.keys.outputs.attention == 'true' && 'open' || 'close' }}
+          close-comment: "Every deployed key is inside its policy and the hub's key passed the cheap test ([run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))."

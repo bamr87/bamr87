@@ -36,7 +36,6 @@ KEYS = {
     "fleet-pulse": "fleet_pulse",
     "build-dash": "build_dash",
     "issue-pipeline": "issue_pipeline",
-    "refresh-dash": "refresh_dash",
     "reconcile-registry": "reconcile_registry",
     "update-submodules": "update_submodules",
     "token-rotation": "rotate_tokens",

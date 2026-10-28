@@ -3,12 +3,13 @@ name: site-quality self-test
 # Tests the reusable site-quality.yml workflow the way a caller uses it, on
 # every PR that touches it (spec: specs/QUALITY.md "Site quality"):
 #
-#   unit       node tests of the runner (.github/site-quality/tests), the
-#              kit test (templates/site-quality/test_site_quality_kit.py):
-#              the schema against every fixture config, the template, the
-#              caller pin, the fan-out tokens; and tools/test_quality_contract.py
-#              (applies/binds_when vs _data/specs.yml, and the hub-only
-#              sanctioned lockfile read by conformance, drift and unpin-deps).
+#   unit       node tests of the runner (.github/site-quality/tests). The kit
+#              test (templates/site-quality/test_site_quality_kit.py) and
+#              tools/test_quality_contract.py run with every other Python suite
+#              in python-tests.yml on every PR, so this workflow only wakes for
+#              the runtime and the workflow it exercises — not for every edit
+#              to the drift gate, the checker or .gitignore (each of which used
+#              to cost three Lighthouse scans).
 #   pass-site  build mode on fixtures/pass-site with STRICT gates: must pass.
 #              Its one expired allowlist entry must only warn (status warn).
 #   fail-site  build mode on fixtures/fail-site, which breaks axe, contrast and
@@ -26,36 +27,16 @@ on:
       - ".github/site-quality/**"
       - ".github/workflows/site-quality.yml"
       - ".github/workflows/site-quality-selftest.yml"
-      - "templates/site-quality/**"
-      - "specs/QUALITY.md"
-      - "specs/QUALITY.contract.yml"
-      - "_data/specs.yml"
-      - ".github/dependabot.yml"
-      - ".gitignore"
-      - "tools/conformance.py"
-      - "tools/check-drift.sh"
-      - "tools/unpin-deps.sh"
-      - "tools/sanctioned_lockfiles.py"
-      - "tools/test_quality_contract.py"
-      - "specs/REPOSITORY.md"
+      - "templates/site-quality/fixtures/**"
+      - "templates/site-quality/site-quality.schema.json"
   push:
     branches: [main]
     paths:
       - ".github/site-quality/**"
       - ".github/workflows/site-quality.yml"
       - ".github/workflows/site-quality-selftest.yml"
-      - "templates/site-quality/**"
-      - "specs/QUALITY.md"
-      - "specs/QUALITY.contract.yml"
-      - "_data/specs.yml"
-      - ".github/dependabot.yml"
-      - ".gitignore"
-      - "tools/conformance.py"
-      - "tools/check-drift.sh"
-      - "tools/unpin-deps.sh"
-      - "tools/sanctioned_lockfiles.py"
-      - "tools/test_quality_contract.py"
-      - "specs/REPOSITORY.md"
+      - "templates/site-quality/fixtures/**"
+      - "templates/site-quality/site-quality.schema.json"
   workflow_dispatch:
 
 permissions:
@@ -67,7 +48,7 @@ concurrency:
 
 jobs:
   unit:
-    name: Unit + kit tests
+    name: Runner tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -88,15 +69,6 @@ jobs:
       - name: Runner tests
         working-directory: .github/site-quality
         run: npm test
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ vars.PYTHON_VERSION || '3.12' }}
-      - name: Kit test (schema vs fixtures, caller pin, tokens)
-        run: |
-          python -m pip install --quiet --upgrade pyyaml jsonschema
-          python templates/site-quality/test_site_quality_kit.py
-      - name: Contract test (QUALITY.contract.yml applies/binds_when, sanctioned lockfiles)
-        run: python tools/test_quality_contract.py
 
   pass-site:
     name: pass fixture

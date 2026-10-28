@@ -44,7 +44,7 @@ The audit's headline: five of six layers were already strong. The gap was in Lay
 | Agent operating manual | [`AGENTS.md`](../AGENTS.md) + scoped [`.github/instructions/*.instructions.md`](../.github/instructions/) |
 | Structural contract | The `SCHEMA.md` pyramid — one lintable placement contract per directory ([`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md)) |
 | Rules traced to failures | The **standing rules** in `AGENTS.md`, each born from a named incident: never end a workflow in a bare `git push` to a protected branch; prefer `needs:` over `workflow_run`; CI-bearing PRs cannot use `GITHUB_TOKEN`; fleet-wide secrets are written hub-first |
-| Per-repo guides | The agent-context kit (`templates/agent-context/`) seeds `CLAUDE.md` scaffolds into submodules via `standardize-fanout.yml` |
+| Per-repo guides | The agent-context kit (`templates/agent-context/`) seeds `CLAUDE.md` scaffolds into submodules via `fanout.yml` (kit `standardize`) |
 
 The hub already practices the playbook's strongest guide discipline: rules are dated by their incidents, encoded where they bind (a standing rule in `AGENTS.md` *and* a drift-gate check where checkable), and the guide file outranks the conversation.
 
@@ -177,7 +177,7 @@ Existing precedents to imitate (each one incident → strongest layer): the bare
 Phase 2 (worth doing next, each one small):
 
 - ~~**Dash surface**~~ — done 2026-08-27, moved into the console 2026-10: the Harness health page (`/harnesses/health`, [`HealthPage.tsx`](../tools/console/web/src/pages/HealthPage.tsx)) renders `_data/harness_health.yml` (trip wires with tripped state, the scorecard) and embeds the diagrams below, sandboxed.
-- ~~**Fleet deployment inventory**~~ — done 2026-08-31: the DEPLOYMENT-side counterpart of this scorecard. `dash-gen harnesses` scans every registry repo's harness workflows + crons into `_data/harness_registry.yml` daily, grades them against `_data/fleet.yml` `harnesses:` (baseline coverage, scheduled-throughput caps, budget forecast from trends), renders at `/harnesses` ([`Inventory.tsx`](../tools/console/web/src/pages/Inventory.tsx)), and feeds `harness-fanout.yml`'s `gaps` deploy target. Operations doc: [`docs/HARNESS-OPS.md`](HARNESS-OPS.md).
+- ~~**Fleet deployment inventory**~~ — done 2026-08-31: the DEPLOYMENT-side counterpart of this scorecard. `dash-gen harnesses` scans every registry repo's harness workflows + crons into `_data/harness_registry.yml` daily, grades them against `_data/fleet.yml` `harnesses:` (baseline coverage, scheduled-throughput caps, budget forecast from trends), renders at `/harnesses` ([`Inventory.tsx`](../tools/console/web/src/pages/Inventory.tsx)), and feeds `fanout.yml` (kit `harness`)'s `gaps` deploy target. Operations doc: [`docs/HARNESS-OPS.md`](HARNESS-OPS.md).
 - ~~**Enforced cost budget (checklist #7)**~~: done per run. `budget.call_sites` in `fleet.yml` sets a `--max-budget-usd` ceiling for every `claude-code-action` step (bamr87#128), and since 2026-10-03 also for every `claude-run` / `ai-lane` / `fleet-verify` step. A budget abort fails the step and never falls back to another credential or the API. Still open: an *aggregate* (monthly or workspace) hard stop, e.g. Anthropic Console workspace spend limits. The per-run cap uses the CLI's estimate and does not bound the fleet total.
 - **Guide hygiene cadence**: fold a monthly guide review into the repo-evolution loop's hub pass — prune rules that sensors now enforce, reconcile contradictions, verify each standing rule still traces to a live constraint.
 - **Wire → doctor handoff**: let a tripped `cost-spike`/`standing-failures` wire annotate the remediation queue's ranking, so the alarm and the fix queue converge on the same candidates (today they compute independently from the same data).
@@ -227,6 +227,6 @@ python3 .github/scripts/dash-gen/test_harness.py   # the invariants
 
 The daily refresh rides `fleet-pulse.yml`'s `pulse` job; thresholds are tuned in `_data/fleet.yml` `harness:` (a wire that is always on is noise — prune or retune it the way guide rules are pruned).
 
-This document watches the hub's own layers; managing the harnesses **deployed across the fleet** — inventory, mass deploy/update, throughput caps, cost forecasting, the local/cloud processing planes — is [`docs/HARNESS-OPS.md`](HARNESS-OPS.md) (`dash harnesses`, the `/harnesses/` board, `harness-fanout.yml`).
+This document watches the hub's own layers; managing the harnesses **deployed across the fleet** — inventory, mass deploy/update, throughput caps, cost forecasting, the local/cloud processing planes — is [`docs/HARNESS-OPS.md`](HARNESS-OPS.md) (`dash harnesses`, the `/harnesses/` board, `fanout.yml` (kit `harness`)).
 
 Cross-repo pattern matching is `tools/dash index harmonize <pattern>` (Observe → Index in the console). It reads the Kilo code index — one embedding, the best hit per submodule — and lists who already has the pattern and who does not, so a standardize or evolve pass starts from a gap list instead of a blind grep. Coverage and the `.github` blind spot are `tools/dash index status`. The floor lives in `_data/fleet.yml` `observability.indexing.analysis`.

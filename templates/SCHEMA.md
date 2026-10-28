@@ -12,9 +12,9 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `README.md` | file | Index of kits and how fan-out works | required |
-| `agent-context/` | dir | Agent-context kit: CLAUDE.md scaffold + @claude OAuth workflow, seeded by standardize-fanout | terminal |
+| `agent-context/` | dir | Agent-context kit: CLAUDE.md scaffold + @claude OAuth workflow, seeded by fanout.yml (kit standardize) | terminal |
 | `community/` | dir | Community kit: the ONE PR template carrying the fleet Definition of Done (`fleet-dod` markers), issue forms with fleet labels, `labels.yml` taxonomy, CODEOWNERS, Dependabot, CONTRIBUTING, SECURITY, Code of Conduct; distributed by owner `.github` inheritance (UPS-REPO-14..19, UPS-QA-41, UPS-WORK-03/09) | terminal |
-| `standard-ci/` | dir | Reusable CI gate caller seeded by standardize-fanout | terminal |
+| `standard-ci/` | dir | Reusable CI gate caller seeded by fanout.yml (kit standardize) | terminal |
 | `release-pipeline/` | dir | release-please pipeline kit seeded by adopt-release | terminal |
 | `prose/` | dir | Prose style kit: markdown-oneline CI check enforcing one-paragraph-per-line, seeded by fanout | terminal |
 | `conformance/` | dir | In-repo UPS gate kit: thin caller of the reusable fleet-conformance.yml (artifact `conformance`) | terminal |
@@ -22,7 +22,7 @@ coverage: listed
 | `governance/` | dir | Governance kit: constitution template, amendment log (README, 0000 template, 0001 ratification record), PRD ↔ feature catalog link (specs/WORK.md UPS-WORK-15/16; validator tools/governance_lint.py; fan-out `tools/fanout.sh --kit governance`), VERSION | terminal |
 | `spec-driven/` | dir | Spec-driven (AO-SDLC) kit, consumed by reference: ALSO the `spec-driven` Claude Code plugin (`.claude-plugin/plugin.json`, `skills/` chain + `/evolve`, `agents/backlog-triager`, `hooks/hooks.json` gate hook) published by the root `.claude-plugin/marketplace.json`; the stdlib tools (spec validator, backlog lint, id minter, evolve picker, discovery audit), `fleet-kit.sh` (the one file a consumer vendors), the `spec-gate.yml` reusable-workflow caller, spec/BACKLOG/constitution templates, VERSION + archive (docs/SPEC-DRIVEN.md) | terminal |
 | `feedback/` | dir | Universal feedback widget kit: `<fleet-feedback>` web component + taxonomy + issue form + stack adapters (spec: specs/FEEDBACK.md) | terminal |
-| `issue-autopilot/` | dir | Issue-autopilot kit (OPT-IN): the canonical issue-triage engine + verify-and-close gate + skill/agent skeletons, seeded by standardize-fanout. Policy stays in each repo's `.issues/config.yml`, which the kit never writes | terminal |
+| `issue-autopilot/` | dir | Issue-autopilot kit (OPT-IN): the canonical issue-triage engine + verify-and-close gate + skill/agent skeletons, seeded by fanout.yml (kit standardize). Policy stays in each repo's `.issues/config.yml`, which the kit never writes | terminal |
 | `ai-runner/` | dir | AI runner kit: the fleet's model step, consumed BY REFERENCE (`.github/actions/claude-run` + reusable `ai-lane.yml`) — caller template, contract tests, VERSION + archive | terminal |
 | `fleet-engines/` | dir | Fleet engines kit: the fleet/v1 manifest, workflow facts, the audit rulebook, harness scorecard — published to npm as `@bamr87/fleet-engines`, consumed by dependency by GitFactory and zer0-CMS | terminal |
 | `elk/` | dir | ELK kit: the vendored Filebeat shipper config, the `com.bamr87.fleet.*` label + rotation fragment (UPS-OPS-17), a standalone single-node ES+Kibana overlay, and one UPS-OPS-10 JSON emitter per stack with the UPS-OPS-12 redaction attached; seeded by `fanout.sh --kit elk` (docs/OBSERVABILITY.md) | terminal |

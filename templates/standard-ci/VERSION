@@ -1,7 +1,7 @@
 kit: standard-ci
 version: 0.1.0
 source: bamr87/bamr87 templates/standard-ci/
-seeded-by: .github/workflows/standardize-fanout.yml (artifact `ci`) via tools/fanout.sh
+seeded-by: .github/workflows/fanout.yml (kit standardize, artifact `ci`) via tools/fanout.sh
 files: ci.yml
 updated: 2026-08-09
 changelog: |

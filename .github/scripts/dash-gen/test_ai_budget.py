@@ -19,6 +19,11 @@ Guarded here:
     step (.github/actions/claude-run — local `./` or `bamr87/bamr87/…@main`)
     in .github/workflows/ passes `--max-budget-usd` / `max-budget-usd:` — so
     a NEW loop cannot be added uncapped by either route;
+  * every claude-code-action site except the human-triggered @claude mention
+    handler is followed by a `Report Claude run cost` step that USES the one
+    shared `.github/actions/claude-cost` action with the SAME cap — six inline
+    copies of that step had drifted (fleet-pulse reported against $25 while
+    its claude_args said $40);
   * a reusable workflow's `${{ inputs.<name> }}` resolves to that input's
     `workflow_call` default, so its cap and turn floor are still checked;
   * the claude-run action itself forwards the cap to the CLI and defaults it
@@ -57,6 +62,12 @@ import ai_activity  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 CLAUDE_RUN = REPO_ROOT / ".github" / "actions" / "claude-run"
+CLAUDE_COST = REPO_ROOT / ".github" / "actions" / "claude-cost"
+
+# The one claude-code-action call site with no cost step: a HUMAN-triggered
+# mention handler whose seeded copy must stay byte-close to the kit template
+# (templates/agent-context/claude.yml), which carries no hub-side step.
+COST_EXEMPT = {"claude.yml:claude"}
 FLEET = REPO_ROOT / "_data" / "fleet.yml"
 DASH = REPO_ROOT / "tools" / "dash"
 
@@ -73,6 +84,12 @@ def check(label: str, ok: bool) -> None:
 def is_claude_run(uses: str) -> bool:
     """A step that runs the fleet's composite `claude-run` action, by any ref."""
     return re.search(r"(^\./|^bamr87/bamr87/)\.github/actions/claude-run(@|$)", uses) is not None
+
+
+def is_claude_cost(uses: str) -> bool:
+    """A step that runs the shared `claude-cost` action — from this checkout, from
+    the `.fleet-hub` sparse checkout a foreign-workspace job makes, or by ref."""
+    return re.search(r"(^\./(\.fleet-hub/)?|^bamr87/bamr87/)\.github/actions/claude-cost(@|$)", uses) is not None
 
 
 def call_inputs(workflow: dict) -> dict:
@@ -120,6 +137,7 @@ def call_sites() -> dict[str, str]:
                 with_ = step.get("with") or {}
                 if "claude-code-action" in uses:
                     args = str(with_.get("claude_args") or "")
+                    ACTION_SITES.add(f"{path.name}:{job_id}")
                 elif is_claude_run(uses):
                     args = " ".join(
                         f"--{key} {with_[key]}" for key in ("max-turns", "max-budget-usd")
@@ -128,6 +146,9 @@ def call_sites() -> dict[str, str]:
                     continue
                 found[f"{path.name}:{job_id}"] = resolve_inputs(args, workflow)
     return found
+
+
+ACTION_SITES: set[str] = set()   # the claude-code-action sites, filled by call_sites()
 
 
 def declared_max_turns(args: str, fleet: dict) -> int | None:
@@ -237,47 +258,67 @@ def cost_steps() -> dict[str, dict]:
     return found
 
 
-def check_abort_contract() -> None:
+def check_abort_contract(sites: dict[str, str]) -> None:
     """A cap that binds must CHANGE something, not just annotate.
 
     `::error::` writes an annotation; it does not fail a step, and a green job
     runs every `success()`-gated step after it. So an abort that exits 0 with
     truncated work published a pull request that read like a completed pass.
-    Three properties close that, and each is asserted here because all three
-    are invisible until the day a cap actually binds:
+    The script that closes that lives ONCE, in .github/actions/claude-cost;
+    three properties are asserted on it because all three are invisible until
+    the day a cap actually binds:
 
-      * the cost step FAILS on a budget hit (`dash ai run` already exits 1 —
-        the same event must not have two different verdicts);
-      * it publishes `budget_hit` as a step OUTPUT, so a publishing step can
-        gate on the cap rather than on the action's undocumented exit code;
+      * it FAILS on a budget hit (`dash ai run` already exits 1 — the same
+        event must not have two different verdicts);
+      * it publishes `budget_hit` as an OUTPUT, so a publishing step can gate
+        on the cap rather than on the action's undocumented exit code;
       * it echoes the result record into the RUN LOG, because that log is what
         ai_usage_collector.py scrapes for `total_cost_usd` — if an abort's
         record never lands there, the runs that hit the cap are exactly the
         ones missing from the fleet's cost ledger.
+
+    Then every call site: each claude-code-action job (bar the exempt mention
+    handler) has a `Report Claude run cost` step, with `id: cost`, that USES
+    the action (no inline copies — six of them drifted) on every non-cancelled
+    outcome, with a `budget-usd` equal to the cap its claude_args carries.
     """
+    action = yaml.safe_load((CLAUDE_COST / "action.yml").read_text(encoding="utf-8"))
+    steps = (action.get("runs") or {}).get("steps") or []
+    body = str(steps[0].get("run") or "") if steps else ""
+    check("claude-cost: the action has a script to assert", bool(body))
+    check("claude-cost: publishes `budget_hit` to $GITHUB_OUTPUT",
+          'budget_hit=${budget_hit}" >> "$GITHUB_OUTPUT"' in body)
+    check("claude-cost: declares `budget_hit` as an action output",
+          "budget_hit" in (action.get("outputs") or {}))
+    check("claude-cost: echoes the result record into the run log for the cost collector",
+          "claude-run-result" in body)
+    branch = re.search(r'if \[ "\$budget_hit" = "true" \]; then(.*?)\n *fi\b', body, re.S)
+    check("claude-cost: a budget hit FAILS the step (exit 1, not an annotation alone)",
+          bool(branch) and re.search(r"\bexit 1\b", branch.group(1)) is not None)
+    check("claude-cost: the credential-rejected classifier is present", "modelUsage" in body)
+    check("claude-cost: a 429 is classified apart from a refused credential", "429" in body)
+
     steps = cost_steps()
     check("`Report Claude run cost` steps were found (a zero here means the "
           "scan broke, not that the fleet is clean)", len(steps) > 0)
-
+    for site in sorted(ACTION_SITES - COST_EXEMPT):
+        check(f"{site}: has a `Report Claude run cost` step", site in steps)
     for site, step in sorted(steps.items()):
-        body = str(step.get("run") or "")
         check(f"{site}: the cost step has `id: cost` so its verdict is readable",
               step.get("id") == "cost")
-        check(f"{site}: publishes `budget_hit` to $GITHUB_OUTPUT",
-              'budget_hit=${budget_hit}" >> "$GITHUB_OUTPUT"' in body)
-        check(f"{site}: echoes the result record into the run log for the "
-              f"cost collector", "claude-run-result" in body)
-
-        # The budget branch must end in a non-zero exit. Match the branch
-        # itself rather than the file, so an `exit 0` elsewhere cannot satisfy
-        # this and a future edit that softens it fails here.
-        branch = re.search(
-            # YAML strips a block scalar's common indentation, so match the
-            # branch's closing `fi` at whatever column it lands on.
-            r'if \[ "\$budget_hit" = "true" \]; then(.*?)\n *fi\b',
-            body, re.S)
-        check(f"{site}: a budget hit FAILS the step (exit 1, not an annotation "
-              f"alone)", bool(branch) and re.search(r"\bexit 1\b", branch.group(1)))
+        check(f"{site}: the cost step USES the shared claude-cost action (no inline copy)",
+              is_claude_cost(str(step.get("uses", ""))) and not step.get("run"))
+        check(f"{site}: cost is reported on every non-cancelled outcome, not only on failure",
+              "!cancelled()" in str(step.get("if")) and "failure()" not in str(step.get("if")))
+        with_ = step.get("with") or {}
+        m = re.search(r"--max-budget-usd\s+([0-9]+(?:\.[0-9]+)?)", sites.get(site, ""))
+        cap = float(m.group(1)) if m else None
+        got = str(with_.get("budget-usd", "")).strip()
+        check(f"{site}: the readout's budget-usd ({got or '?'}) equals the job's "
+              f"--max-budget-usd ({cap if cap is not None else '?'})",
+              cap is not None and got != "" and float(got) == cap)
+        check(f"{site}: `outcome` reads the agent step's outcome",
+              re.search(r"steps\.[\w-]+\.outcome", str(with_.get("outcome", ""))) is not None)
 
     # The two workflows that publish a PR from the agent's working tree must
     # gate on that output. Everywhere else the agent opens its own PR, so a
@@ -441,7 +482,7 @@ def check_wrapper() -> None:
 def main() -> int:
     fleet = yaml.safe_load(FLEET.read_text(encoding="utf-8"))
     check_workflows(fleet)
-    check_abort_contract()
+    check_abort_contract(call_sites())
     check_ledger()
     check_wrapper()
 

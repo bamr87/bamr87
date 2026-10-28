@@ -1,25 +1,25 @@
 # `resolve-fleet-token`
 
-Pick the first GitHub token that **works**, not the first one that happens to be non-empty.
+Pick the first GitHub token that **works**, not the first one that happens to be non-empty, and export it as `GH_TOKEN` for the rest of the job.
 
 ## Why
 
-The common pattern for token selection is a three-way fallback:
+The common pattern for token selection is a presence chain:
 
 ```yaml
 env:
-  GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GH_PAT || github.token }}
+  GH_TOKEN: ${{ secrets.FLEET_TOKEN || github.token }}
 ```
 
-`||` selects the first non-empty operand and performs no validity check. That is
-fine when every candidate is equally capable, but it fails quietly in two common situations:
+`||` selects the first non-empty operand and performs no validity check. An **expired or revoked PAT** is still a non-empty string, so it wins the chain and then returns `401` on the first real API call — which is how, on 2026-09-27, every fleet-pulse gather step got 401 on all 43 repos, wrote zeros, and the run went green (#280). Every loop then grew its own inline probe loop; this action is that loop, written once (CLAUDE.md standing rule: *probe, never presence-check*).
 
-- an **expired or revoked PAT** is still a non-empty string, so it wins the
-  `||` chain and then returns `401` on the first real API call;
-- the job-scoped **`GITHUB_TOKEN` is repo-scoped**, so against a *foreign*
-repository it returns `404 Not Found`, not `403 Forbidden`. The failure looks like "that repo/issue doesn't exist" rather than "you aren't allowed", which sends debugging in the wrong direction.
+## Contract
 
-This action probes each candidate with an idempotent `GET /repos/{owner}/{repo}` and hands back the first one that returns `200`.
+- Each PAT candidate (`fleet-token`, then `fallback-token`) is probed with an idempotent `GET /user`, which a PAT answers and the job-scoped `GITHUB_TOKEN` cannot. The first `200` wins.
+- `default-token` (normally `github.token`) is **never probed**: it is the unprobed last resort that still reads this repo and public repos, so a degraded run is partial rather than blind. When it is used after a PAT was rejected, the step emits an `::error::` annotation naming the fix; the output `pat` is `false`.
+- The winner is exported to `$GITHUB_ENV` as `GH_TOKEN` (configurable via `export`), so `gh` and every later step just work. The `token` output carries the same value for steps that need it as an input.
+- Every candidate is masked before use, so a rejected one cannot leak.
+- With no `default-token` and no working PAT the step fails (`fail-on-no-valid-token: 'false'` to branch on `valid` instead).
 
 ## Usage
 
@@ -28,63 +28,40 @@ This action probes each candidate with an idempotent `GET /repos/{owner}/{repo}`
   uses: ./.github/actions/resolve-fleet-token
   with:
     fleet-token: ${{ secrets.FLEET_TOKEN }}
-    fallback-token: ${{ secrets.GH_PAT }}
     default-token: ${{ github.token }}
-    probe-repo: some-org/some-other-repo
 
-- name: Do cross-repo work
-  run: gh issue list --repo some-org/some-other-repo
-  env:
-    GH_TOKEN: ${{ steps.token.outputs.token }}
+- run: gh api repos/bamr87/some-private-repo      # GH_TOKEN is already exported
+
+- if: steps.token.outputs.pat != 'true'
+  run: echo "::warning::degraded — cross-repo writes are off this run"
 ```
 
-Set `probe-repo` to the repository the job actually intends to touch. Probing the current repository proves nothing about cross-repo access.
-
-To branch instead of failing:
+Require a working PAT (a loop that cannot deliver without one should fail before spending anything):
 
 ```yaml
-- id: token
-  uses: ./.github/actions/resolve-fleet-token
+- uses: ./.github/actions/resolve-fleet-token
   with:
-    fleet-token: ${{ secrets.FLEET_TOKEN }}
-    default-token: ${{ github.token }}
-    probe-repo: some-org/some-other-repo
-    fail-on-no-valid-token: 'false'
-
-- if: steps.token.outputs.valid == 'true'
-  run: ...
+    fleet-token: ${{ secrets.FLEET_TOKEN }}       # no default-token: a dead PAT fails here
 ```
 
 ## Inputs
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `fleet-token` | `''` | Primary candidate. |
-| `fleet-token-name` | `FLEET_TOKEN` | Name reported in `source`. |
-| `fallback-token` | `''` | Second candidate. |
-| `fallback-token-name` | `FALLBACK_TOKEN` | Name reported in `source`. |
-| `default-token` | `''` | Last resort, normally `${{ github.token }}`. |
-| `default-token-name` | `GITHUB_TOKEN` | Name reported in `source`. |
-| `probe-repo` | `${{ github.repository }}` | `owner/repo` used for the probe. |
-| `api-url` | `${{ github.api_url }}` | API base URL. |
-| `fail-on-no-valid-token` | `'true'` | Fail the step when nothing validates. |
+| `fleet-token` | `''` | Primary PAT candidate (probed) |
+| `fleet-token-name` | `FLEET_TOKEN` | Reported in `source` when it wins |
+| `fallback-token` | `''` | Second PAT candidate (probed) |
+| `fallback-token-name` | `FALLBACK_TOKEN` | Reported in `source` when it wins |
+| `default-token` | `''` | Unprobed last resort; empty = a working PAT is required |
+| `default-token-name` | `GITHUB_TOKEN` | Reported in `source` when it is used |
+| `export` | `GH_TOKEN` | Env var the winner is exported to; empty = none |
+| `fail-on-no-valid-token` | `'true'` | Fail when nothing can be used |
 
 ## Outputs
 
 | Output | Description |
 | --- | --- |
-| `token` | The validated token, or empty when none validated. |
-| `source` | Name of the secret the winning token came from. |
-| `valid` | `'true'` or `'false'`. |
-
-## When *not* to use it
-
-For **same-repo** work, keep the plain `||` fallback. `GITHUB_TOKEN` is
-genuinely sufficient there, and adding a network round-trip per job to confirm something the platform already guarantees is not worth the latency.
-
-## Safety notes
-
-- Every non-empty candidate is `::add-mask::`ed *before* any probe runs, so even a rejected candidate cannot appear in logs.
-- The probe is a read-only `GET`; re-running it has no side effects.
-- Only the HTTP status code is captured; the response body goes to `/dev/null`.
-- Tokens are passed to the script through `env:`, never interpolated into the script body.
+| `token` | The winning value (masked), or empty |
+| `source` | The winning candidate's name, or empty |
+| `valid` | `'true'` when any token is in use |
+| `pat` | `'true'` when a probed PAT won |
