@@ -163,9 +163,10 @@ jobs:
           base: ${{ inputs.base_branch || 'main' }}
           # `[skip ci]` because nothing needs to run on a pointer bump, and the
           # alternative is worse. build-dash.yml already filters `projects/**`
-          # out by path, so it never woke for these. drift-check.yml has no path
-          # filter and is the one workflow this push would trigger — but adding
-          # `paths-ignore: projects/**` there would ALSO stop it firing when a
+          # out by path, so it never woke for these. drift-check.yml and
+          # python-tests.yml have no push path filter and are what this push
+          # would trigger — but adding `paths-ignore: projects/**` to the gate
+          # would ALSO stop it firing when a
           # HUMAN touches projects/, and check (a) exists precisely to catch
           # stray/unregistered dirs in that directory. Skipping CI on the bot's
           # own commit is targeted; weakening the gate for everyone is not.

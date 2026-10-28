@@ -72,7 +72,19 @@ jobs:
           fi
           rc=0
           python3 tools/fleet-config.py keys watch --attention-file key-attention.md || rc=$?
-          echo "rc=$rc"
+          # The issue step closes the alarm whenever `attention` is not 'true',
+          # so a watch that crashed before judging (an expired console token
+          # raises before set_output) or exited on config errors it does not
+          # file as attention would post a false all-clear. Fail instead: the
+          # issue is left as it is and the red run is the alarm.
+          if ! grep -q '^attention=' "$GITHUB_OUTPUT"; then
+            echo "::error::keys watch stopped before judging any key (exit $rc). The key issue is left untouched."
+            exit 1
+          fi
+          if [ "$rc" -ne 0 ] && ! grep -q '^attention=true' "$GITHUB_OUTPUT"; then
+            echo "::error::keys watch exited $rc without filing anything as attention (config errors?). Not closing the key issue."
+            exit 1
+          fi
 
       # ONE issue while anything needs a human, closed the day nothing does.
       # Filed with the job token on purpose — never a FLEET_TOKEN fallback: an

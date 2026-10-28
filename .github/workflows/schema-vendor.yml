@@ -110,12 +110,14 @@ jobs:
           PY
 
       # --- mechanical: re-vendor + PR ------------------------------------
+      # `inputs.apply` is null on a schedule, and GitHub compares null and false
+      # as equal (both coerce to 0): `inputs.apply != false` skipped every cron run.
       - name: Re-vendor the strict-parity files
-        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
+        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && (github.event_name != 'workflow_dispatch' || inputs.apply)
         run: python .github/scripts/dash-gen/dash_gen.py vendor --apply || true
 
       - name: Create pull request
-        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && inputs.apply != false
+        if: steps.detect.outputs.mechanical != '0' && steps.detect.outputs.mechanical != '' && (github.event_name != 'workflow_dispatch' || inputs.apply)
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.token.outputs.token }}
@@ -187,3 +189,15 @@ jobs:
           title: "Pyramid Schema kit needs a hand-reviewed re-vendor"
           body-file: /tmp/issue_body.md
           labels: schema,automated
+
+      # Closed once nothing needs a human, so it never sits open with a stale
+      # list (the #280 failure reconcile-registry already fixed). Not on an
+      # unreachable upstream (rc 2): that run saw nothing, it did not see clean.
+      - name: Close tracking issue when clean
+        if: steps.detect.outcome == 'success' && steps.detect.outputs.rc != '2' && steps.judgement.outputs.file != 'true'
+        uses: ./.github/actions/utilities/upsert-issue
+        with:
+          token: ${{ github.token }}
+          title: "Pyramid Schema kit needs a hand-reviewed re-vendor"
+          state: close
+          close-comment: "✓ The vendored kit matches upstream (nothing left for a human) as of ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Closing; the next run reopens a fresh issue if drift returns."

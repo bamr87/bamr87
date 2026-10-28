@@ -108,7 +108,9 @@ jobs:
   expect:
     name: Outcomes are as expected
     needs: [pass-site, fail-site, url-mode]
-    if: always()
+    # Not always(): a run superseded by cancel-in-progress has no reports to
+    # read, and `expect` used to install and then fail on their absence.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

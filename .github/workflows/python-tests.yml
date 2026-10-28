@@ -5,7 +5,9 @@ name: 🐍 Python Tests
 # for every deterministic planner the loops act on: budget caps, remediation
 # guards, harness scorecard, schedule), tools/test_*.py (docker harmonize/view,
 # features index, fleet config, terminal-dash data layer), the Harness Console
-# (tools/console/test_*.py) and every kit's own test (templates/*/test_*.py).
+# (tools/console/test_*.py), the terminal dash (tools/tui/test_*.py; textual
+# comes in through the console requirements) and every kit's own test
+# (templates/*/test_*.py).
 # Each file is a standalone script that exits non-zero on failure (no pytest).
 # A file with no `__main__` runner exits 0 having run nothing — that is a
 # failure here, not a pass.
@@ -78,7 +80,7 @@ jobs:
       - name: Run every hub Python test suite
         run: |
           shopt -s nullglob
-          files=(.github/scripts/dash-gen/test_*.py tools/test_*.py tools/console/test_*.py templates/*/test_*.py)
+          files=(.github/scripts/dash-gen/test_*.py tools/test_*.py tools/console/test_*.py tools/tui/test_*.py templates/*/test_*.py)
           [ "${#files[@]}" -gt 0 ] || { echo "::error::no test files found"; exit 1; }
           failed=()
           for t in "${files[@]}"; do

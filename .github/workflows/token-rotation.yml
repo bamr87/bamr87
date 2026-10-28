@@ -250,8 +250,11 @@ jobs:
       # rather than only in a run log that expires.
       # `always()` on purpose: a run with write failures is exactly the run whose
       # ledger someone needs to read, and the rotate step exits non-zero for it.
+      # Only a FULL apply run publishes: write_ledger() always rewrites the file,
+      # so a dry-run dispatch would replace the fleet's record with `mode:
+      # dry-run`, and `repo` / `only` with a subset (`only` drops `variables:`).
       - name: Publish rotation ledger
-        if: always() && steps.probe.outputs.can_write == 'true'
+        if: always() && steps.probe.outputs.can_write == 'true' && steps.mode.outputs.apply != '' && inputs.repo == '' && inputs.only == ''
         uses: ./.github/actions/utilities/publish-data
         with:
           paths: "_data/token_rotation.yml"

@@ -80,8 +80,16 @@ jobs:
           print(f"authoritative={d['authoritative']}")
           print(f"advisory={d['advisory']}")
           PY
+          # Rendered from the JSON already fetched: a second `reconcile` would
+          # be a second full sweep of the fleet on the shared PAT.
           echo "--- findings ---"
-          python .github/scripts/dash-gen/dash_gen.py reconcile
+          python - <<'PY'
+          import json, sys
+          sys.path.insert(0, ".github/scripts/dash-gen")
+          import reconcile
+          d = json.load(open("/tmp/reconcile.json"))
+          sys.stdout.write(reconcile.render([reconcile.Finding(**f) for f in d["findings"]]))
+          PY
 
       # --- authoritative: apply + PR ------------------------------------
       # The README AUTO span is regenerated in the same change: the drift gate

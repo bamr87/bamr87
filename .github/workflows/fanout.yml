@@ -84,10 +84,12 @@ on:
 permissions:
   contents: read
 
-# One run per kit at a time; never cancelled mid-fan-out (a killed run leaves
-# half the fleet on the old shape).
+# One run per ENGINE at a time; never cancelled mid-fan-out (a killed run
+# leaves half the fleet on the old shape). `harness` runs the standardize
+# engine and pushes the same chore/standardize-baseline branch (as
+# harness-fanout.yml did), so the two kits share a group instead of racing.
 concurrency:
-  group: fanout-${{ inputs.kit }}
+  group: fanout-${{ inputs.kit == 'harness' && 'standardize' || inputs.kit }}
   cancel-in-progress: false
 
 jobs:
@@ -195,10 +197,18 @@ jobs:
         env:
           TARGET: ${{ steps.targets.outputs.targets }}
           COUNT: ${{ steps.targets.outputs.count }}
+          KIT: ${{ inputs.kit }}
+          ARTIFACTS: ${{ steps.kit.outputs.artifacts }}
         run: |
           set -euo pipefail
           if [ "$COUNT" != "1" ] || [ "$TARGET" = "all" ] || [ "$TARGET" = "gaps" ]; then
             echo "::error::agent_fill needs exactly ONE named target (got '$TARGET')"; exit 1
+          fi
+          # The pass fills the CLAUDE.md scaffold, which kit standardize seeds
+          # only with the agent-context artifact; without it the pass is paid
+          # for and has nothing to fill.
+          if [ "$KIT" = standardize ] && [[ ",$ARTIFACTS," != *,agent-context,* ]]; then
+            echo "::error::agent_fill on kit standardize needs agent-context in artifacts (got '$ARTIFACTS'): nothing else seeds the CLAUDE.md scaffold it fills"; exit 1
           fi
           sect="$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
                   | awk -v p="projects/$TARGET" '$2==p{print $1}' | sed 's/^submodule\.//; s/\.path$//')"
