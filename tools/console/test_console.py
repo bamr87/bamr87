@@ -1241,6 +1241,40 @@ def test_work_apply_moves_labels_through_github_and_files_in_the_tree():
         core.WORK_MOVES.update(saved[2])
 
 
+def test_work_routes_gate_labels_and_refuse_bad_plans():
+    """Over HTTP: the board answers, a preview of a bad plan is a 400 that
+    names the change, a plan that moves labels without confirm is a 403 and
+    writes nothing, and an unknown item is a 404."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    tmp = Path(tempfile.mkdtemp(prefix="console-work-http-"))
+    saved = core.WORK_QUEUE
+    core.WORK_QUEUE = tmp / "work_queue.yml"
+    try:
+        client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+        board = client.get("/api/work")
+        assert board.status_code == 200 and board.json()["schema"] == "work-board/v1"
+        issue = next((i for i in board.json()["items"] if i["kind"] == "issue" and "hold" in i["movable"]), None)
+        assert issue, "no movable issue in the committed snapshot"
+        r = client.post("/api/work/preview", json={"plan": {"stage": {"pr:bamr87/bamr87#1": "ready"}}})
+        assert r.status_code == 400 and "not on the board" in r.json()["detail"], r.text
+        r = client.post("/api/work/preview", json={"plan": {"stage": {issue["key"]: "hold"}}})
+        assert r.status_code == 200 and r.json()["preview"] and r.json()["changes"][0]["target"] == "github"
+        r = client.post("/api/work/apply", json={"plan": {"stage": {issue["key"]: "hold"}}})
+        assert r.status_code == 403 and "confirm" in r.json()["detail"], r.text
+        assert not core.WORK_QUEUE.exists()
+        assert client.get("/api/work/item", params={"key": "issue:nobody/nothing#1"}).status_code == 404
+        assert client.get("/api/work/item", params={"key": "../../etc/passwd"}).status_code == 404
+    finally:
+        core.WORK_QUEUE = saved
+
+
 def test_pull_specs_reads_each_spec_at_the_pr_head():
     """A PR's drill-down: the spec packages it changes, read at its head sha
     with the kit's rules, the ones it only mentions, and the BACKLOG.md lines

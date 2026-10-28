@@ -9,7 +9,7 @@ import { manifest } from './static';
 import type {
   AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
-  SiteIndex, SitePage, SitePost, GithubFleet,
+  SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
 } from './types';
 
 const minute = 60_000;
@@ -81,6 +81,33 @@ export const useContentDocs = (site: string, view: string, q: string) =>
 export const useConfig = () => useQuery({ queryKey: ['config'], queryFn: () => api<ConfigDoc>('/api/config') });
 export const useAuth = () => useQuery({ queryKey: ['auth'], queryFn: () => api<AuthDoc>('/api/auth') });
 export const useTuiStatus = () => useQuery({ queryKey: ['tui-status'], queryFn: () => api<TuiStatus>('/api/tui/status'), refetchInterval: 10_000 });
+
+// --- The Work board (dash-gen work_board.py) --------------------------------
+export const useWork = () => useQuery({ queryKey: ['work'], queryFn: () => api<WorkBoard>('/api/work'), staleTime: 30_000 });
+/** The board as a staged plan would leave it; nothing is written. */
+export const useWorkPreview = (plan: WorkPlan | null) =>
+  useQuery({
+    queryKey: ['work', 'preview', plan],
+    queryFn: () => api<WorkBoard>('/api/work/preview', { method: 'POST', body: JSON.stringify({ plan }) }),
+    enabled: plan != null,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+export const useWorkItem = (key: string | null, enabled = true) =>
+  useQuery({
+    queryKey: ['work', 'item', key],
+    queryFn: () => api<WorkItemDetail>(`/api/work/item?key=${encodeURIComponent(key ?? '')}`),
+    enabled: enabled && Boolean(key),
+    retry: false,
+  });
+export const usePullSpecs = (nwo: string | null, n: number | null) =>
+  useQuery({
+    queryKey: ['github', 'pull-specs', nwo, n],
+    queryFn: () => api<PullSpecs>(`/api/github/repos/${nwo}/pulls/${n}/specs`),
+    enabled: Boolean(nwo && n),
+    staleTime: 60_000,
+    retry: false,
+  });
 
 // --- GitHub ---------------------------------------------------------------
 export const useGithubStatus = () =>

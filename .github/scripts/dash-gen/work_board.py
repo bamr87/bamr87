@@ -336,7 +336,8 @@ def spec_detail(root: Path, rel_path: str) -> dict:
     spec_md, tasks_md, plan_md = read("spec.md"), read("tasks.md"), read("plan.md")
     out = summarize_spec(d.name, spec_md, tasks_md, plan_md)
     out["task_list"] = tasks_of(tasks_md)
-    out["open_question_lines"] = [ln.strip()[:300] for ln in (spec_md + "\n" + plan_md).splitlines()
+    lines = (spec_md + "\n" + plan_md).splitlines()
+    out["open_question_lines"] = [ln.strip().lstrip(">*- ").strip()[:300] for ln in lines
                                   if re.search(r"OPEN QUESTION\s+OQ-\d+", ln, re.I)][:20]
     out["markdown"] = spec_md
     return out
@@ -457,9 +458,11 @@ def _weight(item: dict) -> float:
 
 
 def sort_key(item: dict):
+    # Ties within a priority fall back to the loop's own queue position, so a
+    # lane lists its next-run picks in the order the loop takes them.
     rank = item.get("rank")
     return (0 if rank is not None else 1, rank if rank is not None else 0,
-            PRIO_ORDER.get(item["priority"], 9), -_weight(item), item["key"])
+            PRIO_ORDER.get(item["priority"], 9), -_weight(item), item.get("next_run") or 10_000, item["key"])
 
 
 def _items(inp: dict, queue: dict, stage_over: dict[str, str],
@@ -752,7 +755,7 @@ def _loops(items: list[dict], picks: dict[str, list[str]], inp: dict) -> list[di
                   "eligible": len(ev), "next_run": sum(1 for i in ev if i.get("next_run")),
                   "drain_runs": None, "drain_days": None, "by_repo": per_repo(ev, "evolve"),
                   "on_demand": not auto, "config": "evolution",
-                  "note": ("user-invoked per repo (`/spec-driven:evolve`): it takes the top Open item by "
+                  "note": ("user-invoked per repo (/spec-driven:evolve): it takes the top Open item by "
                            "severity, kind and age"
                            + (f"; repo-evolution also runs weekly on {', '.join(auto)}" if auto else ""))})
 
