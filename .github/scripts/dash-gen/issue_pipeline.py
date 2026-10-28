@@ -53,6 +53,7 @@ import sys
 from pathlib import Path
 
 import actions_analytics  # owner_repo, resolve_token, as_utc
+import work_queue  # the human's order + priority overrides (_data/work_queue.yml)
 
 try:
     import yaml
@@ -64,6 +65,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = REPO_ROOT / "_data" / "projects.yml"
 FLEET = REPO_ROOT / "_data" / "fleet.yml"
 TRIAGE = REPO_ROOT / "_data" / "fleet_triage.yml"
+WORK_QUEUE = REPO_ROOT / "_data" / "work_queue.yml"
 OUT_DEFAULT = REPO_ROOT / "_data" / "issue_pipeline.yml"
 
 GENERATED_HEADER = (
@@ -517,8 +519,13 @@ def first_n(paginated, limit: int):
         yield item
 
 
-def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | None, str]:
+def collect_repo(gh, project: dict, cfg: dict, reds: set[str],
+                 queue: dict | None = None) -> tuple[dict | None, str]:
     """Inventory one repo's open issues + pipeline PRs.
+
+    `queue` is the parsed _data/work_queue.yml: a human's priority override
+    replaces the computed priority (and so the label T1 applies), and a manual
+    order becomes each item's `rank`, which queue_sort_key puts first.
 
     Returns `(record, "")` on success, or `(None, reason)`. The reason matters:
     "I deliberately skip upstream mirrors" and "my token cannot see this repo"
@@ -543,6 +550,8 @@ def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | N
         return None, "archived"
 
     state = cfg["labels"]["state"]
+    queue = queue or work_queue.empty()
+    rank_of = work_queue.ranks(queue)
     rec = {
         "nwo": nwo,
         "name": project.get("name", nwo),
@@ -585,6 +594,7 @@ def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | N
                 "ci": "",
                 "mergeable_state": "",
                 "head_sha": pr.head.sha if pr.head else "",
+                "rank": rank_of.get(f"pr:{nwo}#{pr.number}"),
             }
             if is_pipeline:
                 try:
@@ -617,7 +627,9 @@ def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | N
                 age=age_days(iss.created_at), comments=iss.comments or 0,
                 reactions=_reactions(iss), repo_status=rec["status"],
                 repo_red=nwo in reds)
-            prio = priority_label(prio_score, cfg["labels"]["priorities"])
+            computed = priority_label(prio_score, cfg["labels"]["priorities"])
+            key = issue_key(nwo, iss.number)
+            prio, prio_source = work_queue.priority_for(queue, f"issue:{key}", computed)
             size = estimate_size(title=title, body=body, itype=itype,
                                  sizes=cfg["labels"]["sizes"])
             autonomy, autonomy_why = decide_autonomy(
@@ -631,7 +643,7 @@ def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | N
                                has_evidence=False, cfg=cfg)
             rec["issues"].append({
                 "number": iss.number,
-                "key": issue_key(nwo, iss.number),
+                "key": key,
                 "title": title[:140],
                 "url": iss.html_url,
                 "author": iss.user.login if iss.user else "?",
@@ -645,7 +657,10 @@ def collect_repo(gh, project: dict, cfg: dict, reds: set[str]) -> tuple[dict | N
                 "stage": stage,
                 "type": itype,
                 "priority": prio,
+                "priority_auto": computed,
+                "priority_source": prio_source,
                 "priority_score": prio_score,
+                "rank": rank_of.get(f"issue:{key}"),
                 "size": size,
                 "autonomy": autonomy,
                 "autonomy_reason": autonomy_why,
@@ -731,14 +746,26 @@ def enrich_candidates(gh, cands: list[dict], cfg: dict) -> None:
 # queue selection
 # --------------------------------------------------------------------------- #
 def queue_sort_key(c: dict):
-    """Priority first, then how nearly ready it is, then age.
+    """The human's order first, then priority, then readiness, then age.
 
-    Readiness ranks ABOVE age on purpose: at T2 the nearly-complete issue is the
-    one an agent can actually finish today, and shipping it clears the queue
-    faster than starting the oldest half-specified one.
+    A `rank` comes from _data/work_queue.yml (the Work board's drag order): a
+    pinned issue goes ahead of every unpinned one, whatever its score — that is
+    what pinning means. Readiness ranks ABOVE age on purpose: at T2 the
+    nearly-complete issue is the one an agent can actually finish today, and
+    shipping it clears the queue faster than starting the oldest half-specified
+    one.
     """
     order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-    return (order.get(c["priority"], 9), -c["readiness"], -(c["age_days"] or 0))
+    rank = c.get("rank")
+    return (0 if rank is not None else 1, rank if rank is not None else 0,
+            order.get(c["priority"], 9), -c["readiness"], -(c["age_days"] or 0))
+
+
+def complete_sort_key(p: dict):
+    """Pinned first; then red CI, then drafts waiting to be finished, then the stalest."""
+    rank = p.get("rank")
+    return (0 if rank is not None else 1, rank if rank is not None else 0,
+            0 if p["ci"] == "fail" else 1, 0 if p["draft"] else 1, -(p["idle_days"] or 0))
 
 
 def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
@@ -775,10 +802,7 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
 
     intake.sort(key=queue_sort_key)
     ready.sort(key=queue_sort_key)
-    # Red CI first, then drafts waiting to be finished, then the stalest.
-    complete.sort(key=lambda p: (0 if p["ci"] == "fail" else 1,
-                                 0 if p["draft"] else 1,
-                                 -(p["idle_days"] or 0)))
+    complete.sort(key=complete_sort_key)
 
     hub = cfg["hub"]
     capped_ready: list[dict] = []
@@ -836,9 +860,13 @@ def render_t1(q: list[dict], cfg: dict, counts: dict) -> str:
               f"`{c['default_branch']}`"
               + ("  _(private)_" if c.get("private") else ""),
               f"- **Computed:** type `{c['type']}` · priority `{c['priority']}` "
-              f"(score {c['priority_score']}) · size `{c['size']}` · owner "
+              + (f"(**set by a human** in _data/work_queue.yml — apply it as is; "
+                 f"the formula said `{c.get('priority_auto')}`, score {c['priority_score']}) "
+                 if c.get("priority_source") == "override" else f"(score {c['priority_score']}) ")
+              + f"· size `{c['size']}` · owner "
               f"`{c['owner'] or 'unassigned'}` · autonomy `{c['autonomy']}` "
-              f"({c['autonomy_reason']})",
+              f"({c['autonomy_reason']})"
+              + (f" · **pinned #{c['rank'] + 1}** in the human's order" if c.get("rank") is not None else ""),
               f"- **Readiness:** {c['readiness']}/100 "
               f"(target ≥ {cfg['readiness']['min_score']})",
               "- **MARKER** — the enrichment comment's FIRST line must be exactly "
@@ -958,8 +986,38 @@ def render_t3(q: list[dict], cfg: dict, counts: dict) -> str:
 # --------------------------------------------------------------------------- #
 # report + outputs
 # --------------------------------------------------------------------------- #
+BACKLOG_FIELDS = ("number", "key", "title", "url", "labels", "assignees", "comments",
+                  "age_days", "idle_days", "stage", "type", "priority", "priority_auto",
+                  "priority_source", "priority_score", "rank", "size", "autonomy",
+                  "autonomy_reason", "owner", "pr", "readiness")
+
+
+def backlog_list(repos: list[dict]) -> tuple[list[dict], int]:
+    """Every open issue, slim, in queue order — the Work board's full view.
+
+    The queues are capped shortlists; the board needs the rest to show what is
+    waiting behind them and to recompute the next run when a human reorders.
+    A private repo's issues are counted but not listed: _data/ is public.
+    """
+    out: list[dict] = []
+    omitted = 0
+    for r in repos:
+        if r.get("private"):
+            omitted += len(r["issues"])
+            continue
+        for i in r["issues"]:
+            item = {k: i.get(k) for k in BACKLOG_FIELDS}
+            item["gaps"] = [{"id": g["id"], "by": g["by"], "what": g["what"]}
+                            for g in i.get("gaps") or []]
+            item.update({"nwo": r["nwo"], "repo": r["name"]})
+            out.append(item)
+    out.sort(key=queue_sort_key)
+    return out, omitted
+
+
 def build_report(repos: list[dict], queues: dict, cfg: dict,
-                 skipped: dict[str, list[str]]) -> dict:
+                 skipped: dict[str, list[str]],
+                 queue: dict | None = None, queue_problems: list[str] | None = None) -> dict:
     stage_totals: dict[str, int] = {}
     for r in repos:
         for k, v in r["counts"].items():
@@ -978,6 +1036,11 @@ def build_report(repos: list[dict], queues: dict, cfg: dict,
     def slim(item: dict) -> dict:
         return {k: v for k, v in item.items()
                 if not k.startswith("_") and k not in ("stack",)}
+
+    backlog, omitted = backlog_list(repos)
+    pipeline_prs = [{**slim(p), "nwo": r["nwo"], "repo": r["name"]}
+                    for r in repos if not r.get("private") for p in r["prs"]]
+    queue = queue or work_queue.empty()
 
     return {
         "generated_at": now_utc().strftime("%Y-%m-%d %H:%M UTC"),
@@ -999,6 +1062,16 @@ def build_report(repos: list[dict], queues: dict, cfg: dict,
         "caps": cfg["tiers"],
         "labels": cfg["labels"],
         "queues": {k: [slim(i) for i in v] for k, v in queues.items()},
+        # The human's hand on the order (_data/work_queue.yml, docs/WORK-BOARD.md).
+        "work_queue": {
+            "updated_at": queue.get("updated_at"),
+            "pinned": len(queue.get("order") or []),
+            "priority_overrides": len(queue.get("priority") or {}),
+            "problems": list(queue_problems or []),
+        },
+        "backlog": backlog,
+        "backlog_private_omitted": omitted,
+        "pipeline_prs": pipeline_prs,
         "by_repo": by_repo,
         "note": (
             "Three-tier issue pipeline state. Stage is derived from labels, so a "
@@ -1095,6 +1168,12 @@ def run(args: argparse.Namespace) -> int:
 
     gh = Github(auth=Auth.Token(token), per_page=100)
     reds = red_repos(load_yaml(Path(args.triage)))
+    queue, queue_problems = work_queue.load(Path(args.work_queue))
+    for line in queue_problems:
+        sys.stderr.write(f"  ! {line}\n")
+    if queue["order"] or queue["priority"]:
+        sys.stderr.write(f"Work queue: {len(queue['order'])} pinned, "
+                         f"{len(queue['priority'])} priority override(s)\n")
     sys.stderr.write(f"Scanning issues across {len(registry)} repo(s)…\n")
 
     repos: list[dict] = []
@@ -1104,7 +1183,7 @@ def run(args: argparse.Namespace) -> int:
         if not nwo:
             continue
         try:
-            rec, why = collect_repo(gh, project, cfg, reds)
+            rec, why = collect_repo(gh, project, cfg, reds, queue)
         except Exception as exc:  # one bad repo must never sink the sweep
             sys.stderr.write(f"    ! {nwo}: {type(exc).__name__}: {exc}\n")
             rec, why = None, "error"
@@ -1136,7 +1215,7 @@ def run(args: argparse.Namespace) -> int:
     (out_dir / "issue-workorder-t2.md").write_text(render_t2(queues["implement"], cfg, counts))
     (out_dir / "issue-workorder-t3.md").write_text(render_t3(queues["complete"], cfg, counts))
 
-    report = build_report(repos, queues, cfg, skipped)
+    report = build_report(repos, queues, cfg, skipped, queue, queue_problems)
     if not args.no_snapshot:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -1187,6 +1266,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="project registry (default _data/projects.yml)")
     parser.add_argument("--triage", default=str(TRIAGE), metavar="PATH",
                         help="triage snapshot used for the repo-is-red signal")
+    parser.add_argument("--work-queue", default=str(WORK_QUEUE), metavar="PATH",
+                        help="the human's order + priority overrides (default _data/work_queue.yml)")
     parser.add_argument("--repos", default="", metavar="LIST",
                         help="comma-separated owner/repo, slug, or name filter")
     parser.add_argument("--hub", default="", metavar="OWNER/REPO",

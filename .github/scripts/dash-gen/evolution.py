@@ -35,8 +35,10 @@ The brief (`evolution-workorders/evolution-workorder-<name>.md`):
      they draw the lane boundary — failing workflows belong to the fleet
      doctor and open issues to the issue pipeline, so the agent is told where
      the repo hurts AND told not to collide with the loop already on it;
-  4. the operator's focus for this run, if any;
-  5. the goals + method template (.github/evolution/evolve-prompt.md) and the
+  4. the maintainer's order for the repo, from `_data/work_queue.yml` (the
+     Work board's pins and priority overrides — docs/WORK-BOARD.md);
+  5. the operator's focus for this run, if any;
+  6. the goals + method template (.github/evolution/evolve-prompt.md) and the
      category emphasis (.github/evolution/categories/<category>.md).
 
 Stdout is the plan as one JSON object — the matrix the workflow fans out
@@ -60,11 +62,14 @@ from pathlib import Path
 
 import yaml
 
+import work_queue
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_DEFAULT = REPO_ROOT / "_data" / "projects.yml"
 TRIAGE_DEFAULT = REPO_ROOT / "_data" / "fleet_triage.yml"
 CONFORMANCE_DEFAULT = REPO_ROOT / "_data" / "conformance.yml"
 FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
+WORK_QUEUE_DEFAULT = REPO_ROOT / "_data" / "work_queue.yml"
 PROMPT_DIR_DEFAULT = REPO_ROOT / ".github" / "evolution"
 OUT_DIR_DEFAULT = REPO_ROOT / "evolution-workorders"
 
@@ -360,6 +365,39 @@ def render_conformance(rec: dict | None, conf: dict | None, cfg: dict) -> str:
     return "\n".join(lines)
 
 
+def render_hub_order(queue: dict | None, t: dict) -> str:
+    """The maintainer's order for this repo, from _data/work_queue.yml (the Work board).
+
+    Issues stay the issue pipeline's lane; this tells the pass which BACKLOG.md
+    items, spec packages and PRs a human has put first, so an improvement pass
+    that has a choice spends it where the maintainer would."""
+    if not queue or not (queue.get("order") or queue.get("priority")):
+        return "_The maintainer has not pinned or reprioritised anything in this repository._"
+    nwo, name = t["nwo"].lower(), t["name"]
+
+    def mine(key: str) -> bool:
+        kind, _, rest = key.partition(":")
+        if kind in ("issue", "pr"):
+            return rest.split("#", 1)[0].lower() == nwo
+        return kind in ("spec", "backlog") and rest.split("/", 1)[0] == name
+
+    pinned = [k for k in queue.get("order") or [] if mine(k)]
+    over = {k: v for k, v in (queue.get("priority") or {}).items() if mine(k)}
+    if not pinned and not over:
+        return "_The maintainer has not pinned or reprioritised anything in this repository._"
+    notes = queue.get("notes") or {}
+    lines = [f"From `_data/work_queue.yml` (updated {queue.get('updated_at') or '?'}). When this run has a "
+             "choice of what to improve, prefer these, in this order, within the lane rules — an `issue:` "
+             "stays the issue pipeline's, so read it but do not implement it:", ""]
+    for i, k in enumerate(pinned, 1):
+        extra = f" · priority {over[k]}" if k in over else ""
+        lines.append(f"{i}. `{k}`{extra}" + (f" — {notes[k]}" if k in notes else ""))
+    for k, v in sorted(over.items()):
+        if k not in pinned:
+            lines.append(f"- `{k}` · priority {v}" + (f" — {notes[k]}" if k in notes else ""))
+    return "\n".join(lines)
+
+
 def render_template(text: str, subs: dict[str, str]) -> str:
     for token, value in subs.items():
         text = text.replace(token, value)
@@ -367,7 +405,7 @@ def render_template(text: str, subs: dict[str, str]) -> str:
 
 
 def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str,
-                 focus: str, now: str, conformance: dict | None = None) -> str:
+                 focus: str, now: str, conformance: dict | None = None, queue: dict | None = None) -> str:
     prompt_dir = Path(prompt_dir)
     stack = ", ".join(t.get("stack") or []) or "unknown"
     subs = {
@@ -417,6 +455,10 @@ def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str
         "",
         render_conformance(find_conformance(conformance, t["nwo"]), conformance, cfg),
         "",
+        "## The maintainer's order (the Work board)",
+        "",
+        render_hub_order(queue, t),
+        "",
         "## Focus for this run",
         "",
         focus.strip() if focus and focus.strip() else
@@ -435,7 +477,8 @@ def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str
 # --------------------------------------------------------------------------- #
 def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: str = "all",
                focus: str = "", prompt_dir: Path | str = PROMPT_DIR_DEFAULT, gh=_gh_json,
-               now: str | None = None, conformance: dict | None = None) -> tuple[dict, dict[str, str]]:
+               now: str | None = None, conformance: dict | None = None,
+               queue: dict | None = None) -> tuple[dict, dict[str, str]]:
     """The whole deterministic step: select → dedupe → brief. `gh=None` skips
     the open-PR check entirely (offline / `force`)."""
     now = now or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -447,7 +490,7 @@ def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: 
     include: list[dict] = []
     for t in selected:
         fname = f"evolution-workorder-{t['name']}.md"
-        briefs[fname] = render_brief(t, cfg, triage, prompt_dir, focus, now, conformance)
+        briefs[fname] = render_brief(t, cfg, triage, prompt_dir, focus, now, conformance, queue)
         include.append({
             "name": t["name"],
             "nwo": t["nwo"],
@@ -487,6 +530,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="project registry (default _data/projects.yml)")
     parser.add_argument("--triage", default=str(TRIAGE_DEFAULT), metavar="PATH",
                         help="fleet triage snapshot for the signals (default _data/fleet_triage.yml)")
+    parser.add_argument("--work-queue", default=str(WORK_QUEUE_DEFAULT), metavar="PATH",
+                        help="the maintainer's order + priority overrides (default _data/work_queue.yml)")
     parser.add_argument("--conformance", default=str(CONFORMANCE_DEFAULT), metavar="PATH",
                         help="fleet UPS conformance snapshot for the adoption lane (default _data/conformance.yml)")
     parser.add_argument("--config", default=str(FLEET_DEFAULT), metavar="PATH",
@@ -515,9 +560,12 @@ def run(args: argparse.Namespace) -> int:
     registry = load_yaml(args.registry) or []
     triage = load_yaml(args.triage) if Path(args.triage).exists() else None
     conformance = load_yaml(args.conformance) if Path(args.conformance).exists() else None
+    queue, problems = work_queue.load(Path(args.work_queue))
+    for line in problems:
+        sys.stderr.write(f"  ! {line}\n")
     plan, briefs = build_plan(registry, cfg, triage, target=args.target, focus=args.focus,
                               prompt_dir=Path(args.prompt_dir),
-                              gh=None if args.no_dedupe else _gh_json, conformance=conformance)
+                              gh=None if args.no_dedupe else _gh_json, conformance=conformance, queue=queue)
 
     if not args.no_briefs and briefs:
         out = Path(args.out_dir)
