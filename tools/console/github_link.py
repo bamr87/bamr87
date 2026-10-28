@@ -531,6 +531,88 @@ def issue_thread(nwo: str, number: int) -> dict:
                           "created_at": c.get("created_at"), "html_url": c.get("html_url")} for c in comments]}
 
 
+SPEC_FILE_RX = re.compile(r"^specs/(\d{3}-[a-z0-9][a-z0-9-]*)/(spec|plan|tasks)\.md$")
+BL_LINE_RX = re.compile(r"^- \*\*(BL-\d{8}-\d{2})\*\* — \*([a-z-]+),\s*(low|med|high)\* — (.+)$")
+MAX_PR_SPECS = 6
+
+
+def _content(nwo: str, path: str, ref: str) -> str:
+    """One file at a ref through the contents API; '' when it does not exist there."""
+    try:
+        doc = api("GET", f"/repos/{nwo}/contents/{urllib.parse.quote(path)}?ref={urllib.parse.quote(ref, safe='')}")
+    except GitHubError as exc:
+        if exc.status == 404:
+            return ""
+        raise
+    if not isinstance(doc, dict) or doc.get("encoding") != "base64":
+        return ""
+    return base64.b64decode(doc.get("content") or "").decode("utf-8", "replace")
+
+
+def pull_specs(nwo: str, number: int) -> dict:
+    """What a pull request does to the spec-driven loop: the spec packages it
+    touches, each read AT THE PR HEAD and summarised with the kit's own rules
+    (status, task progress, unresolved OQ-N, requirements no task covers), the
+    packages it only mentions, and the BACKLOG.md items it adds or moves. A
+    read — any repo the account can see."""
+    nwo = _nwo(nwo)
+    n = _num(number, "number")
+    pr = api("GET", f"/repos/{nwo}/pulls/{n}")
+    files: list[dict] = []
+    for page in (1, 2, 3):
+        batch = api("GET", f"/repos/{nwo}/pulls/{n}/files?per_page=100&page={page}") or []
+        files.extend(batch)
+        if len(batch) < 100:
+            break
+    head = (pr.get("head") or {}).get("sha") or ""
+    touched: dict[str, set[str]] = {}
+    backlog = {"added": [], "removed": []}
+    areas: dict[str, int] = {}
+    for f in files:
+        path = f.get("filename") or ""
+        area = path.split("/", 1)[0] if "/" in path else "(root)"
+        areas[area] = areas.get(area, 0) + 1
+        m = SPEC_FILE_RX.match(path)
+        if m:
+            touched.setdefault(m.group(1), set()).add(m.group(2))
+        if path == "BACKLOG.md":
+            for line in (f.get("patch") or "").splitlines():
+                sign, text = line[:1], line[1:]
+                b = BL_LINE_RX.match(text)
+                if b and sign in "+-" and not line.startswith(("+++", "---")):
+                    item = {"id": b.group(1), "kind": b.group(2), "severity": b.group(3), "text": b.group(4)[:300]}
+                    backlog["added" if sign == "+" else "removed"].append(item)
+    # A line that moved (Open → Claimed) shows as one removal and one addition.
+    moved = {i["id"] for i in backlog["added"]} & {i["id"] for i in backlog["removed"]}
+    backlog["moved"] = sorted(moved)
+    backlog["added"] = [i for i in backlog["added"] if i["id"] not in moved]
+    backlog["removed"] = [i for i in backlog["removed"] if i["id"] not in moved]
+
+    wb = core._work_module()
+    specs = []
+    for slug in sorted(touched)[:MAX_PR_SPECS]:
+        texts = {k: _content(nwo, f"specs/{slug}/{k}.md", head) for k in ("spec", "plan", "tasks")}
+        summary = wb.summarize_spec(slug, texts["spec"], texts["tasks"], texts["plan"])
+        summary["changed"] = sorted(touched[slug])
+        summary["url"] = f"{WEB}/{nwo}/tree/{head}/specs/{slug}" if head else None
+        specs.append(summary)
+    text = f"{pr.get('title') or ''}\n{pr.get('body') or ''}\n{(pr.get('head') or {}).get('ref') or ''}"
+    mentioned = sorted(set(re.findall(r"specs/(\d{3}-[a-z0-9][a-z0-9-]*)", text)) - set(touched))
+    return {
+        "pr": {"number": n, "title": pr.get("title"), "url": pr.get("html_url"), "state": pr.get("state"),
+               "draft": bool(pr.get("draft")), "user": (pr.get("user") or {}).get("login"),
+               "head": (pr.get("head") or {}).get("ref"), "head_sha": head, "base": (pr.get("base") or {}).get("ref"),
+               "mergeable_state": pr.get("mergeable_state"), "additions": pr.get("additions"),
+               "deletions": pr.get("deletions"), "changed_files": pr.get("changed_files"),
+               "labels": [lb.get("name") for lb in pr.get("labels") or []], "body": (pr.get("body") or "")[:20000]},
+        "specs": specs,
+        "specs_truncated": max(0, len(touched) - MAX_PR_SPECS),
+        "mentioned": mentioned,
+        "backlog": backlog,
+        "files": {"total": len(files), "by_area": dict(sorted(areas.items(), key=lambda kv: -kv[1]))},
+    }
+
+
 # --------------------------------------------------------------------------- #
 # WRITE — confirm-gated, fleet-scoped, logged
 # --------------------------------------------------------------------------- #

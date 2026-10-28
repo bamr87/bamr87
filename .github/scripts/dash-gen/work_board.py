@@ -346,12 +346,13 @@ def spec_detail(root: Path, rel_path: str) -> dict:
 # inputs
 # --------------------------------------------------------------------------- #
 def load_inputs(root: Path = REPO_ROOT, *, local: bool = True, queue_path: Path | None = None,
-                moves: dict | None = None, now: dt.datetime | None = None) -> dict:
+                roadmap_path: Path | None = None, moves: dict | None = None,
+                now: dt.datetime | None = None) -> dict:
     data = root / "_data"
     registry = [p for p in (_load_yaml(data / "projects.yml") or []) if isinstance(p, dict) and p.get("name")]
     fleet = _load_yaml(data / "fleet.yml") or {}
     queue, problems = wq.load(queue_path or (data / "work_queue.yml"))
-    roadmap = _load_yaml(data / "roadmap.yml")
+    roadmap = _load_yaml(roadmap_path or (data / "roadmap.yml"))
     return {
         "root": root,
         "now": now or _now(),
@@ -1017,10 +1018,25 @@ def build(inp: dict, plan: dict | None = None) -> dict:
     pipe = inp["pipeline"] or {}
     pipe_at = _stamp(pipe.get("generated_at"))
     local = inp.get("local")
-    stale_keys = sorted({k for k in queue.get("order") or [] if k not in live}
-                        | {k for k in queue.get("priority") or {} if k not in live})
-    if local is None:
-        stale_keys = [k for k in stale_keys if wq.kind_of(k) not in ("spec", "backlog")]
+    # A key is stale only when its source was seen WHOLE: the triage snapshot
+    # caps issues per repo, and a submodule that is not checked out has no
+    # specs — neither is evidence that the item closed, so neither may cost
+    # a human's pin when the next apply prunes.
+    scanned = {r["repo"] for r in (local or {}).get("repos") or []}
+    capped_prs = any((r.get("prs") or {}).get("capped") for r in (inp["triage"] or {}).get("by_repo") or [])
+
+    def judged(key: str) -> bool:
+        kind = wq.kind_of(key)
+        if kind == "issue":
+            return meta["issues_full"]
+        if kind == "pr":
+            return not capped_prs
+        if kind in ("spec", "backlog"):
+            return key.split(":", 1)[1].split("/", 1)[0] in scanned
+        return True
+
+    stale_keys = sorted(k for k in ({*(queue.get("order") or []), *(queue.get("priority") or {}),
+                                     *(queue.get("notes") or {})} - live) if judged(k))
     sources = {
         "issue_pipeline": {"generated_at": pipe.get("generated_at"), "full": meta["issues_full"],
                            "age_days": (inp["now"] - pipe_at).days if pipe_at else None,

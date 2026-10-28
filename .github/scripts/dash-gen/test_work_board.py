@@ -544,6 +544,17 @@ def test_degraded_inputs():
                 moves={"issue:bamr87/demo#13": {"lane": "ready", "at": "2026-10-01T00:00:00+00:00"}})
     check("…and one older than the snapshot does not", by_key(old)["issue:bamr87/demo#13"]["lane"] == "blocked")
 
+    pins = {**wq.empty(), "order": ["issue:bamr87/noisy#77", "backlog:gone/BL-20260101-01",
+                                    "backlog:demo/BL-20260101-01"]}
+    partial = board(fixture_root(with_backlog_list=False, queue=pins), local=True)
+    stale = partial["sources"]["work_queue"]["stale_keys"]
+    check("an issue pin is not stale while the snapshot lists only some issues", "issue:bamr87/noisy#77" not in stale)
+    check("a pin in a repo that is not checked out is not stale", "backlog:gone/BL-20260101-01" not in stale)
+    check("a pin in a scanned repo that lost its item is stale", "backlog:demo/BL-20260101-01" in stale, str(stale))
+    whole = board(fixture_root(queue=pins), local=True)
+    check("an issue pin is stale once the full list lacks it",
+          "issue:bamr87/noisy#77" in whole["sources"]["work_queue"]["stale_keys"])
+
     bad = fixture_root()
     (bad / "_data" / "work_queue.yml").write_text("order: [1, 'issue:bamr87/noisy#1']\npriority: {x: P0}\n")
     doc = board(bad, local=False)
