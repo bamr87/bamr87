@@ -30,21 +30,17 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 FLEET = REPO_ROOT / "_data" / "fleet.yml"
 
-# workflow file stem → fleet.yml schedule key. One irregular name is kept
-# because token-rotation.yml and docs/TOKEN-ROTATION.md already read it.
-KEYS = {
-    "fleet-pulse": "fleet_pulse",
-    "build-dash": "build_dash",
-    "issue-pipeline": "issue_pipeline",
-    "reconcile-registry": "reconcile_registry",
-    "update-submodules": "update_submodules",
-    "token-rotation": "rotate_tokens",
-    "repo-evolution": "repo_evolution",
-    "schema-vendor": "schema_vendor",
-    "api-keys": "api_keys",
-    "python-tests": "python_tests",
-    "backlog-fanout": "backlog_fanout",
-}
+# workflow file stem → fleet.yml schedule key: the stem with underscores
+# (workflow_atlas.schedule_key_for, which the scaffold writes), plus the one
+# irregular name kept because token-rotation.yml and docs/TOKEN-ROTATION.md
+# already read it. This was a hand-kept table of every scheduled workflow.
+KEY_OVERRIDES = {"token-rotation": "rotate_tokens"}
+
+
+def key_for(stem: str) -> str:
+    return KEY_OVERRIDES.get(stem, stem.replace("-", "_"))
+
+
 SWITCH_RX = re.compile(r"vars\.([A-Z][A-Z0-9_]*_ENABLED)\b")
 
 
@@ -71,15 +67,14 @@ def declared() -> dict[str, str]:
 def test_every_scheduled_workflow_is_declared_with_the_same_cron():
     contract = declared()
     for stem, crons in scheduled_workflows().items():
-        assert stem in KEYS, f"{stem}.yml has a schedule but no fleet.yml key mapping — add it to KEYS"
-        key = KEYS[stem]
+        key = key_for(stem)
         assert key in contract, f"{stem}.yml is scheduled but fleet.yml schedule: has no `{key}`"
         assert len(crons) == 1, f"{stem}.yml carries {len(crons)} crons; the contract declares one"
         assert crons[0] == contract[key], f"{stem}.yml runs '{crons[0]}' but fleet.yml says '{contract[key]}'"
 
 
 def test_every_declared_schedule_has_a_workflow():
-    stems = {KEYS[s] for s in scheduled_workflows() if s in KEYS}
+    stems = {key_for(s) for s in scheduled_workflows()}
     for key in declared():
         assert key in stems, f"fleet.yml schedule.{key} names no scheduled workflow"
 

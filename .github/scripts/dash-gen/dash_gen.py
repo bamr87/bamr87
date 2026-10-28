@@ -56,6 +56,12 @@ Subcommands:
            runs and local Claude Code sessions into OpenInference traces for
            Phoenix. Gitignored, never committed. Implemented in fleet_lake.py.
 
+  workflows The WORKFLOW ATLAS: the hub's own workflows and composite actions as
+           one model — `list`, `show <id>`, `lint` (the README standards as
+           checks), `health` (run health + failure causes from the lake), `new`
+           (a workflow scaffolded inside the standards). Implemented in
+           workflow_atlas.py; doc docs/WORKFLOW-ATLAS.md.
+
   all      Run health then readme.
 
 The single source of truth is dash/_data/projects.yml. This script never invents
@@ -96,6 +102,7 @@ import machine_api
 import reconcile
 import remediation
 import schema_vendor
+import workflow_atlas
 
 try:
     import yaml
@@ -649,6 +656,12 @@ def main(argv: list[str] | None = None) -> int:
         help="emit agent JSON + llms.txt into the site root (default _site) for Pages",
     )
     machine_api.add_arguments(p_machine)
+
+    p_workflows = sub.add_parser(
+        "workflows",
+        help="the workflow atlas: list | show <id> | lint | health (from the lake) | new (scaffold inside the standards)",
+    )
+    workflow_atlas.add_arguments(p_workflows)
 
     p_all = sub.add_parser("all", help="health + readme")
     p_all.add_argument("--check", action="store_true")
