@@ -193,7 +193,7 @@ What remains is either **scan-derived** — `schedule-collision` and the hub's `
 
 ## 2026-10-19 pass — the loops had copied themselves until they drifted
 
-A read of all 36 hub workflows (7,581 lines) against the 14-day run history, `_data/fleet.yml` and the tests that pin workflow shapes. Nothing here changes what any loop *does*; it changes how many places say it.
+Written on 2026-10-19 and landed on 2026-10-27 together with the pass below, ported over the week's changes in between (the `@v2` self-references, the kind-aware fan-outs of #394, `backlog-fanout.yml`, the work board). A read of all 36 hub workflows (7,581 lines) against the 14-day run history, `_data/fleet.yml` and the tests that pin workflow shapes. Nothing here changes what any loop *does*; it changes how many places say it.
 
 | Finding | Change |
 | --- | --- |
@@ -209,3 +209,26 @@ A read of all 36 hub workflows (7,581 lines) against the 14-day run history, `_d
 | Two PR gates with no `concurrency`; comments naming retired workflows; `fleet.manifest.yml` crons that predated the `:07/:37` rule | Fixed in passing. |
 
 Net: 36 → 29 workflows, 7,581 → 6,467 lines, with three new actions (~400 lines) holding what was previously repeated. Not changed, and worth a decision of its own: the fleet's canonical `toolchain.node` is still `20` (end of life) while three hub workflows override to `lts/*` because the console's React Router 8 needs ≥ 22.
+
+## 2026-10-27 pass — red runs that were not defects
+
+Three weeks of run history (1,000 runs, 2026-10-07 → 10-27), the failed-step logs of every red run on `main`, and the open fleet-doctor issues. Nearly every red run on a schedule turned out to be something other than a broken workflow.
+
+| Finding | Change |
+| --- | --- |
+| `fleet-pulse` (6 of 21) and `issue-pipeline` (7 of 21) were the most-failed hub workflows. Every one died in its Claude step after one turn, $0 and ~500 ms: `Claude usage limit hit (HTTP 429): You've hit your weekly limit` (10-23..25) or the five-hour session limit (10-07, 10-08, 10-12, 10-18). The credential was valid, the window shared by every hub loop was spent, and the doctor filed issues about its own red runs (#335, #348) | `claude-cost` gains `usage-limit: skip`. The scheduled agent steps (doctor, the three tiers, repo-evolution) are `continue-on-error` and the cost step owns the verdict: a usage limit is a warning and `usage_limit=true`; a budget hit, a refused credential, an agent failure or a missing result still fail the job. Tiers 2 and 3 skip once an earlier tier was refused. `test_ai_budget.py` requires the pair on every scheduled site. The doctor skips fleet candidates whose only failure is a usage limit. |
+| One `issue-pipeline` run (10-22) failed because the Claude Code installer got HTTP 429 three times | Left alone: transient, and the action already retries. |
+| `Dependabot Updates` failed 26 of 31 runs. Early runs died cloning a nested submodule of the deleted `bamr87/books.git`; since 10-14 every security update for `.github/site-quality` failed because the patched `tmp`, `zod` and `basic-ftp` sit outside the ranges `@lhci/cli` 0.15.1 (the latest) pins, so the resolver tried to downgrade lhci and the PR was refused | Scoped `overrides` in the runtime's `package.json` lift them (the runner's 39 tests pass; the self-test runs the real scanners). `extract-zip` has no patched release and stays open. The github-actions entry also scans `.github/actions/**`, whose composite actions Dependabot never saw. |
+| `git-digs.yml`: 17 runs in its life, every one skipped; schedule commented out on 10-14, kill switch never set | Retired. |
+| `unified-evolution.yml`: unrun since 2026-07-08 (failed), and its 08-09 rewrite never ran | Retired; `dash evolve` points at `/evolve`, the issue pipeline and `--repo` / `--all`. |
+| A `.github/workflows/cicd.yml` is still registered on the repo with no file behind it: five failed runs from March on the closed PR #6 keep it alive | Nothing to commit; deleting those five runs removes it from the Actions list. |
+| One-off reds on `main` — Verify on 10-08 (`@v1` did not exist yet; cut that day), build-dash on 10-07 (Pages API rate limit), publish-kits on 10-18 (an npm `edgesOut` crash), repo-evolution on 10-21 (`FLEET_TOKEN` rejected, rotated since) | Each verified as already resolved or transient. |
+| `claude.yml` ran 559 times and executed once; every bot-filed issue and comment wakes it to skip | Kept: it is the hub's own UPS baseline (`claude_workflow`), and a skipped job costs nothing. Its trusted-author guard is ahead of the kit's copy — see below. |
+
+Net with the 10-19 pass: 38 → 29 workflows, 7,900 → 6,508 lines, 6 → 8 shared actions.
+
+Not changed, and each worth a decision of its own:
+
+- **API-key fallback on a spent window.** `CLAUDE_AUTH_ORDER` is `oauth,api_key` and the hub holds a valid key, but nothing falls back on a 429; the `claude-run` step already does. Turning it on moves the doctor and the three tiers (caps $40 + $40 + $60 + $60 a day) onto metered billing whenever the subscription runs out (#348).
+- **The agent-context kit's `claude.yml` has no trusted-author guard.** The hub's copy only runs for an OWNER, MEMBER or COLLABORATOR; the template seeded into the fleet runs for anyone who writes `@claude` on a public repo. It needs a kit release and an `--upgrade` fan-out.
+- **`toolchain.node` is still `20`** (end of life), as the 10-19 pass noted.
