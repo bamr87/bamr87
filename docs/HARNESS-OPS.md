@@ -1,6 +1,6 @@
 # Harness Operations — centrally managing the fleet's AI harnesses and schedules
 
-> Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via harness-fanout, caps, cost forecasting, and the local stack.
+> Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via the harness fan-out (`fanout.yml`, kit `harness`), caps, cost forecasting, and the local stack.
 
 > [`docs/HARNESS.md`](HARNESS.md) is the architecture: the six layers, the scorecard, the trip wires — the hub watching **itself**. This document is the operations counterpart: how the hub **manages the harnesses deployed across the fleet** — observe them, create them, mass-update them, bound their throughput, and forecast their cost — how the read-only monitoring plane differs from the processing plane you run locally or in the cloud, and what **the local stack** is: the Harness Console, the data lake that extracts GitHub's records for local management, and the Phoenix trace store that gives every agent run a trace.
 

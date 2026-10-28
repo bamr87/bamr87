@@ -84,7 +84,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash lake [sync\|sessions\|review\|status\|export]` | the local data lake — `sync` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; `sessions` extracts this machine's Claude Code transcripts; `review` analyzes BOTH planes offline; `status` reports it; `export [--local] [--dry-run]` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md) |
 | `tools/dash content [sync\|report\|plan\|brief\|file]` | the CONTENT ATLAS — `sync` extracts the fleet.yml `content.sites` (lifehacker.dev, it-journey, …) into the lake; `report` shows topics/activity/aging/hygiene/pillar coverage + suggestions; `plan` approves/rejects directives in _data/editorial.yml; `brief` renders a site's brief; `file [--apply]` opens approved directives as issues in the site's repo (docs/CONTENT-ATLAS.md) |
 | `tools/dash dev <cmd> [project...]` | the fleet DEV STACK — launch/debug any submodule from the hub up\|down\|ps\|logs\|exec\|build\|config\|ports\|list; --all for everything, --debug to layer a repo's own debugpy compose (docs/FLEET-COMPOSE.md) |
-| `tools/dash docker <cmd>` | the fleet Docker standard — audit\|apply\|check\|tags\|fleet; image versions live in _data/fleet.yml `images:`, fan-out via docker-fanout.yml (docs/DOCKER.md). `view [--write]` builds the consolidated /docker/ dashboard (_data/docker.yml) |
+| `tools/dash docker <cmd>` | the fleet Docker standard — audit\|apply\|check\|tags\|fleet; image versions live in _data/fleet.yml `images:`, fan-out via fanout.yml (kit: docker; docs/DOCKER.md). `view [--write]` builds the consolidated /docker/ dashboard (_data/docker.yml) |
 | `tools/dash serve` | build the public site (the console, static) and serve it on :4000 |
 | `tools/dash tui [--docker]` | terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge) |
 | `tools/dash host [setup\|ps\|up\|rebuild]` | forge Docker host — rebuild hub from bamr87/.env, or up a submodule |
@@ -95,7 +95,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash new <name> [args]` | scaffold a new project and register it |
 | `tools/dash adopt-release <repo>` | scaffold the release-please pipeline (--all for active repos) |
 | `tools/dash protect <repo>` | require the CI gate on a repo's default branch (--all) |
-| `tools/dash evolve` | evolve the monorepo itself (unified-evolution.yml, dispatch-only) |
+| `tools/dash evolve` | how to evolve the monorepo itself (the local /evolve loop; the CI pass was retired) |
 | `tools/dash evolve --repo <name>` | run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo) |
 | `tools/dash evolve --all` | run the weekly repo-evolution loop on every auto_evolve submodule now |
 | `tools/dash ai` | shadow-priced Claude Code usage per repo (local) |
