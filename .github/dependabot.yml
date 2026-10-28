@@ -1,30 +1,20 @@
 # Dependabot configuration
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# The github-actions ecosystem keeps the actions referenced by the workflows in
-# .github/workflows/ up to date. This matters especially because those actions
-# are pinned to full commit SHAs: a pinned SHA never picks up upstream security
-# or bugfix releases on its own. Dependabot understands SHA pins and bumps both
-# the SHA and the trailing "# vX.Y.Z" comment in a single pull request, which is
-# what makes SHA pinning sustainable instead of a one-off snapshot that rots.
+# The github-actions ecosystem keeps the actions the hub's workflows and
+# composite actions use on their newest MAJOR tag. Actions ride major tags, not
+# SHAs (docs/DEPENDENCIES.md; drift check (j) rejects SHA pins), so minors and
+# patches arrive on their own and only a new major needs a pull request.
 version: 2
 
 updates:
   - package-ecosystem: "github-actions"
-    # For github-actions, "/" is the entry point Dependabot uses to discover
-    # every workflow file under .github/workflows/.
-    #
-    # If composite actions are ever added to this repository (e.g. under
-    # .github/actions/<name>/action.yml), replace the single `directory` key
-    # above with:
-    #
-    #   directories:
-    #     - "/"
-    #     - "/.github/actions/*"
-    #
-    # Only add those paths once the directories actually exist; Dependabot
-    # reports a configuration error for directories it cannot find.
-    directory: "/"
+    # "/" discovers every workflow under .github/workflows/; the glob covers the
+    # composite actions (.github/actions/<name>/action.yml and
+    # .github/actions/<group>/<name>/action.yml), which "/" alone never scans.
+    directories:
+      - "/"
+      - "/.github/actions/**"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -58,6 +48,12 @@ updates:
   # releases them deliberately (a minor of this workflow, or a major when a gated
   # caller would fail, per docs/WORKFLOW-VERSIONING.md's major-bump rule). Patch
   # releases still flow here.
+  # TRANSITIVE ADVISORIES: @lhci/cli (latest 0.15.1) pins lighthouse 12.6.1 and
+  # tmp ^0.1, so the patched tmp / zod / basic-ftp sit outside its ranges and
+  # Dependabot's security updates failed every night trying to downgrade it.
+  # They are lifted by scoped `overrides` in package.json instead (proven by the
+  # self-test). extract-zip has no patched release at all; its alert stays open
+  # until puppeteer drops it.
   - package-ecosystem: "npm"
     directory: "/.github/site-quality"
     schedule:
