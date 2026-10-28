@@ -51,9 +51,13 @@ updates:
   # TRANSITIVE ADVISORIES: @lhci/cli (latest 0.15.1) pins lighthouse 12.6.1 and
   # tmp ^0.1, so the patched tmp / zod / basic-ftp sit outside its ranges and
   # Dependabot's security updates failed every night trying to downgrade it.
-  # They are lifted by scoped `overrides` in package.json instead (proven by the
-  # self-test). extract-zip has no patched release at all; its alert stays open
-  # until puppeteer drops it.
+  # They are lifted by top-level `overrides` in package.json instead (proven by
+  # the self-test). Top-level, not nested under @lhci/cli: npm 10, which the
+  # scanner's Node 22 ships, did not apply the nested form below the first
+  # level, and its `npm ci` rejected a lockfile npm 11 had written. Regenerate
+  # this lockfile with npm 10 (`npx npm@10 install --package-lock-only`).
+  # extract-zip has no patched release at all; its alert stays open until
+  # puppeteer drops it.
   - package-ecosystem: "npm"
     directory: "/.github/site-quality"
     schedule:
