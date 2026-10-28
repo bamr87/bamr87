@@ -210,7 +210,7 @@ def check_workflows(fleet: dict) -> None:
           len(sites) > 0)
     check("at least one claude-run call site was found (same reasoning)",
           any(f"{name}:" in site for site in sites
-              for name in ("ai-lane.yml", "git-digs.yml")))
+              for name in ("ai-lane.yml",)))
     check_claude_run_action(budget)
 
     for site, args in sorted(sites.items()):
@@ -297,6 +297,12 @@ def check_abort_contract(sites: dict[str, str]) -> None:
           bool(branch) and re.search(r"\bexit 1\b", branch.group(1)) is not None)
     check("claude-cost: the credential-rejected classifier is present", "modelUsage" in body)
     check("claude-cost: a 429 is classified apart from a refused credential", "429" in body)
+    check("claude-cost: declares and publishes `usage_limit`",
+          "usage_limit" in (action.get("outputs") or {}) and 'usage_limit=true" >> "$GITHUB_OUTPUT"' in body)
+    check("claude-cost: `usage-limit` input defaults to `fail` (verdict stays with the agent step)",
+          str(((action.get("inputs") or {}).get("usage-limit") or {}).get("default")) == "fail")
+    check("claude-cost: in `skip` mode every failure but a usage limit still exits 1",
+          'verdict=1' in body and 'exit "$verdict"' in body)
 
     steps = cost_steps()
     check("`Report Claude run cost` steps were found (a zero here means the "
@@ -320,16 +326,49 @@ def check_abort_contract(sites: dict[str, str]) -> None:
         check(f"{site}: `outcome` reads the agent step's outcome",
               re.search(r"steps\.[\w-]+\.outcome", str(with_.get("outcome", ""))) is not None)
 
-    # The two workflows that publish a PR from the agent's working tree must
-    # gate on that output. Everywhere else the agent opens its own PR, so a
-    # red job is the whole signal.
-    for name, job_id in (("unified-evolution.yml", "evolve"),
-                         ("repo-evolution.yml", "evolve")):
+    check_usage_limit_contract(steps)
+
+    # The workflow that publishes a PR from the agent's working tree must gate
+    # on that output. Everywhere else the agent opens its own PR, so a red job
+    # is the whole signal.
+    for name, job_id in (("repo-evolution.yml", "evolve"),):
         text = (WORKFLOWS / name).read_text(encoding="utf-8")
         check(f"{name}: the publishing step reads `steps.cost.outputs.budget_hit`",
               "steps.cost.outputs.budget_hit" in text)
         check(f"{name}: a budget-truncated PR says so in its body",
               "BUDGET_HIT" in text and "MID-TASK" in text)
+
+
+def check_usage_limit_contract(steps: dict[str, dict]) -> None:
+    """A spent subscription window is capacity, not a defect — on a schedule.
+
+    Every hub loop shares one Claude subscription. When its weekly window ran
+    out (2026-10-23..25) fleet-pulse and issue-pipeline went red every morning
+    until the reset, and the doctor filed issues about its own red runs (#335,
+    #348). `usage-limit: skip` turns that into a warning — but only because the
+    agent step is `continue-on-error` and claude-cost then owns the verdict.
+    The two halves are useless apart: skip without continue-on-error is still
+    red, and continue-on-error without skip would turn EVERY agent failure
+    green. So: they come as a pair, and every scheduled loop uses them.
+    """
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        on = workflow.get("on", workflow.get(True)) or {}
+        scheduled = isinstance(on, dict) and "schedule" in on
+        for job_id, job in (workflow.get("jobs") or {}).items():
+            site = f"{path.name}:{job_id}"
+            agents = [s for s in job.get("steps") or []
+                      if "claude-code-action" in str(s.get("uses", ""))]
+            if not agents or site in COST_EXEMPT:
+                continue
+            coe = all(s.get("continue-on-error") is True for s in agents)
+            mode = str(((steps.get(site) or {}).get("with") or {}).get("usage-limit") or "fail")
+            check(f"{site}: `usage-limit: skip` and a continue-on-error agent step come as a pair "
+                  f"(skip={mode == 'skip'}, continue-on-error={coe})",
+                  (mode == "skip") == coe)
+            if scheduled:
+                check(f"{site}: a scheduled loop reports a spent usage window as capacity "
+                      "(`usage-limit: skip`), not as a red run", mode == "skip")
 
 
 # --------------------------------------------------------------------------- #

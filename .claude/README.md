@@ -52,4 +52,4 @@ Captures feature ideas before they're lost and routes them to the right repo's r
 
 ## The self-evolution loop
 
-`triage-attention` (read Monitor signals) → `sync-project-docs` (update registry) → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main` → drift + dash-build gates verify → human merges. The CI counterpart is `.github/workflows/unified-evolution.yml` (dispatch-only — trigger via `tools/dash evolve`; via `anthropics/claude-code-action`; auth: `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [`docs/AI-INTEGRATION.md`](../docs/AI-INTEGRATION.md)).
+`triage-attention` (read Monitor signals) → `sync-project-docs` (update registry) → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main` → drift + dash-build gates verify → human merges. There is no CI twin for the hub (its dispatch-only `unified-evolution.yml` was retired on 2026-10-27); the per-submodule CI pass is `repo-evolution.yml` (`tools/dash evolve --repo <name>`).

@@ -21,9 +21,10 @@ name: 🌿 Repo Evolution
 #
 # WHY IT IS ALLOWED TO RUN ON A SCHEDULE
 # --------------------------------------
-# unified-evolution.yml is dispatch-only because an undirected "improve the
-# repo" pass on a cron is speculative work with no natural bound. This loop is
-# bounded the way the other scheduled agents are: the target set is declared
+# An undirected "improve the repo" pass on a cron is speculative work with no
+# natural bound (the dispatch-only unified-evolution.yml that did that for the
+# hub was retired 2026-10-27, unrun since July). This loop is bounded the way
+# the other scheduled agents are: the target set is declared
 # in the registry, the brief is built from observed signals, the caps live in
 # _data/fleet.yml, one open PR per repo is the backpressure, and nothing
 # reaches a default branch without a human. The lane rules in the prompt keep
@@ -249,6 +250,10 @@ jobs:
 
       - name: Evolve
         id: evolve
+        # continue-on-error: the cost step below owns this job's verdict
+        # (`usage-limit: skip`) — a spent subscription window is a warning,
+        # every other failure still fails the job. test_ai_budget.py pairs them.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
           # Read-only use, enforced by the allowlist below (view/list/diff
@@ -366,6 +371,7 @@ jobs:
           icon: 🌿
           budget-usd: "20"
           outcome: ${{ steps.evolve.outcome }}
+          usage-limit: skip
       # `claude-code-action` fails the step when the turn count OVERSHOOTS
       # --max-turns even where the agent itself finished: run #1's README job
       # died on "Claude reported a successful result after 63 turns, exceeding

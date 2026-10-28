@@ -44,7 +44,7 @@ name: 🩺 Fleet Pulse
 on:
   schedule:
     - cron: '37 5 * * *'  # daily 05:37 UTC — off the hour, and out of the 06:00 slot the fleet's own
-                          # Monday agents share (build-dash republishes at 06:37)
+                          # Monday agents share (build-dash republishes at 08:37, after every data loop)
   workflow_dispatch:
     inputs:
       days:
@@ -344,6 +344,10 @@ jobs:
       - name: Diagnose & fix
         id: fix
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
+        # continue-on-error: the cost step below owns this job's verdict
+        # (`usage-limit: skip`) — a spent subscription window is a warning,
+        # every other failure still fails the job. test_ai_budget.py pairs them.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
@@ -476,11 +480,17 @@ jobs:
             - Never modify anything under `projects/` in this checkout.
             - Do not add `continue-on-error` or blanket retries to make a red
               workflow look green. Fix the cause or file an issue.
+            - A candidate whose only failure is a Claude **usage limit** (HTTP
+              429, "hit your session/weekly limit", `usage_limit_reached`) is
+              the shared subscription's capacity, not a workflow defect, and
+              the credential is valid. Skip it — no PR, no issue (#348 already
+              tracks the capacity question) — and say so in one line.
             - Be specific and technical. No boilerplate.
 
       # Spend on EVERY run, a budget abort FAILS the step (and publishes
-      # `budget_hit`), a refused credential and a 429 are each classified —
-      # one script, .github/actions/claude-cost, asserted by test_ai_budget.py.
+      # `budget_hit`), a refused credential fails it too, and a spent usage
+      # window is a warning — one script, .github/actions/claude-cost,
+      # asserted by test_ai_budget.py.
       - name: Report Claude run cost
         id: cost
         if: ${{ !cancelled() && env.HAS_CLAUDE_AUTH == 'true' }}
@@ -490,6 +500,7 @@ jobs:
           icon: 🩺
           budget-usd: "40"
           outcome: ${{ steps.fix.outcome }}
+          usage-limit: skip
       - name: Summary
         if: always()
         run: |

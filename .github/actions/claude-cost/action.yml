@@ -47,6 +47,17 @@
 #     WORKED — the subscription's session window is spent. Telling the operator
 #     to rotate a valid token sends them the wrong way, so it is classified apart.
 #
+# `usage-limit: skip` — FOR SCHEDULED LOOPS. Every hub loop shares one Claude
+# subscription; when its weekly window runs out, each loop went red every day
+# until the reset (fleet-pulse and issue-pipeline, 2026-10-23..25) and the
+# doctor filed "not a workflow defect" issues about it (#335, #348). A spent
+# window is capacity, not a defect. In this mode the caller marks its agent
+# step `continue-on-error: true` and THIS step owns the job's verdict: a usage
+# limit is a warning, `usage_limit=true` (so a later tier can skip instead of
+# paying its setup to hit the same wall), exit 0; every other failure — budget,
+# refused credential, agent/tooling, no result record — still exits 1.
+# test_ai_budget.py holds the two halves together at every call site.
+#
 # Never writes a secret anywhere; reads only the action's own log file.
 # =============================================================================
 name: claude-cost
@@ -69,10 +80,17 @@ inputs:
     description: Path of the claude-code-action execution log. Empty = `$RUNNER_TEMP/claude-execution-output.json`.
     required: false
     default: ""
+  usage-limit:
+    description: "`fail` (default) leaves the verdict to the agent step. `skip` = the agent step is `continue-on-error` and this step decides — a usage limit is a warning, every other failure exits 1."
+    required: false
+    default: fail
 outputs:
   budget_hit:
     description: "`true` when the run was stopped by its dollar cap (work is partial by construction)."
     value: ${{ steps.report.outputs.budget_hit }}
+  usage_limit:
+    description: "`true` when the agent was refused because the subscription's usage window is spent (HTTP 429)."
+    value: ${{ steps.report.outputs.usage_limit }}
   cost_usd:
     description: The run's `total_cost_usd` (the CLI's estimate; under subscription auth a throughput figure, not an invoice).
     value: ${{ steps.report.outputs.cost_usd }}
@@ -90,16 +108,24 @@ runs:
         BUDGET_USD: ${{ inputs.budget-usd }}
         STEP_OUTCOME: ${{ inputs.outcome }}
         LOG: ${{ inputs.log }}
+        USAGE_LIMIT_MODE: ${{ inputs.usage-limit }}
       run: |
         log="${LOG:-${RUNNER_TEMP}/claude-execution-output.json}"
         result=""
         [ -f "$log" ] && result=$(jq -c '[.. | objects | select(.type? == "result")] | last // empty' "$log" 2>/dev/null || true)
-        echo "budget_hit=false" >> "$GITHUB_OUTPUT"
+        {
+          echo "budget_hit=false"
+          echo "usage_limit=false"
+        } >> "$GITHUB_OUTPUT"
+        # In `skip` mode the agent step is continue-on-error, so a red agent
+        # only fails the job if this step says so.
+        verdict=0
+        [ "$USAGE_LIMIT_MODE" = "skip" ] && [ "$STEP_OUTCOME" = "failure" ] && verdict=1
         if [ -z "$result" ]; then
           if [ "$STEP_OUTCOME" = "failure" ]; then
             echo "::warning::${TIER}: Claude produced no result record — check the step output directly."
           fi
-          exit 0
+          exit "$verdict"
         fi
 
         # Echo the record into the RUN LOG for the fleet's cost collector. It
@@ -146,12 +172,15 @@ runs:
         [ "$STEP_OUTCOME" = "failure" ] || exit 0
         api_status=$(printf '%s' "$result" | jq -r '.api_error_status // "" | tostring')
         api_msg=$(printf '%s' "$result" | jq -r '.result // "" | tostring' | head -c 200)
-        if [ "$api_status" = "429" ] || printf '%s' "$api_msg" | grep -qiE 'session limit|usage limit|rate limit'; then
-          echo "::error::${TIER}: Claude usage limit hit (HTTP ${api_status:-429}): ${api_msg}. The credential is VALID — do NOT rotate it. Re-run after the reset, or move this cron away from the other agent loops."
+        if [ "$api_status" = "429" ] || printf '%s' "$api_msg" | grep -qiE 'session limit|usage limit|weekly limit|rate limit'; then
+          echo "usage_limit=true" >> "$GITHUB_OUTPUT"
+          level=error
+          if [ "$USAGE_LIMIT_MODE" = "skip" ]; then level=warning; verdict=0; fi
+          echo "::${level}::${TIER}: Claude usage limit hit (HTTP ${api_status:-429}): ${api_msg}. The credential is VALID — do NOT rotate it. Nothing ran; the next scheduled run picks the work up after the reset."
           {
             echo ""
-            echo "**Claude usage limit hit.** \`api_error_status: ${api_status:-429}\` — ${api_msg}"
-            echo "The credential was accepted; the subscription's session window is exhausted. Re-run after the reset."
+            echo "**Claude usage limit hit — skipped.** \`api_error_status: ${api_status:-429}\` — ${api_msg}"
+            echo "The credential was accepted; the subscription's usage window is spent. Capacity, not a defect: nothing to fix, nothing to rotate."
           } >> "$GITHUB_STEP_SUMMARY"
         elif [ "$models" = "0" ] && [ "$cost" = "0" ]; then
           echo "::error::${TIER}: Claude was never reached — 0 billed turns, empty modelUsage. The Claude credential was REJECTED (expired or revoked), not rate-limited. Rotate CLAUDE_CODE_OAUTH_TOKEN — see docs/TOKEN-ROTATION.md."
@@ -165,3 +194,4 @@ runs:
         else
           echo "::warning::${TIER}: Claude ran ($turns turn(s), \$$cost billed) and still failed — an agent/tooling failure, not auth."
         fi
+        exit "$verdict"

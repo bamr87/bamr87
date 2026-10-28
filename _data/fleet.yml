@@ -156,9 +156,6 @@ schedule:
   build_dash: "37 8 * * *"        # republish the site ONCE, after the last data push of the morning
   schema_vendor: "7 8 * * 1"      # weekly hub↔upstream SCHEMA kit parity PR
   repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
-  # git_digs paused Oct 14 (Actions waste reduction): schedule commented out in git-digs.yml while
-  # GIT_DIGS_ENABLED is off; restore this line together with that schedule block.
-  # git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
   backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
@@ -365,9 +362,9 @@ issue_pipeline:
 #
 # WHY A SCHEDULED AI LOOP IS ACCEPTABLE HERE
 # ------------------------------------------
-# unified-evolution.yml stays dispatch-only because an unbounded "improve the
-# repo" pass on a cron is speculative. This one is bounded the way the other
-# scheduled agents are: the target set is declared per repo in the registry
+# An unbounded "improve the repo" pass on a cron is speculative (the hub's
+# dispatch-only unified-evolution.yml was retired 2026-10-27). This one is
+# bounded the way the other scheduled agents are: the target set is declared per repo in the registry
 # (`auto_evolve: true`), the planner refuses external upstreams and archived
 # repos whatever the registry says, the brief is built from the fleet's
 # observed signals (_data/fleet_triage.yml) rather than from imagination, the
@@ -504,7 +501,6 @@ budget:
     issue-pipeline.yml:tier2: 60          # 400 turns · implement — clone, edit, test, PR
     issue-pipeline.yml:tier3: 60          # 400 turns · complete — CI iteration is the long tail
     repo-evolution.yml:evolve: 20         # 120 turns PER MATRIX LEG (evolution.max_turns)
-    unified-evolution.yml:evolve: 10      # 30 turns · dispatch-only hub pass
     fanout.yml:agent-fill: 10             # 25 turns · fills the kit's scaffold TODOs (standardize: CLAUDE.md, schema: SCHEMA.md)
     # The @claude mention handler is the one HUMAN-triggered call site, so it
     # has no turn cap to derive from. It gets a generous ceiling anyway: a
@@ -516,7 +512,6 @@ budget:
                                           # past ~66 meets this ceiling first — by design.
     ai-lane.yml:run: 10                   # the reusable lane's `max-budget-usd` input default
                                           # (= default_usd); consumers may pass their own.
-    git-digs.yml:dig: 6                   # 30 turns · floor 4.5; no observed spend yet
 
 # --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.
@@ -1039,7 +1034,7 @@ tokens:
       Preferred Claude auth for every claude-code-action call site (house
       convention: OAuth first). Produced by `claude setup-token`.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, fanout.yml, repo-evolution.yml, fleet-verify.yml]
+              fanout.yml, repo-evolution.yml, fleet-verify.yml]
     rotation:
       enabled: true
       # `claude setup-token` mints a ONE-YEAR credential, so the value itself is
@@ -1104,7 +1099,7 @@ tokens:
     managed_by: keys
     purpose: The metered Claude credential (`api_key` in ai_auth). One key per Console workspace, 7-day lifetime.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, fanout.yml, repo-evolution.yml, fleet-verify.yml]
+              fanout.yml, repo-evolution.yml, fleet-verify.yml]
     rotation:
       # The loop cannot RE-ISSUE a console key — that is a human action in the
       # Anthropic console — but it can and should PROPAGATE whatever the hub

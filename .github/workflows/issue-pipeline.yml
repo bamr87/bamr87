@@ -247,6 +247,10 @@ jobs:
       issues: write
       id-token: write        # OIDC for claude-code-action OAuth
       actions: read
+    # The subscription's window is account-wide: once a tier is refused, the
+    # next tier would only pay its setup to be refused too.
+    outputs:
+      usage_limit: ${{ steps.cost.outputs.usage_limit }}
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
     steps:
@@ -345,6 +349,10 @@ jobs:
       - name: Enrich issues
         id: enrich
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
+        # continue-on-error: the cost step below owns this job's verdict
+        # (`usage-limit: skip`) — a spent subscription window is a warning,
+        # every other failure still fails the job. test_ai_budget.py pairs them.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
@@ -518,6 +526,7 @@ jobs:
           icon: 🧭
           budget-usd: "40"
           outcome: ${{ steps.enrich.outcome }}
+          usage-limit: skip
       - name: Summary
         if: always()
         run: |
@@ -536,7 +545,8 @@ jobs:
     needs: [scan, tier1]
     if: >-
       ${{ !cancelled() && inputs.dry_run != true
-          && contains(needs.scan.outputs.tiers, '2') }}
+          && contains(needs.scan.outputs.tiers, '2')
+          && needs.tier1.outputs.usage_limit != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -545,6 +555,8 @@ jobs:
       issues: write          # move the issue's labels
       id-token: write
       actions: read
+    outputs:
+      usage_limit: ${{ steps.cost.outputs.usage_limit }}
     env:
       HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
       FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
@@ -599,6 +611,10 @@ jobs:
       - name: Implement
         id: implement
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' && steps.queue.outputs.has_implement == 'true' }}
+        # continue-on-error: the cost step below owns this job's verdict
+        # (`usage-limit: skip`) — a spent subscription window is a warning,
+        # every other failure still fails the job. test_ai_budget.py pairs them.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
@@ -749,6 +765,7 @@ jobs:
           icon: 🧭
           budget-usd: "60"
           outcome: ${{ steps.implement.outcome }}
+          usage-limit: skip
       - name: Summary
         if: always()
         run: |
@@ -764,11 +781,13 @@ jobs:
   # ========================================================================= #
   tier3:
     name: Tier 3 · complete & ready for review
-    needs: [scan, tier2]
+    needs: [scan, tier1, tier2]
     if: >-
       ${{ !cancelled() && inputs.dry_run != true
           && contains(needs.scan.outputs.tiers, '3')
-          && needs.scan.outputs.has_complete == 'true' }}
+          && needs.scan.outputs.has_complete == 'true'
+          && needs.tier1.outputs.usage_limit != 'true'
+          && needs.tier2.outputs.usage_limit != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -810,6 +829,10 @@ jobs:
       - name: Complete
         id: complete
         if: ${{ env.HAS_CLAUDE_AUTH == 'true' }}
+        # continue-on-error: the cost step below owns this job's verdict
+        # (`usage-limit: skip`) — a spent subscription window is a warning,
+        # every other failure still fails the job. test_ai_budget.py pairs them.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
@@ -934,6 +957,7 @@ jobs:
           icon: 🧭
           budget-usd: "60"
           outcome: ${{ steps.complete.outcome }}
+          usage-limit: skip
       - name: Summary
         if: always()
         run: |
