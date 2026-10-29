@@ -97,3 +97,6 @@ mkdocs-build.log
 .DS_Store
 Thumbs.db
 *.log
+
+# Host-side process snapshot for the console /live page (tools/console/live_collector.py).
+.dash-live/
