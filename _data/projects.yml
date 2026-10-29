@@ -694,6 +694,222 @@
     status: none
   license: MIT
 
+- name: fleet-infra
+  slug: fleet-infra
+  submodule_path: projects/fleet-infra
+  branch: main
+  repo_url: https://github.com/bamr87/fleet-infra
+  description: "GitOps infrastructure for the bamr87 fleet: Terraform/HCL provisioning, a k3s cluster, and Helm charts reconciled from git."
+  stack: [terraform, hcl, k3s, helm, gitops]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: kvlite
+  slug: kvlite
+  submodule_path: projects/kvlite
+  branch: main
+  repo_url: https://github.com/bamr87/kvlite
+  description: "A small LSM-tree key-value store in Rust, growing into a Raft-replicated cluster."
+  stack: [rust, lsm-tree, raft, distributed-systems]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: netprobe
+  slug: netprobe
+  submodule_path: projects/netprobe
+  branch: main
+  repo_url: https://github.com/bamr87/netprobe
+  description: "A Go network diagnostics toolkit with a terminal UI: ping, port scan, DNS, traceroute and HTTP probes."
+  stack: [go, networking, tui, bubbletea]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: fleet-observe
+  slug: fleet-observe
+  submodule_path: projects/fleet-observe
+  branch: main
+  repo_url: https://github.com/bamr87/fleet-observe
+  description: "Observability stack for the bamr87 fleet: OpenTelemetry Collector, Prometheus and Grafana, wired for every fleet service."
+  stack: [opentelemetry, prometheus, grafana, docker-compose]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: zer0-id
+  slug: zer0-id
+  submodule_path: projects/zer0-id
+  branch: main
+  repo_url: https://github.com/bamr87/zer0-id
+  description: "A small OpenID Connect identity provider in Go with passkey (WebAuthn) login."
+  stack: [go, oidc, oauth2, webauthn, security]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: sec-lab
+  slug: sec-lab
+  submodule_path: projects/sec-lab
+  branch: main
+  repo_url: https://github.com/bamr87/sec-lab
+  description: "A deliberately vulnerable practice app with SAST/DAST pipelines and CTF-style challenges. Local use only."
+  stack: [python, appsec, sast, dast, ctf]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: edgar-pipeline
+  slug: edgar-pipeline
+  submodule_path: projects/edgar-pipeline
+  branch: main
+  repo_url: https://github.com/bamr87/edgar-pipeline
+  description: "Data pipeline for SEC EDGAR filings: Dagster orchestration, dbt models on DuckDB, MLflow experiments; feeds fredgar-ai and law-ai."
+  stack: [python, dagster, dbt, duckdb, mlflow]
+  category: full-stack-ai
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: zer0-kernel
+  slug: zer0-kernel
+  submodule_path: projects/zer0-kernel
+  branch: main
+  repo_url: https://github.com/bamr87/zer0-kernel
+  description: "A hobby operating-system kernel in C, booted with Multiboot2 on QEMU."
+  stack: [c, osdev, x86_64, qemu, multiboot2]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: sensor-mesh
+  slug: sensor-mesh
+  submodule_path: projects/sensor-mesh
+  branch: main
+  repo_url: https://github.com/bamr87/sensor-mesh
+  description: "ESP32 sensor firmware that publishes readings over MQTT, with a host-testable core."
+  stack: [c, esp32, platformio, mqtt, iot]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: fleet-mobile
+  slug: fleet-mobile
+  submodule_path: projects/fleet-mobile
+  branch: main
+  repo_url: https://github.com/bamr87/fleet-mobile
+  description: "Kotlin Multiplatform app to monitor the bamr87 fleet's bots, CI and PRs from a phone."
+  stack: [kotlin, kotlin-multiplatform, compose-multiplatform, android, ios]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: schema-lang
+  slug: schema-lang
+  submodule_path: projects/schema-lang
+  branch: main
+  repo_url: https://github.com/bamr87/schema-lang
+  description: "A Rust DSL and compiler for gitorio/SCHEMA blueprints: parse, type-check and emit SCHEMA.md contracts."
+  stack: [rust, compiler, dsl, parsing]
+  category: dev-tools
+  status: experiment
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
+- name: ragio-ai
+  slug: ragio-ai
+  submodule_path: projects/ragio-ai
+  branch: main
+  repo_url: https://github.com/bamr87/ragio-ai
+  description: "Fully local RAG engine over Radiolab episodes: Whisper transcription, Qdrant hybrid retrieval, LlamaIndex, Ollama answers with timestamped citations, FastAPI UI."
+  stack: [python, rag, whisper, qdrant, ollama, fastapi]
+  category: full-stack-ai
+  status: active
+  featured: false
+  maintained: true
+  auto_evolve: true
+  live_url: null
+  docs_url: null
+  schema:
+    status: none
+  license: MIT
+
 # Registry-only (no submodule): shown on the dash, not drift-checked. amrchy is a
 # 248 MB personal fork; the two demo sites already live in zer0-CMS sites/.
 - name: amrchy

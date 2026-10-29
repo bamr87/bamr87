@@ -103,3 +103,51 @@
 	path = projects/zpl-viewer
 	url = https://github.com/bamr87/zpl-viewer.git
 	branch = main
+[submodule "projects/fleet-infra"]
+	path = projects/fleet-infra
+	url = https://github.com/bamr87/fleet-infra.git
+	branch = main
+[submodule "projects/kvlite"]
+	path = projects/kvlite
+	url = https://github.com/bamr87/kvlite.git
+	branch = main
+[submodule "projects/netprobe"]
+	path = projects/netprobe
+	url = https://github.com/bamr87/netprobe.git
+	branch = main
+[submodule "projects/fleet-observe"]
+	path = projects/fleet-observe
+	url = https://github.com/bamr87/fleet-observe.git
+	branch = main
+[submodule "projects/zer0-id"]
+	path = projects/zer0-id
+	url = https://github.com/bamr87/zer0-id.git
+	branch = main
+[submodule "projects/sec-lab"]
+	path = projects/sec-lab
+	url = https://github.com/bamr87/sec-lab.git
+	branch = main
+[submodule "projects/edgar-pipeline"]
+	path = projects/edgar-pipeline
+	url = https://github.com/bamr87/edgar-pipeline.git
+	branch = main
+[submodule "projects/zer0-kernel"]
+	path = projects/zer0-kernel
+	url = https://github.com/bamr87/zer0-kernel.git
+	branch = main
+[submodule "projects/sensor-mesh"]
+	path = projects/sensor-mesh
+	url = https://github.com/bamr87/sensor-mesh.git
+	branch = main
+[submodule "projects/fleet-mobile"]
+	path = projects/fleet-mobile
+	url = https://github.com/bamr87/fleet-mobile.git
+	branch = main
+[submodule "projects/schema-lang"]
+	path = projects/schema-lang
+	url = https://github.com/bamr87/schema-lang.git
+	branch = main
+[submodule "projects/ragio-ai"]
+	path = projects/ragio-ai
+	url = https://github.com/bamr87/ragio-ai.git
+	branch = main
