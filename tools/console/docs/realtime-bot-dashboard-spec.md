@@ -3,33 +3,19 @@
 Status: implemented on local branch `grokbot/live-dashboard` (not pushed). Route: **`/live`** (sidebar: Spend → "Live activity").
 
 ## Goal
-One console page that shows, refreshing every ~5 s without reload: active/idle Claude Code
-sessions, running console jobs with a live log tail, Claude + GitHub Actions spend vs budget,
-harness health scorecard, and deep-dive cycle progress. Reuse the console's existing documents
-(`/api/state`, `/api/jobs`, `/api/data/deep_dive`, `/api/observability`) and the local
-observability stack instead of a separate app.
+One console page that shows, refreshing every ~5 s without reload: active/idle Claude Code sessions, running console jobs with a live log tail, Claude + GitHub Actions spend vs budget, harness health scorecard, and deep-dive cycle progress. Reuse the console's existing documents (`/api/state`, `/api/jobs`, `/api/data/deep_dive`, `/api/observability`) and the local observability stack instead of a separate app.
 
 ## Build note (prerequisite)
-`npm install` in `tools/console/web` failed with ERESOLVE: `@mantine/charts@latest` (9.7.4) peers
-on `@mantine/core@9.7.4` while `@mantine/modals` pins core 9.7.3 (a publish skew; deps are `*`,
-no lockfile). Fix:
+`npm install` in `tools/console/web` failed with ERESOLVE: `@mantine/charts@latest` (9.7.4) peers on `@mantine/core@9.7.4` while `@mantine/modals` pins core 9.7.3 (a publish skew; deps are `*`, no lockfile). Fix:
 - `web/.npmrc`: `legacy-peer-deps=true` (so `run.sh`'s own `npm install` also succeeds).
-- `web/package.json`: add `react-is` — recharts needs it as a peer, and legacy-peer-deps stops
-  npm auto-installing peers, which made `vite build` fail to resolve `react-is`.
-- `dist/` is NOT baked into the image: the container bind-mounts the repo at `/workspace`, so a
-  host `npm run build` is served immediately (no image rebuild). The container's own
-  `node_modules` is a named volume (`fleet_console-web-modules`), separate from the host's.
+- `web/package.json`: add `react-is` — recharts needs it as a peer, and legacy-peer-deps stops npm auto-installing peers, which made `vite build` fail to resolve `react-is`.
+- `dist/` is NOT baked into the image: the container bind-mounts the repo at `/workspace`, so a host `npm run build` is served immediately (no image rebuild). The container's own `node_modules` is a named volume (`fleet_console-web-modules`), separate from the host's.
 
 ## Existing real-time plumbing (inventory)
-- No SSE anywhere before this work. One WebSocket: `/api/tui` (`app.py` → `tui_bridge.py`) — a
-  PTY bridge for the Terminal page; not a data feed.
-- Polling via TanStack Query `refetchInterval` in `web/src/api/hooks.ts`: `useJobs` (2 s while a
-  job runs, else 6 s), `useTuiStatus` (10 s), GitHub log (15 s).
-- Job logs: `GET /api/jobs/{id}?offset=N` incremental tail (`core.JobManager.tail`), used by
-  `web/src/jobs/JobLog.tsx`.
-- Pages reused as data: `/costs` (`state.harnesses.trends`), `/harnesses/health`
-  (`state.health.scorecard`), `/deep-dive` (`/api/data/deep_dive`), `/activity` (lake runs),
-  `/observe/*` (`/api/observability`).
+- No SSE anywhere before this work. One WebSocket: `/api/tui` (`app.py` → `tui_bridge.py`) — a PTY bridge for the Terminal page; not a data feed.
+- Polling via TanStack Query `refetchInterval` in `web/src/api/hooks.ts`: `useJobs` (2 s while a job runs, else 6 s), `useTuiStatus` (10 s), GitHub log (15 s).
+- Job logs: `GET /api/jobs/{id}?offset=N` incremental tail (`core.JobManager.tail`), used by `web/src/jobs/JobLog.tsx`.
+- Pages reused as data: `/costs` (`state.harnesses.trends`), `/harnesses/health` (`state.health.scorecard`), `/deep-dive` (`/api/data/deep_dive`), `/activity` (lake runs), `/observe/*` (`/api/observability`).
 
 ## Data sources → panel
 | Panel | Source | Endpoint / transport | Reachability |
@@ -45,21 +31,14 @@ no lockfile). Fix:
 
 ## Live refresh
 - `GET /api/live` — one JSON snapshot (all panels), token-guarded like every `/api` route.
-- `GET /api/live/stream` — SSE (`text/event-stream`), one `data:` snapshot every 5 s.
-  The browser reads it with `fetch` + ReadableStream (not `EventSource`, which can't send the
-  `Authorization: Bearer` header the console token needs). Hook: `useLive()` in
-  `web/src/api/live.ts`; on stream error it falls back to polling `/api/live` every 5 s and the
-  page shows which transport is active ("SSE" / "polling").
+- `GET /api/live/stream` — SSE (`text/event-stream`), one `data:` snapshot every 5 s. The browser reads it with `fetch` + ReadableStream (not `EventSource`, which can't send the `Authorization: Bearer` header the console token needs). Hook: `useLive()` in `web/src/api/live.ts`; on stream error it falls back to polling `/api/live` every 5 s and the page shows which transport is active ("SSE" / "polling").
 - Job log tail reuses `/api/jobs/{id}?offset` polling.
 
 ## Page / routes
-- `web/src/pages/Live.tsx`, route `live` in `web/src/main.tsx`, nav item in `web/src/nav.ts`
-  under Spend next to Agent activity; panels link out to `/costs`, `/harnesses/health`,
-  `/deep-dive`, `/jobs/:id`, `/activity`, `/observe/metrics`.
+- `web/src/pages/Live.tsx`, route `live` in `web/src/main.tsx`, nav item in `web/src/nav.ts` under Spend next to Agent activity; panels link out to `/costs`, `/harnesses/health`, `/deep-dive`, `/jobs/:id`, `/activity`, `/observe/metrics`.
 
 ## Running the host collector
-`python3 tools/console/live_collector.py` (loops, 5 s; `--once` for a single write). Output
-`.dash-live/sessions.json` (gitignored). Read-only: never signals processes.
+`python3 tools/console/live_collector.py` (loops, 5 s; `--once` for a single write). Output `.dash-live/sessions.json` (gitignored). Read-only: never signals processes.
 
 ## Acceptance criteria
 1. `npm run build` passes; served bundle contains Deep dive and Live pages; `/deep-dive`, `/live` return 200.
