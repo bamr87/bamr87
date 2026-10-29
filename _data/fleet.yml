@@ -165,6 +165,7 @@ schedule:
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
   backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
+  deep_dive: "17 12 * * *"        # daily deep-dive tracker refresh PR, after the 06:00 MDT one-repo-a-day routine (docs/DEEP-DIVE.md)
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.

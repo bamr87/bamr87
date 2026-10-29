@@ -5,7 +5,7 @@
 // the terminal dash.
 import {
   IconActivity, IconAppWindow, IconBox, IconBrandGithub, IconBrandDocker, IconBriefcase, IconCalendarTime, IconChartBar, IconCoin,
-  IconFileText, IconGauge, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconListDetails, IconLogs,
+  IconFileText, IconGauge, IconHeartbeat, IconHome, IconInbox, IconKey, IconLayoutGrid, IconLayoutKanban, IconListCheck, IconMicroscope, IconListDetails, IconLogs,
   IconMail, IconPencil, IconPlayerPlay, IconPlugConnected, IconReceipt, IconRepeat, IconRoute, IconRoadSign, IconSearch, IconSettings,
   IconTerminal2, IconTool, IconTools, IconTopologyStar3, IconUser, type Icon,
 } from '@tabler/icons-react';
@@ -67,6 +67,7 @@ export const NAV: NavSection[] = [
       { label: 'Schedules', to: '/schedules', icon: IconCalendarTime, hint: 'crons, caps and collisions' },
       { label: 'Loops', to: '/loops', icon: IconRepeat, hint: 'the control-plane loops' },
       { label: 'Work board', to: '/work', icon: IconLayoutKanban, hint: 'every open item in the order the loops take it — drag to reprioritise' },
+      { label: 'Deep dive', to: '/deep-dive', icon: IconMicroscope, hint: 'one repo a day, every repo once per cycle' },
     ],
   },
   {

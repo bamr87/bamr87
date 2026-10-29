@@ -431,3 +431,16 @@ features:
       - verify/scenarios/work.yml
     evidence:
       - test/evidence/work
+  - id: HUB-029
+    title: "Daily repo deep dive: one repo a day, every repo once per cycle"
+    description: "A daily routine (06:00 America/Denver) deep-dives one bamr87 repo per day — review, analysis, docs, issues, feature requests, UI/UX — labelling everything it files deep-dive, so every non-archived repo is processed once per 42-day cycle starting 2026-10-30. The ledger _data/deep-dive.yml (day, scheduled date, status, last processed, cycle, issues/PRs, findings, score, next focus) is kept by tools/deep_dive.py (today, record, refresh, json, rollover), refreshed daily by deep-dive.yml as a never-auto-merged PR (manual runs dry-run to an artifact), and rendered at /deep-dive with cycle progress, a cycle calendar, per-repo status, scores and links."
+    implemented: true
+    status: partial
+    prd: [FR24, FR25, NFR8]
+    surface: ui
+    link: /deep-dive
+    docs: docs/DEEP-DIVE.md
+    tags: [ deep-dive, routine, console, dashboard, automation ]
+    date: 2026-10-29
+    tests:
+      - tools/test_deep_dive.py
