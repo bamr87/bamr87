@@ -20,5 +20,5 @@ I'm passionate about exploring innovative solutions that balance technology adva
 - 💼 **LinkedIn**: [linkedin.com/in/amrabdel](https://linkedin.com/in/amrabdel)
 - 🌐 **Website**: [bashconsultants.com](https://bashconsultants.com)
 - 📧 **Email**: [amr.abdel@gmail.com](mailto:amr.abdel@gmail.com)
-- 📄 **CV**: [Download PDF](https://github.com/bamr87/cv/blob/main/cv.pdf)
+- 📄 **CV**: [Download PDF](https://github.com/bamr87/cv-pro/blob/main/cv/cv.pdf)
 - 🐙 **GitHub**: [@bamr87](https://github.com/bamr87)

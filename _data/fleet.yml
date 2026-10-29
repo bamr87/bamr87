@@ -157,6 +157,8 @@ schedule:
   issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:)
   schema_vendor: "7 8 * * 1"      # weekly hub↔upstream SCHEMA kit parity PR
   repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
+  repo_scout: "37 4 * * *"        # daily proactive ISSUE pass (see scout:) — before fleet-pulse (05:37)
+                                  # snapshots what it filed and issue-pipeline (07:37) intakes it, same day
   # git_digs paused Oct 14 (Actions waste reduction): schedule commented out in git-digs.yml while
   # GIT_DIGS_ENABLED is off; restore this line together with that schedule block.
   # git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
@@ -417,6 +419,35 @@ evolution:
     max_prs: 5
 
 # --------------------------------------------------------------------------- #
+# Repo scout — the daily proactive ISSUE loop (repo-scout.yml, docs/SCOUT.md).
+# Where repo-evolution writes code (a weekly draft PR in opted-in repos), the
+# scout writes TICKETS: it visits `sample` repositories a day in a fixed
+# rotation over every owned, non-archived registry repo, has an agent read each
+# one like a new maintainer, and files a few well-formed issues — fix, update,
+# feature — labelled from the issue pipeline's taxonomy so issue-pipeline.yml
+# triages, implements and completes them. The agent never files anything: the
+# workflow's `file` job validates, dedupes against open issues, caps, and files
+# with FLEET_TOKEN. A repo opts out with `scout: false` in projects.yml.
+# Kill switch: vars.REPO_SCOUT_ENABLED — a NEW loop, so it starts OFF and runs
+# on its cron only once that variable is 'true' (a dispatch always runs).
+# --------------------------------------------------------------------------- #
+scout:
+  enabled: true
+  sample: 2                 # repos visited per day; full cycle every ceil(eligible / sample) days
+  max_issues_per_repo: 3    # proposals filed per visit (the agent may return fewer)
+  max_open_per_repo: 3      # backpressure: a repo still carrying this many open scout issues is skipped
+  max_parallel: 2
+  max_turns: 40             # per repo; the literal in repo-scout.yml is asserted against this
+  model: sonnet             # reading + writing; the pipeline's implementer is the Opus spend
+  label: ai-scout           # on every filed issue (created on demand) — how the loop recognises its own
+  marker: repo-scout        # hidden first line of every filed body: <!-- repo-scout key="owner/repo" -->
+  kinds: [feature, fix, update]
+  statuses: [active, maintenance, experiment]   # eligible registry statuses; archived never
+  signals:
+    max_issues: 10          # open issues quoted into the brief so nothing is proposed twice
+    max_prs: 5
+
+# --------------------------------------------------------------------------- #
 # Verification — the AGENT VERIFICATION standard's knobs (docs/VERIFICATION.md).
 #
 # Tests prove the code; verification proves the PRODUCT, by using it the way a
@@ -505,6 +536,7 @@ budget:
     issue-pipeline.yml:tier2: 60          # 400 turns · implement — clone, edit, test, PR
     issue-pipeline.yml:tier3: 60          # 400 turns · complete — CI iteration is the long tail
     repo-evolution.yml:evolve: 20         # 120 turns PER MATRIX LEG (evolution.max_turns)
+    repo-scout.yml:scout: 8               # 40 turns PER MATRIX LEG (scout.max_turns) — read + write proposals, no edits
     unified-evolution.yml:evolve: 10      # 30 turns · dispatch-only hub pass
     schema-fanout.yml:agent-fill: 10      # 25 turns · fills scaffold TODOs
     standardize-fanout.yml:agent-fill: 8  # 15 turns · fills a CLAUDE.md scaffold
@@ -905,18 +937,20 @@ content:
     - name: bash-365.com
       live_url: https://bash-365.com
       quality: { description: [120, 155] }
-    - name: irony-works # moved to zer0-CMS sites/irony-works and bamr87/irony-works is archived (2026-10-20);
-      # the atlas reads repository roots only, so it reads the archived copy until it can follow a site
-      # into a monorepo sub-path.
-      repo: bamr87/irony-works
-      live_url: https://bamr87.github.io/irony-works/
-      roots: [vault]
+    # irony-works, wargames and 2005 live in the zer0-CMS monorepo now (sites/<name>/, imported with
+    # their history); the original repos were deleted or archived on 2026-10-20. `registry:` points the
+    # atlas at the zer0-CMS checkout and `roots:` at the site's sub-path inside it, so each site keeps
+    # its own name, narrative and pillars in editorial.yml while reading from the monorepo.
+    - name: irony-works
+      registry: zer0-CMS
+      roots: [sites/irony-works/vault]
       exclude: [templates]
       quality: { min_words: 150, require: [title, status] }
-    - name: wargames # moved to zer0-CMS sites/wargames, original archived (2026-10-20) — as irony-works
-      repo: bamr87/wargames
-      live_url: https://bamr87.github.io/wargames/
-      roots: [overthewire]
+      # No live_url: bamr87.github.io/irony-works went away with the repo, and zer0-CMS's sites.yml does
+      # not deploy irony-works yet (its irony-works.yml only builds).
+    - name: wargames
+      registry: zer0-CMS
+      roots: [sites/wargames/overthewire]
       quality: { min_words: 100, require: [title] }
     # The two lineage orgs: the hub is the front door, the members hold the
     # content. Members are declared individually so each subject gets its own
@@ -924,10 +958,10 @@ content:
     - name: year-of-ai.github.io
       repo: year-of-ai/year-of-ai.github.io
       live_url: https://year-of-ai.github.io
-    - name: '2005' # a year-of-ai member. Its content moved to zer0-CMS sites/2005 and year-of-ai/2005 is
-      # archived (2026-10-19); the atlas reads repository roots only, so it reads the archived copy until
-      # it can follow a site into a monorepo sub-path.
-      repo: year-of-ai/2005
+    - name: '2005' # a year-of-ai member; its content lives in zer0-CMS sites/2005 (year-of-ai/2005 is archived)
+      registry: zer0-CMS
+      roots: [sites/2005/_posts]
+      live_url: https://year-of-ai.github.io/2005/
       dates: git # front-matter `date` is the subject's date (2005), not when it was published
     - name: ai-world-view.github.io
       repo: ai-world-view/ai-world-view.github.io

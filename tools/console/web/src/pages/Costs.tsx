@@ -1,7 +1,7 @@
 // Claude spend and Actions minutes: window totals, week over week, projected
 // month vs the ceiling (last-7-day average × 30.44), and the daily series.
 import { Link } from 'react-router';
-import { Anchor, Group, Paper, SimpleGrid, Stack, Table, Text } from '@mantine/core';
+import { Anchor, Group, Paper, SimpleGrid, Stack, Table, Text , Box } from '@mantine/core';
 import { useData, useStateDoc } from '../api/hooks';
 import type { Dict, Trend } from '../api/types';
 import { DataTable } from '../components/DataTable';
@@ -80,15 +80,15 @@ function TrendCard({ title, t, money }: { title: string; t: Trend; money: boolea
   return (
     <Paper p="md">
       <Group justify="space-between" mb="xs"><Text fw={600}>{title}</Text>{st}</Group>
-      <Table className="dt" verticalSpacing={4}>
+      <Table verticalSpacing={4}>
         <Table.Tbody>
-          <Table.Tr><Table.Td>Window total</Table.Td><Table.Td className="num">{f(t.window_total)}</Table.Td></Table.Tr>
-          <Table.Tr><Table.Td>Last 7 days / prior 7</Table.Td><Table.Td className="num">{f(t.last7)} / {f(t.prior7)}</Table.Td></Table.Tr>
-          <Table.Tr><Table.Td>Week over week</Table.Td><Table.Td className="num">{t.wow_delta_pct == null ? '—' : `${t.wow_delta_pct}%`}</Table.Td></Table.Tr>
-          <Table.Tr><Table.Td fw={600}>Projected month</Table.Td><Table.Td className="num" fw={600}>{f(t.projected_monthly)} <Text span c="dimmed" size="xs">vs {f(t.budget_monthly)}</Text></Table.Td></Table.Tr>
+          <Table.Tr><Table.Td>Window total</Table.Td><Table.Td data-num>{f(t.window_total)}</Table.Td></Table.Tr>
+          <Table.Tr><Table.Td>Last 7 days / prior 7</Table.Td><Table.Td data-num>{f(t.last7)} / {f(t.prior7)}</Table.Td></Table.Tr>
+          <Table.Tr><Table.Td>Week over week</Table.Td><Table.Td data-num>{t.wow_delta_pct == null ? '—' : `${t.wow_delta_pct}%`}</Table.Td></Table.Tr>
+          <Table.Tr><Table.Td fw={600}>Projected month</Table.Td><Table.Td data-num fw={600}>{f(t.projected_monthly)} <Text span c="dimmed" size="xs">vs {f(t.budget_monthly)}</Text></Table.Td></Table.Tr>
         </Table.Tbody>
       </Table>
-      <div style={{ marginTop: 8 }}><Meter value={t.projected_monthly ?? 0} cap={t.budget_monthly ?? 1} /></div>
+      <Box mt={8}><Meter value={t.projected_monthly ?? 0} cap={t.budget_monthly ?? 1} /></Box>
     </Paper>
   );
 }

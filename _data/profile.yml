@@ -29,4 +29,4 @@ links:
   - { label: "LinkedIn", icon: linkedin, url: "https://linkedin.com/in/amrabdel" }
   - { label: "Website", icon: world, url: "https://bashconsultants.com" }
   - { label: "Email", icon: mail, url: "mailto:amr.abdel@gmail.com" }
-  - { label: "CV (PDF)", icon: file-cv, url: "https://github.com/bamr87/cv/blob/main/cv.pdf" }
+  - { label: "CV (PDF)", icon: file-cv, url: "https://github.com/bamr87/cv-pro/blob/main/cv/cv.pdf" }

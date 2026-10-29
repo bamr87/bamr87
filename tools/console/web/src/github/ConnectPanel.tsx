@@ -115,7 +115,7 @@ function DeviceModal({ flow, onClose }: { flow: { flow_id: string; user_code: st
         <Stack gap="md" align="center">
           <Text size="sm" ta="center">Open GitHub's device page and enter this code. The console is waiting for you to approve it.</Text>
           <Group gap="xs">
-            <Text ff="monospace" fz={34} fw={700} style={{ letterSpacing: 4 }}>{flow.user_code}</Text>
+            <Text ff="monospace" fz={34} fw={700} lts={4}>{flow.user_code}</Text>
             <CopyButton value={flow.user_code}>{({ copied, copy }) => <Button size="xs" variant="default" leftSection={<IconCopy size={14} />} onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>}</CopyButton>
           </Group>
           <Button component="a" href={flow.verification_uri} target="_blank" rel="noopener" leftSection={<IconExternalLink size={16} />}>Open {flow.verification_uri.replace(/^https?:\/\//, '')}</Button>

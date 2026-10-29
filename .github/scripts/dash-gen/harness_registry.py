@@ -674,7 +674,7 @@ def build_attention(repos: list[dict], throughput: dict, trends: dict, cfg: dict
             if h.get("last_conclusion") == "failure" or "failing" in (h.get("flags") or []):
                 add(75, "harness-failing",
                     f"{h['path']} last run failed",
-                    "the fleet-pulse doctor queue owns the fix; see /triage/", repo=r["repo"])
+                    "the fleet-pulse doctor queue owns the fix; see the Inbox (/inbox)", repo=r["repo"])
             if h.get("auth") in ("api-key", "none"):
                 add(60, "auth-drift",
                     f"{h['path']} auth is '{h['auth']}' (house convention: the ordered "

@@ -155,6 +155,7 @@
   status: active
   featured: true
   maintained: true
+  scout: false # read-only mirror — the theme is developed in zer0-CMS packages/zer0-mistakes; issues belong there
   live_url: https://zer0-mistakes.com
   ux:
     enabled: true

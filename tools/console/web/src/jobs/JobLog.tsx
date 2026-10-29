@@ -3,10 +3,14 @@
 // scrolled back to. A job that SUCCEEDS refreshes every console document: its
 // output is new data in the working tree.
 import { useEffect, useRef, useState } from 'react';
+import { Box } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { JobTail } from '../api/types';
-import { ansiToHtml } from '../lib/ansi';
+import { ansiToHtml, type AnsiRole } from '../lib/ansi';
+import classes from './JobLog.module.css';
+
+const role = (r: AnsiRole) => classes[r] ?? '';
 
 export function useJobTail(jobId: string | null) {
   const qc = useQueryClient();
@@ -58,15 +62,17 @@ export function LogView({ raw, height = 480, placeholder }: { raw: string; heigh
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
   }, [raw]);
   return (
-    <pre
+    <Box
+      component="pre"
       ref={ref}
-      className="log"
-      style={{ height, maxHeight: height }}
+      className={classes.log}
+      h={height}
+      mah={height}
       onScroll={(e) => {
         const el = e.currentTarget;
         pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
       }}
-      dangerouslySetInnerHTML={{ __html: raw ? ansiToHtml(raw) : `<span class="a-grey">${placeholder ?? 'waiting for output…'}</span>` }}
+      dangerouslySetInnerHTML={{ __html: raw ? ansiToHtml(raw, role) : `<span class="${classes.grey}">${placeholder ?? 'waiting for output…'}</span>` }}
     />
   );
 }

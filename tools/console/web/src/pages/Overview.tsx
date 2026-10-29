@@ -11,6 +11,7 @@ import { RunButton } from '../jobs/RunButton';
 import { useRunner } from '../jobs/JobRunner';
 import { age, fmt, usd } from '../lib/format';
 import { SOURCE_HOME, to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 /** What acting on a finding means: an operation, or the page that owns the lever. */
 export function leverFor(a: Attention): { op?: string; params?: Record<string, unknown>; page?: string; label: string } | null {
@@ -43,7 +44,7 @@ export function AttentionTable({ rows, showRepo = true }: { rows: Attention[]; s
       empty={<Status tone="good">nothing needs attention</Status>}
       columns={[
         { key: 'sev', header: 'sev', num: true, sort: (a) => a.severity, render: (a) => a.severity, width: 56 },
-        { key: 'kind', header: 'kind', sort: (a) => a.kind, render: (a) => <Text span ff="monospace" fz={12.5} style={{ whiteSpace: 'nowrap' }}>{a.kind}</Text> },
+        { key: 'kind', header: 'kind', sort: (a) => a.kind, render: (a) => <Text span ff="monospace" fz={12.5} className={u.nowrap}>{a.kind}</Text> },
         ...(showRepo ? [{ key: 'repo', header: 'repo', sort: (a: Attention) => a.repo ?? '', render: (a: Attention) => <RepoLink name={a.repo} /> }] : []),
         { key: 'summary', header: 'finding', render: (a) => <Text size="sm">{a.summary}</Text> },
         { key: 'lever', header: 'lever', render: (a) => <Text size="xs" c="dimmed">{a.action}</Text> },

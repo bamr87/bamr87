@@ -97,6 +97,7 @@ Each of these came from an incident; the linked doc tells it.
 | `issue-pipeline.yml` | Label-driven three-tier loop: intake with an evidence bundle → implement → complete; never merges; `agent:hold` / `human-review` brake it | [ISSUE-PIPELINE.md](docs/ISSUE-PIPELINE.md) |
 | `token-rotation.yml`, `api-keys.yml` | Weekly credential propagate / audit / re-mint; Anthropic Console key expiry | [TOKEN-ROTATION.md](docs/TOKEN-ROTATION.md) |
 | `repo-evolution.yml` | Weekly draft improvement PRs in each `auto_evolve` submodule's own repo | [EVOLUTION.md](docs/EVOLUTION.md) |
+| `repo-scout.yml` | Daily: a rotating sample of owned repos, a Sonnet agent with no GitHub credential proposes, the `file` job opens labelled issues for the issue pipeline; new loop, so off unless `vars.REPO_SCOUT_ENABLED` is `true` | [SCOUT.md](docs/SCOUT.md) |
 | `drift-check.yml`, `refresh-dash.yml`, `reconcile-registry.yml`, `update-submodules.yml` | The hard drift gate; nightly README/registry refresh; registry ↔ GitHub reconciliation; daily pointer bumps | [DASH.md](docs/DASH.md) |
 | `standardize-`, `schema-`, `feedback-`, `harness-`, `deps-`, `docker-`, `verify-fanout.yml` | Kits pushed down into the fleet as PRs | [STANDARDS.md](docs/STANDARDS.md), [HARNESS-OPS.md](docs/HARNESS-OPS.md), [DOCKER.md](docs/DOCKER.md), [VERIFICATION.md](docs/VERIFICATION.md) |
 | `build-dash.yml` | Builds the console page static with its API snapshot and deploys Pages | [CONSOLE-PAGES.md](docs/CONSOLE-PAGES.md) |

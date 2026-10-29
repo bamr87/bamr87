@@ -1,0 +1,14 @@
+/* The terminal dash's host: xterm.js fills it; the background follows the
+   TUI's own palette (set as a CSS variable by the page, from /api/theme). */
+.host {
+  height: calc(100vh - rem(230px));
+  min-height: rem(360px);
+  padding: var(--mantine-spacing-xs);
+  border: rem(1px) solid var(--grid);
+  border-radius: var(--mantine-radius-md);
+  background: var(--term-bg, var(--page));
+
+  & :global(.xterm) {
+    height: 100%;
+  }
+}

@@ -41,6 +41,7 @@ KEYS = {
     "update-submodules": "update_submodules",
     "token-rotation": "rotate_tokens",
     "repo-evolution": "repo_evolution",
+    "repo-scout": "repo_scout",
     "git-digs": "git_digs",
     "schema-vendor": "schema_vendor",
     "api-keys": "api_keys",

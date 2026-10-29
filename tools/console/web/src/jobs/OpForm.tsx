@@ -9,7 +9,7 @@ import { remoteWrite, useRunner } from './JobRunner';
 
 type Params = Record<string, unknown>;
 
-const WORKFLOWS = ['harness-fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution', 'standardize-fanout',
+const WORKFLOWS = ['harness-fanout', 'fleet-pulse', 'issue-pipeline', 'token-rotation', 'repo-evolution', 'repo-scout', 'standardize-fanout',
   'schema-fanout', 'build-dash', 'reconcile-registry', 'refresh-dash', 'update-submodules', 'backlog-fanout'];
 
 const BOOL: Record<string, string> = {

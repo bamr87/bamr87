@@ -83,6 +83,7 @@ import cv_fragment
 import daily_report
 import engagements
 import evolution
+import repo_scout
 import fleet_compose
 import content_atlas
 import fleet_lake
@@ -328,6 +329,24 @@ def gather_health(project: dict, th: dict) -> dict:
 def compute_attention(project: dict, health: dict, th: dict) -> None:
     reasons: list[str] = []
     level = "green"
+
+    # An archived project is read-only on GitHub: its last CI verdict, open
+    # bugs and stale issues are history, not work. Ranking it red put ai-seed
+    # and csv-vscoode at the top of "need attention" with nothing to do.
+    if project.get("status") == "archived" or project.get("github_archived"):
+        health["attention"]["level"] = "green"
+        health["attention"]["reasons"] = ["archived — read-only, not monitored"]
+        health["attention_rank"] = 2
+        return
+    # An external mirror (microsoft/skills, tt-a1i/archify) is consumed, not
+    # maintained here: its red CI is nobody's lever on this board. Same rule
+    # fleet_triage.score_attention applies ("external mirror — informational").
+    repo_url = str(project.get("repo_url") or "").lower().rstrip("/")
+    if repo_url and "github.com/bamr87/" not in repo_url + "/":
+        health["attention"]["level"] = "green"
+        health["attention"]["reasons"] = ["external mirror — informational only"]
+        health["attention_rank"] = 2
+        return
 
     if health["ci"]["last"] not in ("success", None):
         reasons.append(f"CI failing ({health['ci']['last']})")
@@ -659,6 +678,17 @@ def main(argv: list[str] | None = None) -> int:
         help="weekly repo-evolution plan: select opted-in submodules, skip open passes, write briefs -> JSON matrix (feeds repo-evolution.yml)",
     )
     evolution.add_arguments(p_targets)
+
+    p_scout = sub.add_parser(
+        "scout",
+        help="daily repo-scout plan: today's sample of owned repos, backpressure, briefs -> JSON matrix (feeds repo-scout.yml)",
+    )
+    repo_scout.add_plan_arguments(p_scout)
+    p_scout_file = sub.add_parser(
+        "scout-file",
+        help="file a scout agent's proposals.json as issues: validate, dedupe against open issues, cap, label (dry run without --apply)",
+    )
+    repo_scout.add_file_arguments(p_scout_file)
 
     args = parser.parse_args(argv)
     return args.func(args)

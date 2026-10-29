@@ -7,7 +7,7 @@
 // and opens the job drawer on its live log — the page you were on stays put.
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Anchor, Badge, Button, Code, Drawer, Group, Stack, Text } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Code, Drawer, Group, Stack, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,6 +18,7 @@ import type { Job, Op } from '../api/types';
 import { to } from '../lib/links';
 import { JobStatus } from './JobStatus';
 import { LogView, useJobTail } from './JobLog';
+import u from '../styles/utils.module.css';
 
 type Params = Record<string, unknown>;
 
@@ -152,13 +153,13 @@ function JobDrawer({ jobId, onClose }: { jobId: string | null; onClose: () => vo
             <Anchor component={Link} to={to.job(job.id)} size="sm" onClick={onClose}>Open the job page</Anchor>
             <Anchor component={Link} to={to.op(job.op)} size="sm" onClick={onClose}>About {job.op}</Anchor>
           </Group>
-          <Code block style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{job.argv.map((a) => a.replace(/^.*\/tools\//, 'tools/')).join(' ')}</Code>
+          <Code block className={u.preWrap}>{job.argv.map((a) => a.replace(/^.*\/tools\//, 'tools/')).join(' ')}</Code>
         </Stack>
       ) : null}
       {error ? <Text c="red" size="sm" mt="sm">{error}</Text> : null}
-      <div style={{ marginTop: 12 }}>
+      <Box mt={12}>
         <LogView raw={raw} height="calc(100vh - 220px)" />
-      </div>
+      </Box>
       <Group justify="flex-end" mt="sm">
         <Button variant="default" onClick={onClose}>Close</Button>
       </Group>

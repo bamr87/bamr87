@@ -15,6 +15,7 @@ import { Banner, Load, Mono, PageHeader, Section, Spinner, StatTile, Status } fr
 import { RunButton } from '../jobs/RunButton';
 import { fmt } from '../lib/format';
 import { to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 type Row = Dict<any>;
 
@@ -40,7 +41,7 @@ function Search() {
     <Stack gap="sm">
       <form onSubmit={(e) => { e.preventDefault(); void run(); }}>
         <Group gap="sm" wrap="wrap">
-          <TextInput data-page-search leftSection={<IconSearch size={15} />} placeholder="a pattern, e.g. journal entry posting  ( / )" value={q} onChange={(e) => setQ(e.currentTarget.value)} style={{ flex: 1, minWidth: 260 }} />
+          <TextInput data-page-search leftSection={<IconSearch size={15} />} placeholder="a pattern, e.g. journal entry posting  ( / )" value={q} onChange={(e) => setQ(e.currentTarget.value)} className={u.flexFill} miw={260} />
           <SegmentedControl value={kind} onChange={(v) => setKind(v as 'search' | 'harmonize')} data={[{ label: 'Search', value: 'search' }, { label: 'Harmonize', value: 'harmonize' }]} />
           <Button type="submit" loading={busy}>Go</Button>
         </Group>

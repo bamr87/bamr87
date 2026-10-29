@@ -98,6 +98,7 @@ DISPATCHABLE = {
     "issue-pipeline": set(),
     "token-rotation": set(),
     "repo-evolution": {"target", "dry_run", "force", "focus"},
+    "repo-scout": {"target", "focus", "dry_run"},
     "standardize-fanout": {"target", "artifacts", "dry_run", "upgrade"},
     "schema-fanout": {"target", "dry_run"},
     "build-dash": set(),
@@ -137,7 +138,11 @@ def parse_stamp(value) -> dt.datetime | None:
 def source_meta(data, now: dt.datetime) -> dict:
     if not isinstance(data, dict):
         return {"present": False, "generated_at": None, "age_days": None}
-    stamp = data.get("generated_at") or data.get("generated")
+    # Most signals stamp themselves at the top. The engagement ledger stamps
+    # summary.updated_at instead (moved only when content moves), which used to
+    # render as "no stamp" on the Overview's freshness tiles.
+    summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    stamp = data.get("generated_at") or data.get("generated") or data.get("updated_at") or summary.get("updated_at")
     ts = parse_stamp(stamp)
     return {
         "present": True,
@@ -199,6 +204,9 @@ LOOPS = [
     {"id": "repo_evolution", "title": "Repo evolution — proactive improvement", "workflow": "repo-evolution",
      "schedule_key": "repo_evolution", "doc": "docs/EVOLUTION.md",
      "outputs": [], "local_ops": ["targets"]},
+    {"id": "repo_scout", "title": "Repo scout — daily issue proposals", "workflow": "repo-scout",
+     "schedule_key": "repo_scout", "doc": "docs/SCOUT.md",
+     "outputs": [], "local_ops": ["scout"]},
     {"id": "harness_fanout", "title": "Harness fan-out — mass deploy / update", "workflow": "harness-fanout",
      "schedule_key": None, "doc": "docs/HARNESS-OPS.md",
      "outputs": [], "local_ops": ["gaps", "deploy-gaps"]},
@@ -1063,6 +1071,9 @@ OPS: dict[str, dict] = {
     "targets": dict(title="Plan the repo-evolution pass (offline)", group="plan",
                     argv=lambda p: [DASH_GEN, "targets", "--no-dedupe"], needs_token=False,
                     desc="Select auto_evolve opt-ins and write their briefs (no GitHub dedupe)."),
+    "scout": dict(title="Plan today's repo-scout sample (offline)", group="plan",
+                  argv=lambda p: [DASH_GEN, "scout", "--offline"], needs_token=False,
+                  desc="Today's rotation over the owned, non-archived registry repos + their briefs (no backpressure check without GitHub)."),
     "reconcile": dict(title="Reconcile registry vs GitHub (report only)", group="plan",
                       argv=lambda p: [DASH_GEN, "reconcile"], needs_token=True,
                       desc="Renames, url mismatches, 404s, branch drift — reported, never applied from here."),
@@ -1692,6 +1703,7 @@ CONFIG_SECTIONS: list[dict] = [
          ("update_submodules", "weekly submodule pointer bump PR"),
          ("rotate_tokens", "weekly credential rotation"),
          ("repo_evolution", "weekly proactive per-repo improvement pass"),
+         ("repo_scout", "daily proactive issue proposals — a sample of repos a day"),
      )}},
     {"key": "remediation", "title": "Remediation — the doctor's guardrails", "doc": "docs/DAILY-ANALYSIS.md",
      "blurb": "Blast radius and eligibility of the daily auto-fix loop. Raising max_candidates "

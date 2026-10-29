@@ -13,6 +13,8 @@ The loop that turns an **open issue** into a **merge-ready pull request**, in th
 | **Snapshot** | `_data/issue_pipeline.yml` (committed) | rendered at `/issue-pipeline/` |
 | **Tests** | `python3 .github/scripts/dash-gen/test_issue_pipeline.py` | no network, no pytest |
 
+Issues reach the pipeline from people, from the fleet doctor's tickets, and — since 2026-10 — from the daily [repo scout](SCOUT.md), which walks a sample of repositories and files well-formed proposals (fix / update / feature) labelled from this taxonomy; they enter at intake like any other issue.
+
 ## The three tiers
 
 ### Tier 1 — intake
