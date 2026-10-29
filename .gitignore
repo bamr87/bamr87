@@ -12,6 +12,7 @@ htmlcov/
 .venv/
 venv/
 .venv-console/
+.venv-mcp/
 .venv-tui/
 .venv-docs/
 *.tsbuildinfo
