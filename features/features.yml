@@ -444,3 +444,16 @@ features:
     date: 2026-10-29
     tests:
       - tools/test_deep_dive.py
+  - id: HUB-030
+    title: "Real-time bot activity dashboard"
+    description: "A live view at /live in the harness console: active and idle Claude Code sessions, Claude live usage from Prometheus, Claude CI spend and Actions minutes against the _data/fleet.yml budgets ($75 and 40,000 min/month), jobs with live log tails, the harness scorecard, deep-dive cycle progress and an observability reachability check. Session data comes from the read-only host collector tools/console/live_collector.py, run by a LaunchAgent; the console serves GET /api/live and the GET /api/live/stream SSE feed (5 s updates, token auth), with a 5 s polling fallback. Spec: tools/console/docs/realtime-bot-dashboard-spec.md. In review in bamr87/bamr87#432 (https://github.com/bamr87/bamr87/pull/432), not merged; no per-session cost yet, and Actions minutes come from daily data."
+    implemented: true
+    status: partial
+    prd: [FR5]
+    surface: ui
+    link: /live
+    docs: tools/console/docs/realtime-bot-dashboard-spec.md
+    tags: [ console, dashboard, live, sse, observability ]
+    date: 2026-10-29
+    tests:
+      - { na: "tested locally only; automated tests not yet written (bamr87/bamr87#432)" }
