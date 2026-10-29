@@ -47,6 +47,10 @@
       "args": [
         "tools/fleetcore/mcp_server.py"
       ]
+    },
+    "harness-console": {
+      "command": "tools/console/mcp.sh",
+      "args": []
     }
   }
 }

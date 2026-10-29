@@ -84,6 +84,10 @@ No HTTP middleware sees a WebSocket handshake, and CORS does not apply to one, s
 - the **Origin** must be this console's own page, which stops cross-site WebSocket hijacking (add a dev origin with `DASH_CONSOLE_ALLOWED_ORIGINS`);
 - when `DASH_CONSOLE_TOKEN` is set, the first frame must carry it, because a browser cannot put a bearer token on a WebSocket.
 
+## For AI agents: the MCP layer
+
+`tools/dash mcp` serves the console's API as an MCP server — stdio for Claude Code and Cursor (registered in `.mcp.json` as `harness-console`), or `--http` for remote agents such as Grok Bots on `127.0.0.1:4002/mcp` with bearer auth. Read tools cover the fleet, harness health, live activity, jobs, spend, the lake, the code index and the deep dive; the write tools (run an op, cancel a job, a workflow kill switch) exist only with `HARNESS_MCP_ALLOW_WRITES=1` and each needs `confirm=true`. See [docs/mcp-layer.md](docs/mcp-layer.md).
+
 ## The public site
 
 `build-pages.sh` builds this page a second way — base `/bamr87/`, `VITE_STATIC=1` — and `snapshot.py` writes every GET document the page reads as a file beside it, rendered by the same functions the routes above call. That is what `build-dash.yml` publishes. It also adds the profile: Home, About, Experience, Portfolio, Writing, Services and Contact (`site_docs.py`, from `_data/profile.yml` and `pages/`), served here too at `/api/site*` and `/api/data/{name}`.

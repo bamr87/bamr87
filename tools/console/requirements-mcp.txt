@@ -1,0 +1,4 @@
+# Harness Console MCP layer (tools/console/mcp_layer) — always-latest (fleet policy: no pins, no lockfiles).
+# The official MCP Python SDK (v2: MCPServer, stdio + streamable HTTP) and the HTTP server for --http.
+mcp
+uvicorn
