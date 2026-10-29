@@ -32,7 +32,7 @@ python3 tools/docs_index.py --check                            # docs/README.md 
 | CV projection | `python3 -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q` (pytest only; no standalone runner) |
 | Hub tools | `python3 tools/test_<name>.py` (conformance, docs index, docker, fleet config, …) |
 | Public site | `python3 tools/console/test_pages.py`, then `tools/console/build-pages.sh` |
-| Shell / workflows | `shellcheck tools/*.sh tools/observability/*.sh` · `actionlint .github/workflows/*.yml` |
+| Shell / workflows | `shellcheck tools/*.sh tools/observability/*.sh` · `actionlint .github/workflows/*.yml` · `tools/dash workflows lint` |
 | Specs / catalog | `python3 tools/gen-specs-data.py --check` · `python3 tools/gen-catalog.py --check` |
 
 `tools/dash` is the command router for everything else; its full reference is generated in [docs/DASH.md](docs/DASH.md#the-dash-cli). `tools/dash-gen` and `tools/check-drift.sh` honour `PYTHON=/path/to/python`. `run-all-tests.sh` skips projects whose dependencies are not installed, so green means only that what ran passed.
@@ -103,6 +103,7 @@ Each of these came from an incident; the linked doc tells it.
 | `build-dash.yml` | Builds the console page static with its API snapshot and deploys Pages | [CONSOLE-PAGES.md](docs/CONSOLE-PAGES.md) |
 | `tools/dash console` / `tui` | The write-capable local console (127.0.0.1:4001) and the terminal dash; never commits or merges | [HARNESS-OPS.md](docs/HARNESS-OPS.md) |
 | `tools/dash lake` / `observe` / `content` | The local data lake, the log/metrics/trace planes, the content atlas | [HARNESS-OPS.md](docs/HARNESS-OPS.md), [OBSERVABILITY.md](docs/OBSERVABILITY.md), [CONTENT-ATLAS.md](docs/CONTENT-ATLAS.md) |
+| `tools/dash workflows` | The workflow atlas: the hub's workflows and actions as one model, linted against the standards, failures classified from the lake, new workflows scaffolded inside the rules (console `/workflows`, MCP `fleet_workflows`) | [WORKFLOW-ATLAS.md](docs/WORKFLOW-ATLAS.md) |
 | `tools/dash up` / `dev` / `docker` | The container plane, per-project dev stacks, the image standard | [CONTAINERS.md](docs/CONTAINERS.md), [FLEET-COMPOSE.md](docs/FLEET-COMPOSE.md), [DOCKER.md](docs/DOCKER.md) |
 
 ## Gotchas

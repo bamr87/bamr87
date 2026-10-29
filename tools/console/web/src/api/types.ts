@@ -576,3 +576,62 @@ export interface PullSpecs {
   backlog: { added: Dict<string>[]; removed: Dict<string>[]; moved: string[] };
   files: { total: number; by_area: Dict<number> };
 }
+
+// --- The workflow atlas (dash-gen workflow_atlas.py; /api/workflows) ---------
+export type Severity = 'error' | 'warn' | 'info';
+export type FailureClass = 'capacity' | 'config' | 'transient' | 'dependency' | 'defect';
+export interface WfInput { name: string; type: string; default: unknown; required: boolean; description: string; options: string[] }
+export interface WfCron { cron: string; human: string; per_day: number | null; on_hour: boolean; schedule_key: string | null }
+export interface WfEvent { name: string; branches?: string[]; paths?: string[]; types?: string[]; tags?: string[]; workflows?: string[] }
+export interface WfJob {
+  id: string; name: string; line: number | null; runs_on: string | null; timeout: number | string | null; needs: string[];
+  if: string | null; uses: string | null; permissions: Record<string, string> | string | null; concurrency: boolean; steps: number; matrix: boolean;
+}
+export interface WfRef { ref: string; kind: 'action' | 'workflow' | 'external' | 'docker' | 'unknown'; target: string; version: string | null; owner?: string | null; jobs: string[] }
+export interface WfAiSite {
+  site: string; job: string; kind: string; step: string; continue_on_error: boolean | 'expression'; max_budget_usd: number | null; budget_from_input?: boolean; max_turns: number | null;
+  model: string | null; cost_step: boolean; usage_limit: string | null; declared_usd: number | null;
+}
+export interface Tally { error: number; warn: number; info: number }
+export interface Workflow {
+  id: string; file: string; name: string; lines: number; parse_error: string | null; header: string; group: string;
+  when: string | null; purpose: string | null; purpose_text: string | null; documented: boolean;
+  triggers: string[]; events: WfEvent[]; crons: WfCron[]; dispatch_inputs: WfInput[]; call_inputs: WfInput[]; call_secrets: string[];
+  permissions: Record<string, string> | string | null; concurrency: { group: string; cancel_in_progress: unknown } | null;
+  jobs: WfJob[]; uses: WfRef[]; secrets: string[]; vars: string[]; switch: string | null; switches: string[];
+  ai_sites: WfAiSite[]; publishes: string[]; opens_prs: boolean; findings: Tally; loop: string | null; dispatchable: boolean;
+}
+export interface WfAction {
+  id: string; file: string; name: string | null; description: string; using: string | null; inputs: WfInput[]; outputs: string[];
+  steps: number; uses: string[]; lines: number; parse_error: string | null; used_by: string[]; documented: boolean; readme: boolean; findings: Tally; description_exprs?: string[];
+}
+export interface Finding { rule: string; severity: Severity; kind: 'workflow' | 'action'; target: string; file: string; line: number | null; job: string | null; message: string }
+export interface Rule { id: string; severity: Severity; title: string; why: string; fix: string; doc: string; gate: string | null }
+export interface Retired { date: string; removed: string; why: string; files: string[] }
+export interface WorkflowAtlas {
+  schema: string; hub: string; workflows: Workflow[]; actions: WfAction[]; retired: Retired[]; rules: Rule[]; findings: Finding[];
+  readme_orphans: string[]; edges: { from: string; to: string; kind: string }[]; kinds: Record<string, string>;
+  summary: {
+    workflows: number; actions: number; lines: number; action_lines: number; groups: Record<string, number>; scheduled: number; ai: number;
+    ai_sites: number; kill_switches: number; dispatchable: number; jobs: number; findings: Tally; retired: number;
+    external_actions: { action: string; versions: string[] }[]; secrets: string[]; vars: string[];
+  };
+}
+export interface RunBrief { id: number; event: string; conclusion: string | null; status: string; created_at: string; html_url: string; head_branch: string | null }
+export interface RunFailure extends RunBrief { cause: string; class: FailureClass; evidence: string; hint: string; failed_step: string | null }
+export interface WfHealthRow {
+  path: string; runs: number; success: number; failure: number; cancelled: number; skipped: number; other: number;
+  events: Record<string, number>; causes: Record<string, number>; classes: Record<string, number>; capacity_skips: number;
+  last: RunBrief | null; last_failure: RunFailure | null; failures: RunFailure[]; p50_min: number | null; success_rate: number | null;
+  verdict: string; ghost: boolean;
+}
+export interface WorkflowHealth {
+  present: boolean; snapshot?: boolean; error?: string; nwo?: string; days?: number; synced_at?: string | null; logs?: number;
+  workflows: WfHealthRow[]; totals: Partial<Record<'runs' | 'success' | 'failure' | 'cancelled' | 'skipped' | 'capacity_skips', number>>;
+  classes: Record<string, number>; ghosts: string[]; class_hints: Record<string, string>;
+}
+export interface Scaffold {
+  kind: string; id: string; name: string; file: string; exists: boolean; cron: string | null; cron_human: string | null; switch: string | null;
+  text: string; companion: { file: string; where: string; snippet: string; why: string }[]; findings: Finding[]; kinds: Record<string, string>;
+}
+export interface DraftLint { workflow: Workflow; findings: Finding[]; tally: Tally }

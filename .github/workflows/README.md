@@ -61,6 +61,8 @@ Member repos call these by reference at a major tag (`@v1`, `@v2`; scheme in [WO
 
 ## Standards
 
+Each standard below is also a rule in the [workflow atlas](../../docs/WORKFLOW-ATLAS.md): `tools/dash workflows lint` checks them all, the console's **Workflows** page shows each finding with its fix, and `test_workflow_atlas.py` fails CI on an error. A new workflow starts from `tools/dash workflows new --kind <loop|agent-loop|gate|reusable|dispatch> --id <id>`, which passes every rule and prints the `fleet.yml` and README edits that go with it.
+
 - **One workflow per durable responsibility.** Shared CI is a reusable workflow; shared steps are a composite action. Do not copy a step into a second workflow: the six inline copies of the cost readout had drifted, one to the wrong cap.
 - **Least privilege.** Top-level `permissions: contents: read`, elevated per job. Every job sets `timeout-minutes`; every schedulable workflow that writes has a `concurrency:` group.
 - **Actions ride major tags** (`actions/checkout@v7`), never SHAs; Dependabot moves the majors, for workflows and composite actions alike ([DEPENDENCIES.md](../../docs/DEPENDENCIES.md)).
@@ -93,4 +95,4 @@ Recover any of them from git history if a reference implementation is ever wante
 
 ## Validation
 
-`actionlint` runs in `drift-check.yml` and locally from the repo root. `python3 .github/scripts/dash-gen/test_ai_budget.py` and `test_schedule.py` hold the Claude call sites and the crons to `_data/fleet.yml`.
+`actionlint` runs in `drift-check.yml` and locally from the repo root. `python3 .github/scripts/dash-gen/test_ai_budget.py` and `test_schedule.py` hold the Claude call sites and the crons to `_data/fleet.yml`; `test_workflow_atlas.py` holds every workflow and action to the standards above (`tools/dash workflows lint` prints the same findings).

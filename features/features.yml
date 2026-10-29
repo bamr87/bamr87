@@ -431,3 +431,23 @@ features:
       - verify/scenarios/work.yml
     evidence:
       - test/evidence/work
+  - id: HUB-029
+    title: "Workflow atlas: maintain and design the hub's GitHub Actions"
+    description: "Every hub workflow and composite action read as one model (triggers, crons and their fleet.yml keys, dispatch inputs, jobs, actions used, secrets, kill switch, Claude call sites with cap and usage-limit mode) at /workflows, held to the README standards and AGENTS.md standing rules by 17 lint rules that each name their incident and gate. Run health per workflow from the local lake classifies every failure as capacity, config, transient, dependency or defect, with ghosts and green-but-429 runs; a Retire tab lists dead schedules, unused actions and README orphans; a Design tab scaffolds a workflow of five kinds that passes every rule and lints any draft. The console's dispatch form and allowlist read each workflow's inputs from its file. Supplies FR21's triggers, schedule and last run as a page rather than map nodes. Also tools/dash workflows and the fleet_workflows / workflow_lint MCP tools."
+    implemented: true
+    status: shipped
+    prd: [FR5, FR21]
+    surface: ui
+    link: /workflows
+    docs: docs/WORKFLOW-ATLAS.md
+    tags: [ console, workflows, ci, standards, lint, mcp ]
+    date: 2026-10-28
+    tests:
+      - .github/scripts/dash-gen/test_workflow_atlas.py
+      - .github/scripts/dash-gen/test_schedule.py
+      - tools/console/test_console.py
+      - tools/test_fleetcore_mcp.py
+    scenarios:
+      - verify/scenarios/workflows.yml
+    evidence:
+      - test/evidence/workflows

@@ -33,6 +33,8 @@ The console process owns the operation allowlist and the job manager. The browse
 | `fleet_inbox` | the flagged inbox, or every open item of one repo | no |
 | `fleet_docker` | containers on every `DASH_DOCKER_HOST`, attributed to projects | no |
 | `fleet_work` | the Work board in the loops' order: lanes, each loop's cap and next run, the human's pins and overrides first ([docs/WORK-BOARD.md](../../docs/WORK-BOARD.md)) | no |
+| `fleet_workflows` | the hub's workflows and composite actions as one model with every lint finding; one in full with `workflow`; run health and failure causes from the lake with `health` ([docs/WORKFLOW-ATLAS.md](../../docs/WORKFLOW-ATLAS.md)) | no |
+| `workflow_lint` | a draft workflow's findings against the hub's standards and `_data/fleet.yml` — nothing is written | no |
 | `console_ops` | the console's allowlisted operations and which can write to GitHub | yes |
 | `console_run` | run one as a job, the same job the browser and the TUI list. A writing operation is refused unless `confirm=true` | yes |
 | `console_jobs` · `console_job_log` · `console_cancel` | list jobs, follow a log by offset, cancel | yes |
