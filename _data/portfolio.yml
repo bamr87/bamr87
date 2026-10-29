@@ -87,6 +87,18 @@ members:
   "chui": devtools
   "outbox": ai
   "retro-pi": games
+  "fleet-infra": platform
+  "kvlite": devtools
+  "netprobe": devtools
+  "fleet-observe": platform
+  "zer0-id": zer0
+  "sec-lab": devtools
+  "edgar-pipeline": ai
+  "zer0-kernel": zer0
+  "sensor-mesh": devtools
+  "fleet-mobile": platform
+  "schema-lang": agents
+  "ragio-ai": ai
 
 extra:
   - name: amrchy
