@@ -12,6 +12,7 @@ import { External, Load, PageHeader, Section, Status } from '../components/ui';
 import { RunButton } from '../jobs/RunButton';
 import { fmt } from '../lib/format';
 import { gh, to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 const WIRE_PAGE: Record<string, string> = {
   'stale-data': '/overview', 'pass-rate-floor': '/inbox?kind=workflow', 'waste-ceiling': '/costs', 'budget': '/costs',
@@ -36,11 +37,10 @@ function Diagrams() {
   return (
     <Section title="How the loops run" description={<>Interactive diagrams authored as typed JSON in <External href={gh.hubFile('diagrams')}>diagrams/</External> and compiled by the vendored archify skill (<code>tools/render-diagrams.sh</code>). Each opens standalone with search, focus, route tracing, theme and export.</>}
       actions={<External href={diagramUrl(pick)} size="sm">open standalone</External>}>
-      <SegmentedControl size="xs" mb="sm" value={pick} onChange={setPick} data={DIAGRAMS.map(([value, label]) => ({ value, label: label.split(' — ')[0] }))} style={{ maxWidth: '100%', overflowX: 'auto' }} />
+      <SegmentedControl size="xs" mb="sm" value={pick} onChange={setPick} data={DIAGRAMS.map(([value, label]) => ({ value, label: label.split(' — ')[0] }))} className={u.scrollX} />
       {/* Sandboxed without allow-same-origin: the diagram runs its own inline
           script, and this origin may hold a console or GitHub token. */}
-      <iframe key={pick} src={diagramUrl(pick)} title={title} loading="lazy" sandbox="allow-scripts allow-popups allow-downloads"
-        style={{ width: '100%', height: 760, border: '1px solid var(--grid)', borderRadius: 8, background: 'var(--surface)' }} />
+      <iframe key={pick} src={diagramUrl(pick)} title={title} loading="lazy" sandbox="allow-scripts allow-popups allow-downloads" className={u.embedTall} />
     </Section>
   );
 }

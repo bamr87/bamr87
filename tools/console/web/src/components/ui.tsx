@@ -1,25 +1,30 @@
-// The small pieces every page is built from. Status is always icon + label
-// (never colour alone); every repo name, operation and source links somewhere.
+// The small pieces every page is built from, each a Mantine primitive with the
+// console's semantics on top. Status is always icon + label (never colour
+// alone); every repo name, operation and source links somewhere.
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
-  Alert, Anchor, Box, Breadcrumbs, Group, Loader, Paper, Skeleton, Stack, Text, Title, Tooltip,
+  Alert, Anchor, Badge, Box, Breadcrumbs, ColorSwatch, Group, Loader, Paper, Progress, Skeleton, Stack, Text, Title, Tooltip,
+  VisuallyHidden,
 } from '@mantine/core';
 import { IconAlertTriangle, IconExternalLink, IconInfoCircle } from '@tabler/icons-react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Level } from '../api/types';
 import { to } from '../lib/links';
 import { repoName } from '../lib/format';
+import { toneColor, type Tone } from '../theme';
+import u from '../styles/utils.module.css';
 
-export type Tone = 'good' | 'warn' | 'crit' | 'info';
+export type { Tone } from '../theme';
 const GLYPH: Record<Tone, string> = { good: '✓', warn: '⚠', crit: '✖', info: '●' };
+const LEVEL_COLOR: Record<Level, string> = { red: 'var(--critical)', amber: 'var(--warning)', green: 'var(--good)' };
 
+/** A status pill: glyph + label, coloured by tone through the fleetcore roles. */
 export function Status({ tone, children, title }: { tone: Tone; children: ReactNode; title?: string }) {
   const pill = (
-    <span className={`st ${tone === 'info' ? '' : tone}`}>
-      <span aria-hidden>{GLYPH[tone]}</span>
+    <Badge variant={tone === 'info' ? 'default' : 'light'} color={toneColor[tone]} size="sm" leftSection={<span aria-hidden>{GLYPH[tone]}</span>}>
       {children}
-    </span>
+    </Badge>
   );
   return title ? <Tooltip label={title}>{pill}</Tooltip> : pill;
 }
@@ -32,25 +37,32 @@ export function Conclusion({ value }: { value?: string | null }) {
   return <Text span c="dimmed" size="sm">{value || '—'}</Text>;
 }
 
+/** A health level as a dot (with the level name for screen readers) and an optional label. */
 export function LevelDot({ level, label }: { level?: Level | null; label?: ReactNode }) {
   if (!level) return <Text span c="dimmed">·</Text>;
   return (
-    <span className={`lvl-${level}`} title={level}>
-      ● {label !== undefined ? <Text span size="sm" c="var(--ink)">{label}</Text> : null}
-      <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{level}</span>
-    </span>
+    <Group component="span" gap={6} wrap="nowrap" display="inline-flex" title={level}>
+      <ColorSwatch component="span" color={LEVEL_COLOR[level]} size={10} withShadow={false} />
+      <VisuallyHidden>{level}</VisuallyHidden>
+      {label !== undefined ? <Text span size="sm">{label}</Text> : null}
+    </Group>
   );
 }
 
 export const severityTone = (ratio: number): Tone => (ratio >= 1 ? 'crit' : ratio >= 0.7 ? 'warn' : 'info');
 
+/** A value against its cap. */
 export function Meter({ value, cap, tone }: { value: number; cap: number; tone?: Tone }) {
   const ratio = cap ? value / cap : 0;
   const t = tone ?? severityTone(ratio);
   return (
-    <div className={`meter ${t === 'info' ? '' : t}`} role="meter" aria-valuenow={value} aria-valuemax={cap}>
-      <i style={{ width: `${Math.min(100, Math.max(0, 100 * ratio))}%` }} />
-    </div>
+    <Progress
+      value={Math.min(100, Math.max(0, 100 * ratio))}
+      color={t === 'info' ? 'var(--accent)' : toneColor[t]}
+      aria-valuenow={value}
+      aria-valuemax={cap}
+      aria-label={`${value} of ${cap}`}
+    />
   );
 }
 
@@ -68,7 +80,7 @@ export function StatTile({
     </Stack>
   );
   return href ? (
-    <Paper p="md" component={Link} to={href} style={{ textDecoration: 'none', color: 'inherit' }} className="tile-link">
+    <Paper p="md" component={Link} to={href} className={u.tileLink}>
       {body}
     </Paper>
   ) : (
@@ -124,7 +136,7 @@ export function Banner({ tone, children, title }: { tone: Tone; children: ReactN
   const color = tone === 'crit' ? 'red' : tone === 'warn' ? 'yellow' : tone === 'good' ? 'teal' : 'gray';
   const icon = tone === 'info' || tone === 'good' ? <IconInfoCircle size={18} /> : <IconAlertTriangle size={18} />;
   return (
-    <Alert color={color} variant="light" icon={icon} title={title} my="sm" styles={{ message: { color: 'var(--ink)' } }}>
+    <Alert color={color} variant="light" icon={icon} title={title} my="sm">
       {children}
     </Alert>
   );
@@ -135,7 +147,7 @@ export function External({ href, children, size }: { href?: string | null; child
   return (
     <Anchor href={href} target="_blank" rel="noopener noreferrer" size={size} inline>
       {children}
-      <IconExternalLink size={12} style={{ marginLeft: 3, verticalAlign: -1 }} />
+      <IconExternalLink size={12} className={u.iconInline} />
     </Anchor>
   );
 }
@@ -152,7 +164,7 @@ export function RepoLink({ name, nwo }: { name?: string | null; nwo?: string | n
 }
 
 export function Mono({ children, dim }: { children: ReactNode; dim?: boolean }) {
-  return <Text span ff="monospace" fz={12.5} c={dim ? 'dimmed' : undefined} style={{ overflowWrap: 'anywhere' }}>{children}</Text>;
+  return <Text span ff="monospace" fz={12.5} c={dim ? 'dimmed' : undefined} className={u.anywhere}>{children}</Text>;
 }
 
 /** Loading / error states for one query; renders children only with data. */

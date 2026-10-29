@@ -16,21 +16,25 @@ Dependencies are always-latest (`*`), and `.npmrc` sets `package-lock=false`, so
 | Path | Role |
 | --- | --- |
 | `src/main.tsx` | Providers and the route table |
-| `src/nav.ts` | The information architecture: eight sections of pages. keys v1's `1`–`8` and `]` / `[` follow it |
-| `src/theme.ts` | Points Mantine's CSS variables at the bashOS palette from `/theme.css` (`tools/fleetcore/theme.py`). No hex value lives here |
-| `src/styles.css` | Console-only roles: validated chart series, meter tracks, log colours |
+| `src/nav.ts` | The information architecture: nine sections of pages, the profile first and then the console. keys v1's `1`–`9` and `]` / `[` follow it |
+| `src/theme.ts` | The one theme object: `createTheme` tokens + `components:` defaults, and the CSS-variables resolver that points Mantine at the bashOS palette from `/theme.css` (`tools/fleetcore/theme.py`) and declares the console's own roles per colour scheme |
+| `src/styles.css` | Base rules only (body background, link colour); everything else is a CSS module |
+| `src/styles/` | `Table.module.css` (every table, via the theme) and `utils.module.css` (one-line layout roles) |
+| `postcss.config.cjs` | Mantine's standard PostCSS setup: `postcss-preset-mantine` + breakpoint variables |
 | `src/api/` | `client.ts` (the one `api()` every page calls, + the one-prompt console token), `backend.ts` (which backend answers: the console, the published snapshot, or a remote console; the browser-held GitHub token), `static.ts` (an `/api` path → the snapshot file `../snapshot.py` wrote), `ghdirect.ts` (the console's GitHub routes and workflow dispatch, answered from the browser against api.github.com), `types.ts`, `hooks.ts` (one Query hook per document) |
 | `src/lib/` | `format.ts`, `ansi.ts` (SGR → HTML for job logs), `links.ts` (every internal route and GitHub link, in one place) |
-| `src/components/` | the shell, `DataTable` (sortable, linkable rows with keys v1 navigation), the palette, the global keymap, charts, small UI pieces |
+| `src/components/` | the shell, `DataTable` (sortable, linkable rows with keys v1 navigation), the palette, the global keymap, `Charts` (Mantine Progress meters + the lazily loaded `Columns` bar chart on `@mantine/charts`), small UI pieces (`ui.tsx`: Badge pills, ColorSwatch dots, Progress meters, tiles) |
 | `src/jobs/` | `JobRunner` (the confirm gate, submit, the live-log drawer), `OpForm`, `RunButton`, `JobLog` |
 | `src/github/` | the GitHub surface: `ConnectPanel` (OAuth App setup, device / browser flows), `RepoManager` (issues, PRs, runs, workflows), `useGhAction` (every write: say, ask, POST with confirm, log) |
 | `src/pages/` | one file per page, plus the drill-downs (`ProjectPage`, `ContentSite`, loop, job and operation pages); the profile (`Home`, `Profile` — pages and posts, `Portfolio`), the registries (`Registries`: roadmap, features, engagements, toolbox), the Work board (`Work`, with `WorkBoard` — lanes, cards and drag and drop, `WorkItem` — the drawer, `WorkFlow` — throughput, `workPlan` — the staged plan) and `Connect` |
 
 Rules the code keeps:
 
+- **Theme and layout come from Mantine, not from hand-written CSS.** `src/theme.ts` is the one theme object: `createTheme` (tokens, breakpoints, `other` for the layout constants) plus `components:` defaults through the Styles API (every `Table` is dense through `theme.components.Table.classNames`; `Badge`, `Progress`, `Kbd`, `NavLink`, `AppShell` carry their defaults there). The palette is still fleetcore's: the CSS-variables resolver points Mantine's variables at `/theme.css` and declares the console's own roles (chart series, meter tracks, ANSI log colours) per colour scheme. No stylesheet carries a palette.
+- **Styling is CSS modules + style props.** Component styles live in a `*.module.css` beside the component (`DataTable.module.css`, `Charts.module.css`, `JobLog.module.css`, `pages/TerminalPage.module.css`, …), processed by Mantine's standard PostCSS setup (`postcss.config.cjs`: `postcss-preset-mantine` for `rem()`, `light-dark()` and `@mixin hover`; `postcss-simple-vars` for breakpoint variables in media queries). One-line layout roles are `src/styles/utils.module.css` (`nowrap`, `preWrap`, `flexFill`, `tileLink`, `embed`, …). `src/styles.css` is base rules only. **No inline `style={{…}}` objects**: the only `style` props left set a CSS custom property whose value is data (`--tick`, `--term-bg`), which is Mantine's own pattern for dynamic values. State on a row is a `data-*` attribute the module styles, never a class string the page assembles.
+- **Widgets are Mantine components.** Status pills are `Badge`, meters are `Progress`, health dots are `ColorSwatch` + `VisuallyHidden`, key caps are `Kbd`, and charts are `@mantine/charts` (`BarChart` on Recharts) with the console's series roles as `var(--series-*)` colours. Status is always an icon plus a label (`Status`), never colour alone, and every chart keeps a table view.
 - Every entity links to its page through `lib/links.ts`, so a repo name or operation opens the same drill-down everywhere.
 - The public build lives under `/bamr87/`: navigate through React Router (it carries the `basename`), point at files with `asset()` from `api/backend.ts`, and never write a bare `/path` into an `href` or `src`.
 - A page never asks which backend it is on to fetch data — only to decide what to offer (`hasConsole()`): a lever that needs a console says so (`LocalOnly`, `runnableHere`) instead of failing.
-- Status is always an icon plus a label (`Status`), never colour alone. Chart series colours were validated for colour-vision deficiency in both themes, and every chart has a table view.
 - A view, key or colour the terminal dash shows too comes from `tools/fleetcore` through the API (`/api/fleet`, `/api/keys`, `/theme.css`, `/api/theme`) and is never copied here.
 - The bundle carries no inline script, so the console's `script-src 'self'` policy holds.

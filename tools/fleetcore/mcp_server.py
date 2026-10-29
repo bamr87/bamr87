@@ -41,7 +41,7 @@ from fleetcore.client import ConsoleClient, ConsoleError  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 SERVER = {"name": "fleet", "title": "bamr87 fleet console", "version": "0.1.0"}
 INSTRUCTIONS = (
-    "The bamr87 fleet: ~46 registry projects, their health, triage and harness signals, and the Harness "
+    "The bamr87 fleet: every project in the registry (_data/projects.yml), its health, triage and harness signals, and the Harness "
     "Console's allowlisted operations. Read with fleet_* tools. Act with console_run: it runs exactly what "
     "the console's Jobs tab runs. An operation that writes to GitHub is refused unless confirm=true — ask "
     "the user before setting it. Follow a job with console_job_log."

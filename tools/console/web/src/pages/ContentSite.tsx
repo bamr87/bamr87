@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
   Accordion, Anchor, Badge, Button, Code, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Tabs, Text, TextInput, Textarea, Tooltip,
-} from '@mantine/core';
+Progress, } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IconSearch } from '@tabler/icons-react';
@@ -24,6 +24,9 @@ import { LogView } from '../jobs/JobLog';
 import { RunButton } from '../jobs/RunButton';
 import { ago, fmt, sharePct } from '../lib/format';
 import { to } from '../lib/links';
+import u from '../styles/utils.module.css';
+import classes from './ContentSite.module.css';
+import type { CSSProperties } from 'react';
 
 type Row = Dict<any>;
 
@@ -133,8 +136,8 @@ function Pillars({ a, write, onView }: { a: Row; write: ReturnType<typeof usePla
               { key: 'p', header: 'pillar', render: (p) => <div><Text size="sm" fw={600}>{String(p.title)}</Text><Mono dim>{String(p.id)}</Mono></div> },
               {
                 key: 'm', header: 'recent share', render: (p) => (
-                  <Tooltip label={<span style={{ whiteSpace: 'pre' }}>{`${p.title}\nrecent share ${sharePct(p.recent_share)} (${p.recent} of ${t.recent})\ntarget ${sharePct(p.target_share)}`}</span>}>
-                    <div className="pillar-meter"><i style={{ width: `${Math.min(100, 100 * (p.recent_share || 0))}%` }} />{p.target_share != null ? <b style={{ left: `calc(${Math.min(100, 100 * p.target_share)}% - 1px)` }} /> : null}</div>
+                  <Tooltip label={<span className={u.pre}>{`${p.title}\nrecent share ${sharePct(p.recent_share)} (${p.recent} of ${t.recent})\ntarget ${sharePct(p.target_share)}`}</span>}>
+                    <div className={classes.pillar}><Progress value={Math.min(100, 100 * (p.recent_share || 0))} color="var(--series-1)" size="md" aria-label={`${p.title}: ${sharePct(p.recent_share)} of recent work`} />{p.target_share != null ? <span className={classes.tick} style={{ '--tick': `${Math.min(100, 100 * p.target_share)}%` } as CSSProperties} aria-hidden /> : null}</div>
                   </Tooltip>
                 ),
               },
@@ -271,7 +274,7 @@ function Documents({ a, view, setView }: { a: Row; view: string; setView: (v: st
             empty="no documents in this view"
             minWidth={980}
             columns={[
-              { key: 'doc', header: 'document', sort: (d) => String(d.title ?? d.path), render: (d) => <div><External href={link(String(d.path))} size="sm">{String(d.title || d.path)}</External>{d.draft ? <> <Status tone="info">draft</Status></> : null}<Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{String(d.path)}</Text></div> },
+              { key: 'doc', header: 'document', sort: (d) => String(d.title ?? d.path), render: (d) => <div><External href={link(String(d.path))} size="sm">{String(d.title || d.path)}</External>{d.draft ? <> <Status tone="info">draft</Status></> : null}<Text size="xs" c="dimmed" className={u.anywhere}>{String(d.path)}</Text></div> },
               { key: 'sec', header: 'section', sort: (d) => String(d.section), render: (d) => <Text size="sm">{String(d.section)}</Text> },
               { key: 'pub', header: 'published', sort: (d) => String(d.date ?? ''), render: (d) => <Text size="sm">{String(d.date ?? '—')}</Text> },
               { key: 'upd', header: 'updated', sort: (d) => String(d.updated ?? ''), render: (d) => <Text size="sm">{String(d.updated ?? '—')}</Text> },
@@ -353,7 +356,7 @@ function SiteBody({ a }: { a: Row }) {
             {suggestions.length ? suggestions.map((sg) => (
               <Paper key={String(sg.key)} p="sm">
                 <Group justify="space-between" wrap="wrap" gap="xs" align="flex-start">
-                  <Group gap="xs" wrap="nowrap" align="flex-start" style={{ flex: 1, minWidth: 260 }}>
+                  <Group gap="xs" wrap="nowrap" align="flex-start" className={u.flexFill} miw={260}>
                     <Status tone={sg.priority === 'P1' ? 'crit' : sg.priority === 'P2' ? 'warn' : 'info'}>{String(sg.priority)}</Status>
                     <div>
                       <Text size="sm" fw={600}>{String(sg.title)} <Mono dim>{String(sg.key)}</Mono></Text>

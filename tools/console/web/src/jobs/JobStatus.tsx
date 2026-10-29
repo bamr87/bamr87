@@ -1,4 +1,4 @@
-import { Loader } from '@mantine/core';
+import { Badge, Loader } from '@mantine/core';
 import { Status } from '../components/ui';
 
 export function JobStatus({ status }: { status: string }) {
@@ -8,9 +8,8 @@ export function JobStatus({ status }: { status: string }) {
   // The console restarted while this job ran; nothing finished it.
   if (status === 'interrupted') return <Status tone="warn" title="the console restarted while this job ran">interrupted</Status>;
   if (status === 'running') {
-    return (
-      <span className="st"><Loader size={10} />running</span>
-    );
+    // Status's info pill, with a spinner where the glyph goes.
+    return <Badge variant="default" size="sm" leftSection={<Loader size={10} />}>running</Badge>;
   }
   return <Status tone="info">{status}</Status>;
 }

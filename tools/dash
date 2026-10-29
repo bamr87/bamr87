@@ -79,6 +79,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash evolve${c_off}            how to evolve the monorepo itself (the local /evolve loop; the CI pass was retired)
   ${c_bold}dash evolve --repo <name>${c_off}  run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo)
   ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
+  ${c_bold}dash scout [plan|--repo <name>|--all]${c_off} the daily repo-scout loop — \`plan\` shows today's sample and briefs locally; \`--repo\`/\`--all\` dispatch repo-scout.yml (issues in the repos' own trackers; -f dry_run=true to rehearse)
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash ai run -- <args>${c_off}  run \`claude -p\` under the fleet.yml dollar cap, recording what it cost
@@ -243,6 +244,32 @@ cmd_console() {
   else
     "${TOOLS}/console/run.sh" "$@"
   fi
+}
+
+cmd_scout() {
+  # The daily proactive ISSUE loop (docs/SCOUT.md). `plan` is the deterministic
+  # half, run locally with GitHub reads for the backpressure check; `--repo` /
+  # `--all` dispatch the workflow, whose plan step decides what actually runs.
+  # Extra args pass through to `gh workflow run` — e.g. `-f dry_run=true`,
+  # `-f focus='...'`.
+  case "${1:-plan}" in
+    plan)
+      shift
+      "${TOOLS}/dash-gen" scout "$@"
+      ;;
+    --repo)
+      shift
+      command -v gh >/dev/null || { echo "gh CLI required to dispatch repo-scout.yml" >&2; return 1; }
+      local repo="${1:?usage: dash scout --repo <name> [-f dry_run=true] [-f focus=...]}"; shift || true
+      gh workflow run repo-scout.yml -f "target=${repo}" "$@"
+      ;;
+    --all)
+      shift
+      command -v gh >/dev/null || { echo "gh CLI required to dispatch repo-scout.yml" >&2; return 1; }
+      gh workflow run repo-scout.yml -f "target=all" "$@"
+      ;;
+    *) echo "usage: dash scout [plan [dash-gen scout args]|--repo <name>|--all] [-f key=value]" >&2; return 2 ;;
+  esac
 }
 
 cmd_sync() {
@@ -833,6 +860,7 @@ main() {
     adopt-release) cmd_adopt_release "$@" ;;
     protect) cmd_protect "$@" ;;
     evolve)  cmd_evolve "$@" ;;
+    scout)   cmd_scout "$@" ;;
     ai)      cmd_ai "$@" ;;
     doctor)  cmd_doctor "$@" ;;
     test)    cmd_test "$@" ;;

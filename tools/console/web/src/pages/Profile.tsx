@@ -9,6 +9,7 @@ import { useSite, useSitePage, useSitePost } from '../api/hooks';
 import { Markdown } from '../components/Markdown';
 import { External, Load, PageHeader } from '../components/ui';
 import { gh, to } from '../lib/links';
+import u from '../styles/utils.module.css';
 
 function useTitle(title?: string) {
   useEffect(() => {
@@ -22,7 +23,7 @@ export function ProfilePage({ slug }: { slug: string }) {
   return (
     <Load q={page} rows={8}>
       {(p) => (
-        <div style={{ maxWidth: 860 }}>
+        <div className={u.prose}>
           <PageHeader title={p.title} description={p.description}
             actions={<External href={gh.hubFile(`pages/profile/${p.slug}.md`)} size="xs">edit</External>} />
           <Markdown source={p.markdown} />
@@ -41,7 +42,7 @@ export function Blog() {
         {(s) => (s.posts.length ? (
           <Stack gap="sm" maw={860}>
             {s.posts.map((p) => (
-              <Card key={p.slug} padding="md" component={Link} to={to.post(p.slug)} className="tile-link" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <Card key={p.slug} padding="md" component={Link} to={to.post(p.slug)} className={u.tileLink}>
                 <Group gap={6} mb={2}>
                   <Text fw={600}>{p.title}</Text>
                   {p.draft ? <Badge size="xs" variant="light" color="yellow">draft — not published</Badge> : null}
@@ -64,7 +65,7 @@ export function Post() {
   return (
     <Load q={post} rows={10}>
       {(p) => (
-        <div style={{ maxWidth: 860 }}>
+        <div className={u.prose}>
           <PageHeader crumbs={[{ label: 'Writing', to: to.blog() }, { label: p.date }]} title={p.title}
             badges={p.draft ? <Badge variant="light" color="yellow">draft — not published</Badge> : null}
             description={<>{p.date} · {Math.max(1, Math.round(p.words / 200))} min read</>} />

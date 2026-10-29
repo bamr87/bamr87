@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-27T06:07:29Z'
+generated_at: '2026-10-28T06:00:31Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,21 +17,21 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 27
-  implemented: 24
-  covered: 27
-  evidenced: 8
+  features: 28
+  implemented: 25
+  covered: 28
+  evidenced: 9
   verified: 8
-  ui: 12
-  ui_covered: 12
+  ui: 13
+  ui_covered: 13
   ui_verified: 8
-  scenarios: 9
-  screenshots: 28
+  scenarios: 10
+  screenshots: 38
   dangling: 0
 pct:
   coverage: 112
-  evidence: 33
-  verified: 33
+  evidence: 36
+  verified: 32
   ui_coverage: 100
 attention: []
 repos:
@@ -52,7 +52,7 @@ repos:
   kit:
     config: true
     runner: true
-    scenarios: 9
+    scenarios: 10
     workflow: true
     workflow_fleet_caller: true
     workflow_gate: false
@@ -62,19 +62,19 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 27
-    implemented: 24
-    covered: 27
-    evidenced: 8
+    features: 28
+    implemented: 25
+    covered: 28
+    evidenced: 9
     verified: 8
-    ui: 12
-    ui_covered: 12
+    ui: 13
+    ui_covered: 13
     ui_verified: 8
     dangling: 0
   pct:
     coverage: 100
-    evidence: 33
-    verified: 33
+    evidence: 36
+    verified: 32
   last_run: null
   gaps: []
   items:
@@ -1062,4 +1062,67 @@ repos:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_backlog_fanout.py
       scenarios: []
       screenshots: []
+  - id: HUB-028
+    title: 'Work board: rebalance the loops'' work by drag and drop'
+    surface: ui
+    implemented: true
+    link: /work
+    docs: docs/WORK-BOARD.md
+    tags:
+    - console
+    - issue-pipeline
+    - roadmap
+    - spec-driven
+    - prioritisation
+    date: '2026-10-27'
+    provenance: null
+    tests:
+    - .github/scripts/dash-gen/test_work_board.py
+    - tools/console/test_console.py
+    - tools/test_fleetcore_mcp.py
+    waived: []
+    scenarios:
+    - verify/scenarios/work.yml
+    evidence:
+    - test/evidence/work
+    screenshots:
+    - test/evidence/work/console-applied-diff.png
+    - test/evidence/work/console-apply-confirm.png
+    - test/evidence/work/console-pr-specs.png
+    - test/evidence/work/console-priorities.png
+    - test/evidence/work/console-spec.png
+    - test/evidence/work/console-staged-pin.png
+    - test/evidence/work/desktop-work-board.png
+    - test/evidence/work/desktop-work-throughput.png
+    - test/evidence/work/mobile-work-board.png
+    - test/evidence/work/mobile-work-throughput.png
+    verified: null
+    covered: true
+    evidenced: true
+    dangling: []
+    summary: Every open issue, PR, roadmap spec, spec package and BACKLOG.md item on six lanes at /work, in the order the
+      loops take them, with each loop's next-run picks marked by the issue pipeline's own queue builder. Drag within a lane
+      to pin the or
+    urls:
+      link: https://bamr87.github.io/bamr87/work
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/WORK-BOARD.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/work
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_work_board.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_mcp.py
+      scenarios:
+      - https://github.com/bamr87/bamr87/blob/main/verify/scenarios/work.yml
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-applied-diff.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-apply-confirm.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-pr-specs.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-priorities.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-spec.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/console-staged-pin.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/desktop-work-board.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/desktop-work-throughput.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/mobile-work-board.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/mobile-work-throughput.png
   truncated: false

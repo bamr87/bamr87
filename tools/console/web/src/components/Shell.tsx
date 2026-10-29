@@ -3,8 +3,7 @@
 // what you are doing. Each header chip is a link to the page that fixes it.
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import {
-  ActionIcon, AppShell, Badge, Burger, Group, Indicator, Kbd, NavLink, ScrollArea, Text, Tooltip, UnstyledButton,
-  useComputedColorScheme, useMantineColorScheme,
+  ActionIcon, Anchor, AppShell, Badge, Box, Burger, Button, Group, Indicator, Kbd, NavLink, ScrollArea, Text, Tooltip, UnstyledButton, useComputedColorScheme, useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { spotlight } from '@mantine/spotlight';
@@ -19,14 +18,17 @@ import { clearSnapshotCache } from '../api/static';
 import { when } from '../lib/format';
 import { NAV, activeIndex, FLAT } from '../nav';
 import { to } from '../lib/links';
+import { LAYOUT } from '../theme';
+import u from '../styles/utils.module.css';
 
+/** A header chip: a fact about where you are working, linking to the page that acts on it. */
 function Chip({ children, tone, href, title }: { children: ReactNode; tone?: 'good' | 'crit'; href?: string; title: string }) {
-  const style = {
-    display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '1px 9px', borderRadius: 999,
-    border: `1px solid ${tone === 'good' ? 'var(--good)' : tone === 'crit' ? 'var(--critical)' : 'var(--grid)'}`,
-    color: 'var(--ink-2)', textDecoration: 'none', whiteSpace: 'nowrap' as const,
-  };
-  const body = href ? <Link to={href} style={style}>{children}</Link> : <span style={style}>{children}</span>;
+  const color = tone === 'good' ? 'var(--good)' : tone === 'crit' ? 'var(--critical)' : 'var(--grid)';
+  const body = href ? (
+    <Badge component={Link} to={href} variant="outline" color={color} c="dimmed" size="md" className={u.tileLink}>{children}</Badge>
+  ) : (
+    <Badge variant="outline" color={color} c="dimmed" size="md">{children}</Badge>
+  );
   return <Tooltip label={title}>{body}</Tooltip>;
 }
 
@@ -35,7 +37,7 @@ function SnapshotStatus() {
   const m = useManifest();
   const gh = useGithubStatus();
   return (
-    <Group gap={6} wrap="nowrap" visibleFrom="md" style={{ overflow: 'hidden' }}>
+    <Group gap={6} wrap="nowrap" visibleFrom="md" className={u.clip}>
       <Chip href={to.connect()} title={m.data ? `Published snapshot of commit ${m.data.commit.slice(0, 7)}, built ${m.data.generated_at}. Read-only — connect GitHub or a console to act.` : 'Published snapshot'}>
         <IconCamera size={13} /> snapshot {m.data ? when(m.data.generated_at) : ''}
       </Chip>
@@ -56,8 +58,12 @@ function ConsoleStatus() {
   const caps = useCaps();
   const g = state.data?.git ?? {};
   const tokens = Object.entries(caps.data?.env_tokens ?? {}).filter(([, v]) => v).map(([k]) => k);
+  // Before the documents arrive the chips used to claim "clean tree", "gh
+  // signed out" and "0 tokens" — three verdicts with no data behind them.
+  const loaded = state.data !== undefined;
+  const capsLoaded = caps.data !== undefined;
   return (
-    <Group gap={6} wrap="nowrap" visibleFrom="md" style={{ overflow: 'hidden' }}>
+    <Group gap={6} wrap="nowrap" visibleFrom="md" className={u.clip}>
       {mode() === 'remote' ? (
         <Chip tone="good" href={to.connect()} title="This public page is connected to a running console; every page acts through it.">
           <IconPlugConnected size={13} /> {consoleOrigin().replace(/^https?:\/\//, '')}
@@ -68,15 +74,15 @@ function ConsoleStatus() {
       </Chip>
       {/* git_info reports available=false when git refused to answer; that is
           "unknown", never "clean" — the chip used to claim a clean tree then. */}
-      <Chip tone={g.available === false ? 'crit' : g.dirty_count ? undefined : 'good'}
+      <Chip tone={!loaded ? undefined : g.available === false ? 'crit' : g.dirty_count ? undefined : 'good'}
         title={g.available === false ? 'git did not answer in the console process, so the tree state is unknown.' : 'Uncommitted files. The console never commits: review generated data in git and commit it yourself.'}>
-        {g.available === false ? '? tree unknown' : g.dirty_count ? `✎ ${g.dirty_count} uncommitted` : '✓ clean tree'}
+        {!loaded ? '… tree' : g.available === false ? '? tree unknown' : g.dirty_count ? `✎ ${g.dirty_count} uncommitted` : '✓ clean tree'}
       </Chip>
-      <Chip tone={caps.data?.gh_authenticated ? 'good' : 'crit'} href={to.github()} title="GitHub sign-in — open the GitHub page to connect through the OAuth App">
-        {caps.data?.gh_authenticated ? '✓ gh' : '✖ gh signed out'}
+      <Chip tone={!capsLoaded ? undefined : caps.data?.gh_authenticated ? 'good' : 'crit'} href={to.github()} title="GitHub sign-in — open the GitHub page to connect through the OAuth App">
+        {!capsLoaded ? '… gh' : caps.data?.gh_authenticated ? '✓ gh' : '✖ gh signed out'}
       </Chip>
       <Chip href={to.auth()} title={`Credential names present in this process (values never shown): ${tokens.join(', ') || 'none'}`}>
-        <IconKey size={13} /> {tokens.length} token{tokens.length === 1 ? '' : 's'}
+        <IconKey size={13} /> {!capsLoaded ? '… tokens' : `${tokens.length} token${tokens.length === 1 ? '' : 's'}`}
       </Chip>
     </Group>
   );
@@ -141,24 +147,25 @@ export function Shell() {
   };
 
   return (
-    <AppShell header={{ height: 54 }} navbar={{ width: 236, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="lg"
-      styles={{ main: { background: 'var(--page)' }, header: { background: 'var(--surface)' }, navbar: { background: 'var(--surface)' } }}>
+    <AppShell header={{ height: LAYOUT.headerHeight }} navbar={{ width: LAYOUT.navbarWidth, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="lg">
       <AppShell.Header px="md">
         <Group h="100%" justify="space-between" wrap="nowrap" gap="sm">
           <Group gap="sm" wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Menu" />
-            <UnstyledButton component={Link} to="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src={asset('favicon.svg')} width={24} height={24} alt="" />
-              <Text fw={650} fz={16} style={{ whiteSpace: 'nowrap' }}>{brand}</Text>
-              <Text size="xs" c="dimmed" visibleFrom="lg" style={{ whiteSpace: 'nowrap' }}>Harness Console</Text>
+            <UnstyledButton component={Link} to="/" aria-label="Home">
+              <Group gap={8} wrap="nowrap">
+                <img src={asset('favicon.svg')} width={24} height={24} alt="" />
+                <Text fw={650} fz={16} className={u.nowrap}>{brand}</Text>
+                <Text size="xs" c="dimmed" visibleFrom="lg" className={u.nowrap}>Harness Console</Text>
+              </Group>
             </UnstyledButton>
             <HeaderStatus />
           </Group>
           <Group gap={8} wrap="nowrap">
-            <UnstyledButton onClick={() => spotlight.open()} visibleFrom="xs" aria-label="Search and commands"
-              style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--grid)', borderRadius: 8, padding: '4px 10px', color: 'var(--ink-2)', fontSize: 13 }}>
-              <IconSearch size={15} /> Search or run… <Kbd size="xs">:</Kbd>
-            </UnstyledButton>
+            <Button variant="default" size="sm" fw={400} c="dimmed" visibleFrom="xs" aria-label="Search and commands"
+              leftSection={<IconSearch size={15} />} rightSection={<Kbd size="xs">:</Kbd>} onClick={() => spotlight.open()}>
+              Search or run…
+            </Button>
             <ActionIcon variant="default" size="lg" hiddenFrom="xs" onClick={() => spotlight.open()} aria-label="Search"><IconSearch size={18} /></ActionIcon>
             <JobsIndicator />
             <Tooltip label="Re-read every document (r)">
@@ -176,10 +183,10 @@ export function Shell() {
       <AppShell.Navbar p="xs">
         <AppShell.Section grow component={ScrollArea}>
           {NAV.map((section, si) => (
-            <div key={section.label} style={{ marginBottom: 8 }}>
+            <Box key={section.label} mb={8}>
               {section.items.length > 1 || section.label !== section.items[0].label ? (
                 <Group justify="space-between" px={10} pt={6} pb={2}>
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ letterSpacing: 0.6 }}>{section.label}</Text>
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase" lts={0.6}>{section.label}</Text>
                   <Text size="xs" c="dimmed" ff="monospace">{si + 1}</Text>
                 </Group>
               ) : null}
@@ -189,24 +196,23 @@ export function Shell() {
                 return (
                   <NavLink key={item.to} component={Link} to={item.to} label={item.label} active={idx === active}
                     leftSection={<Ico size={17} stroke={1.6} />} title={item.hint}
-                    rightSection={section.items.length === 1 ? <Text size="xs" c="dimmed" ff="monospace">{si + 1}</Text> : undefined}
-                    styles={{ root: { borderRadius: 6 }, label: { fontSize: 13.5 } }} />
+                    rightSection={section.items.length === 1 ? <Text size="xs" c="dimmed" ff="monospace">{si + 1}</Text> : undefined} />
                 );
               })}
-            </div>
+            </Box>
           ))}
         </AppShell.Section>
         <AppShell.Section>
           <Group gap={6} px={8} py={6} wrap="wrap">
             <Badge variant="default" size="sm" leftSection={<Kbd size="xs">?</Kbd>}>keys</Badge>
-            <Text size="xs" c="dimmed">keys v1 · same as <Link to={to.terminal()} style={{ color: 'var(--accent)' }}>the TUI</Link></Text>
+            <Text size="xs" c="dimmed">keys v1 · same as <Anchor component={Link} to={to.terminal()} size="xs">the TUI</Anchor></Text>
           </Group>
         </AppShell.Section>
       </AppShell.Navbar>
       <AppShell.Main>
-        <div style={{ maxWidth: 1480, margin: '0 auto' }}>
+        <Box maw={LAYOUT.contentMaxWidth} mx="auto">
           <Outlet />
-        </div>
+        </Box>
       </AppShell.Main>
     </AppShell>
   );

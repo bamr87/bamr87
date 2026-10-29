@@ -52,7 +52,20 @@ if [[ "${CONSOLE_SKIP_WEB:-0}" != "1" ]]; then
       if [[ ! -d "$WEB/node_modules" || "$WEB/package.json" -nt "$WEB/node_modules" ]]; then
         (cd "$WEB" && npm install --no-package-lock --loglevel=error) && touch "$WEB/node_modules"
       fi
-      (cd "$WEB" && npm run --silent build) || echo "console: page build FAILED — serving the API only" >&2
+      # A build can fail on a node_modules that is present but broken — e.g.
+      # TypeScript's or Vite's native binary for THIS platform missing after an
+      # always-latest upgrade — so reinstall once and retry before giving up.
+      if ! (cd "$WEB" && npm run --silent build); then
+        echo "console: page build failed — reinstalling the page's dependencies and retrying once" >&2
+        (cd "$WEB" && npm install --no-package-lock --loglevel=error) && touch "$WEB/node_modules"
+        if ! (cd "$WEB" && npm run --silent build); then
+          if [[ -f "$stamp" ]]; then
+            echo "console: page build FAILED — serving the PREVIOUS build from $(date -r "$stamp" '+%Y-%m-%d %H:%M')" >&2
+          else
+            echo "console: page build FAILED — serving the API only" >&2
+          fi
+        fi
+      fi
     fi
   elif [[ ! -f "$WEB/dist/index.html" ]]; then
     echo "console: npm not found — the API will serve, but the page is unbuilt (see web/README.md)" >&2

@@ -99,6 +99,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash evolve` | how to evolve the monorepo itself (the local /evolve loop; the CI pass was retired) |
 | `tools/dash evolve --repo <name>` | run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo) |
 | `tools/dash evolve --all` | run the weekly repo-evolution loop on every auto_evolve submodule now |
+| `tools/dash scout [plan\|--repo <name>\|--all]` | the daily repo-scout loop — `plan` shows today's sample and briefs locally; `--repo`/`--all` dispatch repo-scout.yml (issues in the repos' own trackers; -f dry_run=true to rehearse) |
 | `tools/dash ai` | shadow-priced Claude Code usage per repo (local) |
 | `tools/dash ai check` | reconcile that ledger against ccusage (pricing/alias/dedupe audit) |
 | `tools/dash ai run -- <args>` | run `claude -p` under the fleet.yml dollar cap, recording what it cost |

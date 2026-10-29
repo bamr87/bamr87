@@ -1,0 +1,65 @@
+/* Every Mantine Table in the console, through theme.components.Table.classNames
+   (src/theme.ts): dense rows, hairline rules, tabular numerals. Columns opt
+   into right alignment with data-num; rows carry data-tone / data-clickable /
+   data-selected from DataTable. No page sets a table class by hand. */
+.table {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.th {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+  user-select: none;
+
+  &[data-num] {
+    text-align: right;
+  }
+
+  &[data-sortable] {
+    cursor: pointer;
+
+    @mixin hover {
+      color: var(--mantine-color-text);
+    }
+  }
+}
+
+.td {
+  font-size: var(--mantine-font-size-sm);
+  vertical-align: top;
+
+  &[data-num] {
+    text-align: right;
+  }
+}
+
+.tr {
+  &[data-clickable] {
+    cursor: pointer;
+
+    @mixin hover {
+      & > .td {
+        background: color-mix(in srgb, var(--accent) 7%, transparent);
+      }
+    }
+  }
+
+  &[data-selected] > .td {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+
+  &[data-tone='crit'] > .td:first-child {
+    box-shadow: inset rem(3px) 0 0 var(--critical);
+  }
+
+  &[data-tone='warn'] > .td:first-child {
+    box-shadow: inset rem(3px) 0 0 var(--warning);
+  }
+
+  &[data-tone='muted'] > .td {
+    opacity: 0.6;
+  }
+}

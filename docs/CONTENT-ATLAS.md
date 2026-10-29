@@ -60,6 +60,8 @@ A local checkout is read as it stands, uncommitted drafts included, because thos
 
 The atlas reads files the same way Jekyll does. Anything under a `_name` directory is a collection (`pages/_posts/hacks/x.md` → collection `posts`, section `hacks`). A Markdown file without front matter is not a document. `_config.yml`'s `exclude` list is honoured, except when a site declares explicit `roots:`. irony-works needs that exception: its `vault/` reaches the build through `transplant.mjs`, so Jekyll's exclude says nothing about it.
 
+A site can live inside another project's repository. `registry: zer0-CMS` tells the atlas to read the zer0-CMS checkout (or its cached clone) and `roots: [sites/irony-works/vault]` names the sub-path inside it, so a site merged into a monorepo keeps its own name, narrative and pillars in `editorial.yml`; irony-works, wargames and 2005 are declared this way since their original repositories were retired (2026-10-20). Git-derived signals (`dates: git`, authors, bot share) come from the monorepo's history, which the imports preserved.
+
 For every document the atlas records the title, description, author, collection and section, tags and categories, the publication date (front matter, then the filename's `YYYY-MM-DD-` prefix, then `planted`/`created`), `lastmod`, and draft status. It also measures words, headings, links, wikilinks and images, excluding code fences and Liquid. From **one** `git log` pass it takes the first and last commit dates and the commit count. Each commit is classified as human or bot by its author.
 
 Two details matter for correct numbers:

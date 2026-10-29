@@ -151,7 +151,7 @@ def sec_kits() -> list[str]:
         v = yaml.safe_load(read(d / "VERSION")) if (d / "VERSION").exists() else {}
         if not isinstance(v, dict):
             v = {}
-        files = ", ".join(f"`{f.relative_to(d)}`" for f in sorted(d.rglob("*")) if f.is_file() and f.name not in ("VERSION",) and "archive" not in f.parts)
+        files = ", ".join(f"`{f.relative_to(d)}`" for f in sorted(d.rglob("*")) if f.is_file() and f.name not in ("VERSION",) and "archive" not in f.parts and "__pycache__" not in f.parts)
         version = v.get("version") or (f"spec {v['spec']}" if v.get("spec") else "unversioned")
         updated = v.get("updated") or v.get("vendored") or "—"
         out.append(row(f"[`{d.name}/`](templates/{d.name}/)", str(version), str(updated),

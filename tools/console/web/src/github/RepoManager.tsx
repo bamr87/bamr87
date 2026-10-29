@@ -16,6 +16,7 @@ import { Banner, Conclusion, External, Load, Mono, Status } from '../components/
 import { includesText, when } from '../lib/format';
 import { to } from '../lib/links';
 import { useGhAction } from './useGhAction';
+import u from '../styles/utils.module.css';
 
 function LabelChips({ names, colors }: { names: string[]; colors?: Map<string, string> }) {
   return (
@@ -52,7 +53,7 @@ function IssueDrawer({ d, number, onClose, canWrite }: { d: GhRepoDetail; number
               <Text size="xs" c="dimmed">by {t.issue.user} · opened {when(t.issue.created_at)} · updated {when(t.issue.updated_at)}</Text>
               <External href={t.issue.html_url} size="xs">on GitHub</External>
             </Group>
-            <Paper p="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13.5 }}>{t.issue.body || <Text span c="dimmed" size="sm">No description.</Text>}</Paper>
+            <Paper p="sm" className={u.preWrap} fz={13.5}>{t.issue.body || <Text span c="dimmed" size="sm">No description.</Text>}</Paper>
             <Stack gap="xs">
               <Text size="sm" fw={600}>Labels</Text>
               <MultiSelect data={d.labels.map((l) => l.name)} value={current} onChange={setLabels} searchable clearable disabled={!canWrite} placeholder={current.length ? undefined : 'no labels'} />
@@ -63,7 +64,7 @@ function IssueDrawer({ d, number, onClose, canWrite }: { d: GhRepoDetail; number
               {t.comments.map((c) => (
                 <Paper key={c.id} p="sm">
                   <Group justify="space-between" mb={4}><Text size="xs" fw={600}>{c.user}</Text><Anchor href={c.html_url} target="_blank" rel="noopener" size="xs">{when(c.created_at)}</Anchor></Group>
-                  <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{c.body}</Text>
+                  <Text size="sm" className={u.preWrap}>{c.body}</Text>
                 </Paper>
               ))}
             </Stack>

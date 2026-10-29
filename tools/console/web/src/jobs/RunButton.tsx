@@ -4,6 +4,7 @@ import { Button, Tooltip, type ButtonProps } from '@mantine/core';
 import { IconCloudUpload, IconPlayerPlay } from '@tabler/icons-react';
 import { useOps } from '../api/hooks';
 import { remoteWrite, useRunner } from './JobRunner';
+import u from '../styles/utils.module.css';
 
 export function RunButton({
   op, params, children, variant = 'default', ...rest
@@ -24,5 +25,5 @@ export function RunButton({
   );
   const label = blocked ?? meta?.desc;
   // A disabled button fires no pointer events, so the tooltip wraps a span.
-  return label ? <Tooltip label={label} multiline maw={360}><span style={{ display: 'inline-block' }}>{button}</span></Tooltip> : button;
+  return label ? <Tooltip label={label} multiline maw={360}><span className={u.inlineBlock}>{button}</span></Tooltip> : button;
 }

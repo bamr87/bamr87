@@ -51,7 +51,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`feedback/`](templates/feedback/) | 0.2.0 | 2026-09-07 | tools/fanout.sh --kit feedback --target <name> [--apply] | `README.md`, `adapters/FeedbackButton.tsx`, `adapters/django.html`, `adapters/jekyll.html`, `adapters/nextjs.tsx`, `capture.js`, `feedback_types.yml`, `fleet-feedback.js`, `package.json`, `page_feedb… |
 | [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
 | [`governance/`](templates/governance/) | 0.1.1 | 2026-10-26 | tools/fanout.sh --kit governance (branch docs/feature-catalog); validated by tools/govern… | `README.md`, `constitution.template.md`, `docs/amendments/0000-template.md`, `docs/amendments/0001-ratify-constitution.template.md`, `docs/amendments/README.template.md` |
-| [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/fanout.yml (kit standardize, artifact `issue-autopilot`, OPT-IN) via to… | `README.md`, `SKILL.template.md`, `__pycache__/triage.cpython-314.pyc`, `__pycache__/verify_close.cpython-314.pyc`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-ve… |
+| [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/fanout.yml (kit standardize, artifact `issue-autopilot`, OPT-IN) via to… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
 | [`prose/`](templates/prose/) | 0.4.0 | 2026-10-22 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / fanout.yml (kit: schema) | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
@@ -88,7 +88,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 
 ## 4. Registries and data
 
-[`_data/projects.yml`](_data/projects.yml) is THE project registry (32 projects: 20 active, 2 archived, 4 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
+[`_data/projects.yml`](_data/projects.yml) is THE project registry (44 projects: 21 active, 2 archived, 15 experiment, 6 maintenance); [`_data/fleet.yml`](_data/fleet.yml) is the control plane's own config. Contract: [`_data/SCHEMA.md`](_data/SCHEMA.md).
 
 | File | Purpose | Rules |
 | --- | --- | --- |
@@ -112,8 +112,6 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`portfolio.yml`](_data/portfolio.yml) | HOW the profile README groups the portfolio — group headings, repo → group map, display-only extras (hand-edited; read by `.github/scripts/dash-gen` `readme`) | required |
 | [`ports.yml`](_data/ports.yml) | THE fleet port allocation — bands, shared services, and every project's published ports; projected onto the dev stack by `tools/fleet-compose.py`, gated by drift check (… | required |
 | [`profile.yml`](_data/profile.yml) | WHO the public site is about — name, title, links, avatar, the site's own title and description (hand-edited; read by `tools/console/site_docs.py`; replaced the identity… | required |
-| [`project_health.yml`](_data/project_health.yml) | Ephemeral live-signal snapshot (gitignored; written by dash-gen health, never committed) | generated |
-| [`project_health_meta.yml`](_data/project_health_meta.yml) | Ephemeral metadata for the health snapshot (gitignored) | generated |
 | [`projects.yml`](_data/projects.yml) | THE project registry — cross-checked against .gitmodules by the drift gate | required |
 | [`references.yml`](_data/references.yml) | Hand-edited map of reference implementations in the fleet (repo + path) to the UPS requirement ids they exemplify; rendered into CATALOG.md | — |
 | [`roadmap.yml`](_data/roadmap.yml) | Feature roadmap entries surfaced on the dash; the Work board edits an entry's `status:` / `priority:` line in place | — |
@@ -221,6 +219,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`reconcile-registry.yml`](.github/workflows/reconcile-registry.yml) | 🧭 Reconcile Registry | daily 05:07, dispatch | Reconciles `_data/projects.yml` with GitHub (renames, deletions, branches). |
 | [`release-please.yml`](.github/workflows/release-please.yml) | release-please (reusable) | `workflow_call` | The fleet's one release workflow: release PR, `vX.Y.Z` tag, GitHub Release, lockfile re-lock. |
 | [`repo-evolution.yml`](.github/workflows/repo-evolution.yml) | 🌿 Repo Evolution | Mon 10:37, dispatch | **The proactive loop.** `plan` picks each opted-in (`auto_evolve: true`), owned, unarchived submodule with no evolution PR still open and writes it a brief; `evolve` run… |
+| [`repo-scout.yml`](.github/workflows/repo-scout.yml) | 🔭 Repo Scout | daily 04:37, dispatch | **The proactive issue loop**, repo-evolution's sibling: that one writes code, this one writes tickets for `issue-pipeline.yml` to intake the same day. |
 | [`schema-vendor.yml`](.github/workflows/schema-vendor.yml) | 🔺 Schema Vendor Sync | Mon 08:07, dispatch | The upward half of the schema loop: grades the hub's vendored SCHEMA files against [bamr87/SCHEMA](https://github.com/bamr87/SCHEMA)'s `DISTRIBUTION.yml`. |
 | [`site-quality-selftest.yml`](.github/workflows/site-quality-selftest.yml) | site-quality self-test | PR, push `main` (site-quality runtime, workflows, fixtures,… | Runs the reusable `site-quality.yml` on a passing fixture, a failing fixture (asserted finding by finding, gate must reject) and a url-mode run. |
 | [`site-quality.yml`](.github/workflows/site-quality.yml) | site-quality (reusable) | `workflow_call` | Lighthouse CI, axe-core at two widths and pa11y contrast, on a built Jekyll site or live URLs. |
@@ -355,6 +354,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
+| [`SCOUT.md`](docs/SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |
 | [`SMOKE.md`](docs/SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
 | [`SPEC-DRIVEN.md`](docs/SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a persistent, machine-checked record: `BACKLOG.md` → `/specify` → `/clarify` → `/plan` → `/tasks` → `/imp… |
 | [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline — which files each kind of repository must have — and the way to the Universal Project Standard in `specs/`. |

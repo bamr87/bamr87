@@ -4,7 +4,11 @@ export const dash = '—';
 
 export function fmt(n: unknown, digits = 1): string {
   if (n === null || n === undefined || n === '') return dash;
-  if (typeof n === 'number') return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(digits);
+  if (typeof n === 'number') {
+    // Rounded values get the same thousands separators as integers do, so a
+    // projection reads "34,913 min vs 40,000 min" rather than "34913 vs 40,000".
+    return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
   return String(n);
 }
 
