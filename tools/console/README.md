@@ -14,7 +14,7 @@ cd tools/console/web && npm run dev   # the page with hot reload on :5173, proxi
 
 For the dev server's Terminal page, start the console with `DASH_CONSOLE_ALLOWED_ORIGINS=http://localhost:5173`, so the WebSocket admits that origin.
 
-The console is the **runtime** of the local control plane, and this page is one of its two front ends. AI agents are a third, through the `fleet` MCP server ([`tools/fleetcore/mcp_server.py`](../fleetcore/README.md)), whose action tools go through this same job API and confirm gate. The terminal dash (`tools/dash tui`, `tools/tui/`) is the other human one: it reads the same views from [`tools/fleetcore/`](../fleetcore/README.md), binds the same keys (keys v1) in the same bashOS palette, and submits jobs to this process's API, so a job started in either one shows up in both. The page also runs the terminal dash itself, on its Terminal page. Under Docker the TUI reaches it over a Unix socket (`CONSOLE_UDS`, `serve.py`) in a volume only the `tui` service mounts, which keeps the DNS-rebinding allowlist loopback-only.
+The console is the **runtime** of the local control plane, and this page is one of its two front ends. AI agents are a third, through the `fleet` MCP server ([`mcp_layer/`](docs/mcp-layer.md), which absorbed `tools/fleetcore/mcp_server.py`), whose action tools go through this same job API and confirm gate. The terminal dash (`tools/dash tui`, `tools/tui/`) is the other human one: it reads the same views from [`tools/fleetcore/`](../fleetcore/README.md), binds the same keys (keys v1) in the same bashOS palette, and submits jobs to this process's API, so a job started in either one shows up in both. The page also runs the terminal dash itself, on its Terminal page. Under Docker the TUI reaches it over a Unix socket (`CONSOLE_UDS`, `serve.py`) in a volume only the `tui` service mounts, which keeps the DNS-rebinding allowlist loopback-only.
 
 The console is one of the local stack's three services; `docker compose up -d phoenix` starts the trace store it links to (http://127.0.0.1:6006), and `tools/dash lake sync` fills the data lake the Traces page reads (see [docs/HARNESS-OPS.md](../../docs/HARNESS-OPS.md), "The local stack").
 
@@ -83,6 +83,10 @@ No HTTP middleware sees a WebSocket handshake, and CORS does not apply to one, s
 - the **Host** allowlist, repeated from the HTTP guard;
 - the **Origin** must be this console's own page, which stops cross-site WebSocket hijacking (add a dev origin with `DASH_CONSOLE_ALLOWED_ORIGINS`);
 - when `DASH_CONSOLE_TOKEN` is set, the first frame must carry it, because a browser cannot put a bearer token on a WebSocket.
+
+## For AI agents: the MCP layer
+
+`tools/dash mcp` serves the console's API as an MCP server — stdio for Claude Code and Cursor (registered in `.mcp.json` as `fleet`, which it absorbed from `tools/fleetcore/mcp_server.py`), or `--http` for remote agents such as Grok Bots on `127.0.0.1:4002/mcp` with bearer auth (`HARNESS_MCP_TOKEN`; an opt-in compose sidecar under profile `mcp`, and `--tunnel` for a temporary public URL). Read tools cover the fleet, harness health, live activity, jobs, spend, the lake, the code index and the deep dive; the write tools (run an op, cancel a job, a workflow kill switch) exist only with `HARNESS_MCP_ALLOW_WRITES=1` and each needs `confirm=true`. See [docs/mcp-layer.md](docs/mcp-layer.md).
 
 ## The public site
 

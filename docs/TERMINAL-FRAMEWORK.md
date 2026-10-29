@@ -511,7 +511,7 @@ Each loaded the same YAML through its own loader, with its own idea of "stale" a
 | Keys | TUI only, ad hoc | keys v1 as data (`fleetcore/keys.py`). The TUI builds its Bindings from it, and the page binds the same table from `/api/keys` |
 | Colour | a dataviz palette in the page, hex literals in the TUI | the bashOS palette (`fleetcore/theme.py`, mirrored from `bashos.desktop.theme`), served as `/theme.css` and registered as Textual `bashos-dark` |
 | Actions | page only | one runtime. The TUI's Jobs tab and `:` palette submit to the console's job API, so a job started in either shows in both, and the allowlist and confirm gate stay server-side |
-| Agents | — | the `fleet` MCP server (`fleetcore/mcp_server.py`, in `.mcp.json`): read tools over the same views, act tools through the same job API and confirm gate, so an agent gets exactly what a person gets |
+| Agents | — | the `fleet` MCP server (`tools/console/mcp_layer/`, which absorbed `fleetcore/mcp_server.py`; in `.mcp.json`): read tools over the same views, act tools through the same job API and confirm gate, so an agent gets exactly what a person gets |
 | Docker | — | `docker compose run --rm tui` starts `console` and joins it over a Unix socket in a volume only these two mount. Reaching the socket is the authorization, so the DNS-rebinding allowlist stays loopback-only |
 
 Not yet converged, in the order worth doing:

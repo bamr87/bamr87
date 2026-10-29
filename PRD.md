@@ -74,6 +74,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-027](features/features.yml) | Backlog fan-out routine | partial | [`.github/workflows/backlog-fanout.yml`](.github/workflows/backlog-fanout.yml) · [`docs/BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | FR6, FR22, FR23 |
 | [HUB-028](features/features.yml) | Work board: rebalance the loops' work by drag and drop | shipped | route `/work` · [`docs/WORK-BOARD.md`](docs/WORK-BOARD.md) | FR5, FR6 |
 | [HUB-029](features/features.yml) | Daily repo deep dive: one repo a day, every repo once per cycle | partial | route `/deep-dive` · [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md) | FR24, FR25, NFR8 |
+| [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | partial | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
 
 **Requirement → feature trace**
 
@@ -110,6 +111,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
 | NFR8 | HUB-029 |
+| FR26 | HUB-031 |
+| NFR9 | HUB-031 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -129,6 +132,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR23: Every backlog fan-out decision (fanned out, skipped, failed, retried) is emitted to the fleet activity log (event schema proposed in bamr87/bamr87#409) through a fire-and-forget local queue, so an unavailable log never blocks or fails the run
 - FR24: A daily deep-dive routine processes exactly one repo per day from an ordered rotation of every non-archived bamr87 repo, so every repo is processed once per 42-day cycle; each run is recorded in `_data/deep-dive.yml` (status, date, issues/PRs opened, findings, score, next focus) through a PR, and everything it files carries the `deep-dive` label; see [docs/DEEP-DIVE.md](docs/DEEP-DIVE.md)
 - FR25: The deep-dive tracker is refreshed daily from the GitHub API (open `deep-dive` issues/PRs per repo) as a never-auto-merged PR or a dry-run artifact, and the Harness Console shows cycle progress (x/N), the cycle calendar, per-repo status, scores, issue/PR links and the last/next repo at `/deep-dive`
+- FR26: The Harness Console's API is available as an MCP server (`tools/dash mcp`, `tools/console/mcp_layer/`) over stdio and streamable HTTP, exposing read tools and resources for fleet status, harness health and scorecard, live activity, sessions, jobs and logs, spend against budget, traces, workflow lines, observability, semantic code search and deep-dive progress, plus write tools (run an allowlisted op, cancel a job, workflow kill switch) that are off unless explicitly enabled; see [tools/console/docs/mcp-layer.md](tools/console/docs/mcp-layer.md)
 
 **Non-functional**
 
@@ -140,6 +144,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR6 (proposed): activity events contain no secrets
 - NFR7 (proposed): the pipeline map is read-only and never prints, logs or embeds a token
 - NFR8: the deep-dive routine and its refresh only open issues and PRs — never merge, force-push, or change settings or secrets — and the tracker holds no secret
+- NFR9: the MCP layer binds to loopback by default, requires a bearer token on HTTP (refusing to start without one), never prints or returns a token, marks every write tool destructive and refuses it without `confirm=true`, and adds no enforcement of its own beyond the console's allowlist and confirm gate
 
 ## 6. Success metrics (proposed — not defined in sources)
 
