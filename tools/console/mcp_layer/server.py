@@ -13,7 +13,10 @@ Transports
   stdio            python3 -m mcp_layer.server               (Claude Code, Cursor, local agents)
   streamable HTTP  python3 -m mcp_layer.server --http [--port 4002]
                    binds 127.0.0.1, requires `Authorization: Bearer <HARNESS_MCP_TOKEN>`
-                   (falls back to DASH_CONSOLE_TOKEN), refuses to start without a token.
+                   (its own token, never the console's), refuses to start without one.
+  --fleet-compat   also registers the legacy `fleet` server's console_run / console_cancel (the merged
+                   tools/fleetcore/mcp_server.py; `.mcp.json` `fleet` runs this), whose writing ops the console
+                   itself refuses without confirm=true.
 
 Env: DASH_CONSOLE_URL (default http://127.0.0.1:4001), DASH_CONSOLE_TOKEN,
 HARNESS_MCP_TOKEN, HARNESS_MCP_ALLOW_WRITES, HARNESS_MCP_HOST, HARNESS_MCP_PORT,
@@ -70,8 +73,10 @@ def clip(obj: Any, limit: int | None = None) -> Any:
     return {"truncated": True, "total_chars": len(text), "json_prefix": text[:limit]}
 
 
-def build_server(console: Console | None = None, allow_writes: bool | None = None) -> MCPServer:
+def build_server(console: Console | None = None, allow_writes: bool | None = None,
+                 fleet_compat: bool | None = None) -> MCPServer:
     c = console or Console()
+    compat = truthy(os.environ.get("HARNESS_MCP_FLEET_COMPAT")) if fleet_compat is None else fleet_compat
     writes = truthy(os.environ.get("HARNESS_MCP_ALLOW_WRITES")) if allow_writes is None else allow_writes
     mcp = MCPServer(name="harness-console", title="bamr87 Harness Console", version=VERSION, instructions=INSTRUCTIONS)
 
@@ -275,6 +280,55 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         return call(lambda: state().get("loops"))
 
     # ------------------------------------------------------------- resources
+    # ------------------------------------- the `fleet` server's tools (merged)
+    # tools/fleetcore/mcp_server.py's read tools work from the committed signals, with no console running;
+    # its console_* tools are aliases of the routes above. Same names, so `mcp__fleet__*` permissions keep working.
+    def fleet_fn(name: str):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # tools/, for fleetcore
+        from fleetcore import mcp_server as legacy
+        return getattr(legacy, name)
+
+    def local(fn_name: str, args: dict) -> Any:
+        try:
+            return clip(fleet_fn(fn_name)(args))
+        except (ImportError, OSError, KeyError, ValueError, TypeError) as e:
+            raise ToolError(f"{fn_name}: {e}") from None
+
+    @mcp.tool(annotations=READ)
+    def fleet_overview() -> Any:
+        """Fleet KPIs, signal freshness, tripped harness wires and the red repos — from the committed signals."""
+        return local("t_overview", {})
+
+    @mcp.tool(annotations=READ)
+    def fleet_apps(query: str = "", sort: str = "featured", health: str = "", limit: int = 50) -> Any:
+        """Registry projects with health, CI, triage, open work and containers (the Apps view), from committed signals."""
+        return local("t_apps", {"query": query, "sort": sort, "health": health or None, "limit": limit})
+
+    @mcp.tool(annotations=READ)
+    def fleet_inbox(repo: str = "", limit: int = 30) -> Any:
+        """The fleet inbox (flagged issues, PRs, failing workflows, highest priority first), or one repo's open items."""
+        return local("t_inbox", {"repo": repo, "limit": limit})
+
+    @mcp.tool(annotations=READ)
+    def fleet_work(lane: str = "", repo: str = "", kind: str = "", next_only: bool = False, limit: int = 25) -> Any:
+        """The Work board in the order the loops take it, pins and overrides applied, next run's picks marked."""
+        return local("t_work", {"lane": lane, "repo": repo, "kind": kind, "next_only": next_only, "limit": limit})
+
+    @mcp.tool(annotations=READ)
+    def console_ops() -> Any:
+        """Alias of ops_list (the legacy `fleet` name)."""
+        return ops_list()
+
+    @mcp.tool(annotations=READ)
+    def console_jobs(limit: int = 20) -> Any:
+        """Alias of jobs_list (the legacy `fleet` name)."""
+        return jobs_list(limit=limit)
+
+    @mcp.tool(annotations=READ)
+    def console_job_log(job_id: str, offset: int = 0) -> Any:
+        """Alias of job_log (the legacy `fleet` name)."""
+        return job_log(job_id, offset)
+
     @mcp.resource("harness://overview", mime_type="application/json", description="console_overview as a resource")
     def r_overview() -> str:
         return json.dumps(console_overview(), default=str)
@@ -323,6 +377,18 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
             return call(c.post, f"/api/github/repos/{owner}/{repo}/actions",
                         {"action": action, "params": {"workflow_id": workflow_id}, "confirm": True})
 
+    if writes or compat:
+        @mcp.tool(annotations=WRITE)
+        def console_run(op: str, params: dict | None = None, confirm: bool = False) -> Any:
+            """DESTRUCTIVE (legacy `fleet` name). Run one allowlisted operation as a console job. The console refuses
+            a writing operation unless confirm=true — get the user's go-ahead first."""
+            return call(c.post, "/api/jobs", {"op": op, "params": params or {}, "confirm": bool(confirm)})
+
+        @mcp.tool(annotations=WRITE)
+        def console_cancel(job_id: str) -> Any:
+            """DESTRUCTIVE (legacy `fleet` name). Cancel a running console job."""
+            return call(c.post, f"/api/jobs/{job_id}/cancel", {})
+
     return mcp
 
 
@@ -349,15 +415,15 @@ class BearerAuth:
 
 
 def http_token() -> str:
-    return (os.environ.get("HARNESS_MCP_TOKEN") or dotenv_value("HARNESS_MCP_TOKEN")
-            or os.environ.get("DASH_CONSOLE_TOKEN") or dotenv_value("DASH_CONSOLE_TOKEN"))
+    """HARNESS_MCP_TOKEN only — the HTTP face has its own secret, so the console token never leaves the machine."""
+    return os.environ.get("HARNESS_MCP_TOKEN") or dotenv_value("HARNESS_MCP_TOKEN")
 
 
 def http_app(server: MCPServer, host: str, port: int, token: str, extra_hosts: list[str] | None = None):
     from mcp.server.transport_security import TransportSecuritySettings
     hosts = [f"127.0.0.1:{port}", f"localhost:{port}", "127.0.0.1", "localhost"] + (extra_hosts or [])
     sec = TransportSecuritySettings(enable_dns_rebinding_protection=True, allowed_hosts=hosts,
-                                    allowed_origins=[f"http://{h}" for h in hosts])
+                                    allowed_origins=[f"http://{h}" for h in hosts] + [f"https://{h}" for h in extra_hosts or []])
     return BearerAuth(server.streamable_http_app(transport_security=sec, host=host), token)
 
 
@@ -367,9 +433,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--host", default=os.environ.get("HARNESS_MCP_HOST", "127.0.0.1"))
     ap.add_argument("--port", type=int, default=int(os.environ.get("HARNESS_MCP_PORT", "4002")))
     ap.add_argument("--allow-host", action="append", default=[], help="extra Host header to accept (e.g. a tunnel name)")
+    ap.add_argument("--fleet-compat", action="store_true",
+                    help="register the legacy fleet server's console_run/console_cancel too (stdio .mcp.json `fleet`)")
     ap.add_argument("--list-tools", action="store_true", help="print the tool catalog and exit")
     a = ap.parse_args(argv)
-    server = build_server()
+    server = build_server(fleet_compat=True if a.fleet_compat else None)
     if a.list_tools:
         import anyio
         for t in anyio.run(server.list_tools):
@@ -381,9 +449,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     token = http_token()
     if not token:
-        print("harness-mcp: set HARNESS_MCP_TOKEN (or DASH_CONSOLE_TOKEN) before serving HTTP", file=sys.stderr)
+        print("harness-mcp: set HARNESS_MCP_TOKEN (env or .env) before serving HTTP — the console token is not reused", file=sys.stderr)
         return 2
-    if a.host not in ("127.0.0.1", "localhost", "::1"):
+    if a.host not in ("127.0.0.1", "localhost", "::1") and not Path("/.dockerenv").exists():
         print(f"harness-mcp: WARNING binding {a.host} — reachable beyond this machine; bearer auth still required", file=sys.stderr)
     import uvicorn
     print(f"harness-mcp: streamable HTTP on http://{a.host}:{a.port}/mcp (bearer auth; writes "

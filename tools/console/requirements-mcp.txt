@@ -2,3 +2,4 @@
 # The official MCP Python SDK (v2: MCPServer, stdio + streamable HTTP) and the HTTP server for --http.
 mcp
 uvicorn
+pyyaml  # the merged fleet_* tools read the committed signals through tools/fleetcore

@@ -206,7 +206,76 @@ class HttpClient(unittest.TestCase):
         self.assertEqual(seen["url"], "http://x/api/jobs/1?offset=0")
 
 
+class MergedFleet(unittest.TestCase):
+    """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
+    LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_work",
+                   "console_ops", "console_jobs", "console_job_log"}
+
+    def test_legacy_names_present_writes_gated(self):
+        names = tool_names(srv.build_server(FakeConsole(), allow_writes=False, fleet_compat=False))
+        self.assertTrue(self.LEGACY_READ <= names, self.LEGACY_READ - names)
+        self.assertFalse({"console_run", "console_cancel"} & names)
+        compat = {t.name: t for t in anyio.run(srv.build_server(FakeConsole(), allow_writes=False, fleet_compat=True).list_tools)}
+        self.assertTrue(compat["console_run"].annotations.destructive_hint)
+        self.assertNotIn("run_op", compat)
+
+    def test_console_aliases_and_run_pass_confirm(self):
+        fc = FakeConsole({"/api/ops": [{"id": "status"}], ("POST", "/api/jobs"): {"id": "j1"}})
+        s = srv.build_server(fc, allow_writes=False, fleet_compat=True)
+        self.assertEqual(payload(*call(s, "console_ops"))["items"], [{"id": "status"}])
+        call(s, "console_run", {"op": "status"})
+        self.assertEqual(fc.calls[-1], ("POST", "/api/jobs", {}, {"op": "status", "params": {}, "confirm": False}))
+
+    def test_fleet_reads_use_committed_signals(self):
+        s = srv.build_server(FakeConsole(), allow_writes=False)
+        with mock.patch.dict(os.environ, {"DASH_DOCKER_HOST": ""}):
+            ov = payload(*call(s, "fleet_overview"))
+            self.assertIn("kpis", ov)
+            apps = payload(*call(s, "fleet_apps", {"query": "zzzz-no-such-project"}))
+            self.assertEqual(apps["count"], 0)
+
+
+class Tokens(unittest.TestCase):
+    def test_http_token_never_falls_back_to_console_token(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, ".env").write_text("DASH_CONSOLE_TOKEN=console-only\n")
+            env = {"HARNESS_MCP_DOTENV": str(Path(d, ".env")), "DASH_CONSOLE_TOKEN": "console-only"}
+            with mock.patch.dict(os.environ, env):
+                os.environ.pop("HARNESS_MCP_TOKEN", None)
+                self.assertEqual(srv.http_token(), "")
+            Path(d, ".env").write_text("DASH_CONSOLE_TOKEN=c\nHARNESS_MCP_TOKEN=mcp-own\n")
+            with mock.patch.dict(os.environ, env):
+                os.environ.pop("HARNESS_MCP_TOKEN", None)
+                self.assertEqual(srv.http_token(), "mcp-own")
+
+    def test_host_header_override(self):
+        seen = {}
+
+        class R(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def fake(req, timeout):
+            seen["host"] = req.get_header("Host")
+            return R(b"{}")
+        with mock.patch.dict(os.environ, {"DASH_CONSOLE_HOST_HEADER": "127.0.0.1:4001"}), \
+                mock.patch("urllib.request.urlopen", side_effect=fake):
+            Console(url="http://console:4001", token="t").get("/api/health")
+        self.assertEqual(seen["host"], "127.0.0.1:4001")
+
+
 class HttpTransport(unittest.TestCase):
+    def test_tunnel_host_allowed_only_when_named(self):
+        from starlette.testclient import TestClient
+        init = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}}
+        hdr = {"Accept": "application/json, text/event-stream", "Host": "x-y.trycloudflare.com",
+               "Origin": "https://x-y.trycloudflare.com", "Authorization": "Bearer tok"}
+        for extra, want in (([], False), (["x-y.trycloudflare.com"], True)):
+            app = srv.http_app(srv.build_server(FakeConsole()), "127.0.0.1", 4002, "tok", extra)
+            with TestClient(app, base_url="http://127.0.0.1:4002") as tc:
+                self.assertEqual(tc.post("/mcp", json=init, headers=hdr).status_code == 200, want, extra)
+
     def test_bearer_required(self):
         from starlette.testclient import TestClient
         app = srv.http_app(srv.build_server(FakeConsole()), "127.0.0.1", 4002, "tok")

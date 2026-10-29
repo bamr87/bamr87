@@ -24,14 +24,14 @@ coverage: listed
 | `keys.py` | file | keys v1 as data — the TUI builds its Bindings from it and the console serves it at `/api/keys` | required |
 | `theme.py` | file | The bashOS palette as tokens → console CSS (`/theme.css`) and Textual themes (`bashos-dark` / `bashos-light`) | required |
 | `client.py` | file | Stdlib client for the console's job API over http:// or unix:// (`DASH_CONSOLE_URL`) — how the TUI and the MCP server submit jobs to the same runtime the browser uses | required |
-| `mcp_server.py` | file | The `fleet` MCP server (stdio, stdlib): read tools over `views.py`, act tools through `client.py` — registered in the repo's `.mcp.json` | required |
+| `mcp_server.py` | file | MERGED into `tools/console/mcp_layer/`: its tool functions are reused there; running it delegates to the layer (`FLEET_MCP_STDLIB=1` keeps the old stdlib loop) | required |
 
 ## Placement
 
 - A new derived view or KPI → a pure function in `fleet.py` (case in `tools/test_tui_fleet.py`), exposed through `views.py`; then each surface renders it.
 - A new key → `keys.py` (case in `tools/test_fleetcore.py`); map its action in `tools/tui/app.py` `KEY_ACTIONS` and the page's `KEY_DO`.
 - A new colour role → `theme.py` `TOKENS` + `CSS_ROLES`.
-- A new agent capability → a `TOOLS` entry in `mcp_server.py` over an existing view or console route (case in `tools/test_fleetcore.py`); never a path that skips the console's allowlist.
+- A new agent capability → a tool in `tools/console/mcp_layer/server.py` over an existing view or console route (case in `tools/test_fleetcore.py`); never a path that skips the console's allowlist.
 
 ## Forbidden
 
