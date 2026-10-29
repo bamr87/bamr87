@@ -1,0 +1,87 @@
+name: 🔬 Deep-dive tracker
+
+# Refreshes _data/deep-dive.yml — the daily one-repo-per-day deep-dive ledger
+# (HUB-029, PRD FR24–FR25, docs/DEEP-DIVE.md) — with the open `deep-dive`
+# issues and PRs per repo from the GitHub search API, and regenerates the
+# frontend projection _data/deep_dive.json that /deep-dive renders.
+#
+# Dry-run safe: a manual run defaults to dry_run (the refreshed files are only
+# uploaded as an artifact). The scheduled run publishes through
+# publish-data with auto-merge OFF, so the change lands as a stable-branch PR
+# a human merges — this workflow never merges anything. Read-only on every
+# other repo; it never edits a fleet repo, a setting or a secret.
+#
+# 12:17 UTC = 06:17 MDT, right after the 06:00 MDT deep-dive routine has run.
+# Declared in _data/fleet.yml `schedule.deep_dive` (test_schedule.py).
+
+on:
+  schedule:
+    - cron: '17 12 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only upload the refreshed files as an artifact (no PR)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deep-dive
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install pyyaml
+
+      - name: Today's repo
+        run: python3 tools/deep_dive.py today | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Refresh open deep-dive issues/PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 tools/deep_dive.py refresh
+          python3 tools/deep_dive.py json --check
+
+      - name: Upload refreshed tracker
+        uses: actions/upload-artifact@v7
+        with:
+          name: deep-dive
+          path: |
+            _data/deep-dive.yml
+            _data/deep_dive.json
+
+      - name: Configure Git
+        if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+        uses: ./.github/actions/setup/configure-git
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish (stable-branch PR, never auto-merged)
+        if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: '_data/deep-dive.yml _data/deep_dive.json'
+          message: 'chore(deep-dive): refresh open deep-dive issue/PR counts'
+          branch: 'chore/deep-dive-refresh'
+          title: 'chore(deep-dive): refresh tracker counts'
+          body: 'Automated refresh of `_data/deep-dive.yml` and `_data/deep_dive.json` by deep-dive.yml (docs/DEEP-DIVE.md).'
+          labels: 'automation,data,deep-dive'
+          auto-merge: 'false'
+          token: ${{ secrets.GITHUB_TOKEN }}

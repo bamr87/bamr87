@@ -85,6 +85,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "inbox": ("Inbox", "Flagged issues, pull requests and failing workflows across the fleet."),
     "roadmap": ("Roadmap", "Planned features across the fleet, by status and priority."),
     "work": ("Work board", "Every open issue, PR, roadmap spec and backlog item, in the order the loops take them."),
+    "deep-dive": ("Deep dive", "One repo a day, every repo once per cycle: progress, calendar, scores and deep-dive issues/PRs."),
     "features": ("Features", "What each repo does and what proves it — the fleet feature index."),
     "engagements": ("Engagements", "Every project as a client: estimates, actuals and leverage."),
     "github": ("GitHub", "Manage fleet repos' issues, runs and workflows."),

@@ -47,6 +47,7 @@ KEYS = {
     "api-keys": "api_keys",
     "python-tests": "python_tests",
     "backlog-fanout": "backlog_fanout",
+    "deep-dive": "deep_dive",
 }
 SWITCH_RX = re.compile(r"vars\.([A-Z][A-Z0-9_]*_ENABLED)\b")
 
