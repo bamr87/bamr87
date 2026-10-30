@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 1,
-    "processed": 0,
+    "processed": 1,
     "counts": {
-      "pending": 38,
+      "pending": 37,
       "in_progress": 0,
-      "done": 0,
+      "done": 1,
       "skipped": 0
     },
-    "progress": 0.0,
+    "progress": 0.0263,
     "today": {
       "date": "2026-10-30",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "bamr87"
     },
-    "last": null,
-    "last_date": null,
-    "avg_score": null,
+    "last": "it-journey",
+    "last_date": "2026-10-29",
+    "avg_score": 72.0,
     "open_issues": 8,
     "open_prs": 2
   },
@@ -46,8 +46,8 @@
       "day": 1,
       "repo": "it-journey",
       "scheduled": "2026-10-30",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-10-29",
       "cycle": 1,
       "issues": [
         "https://github.com/bamr87/it-journey/issues/874",
@@ -64,9 +64,9 @@
       ],
       "open_issues": 8,
       "open_prs": 1,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Early manual run (2026-10-29, scheduled 2026-10-30). UPS conformance 45/58, 8 MUST failing: page_feedback off (FB-01/FE-13), issue templates lack type labels (WORK-09), fleet actions @main (WORK-10, needs-human), tracked site-quality package-lock (QA-40/REPO-07), vendored unwrap-prose drift + docs summary (fixed in PR #875). Bugs: make test checks removed pages/_posts; /feed.xml has 0 entries. Catalog lists retired posts/docs/notebooks as tbd. Planned FR-ITJ-014 quest feed, FR-ITJ-015 page feedback.",
+      "score": 72.0,
+      "next_focus": "Verify #875 merged and FR-ITJ-014/015 shipped; workflow pinning (#873); quest UI/UX at 390px; catalog retirement (#868)."
     },
     {
       "day": 2,
