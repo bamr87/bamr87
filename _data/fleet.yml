@@ -647,7 +647,7 @@ harnesses:
   # Crossing a ceiling — or growing faster than trend_warn_pct — is an
   # attention item, not an enforcement action.
   budget:
-    monthly_ai_usd: 75              # projected monthly Claude CI spend ceiling
+    monthly_ai_usd: 200             # monthly Claude spend ceiling, matches the $200/month Claude Max subscription
     monthly_actions_minutes: 40000  # BILLED minutes/month ceiling — Jun–Aug 2026 ran 21–27k, all inside the included quota ($0 net)
     trend_warn_pct: 50              # growth beyond this is flagged (week-over-week for spend, month-over-month for billed minutes)
 
