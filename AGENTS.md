@@ -67,7 +67,7 @@ See [`SCHEMA.md`](SCHEMA.md) and the chain of `SCHEMA.md` files down to where yo
 - **Secrets:** `_data/` is public site data. Secret values live only in GitHub secrets or `.env`; `fleet.yml` names them, never holds them.
 - **Markdown** is one paragraph per line; respect `.prettierignore` (Prettier can desynchronize generated Markdown). Hooks compete through `core.hooksPath` — `bash tools/audit-git-hooks.sh` diagnoses.
 - **Verify like a user:** a change to what someone sees or does follows [docs/VERIFICATION.md](docs/VERIFICATION.md) — feature index, scenario, evidence bundle under `test/evidence/<slug>/`; a non-visual change gets `skip-evidence` with a reason.
-- **Never:** push to `main`, merge your own PR, commit lockfiles or secrets, suppress type errors, leave empty exception handlers, or edit generated files by hand.
+- **Never:** push to `main`, merge a PR that is not mergeable or is held by the review gate (constitution § 12), commit lockfiles or secrets, suppress type errors, leave empty exception handlers, or edit generated files by hand.
 
 ## Submodules
 

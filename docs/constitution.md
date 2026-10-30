@@ -45,7 +45,7 @@ When two documents disagree, the higher one wins and the lower one is fixed in t
 | Actor | May | May not |
 | --- | --- | --- |
 | Maintainer (human) | Ratify amendments, PRD changes and releases by merging PRs; change settings, secrets, branch protection | — |
-| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments; follow § 10 (track every task on the Fleet project; epics for multi-phase work; no change to the live Mac before an approved deploy step); plan GitHub write-back under § 11 and apply it only after the user confirms | Merge its own PRs; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
+| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments; follow § 10 (track every task on the Fleet project; epics for multi-phase work; no change to the live Mac before an approved deploy step); plan GitHub write-back under § 11 and apply it only after the user confirms; merge a PR that is mergeable under § 12 | Merge a PR that is not mergeable under § 12, or any PR the review gate holds; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
 
 ## 5. How the artifacts relate
 
@@ -130,3 +130,18 @@ The console may write to GitHub Projects (v2), issues and pull requests across e
 5. **Idempotent and capped** — already-satisfied ops are no-ops; at most 50 ops per plan and 200 per hour.
 6. **Audited** — one append-only JSONL record per op (who, when, plan, before, after, result), token values redacted.
 7. **Scoped token** — a dedicated `PROJECTS_TOKEN` (`read:project`/`project`, `read:org`, issues and pull requests read/write on registry repos), held in the console's credential store or an Actions secret, never printed or committed; only Amr provisions it.
+
+## 12. Merge authority and the review gate
+
+_(amendment `agent-merge-review-gate`, numbered at merge — see the [amendment log](amendments/README.md); amends § 4)_
+
+1. **Mergeable PR** — a pull request is *mergeable* only when **all** of these hold, rechecked against live GitHub state immediately before the merge:
+   1. every required CI check is green;
+   2. every required review is satisfied;
+   3. it has no merge conflicts with its base;
+   4. the review gate (item 3) has passed wherever human review is required.
+2. **Agent merge** — an AI agent may merge a PR only when it is mergeable; otherwise it waits. It merges with a merge commit (never squash or rebase), never with `--admin` or any bypass, and never by force-push.
+3. **Review gate** — a PR needs human review, and is gated, when it touches any of: amendments, this constitution or a fleet standard; secrets, tokens, budgets or billing; repo or org settings, branch protection, rulesets or permissions; security-sensitive code or config; deploys or anything that changes the maintainer's machines; a non-trivial conflict resolution; destructive or data-deleting changes; anything labelled `agent:hold`, `blocked` or `needs-amr`; and any repo-specific content gate its own constitution names (for example an editorial charter for structural changes).
+4. **Gate mechanism** — a gated PR carries the `needs-amr` label and its Fleet project item is set to status *Needs Amr* (§ 9). The gate passes only when the maintainer approves or merges it and the label is removed by the maintainer. A repo may also require a review in branch protection; only the maintainer turns that on.
+5. **Never** — an agent never merges a gated PR, and amendments are ratified only by the maintainer merging them (§ 8).
+6. **Fleet conformance** — every repo constitution under `projects/` conforms to this section or files its own amendment saying how it does.
