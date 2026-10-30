@@ -470,3 +470,16 @@ features:
     date: 2026-10-29
     tests:
       - tools/console/test_mcp_layer.py
+  - id: HUB-032
+    title: "The fleet's one release-please workflow, degrading to a warning without a PR credential"
+    description: "Every fleet repo's Release workflow is a thin caller of .github/workflows/release-please.yml (SDLC kit templates/sdlc/release/): release-please computes the version from Conventional Commits, rewrites CHANGELOG.md on a release PR, and tags plus publishes the GitHub Release when that PR merges. Opening the release PR needs a credential allowed to create one (RELEASE_PLEASE_TOKEN, or the repo's Actions setting letting GITHUB_TOKEN open PRs); with neither, GitHub refuses POST /pulls. The workflow runs the tagging pass strictly and guards only the PR pass, so that one denial is a warning with the two remedies in the run summary instead of a red run on every push, and strict-pr-creation: true turns it back into a failure where the credential is provisioned."
+    implemented: true
+    status: shipped
+    prd: [FR3, FR6]
+    surface: infra
+    link: .github/workflows/release-please.yml
+    docs: docs/RELEASES.md
+    tags: [ release, loop, workflows, kits ]
+    date: 2026-10-29
+    tests:
+      - templates/sdlc/test_sdlc_kit.py

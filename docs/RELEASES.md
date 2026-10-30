@@ -83,6 +83,33 @@ Publishing only runs when the ecosystem is detected **and** its credential exist
 | GHCR | none | uses the built-in `GITHUB_TOKEN` |
 | Release-PR triggers CI | `RELEASE_PLEASE_TOKEN` (PAT) | so the release PR runs the CI gate. **Mandatory** on any repo whose Actions setting `can_approve_pull_request_reviews` is off — there `GITHUB_TOKEN` cannot open the release PR at all (`GitHub Actions is not permitted to create or approve pull requests`), so without it no release is ever cut (fredgar-ai, bamr87/bamr87#97) |
 
+## When the release PR cannot be opened
+
+Opening the release PR is the one step a caller cannot fix from a PR. It needs a credential allowed to create a pull request — either a `RELEASE_PLEASE_TOKEN` secret, or the repo setting **Settings > Actions > General > Workflow permissions > "Allow GitHub Actions to create and approve pull requests"** so that `GITHUB_TOKEN` may. With neither, GitHub answers `POST /pulls` with `GitHub Actions is not permitted to create or approve pull requests` and release-please exits 1 — on every push, indefinitely, while nothing else about the run is wrong.
+
+`release-please.yml` therefore makes two passes over the same config:
+
+| Pass | Inputs | Needs | On failure |
+| --- | --- | --- | --- |
+| Tag and publish any merged release PR | `skip-github-pull-request: true` | `contents: write`, which `GITHUB_TOKEN` always has | fails the run — a failure here is a real defect |
+| Open or update the release PR | `skip-github-release: true` | permission to create a PR | `continue-on-error`, then the guard below |
+
+The guard re-raises the failure when `RELEASE_PLEASE_TOKEN` **is** set (the denial cannot be the known one, so it is a defect), or when the caller passes `strict-pr-creation: true`. Otherwise it emits a warning annotation and writes both remedies into the run summary, and the run ends green. Versioning is paused, not broken: release-please keeps its release branch up to date, so the first push after a credential lands opens the PR with everything accumulated since.
+
+Pass `strict-pr-creation: true` from a caller whose credential is provisioned and whose releases must therefore never stop quietly:
+
+```yaml
+jobs:
+  release:
+    uses: bamr87/bamr87/.github/workflows/release-please.yml@v2
+    with:
+      strict-pr-creation: true
+    permissions: { contents: write, pull-requests: write }
+    secrets: inherit
+```
+
+`RELEASE_PLEASE_TOKEN` is declared fleet-scoped in [`_data/fleet.yml`](../_data/fleet.yml) `tokens:` and named in `token-rotation.yml`, so once the hub holds a copy the weekly rotation carries it to every repo that releases. Until then the loop reports it and writes nothing. The fleet decision is [bamr87/bamr87#406](https://github.com/bamr87/bamr87/issues/406).
+
 ## Branch protection
 
 Require the CI gate before merge (needs admin):

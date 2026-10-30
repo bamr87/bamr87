@@ -76,6 +76,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-029](features/features.yml) | Daily repo deep dive: one repo a day, every repo once per cycle | partial | route `/deep-dive` · [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md) | FR24, FR25, NFR8 |
 | [HUB-030](features/features.yml) | Real-time bot activity dashboard | partial | route `/live` · [`tools/console/docs/realtime-bot-dashboard-spec.md`](tools/console/docs/realtime-bot-dashboard-spec.md) | FR5 |
 | [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
+| [HUB-032](features/features.yml) | The fleet's one release-please workflow, degrading to a warning without a PR credential | shipped | [`.github/workflows/release-please.yml`](.github/workflows/release-please.yml) · [`docs/RELEASES.md`](docs/RELEASES.md) | FR3, FR6 |
 
 **Requirement → feature trace**
 
@@ -85,7 +86,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
-| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028 |
+| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028, HUB-032 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
 | FR7 | HUB-024 |
@@ -114,6 +115,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR8 | HUB-029 |
 | FR26 | HUB-031 |
 | NFR9 | HUB-031 |
+| FR3 | HUB-032 |
 <!-- features:end -->
 
 ## 5. Requirements
