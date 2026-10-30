@@ -16,6 +16,6 @@ This repo uses the standardized [bamr87 release pipeline](https://github.com/bam
 ## Required setup
 
 - `__SECRET__`
-- Optional `RELEASE_PLEASE_TOKEN` PAT so the release PR triggers CI.
+- `RELEASE_PLEASE_TOKEN` PAT (`contents` + `pull requests` write) so the release PR triggers CI. **Mandatory** unless Settings > Actions > General > Workflow permissions has "Allow GitHub Actions to create and approve pull requests" on: without either, GitHub refuses to open the release PR and no release is ever cut ([bamr87/bamr87#406](https://github.com/bamr87/bamr87/issues/406)).
 
 To cut a release manually (rare), merge any pending release PR, or push an empty `chore: release` commit to re-trigger release-please.
