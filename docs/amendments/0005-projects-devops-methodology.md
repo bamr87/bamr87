@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — DevOps methodology for GitHub Projects across all submodules, binding on AI agents
+# 0005 — DevOps methodology for GitHub Projects across all submodules, binding on AI agents
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0005
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
