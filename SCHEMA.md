@@ -21,6 +21,7 @@ coverage: listed
 | `_data/` | dir | Registries powering every dash surface — projects.yml is the source of truth | required |
 | `_reports/` | dir | Committed automation records — the daily repo-activity digests | generated |
 | `_site/` | dir | The public site's build output — `tools/console/build-pages.sh` (the console's page, static, + its API snapshot) plus `/api/v1/*.json` and `llms.txt` from `dash-gen machine-api` | generated |
+| `changelog.d/` | dir | Pending changelog entries — one Keep a Changelog fragment per file, folded into `CHANGELOG.md` at merge (amendment 0002) | |
 | `compose/` | dir | Hub half of the fleet dev stack: shared-services layer, generated per-submodule overrides, the generated fleet-mode include + port env, and the forge overlay (docs/FLEET-COMPOSE.md) | required |
 | `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
@@ -44,6 +45,7 @@ coverage: listed
 | `docker-compose.yml` | file | Containerized dev services | |
 | `.dockerignore` | file | Build-context exclusions for the hub's devenv/console images (the root carries ~40 submodule checkouts) | |
 | `kilo.jsonc` | file | Kilo Code project config — codebase indexing for this worktree, including checked-out submodules; URLs must agree with `_data/fleet.yml` `observability.indexing` | |
+| `.gitattributes` | file | How git treats generated and append-only files: `merge=jev-regen` (keep ours, regenerate — `tools/jev/merge-regen.sh`) and `merge=union`; amendment 0002, docs/JEV.md | |
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
@@ -58,7 +60,7 @@ coverage: listed
 - New fleet-wide requirement → a row in `specs/<AREA>.md`, then `tools/gen-specs-data.py`
 - New gate, generator, or fleet script → `tools/`
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
-- New dash surface or loop → an entry in `features/features.yml` + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
+- New dash surface or loop → a fragment in `features/features.d/<slug>.yml` (`id: HUB-NEW`, numbered at merge) + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
 - New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`
 - New registry → `_data/`, registered in `_data/SCHEMA.md`
 - New fleet dev-stack service or project → `_data/ports.yml`, then `tools/fleet-compose.py sync`

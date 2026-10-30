@@ -44,6 +44,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/HARNESS-OPS.md`](HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via the harness fan-out (`fanout.yml`, kit `harness`), caps, cost forecasting, and the local stack. |
 | [`docs/HARNESS.md`](HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane: the layers, the ratchet rule, the health scorecard and the trip wires. |
 | [`docs/ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes. |
+| [`docs/JEV.md`](JEV.md) | The fleet's harness-level AI agent logic engine. Capability one: conflict-free numbering (ids assigned at merge, never in a pull request) and an automated, tiered pull-request conflict triage and resolution engine. |
 | [`docs/MACHINE-API.md`](MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`docs/OBSERVABILITY.md`](OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`docs/PORTFOLIO.md`](PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |

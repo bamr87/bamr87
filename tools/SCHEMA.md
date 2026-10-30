@@ -20,6 +20,7 @@ coverage: listed
 | `dash-gen` | file | Regenerates README AUTO spans and portfolio data from the registry | required |
 | `tui/` | dir | Terminal command center — the TTY twin of the dash (`dash tui`); see its README | |
 | `fleetcore/` | dir | The core the console and the TUI share — fleet views, keys v1, the bashOS palette, the console job-API client (one model, one runtime, two surfaces); see its README | |
+| `jev/` | dir | JEV — the harness-level agent logic engine: the assign-at-merge numbering compiler and the tiered PR conflict triage/resolution engine (`python3 -m tools.jev`; docs/JEV.md); see its README | |
 | `fleet-config.py` | file | Reads `_data/fleet.yml`; audits fleet secrets/variables against GitHub and projects the canonical variables onto every repo (`dash secrets`, `dash config`) | required |
 | `fleet-dev.sh` | file | Fleet dev-stack entry point (`dash dev`) — runs any submodule as its own compose project on the shared `fleet-net`, with the hub's generated port override layered on (docs/FLEET-COMPOSE.md) | required |
 | `fleet-compose.py` | file | Projects `_data/ports.yml` onto that stack (`compose/fleet.env`, `compose/overrides/*`, `compose/fleet.yml`) and gates the allocation as drift check (m) | required |
@@ -40,6 +41,7 @@ coverage: listed
 | `test_backlog_fanout.py` | file | Fixture tests for backlog_fanout.py + fleet_activity.py — mapping, idempotent update, cadence, cap, retries, graceful degradation of the activity log (run by python-tests.yml) | |
 | `deep_dive.py` | file | The daily repo deep-dive tracker (HUB-029, FR24–FR25) — today's repo, record a run, refresh open `deep-dive` issue/PR counts from GitHub, rollover, and the `_data/deep_dive.json` projection (docs/DEEP-DIVE.md) | |
 | `test_deep_dive.py` | file | Fixture tests for deep_dive.py — day math, catch-up, record, offline refresh, rollover, committed tracker freshness | |
+| `test_jev_*.py` | pattern | Fixture tests for one `jev/` module each — the numbering compiler, the classifier, the conflict engine's safety rules, the ledger and the monthly cap (run by run-all-tests.sh and python-tests.yml) | |
 | `unpin-deps.sh` | file | Converts one repo to the always-latest dependency policy — strips pins, removes + gitignores lockfiles, adapts CI installs (used by the deps-latest fan-out kit; docs/DEPENDENCIES.md) | |
 | `issue-evidence.sh` | file | Builds one issue's evidence bundle in an isolated virtual environment — clone, toolchain install, lint/test/build, screenshots, candidate files (tier 1 of docs/ISSUE-PIPELINE.md) | |
 | `features_index.py` | file | The fleet features index — validates a repo's `features/features.yml`, grades verification coverage from files on disk, aggregates every submodule → `_data/features_index.yml` (`dash features`; docs/VERIFICATION.md) | |
