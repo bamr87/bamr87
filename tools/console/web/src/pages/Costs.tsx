@@ -5,6 +5,7 @@ import { Anchor, Group, Paper, SimpleGrid, Stack, Table, Text , Box } from '@man
 import { useData, useStateDoc } from '../api/hooks';
 import type { Dict, Trend } from '../api/types';
 import { DataTable } from '../components/DataTable';
+import { SubscriptionPanel } from '../components/SubscriptionPanel';
 import { ColumnChart } from '../components/Charts';
 import { Load, Meter, Mono, PageHeader, RepoLink, Section, Status } from '../components/ui';
 import { RunButton } from '../jobs/RunButton';
@@ -115,11 +116,14 @@ export function Costs() {
               }
             />
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-              <TrendCard title="Claude CI spend" t={tr.ai_cost_usd ?? {}} money />
+              <TrendCard title="Claude CI usage (API-equivalent, not billed)" t={tr.ai_cost_usd ?? {}} money />
               <TrendCard title="Actions minutes" t={tr.actions_minutes ?? {}} money={false} />
             </SimpleGrid>
+            <Section title="Claude subscription vs API list price">
+              <SubscriptionPanel m={s.subscription} />
+            </Section>
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md" mt="md">
-              <Section mt={0} title={`Claude spend by day (${fmt(ai.window_days)}-day window)`}>
+              <Section mt={0} title={`Claude API-equivalent by day (${fmt(ai.window_days)}-day window)`}>
                 <Paper p="md">
                   <Stack gap={0}>
                     <ColumnChart rows={(ai.by_day ?? []) as Record<string, unknown>[]} label="day" series={[{ key: 'cost_usd', label: 'USD' }]} fmtLabel={(x) => String(x).slice(5)} />

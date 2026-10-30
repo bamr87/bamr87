@@ -140,6 +140,16 @@ class ReadTools(unittest.TestCase):
         p = payload(*call(srv.build_server(FakeConsole()), "spend_vs_budget"))
         self.assertEqual(p["ai"], {"spend_usd": 12.5})
         self.assertEqual(p["budgets"], {"monthly_budget": 50, "hub.ai_budget_usd": 100})
+        self.assertEqual(p["ai_cost_kind"], "API-equivalent (estimate, not billed)")
+        self.assertIsNone(p["subscription_live"])          # no /api/live on the fake console
+
+    def test_spend_vs_budget_passes_subscription_model_through(self):
+        model = {"windows": {"24h": {"api_equiv_usd": 92.91, "subscription_usd": 6.45, "effective_discount_pct": 93.1}}}
+        fc = FakeConsole({"/api/state": {**STATE, "subscription": {"never_summed": True}},
+                          "/api/live": {"claude_live": {"subscription": model}}})
+        p = payload(*call(srv.build_server(fc), "spend_vs_budget"))
+        self.assertEqual(p["subscription"], {"never_summed": True})
+        self.assertEqual(p["subscription_live"]["windows"]["24h"]["effective_discount_pct"], 93.1)
 
     def test_job_log_tail(self):
         fc = FakeConsole({"/api/jobs/j1": {"status": "running", "log": "x" * 50 + "END"}})
