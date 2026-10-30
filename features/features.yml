@@ -470,3 +470,17 @@ features:
     date: 2026-10-29
     tests:
       - tools/console/test_mcp_layer.py
+  - id: HUB-032
+    title: "Claude spend accounting: every CI run priced, estimated or proved free"
+    description: "The committed Claude ledger (_data/ai_usage.yml, tools/dash-gen ai-usage) accounts every AI run in the fleet instead of leaving 87% of them unpriced. It collects the HUB itself alongside the registry (_data/fleet.yml hub.repo is not a registry entry, so fleet-pulse's doctor, the issue pipeline's three tiers and the fan-outs — the largest caps in budget.call_sites — were missing from every number), detects Claude by all three routes the fleet uses (claude-code-action, the claude-run composite, a vendored scripts/ai/run.sh), and states the source of each run's figure: reported total_cost_usd summed across the run's Claude sessions and de-duplicated per session_id (last-match-wins charged a three-session run for one; the log zip holds each job's text twice, so summing raw matches double-charged), a token-rate price at API list prices with cache writes at 1.25x/2x input and reads at 0.1x, no-spend for a skipped run or a log with no Claude step in it (the loops' is-the-loop-on gate job — 146 of the 242 runs that read as unpriced on 2026-10-29), or an explicit est_cost_usd with a named basis (workflow median, turns at budget.usd_per_turn, fleet median). Totals report ci_cost_usd, ci_estimated_usd and ci_accounted_usd with the estimated share, and the $75/month budget check (harness_registry trends.ai_cost_usd) is judged on the accounted figure. Rendered at /ai-usage and /costs."
+    implemented: true
+    status: shipped
+    prd: [FR27, NFR10]
+    surface: infra
+    link: .github/scripts/dash-gen/ai_usage_collector.py
+    docs: docs/AI-INTEGRATION.md
+    tags: [ ai, cost, budget, ledger, transparency, dashboard ]
+    date: 2026-10-29
+    tests:
+      - .github/scripts/dash-gen/test_ai_usage_collector.py
+      - .github/scripts/dash-gen/test_harness_registry.py

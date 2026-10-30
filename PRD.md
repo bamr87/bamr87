@@ -76,6 +76,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-029](features/features.yml) | Daily repo deep dive: one repo a day, every repo once per cycle | partial | route `/deep-dive` · [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md) | FR24, FR25, NFR8 |
 | [HUB-030](features/features.yml) | Real-time bot activity dashboard | partial | route `/live` · [`tools/console/docs/realtime-bot-dashboard-spec.md`](tools/console/docs/realtime-bot-dashboard-spec.md) | FR5 |
 | [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
+| [HUB-032](features/features.yml) | Claude spend accounting: every CI run priced, estimated or proved free | shipped | [`.github/scripts/dash-gen/ai_usage_collector.py`](.github/scripts/dash-gen/ai_usage_collector.py) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR27, NFR10 |
 
 **Requirement → feature trace**
 
@@ -114,6 +115,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR8 | HUB-029 |
 | FR26 | HUB-031 |
 | NFR9 | HUB-031 |
+| FR27 | HUB-032 |
+| NFR10 | HUB-032 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -134,6 +137,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR24: A daily deep-dive routine processes exactly one repo per day from an ordered rotation of every non-archived bamr87 repo, so every repo is processed once per 42-day cycle; each run is recorded in `_data/deep-dive.yml` (status, date, issues/PRs opened, findings, score, next focus) through a PR, and everything it files carries the `deep-dive` label; see [docs/DEEP-DIVE.md](docs/DEEP-DIVE.md)
 - FR25: The deep-dive tracker is refreshed daily from the GitHub API (open `deep-dive` issues/PRs per repo) as a never-auto-merged PR or a dry-run artifact, and the Harness Console shows cycle progress (x/N), the cycle calendar, per-repo status, scores, issue/PR links and the last/next repo at `/deep-dive`
 - FR26: The Harness Console's API is available as an MCP server (`tools/dash mcp`, `tools/console/mcp_layer/`) over stdio and streamable HTTP, exposing read tools and resources for fleet status, harness health and scorecard, live activity, sessions, jobs and logs, spend against budget, traces, workflow lines, observability, semantic code search and deep-dive progress, plus write tools (run an allowlisted op, cancel a job, workflow kill switch) that are off unless explicitly enabled; see [tools/console/docs/mcp-layer.md](tools/console/docs/mcp-layer.md)
+- FR27: Every Claude CI run in the fleet — in each registry repo and in the hub itself (`_data/fleet.yml` `hub.repo`) — is accounted in `_data/ai_usage.yml` with the SOURCE of its figure stated per run: the run's own reported `total_cost_usd` (summed per Claude session, de-duplicated by `session_id`), a token-rate price at API list prices including cache reads and writes, `no-spend` for a run that ran no Claude step, or an explicit estimate with a named basis; the monthly AI ceiling (`budget.monthly_ai_usd`) is evaluated on the ACCOUNTED total (measured + estimated), never on the measured half alone; see [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md#usage-dashboard-transparency--audit)
 
 **Non-functional**
 
@@ -146,6 +150,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR7 (proposed): the pipeline map is read-only and never prints, logs or embeds a token
 - NFR8: the deep-dive routine and its refresh only open issues and PRs — never merge, force-push, or change settings or secrets — and the tracker holds no secret
 - NFR9: the MCP layer binds to loopback by default, requires a bearer token on HTTP (refusing to start without one), never prints or returns a token, marks every write tool destructive and refuses it without `confirm=true`, and adds no enforcement of its own beyond the console's allowlist and confirm gate
+- NFR10: the spend ledger never presents a measured figure as a complete one — every aggregate carries its estimated share, a model with no rate row is surfaced (`unpriced_models`) instead of being priced at zero, and locally published interactive spend is never folded into the CI totals or judged against the CI ceiling
 
 ## 6. Success metrics (proposed — not defined in sources)
 
