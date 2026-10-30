@@ -526,7 +526,10 @@ def claude_prometheus_panels(y: int) -> list[dict]:
     return [
         {"id": 10, "type": "row", "title": "Claude Code — live (Prometheus, from native OTel)",
          "gridPos": {"h": 1, "w": 24, "x": 0, "y": y}, "collapsed": False, "panels": []},
-        stat(11, "Spend in range", "Claude Code's own cost estimate across every session in the range.",
+        stat(11, "API-equivalent in range (estimate, not billed)",
+             "Claude Code's own cost estimate (tokens at API list prices) across every session in the range. "
+             "Emitted under subscription logins too: an API-equivalent value, not a bill — the bill is the "
+             "flat Claude subscription (harnesses.budget.monthly_ai_usd).",
              f"sum(increase({cost}[$__range] anchored))", 0, "currencyUSD"),
         stat(12, "Cache read share", "Share of prompt tokens served from the prompt cache. "
              "Low means context is being re-sent rather than reused.",
@@ -537,8 +540,8 @@ def claude_prometheus_panels(y: int) -> list[dict]:
              "sum(increase(claude_code_session_count_total[$__range] anchored))", 12, "none", 0),
         stat(14, "Active time", "Keyboard time plus tool/model time (claude_code.active_time.total).",
              "sum(increase(claude_code_active_time_seconds_total[$__range] anchored))", 18, "s", 0),
-        {"id": 15, "type": "timeseries", "title": "Burn rate by model (USD/hour)",
-         "description": "How fast spend is accruing right now, per model.",
+        {"id": 15, "type": "timeseries", "title": "API-equivalent burn rate by model (USD/hour, estimate)",
+         "description": "How fast API-equivalent value is accruing right now, per model (list-price estimate, not billed).",
          "gridPos": {"h": 8, "w": 12, "x": 0, "y": y + 4}, "datasource": ds,
          "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
          "targets": [q(f"sum by (model) (rate({cost}[$__rate_interval] anchored)) * 3600", "{{model}}")]},
@@ -546,7 +549,7 @@ def claude_prometheus_panels(y: int) -> list[dict]:
          "description": "input excludes the cache; cacheRead and cacheCreation are the cache's two sides.",
          "gridPos": {"h": 8, "w": 12, "x": 12, "y": y + 4}, "datasource": ds,
          "targets": [q(f"sum by (type) (increase({tokens}[$__rate_interval] anchored))", "{{type}}")]},
-        {"id": 17, "type": "bargauge", "title": "Spend by source in range",
+        {"id": 17, "type": "bargauge", "title": "API-equivalent by source in range",
          "description": "query_source: main (the conversation), subagent, auxiliary (titles, "
                         "summaries), sdk (headless runs).",
          "gridPos": {"h": 8, "w": 12, "x": 0, "y": y + 12}, "datasource": ds,
@@ -554,7 +557,7 @@ def claude_prometheus_panels(y: int) -> list[dict]:
          "options": {"orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
          "targets": [q(f"sum by (query_source) (increase({cost}[$__range] anchored))", "{{query_source}}",
                        instant=True)]},
-        {"id": 18, "type": "bargauge", "title": "Spend by repository in range",
+        {"id": 18, "type": "bargauge", "title": "API-equivalent by repository in range",
          "description": "vcs.repository.name — needs Claude Code ≥ 2.1.269 with "
                         "OTEL_METRICS_INCLUDE_REPOSITORY (contract: attributes.repository). "
                         "Empty on older versions.",

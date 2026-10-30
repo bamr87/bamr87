@@ -19,7 +19,7 @@
         "type": "prometheus",
         "uid": "fleet-prometheus"
       },
-      "description": "Claude Code's own cost estimate (tokens at API list prices) across every session in the range. Emitted under subscription logins too: an API-equivalent value, not a bill — the bill is the flat Claude subscription (harnesses.budget.monthly_ai_usd).",
+      "description": "Claude Code's own cost estimate (tokens at API list prices) across every session in the range. Emitted under subscription logins too: an API-equivalent value, not a bill \u2014 the bill is the flat Claude subscription (harnesses.budget.monthly_ai_usd).",
       "fieldConfig": {
         "defaults": {
           "decimals": 2,
