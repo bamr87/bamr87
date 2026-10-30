@@ -591,10 +591,18 @@ budget:
 # pull-request branches whose authors are listed below, and it comments.
 # --------------------------------------------------------------------------- #
 jev:
-  # Off until the amendment that introduces it is ratified. A dry run works
-  # either way; `resolve` refuses to write while this is false, and the
-  # scheduled loop has its own `vars.JEV_CONFLICTS_ENABLED` kill switch on top.
-  enabled: false
+  # On (amendment 0002 is ratified). `resolve` refuses to write while this is
+  # false; the scheduled / push-to-main loop still has its own
+  # `vars.JEV_CONFLICTS_ENABLED` kill switch on top (jev-conflicts.yml).
+  enabled: true
+
+  # The tiers the engine runs ON ITS OWN. tier0 is free and deterministic
+  # (regenerate / union / renumber, then merge main in and push a merge
+  # commit — never a force-push, never a merge of the PR). tier1 and tier2 buy
+  # a model; they stay off until listed here, and when on they are held to
+  # `budget.jev` ($10/month). Anything above the highest listed tier is
+  # labelled `jev:needs-human` instead.
+  auto_tiers: [tier0]
 
   # The fleet is wider than the submodule registry: these owners' repos are
   # scanned too. (`hub.owners` is the fan-out's write list — a narrower thing.)
