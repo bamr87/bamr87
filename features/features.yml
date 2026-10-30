@@ -444,6 +444,19 @@ features:
     date: 2026-10-29
     tests:
       - tools/test_deep_dive.py
+  - id: HUB-030
+    title: "Real-time bot activity dashboard"
+    description: "A live view at /live in the harness console: active and idle Claude Code sessions, Claude live usage from Prometheus, Claude CI spend and Actions minutes against the _data/fleet.yml budgets ($75 and 40,000 min/month), jobs with live log tails, the harness scorecard, deep-dive cycle progress and an observability reachability check. Session data comes from the read-only host collector tools/console/live_collector.py, run by a LaunchAgent; the console serves GET /api/live and the GET /api/live/stream SSE feed (5 s updates, token auth), with a 5 s polling fallback. Spec: tools/console/docs/realtime-bot-dashboard-spec.md. In review in bamr87/bamr87#432 (https://github.com/bamr87/bamr87/pull/432), not merged; no per-session cost yet, and Actions minutes come from daily data."
+    implemented: true
+    status: partial
+    prd: [FR5]
+    surface: ui
+    link: /live
+    docs: tools/console/docs/realtime-bot-dashboard-spec.md
+    tags: [ console, dashboard, live, sse, observability ]
+    date: 2026-10-29
+    tests:
+      - { na: "tested locally only; automated tests not yet written (bamr87/bamr87#432)" }
   - id: HUB-031
     title: "Harness Console MCP layer: the console's API for any AI agent"
     description: "tools/dash mcp serves the Harness Console's HTTP API as an MCP server built on the official mcp SDK: stdio for Claude Code, Cursor and local agents (registered in .mcp.json as fleet, having absorbed tools/fleetcore/mcp_server.py: its fleet_* read tools and console_* action names live on as tools and aliases, with --fleet-compat) and streamable HTTP on 127.0.0.1:4002/mcp with bearer auth and DNS-rebinding protection for remote agents such as Grok Bots. 26 read tools (22 console + 4 merged fleet views) and 5 resources cover fleet status, harness health and scorecard, live snapshot and sessions (with bamr87/bamr87#432), agent activity, ops, jobs and logs, spend vs budget, the lake's runs and workflow lines, observability, semantic code search, the deep dive, the Work board and the loops. Write tools (run_op, cancel_job, workflow_kill_switch) are registered only with HARNESS_MCP_ALLOW_WRITES=1, annotated destructive, and refused without confirm=true; the console's allowlist and confirm gate still decide. HTTP auth uses a dedicated HARNESS_MCP_TOKEN (never the console token); an opt-in compose sidecar (profile mcp, 127.0.0.1:4002) keeps it always on, and dash mcp --tunnel opens a temporary cloudflared quick tunnel."

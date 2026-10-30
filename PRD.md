@@ -74,6 +74,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-027](features/features.yml) | Backlog fan-out routine | partial | [`.github/workflows/backlog-fanout.yml`](.github/workflows/backlog-fanout.yml) · [`docs/BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | FR6, FR22, FR23 |
 | [HUB-028](features/features.yml) | Work board: rebalance the loops' work by drag and drop | shipped | route `/work` · [`docs/WORK-BOARD.md`](docs/WORK-BOARD.md) | FR5, FR6 |
 | [HUB-029](features/features.yml) | Daily repo deep dive: one repo a day, every repo once per cycle | partial | route `/deep-dive` · [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md) | FR24, FR25, NFR8 |
+| [HUB-030](features/features.yml) | Real-time bot activity dashboard | partial | route `/live` · [`tools/console/docs/realtime-bot-dashboard-spec.md`](tools/console/docs/realtime-bot-dashboard-spec.md) | FR5 |
 | [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | partial | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
 
 **Requirement → feature trace**
@@ -81,7 +82,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | Requirement | Features |
 | --- | --- |
 | FR2 | HUB-001, HUB-008 |
-| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028 |
+| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028 |

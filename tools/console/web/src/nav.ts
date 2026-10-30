@@ -74,6 +74,7 @@ export const NAV: NavSection[] = [
     label: 'Spend',
     items: [
       { label: 'Costs', to: '/costs', icon: IconCoin, hint: 'Claude spend and Actions minutes vs budget' },
+      { label: 'Live activity', to: '/live', icon: IconHeartbeat, hint: 'sessions, jobs, spend, health and deep-dive — pushed every 5 s' },
       { label: 'Agent activity', to: '/activity', icon: IconActivity, hint: 'local sessions + CI agent runs, from the lake' },
     ],
   },
