@@ -94,7 +94,7 @@ image_overrides:
 # trades both for zero update maintenance.
 #
 # Applied by: tools/unpin-deps.sh (one repo), the deps-latest kit in
-# tools/fanout.sh + deps-fanout.yml (fleet-wide PRs), and the hub's own tree.
+# tools/fanout.sh + fanout.yml (kit `deps-latest`, fleet-wide PRs), and the hub's own tree.
 # Full policy: docs/DEPENDENCIES.md
 # --------------------------------------------------------------------------- #
 dependencies:
@@ -150,22 +150,21 @@ hub:
 schedule:
   rotate_tokens: "7 2 * * 1"      # weekly credential rotation (see rotation:)
   update_submodules: "7 3 * * *"  # daily pointer bump (published directly, [skip ci])
-  refresh_dash: "7 4 * * *"       # README AUTO span refresh PR
   reconcile_registry: "7 5 * * *" # registry ↔ GitHub reconciliation
-  fleet_pulse: "37 5 * * *"       # gather → publish → remediate (THE daily loop)
-  build_dash: "37 6 * * *"        # republish the site after the data lands
-  issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:)
+  fleet_pulse: "37 5 * * *"       # gather → publish → remediate (THE daily loop; its data push is [skip ci])
+  issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:; its data push is [skip ci])
+  build_dash: "37 8 * * *"        # republish the site ONCE, after the last data push of the morning
   schema_vendor: "7 8 * * 1"      # weekly hub↔upstream SCHEMA kit parity PR
   repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
   repo_scout: "37 4 * * *"        # daily proactive ISSUE pass (see scout:) — before fleet-pulse (05:37)
                                   # snapshots what it filed and issue-pipeline (07:37) intakes it, same day
-  # git_digs paused Oct 14 (Actions waste reduction): schedule commented out in git-digs.yml while
-  # GIT_DIGS_ENABLED is off; restore this line together with that schedule block.
-  # git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
   backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
   deep_dive: "17 12 * * *"        # daily deep-dive tracker refresh PR, after the 06:00 MDT one-repo-a-day routine (docs/DEEP-DIVE.md)
+  jev_conflicts: "23 */6 * * *"   # every six hours: JEV scans the fleet for CONFLICTING open PRs
+                                  # and resolves what it can (docs/JEV.md). Off the hour and off
+                                  # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -369,9 +368,9 @@ issue_pipeline:
 #
 # WHY A SCHEDULED AI LOOP IS ACCEPTABLE HERE
 # ------------------------------------------
-# unified-evolution.yml stays dispatch-only because an unbounded "improve the
-# repo" pass on a cron is speculative. This one is bounded the way the other
-# scheduled agents are: the target set is declared per repo in the registry
+# An unbounded "improve the repo" pass on a cron is speculative (the hub's
+# dispatch-only unified-evolution.yml was retired 2026-10-27). This one is
+# bounded the way the other scheduled agents are: the target set is declared per repo in the registry
 # (`auto_evolve: true`), the planner refuses external upstreams and archived
 # repos whatever the registry says, the brief is built from the fleet's
 # observed signals (_data/fleet_triage.yml) rather than from imagination, the
@@ -476,7 +475,7 @@ verification:
     stale_verified_days: 90         # a `verified:` stamp older than this is reported as stale
   fanout:
     branch: test/agent-verification
-    max_targets_per_run: 10         # verify-fanout `gaps` opens at most this many PRs per dispatch
+    max_targets_per_run: 10         # fanout.yml (kit `verify`) `gaps` opens at most this many PRs per dispatch
 
 # Budget — the dollar ceiling on a single headless agent invocation.
 #
@@ -537,10 +536,8 @@ budget:
     issue-pipeline.yml:tier2: 60          # 400 turns · implement — clone, edit, test, PR
     issue-pipeline.yml:tier3: 60          # 400 turns · complete — CI iteration is the long tail
     repo-evolution.yml:evolve: 20         # 120 turns PER MATRIX LEG (evolution.max_turns)
+    fanout.yml:agent-fill: 10             # 25 turns · fills the kit's scaffold TODOs (standardize: CLAUDE.md, schema: SCHEMA.md)
     repo-scout.yml:scout: 8               # 40 turns PER MATRIX LEG (scout.max_turns) — read + write proposals, no edits
-    unified-evolution.yml:evolve: 10      # 30 turns · dispatch-only hub pass
-    schema-fanout.yml:agent-fill: 10      # 25 turns · fills scaffold TODOs
-    standardize-fanout.yml:agent-fill: 8  # 15 turns · fills a CLAUDE.md scaffold
     # The @claude mention handler is the one HUMAN-triggered call site, so it
     # has no turn cap to derive from. It gets a generous ceiling anyway: a
     # runaway mention is still unattended spend once the human walks away.
@@ -551,7 +548,106 @@ budget:
                                           # past ~66 meets this ceiling first — by design.
     ai-lane.yml:run: 10                   # the reusable lane's `max-budget-usd` input default
                                           # (= default_usd); consumers may pass their own.
-    git-digs.yml:dig: 6                   # 30 turns · floor 4.5; no observed spend yet
+
+  # JEV's conflict engine is deliberately NOT a `call_sites` entry. Those are
+  # keyed `<workflow file>:<job id>` and test_ai_budget.py holds each one
+  # against a literal `--max-budget-usd` in that job — which only works for a
+  # workflow STEP that runs one agent. JEV invokes `claude -p` from Python,
+  # once per pull request, inside a loop whose length is the day's conflict
+  # count, so its ceiling is a monthly TOTAL plus a per-attempt cap: the same
+  # shape as `local_usd` above. tools/jev/ledger.py enforces both from here
+  # and records every attempt in _data/jev_resolutions.yml (docs/JEV.md,
+  # tools/test_jev_ledger.py).
+  jev:
+    monthly_usd: 10            # the engine's monthly ceiling, inside the $75/month fleet budget
+    scheduled_stop_pct: 80     # a CRON run stops here, leaving the rest for a human's manual run
+    tier1_usd: 0.25            # per attempt, cheap model
+    tier2_usd: 1.50            # per attempt, strong model
+
+# --------------------------------------------------------------------------- #
+# JEV — the harness-level agent logic engine (docs/JEV.md).
+#
+# JEV is the fleet's planned agent logic layer (bamr87/it-journey PRD.md,
+# Roadmap 2027 Q1). Its FIRST capability lives here: a tiered pull-request
+# CONFLICT triage and resolution engine (tools/jev/, .github/workflows/
+# jev-conflicts.yml), plus the conflict-free numbering scheme that removes the
+# largest class of conflicts at the source (amendment 0002).
+#
+# The cheapest tier that can finish the job is the one that runs. Tier 0 costs
+# nothing and handles everything a generator or a union can settle; tiers 1 and
+# 2 buy a model only for conflicts that need judgement; tier 3 is a human. The
+# dollar ceilings are in `budget.jev` above — this block holds the SHAPE of
+# each tier, and the safety envelope JEV never leaves.
+#
+# JEV never merges a pull request, never force-pushes, never uses `--admin`
+# and never touches repository settings. It pushes MERGE COMMITS to same-repo
+# pull-request branches whose authors are listed below, and it comments.
+# --------------------------------------------------------------------------- #
+jev:
+  # On (amendment 0002 is ratified). `resolve` refuses to write while this is
+  # false; the scheduled / push-to-main loop still has its own
+  # `vars.JEV_CONFLICTS_ENABLED` kill switch on top (jev-conflicts.yml).
+  enabled: true
+
+  # The tiers the engine runs ON ITS OWN. tier0 is free and deterministic
+  # (regenerate / union / renumber, then merge main in and push a merge
+  # commit — never a force-push, never a merge of the PR). tier1 and tier2 buy
+  # a model; they stay off until listed here, and when on they are held to
+  # `budget.jev` ($10/month). Anything above the highest listed tier is
+  # labelled `jev:needs-human` instead.
+  auto_tiers: [tier0]
+
+  # The fleet is wider than the submodule registry: these owners' repos are
+  # scanned too. (`hub.owners` is the fan-out's write list — a narrower thing.)
+  orgs: [year-of-ai, ai-world-view, bash-365, EissaLab, zer0-mistakes]
+
+  # JEV pushes to the head branch, so it acts only on branches these accounts
+  # opened. Anything else — a human collaborator, a fork — is tier 3 by policy.
+  allowed_authors: [bamr87, bamr87-bot, "github-actions[bot]", app/github-actions, "claude[bot]"]
+
+  scan_limit: 50               # open PRs read per repo
+  max_attempts: 2              # two failed resolutions and it is a human's
+  needs_human_label: "jev:needs-human"
+
+  numbering:
+    # The lint that rejects a hand-picked next number (HUB-NNN in the catalog,
+    # FRn/NFRn in the PRD, a numbered amendment file). It reports on every PR
+    # and GATES only once amendment 0002 is ratified and the fleet has moved to
+    # fragments — otherwise it would reject the very PR that introduces it.
+    enforce: false
+
+  # Tier shapes. The dollar caps come from `budget.jev`; these are the size
+  # envelopes and the model each tier buys.
+  tiers:
+    tier1:
+      model: claude-haiku-4-5-20251001   # ~$1/$5 per MTok in/out — alternatives in docs/JEV.md
+      max_files: 3
+      max_lines: 40
+      max_turns: 8
+    tier2:
+      model: claude-sonnet-5
+      max_files: 15
+      max_lines: 400
+      max_turns: 24
+
+  # Path classes the classifier uses when a repo carries no `.gitattributes`
+  # (its attributes win when it does — tools/jev/conflicts.py reads them with
+  # `git check-attr`). Globs, fnmatch syntax.
+  generated_paths:
+    - "CATALOG.md"
+    - "_data/specs.yml"
+    - "_data/features_index.yml"
+    - "_data/cv_portfolio.json"
+    - "_data/deep_dive.json"
+    - "projects/SCHEMA.md"
+    - "docs/README.md"
+  fragment_paths:
+    - "features/features.d/*"
+    - "changelog.d/*"
+    - "docs/amendments/proposed/*"
+  union_paths:
+    - "docs/amendments/README.md"
+    - "_data/jev_resolutions.yml"
 
 # --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.
@@ -606,7 +702,7 @@ harness:
 # the projected spend may grow to before somebody is told. Observed reality is
 # gathered daily by `dash-gen harnesses` (harness_registry.py) into
 # _data/harness_registry.yml — the read-only inventory the /harnesses/ dash
-# page renders and the harness-fanout `gaps` target deploys from.
+# page renders and the fanout.yml harness kit's `gaps` target deploys from.
 # Full doc: docs/HARNESS-OPS.md
 # --------------------------------------------------------------------------- #
 harnesses:
@@ -647,7 +743,7 @@ harnesses:
   # Crossing a ceiling — or growing faster than trend_warn_pct — is an
   # attention item, not an enforcement action.
   budget:
-    monthly_ai_usd: 75              # projected monthly Claude CI spend ceiling
+    monthly_ai_usd: 200             # monthly Claude spend ceiling, matches the $200/month Claude Max subscription
     monthly_actions_minutes: 40000  # BILLED minutes/month ceiling — Jun–Aug 2026 ran 21–27k, all inside the included quota ($0 net)
     trend_warn_pct: 50              # growth beyond this is flagged (week-over-week for spend, month-over-month for billed minutes)
 
@@ -1076,7 +1172,7 @@ tokens:
       Preferred Claude auth for every claude-code-action call site (house
       convention: OAuth first). Produced by `claude setup-token`.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, schema-fanout.yml, repo-evolution.yml]
+              fanout.yml, repo-evolution.yml, fleet-verify.yml]
     rotation:
       enabled: true
       # `claude setup-token` mints a ONE-YEAR credential, so the value itself is
@@ -1141,7 +1237,7 @@ tokens:
     managed_by: keys
     purpose: The metered Claude credential (`api_key` in ai_auth). One key per Console workspace, 7-day lifetime.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, schema-fanout.yml, repo-evolution.yml]
+              fanout.yml, repo-evolution.yml, fleet-verify.yml]
     rotation:
       # The loop cannot RE-ISSUE a console key — that is a human action in the
       # Anthropic console — but it can and should PROPAGATE whatever the hub
@@ -1178,8 +1274,10 @@ tokens:
       weekly evolution loop may open PRs against, plus secrets:write on every fleet repo for the weekly
       rotation (writing an Actions secret is an admin-level operation — without
       it `token-rotation.yml` can audit ages but not fix them). Supersedes the
-      legacy PATs below (FANOUT_TOKEN, the third, was deleted 2026-09-30).
-    replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN]   # and FANOUT_TOKEN, removed 2026-09-30
+      legacy per-loop PATs (all removed; see the note below).
+    # Replaced the legacy per-loop PATs: FANOUT_TOKEN (removed 2026-09-30),
+    # ACTIONS_ANALYTICS_TOKEN and DAILY_ANALYSIS_TOKEN (removed 2026-10-19;
+    # nothing falls back to them any more).
     rotation:
       enabled: false      # GitHub PAT; re-issue in GitHub settings and re-seed
 
@@ -1196,16 +1294,28 @@ tokens:
     used_by: [publish-kits.yml]
     rotation:
       enabled: false
-  - name: ACTIONS_ANALYTICS_TOKEN
-    scope: hub
+  - name: RELEASE_PLEASE_TOKEN
+    scope: fleet
     required: false
-    deprecated: true
-    purpose: Legacy — read fleet Actions data. Folded into FLEET_TOKEN.
-  - name: DAILY_ANALYSIS_TOKEN
-    scope: hub
-    required: false
-    deprecated: true
-    purpose: Legacy — read fleet runs/issues for the daily analysis. Folded into FLEET_TOKEN.
+    purpose: >-
+      Lets release-please.yml open its release PR, and lets that PR's commits
+      trigger CI (a PR pushed with GITHUB_TOKEN fires no workflow events).
+      Fine-grained PAT, contents + pull_requests write on every repo that
+      releases. Mandatory on any repo whose Actions setting
+      `can_approve_pull_request_reviews` is off: there GITHUB_TOKEN cannot open
+      the release PR at all, so without this no release is ever cut
+      (bamr87/bamr87#406 and siblings). Declared fleet-scoped so the weekly
+      rotation can carry the hub's copy to the fleet; until a value exists on
+      the hub the loop reports it and writes nothing.
+    used_by: [release-please.yml]
+    rotation:
+      enabled: true
+      # A PAT, so the value's own life is the clock. 45 days is the propagation
+      # heartbeat shared with the Claude credentials: it is what pulls a newly
+      # adopting repo into line and re-heals a copy someone deleted.
+      max_age_days: 45
+      # Fine-grained (`github_pat_`) preferred; classic (`ghp_`) accepted.
+      value_prefixes: ["github_pat_", "ghp_"]
 
 # --------------------------------------------------------------------------- #
 # AI auth order — which Claude credential each repo tries first.

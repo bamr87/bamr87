@@ -2,7 +2,7 @@ name: standard-ci
 
 # Reusable CI gate for bamr87 submodules — the shared "standard" a member repo
 # adopts with a short caller workflow (see templates/standard-ci/ci.yml, dropped
-# in by standardize-fanout.yml). Auto-detects the stack and runs lint + test +
+# in by fanout.yml (kit: standardize)). Auto-detects the stack and runs lint + test +
 # build; every step is guarded so a repo only runs what applies to it.
 #
 # Call it from a member repo, pinned to the floating major tag (never @main;

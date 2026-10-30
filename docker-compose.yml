@@ -260,6 +260,83 @@ services:
       start_period: 90s
 
   # --------------------------------------------------------------------------
+  # MCP layer - the Harness Console's API for AI agents (HUB-031), opt-in
+  #
+  # `docker compose --profile mcp up -d mcp` (or `tools/dash mcp --http` natively).
+  # Streamable HTTP on 127.0.0.1:4002/mcp; every request needs
+  # `Authorization: Bearer <HARNESS_MCP_TOKEN>`, which the server reads from the
+  # repo's .env (mounted read-only with the tree) — no token is passed through
+  # the environment, so `docker inspect` shows none. It reaches the console by
+  # service name and presents a loopback Host (DASH_CONSOLE_HOST_HEADER), so the
+  # console's DNS-rebinding allowlist stays loopback-only and console is never
+  # recreated for it. Write tools stay off unless HARNESS_MCP_ALLOW_WRITES=1.
+  # No depends_on: bringing this up never touches a running console.
+  # tools/console/docs/mcp-layer.md
+  # --------------------------------------------------------------------------
+  mcp:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: python
+    logging: *fleet-logging
+    profiles: [mcp]
+    image: python:3.14-slim
+    working_dir: /workspace/tools/console
+    volumes:
+      - .:/workspace:ro
+      - venv-mcp:/venv
+    environment:
+      - DASH_CONSOLE_URL=http://console:4001
+      - DASH_CONSOLE_HOST_HEADER=127.0.0.1:4001
+      - HARNESS_MCP_ALLOW_WRITES=${HARNESS_MCP_ALLOW_WRITES:-0}
+      - PYTHONDONTWRITEBYTECODE=1
+      - PIP_DISABLE_PIP_VERSION_CHECK=1
+    command:
+      - sh
+      - -c
+      - >-
+        v="$$(python -V)"; [ "$$(cat /venv/.py 2>/dev/null)" = "$$v" ] || { rm -rf /venv/* /venv/.req /venv/.py; python -m venv /venv && echo "$$v" > /venv/.py; };
+        cmp -s requirements-mcp.txt /venv/.req || { /venv/bin/pip install -q --upgrade -r requirements-mcp.txt && cp requirements-mcp.txt /venv/.req; };
+        exec /venv/bin/python -m mcp_layer.server --http --host 0.0.0.0 --port 4002
+    ports:
+      - "127.0.0.1:${HARNESS_MCP_PORT:-4002}:4002"
+    networks:
+      - fleet
+    restart: unless-stopped
+    healthcheck:
+      # 401 without a token IS healthy: the server is up and refusing.
+      test: ["CMD", "python", "-c", "import urllib.request as u,urllib.error as e,sys\ntry: u.urlopen('http://127.0.0.1:4002/mcp',timeout=4)\nexcept e.HTTPError as x: sys.exit(0 if x.code==401 else 1)\nexcept Exception: sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+  # --------------------------------------------------------------------------
+  # Persistent remote access to `mcp` (opt-in): a cloudflared QUICK tunnel.
+  # The hostname is random and changes when this container restarts, so read
+  # it with `tools/dash mcp --tunnel-url` (also written to
+  # .dash-live/mcp-tunnel-url). Host is rewritten to the loopback name the MCP
+  # server allows; bearer HARNESS_MCP_TOKEN is the gate. Prefer a named tunnel
+  # (stable hostname) once one is set up — see tools/console/docs/mcp-layer.md.
+  mcp-tunnel:
+    labels:
+      <<: *fleet-labels
+      com.bamr87.fleet.stack: tunnel
+    logging: *fleet-logging
+    profiles: [mcp-tunnel]
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "--metrics", "0.0.0.0:2000", "--url", "http://mcp:4002", "--http-host-header", "127.0.0.1:4002"]
+    ports:
+      - "127.0.0.1:${HARNESS_MCP_TUNNEL_METRICS_PORT:-4003}:2000"
+    networks:
+      - fleet
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:2000", "ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
   # Terminal dash - tools/tui in a container (`tools/dash tui --docker`)
   #
   # Interactive, so it is RUN, never `up`: the `tui` profile keeps it out of
@@ -867,6 +944,8 @@ volumes:
   console-web-modules:
     driver: local
   venv-tui:
+    driver: local
+  venv-mcp:
     driver: local
   console-run:
     driver: local

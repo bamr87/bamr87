@@ -14,8 +14,7 @@ import { SOURCE_HOME, gh, to } from '../lib/links';
 import u from '../styles/utils.module.css';
 
 const DISPATCH_INPUTS: Record<string, Record<string, unknown>> = {
-  'harness-fanout': { target: 'gaps', dry_run: true }, 'fleet-pulse': { dry_run: true }, 'repo-evolution': { target: 'all', dry_run: true },
-  'standardize-fanout': { target: 'all', dry_run: true }, 'schema-fanout': { target: 'all', dry_run: true },
+  'fanout': { kit: 'harness', target: 'gaps', dry_run: true }, 'fleet-pulse': { dry_run: true }, 'repo-evolution': { target: 'all', dry_run: true },
 };
 
 function freshness(l: Loop): { tone: Tone; text: string } {
@@ -70,6 +69,7 @@ function LoopBody({ l, s }: { l: Loop; s: StateDoc }) {
         description={<><Mono>{l.workflow}.yml</Mono> · {l.cron_human}{l.cron ? <> · <Mono>{l.cron}</Mono></> : null}</>}
         actions={
           <>
+            <Anchor component={Link} to={to.workflow(l.workflow)} size="sm">{l.workflow}.yml</Anchor>
             <External href={gh.hubFile(l.doc)} size="sm">{l.doc}</External>
             <External href={gh.hubWorkflowRuns(l.workflow)} size="sm">runs on GitHub</External>
             <RunButton op="dispatch" params={{ workflow: l.workflow, fields: DISPATCH_INPUTS[l.workflow] ?? {} }} variant="filled">

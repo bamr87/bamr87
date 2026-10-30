@@ -94,8 +94,10 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "harnesses/health": ("Harness health", "Trip wires and the six-layer harness scorecard."),
     "schedules": ("Schedules", "Crons, caps and collisions across the fleet."),
     "loops": ("Loops", "The control-plane loops and their outputs."),
+    "workflows": ("Workflows", "Every hub workflow and composite action, the standards they are held to, and why runs fail."),
     "costs": ("Costs", "Claude spend and Actions minutes against budget."),
     "activity": ("Agent activity", "Local sessions and CI agent runs."),
+    "live": ("Live", "Real-time bot activity: sessions, live usage, jobs and spend."),
     "observe/traces": ("Traces", "The data lake and Phoenix traces."),
     "observe/lines": ("Lines", "Every workflow with provenance and kill switch."),
     "observe/logs": ("Logs", "Kibana over the log plane."),
@@ -211,6 +213,9 @@ def documents() -> dict[str, object]:
         "lake/runs": [],
         "lake/lines": [],
         "lake/review": lake_review(),
+        "workflows": core.workflow_atlas(),
+        "workflows/health": {"present": False, "snapshot": True, "error": f"Run health {LOCAL_ONLY}.",
+                             "workflows": [], "totals": {}, "classes": {}, "ghosts": [], "class_hints": {}},
         "observability": observability(),
         "index/coverage": {"projects": [], "snapshot": True, "error": f"The code index {LOCAL_ONLY}."},
         "tui/status": {"available": False, "active": 0, "max": 0, "app": "tools/tui/app.py"},
@@ -223,7 +228,7 @@ def documents() -> dict[str, object]:
                                     "web_flow": False, "default_scopes": "", "callback_url": "",
                                     "new_app_url": "", "authorized_apps_url": ""}},
         "github/fleet": {"owner": ghl._hub_owner(), "hub": ghl._hub(), "repos": ghl.fleet_repos(),
-                         "dispatchable": {wf: sorted(i) for wf, i in core.DISPATCHABLE.items()}},
+                         "dispatchable": core.dispatchable()},
         "github/log": [],
         "site": site_docs.site_index(include_drafts=False),
     }
@@ -266,6 +271,10 @@ def routes(docs: dict) -> dict[str, tuple[str, str]]:
             out[f"github/{m.group(1)}"] = (m.group(1), f"Issues, pull requests, runs and workflows of {m.group(1)}.")
     hub = str(docs["github/fleet"]["hub"].get("repo") or HUB)
     out.setdefault(f"github/{hub}", (hub, f"Issues, pull requests, runs and workflows of {hub}."))
+    for wf in docs["workflows"]["workflows"]:
+        out[f"workflows/{wf['id']}"] = (f"{wf['name']} · workflow", str(wf.get("purpose_text") or ""))
+    for act in docs["workflows"]["actions"]:
+        out[f"workflows/actions/{act['id']}"] = (f"{act['name']} · action", act["description"][:300])
     for loop in docs["state"].get("loops") or []:
         out[f"loops/{loop['id']}"] = (str(loop.get("title") or loop["id"]), str(loop.get("summary") or ""))
     for site in docs["content"].get("declared") or []:

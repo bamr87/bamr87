@@ -1,0 +1,60 @@
+# =============================================================================
+# .gitattributes — how git treats this repo's GENERATED and APPEND-ONLY files.
+#
+# Amendment 0002 (docs/amendments/0002-conflict-free-numbering.md): a generated
+# file is never hand-merged. `merge=jev-regen` keeps OURS and records the path
+# for regeneration (tools/jev/merge-regen.sh); CI regenerates and fails on
+# drift, so the merge resolution is never the thing that decides a generated
+# file's content.
+#
+# The driver is per-clone configuration — git cannot install it from this file.
+# Once per clone:
+#   git config merge.jev-regen.name   "keep ours, regenerate"
+#   git config merge.jev-regen.driver "tools/jev/merge-regen.sh %O %A %B %P"
+# Without it git falls back to the default text merge, which is safe but gives
+# back the hand-merge this exists to avoid. See tools/jev/README.md.
+#
+# `linguist-generated=true` is set ONLY on files that are generated end to end,
+# because it also collapses them in GitHub's diff view and excludes them from
+# language statistics. README.md (the GitHub profile), PRD.md and docs/DASH.md
+# are hand-written files with a generated SPAN, so they take the merge driver
+# and nothing else.
+# =============================================================================
+
+# --- generated end to end ----------------------------------------------------
+# GitHub's mergeability check IGNORES custom merge drivers, so `merge=jev-regen`
+# cannot stop two pull requests conflicting on a generated file. `jev-main-only`
+# goes further: the file is regenerated and committed ONLY on main by the
+# post-merge job (.github/workflows/jev-number.yml), and PR CI fails a pull
+# request that edits it (`python3 -m tools.jev generated guard`, drift-check.yml).
+# The other files here are written by their own loops or the registry flow and
+# are still checked for drift on a pull request (docs/JEV.md).
+CATALOG.md                 linguist-generated=true merge=jev-regen jev-main-only
+projects/SCHEMA.md         linguist-generated=true merge=jev-regen
+_data/specs.yml            linguist-generated=true merge=jev-regen
+_data/cv_portfolio.json    linguist-generated=true merge=jev-regen
+_data/features_index.yml   linguist-generated=true merge=jev-regen
+_data/deep_dive.json       linguist-generated=true merge=jev-regen
+docs/README.md             merge=jev-regen jev-main-only
+
+# --- hand-written, with a generated span -------------------------------------
+# The span is regenerated on main by the same post-merge job; on a pull request
+# its drift check is advisory (JEV_SPANS_ADVISORY=1 in drift-check.yml).
+README.md                  merge=jev-regen
+PRD.md                     merge=jev-regen
+docs/DASH.md               merge=jev-regen
+
+# --- compiled from fragments at merge (tools/jev/number.py) ------------------
+# Never edited by a pull request: a PR writes features/features.d/<slug>.yml and
+# changelog.d/<slug>.md, and the compiler on main writes these.
+features/features.yml      merge=jev-regen
+CHANGELOG.md               merge=jev-regen
+
+# --- append-only, order-free: both sides are the answer ----------------------
+# `merge=union` is safe ONLY where a duplicated or reordered line is harmless
+# and the file is never read positionally. Each of these is a flat append:
+# a table row keyed by a number that is already unique, or a list of records.
+# Do NOT extend this list to a file with front matter, a header block, or any
+# structure a repeated line would break (union does not deduplicate).
+docs/amendments/README.md  merge=union
+_data/jev_resolutions.yml  merge=union

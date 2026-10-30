@@ -1,7 +1,7 @@
 kit: issue-autopilot
 version: 0.1.0
 source: bamr87/bamr87 templates/issue-autopilot/
-seeded-by: .github/workflows/standardize-fanout.yml (artifact `issue-autopilot`, OPT-IN) via tools/fanout.sh
+seeded-by: .github/workflows/fanout.yml (kit standardize, artifact `issue-autopilot`, OPT-IN) via tools/fanout.sh
 files: |
   ENGINE (seeded to scripts/issues/):
     triage.py, dispatch.py, verify_close.py,

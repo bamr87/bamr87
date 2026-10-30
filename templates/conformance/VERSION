@@ -1,7 +1,7 @@
 kit: conformance
 version: 0.1.0
 source: bamr87/bamr87 templates/conformance/
-seeded-by: tools/fanout.sh --kit standardize --artifacts conformance (standardize-fanout.yml)
+seeded-by: tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize)
 files: conformance.yml
 spec: specs/CONFORMANCE.md (UPS in-repo gate); checker tools/conformance.py; reusable .github/workflows/fleet-conformance.yml
 updated: 2026-09-01

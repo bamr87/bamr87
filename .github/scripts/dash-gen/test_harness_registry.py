@@ -4,7 +4,7 @@ Fixture tests for harness_registry.py — the fleet AI-harness + schedule
 inventory.
 
 Guards the invariants that make the inventory trustworthy as a CONTROL
-surface (it feeds the harness-fanout `gaps` target and the /harnesses/ page,
+surface (it feeds the fan-out's harness `gaps` target and the /harnesses/ page,
 so a wrong grade becomes a wrong PR or a false alarm):
 
   * workflow classification reads the facts the fan-out relies on — the kit
@@ -199,7 +199,7 @@ def test_classify_scheduled_agent_reads_cron_model_turns():
 
 def test_mention_needs_a_mention_capable_trigger():
     # A dispatch-only fan-out whose HEADER COMMENT says "@claude" is not a
-    # mention handler (the real standardize-fanout.yml false-positived on this).
+    # mention handler (the real fanout.yml (kit: standardize) false-positived on this).
     dispatch_only = (
         "name: fanout\n# seeds the @claude mention workflow\n"
         "on:\n  workflow_dispatch:\njobs:\n  x:\n    runs-on: ubuntu-latest\n"

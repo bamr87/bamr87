@@ -57,7 +57,7 @@ The plan job also **probes** `FLEET_TOKEN` with `gh api user` and requires Claud
 
 The target repository is checked out with `persist-credentials: false`, the brief is downloaded into `.scout/` and git-excluded, and a Claude Code agent (model from `scout.model`, Sonnet by default — reading and writing, not implementing) is run with a **read-only allowlist plus `Write`**: it may run the repo's documented commands to see what fails, and write exactly one file, `.scout/proposals.json`. It cannot edit, commit, push, or create anything on GitHub, and a tracked file it touched anyway is discarded and reported. The step carries **no GitHub token at all**: the agent reads text anyone can write (open issue titles, the repository itself) and its allowlist includes interpreters that can read any environment variable, so `FLEET_TOKEN` stays in the checkout (not persisted) and the `file` job. The open issues and PRs it must not duplicate are already in the brief. The proposals file travels to the next job as an artifact; an absent file is a valid "nothing worth filing".
 
-Every run reports its spend in the job summary (the same cost step as the other loops), with a budget abort and a rejected credential each called out loudly.
+Every run reports its spend in the job summary through the shared `claude-cost` action (the same step as the other loops): a budget abort and a rejected credential each fail the job loudly, and a spent Claude usage window (`usage-limit: skip`) is a warning, not a red run.
 
 ### 3. File — the only writer
 

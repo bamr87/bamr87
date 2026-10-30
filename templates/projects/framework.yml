@@ -1,0 +1,75 @@
+# templates/projects/framework.yml — THE work-tracking spec (constitution § 9, amendment 0003).
+# Projects, fields, lifecycle and the label map are reconciled FROM this file; never edit them by hand.
+# Validate: python3 tools/projects_lint.py check
+schema: projects/v1
+owner: bamr87            # user-owned projects can hold items from any org repo
+projects:
+  - key: portfolio
+    title: "Fleet Portfolio"
+    scope: all            # every registry repo (_data/projects.yml) + the hub
+    views: [Inbox, Board by Status, Roadmap by Iteration, By Repo, By Feature, Bots]
+  - key: platform
+    title: "Platform & Harness"
+    scope: { repos: [bamr87/bamr87, bamr87/.github] }
+    views: [Board by Status, By Feature, Iteration]
+  - key: sites
+    title: "Sites & Content"
+    scope: { area: [docs, content, site] }
+    views: [Board by Status, By Repo]
+  - key: security
+    title: "Security & Dependencies"
+    scope: { labels: [security, dependencies] }
+    views: [Board by Status, By Repo]
+  - key: orgs
+    title: "Org programs"   # one per org when it has >10 open items: year-of-ai, ai-world-view, bash-365, EissaLab, zer0-mistakes
+    scope: { per_org: true }
+    views: [Board by Status, Roadmap]
+fields:
+  Status:   { type: single_select, required: true, options: [Inbox, Triaged, Ready, In progress, In review, Blocked, Done, Won't do] }
+  Priority: { type: single_select, required: true, options: [P0, P1, P2, P3] }
+  Area:     { type: single_select, required: true, options: [platform, ci, docs, site, content, security, deps, data, agents, ux] }
+  Repo:     { type: built_in, required: true }
+  Size:     { type: single_select, required: false, options: [XS, S, M, L, XL] }
+  Iteration: { type: iteration, required: false, duration_weeks: 2 }
+  Feature ID: { type: text, required: when_feature, pattern: '^[A-Z]{2,6}-\d{3}$' }
+  PRD req:  { type: text, required: when_requirement, pattern: '^(N?FR\d+)(,\s*N?FR\d+)*$' }
+  Owner:    { type: single_select, required: false, options: [Amr, Fleet Ops, Platform Architect, Repo Janitor, Security Warden, QA Lead, JEV] }
+lifecycle:
+  Inbox: { next: [Triaged, Won't do] }
+  Triaged: { next: [Ready, Blocked, Won't do] }
+  Ready: { next: [In progress, Blocked] }
+  In progress: { next: [In review, Blocked] }
+  In review: { next: [Done, In progress] }
+  Blocked: { next: [Ready, Won't do] }
+  Done: { next: [] }
+  Won't do: { next: [] }
+# Label harmonization: canonical label -> project field value; aliases are renamed post-ratification.
+labels:
+  canonical:
+    P0: { field: Priority, value: P0 }
+    P1: { field: Priority, value: P1 }
+    P2: { field: Priority, value: P2 }
+    P3: { field: Priority, value: P3 }
+    size:xs: { field: Size, value: XS }
+    size:s: { field: Size, value: S }
+    size:m: { field: Size, value: M }
+    size:l: { field: Size, value: L }
+    size:xl: { field: Size, value: XL }
+    agent:queued: { field: Status, value: Ready }
+    agent:ready: { field: Status, value: Ready }
+    agent:in-pr: { field: Status, value: In review }
+    agent:blocked: { field: Status, value: Blocked }
+    agent:hold: { field: Status, value: Blocked }
+    agent:done: { field: Status, value: Done }
+    area:docs: { field: Area, value: docs }
+    area:a11y: { field: Area, value: ux }
+    area:perf: { field: Area, value: platform }
+    security: { field: Area, value: security }
+    dependencies: { field: Area, value: deps }
+  aliases:            # rename to canonical across the fleet
+    documentation: area:docs
+    docs: area:docs
+    enhancement: feature
+    github_actions: ci
+    area:feat: feature
+  retire: [custom, optimization, daily-analysis, actions-review]

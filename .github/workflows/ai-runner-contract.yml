@@ -3,7 +3,7 @@ name: ai-runner-contract
 # Pre-flight gate for the ai-runner kit. The runner in .github/actions/claude-run
 # is consumed BY REFERENCE by every AI lane in the fleet, so a regression here
 # reaches every repo on its next scheduled run — cheaper to catch it on the PR
-# than to explain 40 red lanes. Same precedent as feedback-fanout's `verify`.
+# than to explain 40 red lanes. Same precedent as the fan-out's feedback pre-flight.
 
 on:
   pull_request:
@@ -21,6 +21,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ai-runner-contract-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   contract:

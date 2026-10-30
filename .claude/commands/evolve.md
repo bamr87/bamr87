@@ -13,4 +13,4 @@ This command chains the loop's skills (`triage-attention` → `sync-project-docs
 3. Use `evolve-project` for the top-priority repo's improvement pass.
 4. Run `tools/dash-gen readme` + `tools/check-drift.sh`, then open a PR to `main`.
 
-To run unattended in CI instead, trigger the workflow: `gh workflow run unified-evolution.yml`.
+There is no CI twin for the hub (`unified-evolution.yml` was retired on 2026-10-27): file a hub issue and the issue pipeline implements it, or run the per-submodule CI pass with `tools/dash evolve --repo <name>` / `--all` (`repo-evolution.yml`).

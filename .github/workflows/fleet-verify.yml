@@ -31,6 +31,10 @@ name: fleet-verify
 # fallback — callers pass `secrets: inherit`. A missing credential SKIPS the
 # agent step with a notice; it never fails the scenario half.
 #
+# The hub's composite actions (claude-auth, claude-cost) are taken from the
+# same `.fleet-hub` checkout as the tooling, at `hub-ref` — pass the same ref
+# you call this workflow at, or the actions come from `main`.
+#
 # Call it from a member repo:
 #   jobs:
 #     verify:
@@ -333,7 +337,7 @@ jobs:
       - name: Choose the Claude credential (ai_auth order)
         id: claude-auth
         if: ${{ inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}
-        uses: bamr87/bamr87/.github/actions/claude-auth@v2
+        uses: ./.fleet-hub/.github/actions/claude-auth
         with:
           order: ${{ vars.CLAUDE_AUTH_ORDER }}
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
@@ -361,6 +365,18 @@ jobs:
             The app is live at ${{ steps.cfg.outputs.url }}. Using the Playwright MCP, USE it the way a person would for every feature the changed files touch (map files → feature ids via the index; if a touched capability has no entry, say so — that is a finding): browser_navigate to the route, browser_snapshot to read the page, interact, browser_take_screenshot at each proof point at desktop (1280 wide) AND mobile (390 wide; browser_resize). Check what unit tests never do: nothing scrolls sideways, focus is visible, browser_console_messages shows no errors, empty/404 states render, both colour modes hold if the app has them.
 
             For each feature you verified, write a replayable verify/scenarios/<slug>.yml (scenario/v1) and run it with `node verify/runner.mjs --only <slug>`; it must pass before you cite it. Then write verify/AGENT-REPORT.md: a table — feature id · PASS / FAIL / NOT VERIFIED · scenario · evidence dir · one sentence; then "Findings" (every failure with step, viewport, screenshot path); then "Not covered". Do NOT commit, push, label, or comment — the workflow publishes your report. Never describe behaviour you did not observe in the browser; "could not verify: <reason>" is a valid row.
+
+      # Spend on every agent pass; a budget abort fails the step, a refused
+      # credential is named (.github/actions/claude-cost).
+      - name: Report Claude run cost
+        id: cost
+        if: ${{ !cancelled() && inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}
+        uses: ./.fleet-hub/.github/actions/claude-cost
+        with:
+          tier: Verifier — ${{ github.repository }}
+          icon: 🔍
+          budget-usd: "10"
+          outcome: ${{ steps.agent.outcome }}
 
       - name: Publish the agent report
         if: ${{ always() && inputs.agent && env.HAS_CLAUDE_AUTH == 'true' && steps.app.outputs.started == 'true' }}

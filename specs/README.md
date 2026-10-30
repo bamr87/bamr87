@@ -48,7 +48,7 @@ The full catalogue — every spec, kit, reference implementation, registry, tool
 | Kind of artifact | Home | Consumer |
 | --- | --- | --- |
 | Specs (this) | `specs/` + `_data/specs.yml` | agents, `dash audit`, humans |
-| Seedable kits (files copied into repos) | `templates/<kit>/` with `VERSION` + `archive/` | `tools/fanout.sh`, `standardize-fanout.yml` |
+| Seedable kits (files copied into repos) | `templates/<kit>/` with `VERSION` + `archive/` | `tools/fanout.sh`, `fanout.yml` (kit `standardize`) |
 | Baseline tiers (which artifacts are required) | `_data/standards.yml` | `tools/audit-standards.sh` |
 | Fleet config (versions, caps, tokens, labels) | `_data/fleet.yml` | every loop |
 | Skills, commands, agents for the hub | `.claude/` | Claude Code in the hub |

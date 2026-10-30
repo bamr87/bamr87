@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-29T06:02:18Z'
+generated_at: '2026-10-30T06:03:37Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,21 +17,21 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 28
-  implemented: 25
-  covered: 28
+  features: 37
+  implemented: 31
+  covered: 37
   evidenced: 9
   verified: 8
-  ui: 13
-  ui_covered: 13
+  ui: 15
+  ui_covered: 15
   ui_verified: 8
   scenarios: 10
   screenshots: 38
   dangling: 0
 pct:
-  coverage: 112
-  evidence: 36
-  verified: 32
+  coverage: 119
+  evidence: 29
+  verified: 26
   ui_coverage: 100
 attention: []
 repos:
@@ -62,19 +62,19 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 28
-    implemented: 25
-    covered: 28
+    features: 37
+    implemented: 31
+    covered: 37
     evidenced: 9
     verified: 8
-    ui: 13
-    ui_covered: 13
+    ui: 15
+    ui_covered: 15
     ui_verified: 8
     dangling: 0
   pct:
     coverage: 100
-    evidence: 36
-    verified: 32
+    evidence: 29
+    verified: 26
   last_run: null
   gaps: []
   items:
@@ -1125,4 +1125,323 @@ repos:
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/desktop-work-throughput.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/mobile-work-board.png
       - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/work/mobile-work-throughput.png
+  - id: HUB-029
+    title: 'Daily repo deep dive: one repo a day, every repo once per cycle'
+    surface: ui
+    implemented: true
+    link: /deep-dive
+    docs: docs/DEEP-DIVE.md
+    tags:
+    - deep-dive
+    - routine
+    - console
+    - dashboard
+    - automation
+    date: '2026-10-29'
+    provenance: null
+    tests:
+    - tools/test_deep_dive.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A daily routine (06:00 America/Denver) deep-dives one bamr87 repo per day — review, analysis, docs, issues, feature
+      requests, UI/UX — labelling everything it files deep-dive, so every non-archived repo is processed once per 42-day cycle
+      sta
+    urls:
+      link: https://bamr87.github.io/bamr87/deep-dive
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/DEEP-DIVE.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_deep_dive.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-030
+    title: Real-time bot activity dashboard
+    surface: ui
+    implemented: true
+    link: /live
+    docs: tools/console/docs/realtime-bot-dashboard-spec.md
+    tags:
+    - console
+    - dashboard
+    - live
+    - sse
+    - observability
+    date: '2026-10-29'
+    provenance: null
+    tests: []
+    waived:
+    - tested locally only; automated tests not yet written (bamr87/bamr87#432)
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'A live view at /live in the harness console: active and idle Claude Code sessions, Claude live usage from Prometheus,
+      Claude CI spend and Actions minutes against the _data/fleet.yml budgets ($75 and 40,000 min/month), jobs with live log
+      tai'
+    urls:
+      link: https://bamr87.github.io/bamr87/live
+      docs: https://github.com/bamr87/bamr87/blob/main/tools/console/docs/realtime-bot-dashboard-spec.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-031
+    title: 'Harness Console MCP layer: the console''s API for any AI agent'
+    surface: infra
+    implemented: true
+    link: tools/console/mcp_layer/server.py
+    docs: tools/console/docs/mcp-layer.md
+    tags:
+    - console
+    - mcp
+    - agents
+    - ai-layer
+    - integration
+    date: '2026-10-30'
+    provenance: null
+    tests:
+    - tools/console/test_mcp_layer.py
+    - .github/scripts/dash-gen/test_fleet_index.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'tools/dash mcp serves the Harness Console''s HTTP API as an MCP server built on the official mcp SDK: stdio
+      for Claude Code, Cursor and local agents (registered in .mcp.json as fleet, having absorbed tools/fleetcore/mcp_server.py:
+      its fleet_'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/console/mcp_layer/server.py
+      docs: https://github.com/bamr87/bamr87/blob/main/tools/console/docs/mcp-layer.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_mcp_layer.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_fleet_index.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-032
+    title: 'Claude spend accounting: every CI run priced, estimated or proved free'
+    surface: infra
+    implemented: true
+    link: .github/scripts/dash-gen/ai_usage_collector.py
+    docs: docs/AI-INTEGRATION.md
+    tags:
+    - ai
+    - cost
+    - budget
+    - ledger
+    - transparency
+    - dashboard
+    date: '2026-10-29'
+    provenance: null
+    tests:
+    - .github/scripts/dash-gen/test_ai_usage_collector.py
+    - .github/scripts/dash-gen/test_harness_registry.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: The committed Claude ledger (_data/ai_usage.yml, tools/dash-gen ai-usage) accounts every AI run in the fleet
+      instead of leaving 87% of them unpriced. It collects the HUB itself alongside the registry (_data/fleet.yml hub.repo
+      is not a regis
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/ai_usage_collector.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/AI-INTEGRATION.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_ai_usage_collector.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_harness_registry.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-033
+    title: The fleet's one release-please workflow, degrading to a warning without a PR credential
+    surface: infra
+    implemented: true
+    link: .github/workflows/release-please.yml
+    docs: docs/RELEASES.md
+    tags:
+    - release
+    - loop
+    - workflows
+    - kits
+    date: '2026-10-29'
+    provenance: null
+    tests:
+    - templates/sdlc/test_sdlc_kit.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Every fleet repo''s Release workflow is a thin caller of .github/workflows/release-please.yml (SDLC kit templates/sdlc/release/):
+      release-please computes the version from Conventional Commits, rewrites CHANGELOG.md on a release PR, and tags '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.github/workflows/release-please.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/RELEASES.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/templates/sdlc/test_sdlc_kit.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-035
+    title: 'JEV: conflict-free numbering + tiered PR conflict triage'
+    surface: infra
+    implemented: true
+    link: tools/jev/README.md
+    docs: docs/JEV.md
+    tags:
+    - jev
+    - governance
+    - numbering
+    - conflicts
+    - ai
+    - cost
+    - automation
+    date: '2026-10-29'
+    provenance: null
+    tests:
+    - tools/test_jev_number.py
+    - tools/test_jev_classify.py
+    - tools/test_jev_conflicts.py
+    - tools/test_jev_ledger.py
+    - .github/scripts/dash-gen/test_schedule.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'JEV is the harness-level agent logic engine (planned in bamr87/it-journey''s PRD roadmap, 2027 Q1); this is
+      its first capability, in two halves. (1) Conflict-free numbering: a pull request never picks the next HUB-NNN, FRn/NFRn
+      or amendment '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/README.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/JEV.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_number.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_classify.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_conflicts.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_ledger.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_schedule.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-036
+    title: Fleet work-tracking framework on GitHub Projects (proposed)
+    surface: infra
+    implemented: false
+    link: templates/projects/framework.yml
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags:
+    - governance
+    - projects
+    - labels
+    - fleet
+    date: '2026-10-29'
+    provenance: null
+    tests:
+    - tools/test_projects_lint.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'One spec (templates/projects/framework.yml) for the Fleet Portfolio and domain projects: fields, options, views,
+      lifecycle and the label map; a reusable auto-add workflow for bamr87/.github; reconciled after amendment 0003 is ratified.'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/templates/projects/framework.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/PROJECTS-FRAMEWORK.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_projects_lint.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-037
+    title: 'Projects coverage gate: every open issue/PR tracked with required fields (proposed)'
+    surface: infra
+    implemented: false
+    link: tools/projects_lint.py
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags:
+    - governance
+    - lint
+    - projects
+    date: '2026-10-29'
+    provenance: null
+    tests:
+    - tools/test_projects_lint.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: tools/projects_lint.py validates the framework spec offline and, with project read access, reports issues/PRs
+      missing from the portfolio or missing required fields; warning for 30 days after ratification, then an error.
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/projects_lint.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/PROJECTS-FRAMEWORK.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_projects_lint.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-038
+    title: Features/PRD ↔ project sync and console Projects panel (proposed)
+    surface: infra
+    implemented: false
+    link: null
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags:
+    - governance
+    - projects
+    - console
+    - mcp
+    date: '2026-10-29'
+    provenance: null
+    tests: []
+    waived:
+    - design only; collector and panel land in phase 3
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Sync features.yml ids and PRD requirement ids into the projects' Feature ID / PRD req options; a dash-gen collector
+      writes _data/projects_board.yml and the console shows coverage per repo; MCP read tools (projects_board) and confirm-gated
+      w
+    urls:
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/PROJECTS-FRAMEWORK.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
   truncated: false

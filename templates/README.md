@@ -4,7 +4,7 @@ Scaffolding templates consumed by the dash's tooling — copied into target repo
 
 ## `standard-ci/`
 
-The baseline CI caller dropped into a submodule by [`.github/workflows/standardize-fanout.yml`](../.github/workflows/standardize-fanout.yml):
+The baseline CI caller dropped into a submodule by [`.github/workflows/fanout.yml (kit: standardize)`](../.github/workflows/fanout.yml (kit: standardize)):
 
 | File | Purpose |
 | --- | --- |
@@ -26,7 +26,7 @@ The `release-please-config.json` + `.release-please-manifest.json` are generated
 
 ## `schema/`
 
-The Pyramid Schema seed kit, stamped into a repo by [`tools/seed-schema.sh`](../tools/seed-schema.sh) (locally) or [`.github/workflows/schema-fanout.yml`](../.github/workflows/schema-fanout.yml) (PRs at fleet scale):
+The Pyramid Schema seed kit, stamped into a repo by [`tools/seed-schema.sh`](../tools/seed-schema.sh) (locally) or [`.github/workflows/fanout.yml (kit: schema)`](../.github/workflows/fanout.yml (kit: schema)) (PRs at fleet scale):
 
 | File | Purpose |
 | --- | --- |
@@ -53,7 +53,7 @@ The core per-repo SDLC files (spec: [`specs/WORK.md`](../specs/WORK.md), contrac
 
 ## `agent-context/`
 
-The agent-context kit, seeded by [`.github/workflows/standardize-fanout.yml`](../.github/workflows/standardize-fanout.yml) (artifacts `agent-context`, `claude`, `claude-settings`) via [`tools/fanout.sh`](../tools/fanout.sh) — closes the `agent_context` + `claude_workflow` requirements in [`_data/standards.yml`](../_data/standards.yml):
+The agent-context kit, seeded by [`.github/workflows/fanout.yml (kit: standardize)`](../.github/workflows/fanout.yml (kit: standardize)) (artifacts `agent-context`, `claude`, `claude-settings`) via [`tools/fanout.sh`](../tools/fanout.sh) — closes the `agent_context` + `claude_workflow` requirements in [`_data/standards.yml`](../_data/standards.yml):
 
 | File | Purpose |
 | --- | --- |
@@ -90,7 +90,7 @@ The in-repo Universal Project Standard gate (spec: [`specs/CONFORMANCE.md`](../s
 
 ## `feedback/`
 
-The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract. Fanned out with `tools/fanout.sh --kit feedback` (dispatch: [`feedback-fanout.yml`](../.github/workflows/feedback-fanout.yml)); vendored copies are held to the hub's by drift check (i).
+The universal feedback widget kit (spec: [`specs/FEEDBACK.md`](../specs/FEEDBACK.md), UPS-FB) — the fleet-wide "Improve this page → GitHub issue" component extracted from the zer0-mistakes theme as a framework-agnostic web component. See [`feedback/README.md`](feedback/README.md) for install and the issue contract. Fanned out with `tools/fanout.sh --kit feedback` (dispatch: [`fanout.yml`](../.github/workflows/fanout.yml) (kit `feedback`)); vendored copies are held to the hub's by drift check (i).
 
 | File | Purpose |
 | --- | --- |

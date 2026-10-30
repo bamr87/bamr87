@@ -23,10 +23,10 @@ name: markdown-oneline
 
 on:
   pull_request:
-    paths: ["**/*.md", "**/*.markdown"]
+    paths: ["**/*.md", "**/*.markdown", "tools/unwrap-prose.py", ".github/workflows/markdown-oneline.yml"]
   push:
     branches: [main]
-    paths: ["**/*.md", "**/*.markdown"]
+    paths: ["**/*.md", "**/*.markdown", "tools/unwrap-prose.py", ".github/workflows/markdown-oneline.yml"]
 
 permissions:
   contents: write

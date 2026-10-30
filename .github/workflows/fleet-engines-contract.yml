@@ -1,7 +1,7 @@
 name: fleet-engines-contract
 
-# Pre-flight gate for the fleet-engines kit (same precedent as feedback-fanout's
-# `verify` and ai-runner-contract): the package is consumed by dependency by
+# Pre-flight gate for the fleet-engines kit (same precedent as the fan-out's
+# feedback pre-flight and ai-runner-contract): the package is consumed by dependency by
 # GitFactory and zer0-CMS, so a regression here reaches both on their next build.
 
 on:
@@ -16,6 +16,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: fleet-engines-contract-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   contract:

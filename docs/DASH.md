@@ -44,11 +44,11 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | Drift gates | Hard CI checks | `tools/check-drift.sh` + `.github/workflows/drift-check.yml` |
 | Standards | Per-tier baseline + conformance audit | `_data/standards.yml`, `tools/audit-standards.sh` (`dash audit`), [`docs/STANDARDS.md`](STANDARDS.md) |
 | Schema | Per-directory `SCHEMA.md` structural contracts + linter | `tools/schema_lint.py`, `tools/gen-projects-schema.py`, [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) |
-| Propagation | Standardization + schema PRs _into_ submodules | `tools/fanout.sh` via `.github/workflows/standardize-fanout.yml` + `schema-fanout.yml`; `standard-ci.yml` (`workflow_call`) |
-| Auto-fix bots | Scheduled PRs | `update-submodules.yml`, `refresh-dash.yml`, `dependabot.yml` |
+| Propagation | Kit PRs _into_ submodules | `tools/fanout.sh` via `.github/workflows/fanout.yml` (one dispatch, `kit` = standardize / harness / schema / verify / feedback / deps-latest / docker); `standard-ci.yml` (`workflow_call`) |
+| Auto-fix bots | Scheduled PRs / pushes | `update-submodules.yml`, `reconcile-registry.yml`, `schema-vendor.yml`, `dependabot.yml` |
 | AI layer | Skills, commands, MCP | `.claude/`, `.mcp.json` |
 | Future-Features | Capture feature ideas → roadmap | `_data/roadmap.yml`, `/future-features`, `feature-scout` agent + session hooks (`.claude/`) |
-| Self-evolution | Dispatch-only AI pass on the monorepo (`tools/dash evolve`) | `.github/workflows/unified-evolution.yml` (Claude Code) |
+| Self-evolution | Local `/evolve` loop on the monorepo; per-submodule CI pass (`tools/dash evolve --repo`) | `.claude/commands/evolve.md`, `.github/workflows/repo-evolution.yml` |
 | Repo evolution | Weekly signal-led AI improvement pass in each opted-in submodule's own repo (draft PRs, never merges) | `.github/workflows/repo-evolution.yml` (`plan` = `dash-gen targets` → matrix `evolve`), briefs from `.github/evolution/`, caps in `_data/fleet.yml` ([`docs/EVOLUTION.md`](EVOLUTION.md)) |
 
 ## The dash CLI
@@ -70,6 +70,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash vendor` | vendored Pyramid Schema kit vs upstream bamr87/SCHEMA; --apply re-vendors the strict-parity files |
 | `tools/dash remediate` | merge failing + expensive workflow signals into one ranked fix queue (feeds fleet-pulse) |
 | `tools/dash spec [check\|fleet\|kinds]` | Universal Project Standard checker (specs/): `check [path] [--kinds a,b] [--gate]` one repo; `fleet --write` every submodule → _data/conformance.yml (feeds the repo-evolution brief) |
+| `tools/dash workflows [list\|show\|lint\|health\|new]` | the WORKFLOW ATLAS — the hub's workflows + composite actions as one model; `lint [--strict]` holds them to the README standards; `health [--days N]` classifies why runs failed (from the lake); `new --kind loop\|agent-loop\|gate\|reusable\|dispatch --id ID [--write]` scaffolds one inside the standards (docs/WORKFLOW-ATLAS.md) |
 | `tools/dash harness` | six-layer harness scorecard + trip wires → _data/harness_health.yml (docs/HARNESS.md) |
 | `tools/dash harnesses [gaps\|deploy]` | fleet AI-harness + schedule inventory → _data/harness_registry.yml (/harnesses/ portal); `gaps` prints fan-out-deployable gap repos; `deploy [--gaps\|--target N] [--artifacts csv] [--upgrade] [--apply]` opens kit PRs via fanout.sh (dry-run default; docs/HARNESS-OPS.md) |
 | `tools/dash features [check\|coverage] [path]` | validate / grade one repo's feature index (features/features.yml); `fleet [--write\|--check]` aggregates every submodule → _data/features_index.yml (/features/ portal; docs/VERIFICATION.md) |
@@ -84,18 +85,19 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash lake [sync\|sessions\|review\|status\|export]` | the local data lake — `sync` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; `sessions` extracts this machine's Claude Code transcripts; `review` analyzes BOTH planes offline; `status` reports it; `export [--local] [--dry-run]` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md) |
 | `tools/dash content [sync\|report\|plan\|brief\|file]` | the CONTENT ATLAS — `sync` extracts the fleet.yml `content.sites` (lifehacker.dev, it-journey, …) into the lake; `report` shows topics/activity/aging/hygiene/pillar coverage + suggestions; `plan` approves/rejects directives in _data/editorial.yml; `brief` renders a site's brief; `file [--apply]` opens approved directives as issues in the site's repo (docs/CONTENT-ATLAS.md) |
 | `tools/dash dev <cmd> [project...]` | the fleet DEV STACK — launch/debug any submodule from the hub up\|down\|ps\|logs\|exec\|build\|config\|ports\|list; --all for everything, --debug to layer a repo's own debugpy compose (docs/FLEET-COMPOSE.md) |
-| `tools/dash docker <cmd>` | the fleet Docker standard — audit\|apply\|check\|tags\|fleet; image versions live in _data/fleet.yml `images:`, fan-out via docker-fanout.yml (docs/DOCKER.md). `view [--write]` builds the consolidated /docker/ dashboard (_data/docker.yml) |
+| `tools/dash docker <cmd>` | the fleet Docker standard — audit\|apply\|check\|tags\|fleet; image versions live in _data/fleet.yml `images:`, fan-out via fanout.yml (kit: docker; docs/DOCKER.md). `view [--write]` builds the consolidated /docker/ dashboard (_data/docker.yml) |
 | `tools/dash serve` | build the public site (the console, static) and serve it on :4000 |
 | `tools/dash tui [--docker]` | terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge) |
 | `tools/dash host [setup\|ps\|up\|rebuild]` | forge Docker host — rebuild hub from bamr87/.env, or up a submodule |
 | `tools/dash console [--docker]` | the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md) |
+| `tools/dash mcp [--http\|--tunnel]` | the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md) |
 | `tools/dash sync` | update submodules + regenerate dash data |
 | `tools/dash foreach <cmd...>` | run a shell command in every checked-out submodule |
 | `tools/dash run <tool> [args]` | run a scripts/ submodule tool (forkme, stashme, ...) |
 | `tools/dash new <name> [args]` | scaffold a new project and register it |
 | `tools/dash adopt-release <repo>` | scaffold the release-please pipeline (--all for active repos) |
 | `tools/dash protect <repo>` | require the CI gate on a repo's default branch (--all) |
-| `tools/dash evolve` | evolve the monorepo itself (unified-evolution.yml, dispatch-only) |
+| `tools/dash evolve` | how to evolve the monorepo itself (the local /evolve loop; the CI pass was retired) |
 | `tools/dash evolve --repo <name>` | run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo) |
 | `tools/dash evolve --all` | run the weekly repo-evolution loop on every auto_evolve submodule now |
 | `tools/dash scout [plan\|--repo <name>\|--all]` | the daily repo-scout loop — `plan` shows today's sample and briefs locally; `--repo`/`--all` dispatch repo-scout.yml (issues in the repos' own trackers; -f dry_run=true to rehearse) |
@@ -109,7 +111,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash ps` | what is running fleet-wide, and who is on the shared network |
 | `tools/dash doctor` | environment checks (setup.sh --dry-run) |
 | `tools/dash test` | run the aggregate test suite |
-| `tools/dash gen <health\|readme\|ai\|ai-check\|ai-run\|ai-usage\|actions\|daily\|triage\|harness\|harnesses\|lake\|content\|observe\|remediate\|issues\|reconcile\|vendor\|estimate\|ledger\|targets\|all>` | run the registry generator |
+| `tools/dash gen <health\|readme\|ai\|ai-check\|ai-run\|ai-usage\|actions\|daily\|triage\|harness\|harnesses\|lake\|content\|observe\|remediate\|issues\|reconcile\|vendor\|estimate\|ledger\|targets\|workflows\|all>` | run the registry generator |
 | `tools/dash help` | this help |
 <!-- AUTO:dash-cli:end -->
 
@@ -207,20 +209,20 @@ Two standing rules came out of the incident that killed the previous four-workfl
 
 **Hard gates** ([`tools/check-drift.sh`](../tools/check-drift.sh), run by `drift-check.yml` — a fast offline+API check, no site build) fail CI on: registry ↔ `.gitmodules` mismatch, stray/unregistered project dirs, a stale README AUTO span, missing top-level READMEs, SCHEMA.md pyramid errors or a stale generated `projects/SCHEMA.md` (check (h), `tools/schema_lint.py`), and workflow expressions written as prose inside a composite action's `description:` (check (l) — a manifest is a template, so such an expression is evaluated for real and the action fails to load for every caller). Advisory (non-gating): GitHub-reality drift (renames/deletions/branch) and standardization. The internal-link check is local-only (`tools/check-drift.sh --links`, needs a built `_site`).
 
-**Pyramid Schema**: every directory carries a lintable `SCHEMA.md` contract of what lives where ([SCHEMA-FRAMEWORK.md](SCHEMA-FRAMEWORK.md)). `projects/SCHEMA.md` is generated by `tools/gen-projects-schema.py`; submodules adopt their own pyramids via the seed kit (`tools/seed-schema.sh`) or `schema-fanout.yml`.
+**Pyramid Schema**: every directory carries a lintable `SCHEMA.md` contract of what lives where ([SCHEMA-FRAMEWORK.md](SCHEMA-FRAMEWORK.md)). `projects/SCHEMA.md` is generated by `tools/gen-projects-schema.py`; submodules adopt their own pyramids via the seed kit (`tools/seed-schema.sh`) or `fanout.yml` (kit `schema`).
 
-**Auto-fix bots** open PRs (never direct pushes to `master`): submodule pointer bumps (`update-submodules.yml`), projects/README/registry refresh (`refresh-dash.yml`), and dependency updates (`dependabot.yml`).
+**Auto-fix bots**: submodule pointer bumps land directly with `[skip ci]` (`update-submodules.yml`, via `publish-data`, which falls back to a PR when a ruleset refuses the push); registry reconciliation (`reconcile-registry.yml`, which also regenerates the README `AUTO:projects` span in the same PR), the weekly schema re-vendor (`schema-vendor.yml`) and dependency updates (`dependabot.yml`) open PRs.
 
 Live monitoring data (`project_health.yml`) is network-derived, **ephemeral**, and gitignored — generated on each deploy so it never flaps the gate.
 
 ## Self-evolution loop
 
-`triage-attention` reads the Monitor signals → `sync-project-docs` updates the registry → `evolve-project` makes a focused improvement → `refresh-portfolio` regenerates → PR to `main` → gates verify → human merges → dash republishes. The CI counterpart is `unified-evolution.yml` (**dispatch-only** — trigger via `tools/dash evolve`; via `anthropics/claude-code-action`; auth: `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [AI-INTEGRATION.md](AI-INTEGRATION.md)). So "which repos need attention" both shows on the frontend and steers what the AI works on next.
+`triage-attention` reads the Monitor signals → `sync-project-docs` updates the registry → `evolve-project` makes a focused improvement → `refresh-portfolio` regenerates → PR to `main` → gates verify → human merges → dash republishes. The hub has no CI twin for this loop (`unified-evolution.yml` was retired on 2026-10-27, unrun since July); filed hub issues go through the issue pipeline instead. So "which repos need attention" both shows on the frontend and steers what the AI works on next.
 
 Beyond the monorepo, the weekly **repo-evolution loop** carries the same idea to the individual upstream repos: `repo-evolution.yml`'s deterministic `plan` job (`dash-gen targets`) selects every owned, non-archived submodule with `auto_evolve: true`, skips any whose previous pass is still open, and writes each a brief from the registry and the triage snapshot; its matrix `evolve` job runs one Opus agent per repo and opens a **draft PR in that repo**. The brief material lives in `.github/evolution/`, the caps in `_data/fleet.yml`. Full details in [`docs/EVOLUTION.md`](EVOLUTION.md).
 
 ## One-time setup
 
 1. Repo **Settings → Pages → Source = "GitHub Actions"** (the dash deploys via `build-dash.yml`, the sole Pages surface; the old MkDocs `build-docs.yml` has been removed).
-2. Provision Claude auth for the AI workflows (`claude.yml`, `fleet-pulse.yml` `doctor`, `unified-evolution.yml`, `schema-fanout.yml` `agent_fill`): `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87` (preferred; `ANTHROPIC_API_KEY` is the fallback). Full secrets matrix: [AI-INTEGRATION.md](AI-INTEGRATION.md). `repo-evolution.yml` uses the same Claude auth plus `FLEET_TOKEN` (probed, not presence-checked) to check out and open draft PRs in the target repos — see [EVOLUTION.md](EVOLUTION.md).
+2. Provision Claude auth for the AI workflows (`claude.yml`, `fleet-pulse.yml` `doctor`, `issue-pipeline.yml`, `fanout.yml` (kit `schema`) `agent_fill`): `claude setup-token` → `gh secret set CLAUDE_CODE_OAUTH_TOKEN -R bamr87/bamr87` (preferred; `ANTHROPIC_API_KEY` is the fallback). Full secrets matrix: [AI-INTEGRATION.md](AI-INTEGRATION.md). `repo-evolution.yml` uses the same Claude auth plus `FLEET_TOKEN` (probed, not presence-checked) to check out and open draft PRs in the target repos — see [EVOLUTION.md](EVOLUTION.md).
 3. `pip install -r .github/scripts/dash-gen/requirements.txt` and `gh auth login` for local `tools/dash-gen health`.

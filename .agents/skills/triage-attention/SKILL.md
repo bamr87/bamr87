@@ -20,4 +20,4 @@ description: Read the Monitor board health data, explain why each repo needs att
 
 ## Pairs with
 
-`sync-project-docs` and `refresh-portfolio` in the self-evolution loop (`unified-evolution.yml` — dispatch-only, no schedule; trigger via `tools/dash evolve` or `gh workflow run unified-evolution.yml`).
+`sync-project-docs` and `refresh-portfolio` in the self-evolution loop (`/evolve`, run locally; the per-submodule CI pass is `repo-evolution.yml`, `tools/dash evolve --repo <name>`).

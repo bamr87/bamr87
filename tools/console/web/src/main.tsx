@@ -37,8 +37,11 @@ import { Inventory } from './pages/Inventory';
 import { HealthPage } from './pages/HealthPage';
 import { Schedules } from './pages/Schedules';
 import { Loops, LoopPage } from './pages/Loops';
+import { Workflows } from './pages/Workflows';
+import { ActionPage, WorkflowPage } from './pages/WorkflowPage';
 import { Costs } from './pages/Costs';
 import { Activity } from './pages/Activity';
+import { Live } from './pages/Live';
 import { Traces } from './pages/Traces';
 import { Lines } from './pages/Lines';
 import { LogsPlane, MetricsPlane } from './pages/Planes';
@@ -95,10 +98,14 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="schedules" element={<Schedules />} />
                   <Route path="loops" element={<Loops />} />
                   <Route path="loops/:id" element={<LoopPage />} />
+                  <Route path="workflows" element={<Workflows />} />
+                  <Route path="workflows/actions/*" element={<ActionPage />} />
+                  <Route path="workflows/:id" element={<WorkflowPage />} />
                   <Route path="work" element={<Work />} />
                   <Route path="deep-dive" element={<DeepDive />} />
                   <Route path="costs" element={<Costs />} />
                   <Route path="activity" element={<Activity />} />
+                  <Route path="live" element={<Live />} />
                   <Route path="observe/traces" element={<Traces />} />
                   <Route path="observe/lines" element={<Lines />} />
                   <Route path="observe/logs" element={<LogsPlane />} />

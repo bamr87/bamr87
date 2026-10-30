@@ -352,7 +352,11 @@ def test_workflow_contract() -> None:
     plan, evolve = wf["jobs"]["plan"], wf["jobs"]["evolve"]
     check("every job sets timeout-minutes", plan.get("timeout-minutes") and evolve.get("timeout-minutes"))
     check("evolve needs plan (needs:, not workflow_run)", evolve.get("needs") == "plan")
-    check("plan probes the fleet token for real (gh api user)", "gh api user" in step(plan, "Probe fleet write token")["run"])
+    probe = step(plan, "Probe fleet write token")
+    check("plan probes the fleet token for real (resolve-fleet-token, GET /user)",
+          str(probe.get("uses", "")).endswith("/actions/resolve-fleet-token"))
+    check("…with NO default-token fallback: a dead PAT fails before any Claude spend",
+          "default-token" not in (probe.get("with") or {}))
     check("plan fails loudly without Claude auth", "exit 1" in step(plan, "Require Claude auth")["run"])
     check("plan builds the matrix with dash-gen targets", "targets" in step(plan, "Build the plan")["run"])
     check("dispatch inputs reach the script via env, not inline expressions",
@@ -369,7 +373,14 @@ def test_workflow_contract() -> None:
           co["with"].get("persist-credentials") is False)
     check("target checkout is the matrix repo on the matrix branch",
           "matrix.nwo" in str(co["with"].get("repository")) and "matrix.branch" in str(co["with"].get("ref")))
-    check("the brief is hidden from git in the target checkout", ".git/info/exclude" in step(evolve, "Hide the brief from git")["run"])
+    hide = step(evolve, "Hide the brief and the hub checkout from git")["run"]
+    check("the brief is hidden from git in the target checkout", ".git/info/exclude" in hide and ".evolution" in hide)
+    hub_co = step(evolve, "Checkout the hub's actions")
+    check("the hub's actions come from a sparse checkout of THIS commit (never a floating tag)",
+          hub_co["with"].get("repository") == "bamr87/bamr87" and "github.sha" in str(hub_co["with"].get("ref"))
+          and hub_co["with"].get("path") == ".fleet-hub" and hub_co["with"].get("persist-credentials") is False)
+    check("…and that checkout is hidden from git too, so `git add -A` cannot commit it into the target",
+          ".fleet-hub" in hide)
 
     ev_step = step(evolve, "Evolve")
     args = ev_step["with"]["claude_args"]
@@ -377,8 +388,8 @@ def test_workflow_contract() -> None:
     # on whitespace-normalised text.
     prompt = " ".join(ev_step["with"]["prompt"].split())
     auth_step = step(evolve, "Choose the Claude credential (ai_auth order)")
-    check("the credential is chosen by the repo's ai_auth order (claude-auth step)",
-          auth_step["uses"].startswith("bamr87/bamr87/.github/actions/claude-auth@")
+    check("the credential is chosen by the repo's ai_auth order (claude-auth, from the hub checkout)",
+          auth_step["uses"] == "./.fleet-hub/.github/actions/claude-auth"
           and "vars.CLAUDE_AUTH_ORDER" in auth_step["with"]["order"])
     check("each credential is gated on the chosen method, never passed both",
           "steps.claude-auth.outputs.method == 'oauth'" in ev_step["with"]["claude_code_oauth_token"]
@@ -405,10 +416,10 @@ def test_workflow_contract() -> None:
     # is reported on EVERY run, and a budget abort and a refused credential are
     # each classified loudly. See test_ai_budget.py for the caps themselves.
     cost_step = step(evolve, "Report Claude run cost")
-    check("the credential-rejected classifier is present", "modelUsage" in cost_step["run"])
+    check("spend is reported by the shared claude-cost action (test_ai_budget.py asserts its script)",
+          cost_step.get("uses") == "./.fleet-hub/.github/actions/claude-cost" and cost_step.get("id") == "cost")
     check("cost is reported on success too, not only on failure",
           "failure()" not in str(cost_step.get("if")) and "!cancelled()" in str(cost_step.get("if")))
-    check("a budget abort is called out as an error", "BUDGET CAP HIT" in cost_step["run"])
 
     pub = step(evolve, "Open draft PR")
     run = pub["run"]

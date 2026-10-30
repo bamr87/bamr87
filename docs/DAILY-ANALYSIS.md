@@ -181,10 +181,10 @@ Declared centrally in [`_data/fleet.yml`](../_data/fleet.yml); audit what is act
 | Secret | Needed for | Fallback |
 | --- | --- | --- |
 | `GITHUB_TOKEN` | read public activity, publish data, open hub PRs/issues | — (built-in) |
-| `FLEET_TOKEN` | read **private** repos' runs/issues, and **push fix branches + open PRs in submodules** | `ACTIONS_ANALYTICS_TOKEN` → `DAILY_ANALYSIS_TOKEN` → `GITHUB_TOKEN` |
+| `FLEET_TOKEN` | read **private** repos' runs/issues, and **push fix branches + open PRs in submodules** | `GITHUB_TOKEN` (unprobed last resort: hub + public repos only) |
 | `CLAUDE_CODE_OAUTH_TOKEN` | the fixer job | `ANTHROPIC_API_KEY` |
 
-`FLEET_TOKEN` supersedes the three legacy PATs; they stay wired as fallbacks so the migration is non-breaking. `dash secrets` flags them once `FLEET_TOKEN` is in place.
+`FLEET_TOKEN` superseded the three legacy per-loop PATs; the last fallbacks to them were removed on 2026-10-19 (the secrets no longer exist on the hub). It is probed with `GET /user` by the shared `resolve-fleet-token` action before any gather step runs.
 
 Without a Claude token the loop degrades to gather + publish — the data still lands every day.
 

@@ -1,0 +1,113 @@
+# =============================================================================
+# upsert-issue — ONE tracking issue per concern, updated in place, closed when
+# the concern is gone.
+# -----------------------------------------------------------------------------
+# Four loops (api-keys, token-rotation, reconcile-registry, schema-vendor) each
+# hand-rolled "find the open issue with this title, edit it or create it, make
+# sure the labels exist first". Each copy had its own bug history — a missing
+# label made a labelled create fail, the unlabelled fallback ran, the labelled
+# search never matched, and one fresh duplicate appeared every night (27 by
+# 2026-08-28). This is that logic once.
+#
+# Dedupe is on the EXACT title: GitHub's issue search does not reliably match
+# text inside an HTML comment, so a body marker is not a safe key.
+#
+#   - uses: ./.github/actions/utilities/upsert-issue
+#     with:
+#       token: <a token with issues:write on `repo`>
+#       title: "🔑 Anthropic API keys need a human"
+#       body-file: key-attention.md
+#       labels: automation,security
+#       state: open            # or `close`, which closes the issue if it exists
+# =============================================================================
+name: Upsert tracking issue
+description: Open or update one issue by exact title (creating its labels on demand), or close it when the concern is resolved.
+inputs:
+  token:
+    description: Token with `issues:write` on the target repository.
+    required: true
+  title:
+    description: Exact issue title; the dedupe key.
+    required: true
+  body-file:
+    description: "Path of the Markdown body. Required when state is `open`."
+    required: false
+    default: ''
+  labels:
+    description: Comma-separated labels, each created on demand (a missing label otherwise fails the whole create).
+    required: false
+    default: ''
+  repo:
+    description: Target `owner/repo`. Empty = this repository.
+    required: false
+    default: ''
+  state:
+    description: "`open` = create or update the issue in place; `close` = close it if it is open, else do nothing."
+    required: false
+    default: open
+  close-comment:
+    description: Comment left when the `close` state closes the issue.
+    required: false
+    default: ''
+outputs:
+  number:
+    description: The issue number acted on, or empty.
+    value: ${{ steps.run.outputs.number }}
+  action:
+    description: "`created`, `updated`, `closed` or `none`."
+    value: ${{ steps.run.outputs.action }}
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TITLE: ${{ inputs.title }}
+        BODY_FILE: ${{ inputs.body-file }}
+        LABELS: ${{ inputs.labels }}
+        REPO: ${{ inputs.repo }}
+        STATE: ${{ inputs.state }}
+        CLOSE_COMMENT: ${{ inputs.close-comment }}
+      run: |
+        set -euo pipefail
+        repo="${REPO:-$GITHUB_REPOSITORY}"
+        existing="$(gh issue list --repo "$repo" --state open --search "\"$TITLE\" in:title" \
+                      --json number,title --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty" || true)"
+
+        if [ "$STATE" = "close" ]; then
+          if [ -z "$existing" ]; then
+            echo "no open issue titled '$TITLE' in $repo — nothing to close"
+            echo "number=" >> "$GITHUB_OUTPUT"; echo "action=none" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -n "$CLOSE_COMMENT" ]; then gh issue close "$existing" --repo "$repo" --comment "$CLOSE_COMMENT"
+          else gh issue close "$existing" --repo "$repo"; fi
+          echo "::notice::closed issue #$existing in $repo"
+          echo "number=$existing" >> "$GITHUB_OUTPUT"; echo "action=closed" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+
+        if [ -z "$BODY_FILE" ] || [ ! -f "$BODY_FILE" ]; then
+          echo "::error::upsert-issue: state=open needs an existing body-file (got '${BODY_FILE}')"; exit 1
+        fi
+        if [ -n "$existing" ]; then
+          gh issue edit "$existing" --repo "$repo" --body-file "$BODY_FILE"
+          echo "::notice::updated issue #$existing in $repo"
+          echo "number=$existing" >> "$GITHUB_OUTPUT"; echo "action=updated" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+
+        args=(--repo "$repo" --title "$TITLE" --body-file "$BODY_FILE")
+        IFS=',' read -r -a labels <<< "$LABELS"
+        for l in "${labels[@]}"; do
+          l="$(printf '%s' "$l" | tr -d '[:space:]')"; [ -n "$l" ] || continue
+          gh label create "$l" --repo "$repo" --color ededed --description "Automated" --force >/dev/null 2>&1 || true
+          args+=(--label "$l")
+        done
+        url="$(gh issue create "${args[@]}" 2>&1 | grep -Eom1 'https://[^[:space:]]+/issues/[0-9]+' || true)"
+        if [ -z "$url" ]; then
+          # Labels can still be refused (e.g. a token without label rights): an
+          # unlabelled issue beats no issue.
+          url="$(gh issue create --repo "$repo" --title "$TITLE" --body-file "$BODY_FILE" 2>&1 | grep -Eom1 'https://[^[:space:]]+/issues/[0-9]+')"
+        fi
+        number="${url##*/}"
+        echo "::notice::opened issue #$number in $repo ($url)"
+        echo "number=$number" >> "$GITHUB_OUTPUT"; echo "action=created" >> "$GITHUB_OUTPUT"

@@ -160,6 +160,16 @@ def test_read_tools_over_the_committed_signals():
         assert not err and set(work["lanes"]) == {"triage", "ready", "doing", "review", "blocked", "hold"}
         assert len(work["items"]) <= 5 and all(i["next_run"] for i in work["items"])
         assert {lp["id"] for lp in work["loops"]} >= {"t1", "t2", "t3"}
+        wf, err = call("fleet_workflows")
+        assert not err and wf["summary"]["workflows"] == len(wf["workflows"]) and wf["rules"]
+        assert not [f for f in wf["findings"] if f["severity"] == "error"], "the hub's workflows carry an error"
+        one, err = call("fleet_workflows", {"workflow": "fleet-pulse"})
+        assert not err and one["item"]["switch"] == "FLEET_PULSE_ENABLED" and one["item"]["ai_sites"]
+        _, err = call("fleet_workflows", {"workflow": "no-such-workflow"})
+        assert err
+        draft = "name: x\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo\n"
+        lint, err = call("workflow_lint", {"text": draft})
+        assert not err and {f["rule"] for f in lint["findings"]} >= {"permissions", "timeout", "cron-on-hour", "cron-declared"}
 
 
 class Env:

@@ -10,6 +10,7 @@ import type {
   AuthDoc, Capabilities, ConfigDoc, DockerView, FleetView, Job, LakeLine, LakeRun, Op,
   ProjectDetail, StateDoc, TuiStatus, Dict, GithubStatus, GhRepo, GhRepoDetail, GhAction, GhIssue,
   SiteIndex, SitePage, SitePost, GithubFleet, PullSpecs, WorkBoard, WorkItemDetail, WorkPlan,
+  WorkflowAtlas, WorkflowHealth, Scaffold, DraftLint,
 } from './types';
 
 const minute = 60_000;
@@ -106,6 +107,30 @@ export const usePullSpecs = (nwo: string | null, n: number | null) =>
     queryFn: () => api<PullSpecs>(`/api/github/repos/${nwo}/pulls/${n}/specs`),
     enabled: Boolean(nwo && n),
     staleTime: 60_000,
+    retry: false,
+  });
+
+// --- The workflow atlas (dash-gen workflow_atlas.py) ------------------------
+export const useWorkflows = () => useQuery({ queryKey: ['workflows'], queryFn: () => api<WorkflowAtlas>('/api/workflows'), staleTime: minute });
+/** Run health from the local lake; the published page carries its absent shape. */
+export const useWorkflowHealth = (days = 30) =>
+  useQuery({ queryKey: ['workflows', 'health', days], queryFn: () => api<WorkflowHealth>(`/api/workflows/health?days=${days}`), staleTime: minute, placeholderData: keepPreviousData });
+export interface ScaffoldParams { kind: string; id: string; name?: string; cron?: string; purpose?: string }
+/** A new workflow's preview — nothing is written (the workflow-new operation writes). */
+export const useScaffold = (p: ScaffoldParams | null) =>
+  useQuery({
+    queryKey: ['workflows', 'scaffold', p],
+    queryFn: () => api<Scaffold>('/api/workflows/scaffold', { method: 'POST', body: JSON.stringify(p) }),
+    enabled: p != null && Boolean(p.id),
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+export const useDraftLint = (text: string | null, id = 'draft') =>
+  useQuery({
+    queryKey: ['workflows', 'lint', text, id],
+    queryFn: () => api<DraftLint>('/api/workflows/lint', { method: 'POST', body: JSON.stringify({ text, id }) }),
+    enabled: Boolean(text && text.trim()),
+    placeholderData: keepPreviousData,
     retry: false,
   });
 

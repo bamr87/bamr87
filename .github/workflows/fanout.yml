@@ -1,0 +1,396 @@
+name: fanout
+
+# THE fan-out: one dispatch surface for every kit the hub propagates DOWN into
+# fleet repos. Replaces seven near-identical workflows (standardize-, schema-,
+# deps-, docker-, feedback-, verify- and harness-fanout.yml, 2026-10-19) that
+# each wrapped the same engine with its own copy of the same three steps.
+#
+#   plan        DETERMINISTIC. Resolves the kit's engine, default artifacts and
+#               default target; for `harness` and `verify`, `target: gaps` reads
+#               the COMMITTED inventory (_data/harness_registry.yml /
+#               _data/features_index.yml) so the target set is reviewable before
+#               any clone; runs the kit's own pre-flight tests first (the docker
+#               transformer's, the feedback kit's) because a broken builder is
+#               cheaper to catch here than to revert in 25 repos.
+#   fanout      One `tools/fanout.sh --kit <engine>` per target. The engine owns
+#               every guarantee: DRY-RUN BY DEFAULT, PRs only (never a default
+#               branch), external upstreams skipped, additive-only seeding, and
+#               `--upgrade` refreshing ONLY copies byte-identical to an archived
+#               machine-seeded shape — hand-modified files are never rewritten.
+#   agent-fill  standardize / schema, single target, non-dry only: a Claude Code
+#               pass on the kit's PR branch that fills the scaffold TODOs
+#               (CLAUDE.md / SCHEMA.md purposes). Forty agent runs from one
+#               dispatch is a cost decision a human should make forty times.
+#
+# KITS (the `kit` input → tools/fanout.sh --kit, see tools/fanout.sh and
+# templates/README.md)
+#   standardize  .editorconfig + the reusable standard-ci caller; `artifacts`
+#                adds conformance, agent-context, claude, claude-settings,
+#                claude-guardrails, claude-agent-auditor, issue-autopilot.
+#   harness      the AI-harness deploy/update lane (docs/HARNESS-OPS.md): the
+#                standardize engine with `artifacts` defaulting to `claude`, and
+#                `target` defaulting to `gaps` — repos the daily inventory grades
+#                as missing a baseline artifact or behind the kit. A missing
+#                OAuth secret is deliberately token-rotation's lane, never this one.
+#   schema       the Pyramid Schema kit (docs/SCHEMA-FRAMEWORK.md).
+#   verify       the agent-verification kit (docs/VERIFICATION.md); `target`
+#                defaults to `gaps` from the committed features index.
+#   feedback     the universal page-feedback widget (specs/FEEDBACK.md). On a
+#                real run it also creates the labels the taxonomy applies — the
+#                one write a kit makes outside its own PR, because GitHub
+#                silently drops an unknown label from a prefilled issue URL.
+#   deps-latest  the ALWAYS-LATEST dependency policy (docs/DEPENDENCIES.md):
+#                EDITS existing manifests, lockfiles and CI — idempotent.
+#   docker       the fleet Docker standard (docs/DOCKER.md): EDITS Dockerfiles
+#                and compose files; never lowers a version or overrides a pin.
+#
+# Requires FLEET_TOKEN — a fine-grained PAT with contents + pull-requests write
+# on the targets, plus workflows:write (most kits seed a .github/workflows/*
+# file, which GitHub refuses to push without it) and issues:write for the
+# feedback labels. Probed with `gh api user` before any clone: a present-but-
+# expired PAT has silently degraded this fleet's automation before. The agent
+# pass needs Claude auth in the order this repo's CLAUDE_AUTH_ORDER names
+# (docs/AI-INTEGRATION.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      kit:
+        description: "Kit to fan out"
+        type: choice
+        default: standardize
+        options: [standardize, harness, schema, verify, feedback, deps-latest, docker]
+      target:
+        description: "Submodule/registry name, 'all', or 'gaps' (harness, verify). Empty = the kit's default: gaps for harness and verify, all otherwise"
+        type: string
+        default: ""
+      artifacts:
+        description: "standardize/harness only — comma-separated kit artifacts (default: 'editorconfig,ci' for standardize, 'claude' for harness)"
+        type: string
+        default: ""
+      dry_run:
+        description: "Build branches but don't push/PR (and create no labels)"
+        type: boolean
+        default: true
+      upgrade:
+        description: "Also refresh machine-seeded copies byte-identical to an archived kit shape (hand-modified copies untouched)"
+        type: boolean
+        default: false
+      agent_fill:
+        description: "standardize/schema, single target, non-dry: run Claude Code on the PR branch to fill the scaffold TODOs"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One run per ENGINE at a time; never cancelled mid-fan-out (a killed run
+# leaves half the fleet on the old shape). `harness` runs the standardize
+# engine and pushes the same chore/standardize-baseline branch (as
+# harness-fanout.yml did), so the two kits share a group instead of racing.
+concurrency:
+  group: fanout-${{ inputs.kit == 'harness' && 'standardize' || inputs.kit }}
+  cancel-in-progress: false
+
+jobs:
+  # ========================================================================= #
+  # 1. PLAN — resolve, pre-flight, and list the targets before any clone.
+  # ========================================================================= #
+  plan:
+    name: Plan (${{ inputs.kit }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      engine: ${{ steps.kit.outputs.engine }}
+      artifacts: ${{ steps.kit.outputs.artifacts }}
+      branch: ${{ steps.kit.outputs.branch }}
+      targets: ${{ steps.targets.outputs.targets }}
+      count: ${{ steps.targets.outputs.count }}
+      slug: ${{ steps.slug.outputs.slug }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # Dispatch inputs reach the shell through env, never spliced into the
+      # script: a workflow_dispatch string is attacker-chosen text.
+      - name: Resolve the kit
+        id: kit
+        env:
+          KIT: ${{ inputs.kit }}
+          ARTIFACTS: ${{ inputs.artifacts }}
+        run: |
+          set -euo pipefail
+          engine="$KIT"; artifacts="$ARTIFACTS"; branch=""
+          case "$KIT" in
+            standardize) : "${artifacts:=editorconfig,ci}"; branch=chore/standardize-baseline ;;
+            harness)     engine=standardize; : "${artifacts:=claude}" ;;
+            schema)      branch=chore/schema-adoption ;;
+            verify|feedback|deps-latest|docker) ;;
+            *) echo "::error::unknown kit '$KIT'"; exit 1 ;;
+          esac
+          [ -n "$artifacts" ] && [ "$engine" != standardize ] && { echo "::warning::artifacts apply to the standardize engine only — ignored for kit '$KIT'"; artifacts=""; }
+          {
+            echo "engine=$engine"
+            echo "artifacts=$artifacts"
+            echo "branch=$branch"
+          } >> "$GITHUB_OUTPUT"
+          echo "kit=$KIT engine=$engine artifacts=${artifacts:--} agent-fill-branch=${branch:--}"
+
+      # The kit's own tests, BEFORE it touches anyone's repo.
+      - uses: actions/setup-node@v7
+        if: ${{ inputs.kit == 'feedback' }}
+        with:
+          node-version: lts/*
+      - name: Pre-flight the kit
+        env:
+          KIT: ${{ inputs.kit }}
+        run: |
+          set -euo pipefail
+          case "$KIT" in
+            docker)   python3 tools/test_docker_harmonize.py ;;
+            feedback) ( cd templates/feedback && npm test ) ;;
+            *)        echo "no pre-flight for kit '$KIT'" ;;
+          esac
+
+      - name: Resolve targets
+        id: targets
+        env:
+          KIT: ${{ inputs.kit }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          target="$TARGET"
+          if [ -z "$target" ]; then
+            case "$KIT" in harness|verify) target=gaps ;; *) target=all ;; esac
+          fi
+          targets=()
+          if [ "$target" = "gaps" ]; then
+            case "$KIT" in
+              harness) src=_data/harness_registry.yml; cmd=(tools/dash harnesses gaps) ;;
+              verify)  src=_data/features_index.yml;   cmd=(tools/dash verify gaps) ;;
+              *) echo "::error::'gaps' is only a target for the harness and verify kits"; exit 1 ;;
+            esac
+            if [ ! -f "$src" ]; then
+              echo "::warning::no committed $src — run fleet-pulse first; nothing to deploy."
+            else
+              while IFS= read -r r; do [ -n "$r" ] && targets+=("$r"); done < <("${cmd[@]}")
+            fi
+          else
+            targets=("$target")
+          fi
+          echo "targets=${targets[*]:-}" >> "$GITHUB_OUTPUT"
+          echo "count=${#targets[@]}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### 📦 fan-out plan — kit \`$KIT\`"
+            echo ""
+            echo "- Target \`$target\` → ${#targets[@]} target(s)"
+            for r in ${targets[@]+"${targets[@]}"}; do echo "  - \`$r\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # agent-fill must not assume repo name == submodule dir name (zer0-CMS
+      # lives at projects/zer0-cms) — resolve the slug from .gitmodules exactly
+      # like the engine does.
+      - name: Resolve the agent-fill slug
+        id: slug
+        if: ${{ inputs.agent_fill && steps.kit.outputs.branch != '' && !inputs.dry_run }}
+        env:
+          TARGET: ${{ steps.targets.outputs.targets }}
+          COUNT: ${{ steps.targets.outputs.count }}
+          KIT: ${{ inputs.kit }}
+          ARTIFACTS: ${{ steps.kit.outputs.artifacts }}
+        run: |
+          set -euo pipefail
+          if [ "$COUNT" != "1" ] || [ "$TARGET" = "all" ] || [ "$TARGET" = "gaps" ]; then
+            echo "::error::agent_fill needs exactly ONE named target (got '$TARGET')"; exit 1
+          fi
+          # The pass fills the CLAUDE.md scaffold, which kit standardize seeds
+          # only with the agent-context artifact; without it the pass is paid
+          # for and has nothing to fill.
+          if [ "$KIT" = standardize ] && [[ ",$ARTIFACTS," != *,agent-context,* ]]; then
+            echo "::error::agent_fill on kit standardize needs agent-context in artifacts (got '$ARTIFACTS'): nothing else seeds the CLAUDE.md scaffold it fills"; exit 1
+          fi
+          sect="$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
+                  | awk -v p="projects/$TARGET" '$2==p{print $1}' | sed 's/^submodule\.//; s/\.path$//')"
+          [ -n "$sect" ] || { echo "::error::no submodule at projects/$TARGET"; exit 1; }
+          url="$(git config -f .gitmodules --get "submodule.${sect}.url")"
+          echo "slug=bamr87/$(basename "${url%.git}")" >> "$GITHUB_OUTPUT"
+
+  # ========================================================================= #
+  # 2. FAN OUT — one engine call per target.
+  # ========================================================================= #
+  fanout:
+    name: Fan out (${{ inputs.kit }})
+    needs: plan
+    if: ${{ needs.plan.outputs.count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      # A working PAT, or nothing: every kit pushes a branch and opens a PR in
+      # another repo, which GITHUB_TOKEN cannot do. Exports GH_TOKEN.
+      - uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+
+      - name: Open kit PRs
+        env:
+          ENGINE: ${{ needs.plan.outputs.engine }}
+          TARGETS: ${{ needs.plan.outputs.targets }}
+          ARTIFACTS: ${{ needs.plan.outputs.artifacts }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          UPGRADE: ${{ inputs.upgrade }}
+        run: |
+          set -euo pipefail
+          flags=()
+          [ "$DRY_RUN" = "true" ] || flags+=(--apply)
+          [ "$UPGRADE" = "true" ] && flags+=(--upgrade)
+          [ -n "$ARTIFACTS" ] && flags+=(--artifacts "$ARTIFACTS")
+          failed=0
+          read -r -a list <<< "$TARGETS"
+          for t in "${list[@]}"; do
+            if ! tools/fanout.sh --kit "$ENGINE" --target "$t" ${flags[@]+"${flags[@]}"}; then
+              echo "::warning::${t}: fan-out failed — continuing with the remaining targets"
+              failed=$((failed + 1))
+            fi
+          done
+          [ "$failed" -eq 0 ] || { echo "::error::${failed} target(s) failed — see the warnings above"; exit 1; }
+
+  # ========================================================================= #
+  # 3. AGENT FILL — Claude Code turns the scaffold TODOs into real content on
+  #    the kit's PR branch, then the workflow pushes to the already-open PR.
+  # ========================================================================= #
+  agent-fill:
+    name: Agent fill (${{ inputs.kit }})
+    needs: [plan, fanout]
+    if: ${{ inputs.agent_fill && needs.plan.outputs.branch != '' && needs.plan.outputs.slug != '' && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write   # claude-code-action's OIDC token exchange
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Require Claude auth
+        if: ${{ env.HAS_CLAUDE_AUTH != 'true' }}
+        run: |
+          echo "::error::agent_fill needs CLAUDE_CODE_OAUTH_TOKEN (preferred; from 'claude setup-token') or ANTHROPIC_API_KEY. See docs/AI-INTEGRATION.md."
+          exit 1
+
+      - name: Checkout the target's kit branch
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ needs.plan.outputs.slug }}
+          ref: ${{ needs.plan.outputs.branch }}
+          token: ${{ secrets.FLEET_TOKEN }}
+
+      # The workspace IS the target repo, so the hub's composite actions come
+      # from a sparse checkout of THIS commit — the same version as this
+      # workflow, never a floating tag. Hidden from git so `git add -A` below
+      # can never commit it into the target.
+      - name: Checkout the hub's actions
+        uses: actions/checkout@v7
+        with:
+          repository: bamr87/bamr87
+          ref: ${{ github.sha }}
+          path: .fleet-hub
+          persist-credentials: false
+          sparse-checkout: .github/actions
+      - run: mkdir -p .git/info && printf '/.fleet-hub/\n' >> .git/info/exclude
+
+      # The credential comes from this repo's CLAUDE_AUTH_ORDER (ai_auth: in
+      # bamr87/bamr87 _data/fleet.yml) — a method NAME, never a secret, in the output.
+      - name: Choose the Claude credential (ai_auth order)
+        id: claude-auth
+        uses: ./.fleet-hub/.github/actions/claude-auth
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+          has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Write the brief
+        id: brief
+        env:
+          KIT: ${{ inputs.kit }}
+        run: |
+          set -euo pipefail
+          case "$KIT" in
+            standardize) cat > brief.md <<'BRIEF'
+          This repository's CLAUDE.md is an unfilled agent-context scaffold
+          (TODO placeholders for the description and the stack/commands).
+
+          Your task, and nothing else:
+          1. Replace the description TODO with one accurate paragraph — what
+             this project is and who it serves — derived from the repo's
+             README, manifests (package.json / requirements / gemspec /
+             Makefile), and code layout. Never invent facts.
+          2. Fill the "Stack & commands" block with the real install / dev /
+             test / lint commands verified against those manifests; delete
+             rows that don't apply.
+          3. Keep the Conventions and Fleet context sections as they are.
+          Do not modify any file other than CLAUDE.md.
+          BRIEF
+            ;;
+            schema) cat > brief.md <<'BRIEF'
+          This repository just adopted the Pyramid Schema: every directory
+          carries a SCHEMA.md contract (scaffolded, purposes still TODO).
+
+          Your task, and nothing else:
+          1. Replace every TODO purpose in every SCHEMA.md with a real
+             one-line purpose derived from the directory's actual contents.
+          2. Where a directory holds a homogeneous collection with a naming
+             rule (dated posts, ADRs, migrations, components), replace the
+             per-file rows with a single `pattern` row.
+          3. Mark build-output directories `generated` and vendored trees
+             `terminal`, and delete any scaffolded SCHEMA.md files inside
+             them.
+          4. Fill the Placement route for the two or three most common kinds
+             of additions to this repo.
+          Keep `python3 tools/schema_lint.py check .` passing with zero
+          errors. Do not modify any file other than SCHEMA.md files.
+          BRIEF
+            ;;
+          esac
+          { echo "prompt<<__BRIEF_EOF__"; cat brief.md; echo "__BRIEF_EOF__"; } >> "$GITHUB_OUTPUT"
+          rm -f brief.md
+
+      - name: Fill the scaffold with Claude Code
+        id: fill
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
+          prompt: ${{ steps.brief.outputs.prompt }}
+          # `--max-turns` bounds iterations, not spend. Dollar ceiling declared
+          # in _data/fleet.yml `budget.call_sites`; test_ai_budget.py asserts
+          # this literal and that entry agree.
+          claude_args: "--max-turns 25 --max-budget-usd 10"
+
+      - name: Report Claude run cost
+        id: cost
+        if: ${{ !cancelled() }}
+        uses: ./.fleet-hub/.github/actions/claude-cost
+        with:
+          tier: Fan-out agent fill — ${{ inputs.kit }}
+          icon: 📦
+          budget-usd: "10"
+          outcome: ${{ steps.fill.outcome }}
+
+      - name: Push the agent pass to the PR branch
+        env:
+          BRANCH: ${{ needs.plan.outputs.branch }}
+          KIT: ${{ inputs.kit }}
+        run: |
+          set -euo pipefail
+          git add -A
+          msg="docs(agent-context): fill CLAUDE.md scaffold (Claude agent pass)"
+          [ "$KIT" = "schema" ] && msg="docs(schema): fill scaffold purposes (Claude agent pass)"
+          if git -c user.name=bamr87-bot -c user.email=10567847+bamr87@users.noreply.github.com commit -m "$msg"; then
+            git push origin "HEAD:refs/heads/$BRANCH"
+          else
+            echo "agent pass produced no changes"
+          fi

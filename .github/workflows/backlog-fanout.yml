@@ -81,19 +81,18 @@ jobs:
           echo "apply=$apply" >> "$GITHUB_OUTPUT"
           echo "Mode: $([ "$apply" = true ] && echo APPLY || echo 'DRY RUN') (event $EVENT, config apply: $cfg_apply)"
 
-      - name: Probe FLEET_TOKEN (apply only)
-        if: steps.mode.outputs.apply == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
-        run: |
-          if [ -z "${GH_TOKEN:-}" ] || ! gh api user --jq .login >/dev/null 2>&1; then
-            echo "::error::FLEET_TOKEN is missing or not usable (probed with gh api user). Apply needs a fine-grained PAT with contents:write + pull-requests:write on the targets — see docs/BACKLOG-FANOUT.md. Nothing was pushed."
-            exit 1
-          fi
+      # Probed, never presence-picked (an expired FLEET_TOKEN used to turn the
+      # daily DRY run red). Apply needs a working PAT — no default, so the step
+      # fails before anything is pushed; a dry run falls back to the job token.
+      - name: Resolve a working fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ steps.mode.outputs.apply != 'true' && github.token || '' }}
 
       - name: Run backlog fan-out
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || github.token }}
           APPLY: ${{ steps.mode.outputs.apply }}
           CADENCE: ${{ inputs.cadence || 'config' }}
           FORCE: ${{ inputs.force }}

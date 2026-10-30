@@ -57,7 +57,7 @@ export function Inventory() {
                   <Checkbox label="Upgrade machine seeds" checked={upgrade} onChange={(e) => setUpgrade(e.currentTarget.checked)} />
                   <Checkbox label="Apply — open the PRs" color="red" checked={apply} onChange={(e) => setApply(e.currentTarget.checked)} />
                   <RunButton op="deploy-gaps" params={{ artifacts, upgrade, apply }} variant="filled">Deploy to gap repos{apply ? '' : ' (dry run)'}</RunButton>
-                  <RunButton op="dispatch" params={{ workflow: 'harness-fanout', fields: { target: 'gaps', artifacts, dry_run: String(!apply), upgrade: String(upgrade) } }}>Dispatch harness-fanout in CI</RunButton>
+                  <RunButton op="dispatch" params={{ workflow: 'fanout', fields: { kit: 'harness', target: 'gaps', artifacts, dry_run: String(!apply), upgrade: String(upgrade) } }}>Dispatch fanout (harness) in CI</RunButton>
                 </Group>
               </Stack>
             </Paper>

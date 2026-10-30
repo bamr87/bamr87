@@ -139,7 +139,6 @@ jobs:
         with:
           fleet-token: ${{ secrets.FLEET_TOKEN }}
           default-token: ${{ github.token }}
-          probe-repo: ${{ github.repository }}
           fail-on-no-valid-token: 'false'
 
       # Reading a repo's secret NAMES is already an admin-level call, so this
@@ -187,6 +186,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_REFRESH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_REFRESH_TOKEN }}
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           # Dispatch inputs reach the shell as environment variables, never
           # spliced into the command line: `${{ }}` interpolation inside `run:`
           # is textual substitution, which turns any input into arbitrary shell.
@@ -251,12 +251,16 @@ jobs:
       # rather than only in a run log that expires.
       # `always()` on purpose: a run with write failures is exactly the run whose
       # ledger someone needs to read, and the rotate step exits non-zero for it.
+      # Only a FULL apply run publishes: write_ledger() always rewrites the file,
+      # so a dry-run dispatch would replace the fleet's record with `mode:
+      # dry-run`, and `repo` / `only` with a subset (`only` drops `variables:`).
       - name: Publish rotation ledger
-        if: always() && steps.probe.outputs.can_write == 'true'
+        if: always() && steps.probe.outputs.can_write == 'true' && steps.mode.outputs.apply != '' && inputs.repo == '' && inputs.only == ''
         uses: ./.github/actions/utilities/publish-data
         with:
           paths: "_data/token_rotation.yml"
-          message: "chore(data): weekly credential + variable rotation ledger"
+          # `[skip ci]`: generated data needs none of the PR gates.
+          message: "chore(data): weekly credential + variable rotation ledger [skip ci]"
           branch: chore/token-rotation
           title: "chore(data): weekly credential rotation ledger"
           body: |
@@ -270,7 +274,7 @@ jobs:
             branch was refused by branch protection. This branch is regenerated
             on every run — review the diff, not the history.
           labels: automation,data
-          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.token.outputs.token }}
 
   # ========================================================================= #
   # 2. FILE WHAT A HUMAN HAS TO DO
@@ -301,18 +305,24 @@ jobs:
         with:
           name: rotation-attention
 
-      # ONE issue, updated in place. Deduped on an exact title rather than a
-      # body marker: GitHub's issue search does not reliably match text inside
-      # an HTML comment, and a rotation report that silently forked into a new
-      # issue every Monday would be worse than no report.
-      #
       # Repo, labels, and marker come from `rotation.issue` in _data/fleet.yml —
       # config that nothing reads is the drift this control plane exists to
       # prevent, so it is read rather than restated here.
-      - name: Open or update the rotation issue
+      - name: Read the issue contract
+        id: cfg
+        run: |
+          set -euo pipefail
+          cfg=$(python3 tools/fleet-config.py show rotation.issue)
+          {
+            echo "enabled=$(jq -r '.enabled' <<<"$cfg")"
+            echo "repo=$(jq -r '.repo // empty' <<<"$cfg")"
+            echo "marker=$(jq -r '.marker // "token-rotation"' <<<"$cfg")"
+            echo "labels=$(jq -r '[.labels[]?] | join(",")' <<<"$cfg")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Compose the report
+        if: steps.cfg.outputs.enabled == 'true'
         env:
-          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
-          TITLE: "🔑 Fleet credential rotation needs attention"
           REASONS: ${{ needs.rotate.outputs.reasons }}
           # '' = the probe never ran (the job broke before it); 'false' = the
           # probe ran and the credential genuinely lacks the scope. Conflating
@@ -320,20 +330,10 @@ jobs:
           # an unloadable composite action.
           CAN_WRITE: ${{ needs.rotate.outputs.can_write }}
           ROTATE_RESULT: ${{ needs.rotate.result }}
+          MARKER: ${{ steps.cfg.outputs.marker }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-
-          cfg=$(python3 tools/fleet-config.py show rotation.issue)
-          if [ "$(jq -r '.enabled' <<<"$cfg")" != "true" ]; then
-            echo "::notice::rotation.issue.enabled is false — not filing."
-            exit 0
-          fi
-          repo=$(jq -r '.repo // empty' <<<"$cfg")
-          repo=${repo:-$GITHUB_REPOSITORY}
-          marker=$(jq -r '.marker // "token-rotation"' <<<"$cfg")
-          mapfile -t labels < <(jq -r '.labels[]?' <<<"$cfg")
-
           if [ ! -f rotation-attention.md ]; then
             {
               echo "## Fleet credential rotation needs attention"
@@ -358,35 +358,24 @@ jobs:
               fi
             } > rotation-attention.md
           fi
-
           {
             echo ""
-            echo "<!-- $marker -->"
+            echo "<!-- $MARKER -->"
             echo "_Filed by [\`token-rotation.yml\`]($RUN_URL) · this issue is updated in place each week._"
             echo ""
             echo "---"
             echo "_Generated by [Claude Code](https://claude.ai/code)_"
           } >> rotation-attention.md
 
-          existing=$(gh issue list --repo "$repo" --state open \
-            --search "\"$TITLE\" in:title" --json number,title \
-            --jq "[.[] | select(.title == \"$TITLE\")] | .[0].number // empty" || true)
-
-          if [ -n "$existing" ]; then
-            gh issue edit "$existing" --repo "$repo" --body-file rotation-attention.md
-            echo "::notice::Updated rotation issue #$existing in $repo"
-            exit 0
-          fi
-
-          # One unknown label fails the WHOLE create call — which would cost the
-          # report entirely — so make sure each exists first, then fall back to
-          # an unlabelled issue if anything still rejects it.
-          args=(--repo "$repo" --title "$TITLE" --body-file rotation-attention.md)
-          for l in "${labels[@]}"; do
-            gh label create "$l" --repo "$repo" --color ededed \
-              --description "Managed by token-rotation.yml" >/dev/null 2>&1 || true
-            args+=(--label "$l")
-          done
-          gh issue create "${args[@]}" \
-            || gh issue create --repo "$repo" --title "$TITLE" --body-file rotation-attention.md
-          echo "::notice::Opened the rotation issue in $repo"
+      # ONE issue, updated in place, deduped on its exact title (a body marker
+      # is not a reliable search key). Filed with the job token on purpose: an
+      # alarm must not ride on the credential most likely to be dead.
+      - name: Open or update the rotation issue
+        if: steps.cfg.outputs.enabled == 'true'
+        uses: ./.github/actions/utilities/upsert-issue
+        with:
+          token: ${{ github.token }}
+          repo: ${{ steps.cfg.outputs.repo }}
+          title: "🔑 Fleet credential rotation needs attention"
+          body-file: rotation-attention.md
+          labels: ${{ steps.cfg.outputs.labels }}

@@ -3,7 +3,7 @@
 Fixture tests for tools/features_index.py — the fleet features index.
 
 Guards the invariants that make the index trustworthy as a CONTROL surface
-(it feeds the /features/ page, the verify-fanout `gaps` target, and the
+(it feeds the /features/ page, the fanout.yml verify kit's `gaps` target, and the
 UPS-QA-50..53 conformance checks, so a wrong grade is a wrong PR or a false
 alarm):
 

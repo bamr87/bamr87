@@ -474,7 +474,7 @@ requirements:
     applies_notes: ["all except fork, content"]
     requirement: "The repo carries a `SCHEMA.md` pyramid (one per directory, from the kit template), the vendored `tools/schema_lint.py`, the `schema-check.yml` gate, and the protocol snippet in `CLAUDE.md`. Registry `schema.status` records adoption."
     satisfied_by: "`schema_lint.py check .` passes"
-    seed: "`tools/seed-schema.sh` / `schema-fanout.yml`"
+    seed: "`tools/seed-schema.sh` / `fanout.yml` (kit `schema`)"
     gap: false
   - id: UPS-AGENT-21
     area: AGENT
@@ -847,7 +847,7 @@ requirements:
     applies: [all]
     requirement: "Always-latest: no exact pins, no ceilings, no committed lockfiles; floors (`>=`) are fine. Exceptions: GitHub Actions and reusable workflows referenced at `@vMAJOR`, `@vMAJOR.MINOR.PATCH` or a full 40-character SHA (optionally with a `# vX.Y.Z` comment), never a branch such as `@main`, with local `./` paths exempt (the same ref rule as UPS-WORK-10); pre-commit `rev:`; fleet toolchain versions; and, in the hub only, the runtime of a hub reusable workflow kept under `.github/` (today `.github/site-quality/`, the runtime of `site-quality.yml`), which pins exactly in its `package.json` and commits its lockfile so every caller runs the same tools. Those paths are declared once in `QUALITY.contract.yml` `sanctioned_lockfiles`; a path under `templates/` never qualifies, fan-out never copies one into a member repo, and no member repo can claim the exception."
     satisfied_by: "drift checks (j)/(k)"
-    seed: "`tools/unpin-deps.sh`, `deps-fanout.yml`"
+    seed: "`tools/unpin-deps.sh`, `fanout.yml` (kit `deps-latest`)"
     gap: false
   - id: UPS-QA-41
     area: QA
@@ -1467,7 +1467,7 @@ requirements:
     level: MUST
     applies: [site, app]
     requirement: "The kit is fanned out, not hand-installed: `tools/fanout.sh --kit feedback --target <name>` vendors the widget + buffer into the stack's static assets, seeds the adapter and `page_feedback.yml`, and creates the labels. Dry-run by default, PR-only, additive. Mounting stays a human one-liner — the fan-out never edits a hand-written app shell."
-    satisfied_by: "`feedback-fanout.yml`"
+    satisfied_by: "`fanout.yml` (kit `feedback`)"
     seed: "`tools/fanout.sh`"
     gap: false
   - id: UPS-FB-41

@@ -208,7 +208,7 @@ cd bamr87
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
 - **[docs/PORTFOLIO.md](docs/PORTFOLIO.md)**: The portfolio standard — descriptions, topic taxonomy, homepage rule and README skeleton
 
-To change this index, edit [`_data/projects.yml`](_data/projects.yml) (fleet members) or [`_data/portfolio.yml`](_data/portfolio.yml) (grouping and display-only extras), then run `tools/dash-gen readme`. The `AUTO:projects` block is regenerated daily by the refresh-dash workflow.
+To change this index, edit [`_data/projects.yml`](_data/projects.yml) (fleet members) or [`_data/portfolio.yml`](_data/portfolio.yml) (grouping and display-only extras), then run `tools/dash-gen readme` (the drift gate fails a PR whose README is stale, and the nightly registry reconciliation regenerates it in its own PR).
 
 ## 📄 License
 

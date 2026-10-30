@@ -247,10 +247,10 @@ def test_workflow_contract() -> None:
     check("target checkout keeps no credentials", co["with"].get("persist-credentials") is False)
     check("target checkout is the matrix repo on the matrix branch",
           "matrix.nwo" in str(co["with"].get("repository")) and "matrix.branch" in str(co["with"].get("ref")))
-    check("the brief is hidden from git", ".git/info/exclude" in step(scout, "Hide the brief from git")["run"])
+    check("the brief is hidden from git", ".git/info/exclude" in step(scout, "Hide the brief and the hub checkout from git")["run"])
     auth = step(scout, "Choose the Claude credential (ai_auth order)")
     check("the credential is chosen by the repo's ai_auth order",
-          auth["uses"].startswith("bamr87/bamr87/.github/actions/claude-auth@") and "vars.CLAUDE_AUTH_ORDER" in auth["with"]["order"])
+          auth["uses"] == "./.fleet-hub/.github/actions/claude-auth" and "vars.CLAUDE_AUTH_ORDER" in auth["with"]["order"])
     sc = step(scout, "Scout")
     args = sc["with"]["claude_args"]
     prompt = " ".join(sc["with"]["prompt"].split())
@@ -283,8 +283,11 @@ def test_workflow_contract() -> None:
     check("prompt carries the always-latest / no-lockfile rule", "lockfile" in prompt)
     cost = step(scout, "Report Claude run cost")
     check("cost is reported on success too", "!cancelled()" in str(cost.get("if")) and "failure()" not in str(cost.get("if")))
-    check("a budget abort is called out as an error", "BUDGET CAP HIT" in cost["run"])
-    check("the credential-rejected classifier is present", "modelUsage" in cost["run"])
+    # The budget-abort and credential-rejected classifiers live in the shared
+    # action; test_ai_budget.py asserts its script and this step's pairing.
+    check("the readout is the shared claude-cost action", cost.get("uses") == "./.fleet-hub/.github/actions/claude-cost")
+    check("a spent usage window is capacity, not a red run",
+          cost["with"].get("usage-limit") == "skip" and sc.get("continue-on-error") is True)
     check("a scout that edited tracked files is discarded and reported",
           "git checkout -- ." in step(scout, "Verify the tree is untouched")["run"])
     up = step(scout, "Upload proposals")

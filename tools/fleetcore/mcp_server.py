@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """The fleet console as an MCP server — the third surface, for agents.
 
+MERGED into the Harness Console MCP layer (tools/console/mcp_layer/, HUB-031,
+tools/console/docs/mcp-layer.md). That server registers every tool below under
+the same name, and `.mcp.json` `fleet` now runs it (`tools/console/mcp.sh
+--fleet-compat`). This module stays as (1) the library of the fleet_* read
+tools the layer calls, and (2) a compat entry point: running it directly hands
+over to the layer, or — with FLEET_MCP_STDLIB=1, or where the layer cannot be
+started — serves the original stdlib stdio loop below.
+
 The browser page and the terminal dash are two front ends on one core
 (fleetcore) and one runtime (the Harness Console's job API). This is the same
 again for an AI client: Claude Code, Claude Desktop, the bashOS kernel or any
@@ -8,8 +16,9 @@ other MCP host gets the views a person sees and can run what a person can run �
 no more.
 
   read     fleet_overview · fleet_apps · fleet_inbox · fleet_docker ·
-           fleet_work — straight from fleetcore.views (and dash-gen's
-           work_board) over the committed signals; work with no console running
+           fleet_work · fleet_workflows · workflow_lint — straight from
+           fleetcore.views (and dash-gen's work_board and workflow_atlas) over
+           the committed signals and the checkout; work with no console running
   act      console_ops · console_run · console_jobs · console_job_log ·
            console_cancel — through fleetcore.client to the console, so the
            allowlist, parameter validation and the confirm-before-GitHub-write
@@ -120,6 +129,55 @@ def t_work(a: dict) -> dict:
     }
 
 
+def _atlas():
+    sys.path.insert(0, str(ROOT / ".github" / "scripts" / "dash-gen"))
+    import workflow_atlas  # noqa: WPS433 — dash-gen's own module, only when asked
+    return workflow_atlas
+
+
+WORKFLOW_FIELDS = ("id", "name", "group", "purpose_text", "triggers", "switch", "lines", "findings")
+
+
+def t_workflows(a: dict) -> dict:
+    """The hub's workflows as one model (the workflow atlas): one workflow or
+    action in full, or the catalog with every finding; `health` adds run
+    health and failure causes from the local lake."""
+    wa = _atlas()
+    atlas = wa.scan(ROOT)
+    if a.get("workflow"):
+        wid = str(a["workflow"])
+        hit = next((w for w in atlas["workflows"] if w["id"] == wid), None) or \
+            next((x for x in atlas["actions"] if x["id"] == wid), None)
+        if hit is None:
+            raise ValueError(f"no workflow or action called {wid!r}")
+        return {"item": hit, "findings": [f for f in atlas["findings"] if f["target"] == wid]}
+    out = {"summary": atlas["summary"], "findings": atlas["findings"],
+           "rules": [{k: r[k] for k in ("id", "severity", "title", "fix", "gate")} for r in atlas["rules"]],
+           "workflows": [{k: w.get(k) for k in WORKFLOW_FIELDS} for w in atlas["workflows"]],
+           "actions": [{"id": x["id"], "used_by": x["used_by"], "findings": x["findings"]} for x in atlas["actions"]]}
+    if a.get("health"):
+        h = wa.lake_health(None, atlas["hub"], int(a.get("days") or 30), ROOT)
+        out["health"] = {k: h.get(k) for k in ("present", "error", "days", "totals", "classes", "ghosts", "class_hints")}
+        out["health"]["workflows"] = [{k: w[k] for k in ("path", "runs", "success_rate", "verdict", "causes", "last_failure")}
+                                      for w in h.get("workflows") or []]
+    return out
+
+
+def t_workflow_lint(a: dict) -> dict:
+    """Lint a draft workflow against the hub's standards and fleet.yml."""
+    wa = _atlas()
+    text = str(a["text"])
+    if len(text) > 200_000:
+        raise ValueError("a workflow draft is limited to 200 KB")
+    wid = str(a.get("id") or "draft")
+    if not wa.ID_RX.match(wid):
+        raise ValueError("id must be lowercase letters, digits and dashes, starting with a letter")
+    res = wa.lint_text(text, wa.load_fleet(ROOT), f".github/workflows/{wid}.yml")
+    w = res["workflow"]
+    return {"findings": res["findings"], "tally": res["tally"],
+            "parsed": {k: w.get(k) for k in ("name", "triggers", "crons", "dispatch_inputs", "switch", "ai_sites", "parse_error")}}
+
+
 def t_ops(_: dict) -> dict:
     return {"ops": console().ops()}
 
@@ -175,6 +233,21 @@ TOOLS: dict[str, dict] = {
             "kind": {"type": "string", "enum": ["issue", "pr", "roadmap", "spec", "backlog"]},
             "next_only": {"type": "boolean", "description": "only what a loop's next run takes"},
             "limit": {"type": "integer", "minimum": 1, "maximum": 200}})),
+    "fleet_workflows": dict(fn=t_workflows, annotations=READ, description=(
+        "The hub's GitHub Actions as one model (the workflow atlas): every workflow and composite action with "
+        "its triggers, crons, inputs, jobs, Claude call sites and kill switch, and every finding against the "
+        "standards. Pass `workflow` for one in full; `health` adds run health and failure causes (capacity · "
+        "config · transient · dependency · defect) from the local lake. Read it before changing a workflow."),
+        schema=_schema({
+            "workflow": {"type": "string", "description": "a workflow file stem (fleet-pulse) or action id (claude-cost)"},
+            "health": {"type": "boolean", "description": "add run health from the local lake"},
+            "days": {"type": "integer", "minimum": 1, "maximum": 365}})),
+    "workflow_lint": dict(fn=t_workflow_lint, annotations=READ, description=(
+        "Lint a draft workflow (YAML text) against the hub's standards and _data/fleet.yml: permissions, "
+        "timeouts, concurrency, crons, kill switch, Claude budget and usage-limit pairing, null dispatch inputs, "
+        "PR token, bare pushes. Nothing is written."),
+        schema=_schema({"text": {"type": "string", "description": "the workflow file's YAML"},
+                        "id": {"type": "string", "description": "the file stem it will have (its fleet.yml keys)"}}, ["text"])),
     "console_ops": dict(fn=t_ops, annotations=READ, schema=_schema(), description=(
         "The Harness Console's allowlisted operations: id, title, params, and whether one can write to GitHub.")),
     "console_run": dict(fn=t_run, description=(
@@ -245,5 +318,21 @@ def main() -> None:
             sys.stdout.flush()
 
 
+def delegate() -> None:
+    """Hand over to the merged layer: in-process when `mcp` imports, else through its bootstrap script."""
+    if os.environ.get("FLEET_MCP_STDLIB") == "1":
+        return main()
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        script = ROOT / "tools" / "console" / "mcp.sh"
+        if script.is_file() and os.access(script, os.X_OK):
+            os.execv(str(script), [str(script), "--fleet-compat"])
+        return main()
+    sys.path.insert(0, str(ROOT / "tools" / "console"))
+    from mcp_layer.server import main as layer_main
+    sys.exit(layer_main(["--fleet-compat"]))
+
+
 if __name__ == "__main__":
-    main()
+    delegate()

@@ -41,7 +41,7 @@ MCP servers (github, memory, sequentialthinking, context7, **playwright** — th
 
 ## Standardization
 
-`standardize-audit` (see what's off-standard, via `tools/dash audit` + [`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one repo, PR into its own repo) → the `standardize-fanout.yml` workflow (fleet-wide `.editorconfig` + reusable `standard-ci.yml` adoption, plus the `agent-context,claude` artifacts: `CLAUDE.md` scaffold, `@claude` mention workflow, and the minimal `.claude/settings.json` baseline from [`templates/agent-context/`](../templates/agent-context/)). The full standard lives in [`docs/STANDARDS.md`](../docs/STANDARDS.md).
+`standardize-audit` (see what's off-standard, via `tools/dash audit` + [`_data/standards.yml`](../_data/standards.yml)) → `standardize-project` (fix one repo, PR into its own repo) → the `fanout.yml` (kit `standardize`) workflow (fleet-wide `.editorconfig` + reusable `standard-ci.yml` adoption, plus the `agent-context,claude` artifacts: `CLAUDE.md` scaffold, `@claude` mention workflow, and the minimal `.claude/settings.json` baseline from [`templates/agent-context/`](../templates/agent-context/)). The full standard lives in [`docs/STANDARDS.md`](../docs/STANDARDS.md).
 
 ## The Future-Features pipeline
 
@@ -52,4 +52,4 @@ Captures feature ideas before they're lost and routes them to the right repo's r
 
 ## The self-evolution loop
 
-`triage-attention` (read Monitor signals) → `sync-project-docs` (update registry) → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main` → drift + dash-build gates verify → human merges. The CI counterpart is `.github/workflows/unified-evolution.yml` (dispatch-only — trigger via `tools/dash evolve`; via `anthropics/claude-code-action`; auth: `CLAUDE_CODE_OAUTH_TOKEN` preferred, `ANTHROPIC_API_KEY` fallback — see [`docs/AI-INTEGRATION.md`](../docs/AI-INTEGRATION.md)).
+`triage-attention` (read Monitor signals) → `sync-project-docs` (update registry) → `evolve-project` (fix the top item) → `refresh-portfolio` (regen) → PR to `main` → drift + dash-build gates verify → human merges. There is no CI twin for the hub (its dispatch-only `unified-evolution.yml` was retired on 2026-10-27); the per-submodule CI pass is `repo-evolution.yml` (`tools/dash evolve --repo <name>`).

@@ -24,14 +24,9 @@ on:
       - "pages/**"
       - "_data/features_index.yml"
       - "tools/console/**"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/fleet-verify.yml"
-      - "features/**"
-      - "verify/**"
-      - "pages/**"
-      - "tools/console/**"
+      - "tools/fleetcore/**"
+  # No `push:` — the run is advisory (gate: false) and cannot fail, so a
+  # post-merge re-run only repeated what the PR run had just shown.
   workflow_dispatch:
     inputs:
       agent:
@@ -46,12 +41,16 @@ on:
 permissions:
   contents: read
 
+# A label other than `verify` must neither re-run the pass nor cancel the one in
+# flight (automation labels PRs constantly), so it gets a group of its own and
+# the job skips.
 concurrency:
-  group: verify-${{ github.ref }}
+  group: verify-${{ github.ref }}${{ (github.event.action == 'labeled' && github.event.label.name != 'verify') && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
   verify:
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'verify' }}
     uses: ./.github/workflows/fleet-verify.yml
     permissions:
       contents: read

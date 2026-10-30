@@ -14,9 +14,11 @@ name: 🔀 Update Submodules
 #
 # Requires FLEET_TOKEN (see _data/fleet.yml) because GITHUB_TOKEN 404s on the
 # fleet's private submodules, so a recursive checkout with it dies before the
-# update step ever runs. Both call sites fall back to GITHUB_TOKEN (degraded:
-# public repos only) — and on the PR fallback route a GITHUB_TOKEN-opened PR
-# fires no workflow events, so its checks never run.
+# update step ever runs. This is the one loop that still picks the token by
+# PRESENCE (`FLEET_TOKEN || GITHUB_TOKEN`) rather than through
+# .github/actions/resolve-fleet-token: the checkout is the first step, and a
+# local action cannot run before the tree it lives in is checked out. A dead
+# PAT fails the checkout loudly rather than silently degrading.
 
 on:
   schedule:
@@ -161,9 +163,10 @@ jobs:
           base: ${{ inputs.base_branch || 'main' }}
           # `[skip ci]` because nothing needs to run on a pointer bump, and the
           # alternative is worse. build-dash.yml already filters `projects/**`
-          # out by path, so it never woke for these. drift-check.yml has no path
-          # filter and is the one workflow this push would trigger — but adding
-          # `paths-ignore: projects/**` there would ALSO stop it firing when a
+          # out by path, so it never woke for these. drift-check.yml and
+          # python-tests.yml have no push path filter and are what this push
+          # would trigger — but adding `paths-ignore: projects/**` to the gate
+          # would ALSO stop it firing when a
           # HUMAN touches projects/, and check (a) exists precisely to catch
           # stray/unregistered dirs in that directory. Skipping CI on the bot's
           # own commit is targeted; weakening the gate for everyone is not.

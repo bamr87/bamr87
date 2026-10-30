@@ -14,7 +14,7 @@ description: Audit the submodule fleet against the tiered standardization baseli
    - agent context → add `AGENTS.md` (+ `AGENTS.md`).
    - release automation → `tools/adopt-release.sh <repo>`.
 3. Recommended (amber `!`) gaps are surfaced but not blocking — mention them.
-4. Offer to open the fixes as PRs via `/standardize-project` (one repo) or the `standardize-fanout.yml` workflow (fleet-wide `.editorconfig` + CI).
+4. Offer to open the fixes as PRs via `/standardize-project` (one repo) or the `fanout.yml` (kit `standardize`) workflow (fleet-wide `.editorconfig` + CI).
 
 ## Guardrail
 

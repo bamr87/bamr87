@@ -6,7 +6,8 @@
 #   (a) registry <-> .gitmodules parity (paths, branches, AND urls) + no
 #       stray/unregistered project dirs. The url leg is offline, so it gates on
 #       every PR; the live GitHub side (renames/deletions) is (g) + `dash reconcile`.
-#   (b) README.md AUTO:projects span is up to date
+#   (b) README.md AUTO:projects span is up to date (advisory when
+#       JEV_SPANS_ADVISORY=1 — the span is regenerated on main after merge)
 #   (c) broken internal links in the built dash        (warn; --links only; needs _site)
 #   (d) every top-level module dir has a README
 #   (e) each submodule is on its declared branch
@@ -168,19 +169,24 @@ PY
 if [[ $? -eq 0 ]]; then ok "registry/submodule parity"; else bad "registry/submodule parity (see DRIFT lines above)"; fi
 
 # --- (b): README AUTO:projects freshness ----------------------------------
+# Generated SPANS in hand-written files are regenerated on main by the JEV
+# post-merge job (.github/workflows/jev-number.yml). With JEV_SPANS_ADVISORY=1
+# (drift-check.yml sets it) a stale span is a warning, not a failure, so a pull
+# request is never asked to regenerate — and so conflict on — a span (docs/JEV.md).
+span_bad() { if [[ "${JEV_SPANS_ADVISORY:-0}" == "1" ]]; then warn "$1 — advisory: regenerated on main after merge"; else bad "$1"; fi; }
 echo "(b) README AUTO:projects + dash CLI reference freshness"
 if "$ROOT/tools/dash-gen" readme --check >/dev/null 2>&1; then
   ok "README AUTO:projects up to date"
 else
   rc=$?
-  if [[ $rc -eq 1 ]]; then bad "README AUTO:projects is stale (run: tools/dash-gen readme)"; else warn "could not check README (dash-gen error)"; fi
+  if [[ $rc -eq 1 ]]; then span_bad "README AUTO:projects is stale (run: tools/dash-gen readme)"; else warn "could not check README (dash-gen error)"; fi
 fi
 # The dash CLI reference in docs/DASH.md is generated from `tools/dash help`
 # (specs/DOCS.md UPS-DOC-05); a command added to the CLI must reach the doc.
 if "$PY" "$ROOT/tools/gen-dash-cli-doc.py" --check >/dev/null 2>&1; then
   ok "docs/DASH.md dash CLI reference up to date"
 else
-  bad "docs/DASH.md dash CLI reference is stale (run: python3 tools/gen-dash-cli-doc.py)"
+  span_bad "docs/DASH.md dash CLI reference is stale (run: python3 tools/gen-dash-cli-doc.py)"
 fi
 
 # --- (d): missing READMEs --------------------------------------------------
@@ -777,7 +783,7 @@ PY
         ok "no lockfiles or SHA pins in ${k_scanned:-0} readable fleet repo(s)"
       else
         while IFS= read -r line; do warn "$line"; done <<< "$k_probs"
-        warn "  convert a repo with: tools/unpin-deps.sh <checkout>  (fleet-wide: deps-fanout.yml)"
+        warn "  convert a repo with: tools/unpin-deps.sh <checkout>  (fleet-wide: fanout.yml (kit: deps-latest))"
       fi
       # Never let unread repos masquerade as clean ones.
       [[ -n "$k_unread" ]] && warn "${k_unread% *} unread (private or 404 under a repo-scoped token) — NOT verified clean"
@@ -828,7 +834,7 @@ fi
 # already be what tools/docker_harmonize.py would write — image versions from
 # the registry (_data/fleet.yml `images:`), loopback env-overridable ports, no
 # container_name. Offline and fast, so it gates. The submodules are the ADVISORY
-# half: they converge through docker-fanout.yml PRs, not through this gate.
+# half: they converge through fanout.yml (kit: docker) PRs, not through this gate.
 echo "(n) Docker standard (image registry, ports, healthchecks)"
 if [[ -f "$ROOT/tools/docker_harmonize.py" ]]; then
   if ! "$PY" -c 'import yaml' >/dev/null 2>&1; then
@@ -860,7 +866,7 @@ if [[ -f "$ROOT/tools/docker_harmonize.py" ]]; then
     n_changes="${n_sum% *}"; n_repos="${n_sum#* }"
     if [[ "${n_changes:-0}" -gt 0 ]]; then
       warn "${n_changes} pending Docker change(s) across ${n_repos} checked-out submodule(s)"
-      warn "  (converge via the docker-fanout workflow: tools/fanout.sh --kit docker --target all)"
+      warn "  (converge via fanout.yml kit=docker: tools/fanout.sh --kit docker --target all)"
     fi
   fi
 else

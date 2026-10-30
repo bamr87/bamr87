@@ -248,7 +248,7 @@ features:
       - { na: "shellcheck in the drift gate; each kit is exercised by its dispatch workflow in dry-run" }
   - id: HUB-010
     title: "Agent verification kit + fleet-verify gate"
-    description: "The verify kit (feature index scaffold, user scenarios, Playwright runner, MCP config, CI caller, verify-feature skill + verifier agent) fanned out by verify-fanout, and the reusable fleet-verify.yml that runs scenarios on every PR and hands the live app to a Claude Code pass on `verify`-labelled PRs."
+    description: "The verify kit (feature index scaffold, user scenarios, Playwright runner, MCP config, CI caller, verify-feature skill + verifier agent) fanned out by fanout.yml (kit verify), and the reusable fleet-verify.yml that runs scenarios on every PR and hands the live app to a Claude Code pass on `verify`-labelled PRs."
     implemented: true
     status: shipped
     prd: [FR6]
@@ -444,3 +444,156 @@ features:
     date: 2026-10-29
     tests:
       - tools/test_deep_dive.py
+  - id: HUB-030
+    title: "Real-time bot activity dashboard"
+    description: "A live view at /live in the harness console: active and idle Claude Code sessions, Claude live usage from Prometheus, Claude CI spend and Actions minutes against the _data/fleet.yml budgets ($75 and 40,000 min/month), jobs with live log tails, the harness scorecard, deep-dive cycle progress and an observability reachability check. Session data comes from the read-only host collector tools/console/live_collector.py, run by a LaunchAgent; the console serves GET /api/live and the GET /api/live/stream SSE feed (5 s updates, token auth), with a 5 s polling fallback. Spec: tools/console/docs/realtime-bot-dashboard-spec.md. In review in bamr87/bamr87#432 (https://github.com/bamr87/bamr87/pull/432), not merged; no per-session cost yet, and Actions minutes come from daily data."
+    implemented: true
+    status: partial
+    prd: [FR5]
+    surface: ui
+    link: /live
+    docs: tools/console/docs/realtime-bot-dashboard-spec.md
+    tags: [ console, dashboard, live, sse, observability ]
+    date: 2026-10-29
+    tests:
+      - { na: "tested locally only; automated tests not yet written (bamr87/bamr87#432)" }
+  - id: HUB-031
+    title: "Harness Console MCP layer: the console's API for any AI agent"
+    description: "tools/dash mcp serves the Harness Console's HTTP API as an MCP server built on the official mcp SDK: stdio for Claude Code, Cursor and local agents (registered in .mcp.json as fleet, having absorbed tools/fleetcore/mcp_server.py: its fleet_* read tools and console_* action names live on as tools and aliases, with --fleet-compat) and streamable HTTP on 127.0.0.1:4002/mcp with bearer auth and DNS-rebinding protection for remote agents such as Grok Bots. 26 read tools (22 console + 4 merged fleet views) and 5 resources cover fleet status, harness health and scorecard, live snapshot and sessions (with bamr87/bamr87#432), agent activity, ops, jobs and logs, spend vs budget, the lake's runs and workflow lines, observability, semantic code search, the deep dive, the Work board and the loops. Write tools (run_op, cancel_job, workflow_kill_switch) are registered only with HARNESS_MCP_ALLOW_WRITES=1, annotated destructive, and refused without confirm=true; the console's allowlist and confirm gate still decide. HTTP auth uses a dedicated HARNESS_MCP_TOKEN (never the console token); an opt-in compose sidecar (profile mcp, 127.0.0.1:4002) keeps it always on, and dash mcp --tunnel opens a temporary cloudflared quick tunnel. Results are sized for an agent's context: work_board pages the ~390k-character /api/work document (summary=true drops each item's detail record; lane/repo/kind/stage/priority/q filters, limit/offset, matched_by_lane and next_offset), and fleet_docker errors with the remedy when no Docker host answers instead of returning an empty container list. The code index reaches Qdrant and Ollama through QDRANT_URL / OLLAMA_URL (the contract's URLs are the browser's) and chooses the collection by listing the store, since Kilo's name is a hash of the workspace root path; QDRANT_COLLECTION overrides it."
+    implemented: true
+    status: shipped
+    prd: [FR26, NFR9]
+    surface: infra
+    link: tools/console/mcp_layer/server.py
+    docs: tools/console/docs/mcp-layer.md
+    tags: [ console, mcp, agents, ai-layer, integration ]
+    date: 2026-10-30
+    tests:
+      - tools/console/test_mcp_layer.py
+      - .github/scripts/dash-gen/test_fleet_index.py
+  - id: HUB-032
+    title: "Claude spend accounting: every CI run priced, estimated or proved free"
+    description: "The committed Claude ledger (_data/ai_usage.yml, tools/dash-gen ai-usage) accounts every AI run in the fleet instead of leaving 87% of them unpriced. It collects the HUB itself alongside the registry (_data/fleet.yml hub.repo is not a registry entry, so fleet-pulse's doctor, the issue pipeline's three tiers and the fan-outs — the largest caps in budget.call_sites — were missing from every number), detects Claude by all three routes the fleet uses (claude-code-action, the claude-run composite, a vendored scripts/ai/run.sh), and states the source of each run's figure: reported total_cost_usd summed across the run's Claude sessions and de-duplicated per session_id (last-match-wins charged a three-session run for one; the log zip holds each job's text twice, so summing raw matches double-charged), a token-rate price at API list prices with cache writes at 1.25x/2x input and reads at 0.1x, no-spend for a skipped run or a log with no Claude step in it (the loops' is-the-loop-on gate job — 146 of the 242 runs that read as unpriced on 2026-10-29), or an explicit est_cost_usd with a named basis (workflow median, turns at budget.usd_per_turn, fleet median). Totals report ci_cost_usd, ci_estimated_usd and ci_accounted_usd with the estimated share, and the $75/month budget check (harness_registry trends.ai_cost_usd) is judged on the accounted figure. Rendered at /ai-usage and /costs."
+    implemented: true
+    status: shipped
+    prd: [FR27, NFR10]
+    surface: infra
+    link: .github/scripts/dash-gen/ai_usage_collector.py
+    docs: docs/AI-INTEGRATION.md
+    tags: [ ai, cost, budget, ledger, transparency, dashboard ]
+    date: 2026-10-29
+    tests:
+      - .github/scripts/dash-gen/test_ai_usage_collector.py
+      - .github/scripts/dash-gen/test_harness_registry.py
+  - id: HUB-033
+    title: "The fleet's one release-please workflow, degrading to a warning without a PR credential"
+    description: "Every fleet repo's Release workflow is a thin caller of .github/workflows/release-please.yml (SDLC kit templates/sdlc/release/): release-please computes the version from Conventional Commits, rewrites CHANGELOG.md on a release PR, and tags plus publishes the GitHub Release when that PR merges. Opening the release PR needs a credential allowed to create one (RELEASE_PLEASE_TOKEN, or the repo's Actions setting letting GITHUB_TOKEN open PRs); with neither, GitHub refuses POST /pulls. The workflow runs the tagging pass strictly and guards only the PR pass, so that one denial is a warning with the two remedies in the run summary instead of a red run on every push, and strict-pr-creation: true turns it back into a failure where the credential is provisioned."
+    implemented: true
+    status: shipped
+    prd: [FR3, FR6]
+    surface: infra
+    link: .github/workflows/release-please.yml
+    docs: docs/RELEASES.md
+    tags: [ release, loop, workflows, kits ]
+    date: 2026-10-29
+    tests:
+      - templates/sdlc/test_sdlc_kit.py
+  - id: HUB-034
+    title: "Workflow atlas: maintain and design the hub's GitHub Actions"
+    description: "Every hub workflow and composite action read as one model (triggers, crons and their fleet.yml keys, dispatch inputs, jobs, actions used, secrets, kill switch, Claude call sites with cap and usage-limit mode) at /workflows, held to the README standards and AGENTS.md standing rules by 17 lint rules that each name their incident and gate. Run health per workflow from the local lake classifies every failure as capacity, config, transient, dependency or defect, with ghosts and green-but-429 runs; a Retire tab lists dead schedules, unused actions and README orphans; a Design tab scaffolds a workflow of five kinds that passes every rule and lints any draft. The console's dispatch form and allowlist read each workflow's inputs from its file. Supplies FR21's triggers, schedule and last run as a page rather than map nodes. Also tools/dash workflows and the fleet_workflows / workflow_lint MCP tools."
+    implemented: true
+    status: shipped
+    prd: [FR5, FR21]
+    surface: ui
+    link: /workflows
+    docs: docs/WORKFLOW-ATLAS.md
+    tags: [ console, workflows, ci, standards, lint, mcp ]
+    date: 2026-10-28
+    tests:
+      - .github/scripts/dash-gen/test_workflow_atlas.py
+      - .github/scripts/dash-gen/test_schedule.py
+      - tools/console/test_console.py
+      - tools/test_fleetcore_mcp.py
+    scenarios:
+      - verify/scenarios/workflows.yml
+    evidence:
+      - test/evidence/workflows
+  - id: HUB-035
+    title: "JEV: conflict-free numbering + tiered PR conflict triage"
+    description: "JEV is the harness-level agent logic engine (planned in bamr87/it-journey's PRD roadmap, 2027 Q1); this is its first capability, in two halves. (1) Conflict-free numbering: a pull request never picks the next HUB-NNN, FRn/NFRn or amendment number — it writes a fragment (features/features.d/, changelog.d/, docs/amendments/proposed/) with HUB-NEW / FR-NEW:key / number: NEW and references other new things by slug, and tools/jev/number.py assigns the id on main under a concurrency group, compiles the fragments into features.yml, PRD.md, CHANGELOG.md and docs/amendments/NNNN-slug.md, regenerates the PRD block, docs index and CATALOG, and publishes through publish-data (never a bare push to a protected branch). .gitattributes marks generated files merge=jev-regen (tools/jev/merge-regen.sh keeps ours and records the path for regeneration) and two append-only files merge=union; because GitHub's mergeability check ignores custom merge drivers, the fully generated CATALOG.md and docs/README.md are also marked jev-main-only: only the post-merge job on main (jev-number.yml, after every push) regenerates and commits them, and drift-check.yml fails a PR that edits one (python3 -m tools.jev generated guard); generated spans (PRD block, README AUTO:projects, docs/DASH.md CLI reference) are regenerated by the same job and their PR-side drift checks are advisory (JEV_SPANS_ADVISORY=1); other generated files still fail CI on drift (proposed amendment generated-files-main-only). (2) The conflict engine: every six hours, and on a push to main, it lists open fleet PRs GitHub reports as CONFLICTING (registry + the year-of-ai, ai-world-view, bash-365, EissaLab and zer0-mistakes orgs), reproduces each with a trial merge, classifies it deterministically from the conflicted files' kinds, hunks and lines, and spends the cheapest tier that finishes: tier 0 costs nothing (regenerate / union / renumber), tier 1 is Haiku 4.5 capped at $0.25 per attempt for at most 3 files and 40 lines with no workflow, secret, migration or lockfile in the set, tier 2 is Sonnet capped at $1.50, tier 3 labels jev:needs-human with the triage report. Every tier merges base into head with a merge commit (never a rebase or force-push), validates with the repo's own gates plus a clean git diff --check and no leftover markers, and discards the attempt on failure. It never merges a PR, never uses --admin and never touches settings; it only pushes to same-repo branches from listed authors. Capped at $10/month (budget.jev) inside the $75 fleet ceiling, with scheduled runs stopping at 80%; every attempt is recorded in _data/jev_resolutions.yml with its cost and whether that cost was reported or estimated. jev.enabled is on with jev.auto_tiers: [tier0] (model tiers off until listed); the scheduled and push-to-main loop still waits for vars.JEV_CONFLICTS_ENABLED to be true."
+    implemented: true
+    status: partial
+    prd: [FR28, NFR11]
+    surface: infra
+    link: tools/jev/README.md
+    docs: docs/JEV.md
+    tags: [ jev, governance, numbering, conflicts, ai, cost, automation ]
+    date: 2026-10-29
+    tests:
+      - tools/test_jev_number.py
+      - tools/test_jev_classify.py
+      - tools/test_jev_conflicts.py
+      - tools/test_jev_generated.py
+      - tools/test_jev_ledger.py
+      - .github/scripts/dash-gen/test_schedule.py
+  - id: HUB-036
+    title: Fleet work-tracking framework on GitHub Projects (proposed)
+    description: 'One spec (templates/projects/framework.yml) for the Fleet Portfolio and domain projects:
+      fields, options, views, lifecycle and the label map; a reusable auto-add workflow for bamr87/.github;
+      reconciled after amendment 0003 is ratified.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: templates/projects/framework.yml
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags:
+    - governance
+    - projects
+    - labels
+    - fleet
+    date: 2026-10-29
+    tests:
+    - tools/test_projects_lint.py
+    prd:
+    - FR29
+    - NFR12
+  - id: HUB-037
+    title: 'Projects coverage gate: every open issue/PR tracked with required fields (proposed)'
+    description: tools/projects_lint.py validates the framework spec offline and, with project read access,
+      reports issues/PRs missing from the portfolio or missing required fields; warning for 30 days after
+      ratification, then an error.
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/projects_lint.py
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags:
+    - governance
+    - lint
+    - projects
+    date: 2026-10-29
+    tests:
+    - tools/test_projects_lint.py
+    prd:
+    - FR29
+    - NFR12
+  - id: HUB-038
+    title: Features/PRD ↔ project sync and console Projects panel (proposed)
+    description: Sync features.yml ids and PRD requirement ids into the projects' Feature ID / PRD req options;
+      a dash-gen collector writes _data/projects_board.yml and the console shows coverage per repo; MCP
+      read tools (projects_board) and confirm-gated writes (project_item_set) for bots and JEV.
+    implemented: false
+    status: planned
+    surface: infra
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags:
+    - governance
+    - projects
+    - console
+    - mcp
+    date: 2026-10-29
+    tests:
+    - na: design only; collector and panel land in phase 3
+    prd:
+    - FR30
+    - NFR12

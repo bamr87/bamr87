@@ -89,22 +89,84 @@ def test_argv_shapes_are_exact_and_never_shell():
     for op_id in core.OPS:
         if op_id in ("tests",):
             continue
-        argv, _ = core.build_argv(op_id, {"target": "alpha", "workflow": "fleet-pulse", "fields": {}})
+        argv, _ = core.build_argv(op_id, {"target": "alpha", "workflow": "fleet-pulse", "fields": {},
+                                          "kind": "gate", "id": "doc-check"})
         assert all(isinstance(a, str) for a in argv) and "bash" not in argv[0], (op_id, argv)
 
 
 def test_dispatch_validates_workflow_and_inputs():
-    argv, remote = core.build_argv("dispatch", {"workflow": "harness-fanout",
-                                                 "fields": {"target": "gaps", "dry_run": True}})
-    assert argv == ["gh", "workflow", "run", "harness-fanout.yml", "-f", "target=gaps", "-f", "dry_run=true"]
+    argv, remote = core.build_argv("dispatch", {"workflow": "fanout",
+                                                 "fields": {"kit": "harness", "target": "gaps", "dry_run": True}})
+    assert argv == ["gh", "workflow", "run", "fanout.yml", "-f", "kit=harness", "-f", "target=gaps", "-f", "dry_run=true"]
     assert remote is True  # every dispatch is a remote write
-    for params in ({"workflow": "claude"}, {"workflow": "fleet-pulse", "fields": {"evil": "x"}},
-                   {"workflow": "harness-fanout", "fields": {"target": "$(id)"}}):
+    # The inputs are read from the workflow files: the hand-kept copy refused
+    # every input of these four, so none of them could be dry-run from here.
+    for wf, field in (("issue-pipeline", {"dry_run": True}), ("token-rotation", {"apply": False}),
+                      ("reconcile-registry", {"apply": False}), ("update-submodules", {"submodule": "bashos"})):
+        argv, _ = core.build_argv("dispatch", {"workflow": wf, "fields": field})
+        assert argv[:4] == ["gh", "workflow", "run", f"{wf}.yml"] and len(argv) == 6, (wf, argv)
+    assert set(core.dispatchable()) == set(core.DISPATCH_WORKFLOWS)
+    for params in ({"workflow": "claude"}, {"workflow": "harness-fanout"}, {"workflow": "refresh-dash"},
+                   {"workflow": "fleet-pulse", "fields": {"evil": "x"}},
+                   {"workflow": "fanout", "fields": {"target": "$(id)"}},
+                   {"workflow": "fanout", "fields": {"kit": "nope"}},           # a choice outside its options
+                   {"workflow": "fleet-pulse", "fields": {"dry_run": "yes"}},   # a boolean that is not one
+                   {"workflow": "fleet-pulse", "fields": {"days": "14\n"}}):    # a trailing newline
         try:
             core.build_argv("dispatch", params)
         except ValueError:
             continue
         raise AssertionError(f"accepted {params}")
+
+
+def test_workflow_new_argv_is_validated_and_local():
+    argv, remote = core.build_argv("workflow-new", {"kind": "agent-loop", "id": "nightly-audit", "name": "Nightly Audit",
+                                                     "cron": "37 12 * * *", "purpose": "Audit: the fleet."})
+    assert argv[1:] == ["workflows", "new", "--kind", "agent-loop", "--id", "nightly-audit", "--write", "--name",
+                        "Nightly Audit", "--cron", "37 12 * * *", "--purpose", "Audit: the fleet."] and remote is False
+    argv, _ = core.build_argv("workflow-new", {"kind": "gate", "id": "doc-check", "purpose": "Line one.\r\nLine two."})
+    assert argv[-1] == "Line one.\nLine two.", "a pasted CRLF purpose is normalised, not refused"
+    for bad in ({"kind": "nope", "id": "x-y"}, {"kind": "gate", "id": "Bad Id"}, {"kind": "gate", "id": "ok", "name": "a$b"},
+                {"kind": "gate", "id": "ok", "name": "-beta"},
+                {"kind": "loop", "id": "ok", "cron": "$(id) * * * *"}, {"kind": "gate", "id": "ok", "purpose": "a\x07b"}):
+        try:
+            core.build_argv("workflow-new", bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted {bad}")
+
+
+def test_workflow_routes_atlas_lint_and_scaffold():
+    """Over HTTP: the atlas answers with the console's joins, a draft lints
+    without being written, and a bad scaffold is a 400 that says why."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        print("    (skipped: fastapi not installed)")
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import app as console_app
+
+    client = TestClient(console_app.app, base_url="http://127.0.0.1:4001")
+    doc = client.get("/api/workflows").json()
+    assert doc["schema"] == "workflow-atlas/v1" and doc["summary"]["workflows"] == len(doc["workflows"])
+    pulse = next(w for w in doc["workflows"] if w["id"] == "fleet-pulse")
+    assert pulse["loop"] == "fleet_pulse" and pulse["dispatchable"] and pulse["dispatch_inputs"]
+    assert not next(w for w in doc["workflows"] if w["id"] == "drift-check")["dispatchable"]
+    r = client.post("/api/workflows/lint", json={"text": "on: push\njobs:\n  a:\n    runs-on: x\n    steps: [{run: echo}]\n"})
+    assert r.status_code == 200 and {"permissions", "timeout"} <= {f["rule"] for f in r.json()["findings"]}
+    agent = client.post("/api/workflows/scaffold", json={"kind": "agent-loop", "id": "nightly-audit"}).json()
+    as_draft = {f["rule"] for f in client.post("/api/workflows/lint", json={"text": agent["text"]}).json()["findings"]}
+    as_file = [f["message"] for f in client.post("/api/workflows/lint", json={"text": agent["text"], "id": "nightly-audit"}).json()["findings"]]
+    assert {"cron-declared", "ai-budget"} <= as_draft and any("schedule.nightly_audit" in m for m in as_file), as_file
+    assert client.post("/api/workflows/lint", json={"text": "on: push", "id": "../x"}).status_code == 400
+    r = client.post("/api/workflows/scaffold", json={"kind": "gate", "id": "doc-check"})
+    assert r.status_code == 200 and r.json()["findings"] == [] and "pull_request" in r.json()["text"]
+    assert not (core.REPO_ROOT / ".github" / "workflows" / "doc-check.yml").exists(), "a preview writes nothing"
+    r = client.post("/api/workflows/scaffold", json={"kind": "nope", "id": "x-y"})
+    assert r.status_code == 400 and "kind" in r.json()["detail"]
+    h = client.get("/api/workflows/health", params={"days": 7}).json()
+    assert "present" in h and isinstance(h["workflows"], list)
 
 
 def test_lake_ops_argv_shapes_and_status_document():
@@ -483,6 +545,7 @@ def test_api_documents_are_json_serializable():
     json.dumps(core.read_contract())
     json.dumps(core.read_config())
     json.dumps(core.auth_status())
+    json.dumps(core.workflow_atlas())
 
 
 def test_contract_editor_limits_and_preserves_comments():
