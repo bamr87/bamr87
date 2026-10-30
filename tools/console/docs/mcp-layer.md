@@ -39,6 +39,8 @@ tools/dash mcp --list-tools     # print the catalog (read / WRITE) and exit
 | `HARNESS_MCP_HOST` / `HARNESS_MCP_PORT` | `127.0.0.1` / `4002` | HTTP bind; a non-loopback host prints a warning |
 | `HARNESS_MCP_ALLOW_WRITES` | off | `1` registers the write tools |
 | `HARNESS_MCP_MAX_CHARS` | `60000` | larger results come back as `{truncated, total_chars, json_prefix}` |
+| `QDRANT_URL` / `OLLAMA_URL` | the `_data/fleet.yml` URLs | where the code index is reached from THIS process (the contract's are the browser's) |
+| `QDRANT_COLLECTION` | the fullest `ws-` collection | the code index's collection name, when the store's listing should not decide |
 
 HTTP security: bearer token compared in constant time on every request (401 otherwise), DNS-rebinding protection with a loopback Host/Origin allowlist (421 otherwise), loopback bind by default. `HARNESS_MCP_TOKEN` is separate from the console token, so the console token never leaves the machine; the console token is rejected by the MCP endpoint.
 
@@ -114,7 +116,7 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | --- | --- | --- |
 | `console_overview` | `/api/health`, `/api/state` | Is the console up, git head, signal freshness, tripped wires, harness totals, whether writes are on |
 | `fleet_status` | `/api/fleet` | Every registry project: health, triage, CI, docker (`q`, `sort`, `limit`) |
-| `fleet_docker` | `/api/fleet/docker` | Containers on every Docker host |
+| `fleet_docker` | `/api/fleet/docker` | Containers on every Docker host, with a reason per unreachable host; errors when none answers (the console's container holds no Docker socket by design) |
 | `project_detail` | `/api/project/{name}` | One project's drill-down |
 | `harness_health` | `/api/state` `health` | Six-layer scorecard and trip wires, tripped first |
 | `harness_scorecard` | `/api/state` `harnesses` | Per-repo AI harness inventory, trends, attention; `repo` for one entry |
@@ -129,10 +131,10 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `lake_runs` | `/api/lake/runs` | Recent runs / traces (`limit`) |
 | `workflow_lines` | `/api/lake/lines` | Every workflow with provenance and kill switch (`filter`: all, failing, noswitch, ai) |
 | `observability` | `/api/observability` | Log and metrics planes (Elasticsearch/Kibana, Prometheus/Grafana, Phoenix) |
-| `code_search` | `/api/index/search`, `/api/index/harmonize` | Semantic search over the worktrees |
-| `index_coverage` | `/api/index/coverage` | What the code index covers |
+| `code_search` | `/api/index/search`, `/api/index/harmonize` | Semantic search over the worktrees (`mode`: search, harmonize) |
+| `index_coverage` | `/api/index/coverage` | What the code index covers, which collection it read and where it asked |
 | `deep_dive` | `/api/data/deep_dive` | Deep-dive cycle progress and per-repo status |
-| `work_board` | `/api/work` | The Work board lanes |
+| `work_board` | `/api/work` | One page of the Work board (`lane`, `repo`, `kind`, `stage`, `priority`, `q`, `limit`, `offset`, `summary`) |
 | `loops` | `/api/state` `loops` | The control-plane loops |
 | `fleet_overview` / `fleet_apps` / `fleet_inbox` / `fleet_work` | committed signals (`tools/fleetcore`) | The merged `fleet` server's views; no console needed |
 | `console_ops` / `console_jobs` / `console_job_log` | as `ops_list` / `jobs_list` / `job_log` | Legacy `fleet` names |
@@ -147,6 +149,14 @@ Write tools — registered only with `HARNESS_MCP_ALLOW_WRITES=1`, annotated `de
 | `workflow_kill_switch` | `POST /api/github/repos/{owner}/{repo}/actions` | `workflow.enable` / `workflow.disable` by `workflow_id` (needs the console's GitHub writes on) |
 
 Resources: `harness://overview`, `harness://health`, `harness://ops`, `harness://deep-dive`, `harness://live`.
+
+## Result size
+
+`HARNESS_MCP_MAX_CHARS` (60,000) is the last line of defence: a result over it becomes `{truncated, total_chars, json_prefix}`, which an agent reads as nothing useful. So a tool whose route answers with the whole of something pages instead of relying on the clip. `work_board` is the one that needs it — `/api/work` is ~390,000 characters over ~400 items, a quarter of it each item's `detail` record — so it defaults to `summary=true` and 40 items (~25,000 characters) and reports `matched`, `matched_by_lane` and `next_offset` so the rest can be walked. `summary=false` returns full items and caps `limit` at 25; one item's whole record is `work_item` / `fleet_work`. `fleet_status`, `jobs_list`, `lake_runs`, `workflow_lines` and `job_log` take the same shape of limit.
+
+## Reaching the planes from a container
+
+The MCP sidecar and the console run in containers, and the `_data/fleet.yml` URLs are the **browser's** (loopback — they are also the links the console renders). Every server-side probe therefore goes through `fleet_observe.probe_url`, which prefers `ES_URL`, `KIBANA_URL`, `GRAFANA_URL`, `QDRANT_URL`, `OLLAMA_URL`, `PROMETHEUS_URL` — set on `console` and `devenv` in `docker-compose.yml` to the service-DNS form. The code index missed this and asked the container's own `127.0.0.1:6333`, so `index_coverage` and `code_search` reported "Qdrant has no collection" against a store holding 17,341 points. Kilo's collection name is a hash of the workspace **root path**, which differs between the host (`/Users/bamr87/bamr87`) and a container (`/workspace`), so it is never recomputed: the store is listed and a `ws-` collection chosen (the fullest, when there are several). `QDRANT_COLLECTION` overrides that choice and wins even when the store cannot be listed. `index_coverage` returns `qdrant`, `collection`, `collections` and `collection_source` so a wrong pick is visible rather than looking like an index that covers nothing.
 
 ## Tests
 
