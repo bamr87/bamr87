@@ -54,6 +54,11 @@ except ImportError:  # pragma: no cover
     sys.stderr.write("console requires PyYAML: pip install pyyaml\n")
     sys.exit(2)
 
+_HERE = str(Path(__file__).resolve().parent)
+if _HERE not in sys.path:  # the console imports its siblings by bare name
+    sys.path.insert(0, _HERE)
+import subscription  # noqa: E402  (sibling module; the console runs with its own dir on sys.path)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA = REPO_ROOT / "_data"
 TOOLS = REPO_ROOT / "tools"
@@ -293,9 +298,22 @@ def load_state(now: dt.datetime | None = None) -> dict:
             "actions": {k: actions.get(k) for k in ("generated_at", "window_days", "totals", "by_day")},
             "ai": {k: ai.get(k) for k in ("generated", "window_days", "totals", "by_day")},
         },
+        "subscription": _subscription_block(fleet, ai, now),
         "loops": loop_cards(fleet, sources),
         "git": git_info(),
     }
+
+
+def _subscription_block(fleet: dict, ai: dict, now: dt.datetime) -> dict:
+    """The CI ledger's API-equivalent dollars against the prorated Claude subscription
+    (tools/console/subscription.py). Never added to the subscription fee."""
+    budget = ((fleet.get("harnesses") or {}).get("budget")) or {}
+    totals = ai.get("totals") or {}
+    days = ai.get("window_days")
+    windows = {}
+    if isinstance(days, (int, float)) and days > 0:
+        windows["ci_window"] = (totals.get("ci_accounted_usd"), float(days), f"CI ledger ({days}d, dash ai)")
+    return subscription.model(budget, now, windows=windows)
 
 
 # --------------------------------------------------------------------------- #

@@ -16,6 +16,7 @@ import json, os, time, urllib.parse, urllib.request
 from datetime import datetime, timezone
 
 import core
+import subscription
 
 SESSIONS = core.REPO_ROOT / ".dash-live" / "sessions.json"
 STALE_S = 30
@@ -59,14 +60,38 @@ def _prom(q: str) -> float | None:
     return round(sum(float(x["value"][1]) for x in res), 4) if res else 0.0
 
 
-def claude_live() -> dict:
+COST = "claude_code_cost_usage_USD_total"
+
+
+def claude_live(now: datetime | None = None) -> dict:
+    """Claude Code's OTel usage. The cost metric is Claude Code's own API-list-price
+    ESTIMATE, emitted under subscription logins too — an API-equivalent value, not a
+    bill. `cost_usd_*` keep their names for compatibility; `api_equiv_usd_*` are the
+    same numbers under the honest name, and `subscription` sets them against the
+    prorated flat fee (tools/console/subscription.py)."""
+    now = now or datetime.now(timezone.utc)
+    mtd_s = int(subscription.month_elapsed_days(now) * 86400)
+    c24 = _prom(f"sum(increase({COST}[24h]))")
+    c1 = _prom(f"sum(increase({COST}[1h]))")
+    mtd = _guard(lambda: _prom(f"sum(increase({COST}[{mtd_s}s]))"))
+    mtd = mtd if isinstance(mtd, (int, float)) else None
+    budget = ((core.load_yaml(core.DATA / "fleet.yml") or {}).get("harnesses") or {}).get("budget") or {}
     return {
         "source": PROM,
-        "cost_usd_24h": _prom("sum(increase(claude_code_cost_usage_USD_total[24h]))"),
-        "cost_usd_1h": _prom("sum(increase(claude_code_cost_usage_USD_total[1h]))"),
+        "cost_kind": subscription.LABEL_API_EQUIV,
+        "cost_usd_24h": c24,
+        "cost_usd_1h": c1,
+        "api_equiv_usd_24h": c24,
+        "api_equiv_usd_1h": c1,
+        "api_equiv_usd_mtd": mtd,
         "tokens_1h": _prom("sum(increase(claude_code_token_usage_tokens_total[1h]))"),
         "sessions_24h": _prom("sum(increase(claude_code_session_count_total[24h]))"),
         "active_time_s_1h": _prom("sum(increase(claude_code_active_time_seconds_total[1h]))"),
+        "subscription": subscription.model(
+            budget, now,
+            windows={"24h": (c24, 1.0, "last 24h (OTel)"),
+                     "mtd": (mtd, subscription.month_elapsed_days(now), "month to date (OTel)")},
+            mtd_api_equiv_usd=mtd),
     }
 
 

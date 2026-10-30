@@ -28,9 +28,11 @@ coverage: listed
 | `test_health_autostart.py` | file | Startup health refresh — the `health` job starts when `_data/project_health.yml` is missing, undated or stale and not when fresh, the timeout cancels it, failures never block startup, `CONSOLE_AUTO_HEALTH=0`, and the FastAPI lifespan wiring | required |
 | `mcp_layer/` | dir | The console's HTTP API as an MCP server (official `mcp` SDK): `server.py` (read tools, resources, guarded write tools behind `HARNESS_MCP_ALLOW_WRITES`, stdio and bearer-authenticated streamable HTTP on loopback) and `client.py` (stdlib HTTP client; token from env or `.env`, never printed) — docs/mcp-layer.md | required |
 | `live.py` | file | Builds the `/api/live` snapshot for the `/live` page (sessions, Claude live usage, jobs, spend, health, deep dive) | required |
+| `subscription.py` | file | The Claude subscription as a discounted rate off API list prices: API-equivalent estimate vs the prorated flat fee per window (effective discount, rate multiplier, value multiple), usage-pace headroom, metered API spend kept separate — never summed | required |
 | `live_collector.py` | file | Host-side collector writing `.dash-live/sessions.json` (the container cannot see host Claude processes) | required |
 | `mcp.sh` | file | Bootstraps `.venv-mcp` from `requirements-mcp.txt` and execs the MCP server (`tools/dash mcp`, `.mcp.json` `fleet`; `--http`, `--tunnel`, `--fleet-compat`) | required |
 | `requirements-mcp.txt` | file | The MCP layer's dependencies (`mcp`, `uvicorn`), always-latest | required |
+| `test_subscription.py` | file | Subscription-discount model tests: the 24 h worked example, degraded inputs, honest headroom without plan-limit data, metered N/A, the `/api/state` and `/api/live` blocks | required |
 | `test_mcp_layer.py` | file | MCP layer unit tests — mocked HTTP through the real protocol: writes hidden by default, destructive annotations and the confirm refusal, result trimming, tool errors without the token, HTTP bearer + Host checks | required |
 | `smoke_mcp_layer.py` | file | Live smoke test — the MCP server over stdio against the running console: list tools and resources, call read tools | required |
 | `docs/` | dir | Console design notes: `mcp-layer.md` (the MCP layer: setup, transports, tool catalog) | terminal |

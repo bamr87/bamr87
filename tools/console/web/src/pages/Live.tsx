@@ -11,6 +11,7 @@ import { useLive } from '../api/live';
 import { LogView, useJobTail } from '../jobs/JobLog';
 import { Banner, Empty, LocalOnly, Meter, Mono, PageHeader, Section, StatTile, Status, type Tone } from '../components/ui';
 import { hasConsole } from '../api/backend';
+import { SubscriptionPanel } from '../components/SubscriptionPanel';
 
 type Row = Record<string, any>;
 const n = (v: unknown, d = 2) => (typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: d }) : '—');
@@ -64,7 +65,7 @@ export function Live() {
 
       <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
         <StatTile label="Claude sessions" value={`${s.counts?.active ?? 0} active / ${s.counts?.total ?? 0}`} sub={`collector ${s.collector ?? '—'}${s.age_s != null ? ` · ${n(s.age_s, 0)}s old` : ''}`} tone={s.collector === 'ok' ? undefined : 'crit'} />
-        <StatTile label="Claude cost (24h, OTel)" value={usd(cl.cost_usd_24h)} sub={`1h ${usd(cl.cost_usd_1h)} · ${n(cl.tokens_1h, 0)} tokens/1h · ${n(cl.sessions_24h, 0)} sessions/24h`} href="/observe/metrics" />
+        <StatTile label="Claude API-equivalent (24h, estimate, not billed)" value={usd(cl.api_equiv_usd_24h ?? cl.cost_usd_24h)} sub={`subscription share ${usd(cl.subscription?.windows?.['24h']?.subscription_usd)} · discount ${cl.subscription?.windows?.['24h']?.effective_discount_pct ?? '—'}% · 1h ${usd(cl.api_equiv_usd_1h ?? cl.cost_usd_1h)} · ${n(cl.tokens_1h, 0)} tokens/1h · ${n(cl.sessions_24h, 0)} sessions/24h`} href="/observe/metrics" />
         <StatTile label="Running jobs" value={running.length} sub={`${(jobs.recent ?? []).length} recent`} href="/jobs" />
         <StatTile label="Deep dive" value={`${dd.processed ?? 0}/${dd.total ?? '—'}`} meter={<Progress value={100 * (dd.progress ?? 0)} />} sub={`cycle ${dd.cycle ?? '—'} · day ${dd.day ?? '—'}/${dd.cycle_days ?? '—'} · today ${dd.today?.repo ?? '—'}`} href="/deep-dive" />
       </SimpleGrid>
@@ -86,9 +87,13 @@ export function Live() {
         )}
       </Section>
 
+      <Section title="Claude subscription vs API list price">
+        <SubscriptionPanel m={cl.subscription} />
+      </Section>
+
       <Section title="Spend vs budget">
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-          <Budget title="Claude CI spend (dash ai)" t={spend.ai_cost_usd} money href="/costs" />
+          <Budget title="Claude CI usage (dash ai, API-equivalent)" t={spend.ai_cost_usd} money href="/costs" />
           <Budget title="GitHub Actions minutes" t={spend.actions_minutes} money={false} href="/costs" />
         </SimpleGrid>
         {err(spend) ? <Banner tone="crit">{err(spend)}</Banner> : null}

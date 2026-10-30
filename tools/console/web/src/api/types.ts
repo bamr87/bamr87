@@ -2,6 +2,8 @@
 // tools/fleetcore/views.py). Every field is optional where the source file can
 // be absent: the console renders a degraded page rather than failing.
 
+import type { SubscriptionModel } from '../components/SubscriptionPanel';
+
 export type Level = 'red' | 'amber' | 'green';
 export type Dict<T = unknown> = Record<string, T>;
 
@@ -140,6 +142,7 @@ export interface StateDoc {
     actions: { window_days?: number; by_day?: { date: string; runs?: number; total_min?: number }[] };
     ai: { window_days?: number; by_day?: { day: string; runs?: number; cost_usd?: number }[] };
   };
+  subscription?: SubscriptionModel;
   loops: Loop[];
   git: { available?: boolean; branch?: string; head?: string; dirty_count?: number };
 }

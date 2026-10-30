@@ -331,7 +331,10 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
 
     @mcp.tool(annotations=READ)
     def spend_vs_budget() -> Any:
-        """Claude spend and GitHub Actions minutes over the window, against the budgets in _data/fleet.yml."""
+        """Claude usage and GitHub Actions minutes against _data/fleet.yml budgets. Claude dollars are
+        API-equivalent ESTIMATES (list prices, not billed); `subscription` sets them against the flat
+        Claude subscription as an effective discount — the two are never summed. Metered API spend
+        (api_key runs) is reported separately."""
         def run():
             s = state()
             usage, contract = s.get("usage", {}), s.get("contract", {})
@@ -340,9 +343,18 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
                 if isinstance(v, dict):
                     budgets.update({f"{k}.{kk}": vv for kk, vv in v.items() if "budget" in kk.lower() or "cap" in kk.lower()})
             ai = usage.get("ai", {})
+            sub = s.get("subscription")
+            try:
+                live = (c.get("/api/live") or {}).get("claude_live") or {}
+                live_sub = live.get("subscription") if isinstance(live, dict) else None
+            except ConsoleError:
+                live_sub = None
             return {"ai": {k: v for k, v in ai.items() if k not in ("by_day", "runs")} if isinstance(ai, dict) else ai,
+                    "ai_cost_kind": "API-equivalent (estimate, not billed)",
                     "actions": {k: v for k, v in usage.get("actions", {}).items() if k not in ("by_day", "by_workflow", "runs")},
-                    "budgets": budgets}
+                    "budgets": budgets,
+                    "subscription": sub,
+                    "subscription_live": live_sub}
         return call(run)
 
     @mcp.tool(annotations=READ)
