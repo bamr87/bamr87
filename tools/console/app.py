@@ -49,6 +49,7 @@ import github_link as ghl
 import site_docs
 import tui_bridge
 import live
+import claude_telemetry
 
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
 # renders, the keys v1 table, and the bashOS palette.
@@ -362,6 +363,17 @@ async def live_stream(interval: float = Query(default=5.0, ge=1.0, le=60.0)) -> 
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/api/claude-telemetry", dependencies=[Depends(require_token)])
+def claude_telemetry_doc(window: str = Query(default="24h", pattern="^(1h|24h|7d)$"),
+                         session: str | None = Query(default=None, max_length=64),
+                         limit: int = Query(default=20, ge=1, le=100)) -> dict:
+    """Claude Code's native OTel telemetry (claude_telemetry.py): Prometheus metrics + ES events, read-only."""
+    try:
+        return claude_telemetry.snapshot(window, session, limit)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @app.get("/api/lake", dependencies=[Depends(require_token)])

@@ -43,7 +43,7 @@ from mcp_layer.client import Console, ConsoleError, dotenv_value  # noqa: E402
 VERSION = "0.1.0"
 INSTRUCTIONS = (
     "bamr87 Harness Console: the fleet's control plane. Start with console_overview, then drill in: "
-    "fleet_status, harness_health, live_snapshot, jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
+    "fleet_status, harness_health, live_snapshot, claude_telemetry, jobs_list/job_log, spend_vs_budget, lake_runs, workflow_lines, "
     "code_search, deep_dive. Write tools exist only when the operator enabled them; each needs confirm=true and "
     "you must ask the user before setting it."
 )
@@ -283,6 +283,26 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
             except ConsoleError as e:
                 if e.status == 404:
                     raise ConsoleError("this console has no /api/live yet — it ships with bamr87/bamr87#432") from None
+                raise
+        return call(run)
+
+    @mcp.tool(annotations=READ)
+    def claude_telemetry(window: Literal["1h", "24h", "7d"] = "24h", session: str | None = None,
+                         limit: int = 20) -> Any:
+        """Claude Code's native OpenTelemetry from the fleet stack (read-only): claude_code_* series names;
+        sessions, tokens by type/model, active time, lines of code, commits/PRs, edit-tool decisions over the
+        window (Prometheus); event counts, per-session api_request rollups and the latest api_request/tool_result
+        rows (Elasticsearch logs-fleet.claude-*). `session` filters events by session id prefix. Cost is
+        Claude Code's API-equivalent (estimate), not the subscription bill — use spend_vs_budget for that."""
+        def run():
+            q = {"window": window, "limit": max(1, min(int(limit), 100))}
+            if session:
+                q["session"] = session
+            try:
+                return c.get("/api/claude-telemetry", **q)
+            except ConsoleError as e:
+                if e.status == 404:
+                    raise ConsoleError("this console has no /api/claude-telemetry yet (feat/console-claude-telemetry)") from None
                 raise
         return call(run)
 
