@@ -11,6 +11,7 @@ import { useLive } from '../api/live';
 import { LogView, useJobTail } from '../jobs/JobLog';
 import { Banner, Empty, LocalOnly, Meter, Mono, PageHeader, Section, StatTile, Status, type Tone } from '../components/ui';
 import { hasConsole } from '../api/backend';
+import { ClaudeTelemetry } from './ClaudeTelemetry';
 
 type Row = Record<string, any>;
 const n = (v: unknown, d = 2) => (typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: d }) : '—');
@@ -85,6 +86,8 @@ export function Live() {
           </Table></Paper>
         )}
       </Section>
+
+      <ClaudeTelemetry />
 
       <Section title="Spend vs budget">
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
