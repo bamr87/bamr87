@@ -589,7 +589,8 @@ def main(argv: list[str] | None = None) -> int:
     import uvicorn
     print(f"harness-mcp: streamable HTTP on http://{a.host}:{a.port}/mcp (bearer auth; writes "
           f"{'ENABLED' if truthy(os.environ.get('HARNESS_MCP_ALLOW_WRITES')) else 'disabled'})", file=sys.stderr)
-    uvicorn.run(http_app(server, a.host, a.port, token, a.allow_host), host=a.host, port=a.port, log_level="warning")
+    extra = a.allow_host + [h.strip() for h in os.environ.get("HARNESS_MCP_ALLOW_HOSTS", "").split(",") if h.strip()]
+    uvicorn.run(http_app(server, a.host, a.port, token, extra), host=a.host, port=a.port, log_level="warning")
     return 0
 
 
