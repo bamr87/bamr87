@@ -191,6 +191,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
 | [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |
+| [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.auto_tiers` switch that keeps the conflict engine at tier 0. |
 | [`test_jev_ledger.py`](tools/test_jev_ledger.py) | Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the monthly cap. |
 | [`test_jev_number.py`](tools/test_jev_number.py) | Fixture tests for tools/jev/number.py — the assign-at-merge numbering compiler. |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
