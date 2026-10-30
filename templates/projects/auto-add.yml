@@ -1,0 +1,19 @@
+# Reusable workflow skeleton — to be published as bamr87/.github/.github/workflows/project-auto-add.yml
+# AFTER amendment 0003 is ratified. Each repo calls it with:
+#   jobs: { track: { uses: bamr87/.github/.github/workflows/project-auto-add.yml@v1, secrets: inherit } }
+name: project-auto-add
+on:
+  workflow_call:
+    inputs:
+      project-url: { type: string, default: "https://github.com/users/bamr87/projects/PORTFOLIO_NUMBER" }
+    secrets:
+      PROJECTS_TOKEN: { required: true }   # fine-grained PAT / GitHub App with Projects: read+write
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/add-to-project@v1
+        with:
+          project-url: ${{ inputs.project-url }}
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+      # phase 2: set Status=Inbox, Repo, and map labels -> fields via framework.yml (projects_sync.py)

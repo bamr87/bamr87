@@ -1,0 +1,27 @@
+id: HUB-NEW
+slug: github-projects-framework
+title: Fleet work-tracking framework on GitHub Projects (proposed)
+description: 'One spec (templates/projects/framework.yml) for the Fleet Portfolio and domain projects: fields, options, views, lifecycle and the label map; a reusable auto-add workflow for bamr87/.github; reconciled after amendment 0003 is ratified.'
+implemented: false
+status: planned
+surface: infra
+link: templates/projects/framework.yml
+docs: docs/PROJECTS-FRAMEWORK.md
+tags:
+- governance
+- projects
+- labels
+- fleet
+date: 2026-10-29
+tests:
+- tools/test_projects_lint.py
+prd:
+- FR-NEW:projects-coverage
+- NFR-NEW:projects-scope-honest
+prd_new:
+- key: projects-coverage
+  kind: FR
+  text: Every open issue and PR in a registry repo is an item of the Fleet Portfolio GitHub Project (and its domain project) carrying the required fields (Status, Priority, Area, Repo; Feature ID and PRD req when it changes a feature or requirement), defined once in `templates/projects/framework.yml` and checked by `tools/projects_lint.py`; see [docs/PROJECTS-FRAMEWORK.md](docs/PROJECTS-FRAMEWORK.md)
+- key: projects-scope-honest
+  kind: NFR
+  text: 'work tracking never depends on a token scope silently — every projects tool and collector reports `scope_missing: project` instead of an empty result, and project mutations run only from the sanctioned sync workflow or the MCP layer''s confirm-gated write tools'
