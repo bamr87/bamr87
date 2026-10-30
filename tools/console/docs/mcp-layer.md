@@ -21,6 +21,7 @@ It absorbed the older `fleet` server (`tools/fleetcore/mcp_server.py`, stdlib, s
 tools/dash mcp                  # stdio (what an MCP host launches)
 tools/dash mcp --http           # streamable HTTP on http://127.0.0.1:4002/mcp, bearer auth
 tools/dash mcp --http --port 4010 --allow-host my-tunnel.example
+tools/dash mcp --tunnel-url     # current URL of the persistent compose mcp-tunnel service
 tools/dash mcp --tunnel         # TEMPORARY public URL via a cloudflared quick tunnel (Ctrl-C stops it)
 tools/dash mcp --fleet-compat   # also register the legacy fleet action tools (what .mcp.json uses)
 tools/dash mcp --list-tools     # print the catalog (read / WRITE) and exit
@@ -76,6 +77,27 @@ docker compose --profile mcp stop mcp
 ```
 
 Opt-in, never started by a plain `docker compose up`. `python:3.13-slim`, repo mounted read-only, venv in the `venv-mcp` volume, token read from the mounted `.env`, talks to `http://console:4001` with `Host: 127.0.0.1:4001`. It does not restart or depend on `console`. Writes stay off unless `HARNESS_MCP_ALLOW_WRITES=1`.
+
+## Remote access (persistent quick tunnel — compose `mcp-tunnel`)
+
+```bash
+docker compose --profile mcp --profile mcp-tunnel up -d mcp mcp-tunnel
+tools/dash mcp --tunnel-url     # prints https://<random>.trycloudflare.com/mcp, writes .dash-live/mcp-tunnel-url
+```
+
+An opt-in cloudflared quick tunnel to the `mcp` service, `restart: unless-stopped`. It rewrites Host to `127.0.0.1:4002` so the server's loopback Host check passes; the bearer `HARNESS_MCP_TOKEN` is the gate and writes stay off. Its metrics port (`127.0.0.1:${HARNESS_MCP_TUNNEL_METRICS_PORT:-4003}`) serves `/quicktunnel`, which `--tunnel-url` reads. **The hostname is not stable**: it changes whenever the container restarts, so a connector pointing at it must be updated.
+
+### Stable hostname (needs a one-time interactive sign-in)
+
+Named Cloudflare Tunnel (requires a domain on Cloudflare):
+
+```bash
+docker run -it --rm -v ~/.cloudflared:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel login
+docker run --rm -v ~/.cloudflared:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel create harness-mcp
+docker run --rm -v ~/.cloudflared:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel route dns harness-mcp mcp.<your-domain>
+```
+
+Then run `tunnel run harness-mcp` with an ingress to `http://mcp:4002` and set `HARNESS_MCP_ALLOW_HOSTS=mcp.<your-domain>` on the `mcp` service (comma-separated; added to `--allow-host`). Alternatives: Tailscale Funnel or an ngrok static domain.
 
 ## Remote access (temporary tunnel)
 

@@ -9,6 +9,8 @@
 #
 #   (no args)           stdio transport — what Claude Code / Cursor launch
 #   --http [--port N]   streamable HTTP on 127.0.0.1:4002/mcp, bearer auth
+#   --tunnel-url       print the persistent quick tunnel's URL (compose profile
+#                      mcp-tunnel) and record it in .dash-live/mcp-tunnel-url
 #   --tunnel [--port N] --http plus a TEMPORARY cloudflared quick tunnel
 #                       (https://<random>.trycloudflare.com/mcp), its hostname
 #                       passed to --allow-host; Ctrl-C stops both. Uses a native
@@ -27,6 +29,22 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
+# --- --tunnel-url: the compose `mcp-tunnel` service's current public URL.
+# cloudflared's metrics server answers /quicktunnel with the hostname.
+if [[ "${1:-}" == "--tunnel-url" ]]; then
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  mport="${HARNESS_MCP_TUNNEL_METRICS_PORT:-4003}"
+  host="$(curl -fsS --max-time 5 "http://127.0.0.1:${mport}/quicktunnel" 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin).get("hostname",""))' 2>/dev/null)"
+  if [[ -z "$host" ]]; then
+    echo "harness-mcp: no quick tunnel on 127.0.0.1:${mport} — start it: docker compose --profile mcp --profile mcp-tunnel up -d mcp mcp-tunnel" >&2
+    exit 1
+  fi
+  mkdir -p "$root/.dash-live"
+  echo "https://${host}/mcp" | tee "$root/.dash-live/mcp-tunnel-url"
+  exit 0
+fi
+
 VENV="${HARNESS_MCP_VENV:-$ROOT/.venv-mcp}"
 REQ="$HERE/requirements-mcp.txt"
 # A PYTHONPATH from the shell (e.g. the dash's site-packages) would shadow the venv's packages.

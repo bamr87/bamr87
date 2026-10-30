@@ -251,7 +251,8 @@ cmd_mcp() {
   # by default — what an MCP host launches; --http serves streamable HTTP on
   # 127.0.0.1 with bearer auth for remote agents. Writes stay off unless
   # HARNESS_MCP_ALLOW_WRITES=1. --tunnel adds a temporary cloudflared quick
-  # tunnel for an off-machine agent, stopped with the server.
+  # tunnel for an off-machine agent, stopped with the server. --tunnel-url
+  # prints the persistent compose `mcp-tunnel` service's current URL.
   exec "${TOOLS}/console/mcp.sh" "$@"
 }
 
