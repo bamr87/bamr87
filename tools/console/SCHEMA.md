@@ -38,6 +38,8 @@ coverage: listed
 | `docs/` | dir | Console design notes: `mcp-layer.md` (the MCP layer: setup, transports, tool catalog) | terminal |
 | `design-system/` | dir | `@bamr87/harness-console-ui` — the console's EARLIER hand-written look as a small React package, kept as the Claude Design sync source (the live page is `web/`) (source in `src/`, built to `dist/`), and the `.design-sync/` config that publishes it to Claude Design | terminal |
 | `web/` | dir | The page — React + TypeScript on Mantine, TanStack Query, React Router and xterm.js, built by Vite into `web/dist/` (gitignored) that `app.py` serves; `run.sh` rebuilds it when its sources change | terminal |
+| `claude_telemetry.py` | file | `/api/claude-telemetry`: Claude Code native OTel, read-only — `claude_code_*` metrics from Prometheus and `api_request`/`tool_result` events from Elasticsearch; cost labelled API-equivalent (estimate) | terminal |
+| `test_claude_telemetry.py` | file | Tests for `claude_telemetry.py`: totals, window/session validation, no identity fields, degradation | terminal |
 
 ## Placement
 

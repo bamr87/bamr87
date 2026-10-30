@@ -83,6 +83,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-036](features/features.yml) | Fleet work-tracking framework on GitHub Projects (proposed) | planned | [`templates/projects/framework.yml`](templates/projects/framework.yml) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR29, NFR12 |
 | [HUB-037](features/features.yml) | Projects coverage gate: every open issue/PR tracked with required fields (proposed) | planned | [`tools/projects_lint.py`](tools/projects_lint.py) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR29, NFR12 |
 | [HUB-038](features/features.yml) | Features/PRD ↔ project sync and console Projects panel (proposed) | planned | [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR30, NFR12 |
+| [HUB-039](features/features.yml) | Claude Code OTel telemetry in the console and MCP | shipped | [`tools/console/claude_telemetry.py`](tools/console/claude_telemetry.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | TBD |
 
 **Requirement → feature trace**
 

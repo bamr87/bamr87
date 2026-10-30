@@ -597,3 +597,24 @@ features:
     prd:
     - FR30
     - NFR12
+  - id: HUB-039
+    title: Claude Code OTel telemetry in the console and MCP
+    description: Read-only /api/claude-telemetry route, a Claude Code telemetry section on /live and a claude_telemetry
+      MCP tool surface Claude Code's native OpenTelemetry from the fleet stack — sessions, tokens by type/model,
+      active time, lines, commits/PRs, edit decisions (Prometheus) and per-session api_request events (Elasticsearch)
+      — with cost labelled API-equivalent (estimate).
+    implemented: true
+    status: shipped
+    surface: ui
+    link: tools/console/claude_telemetry.py
+    docs: docs/OBSERVABILITY.md
+    tags:
+    - console
+    - observability
+    - claude-code
+    - otel
+    - mcp
+    date: 2026-10-30
+    tests:
+    - tools/console/test_claude_telemetry.py
+    - tools/console/test_mcp_layer.py

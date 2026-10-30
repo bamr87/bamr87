@@ -12,6 +12,7 @@ import { LogView, useJobTail } from '../jobs/JobLog';
 import { Banner, Empty, LocalOnly, Meter, Mono, PageHeader, Section, StatTile, Status, type Tone } from '../components/ui';
 import { hasConsole } from '../api/backend';
 import { SubscriptionPanel } from '../components/SubscriptionPanel';
+import { ClaudeTelemetry } from './ClaudeTelemetry';
 
 type Row = Record<string, any>;
 const n = (v: unknown, d = 2) => (typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: d }) : '—');
@@ -90,6 +91,7 @@ export function Live() {
       <Section title="Claude subscription vs API list price">
         <SubscriptionPanel m={cl.subscription} />
       </Section>
+      <ClaudeTelemetry />
 
       <Section title="Spend vs budget">
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">

@@ -329,6 +329,14 @@ class HttpClient(unittest.TestCase):
         self.assertEqual(seen["url"], "http://x/api/jobs/1?offset=0")
 
 
+class ClaudeTelemetryTool(unittest.TestCase):
+    def test_passes_window_and_session(self):
+        fc = FakeConsole({"/api/claude-telemetry": {"cost_label": "API-equivalent (estimate)"}})
+        res, text = call(srv.build_server(fc), "claude_telemetry", {"window": "1h", "session": "abcd"})
+        self.assertEqual(payload(res, text)["cost_label"], "API-equivalent (estimate)")
+        self.assertEqual(fc.calls[-1][:3], ("GET", "/api/claude-telemetry", {"window": "1h", "limit": 20, "session": "abcd"}))
+
+
 class MergedFleet(unittest.TestCase):
     """tools/fleetcore/mcp_server.py folded in: same names, the legacy writes only on --fleet-compat or writes on."""
     LEGACY_READ = {"fleet_overview", "fleet_apps", "fleet_inbox", "fleet_docker", "fleet_work",
