@@ -459,7 +459,7 @@ features:
       - { na: "tested locally only; automated tests not yet written (bamr87/bamr87#432)" }
   - id: HUB-031
     title: "Harness Console MCP layer: the console's API for any AI agent"
-    description: "tools/dash mcp serves the Harness Console's HTTP API as an MCP server built on the official mcp SDK: stdio for Claude Code, Cursor and local agents (registered in .mcp.json as fleet, having absorbed tools/fleetcore/mcp_server.py: its fleet_* read tools and console_* action names live on as tools and aliases, with --fleet-compat) and streamable HTTP on 127.0.0.1:4002/mcp with bearer auth and DNS-rebinding protection for remote agents such as Grok Bots. 26 read tools (22 console + 4 merged fleet views) and 5 resources cover fleet status, harness health and scorecard, live snapshot and sessions (with bamr87/bamr87#432), agent activity, ops, jobs and logs, spend vs budget, the lake's runs and workflow lines, observability, semantic code search, the deep dive, the Work board and the loops. Write tools (run_op, cancel_job, workflow_kill_switch) are registered only with HARNESS_MCP_ALLOW_WRITES=1, annotated destructive, and refused without confirm=true; the console's allowlist and confirm gate still decide. HTTP auth uses a dedicated HARNESS_MCP_TOKEN (never the console token); an opt-in compose sidecar (profile mcp, 127.0.0.1:4002) keeps it always on, and dash mcp --tunnel opens a temporary cloudflared quick tunnel."
+    description: "tools/dash mcp serves the Harness Console's HTTP API as an MCP server built on the official mcp SDK: stdio for Claude Code, Cursor and local agents (registered in .mcp.json as fleet, having absorbed tools/fleetcore/mcp_server.py: its fleet_* read tools and console_* action names live on as tools and aliases, with --fleet-compat) and streamable HTTP on 127.0.0.1:4002/mcp with bearer auth and DNS-rebinding protection for remote agents such as Grok Bots. 26 read tools (22 console + 4 merged fleet views) and 5 resources cover fleet status, harness health and scorecard, live snapshot and sessions (with bamr87/bamr87#432), agent activity, ops, jobs and logs, spend vs budget, the lake's runs and workflow lines, observability, semantic code search, the deep dive, the Work board and the loops. Write tools (run_op, cancel_job, workflow_kill_switch) are registered only with HARNESS_MCP_ALLOW_WRITES=1, annotated destructive, and refused without confirm=true; the console's allowlist and confirm gate still decide. HTTP auth uses a dedicated HARNESS_MCP_TOKEN (never the console token); an opt-in compose sidecar (profile mcp, 127.0.0.1:4002) keeps it always on, and dash mcp --tunnel opens a temporary cloudflared quick tunnel. Results are sized for an agent's context: work_board pages the ~390k-character /api/work document (summary=true drops each item's detail record; lane/repo/kind/stage/priority/q filters, limit/offset, matched_by_lane and next_offset), and fleet_docker errors with the remedy when no Docker host answers instead of returning an empty container list. The code index reaches Qdrant and Ollama through QDRANT_URL / OLLAMA_URL (the contract's URLs are the browser's) and chooses the collection by listing the store, since Kilo's name is a hash of the workspace root path; QDRANT_COLLECTION overrides it."
     implemented: true
     status: shipped
     prd: [FR26, NFR9]
@@ -467,10 +467,25 @@ features:
     link: tools/console/mcp_layer/server.py
     docs: tools/console/docs/mcp-layer.md
     tags: [ console, mcp, agents, ai-layer, integration ]
-    date: 2026-10-29
+    date: 2026-10-30
     tests:
       - tools/console/test_mcp_layer.py
+      - .github/scripts/dash-gen/test_fleet_index.py
   - id: HUB-032
+    title: "Claude spend accounting: every CI run priced, estimated or proved free"
+    description: "The committed Claude ledger (_data/ai_usage.yml, tools/dash-gen ai-usage) accounts every AI run in the fleet instead of leaving 87% of them unpriced. It collects the HUB itself alongside the registry (_data/fleet.yml hub.repo is not a registry entry, so fleet-pulse's doctor, the issue pipeline's three tiers and the fan-outs — the largest caps in budget.call_sites — were missing from every number), detects Claude by all three routes the fleet uses (claude-code-action, the claude-run composite, a vendored scripts/ai/run.sh), and states the source of each run's figure: reported total_cost_usd summed across the run's Claude sessions and de-duplicated per session_id (last-match-wins charged a three-session run for one; the log zip holds each job's text twice, so summing raw matches double-charged), a token-rate price at API list prices with cache writes at 1.25x/2x input and reads at 0.1x, no-spend for a skipped run or a log with no Claude step in it (the loops' is-the-loop-on gate job — 146 of the 242 runs that read as unpriced on 2026-10-29), or an explicit est_cost_usd with a named basis (workflow median, turns at budget.usd_per_turn, fleet median). Totals report ci_cost_usd, ci_estimated_usd and ci_accounted_usd with the estimated share, and the $75/month budget check (harness_registry trends.ai_cost_usd) is judged on the accounted figure. Rendered at /ai-usage and /costs."
+    implemented: true
+    status: shipped
+    prd: [FR27, NFR10]
+    surface: infra
+    link: .github/scripts/dash-gen/ai_usage_collector.py
+    docs: docs/AI-INTEGRATION.md
+    tags: [ ai, cost, budget, ledger, transparency, dashboard ]
+    date: 2026-10-29
+    tests:
+      - .github/scripts/dash-gen/test_ai_usage_collector.py
+      - .github/scripts/dash-gen/test_harness_registry.py
+  - id: HUB-033
     title: "The fleet's one release-please workflow, degrading to a warning without a PR credential"
     description: "Every fleet repo's Release workflow is a thin caller of .github/workflows/release-please.yml (SDLC kit templates/sdlc/release/): release-please computes the version from Conventional Commits, rewrites CHANGELOG.md on a release PR, and tags plus publishes the GitHub Release when that PR merges. Opening the release PR needs a credential allowed to create one (RELEASE_PLEASE_TOKEN, or the repo's Actions setting letting GITHUB_TOKEN open PRs); with neither, GitHub refuses POST /pulls. The workflow runs the tagging pass strictly and guards only the PR pass, so that one denial is a warning with the two remedies in the run summary instead of a red run on every push, and strict-pr-creation: true turns it back into a failure where the credential is provisioned."
     implemented: true

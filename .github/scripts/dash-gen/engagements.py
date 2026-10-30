@@ -464,7 +464,13 @@ def load_calibration(usage_path: Path) -> dict[str, float]:
     calib: dict[str, float] = {}
     if isinstance(usage, dict):
         for row in usage.get("by_repo", []):
-            runs = (row.get("runs") or 0) - (row.get("unpriced_runs") or 0)
+            # `priced_runs` counts the runs whose cost was MEASURED; runs minus
+            # unpriced is the older ledger's approximation of the same thing,
+            # and it now also counts the no-spend runs (skipped, gate-only),
+            # which would divide real spend by runs that never called a model.
+            priced = row.get("priced_runs")
+            runs = (priced if priced is not None
+                    else (row.get("runs") or 0) - (row.get("unpriced_runs") or 0))
             cost = row.get("cost_usd") or 0.0
             if runs > 0 and cost > 0:
                 calib[row["repo"]] = cost / runs

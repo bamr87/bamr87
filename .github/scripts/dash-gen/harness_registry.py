@@ -434,8 +434,12 @@ def join_usage(repos: list[dict], ai_usage: dict, actions_usage: dict) -> None:
             repo["ai_usage"] = {
                 "runs": a.get("runs"),
                 "cost_usd": a.get("cost_usd"),
+                "est_cost_usd": a.get("est_cost_usd"),
+                "accounted_usd": a.get("accounted_usd"),
                 "minutes": a.get("minutes"),
+                "priced_runs": a.get("priced_runs"),
                 "unpriced_runs": a.get("unpriced_runs"),
+                "no_spend_runs": a.get("no_spend_runs"),
             }
         else:
             repo["ai_usage"] = None
@@ -603,12 +607,25 @@ def _apply_billing(trend: dict, billing: dict, budget_monthly, warn_pct: float) 
     return out
 
 
+def ai_day_cost(row: dict) -> float:
+    """What one day of Claude CI cost the fleet: measured spend PLUS the stated
+    estimate for the runs that left no usage behind (`accounted_usd`).
+
+    Judging the ceiling on the measured half alone is how a fleet whose runs
+    were 87% unpriced read as $1.03 against a $75/month budget. A ledger
+    written before the estimator existed has no `accounted_usd`, so the
+    measured figure is still honoured as the whole.
+    """
+    if row.get("accounted_usd") is not None:
+        return float(row["accounted_usd"] or 0)
+    return float(row.get("cost_usd") or 0) + float(row.get("est_cost_usd") or 0)
+
+
 def build_trends(ai_usage: dict, actions_usage: dict, cfg: dict) -> dict:
     budget = cfg["budget"]
-    ai_series = [
-        (str(r.get("day")), float(r.get("cost_usd") or 0))
-        for r in ai_usage.get("by_day") or [] if isinstance(r, dict) and r.get("day")
-    ]
+    ai_days = [r for r in ai_usage.get("by_day") or []
+               if isinstance(r, dict) and r.get("day")]
+    ai_series = [(str(r.get("day")), ai_day_cost(r)) for r in ai_days]
     act_series = [
         (str(r.get("date")), float(r.get("total_min") or 0))
         for r in actions_usage.get("by_day") or [] if isinstance(r, dict) and r.get("date")
@@ -619,9 +636,19 @@ def build_trends(ai_usage: dict, actions_usage: dict, cfg: dict) -> dict:
     if isinstance(billing, dict) and not billing.get("error"):
         actions = _apply_billing(actions, billing, budget.get("monthly_actions_minutes"),
                                  budget["trend_warn_pct"])
+    ai = _series_trend(ai_series, budget.get("monthly_ai_usd"),
+                       budget["trend_warn_pct"])
+    # State the confidence beside the number: how much of the window was
+    # measured, and how much is the estimator's.
+    measured = round(math.fsum(float(r.get("cost_usd") or 0) for r in ai_days), 2)
+    estimated = round(math.fsum(float(r.get("est_cost_usd") or 0) for r in ai_days), 2)
+    ai["measured_total"] = measured
+    ai["estimated_total"] = estimated
+    ai["estimated_share_pct"] = (round(100.0 * estimated / (measured + estimated), 1)
+                                 if (measured + estimated) else 0.0)
+    ai["cost_basis"] = "measured+estimated" if estimated else "measured"
     return {
-        "ai_cost_usd": _series_trend(ai_series, budget.get("monthly_ai_usd"),
-                                     budget["trend_warn_pct"]),
+        "ai_cost_usd": ai,
         "actions_minutes": actions,
     }
 
