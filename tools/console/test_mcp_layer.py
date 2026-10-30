@@ -36,6 +36,42 @@ STATE = {
     "loops": [{"id": "scout"}],
 }
 
+LANES = ("triage", "ready", "doing", "review", "blocked", "hold")
+
+
+def BOARD(n: int) -> dict:
+    """A work board shaped like /api/work's: aggregate blocks plus `items`, each carrying a fat `detail`."""
+    return {
+        "schema": "work-board/v1", "generated_at": "t0", "preview": False,
+        "lanes": [{"id": lane, "label": lane.title(), "count": 0} for lane in LANES],
+        "loops": [{"id": "t1", "lane": "triage", "capacity": 3}],
+        "totals": {"items": n}, "sources": {"issues": "github"}, "labels": {"P0": "priority:P0"},
+        "priorities": ["P0", "P1", "P2", "P3"], "roadmap_statuses": ["draft"], "hints": ["pins win"],
+        "queue_path": "_data/work_queue.yml",
+        "repos": [{"name": f"r{i}"} for i in range(8)],
+        "items": [{
+            "key": f"issue:bamr87/r{i % 8}#{i}", "kind": "issue", "ref": f"#{i}",
+            "title": f"item {i} " + "long title padding " * 8, "repo": f"r{i % 8}", "nwo": f"bamr87/r{i % 8}",
+            "lane": LANES[i % len(LANES)], "stage": "intake", "priority": f"P{i % 4}",
+            "priority_source": "computed", "rank": None, "size": "size:m", "age_days": i, "idle_days": 1,
+            "readiness": 33, "autonomy": "assisted", "autonomy_reason": "type `security` gets human review",
+            "labels": ["automation"], "movable": ["ready", "blocked"], "moved": None, "progress": None,
+            "note": None, "next_run": 1, "loop": "t1",
+            "detail": {"number": i, "body": "x" * 600,
+                       "gaps": [{"id": f"g{j}", "what": "something missing"} for j in range(6)]},
+        } for i in range(n)],
+    }
+
+
+DOCKER_DOWN = {
+    "hosts": ["local", "forge"], "containers": [],
+    "errors": {"local": "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. "
+                        "Is the docker daemon running?",
+               "forge": "error during connect: command [ssh -- forge docker system dial-stdio] exited with "
+                        "status 255: ssh: Could not resolve hostname forge: Name or service not known"},
+    "polled_at": "t0",
+}
+
 
 class FakeConsole(Console):
     def __init__(self, routes: dict | None = None):
@@ -126,6 +162,83 @@ class ReadTools(unittest.TestCase):
         fc = FakeConsole({"/api/index/harmonize": {"hits": []}})
         call(srv.build_server(fc), "code_search", {"q": "retry", "mode": "harmonize"})
         self.assertEqual(fc.calls[-1][1:3], ("/api/index/harmonize", {"q": "retry"}))
+
+    # ------------------------------------------------------------ work board
+    # /api/work is the whole board: 394 items, ~390k characters, which clip()
+    # turned into a prefix the client read as nothing.
+    def test_work_board_pages_and_summarises_by_default(self):
+        board = BOARD(240)
+        p = payload(*call(srv.build_server(FakeConsole({"/api/work": board})), "work_board"))
+        self.assertEqual((p["total"], p["matched"], p["returned"], p["offset"]), (240, 240, 40, 0))
+        self.assertEqual(p["next_offset"], 40)
+        self.assertTrue(p["summary"])
+        # the fat per-item record is gone, the identity and rank fields stay
+        self.assertNotIn("detail", p["items"][0])
+        self.assertEqual(p["items"][0]["key"], "issue:bamr87/r0#0")
+        self.assertIn("priority", p["items"][0])
+        # the board's own context blocks survive, so a page is still readable
+        self.assertEqual(p["lanes"], board["lanes"])
+        self.assertEqual(p["totals"], board["totals"])
+        self.assertLess(len(json.dumps(p)), 30000)
+
+    def test_work_board_full_items_are_capped_and_summary_is_much_smaller(self):
+        fc = FakeConsole({"/api/work": BOARD(240)})
+        big = payload(*call(srv.build_server(fc), "work_board", {"summary": False, "limit": 500}))
+        self.assertEqual(big["limit"], 25)
+        self.assertIn("detail", big["items"][0])
+        small = payload(*call(srv.build_server(fc), "work_board", {"summary": True, "limit": 25}))
+        self.assertLess(len(json.dumps(small["items"])), len(json.dumps(big["items"])) / 2)
+
+    def test_work_board_filters_and_offset(self):
+        fc = FakeConsole({"/api/work": BOARD(240)})
+        s = srv.build_server(fc)
+        p = payload(*call(s, "work_board", {"lane": "ready"}))
+        self.assertEqual(p["filters"], {"lane": "ready"})
+        self.assertTrue(p["matched"] < 240 and p["matched"] > 0)
+        self.assertEqual({i["lane"] for i in p["items"]}, {"ready"})
+        self.assertEqual(sum(p["matched_by_lane"].values()), p["matched"])
+        # the last page says so
+        last = payload(*call(s, "work_board", {"offset": 200}))
+        self.assertIsNone(last["next_offset"])
+        self.assertEqual(last["returned"], 40)
+        self.assertEqual(payload(*call(s, "work_board", {"offset": 1000}))["returned"], 0)
+        # q is a substring over the identity fields
+        self.assertEqual(payload(*call(s, "work_board", {"q": "r3#7"}))["matched"], 1)
+        # an unknown filter value matches nothing rather than everything
+        self.assertEqual(payload(*call(s, "work_board", {"lane": "nosuch"}))["matched"], 0)
+
+    def test_compact_item_cuts_a_long_title_and_drops_empties(self):
+        row = srv.compact_item({"key": "k", "title": "t" * 400, "rank": None, "labels": [], "lane": "ready"})
+        self.assertEqual(len(row["title"]), srv.BOARD_TITLE_CHARS)
+        self.assertTrue(row["title"].endswith("…"))
+        self.assertNotIn("rank", row)
+        self.assertNotIn("labels", row)
+
+    # --------------------------------------------------------------- docker
+    def test_fleet_docker_errors_with_the_remedy_when_no_host_answers(self):
+        fc = FakeConsole({"/api/fleet/docker": DOCKER_DOWN})
+        res, text = call(srv.build_server(fc), "fleet_docker")
+        self.assertTrue(res.is_error if hasattr(res, "is_error") else res.isError)
+        self.assertIn("no Docker host is reachable", text)
+        self.assertIn("no Docker socket in this process (by design)", text)
+        self.assertIn("ssh to the host failed", text)
+        self.assertIn("tools/dash docker ps", text)
+        self.assertNotIn("s3cret-token", text)
+
+    def test_fleet_docker_returns_containers_when_one_host_answers(self):
+        doc = {"hosts": ["local", "forge"], "containers": [{"name": "fleet-console-1"}],
+               "errors": {"forge": "ssh: Could not resolve hostname forge"}}
+        p = payload(*call(srv.build_server(FakeConsole({"/api/fleet/docker": doc})), "fleet_docker"))
+        self.assertEqual(p["reachable_hosts"], ["local"])
+        self.assertEqual(p["unreachable_hosts"], {"forge": "ssh to the host failed"})
+        self.assertNotIn("advice", p)
+        self.assertEqual(p["containers"], doc["containers"])
+
+    def test_docker_reason_classifies_without_leaking_a_wall_of_text(self):
+        self.assertEqual(srv.docker_reason("Cannot connect to the Docker daemon at unix:///var/run/docker.sock."),
+                         "no Docker socket in this process (by design)")
+        self.assertEqual(srv.docker_reason("x" * 900 + "\nsecond line"), "x" * 200)
+        self.assertEqual(srv.docker_reason(""), "unknown error")
 
     def test_console_error_is_tool_error_without_token(self):
         fc = FakeConsole({"/api/fleet/docker": ConsoleError("console GET /api/fleet/docker -> 401: bad token", 401)})

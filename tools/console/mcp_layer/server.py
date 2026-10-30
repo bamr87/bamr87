@@ -52,9 +52,123 @@ WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_
 ROW_FIELDS = ("name", "status", "category", "featured", "worst_level", "health", "triage_level", "triage_score",
               "ci_last", "ci_pass", "last_commit_days", "failing", "reasons", "docker_up", "docker_total", "repo_url")
 
+# ---------------------------------------------------------------- work board
+# /api/work is the WHOLE board — 394 items and ~390k characters of JSON, of
+# which each item's `detail` (its issue record, spec tasks, gaps) is a quarter.
+# Handed to a client whole it was clipped to a prefix and read as nothing, so
+# the tool pages and summarises instead: these are the fields that identify and
+# rank an item, and the blocks that give the page its context.
+BOARD_FIELDS = ("key", "kind", "ref", "title", "repo", "nwo", "lane", "stage", "priority", "priority_source",
+                "rank", "size", "age_days", "idle_days", "readiness", "autonomy", "labels", "next_run", "loop",
+                "progress", "note")
+BOARD_BLOCKS = ("schema", "generated_at", "preview", "lanes", "loops", "totals", "sources", "labels",
+                "priorities", "roadmap_statuses", "hints", "queue_path")
+BOARD_TITLE_CHARS = 140
+BOARD_FILTERS = ("lane", "repo", "kind", "stage", "priority")
+
 
 def truthy(v: str | None) -> bool:
     return (v or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def compact_item(item: dict, title_chars: int = BOARD_TITLE_CHARS) -> dict:
+    """One board row without its `detail`, empty fields dropped, title cut.
+
+    `work_item`/`fleet_work` are where an item's record belongs; a board page
+    only has to say what the item is and where it sits in the queue.
+    """
+    row = {k: item[k] for k in BOARD_FIELDS if item.get(k) not in (None, "", [], {})}
+    title = row.get("title")
+    if isinstance(title, str) and len(title) > title_chars:
+        row["title"] = title[: title_chars - 1] + "…"
+    return row
+
+
+def board_matches(item: dict, filters: dict, q: str = "") -> bool:
+    for field, want in filters.items():
+        if want and str(item.get(field) or "").lower() != want.lower():
+            return False
+    if q:
+        hay = " ".join(str(item.get(k) or "") for k in ("key", "title", "repo", "nwo", "ref", "labels")).lower()
+        if q.lower() not in hay:
+            return False
+    return True
+
+
+def board_page(board: dict, summary: bool = True, limit: int = 40, offset: int = 0,
+               q: str = "", **filters: str) -> dict:
+    """A filtered, paged, optionally compact slice of /api/work.
+
+    Pure over the board document, so the sizes this promises are testable
+    without a console. `next_offset` is None on the last page.
+    """
+    items = board.get("items") or []
+    active = {k: (filters.get(k) or "") for k in BOARD_FILTERS}
+    rows = [i for i in items if board_matches(i, active, q)] if (q or any(active.values())) else list(items)
+    # Full items are ~1k characters each; a page of them has to stay small.
+    limit = max(1, min(int(limit), 200 if summary else 25))
+    offset = max(0, int(offset))
+    page = rows[offset: offset + limit]
+    by_lane: dict[str, int] = {}
+    for row in rows:
+        lane = str(row.get("lane") or "?")
+        by_lane[lane] = by_lane.get(lane, 0) + 1
+    return {
+        **{k: board[k] for k in BOARD_BLOCKS if k in board},
+        "filters": {k: v for k, v in {**active, "q": q}.items() if v},
+        "summary": summary,
+        "total": len(items),
+        "matched": len(rows),
+        "matched_by_lane": by_lane,
+        "offset": offset,
+        "limit": limit,
+        "returned": len(page),
+        "next_offset": offset + limit if offset + limit < len(rows) else None,
+        "items": [compact_item(i) for i in page] if summary else page,
+    }
+
+
+# ------------------------------------------------------------------- docker
+# The console's compose service is given no Docker socket on purpose: a
+# write-capable console holding one is root on the Docker host. So from there
+# every host errors and `containers: []` reads as "nothing is running", which
+# is the opposite of true. Name the cause and where to look instead.
+DOCKER_SOCKET_HINTS = ("docker.sock", "cannot connect to the docker daemon", "is the docker daemon running")
+DOCKER_REMEDY = ("Containers are invisible from here, not absent. Read them from a host terminal "
+                 "(`tools/dash docker ps`, or `tools/dash tui` → Docker), or point the console at a "
+                 "reachable host with DASH_DOCKER_HOST. The console's container is deliberately given "
+                 "no /var/run/docker.sock — holding it would make a write-capable console root on the "
+                 "Docker host (docs/CONTAINERS.md).")
+
+
+def docker_reason(error: str) -> str:
+    """The host's raw error, classified into something an agent can act on."""
+    low = (error or "").lower()
+    if any(h in low for h in DOCKER_SOCKET_HINTS):
+        return "no Docker socket in this process (by design)"
+    if "ssh" in low:
+        return "ssh to the host failed"
+    return (error or "unknown error").strip().splitlines()[0][:200]
+
+
+def docker_report(doc: dict) -> dict:
+    """The docker view plus a per-host diagnosis, or a raised-ready message when no host answered."""
+    hosts = list(doc.get("hosts") or [])
+    errors = {h: str(e) for h, e in (doc.get("errors") or {}).items() if e}
+    reachable = [h for h in hosts if h not in errors]
+    out = {**doc, "reachable_hosts": reachable,
+           "unreachable_hosts": {h: docker_reason(e) for h, e in errors.items()}}
+    if hosts and not reachable:
+        out["advice"] = DOCKER_REMEDY
+    return out
+
+
+def docker_error_text(report: dict) -> str | None:
+    """The one-line error for a docker view where no host answered at all."""
+    if report.get("reachable_hosts") or not report.get("unreachable_hosts"):
+        return None
+    why = "; ".join(f"{h}: {r}" for h, r in report["unreachable_hosts"].items())
+    return f"no Docker host is reachable from the console ({why}). {DOCKER_REMEDY}"
 
 
 def max_chars() -> int:
@@ -119,8 +233,16 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
 
     @mcp.tool(annotations=READ)
     def fleet_docker() -> Any:
-        """Containers on every Docker host the console knows about."""
-        return call(c.get, "/api/fleet/docker")
+        """Containers on every Docker host the console knows about, with a diagnosis per host. Errors when no
+        host answers — the console's container holds no Docker socket by design, so read containers from a host
+        terminal (`tools/dash docker ps` / `tools/dash tui`) or set DASH_DOCKER_HOST."""
+        def run():
+            report = docker_report(c.get("/api/fleet/docker"))
+            dead = docker_error_text(report)
+            if dead:
+                raise ConsoleError(dead)
+            return report
+        return call(run)
 
     @mcp.tool(annotations=READ)
     def project_detail(name: str) -> Any:
@@ -270,9 +392,20 @@ def build_server(console: Console | None = None, allow_writes: bool | None = Non
         return call(c.get, "/api/data/deep_dive")
 
     @mcp.tool(annotations=READ)
-    def work_board() -> Any:
-        """The Work board: every open item on the loops' lanes in the order they take them."""
-        return call(c.get, "/api/work")
+    def work_board(lane: str = "", repo: str = "", kind: str = "", stage: str = "", priority: str = "",
+                   q: str = "", limit: int = 40, offset: int = 0, summary: bool = True) -> Any:
+        """The Work board: every open item on the loops' lanes in the order they take them, paged.
+
+        The whole board is ~390k characters, so this returns one page: summary=true (the default) drops each
+        item's `detail` record and cuts long titles; summary=false returns full items and caps limit at 25.
+        Filter with lane (triage|ready|building|review|blocked|done…), repo, kind (issue|pr|roadmap|spec|backlog),
+        stage, priority (P0..P3) or q (substring over key/title/repo/labels). Page with offset until
+        next_offset is null; matched_by_lane counts the whole filtered set. One item's record: work_item/fleet_work.
+        """
+        def run():
+            return board_page(c.get("/api/work"), summary=summary, limit=limit, offset=offset, q=q,
+                              lane=lane, repo=repo, kind=kind, stage=stage, priority=priority)
+        return call(run)
 
     @mcp.tool(annotations=READ)
     def loops() -> Any:
