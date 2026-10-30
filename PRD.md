@@ -84,6 +84,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-037](features/features.yml) | Projects coverage gate: every open issue/PR tracked with required fields (proposed) | planned | [`tools/projects_lint.py`](tools/projects_lint.py) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR29, NFR12 |
 | [HUB-038](features/features.yml) | Features/PRD ↔ project sync and console Projects panel (proposed) | planned | [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR30, NFR12 |
 | [HUB-039](features/features.yml) | Claude Code OTel telemetry in the console and MCP | shipped | [`tools/console/claude_telemetry.py`](tools/console/claude_telemetry.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | TBD |
+| [HUB-040](features/features.yml) | Claude subscription shown as a discounted rate off API list prices | shipped | [`tools/console/subscription.py`](tools/console/subscription.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | FR31 |
 
 **Requirement → feature trace**
 
@@ -130,6 +131,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR29 | HUB-036, HUB-037 |
 | NFR12 | HUB-036, HUB-037, HUB-038 |
 | FR30 | HUB-038 |
+| FR31 | HUB-040 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -154,6 +156,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR28: Sequential ids are assigned at MERGE, never in a pull request: a new feature, requirement, changelog entry or constitution amendment is written as a fragment (`features/features.d/<slug>.yml`, `changelog.d/<slug>.md`, `docs/amendments/proposed/<slug>.md`) carrying `HUB-NEW` / `FR-NEW:<key>` / `number: NEW` and referencing other new things by slug; one serialized process on the default branch (`tools/jev/number.py`, `jev-number.yml`) assigns the next free id, compiles the fragments into the numbered files, rewrites the slug references, regenerates every projection and publishes through the sanctioned bot-commit path. Assigned ids are immutable and never reused, generated files carry `merge=jev-regen` and append-only lists `merge=union` in `.gitattributes`, and CI regenerates and fails on drift rather than accepting a hand-merge; see [docs/JEV.md](docs/JEV.md) and [amendment 0002](docs/amendments/0002-conflict-free-numbering.md)
 - FR29: Every open issue and PR in a registry repo is an item of the Fleet Portfolio GitHub Project (and its domain project) carrying the required fields (Status, Priority, Area, Repo; Feature ID and PRD req when it changes a feature or requirement), defined once in `templates/projects/framework.yml` and checked by `tools/projects_lint.py`; see [docs/PROJECTS-FRAMEWORK.md](docs/PROJECTS-FRAMEWORK.md)
 - FR30: Feature ids in `features/features.yml` and PRD requirement ids are synced into the projects' Feature ID / PRD req single-select options, and the harness console shows project coverage (items untracked, items missing required fields, per repo) from a committed `_data/projects_board.yml`
+- FR31: The console must present Claude usage dollars as API-equivalent estimates, compare them with the flat subscription prorated to the same window as an effective discount, and report metered API spend separately, never summing the two.
 
 **Non-functional**
 

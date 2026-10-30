@@ -618,3 +618,27 @@ features:
     tests:
     - tools/console/test_claude_telemetry.py
     - tools/console/test_mcp_layer.py
+  - id: HUB-040
+    title: Claude subscription shown as a discounted rate off API list prices
+    description: 'The console''s Live and Costs pages, the MCP spend_vs_budget tool and the Grafana fleet-logs
+      panels label Claude Code''s cost figures as API-equivalent estimates (not billed) and set them against
+      the flat Claude subscription prorated to the same window: effective discount, rate multiplier and
+      value multiple, month-to-date usage pace as headroom (no plan-limit data is invented), and metered
+      API-key spend as a separate row reading N/A until a ledger records the auth method. The two prices
+      are never summed.'
+    implemented: true
+    status: shipped
+    surface: ui
+    link: tools/console/subscription.py
+    docs: docs/OBSERVABILITY.md
+    tags:
+    - console
+    - cost
+    - claude
+    - observability
+    date: 2026-10-30
+    tests:
+    - tools/console/test_subscription.py
+    - tools/console/test_mcp_layer.py
+    prd:
+    - FR31
