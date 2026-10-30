@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0005 — DevOps methodology for GitHub Projects across all submodules, binding on AI agents
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0005
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/452 (merged 2026-10-30)
 - **Affects:** constitution §3 (AI agent row), new §10 (DevOps methodology); AGENTS.md standing rules; docs/PROJECTS-FRAMEWORK.md; PRD and feature ids: none
 - **Supersedes:** none (extends amendment 0003)
 - **Related:** amendment 0003 (`docs/amendments/0003-github-projects-work-tracking.md`), [docs/PROJECTS-FRAMEWORK.md](../../PROJECTS-FRAMEWORK.md), [templates/projects/framework.yml](../../../templates/projects/framework.yml), Fleet project https://github.com/users/bamr87/projects/14, example epic #446 (sub-issues #447–#451)

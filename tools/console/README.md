@@ -109,6 +109,10 @@ keys v1, from `/api/keys` ([`tools/fleetcore/keys.py`](../fleetcore/keys.py)), t
 - `r` re-reads every document and `R` runs the live health refresh.
 - Typing in a field, holding ctrl/⌘/alt, or focus inside the terminal leaves the key alone.
 
+## GitHub Projects (epic #468)
+
+`gh_projects.py` reads Projects (v2) across every fleet owner and builds the linked graph; `gh_projects_write.py` plans write-back as a dry run and applies it only with `HARNESS_PROJECTS_WRITES=1`, `confirm=true` and the previewed `plan_id`, writing an audit line per op. Writes are off by default and never merge, delete or change settings (constitution § 11, docs/PROJECTS-FRAMEWORK.md § 3a). Tests: `python3 tools/console/test_gh_projects.py` (fixtures, no network).
+
 ## What it refuses to do
 
 - Run anything outside the allowlist in `core.py` (`OPS`): parameters are validated by regex/range and become argv elements, never a shell string. The Terminal page runs exactly one program, the terminal dash, and that program submits its jobs through the same allowlist.
