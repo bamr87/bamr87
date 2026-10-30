@@ -45,7 +45,7 @@ When two documents disagree, the higher one wins and the lower one is fixed in t
 | Actor | May | May not |
 | --- | --- | --- |
 | Maintainer (human) | Ratify amendments, PRD changes and releases by merging PRs; change settings, secrets, branch protection | — |
-| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments | Merge its own PRs; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
+| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments; follow § 10 (track every task on the Fleet project; epics for multi-phase work; no change to the live Mac before an approved deploy step) | Merge its own PRs; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
 
 ## 5. How the artifacts relate
 
@@ -107,3 +107,14 @@ GitHub Projects (v2) are the system of record for work across the fleet ([amendm
 - Status lifecycle: Inbox → Triaged → Ready → In progress → In review → Done, with Blocked and Won't do. Labels mirror fields; the project wins on conflict.
 - Agents read and move items only through the console MCP layer or the sync workflow.
 
+## 10. DevOps methodology
+
+Every human, bot and AI agent in the hub and every submodule under `projects/` follows this methodology (amendment `projects-devops-methodology`, numbered at merge — see the [amendment log](amendments/README.md); extends § 9 and [0003](amendments/0003-github-projects-work-tracking.md)):
+
+1. **Everything is an item** — every feature, fix, audit and plan, including AI-agent and submodule work, is an issue or PR on the shared [Fleet project](https://github.com/users/bamr87/projects/14) (user project #14).
+2. **Epics for multi-phase work** — an `epic` issue with one linked sub-issue per phase, in order, each with scope, acceptance criteria and guardrails.
+3. **Hub labels** — `epic` (purple `#6E40C9`, created if missing); type `bug`/`feature`/`chore`/`docs`/`ci`/`refactor`/`test`; priority `P0`–`P3`; existing `size:*`.
+4. **Fields set** — Status and Priority on every item.
+5. **Hands off the Mac** — nothing running on Amr's Mac (checkout, containers, live jobs, monitoring stack) is modified until a final deploy step that Amr explicitly approves.
+6. **Read-only tools** — new tools are read-only by default, with allowlists, result caps, time limits and redaction.
+7. **Honest cost** — every AI cost figure is labelled "API-equivalent (estimate)"; real metered API spend is tracked separately.
