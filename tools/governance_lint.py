@@ -269,7 +269,11 @@ def check(repo: Path) -> dict:
         else:
             want = render_block(repo, prd, ffile, feats)
             if prd_text[s:e + len(BLOCK_END)] != want:
-                E(f"{res['prd']}: feature block is stale — run governance_lint.py prd-sync --write")
+                # The block is a generated span: on a pull request the JEV
+                # post-merge job regenerates it on main (docs/JEV.md), so CI
+                # sets JEV_SPANS_ADVISORY=1 and a stale block only warns.
+                (W if os.environ.get("JEV_SPANS_ADVISORY") == "1" else E)(
+                    f"{res['prd']}: feature block is stale — run governance_lint.py prd-sync --write")
 
     # --- UPS-WORK-16: constitution + amendments --------------------------------
     con = _first(repo, CONSTITUTION_FILES)

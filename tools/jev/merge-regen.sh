@@ -40,6 +40,17 @@ if [ -z "$ours" ] || [ ! -f "$ours" ]; then
   exit 1
 fi
 
+# A `jev-main-only` file belongs to main: take THEIRS (%B — main, when main is
+# merged into a branch) so the branch stops carrying a diff to it. The post-merge
+# job on main regenerates it (docs/JEV.md "Main-only generated files").
+theirs="${3:-}"
+if [ -n "$theirs" ] && [ -f "$theirs" ] && \
+   [ "$(git check-attr jev-main-only -- "$path" 2>/dev/null | awk -F': ' '{print $3}')" = "set" ]; then
+  cp "$theirs" "$ours"
+  echo "jev-regen: took main's copy of ${path} (main-only, regenerated on main)" >&2
+  exit 0
+fi
+
 git_dir="$(git rev-parse --git-dir 2>/dev/null || echo .git)"
 printf '%s\n' "$path" >> "${git_dir}/jev-regen-pending"
 

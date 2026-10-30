@@ -22,15 +22,24 @@
 # =============================================================================
 
 # --- generated end to end ----------------------------------------------------
-CATALOG.md                 linguist-generated=true merge=jev-regen
+# GitHub's mergeability check IGNORES custom merge drivers, so `merge=jev-regen`
+# cannot stop two pull requests conflicting on a generated file. `jev-main-only`
+# goes further: the file is regenerated and committed ONLY on main by the
+# post-merge job (.github/workflows/jev-number.yml), and PR CI fails a pull
+# request that edits it (`python3 -m tools.jev generated guard`, drift-check.yml).
+# The other files here are written by their own loops or the registry flow and
+# are still checked for drift on a pull request (docs/JEV.md).
+CATALOG.md                 linguist-generated=true merge=jev-regen jev-main-only
 projects/SCHEMA.md         linguist-generated=true merge=jev-regen
 _data/specs.yml            linguist-generated=true merge=jev-regen
 _data/cv_portfolio.json    linguist-generated=true merge=jev-regen
 _data/features_index.yml   linguist-generated=true merge=jev-regen
 _data/deep_dive.json       linguist-generated=true merge=jev-regen
-docs/README.md             merge=jev-regen
+docs/README.md             merge=jev-regen jev-main-only
 
 # --- hand-written, with a generated span -------------------------------------
+# The span is regenerated on main by the same post-merge job; on a pull request
+# its drift check is advisory (JEV_SPANS_ADVISORY=1 in drift-check.yml).
 README.md                  merge=jev-regen
 PRD.md                     merge=jev-regen
 docs/DASH.md               merge=jev-regen

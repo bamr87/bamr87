@@ -36,7 +36,11 @@ jobs:
     steps:
       # Shallow, no submodules: the gate reads .gitmodules, the registry, and
       # top-level READMEs — never submodule working trees.
+      # fetch-depth 2: on a pull request the checkout is GitHub's merge commit,
+      # whose first parent is the base — the generated-file guard diffs the two.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-python@v7
         with:
@@ -47,10 +51,25 @@ jobs:
         # fixture tests import the generators, which need the rest of this file.
         run: pip install -r .github/scripts/dash-gen/requirements.txt
 
+      # Main-only generated files (CATALOG.md, docs/README.md — `jev-main-only`
+      # in .gitattributes) are regenerated and committed on main by the JEV
+      # post-merge job (jev-number.yml). GitHub's mergeability check ignores
+      # custom merge drivers, so the only way two PRs stop conflicting on them
+      # is that PRs stop editing them. docs/JEV.md "Main-only generated files".
+      - name: Pull requests do not edit main-only generated files
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+        run: python3 -m tools.jev generated guard --range HEAD^1 HEAD
+
+      # JEV_SPANS_ADVISORY: a stale generated SPAN (README AUTO:projects, the
+      # docs/DASH.md CLI reference) warns instead of failing — main's post-merge
+      # job regenerates it, so a PR is never asked to (and never conflicts on it).
       - name: Run drift gate
         run: tools/check-drift.sh --ci
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JEV_SPANS_ADVISORY: '1'
 
       # Same checkout, no extra runner (see the actionlint note below). Offline:
       # each suite stubs its GitHub client. Runs even when the drift gate failed

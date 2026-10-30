@@ -26,6 +26,7 @@ coverage: listed
 | `conflicts.py` | file | Detect, trial-merge, triage, resolve by tier, validate, push a merge commit, escalate | required |
 | `ledger.py` | file | `_data/jev_resolutions.yml` — append-only cost records and the monthly cap arithmetic | required |
 | `merge-regen.sh` | file | The `jev-regen` git merge driver: keep ours, record the path for regeneration | required |
+| `generated.py` | file | Main-only generated files: list them, guard pull requests against editing them, regenerate them on main | required |
 
 ## Placement
 

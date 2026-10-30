@@ -142,6 +142,9 @@ class JevConfig:
     generated_paths: list[str] = field(default_factory=list)
     fragment_paths: list[str] = field(default_factory=list)
     union_paths: list[str] = field(default_factory=list)
+    #: The tiers the engine may run on its own. tier0 is free and
+    #: deterministic; tier1/tier2 spend money and stay off until listed here.
+    auto_tiers: list[str] = field(default_factory=lambda: ["tier0", "tier1", "tier2"])
 
     def tier(self, name: str) -> TierPolicy:
         return self.tiers.get(name, TierPolicy(name))
@@ -194,6 +197,7 @@ def load_config(fleet: dict | None = None) -> JevConfig:
         generated_paths=[str(p) for p in (jev.get("generated_paths") or [])],
         fragment_paths=[str(p) for p in (jev.get("fragment_paths") or [])],
         union_paths=[str(p) for p in (jev.get("union_paths") or [])],
+        auto_tiers=[str(t) for t in (jev.get("auto_tiers") or ["tier0", "tier1", "tier2"])],
     )
 
 

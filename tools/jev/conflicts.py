@@ -307,6 +307,24 @@ def union_resolve(repo_path: Path, rel: str) -> bool:
     return True
 
 
+#: Generator -> the file it writes, for the main-only rule: a file marked
+#: `jev-main-only` in .gitattributes is written on main by the post-merge job
+#: and never on a pull request branch, so JEV neither regenerates nor
+#: --checks it there (tools/jev/generated.py, docs/JEV.md).
+GENERATOR_OUTPUTS: dict[str, str] = {
+    "tools/gen-catalog.py": "CATALOG.md",
+    "tools/docs_index.py": "docs/README.md",
+}
+
+
+def _main_only_generators(repo_path: Path) -> set[str]:
+    """Generators whose output this repo declares main-only."""
+    from . import generated
+    outs = [o for o in GENERATOR_OUTPUTS.values() if (repo_path / o).is_file()]
+    main_only = set(generated.main_only_files(repo_path, outs)) if outs else set()
+    return {g for g, o in GENERATOR_OUTPUTS.items() if o in main_only}
+
+
 def resolve_tier0(ws: Workspace, repo_path: Path | None = None) -> tuple[bool, str]:
     """Deterministic resolution: ours + regenerate, union, or renumber.
 
@@ -316,10 +334,19 @@ def resolve_tier0(ws: Workspace, repo_path: Path | None = None) -> tuple[bool, s
     generator can run in. An append-only file is different — both sides are
     the answer — so it goes through `union_resolve` instead.
     """
+    from . import generated
     path = repo_path or ws.path
     notes: list[str] = []
+    main_only = set(generated.main_only_files(path, [f.path for f in ws.conflicted]))
     for f in ws.conflicted:
-        if f.kind == cls.UNION:
+        if f.path in main_only:
+            # Main owns it: take the base's copy ("theirs" when base is merged
+            # INTO head), so the pull request stops carrying a diff to it.
+            res = git(["checkout", "--theirs", "--", f.path], cwd=path)
+            if not res.ok:
+                return False, f"theirs checkout failed for {f.path}"
+            notes.append(f"{f.path}: main's copy (main-only)")
+        elif f.kind == cls.UNION:
             if not union_resolve(path, f.path):
                 return False, f"union merge failed for {f.path}"
             notes.append(f"{f.path}: union (both sides)")
@@ -330,8 +357,9 @@ def resolve_tier0(ws: Workspace, repo_path: Path | None = None) -> tuple[bool, s
             notes.append(f"{f.path}: ours + regenerate")
         git(["add", "--", f.path], cwd=path)
 
+    skip = _main_only_generators(path)
     for marker, argv in REGENERATORS:
-        if (path / marker).is_file():
+        if (path / marker).is_file() and marker not in skip:
             run(argv, cwd=path, timeout=600)
     if (path / "tools" / "jev" / "number.py").is_file():
         run(["python3", "-m", "tools.jev", "number", "apply"], cwd=path, timeout=600)
@@ -417,10 +445,13 @@ def validate(repo_path: Path) -> tuple[bool, list[str]]:
     unresolved = git(["diff", "--name-only", "--diff-filter=U"], cwd=repo_path)
     if unresolved.out.strip():
         problems.append("unmerged paths remain: " + ", ".join(unresolved.out.split()[:10]))
+    skip = _main_only_generators(repo_path)
     for marker, argv in VALIDATORS:
-        if not (repo_path / marker).is_file():
+        if not (repo_path / marker).is_file() or marker in skip:
             continue
-        res = run(argv, cwd=repo_path, timeout=1800)
+        # A generated SPAN is regenerated on main after merge, so a stale one
+        # is not a reason to discard a resolution (docs/JEV.md).
+        res = run(argv, cwd=repo_path, timeout=1800, env={"JEV_SPANS_ADVISORY": "1"})
         if not res.ok:
             problems.append(f"{marker} failed: {(res.err or res.out).strip().splitlines()[-1][:160]}"
                             if (res.err or res.out).strip() else f"{marker} failed")
@@ -500,7 +531,15 @@ def resolve(cfg: JevConfig, pr: PullRequest, *, dry_run: bool = False, scheduled
 
         ladder = [t for t in (cls.TIER0, cls.TIER1, cls.TIER2)
                   if (cls.TIER0, cls.TIER1, cls.TIER2).index(t)
-                  >= (cls.TIER0, cls.TIER1, cls.TIER2).index(triage.tier)]
+                  >= (cls.TIER0, cls.TIER1, cls.TIER2).index(triage.tier)
+                  and t in cfg.auto_tiers]
+        if not ladder:
+            triage.reason = (f"{triage.tier} is not switched on (_data/fleet.yml jev.auto_tiers: "
+                             f"{', '.join(cfg.auto_tiers)}) — {triage.reason}")
+            escalate(cfg, pr, triage, dry_run=dry_run)
+            return Resolution(repo=pr.repo, pr=pr.number, tier=cls.TIER3, outcome="escalated",
+                              cost_source="no-spend", files=triage.file_count,
+                              lines=triage.line_count, reason=triage.reason)
         spent, model, notes = 0.0, "", []
         for tier in ladder:
             if tier == cls.TIER0:
