@@ -1,0 +1,9 @@
+# _data/jev_resolutions.yml — JEV's conflict-resolution ledger (schema jev-resolutions/v1).
+# Append-only, one row per attempt; written by tools/jev/conflicts.py and
+# published by .github/workflows/jev-conflicts.yml. Holds no secret and no
+# diff — only what was attempted, at which tier, and what it cost.
+# The monthly cap lives in _data/fleet.yml budget.jev (docs/JEV.md).
+schema: jev-resolutions/v1
+call_site: jev-conflicts
+generated: ''
+resolutions: []

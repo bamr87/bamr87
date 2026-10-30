@@ -111,6 +111,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`harness_registry.yml`](_data/harness_registry.yml) | Committed fleet AI-harness + schedule inventory for /harnesses/ — per-repo harness deployments, crons, throughput vs caps, cost trends/forecast, and the fan-out gap list… | generated |
 | [`health_thresholds.yml`](_data/health_thresholds.yml) | Thresholds for the monitor board's attention signals | — |
 | [`issue_pipeline.yml`](_data/issue_pipeline.yml) | Committed three-tier issue-pipeline state (stages, queues, caps, taxonomy, every open issue under `backlog:` and every pipeline PR) for /issue-pipeline/ and the Work boa… | generated |
+| [`jev_resolutions.yml`](_data/jev_resolutions.yml) | JEV's conflict-resolution ledger (`jev-resolutions/v1`) — one append-only row per triage/resolution attempt (repo, PR, tier, model, outcome, cost and whether that cost w… | generated |
 | [`portfolio.yml`](_data/portfolio.yml) | HOW the profile README groups the portfolio — group headings, repo → group map, display-only extras (hand-edited; read by `.github/scripts/dash-gen` `readme`) | required |
 | [`ports.yml`](_data/ports.yml) | THE fleet port allocation — bands, shared services, and every project's published ports; projected onto the dev stack by `tools/fleet-compose.py`, gated by drift check (… | required |
 | [`profile.yml`](_data/profile.yml) | WHO the public site is about — name, title, links, avatar, the site's own title and description (hand-edited; read by `tools/console/site_docs.py`; replaced the identity… | required |
@@ -186,6 +187,10 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
+| [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
+| [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |
+| [`test_jev_ledger.py`](tools/test_jev_ledger.py) | Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the monthly cap. |
+| [`test_jev_number.py`](tools/test_jev_number.py) | Fixture tests for tools/jev/number.py — the assign-at-merge numbering compiler. |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
@@ -222,6 +227,8 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`git-digs.yml`](.github/workflows/git-digs.yml) | Git Digs | daily 11:17 UTC, dispatch | **Git archaeology.** Checks out `bamr87/it-journey`, lists eligible `bamr87` repositories and already covered ranges, then an agent chooses one repository and one post-2… |
 | [`harness-fanout.yml`](.github/workflows/harness-fanout.yml) | harness-fanout | dispatch (`gaps`/all/per-repo) | **Mass deploy/update of the fleet's AI harnesses**, driven by the central inventory: a deterministic `plan` job resolves `target: gaps` from the committed `_data/harness… |
 | [`issue-pipeline.yml`](.github/workflows/issue-pipeline.yml) | 🧭 Issue Pipeline | daily 08:00, dispatch | **The issue loop** — sibling of `fleet-pulse.yml`: that one fixes broken *workflows*, this one resolves *issues*. |
+| [`jev-conflicts.yml`](.github/workflows/jev-conflicts.yml) | 🧩 JEV — conflict triage | — | JEV's first capability: find every open pull request in the fleet that GitHub reports as CONFLICTING, reproduce each conflict with a trial merge, classify it determinist… |
+| [`jev-number.yml`](.github/workflows/jev-number.yml) | 🔢 JEV — assign numbers at merge | — | The merge half of the conflict-free numbering scheme (amendment 0002, docs/JEV.md). |
 | [`markdown-oneline.yml`](.github/workflows/markdown-oneline.yml) | markdown-oneline | — | Seeded by the bamr87 hub (tools/fanout.sh --kit prose). |
 | [`publish-kits.yml`](.github/workflows/publish-kits.yml) | publish-kits | push `main` (`templates/*/package.json`, `VERSION`), dispat… | Publishes the shared runtime kits as **packages** (`templates/*/package.json` → npm `@bamr87/*`) so the always-latest fleet receives them by dependency, not by copy. |
 | [`python-tests.yml`](.github/workflows/python-tests.yml) | 🐍 Python Tests | PR, push `main`, nightly 09:17 UTC, dispatch | Runs the hub's own Python fixture tests on every PR, on main and nightly (the console's deps float, so main can break with no PR in flight): `tools/test_*.py`, `tools/co… |
@@ -364,6 +371,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`HARNESS-OPS.md`](docs/HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via harness-fanout, caps, cost forecasting, and the local st… |
 | [`HARNESS.md`](docs/HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane: the layers, the ratchet rule, the health scorecard and the trip wires. |
 | [`ISSUE-PIPELINE.md`](docs/ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes. |
+| [`JEV.md`](docs/JEV.md) | The fleet's harness-level AI agent logic engine. |
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
@@ -415,6 +423,7 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Harnesses | Work board | `/work` | every open item in the order the loops take it — drag to reprioritise |
 | Harnesses | Deep dive | `/deep-dive` | one repo a day, every repo once per cycle |
 | Spend | Costs | `/costs` | Claude spend and Actions minutes vs budget |
+| Spend | Live activity | `/live` | sessions, jobs, spend, health and deep-dive — pushed every 5 s |
 | Spend | Agent activity | `/activity` | local sessions + CI agent runs, from the lake |
 | Observe | Traces | `/observe/traces` | the data lake and Phoenix |
 | Observe | Lines | `/observe/lines` | every workflow with provenance and kill switch |
