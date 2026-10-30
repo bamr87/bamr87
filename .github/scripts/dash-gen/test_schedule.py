@@ -48,6 +48,7 @@ KEYS = {
     "python-tests": "python_tests",
     "backlog-fanout": "backlog_fanout",
     "deep-dive": "deep_dive",
+    "jev-conflicts": "jev_conflicts",
 }
 SWITCH_RX = re.compile(r"vars\.([A-Z][A-Z0-9_]*_ENABLED)\b")
 

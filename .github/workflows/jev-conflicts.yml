@@ -1,0 +1,175 @@
+name: 🧩 JEV — conflict triage
+
+# JEV's first capability: find every open pull request in the fleet that GitHub
+# reports as CONFLICTING, reproduce each conflict with a trial merge, classify
+# it deterministically, and spend the cheapest thing that can finish the job —
+# nothing at all where a generator or a union settles it, a cheap model for
+# small conflicts, a strong model for large ones, a human for everything else.
+# Design, tiers and cost model: docs/JEV.md · tools/jev/README.md.
+#
+# WHAT IT NEVER DOES
+# ------------------
+# It never merges a pull request, never force-pushes, never rebases, never uses
+# `--admin` and never touches settings or secrets. It pushes MERGE COMMITS to
+# same-repo pull-request branches whose authors are listed in _data/fleet.yml
+# `jev.allowed_authors`, and it comments. tools/jev/common.py refuses the first
+# two at the one place every GitHub call goes through.
+#
+# TRIGGERS
+# --------
+#   schedule          every six hours (fleet.yml schedule.jev_conflicts)
+#   push to main      a push to main is exactly when open PRs become conflicted
+#   repository_dispatch  so another workflow can ask for a pass
+#   workflow_dispatch    a human run, which BYPASSES the kill switch
+#
+# SPEND
+# -----
+# Capped twice: per attempt (_data/fleet.yml budget.jev.tier1_usd / tier2_usd,
+# passed to the CLI as --max-budget-usd) and per month
+# (budget.jev.monthly_usd, $10 inside the $75 fleet ceiling). A SCHEDULED run
+# stops at budget.jev.scheduled_stop_pct of the monthly cap so a human's manual
+# run still has budget late in the month. Every attempt is appended to
+# _data/jev_resolutions.yml with its cost and whether that cost was reported or
+# estimated.
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'   # every six hours (_data/fleet.yml schedule.jev_conflicts)
+  push:
+    branches: [main]
+  repository_dispatch:
+    types: [jev-conflicts]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'One pull request: owner/repo#number (empty = scan the fleet)'
+        type: string
+        default: ''
+      dry-run:
+        description: 'Triage and report, resolve nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jev-conflicts
+  cancel-in-progress: false
+
+jobs:
+  # The kill switch. A NEW loop defaults OFF (like repo-scout.yml): this one
+  # pushes commits to other people's branches, so it stays off until a human
+  # sets vars.JEV_CONFLICTS_ENABLED to 'true'. A manual dispatch runs anyway,
+  # which is what keeps the loop testable while it is switched off.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - id: decide
+        env:
+          ENABLED: ${{ vars.JEV_CONFLICTS_ENABLED }}
+          MANUAL: ${{ github.event_name != 'schedule' && github.event_name != 'push' }}
+        run: |
+          if [ "$MANUAL" = "true" ] || [ "$ENABLED" = "true" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::JEV conflict triage is off (vars.JEV_CONFLICTS_ENABLED is not 'true'). A workflow_dispatch bypasses this."
+          fi
+
+  triage:
+    needs: gate
+    if: ${{ needs.gate.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyyaml
+
+      - name: Where the month stands
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -m tools.jev conflicts budget --scheduled | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The model credential, in this repo's own CLAUDE_AUTH_ORDER. Tiers 1 and
+      # 2 need it; tier 0 and tier 3 do not, and the run still does useful work
+      # with no credential at all.
+      - id: claude-auth
+        uses: ./.github/actions/claude-auth
+        with:
+          order: ${{ vars.CLAUDE_AUTH_ORDER }}
+          has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Install Claude Code
+        if: ${{ steps.claude-auth.outputs.method != 'none' }}
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Scan the fleet
+        id: scan
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          ONE_PR: ${{ inputs.pr }}
+        run: |
+          if [ -n "$ONE_PR" ]; then
+            printf '%s\n' "$ONE_PR" > conflicting.txt
+          else
+            python3 -m tools.jev conflicts scan --json > scan.json
+            python3 -c "import json;print('\n'.join(p['ref'] for p in json.load(open('scan.json')) if p['eligible']))" > conflicting.txt
+          fi
+          {
+            echo "### 🧩 JEV — conflicting pull requests"
+            echo
+            sed 's/^/- /' conflicting.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "count=$(wc -l < conflicting.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Triage and resolve
+        if: ${{ steps.scan.outputs.count != '0' }}
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          ANTHROPIC_API_KEY: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
+          DRY: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry-run) && '--dry-run' || '' }}
+          SCHEDULED: ${{ (github.event_name == 'schedule' || github.event_name == 'push') && '--scheduled' || '' }}
+        run: |
+          # One pull request at a time, and a failure on one never stops the
+          # rest: an unreachable repo is not a reason to leave the other
+          # conflicts sitting there.
+          while IFS= read -r ref; do
+            [ -n "$ref" ] || continue
+            echo "::group::$ref"
+            # shellcheck disable=SC2086
+            python3 -m tools.jev conflicts resolve --pr "$ref" $DRY $SCHEDULED || echo "::warning::$ref: JEV could not finish"
+            echo "::endgroup::"
+          done < conflicting.txt
+
+      - name: Publish the ledger
+        if: ${{ always() && steps.scan.outputs.count != '0' && !(github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: '_data/jev_resolutions.yml'
+          message: 'chore(jev): record conflict resolutions'
+          title: 'chore(jev): conflict-resolution ledger'
+          body: |
+            JEV's conflict-resolution ledger — one row per attempt, with the
+            tier, the model, the outcome and the cost. The monthly cap in
+            `_data/fleet.yml` `budget.jev` is judged on this file.
+
+            Doc: [docs/JEV.md](docs/JEV.md). Review the diff, not the history.
+          branch: chore/jev-ledger
+          labels: automation,ai-cost
+          token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
