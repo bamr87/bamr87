@@ -2,7 +2,7 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": null,
+  "refreshed_at": "2026-10-30T12:29:57Z",
   "summary": {
     "as_of": "2026-10-30",
     "cycle": 1,
@@ -38,8 +38,8 @@
     "last": null,
     "last_date": null,
     "avg_score": null,
-    "open_issues": 0,
-    "open_prs": 0
+    "open_issues": 8,
+    "open_prs": 2
   },
   "repos": [
     {
@@ -49,10 +49,21 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [],
-      "open_issues": 0,
-      "open_prs": 0,
+      "issues": [
+        "https://github.com/bamr87/it-journey/issues/874",
+        "https://github.com/bamr87/it-journey/issues/873",
+        "https://github.com/bamr87/it-journey/issues/872",
+        "https://github.com/bamr87/it-journey/issues/871",
+        "https://github.com/bamr87/it-journey/issues/870",
+        "https://github.com/bamr87/it-journey/issues/869",
+        "https://github.com/bamr87/it-journey/issues/868",
+        "https://github.com/bamr87/it-journey/issues/867"
+      ],
+      "prs": [
+        "https://github.com/bamr87/it-journey/pull/875"
+      ],
+      "open_issues": 8,
+      "open_prs": 1,
       "findings": "",
       "score": null,
       "next_focus": ""
@@ -65,9 +76,11 @@
       "last_processed": null,
       "cycle": 1,
       "issues": [],
-      "prs": [],
+      "prs": [
+        "https://github.com/bamr87/bamr87/pull/431"
+      ],
       "open_issues": 0,
-      "open_prs": 0,
+      "open_prs": 1,
       "findings": "",
       "score": null,
       "next_focus": ""
