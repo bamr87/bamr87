@@ -55,5 +55,16 @@ Constitution § 10 (amendment `projects-devops-methodology`, numbered at merge) 
 | 4 — fan-out | Label harmonization + auto-add caller per repo via `standardize-fanout`, in waves: (a) hub, `.github`, zer0-mistakes; (b) bamr87 user repos; (c) year-of-ai, ai-world-view; (d) bash-365, EissaLab. Org programs created when >10 open items. | per-wave PRs, never auto-merged |
 | 5 — enforce | `coverage` becomes an error 30 days after ratification; milestones retired in favour of Iteration. | quality gate |
 
+## 3a. Console surface and write-back (epic #468)
+
+The console reads and writes Projects through two modules, governed by constitution § 11 (amendment `projects-write-back`, proposed):
+
+| Module | Role |
+| --- | --- |
+| [`tools/console/gh_projects.py`](../tools/console/gh_projects.py) | Read-only GraphQL over every owner (bamr87, year-of-ai, ai-world-view, bash-365, EissaLab), TTL cache, item normalisation, and the linked graph (project → item → issue/PR → commit → repo → FEAT/FR). A token without `read:project` returns `scope_missing`, never an error. |
+| [`tools/console/gh_projects_write.py`](../tools/console/gh_projects_write.py) | Write-back: mutation `ALLOWLIST`, deny words (merge, delete, settings…), `plan()` dry run with a deterministic `plan_id` and no-op detection, `apply()` only with `HARNESS_PROJECTS_WRITES=1` + `confirm=true` + the same `plan_id`, stale-plan refusal, 50 ops/plan and 200/hour caps, redacted JSONL audit (`state/audit/github-writes.jsonl`, override `HARNESS_PROJECTS_AUDIT`). |
+
+Token: `PROJECTS_TOKEN` (else `GH_TOKEN`/`GITHUB_TOKEN`) with `read:project` to read and `project` plus issues/PR write on registry repos to apply; Amr provisions it in the console credential store or as an Actions secret. Phases: P0 #469 (this layer, flag off), P1 #470 read API + MCP + page, P2 #471 linked view, P3 #472 confirm UI + MCP write tools, P4 #473 auto-add + backfill #453, P5 #474 deploy (needs Amr).
+
 ## 4. Post-ratification actions (not done in this PR)
 Grant token scope; create projects/fields/views; publish the reusable workflow; add `PROJECTS_TOKEN` secret; rename/retire labels; edit issue forms; add callers per repo.

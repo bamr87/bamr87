@@ -1,0 +1,133 @@
+{
+ "projects_user.json": {
+  "data": {
+   "user": {
+    "projectsV2": {
+     "nodes": [
+      {
+       "id": "PVT_fleet",
+       "number": 14,
+       "title": "Fleet",
+       "url": "https://github.com/users/bamr87/projects/14",
+       "closed": false,
+       "shortDescription": "",
+       "fields": {
+        "nodes": [
+         {
+          "id": "F_status",
+          "name": "Status",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+           {
+            "id": "o1",
+            "name": "Triage"
+           },
+           {
+            "id": "o2",
+            "name": "In progress"
+           }
+          ]
+         },
+         {
+          "id": "F_title",
+          "name": "Title",
+          "dataType": "TITLE"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  }
+ },
+ "items.json": {
+  "data": {
+   "node": {
+    "items": {
+     "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+     },
+     "nodes": [
+      {
+       "id": "PVTI_1",
+       "isArchived": false,
+       "type": "ISSUE",
+       "fieldValues": {
+        "nodes": [
+         {
+          "name": "Triage",
+          "field": {
+           "name": "Status"
+          }
+         },
+         {}
+        ]
+       },
+       "content": {
+        "__typename": "Issue",
+        "id": "I_1",
+        "number": 469,
+        "title": "P0 service layer",
+        "state": "OPEN",
+        "url": "https://github.com/bamr87/bamr87/issues/469",
+        "body": "Implements HUB-031 and FR12",
+        "repository": {
+         "nameWithOwner": "bamr87/bamr87"
+        }
+       }
+      },
+      {
+       "id": "PVTI_2",
+       "isArchived": false,
+       "type": "PULL_REQUEST",
+       "fieldValues": {
+        "nodes": [
+         {
+          "name": "In progress",
+          "field": {
+           "name": "Status"
+          }
+         }
+        ]
+       },
+       "content": {
+        "__typename": "PullRequest",
+        "id": "PR_1",
+        "number": 500,
+        "title": "feat: thing ghp_abcdefghijklmnopqrstuvwxyz0123",
+        "state": "OPEN",
+        "url": "https://github.com/year-of-ai/site/pull/500",
+        "body": "",
+        "repository": {
+         "nameWithOwner": "year-of-ai/site"
+        },
+        "closingIssuesReferences": {
+         "nodes": [
+          {
+           "number": 469,
+           "repository": {
+            "nameWithOwner": "bamr87/bamr87"
+           }
+          }
+         ]
+        },
+        "commits": {
+         "nodes": [
+          {
+           "commit": {
+            "oid": "abc123",
+            "messageHeadline": "feat: add HUB-031 wiring"
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

@@ -45,7 +45,7 @@ When two documents disagree, the higher one wins and the lower one is fixed in t
 | Actor | May | May not |
 | --- | --- | --- |
 | Maintainer (human) | Ratify amendments, PRD changes and releases by merging PRs; change settings, secrets, branch protection | — |
-| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments; follow § 10 (track every task on the Fleet project; epics for multi-phase work; no change to the live Mac before an approved deploy step) | Merge its own PRs; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
+| AI agent | Read this file first; open PRs on a branch with Conventional Commit titles; update the feature catalog, PRD block and docs in the same PR as the change; propose amendments; follow § 10 (track every task on the Fleet project; epics for multi-phase work; no change to the live Mac before an approved deploy step); plan GitHub write-back under § 11 and apply it only after the user confirms | Merge its own PRs; push to the default branch; force-push; change repo settings or branch protection; print or commit secrets; invent features or requirements (unknown = **TBD**) |
 
 ## 5. How the artifacts relate
 
@@ -118,3 +118,15 @@ Every human, bot and AI agent in the hub and every submodule under `projects/` f
 5. **Hands off the Mac** — nothing running on Amr's Mac (checkout, containers, live jobs, monitoring stack) is modified until a final deploy step that Amr explicitly approves.
 6. **Read-only tools** — new tools are read-only by default, with allowlists, result caps, time limits and redaction.
 7. **Honest cost** — every AI cost figure is labelled "API-equivalent (estimate)"; real metered API spend is tracked separately.
+
+## 11. Harness write-back to GitHub
+
+The console may write to GitHub Projects (v2), issues and pull requests across every registry owner (amendment `projects-write-back`, numbered at merge; extends § 9 and § 10.6), only under these rules:
+
+1. **Allowlist** — only the mutations listed in `tools/console/gh_projects_write.py` `ALLOWLIST`: create or update a project and its fields; add, move, set or clear fields on, archive and unarchive items; edit title and body, labels, assignees, milestone, open/closed state and sub-issues of issues; edit title and body, labels and draft state of pull requests. Anything else is refused.
+2. **Never** — merge, delete, transfer, repo or org settings, branch protection, rulesets, secrets, workflows, webhooks, collaborators or visibility, even with every flag and confirmation set.
+3. **Off by default** — writes need `HARNESS_PROJECTS_WRITES=1`; MCP write tools also need `HARNESS_MCP_ALLOW_WRITES=1`.
+4. **Dry run, then confirm** — every change is first a plan (before → after, deterministic `plan_id`); it is applied only with `confirm=true` and the same `plan_id`, after a human has seen it; a plan whose targets changed since the preview is refused.
+5. **Idempotent and capped** — already-satisfied ops are no-ops; at most 50 ops per plan and 200 per hour.
+6. **Audited** — one append-only JSONL record per op (who, when, plan, before, after, result), token values redacted.
+7. **Scoped token** — a dedicated `PROJECTS_TOKEN` (`read:project`/`project`, `read:org`, issues and pull requests read/write on registry repos), held in the console's credential store or an Actions secret, never printed or committed; only Amr provisions it.
