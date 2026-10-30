@@ -96,6 +96,7 @@ STATIC_ROUTES: dict[str, tuple[str, str]] = {
     "loops": ("Loops", "The control-plane loops and their outputs."),
     "costs": ("Costs", "Claude spend and Actions minutes against budget."),
     "activity": ("Agent activity", "Local sessions and CI agent runs."),
+    "live": ("Live", "Real-time bot activity: sessions, live usage, jobs and spend."),
     "observe/traces": ("Traces", "The data lake and Phoenix traces."),
     "observe/lines": ("Lines", "Every workflow with provenance and kill switch."),
     "observe/logs": ("Logs", "Kibana over the log plane."),
