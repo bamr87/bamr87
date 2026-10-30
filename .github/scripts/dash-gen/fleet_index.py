@@ -16,6 +16,7 @@ is code the harness cannot see.
 from __future__ import annotations
 
 import json
+import os
 import re
 import urllib.error
 import urllib.request
@@ -29,6 +30,12 @@ HUB = "_hub"
 # The scanner walks with dot:false, so `.github` never enters the collection.
 # The control plane lives there. Coverage reports the blind spot every time.
 BLIND_SPOTS = (".github",)
+# Kilo names the collection after a hash of the workspace ROOT PATH, so the name
+# cannot be recomputed here: the same tree is /Users/bamr87/bamr87 on the host
+# and /workspace in a container, which hash differently. The store is asked
+# instead, and this env var is the operator's override when it guesses wrong.
+COLLECTION_ENV = "QDRANT_COLLECTION"
+WORKSPACE_PREFIX = "ws-"
 
 
 def analysis_config(contract: dict | None = None) -> dict:
@@ -42,11 +49,17 @@ def analysis_config(contract: dict | None = None) -> dict:
         limit = int(analysis.get("limit", 40))
     except (TypeError, ValueError):
         limit = 40
+    # The contract's URLs are the BROWSER's (loopback — they are also the links
+    # the console renders). A process inside a container has to be told where it
+    # can actually reach the service, which is what QDRANT_URL / OLLAMA_URL are
+    # for; compose sets them on console and devenv. Without them this module
+    # asked the container's own loopback and reported "Qdrant has no collection"
+    # while the store held 17k points.
     return {
         "min_score": min(1.0, max(0.0, min_score)),
         "limit": min(100, max(1, limit)),
-        "qdrant": indexing.get("qdrant") or "",
-        "embedder": indexing.get("embedder") or "",
+        "qdrant": fo.probe_url("qdrant", indexing.get("qdrant") or ""),
+        "embedder": fo.probe_url("ollama", indexing.get("embedder") or ""),
         "model": indexing.get("model") or "nomic-embed-text",
     }
 
@@ -146,22 +159,71 @@ def _post(url: str, payload: dict, timeout: int = 60) -> dict | None:
         return None
 
 
-def collection_name(qdrant: str) -> str | None:
+def collection_env() -> str:
+    """An operator's explicit collection name, which always wins."""
+    return (os.environ.get(COLLECTION_ENV) or "").strip()
+
+
+def pick_collection(names: list[str], points: dict[str, int] | None = None,
+                    override: str = "") -> str | None:
+    """Which of the store's collections is this workspace's code index.
+
+    Pure, because the choice is the part worth testing: the name is a hash of a
+    path this process may not even see under the same string, so there is
+    nothing to recompute and everything to choose. An explicit override wins;
+    then a `ws-` name (Kilo's workspace prefix) over anything else; then, among
+    equals, the one holding the most points.
+    """
+    if override:
+        return override
+    names = [n for n in names if n]
+    if not names:
+        return None
+    pool = [n for n in names if n.startswith(WORKSPACE_PREFIX)] or names
+    if len(pool) == 1:
+        return pool[0]
+    points = points or {}
+    return max(pool, key=lambda n: (int(points.get(n) or 0), n))
+
+
+def list_collections(qdrant: str) -> list[str] | None:
+    """Collection names in the store, or None when the store did not answer.
+
+    The difference matters: an empty list means the scan has not run, None
+    means this process cannot reach Qdrant at all (the usual cause being a
+    containerised caller asking its own loopback). Reporting both as "no
+    collection" sent the operator looking for a scan that had already written
+    17k points.
+    """
     listed = _get(f"{qdrant.rstrip('/')}/collections")
     if not listed:
         return None
-    names = [c.get("name") for c in ((listed.get("result") or {}).get("collections") or []) if c.get("name")]
-    if not names:
-        return None
-    if len(names) == 1:
-        return names[0]
-    best, best_n = names[0], -1
-    for name in names:
-        detail = _get(f"{qdrant.rstrip('/')}/collections/{name}") or {}
-        n = int(((detail.get("result") or {}).get("points_count") or 0))
-        if n > best_n:
-            best, best_n = name, n
-    return best
+    return [c.get("name") for c in ((listed.get("result") or {}).get("collections") or []) if c.get("name")]
+
+
+def points_count(qdrant: str, name: str) -> int:
+    detail = _get(f"{qdrant.rstrip('/')}/collections/{name}") or {}
+    return int((detail.get("result") or {}).get("points_count") or 0)
+
+
+def resolve_collection(qdrant: str) -> tuple[str | None, str | None, list[str]]:
+    """(collection, error, names_seen). Never raises; a down store is a document."""
+    override = collection_env()
+    names = list_collections(qdrant)
+    if names is None:
+        if override:
+            # The operator named it; let the search fail loudly on the URL instead.
+            return override, None, []
+        return None, (f"Qdrant is not reachable at {qdrant} — set QDRANT_URL to an address this process "
+                      f"can reach (the fleet containers use http://qdrant:6333)"), []
+    if not names and not override:
+        return None, f"Qdrant at {qdrant} holds no collection — the workspace scan has not written one yet", []
+    counts = {n: points_count(qdrant, n) for n in names} if len(names) > 1 else {}
+    return pick_collection(names, counts, override), None, names
+
+
+def collection_name(qdrant: str) -> str | None:
+    return resolve_collection(qdrant)[0]
 
 
 def embed(text: str, embedder: str, model: str) -> list[float] | None:
@@ -209,12 +271,13 @@ def _ready(cfg: dict) -> tuple[str, str, list[float]] | str:
     embedder = cfg.get("embedder") or ""
     if not qdrant or not embedder:
         return "indexing contract has no qdrant or embedder URL"
-    name = collection_name(qdrant)
-    if not name:
-        return "Qdrant has no collection — the scan has not written one yet"
+    name, error, _ = resolve_collection(qdrant)
+    if error or not name:
+        return error or f"Qdrant at {qdrant} holds no collection"
     vector = embed(cfg["_query"], embedder, cfg.get("model") or "nomic-embed-text")
     if not vector:
-        return "Ollama did not return an embedding — is native Ollama running on the Mac?"
+        return (f"the embedder at {embedder} returned no embedding — is native Ollama running on the Mac? "
+                f"(a containerised caller needs OLLAMA_URL, e.g. http://host.docker.internal:11434)")
     return qdrant, name, vector
 
 
@@ -244,12 +307,12 @@ def coverage(cfg: dict | None = None, root: Path | str | None = None) -> dict:
     cfg = cfg or analysis_config()
     projects = declared_projects(root)
     qdrant = (cfg.get("qdrant") or "").rstrip("/")
-    name = collection_name(qdrant) if qdrant else None
+    name, error, seen = (resolve_collection(qdrant) if qdrant
+                         else (None, "indexing contract has no qdrant URL", []))
     counts: dict[str, int] = {}
     blind: dict[str, int] = {}
-    error = None
     if not name:
-        error = "Qdrant has no collection"
+        error = error or f"Qdrant at {qdrant} holds no collection"
     else:
         for project in projects:
             n = _count(qdrant, name, "pathSegments.1", project)
@@ -267,6 +330,12 @@ def coverage(cfg: dict | None = None, root: Path | str | None = None) -> dict:
                 blind[path] = _count(qdrant, name, "pathSegments.0", path) or 0
     report = coverage_report(counts, projects, blind)
     report["collection"] = name
+    # What the store actually holds and where it was asked, so a wrong pick (or a
+    # QDRANT_COLLECTION typo) is visible in the document instead of looking like
+    # an index that covers nothing.
+    report["collections"] = seen
+    report["collection_source"] = "env" if collection_env() else "listing"
+    report["qdrant"] = qdrant
     report["error"] = error
     report["present"] = error is None
     return report
@@ -331,7 +400,10 @@ def _print_hits(hits: list[dict]) -> None:
 def cmd_status(_args) -> int:
     cfg = analysis_config()
     report = coverage(cfg)
-    print(f"collection  {report.get('collection') or 'none'}")
+    print(f"qdrant      {cfg['qdrant']}")
+    print(f"collection  {report.get('collection') or 'none'}  ({report.get('collection_source')})")
+    if len(report.get("collections") or []) > 1:
+        print(f"  store holds: {', '.join(report['collections'])}  (override with {COLLECTION_ENV})")
     print(f"embedder    {cfg['model']}  {cfg['embedder']}")
     print(f"min_score   {cfg['min_score']}")
     if report.get("error"):
