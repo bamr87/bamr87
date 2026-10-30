@@ -14,9 +14,7 @@ The fleet's weekly **proactive** loop. The three loops it sits beside all *react
 | **CLI** | `tools/dash evolve --repo <name>` · `--all` | dispatches the workflow |
 | **Tests** | `python3 .github/scripts/dash-gen/test_evolution.py` | no network, no pytest |
 
-> **Two evolution layers — don't confuse them.** `unified-evolution.yml` evolves the
-> **monorepo itself** and is dispatch-only (`tools/dash evolve`). This loop evolves the
-> **fleet**: one agent per opted-in submodule, one draft PR in that submodule's upstream.
+> **This loop evolves the fleet**: one agent per opted-in submodule, one draft PR in that submodule's upstream. The hub itself evolves through the local `/evolve` loop and the issue pipeline; its dispatch-only CI pass (`unified-evolution.yml`) was retired on 2026-10-27, unrun since July.
 
 ## The loop
 

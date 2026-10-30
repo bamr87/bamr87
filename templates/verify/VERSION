@@ -1,7 +1,7 @@
 kit: verify
 version: 0.1.0
 source: bamr87/bamr87 templates/verify/
-seeded-by: tools/fanout.sh --kit verify (verify-fanout.yml); `dash verify deploy`
+seeded-by: tools/fanout.sh --kit verify (fanout.yml, kit verify); `dash verify deploy`
 files: features.template.yml, verify.template.yml, scenario.template.yml, runner.mjs, mcp.json, verify.yml, SKILL.template.md, verifier.template.md, EVIDENCE-README.template.md
 spec: specs/QUALITY.md "Verification" (UPS-QA-50..53); reusable workflow .github/workflows/fleet-verify.yml; hub aggregator tools/features_index.py; docs/VERIFICATION.md
 updated: 2026-09-04

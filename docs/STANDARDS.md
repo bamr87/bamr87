@@ -12,7 +12,7 @@ tools/dash audit <name>     # one repo, verbose
 tools/dash audit --gate     # exit non-zero if a required artifact is missing
 ```
 
-`tools/check-drift.sh` runs the gate slice in CI, and `.github/workflows/standardize-fanout.yml` opens PRs that bring repos up to it.
+`tools/check-drift.sh` runs the gate slice in CI, and `.github/workflows/fanout.yml (kit: standardize)` opens PRs that bring repos up to it.
 
 ## Tiers
 
@@ -57,8 +57,8 @@ The tiers above say which files a repo must *have*. [`specs/`](../specs/README.m
 ## Bringing a repo up to standard
 
 1. `tools/dash audit <name>` — see what's missing for its tier.
-2. `.editorconfig`: fan out the root template (`standardize-fanout.yml`, or the `/standardize-project` skill for a single repo).
-3. Agent context: fan out the agent-context kit — dispatch `standardize-fanout.yml` with artifacts `agent-context,claude` (a `CLAUDE.md` scaffold plus the `@claude` mention workflow; defaults stay `editorconfig,ci`), or use the `/standardize-project` skill for one repo. Fan-outs ride [`tools/fanout.sh`](../tools/fanout.sh) — dry-run by default, additive-only, PRs only. See [AI-INTEGRATION.md](AI-INTEGRATION.md).
+2. `.editorconfig`: fan out the root template (`fanout.yml` (kit `standardize`), or the `/standardize-project` skill for a single repo).
+3. Agent context: fan out the agent-context kit — dispatch `fanout.yml` (kit `standardize`) with artifacts `agent-context,claude` (a `CLAUDE.md` scaffold plus the `@claude` mention workflow; defaults stay `editorconfig,ci`), or use the `/standardize-project` skill for one repo. Fan-outs ride [`tools/fanout.sh`](../tools/fanout.sh) — dry-run by default, additive-only, PRs only. See [AI-INTEGRATION.md](AI-INTEGRATION.md).
 4. LICENSE / release automation: `tools/adopt-release.sh <name>` scaffolds the release-please pipeline; add the SPDX id to the registry `license:` field.
 5. CI: adopt the reusable [`standard-ci.yml`](../.github/workflows/standard-ci.yml) via a short caller workflow (what the fan-out drops in).
 

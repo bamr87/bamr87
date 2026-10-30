@@ -387,7 +387,7 @@
   proposal: >-
     Extend the loop with an opt-in "fix" mode that, for candidates whose
     recommended change is mechanical and high-confidence, opens ONE draft PR
-    directly into the target submodule — reusing the standardize-fanout /
+    directly into the target submodule — reusing the fanout.yml /
     unified-evolution claude-code-action pattern and reading the submodule's branch
     from .gitmodules/the registry (never assuming main). Each PR links back to its
     originating actions-review issue and stays strictly gated: an allowlist of
@@ -808,7 +808,7 @@
     the forks by upstreaming both divergences into the kit as features gated by
     .issues/config.yml flags (verify-close on/off, batch size). Per-repo policy
     lives ONLY in .issues/config.yml, which the kit never seeds over. Seed and
-    re-sync via tools/fanout.sh / standardize-fanout.yml as an explicitly
+    re-sync via tools/fanout.sh / fanout.yml (kit: standardize) as an explicitly
     requested, opt-in artifact set (dry-run default, additive-only, --upgrade
     refreshes byte-identical machine-seeded copies only).
   acceptance:

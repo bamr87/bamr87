@@ -25,7 +25,7 @@
 #     version (stamp `# kit: agent-context vX.Y.Z` vs templates/agent-context/
 #     VERSION; unstamped copies byte-identical to archive/claude-0.1.0.yml
 #     report as ≤0.1.0). Hand-modified copies are never flagged.
-#     Upgrade path: standardize-fanout with upgrade=true.
+#     Upgrade path: fanout.yml (kit=standardize) with upgrade=true.
 # ============================================================================
 set -uo pipefail
 # DASH_ROOT lets a test (or a checkout without submodules) point the audit at
@@ -306,11 +306,11 @@ print(msg)
 stale_kit = [r['name'] for r in rows if r['kit_state'] in ('stale', 'unstamped')]
 if stale_kit and KIT_VERSION:
     shown = ', '.join(stale_kit[:12]) + ('…' if len(stale_kit) > 12 else '')
-    print(col(f"  {len(stale_kit)} on a stale agent-context kit (latest v{KIT_VERSION}; upgrade: standardize-fanout upgrade=true): {shown}", 'yellow'))
+    print(col(f"  {len(stale_kit)} on a stale agent-context kit (latest v{KIT_VERSION}; upgrade: fanout.yml kit=standardize upgrade=true): {shown}", 'yellow'))
 scaff = [r['name'] for r in rows if r.get('claude_md_scaffold')]
 if scaff:
     shown = ', '.join(scaff[:12]) + ('…' if len(scaff) > 12 else '')
-    print(col(f"  {len(scaff)} CLAUDE.md still an unfilled scaffold (fill: standardize-fanout agent_fill, or accept for dormant repos): {shown}", 'yellow'))
+    print(col(f"  {len(scaff)} CLAUDE.md still an unfilled scaffold (fill: fanout.yml kit=standardize agent_fill, or accept for dormant repos): {shown}", 'yellow'))
 lowered_rows = [r for r in rows if r['kind_lowered']]
 if lowered_rows:
     print(col(f"  {len(lowered_rows)} judged by kind (standards.yml kind_overrides): " +

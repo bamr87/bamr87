@@ -24,6 +24,9 @@
   "overrides": {
     "@lhci/cli": {
       "uuid": "14.0.2"
-    }
+    },
+    "tmp": "0.2.7",
+    "zod": "4.6.7",
+    "basic-ftp": "6.2.3"
   }
 }

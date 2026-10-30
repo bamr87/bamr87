@@ -19,4 +19,4 @@ Adopt the Pyramid Schema for: $ARGUMENTS
    Set the registry entry's `schema:` to `status: pending` + the PR URL.
 4. After the PR merges, set the entry's `schema: status: adopted` in `_data/projects.yml` and run `python3 tools/gen-projects-schema.py` to regenerate `projects/SCHEMA.md` (it is generated — never hand-edit).
 
-Alternative: dispatch `.github/workflows/schema-fanout.yml` (dry-run default; `agent_fill` runs a Claude Code OAuth pass that fills scaffold TODOs on the adoption PR branch — single target only). Framework doc: `docs/SCHEMA-FRAMEWORK.md`.
+Alternative: dispatch `.github/workflows/fanout.yml (kit: schema)` (dry-run default; `agent_fill` runs a Claude Code OAuth pass that fills scaffold TODOs on the adoption PR branch — single target only). Framework doc: `docs/SCHEMA-FRAMEWORK.md`.

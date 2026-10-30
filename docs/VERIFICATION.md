@@ -113,7 +113,7 @@ tools/dash verify deploy --gaps        # fan the kit out to repos the index grad
 ```bash
 tools/dash verify deploy --target <name>            # dry run: branch test/agent-verification + diffstat
 tools/dash verify deploy --target <name> --apply    # PR
-gh workflow run verify-fanout.yml -f target=gaps -f dry_run=false   # every repo the index flags
+gh workflow run fanout.yml (kit: verify) -f target=gaps -f dry_run=false   # every repo the index flags
 ```
 
 Additive-only: a legacy `features.yml` is kept (it validates as-is; add `schema: features/v1` when convenient), an existing `verify/` or evidence kit is left alone, and the `.claude/` artifacts are seeded only when no verification skill of any authorship exists. After merge, per repo: fill `verify/verify.yml` `app:`, `npm i -D @playwright/test yaml && npx playwright install --with-deps chromium`, replace the `TODO-001` entry, create the two labels, run the smoke scenario and look at the PNGs.

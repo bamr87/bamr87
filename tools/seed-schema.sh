@@ -135,7 +135,7 @@ if [[ $APPLY -eq 1 ]]; then
     echo "  ✗ pyramid has errors — inspect: $PY tools/schema_lint.py check ." >&2
     exit 1
   fi
-  echo "Next: replace TODO purposes (or dispatch schema-fanout with agent_fill),"
+  echo "Next: replace TODO purposes (or dispatch fanout.yml with kit=schema and agent_fill),"
   echo "      then commit INSIDE the target repo first — see CLAUDE.md."
 else
   step "verify: schema_lint.py check"

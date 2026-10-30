@@ -783,7 +783,7 @@ PY
         ok "no lockfiles or SHA pins in ${k_scanned:-0} readable fleet repo(s)"
       else
         while IFS= read -r line; do warn "$line"; done <<< "$k_probs"
-        warn "  convert a repo with: tools/unpin-deps.sh <checkout>  (fleet-wide: deps-fanout.yml)"
+        warn "  convert a repo with: tools/unpin-deps.sh <checkout>  (fleet-wide: fanout.yml (kit: deps-latest))"
       fi
       # Never let unread repos masquerade as clean ones.
       [[ -n "$k_unread" ]] && warn "${k_unread% *} unread (private or 404 under a repo-scoped token) — NOT verified clean"
@@ -834,7 +834,7 @@ fi
 # already be what tools/docker_harmonize.py would write — image versions from
 # the registry (_data/fleet.yml `images:`), loopback env-overridable ports, no
 # container_name. Offline and fast, so it gates. The submodules are the ADVISORY
-# half: they converge through docker-fanout.yml PRs, not through this gate.
+# half: they converge through fanout.yml (kit: docker) PRs, not through this gate.
 echo "(n) Docker standard (image registry, ports, healthchecks)"
 if [[ -f "$ROOT/tools/docker_harmonize.py" ]]; then
   if ! "$PY" -c 'import yaml' >/dev/null 2>&1; then
@@ -866,7 +866,7 @@ if [[ -f "$ROOT/tools/docker_harmonize.py" ]]; then
     n_changes="${n_sum% *}"; n_repos="${n_sum#* }"
     if [[ "${n_changes:-0}" -gt 0 ]]; then
       warn "${n_changes} pending Docker change(s) across ${n_repos} checked-out submodule(s)"
-      warn "  (converge via the docker-fanout workflow: tools/fanout.sh --kit docker --target all)"
+      warn "  (converge via fanout.yml kit=docker: tools/fanout.sh --kit docker --target all)"
     fi
   fi
 else

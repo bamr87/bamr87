@@ -124,7 +124,7 @@ barodybroject deliberately has **no** attach target: its `web-prod` runs no debu
 ## Known gaps
 
 - **Submodule services that still hardcode a published port or set a
-`container_name`** (converge via `docker-fanout.yml`). The hub override neutralizes that inside the fleet stack, but two repos run *standalone* still collide. `tools/fleet-compose.py check --audit` lists them; UPS-REPO-34/35 are the requirements, and a fan-out (same machinery as `standardize-fanout.yml`) is the fix. Every override file shrinks to nothing as its repo adopts the parameterized form upstream.
+`container_name`** (converge via `fanout.yml` (kit `docker`)). The hub override neutralizes that inside the fleet stack, but two repos run *standalone* still collide. `tools/fleet-compose.py check --audit` lists them; UPS-REPO-34/35 are the requirements, and a fan-out (same machinery as `fanout.yml` (kit `standardize`)) is the fix. Every override file shrinks to nothing as its repo adopts the parameterized form upstream.
 - **`projects/README` duplicates the hub's Wiki.js stack**, including the
 `bamr87-wiki` container name and ports 3000/5050. It is excluded from the fleet stack rather than deconflicted, because the hub's copy supersedes it.
 - **Base images / version drift is solved differently than first planned.** Instead of

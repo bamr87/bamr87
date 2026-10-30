@@ -33,7 +33,7 @@ Evidence base: 35 of 37 repos have a `CLAUDE.md` (missing: `vs-sonic-pi`, `skill
 
 | id | level | applies | requirement | satisfied by | seed |
 | --- | --- | --- | --- | --- | --- |
-| UPS-AGENT-20 | SHOULD | all except fork, content | The repo carries a `SCHEMA.md` pyramid (one per directory, from the kit template), the vendored `tools/schema_lint.py`, the `schema-check.yml` gate, and the protocol snippet in `CLAUDE.md`. Registry `schema.status` records adoption. | `schema_lint.py check .` passes | `tools/seed-schema.sh` / `schema-fanout.yml` |
+| UPS-AGENT-20 | SHOULD | all except fork, content | The repo carries a `SCHEMA.md` pyramid (one per directory, from the kit template), the vendored `tools/schema_lint.py`, the `schema-check.yml` gate, and the protocol snippet in `CLAUDE.md`. Registry `schema.status` records adoption. | `schema_lint.py check .` passes | `tools/seed-schema.sh` / `fanout.yml` (kit `schema`) |
 | UPS-AGENT-21 | MUST | all with SCHEMA.md | Any add/remove/rename updates the local `SCHEMA.md` in the same commit; generated entries are marked `generated`; sub-repos and vendored trees are `terminal`. | lint clean | kit |
 | UPS-AGENT-22 | MUST | all | Vendored hub tools (`schema_lint.py`, `unwrap-prose.py`) stay byte-identical to the hub copy; drift check (i) reports divergence. | `cmp` | fan-out re-vendor |
 

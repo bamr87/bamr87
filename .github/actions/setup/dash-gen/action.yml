@@ -1,9 +1,8 @@
 name: 'Setup dash-gen'
 description: >-
-  Python 3.12 + the dash-gen generator dependencies. Replaces the
-  setup-python/pip-install block previously copy-pasted across build-dash,
-  refresh-dash, actions-usage, and actions-review. Assumes the repo is
-  already checked out.
+  Python 3.12 + the dash-gen generator dependencies, shared by every hub
+  workflow that runs tools/dash-gen (the setup-python/pip-install block used
+  to be copy-pasted into each). Assumes the repo is already checked out.
 inputs:
   python-version:
     description: 'Python version'

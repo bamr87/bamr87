@@ -18,7 +18,7 @@ How the dash carries, enforces, and propagates `SCHEMA.md` structural contracts 
 │ bamr87/bamr87: tools/schema_lint.py + templates/schema/ seed kit │
 │ + the hub's own pyramid + drift-gate check (h)                   │
 └──────────────────┬───────────────────────────────────────────────┘
-                   │ seed (tools/seed-schema.sh · schema-fanout.yml PRs
+                   │ seed (tools/seed-schema.sh · fanout.yml (kit: schema) PRs
                    │       · agent_fill via Claude Code OAuth)
 ┌ fleet ───────────▼───────────────────────────────────────────────┐
 │ each submodule: own SCHEMA.md pyramid, vendored linter,          │
@@ -49,7 +49,7 @@ Seeding is idempotent and additive-only: existing files are never overwritten, e
 
 ## Propagation via GitHub Actions
 
-**`schema-fanout.yml`** (dispatch-only, dry-run by default) is the fleet rollout mechanism, mirroring `standardize-fanout.yml`:
+**`fanout.yml` (kit `schema`)** (dispatch-only, dry-run by default) is the fleet rollout mechanism, mirroring `fanout.yml` (kit `standardize`):
 
 1. For each bamr87-owned submodule (or one `target`): shallow-clone, run `tools/seed-schema.sh --apply`, commit to `chore/schema-adoption`, open a PR against the repo's default branch. Requires the **`FLEET_TOKEN`** secret (fine-grained PAT, contents + pull-requests + workflows write on targets).
 2. With **`agent_fill`** (single target only): after seeding, a `anthropics/claude-code-action@v1` job authenticated by the **`CLAUDE_CODE_OAUTH_TOKEN`** secret (generate with `claude setup-token`) checks out the PR branch and replaces scaffold TODOs with real one-line purposes, converts enumerations to pattern rows, marks build output `generated`, and keeps the linter green — then pushes to the same PR.

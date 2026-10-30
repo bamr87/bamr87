@@ -53,7 +53,7 @@ Gitorio already owns Design (canvas/compiler), Fleet Observe, and a Harness tab 
 | **Fleet** | Roster, lines, live status, arm/disarm | `harness_registry.yml` + GitHub Actions API |
 | **Harness** | Six-layer scorecard + trip wires | Hub YAML + live Fleet Ops eval (existing parity) |
 | **Caps** | Edit `fleet.yml` blocks with diff | Allowlisted `tools/dash` config ops (console Config today) |
-| **Deploy** | Kit gaps → dry-run → PR | `harness-fanout` / `tools/dash harnesses deploy` |
+| **Deploy** | Kit gaps → dry-run → PR | `fanout.yml` (kit `harness`) / `tools/dash harnesses deploy` |
 | **Auth** | Credential presence for this process / `gh` | Console Auth semantics (env / `gh auth`, never echo secrets) |
 | **Insight** | Cost, waste, attention | `tools/dash lake review` (+ committed usage ledgers) |
 | **Logs** | Search every CI and container line | Elasticsearch/Kibana `:5601` (embedded in the console's Observe tab; joins to Traces on `trace.id`) |

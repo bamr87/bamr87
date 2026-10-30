@@ -155,7 +155,7 @@ def sec_kits() -> list[str]:
         version = v.get("version") or (f"spec {v['spec']}" if v.get("spec") else "unversioned")
         updated = v.get("updated") or v.get("vendored") or "—"
         out.append(row(f"[`{d.name}/`](templates/{d.name}/)", str(version), str(updated),
-                       short(str(v.get("seeded-by") or ("tools/seed-schema.sh / schema-fanout.yml" if d.name == "schema" else "tools/adopt-release.sh" if d.name == "release-pipeline" else "—")), 90), short(files, 200)))
+                       short(str(v.get("seeded-by") or ("tools/seed-schema.sh / fanout.yml (kit: schema)" if d.name == "schema" else "tools/adopt-release.sh" if d.name == "release-pipeline" else "—")), 90), short(files, 200)))
     return out + [""]
 
 

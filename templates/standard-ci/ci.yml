@@ -1,6 +1,6 @@
 name: CI
 
-# Adopted from bamr87/bamr87 via standardize-fanout.yml. This is a thin caller —
+# Adopted from bamr87/bamr87 via fanout.yml (kit: standardize). This is a thin caller —
 # the gate logic is shared and versioned in
 # bamr87/bamr87/.github/workflows/standard-ci.yml. Don't edit the logic here.
 # (__DEFAULT_BRANCH__ is substituted with the repo's default branch on adoption.)

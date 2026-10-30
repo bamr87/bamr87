@@ -19,15 +19,17 @@ name: 🧭 Reconcile Registry
 #
 # Token: the default GITHUB_TOKEN is repo-scoped and 404s on EVERY private repo
 # in the fleet — observed live on PR #42, where check (g) reported 11 healthy
-# private repos as "not found". Set FLEET_TOKEN (the same
-# fine-grained PAT fleet-pulse.yml uses; FLEET_TOKEN supersedes it) to see them. Without it reconcile
-# still behaves: a mass of 404s collapses into a single "token-scope" finding
-# rather than a dozen false deletion alarms. The token is PROBED, not picked by
-# presence, and a rejected one (every probe errors) collapses the same way.
+# private repos as "not found". FLEET_TOKEN (the fleet PAT) sees them. Without
+# it reconcile still behaves: a mass of 404s collapses into a single
+# "token-scope" finding rather than a dozen false deletion alarms. The token is
+# PROBED (.github/actions/resolve-fleet-token), not picked by presence — a
+# present-but-expired FLEET_TOKEN once filed all 42 repos as "could not verify"
+# drift (#280) — and the same probed token opens the fix PR, so the PR gets CI
+# (a PR pushed with GITHUB_TOKEN arrives with no checks).
 
 on:
   schedule:
-    - cron: '7 5 * * *'   # daily 05:07 UTC, after refresh-dash (04:07)
+    - cron: '7 5 * * *'   # daily 05:07 UTC (_data/fleet.yml schedule.reconcile_registry), before fleet-pulse (05:37)
   workflow_dispatch:
     inputs:
       apply:
@@ -56,34 +58,15 @@ jobs:
 
       - uses: ./.github/actions/setup/dash-gen
 
-      # Probe, never presence-check (CLAUDE.md standing rule). Picking by
-      # presence (`FLEET_TOKEN || … || GITHUB_TOKEN`) chose an EXPIRED
-      # FLEET_TOKEN over a working fallback and filed all 42 repos as "could not
-      # verify" drift (#280). Same loop as fleet-pulse.yml. GITHUB_TOKEN cannot
-      # answer `gh api user`, so it is the unprobed last resort; the blind-token
-      # collapse in reconcile.py then turns its 404s into one finding.
+      # Probe, never presence-check (CLAUDE.md standing rule). GITHUB_TOKEN is
+      # the unprobed last resort; the blind-token collapse in reconcile.py then
+      # turns its 404s into one finding.
       - name: Resolve a working fleet token
         id: token
-        env:
-          T_FLEET: ${{ secrets.FLEET_TOKEN }}
-          T_ANALYTICS: ${{ secrets.ACTIONS_ANALYTICS_TOKEN }}
-          T_DEFAULT: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chosen=""
-          for name in T_FLEET T_ANALYTICS; do
-            val="${!name}"
-            [ -n "$val" ] || continue
-            if GH_TOKEN="$val" gh api user --jq .login >/dev/null 2>&1; then
-              chosen="$name"; break
-            fi
-            echo "::warning::${name#T_} token is set but rejected by the API (expired or revoked) — trying the next one."
-          done
-          if [ -z "$chosen" ]; then
-            chosen=T_DEFAULT
-            echo "::error::No fleet PAT is accepted by the API — falling back to GITHUB_TOKEN (hub + public repos only). Re-mint FLEET_TOKEN (docs/TOKEN-ROTATION.md)."
-          fi
-          echo "GH_TOKEN=${!chosen}" >> "$GITHUB_ENV"
-          echo "source=${chosen#T_}" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
 
       # Report-only first, so the routing decision is made from a clean read
       # of the fleet before anything is written.
@@ -97,25 +80,34 @@ jobs:
           print(f"authoritative={d['authoritative']}")
           print(f"advisory={d['advisory']}")
           PY
+          # Rendered from the JSON already fetched: a second `reconcile` would
+          # be a second full sweep of the fleet on the shared PAT.
           echo "--- findings ---"
-          python .github/scripts/dash-gen/dash_gen.py reconcile
+          python - <<'PY'
+          import json, sys
+          sys.path.insert(0, ".github/scripts/dash-gen")
+          import reconcile
+          d = json.load(open("/tmp/reconcile.json"))
+          sys.stdout.write(reconcile.render([reconcile.Finding(**f) for f in d["findings"]]))
+          PY
 
       # --- authoritative: apply + PR ------------------------------------
+      # The README AUTO span is regenerated in the same change: the drift gate
+      # hard-fails a registry edit whose README is stale, and this PR must pass
+      # that gate like any other.
       - name: Apply authoritative fixes
         if: steps.detect.outputs.authoritative != '0' && (github.event_name != 'workflow_dispatch' || inputs.apply)
-        run: python .github/scripts/dash-gen/dash_gen.py reconcile --apply
-
-      - name: Configure Git
-        if: steps.detect.outputs.authoritative != '0' && (github.event_name != 'workflow_dispatch' || inputs.apply)
-        uses: ./.github/actions/setup/configure-git
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/dash-gen/dash_gen.py reconcile --apply
+          python .github/scripts/dash-gen/dash_gen.py readme
 
       - name: Create pull request
         if: steps.detect.outputs.authoritative != '0' && (github.event_name != 'workflow_dispatch' || inputs.apply)
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.token.outputs.token }}
+          committer: bamr87-bot <10567847+bamr87@users.noreply.github.com>
+          author: bamr87-bot <10567847+bamr87@users.noreply.github.com>
           commit-message: "chore(registry): reconcile repo urls with GitHub"
           title: "chore(registry): reconcile repo urls with GitHub"
           body: |
@@ -137,49 +129,30 @@ jobs:
             automated
 
       # --- advisory: issue, never auto-applied ---------------------------
+      # ONE issue, updated in place, closed the night the drift (or the dead
+      # token that faked it) is gone — it once sat open indefinitely with a
+      # stale list (#280).
+      - name: Render the tracking issue
+        if: steps.detect.outputs.advisory != '0'
+        run: python3 -c 'import json; print(json.load(open("/tmp/reconcile.json"))["issue_body"])' > /tmp/issue_body.md
+
       - name: File / update tracking issue
         if: steps.detect.outputs.advisory != '0'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TITLE="Registry drift needs review (deleted / branch-drift)"
-          python - <<'PY' > /tmp/issue_body.md
-          import json
-          print(json.load(open("/tmp/reconcile.json"))["issue_body"])
-          PY
-          # The label is created on demand: when it did not exist, the labelled
-          # create failed, the unlabelled fallback ran, and the labelled search
-          # below never matched — one fresh duplicate every night (27 by 08-28).
-          gh label create registry-drift --force \
-            --description "Registry ↔ GitHub drift needing a human decision" \
-            --color d93f0b >/dev/null 2>&1 || true
-          EXISTING="$(gh issue list --state open --search "$TITLE in:title" \
-                        --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')"
-          if [ -n "$EXISTING" ]; then
-            gh issue edit "$EXISTING" --body-file /tmp/issue_body.md
-            echo "updated issue #$EXISTING"
-          else
-            gh issue create --title "$TITLE" --body-file /tmp/issue_body.md \
-              --label registry-drift
-          fi
+        uses: ./.github/actions/utilities/upsert-issue
+        with:
+          token: ${{ github.token }}
+          title: "Registry drift needs review (deleted / branch-drift)"
+          body-file: /tmp/issue_body.md
+          labels: registry-drift
 
-      # A clean night retires the tracking issue. Without this it sat open
-      # indefinitely with a stale list after the drift (or the dead token that
-      # faked it) was gone (#280).
       - name: Close tracking issue when clean
         if: steps.detect.outcome == 'success' && steps.detect.outputs.advisory == '0'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          TITLE="Registry drift needs review (deleted / branch-drift)"
-          EXISTING="$(gh issue list --state open --search "$TITLE in:title" \
-                        --json number,title --jq '[.[] | select(.title == "'"$TITLE"'")][0].number')"
-          if [ -n "$EXISTING" ]; then
-            gh issue close "$EXISTING" \
-              --comment "✓ Registry matches GitHub — clean as of $RUN_URL. Closing; the next run reopens a fresh issue if drift returns."
-            echo "closed issue #$EXISTING"
-          fi
+        uses: ./.github/actions/utilities/upsert-issue
+        with:
+          token: ${{ github.token }}
+          title: "Registry drift needs review (deleted / branch-drift)"
+          state: close
+          close-comment: "✓ Registry matches GitHub — clean as of ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Closing; the next run reopens a fresh issue if drift returns."
 
       - name: Summary
         if: always()

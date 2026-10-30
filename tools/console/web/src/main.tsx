@@ -37,6 +37,8 @@ import { Inventory } from './pages/Inventory';
 import { HealthPage } from './pages/HealthPage';
 import { Schedules } from './pages/Schedules';
 import { Loops, LoopPage } from './pages/Loops';
+import { Workflows } from './pages/Workflows';
+import { ActionPage, WorkflowPage } from './pages/WorkflowPage';
 import { Costs } from './pages/Costs';
 import { Activity } from './pages/Activity';
 import { Live } from './pages/Live';
@@ -96,6 +98,9 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="schedules" element={<Schedules />} />
                   <Route path="loops" element={<Loops />} />
                   <Route path="loops/:id" element={<LoopPage />} />
+                  <Route path="workflows" element={<Workflows />} />
+                  <Route path="workflows/actions/*" element={<ActionPage />} />
+                  <Route path="workflows/:id" element={<WorkflowPage />} />
                   <Route path="work" element={<Work />} />
                   <Route path="deep-dive" element={<DeepDive />} />
                   <Route path="costs" element={<Costs />} />

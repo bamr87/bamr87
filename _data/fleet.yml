@@ -94,7 +94,7 @@ image_overrides:
 # trades both for zero update maintenance.
 #
 # Applied by: tools/unpin-deps.sh (one repo), the deps-latest kit in
-# tools/fanout.sh + deps-fanout.yml (fleet-wide PRs), and the hub's own tree.
+# tools/fanout.sh + fanout.yml (kit `deps-latest`, fleet-wide PRs), and the hub's own tree.
 # Full policy: docs/DEPENDENCIES.md
 # --------------------------------------------------------------------------- #
 dependencies:
@@ -150,18 +150,14 @@ hub:
 schedule:
   rotate_tokens: "7 2 * * 1"      # weekly credential rotation (see rotation:)
   update_submodules: "7 3 * * *"  # daily pointer bump (published directly, [skip ci])
-  refresh_dash: "7 4 * * *"       # README AUTO span refresh PR
   reconcile_registry: "7 5 * * *" # registry ↔ GitHub reconciliation
-  fleet_pulse: "37 5 * * *"       # gather → publish → remediate (THE daily loop)
-  build_dash: "37 6 * * *"        # republish the site after the data lands
-  issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:)
+  fleet_pulse: "37 5 * * *"       # gather → publish → remediate (THE daily loop; its data push is [skip ci])
+  issue_pipeline: "37 7 * * *"    # intake → implement → complete (see issue_pipeline:; its data push is [skip ci])
+  build_dash: "37 8 * * *"        # republish the site ONCE, after the last data push of the morning
   schema_vendor: "7 8 * * 1"      # weekly hub↔upstream SCHEMA kit parity PR
   repo_evolution: "37 10 * * 1"   # weekly proactive per-repo improvement pass (see evolution:)
   repo_scout: "37 4 * * *"        # daily proactive ISSUE pass (see scout:) — before fleet-pulse (05:37)
                                   # snapshots what it filed and issue-pipeline (07:37) intakes it, same day
-  # git_digs paused Oct 14 (Actions waste reduction): schedule commented out in git-digs.yml while
-  # GIT_DIGS_ENABLED is off; restore this line together with that schedule block.
-  # git_digs: "17 11 * * *"         # daily Git archaeology draft; off unless GIT_DIGS_ENABLED=true
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
   backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
@@ -372,9 +368,9 @@ issue_pipeline:
 #
 # WHY A SCHEDULED AI LOOP IS ACCEPTABLE HERE
 # ------------------------------------------
-# unified-evolution.yml stays dispatch-only because an unbounded "improve the
-# repo" pass on a cron is speculative. This one is bounded the way the other
-# scheduled agents are: the target set is declared per repo in the registry
+# An unbounded "improve the repo" pass on a cron is speculative (the hub's
+# dispatch-only unified-evolution.yml was retired 2026-10-27). This one is
+# bounded the way the other scheduled agents are: the target set is declared per repo in the registry
 # (`auto_evolve: true`), the planner refuses external upstreams and archived
 # repos whatever the registry says, the brief is built from the fleet's
 # observed signals (_data/fleet_triage.yml) rather than from imagination, the
@@ -479,7 +475,7 @@ verification:
     stale_verified_days: 90         # a `verified:` stamp older than this is reported as stale
   fanout:
     branch: test/agent-verification
-    max_targets_per_run: 10         # verify-fanout `gaps` opens at most this many PRs per dispatch
+    max_targets_per_run: 10         # fanout.yml (kit `verify`) `gaps` opens at most this many PRs per dispatch
 
 # Budget — the dollar ceiling on a single headless agent invocation.
 #
@@ -540,10 +536,8 @@ budget:
     issue-pipeline.yml:tier2: 60          # 400 turns · implement — clone, edit, test, PR
     issue-pipeline.yml:tier3: 60          # 400 turns · complete — CI iteration is the long tail
     repo-evolution.yml:evolve: 20         # 120 turns PER MATRIX LEG (evolution.max_turns)
+    fanout.yml:agent-fill: 10             # 25 turns · fills the kit's scaffold TODOs (standardize: CLAUDE.md, schema: SCHEMA.md)
     repo-scout.yml:scout: 8               # 40 turns PER MATRIX LEG (scout.max_turns) — read + write proposals, no edits
-    unified-evolution.yml:evolve: 10      # 30 turns · dispatch-only hub pass
-    schema-fanout.yml:agent-fill: 10      # 25 turns · fills scaffold TODOs
-    standardize-fanout.yml:agent-fill: 8  # 15 turns · fills a CLAUDE.md scaffold
     # The @claude mention handler is the one HUMAN-triggered call site, so it
     # has no turn cap to derive from. It gets a generous ceiling anyway: a
     # runaway mention is still unattended spend once the human walks away.
@@ -554,7 +548,6 @@ budget:
                                           # past ~66 meets this ceiling first — by design.
     ai-lane.yml:run: 10                   # the reusable lane's `max-budget-usd` input default
                                           # (= default_usd); consumers may pass their own.
-    git-digs.yml:dig: 6                   # 30 turns · floor 4.5; no observed spend yet
 
   # JEV's conflict engine is deliberately NOT a `call_sites` entry. Those are
   # keyed `<workflow file>:<job id>` and test_ai_budget.py holds each one
@@ -709,7 +702,7 @@ harness:
 # the projected spend may grow to before somebody is told. Observed reality is
 # gathered daily by `dash-gen harnesses` (harness_registry.py) into
 # _data/harness_registry.yml — the read-only inventory the /harnesses/ dash
-# page renders and the harness-fanout `gaps` target deploys from.
+# page renders and the fanout.yml harness kit's `gaps` target deploys from.
 # Full doc: docs/HARNESS-OPS.md
 # --------------------------------------------------------------------------- #
 harnesses:
@@ -1179,7 +1172,7 @@ tokens:
       Preferred Claude auth for every claude-code-action call site (house
       convention: OAuth first). Produced by `claude setup-token`.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, schema-fanout.yml, repo-evolution.yml]
+              fanout.yml, repo-evolution.yml, fleet-verify.yml]
     rotation:
       enabled: true
       # `claude setup-token` mints a ONE-YEAR credential, so the value itself is
@@ -1244,7 +1237,7 @@ tokens:
     managed_by: keys
     purpose: The metered Claude credential (`api_key` in ai_auth). One key per Console workspace, 7-day lifetime.
     used_by: [fleet-pulse.yml, claude.yml, issue-pipeline.yml,
-              unified-evolution.yml, schema-fanout.yml, repo-evolution.yml]
+              fanout.yml, repo-evolution.yml, fleet-verify.yml]
     rotation:
       # The loop cannot RE-ISSUE a console key — that is a human action in the
       # Anthropic console — but it can and should PROPAGATE whatever the hub
@@ -1281,8 +1274,10 @@ tokens:
       weekly evolution loop may open PRs against, plus secrets:write on every fleet repo for the weekly
       rotation (writing an Actions secret is an admin-level operation — without
       it `token-rotation.yml` can audit ages but not fix them). Supersedes the
-      legacy PATs below (FANOUT_TOKEN, the third, was deleted 2026-09-30).
-    replaces: [ACTIONS_ANALYTICS_TOKEN, DAILY_ANALYSIS_TOKEN]   # and FANOUT_TOKEN, removed 2026-09-30
+      legacy per-loop PATs (all removed; see the note below).
+    # Replaced the legacy per-loop PATs: FANOUT_TOKEN (removed 2026-09-30),
+    # ACTIONS_ANALYTICS_TOKEN and DAILY_ANALYSIS_TOKEN (removed 2026-10-19;
+    # nothing falls back to them any more).
     rotation:
       enabled: false      # GitHub PAT; re-issue in GitHub settings and re-seed
 
@@ -1321,16 +1316,6 @@ tokens:
       max_age_days: 45
       # Fine-grained (`github_pat_`) preferred; classic (`ghp_`) accepted.
       value_prefixes: ["github_pat_", "ghp_"]
-  - name: ACTIONS_ANALYTICS_TOKEN
-    scope: hub
-    required: false
-    deprecated: true
-    purpose: Legacy — read fleet Actions data. Folded into FLEET_TOKEN.
-  - name: DAILY_ANALYSIS_TOKEN
-    scope: hub
-    required: false
-    deprecated: true
-    purpose: Legacy — read fleet runs/issues for the daily analysis. Folded into FLEET_TOKEN.
 
 # --------------------------------------------------------------------------- #
 # AI auth order — which Claude credential each repo tries first.

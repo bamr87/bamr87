@@ -16,6 +16,7 @@ on:
       - '_data/**'
       - 'tools/console/**'
       - 'tools/fleetcore/**'
+      - 'diagrams/**'
       - 'README.md'
       - '.github/scripts/dash-gen/**'
       - '.github/actions/setup/dash-gen/**'
@@ -36,27 +37,31 @@ on:
       - '_data/**'
       - 'tools/console/**'
       - 'tools/fleetcore/**'
+      - 'diagrams/**'
       - 'README.md'
       - '.github/scripts/dash-gen/**'
       - '.github/actions/setup/dash-gen/**'
       - '.github/workflows/build-dash.yml'
   schedule:
-    # Daily, AFTER the data-refresh jobs have landed (refresh-dash 04:07,
-    # reconcile-registry 05:07, fleet-pulse 05:37). Those commits use
-    # GITHUB_TOKEN so they can't trigger this workflow themselves — this run is
-    # what republishes them. It was every 6h, but three of those four daily
-    # builds landed before any new data existed and only rebuilt an unchanged
-    # site; the Monitor board's live signals are regenerated here at build time
-    # either way.
-    - cron: '37 6 * * *'  # daily 06:37 UTC — after fleet-pulse (05:37) has published
+    # Daily, AFTER the last generated-data push of the morning (fleet-pulse
+    # 05:37, issue-pipeline 07:37). Those commits carry `[skip ci]` so they wake
+    # no workflow — this run is what republishes them, exactly once a day. It
+    # was every 6h, then 06:37 (which missed the issue-pipeline snapshot by an
+    # hour and was then re-run by the data push itself); the Monitor board's
+    # live signals are regenerated here at build time either way.
+    - cron: '37 8 * * *'  # daily 08:37 UTC (_data/fleet.yml schedule.build_dash)
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Production builds share `pages` and never cancel (one deploy at a time, none
+# dropped). A PR build only proves the page builds, so it gets its own group
+# and is cancelled by the next push — sharing `pages` let a PR push displace a
+# queued production deploy.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('build-dash-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -67,7 +72,10 @@ jobs:
 
       - uses: ./.github/actions/setup/dash-gen
 
+      # A per-project API sweep, only worth paying for a build that deploys: a
+      # PR build proves the page builds and is never published.
       - name: Generate monitoring data (ephemeral)
+        if: github.event_name != 'pull_request'
         run: python .github/scripts/dash-gen/dash_gen.py health || echo "health gen degraded; continuing"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -85,12 +93,17 @@ jobs:
         env:
           OUT: ${{ github.workspace }}/_site
 
-      - name: The bundle carries no inline script (the page's CSP is script-src 'self')
+      # The public build's own invariants — asserted here rather than by a
+      # second public build in console-web.yml (this PR build covers every path
+      # that one did).
+      - name: The public build is whole and keeps its CSP (script-src 'self')
         run: |
+          test -f _site/snapshot/manifest.json && test -f _site/portfolio/index.html
           if grep -Eq '<script>|<script [^>]*>[^<]+</script>' _site/index.html; then
             echo "::error file=tools/console/web/index.html::inline script in the built page — its CSP would block it"
             exit 1
           fi
+          grep -q 'http-equiv="Content-Security-Policy"' _site/index.html || { echo "::error::the public build lost its CSP meta"; exit 1; }
 
       # Agents should not have to drive the app. Project the same registries into
       # stable JSON under _site/api/v1/ (+ llms.txt) beside it so Pages serves

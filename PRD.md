@@ -78,6 +78,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
 | [HUB-032](features/features.yml) | Claude spend accounting: every CI run priced, estimated or proved free | shipped | [`.github/scripts/dash-gen/ai_usage_collector.py`](.github/scripts/dash-gen/ai_usage_collector.py) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR27, NFR10 |
 | [HUB-033](features/features.yml) | The fleet's one release-please workflow, degrading to a warning without a PR credential | shipped | [`.github/workflows/release-please.yml`](.github/workflows/release-please.yml) · [`docs/RELEASES.md`](docs/RELEASES.md) | FR3, FR6 |
+| [HUB-034](features/features.yml) | Workflow atlas: maintain and design the hub's GitHub Actions | shipped | route `/workflows` · [`docs/WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | FR5, FR21 |
 | [HUB-035](features/features.yml) | JEV: conflict-free numbering + tiered PR conflict triage | partial | [`tools/jev/README.md`](tools/jev/README.md) · [`docs/JEV.md`](docs/JEV.md) | FR28, NFR11 |
 | [HUB-036](features/features.yml) | Fleet work-tracking framework on GitHub Projects (proposed) | planned | [`templates/projects/framework.yml`](templates/projects/framework.yml) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR29, NFR12 |
 | [HUB-037](features/features.yml) | Projects coverage gate: every open issue/PR tracked with required fields (proposed) | planned | [`tools/projects_lint.py`](tools/projects_lint.py) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR29, NFR12 |
@@ -88,7 +89,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | Requirement | Features |
 | --- | --- |
 | FR2 | HUB-001, HUB-008 |
-| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030 |
+| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
 | FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028, HUB-033 |
@@ -112,7 +113,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR19 | HUB-025 |
 | FR20 | HUB-025 |
 | NFR7 | HUB-025 |
-| FR21 | HUB-026 |
+| FR21 | HUB-026, HUB-034 |
 | FR22 | HUB-027 |
 | FR23 | HUB-027 |
 | FR24 | HUB-029 |
