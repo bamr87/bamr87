@@ -66,6 +66,7 @@ When two documents disagree, the higher one wins and the lower one is fixed in t
 | New or changed user-facing feature | Entry in `features/features.yml` (`status`, `link`/`docs`, `prd:`), regenerated PRD block |
 | New or changed requirement | PRD edit with a new `FRn`/`NFRn` id (ids are never reused), feature `prd:` refs updated |
 | Hard-to-reverse technical decision | ADR in `docs/adr/` |
+| New or changed work item (issue / PR) in a registry repo | Item in the portfolio project with required fields (§ 9) |
 | Change to this constitution | Amendment record in `docs/amendments/` (§ 8) |
 
 ## 7. Quality gates
@@ -79,6 +80,7 @@ Every PR passes the checks the repo's guide names:
 - `python3 -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q` _(AGENTS.md)_
 - `python3 tools/console/test_pages.py` _(AGENTS.md)_
 - `python3 <bamr87/bamr87>/tools/governance_lint.py check .` (feature catalog ↔ PRD, constitution, amendments)
+- `python3 <bamr87/bamr87>/tools/projects_lint.py check` (work-tracking spec; live coverage when the token can read projects — § 9)
 
 ## 8. Amendments
 
@@ -90,3 +92,13 @@ This constitution changes only through a numbered record in [docs/amendments/](a
 4. **Supersede** — a later amendment may replace an earlier one; mark the old record `superseded by NNNN`.
 
 Records are append-only history: fix a ratified rule with a new amendment, never by editing an old record. [0001](amendments/0001-ratify-constitution.md) ratifies this document.
+
+## 9. Work tracking
+
+GitHub Projects (v2) are the system of record for work across the fleet ([amendment 0003](amendments/0003-github-projects-work-tracking.md), [plan](PROJECTS-FRAMEWORK.md)):
+
+- One **Fleet Portfolio** project holds every open issue and PR of every registry repo; **domain projects** hold a subset. Projects, fields, options, lifecycle and the label map are defined only in [templates/projects/framework.yml](../templates/projects/framework.yml).
+- Required fields: Status, Priority, Area, Repo; plus Feature ID (`HUB-NNN`, a `features.yml` id) and PRD req (`FRn`/`NFRn`) when the item changes a feature or a requirement.
+- Status lifecycle: Inbox → Triaged → Ready → In progress → In review → Done, with Blocked and Won't do. Labels mirror fields; the project wins on conflict.
+- Agents read and move items only through the console MCP layer or the sync workflow.
+

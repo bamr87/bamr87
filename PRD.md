@@ -78,6 +78,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
 | [HUB-032](features/features.yml) | Claude spend accounting: every CI run priced, estimated or proved free | shipped | [`.github/scripts/dash-gen/ai_usage_collector.py`](.github/scripts/dash-gen/ai_usage_collector.py) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR27, NFR10 |
 | [HUB-033](features/features.yml) | The fleet's one release-please workflow, degrading to a warning without a PR credential | shipped | [`.github/workflows/release-please.yml`](.github/workflows/release-please.yml) · [`docs/RELEASES.md`](docs/RELEASES.md) | FR3, FR6 |
+| [HUB-035](features/features.yml) | Fleet work-tracking framework on GitHub Projects (proposed) | planned | [`templates/projects/framework.yml`](templates/projects/framework.yml) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR28, NFR11 |
+| [HUB-036](features/features.yml) | Projects coverage gate: every open issue/PR tracked with required fields (proposed) | planned | [`tools/projects_lint.py`](tools/projects_lint.py) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR28, NFR11 |
+| [HUB-037](features/features.yml) | Features/PRD ↔ project sync and console Projects panel (proposed) | planned | [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR29, NFR11 |
 
 **Requirement → feature trace**
 
@@ -119,6 +122,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR27 | HUB-032 |
 | NFR10 | HUB-032 |
 | FR3 | HUB-033 |
+| FR28 | HUB-035, HUB-036 |
+| NFR11 | HUB-035, HUB-036, HUB-037 |
+| FR29 | HUB-037 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -140,6 +146,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR25: The deep-dive tracker is refreshed daily from the GitHub API (open `deep-dive` issues/PRs per repo) as a never-auto-merged PR or a dry-run artifact, and the Harness Console shows cycle progress (x/N), the cycle calendar, per-repo status, scores, issue/PR links and the last/next repo at `/deep-dive`
 - FR26: The Harness Console's API is available as an MCP server (`tools/dash mcp`, `tools/console/mcp_layer/`) over stdio and streamable HTTP, exposing read tools and resources for fleet status, harness health and scorecard, live activity, sessions, jobs and logs, spend against budget, traces, workflow lines, observability, semantic code search and deep-dive progress, plus write tools (run an allowlisted op, cancel a job, workflow kill switch) that are off unless explicitly enabled; see [tools/console/docs/mcp-layer.md](tools/console/docs/mcp-layer.md)
 - FR27: Every Claude CI run in the fleet — in each registry repo and in the hub itself (`_data/fleet.yml` `hub.repo`) — is accounted in `_data/ai_usage.yml` with the SOURCE of its figure stated per run: the run's own reported `total_cost_usd` (summed per Claude session, de-duplicated by `session_id`), a token-rate price at API list prices including cache reads and writes, `no-spend` for a run that ran no Claude step, or an explicit estimate with a named basis; the monthly AI ceiling (`budget.monthly_ai_usd`) is evaluated on the ACCOUNTED total (measured + estimated), never on the measured half alone; see [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md#usage-dashboard-transparency--audit)
+- FR28: Every open issue and PR in a registry repo is an item of the Fleet Portfolio GitHub Project (and its domain project) carrying the required fields (Status, Priority, Area, Repo; Feature ID and PRD req when it changes a feature or requirement), defined once in `templates/projects/framework.yml` and checked by `tools/projects_lint.py`; see [docs/PROJECTS-FRAMEWORK.md](docs/PROJECTS-FRAMEWORK.md)
+- FR29: Feature ids in `features/features.yml` and PRD requirement ids are synced into the projects' Feature ID / PRD req single-select options, and the harness console shows project coverage (items untracked, items missing required fields, per repo) from a committed `_data/projects_board.yml`
 
 **Non-functional**
 
@@ -153,6 +161,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR8: the deep-dive routine and its refresh only open issues and PRs — never merge, force-push, or change settings or secrets — and the tracker holds no secret
 - NFR9: the MCP layer binds to loopback by default, requires a bearer token on HTTP (refusing to start without one), never prints or returns a token, marks every write tool destructive and refuses it without `confirm=true`, and adds no enforcement of its own beyond the console's allowlist and confirm gate
 - NFR10: the spend ledger never presents a measured figure as a complete one — every aggregate carries its estimated share, a model with no rate row is surfaced (`unpriced_models`) instead of being priced at zero, and locally published interactive spend is never folded into the CI totals or judged against the CI ceiling
+- NFR11: work tracking never depends on a token scope silently — every projects tool and collector reports `scope_missing: project` instead of an empty result, and project mutations run only from the sanctioned sync workflow or the MCP layer's confirm-gated write tools
 
 ## 6. Success metrics (proposed — not defined in sources)
 

@@ -498,3 +498,42 @@ features:
     date: 2026-10-29
     tests:
       - templates/sdlc/test_sdlc_kit.py
+  # --------------------------------------------------------- work tracking
+  - id: HUB-035
+    title: "Fleet work-tracking framework on GitHub Projects (proposed)"
+    description: "One spec (templates/projects/framework.yml) for the Fleet Portfolio and domain projects: fields, options, views, lifecycle and the label map; a reusable auto-add workflow for bamr87/.github; reconciled after amendment 0003 is ratified."
+    implemented: false
+    status: planned
+    prd: [FR28, NFR11]
+    surface: infra
+    link: templates/projects/framework.yml
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags: [ governance, projects, labels, fleet ]
+    date: 2026-10-29
+    tests:
+      - tools/test_projects_lint.py
+  - id: HUB-036
+    title: "Projects coverage gate: every open issue/PR tracked with required fields (proposed)"
+    description: "tools/projects_lint.py validates the framework spec offline and, with project read access, reports issues/PRs missing from the portfolio or missing required fields; warning for 30 days after ratification, then an error."
+    implemented: false
+    status: planned
+    prd: [FR28, NFR11]
+    surface: infra
+    link: tools/projects_lint.py
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags: [ governance, lint, projects ]
+    date: 2026-10-29
+    tests:
+      - tools/test_projects_lint.py
+  - id: HUB-037
+    title: "Features/PRD ↔ project sync and console Projects panel (proposed)"
+    description: "Sync features.yml ids and PRD requirement ids into the projects' Feature ID / PRD req options; a dash-gen collector writes _data/projects_board.yml and the console shows coverage per repo; MCP read tools (projects_board) and confirm-gated writes (project_item_set) for bots and JEV."
+    implemented: false
+    status: planned
+    prd: [FR29, NFR11]
+    surface: infra
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags: [ governance, projects, console, mcp ]
+    date: 2026-10-29
+    tests:
+      - {na: "design only; collector and panel land in phase 3"}

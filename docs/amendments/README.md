@@ -10,3 +10,4 @@ The append-only log of changes to [the constitution](../constitution.md). Proces
 | # | Title | Status | Affects |
 | --- | --- | --- | --- |
 | [0001](0001-ratify-constitution.md) | Ratify the constitution | ratified on merge | whole constitution |
+| [0003](0003-github-projects-work-tracking.md) | GitHub Projects as the fleet's system of record for work | proposed | § 6, § 7, § 9; FR28, FR29, NFR11; HUB-035–037 |
