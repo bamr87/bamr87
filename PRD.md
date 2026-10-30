@@ -85,6 +85,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-038](features/features.yml) | Features/PRD ↔ project sync and console Projects panel (proposed) | planned | [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR30, NFR12 |
 | [HUB-039](features/features.yml) | Claude Code OTel telemetry in the console and MCP | shipped | [`tools/console/claude_telemetry.py`](tools/console/claude_telemetry.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | TBD |
 | [HUB-040](features/features.yml) | Claude subscription shown as a discounted rate off API list prices | shipped | [`tools/console/subscription.py`](tools/console/subscription.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | FR31 |
+| [HUB-041](features/features.yml) | GitHub Projects in the console: cross-owner aggregation, linked view and guarded write-back | partial | [`tools/console/gh_projects.py`](tools/console/gh_projects.py) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR32, FR33, FR34 |
 
 **Requirement → feature trace**
 
@@ -132,6 +133,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | NFR12 | HUB-036, HUB-037, HUB-038 |
 | FR30 | HUB-038 |
 | FR31 | HUB-040 |
+| FR32 | HUB-041 |
+| FR33 | HUB-041 |
+| FR34 | HUB-041 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -157,6 +161,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR29: Every open issue and PR in a registry repo is an item of the Fleet Portfolio GitHub Project (and its domain project) carrying the required fields (Status, Priority, Area, Repo; Feature ID and PRD req when it changes a feature or requirement), defined once in `templates/projects/framework.yml` and checked by `tools/projects_lint.py`; see [docs/PROJECTS-FRAMEWORK.md](docs/PROJECTS-FRAMEWORK.md)
 - FR30: Feature ids in `features/features.yml` and PRD requirement ids are synced into the projects' Feature ID / PRD req single-select options, and the harness console shows project coverage (items untracked, items missing required fields, per repo) from a committed `_data/projects_board.yml`
 - FR31: The console must present Claude usage dollars as API-equivalent estimates, compare them with the flat subscription prorated to the same window as an effective discount, and report metered API spend separately, never summing the two.
+- FR32: The console must read GitHub Projects (v2) and their items across every fleet owner, cached, and report a missing read:project scope honestly instead of failing.
+- FR33: The console must link project items, issues, pull requests, commits, repos and FEAT/FR references into one cross-repo graph.
+- FR34: Write-back to projects, issues and pull requests must be allowlisted, off by default, dry-run first, applied only on confirmation with a matching plan id, idempotent, rate-capped and audited, and must never merge, delete or change settings.
 
 **Non-functional**
 

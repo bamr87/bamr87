@@ -642,3 +642,25 @@ features:
     - tools/console/test_mcp_layer.py
     prd:
     - FR31
+  - id: HUB-041
+    title: 'GitHub Projects in the console: cross-owner aggregation, linked view and guarded write-back'
+    description: Reads Projects (v2) of bamr87, year-of-ai, ai-world-view, bash-365 and EissaLab, links
+      project items, issues, PRs, commits, repos and FEAT/FR refs into one graph, and plans write-back (projects,
+      items, issue and PR fields) as a dry run that applies only behind HARNESS_PROJECTS_WRITES plus confirm,
+      with an audit log (constitution § 11).
+    implemented: false
+    status: partial
+    surface: infra
+    link: tools/console/gh_projects.py
+    docs: docs/PROJECTS-FRAMEWORK.md
+    tags:
+    - projects
+    - console
+    - github
+    date: 2026-10-30
+    tests:
+    - tools/console/test_gh_projects.py
+    prd:
+    - FR32
+    - FR33
+    - FR34

@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Guarded harness write-back to GitHub Projects, issues and pull requests
+# 0006 — Guarded harness write-back to GitHub Projects, issues and pull requests
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0006
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
