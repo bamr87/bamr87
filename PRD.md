@@ -75,7 +75,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-028](features/features.yml) | Work board: rebalance the loops' work by drag and drop | shipped | route `/work` · [`docs/WORK-BOARD.md`](docs/WORK-BOARD.md) | FR5, FR6 |
 | [HUB-029](features/features.yml) | Daily repo deep dive: one repo a day, every repo once per cycle | partial | route `/deep-dive` · [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md) | FR24, FR25, NFR8 |
 | [HUB-030](features/features.yml) | Real-time bot activity dashboard | partial | route `/live` · [`tools/console/docs/realtime-bot-dashboard-spec.md`](tools/console/docs/realtime-bot-dashboard-spec.md) | FR5 |
-| [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | partial | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
+| [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
 
 **Requirement → feature trace**
 
