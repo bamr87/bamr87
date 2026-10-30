@@ -1,6 +1,6 @@
 # Fleet work-tracking framework — GitHub Projects (v2)
 
-> Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features HUB-035/036/037, PRD FR28, FR29, NFR11.
+> Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and PRD requirements `projects-coverage`, `projects-sync`, `projects-scope-honest` (fragments in `features/features.d/`; ids assigned at merge, amendment 0002).
 > Spec (single source): [templates/projects/framework.yml](../templates/projects/framework.yml). Gate: `python3 tools/projects_lint.py check`.
 
 ## 1. Current state (audit 2026-10-29)
@@ -37,7 +37,7 @@ Canonical set = Priority (`P0–P3`), Size (`size:*`), Area (`area:*`, `security
 4. Issue forms gain optional *Feature ID* and *PRD req* inputs.
 
 ### Governance
-- Constitution § 9 + amendment 0003 (this PR). `tools/projects_lint.py`: `check` (offline, in the gates now) and `coverage` (live; warning 30 days, then error). Reports `scope_missing` rather than passing silently (NFR11).
+- Constitution § 9 + amendment 0003 (this PR). `tools/projects_lint.py`: `check` (offline, in the gates now) and `coverage` (live; warning 30 days, then error). Reports `scope_missing` rather than passing silently (NFR-NEW:projects-scope-honest).
 - Console: dash-gen collector → `_data/projects_board.yml` (coverage per repo, untracked items, missing fields, WIP by Status/Owner) and a **Projects** panel next to Triage/Work.
 - MCP layer: read tool `projects_board`, confirm-gated write `project_item_set` (behind `HARNESS_MCP_ALLOW_WRITES`). Bots: Fleet Ops triages Inbox; Repo Janitor applies the label map; Security Warden owns the Security project; QA Lead moves In review→Done on verified evidence; Platform Architect owns the spec. JEV / conflict-triage consumes project Status instead of its own state once that stream lands (coordinated — no duplication here).
 

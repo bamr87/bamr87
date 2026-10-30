@@ -498,42 +498,20 @@ features:
     date: 2026-10-29
     tests:
       - templates/sdlc/test_sdlc_kit.py
-  # --------------------------------------------------------- work tracking
   - id: HUB-035
-    title: "Fleet work-tracking framework on GitHub Projects (proposed)"
-    description: "One spec (templates/projects/framework.yml) for the Fleet Portfolio and domain projects: fields, options, views, lifecycle and the label map; a reusable auto-add workflow for bamr87/.github; reconciled after amendment 0003 is ratified."
-    implemented: false
-    status: planned
+    title: "JEV: conflict-free numbering + tiered PR conflict triage"
+    description: "JEV is the harness-level agent logic engine (planned in bamr87/it-journey's PRD roadmap, 2027 Q1); this is its first capability, in two halves. (1) Conflict-free numbering: a pull request never picks the next HUB-NNN, FRn/NFRn or amendment number — it writes a fragment (features/features.d/, changelog.d/, docs/amendments/proposed/) with HUB-NEW / FR-NEW:key / number: NEW and references other new things by slug, and tools/jev/number.py assigns the id on main under a concurrency group, compiles the fragments into features.yml, PRD.md, CHANGELOG.md and docs/amendments/NNNN-slug.md, regenerates the PRD block, docs index and CATALOG, and publishes through publish-data (never a bare push to a protected branch). .gitattributes marks generated files merge=jev-regen (tools/jev/merge-regen.sh keeps ours and records the path for regeneration) and two append-only files merge=union; CI regenerates and fails on drift instead of trusting a hand-merge. (2) The conflict engine: every six hours, and on a push to main, it lists open fleet PRs GitHub reports as CONFLICTING (registry + the year-of-ai, ai-world-view, bash-365, EissaLab and zer0-mistakes orgs), reproduces each with a trial merge, classifies it deterministically from the conflicted files' kinds, hunks and lines, and spends the cheapest tier that finishes: tier 0 costs nothing (regenerate / union / renumber), tier 1 is Haiku 4.5 capped at $0.25 per attempt for at most 3 files and 40 lines with no workflow, secret, migration or lockfile in the set, tier 2 is Sonnet capped at $1.50, tier 3 labels jev:needs-human with the triage report. Every tier merges base into head with a merge commit (never a rebase or force-push), validates with the repo's own gates plus a clean git diff --check and no leftover markers, and discards the attempt on failure. It never merges a PR, never uses --admin and never touches settings; it only pushes to same-repo branches from listed authors. Capped at $10/month (budget.jev) inside the $75 fleet ceiling, with scheduled runs stopping at 80%; every attempt is recorded in _data/jev_resolutions.yml with its cost and whether that cost was reported or estimated. Off until amendment 0002 is ratified (jev.enabled) and until vars.JEV_CONFLICTS_ENABLED is true."
+    implemented: true
+    status: partial
     prd: [FR28, NFR11]
     surface: infra
-    link: templates/projects/framework.yml
-    docs: docs/PROJECTS-FRAMEWORK.md
-    tags: [ governance, projects, labels, fleet ]
+    link: tools/jev/README.md
+    docs: docs/JEV.md
+    tags: [ jev, governance, numbering, conflicts, ai, cost, automation ]
     date: 2026-10-29
     tests:
-      - tools/test_projects_lint.py
-  - id: HUB-036
-    title: "Projects coverage gate: every open issue/PR tracked with required fields (proposed)"
-    description: "tools/projects_lint.py validates the framework spec offline and, with project read access, reports issues/PRs missing from the portfolio or missing required fields; warning for 30 days after ratification, then an error."
-    implemented: false
-    status: planned
-    prd: [FR28, NFR11]
-    surface: infra
-    link: tools/projects_lint.py
-    docs: docs/PROJECTS-FRAMEWORK.md
-    tags: [ governance, lint, projects ]
-    date: 2026-10-29
-    tests:
-      - tools/test_projects_lint.py
-  - id: HUB-037
-    title: "Features/PRD ↔ project sync and console Projects panel (proposed)"
-    description: "Sync features.yml ids and PRD requirement ids into the projects' Feature ID / PRD req options; a dash-gen collector writes _data/projects_board.yml and the console shows coverage per repo; MCP read tools (projects_board) and confirm-gated writes (project_item_set) for bots and JEV."
-    implemented: false
-    status: planned
-    prd: [FR29, NFR11]
-    surface: infra
-    docs: docs/PROJECTS-FRAMEWORK.md
-    tags: [ governance, projects, console, mcp ]
-    date: 2026-10-29
-    tests:
-      - {na: "design only; collector and panel land in phase 3"}
+      - tools/test_jev_number.py
+      - tools/test_jev_classify.py
+      - tools/test_jev_conflicts.py
+      - tools/test_jev_ledger.py
+      - .github/scripts/dash-gen/test_schedule.py

@@ -166,6 +166,9 @@ schedule:
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
   backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
   deep_dive: "17 12 * * *"        # daily deep-dive tracker refresh PR, after the 06:00 MDT one-repo-a-day routine (docs/DEEP-DIVE.md)
+  jev_conflicts: "23 */6 * * *"   # every six hours: JEV scans the fleet for CONFLICTING open PRs
+                                  # and resolves what it can (docs/JEV.md). Off the hour and off
+                                  # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -553,6 +556,98 @@ budget:
                                           # (= default_usd); consumers may pass their own.
     git-digs.yml:dig: 6                   # 30 turns · floor 4.5; no observed spend yet
 
+  # JEV's conflict engine is deliberately NOT a `call_sites` entry. Those are
+  # keyed `<workflow file>:<job id>` and test_ai_budget.py holds each one
+  # against a literal `--max-budget-usd` in that job — which only works for a
+  # workflow STEP that runs one agent. JEV invokes `claude -p` from Python,
+  # once per pull request, inside a loop whose length is the day's conflict
+  # count, so its ceiling is a monthly TOTAL plus a per-attempt cap: the same
+  # shape as `local_usd` above. tools/jev/ledger.py enforces both from here
+  # and records every attempt in _data/jev_resolutions.yml (docs/JEV.md,
+  # tools/test_jev_ledger.py).
+  jev:
+    monthly_usd: 10            # the engine's monthly ceiling, inside the $75/month fleet budget
+    scheduled_stop_pct: 80     # a CRON run stops here, leaving the rest for a human's manual run
+    tier1_usd: 0.25            # per attempt, cheap model
+    tier2_usd: 1.50            # per attempt, strong model
+
+# --------------------------------------------------------------------------- #
+# JEV — the harness-level agent logic engine (docs/JEV.md).
+#
+# JEV is the fleet's planned agent logic layer (bamr87/it-journey PRD.md,
+# Roadmap 2027 Q1). Its FIRST capability lives here: a tiered pull-request
+# CONFLICT triage and resolution engine (tools/jev/, .github/workflows/
+# jev-conflicts.yml), plus the conflict-free numbering scheme that removes the
+# largest class of conflicts at the source (amendment 0002).
+#
+# The cheapest tier that can finish the job is the one that runs. Tier 0 costs
+# nothing and handles everything a generator or a union can settle; tiers 1 and
+# 2 buy a model only for conflicts that need judgement; tier 3 is a human. The
+# dollar ceilings are in `budget.jev` above — this block holds the SHAPE of
+# each tier, and the safety envelope JEV never leaves.
+#
+# JEV never merges a pull request, never force-pushes, never uses `--admin`
+# and never touches repository settings. It pushes MERGE COMMITS to same-repo
+# pull-request branches whose authors are listed below, and it comments.
+# --------------------------------------------------------------------------- #
+jev:
+  # Off until the amendment that introduces it is ratified. A dry run works
+  # either way; `resolve` refuses to write while this is false, and the
+  # scheduled loop has its own `vars.JEV_CONFLICTS_ENABLED` kill switch on top.
+  enabled: false
+
+  # The fleet is wider than the submodule registry: these owners' repos are
+  # scanned too. (`hub.owners` is the fan-out's write list — a narrower thing.)
+  orgs: [year-of-ai, ai-world-view, bash-365, EissaLab, zer0-mistakes]
+
+  # JEV pushes to the head branch, so it acts only on branches these accounts
+  # opened. Anything else — a human collaborator, a fork — is tier 3 by policy.
+  allowed_authors: [bamr87, bamr87-bot, "github-actions[bot]", app/github-actions, "claude[bot]"]
+
+  scan_limit: 50               # open PRs read per repo
+  max_attempts: 2              # two failed resolutions and it is a human's
+  needs_human_label: "jev:needs-human"
+
+  numbering:
+    # The lint that rejects a hand-picked next number (HUB-NNN in the catalog,
+    # FRn/NFRn in the PRD, a numbered amendment file). It reports on every PR
+    # and GATES only once amendment 0002 is ratified and the fleet has moved to
+    # fragments — otherwise it would reject the very PR that introduces it.
+    enforce: false
+
+  # Tier shapes. The dollar caps come from `budget.jev`; these are the size
+  # envelopes and the model each tier buys.
+  tiers:
+    tier1:
+      model: claude-haiku-4-5-20251001   # ~$1/$5 per MTok in/out — alternatives in docs/JEV.md
+      max_files: 3
+      max_lines: 40
+      max_turns: 8
+    tier2:
+      model: claude-sonnet-5
+      max_files: 15
+      max_lines: 400
+      max_turns: 24
+
+  # Path classes the classifier uses when a repo carries no `.gitattributes`
+  # (its attributes win when it does — tools/jev/conflicts.py reads them with
+  # `git check-attr`). Globs, fnmatch syntax.
+  generated_paths:
+    - "CATALOG.md"
+    - "_data/specs.yml"
+    - "_data/features_index.yml"
+    - "_data/cv_portfolio.json"
+    - "_data/deep_dive.json"
+    - "projects/SCHEMA.md"
+    - "docs/README.md"
+  fragment_paths:
+    - "features/features.d/*"
+    - "changelog.d/*"
+    - "docs/amendments/proposed/*"
+  union_paths:
+    - "docs/amendments/README.md"
+    - "_data/jev_resolutions.yml"
+
 # --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.
 #
@@ -647,7 +742,7 @@ harnesses:
   # Crossing a ceiling — or growing faster than trend_warn_pct — is an
   # attention item, not an enforcement action.
   budget:
-    monthly_ai_usd: 75              # projected monthly Claude CI spend ceiling
+    monthly_ai_usd: 200             # monthly Claude spend ceiling, matches the $200/month Claude Max subscription
     monthly_actions_minutes: 40000  # BILLED minutes/month ceiling — Jun–Aug 2026 ran 21–27k, all inside the included quota ($0 net)
     trend_warn_pct: 50              # growth beyond this is flagged (week-over-week for spend, month-over-month for billed minutes)
 

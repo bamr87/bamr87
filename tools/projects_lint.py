@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 File: tools/projects_lint.py
-Description: Work-tracking gate (constitution § 9, amendment 0003, HUB-036).
+Description: Work-tracking gate (constitution § 9, amendment 0003, feature projects-coverage-gate).
   check            validate templates/projects/framework.yml offline (schema, lifecycle, label map)
   coverage [--json] live: open issues/PRs missing from the portfolio or required fields.
-                   Needs the gh `read:project` scope; without it reports scope_missing (NFR11), exit 0.
+                   Needs the gh `read:project` scope; without it reports scope_missing (NFR-NEW:projects-scope-honest), exit 0.
 Exit: 0 clean, 1 errors, 2 usage.  Skeleton: coverage is phase 2.
 """
 from __future__ import annotations

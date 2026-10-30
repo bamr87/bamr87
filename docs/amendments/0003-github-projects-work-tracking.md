@@ -5,11 +5,11 @@
 - **Date:** 2026-10-29
 - **Proposed by:** Grok Bot (Fleet Ops / Platform Architect) for bamr87
 - **Ratified by:** the merged PR that adds this record (governance/github-projects)
-- **Affects:** constitution § 6 (change process), § 7 (quality gates), new § 9 (work tracking); PRD FR28, FR29, NFR11; features HUB-035, HUB-036, HUB-037
+- **Affects:** constitution § 6 (change process), § 7 (quality gates), new § 9 (work tracking); PRD FR-NEW:projects-coverage, FR-NEW:projects-sync, NFR-NEW:projects-scope-honest; features HUB-NEW:github-projects-framework, HUB-NEW:projects-coverage-gate, HUB-NEW:projects-sync-console (fragments in `features/features.d/`; ids assigned at merge per amendment 0002)
 - **Supersedes:** none
 - **Related:** [docs/PROJECTS-FRAMEWORK.md](../PROJECTS-FRAMEWORK.md), [templates/projects/framework.yml](../../templates/projects/framework.yml)
 
-> Numbering: 0002 is left to the numbering amendment in flight in the conflict-triage/JEV work stream. If that PR lands with a different number, renumber this record before merge (numbers are never reused).
+> Numbering: 0002 is [conflict-free numbering](0002-conflict-free-numbering.md); 0003 was still free when main was merged in. The feature and requirement ids are assigned by `tools/jev/number.py` at merge.
 
 ## Context
 
