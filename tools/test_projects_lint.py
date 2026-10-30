@@ -20,3 +20,10 @@ def test_label_maps_to_known_value():
 def test_portfolio_required():
     s = copy.deepcopy(SPEC); s["projects"] = [p for p in s["projects"] if p["key"] != "portfolio"]
     assert pl.validate(s)
+
+if __name__ == "__main__":
+    tests = [f for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
+    for t in tests:
+        t()
+        print(f"  ok    {t.__name__}")
+    print(f"PASS: {len(tests)} test(s)")
