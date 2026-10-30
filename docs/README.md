@@ -48,6 +48,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/MACHINE-API.md`](MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`docs/OBSERVABILITY.md`](OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`docs/PORTFOLIO.md`](PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
+| [`docs/PROJECTS-FRAMEWORK.md`](PROJECTS-FRAMEWORK.md) | Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and PRD requirements `projects-coverage`, `projects-sync`… |
 | [`docs/RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`docs/SCHEMA.md`](SCHEMA.md) | Operator documentation for the dash machinery — how the hub, gates, and fleet workflows are meant to be run. |

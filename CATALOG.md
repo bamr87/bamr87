@@ -52,6 +52,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | [`fleet-engines/`](templates/fleet-engines/) | 0.1.0 | 2026-09-08 | consumed BY DEPENDENCY — npm install @bamr87/fleet-engines (publish-kits.yml publishes on… | `.gitignore`, `README.md`, `package.json`, `src/fleet/audit.test.ts`, `src/fleet/audit.ts`, `src/fleet/facts.test.ts`, `src/fleet/facts.ts`, `src/fleet/fixtures/README.md`, `src/fleet/fixtures/cv--ma… |
 | [`governance/`](templates/governance/) | 0.1.1 | 2026-10-26 | tools/fanout.sh --kit governance (branch docs/feature-catalog); validated by tools/govern… | `README.md`, `constitution.template.md`, `docs/amendments/0000-template.md`, `docs/amendments/0001-ratify-constitution.template.md`, `docs/amendments/README.template.md` |
 | [`issue-autopilot/`](templates/issue-autopilot/) | 0.1.0 | 2026-09-10 | .github/workflows/fanout.yml (kit standardize, artifact `issue-autopilot`, OPT-IN) via to… | `README.md`, `SKILL.template.md`, `dispatch.py`, `issue-resolver.template.md`, `issue-triager.template.md`, `issue-verifier.template.md`, `test_triage_engine.py`, `test_verify_close.py`, `triage.py`,… |
+| [`projects/`](templates/projects/) | unversioned | — | — | `auto-add.yml`, `framework.yml` |
 | [`prose/`](templates/prose/) | 0.4.0 | 2026-10-22 | tools/fanout.sh --kit prose | `markdown-oneline.yml` |
 | [`release-pipeline/`](templates/release-pipeline/) | unversioned | — | tools/adopt-release.sh | `RELEASING.md`, `ci.yml`, `release.yml` |
 | [`schema/`](templates/schema/) | spec 0.1 | 2026-08-18 | tools/seed-schema.sh / fanout.yml (kit: schema) | `CLAUDE.snippet.md`, `README.md`, `SCHEMA.md`, `SCHEMA.template.md`, `schema-check.yml` |
@@ -166,6 +167,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
 | [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`): backs up the raw volume, dumps, verifies, recreates on the new layout, r… |
 | [`pipeline_map.py`](tools/pipeline_map.py) | pipeline_map.py — the data layer of the harness pipeline map (HUB-025, HUB-026). |
+| [`projects_lint.py`](tools/projects_lint.py) | Work-tracking gate (constitution § 9, amendment 0003, feature projects-coverage-gate). |
 | [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
 | [`render-diagrams.sh`](tools/render-diagrams.sh) | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
 | [`run-all-tests.sh`](tools/run-all-tests.sh) | Aggregate verification — root lint, **the control plane's own `dash-gen` tests**, and each project's own checks (wrapped by `dash test`) |
@@ -193,6 +195,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_number.py`](tools/test_jev_number.py) | Fixture tests for tools/jev/number.py — the assign-at-merge numbering compiler. |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
+| [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
 | [`test_unwrap_prose.py`](tools/test_unwrap_prose.py) | Fixture tests for `unwrap-prose.py` — structure untouched, list items joined without leaving their list, idempotence (run by `run-all-tests.sh`) |
@@ -366,6 +369,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
+| [`PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync… |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`SCOUT.md`](docs/SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |
