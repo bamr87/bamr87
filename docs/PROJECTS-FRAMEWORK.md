@@ -41,6 +41,9 @@ Canonical set = Priority (`P0–P3`), Size (`size:*`), Area (`area:*`, `security
 - Console: dash-gen collector → `_data/projects_board.yml` (coverage per repo, untracked items, missing fields, WIP by Status/Owner) and a **Projects** panel next to Triage/Work.
 - MCP layer: read tool `projects_board`, confirm-gated write `project_item_set` (behind `HARNESS_MCP_ALLOW_WRITES`). Bots: Fleet Ops triages Inbox; Repo Janitor applies the label map; Security Warden owns the Security project; QA Lead moves In review→Done on verified evidence; Platform Architect owns the spec. JEV / conflict-triage consumes project Status instead of its own state once that stream lands (coordinated — no duplication here).
 
+### DevOps methodology
+Constitution § 10 (amendment `projects-devops-methodology`, numbered at merge) adds the working rules on top of this framework: the Fleet portfolio project is [user project #14](https://github.com/users/bamr87/projects/14); every task (including AI-agent and submodule work) is an item there with Status and Priority; multi-phase work is an `epic` (`#6E40C9`) with ordered sub-issues (scope, acceptance criteria, guardrails); no change to the live Mac before an approved deploy step; read-only-by-default tools; AI cost labelled "API-equivalent (estimate)". Phase 4 fan-out also adds a § 10 pointer to each submodule's `AGENTS.md`.
+
 ## 3. Rollout (all after ratification)
 
 | Phase | What | Gate |
