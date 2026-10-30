@@ -16,6 +16,16 @@ name: release-please
 # that publish chain their own job off the `release_created` output (same run,
 # so no PAT is needed to trigger it).
 #
+# Opening the release PR needs a credential allowed to create one: either a
+# RELEASE_PLEASE_TOKEN secret, or the repo's Actions setting "Allow GitHub
+# Actions to create and approve pull requests" (Settings > Actions > General >
+# Workflow permissions) so GITHUB_TOKEN may. With neither, GitHub refuses
+# `POST /pulls` and release-please exits 1 — on every push, forever, while
+# nothing else about the run is wrong (bamr87/bamr87#406). That one denial is
+# therefore a WARNING here, not a failure: the tagging pass stays strict, the
+# PR pass is guarded, and `strict-pr-creation: true` turns the warning back
+# into a failure on a repo whose credential is provisioned.
+#
 # Callers pin a tag, never @main (UPS-WORK-10; tag scheme in
 # docs/WORKFLOW-VERSIONING.md):
 #
@@ -54,12 +64,27 @@ on:
         description: Ruby used to re-lock Gemfile.lock on the release PR (empty = vars.RUBY_VERSION, then 3.3)
         type: string
         default: ''
+      strict-pr-creation:
+        description: >
+          Fail the run when the release PR cannot be created. Default false: the
+          run warns instead, because the one cause a caller cannot fix from a PR
+          is a repo with no RELEASE_PLEASE_TOKEN whose Actions setting forbids
+          GITHUB_TOKEN from opening PRs (bamr87/bamr87#406). Set true on a repo
+          whose credential is provisioned and whose releases must therefore
+          never silently stop.
+        type: boolean
+        default: false
     secrets:
       RELEASE_PLEASE_TOKEN:
         description: >
-          Optional PAT so the release PR's commits trigger CI (commits made with
-          the default GITHUB_TOKEN do not trigger other workflows). Falls back to
-          GITHUB_TOKEN when unset.
+          PAT (contents + pull-requests write) so the release PR's commits
+          trigger CI; commits made with the default GITHUB_TOKEN do not trigger
+          other workflows. Falls back to GITHUB_TOKEN when unset, which is
+          enough only where the repo's Actions setting "Allow GitHub Actions to
+          create and approve pull requests" is on. Where it is off this secret
+          is MANDATORY (docs/RELEASES.md): without it GitHub refuses POST /pulls
+          and no release PR is ever opened. The PR step below downgrades that
+          one denial to a warning rather than a red run.
         required: false
     outputs:
       releases_created:
@@ -97,16 +122,76 @@ jobs:
       release_created: ${{ steps.rp.outputs.release_created }}
       tag_name: ${{ steps.rp.outputs.tag_name }}
       version: ${{ steps.rp.outputs.version }}
-      prs_created: ${{ steps.rp.outputs.prs_created }}
-      pr: ${{ steps.rp.outputs.pr }}
+      prs_created: ${{ steps.rp_pr.outputs.prs_created }}
+      pr: ${{ steps.rp_pr.outputs.pr }}
     steps:
-      - id: rp
+      # Two passes over the same config, because the two halves of what
+      # release-please does have different failure modes. Tagging a merged
+      # release PR only needs `contents: write`, which GITHUB_TOKEN always has,
+      # so a failure there is a real defect and must stay red. OPENING the
+      # release PR additionally needs permission to create a PR, which a repo
+      # can withhold from Actions entirely — the `GitHub Actions is not
+      # permitted to create or approve pull requests` denial of
+      # bamr87/bamr87#406. Splitting the passes keeps `continue-on-error` off
+      # everything except the one step that denial can reach.
+      - name: Tag and publish any merged release PR
+        id: rp
         uses: googleapis/release-please-action@v5
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: ${{ inputs.config-file }}
           manifest-file: ${{ inputs.manifest-file }}
           target-branch: ${{ inputs.target-branch || github.event.repository.default_branch }}
+          skip-github-pull-request: true
+
+      - name: Open or update the release PR
+        id: rp_pr
+        continue-on-error: true
+        uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}
+          target-branch: ${{ inputs.target-branch || github.event.repository.default_branch }}
+          skip-github-release: true
+
+      # The guard. A denial with no credential provisioned is a known, open
+      # fleet decision (bamr87/bamr87#406) that no PR against this repo or its
+      # callers can close, and failing every push to every adopter buys nothing:
+      # the run is already a no-op. Warn, say exactly what to do, and pass.
+      # Anywhere the credential IS provisioned the same failure is a defect, so
+      # re-raise it — that is the case `strict-pr-creation` also forces.
+      - name: Guard the release-PR denial
+        if: steps.rp_pr.outcome == 'failure'
+        env:
+          # A comparison, never the value: this prints true/false only.
+          HAVE_PAT: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
+          STRICT: ${{ inputs.strict-pr-creation }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          detail="see the \"Open or update the release PR\" step above for the error"
+          if [ "$HAVE_PAT" = "true" ]; then
+            echo "::error title=release-please could not open the release PR::RELEASE_PLEASE_TOKEN is set on $REPO, so this is not the known PR-creation denial — $detail."
+            exit 1
+          fi
+          if [ "$STRICT" = "true" ]; then
+            echo "::error title=release-please could not open the release PR::strict-pr-creation is on and no RELEASE_PLEASE_TOKEN is set on $REPO — $detail."
+            exit 1
+          fi
+          echo "::warning title=No release PR — release-please has no way to open one::$REPO has no RELEASE_PLEASE_TOKEN, and GITHUB_TOKEN may not create pull requests unless Settings > Actions > General > Workflow permissions > \"Allow GitHub Actions to create and approve pull requests\" is on. Versioning is paused, not broken: nothing else in this run failed."
+          {
+            echo "### Release PR not opened"
+            echo
+            echo "release-please computed the next release and updated its release branch, but could not open the release PR."
+            echo
+            echo "Give it one of these on \`$REPO\` and the next push to the default branch opens the PR:"
+            echo
+            echo "1. A \`RELEASE_PLEASE_TOKEN\` secret — a PAT with \`contents: write\` + \`pull requests: write\`. Preferred: the release PR then runs CI."
+            echo "2. Settings > Actions > General > Workflow permissions > \"Allow GitHub Actions to create and approve pull requests\". The release PR then runs no CI."
+            echo
+            echo "Tracked in [bamr87/bamr87#406](https://github.com/bamr87/bamr87/issues/406); background in [docs/RELEASES.md](https://github.com/bamr87/bamr87/blob/main/docs/RELEASES.md)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # release-please bumps the version file on the release PR, but not lockfiles
   # that carry the project's own version (a path-gem in Gemfile.lock, the root
@@ -125,7 +210,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Ruby
         if: hashFiles('Gemfile.lock') != ''

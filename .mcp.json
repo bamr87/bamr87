@@ -43,9 +43,9 @@
       ]
     },
     "fleet": {
-      "command": "python3",
+      "command": "tools/console/mcp.sh",
       "args": [
-        "tools/fleetcore/mcp_server.py"
+        "--fleet-compat"
       ]
     }
   }

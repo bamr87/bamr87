@@ -24,7 +24,7 @@ The console process owns the operation allowlist and the job manager. The browse
 
 ## For agents: the `fleet` MCP server
 
-`mcp_server.py` makes the console AI-native. It's registered in the repo's [`.mcp.json`](../../.mcp.json) as `fleet`, so Claude Code in this repo (or any MCP host) gets what a person gets in the browser or the terminal, and no more.
+`mcp_server.py` made the console AI-native; it is now merged into the Harness Console MCP layer ([`tools/console/docs/mcp-layer.md`](../console/docs/mcp-layer.md)), which reuses its tools and keeps the name. It's registered in the repo's [`.mcp.json`](../../.mcp.json) as `fleet`, so Claude Code in this repo (or any MCP host) gets what a person gets in the browser or the terminal, and no more.
 
 | Tool | Does | Needs the console |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ Notes:
 - **Gates:** the actions go through `client.py`, so the console's allowlist, parameter validation and confirm gate apply to an agent exactly as to a person. Tool annotations mark the read tools `readOnlyHint` and `console_run` / `console_cancel` `destructiveHint`, so a host can ask before calling them.
 - **Token:** when `DASH_CONSOLE_TOKEN` isn't in the environment, the server reads that one line from the repo's `.env`. It parses the file and never sources it.
 
-To try it by hand: `python3 tools/fleetcore/mcp_server.py`, then send newline-delimited JSON-RPC (`initialize`, `tools/list`, `tools/call`).
+To try it by hand: `FLEET_MCP_STDLIB=1 python3 tools/fleetcore/mcp_server.py` (without the variable it delegates to the merged layer), then send newline-delimited JSON-RPC (`initialize`, `tools/list`, `tools/call`).
 
 ## Tests
 

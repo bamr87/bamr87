@@ -32,6 +32,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/CONTENT-ATLAS.md`](CONTENT-ATLAS.md) | Content observability and editorial direction for the fleet's content sites, and the committed editorial plan in `_data/editorial.yml`. |
 | [`docs/DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`): gather every signal, rank the failing and expensive workflows into one queue, and let the doctor open the fixes. |
 | [`docs/DASH.md`](DASH.md) | The dash architecture — the registry as the source of truth, the surfaces, monitoring, the drift gates and the self-evolution loop. Start here for the machinery. |
+| [`docs/DEEP-DIVE.md`](DEEP-DIVE.md) | One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh (`deep-dive.yml`) and the `/deep-dive` dashboard (HUB-029, PRD FR24–FR25). |
 | [`docs/DEPENDENCIES.md`](DEPENDENCIES.md) | The always-latest dependency policy: no exact pins, no ceilings, no committed lockfiles, and the few sanctioned exceptions. |
 | [`docs/DEVELOPMENT.md`](DEVELOPMENT.md) | Prerequisites, getting the source, running the console and the site, containers, and which check to run for what you changed. |
 | [`docs/DOCKER.md`](DOCKER.md) | One image standard for every Dockerfile and compose file in the fleet — versions from `_data/fleet.yml`, a harmonizer, a fan-out — and the `/docker/` view. |

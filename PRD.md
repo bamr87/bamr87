@@ -73,17 +73,22 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-026](features/features.yml) | GitHub workflow nodes on the pipeline map (proposed) | planned | [`docs/prd/HARNESS-PIPELINE-MAP.md`](docs/prd/HARNESS-PIPELINE-MAP.md) | FR21 |
 | [HUB-027](features/features.yml) | Backlog fan-out routine | partial | [`.github/workflows/backlog-fanout.yml`](.github/workflows/backlog-fanout.yml) · [`docs/BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | FR6, FR22, FR23 |
 | [HUB-028](features/features.yml) | Work board: rebalance the loops' work by drag and drop | shipped | route `/work` · [`docs/WORK-BOARD.md`](docs/WORK-BOARD.md) | FR5, FR6 |
-| [HUB-029](features/features.yml) | Workflow atlas: maintain and design the hub's GitHub Actions | shipped | route `/workflows` · [`docs/WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | FR5, FR21 |
+| [HUB-029](features/features.yml) | Daily repo deep dive: one repo a day, every repo once per cycle | partial | route `/deep-dive` · [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md) | FR24, FR25, NFR8 |
+| [HUB-030](features/features.yml) | Real-time bot activity dashboard | partial | route `/live` · [`tools/console/docs/realtime-bot-dashboard-spec.md`](tools/console/docs/realtime-bot-dashboard-spec.md) | FR5 |
+| [HUB-031](features/features.yml) | Harness Console MCP layer: the console's API for any AI agent | shipped | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/mcp-layer.md`](tools/console/docs/mcp-layer.md) | FR26, NFR9 |
+| [HUB-032](features/features.yml) | Claude spend accounting: every CI run priced, estimated or proved free | shipped | [`.github/scripts/dash-gen/ai_usage_collector.py`](.github/scripts/dash-gen/ai_usage_collector.py) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR27, NFR10 |
+| [HUB-033](features/features.yml) | The fleet's one release-please workflow, degrading to a warning without a PR credential | shipped | [`.github/workflows/release-please.yml`](.github/workflows/release-please.yml) · [`docs/RELEASES.md`](docs/RELEASES.md) | FR3, FR6 |
+| [HUB-034](features/features.yml) | Workflow atlas: maintain and design the hub's GitHub Actions | shipped | route `/workflows` · [`docs/WORKFLOW-ATLAS.md`](docs/WORKFLOW-ATLAS.md) | FR5, FR21 |
 
 **Requirement → feature trace**
 
 | Requirement | Features |
 | --- | --- |
 | FR2 | HUB-001, HUB-008 |
-| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-029 |
+| FR5 | HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006, HUB-007, HUB-013, HUB-022, HUB-015, HUB-016, HUB-017, HUB-028, HUB-030, HUB-034 |
 | FR4 | HUB-007, HUB-023 |
 | FR1 | HUB-008, HUB-018 |
-| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028 |
+| FR6 | HUB-009, HUB-010, HUB-019, HUB-023, HUB-027, HUB-028, HUB-033 |
 | NFR3 | HUB-011, HUB-012 |
 | TBD | HUB-014, HUB-021, HUB-020 |
 | FR7 | HUB-024 |
@@ -104,9 +109,17 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR19 | HUB-025 |
 | FR20 | HUB-025 |
 | NFR7 | HUB-025 |
-| FR21 | HUB-026, HUB-029 |
+| FR21 | HUB-026, HUB-034 |
 | FR22 | HUB-027 |
 | FR23 | HUB-027 |
+| FR24 | HUB-029 |
+| FR25 | HUB-029 |
+| NFR8 | HUB-029 |
+| FR26 | HUB-031 |
+| NFR9 | HUB-031 |
+| FR27 | HUB-032 |
+| NFR10 | HUB-032 |
+| FR3 | HUB-033 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -124,6 +137,10 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR21 (proposed): Every GitHub workflow is a node in the pipeline map showing its triggers (push, pull_request, schedule, workflow_dispatch, …), its cron schedule and its last run status (pass/fail), retrieved from the GitHub API and refreshable on demand from the Harness Console
 - FR22: Pending backlog items (open hub issues, PRD requirements with no shipped feature, catalog features not shipped) are fanned out on a configurable cadence (daily default, weekly option) as idempotent PRs — one stable branch per item — in the fleet repos each item applies to, through `tools/fanout.sh`, linking feature ids to requirement ids; the routine never merges and is a dry run until explicitly switched on (`_data/backlog_fanout.yml`)
 - FR23: Every backlog fan-out decision (fanned out, skipped, failed, retried) is emitted to the fleet activity log (event schema proposed in bamr87/bamr87#409) through a fire-and-forget local queue, so an unavailable log never blocks or fails the run
+- FR24: A daily deep-dive routine processes exactly one repo per day from an ordered rotation of every non-archived bamr87 repo, so every repo is processed once per 42-day cycle; each run is recorded in `_data/deep-dive.yml` (status, date, issues/PRs opened, findings, score, next focus) through a PR, and everything it files carries the `deep-dive` label; see [docs/DEEP-DIVE.md](docs/DEEP-DIVE.md)
+- FR25: The deep-dive tracker is refreshed daily from the GitHub API (open `deep-dive` issues/PRs per repo) as a never-auto-merged PR or a dry-run artifact, and the Harness Console shows cycle progress (x/N), the cycle calendar, per-repo status, scores, issue/PR links and the last/next repo at `/deep-dive`
+- FR26: The Harness Console's API is available as an MCP server (`tools/dash mcp`, `tools/console/mcp_layer/`) over stdio and streamable HTTP, exposing read tools and resources for fleet status, harness health and scorecard, live activity, sessions, jobs and logs, spend against budget, traces, workflow lines, observability, semantic code search and deep-dive progress, plus write tools (run an allowlisted op, cancel a job, workflow kill switch) that are off unless explicitly enabled; see [tools/console/docs/mcp-layer.md](tools/console/docs/mcp-layer.md)
+- FR27: Every Claude CI run in the fleet — in each registry repo and in the hub itself (`_data/fleet.yml` `hub.repo`) — is accounted in `_data/ai_usage.yml` with the SOURCE of its figure stated per run: the run's own reported `total_cost_usd` (summed per Claude session, de-duplicated by `session_id`), a token-rate price at API list prices including cache reads and writes, `no-spend` for a run that ran no Claude step, or an explicit estimate with a named basis; the monthly AI ceiling (`budget.monthly_ai_usd`) is evaluated on the ACCOUNTED total (measured + estimated), never on the measured half alone; see [docs/AI-INTEGRATION.md](docs/AI-INTEGRATION.md#usage-dashboard-transparency--audit)
 
 **Non-functional**
 
@@ -134,6 +151,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - NFR5 (proposed): bounded local event spool, at-least-once idempotent flush, losses counted
 - NFR6 (proposed): activity events contain no secrets
 - NFR7 (proposed): the pipeline map is read-only and never prints, logs or embeds a token
+- NFR8: the deep-dive routine and its refresh only open issues and PRs — never merge, force-push, or change settings or secrets — and the tracker holds no secret
+- NFR9: the MCP layer binds to loopback by default, requires a bearer token on HTTP (refusing to start without one), never prints or returns a token, marks every write tool destructive and refuses it without `confirm=true`, and adds no enforcement of its own beyond the console's allowlist and confirm gate
+- NFR10: the spend ledger never presents a measured figure as a complete one — every aggregate carries its estimated share, a model with no rate row is surfaced (`unpriced_models`) instead of being priced at zero, and locally published interactive spend is never folded into the CI totals or judged against the CI ceiling
 
 ## 6. Success metrics (proposed — not defined in sources)
 

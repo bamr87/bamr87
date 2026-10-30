@@ -226,7 +226,11 @@ def t_release() -> None:
     job = wf["jobs"]["release"]
     path, _, ref = job["uses"].partition("@")
     check(path == "bamr87/bamr87/.github/workflows/release-please.yml", "calls the hub's reusable release-please.yml")
-    check(PINNED_REF.fullmatch(ref) is not None and ref != "main", f"pinned to a tag or SHA, never @main (UPS-WORK-10), got @{ref}")
+    # UPS-WORK-10 is "a pinned ref, never a branch", and docs/WORKFLOW-VERSIONING.md
+    # has callers ride the floating MAJOR tag. Assert that shape, not one major:
+    # hardcoding `v1` made this test fail the day the kit moved to `@v2`.
+    check(PINNED_REF.fullmatch(ref) is not None and re.fullmatch(r"v\d+", ref) is not None,
+          f"pinned to a floating major tag (UPS-WORK-10), got @{ref}")
     check(job.get("permissions") == {"contents": "write", "pull-requests": "write"}, "job grants contents+pull-requests write")
     check(wf.get("permissions") == {"contents": "read"}, "top-level permissions are read-only")
     check(job.get("secrets") == "inherit", "secrets: inherit (optional RELEASE_PLEASE_TOKEN)")

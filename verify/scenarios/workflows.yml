@@ -1,6 +1,6 @@
 # The workflow atlas on the published site: the catalog, the standards as checks, one workflow's drill-down.
 id: workflows
-feature: HUB-029
+feature: HUB-034
 title: "The Workflows page shows every hub workflow, the standards it is held to, and its drill-down"
 description: "/workflows lists every workflow with its group, schedule, Claude call sites, kill switch and standards verdict; the Standards tab shows each rule with why it exists and its gate; a workflow's page shows its triggers, jobs, Claude call sites and typed dispatch inputs. The public build says run health and the designer run on a console, and nothing scrolls sideways."
 viewports: [desktop, mobile]

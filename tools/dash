@@ -70,6 +70,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash tui [--docker]${c_off}    terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge)
   ${c_bold}dash host [setup|ps|up|rebuild]${c_off}  forge Docker host — rebuild hub from bamr87/.env, or up a submodule
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
+  ${c_bold}dash mcp [--http|--tunnel]${c_off} the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
   ${c_bold}dash foreach <cmd...>${c_off}  run a shell command in every checked-out submodule
   ${c_bold}dash run <tool> [args]${c_off} run a scripts/ submodule tool (forkme, stashme, ...)
@@ -244,6 +245,15 @@ cmd_console() {
   else
     "${TOOLS}/console/run.sh" "$@"
   fi
+}
+
+cmd_mcp() {
+  # The Harness Console's API as an MCP server (tools/console/mcp_layer). stdio
+  # by default — what an MCP host launches; --http serves streamable HTTP on
+  # 127.0.0.1 with bearer auth for remote agents. Writes stay off unless
+  # HARNESS_MCP_ALLOW_WRITES=1. --tunnel adds a temporary cloudflared quick
+  # tunnel for an off-machine agent, stopped with the server.
+  exec "${TOOLS}/console/mcp.sh" "$@"
 }
 
 cmd_scout() {
@@ -853,6 +863,7 @@ main() {
     tui)     cmd_tui "$@" ;;
     host)    cmd_host "$@" ;;
     console) cmd_console "$@" ;;
+    mcp)     cmd_mcp "$@" ;;
     sync)    cmd_sync "$@" ;;
     foreach) cmd_foreach "$@" ;;
     run)     cmd_run "$@" ;;

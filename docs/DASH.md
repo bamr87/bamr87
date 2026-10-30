@@ -90,6 +90,7 @@ To add or change a project, edit **only** `_data/projects.yml`. The portfolio, d
 | `tools/dash tui [--docker]` | terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge) |
 | `tools/dash host [setup\|ps\|up\|rebuild]` | forge Docker host — rebuild hub from bamr87/.env, or up a submodule |
 | `tools/dash console [--docker]` | the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md) |
+| `tools/dash mcp [--http\|--tunnel]` | the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md) |
 | `tools/dash sync` | update submodules + regenerate dash data |
 | `tools/dash foreach <cmd...>` | run a shell command in every checked-out submodule |
 | `tools/dash run <tool> [args]` | run a scripts/ submodule tool (forkme, stashme, ...) |

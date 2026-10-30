@@ -41,13 +41,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 import core
 import github_link as ghl
 import site_docs
 import tui_bridge
+import live
 
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
 # renders, the keys v1 table, and the bashOS palette.
@@ -339,6 +340,28 @@ def cancel_job(job_id: str) -> dict:
         return jobs.cancel(job_id).to_dict()
     except KeyError:
         raise HTTPException(status_code=404, detail="no such job")
+
+
+@app.get("/api/live", dependencies=[Depends(require_token)])
+def live_snapshot() -> dict:
+    """Fleet bot activity in one document — the /live page (live.py)."""
+    return live.snapshot(jobs)
+
+
+@app.get("/api/live/stream", dependencies=[Depends(require_token)])
+async def live_stream(interval: float = Query(default=5.0, ge=1.0, le=60.0)) -> StreamingResponse:
+    """Server-sent events: one /api/live snapshot every `interval` seconds."""
+    import asyncio, json as _json
+    from starlette.concurrency import run_in_threadpool
+
+    async def gen():
+        while True:
+            doc = await run_in_threadpool(live.snapshot, jobs)
+            yield f"event: live\ndata: {_json.dumps(doc, default=str)}\n\n"
+            await asyncio.sleep(interval)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/lake", dependencies=[Depends(require_token)])

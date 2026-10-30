@@ -49,6 +49,7 @@ PUBLIC_DATA = {
     "docker": "docker.yml",
     "cv_portfolio": "cv_portfolio.json",
     "issue_pipeline": "issue_pipeline.yml",
+    "deep_dive": "deep_dive.json",
     "actions_usage": "actions_usage.yml",
     "ai_usage": "ai_usage.yml",
     "conformance": "conformance.yml",

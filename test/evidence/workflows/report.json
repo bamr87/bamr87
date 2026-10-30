@@ -2,7 +2,7 @@
   "id": "workflows",
   "title": "The Workflows page shows every hub workflow, the standards it is held to, and its drill-down",
   "features": [
-    "HUB-029"
+    "HUB-034"
   ],
   "path": "verify/scenarios/workflows.yml",
   "started": "2026-10-28T17:21:48.176Z",

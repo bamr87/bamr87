@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """The fleet console as an MCP server — the third surface, for agents.
 
+MERGED into the Harness Console MCP layer (tools/console/mcp_layer/, HUB-031,
+tools/console/docs/mcp-layer.md). That server registers every tool below under
+the same name, and `.mcp.json` `fleet` now runs it (`tools/console/mcp.sh
+--fleet-compat`). This module stays as (1) the library of the fleet_* read
+tools the layer calls, and (2) a compat entry point: running it directly hands
+over to the layer, or — with FLEET_MCP_STDLIB=1, or where the layer cannot be
+started — serves the original stdlib stdio loop below.
+
 The browser page and the terminal dash are two front ends on one core
 (fleetcore) and one runtime (the Harness Console's job API). This is the same
 again for an AI client: Claude Code, Claude Desktop, the bashOS kernel or any
@@ -310,5 +318,21 @@ def main() -> None:
             sys.stdout.flush()
 
 
+def delegate() -> None:
+    """Hand over to the merged layer: in-process when `mcp` imports, else through its bootstrap script."""
+    if os.environ.get("FLEET_MCP_STDLIB") == "1":
+        return main()
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        script = ROOT / "tools" / "console" / "mcp.sh"
+        if script.is_file() and os.access(script, os.X_OK):
+            os.execv(str(script), [str(script), "--fleet-compat"])
+        return main()
+    sys.path.insert(0, str(ROOT / "tools" / "console"))
+    from mcp_layer.server import main as layer_main
+    sys.exit(layer_main(["--fleet-compat"]))
+
+
 if __name__ == "__main__":
-    main()
+    delegate()

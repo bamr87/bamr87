@@ -161,6 +161,7 @@ schedule:
   api_keys: "47 6 * * *"          # daily Anthropic key expiry check (see api_keys:); files ONE issue
   python_tests: "17 9 * * *"      # nightly hub Python tests — catches always-latest dependency drift on main
   backlog_fanout: "27 8 * * *"    # daily backlog → fleet PRs (cadence + apply switch in _data/backlog_fanout.yml; dry run until apply: true)
+  deep_dive: "17 12 * * *"        # daily deep-dive tracker refresh PR, after the 06:00 MDT one-repo-a-day routine (docs/DEEP-DIVE.md)
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.
@@ -1190,6 +1191,29 @@ tokens:
     used_by: [publish-kits.yml]
     rotation:
       enabled: false
+  - name: RELEASE_PLEASE_TOKEN
+    scope: fleet
+    required: false
+    purpose: >-
+      Lets release-please.yml open its release PR, and lets that PR's commits
+      trigger CI (a PR pushed with GITHUB_TOKEN fires no workflow events).
+      Fine-grained PAT, contents + pull_requests write on every repo that
+      releases. Mandatory on any repo whose Actions setting
+      `can_approve_pull_request_reviews` is off: there GITHUB_TOKEN cannot open
+      the release PR at all, so without this no release is ever cut
+      (bamr87/bamr87#406 and siblings). Declared fleet-scoped so the weekly
+      rotation can carry the hub's copy to the fleet; until a value exists on
+      the hub the loop reports it and writes nothing.
+    used_by: [release-please.yml]
+    rotation:
+      enabled: true
+      # A PAT, so the value's own life is the clock. 45 days is the propagation
+      # heartbeat shared with the Claude credentials: it is what pulls a newly
+      # adopting repo into line and re-heals a copy someone deleted.
+      max_age_days: 45
+      # Fine-grained (`github_pat_`) preferred; classic (`ghp_`) accepted.
+      value_prefixes: ["github_pat_", "ghp_"]
+
 # --------------------------------------------------------------------------- #
 # AI auth order — which Claude credential each repo tries first.
 #
