@@ -1,12 +1,12 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Every fleet repo publishes a public site with all its documentation
+# 0007 — Every fleet repo publishes a public site with all its documentation
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0007
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
-- **Affects:** constitution new § 14 (numbering contingent on § 12 from #481 and § 13 from #482); specs UPS-DOC (extended, not replaced); features `HUB-NEW:docs-site`, `HUB-NEW:docs-site-conformance`; requirements `FR-NEW:docs-site`, `FR-NEW:docs-site-conformance`
+- **Affects:** constitution new § 14 (numbering contingent on § 12 from #481 and § 13 from #482); specs UPS-DOC (extended, not replaced); features `HUB-043`, `HUB-042`; requirements `FR36`, `FR35`
 - **Supersedes:** none (extends UPS-DOC, merged in #404)
 - **Related:** #404 (UPS-DOC fleet docs framework), #480 (`harness-prior-art-research`), #481 (`agent-merge-review-gate`), #482 (`eval-baseline-risk-tiers`, fan-out pattern), `templates/site-quality/`, `tools/conformance.py`, `tools/docs_index.py`
 
@@ -39,7 +39,7 @@ Add constitution § 14 "Public documentation site" with this text:
 ## Consequences
 
 - Follow-up: a reusable `docs-site.yml` workflow in `bamr87/.github` that builds Pages with the zer0 remote theme from the UPS-DOC index and honours `.siteignore`. It is not built in this PR.
-- Follow-up: the `UPS-DOC-SITE` conformance check id and its row in `specs/DOCS.md` (feature `HUB-NEW:docs-site-conformance`).
+- Follow-up: the `UPS-DOC-SITE` conformance check id and its row in `specs/DOCS.md` (feature `HUB-042`).
 - Follow-up: Amr enables Pages per repo. The fan-out PRs list which repos need it and which repos are private.
 - Follow-up (migration): the `projects/README` (bamr87/README) MkDocs site migrates to Jekyll with the zer0 theme. Until it does, it fails the check.
 - Impact: the read-only scan of 2026-10-30 found 37 of 43 registry repos would warn at ratification, each becoming a hard failure as its fan-out PR lands. See the PR body.

@@ -86,6 +86,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-039](features/features.yml) | Claude Code OTel telemetry in the console and MCP | shipped | [`tools/console/claude_telemetry.py`](tools/console/claude_telemetry.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | TBD |
 | [HUB-040](features/features.yml) | Claude subscription shown as a discounted rate off API list prices | shipped | [`tools/console/subscription.py`](tools/console/subscription.py) · [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | FR31 |
 | [HUB-041](features/features.yml) | GitHub Projects in the console: cross-owner aggregation, linked view and guarded write-back | partial | [`tools/console/gh_projects.py`](tools/console/gh_projects.py) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR32, FR33, FR34 |
+| [HUB-042](features/features.yml) | Docs site conformance: site exists, index complete, links resolve | planned | [`tools/conformance.py`](tools/conformance.py) · `docs/amendments/proposed/public-docs-site.md` | FR35 |
+| [HUB-043](features/features.yml) | Public docs site: every fleet repo publishes all its documentation | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/public-docs-site.md` | FR36 |
 
 **Requirement → feature trace**
 
@@ -136,6 +138,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR32 | HUB-041 |
 | FR33 | HUB-041 |
 | FR34 | HUB-041 |
+| FR35 | HUB-042 |
+| FR36 | HUB-043 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -164,6 +168,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR32: The console must read GitHub Projects (v2) and their items across every fleet owner, cached, and report a missing read:project scope honestly instead of failing.
 - FR33: The console must link project items, issues, pull requests, commits, repos and FEAT/FR references into one cross-repo graph.
 - FR34: Write-back to projects, issues and pull requests must be allowlisted, off by default, dry-run first, applied only on confirmation with a matching plan id, idempotent, rate-capped and audited, and must never merge, delete or change settings.
+- FR35: The conformance gate must report, per fleet repo, whether its public docs site exists, whether it uses the zer0 theme, whether every non-excluded doc of record is on it, and whether its links resolve, warn-only for a repo until its fan-out PR lands and a hard failure after it (see HUB-043).
+- FR36: Every fleet repo must publish a public site containing all its documentation at <owner>.github.io/<repo> or its custom domain, built only with GitHub Pages and the zer0 theme, containing README, AGENTS.md, CHANGELOG and docs/ plus the PRD, feature catalog, constitution and amendments where they exist, excluding secrets and docs marked internal; private repos are flagged for Amr and never made public by an agent (see HUB-042).
 
 **Non-functional**
 
