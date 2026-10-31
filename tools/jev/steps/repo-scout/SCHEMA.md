@@ -9,7 +9,7 @@ coverage: listed
 
 ## Conventions
 
-- The two files change together: an edit to the prompt that names a tool needs that tool in `allowed_tools`, and any prompt edit updates the pinned hashes in `tools/test_jev_spec.py` and `.github/scripts/dash-gen/test_scout.py` in the same PR.
+- The two files change together: an edit to the prompt that names a tool needs that tool in `allowed_tools`, and any edit to either file updates the Scout step's `JEV_STEP_SHA256` in `.github/workflows/repo-scout.yml`, plus (for a prompt edit) the pinned hashes in `tools/test_jev_spec.py` and `.github/scripts/dash-gen/test_scout.py`, in the same PR.
 
 ## Structure
 

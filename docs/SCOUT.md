@@ -9,12 +9,13 @@ The fleet's daily **proactive issue loop**. [`repo-evolution`](EVOLUTION.md) wri
 | **Workflow** | [`.github/workflows/repo-scout.yml`](../.github/workflows/repo-scout.yml) | daily 04:37 UTC + dispatch |
 | **Planner + filer** | [`.github/scripts/dash-gen/repo_scout.py`](../.github/scripts/dash-gen/repo_scout.py) | `dash-gen scout` / `dash-gen scout-file` |
 | **Brief material** | [`.github/scout/`](../.github/scout/) | goals + method template; category emphasis shared with the evolution loop |
+| **Agent step spec** | [`tools/jev/steps/repo-scout/`](../tools/jev/steps/README.md) | the agent's hard-rules prompt, inputs, allowlist and workspace contract, with model and caps referenced from `fleet.yml`; rendered per leg by the plan, delivered as `matrix.prompt` |
 | **Config** | [`_data/fleet.yml`](../_data/fleet.yml) → `schedule.repo_scout`, `scout:`, `budget.call_sites` | cadence, sample, caps, label, marker |
 | **Opt-out** | [`_data/projects.yml`](../_data/projects.yml) → `scout: false` | per project (the read-only zer0-mistakes mirror opts out) |
 | **Kill switch** | repo variable `REPO_SCOUT_ENABLED` | a NEW loop: the cron runs only while it is `true`; a dispatch always runs |
 | **CLI** | `tools/dash scout plan` · `--repo <name>` · `--all` | plan locally, or dispatch |
 | **Console** | Loops → *Repo scout*, Operations → *scout* | the plan as a job; the workflow as a dispatch |
-| **Tests** | `python3 .github/scripts/dash-gen/test_scout.py` | no network, no pytest |
+| **Tests** | `python3 .github/scripts/dash-gen/test_scout.py` · `python3 tools/test_jev_spec.py` · `python3 -m tools.jev steps check` | no network, no pytest |
 
 ## The loop
 
@@ -55,7 +56,9 @@ The plan job also **probes** `FLEET_TOKEN` with `gh api user` and requires Claud
 
 ### 2. Scout — one job per repo
 
-The target repository is checked out with `persist-credentials: false`, the brief is downloaded into `.scout/` and git-excluded, and a Claude Code agent (model from `scout.model`, Sonnet by default — reading and writing, not implementing) is run with a **read-only allowlist plus `Write`**: it may run the repo's documented commands to see what fails, and write exactly one file, `.scout/proposals.json`. It cannot edit, commit, push, or create anything on GitHub, and a tracked file it touched anyway is discarded and reported. The step carries **no GitHub token at all**: the agent reads text anyone can write (open issue titles, the repository itself) and its allowlist includes interpreters that can read any environment variable, so `FLEET_TOKEN` stays in the checkout (not persisted) and the `file` job. The open issues and PRs it must not duplicate are already in the brief. The proposals file travels to the next job as an artifact; an absent file is a valid "nothing worth filing".
+The target repository is checked out with `persist-credentials: false`, the brief is downloaded into `.scout/` and git-excluded, and a Claude Code agent (model from `scout.model`, the exact id `claude-sonnet-5-5` — reading and writing, not implementing) is run with a **read-only allowlist plus `Write`**: it may run the repo's documented commands to see what fails, and write exactly one file, `.scout/proposals.json`. It cannot edit, commit, push, or create anything on GitHub, and a tracked file it touched anyway is discarded and reported. The step is given **no GitHub token**: the agent reads text anyone can write (open issue titles, the repository itself) and its allowlist includes interpreters that can read any environment variable, so `FLEET_TOKEN` stays in the checkout (not persisted) and the `file` job. The open issues and PRs it must not duplicate are already in the brief. One caveat, recorded as `workspace.exceptions` in the step spec until a follow-up closes it: claude-code-action itself still exports its OIDC App token to the agent's subprocesses, and loads the target checkout's `.claude/` settings because `claude_args` passes no `--setting-sources` ([ADR 0002](adr/0002-agent-step-specs-and-local-runner.md#consequences)). The proposals file travels to the next job as an artifact; an absent file is a valid "nothing worth filing".
+
+The agent's prompt — the hard rules: propose-only, the lanes — is the JEV step spec [`tools/jev/steps/repo-scout/scout.prompt.txt`](../tools/jev/steps/README.md), not text in the workflow. The plan job renders it per leg from the hub at the run's commit (`include[].prompt` in `plan.json`), the matrix carries the exact bytes to the step as `prompt: ${{ matrix.prompt }}`, and the plan fails before any spend if a leg has no prompt. `python3 -m tools.jev steps render repo-scout scout --set …` prints the same bytes locally, and `steps check` holds the workflow's caps, allowlist, timeout, artifact paths and the step's `JEV_STEP_SHA256` content-hash pin equal to the spec ([ADR 0002](adr/0002-agent-step-specs-and-local-runner.md)).
 
 Every run reports its spend in the job summary through the shared `claude-cost` action (the same step as the other loops): a budget abort and a rejected credential each fail the job loudly, and a spent Claude usage window (`usage-limit: skip`) is a warning, not a red run.
 
@@ -111,7 +114,7 @@ Everything lives in `_data/fleet.yml`:
 | `scout.max_issues_per_repo` | 3 | proposals filed per visit |
 | `scout.max_open_per_repo` | 3 | backpressure threshold |
 | `scout.max_parallel` / `max_turns` | 2 / 40 | concurrent agents; turns per repo (the workflow literal is asserted against it) |
-| `scout.model` | `sonnet` | the scout reads and writes; the implementer in the pipeline is the Opus spend |
+| `scout.model` | `claude-sonnet-5-5` | an exact id from `ai_models.allowed`, never an alias (constitution § 13.3); the scout reads and writes, the implementer in the pipeline is the Opus spend |
 | `scout.label` / `marker` | `ai-scout` / `repo-scout` | how the loop recognises its own issues |
 | `scout.statuses` | active, maintenance, experiment | eligible registry statuses |
 | `budget.call_sites."repo-scout.yml:scout"` | 8 | the dollar ceiling per matrix leg (`test_ai_budget.py`) |
@@ -132,3 +135,4 @@ Shadow cost at the defaults: two Sonnet passes a day, each a fraction of the \$8
 - One open batch per repo is the backpressure; the sample, the per-repo cap and the dollar ceiling bound the day.
 - The kill switch starts OFF for a new loop; `REPO_SCOUT_ENABLED=true` arms the cron, and a manual dispatch — including `dry_run` — works without it.
 - Every issue it files still has to pass the pipeline's intake, its autonomy gates and, at the end, a human's review of the draft PR.
+- The hard rules live in `tools/jev/steps/repo-scout/`, outside `.github/workflows/`. The `workflow`-scope barrier that `GITHUB_TOKEN` pushers and the Claude App token cannot cross still covers them through the Scout step's `JEV_STEP_SHA256` pin: `steps check` refuses a spec pair whose hash differs, so changing the rules changes the workflow file too. `FLEET_TOKEN` already holds `workflows:write`, so for it the maintainer's review is the only control, before and after the move; the byte pins in `tools/test_jev_spec.py` and `test_scout.py` make an edit visible but are re-pinned in the same PR, and `CODEOWNERS` is not enforced. A change there is security-sensitive config under constitution § 12.3, so no agent merges it (the `needs-amr` label is still to be created, HUB-045). The trade-off is recorded in [ADR 0002](adr/0002-agent-step-specs-and-local-runner.md#governance-trade-off).

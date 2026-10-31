@@ -42,11 +42,12 @@ The fleet's Markdown gates rewrite `*.md` to one paragraph per line; a `.md` pro
 
 ## Who renders it
 
-`python3 -m tools.jev steps render <loop> <step> --set TOKEN=value …` prints the rendered prompt byte-exact. While a workflow still carries its prompt inline, `steps check` accepts that inline text only when it is byte-equal to the spec rendered with the matrix expressions (`${{ matrix.<key> }}`), so the move is proven before the workflow changes.
+For scout, the plan job: `dash-gen scout` (`repo_scout.build_plan`) loads `repo-scout/scout.yml` once, renders the prompt for every leg from that leg's `plan.json` row (`include[].prompt`, the row's last key), and the workflow's agent step reads `prompt: ${{ matrix.prompt }}`. The plan fails before any spend when the spec does not load or a leg has no prompt. Locally, `python3 -m tools.jev steps render <loop> <step> --set TOKEN=value …` prints the same bytes, and the loop engine (P1) will render from the same spec. While a workflow still carries its prompt inline, `steps check` accepts that inline text only when it is byte-equal to the spec rendered with the matrix expressions (`${{ matrix.<key> }}`), so a move is proven before the workflow changes.
 
 ## Changing a prompt, a grant or a cap
 
 1. Edit the `.prompt.txt` or the spec. A prompt that orders a tool by name ("with the Read tool") needs that tool in `allowed_tools` — the check fails otherwise (bamr87/bamr87#89, where a prompt ordered a Read it was never granted).
 2. A cap or model change is made in `_data/fleet.yml`, and the workflow's literal is changed to match.
-3. Update the pinned hashes in `tools/test_jev_spec.py` (and `.github/scripts/dash-gen/test_scout.py` for scout) in the same PR. That speed bump is deliberate.
-4. Run `python3 -m tools.jev steps check` and `python3 tools/test_jev_spec.py`.
+3. Set the agent step's `env: JEV_STEP_SHA256` in the workflow to the spec pair's new content hash (`steps check` prints it). Any edit to `<step>.yml` or `<step>.prompt.txt` therefore touches the workflow file, which keeps GitHub's `workflow`-scope barrier over the hard rules ([ADR 0002](../../../docs/adr/0002-agent-step-specs-and-local-runner.md#governance-trade-off)).
+4. Update the pinned hashes in `tools/test_jev_spec.py` (and `.github/scripts/dash-gen/test_scout.py` for scout) in the same PR. That speed bump is deliberate, but it is not a barrier: the same PR re-pins them.
+5. Run `python3 -m tools.jev steps check` and `python3 tools/test_jev_spec.py`.

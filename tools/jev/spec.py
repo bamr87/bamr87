@@ -14,7 +14,11 @@ Description: JEV capability two — loop STEP SPECS. One file pair per agent ste
              local run is the CI run. `parity_errors` holds the workflow's
              literals — caps, allowlist, timeout, artifact paths, the token-free
              agent env — equal to the resolved spec, and lints the prompt
-             against its own grant (bamr87/bamr87#89). Decision: docs/adr/0002.
+             against its own grant (bamr87/bamr87#89). The agent step pins the
+             spec pair's content hash as `env: JEV_STEP_SHA256`, so an edit to
+             the hard rules is also an edit to the workflow file — the
+             `workflow`-scope barrier GITHUB_TOKEN and the Claude App cannot
+             cross. Decision: docs/adr/0002.
              `loop-step/v1` evolves like harness-registry/v1: an optional key
              added with its loader support keeps v1; a removal, rename, new
              required key or changed meaning bumps the id. The loader stays
@@ -69,6 +73,8 @@ ALLOWED_TOOLS_RX = re.compile(r'--allowedTools\s+"([^"]*)"')
 #: named this way must be granted — #89 ordered a Read it never granted.
 TOOL_ORDER_RX = re.compile(r"\b(?:with|use|using) the ([A-Z][A-Za-z]+) tool\b")
 CLAUDE_ACTION = "anthropics/claude-code-action"
+#: The agent step's env key holding StepSpec.content_sha256 (a runtime no-op).
+STEP_SHA_ENV = "JEV_STEP_SHA256"
 COST_ACTION = "/.github/actions/claude-cost"
 #: A GitHub credential in an env value: `github.token`, or any secret except the
 #: two Claude credentials (the job's HAS_CLAUDE_AUTH probe names those).
@@ -152,6 +158,9 @@ class StepSpec:
     risk: Mapping[str, Mapping[str, object]] | None
     evals: str | None
     resolved: Resolved
+    #: sha256 of <step>.yml's bytes, a NUL, then <step>.prompt.txt's bytes —
+    #: what the workflow pins as STEP_SHA_ENV.
+    content_sha256: str
 
     @property
     def workflow_file(self) -> str:
@@ -305,9 +314,10 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
     where = str(path)
     if not path.is_file():
         raise StepSpecError(f"{where}: no such spec")
+    spec_bytes = path.read_bytes()
     try:
-        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeyLoader)  # noqa: S506 - SafeLoader subclass
-    except yaml.YAMLError as exc:
+        data = yaml.load(spec_bytes.decode("utf-8"), Loader=_UniqueKeyLoader)  # noqa: S506 - SafeLoader subclass
+    except (yaml.YAMLError, UnicodeDecodeError) as exc:
         raise StepSpecError(f"{where}: {exc}") from exc
     if not isinstance(data, dict):
         raise StepSpecError(f"{where}: a spec is a mapping")
@@ -378,8 +388,9 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
     for p in (path, prompt_file):
         if path.parent.is_symlink() or path.is_symlink() or not p.resolve().is_relative_to(real_root):
             raise StepSpecError(f"{p}: resolves outside {root} (a symlinked loop directory or spec)")
+    prompt_bytes = prompt_file.read_bytes()
     try:
-        template = prompt_file.read_bytes().decode("utf-8", errors="strict")
+        template = prompt_bytes.decode("utf-8", errors="strict")
     except UnicodeDecodeError as exc:
         raise StepSpecError(f"{prompt_file}: not UTF-8 ({exc})") from exc
     _check_template(template, inputs, str(prompt_file))
@@ -391,7 +402,8 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
                     model_from=data["model_from"], max_turns_from=data["max_turns_from"],
                     timeout_minutes=data["timeout_minutes"], allowed_tools=tuple(tools),
                     workspace=workspace, risk=data.get("risk"), evals=data.get("evals"),
-                    resolved=resolved)
+                    resolved=resolved,
+                    content_sha256=hashlib.sha256(spec_bytes + b"\0" + prompt_bytes).hexdigest())
 
 
 def spec_files(root: Path = SPEC_ROOT) -> list[Path]:
@@ -578,6 +590,11 @@ def parity_errors(spec: StepSpec, workflow: Mapping, fleet: Mapping) -> list[str
             if gap not in gaps:
                 errs.append(f"{me}: workspace.exceptions.{gap} ({spec.path.name}) is stale — {wf} step "
                             f"`{spec.step_id}` closes it; remove the exception")
+    pinned = (step.get("env") or {}).get(STEP_SHA_ENV)
+    if pinned != spec.content_sha256:
+        errs.append(f"{me}: {wf} step `{spec.step_id}` env {STEP_SHA_ENV} {pinned!r} != {spec.content_sha256} "
+                    f"(sha256 of {spec.path.name}, NUL, {spec.prompt_file.name}) — a change to the spec pair "
+                    f"also changes the workflow file (ADR 0002, governance trade-off)")
     prompt = with_.get("prompt")
     if prompt != "${{ matrix.prompt }}" and prompt != render_prompt(spec, matrix_expressions(spec)):
         errs.append(f"{me}: {wf} step `{spec.step_id}` prompt is neither `${{{{ matrix.prompt }}}}` nor "

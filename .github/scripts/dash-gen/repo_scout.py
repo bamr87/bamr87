@@ -35,11 +35,19 @@ survivors are capped at `max_issues_per_repo`, labelled from the issue
 pipeline's own taxonomy (type / priority / size + the scout label), and filed
 with the marker as the FIRST line of the body. Nothing merges, closes or
 edits an existing issue — ever.
+
+The agent's prompt — the HARD rules: propose-only, the lanes — is not here and
+not in the workflow: it is the JEV step spec tools/jev/steps/repo-scout/
+(scout.yml + scout.prompt.txt, docs/adr/0002). The plan renders it per leg
+into include[].prompt, the matrix carries it to the agent step as
+`prompt: ${{ matrix.prompt }}`, and the local loop engine renders the same
+bytes from the same spec.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib
 import json
 import math
 import re
@@ -63,6 +71,7 @@ OUT_DIR_DEFAULT = REPO_ROOT / "scout-workorders"
 
 BRIEF_TEMPLATE = "scout-prompt.md"
 PROPOSALS_FILE = "proposals.json"
+SCOUT_STEP = ("repo-scout", "scout")   # tools/jev/steps/<loop>/<step>.yml
 
 # Every value here is overridable from `scout:` in _data/fleet.yml.
 DEFAULTS: dict = {
@@ -72,7 +81,7 @@ DEFAULTS: dict = {
     "max_open_per_repo": 3,       # backpressure: skip a repo still carrying this many open scout issues
     "max_parallel": 2,
     "max_turns": 40,
-    "model": "sonnet",
+    "model": "claude-sonnet-5-5",  # an exact id from fleet.yml ai_models.allowed (constitution § 13.3)
     "label": "ai-scout",          # every filed issue carries it; created on demand
     "marker": "repo-scout",       # `<!-- repo-scout key="owner/repo" -->`, first line of every body
     "kinds": ["feature", "fix", "update"],
@@ -130,6 +139,15 @@ def load_config(path: Path | str | None) -> dict:
         "sizes": [str(x) for x in (labels.get("sizes") or DEFAULT_TAXONOMY["sizes"])],
     }
     return cfg
+
+
+def step_spec():
+    """tools.jev.spec, the loader of the agent's step spec. Imported lazily with
+    the hub root APPENDED to sys.path (tools/ is a namespace package), so this
+    directory's own modules keep precedence."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    return importlib.import_module("tools.jev.spec")
 
 
 def marker_line(cfg: dict, nwo: str) -> str:
@@ -375,9 +393,19 @@ def render_brief(t: dict, cfg: dict, triage: dict | None, conformance: dict | No
 def build_plan(registry: list[dict], cfg: dict, triage: dict | None, conformance: dict | None, *,
                day: dt.date | None = None, target: str = "all", focus: str = "",
                prompt_dir: Path | str = PROMPT_DIR_DEFAULT, category_dir: Path | str = CATEGORY_DIR_DEFAULT,
-               gh=_gh_json, now: str | None = None) -> tuple[dict, dict[str, str]]:
-    """select → rotate → backpressure → brief. `gh=None` skips every GitHub
-    read (offline): no backpressure, no open-issue list in the brief."""
+               gh=_gh_json, now: str | None = None, spec_root: Path | str | None = None
+               ) -> tuple[dict, dict[str, str]]:
+    """select → rotate → backpressure → brief → prompt. `gh=None` skips every
+    GitHub read (offline): no backpressure, no open-issue list in the brief.
+    Every leg carries the agent's prompt rendered from the step spec; a spec
+    that does not load raises tools.jev.spec.StepSpecError before any leg."""
+    jev = step_spec()
+    spec = jev.load_spec(*SCOUT_STEP, root=Path(spec_root) if spec_root else jev.SPEC_ROOT)
+    # The plan's --model and turn cap must be what the spec resolved (an exact
+    # allowed id, constitution § 13.3); they can differ only under a non-default --config.
+    if (str(cfg["model"]), int(cfg["max_turns"])) != (spec.resolved.model, spec.resolved.max_turns):
+        raise jev.StepSpecError(f"scout config model/max_turns {cfg['model']!r}/{cfg['max_turns']} != the step "
+                                f"spec's {spec.resolved.model!r}/{spec.resolved.max_turns} (_data/fleet.yml)")
     day = day or dt.datetime.now(dt.timezone.utc).date()
     now = now or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     wanted = target not in (None, "", "all")
@@ -410,6 +438,8 @@ def build_plan(registry: list[dict], cfg: dict, triage: dict | None, conformance
             "scout_open": None if issues is None else len(scout_open),
             "dedupe": "unavailable" if issues is None else "clear",
         })
+        # Last key: the rendered prompt is the bulk of the row (and of plan.json).
+        include[-1]["prompt"] = jev.render_prompt(spec, jev.values_from(spec, include[-1]))
     plan = {
         "generated_at": now,
         "day": day.isoformat(),
@@ -608,9 +638,14 @@ def run_plan(args: argparse.Namespace) -> int:
     registry = load_yaml(args.registry) or []
     triage = load_yaml(args.triage) if Path(args.triage).exists() else None
     conformance = load_yaml(args.conformance) if Path(args.conformance).exists() else None
-    plan, briefs = build_plan(registry, cfg, triage, conformance, day=day, target=args.target,
-                              focus=args.focus, prompt_dir=Path(args.prompt_dir),
-                              category_dir=Path(args.category_dir), gh=None if args.offline else _gh_json)
+    try:
+        plan, briefs = build_plan(registry, cfg, triage, conformance, day=day, target=args.target,
+                                  focus=args.focus, prompt_dir=Path(args.prompt_dir),
+                                  category_dir=Path(args.category_dir), gh=None if args.offline else _gh_json)
+    except step_spec().StepSpecError as exc:
+        # Fail the plan, so no agent leg starts with a prompt nobody reviewed.
+        sys.stderr.write(f"✗ {exc}\n")
+        return 2
     if not args.no_briefs and briefs:
         out = Path(args.out_dir)
         out.mkdir(parents=True, exist_ok=True)
