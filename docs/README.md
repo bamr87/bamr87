@@ -24,7 +24,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | --- | --- |
 | [`docs/AI-INTEGRATION.md`](AI-INTEGRATION.md) | The AI layer — every surface where Claude runs, the Claude auth order and secrets matrix, the loops, and how all of it propagates to the fleet. |
 | [`docs/ARCH-RESEARCH-HARNESS.md`](ARCH-RESEARCH-HARNESS.md) | A research-and-development harness that studies the high-level architecture and the deeper structural challenges of every codebase in the bamr87 fleet, grounds each judgement in current software-architecture literature, and turns the… |
-| [`docs/BACKLOG-FANOUT.md`](BACKLOG-FANOUT.md) | The backlog fan-out routine (HUB-027, PRD FR22 and FR23) turns the hub's pending backlog into tracking PRs in the fleet repos each item applies to. |
+| [`docs/BACKLOG-FANOUT.md`](BACKLOG-FANOUT.md) | Turns the hub's pending backlog into tracking PRs in each fleet repo an item applies to — dry run by default, PR-only and additive. |
 | [`docs/COCKPIT.md`](COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`docs/CONSOLE-PAGES.md`](CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
 | [`docs/CONSOLIDATION.md`](CONSOLIDATION.md) | The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open. |
@@ -55,7 +55,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/SCHEMA.md`](SCHEMA.md) | Operator documentation for the dash machinery — how the hub, gates, and fleet workflows are meant to be run. |
 | [`docs/SCOUT.md`](SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |
 | [`docs/SMOKE.md`](SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
-| [`docs/SPEC-DRIVEN.md`](SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a persistent, machine-checked record: `BACKLOG.md` → `/specify` → `/clarify` → `/plan` → `/tasks` → `/implement` → gates → PR → follow-ups → `BACKLOG.md`. |
+| [`docs/SPEC-DRIVEN.md`](SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a machine-checked spec record, using machinery the hub owns. |
 | [`docs/STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline — which files each kind of repository must have — and the way to the Universal Project Standard in `specs/`. |
 | [`docs/SUBMODULES.md`](SUBMODULES.md) | The submodule workflow, documented once: where the project list lives, how a change moves (commit in the submodule first, then record its pointer here), and what the automation does in each direction. |
 | [`docs/TERMINAL-FRAMEWORK.md`](TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto bashOS: the inventory, `keys v1`, the per-repo plan and the phases. |
@@ -67,7 +67,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
 | [`docs/WORKFLOW-VERSIONING.md`](WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back. |
 | [`docs/adr/`](adr/README.md) | Decisions for bamr87 that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each. |
-| [`docs/amendments/`](amendments/README.md) | The append-only log of changes to [the constitution](constitution.md). |
+| [`docs/amendments/`](amendments/README.md) | The append-only log of numbered changes to the constitution, ratified only when the maintainer merges the PR. |
 
 ### `docs/prd/`
 
