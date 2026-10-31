@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — QA Lead first: a short warn-only bridge for the § 15 completeness review, and § 15 numbering made final
+# 0012 — QA Lead first: a short warn-only bridge for the § 15 completeness review, and § 15 numbering made final
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0012
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
