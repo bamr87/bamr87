@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: kit-three-way-upgrade
+title: "Copier-style 3-way kit upgrade for hand-edited files"
+description: "A per-repo .fleet/kits.yml answers file records kit, version and hub commit; fanout.sh --upgrade --merge opens a 3-way-merged PR for hand-modified seeds and surfaces conflicts as a draft for human review; the remainder of #127 (bamr87/bamr87#518)."
+implemented: false
+status: planned
+surface: infra
+link: tools/fanout.sh
+docs: docs/STANDARDS.md
+tags: [ fanout, kits, upgrade ]
+date: 2026-10-31
+tests:
+  - tools/test_fanout.py
+prd: ["FR-NEW:kit-three-way-upgrade"]
+prd_new:
+  - key: kit-three-way-upgrade
+    kind: FR
+    text: "fanout.sh --upgrade --merge must 3-way-merge a hand-modified kit file against the recorded seed commit, and must open a draft PR instead of resolving a conflict."
