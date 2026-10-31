@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Prior-art research before any new harness or loop design
+# 0008 — Prior-art research before any new harness or loop design
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0008
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
