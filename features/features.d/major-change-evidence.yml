@@ -15,4 +15,4 @@ prd: ["FR-NEW:major-change-evidence"]
 prd_new:
   - key: major-change-evidence
     kind: FR
-    text: "A PR judged major by JEV (or labelled major; interim: heuristics plus reviewer, when in doubt major) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by JEV and QA Lead, neither being its author (interim: QA Lead alone, then Amr) (see HUB-NEW:evidence-conformance)."
+    text: "A PR judged major by JEV (or labelled major; interim: heuristics plus reviewer, when in doubt major) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by JEV and QA Lead, neither being its author (interim bridge until QA Lead runs: warn-only, Amr as fallback; JEV joins later) (see HUB-NEW:evidence-conformance)."
