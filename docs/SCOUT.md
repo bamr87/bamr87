@@ -13,9 +13,9 @@ The fleet's daily **proactive issue loop**. [`repo-evolution`](EVOLUTION.md) wri
 | **Config** | [`_data/fleet.yml`](../_data/fleet.yml) → `schedule.repo_scout`, `scout:`, `budget.call_sites` | cadence, sample, caps, label, marker |
 | **Opt-out** | [`_data/projects.yml`](../_data/projects.yml) → `scout: false` | per project (the read-only zer0-mistakes mirror opts out) |
 | **Kill switch** | repo variable `REPO_SCOUT_ENABLED` | a NEW loop: the cron runs only while it is `true`; a dispatch always runs |
-| **CLI** | `tools/dash scout plan` · `--repo <name>` · `--all` | plan locally, or dispatch |
+| **CLI** | `tools/dash scout plan` · `--repo <name>` · `--all`; `tools/dash loop plan\|run repo-scout --target <name>` | plan locally, or dispatch; run the agent step locally (this slice: `--rehearse`, $0) |
 | **Console** | Loops → *Repo scout*, Operations → *scout* | the plan as a job; the workflow as a dispatch |
-| **Tests** | `python3 .github/scripts/dash-gen/test_scout.py` · `python3 tools/test_jev_spec.py` · `python3 -m tools.jev steps check` | no network, no pytest |
+| **Tests** | `python3 .github/scripts/dash-gen/test_scout.py` · `python3 tools/test_jev_spec.py` · `python3 -m tools.jev steps check` · `python3 tools/test_jev_adapter_repo_scout.py` · `python3 tools/test_jev_loop.py` | no network, no pytest |
 
 ## The loop
 
@@ -102,6 +102,20 @@ tools/dash scout --all                               # dispatch today's sample f
 tools/dash-gen scout-file --nwo bamr87/bashos --proposals ./proposals.json   # rehearse the filer locally
 python3 .github/scripts/dash-gen/test_scout.py
 ```
+
+## Run it locally
+
+The scout's agent step also runs on a workstation through JEV's loop runner ([docs/JEV.md](JEV.md#the-loop-runner-p1); spec `tools/jev/steps/repo-scout/scout.yml`, `local:` block; adapter [`tools/jev/adapters/repo_scout.py`](../tools/jev/adapters/README.md)). It uses the same planner, the same prompt bytes, the same allowlist and the same `$8` cap as CI, inside an isolated, sandboxed session with no network and no GitHub credential, in a throwaway clone under `~/.cache/jev/work`.
+
+```bash
+tools/dash loop plan repo-scout --target SCHEMA            # $0: the decision, the prompt's sha, the flags, the dry filing
+tools/dash loop run repo-scout --target SCHEMA --rehearse  # $0: plan, tier 0, clone, prompt, settings, flags, ai-run --dry-run
+tools/dash loop doctor                                     # $0: CLI floor, sandbox, credential, flag preflight, isolation probe
+```
+
+This slice stops before the model call: `loop run` without `--rehearse` refuses until live attempts land (#486 PR-C). From then on every run is a dry run that writes the exact issue bodies (`scout-file --bodies-dir`) to `.fleet/runs/<run_id>/items/<owner>__<repo>/bodies/` for review, and `--apply`, typed by the maintainer, files them in the same run, writing what it filed to `filed/` beside them, never over the reviewed bodies (`scout-file --apply` refuses a `--bodies-dir` that already holds some); `loop publish <run_id> --apply` files a reviewed earlier dry run. A `--scheduled` local run reads `REPO_SCOUT_ENABLED` exactly as the cron does and never files. The pilot target is `bamr87/SCHEMA` (ocrmd the alternate), run only as the maintainer's approved deploy step (§ 10.5).
+
+**Recorded differences from CI.** No network, so dependency installs fail (the runner's appended note tells the agent not to propose from such a failure, and a proposal citing one is flagged for the reviewer); committed symlinks in the clone are plain files; the target's CLAUDE.md and AGENTS.md are not auto-loaded (`--safe-mode`; the prompt's Step 2 reads them as files); the target's `.claude/` settings are never loaded, where CI's claude-code-action loads them; a budget-hit attempt is discarded, where CI's file job files what the leg left; and a proposal carrying a local path or the host name is withheld.
 
 ## Configuration
 
