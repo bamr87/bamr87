@@ -613,9 +613,10 @@ def test_a_signal_to_this_process_starts_the_ladder_and_keeps_the_result():
     assert signal.getsignal(signal.SIGTERM) is before, "the previous handler is restored"
 
 
-def test_a_hangup_or_a_quit_starts_the_same_ladder():
-    # claude runs in its own session: a closed terminal reaches ai-run only
-    for sig in (signal.SIGHUP, signal.SIGQUIT):
+def test_a_hangup_a_quit_or_any_other_terminating_signal_starts_the_same_ladder():
+    # claude runs in its own session: a closed terminal reaches ai-run only,
+    # and a stray USR1 or a CPU limit's XCPU would otherwise end ai-run alone
+    for sig in (signal.SIGHUP, signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2, signal.SIGALRM, signal.SIGXCPU):
         d, claude = stub_dir()
         before = signal.getsignal(sig)
         timer = threading.Timer(1.0, lambda sig=sig: os.kill(os.getpid(), sig))
