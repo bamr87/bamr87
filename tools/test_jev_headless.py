@@ -638,14 +638,52 @@ def test_held_signals_are_recorded_not_fatal_and_stream_reads_them():
         os.kill(os.getpid(), signal.SIGTERM)
         time.sleep(0.2)
         assert names == ["SIGTERM"], "held, and this process is still here"
-        # one held before stream's own handlers are in starts the ladder at once
+        # one held before stream is called cancels the run before claude starts
         d, claude = stub_dir()
         got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
                        env=stub_env(STUB_SCENARIO="result_on_sigint"), timeout_s=None, trace=None,
                        redactor=H.Redactor({}), cap_usd=8.0, int_grace=0.5, term_grace=0.5, received=names)
+        assert not got.started and not (d / "argv.jsonl").exists(), "claude was never started"
+        assert got.interrupted == "SIGTERM" and got.signals_seen == 1, got
+        out = H.classify(got, 8.0)
+        assert (out.kind, out.cost_source, out.cost_usd) == ("interrupted", "no-spend", 0.0), out
+        # and one held during a run starts the ladder, then stream restores the
+        # HELD handler, not the default
+        names.clear()
+        timer = threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        timer.start()
+        try:
+            got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n",
+                           cwd=d, env=stub_env(STUB_SCENARIO="result_on_sigint"), timeout_s=None, trace=None,
+                           redactor=H.Redactor({}), cap_usd=8.0, int_grace=0.5, term_grace=0.5, received=names)
+        finally:
+            timer.cancel()
         assert got.interrupted == "SIGTERM" and H.classify(got, 8.0).kind == "interrupted", got
         assert signal.getsignal(signal.SIGTERM) is not before, "stream restores the HELD handler, not the default"
     assert signal.getsignal(signal.SIGTERM) is before
+
+
+class _CancelOnClose(H.Trace):
+    """A trace whose close, the last thing stream does after claude exits, is
+    where a cancel lands."""
+
+    def close(self) -> None:
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(0.1)
+        super().close()
+
+
+def test_a_signal_after_claude_exits_is_not_the_runs_interruption():
+    names: list[str] = []
+    with H.held_signals(names):
+        d, claude = stub_dir()
+        red = H.Redactor({})
+        got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                       env=stub_env(STUB_SCENARIO="ok"), timeout_s=None, trace=_CancelOnClose(None, red),
+                       redactor=red, cap_usd=8.0, received=names)
+    assert names == ["SIGTERM"], names
+    assert got.interrupted == "" and got.signals_seen == 0, got
+    assert H.classify(got, 8.0).kind == "ok", "a finished run is booked as what it was"
 
 
 class _DeadTerminal:

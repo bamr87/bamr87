@@ -34,7 +34,10 @@ Run: python3 .github/scripts/dash-gen/test_ai_run.py
 """
 from __future__ import annotations
 
+import argparse
+import contextlib
 import fcntl
+import io
 import json
 import os
 import shutil
@@ -45,6 +48,7 @@ import tempfile
 import textwrap
 import time
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -191,6 +195,20 @@ class Rig:
 
     def child_env(self) -> dict:
         return json.loads((self.bin / "env.json").read_text())
+
+
+def in_process(rig: Rig, *flags: str, env: dict | None = None) -> tuple[int, str, str]:
+    """ai-run in THIS process, so a test can land a signal inside a window no
+    subprocess timing can hit; held_signals needs the main thread."""
+    argv, base = rig.command(*flags, env=env)
+    parser = argparse.ArgumentParser()
+    ai_activity.add_run_arguments(parser)
+    args = parser.parse_args(argv[3:])
+    out, err = io.StringIO(), io.StringIO()
+    with mock.patch.dict(os.environ, base, clear=True), contextlib.redirect_stdout(out), \
+            contextlib.redirect_stderr(err):
+        code = args.func(args)
+    return code, out.getvalue(), err.getvalue()
 
 
 def opt(argv: list[str], name: str) -> str:
@@ -470,6 +488,55 @@ def test_a_cancel_while_the_run_is_recorded_waits_for_the_row():
         [row] = rig.rows()
         assert (row["outcome"], row["cost_source"], row["total_cost_usd"]) == ("ok", "reported", 0.61)
         assert json.loads(outcome.read_text())["kind"] == "ok" and out == "proposals written\n"
+
+
+def test_a_signal_after_claude_exits_is_late_even_in_the_tidying_before_the_row():
+    # claude reported $0.61 and exited; the SIGTERM lands while ai-run removes
+    # its temporary directory, before any bookkeeping: the run is still `ok`,
+    # and ai-run exits as SIGTERM would once the row is written
+    rig = Rig()
+    outcome = rig.dir / "outcome.json"
+    real = shutil.rmtree
+
+    def rmtree(path, *a, **k):
+        if "jev-ai-run-" in str(path):
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(0.1)
+        return real(path, *a, **k)
+
+    with mock.patch.object(ai_activity.shutil, "rmtree", rmtree):
+        code, out, err = in_process(rig, "--isolate", "--auth-order", "oauth", "--outcome-file", str(outcome),
+                                    env={"CLAUDE_CODE_OAUTH_TOKEN": OAUTH})
+    assert code == 128 + signal.SIGTERM, (code, err)
+    assert "SIGTERM arrived after claude exited" in err and out == "proposals written\n"
+    [row] = rig.rows()
+    assert (row["outcome"], row["cost_source"], row["total_cost_usd"]) == ("ok", "reported", 0.61)
+    got = json.loads(outcome.read_text())
+    assert got["kind"] == "ok" and got["interrupted"] == "", got
+
+
+def test_a_cancel_before_claude_is_started_starts_nothing_and_charges_nothing():
+    # the cancel lands while ai-run builds the trace, inside held_signals but
+    # before stream() would start claude
+    rig = Rig()
+    outcome = rig.dir / "outcome.json"
+    hl = ai_activity.headless()
+    real = hl.Trace
+
+    class CancelledTrace(real):
+        def __init__(self, *a, **k):
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(0.1)
+            super().__init__(*a, **k)
+
+    with mock.patch.object(hl, "Trace", CancelledTrace):
+        code, _, err = in_process(rig, "--outcome-file", str(outcome))
+    assert code == 130, (code, err)
+    assert rig.calls() == 0, "claude was never started"
+    assert rig.rows() == [], "nothing ran, so nothing is ledgered"
+    got = json.loads(outcome.read_text())
+    assert (got["kind"], got["cost_source"], got["cost_usd"]) == ("interrupted", "no-spend", 0.0), got
+    assert "before claude was started" in err
 
 
 def test_a_cancel_before_the_first_response_is_not_a_rejected_credential():

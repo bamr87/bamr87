@@ -662,6 +662,10 @@ class Invocation:
     #: the tee could not be written (a hung-up terminal): it is dropped, and
     #: the run — and its ledger row — go on
     echo_lost: bool = False
+    #: how many of the caller's `received` signals arrived while claude was
+    #: still running (or before it was started); any later one did not stop
+    #: the run, and is the caller's to act on
+    signals_seen: int = 0
 
 
 def last_result(text: str) -> dict | None:
@@ -697,7 +701,8 @@ def held_signals(into: list[str]) -> Iterator[list[str]]:
     after claude has reported its cost (a second Ctrl-C, a backstop SIGTERM)
     cannot kill it before the ledger row and the outcome file are written.
     `stream` saves and restores whatever handler is installed — this one — and
-    reads `into` for a signal that arrived before its own handlers were in.
+    reads `into`: a signal already there cancels the run before claude starts,
+    and one that lands after claude exited stays there for the caller.
     Outside the main thread nothing can be installed, and nothing is."""
     if threading.current_thread() is not threading.main_thread():
         yield into
@@ -736,10 +741,22 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
     which nothing can catch, orphans claude.
 
     `received` is the caller's list of signal names, when it holds them
-    (`held_signals`): one already there, or arriving before this installs its
-    own handlers, starts the ladder too, and the names land in it.
+    (`held_signals`): one already there means the run was cancelled before it
+    began, so claude is never started; one arriving before this installs its
+    own handlers starts the ladder, and the names land in it. Only a signal
+    that arrived while claude was still running is the run's `interrupted`
+    (`signals_seen` counts them): one that lands after claude exited, as this
+    tidies up, is left in `received` for the caller.
     """
     start = time.monotonic()
+    received = [] if received is None else received
+    if received:
+        # cancelled while the caller was still setting up: nothing to stop,
+        # and nothing spent
+        if trace is not None:
+            trace.close()
+        return Invocation(rc=128 + signal.Signals[received[0]].value, started=False, fmt=fmt,
+                          interrupted=",".join(received), signals_seen=len(received))
     # In its own session claude is not the terminal's foreground group, so an
     # inherited TTY stdin would stop it (SIGTTIN). With no prompt to send, a
     # pipe stays inherited and a terminal becomes /dev/null — `claude -p`
@@ -757,6 +774,8 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
             stdin=stdin,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
     except FileNotFoundError as exc:
+        if trace is not None:
+            trace.close()
         return Invocation(rc=127, started=False, stderr_tail=str(exc), fmt=fmt)
 
     lines: queue.Queue[bytes | None] = queue.Queue()
@@ -794,7 +813,6 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
 
     inv = Invocation(rc=0, fmt=fmt)
     ladder: list[tuple[float, int]] = []
-    received = [] if received is None else received
 
     def begin_ladder(now: float) -> None:
         if not ladder:
@@ -812,9 +830,13 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
     deadline = start + timeout_s if timeout_s else None
     out_buf: list[str] = []
     eof = False
+    alive_seen = 0
     try:
         while True:
             now = time.monotonic()
+            if proc.poll() is None:
+                # every signal so far reached a claude that was still running
+                alive_seen = len(received)
             if received and not ladder:
                 # held by the caller before this process's handlers were in
                 begin_ladder(now)
@@ -869,7 +891,8 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
     inv.rc = rc
     inv.duration_s = round(time.monotonic() - start, 3)
     inv.stderr_tail = redactor.text("".join(ring))
-    inv.interrupted = ",".join(received)
+    inv.signals_seen = alive_seen
+    inv.interrupted = ",".join(received[:alive_seen])
     if fmt == "json":
         inv.stdout_text = redactor.text("".join(out_buf))
         inv.result = inv.result or last_result("".join(out_buf))
@@ -958,6 +981,9 @@ def classify(inv: Invocation, cap_usd: float, redactor: Redactor | None = None) 
     credential-rejected signature — for a request that was in flight.
     """
     if not inv.started:
+        if inv.interrupted:
+            return Outcome("interrupted", 0.0, "no-spend",
+                           detail=f"stopped by {inv.interrupted} before claude was started")
         return Outcome("cli_missing", 0.0, "no-spend", detail=_one_line(inv.stderr_tail, 200))
     r = inv.result
     stopped_by = f"stopped by {inv.interrupted}" if inv.interrupted else ""

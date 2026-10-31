@@ -1057,8 +1057,9 @@ def run_headless(args: argparse.Namespace) -> int:
     # another process ahead of the ledger row.
     cli_ver = hl.version_str(hl.cli_version(claude))
     signals: list[str] = []
-    # Held from here until the row and the files are written: a signal during
-    # the run starts stream's ladder, one after it waits for the bookkeeping.
+    # Held from here until the row and the files are written: a signal before
+    # claude starts cancels it, one while it runs starts stream's ladder, and
+    # one after it exits waits for the bookkeeping.
     with hl.held_signals(signals):
         try:
             inv = hl.stream(cmd, prompt=prompt, cwd=cwd, env=env,
@@ -1069,13 +1070,15 @@ def run_headless(args: argparse.Namespace) -> int:
         finally:
             if made_tmp is not None:
                 shutil.rmtree(made_tmp, ignore_errors=True)
-        during = len(signals)
+        # the ones claude was still running for; stream's own tidying and the
+        # rmtree above happen after it exited, so a signal there is late
+        during = inv.signals_seen
         code = _settle(args, hl, inv, budget=budget, redactor=redactor, choice=choice, cwd=cwd, meta=meta,
                        passthrough=passthrough, session_id=session_id, cli_ver=cli_ver, fleet=fleet)
     late = signals[during:]
     if late:
-        sys.stderr.write(f"! {late[0]} arrived while the run was being recorded; the row and the files are "
-                         f"written, and ai-run exits as {late[0]} would.\n")
+        sys.stderr.write(f"! {late[0]} arrived after claude exited, while the run was being recorded; its "
+                         f"record is complete, and ai-run exits as {late[0]} would.\n")
         return 128 + signal.Signals[late[0]].value
     return code
 
@@ -1089,6 +1092,13 @@ def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choic
     depend on it."""
     outcome = hl.classify(inv, budget, redactor)
     outcome.detail = redactor.text(outcome.detail)
+    if not inv.started and outcome.kind == "interrupted":
+        # cancelled before claude was started: no process ran, so no row
+        hl.write_json(args.outcome_file, {**outcome.as_dict(), "cap_usd": budget, "exit_code": 130,
+                                          "interrupted": inv.interrupted})
+        sys.stderr.write(f"! INTERRUPTED ({inv.interrupted}) before claude was started; nothing ran and "
+                         "nothing is recorded.\n")
+        return 130
     if not inv.started:
         # found on PATH but it could not be started (say, a broken shebang):
         # no process ran, so — as when it is not found at all — no row
