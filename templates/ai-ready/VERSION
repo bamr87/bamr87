@@ -1,0 +1,9 @@
+kit: ai-ready
+version: 0.0.0
+source: bamr87/bamr87 templates/ai-ready/
+seeded-by: not yet; fan-out follows ratification of constitution § 16 (amendment ai-ready-foundation)
+files: README.md (spec only; the files it lists land in follow-up PRs)
+spec: docs/constitution.md § 16; checker tools/conformance.py check ai-ready, calling the in-hub AIEO (tools/aieo/)
+updated: 2026-10-30
+changelog: |
+  0.0.0 — spec only, proposed with amendment ai-ready-foundation.
