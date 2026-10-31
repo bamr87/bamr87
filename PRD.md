@@ -88,6 +88,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-041](features/features.yml) | GitHub Projects in the console: cross-owner aggregation, linked view and guarded write-back | partial | [`tools/console/gh_projects.py`](tools/console/gh_projects.py) · [`docs/PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | FR32, FR33, FR34 |
 | [HUB-042](features/features.yml) | Docs site conformance: site exists, index complete, links resolve | planned | [`tools/conformance.py`](tools/conformance.py) · `docs/amendments/proposed/public-docs-site.md` | FR35 |
 | [HUB-043](features/features.yml) | Public docs site: every fleet repo publishes all its documentation | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/public-docs-site.md` | FR36 |
+| [HUB-044](features/features.yml) | Architecture research harness: literature-grounded fleet architecture review and research papers | planned | [`docs/ARCH-RESEARCH-HARNESS.md`](docs/ARCH-RESEARCH-HARNESS.md) | FR37, FR38, FR39, FR40, FR41 |
 
 **Requirement → feature trace**
 
@@ -140,6 +141,11 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR34 | HUB-041 |
 | FR35 | HUB-042 |
 | FR36 | HUB-043 |
+| FR37 | HUB-044 |
+| FR38 | HUB-044 |
+| FR39 | HUB-044 |
+| FR40 | HUB-044 |
+| FR41 | HUB-044 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -170,6 +176,11 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR34: Write-back to projects, issues and pull requests must be allowlisted, off by default, dry-run first, applied only on confirmation with a matching plan id, idempotent, rate-capped and audited, and must never merge, delete or change settings.
 - FR35: The conformance gate must report, per fleet repo, whether its public docs site exists, whether it uses the zer0 theme, whether every non-excluded doc of record is on it, and whether its links resolve, warn-only for a repo until its fan-out PR lands and a hard failure after it (see HUB-043).
 - FR36: Every fleet repo must publish a public site containing all its documentation at <owner>.github.io/<repo> or its custom domain, built only with GitHub Pages and the zer0 theme, containing README, AGENTS.md, CHANGELOG and docs/ plus the PRD, feature catalog, constitution and amendments where they exist, excluding secrets and docs marked internal; private repos are flagged for Amr and never made public by an agent (see HUB-042).
+- FR37: The hub must survey every registry repo's high-level architecture on a rotating cadence, read-only, and record per-repo fitness and ranked findings.
+- FR38: Every architecture finding and paper must cite only entries of a versioned source registry that is refreshed at least quarterly.
+- FR39: Every architecture finding and recommendation must link to feature catalog ids and PRD requirement ids, and accepted recommendations must become Fleet project items.
+- FR40: The harness must turn a qualifying architecture challenge into a scoped research question and produce a research paper in docs/research/<slug>/ with a fixed structure, sources and metadata.
+- FR41: No research paper may be published until automated citation and traceability checks, an independent AI review and a maintainer merge have passed.
 
 **Non-functional**
 

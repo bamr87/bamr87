@@ -704,3 +704,23 @@ features:
     - na: planned; reusable docs-site workflow in bamr87/.github is a follow-up
     prd:
     - FR36
+  - id: HUB-044
+    title: 'Architecture research harness: literature-grounded fleet architecture review and research papers'
+    description: A read-only R&D loop that surveys each fleet repo's high-level architecture against a versioned
+      literature registry, ranks structural challenges linked to feature and PRD ids, turns qualifying challenges
+      into research projects, and publishes reviewed research papers under docs/research/. Design only.
+    implemented: false
+    status: planned
+    surface: infra
+    docs: docs/ARCH-RESEARCH-HARNESS.md
+    tags:
+    - harness
+    - architecture
+    - research
+    date: 2026-10-30
+    prd:
+    - FR37
+    - FR38
+    - FR39
+    - FR40
+    - FR41

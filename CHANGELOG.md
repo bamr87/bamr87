@@ -10,6 +10,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 - `spec-gate.yml`: a reusable spec gate, the CI half of the spec-driven kit (`templates/spec-driven/` 0.2.0, `docs/SPEC-DRIVEN.md`). It checks out the kit beside the caller (sparse, at `hub-ref`, default `main`) and runs `spec_validator.py --root .` (with `--strict` by default) and `backlog_lint.py --root .` against the caller's `specs/` and `BACKLOG.md`, so a repo vendors nothing. New interface, additive: inputs `strict` (default `true`), `backlog-lint-base` (default `HEAD^1`), `stale-report` (default `false`), `stale-days` (default `60`), `file-issue` (default `false`; the caller declares `issues: write`), `issue-label`, `issue-title`, `hub-ref`, `python-version`; output `stale`. UPS-WORK-07 accepts a `uses:` of it as the spec-gate job. Minor: `v2` moves on release.
 - The `bamr87` Claude Code marketplace (`.claude-plugin/marketplace.json`) publishing `templates/spec-driven/` as the `spec-driven` plugin: the `/spec-driven:specify … :evolve` skills, the `backlog-triager` agent and the spec/backlog gate hook, enabled per repo from `.claude/settings.json`. Not part of the workflow interface promise.
+- Design doc for the architecture research harness: literature-grounded fleet architecture review that produces research papers (docs/ARCH-RESEARCH-HARNESS.md).
 
 ### Changed
 
