@@ -28,7 +28,8 @@ What is held:
     before claude starts runs nothing, and one that lands after claude exited
     leaves its outcome alone and waits for the ledger row; a usage limit is a
     warning under `--usage-limit skip`;
-  * record_run and merge_ledger lose no row to a concurrent writer;
+  * record_run and merge_ledger lose no row to a concurrent writer, and ai-run
+    waits for a stopped one only `--ledger-wait` seconds;
   * `_headless_section` never counts an estimate as billed.
 
 Run: python3 .github/scripts/dash-gen/test_ai_run.py
@@ -490,6 +491,43 @@ def test_a_cancel_while_the_run_is_recorded_waits_for_the_row():
         [row] = rig.rows()
         assert (row["outcome"], row["cost_source"], row["total_cost_usd"]) == ("ok", "reported", 0.61)
         assert json.loads(outcome.read_text())["kind"] == "ok" and out == "proposals written\n"
+
+
+def test_a_stopped_ledger_writer_holds_a_finished_run_and_its_cancel_only_so_long():
+    # a `dash ai` scan suspended with Ctrl-Z keeps the lock: the run is not
+    # ledgered, its outcome file still carries its cost, and the held cancel
+    # ends ai-run once the bounded wait is over
+    for sig in (None, signal.SIGTERM):
+        rig = Rig()
+        outcome = rig.dir / "outcome.json"
+        lock = rig.ledger.with_name(rig.ledger.name + ".lock").open("a")
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            argv, env = rig.command("--ledger-wait", "2", "--outcome-file", str(outcome))
+            t0 = time.monotonic()
+            p = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, text=True)
+            if sig is not None:
+                deadline = time.monotonic() + 30
+                while not rig.calls():
+                    assert time.monotonic() < deadline and p.poll() is None, "the stub never ran"
+                    time.sleep(0.05)
+                time.sleep(0.5)
+                os.kill(p.pid, sig)
+            out, err = p.communicate(timeout=30)
+            elapsed = time.monotonic() - t0
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            lock.close()
+        assert p.returncode == (128 + sig if sig else 1), (sig, p.returncode, err)
+        assert elapsed < 20, "the wait is bounded"
+        assert "THIS RUN IS NOT LEDGERED" in err and "NOT recorded to" in err, err
+        assert rig.rows() == []
+        got = json.loads(outcome.read_text())
+        assert (got["kind"], got["cost_usd"]) == ("ok", 0.61) and got["ledger_error"], got
+        assert out == "proposals written\n"
+    rig = Rig()
+    assert rig.run("--ledger-wait", "0").returncode == 2 and rig.calls() == 0
 
 
 def test_a_signal_after_claude_exits_is_late_even_in_the_tidying_before_the_row():

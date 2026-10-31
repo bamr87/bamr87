@@ -57,6 +57,7 @@ import shutil
 import signal
 import sys
 import tempfile
+import time
 import uuid
 from collections.abc import Iterator
 from functools import lru_cache
@@ -153,6 +154,15 @@ META_FIELDS = ("origin", "run_id", "attempt_id", "loop", "step", "item", "tier")
 # A row is billed only when the CLI reported its cost; a row written before
 # cost_source existed was always a reported one.
 BILLED_SOURCES = (None, "", "reported")
+# How long `dash ai run` waits for the ledger lock (`--ledger-wait`). It holds
+# a cancel while it records a run, so a writer that is stopped (a `dash ai`
+# suspended with Ctrl-Z) or hung must not keep it, and the Ctrl-C it ignores,
+# waiting for ever.
+LEDGER_WAIT_S = 30.0
+
+
+class LedgerBusy(TimeoutError):
+    """Another writer held the ledger lock for longer than the wait."""
 
 # Fallback ceiling for `dash ai run` when _data/fleet.yml is unreadable (the
 # wrapper must still be usable from a checkout that has no registry).
@@ -370,7 +380,7 @@ def load_ledger(ledger_path: Path) -> dict:
 
 
 @contextlib.contextmanager
-def ledger_lock(ledger_path: Path) -> Iterator[None]:
+def ledger_lock(ledger_path: Path, wait_s: float | None = None) -> Iterator[None]:
     """An exclusive flock beside the ledger for one read-modify-write.
 
     Three writers rewrite the WHOLE file — `dash ai` (merge_ledger), the
@@ -378,11 +388,25 @@ def ledger_lock(ledger_path: Path) -> Iterator[None]:
     (record_run) — and a loop runs several of the last at once. Without the
     lock, two of them loading the same version means one's rows are silently
     gone. One machine only: rows carry `machine` for the rest.
+
+    With `wait_s`, LedgerBusy once the lock has been held elsewhere that long;
+    without, it waits as long as it takes.
     """
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
     lock = ledger_path.with_name(ledger_path.name + ".lock")
     with lock.open("a") as fh:
-        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        if wait_s is None:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        else:
+            deadline = time.monotonic() + wait_s
+            while True:
+                try:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise LedgerBusy(f"another writer held {lock} for {wait_s:g}s") from None
+                    time.sleep(0.1)
         try:
             yield
         finally:
@@ -419,7 +443,7 @@ def merge_ledger(ledger_path: Path, usage: dict, sessions: dict) -> dict:
     return ledger
 
 
-def record_run(ledger_path: Path, record: dict) -> dict:
+def record_run(ledger_path: Path, record: dict, wait_s: float | None = None) -> dict:
     """Merge ONE headless run record into the ledger's `runs` section.
 
     Keyed by `session_id`, so re-running the wrapper against the same session
@@ -427,9 +451,10 @@ def record_run(ledger_path: Path, record: dict) -> dict:
     CLI's `total_cost_usd` is cumulative for the session, and two rows would be
     two charges for one conversation. A run the CLI gave no session id for
     falls back to a timestamp key — still one row, just not deduplicable.
+    `wait_s` bounds the wait for the lock (ledger_lock).
     """
     key = record.get("session_id") or f"unknown-{record['timestamp']}"
-    with ledger_lock(ledger_path):
+    with ledger_lock(ledger_path, wait_s):
         ledger = load_ledger(ledger_path)
         ledger["runs"][key] = {f: record.get(f) for f in RUN_FIELDS}
         save_ledger(ledger_path, ledger)
@@ -959,6 +984,9 @@ def run_headless(args: argparse.Namespace) -> int:
     if budget <= 0:
         sys.stderr.write("--max-budget-usd must be greater than 0\n")
         return 2
+    if args.ledger_wait <= 0:
+        sys.stderr.write("--ledger-wait must be greater than 0\n")
+        return 2
     if args.isolate_tmp and not args.isolate:
         sys.stderr.write("--isolate-tmp only means something with --isolate\n")
         return 2
@@ -1187,7 +1215,15 @@ def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choic
         code = rc
 
     ledger_path = Path(args.ledger)
-    record_run(ledger_path, record)
+    ledger_error = ""
+    try:
+        record_run(ledger_path, record, wait_s=args.ledger_wait)
+    except LedgerBusy as exc:
+        # the session happened: keep its outcome file, say so loudly, and fail
+        ledger_error = str(exc)
+        code = code or 1
+        warning += (f"! THIS RUN IS NOT LEDGERED — {exc}. Its cost is in the outcome file; "
+                    "find the stopped or hung writer (`fuser` / `lsof` on the lock file).\n")
     if result is not None:
         # redacted like the trace; the cost and token numbers claude-cost's
         # `log:` reads are not strings, so they come through unchanged
@@ -1198,7 +1234,7 @@ def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choic
         "auth": {"method": choice.method, "source": choice.source} if choice else None,
         "cli_version": cli_ver, "tool_uses": inv.tool_uses,
         "permission_denials": inv.permission_denials, "models_flagged": flagged,
-        "ledger": str(ledger_path), "call_site": record["call_site"],
+        "ledger": str(ledger_path), "ledger_error": ledger_error or None, "call_site": record["call_site"],
     })
 
     if inv.stderr_tail:
@@ -1214,7 +1250,7 @@ def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choic
         f"${cost:,.4f} of ${budget:,.2f} {COST_LABEL} "
         f"({(cost / budget * 100) if budget else 0:.0f}%, {outcome.cost_source}) · {outcome.kind} · "
         f"session {record['session_id'] or 'unknown'}\n"
-        f"  recorded to {ledger_path}\n"
+        f"  {'NOT recorded to' if ledger_error else 'recorded to'} {ledger_path}\n"
     )
     if flagged:
         sys.stderr.write(f"! model(s) outside _data/fleet.yml ai_models.allowed in modelUsage: "
@@ -1232,6 +1268,9 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
                         help="take the cap from budget.call_sites[FILE:JOB], the CI cap of that step")
     parser.add_argument("--ledger", default=str(LEDGER_DEFAULT), metavar="PATH",
                         help=f"persistent ledger (default: {LEDGER_DEFAULT})")
+    parser.add_argument("--ledger-wait", type=float, default=LEDGER_WAIT_S, metavar="SECONDS",
+                        help=f"wait at most SECONDS for another ledger writer's lock (default: {LEDGER_WAIT_S:g}); "
+                             "a cancel waits that long too, and past it the run is not ledgered (exit non-zero)")
     parser.add_argument("--source", default="dash ai run", metavar="LABEL",
                         help="how this run was invoked, recorded on the ledger entry")
     parser.add_argument("--repo", default=None, metavar="NWO",
