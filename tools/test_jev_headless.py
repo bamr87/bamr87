@@ -515,7 +515,8 @@ def test_json_mode_is_no_spend_only_for_the_clis_own_argv_refusal():
         assert (got.kind, got.cost_source, got.cost_usd) == ("startup_failed", "no-spend", 0.0), (tail, got)
     may_have_spent = ("error: something broke mid-session\n",
                       "hook value is invalid, ignoring\nUnhandled rejection\n",
-                      "starting\nerror: unknown option '--x'\n")
+                      "starting\nerror: unknown option '--x'\n",
+                      "working\nError: Input must be provided either through stdin or as a prompt argument\n")
     for tail in may_have_spent:
         got = H.classify(inv(rc=1, stderr_tail=tail, fmt="json"), cap)
         assert (got.kind, got.cost_source, got.cost_usd) == ("unparseable", "estimated", cap), (tail, got)

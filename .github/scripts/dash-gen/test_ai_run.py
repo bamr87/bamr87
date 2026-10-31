@@ -121,6 +121,10 @@ STUB = textwrap.dedent(r'''
         # the agent quotes a token from the repo and the credential it was given
         emit({**ok, "result": "found ghp_" + "L" * 36 + " and " + os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")})
         sys.exit(0)
+    if scenario == "long_error":
+        # a token that straddles the 200-character clip of the outcome detail
+        emit({**ok, "subtype": "error_during_execution", "is_error": True,
+              "result": "y" * 180 + " ghp_" + "Q" * 36}); sys.exit(1)
     if scenario == "usage":
         emit({**ok, "is_error": True, "api_error_status": 429, "total_cost_usd": 0, "modelUsage": {},
               "result": "Claude AI usage limit reached"}); sys.exit(1)
@@ -324,6 +328,21 @@ def test_the_result_file_and_the_echo_are_redacted_like_the_trace():
         got = json.loads(res.read_text())
         assert "[REDACTED:CLAUDE_CODE_OAUTH_TOKEN]" in got["result"] and "[REDACTED]" in out.stdout
         assert got["total_cost_usd"] == 0.61 and got["modelUsage"]["claude-sonnet-5-5"]["inputTokens"] == 100
+
+
+def test_the_outcome_detail_is_redacted_before_it_is_clipped():
+    # clipped first, the token's first 15 characters would survive as a prefix
+    # no token pattern recognises
+    for mode in ((), ("--stream",)):
+        rig = Rig("long_error")
+        outcome = rig.dir / "outcome.json"
+        out = rig.run(*mode, "--outcome-file", str(outcome))
+        assert out.returncode == 1, out.stderr
+        got = json.loads(outcome.read_text())
+        assert got["kind"] == "agent_error", got
+        assert "ghp_" not in got["detail"] and "QQQQ" not in got["detail"], (mode, got["detail"])
+        assert got["detail"].endswith("[REDACTED]"), (mode, got["detail"])
+        assert "ghp_" not in out.stdout + out.stderr
 
 
 def test_a_run_with_no_result_after_init_is_charged_at_the_cap():
