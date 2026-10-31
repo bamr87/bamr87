@@ -1286,9 +1286,11 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--trace", default=None, metavar="PATH",
                         help="write a redacted, size-capped JSONL trace of the session")
     parser.add_argument("--result-file", default=None, metavar="PATH",
-                        help="write the last result record as one JSON object (claude-cost `log:` reads it)")
+                        help="write the last result record as one JSON object (claude-cost `log:` reads it), "
+                             "redacted like the trace; removed when ai-run starts")
     parser.add_argument("--outcome-file", default=None, metavar="PATH",
-                        help="write the classified outcome (kind, cost, cost_source, exit code) as JSON")
+                        help="write the classified outcome (kind, cost, cost_source, exit code) as JSON; "
+                             "removed when ai-run starts")
     parser.add_argument("--isolate", action="store_true",
                         help="build claude's environment from scratch: no GitHub token, no SSH agent, "
                              "one Claude credential (tools/jev/headless.py agent_env)")
@@ -1302,7 +1304,8 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--usage-limit", choices=("fail", "skip"), default="fail",
                         help="skip = a spent usage window exits 0 with a warning (capacity, not a defect)")
     parser.add_argument("--meta", action="append", default=[], metavar="KEY=VALUE",
-                        help=f"record KEY on the ledger row ({', '.join(META_FIELDS)}); repeatable")
+                        help=f"record KEY on the ledger row ({', '.join(META_FIELDS)}; origin may only be "
+                             "local); repeatable")
     parser.add_argument("--claude-bin", default="claude", metavar="BIN",
                         help="Claude Code executable (default: claude)")
     parser.add_argument("--dry-run", action="store_true",
