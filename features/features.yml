@@ -664,3 +664,63 @@ features:
     - FR32
     - FR33
     - FR34
+  - id: HUB-042
+    title: 'Docs site conformance: site exists, index complete, links resolve'
+    description: A tools/conformance.py check (run by check-drift.sh and the fleet survey) that verifies
+      a repo's public docs site exists, uses the zer0 theme, covers every non-excluded doc in the UPS-DOC
+      index, and has no broken links; warn-only per repo until its fan-out PR lands, then a hard fail. Enforces
+      HUB-043.
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/conformance.py
+    docs: docs/amendments/proposed/public-docs-site.md
+    tags:
+    - governance
+    - docs
+    - conformance
+    date: 2026-10-30
+    tests:
+    - na: planned; the check lands in a follow-up PR
+    prd:
+    - FR35
+  - id: HUB-043
+    title: 'Public docs site: every fleet repo publishes all its documentation'
+    description: 'Every fleet repo publishes a public GitHub Pages site at <owner>.github.io/<repo> or its
+      custom domain (zer0 remote theme only, no MkDocs or other generators; UPS-DOC index as page set) carrying
+      README, AGENTS, CHANGELOG and docs/, plus PRD, feature catalog, constitution and amendments where
+      they exist, with .siteignore / site: exclude for internal docs. Verified by HUB-042.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/public-docs-site.md
+    tags:
+    - governance
+    - docs
+    - pages
+    date: 2026-10-30
+    tests:
+    - na: planned; reusable docs-site workflow in bamr87/.github is a follow-up
+    prd:
+    - FR36
+  - id: HUB-044
+    title: 'Architecture research harness: literature-grounded fleet architecture review and research papers'
+    description: A read-only R&D loop that surveys each fleet repo's high-level architecture against a versioned
+      literature registry, ranks structural challenges linked to feature and PRD ids, turns qualifying challenges
+      into research projects, and publishes reviewed research papers under docs/research/. Design only.
+    implemented: false
+    status: planned
+    surface: infra
+    docs: docs/ARCH-RESEARCH-HARNESS.md
+    tags:
+    - harness
+    - architecture
+    - research
+    date: 2026-10-30
+    prd:
+    - FR37
+    - FR38
+    - FR39
+    - FR40
+    - FR41

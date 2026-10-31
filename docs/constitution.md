@@ -118,6 +118,7 @@ Every human, bot and AI agent in the hub and every submodule under `projects/` f
 5. **Hands off the Mac** — nothing running on Amr's Mac (checkout, containers, live jobs, monitoring stack) is modified until a final deploy step that Amr explicitly approves.
 6. **Read-only tools** — new tools are read-only by default, with allowlists, result caps, time limits and redaction.
 7. **Honest cost** — every AI cost figure is labelled "API-equivalent (estimate)"; real metered API spend is tracked separately.
+8. **Prior art first** — every new harness or loop design (a new loop, harness, agent pipeline, or console surface that drives or visualizes them) includes, before implementation begins: (a) a **needs assessment**, (b) a **prior-art / existing-tools survey** with one line each on fit, and (c) a recorded **build-vs-adopt decision** with reasons, kept in the design issue or spec as an acceptance criterion (amendment `harness-prior-art-research`, numbered at merge).
 
 ## 11. Harness write-back to GitHub
 
@@ -144,3 +145,13 @@ _(amendment `eval-baseline-risk-tiers`, numbered at merge — see the [amendment
 7. **Earned autonomy** — one tier down per action only after N consecutive clean approvals (N = 25); any rejection resets to high; money never goes below high.
 8. **Lethal trifecta** — private data + untrusted content + external send always needs a human gate on the send.
 9. **Reconciliation** — draft-before-send stays; only Amr merges amendments; no agent approves its own action or changes its own tier; tier changes are gated under § 12.3.
+## 14. Public documentation site
+
+_(amendment `public-docs-site`, numbered at merge — see the [amendment log](amendments/README.md); section number contingent on § 12 from `agent-merge-review-gate` (#481) and § 13 from `eval-baseline-risk-tiers` (#482) landing first; extends UPS-DOC)_
+
+1. **A public site** — every fleet repo publishes a public site at `<owner>.github.io/<repo>` (a custom domain on that Pages site is compliant) with all its documentation (README, AGENTS.md, CHANGELOG, `docs/`, plus the PRD, feature catalog, constitution and amendments where they exist). It is built only with GitHub Pages and the zer0 theme (`remote_theme: bamr87/zer0-mistakes`), with no MkDocs or other generators, and uses the UPS-DOC docs index as its page set.
+2. **Exclusions** — secrets are never published; internal docs are excluded by front matter `site: exclude` or a root `.siteignore` glob list, projected into Jekyll `exclude:`.
+3. **Private repos** — they fail the check and are flagged for Amr; an agent never makes one public, and their Actions spend stays $0.
+4. **Conformance** — `tools/conformance.py` (via `check-drift.sh`) checks that the site exists, uses the zer0 theme, has a complete docs index and has links that resolve.
+5. **Rollout** — the check is warn-only for a repo until its spoke fan-out PR (one repo per PR) lands, then a hard failure for that repo.
+6. **Settings are Amr's** — Pages enablement and any repo setting are changed only by Amr.
