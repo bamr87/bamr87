@@ -90,6 +90,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-043](features/features.yml) | Public docs site: every fleet repo publishes all its documentation | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/public-docs-site.md` | FR36 |
 | [HUB-044](features/features.yml) | Architecture research harness: literature-grounded fleet architecture review and research papers | planned | [`docs/ARCH-RESEARCH-HARNESS.md`](docs/ARCH-RESEARCH-HARNESS.md) | FR37, FR38, FR39, FR40, FR41 |
 | [HUB-045](features/features.yml) | Review gate: needs-amr label holds a PR from agent merge | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/agent-merge-review-gate.md` | FR42 |
+| [HUB-046](features/features.yml) | Evidence conformance: checks major/frontend PRs for tests, visuals and review | planned | [`tools/conformance.py`](tools/conformance.py) · `docs/amendments/proposed/major-change-evidence.md` | FR43 |
+| [HUB-047](features/features.yml) | Major-change evidence: JEV-judged major PRs, tests, visual before/after, JEV + QA Lead review | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/major-change-evidence.md` | FR44 |
 
 **Requirement → feature trace**
 
@@ -148,6 +150,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR40 | HUB-044 |
 | FR41 | HUB-044 |
 | FR42 | HUB-045 |
+| FR43 | HUB-046 |
+| FR44 | HUB-047 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -184,6 +188,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR40: The harness must turn a qualifying architecture challenge into a scoped research question and produce a research paper in docs/research/<slug>/ with a fixed structure, sources and metadata.
 - FR41: No research paper may be published until automated citation and traceability checks, an independent AI review and a maintainer merge have passed.
 - FR42: An agent must merge a PR only when it is mergeable (required checks green, required reviews satisfied, no conflicts, review gate passed), and never a PR labelled needs-amr or in a gated category.
+- FR43: The conformance gate must flag a major PR missing test evidence or a green CI link, a frontend PR missing visual evidence or a reasoned skip-evidence, and any such PR without passing non-author completeness reviews by JEV and QA Lead (or the interim reviewer); warn-only for a repo until its fan-out PR lands, then a hard failure (see HUB-047).
+- FR44: A PR judged major by JEV (or labelled major; interim: heuristics plus reviewer, when in doubt major) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by JEV and QA Lead, neither being its author (interim: QA Lead alone, then Amr) (see HUB-046).
 
 **Non-functional**
 

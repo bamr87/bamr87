@@ -742,3 +742,42 @@ features:
     - na: planned; the label check workflow lands in a follow-up PR
     prd:
     - FR42
+  - id: HUB-046
+    title: 'Evidence conformance: checks major/frontend PRs for tests, visuals and review'
+    description: A tools/conformance.py check that reads the major decision (JEV, the major label, or the
+      interim heuristics) and detects frontend-impacting PRs and verifies test evidence, visual evidence
+      (or a valid skip-evidence) and passing completeness reviews by JEV and QA Lead (or the interim fallback);
+      warn-only per repo until its fan-out PR lands, then a hard fail. Enforces HUB-047.
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/conformance.py
+    docs: docs/amendments/proposed/major-change-evidence.md
+    tags:
+    - governance
+    - verification
+    - conformance
+    date: 2026-10-30
+    tests:
+    - na: planned; the check lands in a follow-up PR
+    prd:
+    - FR43
+  - id: HUB-047
+    title: 'Major-change evidence: JEV-judged major PRs, tests, visual before/after, JEV + QA Lead review'
+    description: 'Major PRs carry test evidence and a green CI link; every frontend-impacting PR carries
+      before/after visual evidence at two or more viewports; JEV and QA Lead (never the author) check completeness;
+      JEV judges what is major (interim: heuristics plus reviewer, when in doubt major). Enforced by HUB-046.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/major-change-evidence.md
+    tags:
+    - governance
+    - verification
+    - review
+    date: 2026-10-30
+    tests:
+    - na: planned; PR template sections land in a follow-up PR
+    prd:
+    - FR44

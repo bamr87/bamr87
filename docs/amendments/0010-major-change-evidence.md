@@ -1,12 +1,12 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Test evidence for major changes, visual evidence for frontend PRs, and a skilled-reviewer completeness pass
+# 0010 — Test evidence for major changes, visual evidence for frontend PRs, and a skilled-reviewer completeness pass
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0010
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
-- **Affects:** constitution new § 15 (§ 13 is reserved by `eval-baseline-risk-tiers`, #482, still open; § 14 is `public-docs-site`, 0007); § 12 (adds a completeness review to the review gate); specs UPS-QA-52 (raised from SHOULD to MUST by reference); `.github/pull_request_template.md`; features `HUB-NEW:major-change-evidence`, `HUB-NEW:evidence-conformance`; requirements `FR-NEW:major-change-evidence`, `FR-NEW:evidence-conformance`
+- **Affects:** constitution new § 15 (§ 13 is reserved by `eval-baseline-risk-tiers`, #482, still open; § 14 is `public-docs-site`, 0007); § 12 (adds a completeness review to the review gate); specs UPS-QA-52 (raised from SHOULD to MUST by reference); `.github/pull_request_template.md`; features `HUB-047`, `HUB-046`; requirements `FR44`, `FR43`
 - **Supersedes:** none (extends § 7, § 12 and UPS-QA-50..53)
 - **Related:** 0007 `public-docs-site` (per-repo warn-then-fail rollout pattern), 0008 `harness-prior-art-research`, 0009 `agent-merge-review-gate`, #482, docs/VERIFICATION.md, `.github/workflows/fleet-verify.yml`, `templates/verify/`, `templates/site-quality/`
 
@@ -42,7 +42,7 @@ Add constitution § 15 "Evidence for major changes and frontend PRs" with this t
 ## Consequences
 
 - UPS-QA-52 becomes MUST for frontend PRs under this section; follow-up edits `specs/QUALITY.md`, then `gen-specs-data.py` regenerates `_data/specs.yml`.
-- Follow-up: add the three sections to `.github/pull_request_template.md` and to `bamr87/.github` `PULL_REQUEST_TEMPLATE.md`; add a `major` label; add the two conformance check ids (feature `HUB-NEW:evidence-conformance`).
+- Follow-up: add the three sections to `.github/pull_request_template.md` and to `bamr87/.github` `PULL_REQUEST_TEMPLATE.md`; add a `major` label; add the two conformance check ids (feature `HUB-046`).
 - Dependencies: JEV's major-change judgment and review need JEV to be built (docs/JEV.md roadmap) and, after #482, to pass its eval set. QA Lead must be deployed as a bot. Until then, the interim fallbacks in items 1 and 5 apply.
 - Fan-out: one PR per spoke repo after ratification, which also turns that repo's check from warn to fail.
 - Merging the pull request that carries this record ratifies it. An agent never merges it.
