@@ -1,8 +1,8 @@
 # tools/jev/ — JEV
 
-> The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, and loop step specs that CI and a local run render alike.
+> The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, loop step specs that CI and a local run render alike, and the local loop runner that runs them.
 
-JEV is the fleet's planned agent logic layer ([bamr87/it-journey](https://github.com/bamr87/it-journey) `PRD.md`, Roadmap 2027 Q1). This directory holds its first two working capabilities, and the headless executor layer the second one's local runner is built on. The first answers one question the fleet asks several times a week: **a pull request says `This branch has conflicts that must be resolved` — now what?**
+JEV is the fleet's planned agent logic layer ([bamr87/it-journey](https://github.com/bamr87/it-journey) `PRD.md`, Roadmap 2027 Q1). This directory holds its first two working capabilities, the headless executor layer, and the second one's local runner built on it. The first answers one question the fleet asks several times a week: **a pull request says `This branch has conflicts that must be resolved` — now what?**
 
 The second, [loop step specs](#loop-step-specs), gives each agent step one spec that CI and a local run render the same bytes from. The first capability's answer has two halves. The first removes the conflicts that should never have existed (numbering). The second resolves what is left, at the cheapest tier that can finish the job (the conflict engine). Full operator doc: [`docs/JEV.md`](../../docs/JEV.md). The rules it is held to: [amendment 0002](../../docs/amendments/0002-conflict-free-numbering.md).
 
@@ -23,6 +23,12 @@ python3 -m tools.jev conflicts budget  --scheduled      # month to date against 
 python3 -m tools.jev steps check                        # every step spec against its workflow and fleet.yml
 python3 -m tools.jev steps render repo-scout scout --set NWO=bamr87/beta --set REPO_NAME=beta \
     --set BRANCH=main --set BRIEF=scout-workorder-beta.md   # the exact prompt bytes one leg gets
+
+python3 -m tools.jev loop list                          # steps with a local: block (also: tools/dash loop …)
+python3 -m tools.jev loop doctor                        # $0 host checks + the credential-free isolation probe
+python3 -m tools.jev loop plan repo-scout --target SCHEMA            # per item, no clone, no model
+python3 -m tools.jev loop run repo-scout --target SCHEMA --rehearse  # everything up to the model call, $0
+python3 -m tools.jev loop show --latest
 ```
 
 Run from the repository root — `tools.jev` is imported as a package, so `python3 tools/jev/conflicts.py` will not work.
@@ -46,6 +52,12 @@ tools/dash ai run --call-site repo-scout.yml:scout --stream --timeout 1800 --iso
     --cwd <clone> --prompt-file <prompt.txt> --trace <trace.jsonl> --result-file <result.json> \
     --outcome-file <outcome.json> --usage-limit skip -- <headless.claude_flags(…)>
 ```
+
+## The loop runner
+
+[`loop.py`](loop.py) is capability two's runner (P1's second slice, [ADR 0002](../../docs/adr/0002-agent-step-specs-and-local-runner.md#p1--the-headless-executor-and-its--138-posture); operator doc [docs/JEV.md](../../docs/JEV.md#the-loop-runner-p1)). It has no loop-specific code: a step spec's optional `local:` block names the [adapter](adapters/README.md), the kill switch, and the planner and publish argv templates, and `steps check` holds the switch equal to the workflow's gating `if:`. Per item it runs the gates, the host checks, the planner (the same `tools/dash-gen scout` CI runs, with the prompt held byte-equal to the spec's render), tier 0 and classify at $0, then a [workspace](workspace.py) — a hardened clone under `~/.cache/jev/work/<run_id>/`, outside the hub, whose `.git` the engine's own git never reads once an agent could have touched it (status and checkout run on an engine-held copy of the fresh GIT_DIR, and refuse a tampered clone) — and prepares the prompt, the `--settings` document, the isolation flags and the exact `tools/dash-gen ai-run` command an attempt runs.
+
+This slice is **$0**: `run` requires `--rehearse`, which stops before the model call and proves the planned command with `ai-run --dry-run` on an empty stdin and without its prompt file. Live attempts, the canary, `budget.loops` and publishing arrive in the next PR (#486 PR-C). Records go to the gitignored `.fleet/runs/<run_id>/` (0700: `run.json`, `attempts.jsonl`, `summary.md`, `plan/`, `items/<item dir>/`); the newest 30 runs are kept and older run directories are pruned at the end of each run; `JEV_RUNS_DIR` and `JEV_WORK_ROOT` override the two roots. Exit codes: 0 clean, 1 attention, 2 usage, a refused option, a reused `--run-id` or a missing run, 3 credential, 4 host safety (including a work root inside the hub), 127 no `claude` CLI, 130 interrupted.
 
 ## The merge driver
 
@@ -85,7 +97,7 @@ Every tier resolves the same way: **merge the base into the head** with a merge 
 
 ## What JEV will not do
 
-- **Never merges a pull request.** `common.assert_no_admin` refuses `gh pr merge` and any `--admin` at the one place every GitHub call goes through.
+- **Never merges a pull request.** `common.assert_no_admin` refuses `gh pr merge` and any `--admin` at the one place every GitHub call goes through, and with them an issue close, delete, transfer or lock, a repository delete, archive, edit, rename or transfer, a secret or variable write, a forced `repo sync`, and every `gh api` call but a GET or an inline GraphQL query (no mutation, no `--input` or `@file` body); `common.assert_safe_git` refuses a force-push, a mirror push and a remote ref delete, in any spelling (bundled short flags, long-option prefixes, a forced refspec set through `-c`), in every `common.git` call.
 - **Never force-pushes and never rebases.** The pull request's history belongs to whoever opened it; a force-push would detach review comments from their commits.
 - **Never touches settings, secrets or branch protection.**
 - **Only same-repo branches, only listed authors.** A fork's branch and a human collaborator's branch are tier 3 by policy (`jev.allowed_authors`), because JEV pushes to the head branch.
@@ -108,6 +120,9 @@ python3 tools/test_jev_ledger.py      # the ledger and the monthly cap
 python3 tools/test_jev_generated.py   # the main-only guard and the tier-0 main-only resolution
 python3 tools/test_jev_spec.py        # step specs: byte identity, parity, the #89 lint, loader refusals
 python3 tools/test_jev_headless.py    # the isolation argv, sandbox settings, agent env, auth choice, classifier, probes
+python3 tools/test_jev_workspace.py   # the hardened clone, the tamper baseline, the no-follow harvest
+python3 tools/test_jev_adapter_repo_scout.py   # the scout adapter and the engine's source guard
+python3 tools/test_jev_loop.py        # the runner end to end against a stub claude and gh: list, doctor, plan, run --rehearse, show
 ```
 
 They are standalone scripts — no pytest, no network, no `gh` — and `tools/run-all-tests.sh` and `.github/workflows/python-tests.yml` pick them up automatically.

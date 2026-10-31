@@ -81,6 +81,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash evolve --repo <name>${c_off}  run the repo-evolution loop on one opted-in submodule now (draft PR in its own repo)
   ${c_bold}dash evolve --all${c_off}      run the weekly repo-evolution loop on every auto_evolve submodule now
   ${c_bold}dash scout [plan|--repo <name>|--all]${c_off} the daily repo-scout loop — \`plan\` shows today's sample and briefs locally; \`--repo\`/\`--all\` dispatch repo-scout.yml (issues in the repos' own trackers; -f dry_run=true to rehearse)
+  ${c_bold}dash loop <list|doctor|plan|run|show>${c_off} run a loop's agent step locally with headless Claude Code — isolated, sandboxed, no network, no GitHub credential; \`plan\` costs nothing and never clones; \`run <loop> --rehearse\` does everything up to the model call, no spend (live attempts arrive next); \`doctor\` is the no-spend host check (docs/JEV.md)
   ${c_bold}dash ai${c_off}                shadow-priced Claude Code usage per repo (local)
   ${c_bold}dash ai check${c_off}          reconcile that ledger against ccusage (pricing/alias/dedupe audit)
   ${c_bold}dash ai run -- <args>${c_off}  run \`claude -p\` under the fleet.yml dollar cap, recording what it cost
@@ -281,6 +282,12 @@ cmd_scout() {
       ;;
     *) echo "usage: dash scout [plan [dash-gen scout args]|--repo <name>|--all] [-f key=value]" >&2; return 2 ;;
   esac
+}
+
+cmd_loop() {
+  # The JEV local loop runner (docs/JEV.md "The loop runner"). Run from the hub
+  # root with the PyYAML-capable interpreter, because tools.jev is a package.
+  (cd "${ROOT}" && "${PY}" -m tools.jev loop "$@")
 }
 
 cmd_sync() {
@@ -873,6 +880,7 @@ main() {
     protect) cmd_protect "$@" ;;
     evolve)  cmd_evolve "$@" ;;
     scout)   cmd_scout "$@" ;;
+    loop)    cmd_loop "$@" ;;
     ai)      cmd_ai "$@" ;;
     doctor)  cmd_doctor "$@" ;;
     test)    cmd_test "$@" ;;

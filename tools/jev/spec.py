@@ -24,6 +24,11 @@ Description: JEV capability two — loop STEP SPECS. One file pair per agent ste
              required key or changed meaning bumps the id. The loader stays
              strict (an unknown key is refused), and consumers read specs
              through this module, never the YAML.
+             The optional `local:` block (P1, #486) says how `python3 -m
+             tools.jev loop` runs the step on a workstation: the adapter, the
+             kill switch (held equal to the workflow's gating `if:`), the
+             planner and publish argv templates and the budget-hit rule. CI and
+             every P0 consumer ignore it.
 Author: bamr87
 Created: 2026-10-30
 Version: 0.1.0
@@ -44,7 +49,7 @@ from typing import TypeGuard
 
 import yaml
 
-from .common import FLEET_YML, HUB, JevError
+from .common import FLEET_YML, HUB, JevError, is_nwo
 
 SPEC_ROOT = HUB / "tools" / "jev" / "steps"
 WORKFLOWS_DIR = HUB / ".github" / "workflows"
@@ -89,7 +94,7 @@ CREDENTIAL_SCAN_SKIP = frozenset({"claude_code_oauth_token", "anthropic_api_key"
 REQUIRED_KEYS = frozenset({"schema", "loop", "step", "call_site", "step_id", "prompt", "inputs",
                            "model_from", "max_turns_from", "timeout_minutes", "allowed_tools",
                            "workspace"})
-OPTIONAL_KEYS = frozenset({"risk", "evals"})
+OPTIONAL_KEYS = frozenset({"risk", "evals", "local"})
 WORKSPACE_KEYS = frozenset({"cwd", "brief_dir", "outputs", "github_credential"})
 WORKSPACE_OPTIONAL = frozenset({"exceptions"})
 #: v1 knows one credential posture; a step that holds a token (P3: doctor,
@@ -110,6 +115,25 @@ RISK_TAGS = frozenset({"reversible", "external", "money"})
 RISK_TIERS = ("low", "medium", "high")
 RISK_KEYS = frozenset({"what", "tags", "tier"})
 FORBIDDEN_TEMPLATE_CHARS = {"\r": "CR", "\t": "tab", "\x00": "NUL", "﻿": "BOM"}
+# `local:` (P1). Every sub-key has a consumer in tools/jev/loop.py; P3 adds more
+# (tiers, workspace kinds, rounds) as optional sub-keys, which keeps v1.
+LOCAL_KEYS = frozenset({"adapter", "switch", "planner", "publish", "on_budget_hit"})
+LOCAL_REQUIRED = frozenset({"adapter", "planner"})
+SWITCH_KEYS = frozenset({"config", "variable", "default"})
+PLANNER_KEYS = frozenset({"argv", "flags"})
+#: engine option → the planner's own flag (`--target NAME` is passed as `--target=NAME`)
+PLANNER_FLAGS = frozenset({"target", "focus", "day", "offline", "no_files"})
+PUBLISH_KEYS = frozenset({"argv", "apply_flag", "risk"})
+#: JEV's rule: a budget-hit attempt is discarded. P3 adds `publish-flagged` (evolve).
+ON_BUDGET_HIT = frozenset({"discard"})
+#: The `{token}`s an argv template may carry; the engine fills them, one pass.
+#: `bodies_dir` is the publish phase's own directory (the dry preview's and the
+#: apply's differ, so filing never overwrites the bodies a person reviewed).
+ARG_TOKENS = frozenset({"plan_dir", "nwo", "name", "branch", "item_dir", "validated", "run_ref", "bodies_dir"})
+ARG_TOKEN_RX = re.compile(r"\{([a-z_]+)\}")
+SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
+FLAG_RX = re.compile(r"--[a-z][a-z0-9-]*")
+SWITCH_VAR_RX = re.compile(r"[A-Z][A-Z0-9_]*_ENABLED")
 
 
 class StepSpecError(JevError):
@@ -141,6 +165,40 @@ class Workspace:
 
 
 @dataclass(frozen=True)
+class Switch:
+    """The step's kill switch: a `_data/fleet.yml` bool honoured on every run,
+    and the repo variable a SCHEDULED local run reads, with its default."""
+
+    config: str
+    variable: str
+    default: str  # 'on' | 'off'
+
+
+@dataclass(frozen=True)
+class ArgvTemplate:
+    """A `tools/dash-gen` command line with `{token}` placeholders."""
+
+    argv: tuple[str, ...]
+    #: planner only: engine option → the planner's flag
+    flags: Mapping[str, str]
+    #: publish only: the flag that turns the dry run into the write
+    apply_flag: str = ""
+    #: publish only: the `risk.<action>` whose tier governs the write
+    risk: str = ""
+
+
+@dataclass(frozen=True)
+class LocalSpec:
+    """How the local loop engine runs this step (`local:`; ADR 0002, P1)."""
+
+    adapter: str
+    planner: ArgvTemplate
+    switch: Switch | None = None
+    publish: ArgvTemplate | None = None
+    on_budget_hit: str = "discard"
+
+
+@dataclass(frozen=True)
 class StepSpec:
     path: Path
     loop: str
@@ -161,6 +219,8 @@ class StepSpec:
     #: sha256 of <step>.yml's bytes, a NUL, then <step>.prompt.txt's bytes —
     #: what the workflow pins as STEP_SHA_ENV.
     content_sha256: str
+    #: the optional `local:` block; None for a step with no local runner yet
+    local: LocalSpec | None = None
 
     @property
     def workflow_file(self) -> str:
@@ -308,6 +368,81 @@ def _check_evals(evals: object, where: str) -> None:
         raise StepSpecError(f"{where}: evals path {evals} does not exist")
 
 
+def _argv_template(raw: object, at: str) -> tuple[str, ...]:
+    if (not isinstance(raw, list) or not raw or not all(isinstance(a, str) and a for a in raw)):
+        raise StepSpecError(f"{at}: a non-empty list of strings (a `tools/dash-gen` command line)")
+    if not SUBCOMMAND_RX.fullmatch(raw[0]):
+        raise StepSpecError(f"{at}[0]: {raw[0]!r} is not a dash-gen subcommand name")
+    for arg in raw:
+        unknown = sorted(set(ARG_TOKEN_RX.findall(arg)) - ARG_TOKENS)
+        if unknown:
+            raise StepSpecError(f"{at}: unknown token(s) {unknown} (one of {sorted(ARG_TOKENS)})")
+        if "{" in ARG_TOKEN_RX.sub("", arg) or "}" in ARG_TOKEN_RX.sub("", arg):
+            raise StepSpecError(f"{at}: {arg!r} has a brace that is not a {{token}}")
+    return tuple(raw)
+
+
+def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str) -> LocalSpec:
+    """The `local:` block, validated. Unknown sub-keys are refused like unknown keys."""
+    at = f"{where}: local"
+    if not isinstance(raw, Mapping):
+        raise StepSpecError(f"{at}: a mapping of {sorted(LOCAL_KEYS)}")
+    missing, unknown = LOCAL_REQUIRED - set(raw), set(raw) - LOCAL_KEYS
+    if missing or unknown:
+        raise StepSpecError(f"{at}: missing {sorted(missing)} / unknown {sorted(unknown)} key(s)")
+    from .adapters import REGISTRY  # lazy: importing spec.py stays side-effect free
+    if raw["adapter"] not in REGISTRY:
+        raise StepSpecError(f"{at}.adapter: {raw['adapter']!r} is not in tools/jev/adapters REGISTRY "
+                            f"{sorted(REGISTRY)}")
+
+    switch = None
+    if "switch" in raw:
+        sw = raw["switch"]
+        if not isinstance(sw, Mapping) or set(sw) != SWITCH_KEYS:
+            raise StepSpecError(f"{at}.switch: needs exactly {sorted(SWITCH_KEYS)}")
+        if not isinstance(sw["config"], str) or not DOTTED_RX.fullmatch(sw["config"]):
+            raise StepSpecError(f"{at}.switch.config: a dotted _data/fleet.yml key, not {sw['config']!r}")
+        if not isinstance(fleet_value(fleet, sw["config"]), bool):
+            raise StepSpecError(f"{at}.switch.config: _data/fleet.yml {sw['config']} is not a boolean")
+        if not isinstance(sw["variable"], str) or not SWITCH_VAR_RX.fullmatch(sw["variable"]):
+            raise StepSpecError(f"{at}.switch.variable: {sw['variable']!r} must match {SWITCH_VAR_RX.pattern}")
+        if sw["default"] not in ("on", "off"):
+            # a bare `off` is a YAML 1.1 boolean, so the value must be quoted
+            raise StepSpecError(f"{at}.switch.default: the quoted string 'on' or 'off', not {sw['default']!r}")
+        switch = Switch(config=sw["config"], variable=sw["variable"], default=sw["default"])
+
+    pl = raw["planner"]
+    if not isinstance(pl, Mapping) or "argv" not in pl or set(pl) - PLANNER_KEYS:
+        raise StepSpecError(f"{at}.planner: needs argv (optional flags), nothing else")
+    flags = pl.get("flags") or {}
+    if not isinstance(flags, Mapping) or set(flags) - PLANNER_FLAGS:
+        raise StepSpecError(f"{at}.planner.flags: keys from {sorted(PLANNER_FLAGS)}")
+    bad = [f for f in flags.values() if not isinstance(f, str) or not FLAG_RX.fullmatch(f)]
+    if bad:
+        raise StepSpecError(f"{at}.planner.flags: {bad} are not --long-flags")
+    planner = ArgvTemplate(argv=_argv_template(pl["argv"], f"{at}.planner.argv"), flags=dict(flags))
+
+    publish = None
+    if "publish" in raw:
+        pb = raw["publish"]
+        if not isinstance(pb, Mapping) or set(pb) != PUBLISH_KEYS:
+            raise StepSpecError(f"{at}.publish: needs exactly {sorted(PUBLISH_KEYS)}")
+        argv = _argv_template(pb["argv"], f"{at}.publish.argv")
+        if not isinstance(pb["apply_flag"], str) or not FLAG_RX.fullmatch(pb["apply_flag"]):
+            raise StepSpecError(f"{at}.publish.apply_flag: a --long-flag, not {pb['apply_flag']!r}")
+        if pb["apply_flag"] in argv:
+            raise StepSpecError(f"{at}.publish.argv: carries {pb['apply_flag']} — the engine adds it after the gate")
+        if not isinstance(risk, Mapping) or pb["risk"] not in risk:
+            raise StepSpecError(f"{at}.publish.risk: {pb['risk']!r} names no action in this spec's risk block")
+        publish = ArgvTemplate(argv=argv, flags={}, apply_flag=pb["apply_flag"], risk=pb["risk"])
+
+    on_hit = raw.get("on_budget_hit", "discard")
+    if on_hit not in ON_BUDGET_HIT:
+        raise StepSpecError(f"{at}.on_budget_hit: one of {sorted(ON_BUDGET_HIT)}, not {on_hit!r}")
+    return LocalSpec(adapter=raw["adapter"], planner=planner, switch=switch, publish=publish,
+                     on_budget_hit=on_hit)
+
+
 def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | None = None) -> StepSpec:
     """Load, validate and resolve one spec. `fleet=None` reads the hub's `_data/fleet.yml`."""
     path = spec_path(loop, step, root)
@@ -395,15 +530,18 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
         raise StepSpecError(f"{prompt_file}: not UTF-8 ({exc})") from exc
     _check_template(template, inputs, str(prompt_file))
 
-    resolved = resolve(load_fleet() if fleet is None else fleet, model_from=data["model_from"],
+    fleet = load_fleet() if fleet is None else fleet
+    resolved = resolve(fleet, model_from=data["model_from"],
                        max_turns_from=data["max_turns_from"], call_site=call_site, where=where)
+    local = _check_local(data["local"], data.get("risk"), fleet, where) if "local" in data else None
     return StepSpec(path=path, loop=loop, step=step, call_site=call_site, step_id=data["step_id"],
                     prompt_file=prompt_file, template=template, inputs=dict(inputs),
                     model_from=data["model_from"], max_turns_from=data["max_turns_from"],
                     timeout_minutes=data["timeout_minutes"], allowed_tools=tuple(tools),
                     workspace=workspace, risk=data.get("risk"), evals=data.get("evals"),
                     resolved=resolved,
-                    content_sha256=hashlib.sha256(spec_bytes + b"\0" + prompt_bytes).hexdigest())
+                    content_sha256=hashlib.sha256(spec_bytes + b"\0" + prompt_bytes).hexdigest(),
+                    local=local)
 
 
 def spec_files(root: Path = SPEC_ROOT) -> list[Path]:
@@ -452,9 +590,58 @@ def matrix_expressions(spec: StepSpec) -> dict[str, str]:
     return {tok: "${{ matrix.%s }}" % key for tok, key in spec.inputs.items()}
 
 
+def render_argv(template: tuple[str, ...] | list[str], values: Mapping[str, str]) -> list[str]:
+    """An argv template with every `{token}` filled, in ONE pass.
+
+    Refused: a token without a value, a value that starts with `-` (it would
+    read as an option), a value carrying NUL, CR or LF, and an `nwo` that is not
+    an `owner/repo` slug. The template itself was validated by the loader."""
+    for tok, val in values.items():
+        if tok not in ARG_TOKENS:
+            raise StepSpecError(f"argv value for unknown token {tok!r}")
+        if not isinstance(val, str) or not val or val.startswith("-") or any(c in val for c in "\0\r\n"):
+            raise StepSpecError(f"argv token {tok}: {val!r} is empty, starts with '-' or holds a control character")
+    if "nwo" in values and not is_nwo(values["nwo"]):
+        raise StepSpecError(f"argv token nwo: {values['nwo']!r} is not owner/repo")
+
+    def fill(m: re.Match) -> str:
+        if m.group(1) not in values:
+            raise StepSpecError(f"argv token {{{m.group(1)}}} has no value")
+        return values[m.group(1)]
+
+    return [ARG_TOKEN_RX.sub(fill, arg) for arg in template]
+
+
 # --------------------------------------------------------------------------- #
 # parity — the spec against its workflow and _data/fleet.yml
 # --------------------------------------------------------------------------- #
+def switch_errors(spec: StepSpec, workflow: Mapping) -> list[str]:
+    """`local.switch` against the workflow's gating `if:` — [] when they agree.
+
+    Default off needs some job gated on `vars.<VARIABLE> == 'true'` (a new loop
+    is armed by setting it); default on needs `vars.<VARIABLE> != 'false'` (a
+    switch added to a loop already in service). The other form anywhere is an
+    error too, so a local scheduled run reads the variable exactly as CI does."""
+    sw = spec.local.switch if spec.local else None
+    if sw is None:
+        return []
+    me = f"{spec.loop}/{spec.step}"
+    gates = " ".join(str(j.get("if") or "") for j in (workflow.get("jobs") or {}).values() if isinstance(j, Mapping))
+    var = re.escape(sw.variable)
+    on_rx = re.compile(rf"vars\.{var}\s*!=\s*'false'")
+    off_rx = re.compile(rf"vars\.{var}\s*==\s*'true'")
+    want, other = (off_rx, on_rx) if sw.default == "off" else (on_rx, off_rx)
+    form = {"off": f"vars.{sw.variable} == 'true'", "on": f"vars.{sw.variable} != 'false'"}
+    errs = []
+    if not want.search(gates):
+        errs.append(f"{me}: local.switch default {sw.default!r} ({spec.path.name}) needs a job in "
+                    f"{spec.workflow_file} gated on `{form[sw.default]}`")
+    if other.search(gates):
+        errs.append(f"{me}: {spec.workflow_file} gates on `{form['on' if sw.default == 'off' else 'off']}`, the "
+                    f"opposite of local.switch default {sw.default!r} ({spec.path.name})")
+    return errs
+
+
 def grant_errors(spec: StepSpec) -> list[str]:
     """The #89 lint: every tool the prompt orders by name is in allowed_tools."""
     ordered = sorted(set(TOOL_ORDER_RX.findall(spec.template)))
@@ -509,7 +696,7 @@ def parity_errors(spec: StepSpec, workflow: Mapping, fleet: Mapping) -> list[str
     """[] when the workflow's literals agree with the resolved spec. Pure."""
     me = f"{spec.loop}/{spec.step}"
     wf = spec.workflow_file
-    errs = grant_errors(spec)
+    errs = grant_errors(spec) + switch_errors(spec, workflow)
     try:
         res = resolve(fleet, model_from=spec.model_from, max_turns_from=spec.max_turns_from,
                       call_site=spec.call_site, where=me)

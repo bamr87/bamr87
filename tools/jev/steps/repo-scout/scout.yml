@@ -133,3 +133,37 @@ risk:
 
 # Constitution 13.1: the eval set's path, null during the grace period.
 evals: null
+
+# P1: how `python3 -m tools.jev loop` runs this step on a workstation (docs/JEV.md,
+# ADR 0002 P1). CI ignores this block; the prompt above stays the CI prompt.
+local:
+  # a key of tools/jev/adapters REGISTRY (tools/jev/adapters/repo_scout.py)
+  adapter: repo_scout
+  # == repo-scout.yml plan job `if:` (vars.REPO_SCOUT_ENABLED == 'true'): a
+  # local --scheduled run reads the variable the way the cron does; a manual
+  # run bypasses it as a workflow_dispatch does. `steps check` holds them equal.
+  switch:
+    config: scout.enabled
+    variable: REPO_SCOUT_ENABLED
+    default: 'off'
+  # the plan job's command; its stdout is plan.json, the briefs land in {plan_dir}
+  planner:
+    argv: [scout, --out-dir, '{plan_dir}']
+    flags:
+      target: --target
+      focus: --focus
+      day: --day
+      offline: --offline
+      no_files: --no-briefs
+  # the file job's command, plus the exact issue bodies for the reviewer;
+  # --apply only after the 13.6 yes (risk.publish is high). {bodies_dir} is the
+  # phase's own directory (items/<dir>/bodies for the preview, filed/ for the
+  # apply), so filing never overwrites the reviewed bytes.
+  publish:
+    argv: [scout-file, --nwo, '{nwo}', --proposals, '{validated}', --run-url, '{run_ref}', --bodies-dir,
+           '{bodies_dir}']
+    apply_flag: --apply
+    risk: publish
+  # JEV's rule, a deliberate divergence from CI's file job (which files what a
+  # budget-hit leg left behind): a budget-hit attempt is discarded
+  on_budget_hit: discard
