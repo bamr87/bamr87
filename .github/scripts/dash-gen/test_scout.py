@@ -421,8 +421,17 @@ def test_workflow_contract() -> None:
     check("CI never passes the local engine's --bodies-dir", "--bodies-dir" not in raw)
 
 
+def test_loader() -> None:
+    files = sorted((ROOT / "_data").glob("*.yml"))
+    check("the hub's data files are there to compare", len(files) > 5)
+    differ = [f.name for f in files if rs.load_yaml(f) != yaml.safe_load(f.read_text(encoding="utf-8"))]
+    check(f"load_yaml builds what yaml.safe_load builds for every _data/*.yml{' — differs: ' + ', '.join(differ) if differ else ''}",
+          not differ)
+
+
 def main() -> int:
-    for fn in (test_selection, test_rotation, test_plan_backpressure_and_brief, test_proposals, test_workflow_contract):
+    for fn in (test_selection, test_rotation, test_plan_backpressure_and_brief, test_proposals, test_workflow_contract,
+               test_loader):
         fn()
     print("\nOK — repo-scout fixture tests" if not FAILS else f"\nFAIL — {len(FAILS)} check(s):\n  " + "\n  ".join(FAILS))
     return 1 if FAILS else 0

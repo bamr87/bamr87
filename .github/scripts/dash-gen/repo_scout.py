@@ -117,8 +117,12 @@ SECRET_RE = re.compile(
 # config + helpers
 # --------------------------------------------------------------------------- #
 def load_yaml(path: Path | str):
+    # libyaml's SafeLoader when PyYAML has it: the plan reads ~350 KB of YAML
+    # (fleet.yml, the registry, triage, conformance) on every run, and the pure
+    # loader spends most of the plan's time parsing it. Same objects either way
+    # (test_scout.py's test_loader holds them equal over _data/*.yml).
     with Path(path).open(encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+        return yaml.load(fh, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))  # noqa: S506 - a SafeLoader
 
 
 def load_config(path: Path | str | None) -> dict:
