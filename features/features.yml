@@ -937,3 +937,22 @@ features:
     - tools/test_fanout.py
     prd:
     - FR52
+  - id: HUB-056
+    title: 'Governance records lint: amendment status, constitution order, doc links'
+    description: governance_lint.py check also fails on dead docs/link paths in features.yml and PRD.md,
+      merged amendment records not marked ratified, constitution sections out of order, and PRD requirements
+      citing a HUB id they are not mapped to; jev number apply stamps Status ratified when it numbers a
+      record (bamr87/bamr87#505).
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/governance_lint.py
+    docs: docs/amendments/README.md
+    tags:
+    - governance
+    - lint
+    date: 2026-10-31
+    tests:
+    - tools/test_governance_lint.py
+    prd:
+    - FR53
