@@ -130,3 +130,17 @@ The console may write to GitHub Projects (v2), issues and pull requests across e
 5. **Idempotent and capped** — already-satisfied ops are no-ops; at most 50 ops per plan and 200 per hour.
 6. **Audited** — one append-only JSONL record per op (who, when, plan, before, after, result), token values redacted.
 7. **Scoped token** — a dedicated `PROJECTS_TOKEN` (`read:project`/`project`, `read:org`, issues and pull requests read/write on registry repos), held in the console's credential store or an Actions secret, never printed or committed; only Amr provisions it.
+
+## 13. Eval baseline and risk tiers
+
+_(amendment `eval-baseline-risk-tiers`, numbered at merge — see the [amendment log](amendments/README.md); follows § 12 of `agent-merge-review-gate`; extends § 10 and § 12)_
+
+1. **Eval set** — every bot or agent role and every repo harness or loop keeps about 20 real past tasks (input, expected output, pass criteria, optional LLM-judge rubric), versioned next to what it tests.
+2. **Rerun on change** — rerun after any prompt, tool or model change, result linked in the PR; a regression blocks merge.
+3. **Pinned models** — exact versions, never aliases; allowed Anthropic models `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`.
+4. **Cheaper only if green** — a step moves to a cheaper model only if its evals still pass.
+5. **Tracing** — every run records its tool calls, secrets redacted.
+6. **Risk tiers** — every tool or action is tagged reversible / external / money and tiered: low runs alone; medium runs with an audit record; high waits for Amr's yes. Irreversible, external or money actions start high.
+7. **Earned autonomy** — one tier down per action only after N consecutive clean approvals (N = **TBD**, proposed 25); any rejection resets to high; money never goes below high.
+8. **Lethal trifecta** — private data + untrusted content + external send always needs a human gate on the send.
+9. **Reconciliation** — draft-before-send stays; only Amr merges amendments; no agent approves its own action or changes its own tier; tier changes are gated under § 12.3.
