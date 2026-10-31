@@ -464,35 +464,38 @@ def check_ledger() -> None:
 # wrapper behaviour
 # --------------------------------------------------------------------------- #
 def check_wrapper() -> None:
+    # `dash ai run` reads its result with headless.last_result and classifies it
+    # with headless.classify (tools/jev/headless.py), so these hold THAT code.
+    hl = ai_activity.headless()
+
+    def budget_hit(result: dict, cap: float) -> bool:
+        return hl.classify(hl.Invocation(rc=0, result=result), cap).kind == "budget_hit"
+
     # A budget abort has two tells and neither is a documented contract on its
     # own: the subtype naming the budget, or a FAILED run that reached the cap.
     check("budget abort detected from the result subtype",
-          ai_activity.budget_was_hit(
-              {"subtype": "error_max_budget", "total_cost_usd": 0.1, "is_error": True}, 5.0))
+          budget_hit({"subtype": "error_max_budget", "total_cost_usd": 0.1, "is_error": True}, 5.0))
     check("budget abort detected from a failed run at the ceiling",
-          ai_activity.budget_was_hit(
-              {"subtype": "error", "total_cost_usd": 5.0, "is_error": True}, 5.0))
+          budget_hit({"subtype": "error", "total_cost_usd": 5.0, "is_error": True}, 5.0))
     check("an expensive SUCCESS is not misread as a budget abort",
-          not ai_activity.budget_was_hit(
-              {"subtype": "success", "total_cost_usd": 9.9, "is_error": False}, 5.0))
+          not budget_hit({"subtype": "success", "total_cost_usd": 9.9, "is_error": False}, 5.0))
     check("an ordinary cheap failure is not misread as a budget abort",
-          not ai_activity.budget_was_hit(
-              {"subtype": "error", "total_cost_usd": 0.2, "is_error": True}, 5.0))
+          not budget_hit({"subtype": "error", "total_cost_usd": 0.2, "is_error": True,
+                          "modelUsage": {"claude-sonnet-5-5": {}}}, 5.0))
 
     result = {"type": "result", "subtype": "success", "session_id": "s1",
               "total_cost_usd": 1.5, "num_turns": 7}
-    check("result_record reads a bare result object",
-          ai_activity.result_record(json.dumps(result)) == result)
-    check("result_record reads a stream array, taking the LAST result",
-          ai_activity.result_record(
+    check("last_result reads a bare result object",
+          hl.last_result(json.dumps(result)) == result)
+    check("last_result reads a stream array, taking the LAST result",
+          hl.last_result(
               json.dumps([{"type": "system"}, {"type": "result", "session_id": "old"}, result])
           ) == result)
-    check("result_record reads JSONL",
-          ai_activity.result_record(
-              '{"type":"system"}\n' + json.dumps(result)) == result)
-    check("result_record returns None when the CLI produced no result",
-          ai_activity.result_record('{"type":"system"}') is None)
-    check("result_record tolerates empty output", ai_activity.result_record("") is None)
+    check("last_result reads JSONL",
+          hl.last_result('{"type":"system"}\n' + json.dumps(result)) == result)
+    check("last_result returns None when the CLI produced no result",
+          hl.last_result('{"type":"system"}') is None)
+    check("last_result tolerates empty output", hl.last_result("") is None)
 
     usage = ai_activity.usage_from_result({
         "num_turns": 9,
