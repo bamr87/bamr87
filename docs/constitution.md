@@ -118,6 +118,7 @@ Every human, bot and AI agent in the hub and every submodule under `projects/` f
 5. **Hands off the Mac** — nothing running on Amr's Mac (checkout, containers, live jobs, monitoring stack) is modified until a final deploy step that Amr explicitly approves.
 6. **Read-only tools** — new tools are read-only by default, with allowlists, result caps, time limits and redaction.
 7. **Honest cost** — every AI cost figure is labelled "API-equivalent (estimate)"; real metered API spend is tracked separately.
+8. **Prior art first** — every new harness or loop design (a new loop, harness, agent pipeline, or console surface that drives or visualizes them) includes, before implementation begins: (a) a **needs assessment**, (b) a **prior-art / existing-tools survey** with one line each on fit, and (c) a recorded **build-vs-adopt decision** with reasons, kept in the design issue or spec as an acceptance criterion (amendment `harness-prior-art-research`, numbered at merge).
 
 ## 11. Harness write-back to GitHub
 
