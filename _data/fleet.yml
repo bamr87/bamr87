@@ -438,7 +438,7 @@ scout:
   max_open_per_repo: 3      # backpressure: a repo still carrying this many open scout issues is skipped
   max_parallel: 2
   max_turns: 40             # per repo; the literal in repo-scout.yml is asserted against this
-  model: sonnet             # reading + writing; the pipeline's implementer is the Opus spend
+  model: claude-sonnet-5-5  # exact id from ai_models.allowed (constitution § 13.3); reading + writing — the pipeline's implementer is the Opus spend
   label: ai-scout           # on every filed issue (created on demand) — how the loop recognises its own
   marker: repo-scout        # hidden first line of every filed body: <!-- repo-scout key="owner/repo" -->
   kinds: [feature, fix, update]

@@ -1,0 +1,135 @@
+# The ONE spec for repo-scout's agent step: .github/workflows/repo-scout.yml,
+# job `scout`, step id `scout` (tools/jev/steps/README.md, docs/adr/0002).
+#
+# The plan job renders scout.prompt.txt per matrix leg (repo_scout.build_plan ->
+# tools/jev/spec.py) and the step reads it as `prompt: ${{ matrix.prompt }}`.
+# Model, turns and dollars are REFERENCES into _data/fleet.yml, never copies.
+# The caps and the allowlist are also literals in that step's claude_args
+# (harness_registry and test_ai_budget read literals); `python3 -m tools.jev
+# steps check` holds every copy equal to what this file resolves to.
+schema: loop-step/v1
+# == this directory == the workflow stem (the console's LOOPS id repo_scout
+# joins through its `workflow` field)
+loop: repo-scout
+step: scout
+# <workflow file>:<job id>, the key of _data/fleet.yml budget.call_sites
+call_site: repo-scout.yml:scout
+# the claude-code-action step's `id:` in that job
+step_id: scout
+
+# Beside this file: UTF-8, LF, exactly one trailing newline, never .md.
+prompt: scout.prompt.txt
+# {{TOKEN}} -> the plan.json include[] key whose value fills it. BRIEF is the
+# bare file name; the prompt keeps the literal `.scout/`.
+inputs:
+  NWO: nwo
+  REPO_NAME: name
+  BRANCH: branch
+  BRIEF: brief
+
+# Resolved from _data/fleet.yml. The model must be an exact id in
+# ai_models.allowed (constitution 13.3); CI passes it as
+# --model ${{ needs.plan.outputs.model }}.
+model_from: scout.model
+max_turns_from: scout.max_turns
+# == jobs.scout.timeout-minutes; the local engine's wall clock
+timeout_minutes: 30
+
+# == claude_args --allowedTools, joined with "," in THIS order. Read-only and
+# run-to-verify, plus Write for the one file the agent produces.
+allowed_tools:
+  - Bash(git status:*)
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git show:*)
+  - Bash(git grep:*)
+  - Bash(git ls-files:*)
+  - Bash(git blame:*)
+  - Bash(ls:*)
+  - Bash(cat:*)
+  - Bash(head:*)
+  - Bash(tail:*)
+  - Bash(grep:*)
+  - Bash(find:*)
+  - Bash(wc:*)
+  - Bash(sed:*)
+  - Bash(awk:*)
+  - Bash(cut:*)
+  - Bash(sort:*)
+  - Bash(uniq:*)
+  - Bash(tr:*)
+  - Bash(jq:*)
+  - Bash(diff:*)
+  - Bash(echo:*)
+  - Bash(mkdir:*)
+  - Bash(cd:*)
+  - Bash(npm:*)
+  - Bash(npx:*)
+  - Bash(node:*)
+  - Bash(python3:*)
+  - Bash(python:*)
+  - Bash(pip:*)
+  - Bash(pytest:*)
+  - Bash(bundle:*)
+  - Bash(ruby:*)
+  - Bash(gem:*)
+  - Bash(go:*)
+  - Bash(cargo:*)
+  - Bash(make:*)
+  - Bash(shellcheck:*)
+  - Read
+  - Grep
+  - Glob
+  - Write
+
+# What a runner must reproduce. CI implements it in the job's steps, except
+# what `exceptions` names; the local engine (P1) builds all of it. Parity
+# asserts each part that has a CI counterpart and reports each exception.
+workspace:
+  # the row's nwo at the row's branch, full history, no persisted credential
+  cwd: target
+  # == the scout job's download-artifact path; excluded via .git/info/exclude
+  brief_dir: .scout
+  # == the upload-artifact path; an absent file is zero proposals (valid)
+  outputs:
+    - .scout/proposals.json
+  # The contract: no GitHub credential reaches the agent. Parity refuses one
+  # the step inherits or carries (workflow, job or step env, its own inputs, an
+  # earlier $GITHUB_ENV export) and reports what the action itself still does.
+  github_credential: none
+  # Known gaps CI leaves open today (ADR 0002, follow-ups outside P0). Parity
+  # fails when a gap is open and undeclared, and when a declared one is closed.
+  exceptions:
+    app-token: >-
+      claude-code-action, given no github_token input, still exports its OIDC App
+      token (contents, issues, pull requests: write) to the agent's subprocesses;
+      the fix (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, a read-only github_token posture,
+      or base-action) is a follow-up issue the maintainer files
+    setting-sources: >-
+      claude_args passes no --setting-sources, so the target checkout's
+      .claude/settings.json (permissions.allow, hooks) loads in CI; the same
+      follow-up issue, and P1's runner isolates settings itself
+
+# Constitution 13.6: every action tagged reversible / external / money and
+# tiered; irreversible, external or money starts high. DECLARED, not enforced:
+# CI reads neither tier today — the agent runs ungated, and the scheduled file
+# job runs --apply without a human yes, gated only by REPO_SCOUT_ENABLED.
+risk:
+  agent:
+    what: >-
+      runs the target repo's own tooling (interpreters, package managers, make,
+      sed) over untrusted repo and issue text, with network egress, on an
+      ephemeral runner; its one kept output is .scout/proposals.json
+    # external: egress plus the App token above (constitution 13.8); it comes
+    # down only through 13.7, or a 13.9 re-tier once P1's sandbox removes both
+    tags:
+      - external
+    tier: high
+  publish:
+    what: dash-gen scout-file --apply files the proposals as issues in the target repository (the file job)
+    tags:
+      - external
+    tier: high
+
+# Constitution 13.1: the eval set's path, null during the grace period.
+evals: null

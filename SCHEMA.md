@@ -45,7 +45,7 @@ coverage: listed
 | `docker-compose.yml` | file | Containerized dev services | |
 | `.dockerignore` | file | Build-context exclusions for the hub's devenv/console images (the root carries ~40 submodule checkouts) | |
 | `kilo.jsonc` | file | Kilo Code project config — codebase indexing for this worktree, including checked-out submodules; URLs must agree with `_data/fleet.yml` `observability.indexing` | |
-| `.gitattributes` | file | How git treats generated and append-only files: `merge=jev-regen` (keep ours, regenerate — `tools/jev/merge-regen.sh`) and `merge=union`; amendment 0002, docs/JEV.md | |
+| `.gitattributes` | file | How git treats generated and append-only files: `merge=jev-regen` (keep ours, regenerate — `tools/jev/merge-regen.sh`) and `merge=union`; amendment 0002, docs/JEV.md; and byte-pinned agent prompts (`eol=lf`, `tools/jev/steps/`) | |
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
