@@ -2,8 +2,9 @@
 """
 Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the
 monthly cap. The cap is the only thing standing between a loop that runs every
-six hours and the fleet's $75/month ceiling, so the arithmetic is tested rather
-than trusted.
+six hours and the fleet's monthly ceiling (_data/fleet.yml
+harnesses.budget.monthly_ai_usd), so the arithmetic is tested rather than
+trusted.
 
 Run: python3 tools/test_jev_ledger.py
 """
@@ -18,7 +19,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.jev import ledger as L  # noqa: E402
-from tools.jev.common import JevConfig, load_config  # noqa: E402
+from tools.jev.common import JevConfig, load_config, load_fleet  # noqa: E402
 
 CFG = JevConfig(monthly_usd=10.0, scheduled_stop_pct=80)
 
@@ -120,7 +121,7 @@ def test_the_summary_says_what_was_estimated_and_where_the_run_stops():
 
 def test_the_hubs_own_configuration_keeps_jev_inside_the_fleet_budget():
     cfg = load_config()
-    fleet_ceiling = 75.0        # _data/fleet.yml harness.budget.monthly_ai_usd
+    fleet_ceiling = float(load_fleet()["harnesses"]["budget"]["monthly_ai_usd"])   # read, never copied
     assert 0 < cfg.monthly_usd <= fleet_ceiling
     assert 0 < cfg.monthly_stop_usd < cfg.monthly_usd
     for tier in ("tier1", "tier2"):

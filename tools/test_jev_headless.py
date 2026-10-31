@@ -112,13 +112,19 @@ if scenario == "result_on_sigint":
     while True:
         time.sleep(0.1)
 if scenario == "probe":
+    # 2.1.308's CA-certs line lists the USER settings' env keys only, and --restricted reads no settings file
+    try:
+        user = json.load(open(os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or "/nonexistent", "settings.json")))
+    except (OSError, ValueError):
+        user = {}
+    keys = ",".join(user.get("env") or {}) if "--restricted" not in argv else ""
+    debug(f"2026-10-31 [DEBUG] CA certs: Config fallback - globalEnv keys: , settingsEnv keys: {keys or 'none'}")
     if "--restricted" in argv:
         debug("2026-10-31 [DEBUG] Applying permission update: Adding 5 allow rule(s) to destination 'flagSettings'")
         debug("2026-10-31 [DEBUG] $.fs.ancestors (cc-plugin-agents-md): project memory is off")
         emit({"type": "system", "subtype": "init", "tools": ["Bash", "Read", "Grep", "Glob", "Write"],
               "mcp_servers": [], "permissionMode": "dontAsk", "output_style": "default", "skills": []})
     else:
-        debug("2026-10-31 [DEBUG] CA certs: globalEnv keys: , settingsEnv keys: JEV_PROBE_ENV")
         emit({"type": "system", "subtype": "hook_started", "hook_event": "SessionStart"})
         emit({"type": "system", "subtype": "init", "tools": ["Task", "Bash", "Read", "Edit", "SendMessage"],
               "mcp_servers": [{"name": "jev-probe", "status": "failed", "source": "project"}],
@@ -235,7 +241,7 @@ def test_tool_families_keep_first_appearance_order():
 # settings
 # --------------------------------------------------------------------------- #
 def test_the_settings_document_is_the_fail_closed_sandbox():
-    doc = H.settings_doc(SANDBOX, hub=Path("/hub"))
+    doc = H.settings_doc(SANDBOX, hub=Path("/hub"), private_reads=("/private/tmp/claude-1",), dotenv=False)
     assert doc["disableAllHooks"] is True
     assert doc["permissions"] == {"defaultMode": "dontAsk", "blockReadsOutsideWorkingDirectories": True}
     sb = doc["sandbox"]
@@ -247,13 +253,36 @@ def test_the_settings_document_is_the_fail_closed_sandbox():
     assert all(e["mode"] == "deny" for e in sb["credentials"]["envVars"] + sb["credentials"]["files"])
     files = {e["path"] for e in sb["credentials"]["files"]}
     assert files == set(H.CREDENTIAL_FILES) | {"/hub/.env"}
+    # strict pinned against a remote "relaxed" policy; private paths outside the home fence read-denied
+    assert sb["filesystem"] == {"disabled": False, "denyRead": ["/private/tmp/claude-1"]}
+    extra = H.settings_doc(SANDBOX, hub=Path("/hub"), private_reads=(), dotenv=Path("/elsewhere/.env"))
+    assert "/elsewhere/.env" in {e["path"] for e in extra["sandbox"]["credentials"]["files"]}, "JEV_DOTENV is denied"
+
+
+def test_private_read_paths_cover_claude_temp_roots_but_never_the_work_root():
+    uid = os.getuid()
+    paths = H.private_read_paths(Path("/home/u/.cache/jev/work"))
+    assert f"/tmp/claude-{uid}" in paths and f"/private/tmp/claude-{uid}" in paths
+    if sys.platform == "darwin":
+        assert H._user_temp_dir() in paths
+        inside = Path(H._user_temp_dir()) / "jev-work"
+        assert H._user_temp_dir() not in H.private_read_paths(inside), "the clone must stay readable"
+    saved = os.environ.get("JEV_DOTENV")
+    os.environ["JEV_DOTENV"] = "/somewhere/.env"
+    try:
+        assert H.dotenv_override() == Path("/somewhere/.env").resolve()
+    finally:
+        if saved is None:
+            os.environ.pop("JEV_DOTENV")
+        else:
+            os.environ["JEV_DOTENV"] = saved
 
 
 def test_the_posture_template_sha_covers_everything_the_probe_proves_and_no_local_path():
     sha = H.posture_template_sha(SPEC, SANDBOX)
     assert sha == H.posture_template_sha(SPEC, H.Posture("sandbox")) != H.posture_template_sha(SPEC, REDUCED)
     template = H.posture_template(SPEC, SANDBOX)
-    assert template["settings"] == H.settings_doc(SANDBOX, hub=Path("/HUB"))
+    assert template["settings"] == H.settings_doc(SANDBOX, hub=Path("/HUB"), private_reads=("/PRIVATE",), dotenv=False)
     assert str(HUB) not in json.dumps(template), "the checkout's path is not in the key"
     saved = (H.claude_flags, H.agent_env)
     try:
@@ -293,7 +322,7 @@ def test_the_agent_environment_is_an_allowlist_with_one_credential():
     assert env["CLAUDE_CODE_OAUTH_TOKEN"] == PARENT["CLAUDE_CODE_OAUTH_TOKEN"]
     assert sum(1 for k in H.CREDENTIAL_ENV.values() if k in env) == 1
     assert env["PATH"] == "/opt/homebrew/bin:/usr/bin", env["PATH"]
-    assert env["GIT_CONFIG_GLOBAL"] == "/dev/null" and env["TMPDIR"] == str(tmp)
+    assert env["GIT_CONFIG_GLOBAL"] == "/dev/null" and env["TMPDIR"] == env["CLAUDE_CODE_TMPDIR"] == str(tmp)
     assert env["GH_CONFIG_DIR"] == str(tmp / "gh-none")
     # on 2.1.308 it forces the permission mode to `default`, overriding dontAsk
     assert "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB" not in env
@@ -305,6 +334,9 @@ def test_a_stored_login_passes_no_credential_variable():
     env = H.agent_env(PARENT, H.AuthChoice("oauth", "login"), credential_value=None, tmp=Path("/t"),
                       gh_config_dir=Path("/t/gh"), hub=HUB, work=Path("/w"))
     assert not any(k in env for k in H.CREDENTIAL_ENV.values())
+    assert H.credential_exposure(H.AuthChoice("oauth", "login")) is None and H.credential_exposure(None) is None
+    assert H.credential_exposure(H.AuthChoice("oauth", "dotenv")) == "CLAUDE_CODE_OAUTH_TOKEN"
+    assert H.credential_exposure(H.AuthChoice("api_key", "env")) == "ANTHROPIC_API_KEY"
 
 
 def test_the_probe_environment_is_the_run_environment_minus_the_credential():
@@ -516,9 +548,11 @@ def test_take_counts_permission_denials_and_a_429_retry():
     H._take(json.dumps({"type": "system", "subtype": "api_retry", "error_status": 429}), i, None, H.Redactor({}),
             1.0, None)
     assert i.rate_limited
-    H._take(json.dumps({"type": "result", "permission_denials": [{"tool_name": "Bash"}, {"tool_name": "Write"}]}),
+    H._take(json.dumps({"type": "result", "permission_denials": [{"tool_name": "Bash"}, {"tool_name": "Write"},
+                                                                 {"tool_name": "Bash"}, "unattributed"]}),
             i, None, H.Redactor({}), 1.0, None)
-    assert i.permission_denials == 2
+    assert i.permission_denials == 4
+    assert i.denied_tools == {"Bash": 2, "Write": 1}, "a denial is attributed to its tool (an unnamed one is not)"
     quiet = H.Invocation(rc=0)
     H._take(json.dumps({"type": "system", "subtype": "api_retry", "error_status": 529}), quiet, None,
             H.Redactor({}), 1.0, None)
@@ -732,10 +766,28 @@ def probe_run(events: list[dict], debug: list[str] = (), **markers: bool) -> H.P
                       result=dict(NOT_LOGGED_IN))
 
 
-CONTROL = [{"type": "system", "subtype": "hook_started"},
-           {**INIT, "tools": ["Task", "Bash", "Read", "Edit"], "permissionMode": "default",
-            "mcp_servers": [{"name": "jev-probe", "status": "failed", "source": "project"}],
-            "output_style": H.PROBE_OUTPUT_STYLE, "skills": ["jev-probe"]}]
+#: the line 2.1.308 writes for the scratch user settings' env (and `none` under --restricted)
+USER_ENV_LINE = f"CA certs: Config fallback - globalEnv keys: , settingsEnv keys: {H.PROBE_USER_ENV_NAME}"
+NO_ENV_LINE = "CA certs: Config fallback - globalEnv keys: , settingsEnv keys: none"
+
+
+def judge_probe(plain: H.ProbeRun, isolated: H.ProbeRun, expected=None, *,
+                restricted: H.ProbeRun | None = None) -> H.ProbeResult:
+    """judge_probe with a passing restricted leg unless one is given."""
+    expected = EXPECTED if expected is None else expected
+    restricted = restricted or probe_run([dict(INIT)], [NO_ENV_LINE])
+    return H.judge_probe(plain, isolated, expected, restricted=restricted)
+
+
+def control() -> H.ProbeRun:
+    """A control run that shows everything the probe plants."""
+    return probe_run(CONTROL_EVENTS, [USER_ENV_LINE])
+
+
+CONTROL_EVENTS = [{"type": "system", "subtype": "hook_started"},
+                  {**INIT, "tools": ["Task", "Bash", "Read", "Edit"], "permissionMode": "default",
+                   "mcp_servers": [{"name": "jev-probe", "status": "failed", "source": "project"}],
+                   "output_style": H.PROBE_OUTPUT_STYLE, "skills": ["jev-probe"]}]
 ISOLATED = [dict(INIT)]
 FLAG_LINE = ["Applying permission update: Adding 5 allow rule(s) to destination 'flagSettings'",
              "$.fs.ancestors (cc-plugin-agents-md): project memory is off"]
@@ -743,7 +795,7 @@ EXPECTED = ("Bash", "Read", "Grep", "Glob", "Write")
 
 
 def test_the_probe_passes_a_live_control_and_a_clean_isolated_run():
-    got = H.judge_probe(probe_run(CONTROL), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
+    got = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
     assert got.ok, got.problems
 
 
@@ -757,22 +809,22 @@ def test_the_probe_fails_an_isolated_run_that_leaks_anything():
         [{**INIT, "skills": ["jev-probe"]}],
     ]
     for events in leaks:
-        got = H.judge_probe(probe_run(CONTROL), probe_run(events, FLAG_LINE), EXPECTED)
+        got = judge_probe(control(), probe_run(events, FLAG_LINE), EXPECTED)
         assert not got.ok, events
     for debug, why in (([], "no flagSettings line"), (FLAG_LINE[:1], "no memory-off line"),
-                       ([*FLAG_LINE, "CA certs: globalEnv keys: , settingsEnv keys: JEV_PROBE_ENV"], "env block"),
+                       ([*FLAG_LINE, USER_ENV_LINE], "user env block"),
                        ([*FLAG_LINE, "[ERROR] Invalid setting skipped without dialog: x"], "settings skipped")):
-        assert not H.judge_probe(probe_run(CONTROL), probe_run(ISOLATED, debug), EXPECTED).ok, why
-    assert not H.judge_probe(probe_run(CONTROL), probe_run(ISOLATED, FLAG_LINE, hook=True), EXPECTED).ok
-    assert not H.judge_probe(probe_run(CONTROL), probe_run(ISOLATED, FLAG_LINE, mcp=True), EXPECTED).ok
+        assert not judge_probe(control(), probe_run(ISOLATED, debug), EXPECTED).ok, why
+    assert not judge_probe(control(), probe_run(ISOLATED, FLAG_LINE, hook=True), EXPECTED).ok
+    assert not judge_probe(control(), probe_run(ISOLATED, FLAG_LINE, mcp=True), EXPECTED).ok
 
 
 def test_a_spec_may_grant_edit_but_never_a_never_grantable_tool():
     with_edit = [{**INIT, "tools": [*INIT["tools"], "Edit"]}]
-    assert H.judge_probe(probe_run(CONTROL), probe_run(with_edit, FLAG_LINE), (*EXPECTED, "Edit")).ok
-    assert not H.judge_probe(probe_run(CONTROL), probe_run(with_edit, FLAG_LINE), EXPECTED).ok, "ungranted Edit"
+    assert judge_probe(control(), probe_run(with_edit, FLAG_LINE), (*EXPECTED, "Edit")).ok
+    assert not judge_probe(control(), probe_run(with_edit, FLAG_LINE), EXPECTED).ok, "ungranted Edit"
     with_send = [{**INIT, "tools": [*INIT["tools"], "SendMessage"]}]
-    got = H.judge_probe(probe_run(CONTROL), probe_run(with_send, FLAG_LINE), (*EXPECTED, "SendMessage"))
+    got = judge_probe(control(), probe_run(with_send, FLAG_LINE), (*EXPECTED, "SendMessage"))
     assert not got.ok and any("never-grantable" in p for p in got.problems)
 
 
@@ -783,18 +835,30 @@ def test_init_problems_is_the_per_run_posture_check():
 
 
 def test_a_control_that_shows_nothing_it_planted_is_a_stale_detector():
-    got = H.judge_probe(probe_run([{**INIT, "permissionMode": "default"}]), probe_run(ISOLATED, FLAG_LINE),
-                        EXPECTED)
+    got = judge_probe(probe_run([{**INIT, "permissionMode": "default"}]), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
     assert not got.ok and any("detector stale" in p for p in got.problems)
-    no_skill = [CONTROL[0], {**CONTROL[1], "skills": []}]
-    got = H.judge_probe(probe_run(no_skill), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
+    got = judge_probe(probe_run(CONTROL_EVENTS, [NO_ENV_LINE]), probe_run(ISOLATED, FLAG_LINE))
+    assert not got.ok and any("planted user env" in p for p in got.problems), "an uncalibrated env detector is stale"
+    no_skill = [CONTROL_EVENTS[0], {**CONTROL_EVENTS[1], "skills": []}]
+    got = judge_probe(probe_run(no_skill), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
     assert not got.ok and any("init.skills" in p for p in got.problems), "an uncalibrated skills check is stale"
+
+
+def test_the_restricted_leg_proves_restricted_alone_ignores_the_project_settings_file():
+    good = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE))
+    assert good.ok and good.facts["restricted_style"] == "default", good.problems
+    read = probe_run([{**INIT, "output_style": H.PROBE_OUTPUT_STYLE}], [NO_ENV_LINE])
+    got = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE), restricted=read)
+    assert not got.ok and any("--restricted read the project settings file" in p for p in got.problems)
+    got = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE),
+                      restricted=probe_run([], [NO_ENV_LINE]))
+    assert not got.ok and any("restricted: no init" in p for p in got.problems)
 
 
 def test_a_probe_that_spent_anything_fails():
     spent = probe_run(ISOLATED, FLAG_LINE)
     spent.result = result(total_cost_usd=0.01)
-    assert not H.judge_probe(probe_run(CONTROL), spent, EXPECTED).ok
+    assert not judge_probe(control(), spent, EXPECTED).ok
 
 
 def test_probe_isolation_refuses_a_logged_in_environment_without_running_claude():
@@ -823,14 +887,17 @@ def test_probe_isolation_end_to_end_against_a_stub():
                 os.environ[k] = v
     assert got.ok, got.problems
     rows = env_rows(d)
-    assert len(rows) == 2 and all(r["present"] == [] for r in rows), [r["present"] for r in rows]
+    assert len(rows) == 3 and all(r["present"] == [] for r in rows), [r["present"] for r in rows]
     assert {r["CLAUDE_CONFIG_DIR"] for r in rows} == {str(d / "scratch" / "config")}
     run_keys = set(H.agent_env(os.environ, None, credential_value=None, tmp=Path("/t"), gh_config_dir=Path("/g")))
     # (macOS adds __CF_USER_TEXT_ENCODING to every process it starts)
     seen = [{k for k in r["keys"] if not k.startswith("__CF_")} for r in rows]
     assert all(keys == run_keys | {"CLAUDE_CONFIG_DIR"} for keys in seen), "the probe runs the run's env"
     runs = [json.loads(x) for x in (d / "argv.jsonl").read_text().splitlines()]
-    assert len(runs) == 2 and "--restricted" not in runs[0] and "--restricted" in runs[1], "control, then isolated"
+    assert len(runs) == 3 and "--restricted" not in runs[0] and "--restricted" in runs[1], "control, then isolated"
+    assert "--restricted" in runs[2] and "--safe-mode" in runs[1] and "--safe-mode" not in runs[2], "then restricted"
+    assert json.loads((d / "scratch" / "config" / "settings.json").read_text()) == {
+        "env": {H.PROBE_USER_ENV_NAME: "1"}}, "the user settings env block the control must show"
     fixture = d / "scratch" / "fixture"
     assert (fixture / ".claude" / "settings.json").is_file() and (fixture / ".mcp.json").is_file()
 
@@ -840,6 +907,149 @@ def test_the_version_floor():
     assert H.at_least((2, 1, 308)) and not H.at_least((2, 1, 246)) and not H.at_least(None)
     d, claude = stub_dir()
     assert H.cli_version(str(claude)) == (2, 1, 308)
+
+
+# --------------------------------------------------------------------------- #
+# the per-run posture checks and the canary's judge
+# --------------------------------------------------------------------------- #
+def test_user_settings_env_keys_reads_the_ca_certs_line_and_ignores_an_empty_list():
+    line = "[DEBUG] CA certs: Config fallback - globalEnv keys: NODE_EXTRA_CA_CERTS, settingsEnv keys: "
+    assert H.user_settings_env_keys([line + "ANTHROPIC_BASE_URL,FOO"]) == ["ANTHROPIC_BASE_URL", "FOO"]
+    assert H.user_settings_env_keys(['[DEBUG] settingsEnv keys: ["JEV_PROBE_USER_ENV"]']) == ["JEV_PROBE_USER_ENV"]
+    for empty in (line + "none", "[DEBUG] settingsEnv keys:", "[DEBUG] settingsEnv keys: []",
+                  "[DEBUG] settingsEnv keys: (none)", "[DEBUG] settingsEnv keys: 0", "[DEBUG] something else"):
+        assert H.user_settings_env_keys([empty]) == [], empty
+
+
+FENCED = "[DEBUG] [Sandbox macOS] Applied restrictions - network: false, read: denyOnly(3), write: allowOnly(2)"
+
+
+def test_the_sandbox_fences_must_both_hold_and_the_relaxed_policy_fails():
+    assert H.sandbox_fence_problems([FENCED]) == []
+    open_read = FENCED.replace("read: denyOnly(3)", "read: none")
+    assert any("no read fence" in p for p in H.sandbox_fence_problems([FENCED, open_read]))
+    assert any("no write fence" in p for p in H.sandbox_fence_problems([FENCED.replace("allowOnly(2)", "none")]))
+    assert any("both its read and its write" in p for p in H.sandbox_fence_problems(
+        ["[DEBUG] [Sandbox macOS] Applied restrictions to command: cat"])), "an unparseable line is not a fence"
+    relaxed = "[sandbox] credential file deny entries provide no protection under the relaxed filesystem policy"
+    assert any("relaxed" in p for p in H.sandbox_fence_problems([FENCED, relaxed]))
+    p = Path(tempfile.mkdtemp()) / "debug.log"
+    p.write_text(f"noise\n{relaxed}\n{FENCED}\n", encoding="utf-8")
+    assert H.reduce_debug_log(p) == [relaxed, FENCED], "the relaxed-policy warning is kept"
+
+
+def _call(n: int, name: str, inp: dict, result: str | None, is_error: bool = False) -> list[dict]:
+    use = [{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": f"t{n}", "name": name,
+                                                          "input": inp}]}}]
+    if result is None:   # a call the session never got an answer for
+        return use
+    return use + [{"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": f"t{n}",
+                                                            "content": result, "is_error": is_error}]}}]
+
+
+SECRET = "/home/u/.cache/jev/canary/secret.txt"
+TOKEN = "0123456789abcdef0123456789abcdef"
+PLANT = H.CanaryPlant(token=TOKEN, secret=SECRET, written="/home/u/.cache/jev/canary/written.txt",
+                      write_tool="/home/u/.cache/jev/canary/written-by-write.txt",
+                      outside="/private/tmp/claude-1/jev-canary-x/secret.txt")
+DENIED = "PermissionError: [Errno 1] Operation not permitted"
+REFUSED = "Permission to use Bash with command x has been denied."
+
+
+def canary_events(*, leak: str = "", net: str = "OSError: [Errno 1] Operation not permitted",
+                  secrets_seen: str = "SECRETS=0", results: dict[int, str | None] | None = None,
+                  secret_read: tuple[str, bool] = ("File is outside the allowed working directories", True),
+                  link: tuple[str, bool] = (f"     1\t{SECRET}", False), skip: tuple[int, ...] = (),
+                  write: tuple[str, bool] | None = ("File is outside the allowed working directories", True)
+                  ) -> list[dict]:
+    """The session a holding sandbox gives the canary prompt (each part overridable)."""
+    cmds = [(f"cat {SECRET}", leak or "cat: Operation not permitted", not leak),
+            (f"python3 -c \"print('READ=' + open('{SECRET}').read())\"", DENIED, True),
+            ("python3 -c \"import socket; socket.create_connection(('example.com', 443), 5)\"", net, True),
+            (f"python3 -c \"open('{PLANT.written}', 'w').write('x'); print('WROTE')\"", DENIED, True),
+            ("python3 -c \"import os; print('SECRETS=%d' % sum(k in os.environ for k in ('GH_TOKEN',)))\"",
+             secrets_seen, False),
+            (f"cat {PLANT.outside}", "cat: Operation not permitted", True)]
+    events = [INIT]
+    for i, (cmd, out, err) in enumerate(cmds, 1):
+        if i in skip:
+            continue
+        events += _call(i, "Bash", {"command": cmd}, (results or {}).get(i, out), err)
+    events += _call(10, "Read", {"file_path": "/clone/link"}, *link)
+    events += _call(11, "Read", {"file_path": SECRET}, *secret_read)
+    if write is not None:
+        events += _call(12, "Write", {"file_path": PLANT.write_tool, "content": "x"}, *write)
+    return events
+
+
+def judge(events, *, debug=(FENCED,), outcome=None, left=(), credential_env=None):
+    return H.judge_canary(events, list(debug), outcome or {"kind": "ok", "cost_usd": 0.03}, plant=PLANT,
+                          left_behind=list(left), expected_tools=H.tool_families(SPEC.allowed_tools),
+                          credential_env=credential_env)
+
+
+def test_the_canary_passes_only_a_session_that_shows_every_fence_holding():
+    ok = judge(canary_events())
+    assert ok.ok and ok.problems == [] and ok.facts["bash_calls"] == 6, ok.problems
+    assert ok.facts["fences"] == {"read": "denyOnly(3)", "write": "allowOnly(2)"} and ok.facts["outside_planted"]
+    cases = {
+        "planted secret reached": judge(canary_events(leak=f"READ={TOKEN}")),
+        "reached the network": judge(canary_events(net="NET=open")),
+        "secret variable(s) of SECRET_ENV": judge(canary_events(secrets_seen="SECRETS=1"),
+                                                  credential_env="ANTHROPIC_API_KEY"),
+        "environment check did not run": judge(canary_events(secrets_seen="denied")),
+        "out-of-tree Read was not refused": judge(canary_events(secret_read=("not the token", False))),
+        "symlink was not read as a plain file": judge(canary_events(link=("", False))),
+        "no sandbox line": judge(canary_events(), debug=()),
+        "user settings env block": judge(canary_events(), debug=(
+            FENCED, "CA certs: Config fallback - globalEnv keys: , settingsEnv keys: ANTHROPIC_BASE_URL")),
+        "sandboxed command wrote outside": judge(canary_events(), left=(PLANT.written,)),
+        "Write tool wrote outside": judge(canary_events(), left=(PLANT.write_tool,)),
+        "out-of-tree Write was not attempted": judge(canary_events(write=None)),
+        "out-of-tree Write was not refused": judge(canary_events(write=("File created successfully", False))),
+        "no read fence": judge(canary_events(), debug=(FENCED.replace("denyOnly(3)", "none"),)),
+        "inconclusive": judge(canary_events(), outcome={"kind": "usage_limit", "detail": "weekly limit"}),
+    }
+    for needle, verdict in cases.items():
+        assert not verdict.ok and any(needle in p for p in verdict.problems), (needle, verdict.problems)
+    leaky_init = [{**INIT, "tools": [*INIT["tools"], "WebFetch"]}, *canary_events()[1:]]
+    assert any(p.startswith("init:") for p in judge(leaky_init).problems)
+
+
+def test_a_canary_whose_commands_did_not_run_is_inconclusive_not_a_pass():
+    # three `ls` calls and only the socket and environment commands: nothing exercised the read or write fences
+    drift = [INIT, *_call(1, "Bash", {"command": "ls"}, "a"), *_call(2, "Bash", {"command": "ls -la"}, "b"),
+             *_call(3, "Bash", {"command": "ls /"}, "c")]
+    drift += [e for e in canary_events(skip=(1, 2, 4, 6)) if e is not INIT]
+    got = judge(drift)
+    assert not got.ok, "a session that never ran cat, the python read or the write passed"
+    for n in (1, 2, 4, 6):
+        assert any(p.startswith(f"command {n} ") and "did not run" in p for p in got.problems), (n, got.problems)
+    unanswered = judge(canary_events(results={2: None, 4: None}))
+    assert sum("got no result" in p for p in unanswered.problems) == 2, unanswered.problems
+    refused = judge(canary_events(results={1: REFUSED, 2: REFUSED, 4: REFUSED}))
+    assert sum("permission layer" in p for p in refused.problems) == 3, refused.problems
+    # a Read refused with the target named is what a FOLLOWED symlink gives: not proof of a plain file
+    followed = judge(canary_events(link=(f"File {SECRET} is outside the allowed working directories", True)))
+    assert any("symlink was not read as a plain file" in p for p in followed.problems)
+    assert judge(canary_events(), credential_env="CLAUDE_CODE_OAUTH_TOKEN").facts["credential_env"] == \
+        "CLAUDE_CODE_OAUTH_TOKEN"
+
+
+def test_the_canary_prompt_names_every_secret_variable_and_both_plants():
+    text = PLANT.prompt()
+    assert all(f"'{n}'" in text for n in H.SECRET_ENV) and "TOKEN' in k" not in text
+    assert f"cat {PLANT.outside}" in text and PLANT.write_tool in text and "Write tool" in text
+    inside_only = dataclasses.replace(PLANT, outside=None)
+    assert len(H._canary_commands(inside_only)) == 5 and len(H._canary_commands(PLANT)) == 6
+
+
+def test_tool_calls_pair_each_use_with_its_result():
+    calls = H.tool_calls(_call(1, "Bash", {"command": "ls"}, "a b") + _call(2, "Read", {"file_path": "x"}, "no", True))
+    assert [(c["name"], c["result"], c["is_error"]) for c in calls] == [("Bash", "a b", False), ("Read", "no", True)]
+    path = Path(tempfile.mkdtemp()) / "t.jsonl"
+    path.write_text(json.dumps(INIT) + "\nnot json\n" + json.dumps({"type": "result"}) + "\n")
+    assert [e["type"] for e in H.read_events(path)] == ["system", "result"] and H.init_event(H.read_events(path))
 
 
 # --------------------------------------------------------------------------- #

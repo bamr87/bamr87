@@ -559,10 +559,27 @@ budget:
   # and records every attempt in _data/jev_resolutions.yml (docs/JEV.md,
   # tools/test_jev_ledger.py).
   jev:
-    monthly_usd: 10            # the engine's monthly ceiling, inside the $75/month fleet budget
+    monthly_usd: 10            # the engine's monthly ceiling, inside harnesses.budget.monthly_ai_usd
     scheduled_stop_pct: 80     # a CRON run stops here, leaving the rest for a human's manual run
     tier1_usd: 0.25            # per attempt, cheap model
     tier2_usd: 1.50            # per attempt, strong model
+
+  # JEV's LOCAL LOOP RUNNER (`tools/dash loop run`, docs/JEV.md "The loop
+  # runner") — the same shape as `jev` above, for the same reason: a local run
+  # loops over items from Python, so its ceiling is a monthly TOTAL plus the
+  # per-attempt cap, and each attempt is STILL capped by its step's
+  # `call_sites` entry (repo-scout.yml:scout = $8, the CI number). Enforced by
+  # tools/jev/loop.py through tools/jev/ledger.BudgetState over the AI
+  # ledger's `origin: local` rows that carry a `loop` field, by UTC month (a
+  # plain `dash ai run` has no loop and never counts here). API-equivalent
+  # (estimate) under OAuth — a throughput ceiling, not an invoice.
+  # test_ai_budget.py holds loops + jev <= harnesses.budget.monthly_ai_usd and
+  # monthly_usd >= every local step's call-site cap. ~$0.61 per typical scout
+  # attempt: about 27 typical runs, or 3 at the full cap, before the manual
+  # ceiling binds. Changing it is a gated change (constitution § 12.3).
+  loops:
+    monthly_usd: 25            # every local loop attempt, all steps together
+    scheduled_stop_pct: 80     # a --scheduled run stops at $20, leaving the rest for a manual run
 
 # --------------------------------------------------------------------------- #
 # JEV — the harness-level agent logic engine (docs/JEV.md).
