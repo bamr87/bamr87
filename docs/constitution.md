@@ -187,11 +187,11 @@ _(amendment `major-change-evidence`, numbered at merge — see the [amendment lo
 _(amendment `ai-ready-foundation`, numbered at merge — see the [amendment log](amendments/README.md); follows § 15 `major-change-evidence`; extends § 7, § 14 and UPS-AGENT)_
 
 1. **Common foundation** — every active repo is AI-ready: it exposes an API layer, an MCP layer, agent docs and machine-readable metadata, sized to its type.
-2. **By repo type** — apps and services: REST with a committed OpenAPI 3.1 document, plus an MCP server. Content sites: a static JSON data API on the public site, schema.org JSON-LD and their own real MCP server (open gap: static Pages cannot host one; the hosting option is for Amr to pick). Tools: `--json` output on every command, plus an MCP server or `server.json`. Libraries, themes and kits: agent docs and metadata only.
+2. **By repo type** — apps and services: REST with a committed OpenAPI 3.1 document, plus an MCP server. Content sites: a static JSON data API on the public site, schema.org JSON-LD and their own MCP server, shipped as a local stdio server in the repo. Tools: `--json` output on every command, plus an MCP server or `server.json`. Libraries, themes and kits: agent docs and metadata only.
 3. **Agent docs** — `AGENTS.md` per UPS-AGENT and `llms.txt` on the public site (§ 14).
 4. **Metadata** — an `ai-ready.yml` manifest naming the repo's type and layers; MCP manifests follow the MCP Registry `server.json` schema; a repo that runs an agent publishes an A2A Agent Card at `/.well-known/agent-card.json`.
 5. **Shared kit** — repos start from the hub's `templates/ai-ready/` kit, fanned out and stamped like the other kits.
 6. **AIEO validates** — the AIEO engine in the hub's `tools/aieo/` scores AI-readiness, run by `tools/conformance.py` as check `ai-ready`: warn-only per repo until its fan-out PR lands, then a hard failure.
-7. **Held to § 13** — until AIEO passes its own eval set, only the structural checks can fail a build and the score is advisory; after that, a score below the minimum (60/100, PLACEHOLDER until Amr sets it) also fails.
+7. **Held to § 13** — until AIEO passes its own eval set, only the structural checks can fail a build and the score is advisory; after that, a score below the minimum (80/100) also fails.
 8. **Exemptions** — archived and retired repos are exempt; a layer may be marked not applicable with a reason the § 15 completeness review accepts.
 9. **No secrets** — no layer exposes secrets or private data; private repos expose their layers to the fleet only, at $0 Actions spend.

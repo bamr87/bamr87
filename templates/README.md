@@ -214,4 +214,4 @@ The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [
 
 ## `ai-ready/`
 
-The AI-ready foundation kit (constitution § 16, proposed amendment `ai-ready-foundation`). Spec only for now: see [`ai-ready/README.md`](ai-ready/README.md) for the manifest, the generators, the per-service and per-content-site MCP servers, `server.json`, CLI `--json`, the AIEO score threshold, and the open gap on hosting a content site's MCP server.
+The AI-ready foundation kit (constitution § 16, proposed amendment `ai-ready-foundation`). Spec only for now: see [`ai-ready/README.md`](ai-ready/README.md) for the manifest, the generators, the per-service and per-content-site MCP servers, `server.json`, CLI `--json`, the AIEO score threshold, and the local stdio MCP server each content site ships.
