@@ -1,7 +1,7 @@
 id: HUB-NEW
 slug: risk-tiers
 title: "Risk tiers: reversible/external/money tags gate agent actions"
-description: "Every tool or action is tagged reversible, external and money and assigned low, medium (audited) or high (waits for Amr); autonomy drops one tier only after N clean approvals; the lethal-trifecta check gates sends. Pairs with HUB-NEW:eval-baseline and the review gate."
+description: "Every tool or action is tagged reversible, external and money and assigned low, medium (audited) or high (waits for Amr); autonomy drops one tier only after 25 consecutive clean approvals; the lethal-trifecta check gates sends. Pairs with HUB-NEW:eval-baseline and the review gate."
 implemented: false
 status: planned
 surface: infra
@@ -15,4 +15,4 @@ prd: ["FR-NEW:risk-tiers"]
 prd_new:
   - key: risk-tiers
     kind: FR
-    text: "Every agent tool or action must carry reversible/external/money tags and a low/medium/high tier; high waits for Amr's approval, medium writes an audit record, a tier drops only after N clean approvals set by Amr, and any run with private data, untrusted content and an external send requires a human gate (see HUB-NEW:eval-baseline)."
+    text: "Every agent tool or action must carry reversible/external/money tags and a low/medium/high tier; high waits for Amr's approval, medium writes an audit record, a tier drops only after 25 consecutive clean approvals, and any run with private data, untrusted content and an external send requires a human gate (see HUB-NEW:eval-baseline)."

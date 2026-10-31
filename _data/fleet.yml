@@ -1530,3 +1530,16 @@ ux_audit:
     never_merge: true
     fail_leaf_gate_on: new   # new R-rule fingerprints / new axe ids
 
+
+# --------------------------------------------------------------------------- #
+# AI models — the allowed, pinned model ids (constitution § 13.3, amendment
+# `eval-baseline-risk-tiers`). Exact versions only, never aliases. A step may
+# move to a cheaper model only if its eval set still passes on it. Changing
+# this list is a gated change (constitution § 12.3).
+# --------------------------------------------------------------------------- #
+ai_models:
+  allowed:
+    anthropic:
+      - claude-opus-5-5
+      - claude-sonnet-5-5
+      - claude-haiku-5-5

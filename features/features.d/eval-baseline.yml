@@ -15,4 +15,4 @@ prd: ["FR-NEW:eval-baseline"]
 prd_new:
   - key: eval-baseline
     kind: FR
-    text: "Each agent role, harness and loop must keep an eval set of about 20 real past tasks, rerun it after any prompt, tool or model change, pin exact model versions (no aliases), move a step to a cheaper model only if evals pass, and trace tool calls per run (see HUB-NEW:risk-tiers)."
+    text: "Each agent role, harness and loop must keep an eval set of about 20 real past tasks, rerun it after any prompt, tool or model change as a required CI check, pin exact model versions from _data/fleet.yml ai_models.allowed (no aliases), move a step to a cheaper model only if evals pass, and trace tool calls per run (see HUB-NEW:risk-tiers)."
