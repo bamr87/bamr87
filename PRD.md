@@ -92,6 +92,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-045](features/features.yml) | Review gate: needs-amr label holds a PR from agent merge | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/agent-merge-review-gate.md` | FR42 |
 | [HUB-046](features/features.yml) | Evidence conformance: checks major/frontend PRs for tests, visuals and review | planned | [`tools/conformance.py`](tools/conformance.py) · `docs/amendments/proposed/major-change-evidence.md` | FR43 |
 | [HUB-047](features/features.yml) | Major-change evidence: JEV-judged major PRs, tests, visual before/after, JEV + QA Lead review | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/major-change-evidence.md` | FR44 |
+| [HUB-048](features/features.yml) | Eval baseline: per-role eval sets, pinned models, run tracing | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/eval-baseline-risk-tiers.md` | FR45 |
+| [HUB-049](features/features.yml) | Risk tiers: reversible/external/money tags gate agent actions | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/eval-baseline-risk-tiers.md` | FR46 |
 
 **Requirement → feature trace**
 
@@ -152,6 +154,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR42 | HUB-045 |
 | FR43 | HUB-046 |
 | FR44 | HUB-047 |
+| FR45 | HUB-048 |
+| FR46 | HUB-049 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -190,6 +194,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR42: An agent must merge a PR only when it is mergeable (required checks green, required reviews satisfied, no conflicts, review gate passed), and never a PR labelled needs-amr or in a gated category.
 - FR43: The conformance gate must flag a major PR missing test evidence or a green CI link, a frontend PR missing visual evidence or a reasoned skip-evidence, and any such PR without passing non-author completeness reviews by JEV and QA Lead (or the interim reviewer); warn-only for a repo until its fan-out PR lands, then a hard failure (see HUB-047).
 - FR44: A PR judged major by JEV (or labelled major; interim: heuristics plus reviewer, when in doubt major) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by JEV and QA Lead, neither being its author (interim: QA Lead alone, then Amr) (see HUB-046).
+- FR45: Each agent role, harness and loop must keep an eval set of about 20 real past tasks, rerun it after any prompt, tool or model change as a required CI check, pin exact model versions from _data/fleet.yml ai_models.allowed (no aliases), move a step to a cheaper model only if evals pass, and trace tool calls per run (see HUB-049).
+- FR46: Every agent tool or action must carry reversible/external/money tags and a low/medium/high tier; high waits for Amr's approval, medium writes an audit record, a tier drops only after 25 consecutive clean approvals, and any run with private data, untrusted content and an external send requires a human gate (see HUB-048).
 
 **Non-functional**
 

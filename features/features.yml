@@ -781,3 +781,41 @@ features:
     - na: planned; PR template sections land in a follow-up PR
     prd:
     - FR44
+  - id: HUB-048
+    title: 'Eval baseline: per-role eval sets, pinned models, run tracing'
+    description: Every agent role, harness and loop keeps ~20 real past tasks as an eval set rerun on any
+      prompt, tool or model change; models are pinned to exact versions; tool calls are traced per run.
+      Pairs with HUB-049.
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/eval-baseline-risk-tiers.md
+    tags:
+    - governance
+    - ai
+    - evals
+    date: 2026-10-30
+    tests:
+    - na: planned; eval runner lands in a follow-up PR
+    prd:
+    - FR45
+  - id: HUB-049
+    title: 'Risk tiers: reversible/external/money tags gate agent actions'
+    description: Every tool or action is tagged reversible, external and money and assigned low, medium
+      (audited) or high (waits for Amr); autonomy drops one tier only after 25 consecutive clean approvals;
+      the lethal-trifecta check gates sends. Pairs with HUB-048 and the review gate.
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/eval-baseline-risk-tiers.md
+    tags:
+    - governance
+    - ai
+    - safety
+    date: 2026-10-30
+    tests:
+    - na: planned; tier-table lint lands in a follow-up PR
+    prd:
+    - FR46

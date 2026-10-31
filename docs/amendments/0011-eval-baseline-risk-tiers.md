@@ -1,12 +1,12 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Eval baseline and risk tiers for every agent, harness and loop
+# 0011 — Eval baseline and risk tiers for every agent, harness and loop
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0011
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
-- **Affects:** `_data/fleet.yml` `ai_models`; constitution new § 13 (follows § 12 proposed by `agent-merge-review-gate`, PR #481); § 10.6; features `HUB-NEW:eval-baseline`, `HUB-NEW:risk-tiers`; requirements `FR-NEW:eval-baseline`, `FR-NEW:risk-tiers`
+- **Affects:** `_data/fleet.yml` `ai_models`; constitution new § 13 (follows § 12 proposed by `agent-merge-review-gate`, PR #481); § 10.6; features `HUB-048`, `HUB-049`; requirements `FR45`, `FR46`
 - **Supersedes:** none (extends § 10 and § 12)
 - **Related:** #480 (`harness-prior-art-research`, prior-art rule), #481 (`agent-merge-review-gate`, merge authority and review gate), amendment 0005 (§ 10)
 
@@ -41,6 +41,6 @@ Add constitution § 13 "Eval baseline and risk tiers" with this text:
 - Each harness, loop and bot role gains an `evals/` set and a tier table. Existing ones are in a grace period until their spoke fan-out PR lands; after that, a missing set or table means its actions are treated as high.
 - Follow-up (out of scope here): wire the eval run into CI and add it to required checks; branch protection is changed only by Amr.
 - `_data/fleet.yml` gains `ai_models.allowed` (the pinned model list).
-- Follow-up: features `HUB-NEW:eval-baseline` and `HUB-NEW:risk-tiers` (planned) build a runner and a tier-table lint.
+- Follow-up: features `HUB-048` and `HUB-049` (planned) build a runner and a tier-table lint.
 - Fan-out: after ratification, each spoke repo under `projects/` with a constitution or harness gets its own conforming PR (eval set + tier table), one repo per PR. Not part of this PR.
 - Merging the pull request that carries this record ratifies it. An agent never merges it.
