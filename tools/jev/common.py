@@ -3,8 +3,9 @@
 File: tools/jev/common.py
 Description: The shared bottom layer of JEV — locating the hub, reading
              `_data/fleet.yml` `jev:` / `budget:`, the one `gh` wrapper every
-             GitHub call goes through, and the small subprocess helper the
-             git work uses. Nothing here talks to a model or writes a file.
+             GitHub call goes through, the small subprocess helper the git
+             work uses, and a `.env` reader that returns named keys only.
+             Nothing here talks to a model or writes a file.
 Author: bamr87
 Created: 2026-10-29
 Version: 0.1.0
@@ -52,9 +53,15 @@ class Run:
 
 
 def run(argv: list[str], cwd: Path | None = None, env: dict | None = None,
-        timeout: int = 900, stdin: str | None = None) -> Run:
-    """Run `argv`, capture everything, never raise on a non-zero exit."""
-    merged = {**os.environ, **(env or {})}
+        timeout: int = 900, stdin: str | None = None, *, inherit_env: bool = True) -> Run:
+    """Run `argv`, capture everything, never raise on a non-zero exit.
+
+    `env` is merged over `os.environ` by default. With `inherit_env=False` it
+    is the child's WHOLE environment: a merge can add a variable but never
+    remove one, and an environment built to keep credentials out has to be
+    able to say "not this one".
+    """
+    merged = {**os.environ, **(env or {})} if inherit_env else dict(env or {})
     try:
         proc = subprocess.run(  # noqa: S603 - argv is a list, never a shell string
             argv, cwd=str(cwd) if cwd else None, env=merged, input=stdin,
@@ -108,6 +115,44 @@ def assert_no_admin(args: list[str]) -> None:
         raise JevError("refusing: JEV never uses --admin")
     if args[:1] == ["pr"] and len(args) > 1 and args[1] == "merge":
         raise JevError("refusing: JEV never merges a pull request")
+
+
+def dotenv_values(names: list[str] | tuple[str, ...], path: Path | None = None) -> dict[str, str]:
+    """The named keys of a `.env` file, PARSED, never sourced.
+
+    Sourcing would run whatever the file holds, and reading every key would put
+    secrets this caller has no use for into its memory. So: `KEY=value` lines
+    only (an optional `export ` prefix; a quoted value ends at its closing
+    quote, so a trailing ` # comment` is dropped; an unquoted value ends at
+    ` #`), only the keys asked for, the last assignment winning as it would in
+    a shell — an empty `KEY=` included, which leaves the key absent. A missing
+    or unreadable file is an empty answer, not an error.
+    """
+    p = path or (HUB / ".env")
+    wanted = set(names)
+    out: dict[str, str] = {}
+    try:
+        lines = p.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return out
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        line = line.removeprefix("export ").lstrip()
+        key, sep, value = line.partition("=")
+        key = key.strip()
+        if not sep or key not in wanted:
+            continue
+        value = value.strip()
+        if value[:1] in ("\"", "'"):
+            end = value.find(value[0], 1)
+            if end > 0:
+                value = value[1:end]
+        elif " #" in value:
+            value = value.split(" #", 1)[0].rstrip()
+        out[key] = value
+    return {k: v for k, v in out.items() if v}
 
 
 # --------------------------------------------------------------------------- #

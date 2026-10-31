@@ -2,7 +2,7 @@
 
 > The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, and loop step specs that CI and a local run render alike.
 
-JEV is the fleet's planned agent logic layer ([bamr87/it-journey](https://github.com/bamr87/it-journey) `PRD.md`, Roadmap 2027 Q1). This directory holds its first two working capabilities. The first answers one question the fleet asks several times a week: **a pull request says `This branch has conflicts that must be resolved` — now what?**
+JEV is the fleet's planned agent logic layer ([bamr87/it-journey](https://github.com/bamr87/it-journey) `PRD.md`, Roadmap 2027 Q1). This directory holds its first two working capabilities, and the headless executor layer the second one's local runner is built on. The first answers one question the fleet asks several times a week: **a pull request says `This branch has conflicts that must be resolved` — now what?**
 
 The second, [loop step specs](#loop-step-specs), gives each agent step one spec that CI and a local run render the same bytes from. The first capability's answer has two halves. The first removes the conflicts that should never have existed (numbering). The second resolves what is left, at the cheapest tier that can finish the job (the conflict engine). Full operator doc: [`docs/JEV.md`](../../docs/JEV.md). The rules it is held to: [amendment 0002](../../docs/amendments/0002-conflict-free-numbering.md).
 
@@ -30,6 +30,22 @@ Run from the repository root — `tools.jev` is imported as a package, so `pytho
 ## Loop step specs
 
 [`spec.py`](spec.py) loads the specs under [`steps/`](steps/README.md): one `<step>.yml` plus its `<step>.prompt.txt` per agent step a loop workflow runs. The spec holds what has no other home — the hard-rules prompt, the caller-filled `{{TOKEN}}` inputs, the tool allowlist, the wall clock, the workspace contract and the § 13.6 risk tags — and **references** `_data/fleet.yml` for the model, the turn cap and the call-site dollar cap. The model must resolve to an exact id in `ai_models.allowed`; an alias is refused. `steps check` holds every literal the workflow still carries (`--max-turns`, `--max-budget-usd`, the cost step's `budget-usd`, `timeout-minutes`, `--allowedTools`, the artifact paths, no GitHub token in the agent step's effective env — workflow, job and step — its `github_token` input or an earlier `$GITHUB_ENV` export) equal to the resolved spec, requires the agent step's `JEV_STEP_SHA256` to equal the spec pair's content hash, reports each declared `workspace.exceptions` gap (claude-code-action's own OIDC App token is outside the step's env, so it is declared there until the ADR 0002 follow-up closes it), and fails when the prompt orders a tool the allowlist does not grant. `steps render` prints the prompt byte-exact, rendered in one pass. Decision record: [ADR 0002](../../docs/adr/0002-agent-step-specs-and-local-runner.md).
+
+## The headless executor
+
+[`headless.py`](headless.py) is the layer a local loop attempt runs headless Claude Code through (jev conflicts' tiers 1–2 still build their own argv; they move onto it before either tier is enabled). It is P1's first slice ([ADR 0002](../../docs/adr/0002-agent-step-specs-and-local-runner.md#p1--the-headless-executor-and-its--138-posture)): the executor is dash-gen's `tools/dash ai run`, extended rather than forked, and it imports this module lazily — this directory never imports dash-gen.
+
+- **Session isolation** (`claude_flags`): `--restricted` (no user, project or local settings file is read, so a target repo's hooks, `env` block and permission rules never load), `--safe-mode` (no CLAUDE.md, memory, skills, plugins, mods or hooks), `--tools` limited to the spec's tool families, `--permission-mode dontAsk --permission-prompts none`, the spec's allowlist verbatim plus `DENY_TOOLS`, an empty strict MCP config, no slash commands, no session persistence, the `LOCAL_RUNNER_NOTE` appended to the system prompt and a debug file.
+- **The sandbox** (`settings_doc`): Seatbelt for Bash and its children, `failIfUnavailable`, no unsandboxed escape, no auto-approval, `allowedDomains: []` with `strictAllowlist`, reads fenced to the working directories, and every credential variable and file denied. `Posture("reduced")` (no Bash at all; PR-B exposes it as `loop run --posture reduced`) is the only fallback.
+- **The environment** (`agent_env`): built from scratch — PATH, HOME, the locale and offline git/npm/pip settings, and at most ONE Claude credential, chosen by `choose_auth` in `CLAUDE_AUTH_ORDER` (env → stored login → hub `.env`, the first present wins, no in-run fallback). `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is deliberately absent: on 2.1.308 it forces the permission mode to `default`, overriding `dontAsk`.
+- **The run** (`stream`, `classify`): a process group read line by line, a redacted and size-capped trace, a SIGINT-first wall clock, and an outcome in claude-cost's order — `budget_hit`, then `timeout` and `interrupted` (a cancel is never read as a rejected credential), `usage_limit`, `credential_rejected`, then the rest — where a run that may have spent but left no figure is charged at its cap as `estimated`. `init_problems` is the per-run posture check on a session's init record (exact toolset, `dontAsk`, no MCP, no skill).
+- **Proof before trust** (`preflight_parse`, `probe_isolation`): $0 checks against the installed CLI, both in `probe_env` — the run's own environment with no credential and a scratch, logged-out `CLAUDE_CONFIG_DIR`, refused if it is logged in. The preflight runs the real argv (`run_prefix` + `claude_flags`) with stdin `/dev/null` and must get "Input must be provided", which proves every flag parses, and its debug log must show the `--settings` document loaded; which settings keys the CLI honours only the canary proves. The probe runs in a fixture that plants a hook, an `env` block, an output style, an MCP server, a skill, a CLAUDE.md and an AGENTS.md, once plain (the control, which must show the hook, the server, the output style and the skill, or the detector is stale) and once isolated (which must pass `init_problems`, run no hook or server, apply no planted env, and log the flag rules and "project memory is off"). Memory content and user-scope settings have no $0 check; they rest on the documented flags and the canary. `posture_template_sha` is the cache key a probe or canary pass is stored under. Both are code here; running them against the real CLI is the maintainer's deploy step (§ 10.5), not a test.
+
+```bash
+tools/dash ai run --call-site repo-scout.yml:scout --stream --timeout 1800 --isolate \
+    --cwd <clone> --prompt-file <prompt.txt> --trace <trace.jsonl> --result-file <result.json> \
+    --outcome-file <outcome.json> --usage-limit skip -- <headless.claude_flags(…)>
+```
 
 ## The merge driver
 
@@ -91,6 +107,7 @@ python3 tools/test_jev_conflicts.py   # eligibility, validation, the no-merge/no
 python3 tools/test_jev_ledger.py      # the ledger and the monthly cap
 python3 tools/test_jev_generated.py   # the main-only guard and the tier-0 main-only resolution
 python3 tools/test_jev_spec.py        # step specs: byte identity, parity, the #89 lint, loader refusals
+python3 tools/test_jev_headless.py    # the isolation argv, sandbox settings, agent env, auth choice, classifier, probes
 ```
 
 They are standalone scripts — no pytest, no network, no `gh` — and `tools/run-all-tests.sh` and `.github/workflows/python-tests.yml` pick them up automatically.
