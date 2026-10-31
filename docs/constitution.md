@@ -156,3 +156,15 @@ _(amendment `public-docs-site`, numbered at merge — see the [amendment log](am
 4. **Conformance** — `tools/conformance.py` (via `check-drift.sh`) checks that the site exists, uses the zer0 theme, has a complete docs index and has links that resolve.
 5. **Rollout** — the check is warn-only for a repo until its spoke fan-out PR (one repo per PR) lands, then a hard failure for that repo.
 6. **Settings are Amr's** — Pages enablement and any repo setting are changed only by Amr.
+
+## 15. Evidence for major changes and frontend PRs
+
+_(amendment `major-change-evidence`, numbered at merge — see the [amendment log](amendments/README.md); § 13 is reserved for `eval-baseline-risk-tiers` (#482), so this number is contingent on #482 and is renumbered if #482 does not land; extends § 7, § 12 and UPS-QA-50..53)_
+
+1. **Major change** — a PR that changes a public interface or user-visible behaviour; touches a § 12.3 area; adds, removes or changes an indexed feature; changes over 300 non-generated lines or over 10 non-generated files; changes dependencies or toolchains; or carries the `major` label.
+2. **Test evidence** — a major PR lists the tests added or updated (or why none apply) and links the green CI run for its head commit.
+3. **Frontend detection** — a PR impacts the frontend when it touches the default frontend globs (layouts, includes, styles, assets, pages, posts, HTML/CSS/component files, the console web app, `_config.yml`) or the repo's extra `verify/verify.yml` `frontend_paths:`.
+4. **Visual evidence, every frontend PR** — before/after screenshots or a recording of each affected page at two or more viewports (`test/evidence/<slug>/` or the PR body); `skip-evidence` only with a reason when nothing renders differently.
+5. **Skilled-reviewer completeness pass** — every major or frontend PR is reviewed for completeness by Amr, a human or a QA-lead bot listed in `_data/fleet.yml` `reviewers:`. The reviewer is never the author, never approves its own work, and a bot reviewer cannot waive a requirement.
+6. **Fit with § 12** — the completeness review is a required review under § 12.1.2. It adds to the review gate and does not replace it, and only Amr merges amendments.
+7. **Enforcement** — the PR template sections and a `tools/conformance.py` check, warn-only per repo until its fan-out PR lands, then a hard failure.
