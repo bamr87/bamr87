@@ -125,12 +125,17 @@ NEVER_GRANTABLE_TOOLS = frozenset({"Task", "Agent", "Skill", "SendMessage", "Lis
 #: denylist would let each new one through. Widening it is a reviewed change
 #: here, never a spec's choice.
 GRANTABLE_TOOLS = frozenset({"Bash", "Read", "Write", "Edit", "NotebookEdit", "Glob", "Grep"})
-#: Every signal ai-run can catch that would otherwise end it: each one starts
-#: the SIGINT-first ladder, so a closed terminal (SIGHUP) or Ctrl-\ (SIGQUIT)
-#: still ends claude — which runs in its own session, out of the terminal's
-#: reach — and still leaves a ledger row. SIGKILL cannot be caught: killing
-#: ai-run that way orphans claude, bounded by its own cap and turn limit.
-FORWARDED_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT")
+#: The asynchronous signals whose default action would end ai-run: INT, TERM,
+#: HUP and QUIT (Ctrl-C, a cancel or backstop, a closed terminal, Ctrl-\) and
+#: the ones nothing here sends but a stray `kill` or a CPU limit can (USR1,
+#: USR2, ALRM, VTALRM, PROF, XCPU). Each starts the SIGINT-first ladder, so
+#: claude — which runs in its own session, out of the terminal's reach — is
+#: still ended and the run still leaves a ledger row. Python already ignores
+#: PIPE and XFSZ. What is left orphans claude, bounded by its own cap and turn
+#: limit: SIGKILL, which nothing can catch, a fault (SEGV, BUS, …) and, on
+#: Linux, a real-time or other platform signal.
+FORWARDED_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT", "SIGUSR1",
+                                                       "SIGUSR2", "SIGALRM", "SIGVTALRM", "SIGPROF", "SIGXCPU")
                           if hasattr(signal, n))
 TRACE_CAP_BYTES = 20 * 1024 * 1024
 TOOL_RESULT_CAP = 4096
@@ -737,8 +742,9 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
     `int_grace` seconds SIGTERM, after `term_grace` more SIGKILL. Any of
     FORWARDED_SIGNALS sent to THIS process starts the same ladder, so an outer
     backstop or a closed terminal still gets a result. When the leader exits,
-    whatever is left of its group is killed. Only a SIGKILL of this process,
-    which nothing can catch, orphans claude.
+    whatever is left of its group is killed. A signal outside that set that
+    ends this process (SIGKILL, which nothing can catch, or a fault) orphans
+    claude.
 
     `received` is the caller's list of signal names, when it holds them
     (`held_signals`): one already there means the run was cancelled before it

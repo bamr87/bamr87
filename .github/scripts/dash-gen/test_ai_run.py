@@ -23,10 +23,11 @@ What is held:
     keeps PYTHONPATH (PyYAML imports only through it on the maintainer's Mac);
     `--auth-order` leaves exactly one credential;
   * `--timeout` is SIGINT-first and exits 124; a SIGINT/SIGTERM/SIGHUP/SIGQUIT
-    sent to ai-run starts the same ladder, is `interrupted` (exit 130) and is
-    never read as a rejected credential, and one that lands after claude exited
-    waits for the ledger row; a usage limit is a warning under
-    `--usage-limit skip`;
+    (or SIGUSR1, …) sent to ai-run starts the same ladder, is `interrupted`
+    (exit 130) and is never read as a rejected credential; one that lands
+    before claude starts runs nothing, and one that lands after claude exited
+    leaves its outcome alone and waits for the ledger row; a usage limit is a
+    warning under `--usage-limit skip`;
   * record_run and merge_ledger lose no row to a concurrent writer;
   * `_headless_section` never counts an estimate as billed.
 
@@ -444,7 +445,8 @@ def test_a_signal_to_ai_run_starts_the_sigint_first_ladder():
     # The console's cancel sends SIGTERM to ai-run's group, a closed terminal
     # SIGHUP; claude runs in its own session, so only ai-run forwarding them can
     # stop claude with a result — in both output formats.
-    cases = [(sig, ("--stream",)) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT)]
+    cases = [(sig, ("--stream",)) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT,
+                                              signal.SIGUSR1)]
     for sig, mode in [*cases, (signal.SIGHUP, ())]:
         rig = Rig("int_result")
         outcome = rig.dir / "outcome.json"
