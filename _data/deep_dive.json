@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 1,
-    "processed": 1,
+    "processed": 2,
     "counts": {
-      "pending": 37,
+      "pending": 36,
       "in_progress": 0,
-      "done": 1,
+      "done": 2,
       "skipped": 0
     },
-    "progress": 0.0263,
+    "progress": 0.0526,
     "today": {
       "date": "2026-10-30",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "bamr87"
     },
-    "last": "it-journey",
-    "last_date": "2026-10-29",
-    "avg_score": 72.0,
+    "last": "bamr87",
+    "last_date": "2026-10-31",
+    "avg_score": 75.0,
     "open_issues": 8,
     "open_prs": 2
   },
@@ -72,18 +72,27 @@
       "day": 2,
       "repo": "bamr87",
       "scheduled": "2026-10-31",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-10-31",
       "cycle": 1,
-      "issues": [],
+      "issues": [
+        "https://github.com/bamr87/bamr87/issues/500",
+        "https://github.com/bamr87/bamr87/issues/501",
+        "https://github.com/bamr87/bamr87/issues/502",
+        "https://github.com/bamr87/bamr87/issues/503",
+        "https://github.com/bamr87/bamr87/issues/504",
+        "https://github.com/bamr87/bamr87/issues/505"
+      ],
       "prs": [
-        "https://github.com/bamr87/bamr87/pull/431"
+        "https://github.com/bamr87/bamr87/pull/431",
+        "https://github.com/bamr87/bamr87/pull/508",
+        "https://github.com/bamr87/bamr87/pull/509"
       ],
       "open_issues": 0,
       "open_prs": 1,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Cycle 1 day 2. Previously known items now FIXED: python-tests.yml runs every tools/console/dash-gen/tui/templates test file and fails ones with no __main__; v1/v2 tags and releases exist. Open: 7 dead amendments/proposed/* links in PRD.md + features.yml, and FR45 cites HUB-049 (#500, held for Amr). Merged amendments 0002-0011 are still marked proposed, and constitution \u00a7 13 comes before \u00a7 12 with stale numbered-at-merge notes (#501). PRD NFR11 says $75 but fleet.yml says $200 (#502). docs_index --lint is red on main and not gated (#503, fix PR #508). Console DataTable sort headers and rows are not keyboard or screen-reader operable, and there is no reduced-motion handling or skip link (#504). Planned governance-records-lint feature (#505, PR #509). HUB-039 has no PRD requirement (warning).",
+      "score": 78.0,
+      "next_focus": "Amr: go-ahead on #500 and the status flips in #501; budget decision in #502. Verify #508/#509 merged and HUB-050/FR47 numbered; gate docs_index --lint (#503); a11y pass on the console (#504) with \u00a7 15 evidence; land #494/#496 so \u00a7 15/\u00a7 16 numbering is final."
     },
     {
       "day": 3,
