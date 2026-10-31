@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: governance-records-lint
+title: "Governance records lint: amendment status, constitution order, doc links"
+description: "governance_lint.py check also fails on dead docs/link paths in features.yml and PRD.md, merged amendment records not marked ratified, constitution sections out of order, and PRD requirements citing a HUB id they are not mapped to; jev number apply stamps Status ratified when it numbers a record (bamr87/bamr87#505)."
+implemented: false
+status: planned
+surface: infra
+link: tools/governance_lint.py
+docs: docs/amendments/README.md
+tags: [ governance, lint ]
+date: 2026-10-31
+tests:
+  - tools/test_governance_lint.py
+prd: ["FR-NEW:governance-records-lint"]
+prd_new:
+  - key: governance-records-lint
+    kind: FR
+    text: "governance_lint check must fail when a features.yml or PRD.md link targets a missing path, a numbered amendment record is not in a terminal status, constitution sections are not in ascending order, or a PRD requirement cites a feature id it is not mapped to."
