@@ -29,11 +29,11 @@ Per #480, the plan reuses fleet tooling and builds nothing new here:
 
 Add constitution § 14 "Public documentation site" with this text:
 
-> 1. **A public site** — every fleet repo publishes a public site about the repo that contains all its documentation: `README`, `AGENTS.md`, `CHANGELOG.md` and everything under `docs/`, plus `PRD.md`, the feature catalog, the constitution and the amendments where the repo has them. The site is served at the default GitHub Pages URL `<owner>.github.io/<repo>`. It is built only with GitHub Pages and the zer0 theme (`remote_theme: bamr87/zer0-mistakes`); MkDocs and other site generators are not allowed. The page set is taken from the UPS-DOC docs index (`docs/README.md`).
+> 1. **A public site** — every fleet repo publishes a public site about the repo that contains all its documentation: `README`, `AGENTS.md`, `CHANGELOG.md` and everything under `docs/`, plus `PRD.md`, the feature catalog, the constitution and the amendments where the repo has them. The site is served at the default GitHub Pages URL `<owner>.github.io/<repo>`, or at a custom domain configured for that Pages site, which counts as compliant. It is built only with GitHub Pages and the zer0 theme (`remote_theme: bamr87/zer0-mistakes`); MkDocs and other site generators are not allowed. The page set is taken from the UPS-DOC docs index (`docs/README.md`).
 > 2. **Exclusions** — secrets are never published. Internal documents are kept off the site by one mechanism: front matter `site: exclude` on a page, or a path listed in a root `.siteignore` file (one glob per line), both projected into the Jekyll `exclude:` list. Files matched by the secret patterns already gated by the hub (`.env*`, keys, tokens) are always excluded. The docs index marks excluded pages, so "complete" means every non-excluded doc.
 > 3. **Private repos** — a private repo fails the check and is flagged for Amr. An agent never makes it public. Its Actions spend stays $0, so no site build runs for it until Amr decides.
-> 4. **Conformance** — a check in `tools/conformance.py`, run through `tools/check-drift.sh` and the fleet survey, verifies four things: the site exists at `<owner>.github.io/<repo>`, it is built with the zer0 theme, the docs index is complete (every non-excluded doc of record is on the site), and every internal link resolves.
-> 5. **Hard fail on ratification, no grace period** — the check is a hard failure from the moment this amendment is ratified, for existing repos too. Spoke fan-out PRs, one repo per PR, bring failing repos into compliance; until a repo's PR lands, that repo fails the check.
+> 4. **Conformance** — a check in `tools/conformance.py`, run through `tools/check-drift.sh` and the fleet survey, verifies four things: the site exists at `<owner>.github.io/<repo>` or its custom domain, it is built with the zer0 theme, the docs index is complete (every non-excluded doc of record is on the site), and every internal link resolves.
+> 5. **Rollout: warn, then hard fail, per repo** — after ratification the check reports each repo as warn-only until that repo's spoke fan-out PR (one repo per PR) lands. From then on it is a hard failure for that repo.
 > 6. **Settings are Amr's** — enabling Pages, choosing the source branch and setting a custom domain are repo settings that only Amr changes. An agent's PR may add the workflow and config but never flips a setting.
 
 ## Consequences
@@ -42,5 +42,6 @@ Add constitution § 14 "Public documentation site" with this text:
 - Follow-up: the `UPS-DOC-SITE` conformance check id and its row in `specs/DOCS.md` (feature `HUB-NEW:docs-site-conformance`).
 - Follow-up: Amr enables Pages per repo. The fan-out PRs list which repos need it and which repos are private.
 - Follow-up (migration): the `projects/README` (bamr87/README) MkDocs site migrates to Jekyll with the zer0 theme. Until it does, it fails the check.
-- Impact on ratification: the read-only scan of 2026-10-30 found 37 of 43 registry repos would fail at once. See the PR body.
+- Impact: the read-only scan of 2026-10-30 found 37 of 43 registry repos would warn at ratification, each becoming a hard failure as its fan-out PR lands. See the PR body.
+- Follow-up (registry): whether archived repos (`ai-seed`, `csv-vscoode`) leave `_data/projects.yml` or are exempted from the check is decided outside this amendment, because the registry deliberately keeps archived repos on the dash (docs/CONSOLIDATION.md).
 - Merging the pull request that carries this record ratifies it. An agent never merges it.
