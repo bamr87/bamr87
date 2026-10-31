@@ -1,6 +1,8 @@
 <!-- kit: governance v0.1.0 -->
 # Amendments — bamr87
 
+> The append-only log of numbered changes to the constitution, ratified only when the maintainer merges the PR.
+
 The append-only log of changes to [the constitution](../constitution.md). Process: constitution § 8.
 
 - A proposal is written as [`proposed/<kebab-slug>.md`](proposed/) with `**Number:** NEW` (copy [0000-template.md](0000-template.md)); `python3 -m tools.jev number apply` numbers it `NNNN-kebab-slug.md` here at merge and appends its row below. Numbers are never reused (amendment [0002](0002-conflict-free-numbering.md)).
