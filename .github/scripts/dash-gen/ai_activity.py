@@ -736,41 +736,6 @@ def load_local_budget() -> float:
     return BUDGET_FALLBACK_USD
 
 
-def result_record(stdout: str) -> dict | None:
-    """The LAST `type: "result"` object in `claude -p --output-format json`.
-
-    Accepts the three shapes the CLI has emitted: a bare result object, an
-    array of stream records, and JSONL. Returns None when there is no result
-    record at all — which is a real outcome (the process died before the model
-    answered), not an error to swallow.
-    """
-    def _results(value) -> list[dict]:
-        if isinstance(value, dict):
-            if value.get("type") == "result":
-                return [value]
-            return []
-        if isinstance(value, list):
-            return [r for item in value for r in _results(item)]
-        return []
-
-    stdout = stdout.strip()
-    if not stdout:
-        return None
-    try:
-        found = _results(json.loads(stdout))
-    except json.JSONDecodeError:
-        found = []
-        for line in stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                found.extend(_results(json.loads(line)))
-            except json.JSONDecodeError:
-                continue
-    return found[-1] if found else None
-
-
 # claude-code-action and the CLI have both spelled these fields more than one
 # way. Read every spelling rather than guessing: a miss here is a silent zero
 # in the ledger, which reads exactly like a free run.
@@ -809,21 +774,6 @@ def models_from_result(result: dict) -> list[str]:
     if not isinstance(model_usage, dict):
         return []
     return sorted({normalize_model(m) or m for m in model_usage})
-
-
-def budget_was_hit(result: dict, budget: float) -> bool:
-    """Did `--max-budget-usd` stop this run?
-
-    Two tests, because the abort's `subtype` is not a documented contract: the
-    subtype naming the budget, or a FAILED run that reached the ceiling. The
-    second alone would misread an ordinary failure that happened to be
-    expensive, so it is gated on `is_error`. `run_headless` classifies through
-    tools/jev/headless.classify, which applies these same two tells first.
-    """
-    if "budget" in str(result.get("subtype") or "").lower():
-        return True
-    cost = float(result.get("total_cost_usd") or 0.0)
-    return bool(result.get("is_error")) and budget > 0 and cost >= budget
 
 
 def headless():
@@ -875,23 +825,53 @@ REFUSED_PASSTHROUGH = {
     "--allow-dangerously-skip-permissions": "a capped run never bypasses the permission system",
 }
 SESSION_FLAGS = ("--session-id", "--resume", "-r", "--continue", "-c")
+#: § 10.7: every AI dollar figure the wrapper prints carries this.
+COST_LABEL = "API-equivalent (estimate)"
 
 
-def _flag_value(args: list[str], names: tuple[str, ...]) -> str | None:
+def _flag_values(args: list[str], names: tuple[str, ...]) -> list[str]:
+    """Every value of a flag, in order (`--flag value` and `--flag=value`)."""
+    out = []
     for i, a in enumerate(args):
         name, eq, value = a.partition("=")
         if name in names:
-            return value if eq else (args[i + 1] if i + 1 < len(args) else "")
-    return None
+            out.append(value if eq else (args[i + 1] if i + 1 < len(args) else ""))
+    return out
+
+
+def _flag_value(args: list[str], names: tuple[str, ...]) -> str | None:
+    """The value the CLI uses: the LAST occurrence, as its option parser keeps."""
+    values = _flag_values(args, names)
+    return values[-1] if values else None
+
+
+def _settings_mode(value: str) -> str | None:
+    """`permissions.defaultMode` of a `--settings` value, inline JSON or a file."""
+    text = value
+    if not value.lstrip().startswith("{"):
+        try:
+            text = Path(value).expanduser().read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return None
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    perms = doc.get("permissions") if isinstance(doc, dict) else None
+    return str(perms.get("defaultMode")) if isinstance(perms, dict) and perms.get("defaultMode") else None
 
 
 def refused_passthrough(passthrough: list[str]) -> str | None:
+    """Flags only: a run that is not `--isolate`d still reads the user's own
+    settings files, which can set a permission mode this cannot see."""
     for a in passthrough:
         name = a.partition("=")[0]
         if name in REFUSED_PASSTHROUGH:
             return f"{name} passed through to claude: {REFUSED_PASSTHROUGH[name]}"
-    if _flag_value(passthrough, ("--permission-mode",)) == "bypassPermissions":
+    if "bypassPermissions" in _flag_values(passthrough, ("--permission-mode",)):
         return "--permission-mode bypassPermissions passed through: a capped run never bypasses permissions"
+    if any(_settings_mode(v) == "bypassPermissions" for v in _flag_values(passthrough, ("--settings",))):
+        return "--settings with permissions.defaultMode bypassPermissions: a capped run never bypasses permissions"
     return None
 
 
@@ -903,14 +883,6 @@ def parse_meta(items: list[str]) -> dict[str, str]:
             raise ValueError(f"--meta {item!r}: KEY=VALUE once per key, KEY one of {', '.join(META_FIELDS)}")
         meta[key] = value
     return meta
-
-
-def _write_json(path: str | None, obj: object) -> None:
-    if not path:
-        return
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def run_headless(args: argparse.Namespace) -> int:
@@ -962,8 +934,8 @@ def run_headless(args: argparse.Namespace) -> int:
             f"{args.claude_bin} not found on PATH — install Claude Code first "
             "(npm install -g @anthropic-ai/claude-code)\n"
         )
-        _write_json(args.outcome_file, {**hl.Outcome("cli_missing", 0.0, "no-spend").as_dict(),
-                                        "cap_usd": budget, "exit_code": 127})
+        missing = hl.Outcome("cli_missing", 0.0, "no-spend").as_dict()
+        hl.write_json(args.outcome_file, {**missing, "cap_usd": budget, "exit_code": 127})
         return 127
 
     cwd = Path(args.cwd).expanduser().resolve() if args.cwd else Path.cwd()
@@ -998,9 +970,8 @@ def run_headless(args: argparse.Namespace) -> int:
             choice = hl.choose_auth(order, os.environ, dotenv, lambda: hl.stored_login(claude, os.environ))
         except hl.NoCredential as exc:
             sys.stderr.write(f"refusing to run: {exc}\n")
-            _write_json(args.outcome_file, {**hl.Outcome("credential_rejected", 0.0, "no-spend",
-                                                         detail=str(exc)).as_dict(),
-                                            "cap_usd": budget, "exit_code": 3})
+            refused = hl.Outcome("credential_rejected", 0.0, "no-spend", detail=str(exc)).as_dict()
+            hl.write_json(args.outcome_file, {**refused, "cap_usd": budget, "exit_code": 3})
             return 3
         except hl.JevError as exc:
             sys.stderr.write(f"{exc}\n")
@@ -1043,6 +1014,10 @@ def run_headless(args: argparse.Namespace) -> int:
         sys.stderr.write(inv.stderr_tail if inv.stderr_tail.endswith("\n") else inv.stderr_tail + "\n")
 
     outcome = hl.classify(inv, budget)
+    outcome.detail = redactor.text(outcome.detail)
+    # A signal-killed claude has a negative return code; the shell's 128+N is
+    # what this process can exit with, and what the outcome file records.
+    rc = 128 - inv.rc if inv.rc < 0 else inv.rc
     result = inv.result
     models = models_from_result(result) if result else []
     record = {
@@ -1057,9 +1032,9 @@ def run_headless(args: argparse.Namespace) -> int:
         "call_site": args.call_site or "local",
         "origin": "local",
         **meta,
+        # never guessed from modelUsage: its first key is often a helper model
         "model": (normalize_model((inv.init or {}).get("model"))
-                  or normalize_model(_flag_value(passthrough, ("--model",)))
-                  or (models[0] if models else None)),
+                  or normalize_model(_flag_value(passthrough, ("--model",)))),
         "outcome": outcome.kind,
         "cost_source": outcome.cost_source,
         "cap_usd": budget,
@@ -1070,17 +1045,19 @@ def run_headless(args: argparse.Namespace) -> int:
     ledger_path = Path(args.ledger)
     record_run(ledger_path, record)
     if result is not None:
-        _write_json(args.result_file, result)
+        hl.write_json(args.result_file, result)
     elif args.result_file:
         Path(args.result_file).unlink(missing_ok=True)
 
-    if result is not None:
-        text = str(result.get("result") or "")
-        sys.stdout.write(text if text.endswith("\n") else text + "\n")
+    echoed = str(result.get("result") or "") if result is not None else (inv.stdout_text or inv.stdout_noise)
+    if result is not None or echoed:
+        # with no result record, what the CLI printed (redacted) is the only
+        # diagnosis there is
+        sys.stdout.write(echoed if echoed.endswith("\n") else echoed + "\n")
     cost = record["total_cost_usd"]
     sys.stderr.write(
         f"  {record['repo']} · {record['usage']['turns']} turn(s) · "
-        f"${cost:,.4f} of ${budget:,.2f} "
+        f"${cost:,.4f} of ${budget:,.2f} {COST_LABEL} "
         f"({(cost / budget * 100) if budget else 0:.0f}%, {outcome.cost_source}) · {outcome.kind} · "
         f"session {record['session_id'] or 'unknown'}\n"
         f"  recorded to {ledger_path}\n"
@@ -1096,40 +1073,45 @@ def run_headless(args: argparse.Namespace) -> int:
         # A budget abort is LOUD. It stops the agent mid-task, so a silent exit
         # 0 would hand back partial work as if it were finished.
         sys.stderr.write(
-            f"! BUDGET CAP HIT — ${cost:,.4f} against a ${budget:,.2f} ceiling. "
+            f"! BUDGET CAP HIT — ${cost:,.4f} against a ${budget:,.2f} ceiling ({COST_LABEL}). "
             "The run was stopped MID-TASK and its output is probably partial. "
             "Raise `budget.local_usd` (or the call site's `budget.call_sites` entry) "
             "in _data/fleet.yml or pass --max-budget-usd.\n"
         )
-        code = inv.rc or 2
+        code = rc or 2
     elif kind == "timeout":
         sys.stderr.write(f"! TIMED OUT after {args.timeout:g}s — {outcome.detail}; charged "
-                         f"${cost:,.4f} ({outcome.cost_source}).\n")
+                         f"${cost:,.4f} {COST_LABEL} ({outcome.cost_source}).\n")
         code = 124
+    elif kind == "interrupted":
+        # A cancel or Ctrl-C, not a verdict on the credential or the agent.
+        sys.stderr.write(f"! INTERRUPTED ({inv.interrupted}) — {outcome.detail}; charged "
+                         f"${cost:,.4f} {COST_LABEL} ({outcome.cost_source}).\n")
+        code = 130
     elif kind == "usage_limit":
         # Capacity, not a defect (AGENTS.md): the credential WORKED.
         sys.stderr.write(
             f"! USAGE LIMIT — {outcome.detail}. The credential is VALID — do NOT rotate it. "
             "The subscription's window is spent; run again after the reset. Nothing falls back "
             "to the other credential (#348).\n")
-        code = 0 if args.usage_limit == "skip" else (inv.rc or 1)
+        code = 0 if args.usage_limit == "skip" else (rc or 1)
     elif kind == "credential_rejected":
         sys.stderr.write(
             f"! CREDENTIAL REJECTED — Claude was never reached ($0, empty modelUsage): {outcome.detail}. "
             f"{'Auth: ' + str(choice) + '. ' if choice else ''}Run `claude auth status`, or rotate "
             "CLAUDE_CODE_OAUTH_TOKEN (docs/TOKEN-ROTATION.md).\n")
-        code = inv.rc or 1
+        code = rc or 1
     elif result is None:
         sys.stderr.write(
             f"! no result record in the CLI's output ({kind}) — recorded as {outcome.cost_source}"
-            f"{f', charged at the ${budget:g} cap' if outcome.cost_source == 'estimated' else ''}. "
+            f"{f', charged at the ${budget:g} cap {COST_LABEL}' if outcome.cost_source == 'estimated' else ''}. "
             "The run is still whatever claude's exit code says it is.\n"
         )
-        code = inv.rc or 1
+        code = rc or 1
     else:
-        code = inv.rc
-    _write_json(args.outcome_file, {
-        **outcome.as_dict(), "cap_usd": budget, "exit_code": code, "rc": inv.rc,
+        code = rc
+    hl.write_json(args.outcome_file, {
+        **outcome.as_dict(), "cap_usd": budget, "exit_code": code, "rc": rc,
         "timed_out": inv.timed_out, "interrupted": inv.interrupted, "duration_s": inv.duration_s,
         "auth": {"method": choice.method, "source": choice.source} if choice else None,
         "cli_version": record["cli_version"], "tool_uses": inv.tool_uses,
@@ -1171,8 +1153,10 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--isolate-tmp", default=None, metavar="DIR",
                         help="TMPDIR for the isolated environment (default: a fresh temporary directory)")
     parser.add_argument("--auth-order", default=None, metavar="LIST",
-                        help="credential order, e.g. oauth,api_key; the first PRESENT one is used and the "
-                             "other is unset (default with --isolate: CLAUDE_AUTH_ORDER / ai_auth)")
+                        help="credential order, e.g. oauth,api_key; the first PRESENT one is used, and the "
+                             "other one and the CLI's other auth inputs (ANTHROPIC_AUTH_TOKEN, "
+                             "ANTHROPIC_BASE_URL, CLAUDE_CONFIG_DIR, the provider switches) are unset "
+                             "(default with --isolate: CLAUDE_AUTH_ORDER / ai_auth)")
     parser.add_argument("--usage-limit", choices=("fail", "skip"), default="fail",
                         help="skip = a spent usage window exits 0 with a warning (capacity, not a defect)")
     parser.add_argument("--meta", action="append", default=[], metavar="KEY=VALUE",

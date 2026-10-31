@@ -20,8 +20,10 @@ What is held:
   * `--isolate` builds claude's environment from scratch while ai-run itself
     keeps PYTHONPATH (PyYAML imports only through it on the maintainer's Mac);
     `--auth-order` leaves exactly one credential;
-  * `--timeout` is SIGINT-first and exits 124; a usage limit is a warning
-    under `--usage-limit skip`;
+  * `--timeout` is SIGINT-first and exits 124; a SIGINT/SIGTERM sent to
+    ai-run starts the same ladder, is `interrupted` (exit 130) and is never
+    read as a rejected credential; a usage limit is a warning under
+    `--usage-limit skip`;
   * record_run and merge_ledger lose no row to a concurrent writer;
   * `_headless_section` never counts an estimate as billed.
 
@@ -32,10 +34,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -60,6 +64,8 @@ STUB = textwrap.dedent(r'''
         sys.exit(0)
     with open(os.path.join(HERE, "argv.json"), "w") as fh:
         json.dump(argv, fh)
+    with open(os.path.join(HERE, "calls.log"), "a") as fh:
+        fh.write("call\n")
     with open(os.path.join(HERE, "env.json"), "w") as fh:
         kept = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "TMPDIR", "GH_CONFIG_DIR")
         json.dump({k: os.environ[k] for k in os.environ if k in kept} | {"_keys": sorted(os.environ)}, fh)
@@ -87,13 +93,22 @@ STUB = textwrap.dedent(r'''
         sys.stderr.write("error: unknown option '--frobnicate'\n"); sys.exit(1)
     if scenario == "init_then_exit":
         init(); sys.exit(1)
-    if scenario in ("int_no_result", "int_result"):
+    if scenario == "stdout_error":
+        sys.stdout.write("Error: something unexpected\n"); sys.exit(1)
+    if scenario == "sigkill_self":
+        init(); os.kill(os.getpid(), signal.SIGKILL)
+    if scenario in ("int_no_result", "int_result", "int_zero"):
         def on_int(*_):
             if scenario == "int_result":
                 emit({**ok, "subtype": "error_during_execution", "is_error": True, "total_cost_usd": 0.42})
+            if scenario == "int_zero":
+                # aborted before the first response: no usage has accrued yet
+                emit({**ok, "subtype": "error_during_execution", "is_error": True, "total_cost_usd": 0,
+                      "modelUsage": {}, "result": "Request was aborted."})
             sys.exit(130)
         signal.signal(signal.SIGINT, on_int)
         init()
+        open(os.path.join(HERE, "ready"), "w").close()
         while True:
             time.sleep(0.05)
     init()
@@ -133,16 +148,25 @@ class Rig:
         self.cwd = self.dir / "work"
         self.cwd.mkdir()
 
-    def run(self, *flags: str, passthrough: tuple[str, ...] = ("hello",), env: dict | None = None,
-            timeout: float = 60) -> subprocess.CompletedProcess:
+    def command(self, *flags: str, passthrough: tuple[str, ...] = ("hello",),
+                env: dict | None = None) -> tuple[list[str], dict]:
         scrubbed = ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_AUTH_ORDER", "GH_TOKEN")
         base = {k: v for k, v in os.environ.items() if k not in scrubbed}
         base.update({"DASH_AI_LEDGER": str(self.ledger), "JEV_DOTENV": str(self.dotenv)})
         base.update(env or {})
         argv = [sys.executable, str(DASH_GEN), "ai-run", "--claude-bin", str(self.claude), "--ledger",
                 str(self.ledger), "--cwd", str(self.cwd), *flags, "--", *passthrough]
+        return argv, base
+
+    def run(self, *flags: str, passthrough: tuple[str, ...] = ("hello",), env: dict | None = None,
+            timeout: float = 60) -> subprocess.CompletedProcess:
+        argv, base = self.command(*flags, passthrough=passthrough, env=env)
         return subprocess.run(argv, env=base, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                               timeout=timeout, check=False)
+
+    def calls(self) -> int:
+        log = self.bin / "calls.log"
+        return len(log.read_text().splitlines()) if log.exists() else 0
 
     def rows(self) -> list[dict]:
         if not self.ledger.exists():
@@ -177,6 +201,8 @@ def test_a_plain_run_behaves_as_before_and_records_a_reported_row():
     assert row["call_site"] == "local" and row["origin"] == "local" and row["cap_usd"] == 5.0
     assert row["session_id"] == opt(argv, "--session-id"), "the wrapper's session id is the row key"
     assert row["models"] == ["claude-haiku-5-5", "claude-sonnet-5-5"] and row["cli_version"] == "2.1.308"
+    assert row["model"] is None, "no init and no --model: never guessed from modelUsage's first (helper) key"
+    assert "API-equivalent (estimate)" in out.stderr
 
 
 def test_the_call_site_sets_the_cap_and_may_only_be_lowered():
@@ -196,7 +222,11 @@ def test_the_passthrough_cannot_carry_a_cap_a_format_print_mode_or_a_bypass():
     rig = Rig()
     for bad in (("--max-budget-usd", "50"), ("--output-format", "text"), ("-p",), ("--print",),
                 ("--dangerously-skip-permissions",), ("--permission-mode", "bypassPermissions"),
-                ("--permission-mode=bypassPermissions",)):
+                ("--permission-mode=bypassPermissions",),
+                # the CLI keeps the LAST value of a repeated option
+                ("--permission-mode", "dontAsk", "--permission-mode", "bypassPermissions"),
+                ("--permission-mode=dontAsk", "--permission-mode=bypassPermissions"),
+                ("--settings", '{"permissions":{"defaultMode":"bypassPermissions"}}')):
         out = rig.run(passthrough=(*bad, "hello"))
         assert out.returncode == 2 and "refusing" in out.stderr, bad
     assert rig.rows() == [] and not (rig.bin / "argv.json").exists()
@@ -257,12 +287,29 @@ def test_a_run_with_no_result_after_init_is_charged_at_the_cap():
     result.write_text("{}")
     out = rig.run("--stream", "--call-site", "repo-scout.yml:scout", "--outcome-file", str(outcome),
                   "--result-file", str(result))
-    assert out.returncode == 1 and "charged at the $8 cap" in out.stderr
+    assert out.returncode == 1 and "charged at the $8 cap API-equivalent (estimate)" in out.stderr
     [row] = rig.rows()
     assert (row["outcome"], row["cost_source"], row["total_cost_usd"]) == ("unparseable", "estimated", 8.0)
     assert row["session_id"] == opt(rig.argv(), "--session-id")
     assert not result.exists(), "a stale result file is removed, never left for claude-cost to read"
     assert json.loads(outcome.read_text())["cost_source"] == "estimated"
+
+
+def test_with_no_result_record_what_the_cli_printed_is_still_shown():
+    rig = Rig("stdout_error")
+    out = rig.run()
+    assert out.returncode == 1 and "Error: something unexpected" in out.stdout, (out.stdout, out.stderr)
+    [row] = rig.rows()
+    assert (row["outcome"], row["cost_source"]) == ("unparseable", "estimated")
+
+
+def test_a_claude_killed_by_a_signal_exits_128_plus_n_and_says_so():
+    rig = Rig("sigkill_self")
+    outcome = rig.dir / "outcome.json"
+    out = rig.run("--stream", "--outcome-file", str(outcome))
+    assert out.returncode == 128 + signal.SIGKILL, out.returncode
+    got = json.loads(outcome.read_text())
+    assert got["exit_code"] == got["rc"] == 128 + signal.SIGKILL
 
 
 def test_a_cli_that_refuses_its_argv_is_a_no_spend_row():
@@ -277,6 +324,7 @@ def test_the_timeout_is_sigint_first_and_exits_124():
     rig = Rig("int_result")
     out = rig.run("--stream", "--timeout", "1")
     assert out.returncode == 124, out.stderr
+    assert "TIMED OUT" in out.stderr and "API-equivalent (estimate)" in out.stderr
     [row] = rig.rows()
     assert (row["outcome"], row["cost_source"], row["total_cost_usd"]) == ("timeout", "reported", 0.42)
     rig2 = Rig("int_no_result")
@@ -294,14 +342,57 @@ def test_a_usage_limit_is_a_warning_under_skip_and_a_failure_by_default():
     assert {r["outcome"] for r in rig.rows()} == {"usage_limit"}
 
 
+def started(rig: Rig, *flags: str) -> subprocess.Popen:
+    argv, env = rig.command(*flags)
+    p = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         text=True)
+    deadline = time.monotonic() + 30
+    while not (rig.bin / "ready").exists():
+        assert time.monotonic() < deadline and p.poll() is None, "the stub never got ready"
+        time.sleep(0.05)
+    return p
+
+
+def no_stub_left(rig: Rig) -> bool:
+    return subprocess.run(["pgrep", "-f", str(rig.claude)], capture_output=True, check=False).returncode == 1
+
+
+def test_a_signal_to_ai_run_starts_the_sigint_first_ladder():
+    # The console's cancel sends SIGTERM to ai-run's group; claude runs in its
+    # own session, so only ai-run forwarding it can stop claude with a result.
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        rig = Rig("int_result")
+        outcome = rig.dir / "outcome.json"
+        p = started(rig, "--stream", "--outcome-file", str(outcome))
+        os.kill(p.pid, sig)
+        _, err = p.communicate(timeout=40)
+        assert p.returncode == 130, (sig, p.returncode, err)
+        [row] = rig.rows()
+        assert (row["outcome"], row["cost_source"], row["total_cost_usd"]) == ("interrupted", "reported", 0.42)
+        assert json.loads(outcome.read_text())["interrupted"] == signal.Signals(sig).name
+        assert "INTERRUPTED" in err and no_stub_left(rig), "nothing is orphaned"
+
+
+def test_a_cancel_before_the_first_response_is_not_a_rejected_credential():
+    rig = Rig("int_zero")
+    p = started(rig, "--stream")
+    os.kill(p.pid, signal.SIGTERM)
+    _, err = p.communicate(timeout=40)
+    assert p.returncode == 130, (p.returncode, err)
+    assert "CREDENTIAL REJECTED" not in err and "rotate" not in err, err
+    [row] = rig.rows()
+    assert row["outcome"] == "interrupted" and row["cost_source"] != "no-spend"
+
+
 def test_a_refused_credential_and_a_budget_hit_are_loud():
     rig = Rig("notloggedin")
     out = rig.run("--stream")
     assert out.returncode == 1 and "CREDENTIAL REJECTED" in out.stderr
     assert rig.rows()[0]["cost_source"] == "no-spend"
+    assert rig.calls() == 1, "a refused credential is never retried in the run (#348)"
     rig = Rig("budget")
     out = rig.run("--stream", "--call-site", "repo-scout.yml:scout")
-    assert out.returncode == 2 and "BUDGET CAP HIT" in out.stderr
+    assert out.returncode == 2 and "BUDGET CAP HIT" in out.stderr and "API-equivalent (estimate)" in out.stderr
     assert rig.rows()[0]["outcome"] == "budget_hit" and rig.rows()[0]["total_cost_usd"] == 8.0
 
 
@@ -325,6 +416,16 @@ def test_isolate_builds_claudes_env_from_scratch_while_ai_run_keeps_pythonpath()
     assert OAUTH not in out.stderr and "oauth (env)" in out.stderr
 
 
+def test_isolate_removes_the_temporary_directory_it_made():
+    rig = Rig()
+    tmp = rig.dir / "parent-tmp"
+    tmp.mkdir()
+    out = rig.run("--isolate", "--auth-order", "oauth", env={"TMPDIR": str(tmp), "CLAUDE_CODE_OAUTH_TOKEN": OAUTH})
+    assert out.returncode == 0, out.stderr
+    assert rig.child_env()["TMPDIR"].startswith(str(tmp)), "the child ran in the directory ai-run made"
+    assert list(tmp.glob("jev-ai-run-*")) == [], "and it is gone afterwards"
+
+
 def test_auth_order_alone_leaves_exactly_one_credential():
     rig = Rig()
     out = rig.run("--auth-order", "api_key,oauth", env={"CLAUDE_CODE_OAUTH_TOKEN": OAUTH, "ANTHROPIC_API_KEY": KEY})
@@ -344,6 +445,19 @@ def test_auth_falls_through_env_login_and_dotenv_without_fallback():
     assert env.get("ANTHROPIC_API_KEY") == KEY and "GH_TOKEN" not in env["_keys"]
     nothing = Rig().run("--isolate", env={"CLAUDE_AUTH_ORDER": "oauth,api_key"})
     assert nothing.returncode == 3 and "no Claude credential" in nothing.stderr
+
+
+def test_the_early_exits_write_an_outcome_and_no_row():
+    rig = Rig()
+    outcome = rig.dir / "outcome.json"
+    rig.claude.unlink()
+    assert rig.run("--outcome-file", str(outcome)).returncode == 127
+    assert json.loads(outcome.read_text())["kind"] == "cli_missing" and rig.rows() == []
+    rig = Rig()
+    assert rig.run("--isolate", "--outcome-file", str(outcome), env={"CLAUDE_AUTH_ORDER": "api_key"}).returncode == 3
+    got = json.loads(outcome.read_text())
+    assert (got["kind"], got["cost_source"], got["exit_code"]) == ("credential_rejected", "no-spend", 3)
+    assert rig.rows() == [] and not (rig.bin / "argv.json").exists()
 
 
 # --------------------------------------------------------------------------- #
@@ -406,13 +520,6 @@ def test_the_lazy_import_points_one_way():
     for p in jev:
         text = p.read_text(encoding="utf-8")
         assert "import ai_activity" not in text and "import repo_scout" not in text, p
-
-
-def test_the_headless_result_reader_agrees_with_result_record():
-    hl = ai_activity.headless()
-    for text in ('{"type":"result","x":1}', '[{"type":"system"},{"type":"result","x":2}]',
-                 '{"type":"system"}\n{"type":"result","x":3}', '', '{"type":"system"}'):
-        assert hl.last_result(text) == ai_activity.result_record(text), text
 
 
 if __name__ == "__main__":
