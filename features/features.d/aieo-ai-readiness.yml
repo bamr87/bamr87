@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: aieo-ai-readiness
+title: "AIEO AI-readiness check: scores every repo's AI foundation"
+description: "A repo-readiness mode in the AIEO engine (hub tools/aieo/, migrated from zer0-CMS apps/aieo) run by tools/conformance.py as check ai-ready: validates each layer (OpenAPI, server.json, llms.txt, --json, JSON-LD) and scores agent docs; warn-only per repo until its fan-out PR lands, then a hard fail; the score is advisory until AIEO passes its § 13 eval set, then a score below the minimum (80/100) also fails. Enforces HUB-NEW:ai-ready-foundation."
+implemented: false
+status: planned
+surface: infra
+link: tools/aieo/
+docs: docs/amendments/proposed/ai-ready-foundation.md
+tags: [ governance, ai, conformance, aieo ]
+date: 2026-10-30
+tests:
+  - {na: "planned; the check lands in a follow-up PR"}
+prd: ["FR-NEW:aieo-ai-readiness"]
+prd_new:
+  - key: aieo-ai-readiness
+    kind: FR
+    text: "The conformance gate must run an AIEO ai-ready check on every non-exempt repo that fails a missing or invalid layer (OpenAPI, MCP server.json, llms.txt, --json output, JSON-LD) and reports an AI-readiness score; warn-only for a repo until its fan-out PR lands, then a hard failure, with the score advisory until AIEO passes its § 13 eval set and then failing below the minimum score (see HUB-NEW:ai-ready-foundation)."
