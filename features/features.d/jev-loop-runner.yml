@@ -1,0 +1,24 @@
+id: HUB-NEW
+slug: jev-loop-runner
+title: "JEV: run a loop's agent step locally (the loop runner)"
+description: "JEV capability two's runner (ADR 0002 P1, bamr87/bamr87#486, epic #484): python3 -m tools.jev loop (also tools/dash loop) runs a loop's agent step on a workstation with headless Claude Code — the planner CI runs, the prompt bytes rendered from the step spec, CI's allowlist and call-site cap — inside the § 13.8 posture (--restricted, --safe-mode, the spec's toolset, dontAsk, no MCP, a fail-closed Seatbelt sandbox for Bash with no network, home fenced and credentials denied, an environment with no GitHub token) in a hardened throwaway clone under ~/.cache/jev/work. Proof before trust: a $0 flag preflight and self-calibrating isolation probe (loop doctor), a per-run posture check before any output is read, and a one-time ≤ $0.10 canary (loop doctor --live, the maintainer's approval). Each attempt goes through dash-gen ai-run (one AI-ledger row; unmeasured runs charged at the cap) and is held to the monthly budget.loops ceiling ($25, a scheduled run stopping at 80%); tier 0 reuses an unchanged HEAD and brief at $0, a usage limit stops the queue as a warning, a budget hit is discarded. Every run writes a dry-run preview with the exact issue bodies; --apply, typed by the maintainer, files it in the same run after a live recheck, and loop publish <run> --apply files a reviewed dry run once. First adapter: repo-scout; the other agent steps follow in P3."
+implemented: true
+status: partial
+surface: cli
+link: tools/jev/loop.py
+docs: docs/JEV.md
+tags: [ jev, ai, loops, local, sandbox ]
+date: 2026-10-31
+tests:
+  - tools/test_jev_loop.py
+  - tools/test_jev_headless.py
+  - tools/test_jev_workspace.py
+  - tools/test_jev_adapter_repo_scout.py
+  - tools/test_jev_spec.py
+  - .github/scripts/dash-gen/test_ai_run.py
+  - .github/scripts/dash-gen/test_ai_budget.py
+prd: ["FR-NEW:local-loop-runner"]
+prd_new:
+  - key: local-loop-runner
+    kind: FR
+    text: "The hub must run any loop agent step that has a step spec with a local: block on the maintainer's workstation with headless Claude Code, with the same planner, prompt bytes, allowlist and per-attempt cap as CI, inside an isolated and sandboxed session with no network and no GitHub credential, held to a monthly local ceiling, and publishing only the exact bytes of a dry-run preview under the maintainer's explicit --apply."

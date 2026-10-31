@@ -13,7 +13,7 @@ The fleet's daily **proactive issue loop**. [`repo-evolution`](EVOLUTION.md) wri
 | **Config** | [`_data/fleet.yml`](../_data/fleet.yml) → `schedule.repo_scout`, `scout:`, `budget.call_sites` | cadence, sample, caps, label, marker |
 | **Opt-out** | [`_data/projects.yml`](../_data/projects.yml) → `scout: false` | per project (the read-only zer0-mistakes mirror opts out) |
 | **Kill switch** | repo variable `REPO_SCOUT_ENABLED` | a NEW loop: the cron runs only while it is `true`; a dispatch always runs |
-| **CLI** | `tools/dash scout plan` · `--repo <name>` · `--all`; `tools/dash loop plan\|run repo-scout --target <name>` | plan locally, or dispatch; run the agent step locally (this slice: `--rehearse`, $0) |
+| **CLI** | `tools/dash scout plan` · `--repo <name>` · `--all`; `tools/dash loop plan\|run repo-scout --target <name>` · `tools/dash loop publish <run_id> [--apply]` | plan locally, or dispatch; run the agent step locally (a capped attempt and a dry-run preview; `--apply` files it) |
 | **Console** | Loops → *Repo scout*, Operations → *scout* | the plan as a job; the workflow as a dispatch |
 | **Tests** | `python3 .github/scripts/dash-gen/test_scout.py` · `python3 tools/test_jev_spec.py` · `python3 -m tools.jev steps check` · `python3 tools/test_jev_adapter_repo_scout.py` · `python3 tools/test_jev_loop.py` | no network, no pytest |
 
@@ -111,9 +111,12 @@ The scout's agent step also runs on a workstation through JEV's loop runner ([do
 tools/dash loop plan repo-scout --target SCHEMA            # $0: the decision, the prompt's sha, the flags, the dry filing
 tools/dash loop run repo-scout --target SCHEMA --rehearse  # $0: plan, tier 0, clone, prompt, settings, flags, ai-run --dry-run
 tools/dash loop doctor                                     # $0: CLI floor, sandbox, credential, flag preflight, isolation probe
+tools/dash loop doctor --live                              # once per CLI version: the ≤ $0.10 canary (the maintainer's yes)
+tools/dash loop run repo-scout --target SCHEMA             # ~$0.61 (API-equivalent, estimate; $8 cap): attempt + preview
+tools/dash loop publish <run_id> --apply                   # file the reviewed preview (or `run … --apply` in one go)
 ```
 
-This slice stops before the model call: `loop run` without `--rehearse` refuses until live attempts land (#486 PR-C). From then on every run is a dry run that writes the exact issue bodies (`scout-file --bodies-dir`) to `.fleet/runs/<run_id>/items/<owner>__<repo>/bodies/` for review, and `--apply`, typed by the maintainer, files them in the same run, writing what it filed to `filed/` beside them, never over the reviewed bodies (`scout-file --apply` refuses a `--bodies-dir` that already holds some); `loop publish <run_id> --apply` files a reviewed earlier dry run. A `--scheduled` local run reads `REPO_SCOUT_ENABLED` exactly as the cron does and never files. The pilot target is `bamr87/SCHEMA` (ocrmd the alternate), run only as the maintainer's approved deploy step (§ 10.5).
+Every run is a dry run that writes the exact issue bodies (`scout-file --bodies-dir`) to `.fleet/runs/<run_id>/items/<owner>__<repo>/bodies/` for review, and `--apply`, typed by the maintainer, files them in the same run, writing what it filed to `filed/` beside them, never over the reviewed bodies (`scout-file --apply` refuses a `--bodies-dir` that already holds some); `loop publish <run_id> --apply` files a reviewed earlier dry run. A `--scheduled` local run reads `REPO_SCOUT_ENABLED` exactly as the cron does and never files. The pilot target is `bamr87/SCHEMA` (ocrmd the alternate), run only as the maintainer's approved deploy step (§ 10.5).
 
 **Recorded differences from CI.** No network, so dependency installs fail (the runner's appended note tells the agent not to propose from such a failure, and a proposal citing one is flagged for the reviewer); committed symlinks in the clone are plain files; the target's CLAUDE.md and AGENTS.md are not auto-loaded (`--safe-mode`; the prompt's Step 2 reads them as files); the target's `.claude/` settings are never loaded, where CI's claude-code-action loads them; a budget-hit attempt is discarded, where CI's file job files what the leg left; and a proposal carrying a local path or the host name is withheld.
 
