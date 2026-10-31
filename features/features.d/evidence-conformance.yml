@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: evidence-conformance
+title: "Evidence conformance: checks major/frontend PRs for tests, visuals and review"
+description: "A tools/conformance.py check that reads the major decision (JEV, the major label, or the interim heuristics) and detects frontend-impacting PRs and verifies test evidence, visual evidence (or a valid skip-evidence) and passing completeness reviews by JEV and QA Lead (or the interim fallback); warn-only per repo until its fan-out PR lands, then a hard fail. Enforces HUB-NEW:major-change-evidence."
+implemented: false
+status: planned
+surface: infra
+link: tools/conformance.py
+docs: docs/amendments/proposed/major-change-evidence.md
+tags: [ governance, verification, conformance ]
+date: 2026-10-30
+tests:
+  - {na: "planned; the check lands in a follow-up PR"}
+prd: ["FR-NEW:evidence-conformance"]
+prd_new:
+  - key: evidence-conformance
+    kind: FR
+    text: "The conformance gate must flag a major PR missing test evidence or a green CI link, a frontend PR missing visual evidence or a reasoned skip-evidence, and any such PR without passing non-author completeness reviews by JEV and QA Lead (or the interim reviewer); warn-only for a repo until its fan-out PR lands, then a hard failure (see HUB-NEW:major-change-evidence)."
