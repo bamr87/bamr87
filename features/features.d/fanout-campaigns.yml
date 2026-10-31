@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: fanout-campaigns
+title: "Fan-out campaigns page: per-repo PR, CI and merge state per kit rollout"
+description: "Each fanout.sh --apply run records a campaign (kit, version, targets, PRs); a read-only /campaigns console page rolls up PR, CI and merge state per repo, Batch Changes-style (bamr87/bamr87#517)."
+implemented: false
+status: planned
+surface: ui
+link: tools/fanout.sh
+docs: docs/STANDARDS.md
+tags: [ fanout, console, campaigns ]
+date: 2026-10-31
+tests:
+  - tools/test_campaigns.py
+prd: ["FR-NEW:fanout-campaigns"]
+prd_new:
+  - key: fanout-campaigns
+    kind: FR
+    text: "Every applied fan-out must be recorded as a campaign, and the console must show each campaign's per-repo PR, CI and merge state read-only."

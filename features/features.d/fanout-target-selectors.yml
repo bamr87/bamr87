@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: fanout-target-selectors
+title: "Tag selectors for --target"
+description: "The --target flag accepts selectors resolved from _data/projects.yml (tag:python, lang:js, group:sites, !name) through one shared resolver, printing the resolved list in dry-run, mani/gita-style (bamr87/bamr87#519)."
+implemented: false
+status: planned
+surface: cli
+link: tools/fanout.sh
+docs: docs/DASH.md
+tags: [ fanout, cli, selectors ]
+date: 2026-10-31
+tests:
+  - tools/test_target_selectors.py
+prd: ["FR-NEW:fanout-target-selectors"]
+prd_new:
+  - key: fanout-target-selectors
+    kind: FR
+    text: "Fleet commands taking --target must resolve tag, language and group selectors from the registry, excluding archived repos by default, and fail on an empty or unknown selection."
