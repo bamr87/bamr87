@@ -89,6 +89,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-042](features/features.yml) | Docs site conformance: site exists, index complete, links resolve | planned | [`tools/conformance.py`](tools/conformance.py) · `docs/amendments/proposed/public-docs-site.md` | FR35 |
 | [HUB-043](features/features.yml) | Public docs site: every fleet repo publishes all its documentation | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/public-docs-site.md` | FR36 |
 | [HUB-044](features/features.yml) | Architecture research harness: literature-grounded fleet architecture review and research papers | planned | [`docs/ARCH-RESEARCH-HARNESS.md`](docs/ARCH-RESEARCH-HARNESS.md) | FR37, FR38, FR39, FR40, FR41 |
+| [HUB-045](features/features.yml) | Review gate: needs-amr label holds a PR from agent merge | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/agent-merge-review-gate.md` | FR42 |
 
 **Requirement → feature trace**
 
@@ -146,6 +147,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR39 | HUB-044 |
 | FR40 | HUB-044 |
 | FR41 | HUB-044 |
+| FR42 | HUB-045 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -181,6 +183,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR39: Every architecture finding and recommendation must link to feature catalog ids and PRD requirement ids, and accepted recommendations must become Fleet project items.
 - FR40: The harness must turn a qualifying architecture challenge into a scoped research question and produce a research paper in docs/research/<slug>/ with a fixed structure, sources and metadata.
 - FR41: No research paper may be published until automated citation and traceability checks, an independent AI review and a maintainer merge have passed.
+- FR42: An agent must merge a PR only when it is mergeable (required checks green, required reviews satisfied, no conflicts, review gate passed), and never a PR labelled needs-amr or in a gated category.
 
 **Non-functional**
 
