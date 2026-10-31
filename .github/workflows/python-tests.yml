@@ -48,7 +48,10 @@ concurrency:
 jobs:
   python-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The suite is serial and takes ~11 min on main (2026-10-31; test_pages ~6),
+    # ~14 with the JEV loop runner's tests (#486): 25 leaves room to grow and
+    # still stops a hung test.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
