@@ -346,6 +346,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | Doc | Purpose |
 | --- | --- |
 | [`AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | The AI layer — every surface where Claude runs, the Claude auth order and secrets matrix, the loops, and how all of it propagates to the fleet. |
+| [`ARCH-RESEARCH-HARNESS.md`](docs/ARCH-RESEARCH-HARNESS.md) | A research-and-development harness that studies the high-level architecture and the deeper structural challenges of every codebase in the bamr87 fleet, grounds each judg… |
 | [`BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | The backlog fan-out routine (HUB-027, PRD FR22 and FR23) turns the hub's pending backlog into tracking PRs in the fleet repos each item applies to. |
 | [`COCKPIT.md`](docs/COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |

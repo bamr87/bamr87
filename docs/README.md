@@ -23,6 +23,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | Document | What it covers |
 | --- | --- |
 | [`docs/AI-INTEGRATION.md`](AI-INTEGRATION.md) | The AI layer — every surface where Claude runs, the Claude auth order and secrets matrix, the loops, and how all of it propagates to the fleet. |
+| [`docs/ARCH-RESEARCH-HARNESS.md`](ARCH-RESEARCH-HARNESS.md) | A research-and-development harness that studies the high-level architecture and the deeper structural challenges of every codebase in the bamr87 fleet, grounds each judgement in current software-architecture literature, and turns the… |
 | [`docs/BACKLOG-FANOUT.md`](BACKLOG-FANOUT.md) | The backlog fan-out routine (HUB-027, PRD FR22 and FR23) turns the hub's pending backlog into tracking PRs in the fleet repos each item applies to. |
 | [`docs/COCKPIT.md`](COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`docs/CONSOLE-PAGES.md`](CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
