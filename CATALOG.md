@@ -44,6 +44,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | Kit | Version | Updated | Seeded by | Files |
 | --- | --- | --- | --- | --- |
 | [`agent-context/`](templates/agent-context/) | 0.5.0 | 2026-09-30 | .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
+| [`ai-ready/`](templates/ai-ready/) | 0.0.0 | 2026-10-30 | not yet; fan-out follows ratification of constitution § 16 (amendment ai-ready-foundation) | `README.md` |
 | [`ai-runner/`](templates/ai-runner/) | 0.2.0 | 2026-09-30 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`community/`](templates/community/) | 0.1.0 | 2026-10-03 | Distribution is by INHERITANCE first: the PR template, the issue forms, CONTRIBUTING.md,… | `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/documentation.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/… |
 | [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |

@@ -94,6 +94,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-047](features/features.yml) | Major-change evidence: JEV-judged major PRs, tests, visual before/after, JEV + QA Lead review | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/major-change-evidence.md` | FR44 |
 | [HUB-048](features/features.yml) | Eval baseline: per-role eval sets, pinned models, run tracing | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/eval-baseline-risk-tiers.md` | FR45 |
 | [HUB-049](features/features.yml) | Risk tiers: reversible/external/money tags gate agent actions | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/eval-baseline-risk-tiers.md` | FR46 |
+| [HUB-050](features/features.yml) | AI-ready foundation: API layer, MCP, agent docs and metadata in every repo | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/ai-ready-foundation.md` | FR47 |
+| [HUB-051](features/features.yml) | AIEO AI-readiness check: scores every repo's AI foundation | planned | `tools/aieo/` · `docs/amendments/proposed/ai-ready-foundation.md` | FR48 |
 
 **Requirement → feature trace**
 
@@ -156,6 +158,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR44 | HUB-047 |
 | FR45 | HUB-048 |
 | FR46 | HUB-049 |
+| FR47 | HUB-050 |
+| FR48 | HUB-051 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -196,6 +200,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR44: A PR judged major by JEV (or labelled major; interim: heuristics plus reviewer, when in doubt major) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by JEV and QA Lead, neither being its author (interim: QA Lead alone, then Amr) (see HUB-046).
 - FR45: Each agent role, harness and loop must keep an eval set of about 20 real past tasks, rerun it after any prompt, tool or model change as a required CI check, pin exact model versions from _data/fleet.yml ai_models.allowed (no aliases), move a step to a cheaper model only if evals pass, and trace tool calls per run (see HUB-049).
 - FR46: Every agent tool or action must carry reversible/external/money tags and a low/medium/high tier; high waits for Amr's approval, medium writes an audit record, a tier drops only after 25 consecutive clean approvals, and any run with private data, untrusted content and an external send requires a human gate (see HUB-048).
+- FR47: Every active fleet repo must expose, sized to its type, an API layer (OpenAPI 3.1 for apps and services, a static JSON data API for content sites, --json output for CLIs), an MCP server with an MCP Registry server.json manifest (each content site shipping its own local stdio server), AGENTS.md and llms.txt, and an ai-ready.yml manifest, starting from the templates/ai-ready/ kit; archived and retired repos are exempt (see HUB-051).
+- FR48: The conformance gate must run an AIEO ai-ready check on every non-exempt repo that fails a missing or invalid layer (OpenAPI, MCP server.json, llms.txt, --json output, JSON-LD) and reports an AI-readiness score; warn-only for a repo until its fan-out PR lands, then a hard failure, with the score advisory until AIEO passes its § 13 eval set and then failing below the minimum score (see HUB-050).
 
 **Non-functional**
 

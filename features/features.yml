@@ -819,3 +819,46 @@ features:
     - na: planned; tier-table lint lands in a follow-up PR
     prd:
     - FR46
+  - id: HUB-050
+    title: 'AI-ready foundation: API layer, MCP, agent docs and metadata in every repo'
+    description: 'Constitution § 16: every active repo exposes an API layer (OpenAPI for services, a static
+      JSON data API for content sites, --json for CLIs), an MCP server (each content site its own, local
+      stdio), AGENTS.md plus llms.txt, and an ai-ready.yml manifest, built from the hub''s templates/ai-ready/
+      kit. Validated by HUB-051.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/ai-ready-foundation.md
+    tags:
+    - governance
+    - ai
+    - mcp
+    - api
+    date: 2026-10-30
+    tests:
+    - na: planned; the kit and check land in follow-up PRs
+    prd:
+    - FR47
+  - id: HUB-051
+    title: 'AIEO AI-readiness check: scores every repo''s AI foundation'
+    description: 'A repo-readiness mode in the AIEO engine (hub tools/aieo/, migrated from zer0-CMS apps/aieo)
+      run by tools/conformance.py as check ai-ready: validates each layer (OpenAPI, server.json, llms.txt,
+      --json, JSON-LD) and scores agent docs; warn-only per repo until its fan-out PR lands, then a hard
+      fail; the score is advisory until AIEO passes its § 13 eval set, then a score below the minimum (80/100)
+      also fails. Enforces HUB-050.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/aieo/
+    docs: docs/amendments/proposed/ai-ready-foundation.md
+    tags:
+    - governance
+    - ai
+    - conformance
+    - aieo
+    date: 2026-10-30
+    tests:
+    - na: planned; the check lands in a follow-up PR
+    prd:
+    - FR48
