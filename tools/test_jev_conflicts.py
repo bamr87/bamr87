@@ -82,6 +82,67 @@ def test_the_gh_wrapper_refuses_an_admin_override_anywhere_in_the_arguments():
         raise AssertionError("--admin was not refused")
 
 
+def test_the_guard_refuses_destructive_and_settings_verbs_and_allows_what_jev_uses():
+    from tools.jev.common import assert_no_admin, assert_safe_git
+    refused = [["issue", "close", "1", "-R", "o/r"], ["issue", "delete", "1"], ["issue", "transfer", "1", "o/x"],
+               ["issue", "lock", "1"], ["repo", "delete", "o/r", "--yes"], ["repo", "archive", "o/r"],
+               ["repo", "edit", "o/r", "--visibility", "public"], ["repo", "rename", "x"], ["repo", "transfer"],
+               ["api", "-X", "DELETE", "repos/o/r"], ["api", "--method", "PATCH", "repos/o/r"],
+               ["api", "--method=PUT", "repos/o/r/topics"], ["api", "-XDELETE", "repos/o/r/git/refs/heads/x"],
+               ["secret", "set", "FLEET_TOKEN"], ["variable", "set", "REPO_SCOUT_ENABLED"],
+               ["variable", "delete", "X"], ["repo", "sync", "o/r", "--force"], ["pr", "merge", "1"],
+               ["api", "graphql", "-f", "query=mutation { deleteRepository(input: {}) { clientMutationId } }"],
+               # gh POSTs implicitly once a parameter is added: a REST write without -X
+               ["api", "repos/o/r/merges", "-f", "base=main", "-f", "head=feature"],
+               ["api", "-X", "POST", "repos/o/r/transfer", "-f", "new_owner=x"],
+               ["api", "repos/o/r/git/refs", "-f", "ref=refs/heads/x", "-f", "sha=abc"],
+               ["api", "repos/o/r/issues", "-ftitle=x"], ["api", "repos/o/r/issues", "--raw-field=title=x"],
+               ["api", "repos/o/r/labels", "--input", "label.json"],
+               # GraphQL whose text the guard cannot read
+               ["api", "graphql", "--input", "body.json"], ["api", "graphql", "-F", "query=@q.graphql"],
+               ["api", "graphql", "-f", "query=  # c\nsubscription { x }"]]
+    for argv in refused:
+        try:
+            assert_no_admin(argv)
+        except JevError as exc:
+            assert "refusing" in str(exc)
+        else:
+            raise AssertionError(f"{argv} was not refused")
+    for argv in (["label", "create", "jev:needs-human", "--repo", "o/r", "--force"],
+                 ["pr", "edit", "1", "--repo", "o/r", "--add-label", "x"], ["pr", "comment", "1", "--body", "b"],
+                 ["issue", "create", "-R", "o/r", "--title", "t"], ["repo", "clone", "o/r", "/tmp/x"],
+                 ["variable", "get", "REPO_SCOUT_ENABLED", "-R", "o/r"], ["api", "repos/o/r/commits/main"],
+                 ["api", "-X", "GET", "repos/o/r"], ["api", "graphql", "-f", "query={ viewer { login } }"],
+                 ["api", "repos/o/r/commits/main", "--jq", ".sha"], ["api", "--paginate", "repos/o/r/pulls"]):
+        assert_no_admin(argv)
+    from tools.jev.common import _api_method
+    assert _api_method(["api", "repos/o/r/merges", "-f", "base=main"]) == "POST"
+    assert _api_method(["api", "repos/o/r", "--jq", ".x"]) == "GET"
+    for argv in (["push", "--force", "origin", "x"], ["push", "-f"], ["push", "--force-with-lease"],
+                 ["push", "origin", "+HEAD:refs/heads/x"], ["push", "origin", ":x"], ["push", "--mirror"],
+                 ["push", "--delete", "origin", "x"], ["-c", "a=b", "push", "-f"],
+                 ["push", "-fu", "origin", "x"], ["push", "--forc", "origin", "x"], ["push", "--mirr"],
+                 ["--git-dir", "/r/.git", "push", "-f", "origin", "x"], ["--work-tree", "/w", "push", "--force"],
+                 ["-c", "remote.origin.push=+refs/heads/*:refs/heads/*", "push", "origin"],
+                 ["-c", "remote.origin.mirror=true", "push", "origin"]):
+        try:
+            assert_safe_git(argv)
+        except JevError as exc:
+            assert "force-push" in str(exc)
+        else:
+            raise AssertionError(f"git {argv} was not refused")
+    assert_safe_git(["push", "origin", "HEAD:refs/heads/fix/x"])   # what commit_and_push sends
+    assert_safe_git(["push", "-u", "--dry-run", "origin", "x"])
+    assert_safe_git(["--git-dir=/r/.git", "--work-tree=/w", "status"])
+    assert_safe_git(["log", "--grep", "push", "-f"])
+    try:
+        git(["push", "--force", "origin", "x"], cwd=Path("/nonexistent"))
+    except JevError as exc:
+        assert "force-push" in str(exc)
+    else:
+        raise AssertionError("common.git did not apply the guard")
+
+
 def test_a_fork_branch_is_never_eligible_however_trusted_the_author():
     ok, why = cf.eligible(CFG, pr(head_repo="someone/r"))
     assert not ok and "fork" in why

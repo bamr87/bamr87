@@ -419,12 +419,13 @@ def build_plan(registry: list[dict], cfg: dict, triage: dict | None, conformance
         if len(include) >= sample:
             break
         if gh is not None and has_issues(t["nwo"], gh) is False:
-            skipped.append({"name": t["name"], "reason": "issues are disabled on the repository — nothing can be filed"})
+            skipped.append({"name": t["name"], "nwo": t["nwo"],
+                            "reason": "issues are disabled on the repository — nothing can be filed"})
             continue
         issues = open_issues(t["nwo"], 200, gh) if gh is not None else None
         scout_open = scout_issues(issues, cfg, t["nwo"])
         if issues is not None and len(scout_open) >= int(cfg["max_open_per_repo"]):
-            skipped.append({"name": t["name"],
+            skipped.append({"name": t["name"], "nwo": t["nwo"],
                             "reason": f"{len(scout_open)} scout issue(s) still open (max_open_per_repo "
                                       f"{cfg['max_open_per_repo']}) — close or implement them first"})
             continue
@@ -568,13 +569,30 @@ def ensure_labels(nwo: str, labels: list[str], cfg: dict, gh=_gh_text) -> None:
         gh(["gh", "label", "create", name, "-R", nwo, "--color", color, "--description", desc, "--force"])
 
 
+def body_file_name(n: int, title: str) -> str:
+    """`NN-<slug>.md` — the n-th (1-based) body a --bodies-dir run writes."""
+    slug = "-".join(normalize_title(title).split())[:60].strip("-") or "proposal"
+    return f"{n:02d}-{slug}.md"
+
+
 def file_proposals(nwo: str, proposals: list[dict], cfg: dict, *, existing_titles: list[str],
-                   run_url: str = "", apply: bool = False, gh=_gh_text) -> dict:
-    """Dedupe, cap, (create labels,) file. Returns the record the run summary renders."""
+                   run_url: str = "", apply: bool = False, gh=_gh_text, bodies_dir: Path | str | None = None) -> dict:
+    """Dedupe, cap, (create labels,) file. Returns the record the run summary renders.
+
+    `bodies_dir` (the local loop engine's; CI never passes it) also writes
+    every would-file or filed issue's exact body there as `NN-<slug>.md`, so
+    the human gate reads the bytes that would be filed. A dry run clears the
+    directory's stale bodies first; an --apply never clears one (run_file
+    refuses a non-empty one), so filing cannot destroy a reviewed preview."""
     cap = int(cfg["max_issues_per_repo"])
     filed: list[dict] = []
     skipped: list[dict] = []
     seen: list[str] = list(existing_titles)
+    out_dir = Path(bodies_dir) if bodies_dir else None
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for old in [] if apply else out_dir.glob("[0-9][0-9]-*.md"):
+            old.unlink()   # a dry re-run never leaves a stale body beside the new ones
     for p in proposals:
         if len(filed) >= cap:
             skipped.append({"title": p["title"], "reason": f"over max_issues_per_repo ({cap})"})
@@ -596,6 +614,9 @@ def file_proposals(nwo: str, proposals: list[dict], cfg: dict, *, existing_title
                 skipped.append({"title": p["title"], "reason": "gh issue create failed"})
                 continue
             rec["url"] = url.strip().splitlines()[-1]
+        if out_dir is not None:
+            rec["body_file"] = body_file_name(len(filed) + 1, p["title"])
+            (out_dir / rec["body_file"]).write_text(issue_body(p, cfg, nwo, run_url), encoding="utf-8")
         filed.append(rec)
     return {"nwo": nwo, "apply": apply, "filed": filed, "skipped": skipped}
 
@@ -674,10 +695,17 @@ def add_file_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", default=str(FLEET_DEFAULT), metavar="PATH")
     parser.add_argument("--apply", action="store_true", help="file the issues (default: dry run, print the plan)")
     parser.add_argument("--offline", action="store_true", help="do not list the repo's open issues for dedupe")
+    parser.add_argument("--bodies-dir", default=None, metavar="DIR",
+                        help="also write each would-file/filed issue body to DIR/NN-<slug>.md (the local loop "
+                             "engine's human gate; CI does not pass it)")
     parser.set_defaults(func=run_file)
 
 
 def run_file(args: argparse.Namespace) -> int:
+    if args.apply and args.bodies_dir and any(Path(args.bodies_dir).glob("[0-9][0-9]-*.md")):
+        sys.stderr.write(f"--apply refuses a --bodies-dir that already holds bodies ({args.bodies_dir}): the apply "
+                         "writes to its own directory, never over a reviewed preview\n")
+        return 2
     cfg = load_config(Path(args.config))
     raw, notes = load_proposals(args.proposals)
     proposals, rejected = validate_proposals(raw, cfg)
@@ -686,7 +714,7 @@ def run_file(args: argparse.Namespace) -> int:
         sys.stderr.write(f"could not list open issues of {args.nwo} — filing without the duplicate check\n")
     titles = [i["title"] for i in (existing or [])]
     result = file_proposals(args.nwo, proposals, cfg, existing_titles=titles, run_url=args.run_url,
-                            apply=args.apply)
+                            apply=args.apply, bodies_dir=args.bodies_dir)
     result["rejected"] = rejected
     result["notes"] = notes
     verb = "filed" if args.apply else "would file"
