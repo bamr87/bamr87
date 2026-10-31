@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: docs-site-conformance
+title: "Docs site conformance: site exists, index complete, links resolve"
+description: "A tools/conformance.py check (run by check-drift.sh and the fleet survey) that verifies a repo's public docs site exists, covers every non-excluded doc in the UPS-DOC index, and has no broken links. Enforces HUB-NEW:docs-site."
+implemented: false
+status: planned
+surface: infra
+link: tools/conformance.py
+docs: docs/amendments/proposed/public-docs-site.md
+tags: [ governance, docs, conformance ]
+date: 2026-10-30
+tests:
+  - {na: "planned; the check lands in a follow-up PR"}
+prd: ["FR-NEW:docs-site-conformance"]
+prd_new:
+  - key: docs-site-conformance
+    kind: FR
+    text: "The conformance gate must report, per fleet repo, whether its public docs site exists, whether every non-excluded doc of record is on it, and whether its links resolve, with existing repos in a grace period until their fan-out PR lands (see HUB-NEW:docs-site)."

@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: docs-site
+title: "Public docs site: every fleet repo publishes all its documentation"
+description: "Every fleet repo publishes a public GitHub Pages site (zer0 remote theme, UPS-DOC index as page set) carrying README, AGENTS, PRD, feature catalog, constitution, amendments, CHANGELOG and docs/, with .siteignore / site: exclude for internal docs. Verified by HUB-NEW:docs-site-conformance."
+implemented: false
+status: planned
+surface: infra
+link: docs/constitution.md
+docs: docs/amendments/proposed/public-docs-site.md
+tags: [ governance, docs, pages ]
+date: 2026-10-30
+tests:
+  - {na: "planned; reusable docs-site workflow in bamr87/.github is a follow-up"}
+prd: ["FR-NEW:docs-site"]
+prd_new:
+  - key: docs-site
+    kind: FR
+    text: "Every public fleet repo must publish a public site containing all its documentation (README, AGENTS.md, PRD, feature catalog, constitution, amendments, CHANGELOG, docs/), excluding secrets and docs marked internal; private repos are flagged for Amr and never made public by an agent (see HUB-NEW:docs-site-conformance)."
