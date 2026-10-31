@@ -1,7 +1,7 @@
 id: HUB-NEW
 slug: docs-site
 title: "Public docs site: every fleet repo publishes all its documentation"
-description: "Every fleet repo publishes a public GitHub Pages site (zer0 remote theme, UPS-DOC index as page set) carrying README, AGENTS, PRD, feature catalog, constitution, amendments, CHANGELOG and docs/, with .siteignore / site: exclude for internal docs. Verified by HUB-NEW:docs-site-conformance."
+description: "Every fleet repo publishes a public GitHub Pages site at <owner>.github.io/<repo> (zer0 remote theme only, no MkDocs or other generators; UPS-DOC index as page set) carrying README, AGENTS, CHANGELOG and docs/, plus PRD, feature catalog, constitution and amendments where they exist, with .siteignore / site: exclude for internal docs. Verified by HUB-NEW:docs-site-conformance."
 implemented: false
 status: planned
 surface: infra
@@ -15,4 +15,4 @@ prd: ["FR-NEW:docs-site"]
 prd_new:
   - key: docs-site
     kind: FR
-    text: "Every public fleet repo must publish a public site containing all its documentation (README, AGENTS.md, PRD, feature catalog, constitution, amendments, CHANGELOG, docs/), excluding secrets and docs marked internal; private repos are flagged for Amr and never made public by an agent (see HUB-NEW:docs-site-conformance)."
+    text: "Every fleet repo must publish a public site containing all its documentation at <owner>.github.io/<repo>, built only with GitHub Pages and the zer0 theme, containing README, AGENTS.md, CHANGELOG and docs/ plus the PRD, feature catalog, constitution and amendments where they exist, excluding secrets and docs marked internal; private repos are flagged for Amr and never made public by an agent (see HUB-NEW:docs-site-conformance)."

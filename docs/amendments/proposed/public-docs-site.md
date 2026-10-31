@@ -8,7 +8,7 @@
 - **Ratified by:** _(blank until the pull request is merged)_
 - **Affects:** constitution new § 14 (numbering contingent on § 12 from #481 and § 13 from #482); specs UPS-DOC (extended, not replaced); features `HUB-NEW:docs-site`, `HUB-NEW:docs-site-conformance`; requirements `FR-NEW:docs-site`, `FR-NEW:docs-site-conformance`
 - **Supersedes:** none (extends UPS-DOC, merged in #404)
-- **Related:** #404 (UPS-DOC fleet docs framework), #480 (`harness-prior-art-research`), #481 (`agent-merge-review-gate`), #482 (`eval-baseline-risk-tiers`, grace-period pattern), `templates/site-quality/`, `tools/conformance.py`, `tools/docs_index.py`
+- **Related:** #404 (UPS-DOC fleet docs framework), #480 (`harness-prior-art-research`), #481 (`agent-merge-review-gate`), #482 (`eval-baseline-risk-tiers`, fan-out pattern), `templates/site-quality/`, `tools/conformance.py`, `tools/docs_index.py`
 
 ## Context
 
@@ -29,11 +29,11 @@ Per #480, the plan reuses fleet tooling and builds nothing new here:
 
 Add constitution § 14 "Public documentation site" with this text:
 
-> 1. **A public site** — every fleet repo publishes a public site about the repo that contains all its documentation: `README`, `AGENTS.md`, `PRD.md`, the feature catalog, the constitution, the amendments, `CHANGELOG.md` and everything under `docs/`. The default build is GitHub Pages with the zer0 theme (`remote_theme: bamr87/zer0-mistakes`), with the page set taken from the UPS-DOC docs index (`docs/README.md`).
+> 1. **A public site** — every fleet repo publishes a public site about the repo that contains all its documentation: `README`, `AGENTS.md`, `CHANGELOG.md` and everything under `docs/`, plus `PRD.md`, the feature catalog, the constitution and the amendments where the repo has them. The site is served at the default GitHub Pages URL `<owner>.github.io/<repo>`. It is built only with GitHub Pages and the zer0 theme (`remote_theme: bamr87/zer0-mistakes`); MkDocs and other site generators are not allowed. The page set is taken from the UPS-DOC docs index (`docs/README.md`).
 > 2. **Exclusions** — secrets are never published. Internal documents are kept off the site by one mechanism: front matter `site: exclude` on a page, or a path listed in a root `.siteignore` file (one glob per line), both projected into the Jekyll `exclude:` list. Files matched by the secret patterns already gated by the hub (`.env*`, keys, tokens) are always excluded. The docs index marks excluded pages, so "complete" means every non-excluded doc.
-> 3. **Private repos** — a private repo is flagged for Amr and never made public by an agent. Its Actions spend stays $0, so no site build runs for it until Amr decides.
-> 4. **Conformance** — a check in `tools/conformance.py`, run through `tools/check-drift.sh` and the fleet survey, verifies three things: the site exists at its declared URL, the docs index is complete (every non-excluded doc of record is on the site), and every internal link resolves.
-> 5. **Grace period and fan-out** — existing repos are in a grace period until their spoke fan-out PR lands. Fan-out happens one repo per PR, after ratification.
+> 3. **Private repos** — a private repo fails the check and is flagged for Amr. An agent never makes it public. Its Actions spend stays $0, so no site build runs for it until Amr decides.
+> 4. **Conformance** — a check in `tools/conformance.py`, run through `tools/check-drift.sh` and the fleet survey, verifies four things: the site exists at `<owner>.github.io/<repo>`, it is built with the zer0 theme, the docs index is complete (every non-excluded doc of record is on the site), and every internal link resolves.
+> 5. **Hard fail on ratification, no grace period** — the check is a hard failure from the moment this amendment is ratified, for existing repos too. Spoke fan-out PRs, one repo per PR, bring failing repos into compliance; until a repo's PR lands, that repo fails the check.
 > 6. **Settings are Amr's** — enabling Pages, choosing the source branch and setting a custom domain are repo settings that only Amr changes. An agent's PR may add the workflow and config but never flips a setting.
 
 ## Consequences
@@ -41,4 +41,6 @@ Add constitution § 14 "Public documentation site" with this text:
 - Follow-up: a reusable `docs-site.yml` workflow in `bamr87/.github` that builds Pages with the zer0 remote theme from the UPS-DOC index and honours `.siteignore`. It is not built in this PR.
 - Follow-up: the `UPS-DOC-SITE` conformance check id and its row in `specs/DOCS.md` (feature `HUB-NEW:docs-site-conformance`).
 - Follow-up: Amr enables Pages per repo. The fan-out PRs list which repos need it and which repos are private.
+- Follow-up (migration): the `projects/README` (bamr87/README) MkDocs site migrates to Jekyll with the zer0 theme. Until it does, it fails the check.
+- Impact on ratification: the read-only scan of 2026-10-30 found 37 of 43 registry repos would fail at once. See the PR body.
 - Merging the pull request that carries this record ratifies it. An agent never merges it.
