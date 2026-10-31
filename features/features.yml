@@ -862,3 +862,78 @@ features:
     - na: planned; the check lands in a follow-up PR
     prd:
     - FR48
+  - id: HUB-052
+    title: Backstage catalog-info.yaml export of the registry
+    description: tools/dash-gen catalog-info projects _data/projects.yml into a generated, drift-gated catalog-info.yaml
+      (one Backstage Component per repo, lifecycle from registry status) for interop with Backstage, Port
+      and Cortex (bamr87/bamr87#516).
+    implemented: false
+    status: planned
+    surface: infra
+    link: .github/scripts/dash-gen
+    docs: docs/DASH.md
+    tags:
+    - registry
+    - catalog
+    - interop
+    date: 2026-10-31
+    tests:
+    - .github/scripts/dash-gen/test_catalog_info.py
+    prd:
+    - FR49
+  - id: HUB-053
+    title: 'Fan-out campaigns page: per-repo PR, CI and merge state per kit rollout'
+    description: Each fanout.sh --apply run records a campaign (kit, version, targets, PRs); a read-only
+      /campaigns console page rolls up PR, CI and merge state per repo, Batch Changes-style (bamr87/bamr87#517).
+    implemented: false
+    status: planned
+    surface: ui
+    link: tools/fanout.sh
+    docs: docs/STANDARDS.md
+    tags:
+    - fanout
+    - console
+    - campaigns
+    date: 2026-10-31
+    tests:
+    - tools/test_campaigns.py
+    prd:
+    - FR50
+  - id: HUB-054
+    title: Tag selectors for --target
+    description: The --target flag accepts selectors resolved from _data/projects.yml (tag:python, lang:js,
+      group:sites, !name) through one shared resolver, printing the resolved list in dry-run, mani/gita-style
+      (bamr87/bamr87#519).
+    implemented: false
+    status: planned
+    surface: cli
+    link: tools/fanout.sh
+    docs: docs/DASH.md
+    tags:
+    - fanout
+    - cli
+    - selectors
+    date: 2026-10-31
+    tests:
+    - tools/test_target_selectors.py
+    prd:
+    - FR51
+  - id: HUB-055
+    title: Copier-style 3-way kit upgrade for hand-edited files
+    description: 'A per-repo .fleet/kits.yml answers file records kit, version and hub commit; fanout.sh
+      --upgrade --merge opens a 3-way-merged PR for hand-modified seeds and surfaces conflicts as a draft
+      for human review; the remainder of #127 (bamr87/bamr87#518).'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/fanout.sh
+    docs: docs/STANDARDS.md
+    tags:
+    - fanout
+    - kits
+    - upgrade
+    date: 2026-10-31
+    tests:
+    - tools/test_fanout.py
+    prd:
+    - FR52
