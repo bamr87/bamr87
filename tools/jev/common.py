@@ -78,11 +78,16 @@ def run(argv: list[str], cwd: Path | None = None, env: dict | None = None,
     is the child's WHOLE environment: a merge can add a variable but never
     remove one, and an environment built to keep credentials out has to be
     able to say "not this one".
+
+    With no `stdin` the child reads /dev/null, never the caller's stdin: an
+    inherited pipe nobody writes to blocks a child that reads it forever, and
+    an inherited terminal hands the operator's keystrokes to a tool JEV runs.
     """
     merged = {**os.environ, **(env or {})} if inherit_env else dict(env or {})
+    feed = {"input": stdin} if stdin is not None else {"stdin": subprocess.DEVNULL}
     try:
         proc = subprocess.run(  # noqa: S603 - argv is a list, never a shell string
-            argv, cwd=str(cwd) if cwd else None, env=merged, input=stdin,
+            argv, cwd=str(cwd) if cwd else None, env=merged, **feed,
             capture_output=True, text=True, timeout=timeout, check=False)
     except FileNotFoundError as exc:
         return Run(127, "", str(exc))
