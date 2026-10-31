@@ -1,7 +1,7 @@
 id: HUB-NEW
 slug: major-change-evidence
-title: "Major-change evidence: tests, visual before/after, completeness review"
-description: "Major PRs carry test evidence and a green CI link; every frontend-impacting PR carries before/after visual evidence at two or more viewports; a skilled reviewer (never the author) checks completeness. Enforced by HUB-NEW:evidence-conformance."
+title: "Major-change evidence: JEV-judged major PRs, tests, visual before/after, JEV + QA Lead review"
+description: "Major PRs carry test evidence and a green CI link; every frontend-impacting PR carries before/after visual evidence at two or more viewports; JEV and QA Lead (never the author) check completeness; JEV judges what is major (interim: heuristics plus reviewer, when in doubt major). Enforced by HUB-NEW:evidence-conformance."
 implemented: false
 status: planned
 surface: infra
@@ -15,4 +15,4 @@ prd: ["FR-NEW:major-change-evidence"]
 prd_new:
   - key: major-change-evidence
     kind: FR
-    text: "A major PR (per constitution § 15.1) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by a qualified reviewer who is not its author (see HUB-NEW:evidence-conformance)."
+    text: "A PR judged major by JEV (or labelled major; interim: heuristics plus reviewer, when in doubt major) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by JEV and QA Lead, neither being its author (interim: QA Lead alone, then Amr) (see HUB-NEW:evidence-conformance)."
