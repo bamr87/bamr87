@@ -130,3 +130,14 @@ The console may write to GitHub Projects (v2), issues and pull requests across e
 5. **Idempotent and capped** — already-satisfied ops are no-ops; at most 50 ops per plan and 200 per hour.
 6. **Audited** — one append-only JSONL record per op (who, when, plan, before, after, result), token values redacted.
 7. **Scoped token** — a dedicated `PROJECTS_TOKEN` (`read:project`/`project`, `read:org`, issues and pull requests read/write on registry repos), held in the console's credential store or an Actions secret, never printed or committed; only Amr provisions it.
+
+## 14. Public documentation site
+
+_(amendment `public-docs-site`, numbered at merge — see the [amendment log](amendments/README.md); section number contingent on § 12 from `agent-merge-review-gate` (#481) and § 13 from `eval-baseline-risk-tiers` (#482) landing first; extends UPS-DOC)_
+
+1. **A public site** — every fleet repo publishes a public site at `<owner>.github.io/<repo>` (a custom domain on that Pages site is compliant) with all its documentation (README, AGENTS.md, CHANGELOG, `docs/`, plus the PRD, feature catalog, constitution and amendments where they exist). It is built only with GitHub Pages and the zer0 theme (`remote_theme: bamr87/zer0-mistakes`), with no MkDocs or other generators, and uses the UPS-DOC docs index as its page set.
+2. **Exclusions** — secrets are never published; internal docs are excluded by front matter `site: exclude` or a root `.siteignore` glob list, projected into Jekyll `exclude:`.
+3. **Private repos** — they fail the check and are flagged for Amr; an agent never makes one public, and their Actions spend stays $0.
+4. **Conformance** — `tools/conformance.py` (via `check-drift.sh`) checks that the site exists, uses the zer0 theme, has a complete docs index and has links that resolve.
+5. **Rollout** — the check is warn-only for a repo until its spoke fan-out PR (one repo per PR) lands, then a hard failure for that repo.
+6. **Settings are Amr's** — Pages enablement and any repo setting are changed only by Amr.
