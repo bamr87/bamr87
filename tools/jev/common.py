@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import functools
 import json
+import math
 import os
 import platform
 import re
@@ -624,30 +625,55 @@ def load_fleet(path: Path | None = None) -> dict:
     return yaml.safe_load(p.read_text(encoding="utf-8")) or {}
 
 
+def finite_usd(value, what: str) -> float:
+    """A dollar cap or ceiling that bounds something: a finite number above 0.
+    YAML reads `.inf` and `.nan`; an infinite ceiling affords every attempt,
+    and one NaN makes every comparison with it false, which reads as "fits"."""
+    if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+            or value <= 0):
+        raise JevError(f"{what} must be a finite number above 0, not {value!r}")
+    return float(value)
+
+
 def load_config(fleet: dict | None = None) -> JevConfig:
-    """Read `jev:` and `budget.jev:` into one object with the defaults applied."""
+    """Read `jev:` and `budget.jev:` into one object with the defaults applied.
+    Money that is set but bounds nothing is refused, never defaulted:
+    `monthly_usd` and every tier cap must be a finite number above 0,
+    `scheduled_stop_pct` an integer in 1..100, and a tier that names a model
+    must have a cap."""
     data = fleet if fleet is not None else load_fleet()
     jev = (data.get("jev") or {})
     budget = ((data.get("budget") or {}).get("jev") or {})
     tiers: dict[str, TierPolicy] = {}
     for name, spec in (jev.get("tiers") or {}).items():
         spec = spec or {}
+        model = str(spec.get("model") or "")
+        cap = budget.get(f"{name}_usd", spec.get("max_usd"))
+        if cap is None and not model:
+            max_usd = 0.0      # a tier that buys no model spends nothing
+        else:
+            max_usd = finite_usd(cap, f"_data/fleet.yml budget.jev.{name}_usd (the {name} attempt cap)")
         tiers[str(name)] = TierPolicy(
             name=str(name),
-            model=str(spec.get("model") or ""),
+            model=model,
             max_files=int(spec.get("max_files") or 0),
             max_lines=int(spec.get("max_lines") or 0),
-            max_usd=float(budget.get(f"{name}_usd", spec.get("max_usd") or 0.0)),
+            max_usd=max_usd,
             max_turns=int(spec.get("max_turns") or 0),
         )
+    pct = budget.get("scheduled_stop_pct", 80)
+    if isinstance(pct, bool) or not isinstance(pct, int) or not 0 < pct <= 100:
+        raise JevError(f"_data/fleet.yml budget.jev.scheduled_stop_pct must be an integer in 1..100, not {pct!r} "
+                       "— a scheduled run stops there, below the monthly cap")
     return JevConfig(
         enabled=bool(jev.get("enabled", False)),
         orgs=[str(o) for o in (jev.get("orgs") or [])],
         allowed_authors=[str(a) for a in (jev.get("allowed_authors") or [])],
         scan_limit=int(jev.get("scan_limit") or 50),
         max_attempts=int(jev.get("max_attempts") or 2),
-        monthly_usd=float(budget.get("monthly_usd", 10)),
-        scheduled_stop_pct=int(budget.get("scheduled_stop_pct", 80)),
+        monthly_usd=finite_usd(budget.get("monthly_usd", 10),
+                               "_data/fleet.yml budget.jev.monthly_usd (the engine's monthly ceiling)"),
+        scheduled_stop_pct=pct,
         needs_human_label=str(jev.get("needs_human_label") or "jev:needs-human"),
         enforce_numbering=bool((jev.get("numbering") or {}).get("enforce", False)),
         tiers=tiers,

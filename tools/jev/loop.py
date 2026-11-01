@@ -427,8 +427,11 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
             raise JevError(f"the AI ledger {p} is {found}, not version {LEDGER_VERSION} — the monthly ceiling cannot "
                            "be judged; migrate it in place (moved aside, the month would read as $0)")
         rows = data.get("runs") or {}
+        if not isinstance(rows, dict):     # every row skipped would read as $0 spent
+            raise JevError(f"the AI ledger {p} has a `runs` that is a JSON {type(rows).__name__}, not an object — "
+                           "the monthly ceiling cannot be judged; repair it in place")
     spent = estimated = 0.0
-    for rec in rows.values() if isinstance(rows, dict) else []:
+    for rec in rows.values():
         if not isinstance(rec, dict) or rec.get("origin") != "local" or not rec.get("loop"):
             continue
         if _utc_month(str(rec.get("timestamp") or "")) != m:
@@ -437,8 +440,7 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
         spent += cost
         if rec.get("cost_source") == "estimated":
             estimated += cost
-    ledgered = {str(r.get("attempt_id")) for r in (rows.values() if isinstance(rows, dict) else [])
-                if isinstance(r, dict) and r.get("attempt_id")}
+    ledgered = {str(r.get("attempt_id")) for r in rows.values() if isinstance(r, dict) and r.get("attempt_id")}
     for rec in _unledgered_rows(unledgered_path(p)):
         if str(rec.get("attempt_id")) in ledgered or _utc_month(str(rec.get("timestamp") or "")) != m:
             continue
@@ -463,10 +465,13 @@ def _spend(value) -> float | None:
 
 def _ledger_cost(rec: dict, p: Path) -> float:
     """A ledger row's cost; an unreadable figure is charged at its cap, and one
-    with no readable cap either refuses like an unreadable ledger."""
+    with no readable cap either refuses like an unreadable ledger. Only a
+    finite cap above 0 stands in: a missing, null or $0 cap would charge the
+    row $0, which is room, not a charge (ai-run writes the positive cap it
+    handed claude on every row)."""
     cost = _spend(rec.get("total_cost_usd") or 0.0)
     if cost is None:
-        cost = _spend(rec.get("cap_usd") or 0.0)
+        cost = _spend(rec.get("cap_usd")) or None
     if cost is None:
         raise JevError(f"the AI ledger {p} has a row ({rec.get('session_id') or rec.get('attempt_id') or '?'}) whose "
                        "cost and cap are both unreadable — the monthly ceiling cannot be judged; repair it in place")
@@ -2777,23 +2782,39 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
 
 def cmd_budget(args: argparse.Namespace) -> int:
-    """The month against budget.loops, beside JEV conflicts' budget.jev."""
+    """The month against budget.loops, beside JEV conflicts' budget.jev, and
+    whether the two caps together fit inside harnesses.budget.monthly_ai_usd:
+    exit 1 (attention) when they do not, or when that ceiling is not a finite
+    number above 0 and so cannot be judged."""
     fleet = load_fleet()
     loops = budget_position(fleet, scheduled=args.scheduled)
     conflicts = budget_state(load_config(fleet), Ledger.load(), scheduled=args.scheduled, month=loops.month)
     ceiling = (((fleet.get("harnesses") or {}).get("budget") or {}).get("monthly_ai_usd"))
+    limit = (float(ceiling) if isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool)
+             and math.isfinite(ceiling) and ceiling > 0 else None)
+    together = round(loops.cap_usd + conflicts.cap_usd, 4)
+    inside = limit is not None and together <= limit
     out = {"label": f"{COST_LABEL} — a throughput ceiling under OAuth, not an invoice",
            "loops": {**_budget_dict(loops), "ledger": str(ledger_path())},
-           "jev_conflicts": _budget_dict(conflicts), "monthly_ai_usd": ceiling}
+           "jev_conflicts": _budget_dict(conflicts),
+           "monthly_ai_usd": limit if limit is not None or ceiling is None else str(ceiling),
+           "caps_usd": together, "inside_monthly_ai_usd": inside}
+    code = EXIT["ok"] if inside else EXIT["attention"]
     if args.json:
         print(json.dumps(out, indent=2, sort_keys=True))
-        return EXIT["ok"]
+        return code
     print(f"loops (budget.loops)        {loops.summary()}")
     print(f"jev conflicts (budget.jev)  {conflicts.summary()}")
-    if ceiling is not None:
-        print(f"both inside harnesses.budget.monthly_ai_usd ${float(ceiling):g}")
+    if inside:
+        print(f"both inside harnesses.budget.monthly_ai_usd ${limit:g} (${together:g} together)")
+    elif limit is None:
+        print(f"the fleet ceiling cannot be judged: harnesses.budget.monthly_ai_usd is {ceiling!r}, not a finite "
+              "number above 0")
+    else:
+        print(f"EXCEED harnesses.budget.monthly_ai_usd ${limit:g}: budget.loops ${loops.cap_usd:g} + budget.jev "
+              f"${conflicts.cap_usd:g} = ${together:g}")
     print(f"{out['label']}")
-    return EXIT["ok"]
+    return code
 
 
 # --------------------------------------------------------------------------- #

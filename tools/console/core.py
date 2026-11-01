@@ -37,6 +37,7 @@ import datetime as dt
 import io
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -2044,6 +2045,8 @@ def _coerce(key: str, value):
             f = float(value)
         except (TypeError, ValueError):
             raise ValueError(f"{key} must be a number")
+        if not math.isfinite(f):     # "inf" and "nan" parse; a .inf ceiling bounds nothing
+            raise ValueError(f"{key} must be a finite number")
         if f < 0:
             raise ValueError(f"{key} must be >= 0")
         return int(f) if f.is_integer() else f

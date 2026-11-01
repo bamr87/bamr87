@@ -34,7 +34,7 @@ python3 -m tools.jev loop run repo-scout --target SCHEMA             # one cappe
 python3 -m tools.jev loop run repo-scout --target SCHEMA --apply     # … and file the preview in the same run
 python3 -m tools.jev loop publish <run_id> --apply      # file a reviewed earlier dry run (once)
 python3 -m tools.jev loop show --latest
-python3 -m tools.jev loop budget                        # the month against budget.loops and budget.jev
+python3 -m tools.jev loop budget                        # the month against budget.loops and budget.jev; exit 1 when together they exceed harnesses.budget.monthly_ai_usd
 ```
 
 Run from the repository root — `tools.jev` is imported as a package, so `python3 tools/jev/conflicts.py` will not work.
@@ -112,7 +112,7 @@ Every tier resolves the same way: **merge the base into the head** with a merge 
 - **Never touches settings, secrets or branch protection.**
 - **Only same-repo branches, only listed authors.** A fork's branch and a human collaborator's branch are tier 3 by policy (`jev.allowed_authors`), because JEV pushes to the head branch.
 - **Runs only the tiers it is given.** `jev.auto_tiers` (today `[tier0]`) — anything above is labelled `jev:needs-human` rather than sent to a model.
-- **Stops at the money.** `budget.jev.monthly_usd` is the ceiling; a scheduled run stops at `scheduled_stop_pct` of it so a human's manual run still has budget on the 28th.
+- **Stops at the money.** `budget.jev.monthly_usd` is the ceiling; a scheduled run stops at `scheduled_stop_pct` of it so a human's manual run still has budget on the 28th. A ceiling or tier cap that is not a finite number above 0, a stop outside 1..100, and a ledger `cost_usd` that is not a finite figure of 0 or more are refused, never read as room.
 
 ## Cost
 

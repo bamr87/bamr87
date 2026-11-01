@@ -51,7 +51,9 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 
 from __future__ import annotations
 
+import copy
 import json
+import math
 import re
 import sys
 import tempfile
@@ -558,9 +560,10 @@ def check_loops_budget(fleet: dict) -> None:
     budget = fleet.get("budget") or {}
     loops = budget.get("loops") or {}
     usd, pct = loops.get("monthly_usd"), loops.get("scheduled_stop_pct")
-    check("budget.loops declares a positive monthly_usd", isinstance(usd, (int, float)) and usd > 0)
-    check("budget.loops.scheduled_stop_pct is in 1..100", isinstance(pct, int) and 0 < pct <= 100)
-    if not isinstance(usd, (int, float)):
+    check("budget.loops declares a finite monthly_usd above 0", _bounds(usd))
+    check("budget.loops.scheduled_stop_pct is in 1..100",
+          isinstance(pct, int) and not isinstance(pct, bool) and 0 < pct <= 100)
+    if not _bounds(usd):
         return
     sites = budget.get("call_sites") or {}
     local = []
@@ -571,21 +574,55 @@ def check_loops_budget(fleet: dict) -> None:
     check("at least one step spec runs locally (a local: block)", bool(local))
     for site in local:
         cap = sites.get(site)
-        check(f"local step {site} has a budget.call_sites cap", isinstance(cap, (int, float)) and cap > 0)
+        check(f"local step {site} has a budget.call_sites cap", _bounds(cap))
         check(f"budget.loops (${usd:g}) covers one full-cap attempt of {site} (${cap})",
-              isinstance(cap, (int, float)) and usd >= cap)
-    jev = (budget.get("jev") or {}).get("monthly_usd") or 0
+              _bounds(cap) and usd >= cap)
+    jev = (budget.get("jev") or {}).get("monthly_usd")
     ceiling = ((fleet.get("harnesses") or {}).get("budget") or {}).get("monthly_ai_usd")
-    check("harnesses.budget.monthly_ai_usd is declared", isinstance(ceiling, (int, float)) and ceiling > 0)
-    if isinstance(ceiling, (int, float)):
+    check("budget.jev declares a finite monthly_usd above 0", _bounds(jev))
+    check("harnesses.budget.monthly_ai_usd is declared, a finite number above 0", _bounds(ceiling))
+    if _bounds(jev) and _bounds(ceiling):
         check(f"budget.loops + budget.jev (${usd + jev:g}) stay inside harnesses.budget.monthly_ai_usd "
               f"(${ceiling:g})", usd + jev <= ceiling)
+
+
+def _bounds(value) -> bool:
+    """A cap or ceiling that bounds something: a finite number above 0. YAML's
+    `.inf` passes `> 0`, and `x <= inf` is always true, so a bare `> 0` gate
+    over an infinite ceiling holds nothing."""
+    return (isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+            and value > 0)
+
+
+def check_loops_budget_gate(fleet: dict) -> None:
+    """The ceiling gate above is itself held: run on a copy of the fleet whose
+    money bounds nothing, it must fail. The console's config form is one way
+    such a value reaches `_data/fleet.yml`."""
+    ceiling, loops, jev = ("harnesses", "budget", "monthly_ai_usd"), ("budget", "loops", "monthly_usd"), \
+        ("budget", "jev", "monthly_usd")
+    cases = (("harnesses.budget.monthly_ai_usd .inf", [(ceiling, math.inf)]),
+             ("harnesses.budget.monthly_ai_usd .nan", [(ceiling, math.nan)]),
+             ("budget.loops.monthly_usd and the ceiling .inf", [(loops, math.inf), (ceiling, math.inf)]),
+             ("budget.jev.monthly_usd 'lots'", [(jev, "lots")]))
+    for label, edits in cases:
+        trial = copy.deepcopy(fleet)
+        for path, value in edits:
+            node = trial
+            for key in path[:-1]:
+                node = node.setdefault(key, {})
+            node[path[-1]] = value
+        mark = len(CHECKS)
+        check_loops_budget(trial)
+        verdicts = CHECKS[mark:]
+        del CHECKS[mark:]
+        check(f"the loops ceiling gate fails a fleet with {label}", any(not ok for _, ok in verdicts))
 
 
 def main() -> int:
     fleet = yaml.safe_load(FLEET.read_text(encoding="utf-8"))
     check_workflows(fleet)
     check_loops_budget(fleet)
+    check_loops_budget_gate(fleet)
     check_abort_contract(call_sites())
     check_ledger()
     check_wrapper()
