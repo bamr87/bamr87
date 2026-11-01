@@ -38,6 +38,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+import math
 import os
 import platform
 import re
@@ -328,10 +329,10 @@ def loops_budget(fleet: dict) -> tuple[float, int]:
     """`_data/fleet.yml` `budget.loops`: (monthly_usd, scheduled_stop_pct)."""
     b = ((fleet.get("budget") or {}).get("loops") or {})
     usd, pct = b.get("monthly_usd"), b.get("scheduled_stop_pct")
-    if (not isinstance(usd, (int, float)) or isinstance(usd, bool) or usd <= 0
+    if (not isinstance(usd, (int, float)) or isinstance(usd, bool) or not math.isfinite(usd) or usd <= 0
             or not isinstance(pct, int) or isinstance(pct, bool) or not 0 < pct <= 100):
-        raise StepSpecError("_data/fleet.yml budget.loops needs monthly_usd > 0 and scheduled_stop_pct in 1..100 "
-                            "— the local loops' monthly ceiling")
+        raise StepSpecError("_data/fleet.yml budget.loops needs a finite monthly_usd > 0 and scheduled_stop_pct in "
+                            "1..100 — the local loops' monthly ceiling")
     return float(usd), pct
 
 
@@ -403,10 +404,7 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
             continue
         if _utc_month(str(rec.get("timestamp") or "")) != m:
             continue
-        try:
-            cost = float(rec.get("total_cost_usd") or 0.0)
-        except (TypeError, ValueError):
-            cost = float(rec.get("cap_usd") or 0.0)   # an unreadable figure is charged at its cap
+        cost = _ledger_cost(rec, p)
         spent += cost
         if rec.get("cost_source") == "estimated":
             estimated += cost
@@ -420,6 +418,30 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
             estimated += rec["cost_usd"]
     return BudgetState(month=m, spent_usd=round(spent, 4), estimated_usd=round(estimated, 4), cap_usd=cap,
                        stop_usd=round(cap * pct / 100.0, 4), scheduled=scheduled)
+
+
+def _spend(value) -> float | None:
+    """A spend figure the ceiling can add: finite and not negative. JSON reads
+    `NaN` and `Infinity`, and one NaN would make every later comparison with
+    the ceiling false, which reads as "fits"; a negative figure would give
+    spend back."""
+    try:
+        cost = float(value)
+    except (TypeError, ValueError):
+        return None
+    return cost if math.isfinite(cost) and cost >= 0 else None
+
+
+def _ledger_cost(rec: dict, p: Path) -> float:
+    """A ledger row's cost; an unreadable figure is charged at its cap, and one
+    with no readable cap either refuses like an unreadable ledger."""
+    cost = _spend(rec.get("total_cost_usd") or 0.0)
+    if cost is None:
+        cost = _spend(rec.get("cap_usd") or 0.0)
+    if cost is None:
+        raise JevError(f"the AI ledger {p} has a row ({rec.get('session_id') or rec.get('attempt_id') or '?'}) whose "
+                       "cost and cap are both unreadable — the monthly ceiling cannot be judged; repair it in place")
+    return cost
 
 
 def _unledgered_rows(p: Path) -> list[dict]:
@@ -437,7 +459,10 @@ def _unledgered_rows(p: Path) -> list[dict]:
             continue
         try:
             rec = json.loads(line)
-            rec["cost_usd"] = float(rec["cost_usd"])
+            cost = _spend(rec["cost_usd"])
+            if cost is None:
+                raise ValueError(f"cost_usd {rec['cost_usd']!r} is not a finite figure of 0 or more")
+            rec["cost_usd"] = cost
         except (ValueError, TypeError, KeyError) as exc:
             raise JevError(f"{p} line {n} cannot be read ({exc}) — the monthly ceiling cannot be judged; repair "
                            "the line, never drop it (it is this month's spend)") from exc

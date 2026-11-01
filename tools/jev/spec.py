@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import re
 import sys
 from collections.abc import Collection, Mapping
@@ -304,7 +305,8 @@ def _positive_int(value: object) -> TypeGuard[int]:
 
 
 def _positive_number(value: object) -> TypeGuard[int | float]:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+    """Finite too: YAML's `.inf` passes `> 0`, and a cap of it caps nothing."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
 
 def resolve(fleet: Mapping, *, model_from: str, max_turns_from: str, call_site: str,

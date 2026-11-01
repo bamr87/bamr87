@@ -1887,6 +1887,46 @@ def test_budget_position_counts_by_utc_month_and_refuses_a_foreign_ledger():
     assert L.LEDGER_VERSION == ai_activity.LEDGER_VERSION
 
 
+def test_a_ceiling_or_a_spend_figure_that_is_not_finite_never_reads_as_room():
+    # one NaN makes every comparison with the ceiling false ("fits"); .inf caps nothing
+    for usd in (float("inf"), float("nan"), 0, -1, True):
+        f = S.load_fleet()
+        f["budget"]["loops"]["monthly_usd"] = usd
+        try:
+            L.loops_budget(f)
+        except S.StepSpecError as exc:
+            assert "finite monthly_usd" in str(exc), exc
+        else:
+            raise AssertionError(f"budget.loops.monthly_usd {usd!r} was accepted")
+    box = Box()
+    row = {"origin": "local", "loop": "repo-scout", "cost_source": "reported", "timestamp": L.now_utc().isoformat()}
+    with world(box):
+        # an unreadable figure is charged at its cap; a non-finite or negative one is unreadable
+        _seed_ledger(box, [{**row, "session_id": "a", "total_cost_usd": float("nan"), "cap_usd": 8.0},
+                           {**row, "session_id": "b", "total_cost_usd": float("inf"), "cap_usd": 8.0},
+                           {**row, "session_id": "c", "total_cost_usd": -50.0, "cap_usd": 8.0},
+                           {**row, "session_id": "d", "total_cost_usd": 1.5}])
+        assert L.budget_position(S.load_fleet(), scheduled=False).spent_usd == 25.5
+        _seed_ledger(box, [{**row, "session_id": "e", "total_cost_usd": float("nan"), "cap_usd": float("inf")}])
+        try:
+            L.budget_position(S.load_fleet(), scheduled=False)
+        except common.JevError as exc:
+            assert "cannot be judged" in str(exc), exc
+        else:
+            raise AssertionError("a row with no readable cost or cap read as room")
+        _seed_ledger(box, [])
+        unledgered = L.unledgered_path(box.root / "ledger.json")
+        for bad in ('{"cost_usd": NaN, "attempt_id": "x"}', '{"cost_usd": Infinity}', '{"cost_usd": -3}'):
+            unledgered.write_text(bad + "\n")
+            try:
+                L.budget_position(S.load_fleet(), scheduled=False)
+            except common.JevError as exc:
+                assert "cannot be judged" in str(exc), exc
+            else:
+                raise AssertionError(f"the unledgered line {bad} read as room")
+        unledgered.unlink()
+
+
 def test_an_unreadable_ledger_stays_unreadable_after_a_writer_tried_it():
     box = Box()
     sys.path.insert(0, str(HUB / ".github" / "scripts" / "dash-gen"))

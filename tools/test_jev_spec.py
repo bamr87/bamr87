@@ -161,6 +161,8 @@ def test_a_missing_or_invalid_fleet_reference_is_refused_and_reported():
         (lambda f: f["budget"]["call_sites"].pop(site), "budget.call_sites has no"),
         (lambda f: f["budget"]["call_sites"].update({site: 0}), "not a positive number"),
         (lambda f: f["budget"]["call_sites"].update({site: "8"}), "not a positive number"),
+        (lambda f: f["budget"]["call_sites"].update({site: float("inf")}), "not a positive number"),
+        (lambda f: f["budget"]["call_sites"].update({site: float("nan")}), "not a positive number"),
         (lambda f: f["scout"].pop("model"), "has no `scout.model`"),
         (lambda f: f["scout"].pop("max_turns"), "has no `scout.max_turns`"),
     ]
