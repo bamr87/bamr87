@@ -62,6 +62,7 @@ from collections import deque
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 from . import adapters, headless
 from . import context as cpack
@@ -106,7 +107,9 @@ CONTEXT_GRACE_S = 30
 #: transcripts (claude_projects_dir() → the lake, nothing else written;
 #: dash-gen fleet_lake cmd_sessions). Never `lake sync`, which reads GitHub.
 REFRESH_ARGV = ("lake", "sessions")
-#: `loop doctor`'s one code-index probe query (an Ollama embedding, local and $0)
+#: `loop doctor`'s one code-index probe query (an Ollama embedding, local and $0). It
+#: proves Qdrant and Ollama answer: a search that answers is an index that is UP,
+#: hit or no hit (with no query the planes would not ask the index at all)
 DOCTOR_QUERY = "the loop runner and its context pack"
 
 
@@ -1339,10 +1342,18 @@ def doctor_planes(fleet: dict, spec: StepSpec) -> dict:
     for k, sec in doc["sections"].items():
         note = str(sec.get("note") or "")
         found = REFRESH_CMD_RX.search(note)
-        out["sections"][k] = {"status": sec.get("status"), "age_hours": _finite(sec.get("age_hours")),
-                              "as_of": sec.get("as_of"), "refresh": found.group(1) if found else None,
-                              "note": " ".join(note.split())[:200]}
+        entry = {"status": sec.get("status"), "age_hours": _finite(sec.get("age_hours")),
+                 "as_of": sec.get("as_of"), "refresh": found.group(1) if found else None,
+                 "note": " ".join(note.split())[:200]}
+        if k == "index_code":   # the probe query was searched: answered is up, whether or not it hit
+            entry["up"] = sec.get("status") in ("ok", "empty") and "holds no chunks" not in note
+        out["sections"][k] = entry
     return out
+
+
+def host_ctx() -> SimpleNamespace:
+    """What `context.redact` reads to mask this machine, without a RunContext."""
+    return SimpleNamespace(home=Path.home(), work_root=headless.work_root(), hostname=platform.node().split(".")[0])
 
 
 # --------------------------------------------------------------------------- #
@@ -2580,7 +2591,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             report["context_planes"] = doctor_planes(fleet, specs[0])
         # a diagnostic section, never a reason for doctor to fail: its exit code stays the host checks'
         except Exception as exc:  # noqa: BLE001
-            report["context_planes"] = {"problem": f"{type(exc).__name__}: {exc}"[:300], "sections": {}}
+            said = cpack.redact(" ".join(f"{type(exc).__name__}: {exc}".split()), host_ctx())
+            report["context_planes"] = {"problem": said[:300], "sections": {}}
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True, default=str))
         return worst
@@ -2604,8 +2616,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print(f"  · {planes['problem']}")
         for k, sec in (planes.get("sections") or {}).items():
             age = sec.get("age_hours")
-            line = f"  · {k} {sec.get('status')}" + (f" ({age:.0f} h old)" if age is not None else "")
-            if sec.get("status") != "ok":
+            status = "up" if sec.get("up") else sec.get("status")
+            line = f"  · {k} {status}" + (f" ({age:.0f} h old)" if age is not None else "")
+            if status == "unavailable" and sec.get("note"):
+                line += f" — {sec['note']}"   # the reason first: "no lake at …", and the note's own remedy
+            elif status == "up":
+                line += f" — the search answered; {sec['note']}" if sec.get("note") else " — the search answered"
+            elif status != "ok":
                 line += (f" — refresh: {sec['refresh']}" if sec.get("refresh") else
                          f" — {sec['note']}" if sec.get("note") else "")
             print(line)

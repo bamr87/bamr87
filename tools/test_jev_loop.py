@@ -2699,29 +2699,47 @@ def test_doctor_shows_the_context_planes_for_the_hub_and_keeps_its_exit_code():
     with world(box):
         code, out, _ = jev("doctor")
         assert code == 0 and "context planes (bamr87/bamr87;" in out and "· lake_issues empty" in out, out
+        # the probe query was searched and answered: no hit is still an index that is up
+        assert re.search(r"· index_code up .*— the search answered", out) and "index_code empty" not in out, out
         [call] = box.planes_calls()
         assert call[1:3] == ["--nwo=bamr87/bamr87", "--name=bamr87"] and f"--query={L.DOCTOR_QUERY}" in call, call
     with world(box, JEV_TEST_CONTEXT="down"):
         code, out, _ = jev("doctor")
         assert code == 0, "a plane that is down never changes doctor's exit code"
-        assert "· telemetry_errors unavailable — refresh: tools/dash observe up" in out, out
+        assert ("· telemetry_errors unavailable — Elasticsearch at 127.0.0.1:9200 refused the connection — run "
+                "`tools/dash observe up`") in out, out
+        assert "· index_code unavailable" in out and "index_code up" not in out, out
         code, out, _ = jev("doctor", "--json")
         planes = json.loads(out)["context_planes"]
         assert code == 0 and planes["sections"]["index_code"]["refresh"] == "tools/dash observe up", planes
+        assert planes["sections"]["index_code"]["up"] is False, planes["sections"]["index_code"]
         calls = len(box.planes_calls())
         code, out, _ = jev("doctor", "--context", "off")
         assert code == 0 and "context planes" not in out and len(box.planes_calls()) == calls
+    # no lake (a worktree, a clone): the reason and both remedies, not only "refresh: tools/dash lake sync"
+    no_lake = "no lake at <work>/.dash-lake/fleet.sqlite — run `tools/dash lake sync` (or point DASH_LAKE_DIR at one)"
+    lakeless = box.root / "lakeless.json"
+    lakeless.write_text(json.dumps({"schema": "fleet-context/v1", "generated_at": "2026-10-31T00:00:00Z",
+                                    "window_days": 30, "queries": [], "sections": {
+                                        k: {"status": "unavailable", "source": "lake", "as_of": None,
+                                            "age_hours": None, "note": no_lake, "elapsed_ms": 1, "truncated": 0,
+                                            "rows": []} for k in ("lake_issues", "lake_ci", "lake_agents")}}))
+    with world(box, JEV_TEST_CONTEXT=str(lakeless)):
+        code, out, _ = jev("doctor")
+    assert code == 0 and f"· lake_ci unavailable — {no_lake}" in out, out
     real = L.doctor_planes
 
     def boom(fleet, spec):
-        raise RuntimeError("an engine bug in the section")
+        raise RuntimeError(f"an engine bug in the section at {Path.home()}/secret")
     L.doctor_planes = boom
     try:
         with world(box):
             code, out, _ = jev("doctor")
+            _, js, _ = jev("doctor", "--json")
     finally:
         L.doctor_planes = real
-    assert code == 0 and "RuntimeError: an engine bug in the section" in out, out
+    assert code == 0 and "RuntimeError: an engine bug in the section at ~/secret" in out, out
+    assert str(Path.home()) not in out and str(Path.home()) not in js, "the problem is redacted like every plane text"
     with world(box, sandbox=False):
         assert jev("doctor")[0] == 4, "and a host problem still fails it"
 
