@@ -489,6 +489,9 @@ _VALUE_FLAGS = frozenset({
 })
 #: `python -m <module>`: the one value a head keeps, and only as a module name
 _MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,40}$")
+#: commands whose every argument is data (`echo <secret> | docker login
+#: --password-stdin`): the head is the command word alone
+_DATA_COMMANDS = frozenset({"echo", "printf", "print", "yes"})
 
 
 def _secretish(word: str) -> bool:
@@ -502,6 +505,8 @@ def _head_words(words: list[str]) -> list[str]:
     the head (`grep -q`, not `grep -q <pattern>`), except python's `-m <module>`."""
     if not words:
         return []
+    if _basename(words[0]) in _DATA_COMMANDS:
+        return [_basename(words[0])]
     out, flagged = [_basename(words[0])], False
     for w in words[1:]:
         if len(out) >= HEAD_TOKENS:
@@ -826,9 +831,12 @@ def github_freshness(conn: sqlite3.Connection, tables: set[str], nwo: str, now: 
 
 
 def sessions_as_of(conn: sqlite3.Connection, tables: set[str]) -> str | None:
-    """Lake-wide on purpose: `lake sessions` scans every transcript on the
-    machine and re-stamps only the changed ones, so the newest stamp is the
-    last import, and a repo with no new session since is fresh, not stale."""
+    """Lake-wide on purpose: a default `lake sessions` scans every transcript
+    on the machine and re-stamps only the changed ones, so the newest stamp is
+    the last import, and a repo with no new session since is fresh, not stale.
+    A `--repo` or `--limit` import advances the stamp too while reading only
+    part of the machine, so it can vouch for transcripts it never read; a
+    per-repo stamp needs an import ledger in fleet_lake."""
     if "sessions" not in tables:
         return None
     return iso_z(_scalar(conn, "SELECT MAX(synced_at) FROM sessions"))

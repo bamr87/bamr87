@@ -610,6 +610,11 @@ def test_command_head_examples():
         "curl --data-raw '{\"token\":\"abc\"}' https://x": "curl --data-raw",
         # positionals: lower-case subcommand words only, never an id or a password
         "echo npm_AbCdEf0123456789AbCdEf0123456789AbCd": "echo",
+        # a data-only command's arguments are data: the head is the command word alone
+        "echo hunter2 | docker login -u bamr87 --password-stdin": "echo",
+        "printf 'hunter2hunter2' | gh auth login --with-token": "printf",
+        "echo mysecretpassword > ~/.pgpass": "echo",
+        "/bin/echo -n hunter2": "echo",
         "redis-cli auth myredispassword123": "redis-cli auth",
         "cat ~/.claude/projects/-Users-bamr87-bamr87/0b9a4a4e-1f0e-4a5e-9d55-1f2e3d4c5b6a.jsonl": "cat",
         "ls -la local_2bc336f8-1234-4abc-9def-0123456789ab": "ls -la",
