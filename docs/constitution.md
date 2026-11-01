@@ -209,3 +209,14 @@ _(amendment `central-loop-switches`, numbered at merge — see the [amendment lo
 6. **Conformance** — the workflow atlas fails a scheduled or AI workflow without a switch; warn-only per repo until its fan-out PR lands, then a hard failure.
 7. **Exemptions** — workflows with no schedule and no AI call, and archived or retired repos, are exempt; any other exemption needs a reason the § 15 completeness review accepts.
 8. **No secrets** — no switch tool reads, prints or changes a secret.
+
+## 18. Fleet design consistency
+
+_(amendment `fleet-design-consistency`, numbered at merge — see the [amendment log](amendments/README.md); follows § 17 `central-loop-switches`; extends § 14 and § 15; roadmap FF-0032; plan [DESIGN-HARMONIZATION.md](DESIGN-HARMONIZATION.md))_
+
+1. **One design language** — every fleet front-end (apps, consoles, dashboards and public sites) uses the fleet's shared design tokens (colour, type, spacing, radius, motion), with light and dark themes.
+2. **One shell** — app front-ends use the shared app shell from the hub (the Harness Console shell, roadmap FF-0032): collapsible, manageable, customizable regions with the same navigation model. Jekyll sites keep the zer0 theme (§ 14), which consumes the same tokens.
+3. **Ownership** — the hub owns the tokens and the shell package; Sites owns the zer0 theme family; a repo may extend but not fork them.
+4. **Conformance** — `tools/conformance.py` check `design` verifies tokens and shell (or zer0) are used; warn-only per repo until its fan-out PR lands, then a hard failure.
+5. **Evidence** — design changes follow § 15 visual evidence.
+6. **Exemptions** — CLIs, libraries without UI, and archived or retired repos are exempt; any other exemption needs a reason the § 15 completeness review accepts.
