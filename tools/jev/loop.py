@@ -103,8 +103,8 @@ ALLOW_DIRTY_HELP = ("let --apply run with a dirty spec, adapter or engine (tools
 #: the engine's backstop beyond the planes' own --deadline-s (they bound themselves; a timeout is a plane problem)
 CONTEXT_GRACE_S = 30
 #: `--refresh-context`: the lake's LOCAL import of this machine's Claude Code
-#: transcripts (~/.claude → the lake, nothing else written; dash-gen
-#: fleet_lake cmd_sessions). Never `lake sync`, which reads GitHub.
+#: transcripts (claude_projects_dir() → the lake, nothing else written;
+#: dash-gen fleet_lake cmd_sessions). Never `lake sync`, which reads GitHub.
 REFRESH_ARGV = ("lake", "sessions")
 #: `loop doctor`'s one code-index probe query (an Ollama embedding, local and $0)
 DOCTOR_QUERY = "the loop runner and its context pack"
@@ -2137,25 +2137,41 @@ def cmd_run(args: argparse.Namespace) -> int:
             raise
 
 
+def claude_projects_dir() -> Path:
+    """This operator's Claude Code transcripts: `$CLAUDE_CONFIG_DIR/projects`,
+    else `~/.claude/projects`. Read from the ENGINE's environment and passed
+    as `--claude-dir`: the planes' environment (deterministic_env) drops
+    CLAUDE_CONFIG_DIR with every other auth override, and the lake would
+    fall back to ~/.claude."""
+    base = os.environ.get("CLAUDE_CONFIG_DIR")
+    return (Path(base).expanduser() if base else Path.home() / ".claude") / "projects"
+
+
 def refresh_context(ctx: RunContext, record: dict) -> None:
     """`--refresh-context`, once per run, before the first pack: the lake's
     LOCAL session import (`tools/dash-gen lake sessions`: this machine's
-    Claude Code transcripts into the lake, nothing else written), never `lake
-    sync`. A failed import is a note, never the run's failure — the pack
-    then reads the lake as it is (stale is reported, never fatal)."""
+    Claude Code transcripts, from `claude_projects_dir()`, into the lake,
+    nothing else written), never `lake sync`. A failed import, or one that
+    found no transcripts, is a note, never the run's failure — the pack then
+    reads the lake as it is (stale is reported, never fatal)."""
     if context_mode(ctx) == "off":
         record["notes"].append("--refresh-context: nothing to refresh, the context pack is off for this step")
         return
-    argv = [*REFRESH_ARGV, f"--days={context_settings(ctx.spec).days}", "--json"]
+    argv = [*REFRESH_ARGV, f"--claude-dir={claude_projects_dir()}", f"--days={context_settings(ctx.spec).days}",
+            "--json"]
     res = ctx.dash_gen(argv)
     doc = cpack.parse_document(res.out) or {}
     counts = {k: doc[k] for k in ("scanned", "sessions", "turns", "tool_calls", "skipped")
               if isinstance(doc.get(k), int) and not isinstance(doc.get(k), bool)}
-    record["context_refresh"] = {"argv": argv, "exit": res.code, **counts}
+    shown = [cpack.redact(a, ctx) for a in argv]   # the transcript directory is under the home
+    record["context_refresh"] = {"argv": shown, "exit": res.code, **counts}
+    said = " ".join(cpack.redact((res.err or res.out or "").strip()[-400:], ctx).split())[-200:]
     if res.code != 0:
-        said = cpack.redact((res.err or res.out or "").strip()[-400:], ctx)
-        record["notes"].append(f"--refresh-context: `tools/dash-gen {' '.join(argv)}` exited {res.code}"
-                               + (f": {' '.join(said.split())[-200:]}" if said.strip() else "")
+        record["notes"].append(f"--refresh-context: `tools/dash-gen {' '.join(shown)}` exited {res.code}"
+                               + (f": {said}" if said else "") + " — the pack reads the lake as it is")
+    elif not counts:   # `lake sessions --json` prints nothing when the directory is missing
+        record["notes"].append(f"--refresh-context: the lake's local session import found no transcripts at "
+                               f"{cpack.redact(str(claude_projects_dir()), ctx)}" + (f" ({said})" if said else "")
                                + " — the pack reads the lake as it is")
     else:
         record["notes"].append(f"--refresh-context: the lake's local session import read {counts.get('scanned', '?')}"

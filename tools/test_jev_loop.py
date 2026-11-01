@@ -19,6 +19,7 @@ Run: python3 tools/test_jev_loop.py
 """
 from __future__ import annotations
 
+import argparse
 import contextlib
 import copy
 import dataclasses
@@ -279,6 +280,8 @@ if sys.argv[1:2] in (["context"], ["lake"]):
     with open(os.environ["JEV_TEST_PLANES_LOG"], "a") as fh:
         fh.write(json.dumps(sys.argv[1:]) + "\n")
     if sys.argv[1] == "lake":
+        if os.environ.get("JEV_TEST_LAKE_SILENT"):   # as `lake sessions --json` with no transcript directory
+            sys.stderr.write("lake sessions: no transcripts at " + os.path.expanduser("~/x") + "\n"); sys.exit(0)
         print(json.dumps({"scanned": 3, "sessions": 2, "turns": 9, "tool_calls": 4, "skipped": 1,
                           "claude_dir": os.path.expanduser("~/.claude/projects")}, indent=2))
         sys.exit(int(os.environ.get("JEV_TEST_LAKE_EXIT") or 0))
@@ -2730,11 +2733,21 @@ def test_refresh_context_runs_the_local_session_import_once_and_is_never_schedul
         assert code == 0, err
         rec = box.last()
         assert len(rec["items"]) == 2 and all(i["status"] == "rehearsed" for i in rec["items"]), rec["items"]
-        assert box.planes_calls("lake") == [["lake", "sessions", "--days=30", "--json"]], "once, and never `lake sync`"
+        default = Path.home() / ".claude" / "projects"
+        [call] = box.planes_calls("lake")
+        assert call == ["lake", "sessions", f"--claude-dir={default}", "--days=30", "--json"], "once, never `lake sync`"
         rows = [json.loads(x)[0] for x in (box.root / "planes.jsonl").read_text().splitlines()]
         assert rows == ["lake", "context", "context"], "the import runs before the first pack"
-        assert rec["context_refresh"] == {"argv": ["lake", "sessions", "--days=30", "--json"], "exit": 0,
+        assert rec["context_refresh"] == {"argv": ["lake", "sessions", "--claude-dir=~/.claude/projects", "--days=30",
+                                                   "--json"], "exit": 0,
                                           "scanned": 3, "sessions": 2, "turns": 9, "tool_calls": 4, "skipped": 1}
+        # the argv is the real `dash-gen lake` parser's: a renamed flag fails here, not silently at run time
+        sys.path.insert(0, str(HUB / ".github" / "scripts" / "dash-gen"))
+        import fleet_lake
+        parser = argparse.ArgumentParser()
+        fleet_lake.add_arguments(parser)
+        ns = parser.parse_args(call[1:])
+        assert (ns.lake_cmd, ns.claude_dir, ns.days, ns.json) == ("sessions", str(default), 30, True), ns
         assert any("local session import read 3 transcript(s)" in n for n in rec["notes"]), rec["notes"]
         assert str(Path.home()) not in json.dumps(rec), "the import's claude_dir is not recorded"
         for argv, needle in ((["--scheduled"], "--refresh-context with --scheduled is refused"),
@@ -2751,6 +2764,15 @@ def test_refresh_context_runs_the_local_session_import_once_and_is_never_schedul
         rec = box.last()
         assert code == 0 and rec["items"][0]["status"] == "rehearsed", "a failed import is a note"
         assert any("exited 1" in n and "the lake as it is" in n for n in rec["notes"]), rec["notes"]
+    # the operator's CLAUDE_CONFIG_DIR is where the transcripts are, though the planes never see the variable
+    elsewhere = box.root / "claude-config"
+    with world(box, CLAUDE_CONFIG_DIR=str(elsewhere), JEV_TEST_LAKE_SILENT="1"):
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET, "--refresh-context")
+        rec = box.last()
+    assert box.planes_calls("lake")[-1][2] == f"--claude-dir={elsewhere / 'projects'}", box.planes_calls("lake")[-1]
+    assert code == 0 and rec["context_refresh"]["exit"] == 0 and "scanned" not in rec["context_refresh"], rec
+    assert any("found no transcripts at" in n for n in rec["notes"]), rec["notes"]
+    assert not any("read ? transcript" in n for n in rec["notes"]), rec["notes"]
     assert L.option_refusal(L.Options(context="sometimes"), verb="run").startswith("--context 'sometimes'")
     try:
         jev("run", "repo-scout", "--rehearse", "--context", "sometimes")
