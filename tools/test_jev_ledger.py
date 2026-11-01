@@ -10,6 +10,7 @@ Run: python3 tools/test_jev_ledger.py
 """
 from __future__ import annotations
 
+import math
 import sys
 import tempfile
 from pathlib import Path
@@ -120,9 +121,12 @@ def test_the_summary_says_what_was_estimated_and_where_the_run_stops():
     assert "$2.00" in text and "estimated" in text and "stops at $8.00" in text
 
 
-def test_the_hubs_own_configuration_keeps_jev_inside_the_fleet_budget():
-    cfg = load_config()
-    fleet_ceiling = float(load_fleet()["harnesses"]["budget"]["monthly_ai_usd"])   # read, never copied
+def _jev_inside_the_fleet_budget(fleet: dict) -> None:
+    cfg = load_config(fleet)
+    fleet_ceiling = fleet["harnesses"]["budget"]["monthly_ai_usd"]   # read, never copied
+    # `x <= .inf` is always true: an infinite ceiling would make the next line hold nothing
+    assert (isinstance(fleet_ceiling, (int, float)) and not isinstance(fleet_ceiling, bool)
+            and math.isfinite(fleet_ceiling)), f"harnesses.budget.monthly_ai_usd {fleet_ceiling!r} bounds nothing"
     assert 0 < cfg.monthly_usd <= fleet_ceiling
     assert 0 < cfg.monthly_stop_usd < cfg.monthly_usd
     for tier in ("tier1", "tier2"):
@@ -131,6 +135,22 @@ def test_the_hubs_own_configuration_keeps_jev_inside_the_fleet_budget():
         assert 0 < policy.max_usd < cfg.monthly_usd, f"{tier} attempt cap is not inside the month"
         assert policy.max_turns > 0, f"{tier} has no turn cap"
     assert cfg.tier("tier1").max_usd < cfg.tier("tier2").max_usd, "the cheap tier must be cheaper"
+
+
+def test_the_hubs_own_configuration_keeps_jev_inside_the_fleet_budget():
+    _jev_inside_the_fleet_budget(load_fleet())
+
+
+def test_a_fleet_ceiling_that_bounds_nothing_fails_the_configuration_check():
+    # the console's config form could write `monthly_ai_usd: .inf`, and this check passed it
+    for bad in (float("inf"), float("nan"), True, "200"):
+        fleet = load_fleet()
+        fleet["harnesses"]["budget"]["monthly_ai_usd"] = bad
+        try:
+            _jev_inside_the_fleet_budget(fleet)
+        except AssertionError:
+            continue
+        raise AssertionError(f"harnesses.budget.monthly_ai_usd {bad!r} passed the configuration check")
 
 
 def _refused(call, what: str, *needles: str) -> None:

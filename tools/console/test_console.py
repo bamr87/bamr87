@@ -548,6 +548,21 @@ def test_api_documents_are_json_serializable():
     json.dumps(core.workflow_atlas())
 
 
+def test_a_number_field_refuses_a_figure_that_is_not_finite():
+    # float() reads "inf" and "nan": a `.inf` budget.monthly_ai_usd would make every gate that holds
+    # spend inside it (test_ai_budget, test_jev_ledger) vacuous, since `x <= inf` is always true
+    for raw in ("inf", "nan", "Infinity", "-inf", float("inf"), float("nan")):
+        for key in ("budget.monthly_ai_usd", "harnesses.budget.monthly_ai_usd"):
+            try:
+                core._coerce(key, raw)
+            except ValueError as exc:
+                assert "finite" in str(exc), exc
+            else:
+                raise AssertionError(f"{key} accepted {raw!r}")
+    assert core._coerce("budget.monthly_ai_usd", "90") == 90
+    assert core._coerce("budget.monthly_ai_usd", "12.5") == 12.5
+
+
 def test_contract_editor_limits_and_preserves_comments():
     try:
         import ruamel.yaml  # noqa: F401
@@ -559,7 +574,8 @@ def test_contract_editor_limits_and_preserves_comments():
         fleet = tmp / "fleet.yml"
         shutil.copy(core.DATA / "fleet.yml", fleet)
         before = fleet.read_text()
-        for bad in ({"kit": "x"}, {"budget.monthly_ai_usd": -1}, {"exempt": ["../x"]},
+        for bad in ({"kit": "x"}, {"budget.monthly_ai_usd": -1}, {"budget.monthly_ai_usd": "inf"},
+                    {"budget.monthly_ai_usd": "nan"}, {"exempt": ["../x"]},
                     {"throughput.max_scheduled_ai_per_day_fleet": "lots"}):
             try:
                 core.update_contract(bad, fleet)
