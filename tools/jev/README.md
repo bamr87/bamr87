@@ -33,7 +33,7 @@ python3 -m tools.jev loop run repo-scout --target SCHEMA             # one cappe
 python3 -m tools.jev loop run repo-scout --target SCHEMA --apply     # … and file the preview in the same run
 python3 -m tools.jev loop publish <run_id> --apply      # file a reviewed earlier dry run (once)
 python3 -m tools.jev loop show --latest
-python3 -m tools.jev loop budget                        # the month against budget.loops and budget.jev
+python3 -m tools.jev loop budget                        # the month against budget.loops and budget.jev; exit 1 when together they exceed harnesses.budget.monthly_ai_usd
 ```
 
 Run from the repository root — `tools.jev` is imported as a package, so `python3 tools/jev/conflicts.py` will not work.

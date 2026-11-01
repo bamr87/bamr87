@@ -1874,7 +1874,8 @@ def test_budget_position_counts_by_utc_month_and_refuses_a_foreign_ledger():
                            {**row, "timestamp": east.isoformat(), "total_cost_usd": 100.0}])
         assert west.strftime("%Y-%m") != start.strftime("%Y-%m") == east.strftime("%Y-%m")
         assert L.budget_position(S.load_fleet(), scheduled=False).spent_usd == 3.0
-        for bad in ('{"version": 2, "runs": {}}', "[]", "null"):
+        listed = json.dumps({"version": 1, "runs": [{**row, "timestamp": east.isoformat(), "total_cost_usd": 24.0}]})
+        for bad in ('{"version": 2, "runs": {}}', "[]", "null", listed, '{"version": 1, "runs": "s0"}'):
             (box.root / "ledger.json").write_text(bad)
             try:
                 L.budget_position(S.load_fleet(), scheduled=False)
@@ -1907,13 +1908,17 @@ def test_a_ceiling_or_a_spend_figure_that_is_not_finite_never_reads_as_room():
                            {**row, "session_id": "c", "total_cost_usd": -50.0, "cap_usd": 8.0},
                            {**row, "session_id": "d", "total_cost_usd": 1.5}])
         assert L.budget_position(S.load_fleet(), scheduled=False).spent_usd == 25.5
-        _seed_ledger(box, [{**row, "session_id": "e", "total_cost_usd": float("nan"), "cap_usd": float("inf")}])
-        try:
-            L.budget_position(S.load_fleet(), scheduled=False)
-        except common.JevError as exc:
-            assert "cannot be judged" in str(exc), exc
-        else:
-            raise AssertionError("a row with no readable cost or cap read as room")
+        # only a finite cap above 0 stands in: a missing, null or $0 one would charge the row $0
+        for bad in ({"total_cost_usd": float("nan"), "cap_usd": float("inf")}, {"total_cost_usd": float("nan")},
+                    {"total_cost_usd": float("inf"), "cap_usd": 0}, {"total_cost_usd": -1, "cap_usd": None},
+                    {"total_cost_usd": "lots"}, {"total_cost_usd": float("nan"), "cap_usd": -8.0}):
+            _seed_ledger(box, [{**row, "session_id": "e", **bad}])
+            try:
+                L.budget_position(S.load_fleet(), scheduled=False)
+            except common.JevError as exc:
+                assert "cannot be judged" in str(exc), exc
+            else:
+                raise AssertionError(f"a row with no readable cost or cap read as room: {bad}")
         _seed_ledger(box, [])
         unledgered = L.unledgered_path(box.root / "ledger.json")
         for bad in ('{"cost_usd": NaN, "attempt_id": "x"}', '{"cost_usd": Infinity}', '{"cost_usd": -3}'):
@@ -2419,7 +2424,27 @@ def test_loop_budget_prints_both_ceilings_labelled():
     box = Box()
     with world(box):
         code, out, _ = jev("budget")
+        jcode, jout, _ = jev("budget", "--json")
     assert code == 0 and "budget.loops" in out and "budget.jev" in out and "API-equivalent (estimate)" in out
+    assert "both inside harnesses.budget.monthly_ai_usd" in out, out
+    assert jcode == 0 and json.loads(jout)["inside_monthly_ai_usd"] is True, jout
+
+
+def test_loop_budget_says_so_when_the_caps_exceed_the_fleet_ceiling_or_it_cannot_be_judged():
+    # it used to print "both inside" whenever the ceiling was set, comparing nothing
+    def jev_over(f: dict) -> None:
+        f["budget"]["jev"]["monthly_usd"] = 500
+
+    def no_ceiling(f: dict) -> None:
+        f["harnesses"]["budget"]["monthly_ai_usd"] = float("inf")
+
+    for edit, needle in ((jev_over, "EXCEED harnesses.budget.monthly_ai_usd $200"), (no_ceiling, "cannot be judged")):
+        box = Box()
+        with world(box, fleet_edit=edit):
+            code, out, _ = jev("budget")
+            jcode, jout, _ = jev("budget", "--json")
+        assert code == L.EXIT["attention"] and "both inside" not in out and needle in out, (code, out)
+        assert jcode == L.EXIT["attention"] and json.loads(jout)["inside_monthly_ai_usd"] is False, jout
 
 
 if __name__ == "__main__":
