@@ -42,7 +42,7 @@ import argparse
 import hashlib
 import re
 import sys
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeGuard
@@ -136,8 +136,9 @@ SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
 #: reads (`loop plan` runs it, documented $0 and write-free); a filer writes
 #: only behind its apply flag, which the engine adds after the § 13.6 gate.
 #: Adding one is a reviewed change here (ai-run, or any writer, is never a planner).
+#: A filer is pinned with its own apply flag: a spec's `apply_flag` must be it.
 PLANNER_COMMANDS = frozenset({"scout"})
-PUBLISH_COMMANDS = frozenset({"scout-file"})
+PUBLISH_COMMANDS = {"scout-file": "--apply"}
 #: the write flag no planner may carry, whatever the spec's publish block says
 APPLY_FLAG = "--apply"
 FLAG_RX = re.compile(r"--[a-z][a-z0-9-]*")
@@ -384,7 +385,7 @@ def _spells_flag(arg: str, flag: str) -> bool:
     return arg.startswith("--") and len(name) > 2 and flag.startswith(name)
 
 
-def _argv_template(raw: object, at: str, commands: frozenset[str], refused_flags: tuple[str, ...]
+def _argv_template(raw: object, at: str, commands: Collection[str], refused_flags: tuple[str, ...]
                    ) -> tuple[str, ...]:
     if (not isinstance(raw, list) or not raw or not all(isinstance(a, str) and a for a in raw)):
         raise StepSpecError(f"{at}: a non-empty list of strings (a `tools/dash-gen` command line)")
@@ -461,7 +462,10 @@ def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str) 
             raise StepSpecError(f"{at}.publish: needs exactly {sorted(PUBLISH_KEYS)}")
         if not isinstance(pb["apply_flag"], str) or not FLAG_RX.fullmatch(pb["apply_flag"]):
             raise StepSpecError(f"{at}.publish.apply_flag: a --long-flag, not {pb['apply_flag']!r}")
-        argv = _argv_template(pb["argv"], f"{at}.publish.argv", PUBLISH_COMMANDS, (pb["apply_flag"],))
+        argv = _argv_template(pb["argv"], f"{at}.publish.argv", PUBLISH_COMMANDS, refused)
+        if pb["apply_flag"] != PUBLISH_COMMANDS[argv[0]]:
+            raise StepSpecError(f"{at}.publish.apply_flag: {pb['apply_flag']!r} is not {argv[0]}'s apply flag "
+                                f"({PUBLISH_COMMANDS[argv[0]]}, tools/jev/spec.py PUBLISH_COMMANDS)")
         if not isinstance(risk, Mapping) or pb["risk"] not in risk:
             raise StepSpecError(f"{at}.publish.risk: {pb['risk']!r} names no action in this spec's risk block")
         publish = ArgvTemplate(argv=argv, flags={}, apply_flag=pb["apply_flag"], risk=pb["risk"])

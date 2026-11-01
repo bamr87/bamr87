@@ -583,6 +583,12 @@ def test_a_malformed_local_block_is_refused():
         (lambda d: d["local"]["planner"]["flags"].update(offline="--appl"), "write flag"),
         (sub("publish", risk="file"), "names no action"),
         (sub("publish", apply_flag="apply"), "apply_flag"),
+        # the filer's real apply flag is pinned: a spec cannot rename it and carry --apply
+        (lambda d: (d["local"]["publish"].update(apply_flag="--yes"), d["local"]["publish"]["argv"].append("--apply")),
+         "spells --apply"),
+        (lambda d: (d["local"]["publish"].update(apply_flag="--yes"), d["local"]["publish"]["argv"].append("--appl")),
+         "spells --apply"),
+        (sub("publish", apply_flag="--yes"), "not scout-file's apply flag"),
         (lambda d: d["local"]["publish"].pop("risk"), "publish"),
         (lambda d: d["local"].update(on_budget_hit="publish-flagged"), "on_budget_hit"),
     ]
