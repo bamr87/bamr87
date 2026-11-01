@@ -139,11 +139,17 @@ SCHEMA_WORDS = frozenset({
 # --------------------------------------------------------------------------- #
 # text hygiene
 # --------------------------------------------------------------------------- #
-# C0/C1 controls (newline and tab survive in a snippet), zero-width and BOM,
-# the bidi overrides a "Trojan Source" line would use, and U+2028/U+2029 (a
-# line end to str.splitlines and some readers, never to CommonMark) — as the
-# planes strip. Written as escapes: the module itself carries none of them.
-_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]")
+# C0/C1 controls (newline and tab survive in a snippet), U+2028/U+2029 (a line
+# end to str.splitlines and some readers, never to CommonMark) and every Unicode
+# format (Cf) character: zero-width and BOM, the bidi marks and overrides a
+# "Trojan Source" line would use, the word joiner and the invisible operators,
+# the soft hyphen, and the tag characters, which spell text a model reads but a
+# person reviewing the pack cannot see — as the planes strip. Written as
+# escapes: the module itself carries none of them.
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\xad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891"
+                   r"\u08e2\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\U000110bd"
+                   r"\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a"
+                   r"\U000e0000-\U000e007f]")
 _BREAKS = re.compile(r"[\t\n\r]+")
 _BACKTICKS = re.compile(r"`+")
 
