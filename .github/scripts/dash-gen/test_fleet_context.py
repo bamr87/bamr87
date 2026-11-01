@@ -1242,6 +1242,36 @@ def test_index_code_checks_the_targets_hits_against_the_agents_clone():
     assert fc.REMEDY_INDEX not in behind["note"], "a re-scan alone cannot catch the hub's checkout up"
 
 
+def test_index_code_counts_each_trees_stale_hits_under_its_own_name():
+    # With --target-dir and a target hit behind the clone, the note blamed the agent's clone for every stale hit,
+    # the hub's too (checked against the hub checkout), and said "not in this checkout" of the clone's misses.
+    found = [_hashed("tools/hub.py", 0.9, "print('as indexed')", b"print('as indexed')\n"),
+             _hashed(f"projects/{NAME}/README.md", 0.88, "old readme", b"old readme\n"),
+             _hashed(f"projects/{NAME}/gone.md", 0.87, "gone", b"gone\n")]
+    with _env(), _tmp() as tmp:
+        root, clone = tmp / "hub", tmp / "clone"
+        (root / "tools").mkdir(parents=True)
+        (root / "projects" / NAME).mkdir(parents=True)
+        clone.mkdir()
+        (root / "tools" / "hub.py").write_bytes(b"print('edited in the hub checkout since the scan')\n")
+        (root / "projects" / NAME / "README.md").write_bytes(b"old readme\n")   # the hub's submodule: as indexed
+        (root / "projects" / NAME / "gone.md").write_bytes(b"gone\n")
+        (clone / "README.md").write_bytes(b"new readme at the branch head\n")   # the clone: ahead, gone.md deleted
+        with Stub(_index_with(found)) as stub:
+            sec = build(tmp / "no-lake", stub.url, queries=["q"], sections=["index_code"], index_root=root,
+                        target_dir=clone)["sections"]["index_code"]
+    rows = {r["path"]: r for r in sec["rows"]}
+    assert sec["status"] == "stale" and all(r["stale"] and r["snippet"] is None for r in rows.values()), sec
+    assert "not in the agent's clone" in rows[f"projects/{NAME}/gone.md"]["withheld"], rows
+    assert sec["note"].count("; index behind the checkout: ") == 1, ("the hub's hit, under its own tree", sec["note"])
+    clone_part, checkout_part = sec["note"].split("; index behind the checkout: ")
+    assert clone_part.startswith("index behind the agent's clone: 1 hit(s) from changed files, 1 from files not in "
+                                 "the agent's clone (code withheld) — bring "), sec["note"]
+    assert checkout_part.startswith("1 hit(s) from changed files, 0 from files not in this checkout (code withheld) "
+                                    f"— {fc.REMEDY_INDEX}; collection ws-test"), sec["note"]
+    assert "checked against its clone" not in sec["note"], sec["note"]
+
+
 def test_index_code_without_the_targets_checkout_says_so_and_never_blames_the_index():
     # From a worktree or a fresh clone without submodules, every hashed hit from the target was 'missing', the
     # section 'stale' and the remedy a Kilo re-scan, which cannot help: the submodule is not checked out here.

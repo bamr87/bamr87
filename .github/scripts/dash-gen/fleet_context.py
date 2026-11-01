@@ -1323,8 +1323,10 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
     # hub and the target. A sibling may be private — the registry cannot say.
     allowed = {fleet_index.HUB, name.lower(), checkout.lower()}
     rows, truncated, seen = [], 0, set()
-    changed = missing = unchecked = 0
-    behind_clone = False
+    unchecked = 0
+    # [changed, missing] hits per tree they were checked against: the agent's clone
+    # (the target's, with --target-dir) and the hub checkout at `root` (the rest)
+    behind = {"clone": [0, 0], "checkout": [0, 0]}
     for query, vector in zip(queries, vectors):
         found = http_json("qdrant", qdrant, "POST", f"/collections/{collection}/points/search",
                           {"vector": vector, "limit": SEARCH_LIMIT, "score_threshold": floor,
@@ -1356,22 +1358,22 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
             else:
                 file_hash = payload.get("fileHash")
                 target = project == fleet_index.HUB if is_hub else project.lower() in own
-                if target and clone is not None:   # the clone's root is the repository's: no projects/<dir>/
+                tree = "clone" if target and clone is not None else "checkout"
+                if tree == "clone":   # the clone's root is the repository's: no projects/<dir>/
                     fresh = file_freshness(path if is_hub else "/".join(Path(path).parts[2:]), file_hash, clone,
                                            deadline)
-                    behind_clone = behind_clone or fresh in ("changed", "missing")
                 elif target and not here:
                     fresh = "unchecked" if isinstance(file_hash, str) and _FILE_HASH.fullmatch(file_hash) else None
                 else:
                     fresh = file_freshness(path, file_hash, root, deadline)
                 if fresh == "changed":
-                    changed += 1
+                    behind[tree][0] += 1
                     row.update(stale=True, withheld="the file changed since the index scanned it; read it in the "
                                                     "repository")
                 elif fresh == "missing":
-                    missing += 1
-                    row.update(stale=True, withheld="the file is not in this checkout (deleted since the index "
-                                                    "scanned it)")
+                    behind[tree][1] += 1
+                    where = "the agent's clone" if tree == "clone" else "this checkout"
+                    row.update(stale=True, withheld=f"the file is not in {where} (deleted since the index scanned it)")
                 elif fresh == "unchecked":
                     unchecked += 1
                     row["withheld"] = (f"projects/{checkout} is not checked out here, so the hit cannot be checked; "
@@ -1383,21 +1385,27 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
     note += _chunk_note(qdrant, collection, name, is_hub, deadline, checkout)
     if not rows:
         note = f"no hit at or above min_score {floor:g}; {note}"
-    if clone is not None and not behind_clone:
+    if clone is not None and not any(behind["clone"]):
         note += "; the target's hits checked against its clone (--target-dir)"
     if unchecked:
         note = (f"projects/{checkout} is not checked out here: {unchecked} hit(s) from {name} not checked (code "
                 f"withheld) — {REMEDY_CHECKOUT.format(dir=checkout)}; {note}")
-    stale = bool(changed or missing)
-    if stale:
-        where, remedy = "the checkout", REMEDY_INDEX
-        if behind_clone:
-            what, how = (("the hub checkout", "`git pull`") if is_hub else
-                         (f"projects/{checkout}", f"`tools/update-submodules.sh --no-commit {checkout}`"))
-            where, remedy = "the agent's clone", REMEDY_INDEX_CLONE.format(what=what, how=how)
-        note = (f"index behind {where}: {changed} hit(s) from changed files, {missing} from files not in "
-                f"this checkout (code withheld) — {remedy}; {note}")
-    status = "stale" if stale else ("ok" if rows else "empty")
+    # each tree with its own counts and remedy: the target's hits were checked against the clone, the rest
+    # (the hub's, with --target-dir) against the hub checkout
+    clauses = []
+    changed, missing = behind["clone"]
+    if changed or missing:
+        what, how = (("the hub checkout", "`git pull`") if is_hub else
+                     (f"projects/{checkout}", f"`tools/update-submodules.sh --no-commit {checkout}`"))
+        clauses.append(f"index behind the agent's clone: {changed} hit(s) from changed files, {missing} from files "
+                       f"not in the agent's clone (code withheld) — {REMEDY_INDEX_CLONE.format(what=what, how=how)}")
+    changed, missing = behind["checkout"]
+    if changed or missing:
+        clauses.append(f"index behind the checkout: {changed} hit(s) from changed files, {missing} from files not "
+                       f"in this checkout (code withheld) — {REMEDY_INDEX}")
+    if clauses:
+        note = "; ".join([*clauses, note])
+    status = "stale" if clauses else ("ok" if rows else "empty")
     return section("index_code", status, rows, now=now, note=note, truncated=truncated)
 
 
