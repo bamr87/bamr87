@@ -195,6 +195,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.auto_tiers` switch that keeps the conflict engine at tier 0. |
 | [`test_jev_ledger.py`](tools/test_jev_ledger.py) | Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the monthly cap. |
 | [`test_jev_number.py`](tools/test_jev_number.py) | Fixture tests for tools/jev/number.py — the assign-at-merge numbering compiler. |
+| [`test_jev_spec.py`](tools/test_jev_spec.py) | Fixture tests for tools/jev/spec.py — the loop step specs (#485, ADR 0002). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
@@ -368,7 +369,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`HARNESS-OPS.md`](docs/HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via the harness fan-out (`fanout.yml`, kit `harness`), caps,… |
 | [`HARNESS.md`](docs/HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane: the layers, the ratchet rule, the health scorecard and the trip wires. |
 | [`ISSUE-PIPELINE.md`](docs/ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes. |
-| [`JEV.md`](docs/JEV.md) | The fleet's harness-level AI agent logic engine. |
+| [`JEV.md`](docs/JEV.md) | The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolu… |
 | [`MACHINE-API.md`](docs/MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |

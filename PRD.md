@@ -103,6 +103,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-056](features/features.yml) | Governance records lint: amendment status, constitution order, doc links | planned | [`tools/governance_lint.py`](tools/governance_lint.py) · [`docs/amendments/README.md`](docs/amendments/README.md) | FR53 |
 | [HUB-057](features/features.yml) | Centrally managed loop kill switches | planned | [`_data/fleet.yml`](_data/fleet.yml) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR54 |
 | [HUB-058](features/features.yml) | Agentic design patterns map | partial | [`docs/agentic-patterns/patterns.json`](docs/agentic-patterns/patterns.json) · [`docs/agentic-patterns/README.md`](docs/agentic-patterns/README.md) | FR55 |
+| [HUB-059](features/features.yml) | JEV: loop step specs — one spec per agent step, rendered the same in CI and locally | partial | [`tools/jev/steps/README.md`](tools/jev/steps/README.md) · [`docs/JEV.md`](docs/JEV.md) | FR45 |
 
 **Requirement → feature trace**
 
@@ -163,7 +164,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR42 | HUB-045 |
 | FR43 | HUB-046 |
 | FR44 | HUB-047 |
-| FR45 | HUB-048 |
+| FR45 | HUB-048, HUB-059 |
 | FR46 | HUB-049 |
 | FR47 | HUB-050 |
 | FR48 | HUB-051 |
