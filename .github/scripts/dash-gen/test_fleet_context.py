@@ -1198,7 +1198,7 @@ def test_index_code_withholds_code_the_checkout_no_longer_has():
     assert readme["snippet"] is None and readme["stale"] and "changed since the index scanned it" in readme["withheld"]
     assert gone["snippet"] is None and gone["stale"] and "not in this checkout" in gone["withheld"], gone
     assert "Rails 8.1" not in json.dumps(sec), "the outdated code never reaches the pack"
-    assert sec["status"] == "stale" and "1 hit(s) from changed files, 1 from files not in" in sec["note"], sec
+    assert sec["status"] == "stale" and "index behind the checkout: 1 changed, 1 missing hit(s)" in sec["note"], sec
     assert fc.REMEDY_INDEX in sec["note"], sec["note"]
     assert fc.file_freshness("../escape", "0" * 64, root) is None and fc.file_freshness("/abs", "0" * 64, root) is None
 
@@ -1250,39 +1250,47 @@ def test_index_code_checks_the_targets_hits_against_the_agents_clone():
     assert cloned["target_dir"] and str(clone) not in json.dumps(cloned), ("recorded, redacted", cloned["target_dir"])
     rows = {r["path"]: r for r in behind["rows"]}
     assert behind["status"] == "stale" and rows[f"projects/{NAME}/kept.md"]["stale"], behind
-    assert "index behind the agent's clone: 0 hit(s) from changed files, 1 from files not in" in behind["note"]
-    assert f"`tools/update-submodules.sh --no-commit {NAME}`" in behind["note"], behind["note"]
+    assert behind["note"].startswith("index behind the agent's clone: 0 changed, 1 missing hit(s) (code withheld) "
+                                     f"— `tools/update-submodules.sh --no-commit {NAME}`, then let Kilo re-scan; ")
     assert fc.REMEDY_INDEX not in behind["note"], "a re-scan alone cannot catch the hub's checkout up"
+
+
+#: a directory under projects/ as long as index_code's note is built for (the registry's longest is 23 characters)
+LONG_NAME = "the-longest-repository-name-in-the-fleet"
 
 
 def test_index_code_counts_each_trees_stale_hits_under_its_own_name():
     # With --target-dir and a target hit behind the clone, the note blamed the agent's clone for every stale hit,
     # the hub's too (checked against the hub checkout), and said "not in this checkout" of the clone's misses.
-    found = [_hashed("tools/hub.py", 0.9, "print('as indexed')", b"print('as indexed')\n"),
-             _hashed(f"projects/{NAME}/README.md", 0.88, "old readme", b"old readme\n"),
-             _hashed(f"projects/{NAME}/gone.md", 0.87, "gone", b"gone\n")]
-    with _env(), _tmp() as tmp:
-        root, clone = tmp / "hub", tmp / "clone"
-        (root / "tools").mkdir(parents=True)
-        (root / "projects" / NAME).mkdir(parents=True)
-        clone.mkdir()
-        (root / "tools" / "hub.py").write_bytes(b"print('edited in the hub checkout since the scan')\n")
-        (root / "projects" / NAME / "README.md").write_bytes(b"old readme\n")   # the hub's submodule: as indexed
-        (root / "projects" / NAME / "gone.md").write_bytes(b"gone\n")
-        (clone / "README.md").write_bytes(b"new readme at the branch head\n")   # the clone: ahead, gone.md deleted
-        with Stub(_index_with(found)) as stub:
-            sec = build(tmp / "no-lake", stub.url, queries=["q"], sections=["index_code"], index_root=root,
-                        target_dir=clone)["sections"]["index_code"]
-    rows = {r["path"]: r for r in sec["rows"]}
-    assert sec["status"] == "stale" and all(r["stale"] and r["snippet"] is None for r in rows.values()), sec
-    assert "not in the agent's clone" in rows[f"projects/{NAME}/gone.md"]["withheld"], rows
-    assert sec["note"].count("; index behind the checkout: ") == 1, ("the hub's hit, under its own tree", sec["note"])
-    clone_part, checkout_part = sec["note"].split("; index behind the checkout: ")
-    assert clone_part.startswith("index behind the agent's clone: 1 hit(s) from changed files, 1 from files not in "
-                                 "the agent's clone (code withheld) — bring "), sec["note"]
-    assert checkout_part.startswith("1 hit(s) from changed files, 0 from files not in this checkout (code withheld) "
-                                    f"— {fc.REMEDY_INDEX}; collection ws-test"), sec["note"]
-    assert "checked against its clone" not in sec["note"], sec["note"]
+    # Both clauses lead the note, each with its counts and remedy, ahead of what the engine may clip.
+    assert len(LONG_NAME) == 40, len(LONG_NAME)
+    for name in (NAME, LONG_NAME):
+        found = [_hashed("tools/hub.py", 0.9, "print('as indexed')", b"print('as indexed')\n"),
+                 _hashed(f"projects/{name}/README.md", 0.88, "old readme", b"old readme\n"),
+                 _hashed(f"projects/{name}/gone.md", 0.87, "gone", b"gone\n")]
+        with _env(), _tmp() as tmp:
+            root, clone = tmp / "hub", tmp / "clone"
+            (root / "tools").mkdir(parents=True)
+            (root / "projects" / name).mkdir(parents=True)
+            clone.mkdir()
+            (root / "tools" / "hub.py").write_bytes(b"print('edited in the hub checkout since the scan')\n")
+            (root / "projects" / name / "README.md").write_bytes(b"old readme\n")   # the hub's submodule: as indexed
+            (root / "projects" / name / "gone.md").write_bytes(b"gone\n")
+            (clone / "README.md").write_bytes(b"new readme at the branch head\n")   # the clone: ahead, gone.md deleted
+            with Stub(_index_with(found)) as stub:
+                sec = build(tmp / "no-lake", stub.url, name=name, queries=["q"], sections=["index_code"],
+                            index_root=root, target_dir=clone)["sections"]["index_code"]
+        rows = {r["path"]: r for r in sec["rows"]}
+        assert sec["status"] == "stale" and all(r["stale"] and r["snippet"] is None for r in rows.values()), sec
+        assert "not in the agent's clone" in rows[f"projects/{name}/gone.md"]["withheld"], rows
+        assert sec["note"].count("; index behind the checkout: ") == 1, ("the hub's hit, under its own tree",
+                                                                          sec["note"])
+        clone_part, checkout_part = sec["note"].split("; index behind the checkout: ")
+        assert clone_part == ("index behind the agent's clone: 1 changed, 1 missing hit(s) (code withheld) — "
+                              f"`tools/update-submodules.sh --no-commit {name}`, then let Kilo re-scan"), sec["note"]
+        assert checkout_part.startswith(f"1 changed, 0 missing hit(s) (code withheld) — {fc.REMEDY_INDEX}; "
+                                        "collection ws-test"), sec["note"]
+        assert "checked against its clone" not in sec["note"], sec["note"]
 
 
 def test_index_code_without_the_targets_checkout_says_so_and_never_blames_the_index():

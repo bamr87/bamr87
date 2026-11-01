@@ -568,6 +568,57 @@ def test_a_snippet_has_its_own_block_with_path_lines_and_score_and_a_withheld_on
     assert "PRIVATE" not in md
 
 
+def test_a_code_index_note_with_both_trees_behind_keeps_both_remedies_in_the_pack():
+    # With hits behind the agent's clone AND behind the hub checkout, the planes' note ran to 428 characters
+    # for zer0-cms, so the NOTE_CHARS clip cut the checkout clause's remedy from context.md. The REAL
+    # index_code (its HTTP answered in-process) for a 40-character projects/<dir>, rendered by build.
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.append(str(DASH_GEN_DIR))
+    import fleet_context as fc
+    name = "the-longest-repository-name-in-the-fleet"
+    nwo = f"bamr87/{name}"
+
+    def hashed(path: str, data: bytes) -> dict:
+        return {"id": path, "score": 0.9, "payload": {"filePath": path, "startLine": "1", "endLine": "9",
+                                                       "codeChunk": "as indexed",
+                                                       "fileHash": hashlib.sha256(data).hexdigest()}}
+
+    answers = {("GET", "/collections"): {"result": {"collections": [{"name": "ws-test"}]}},
+               ("POST", "/api/embed"): {"embeddings": [[0.5, 0.25]]},
+               ("POST", "/collections/ws-test/points/search"): {"result": [
+                   hashed("tools/hub.py", b"as indexed\n"), hashed(f"projects/{name}/README.md", b"as indexed\n"),
+                   hashed(f"projects/{name}/gone.md", b"gone\n")]},
+               ("POST", "/collections/ws-test/points/count"): {"result": {"count": 302}}}
+    real = fc.http_json
+    fc.http_json = lambda _plane, _base, method, path, _payload=None, **_kw: answers[(method, path)]
+    try:
+        with _env(QDRANT_COLLECTION=None), _tmp() as root:
+            hub, clone = root / "hub", root / "clone"
+            (hub / "tools").mkdir(parents=True)
+            clone.mkdir()
+            (hub / "tools" / "hub.py").write_bytes(b"edited in the hub checkout since the scan\n")
+            (clone / "README.md").write_bytes(b"the branch head\n")   # and gone.md deleted
+            planes = fc.build(nwo, name, queries=["q"], sections=["index_code"], registry_path="/nonexistent",
+                              index_cfg={"qdrant": "http://127.0.0.1:9", "embedder": "http://127.0.0.1:9",
+                                         "min_score": 0.5},
+                              index_root=hub, target_dir=clone,
+                              scrubber=fc.Scrubber(home="/srv/nobody", hosts=[], paths=[]))
+    finally:
+        fc.http_json = real
+    note = planes["sections"]["index_code"]["note"]
+    assert planes["sections"]["index_code"]["status"] == "stale" and len(note) > C.NOTE_CHARS, note
+    item = Item(key=nwo, name=name, nwo=nwo, branch="main", row={}, brief=None)
+    with _tmp() as root:
+        doc = plane_doc(nwo, name, index_code=planes["sections"]["index_code"])
+        pack = C.build(FakeCtx(root, answer=lambda _a: ok_answer(doc)), item, C.ContextRequest(nwo, name, ("q",)))
+        md = pack.path.read_text(encoding="utf-8")
+    line = md.split("## Code index — stale\n\n", 1)[1].split("\n", 1)[0]
+    clone_clause = ("index behind the agent's clone: 1 changed, 1 missing hit(s) (code withheld) — "
+                    + fc.REMEDY_INDEX_CLONE.format(how=f"`tools/update-submodules.sh --no-commit {name}`"))
+    checkout_clause = f"index behind the checkout: 1 changed, 0 missing hit(s) (code withheld) — {fc.REMEDY_INDEX}"
+    assert f" · {clone_clause}; {checkout_clause}" in line and line.endswith("…"), line
+
+
 def test_unavailable_sections_are_one_line_each():
     refused = "Qdrant at http://127.0.0.1:6333 refused the connection"
     doc = plane_doc(index_code=sec("qdrant", "unavailable", note=refused))

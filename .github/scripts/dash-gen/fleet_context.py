@@ -175,10 +175,10 @@ REMEDY_PLANES = "start the planes with `tools/dash observe up`"
 REMEDY_OLLAMA = "start native Ollama (`ollama serve`, model `ollama pull nomic-embed-text`)"
 REMEDY_TELEMETRY = "point Claude Code at the collector with `tools/dash observe claude enable --apply`"
 REMEDY_DEADLINE = "raise --deadline-s"
-REMEDY_INDEX = "let Kilo re-scan the workspace (kilo.jsonc `indexing`)"
+REMEDY_INDEX = "let Kilo re-scan (kilo.jsonc `indexing`)"
 #: the target's hits checked against the agent's clone (--target-dir) and behind it: Kilo scanned the hub's
-#: checkout of the target, which can lag the branch head the clone holds
-REMEDY_INDEX_CLONE = "bring {what} to its branch head ({how}), then let Kilo re-scan"
+#: checkout of the target, which can lag the branch head the clone holds, and `{how}` brings it there
+REMEDY_INDEX_CLONE = "{how}, then let Kilo re-scan"
 #: no --target-dir, and the hub running the planes holds no checkout of the target to check its hits against
 REMEDY_CHECKOUT = "`git submodule update --init projects/{dir}`, or pass --target-dir (a loop run passes its clone)"
 
@@ -1398,18 +1398,19 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
         note = (f"projects/{checkout} is not checked out here: {unchecked} hit(s) from {name} not checked (code "
                 f"withheld) — {REMEDY_CHECKOUT.format(dir=checkout)}; {note}")
     # each tree with its own counts and remedy: the target's hits were checked against the clone, the rest
-    # (the hub's, with --target-dir) against the hub checkout
+    # (the hub's, with --target-dir) against the hub checkout. The clauses lead the note, short enough that both
+    # fit the engine's 300-character note clip (tools/jev/context.NOTE_CHARS) for a directory name of up to 40
+    # characters, so neither remedy is cut off; each row says why its own code is withheld
     clauses = []
     changed, missing = behind["clone"]
     if changed or missing:
-        what, how = (("the hub checkout", "`git pull`") if is_hub else
-                     (f"projects/{checkout}", f"`tools/update-submodules.sh --no-commit {checkout}`"))
-        clauses.append(f"index behind the agent's clone: {changed} hit(s) from changed files, {missing} from files "
-                       f"not in the agent's clone (code withheld) — {REMEDY_INDEX_CLONE.format(what=what, how=how)}")
+        how = "`git pull`" if is_hub else f"`tools/update-submodules.sh --no-commit {checkout}`"
+        clauses.append(f"index behind the agent's clone: {changed} changed, {missing} missing hit(s) (code withheld) "
+                       f"— {REMEDY_INDEX_CLONE.format(how=how)}")
     changed, missing = behind["checkout"]
     if changed or missing:
-        clauses.append(f"index behind the checkout: {changed} hit(s) from changed files, {missing} from files not "
-                       f"in this checkout (code withheld) — {REMEDY_INDEX}")
+        clauses.append(f"index behind the checkout: {changed} changed, {missing} missing hit(s) (code withheld) — "
+                       f"{REMEDY_INDEX}")
     if clauses:
         note = "; ".join([*clauses, note])
     status = "stale" if clauses else ("ok" if rows else "empty")
