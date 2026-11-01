@@ -140,6 +140,12 @@ USAGE_FIELDS = ("input", "output", "cache_5m", "cache_1h", "cache_read", "turns"
 LEDGER_VERSION = 1
 
 
+#: What to do about a ledger no writer may replace. Never "move it aside": a
+#: missing ledger reads as an empty month, so budget.loops would restart at $0.
+LEDGER_REMEDY = ("repair or migrate it in place — moving it aside would reset this month's budget.loops spend to $0 "
+                 "(a missing ledger reads as an empty month)")
+
+
 class LedgerUnreadable(ValueError):
     """The ledger exists but is not one this code can read (not JSON, not an
     object, another version). A writer refuses rather than replace it with its
@@ -385,7 +391,7 @@ def load_ledger(ledger_path: Path, *, strict: bool = False) -> dict:
     except (OSError, json.JSONDecodeError) as exc:
         if strict:
             raise LedgerUnreadable(f"the AI ledger {ledger_path} cannot be read ({exc}) — refusing to overwrite "
-                                   "it; move it aside or repair it") from exc
+                                   f"it; {LEDGER_REMEDY}") from exc
         return ledger
     if isinstance(prior, dict) and prior.get("version") == LEDGER_VERSION:
         ledger["usage"] = prior.get("usage", {})
@@ -394,7 +400,7 @@ def load_ledger(ledger_path: Path, *, strict: bool = False) -> dict:
     elif strict:
         found = f"version {prior.get('version')!r}" if isinstance(prior, dict) else f"a JSON {type(prior).__name__}"
         raise LedgerUnreadable(f"the AI ledger {ledger_path} is {found}, not version {LEDGER_VERSION} — refusing to "
-                               "overwrite it; migrate or move it aside")
+                               f"overwrite it; {LEDGER_REMEDY}")
     return ledger
 
 

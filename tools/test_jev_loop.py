@@ -189,7 +189,9 @@ if kind == "credential_rejected":
 if kind == "budget_hit":
     result(8.0, subtype="error_max_budget_usd", is_error=True); sys.exit(1)
 if sc.get("sleep"):   # a session that outlives the engine's backstop
-    import time
+    import signal, time
+    # as the CLI does: SIGINT ends the turn, and the result still reports its cost
+    signal.signal(signal.SIGINT, lambda *_: (result(float(sc.get("cost", 0.61))), sys.exit(0)))
     time.sleep(float(sc["sleep"]))
 result(float(sc.get("cost", 0.61)))
 sys.exit(0)
@@ -259,7 +261,7 @@ sys.exit(3)
 #: another fleet.yml (JEV_TEST_FILE_CONFIG) and log the environment's NAMES
 #: each subcommand received (JEV_TEST_ENV_LOG)
 DASH_GEN_WRAPPER = r'''#!__PY__
-import json, os, subprocess, sys
+import json, os, signal, subprocess, sys
 if os.environ.get("JEV_TEST_ENV_LOG"):
     with open(os.environ["JEV_TEST_ENV_LOG"], "a") as fh:
         fh.write(json.dumps({"sub": sys.argv[1], "env": sorted(os.environ)}) + "\n")
@@ -270,7 +272,13 @@ if sys.argv[1:2] == ["ai-run"] and "--dry-run" not in sys.argv and os.environ.ge
 args = sys.argv[1:]
 if args[:1] == ["scout-file"] and os.environ.get("JEV_TEST_FILE_CONFIG"):
     args += ["--config", os.environ["JEV_TEST_FILE_CONFIG"]]
-res = subprocess.run(["__REAL__", *args], capture_output=True, text=True, input=sys.stdin.read())
+# a cancel reaches the real ai-run as it does through the exec-ing tools/dash-gen
+proc = subprocess.Popen(["__REAL__", *args], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True)
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    signal.signal(sig, lambda n, _f: proc.send_signal(n))
+stdout, stderr = proc.communicate(sys.stdin.read())
+res = subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
 out = res.stdout
 if sys.argv[1:2] == ["scout"] and os.environ.get("JEV_TEST_MUTATE_PROMPT") and out.strip():
     lines = out.strip().splitlines()
@@ -1741,6 +1749,32 @@ def test_an_ai_run_that_dies_without_an_outcome_is_charged_at_the_cap_and_fails_
     assert rec["budget"]["after"]["spent_usd"] == 8.0 and item["cost_source"] == "estimated"
     [row] = [r for r in box.attempts() if r.get("outcome")]
     assert row["cost_usd"] == 8.0 and row["cost_source"] == "estimated" and not box.ledger_rows()
+    # no ledger row, but the charge is durable: the next run (or the canary) sees the month at $8, not $0
+    [kept] = [json.loads(x) for x in L.unledgered_path(box.root / "ledger.json").read_text().splitlines()]
+    assert kept["attempt_id"] == row["attempt_id"] and kept["cost_usd"] == 8.0, kept
+    with world(box):
+        later = L.budget_position(S.load_fleet(), scheduled=False)
+    assert later.spent_usd == 8.0 and later.estimated_usd == 8.0, later
+
+
+def test_an_unledgered_charge_counts_once_and_an_unreadable_one_refuses():
+    box = Box()
+    month = L.now_utc().strftime("%Y-%m")
+    with world(box):
+        _seed_ledger(box, [{"timestamp": f"{month}-01T00:30:00+00:00", "origin": "local", "loop": "repo-scout",
+                            "attempt_id": "a1", "total_cost_usd": 3.0, "cost_source": "reported"}])
+        extra = L.unledgered_path(box.root / "ledger.json")
+        extra.write_text("".join(json.dumps({"timestamp": f"{month}-02T00:00:00+00:00", "attempt_id": a,
+                                             "cost_usd": c, "cost_source": "estimated"}) + "\n"
+                                 for a, c in (("a1", 8.0), ("a2", 8.0))))
+        state = L.budget_position(S.load_fleet(), scheduled=False)
+        assert state.spent_usd == 11.0, "a1 is ledgered (its own row counts), a2 is not (the engine's charge does)"
+        extra.write_text(extra.read_text() + '{"attempt_id": "a3", "cost_u\n')
+        try:
+            L.budget_position(S.load_fleet(), scheduled=False)
+            raise AssertionError("a torn unledgered line read as no spend")
+        except common.JevError as exc:
+            assert "repair the line" in str(exc), exc
 
 
 def _short_clock(seconds: float):
@@ -1812,6 +1846,91 @@ def test_a_sigterm_to_the_engine_ends_the_run_interrupted_with_its_record():
     assert rec["items"][0]["status"] == "interrupted" and rec["items"][0]["cost_usd"] == 0.61
     assert not list(box.work.glob("*/*")), "the clone is destroyed"
     assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL, "the handler is restored"
+
+
+def _signal_logger(d: Path, *, slow: float = 0.0) -> tuple[Path, Path]:
+    """A fake ai-run that records the signal it gets (after `slow` seconds of
+    bookkeeping) and exits; it would otherwise run for 30 s."""
+    marker, script = d / "got", d / "dash-gen"
+    # its stdio is closed at once, so the engine's reader threads never stand in for the wait under test
+    script.write_text(f"#!{sys.executable}\nimport os, signal, sys, time\nos.close(1)\nos.close(2)\n"
+                      f"def on(n, _f):\n    time.sleep({slow})\n    open({str(marker)!r}, 'a').write(str(n) + '\\n')"
+                      "\n    sys.exit(0)\n"
+                      "signal.signal(signal.SIGTERM, on)\nsignal.signal(signal.SIGHUP, on)\ntime.sleep(30)\n")
+    script.chmod(0o755)
+    return marker, script
+
+
+def test_an_interrupt_that_reaches_only_the_engine_is_passed_on_to_ai_run():
+    # `kill <engine pid>`, or a SIGHUP to the engine alone: ai-run must still start claude's ladder at once
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        d = Path(tempfile.mkdtemp())
+        marker, script = _signal_logger(d)
+        saved = (L.DASH_GEN, L.BACKSTOP_KILL_S)
+        started = time.monotonic()
+        try:
+            L.DASH_GEN, L.BACKSTOP_KILL_S = script, 20
+            threading.Timer(1.0, os.kill, (os.getpid(), sig)).start()   # the engine's pid, not its group
+            with L.interrupt_on_signals():
+                L.relay_dash_gen(["ai-run"], env=dict(os.environ), timeout=30)
+            raise AssertionError("the interrupt was swallowed")
+        except KeyboardInterrupt:
+            took = time.monotonic() - started
+        finally:
+            L.DASH_GEN, L.BACKSTOP_KILL_S = saved
+        assert marker.read_text().split() == [str(int(signal.SIGTERM))], (sig, marker.read_text())
+        assert took < 10, f"{sig!r}: ai-run was signalled, not left to the {20}s backstop ({took:.1f}s)"
+
+
+def test_a_second_interrupt_does_not_cut_short_the_wait_for_ai_runs_record():
+    d = Path(tempfile.mkdtemp())
+    marker, script = _signal_logger(d, slow=2.0)   # ai-run's ladder and ledger write take a while
+    saved = (L.DASH_GEN, L.BACKSTOP_KILL_S)
+    try:
+        L.DASH_GEN, L.BACKSTOP_KILL_S = script, 20
+        for at in (1.0, 1.5):
+            threading.Timer(at, os.kill, (os.getpid(), signal.SIGTERM)).start()
+        with L.interrupt_on_signals():
+            L.relay_dash_gen(["ai-run"], env=dict(os.environ), timeout=30)
+        raise AssertionError("the interrupt was swallowed")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        L.DASH_GEN, L.BACKSTOP_KILL_S = saved
+    assert marker.exists(), "the engine went on while ai-run was still writing its record"
+
+
+def test_an_engine_only_sigterm_leaves_ai_run_s_ledger_row_and_no_session_running():
+    # the real, exec-ing tools/dash-gen: ai-run is the engine's child itself, as on the maintainer's Mac
+    box = Box()
+    saved = L.DASH_GEN
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD, "sleep": 120})
+        L.DASH_GEN = L.HUB / "tools" / "dash-gen"
+
+        def cancel() -> None:
+            for _ in range(600):
+                if (box.bin / "live.jsonl").exists():
+                    time.sleep(0.5)
+                    os.kill(os.getpid(), signal.SIGTERM)   # the engine only, never its group
+                    return
+                time.sleep(0.05)
+        t = threading.Thread(target=cancel)
+        started = time.monotonic()
+        t.start()
+        try:
+            code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        finally:
+            L.DASH_GEN = saved
+        t.join()
+        took = time.monotonic() - started
+    assert code == 130 and took < 60, (code, took, err[-600:])
+    [row] = box.ledger_rows()
+    assert row["outcome"] == "interrupted" and row["attempt_id"] == box.last()["items"][0]["attempt_id"], row
+    outcome = json.loads((box.latest() / "items" / "bamr87__SCHEMA" / "outcome.json").read_text())
+    assert outcome["kind"] == "interrupted", outcome
+    alive = subprocess.run(["pgrep", "-f", str(box.bin / "claude")], capture_output=True, text=True).stdout.split()
+    assert not alive, f"a claude session outlived the engine: {alive}"
 
 
 def test_the_backstop_terminates_ai_run_before_it_kills_it():

@@ -718,6 +718,21 @@ for i in range({n}):
 """
 
 
+def test_a_session_against_an_unreadable_ledger_is_loud_unledgered_and_fails():
+    # the session ran and spent: ai-run keeps the ledger as it found it, writes the outcome and exits non-zero
+    for bad in ("{truncated", json.dumps({"version": 2, "runs": {}})):
+        rig = Rig()
+        rig.ledger.write_text(bad)
+        outcome = rig.dir / "outcome.json"
+        out = rig.run("--outcome-file", str(outcome))
+        assert out.returncode == 1 and rig.calls() == 1, (out.returncode, out.stderr)
+        assert rig.ledger.read_text() == bad, "never replaced with only this run's row"
+        got = json.loads(outcome.read_text())
+        assert got["ledger_error"] and (got["kind"], got["cost_usd"], got["exit_code"]) == ("ok", 0.61, 1), got
+        assert "THIS RUN IS NOT LEDGERED" in out.stderr and "NOT recorded to" in out.stderr, out.stderr
+        assert "in place" in out.stderr and "move it aside" not in out.stderr, out.stderr
+
+
 def test_concurrent_writers_lose_no_rows():
     d = Path(tempfile.mkdtemp())
     ledger = d / "ledger.json"

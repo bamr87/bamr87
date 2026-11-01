@@ -471,11 +471,14 @@ def check_ledger() -> None:
                                 ("record_run", lambda: ai_activity.record_run(path, run_record("sess-z", 1.0)))):
                 try:
                     write()
-                    refused = False
-                except ai_activity.LedgerUnreadable:
-                    refused = True
+                    refused, said = False, ""
+                except ai_activity.LedgerUnreadable as exc:
+                    refused, said = True, str(exc)
                 check(f"{name} refuses to overwrite a ledger it cannot read ({bad[:12]}…)",
                       refused and path.read_text() == bad)
+                # moved aside, the ledger would read as an empty month: budget.loops back at $0
+                check(f"{name}'s refusal says to repair it in place, never to move it aside ({bad[:12]}…)",
+                      "in place" in said and "budget.loops" in said and "move it aside" not in said)
             check(f"a reader sees an unreadable ledger ({bad[:12]}…) as empty",
                   ai_activity.load_ledger(path)["runs"] == {})
         path.unlink()

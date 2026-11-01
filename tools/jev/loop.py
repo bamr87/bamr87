@@ -48,6 +48,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from collections import deque
 from collections.abc import Iterator
@@ -257,10 +258,13 @@ def relay_dash_gen(argv: list[str], *, env: dict[str, str], timeout: float) -> R
     record. At `timeout` (the spec's wall clock plus OUTER_GRACE_S: ai-run
     enforces the clock itself, this is the backstop) ai-run gets SIGTERM,
     which it turns into claude's SIGINT-first ladder, so the session still
-    reports its cost; SIGKILL a minute later. A Ctrl-C reaches ai-run through
-    the terminal as well: the engine waits for it to write its outcome and
-    ledger row, then stops the run (a SIGTERM to the engine, such as a console
-    cancel, is turned into the same KeyboardInterrupt by `cmd_run`)."""
+    reports its cost; SIGKILL a minute later. An interrupt of the engine (a
+    Ctrl-C, or the SIGTERM or SIGHUP `interrupt_on_signals` turns into one) is
+    passed on to ai-run as SIGTERM — a signal that reached only the engine
+    would otherwise leave ai-run and its session running, unledgered — and the
+    engine then waits for ai-run's outcome and ledger row, through any further
+    interrupt, before it stops the run. ai-run starts its ladder once, so the
+    copy a Ctrl-C or a killpg already delivered changes nothing."""
     proc = subprocess.Popen(  # noqa: S603 - argv is a list, never a shell string
         [str(DASH_GEN), *argv], cwd=HUB, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
@@ -282,11 +286,15 @@ def relay_dash_gen(argv: list[str], *, env: dict[str, str], timeout: float) -> R
         t.start()
 
     def settle(grace: float) -> int:
-        try:
-            return proc.wait(timeout=grace)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            return proc.wait()
+        deadline = time.monotonic() + grace
+        while True:
+            try:
+                return proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                return proc.wait()
+            except KeyboardInterrupt:   # a second cancel: ai-run is already stopping; its record is still owed
+                continue
 
     try:
         code = proc.wait(timeout=timeout)
@@ -295,6 +303,9 @@ def relay_dash_gen(argv: list[str], *, env: dict[str, str], timeout: float) -> R
         code = settle(BACKSTOP_KILL_S)
         tail.append(f"jev loop: the engine's backstop stopped ai-run after {timeout:g}s\n")
     except KeyboardInterrupt:
+        if proc.poll() is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.terminate()
         settle(BACKSTOP_KILL_S)
         raise
     finally:
@@ -335,6 +346,32 @@ def _utc_month(ts: str) -> str | None:
 LEDGER_VERSION = 1
 
 
+def unledgered_path(ledger: Path | None = None) -> Path:
+    """Beside the AI ledger (never pruned with the runs): the engine's own
+    charge for an attempt whose ai-run left no ledger row — it died, the
+    backstop killed it, or its ledger write failed. budget_position counts
+    each one whose attempt_id the ledger does not have, so a later run, and
+    the canary, see that spend."""
+    p = ledger or ledger_path()
+    return p.with_name(p.name + ".loops-unledgered.jsonl")
+
+
+def record_unledgered(ctx: RunContext, row: dict, attempt_id: str, cost: float, source: str) -> None:
+    """Make an unledgered charge durable (under budget_lock, which the attempt
+    holds); kept in this run's memory as well only if the file cannot take it."""
+    line = {"timestamp": iso(), "origin": "local", "loop": ctx.spec.loop, "step": ctx.spec.step,
+            "run_id": ctx.run.run_id, "attempt_id": attempt_id, "item": row.get("item"),
+            "cost_usd": round(cost, 6), "cost_source": source}
+    try:
+        fd = os.open(unledgered_path(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line, sort_keys=True) + "\n")
+    except OSError as exc:
+        print(f"jev loop: ! could not record the unledgered ${cost:g} charge in {unledgered_path()} ({exc}) — "
+              "only this run counts it", file=sys.stderr)
+        ctx.unledgered.append((cost, source))
+
+
 def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
                     month: str | None = None) -> BudgetState:
     """Where this UTC month stands against `budget.loops`, from the AI ledger's
@@ -351,11 +388,12 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            raise JevError(f"the AI ledger {p} cannot be read ({exc}) — the monthly ceiling cannot be judged") from exc
+            raise JevError(f"the AI ledger {p} cannot be read ({exc}) — the monthly ceiling cannot be judged; repair "
+                           "it in place (moved aside, the month would read as $0)") from exc
         if not isinstance(data, dict) or data.get("version") != LEDGER_VERSION:
             found = f"version {data.get('version')!r}" if isinstance(data, dict) else f"a JSON {type(data).__name__}"
             raise JevError(f"the AI ledger {p} is {found}, not version {LEDGER_VERSION} — the monthly ceiling cannot "
-                           "be judged")
+                           "be judged; migrate it in place (moved aside, the month would read as $0)")
         rows = data.get("runs") or {}
     spent = estimated = 0.0
     for rec in rows.values() if isinstance(rows, dict) else []:
@@ -370,8 +408,39 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
         spent += cost
         if rec.get("cost_source") == "estimated":
             estimated += cost
+    ledgered = {str(r.get("attempt_id")) for r in (rows.values() if isinstance(rows, dict) else [])
+                if isinstance(r, dict) and r.get("attempt_id")}
+    for rec in _unledgered_rows(unledgered_path(p)):
+        if str(rec.get("attempt_id")) in ledgered or _utc_month(str(rec.get("timestamp") or "")) != m:
+            continue
+        spent += rec["cost_usd"]
+        if rec.get("cost_source") == "estimated":
+            estimated += rec["cost_usd"]
     return BudgetState(month=m, spent_usd=round(spent, 4), estimated_usd=round(estimated, 4), cap_usd=cap,
                        stop_usd=round(cap * pct / 100.0, 4), scheduled=scheduled)
+
+
+def _unledgered_rows(p: Path) -> list[dict]:
+    """The engine's durable unledgered charges; a line that cannot be read
+    refuses like an unreadable ledger (it is spend, not noise)."""
+    try:
+        text = p.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    except OSError as exc:
+        raise JevError(f"{p} cannot be read ({exc}) — the monthly ceiling cannot be judged") from exc
+    out = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+            rec["cost_usd"] = float(rec["cost_usd"])
+        except (ValueError, TypeError, KeyError) as exc:
+            raise JevError(f"{p} line {n} cannot be read ({exc}) — the monthly ceiling cannot be judged; repair "
+                           "the line, never drop it (it is this month's spend)") from exc
+        out.append(rec)
+    return out
 
 
 def charge(state: BudgetState, cost: float, source: str | None) -> None:
@@ -1343,7 +1412,7 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
         if ctx.budget is not None:
             charge(ctx.budget, cost, source)
         if not said or said.get("ledger_error"):
-            ctx.unledgered.append((cost, source))
+            record_unledgered(ctx, row, report["attempt_id"], cost, source)
         kind = str(said.get("kind") or "interrupted")
         ctx.run.append_attempt({**row, "decision": "attempt", "attempt_id": report["attempt_id"],
                                 "outcome": kind, "status": "interrupted", "cost_usd": cost, "cost_source": source})
@@ -1357,9 +1426,10 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
         outcome = {"kind": "unparseable", "cost_usd": cap, "cost_source": "estimated",
                    "detail": f"ai-run exited {res.code} without an outcome, so claude may not have run: "
                              f"{res.err.strip()[-200:]}"}
-        ctx.unledgered.append((cap, "estimated"))
+        record_unledgered(ctx, row, report["attempt_id"], cap, "estimated")
     elif outcome.get("ledger_error"):
-        ctx.unledgered.append((float(outcome.get("cost_usd") or 0.0), str(outcome.get("cost_source") or "reported")))
+        record_unledgered(ctx, row, report["attempt_id"], float(outcome.get("cost_usd") or 0.0),
+                          str(outcome.get("cost_source") or "reported"))
         report.setdefault("flags", []).append(f"this attempt is not in the AI ledger: {outcome['ledger_error']}")
     debug = headless.reduce_debug_log(d / "debug.log")
     (d / "debug-sandbox.txt").write_text("\n".join(debug) + "\n", encoding="utf-8")
