@@ -684,16 +684,21 @@ class Redactor:
         return o
 
 
+def _message_content(event: dict) -> list:
+    """An assistant or user event's content blocks; [] for any other shape.
+    2.1.308 also prints stream events whose `message` is a string."""
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return content if isinstance(content, list) else []
+
+
 def _clip_tool_results(event: dict) -> dict:
     """tool_result blocks over TOOL_RESULT_CAP keep their head and a sha256.
 
     Applied to an ALREADY-redacted event: clipping first could cut a secret in
     two and leave a prefix no pattern matches, and the digest would be of the
     unredacted text."""
-    content = (event.get("message") or {}).get("content")
-    if not isinstance(content, list):
-        return event
-    for block in content:
+    for block in _message_content(event):
         if not isinstance(block, dict) or block.get("type") != "tool_result":
             continue
         body = block.get("content")
@@ -752,7 +757,7 @@ def condensed(event: dict, cap_usd: float, redactor: Redactor) -> list[str]:
         out.append(f"· init {event.get('model', '?')} · {len(event.get('tools') or [])} tools · "
                    f"{event.get('permissionMode', '?')}")
     elif kind == "assistant":
-        for block in (event.get("message") or {}).get("content") or []:
+        for block in _message_content(event):
             if not isinstance(block, dict):
                 continue
             # redacted BEFORE the clip: a cut secret keeps a prefix no pattern
@@ -763,7 +768,7 @@ def condensed(event: dict, cap_usd: float, redactor: Redactor) -> list[str]:
             elif block.get("type") == "text" and str(block.get("text") or "").strip():
                 out.append(f"◂ {_one_line(redactor.text(str(block['text'])), ECHO_TEXT)}")
     elif kind == "user":
-        for block in (event.get("message") or {}).get("content") or []:
+        for block in _message_content(event):
             if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
                 body = block.get("content")
                 text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
@@ -805,6 +810,12 @@ class Invocation:
     #: the tee could not be written (a hung-up terminal): it is dropped, and
     #: the run — and its ledger row — go on
     echo_lost: bool = False
+    #: stream events the runner could not process (a shape it did not expect):
+    #: each is kept in the trace as redacted raw text and the session goes on,
+    #: and an otherwise-ok outcome becomes `agent_error` — a check may have
+    #: missed what the event showed, so the attempt fails closed
+    unread_events: int = 0
+    unread_detail: str = ""
     #: how many of the caller's `received` signals arrived while claude was
     #: still running (or before it was started); any later one did not stop
     #: the run, and is the caller's to act on
@@ -1009,7 +1020,7 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
             text = raw.decode("utf-8", errors="replace")
             if fmt == "json":
                 out_buf.append(text)
-            _take(text, inv, trace, redactor, cap_usd, echo)
+            _take_guarded(text, inv, trace, redactor, cap_usd, echo)
     finally:
         rc = proc.poll()
         if rc is None:
@@ -1029,7 +1040,7 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
                 text = raw.decode("utf-8", errors="replace")
                 if fmt == "json":
                     out_buf.append(text)
-                _take(text, inv, trace, redactor, cap_usd, echo)
+                _take_guarded(text, inv, trace, redactor, cap_usd, echo)
         if trace is not None:
             trace.close()
     inv.rc = rc
@@ -1041,6 +1052,23 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
         inv.stdout_text = redactor.text("".join(out_buf))
         inv.result = inv.result or last_result("".join(out_buf))
     return inv
+
+
+def _unread(inv: Invocation, redactor: Redactor, exc: Exception) -> None:
+    inv.unread_events += 1
+    if not inv.unread_detail:
+        inv.unread_detail = _one_line(redactor.text(f"{type(exc).__name__}: {exc}"), 200)
+
+
+def _take_guarded(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, cap_usd: float,
+                  echo: IO[str] | None) -> None:
+    """`_take`, except that an event it cannot process never ends the read
+    loop: the loop's finally would SIGKILL claude mid-session, and the run's
+    result, its outcome and its ledger row would be lost with it."""
+    try:
+        _take(text, inv, trace, redactor, cap_usd, echo)
+    except Exception as exc:  # noqa: BLE001 — any event shape the CLI may print
+        _unread(inv, redactor, exc)
 
 
 def _take(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, cap_usd: float,
@@ -1058,7 +1086,11 @@ def _take(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, c
             trace.write(None, stripped)
         return
     if trace is not None:
-        trace.write(event, stripped)
+        try:
+            trace.write(event, stripped)
+        except Exception as exc:  # noqa: BLE001 — the trace keeps it raw; the event is still read below
+            _unread(inv, redactor, exc)
+            trace.write(None, stripped)
     if not isinstance(event, dict):
         return
     kind = event.get("type")
@@ -1076,7 +1108,7 @@ def _take(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, c
             name = str(d.get("tool_name") or "?")
             inv.denied_tools[name] = inv.denied_tools.get(name, 0) + 1
     elif kind == "assistant":
-        for block in (event.get("message") or {}).get("content") or []:
+        for block in _message_content(event):
             if isinstance(block, dict) and block.get("type") == "tool_use":
                 name = str(block.get("name") or "?")
                 inv.tool_uses[name] = inv.tool_uses.get(name, 0) + 1
@@ -1176,6 +1208,10 @@ def classify(inv: Invocation, cap_usd: float, redactor: Redactor | None = None) 
         return Outcome("max_turns", cost, "reported", detail=f"{base['turns']} turns", **base)
     if is_error or subtype.startswith("error"):
         return Outcome("agent_error", cost, "reported", detail=message or subtype, **base)
+    if inv.unread_events:
+        return Outcome("agent_error", cost, "reported",
+                       detail=f"the runner could not read {inv.unread_events} stream event(s): {inv.unread_detail}",
+                       **base)
     return Outcome("ok", cost, "reported", **base)
 
 
@@ -1186,9 +1222,20 @@ def classify(inv: Invocation, cap_usd: float, redactor: Redactor | None = None) 
 #: and, under json or stream-json output, says so ONLY in the debug log — the
 #: run then goes ahead without its sandbox.
 SETTINGS_SKIPPED_RX = re.compile(r"Invalid setting skipped|did not load|Invalid or malformed JSON")
+#: The positive proof that a `--settings` document's rules were applied. At
+#: startup, credential-free, 2.1.308 logs this when the document's
+#: `permissions.blockReadsOutsideWorkingDirectories` meets one of its own
+#: `sandbox.filesystem.denyRead` entries: the CLI's scratch directory
+#: (/private/tmp/claude-<uid>/, which the document denies) stays fenced. A $0
+#: run with no `--settings`, or with an empty denyRead, logs no such line, and
+#: 2.1.308 logs no `flagSettings` line at all before a model call (both checked
+#: against the real CLI, 2026-11-01). Undocumented wording.
+SETTINGS_FENCE_RX = re.compile(
+    r"Sandbox: blockReadsOutsideWorkingDirectories: (?P<path>\S+) stays under an existing denyRead")
 #: cc-plugin-agents-md under --safe-mode: no CLAUDE.md / AGENTS.md is loaded.
 MEMORY_OFF_RX = re.compile(r"project memory is off")
-DEBUG_KEEP_RX = re.compile(r"\[Sandbox|\[sandbox\]|settingsEnv keys|flagSettings|"
+DEBUG_KEEP_RX = re.compile(r"\[Sandbox|\[sandbox\]|settingsEnv keys|"
+                           + SETTINGS_FENCE_RX.pattern + "|"
                            + RELAXED_POLICY_RX.pattern + "|" + SETTINGS_SKIPPED_RX.pattern + "|"
                            + MEMORY_OFF_RX.pattern)
 
@@ -1285,7 +1332,7 @@ def tool_calls(events: Iterable[dict]) -> list[dict]:
     calls: list[dict] = []
     by_id: dict[str, dict] = {}
     for e in events:
-        for block in (e.get("message") or {}).get("content") or []:
+        for block in _message_content(e):
             if not isinstance(block, dict):
                 continue
             if e.get("type") == "assistant" and block.get("type") == "tool_use":
@@ -1515,7 +1562,7 @@ def preflight_parse(claude_bin: str, flags: list[str], cwd: Path | None = None,
     `-p` a settings document that fails validation is skipped with nothing but
     a debug-log line, so the debug log is read too. This is a NEGATIVE check:
     a debug log that was never written passes it. The positive proof that the
-    rules loaded (a `flagSettings` line) is the isolation probe's, and only
+    rules loaded (a SETTINGS_FENCE_RX line) is the isolation probe's, and only
     the canary proves which settings keys the CLI enforces (unknown keys are
     dropped silently).
 
@@ -1647,15 +1694,36 @@ def _names(items: object) -> set[str]:
     return out
 
 
+def _under(path: str, root: str) -> bool:
+    p, r = str(path).rstrip("/"), str(root).rstrip("/")
+    return bool(r) and (p == r or p.startswith(r + "/"))
+
+
+def settings_deny_read(flags: list[str]) -> list[str]:
+    """The `sandbox.filesystem.denyRead` entries of the `--settings` document
+    `flags` name; [] when there is none or it cannot be read (fail closed: the
+    probe then has nothing its read-fence line could prove)."""
+    if "--settings" not in flags or flags.index("--settings") + 1 >= len(flags):
+        return []
+    try:
+        doc = json.loads(Path(flags[flags.index("--settings") + 1]).read_text(encoding="utf-8"))
+        deny = doc["sandbox"]["filesystem"]["denyRead"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return [d for d in deny if isinstance(d, str) and d] if isinstance(deny, list) else []
+
+
 def judge_probe(control: ProbeRun, isolated: ProbeRun, expected_tools: Iterable[str], *,
-                restricted: ProbeRun) -> ProbeResult:
+                restricted: ProbeRun, deny_read: Iterable[str] = ()) -> ProbeResult:
     """Pure. Three legs. The control (plain `claude -p`) must SHOW what was
     planted — the hook, the MCP server, the output style, the skill and the
     scratch user settings' `env` block — or the detectors are stale and
     nothing they say can be trusted. The isolated run must show none of it: its
     init passes `init_problems`, no hook or server ran, the planted user `env`
-    is not applied, its debug log shows the --settings rules applied, nothing
-    skipped, and project memory (CLAUDE.md, AGENTS.md) off. The restricted leg
+    is not applied, its debug log shows the --settings rules applied (a
+    SETTINGS_FENCE_RX line naming a path under one of `deny_read`, the
+    document's own denyRead entries), nothing skipped, and project memory
+    (CLAUDE.md, AGENTS.md) off. The restricted leg
     is the isolation flags minus `--safe-mode` — which on its own drops hooks,
     MCP, skills and output styles — so its default output style shows
     `--restricted` itself ignored the project settings file, the one that can
@@ -1694,8 +1762,18 @@ def judge_probe(control: ProbeRun, isolated: ProbeRun, expected_tools: Iterable[
     for run, label in ((isolated, "isolated"), (restricted, "restricted")):
         if user_settings_env_keys(run.debug):
             problems.append(f"{label}: a user settings env block was applied ({user_settings_env_keys(run.debug)})")
-    if not any("flagSettings" in line for line in isolated.debug):
-        problems.append("isolated: no flagSettings line in the debug log (were the --settings rules applied?)")
+    deny = [d for d in deny_read if d]
+    fenced = sorted({m.group("path") for line in isolated.debug for m in [SETTINGS_FENCE_RX.search(line)] if m})
+    if not deny:
+        # the reduced posture's document has no sandbox, and 2.1.308 logs nothing for it at $0 (checked: not even
+        # with a disabled sandbox block carrying denyRead), so its rules have no positive proof: fail closed
+        problems.append("isolated: the --settings document has no sandbox denyRead, so nothing at $0 shows its "
+                        "rules applied (no positive proof for the reduced posture on this CLI)")
+    elif not any(_under(p, d) for p in fenced for d in deny):
+        problems.append("isolated: no debug line shows the --settings document's read fence applied (were its "
+                        "rules applied?)" if not fenced else
+                        f"isolated: the read-fence line names {fenced[0]}, which is under none of the --settings "
+                        "document's denyRead entries")
     skipped = [line for line in isolated.debug if SETTINGS_SKIPPED_RX.search(line)]
     if skipped:
         problems.append(f"isolated: the --settings document did not load: {_one_line(skipped[0], 200)}")
@@ -1709,7 +1787,7 @@ def judge_probe(control: ProbeRun, isolated: ProbeRun, expected_tools: Iterable[
     tools = set(i.get("tools") or [])
     facts = {"tools": sorted(tools), "permission_mode": i.get("permissionMode"),
              "cli_version": i.get("claude_code_version"), "control_style": c.get("output_style"),
-             "restricted_style": restricted.init.get("output_style")}
+             "restricted_style": restricted.init.get("output_style"), "settings_fence": fenced}
     return ProbeResult(ok=not problems, problems=problems, facts=facts)
 
 
@@ -1750,9 +1828,11 @@ def probe_isolation(claude_bin: str, flags_for: Callable[[Path], list[str]], scr
                         markers={k: m.exists() for k, m in markers.items()})
 
     control = one("control", [])
-    isolated = one("isolated", flags_for(scratch / "isolated.debug.log"))
+    isolated_flags = flags_for(scratch / "isolated.debug.log")
+    isolated = one("isolated", isolated_flags)
     restricted = one("restricted", [f for f in flags_for(scratch / "restricted.debug.log") if f != "--safe-mode"])
-    return judge_probe(control, isolated, expected_tools, restricted=restricted)
+    return judge_probe(control, isolated, expected_tools, restricted=restricted,
+                       deny_read=settings_deny_read(isolated_flags))
 
 
 def at_least(version: tuple[int, int, int] | None, floor: tuple[int, int, int] = MIN_CLI) -> bool:
