@@ -1409,10 +1409,22 @@ def test_review_gap_and_posture_breach_fail_closed_on_their_edge_cases():
 
 def test_the_engine_paths_include_ai_run_and_a_hangup_is_an_interrupt():
     assert ".github/scripts/dash-gen/ai_activity.py" in L.ENGINE_SOURCES and "tools/dash-gen" in L.ENGINE_SOURCES
-    with L.interrupt_on_signals():
-        for sig in (signal.SIGTERM, signal.SIGHUP):
-            assert signal.getsignal(sig) not in (signal.SIG_DFL, signal.SIG_IGN, None), sig
-    assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+    before = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    try:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)   # whatever this test's parent does with a hangup
+        with L.interrupt_on_signals():
+            for sig in (signal.SIGTERM, signal.SIGHUP):
+                assert signal.getsignal(sig) not in (signal.SIG_DFL, signal.SIG_IGN, None), sig
+        assert signal.getsignal(signal.SIGTERM) is before[signal.SIGTERM], "the previous handlers come back"
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+        # under `nohup` a closed terminal ends nothing; a SIGTERM still interrupts
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        with L.interrupt_on_signals():
+            assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+            assert signal.getsignal(signal.SIGTERM) not in (signal.SIG_DFL, signal.SIG_IGN, None)
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+    finally:
+        signal.signal(signal.SIGHUP, before[signal.SIGHUP])
 
 
 def test_an_interrupted_attempt_that_left_no_outcome_is_charged_at_the_cap_durably():

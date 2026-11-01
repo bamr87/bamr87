@@ -782,6 +782,42 @@ def test_a_signal_after_claude_exits_is_not_the_runs_interruption():
     assert H.classify(got, 8.0).kind == "ok", "a finished run is booked as what it was"
 
 
+class _HangupOnClose(H.Trace):
+    """A trace that closes the terminal (a SIGHUP) while stream's handlers are in."""
+
+    seen: object = None
+
+    def close(self) -> None:
+        self.seen = signal.getsignal(signal.SIGHUP)
+        os.kill(os.getpid(), signal.SIGHUP)
+        time.sleep(0.1)
+        super().close()
+
+
+def test_a_hangup_inherited_ignored_stays_ignored_under_nohup():
+    names: list[str] = []
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    try:
+        assert signal.SIGHUP not in H.honoured_signals(H.FORWARDED_SIGNALS)
+        assert signal.SIGTERM in H.honoured_signals(H.FORWARDED_SIGNALS)
+        with H.held_signals(names):
+            assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+            d, claude = stub_dir()
+            red = H.Redactor({})
+            trace = _HangupOnClose(None, red)
+            got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n",
+                           cwd=d, env=stub_env(STUB_SCENARIO="ok"), timeout_s=None, trace=trace, redactor=red,
+                           cap_usd=8.0, received=names)
+        assert trace.seen is signal.SIG_IGN and names == [], (trace.seen, names)
+        assert H.classify(got, 8.0).kind == "ok"
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)
+        assert signal.SIGHUP in H.honoured_signals(H.FORWARDED_SIGNALS), "a hangup not ignored is still forwarded"
+    finally:
+        signal.signal(signal.SIGHUP, before)
+
+
 class _DeadTerminal:
     def write(self, _text: str) -> int:
         raise OSError(5, "Input/output error")

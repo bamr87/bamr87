@@ -146,6 +146,13 @@ FORWARDED_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIG
                                                        "SIGUSR2", "SIGALRM", "SIGVTALRM", "SIGPROF", "SIGXCPU")
                           if hasattr(signal, n))
 TRACE_CAP_BYTES = 20 * 1024 * 1024
+
+
+def honoured_signals(sigs: Iterable[int]) -> tuple[int, ...]:
+    """`sigs` less SIGHUP when this process inherited it ignored (`nohup`):
+    the closed terminal the operator asked to outlive then ends nothing, in the
+    engine or in the ai-run it starts, which inherits the ignore."""
+    return tuple(s for s in sigs if not (s == signal.SIGHUP and signal.getsignal(s) is signal.SIG_IGN))
 TOOL_RESULT_CAP = 4096
 STDERR_RING = 64 * 1024
 NOISE_CAP = 4096
@@ -842,7 +849,7 @@ def held_signals(into: list[str]) -> Iterator[list[str]]:
     def hold(signum: int, _frame: object) -> None:
         into.append(signal.Signals(signum).name)
 
-    old = {sig: signal.signal(sig, hold) for sig in FORWARDED_SIGNALS}
+    old = {sig: signal.signal(sig, hold) for sig in honoured_signals(FORWARDED_SIGNALS)}
     try:
         yield into
     finally:
@@ -956,7 +963,7 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
         def forward(signum: int, _frame: object) -> None:
             received.append(signal.Signals(signum).name)
             begin_ladder(time.monotonic())
-        for sig in FORWARDED_SIGNALS:
+        for sig in honoured_signals(FORWARDED_SIGNALS):
             old_handlers[sig] = signal.signal(sig, forward)
 
     deadline = start + timeout_s if timeout_s else None

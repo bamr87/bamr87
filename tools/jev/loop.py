@@ -1848,14 +1848,15 @@ def interrupt_on_signals() -> Iterator[None]:
     """SIGTERM and SIGHUP (a console cancel's killpg, a closed terminal) end the
     run like a Ctrl-C: the clone is destroyed, the in-flight attempt's cost is
     recorded and run.json ends `interrupted` (exit 130) instead of dying at
-    `running`. The previous handlers come back afterwards."""
+    `running`. A SIGHUP inherited ignored (`nohup`) stays ignored. The previous
+    handlers come back afterwards."""
     if threading.current_thread() is not threading.main_thread():
         yield
         return
 
     def interrupt(signum: int, _frame: object) -> None:
         raise KeyboardInterrupt(f"signal {signum}")
-    saved = {sig: signal.signal(sig, interrupt) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    saved = {sig: signal.signal(sig, interrupt) for sig in headless.honoured_signals((signal.SIGTERM, signal.SIGHUP))}
     try:
         yield
     finally:
