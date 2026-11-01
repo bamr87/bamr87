@@ -488,6 +488,71 @@ def test_place_copies_a_file_inside_and_refuses_an_escape():
     W.destroy(ws)
 
 
+def test_place_writes_only_a_new_file_under_real_directories():
+    ws = make()
+    outside = Path(tempfile.mkdtemp(prefix="jev-place-outside-"))
+    src = OUTSIDE / "brief.md"
+    src.write_text("b\n")
+    # a parent made on the way is a real directory, and a placed file keeps copyfile's umask mode
+    dest = W.place_bytes(ws, b"pack\n", ".scout/deep/er/context.md")
+    assert dest.read_bytes() == b"pack\n" and (ws.path / ".scout" / "deep").is_dir()
+    assert dest.stat().st_mode & 0o777 == 0o666 & ~_umask(), oct(dest.stat().st_mode)
+    assert W.place_bytes(ws, b"x", ".scout/private.md", mode=0o600).stat().st_mode & 0o777 == 0o600
+    # an existing file is never overwritten
+    try:
+        W.place(ws, src, ".scout/deep/er/context.md")
+    except JevError as exc:
+        assert "already" in str(exc), exc
+    else:
+        raise AssertionError("a placed file was overwritten")
+    assert dest.read_bytes() == b"pack\n"
+    # a link at the name, dangling or not, is never written through
+    for i, target in enumerate((outside / "absent.md", outside / "present.md")):
+        if i:
+            target.write_text("outside\n")
+        os.symlink(target, ws.path / ".scout" / f"link{i}.md")
+        try:
+            W.place(ws, src, f".scout/link{i}.md")
+        except JevError:
+            pass
+        else:
+            raise AssertionError(f"wrote through the link to {target}")
+    assert not (outside / "absent.md").exists() and (outside / "present.md").read_text() == "outside\n"
+    # a symlinked directory on the way — the brief directory itself, or one below it — refuses
+    os.symlink(outside, ws.path / ".scout" / "sub")
+    for rel in (".scout/sub/context.md", ".scout/sub/a/context.md"):
+        try:
+            W.place(ws, src, rel)
+        except JevError as exc:
+            assert "symlink" in str(exc), exc
+        else:
+            raise AssertionError(rel)
+    shutil.rmtree(ws.path / ".scout")
+    os.symlink(outside, ws.path / ".scout")
+    try:
+        W.place(ws, src, ".scout/scout-workorder-alpha.md")
+    except JevError as exc:
+        assert "symlink" in str(exc), exc
+    else:
+        raise AssertionError("placed through a symlinked brief directory")
+    (ws.path / ".scout").unlink()
+    (ws.path / ".scout").write_text("a file, not a directory\n")
+    try:
+        W.place(ws, src, ".scout/x.md")
+    except JevError as exc:
+        assert "not a directory" in str(exc), exc
+    else:
+        raise AssertionError("placed under a file")
+    assert sorted(p.name for p in outside.iterdir()) == ["present.md"], "nothing was written outside the clone"
+    W.destroy(ws)
+
+
+def _umask() -> int:
+    old = os.umask(0)
+    os.umask(old)
+    return old
+
+
 # --------------------------------------------------------------------------- #
 # harvest
 # --------------------------------------------------------------------------- #
