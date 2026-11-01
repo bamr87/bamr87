@@ -172,12 +172,26 @@ _(amendment `public-docs-site`, numbered at merge — see the [amendment log](am
 
 ## 15. Evidence for major changes and frontend PRs
 
-_(amendment `major-change-evidence`, numbered at merge — see the [amendment log](amendments/README.md); § 13 is reserved for `eval-baseline-risk-tiers` (#482), so this number is contingent on #482 and is renumbered if #482 does not land; extends § 7, § 12 and UPS-QA-50..53)_
+_(amendment `major-change-evidence`, numbered at merge — see the [amendment log](amendments/README.md); § 13 is `eval-baseline-risk-tiers` (0011), so the number § 15 is final; interim reviewer amended by `qa-lead-bridge`; extends § 7, § 12 and UPS-QA-50..53)_
 
 1. **Major change: JEV decides** — JEV, the harness-level agent logic engine (docs/JEV.md), judges whether a PR is major. It weighs these heuristic inputs: public interface or user-visible behaviour, § 12.3 areas, indexed features, the size and spread of the diff, and dependencies or toolchains. There are no fixed thresholds. The `major` label overrides JEV. After § 13 is ratified, JEV must pass its own eval set. **Interim, until JEV exists:** the heuristics flag candidates, the completeness reviewer decides, and when in doubt a PR is treated as major.
 2. **Test evidence** — a major PR lists the tests added or updated (or why none apply) and links the green CI run for its head commit.
 3. **Frontend detection** — a PR impacts the frontend when it touches the default frontend globs (layouts, includes, styles, assets, pages, posts, HTML/CSS/component files, the console web app, `_config.yml`) or the repo's extra `verify/verify.yml` `frontend_paths:`.
 4. **Visual evidence, every frontend PR** — before/after screenshots or a recording of each affected page at two or more viewports (`test/evidence/<slug>/` or the PR body); `skip-evidence` only with a reason when nothing renders differently.
-5. **Completeness review by JEV and QA Lead** — every major or frontend PR is reviewed for completeness by JEV and the QA Lead bot, and both must pass. The author is never a reviewer: if one of the bots authored the PR, Amr reviews in its place. A bot reviewer cannot waive a requirement. **Interim:** until JEV exists, QA Lead reviews alone; until QA Lead exists, Amr reviews (proposed fallback, Amr to confirm).
+5. **Completeness review by JEV and QA Lead** — every major or frontend PR is reviewed for completeness by JEV and the QA Lead bot, and both must pass. The author is never a reviewer: if one of the bots authored the PR, Amr reviews in its place. A bot reviewer cannot waive a requirement. **Interim (a short bridge):** building QA Lead is the priority (#492). Until QA Lead runs, the completeness review is warn-only, with Amr as the fallback reviewer. QA Lead takes over as soon as it exists, and JEV joins later.
 6. **Fit with § 12** — the completeness review is a required review under § 12.1.2. It adds to the review gate and does not replace it, and only Amr merges amendments.
 7. **Enforcement** — the PR template sections and a `tools/conformance.py` check, warn-only per repo until its fan-out PR lands, then a hard failure.
+
+## 16. AI-ready foundation
+
+_(amendment `ai-ready-foundation`, numbered at merge — see the [amendment log](amendments/README.md); follows § 15 `major-change-evidence`; extends § 7, § 14 and UPS-AGENT)_
+
+1. **Common foundation** — every active repo is AI-ready: it exposes an API layer, an MCP layer, agent docs and machine-readable metadata, sized to its type.
+2. **By repo type** — apps and services: REST with a committed OpenAPI 3.1 document, plus an MCP server. Content sites: a static JSON data API on the public site, schema.org JSON-LD and their own MCP server, shipped as a local stdio server in the repo. Tools: `--json` output on every command, plus an MCP server or `server.json`. Libraries, themes and kits: agent docs and metadata only.
+3. **Agent docs** — `AGENTS.md` per UPS-AGENT and `llms.txt` on the public site (§ 14).
+4. **Metadata** — an `ai-ready.yml` manifest naming the repo's type and layers; MCP manifests follow the MCP Registry `server.json` schema; a repo that runs an agent publishes an A2A Agent Card at `/.well-known/agent-card.json`.
+5. **Shared kit** — repos start from the hub's `templates/ai-ready/` kit, fanned out and stamped like the other kits.
+6. **AIEO validates** — the AIEO engine in the hub's `tools/aieo/` scores AI-readiness, run by `tools/conformance.py` as check `ai-ready`: warn-only per repo until its fan-out PR lands, then a hard failure.
+7. **Held to § 13** — until AIEO passes its own eval set, only the structural checks can fail a build and the score is advisory; after that, a score below the minimum (80/100) also fails.
+8. **Exemptions** — archived and retired repos are exempt; a layer may be marked not applicable with a reason the § 15 completeness review accepts.
+9. **No secrets** — no layer exposes secrets or private data; private repos expose their layers to the fleet only, at $0 Actions spend.

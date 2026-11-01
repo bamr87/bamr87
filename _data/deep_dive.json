@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-10-30T12:29:57Z",
+  "refreshed_at": "2026-11-01T12:23:08Z",
   "summary": {
-    "as_of": "2026-10-30",
+    "as_of": "2026-11-01",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 1,
+    "day": 3,
     "processed": 1,
     "counts": {
       "pending": 37,
@@ -20,25 +20,25 @@
     },
     "progress": 0.0263,
     "today": {
-      "date": "2026-10-30",
+      "date": "2026-11-01",
       "cycle": 1,
-      "day": 1,
+      "day": 3,
       "cycle_days": 42,
       "kind": "scheduled",
-      "repo": "it-journey"
+      "repo": "bamr87.github.io"
     },
     "next": {
-      "date": "2026-10-31",
+      "date": "2026-11-02",
       "cycle": 1,
-      "day": 2,
+      "day": 4,
       "cycle_days": 42,
       "kind": "scheduled",
-      "repo": "bamr87"
+      "repo": "fredgar-ai"
     },
     "last": "it-journey",
     "last_date": "2026-10-29",
     "avg_score": 72.0,
-    "open_issues": 8,
+    "open_issues": 23,
     "open_prs": 2
   },
   "repos": [
@@ -62,7 +62,7 @@
       "prs": [
         "https://github.com/bamr87/it-journey/pull/875"
       ],
-      "open_issues": 8,
+      "open_issues": 6,
       "open_prs": 1,
       "findings": "Early manual run (2026-10-29, scheduled 2026-10-30). UPS conformance 45/58, 8 MUST failing: page_feedback off (FB-01/FE-13), issue templates lack type labels (WORK-09), fleet actions @main (WORK-10, needs-human), tracked site-quality package-lock (QA-40/REPO-07), vendored unwrap-prose drift + docs summary (fixed in PR #875). Bugs: make test checks removed pages/_posts; /feed.xml has 0 entries. Catalog lists retired posts/docs/notebooks as tbd. Planned FR-ITJ-014 quest feed, FR-ITJ-015 page feedback.",
       "score": 72.0,
@@ -75,11 +75,32 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [
-        "https://github.com/bamr87/bamr87/pull/431"
+      "issues": [
+        "https://github.com/bamr87/bamr87/issues/507",
+        "https://github.com/bamr87/bamr87/issues/506",
+        "https://github.com/bamr87/bamr87/issues/505",
+        "https://github.com/bamr87/bamr87/issues/504",
+        "https://github.com/bamr87/bamr87/issues/503",
+        "https://github.com/bamr87/bamr87/issues/502",
+        "https://github.com/bamr87/bamr87/issues/501",
+        "https://github.com/bamr87/bamr87/issues/500",
+        "https://github.com/bamr87/bamr87/issues/519",
+        "https://github.com/bamr87/bamr87/issues/518",
+        "https://github.com/bamr87/bamr87/issues/517",
+        "https://github.com/bamr87/bamr87/issues/516",
+        "https://github.com/bamr87/bamr87/issues/515",
+        "https://github.com/bamr87/bamr87/issues/514",
+        "https://github.com/bamr87/bamr87/issues/513",
+        "https://github.com/bamr87/bamr87/issues/512",
+        "https://github.com/bamr87/bamr87/issues/511"
       ],
-      "open_issues": 0,
+      "prs": [
+        "https://github.com/bamr87/bamr87/pull/431",
+        "https://github.com/bamr87/bamr87/pull/510",
+        "https://github.com/bamr87/bamr87/pull/509",
+        "https://github.com/bamr87/bamr87/pull/508"
+      ],
+      "open_issues": 17,
       "open_prs": 1,
       "findings": "",
       "score": null,

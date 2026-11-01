@@ -35,6 +35,7 @@ class MachineApiTests(unittest.TestCase):
         self.assertEqual(fleet["status"], "degraded")
         self.assertTrue(written["llms"].is_file())
         self.assertIn("api/v1/index.json", written["llms"].read_text())
+        self.assertIn("docs/agentic-patterns/patterns.json", written["llms"].read_text())
 
     def test_fleet_inbox_order_and_index_hint(self) -> None:
         self._write(
