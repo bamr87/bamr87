@@ -251,6 +251,36 @@ def test_the_call_site_sets_the_cap_and_may_only_be_lowered():
     assert unknown.returncode == 2 and "budget.call_sites" in unknown.stderr
 
 
+def test_a_cap_a_wait_or_a_wall_clock_that_bounds_nothing_is_refused():
+    # `inf` and `nan` pass a `> 0` test (NaN compares false with everything): a
+    # cap of either would reach claude as `--max-budget-usd inf` and cap nothing
+    rig = Rig()
+    for flags in (("--max-budget-usd", "inf"), ("--max-budget-usd", "nan"), ("--max-budget-usd", "-1"),
+                  ("--call-site", "repo-scout.yml:scout", "--max-budget-usd", "nan"),
+                  ("--ledger-wait", "nan"), ("--ledger-wait", "inf"),
+                  ("--timeout", "nan"), ("--timeout", "inf"), ("--timeout", "0"), ("--timeout", "-5")):
+        out = rig.run(*flags)
+        assert out.returncode == 2 and "finite number greater than 0" in out.stderr, (flags, out.stderr)
+    assert rig.calls() == 0 and rig.rows() == []
+    for bad in (float("inf"), float("nan"), 0, -1, True, "5"):
+        assert ai_activity.positive_cap(bad) is None, bad
+        assert ai_activity.call_site_cap({"budget": {"call_sites": {"x.yml:j": bad}}}, "x.yml:j") is None, bad
+    with tempfile.TemporaryDirectory() as tmp:
+        fleet = Path(tmp) / "fleet.yml"
+        fleet.write_text("budget:\n  local_usd: .inf\n  default_usd: .nan\n", encoding="utf-8")
+        with mock.patch.object(ai_activity, "FLEET", fleet):
+            assert ai_activity.load_local_budget() == ai_activity.BUDGET_FALLBACK_USD
+    hl = ai_activity.headless()
+    for bad in (float("inf"), float("nan"), 0, -0.5):
+        try:
+            hl.run_prefix(bad, stream=False)
+        except hl.JevError as exc:
+            assert "finite" in str(exc), exc
+        else:
+            raise AssertionError(f"run_prefix accepted a cap of {bad!r}")
+    assert hl.run_prefix(0.01, stream=True)[-2:] == ["--max-budget-usd", "0.01"]
+
+
 def test_the_passthrough_cannot_carry_a_cap_a_format_print_mode_or_a_bypass():
     rig = Rig()
     for bad in (("--max-budget-usd", "50"), ("--output-format", "text"), ("-p",), ("--print",),
