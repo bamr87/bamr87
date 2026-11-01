@@ -24,9 +24,11 @@ import copy
 import dataclasses
 import datetime as dt
 import fcntl
+import hashlib
 import io
 import json
 import os
+import platform
 import re
 import shutil
 import signal
@@ -42,6 +44,7 @@ import yaml
 HUB = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HUB))
 
+from tools.jev import context as C  # noqa: E402
 from tools.jev import headless as H  # noqa: E402
 from tools.jev import loop as L  # noqa: E402
 from tools.jev import spec as S  # noqa: E402
@@ -270,6 +273,39 @@ import json, os, signal, subprocess, sys
 if os.environ.get("JEV_TEST_ENV_LOG"):
     with open(os.environ["JEV_TEST_ENV_LOG"], "a") as fh:
         fh.write(json.dumps({"sub": sys.argv[1], "env": sorted(os.environ)}) + "\n")
+if sys.argv[1:2] in (["context"], ["lake"]):
+    # the planes are never reached from a test: `context` answers a fleet-context/v1 document (every section
+    # empty, or JEV_TEST_CONTEXT=down|exit|<a document file>), `lake` (the --refresh-context import) is logged
+    with open(os.environ["JEV_TEST_PLANES_LOG"], "a") as fh:
+        fh.write(json.dumps(sys.argv[1:]) + "\n")
+    if sys.argv[1] == "lake":
+        print(json.dumps({"scanned": 3, "sessions": 2, "turns": 9, "tool_calls": 4, "skipped": 1,
+                          "claude_dir": os.path.expanduser("~/.claude/projects")}, indent=2))
+        sys.exit(int(os.environ.get("JEV_TEST_LAKE_EXIT") or 0))
+    opt = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in sys.argv[2:] if "=" in a}
+    want = opt.get("--sections", "lake_issues,lake_ci,lake_agents,index_code,telemetry_errors").split(",")
+    how = os.environ.get("JEV_TEST_CONTEXT") or "empty"
+    if how == "exit":
+        sys.stderr.write("fleet_context: usage: --deadline-s out of range\n"); sys.exit(2)
+    src = {"lake_issues": "lake", "lake_ci": "lake", "lake_agents": "lake", "index_code": "qdrant",
+           "telemetry_errors": "elasticsearch"}
+    def sec(k, status, note=""):
+        up = status != "unavailable"
+        return {"status": status, "source": src[k], "as_of": "2026-10-31T00:00:00Z" if up else None,
+                "age_hours": 1.0 if up else None, "note": note, "elapsed_ms": 1, "truncated": 0, "rows": []}
+    if os.path.isfile(how):
+        doc = json.load(open(how))
+        doc["sections"] = {k: v for k, v in doc["sections"].items() if k in want}
+    else:
+        doc = {"schema": "fleet-context/v1", "generated_at": "2026-10-31T00:00:00Z", "window_days": 30,
+               "queries": [], "sections": {k: sec(k, "empty") for k in want}}
+        if how == "down":
+            for k in ("telemetry_errors", "index_code"):
+                if k in want:
+                    doc["sections"][k] = sec(k, "unavailable", "Elasticsearch at 127.0.0.1:9200 refused the "
+                                                               "connection — run `tools/dash observe up`")
+    doc.update(nwo=opt["--nwo"], name=opt["--name"])
+    print(json.dumps(doc, indent=2)); sys.exit(0)
 if sys.argv[1:3] == ["ai-run", "--dry-run"] and os.environ.get("JEV_TEST_DRY_REFUSES"):
     sys.stderr.write("ai-run: --claude-bin is not executable\n"); sys.exit(2)
 if sys.argv[1:2] == ["ai-run"] and "--dry-run" not in sys.argv and os.environ.get("JEV_TEST_AI_RUN_DIES"):
@@ -336,7 +372,8 @@ class Box:
                 "JEV_WORK_ROOT": str(self.work), "JEV_DOTENV": str(self.root / "empty.env"),
                 "DASH_AI_LEDGER": str(self.root / "ledger.json"), "STUB_GH_LOG": str(self.gh_log),
                 "STUB_GH_FIXTURES": json.dumps({NWO: str(FIXTURE), "*": str(FIXTURE)}),
-                "STUB_GH_ENV_LOG": str(self.root / "gh-env.jsonl"), "CLAUDE_CODE_OAUTH_TOKEN": "fake-oauth-token-1234"}
+                "STUB_GH_ENV_LOG": str(self.root / "gh-env.jsonl"), "CLAUDE_CODE_OAUTH_TOKEN": "fake-oauth-token-1234",
+                "JEV_TEST_PLANES_LOG": str(self.root / "planes.jsonl")}
 
     def gh_calls(self) -> list[list[str]]:
         return [json.loads(x) for x in self.gh_log.read_text().splitlines()] if self.gh_log.exists() else []
@@ -385,6 +422,12 @@ class Box:
     def ledger_rows(self) -> list[dict]:
         f = self.root / "ledger.json"
         return list(json.loads(f.read_text())["runs"].values()) if f.exists() else []
+
+    def planes_calls(self, sub: str = "context") -> list[list[str]]:
+        """Every `tools/dash-gen context` (or `lake`) call the engine made (the wrapper answers them)."""
+        f = self.root / "planes.jsonl"
+        rows = [json.loads(x) for x in f.read_text().splitlines()] if f.exists() else []
+        return [r for r in rows if r[:1] == [sub]]
 
     def gh_env(self) -> list[dict]:
         f = self.root / "gh-env.jsonl"
@@ -2413,6 +2456,348 @@ def test_two_previews_of_one_attempt_are_never_both_filed():
         code, out, _ = jev("publish", run_b, "--apply")
     assert code == 2 and f"already published in run {run_a}" in out, out
     assert len(_issue_creates(box)) == 2, "the closed-then-refiled duplicate cannot happen"
+
+
+# --------------------------------------------------------------------------- #
+# the context pack (built on the host, placed beside the brief, read by the sealed agent)
+# --------------------------------------------------------------------------- #
+ITEM = "bamr87__SCHEMA"
+BRIEF = "scout-workorder-SCHEMA.md"
+
+
+def _session_free(flags: list[str]) -> list[str]:
+    """The isolation flags with the per-attempt paths and session id blanked."""
+    out = list(flags)
+    for opt in ("--session-id", "--settings", "--debug-file"):
+        if opt in out:
+            out[out.index(opt) + 1] = "<per attempt>"
+    return out
+
+
+def test_a_rehearsal_places_the_pack_and_its_pointer_beside_the_brief_and_records_it():
+    box = Box()
+    before = hub_status()
+    with world(box):
+        box.seed_probe()
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--keep-workspace")
+    assert code == 0, err
+    rec = box.last()
+    [item] = rec["items"]
+    assert item["status"] == "rehearsed" and item["ai_run_dry"] == 0, item   # the clean-clone check still passes
+    c = item["context"]
+    assert c["mode"] == "auto" and c["file"] == "context.md" and c["missing"] == [] and c["queries"] == 2, c
+    assert set(c["statuses"]) == set(C.PROVIDERS) and set(c["statuses"].values()) == {"empty"}, c["statuses"]
+    assert c["line"].startswith("context ") and c["sha256"][:8] in c["line"], c["line"]
+    assert rec["context"]["mode"] == "auto" and rec["context"]["mode_from"] == "spec", rec["context"]
+    d = box.latest() / "items" / ITEM
+    packed = (d / "context.md").read_bytes()
+    assert hashlib.sha256(packed).hexdigest() == c["sha256"] and len(packed) == c["bytes"]
+    assert (d / "context.md").stat().st_mode & 0o777 == 0o600 and (d / "context.json").is_file()
+    clone = Path(item["kept_workspace"])
+    assert sorted(p.name for p in (clone / ".scout").iterdir()) == sorted([".tmp", BRIEF, "context.md"])
+    assert (clone / ".scout" / "context.md").read_bytes() == packed, "the agent reads exactly the recorded pack"
+    plan_brief = (box.latest() / "plan" / BRIEF).read_bytes()
+    pointer = C.pointer(".scout", "context.md").encode("utf-8")
+    assert (clone / ".scout" / BRIEF).read_bytes() == plan_brief + b"\n" + pointer, "the clone's brief + pointer"
+    assert b"Local context pack" not in plan_brief, "the plan's brief is never touched"
+    argv = json.loads((d / "argv.json").read_text())
+    assert argv["context_sha256"] == c["sha256"]
+    [row] = box.attempts()
+    assert row["decision"] == "rehearsed" and row["context_sha256"] == c["sha256"]
+    assert row["context_status"] == ",".join(f"{k}:empty" for k in C.PROVIDERS), row["context_status"]
+    assert f"Context `{NWO}`: {c['line']}" in (box.latest() / "summary.md").read_text()
+    [call] = box.planes_calls()
+    assert call[:3] == ["context", f"--nwo={NWO}", f"--name={TARGET}"] and "--json" in call, call
+    assert any(a.startswith("--query=Pyramid Schema") for a in call), "the brief's registry line is a query"
+    assert "--days=30" in call and "--deadline-s=20" in call, call
+    W.destroy(W.Workspace(root=clone.parent, path=clone, nwo=NWO, branch="main", head_sha="", brief_dir=".scout"))
+    no_writes(box)
+    assert hub_status() == before
+
+
+def test_context_off_is_the_ci_identical_attempt_and_auto_changes_no_prompt_byte_or_reuse_key():
+    box = Box()
+    runs = {}
+    with world(box):
+        box.seed_probe()
+        for mode in ("auto", "off"):
+            calls = len(box.planes_calls())
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--keep-workspace",
+                               "--context", mode)
+            assert code == 0, (mode, err)
+            runs[mode] = (box.latest(), box.last(), len(box.planes_calls()) - calls)
+        spec = L.load_step("repo-scout")
+        adapter = L.adapters.get("repo_scout")
+        (auto_dir, auto, auto_calls), (off_dir, off, off_calls) = runs["auto"], runs["off"]
+        heads = {r["head_sha"] for r in (box.attempts(auto_dir)[0], box.attempts(off_dir)[0])}
+        [head] = heads
+        for run_dir in (auto_dir, off_dir):
+            ctx = L.RunContext(spec=spec, adapter=adapter, fleet=S.load_fleet(), opts=L.Options(),
+                               plan_dir=run_dir / "plan", history=L.History(box.runs))
+            item = adapter.items(ctx, json.loads((run_dir / "plan" / "plan.json").read_text())).items[0]
+            assert adapter.reuse_key(ctx, item, head) == box.attempts(run_dir)[0]["reuse_key"], \
+                "the reuse key is the plan brief's, with or without a pack"
+    assert box.attempts(auto_dir)[0]["reuse_key"] == box.attempts(off_dir)[0]["reuse_key"], "tier 0 is unaffected"
+    assert (auto_calls, off_calls) == (1, 0), "off asks the planes nothing"
+    a, o = auto_dir / "items" / ITEM, off_dir / "items" / ITEM
+    assert (a / "prompt.txt").read_bytes() == (o / "prompt.txt").read_bytes(), "the reviewed prompt bytes"
+    aa, oa = json.loads((a / "argv.json").read_text()), json.loads((o / "argv.json").read_text())
+    assert aa["prompt_sha256"] == oa["prompt_sha256"] and aa["prompt_bytes"] == oa["prompt_bytes"]
+    assert aa["settings_sha256"] == oa["settings_sha256"]
+    assert _session_free(aa["claude_flags"]) == _session_free(oa["claude_flags"])
+    assert "context_sha256" not in oa and set(aa) - set(oa) == {"context_sha256"}, "off: today's argv.json keys"
+    assert not (o / "context.md").exists() and not (o / "context.json").exists(), "off builds nothing"
+    clone = Path(off["items"][0]["kept_workspace"])
+    assert sorted(p.name for p in (clone / ".scout").iterdir()) == [".tmp", BRIEF], "off places nothing"
+    assert (clone / ".scout" / BRIEF).read_bytes() == (off_dir / "plan" / BRIEF).read_bytes(), "the plain brief"
+    oc = off["items"][0]["context"]
+    assert oc["mode"] == "off" and oc["sha256"] is None and oc["line"] == "context off (a CI-identical run)"
+    assert box.attempts(off_dir)[0]["context_status"] == "off" and off["context"]["mode_from"] == "--context"
+    assert "Context `bamr87/SCHEMA`: context off" in (off_dir / "summary.md").read_text()
+    for r in (auto, off):
+        W.destroy_root(Path(r["items"][0]["kept_workspace"]).parent)
+
+
+def test_require_with_a_plane_down_fails_the_item_before_any_spend():
+    box = Box()
+    log = box.root / "env.jsonl"
+    with world(box, JEV_TEST_CONTEXT="down", JEV_TEST_ENV_LOG=str(log)):
+        box.seed_live({"kind": "ok", "proposals": GOOD, "cost": 0.61})
+        code, _, err = jev("run", "repo-scout", "--target", TARGET, "--context", "require")
+        rec = box.last()
+        assert code == 1 and rec["status"] == "done" and rec["exit_code"] == 1, (code, err)
+        [item] = rec["items"]
+        assert item["status"] == "failed" and item["decision"] == "context-blocked", item
+        assert "index_code, telemetry_errors unavailable" in item["reason"] and "no spend" in item["reason"]
+        assert item["context"]["missing"] == ["index_code", "telemetry_errors"] and item["context"]["mode"] == "require"
+        assert not box.live_calls() and not box.ledger_rows(), "no session, no ledger row"
+        assert "ai-run" not in {json.loads(x)["sub"] for x in log.read_text().splitlines()}, "ai-run never ran"
+        assert [r["decision"] for r in box.attempts()] == ["context-blocked"]
+        assert box.attempts()[0]["context_sha256"] == item["context"]["sha256"]
+        assert rec["totals"]["spent_usd"] == 0 and not list(box.work.glob("*/*")), "and the clone is gone"
+        # auto with the same plane down: noted, carried, never a failure
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        assert code == 0, err
+        [item] = box.last()["items"]
+        assert item["status"] == "previewed" and len(box.live_calls()) == 1, item
+        assert any("unavailable — the pack carries the rest (mode auto)" in n for n in item["context"]["notes"])
+        d = box.latest() / "items" / ITEM
+        written = {p.name for p in d.iterdir() if p.is_file()}
+        stems = {n.rsplit(".", 1)[0] for n in written} - {"context"}
+        assert stems <= S.ITEM_DIR_STEMS, f"the engine wrote {sorted(stems - S.ITEM_DIR_STEMS)} beside the pack"
+    # require with every plane answering is no block, and a planes command that fails is a status, not a crash
+    with world(box):
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--offline", "--context", "require")
+        assert code == 0 and box.last()["items"][0]["status"] == "rehearsed", err
+    with world(box, JEV_TEST_CONTEXT="exit"):
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--offline")
+        [item] = box.last()["items"]
+        assert code == 0 and item["status"] == "rehearsed", err
+        assert item["context"]["missing"] == list(C.PLANE_SECTIONS), item["context"]
+        assert item["context"]["statuses"]["history"] == "ok", "the engine's own memory needs no plane"
+    hist = (box.latest() / "items" / ITEM / "context.md").read_text()
+    assert "context-blocked" in hist and "preview would file 2" in hist, "the next pack remembers both attempts"
+
+
+def test_the_pack_placed_in_the_clone_is_redacted():
+    box = Box()
+    home, work = str(Path.home()), str(box.work)
+    host = platform.node().split(".")[0]
+    token = "ghp_" + "Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3i2"
+    doc = {"schema": "fleet-context/v1", "generated_at": "2026-10-31T00:00:00Z", "window_days": 30, "queries": [],
+           "sections": {
+               "lake_issues": {"status": "ok", "source": "lake", "as_of": "2026-10-31T00:00:00Z", "age_hours": 2.0,
+                               "note": f"read from {home}/.dash-lake on {host}", "elapsed_ms": 1, "truncated": 0,
+                               "rows": [{"number": 5, "kind": "issue", "closed_at": "2026-10-30T00:00:00Z",
+                                         "title": f"crash in {work}/x/SCHEMA with {token}", "labels": [],
+                                         "scout": False}]},
+               "telemetry_errors": {"status": "ok", "source": "elasticsearch", "as_of": "2026-10-31T00:00:00Z",
+                                    "age_hours": 1.0, "note": "mail amr@example.com", "elapsed_ms": 1,
+                                    "truncated": 0, "rows": [{"kind": "tool_error", "tool": "Bash", "count": 2,
+                                                              "head": f"cat {home}/secret.txt", "last_at": None}]}}}
+    planted = box.root / "planes-doc.json"
+    planted.write_text(json.dumps(doc))
+    with world(box, JEV_TEST_CONTEXT=str(planted)):
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--keep-workspace")
+    assert code == 0, err
+    item = box.last()["items"][0]
+    clone = Path(item["kept_workspace"])
+    d = box.latest() / "items" / ITEM
+    texts = {"clone": (clone / ".scout" / "context.md").read_text(), "pack": (d / "context.md").read_text(),
+             "twin": (d / "context.json").read_text()}
+    for where, text in texts.items():
+        for needle in (home, work, str(box.root), token, "amr@example.com", *([host] if len(host) > 3 else [])):
+            assert needle not in text, (where, needle)
+    assert "crash in <work>" in texts["clone"] and "cat ~/secret.txt" in texts["clone"], texts["clone"]
+    assert item["context"]["statuses"]["lake_issues"] == "ok" and "with [REDACTED]" in texts["clone"], texts["clone"]
+    W.destroy_root(clone.parent)
+
+
+def test_a_planted_link_or_a_brief_named_like_the_pack_refuses_the_item_and_writes_nothing_outside():
+    box = Box()
+    outside = box.root / "outside"
+    outside.mkdir()
+    real = W.clone
+
+    def planted(*a, **kw):
+        ws = real(*a, **kw)
+        os.symlink(outside / "landed.md", ws.path / ".scout" / "context.md")   # as if the clone carried it
+        return ws
+    W.clone = planted
+    try:
+        with world(box):
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+    finally:
+        W.clone = real
+    [item] = box.last()["items"]
+    assert code == 1 and item["status"] == "failed" and "refusing to place .scout/context.md" in item["reason"], item
+    assert not list(outside.iterdir()), "nothing was written through the link"
+    assert not list(box.work.glob("*/*")), "the refused clone is destroyed"
+    # a saved plan whose brief is named like the pack: one file cannot be both
+    saved = box.root / "saved"
+    with world(box):
+        res = L.dash_gen(["scout", "--offline", "--target", TARGET, "--out-dir", str(saved)])
+        plan = json.loads(res.out.strip().splitlines()[-1])
+        (saved / plan["include"][0]["brief"]).rename(saved / "context.md")
+        row = {**plan["include"][0], "brief": "context.md"}
+        row.pop("prompt")
+        (saved / "plan.json").write_text(json.dumps({**plan, "include": [row]}))
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--plan-file", str(saved / "plan.json"), "--item", TARGET)
+    [item] = box.last()["items"]
+    assert code == 1 and item["status"] == "failed" and "would be one file" in item["reason"], item
+    no_writes(box)
+
+
+def test_plan_previews_each_items_context_and_off_skips_it():
+    box = Box()
+    with world(box, JEV_TEST_CONTEXT="down"):
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--json")
+        assert code == 0
+        c = json.loads(out)["items"][0]["context"]
+        assert c["mode"] == "auto" and set(c["statuses"]) == set(C.PROVIDERS) and not c["would_block"], c
+        assert c["missing"] == ["index_code", "telemetry_errors"] and c["ages"]["lake_ci"] == 1.0, c
+        assert "rows" not in json.dumps(c), "statuses and ages only"
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--context", "require")
+        assert code == 0 and "context (require): history empty · lake_issues empty" in out, out
+        assert "a run fails this item before any spend: index_code, telemetry_errors unavailable" in out, out
+        calls = len(box.planes_calls())
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--json", "--context", "off")
+        assert code == 0 and "context" not in json.loads(out)["items"][0] and len(box.planes_calls()) == calls
+    assert not box.run_dirs() and not [c for c in box.gh_calls() if c[:2] == ["repo", "clone"]], "plan writes nothing"
+    no_writes(box)
+
+
+def test_doctor_shows_the_context_planes_for_the_hub_and_keeps_its_exit_code():
+    box = Box()
+    with world(box):
+        code, out, _ = jev("doctor")
+        assert code == 0 and "context planes (bamr87/bamr87;" in out and "· lake_issues empty" in out, out
+        [call] = box.planes_calls()
+        assert call[1:3] == ["--nwo=bamr87/bamr87", "--name=bamr87"] and f"--query={L.DOCTOR_QUERY}" in call, call
+    with world(box, JEV_TEST_CONTEXT="down"):
+        code, out, _ = jev("doctor")
+        assert code == 0, "a plane that is down never changes doctor's exit code"
+        assert "· telemetry_errors unavailable — refresh: tools/dash observe up" in out, out
+        code, out, _ = jev("doctor", "--json")
+        planes = json.loads(out)["context_planes"]
+        assert code == 0 and planes["sections"]["index_code"]["refresh"] == "tools/dash observe up", planes
+        calls = len(box.planes_calls())
+        code, out, _ = jev("doctor", "--context", "off")
+        assert code == 0 and "context planes" not in out and len(box.planes_calls()) == calls
+    real = L.doctor_planes
+
+    def boom(fleet, spec):
+        raise RuntimeError("an engine bug in the section")
+    L.doctor_planes = boom
+    try:
+        with world(box):
+            code, out, _ = jev("doctor")
+    finally:
+        L.doctor_planes = real
+    assert code == 0 and "RuntimeError: an engine bug in the section" in out, out
+    with world(box, sandbox=False):
+        assert jev("doctor")[0] == 4, "and a host problem still fails it"
+
+
+def test_refresh_context_runs_the_local_session_import_once_and_is_never_scheduled():
+    box = Box()
+    with world(box):
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--offline", "--refresh-context")
+        assert code == 0, err
+        rec = box.last()
+        assert len(rec["items"]) == 2 and all(i["status"] == "rehearsed" for i in rec["items"]), rec["items"]
+        assert box.planes_calls("lake") == [["lake", "sessions", "--days=30", "--json"]], "once, and never `lake sync`"
+        rows = [json.loads(x)[0] for x in (box.root / "planes.jsonl").read_text().splitlines()]
+        assert rows == ["lake", "context", "context"], "the import runs before the first pack"
+        assert rec["context_refresh"] == {"argv": ["lake", "sessions", "--days=30", "--json"], "exit": 0,
+                                          "scanned": 3, "sessions": 2, "turns": 9, "tool_calls": 4, "skipped": 1}
+        assert any("local session import read 3 transcript(s)" in n for n in rec["notes"]), rec["notes"]
+        assert str(Path.home()) not in json.dumps(rec), "the import's claude_dir is not recorded"
+        for argv, needle in ((["--scheduled"], "--refresh-context with --scheduled is refused"),
+                             (["--context", "off"], "no pack to refresh")):
+            runs = len(box.run_dirs())
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET,
+                               "--refresh-context", *argv)
+            assert code == 2 and needle in err and len(box.run_dirs()) == runs, (argv, err)
+        assert len(box.planes_calls("lake")) == 1
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET)
+        assert code == 0 and len(box.planes_calls("lake")) == 1 and "context_refresh" not in box.last(), "opt-in"
+    with world(box, JEV_TEST_LAKE_EXIT="1"):
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET, "--refresh-context")
+        rec = box.last()
+        assert code == 0 and rec["items"][0]["status"] == "rehearsed", "a failed import is a note"
+        assert any("exited 1" in n and "the lake as it is" in n for n in rec["notes"]), rec["notes"]
+    assert L.option_refusal(L.Options(context="sometimes"), verb="run").startswith("--context 'sometimes'")
+    try:
+        jev("run", "repo-scout", "--rehearse", "--context", "sometimes")
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("an invalid --context was accepted")
+
+
+def test_the_specs_window_providers_cap_and_deadline_reach_the_planes_and_the_pack():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    narrow = dataclasses.replace(spec.local.context, providers=("history", "lake_ci"), days=7, deadline_s=5.0,
+                                 max_chars=2000, file="pack.md")
+    spec = dataclasses.replace(spec, local=dataclasses.replace(spec.local, context=narrow))
+    real = L.load_step
+    L.load_step = lambda loop, step=None, fleet=None: spec
+    try:
+        with world(box):
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--keep-workspace")
+    finally:
+        L.load_step = real
+    assert code == 0, err
+    [call] = box.planes_calls()
+    assert "--days=7" in call and "--deadline-s=5" in call and "--sections=lake_ci" in call, call
+    item = box.last()["items"][0]
+    assert set(item["context"]["statuses"]) == {"history", "lake_ci"} and item["context"]["file"] == "pack.md"
+    clone = Path(item["kept_workspace"])
+    pack = (clone / ".scout" / "pack.md").read_text()
+    assert len(pack) <= 2000 and pack == (box.latest() / "items" / ITEM / "pack.md").read_text()
+    assert (clone / ".scout" / BRIEF).read_text().endswith(C.pointer(".scout", "pack.md")), "the pointer names it"
+    assert box.last()["context"]["days"] == 7 and box.last()["context"]["providers"] == ["history", "lake_ci"]
+    W.destroy_root(clone.parent)
+
+
+def test_a_context_call_has_a_backstop_beyond_the_planes_own_deadline():
+    assert L.context_backstop(["context", "--deadline-s=20", "--json"]) == 20 + L.CONTEXT_GRACE_S
+    assert L.context_backstop(["context", "--deadline-s=0.5"]) == 1 + L.CONTEXT_GRACE_S
+    assert L.context_backstop(["context"]) == int(C.MAX_DEADLINE_S) + L.CONTEXT_GRACE_S
+    assert L.context_backstop(["context", "--deadline-s=nan"]) == int(C.MAX_DEADLINE_S) + L.CONTEXT_GRACE_S
+    seen = []
+    real = L.dash_gen
+    L.dash_gen = lambda argv, **kw: seen.append((argv[0], kw.get("timeout"))) or common.Run(0, "", "")
+    try:
+        ctx = L.RunContext(spec=L.load_step("repo-scout"), adapter=None, fleet={}, opts=L.Options(),
+                           plan_dir=Path("/nonexistent"), history=L.History(Path("/nonexistent")))
+        ctx.dash_gen(["context", "--deadline-s=20"])
+        ctx.dash_gen(["scout-file", "--offline"])
+    finally:
+        L.dash_gen = real
+    assert seen == [("context", 20 + L.CONTEXT_GRACE_S), ("scout-file", None)], seen
 
 
 def test_loop_budget_prints_both_ceilings_labelled():
