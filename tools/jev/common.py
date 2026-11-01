@@ -15,12 +15,16 @@ Dependencies: PyYAML, and the `gh` CLI for gh().
 """
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
+import platform
 import re
 import shutil
+import socket
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -108,6 +112,28 @@ def run(argv: list[str], cwd: Path | None = None, env: dict | None = None,
     return Run(proc.returncode, proc.stdout or "", proc.stderr or "")
 
 
+#: macOS's other names for this machine (`scutil --get`): the Bonjour name, which
+#: is also reachable as `<name>.local`, and the "Computer Name" people see
+MAC_NAME_KEYS = ("LocalHostName", "ComputerName")
+
+
+@functools.lru_cache(maxsize=1)
+def machine_names() -> tuple[str, ...]:
+    """Every name this machine answers to that a log, a transcript or a title
+    can carry: `platform.node()`, `socket.gethostname()`, and on macOS the
+    LocalHostName (bare and with `.local`) and the ComputerName. Read once
+    per process (`scutil` is a local configd read, never the network); a
+    name that cannot be read is left out."""
+    names = {platform.node(), socket.gethostname()}
+    if sys.platform == "darwin" and shutil.which("scutil"):
+        for key in MAC_NAME_KEYS:
+            res = run(["scutil", "--get", key], timeout=5)
+            value = res.out.strip() if res.code == 0 else ""
+            if value and "\n" not in value:
+                names |= {value, f"{value}.local"} if key == "LocalHostName" else {value}
+    return tuple(sorted(n for n in names if n))
+
+
 def git(args: list[str], cwd: Path, timeout: int = 900, env: dict | None = None, *,
         inherit_env: bool = True) -> Run:
     """git, with the repository's own hooks, fsmonitor and pagers out of the way.
@@ -124,6 +150,24 @@ def git(args: list[str], cwd: Path, timeout: int = 900, env: dict | None = None,
         args = [*args[:i + 1], pin, *args[i + 1:]]
     return run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.pager=cat",
                 *args], cwd=cwd, timeout=timeout, env=env, inherit_env=inherit_env)
+
+
+def git_bytes(args: list[str], cwd: Path, timeout: int = 900) -> bytes | None:
+    """git's stdout as BYTES, or None on a non-zero exit — for a blob whose
+    exact bytes matter. `run` decodes in text mode, which turns CRLF and a bare
+    CR into LF, so a check that compares files through it cannot see a
+    line-ending change. Same guard and the same `-c` settings as `git`; no
+    push or fetch (nothing to pin)."""
+    i = assert_safe_git(args)
+    if args[i] in _GIT_PACK_PINS:
+        raise JevError(f"refusing: git_bytes reads; `git {args[i]}` goes through git()")
+    try:
+        proc = subprocess.run(  # noqa: S603 - argv is a list, never a shell string
+            ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.pager=cat", *args],
+            cwd=str(cwd), stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout, check=False)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
 
 
 def gh(args: list[str], cwd: Path | None = None, timeout: int = 180, env: dict | None = None) -> Run:
@@ -296,7 +340,7 @@ def _assert_api_read(args: list[str]) -> None:
 #: -f'` then `p`), an autocorrected typo (`psuh`) or plumbing that pushes
 #: (`send-pack`, `http-push`) fails closed. git itself refuses an alias that
 #: shadows one of these.
-_GIT_ALLOWED = frozenset({"add", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
+_GIT_ALLOWED = frozenset({"add", "blame", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
                           "fetch", "grep", "init", "log", "ls-files", "ls-tree", "merge", "merge-file", "push",
                           "remote", "rev-parse", "show", "status", "update-index"})
 #: git global options JEV passes, and whether each takes a value (`--opt=v` or

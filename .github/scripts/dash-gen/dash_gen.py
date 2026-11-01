@@ -56,6 +56,12 @@ Subcommands:
            runs and local Claude Code sessions into OpenInference traces for
            Phoenix. Gitignored, never committed. Implemented in fleet_lake.py.
 
+  context  The planes behind JEV's loop context pack: for ONE repo, the lake's
+           closed issues/PRs, CI per workflow and agent history, the code
+           index's hits and Claude Code's telemetry errors, as one read-only,
+           capped, redacted, freshness-stamped fleet-context/v1 JSON document.
+           LOCAL-ONLY; never writes the lake. Implemented in fleet_context.py.
+
   workflows The WORKFLOW ATLAS: the hub's own workflows and composite actions as
            one model — `list`, `show <id>`, `lint` (the README standards as
            checks), `health` (run health + failure causes from the lake), `new`
@@ -92,6 +98,7 @@ import evolution
 import repo_scout
 import fleet_compose
 import content_atlas
+import fleet_context
 import fleet_lake
 import fleet_index
 import fleet_observe
@@ -626,6 +633,14 @@ def main(argv: list[str] | None = None) -> int:
              "(local-only; never committed, never in CI)",
     )
     fleet_observe.add_arguments(p_observe)
+
+    p_context = sub.add_parser(
+        "context",
+        help="the loop context pack's planes for ONE repo: closed issues, CI, agent history (lake), "
+             "code-index hits (Qdrant), Claude Code tool errors (Elasticsearch) -> one read-only, "
+             "capped, redacted fleet-context/v1 JSON document (local-only; exit 0 unless usage)",
+    )
+    fleet_context.add_arguments(p_context)
 
     p_index = sub.add_parser(
         "index",

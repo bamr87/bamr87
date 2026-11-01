@@ -4,6 +4,9 @@
 - **Date**: YYYY-MM-DD
 - **Deciders**: who made the call
 - **Related**: issue, spec or PR links
+- **Tracking**: #N — the issue or epic that delivers this decision (optional; delete the line if none)
+
+<!-- Accepted in and Completed are added by the post-merge ratify job when the maintainer merges this ADR's PR and when the maintainer closes the Tracking issue as completed (docs/adr/README.md#lifecycle). Never write them by hand. A PR that adds or changes an ADR is gated (constitution § 12.3). -->
 
 ## Context
 

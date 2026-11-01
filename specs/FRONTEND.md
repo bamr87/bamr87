@@ -56,6 +56,17 @@ Every UI surface ships these. Each is already proven in the fleet; the seed colu
 | UPS-FE-34 | SHOULD | site, app | A feature registry (`features/features.yml`: id → layouts/includes/styles/tests) and `Feature: <ID>` markers in component files give traceability from component to test to doc. | registry present | zer0 `features/features.yml` |
 | UPS-FE-35 | MUST | site | Consumer sites override the theme only through the four extension hooks (`custom/head.html`, `custom/body-start.html`, `custom/footer.html`, `custom/body-end.html`) and `user-overrides.css/js`; copying theme includes into a consumer is a deviation. | no shadowed theme files | zer0 `_includes/custom/` |
 
+## Fleet frontend platform (§ 18)
+
+Tiers, layers and ownership are in [docs/FRONTEND-PLATFORM.md](../docs/FRONTEND-PLATFORM.md). The tier is read from the repo's hub registry `frontend:` block (`_data/projects.yml`); a repo whose tier is `none` is N/A for every row here. Each row reports a warning until the registry sets `frontend.enforce: true` (after the repo's adoption PR merges), then a failure.
+
+| id | level | applies | requirement | satisfied by | seed |
+| --- | --- | --- | --- | --- | --- |
+| UPS-FE-70 | MUST | all | The repo's hub registry entry declares a valid `frontend:` block (type, tier, framework, surfaces, token_version, entry_url, shell); `tier: none` marks a repo with no frontend (N/A). | registry block | `tools/frontend_registry.py` |
+| UPS-FE-71 | MUST | all | A `shell` or `tokens` tier repo consumes the fleet design tokens: the zer0 theme (which consumes them), a reference to the published token package (`@bamr87/fleet-tokens` / `fleet-tokens`), or a stylesheet using `--fleet-color-*`. | token reference | hub token source (docs/FRONTEND-PLATFORM.md) |
+| UPS-FE-72 | MUST | all | A `shell` tier repo mounts the fleet app shell (`@bamr87/fleet-shell`, `<fleet-shell>`) or runs as a micro-frontend inside it (`fleet-mfe.json`); `tokens` tier repos (sites, games, extensions) are exempt. | shell reference | hub app shell (FF-0032) |
+| UPS-FE-73 | MUST | all | No fork: a tracked copy of a fleet token or shell build (`fleet-tokens.*`, `fleet-shell.*`) carries the `fleet-tokens vX.Y.Z` / `fleet-shell vX.Y.Z` stamp of a published release equal to the registry `token_version`; an unstamped or mismatched copy is a fork. | stamped copy | — |
+
 ## Content and front matter (sites)
 
 | id | level | applies | requirement | satisfied by | seed |

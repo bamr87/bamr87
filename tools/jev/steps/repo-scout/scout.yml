@@ -167,3 +167,24 @@ local:
   # JEV's rule, a deliberate divergence from CI's file job (which files what a
   # budget-hit leg left behind): a budget-hit attempt is discarded
   on_budget_hit: discard
+  # The context pack (tools/jev/context.py): read-only, redacted, capped data
+  # the HOST gathers before an attempt — the lake, the code index, the
+  # telemetry and this loop's own earlier attempts — placed as
+  # <brief_dir>/<file> in the clone, with a pointer appended to the clone's
+  # copy of the brief (never the plan's brief, never the prompt above). CI has
+  # no pack: `loop run --context off` is the CI-identical local run. The values
+  # below are the defaults, spelled out.
+  context:
+    # auto: build it and note an unavailable plane; require: an unavailable
+    # plane fails the item before any spend; 'off' (quoted: a bare off is a
+    # YAML boolean): no pack
+    mode: auto
+    # a bare .md name beside the brief: never a brief's name or a declared output
+    file: context.md
+    providers: [history, lake_issues, lake_ci, lake_agents, index_code, telemetry_errors]
+    # the rendered pack's cap (about 4k tokens), 2000..64000
+    max_chars: 16000
+    # the planes' wall clock, seconds, at most 300
+    deadline_s: 20
+    # the lake and telemetry window, 1..365 days
+    days: 30

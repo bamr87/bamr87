@@ -21,14 +21,14 @@
 
 ## 1. Specs — the Universal Project Standard
 
-[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 233 requirements: 156 MUST, 68 SHOULD, 4 MAY; 67 still lack a seed kit.
+[`specs/README.md`](specs/README.md) is the spec index (UPS 1.0, draft); [`_data/specs.yml`](_data/specs.yml) is its generated twin. 237 requirements: 160 MUST, 68 SHOULD, 4 MAY; 68 still lack a seed kit.
 
 | Area | Spec | Ids | MUST / SHOULD / MAY | Gaps | Governs |
 | --- | --- | --- | --- | --- | --- |
 | REPO | [`REPOSITORY.md`](specs/REPOSITORY.md) | UPS-REPO-01…39 | 21 / 7 / 0 | 7 | Repository layout and required files |
 | AGENT | [`AGENT-CONTEXT.md`](specs/AGENT-CONTEXT.md) | UPS-AGENT-01…33 | 13 / 6 / 0 | 0 | Agent context |
 | QA | [`QUALITY.md`](specs/QUALITY.md) | UPS-QA-01…63 | 25 / 11 / 0 | 17 | Quality gates |
-| FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…61 | 30 / 14 / 2 | 5 | Frontend: design system, core components, UX standards |
+| FE | [`FRONTEND.md`](specs/FRONTEND.md) | UPS-FE-01…73 | 34 / 14 / 2 | 6 | Frontend: design system, core components, UX standards |
 | FB | [`FEEDBACK.md`](specs/FEEDBACK.md) | UPS-FB-01…42 | 18 / 4 / 1 | 3 | The universal feedback component |
 | BE | [`BACKEND.md`](specs/BACKEND.md) | UPS-BE-01…51 | 15 / 7 / 0 | 13 | HTTP API conventions and the client contract |
 | OPS | [`OPERATIONS.md`](specs/OPERATIONS.md) | UPS-OPS-01…42 | 18 / 8 / 1 | 16 | Configuration, observability, security, data |
@@ -157,6 +157,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`fleet-dev.sh`](tools/fleet-dev.sh) | **The fleet dev stack's entry point** (`dash dev`) — launch, debug and work on any submodule from the hub. |
 | [`fleet_activity.py`](tools/fleet_activity.py) | Purpose: thin, fire-and-forget emit wrapper for the FLEET ACTIVITY LOG. |
 | [`fleet_smoke.py`](tools/fleet_smoke.py) | **The monorepo smoke test** (`dash dev smoke`) — connects to every running fleet container and exercises it for real (HTTP GET, TCP connect, a `select` through the conta… |
+| [`frontend_registry.py`](tools/frontend_registry.py) | **The § 18 frontend registry**: `lint` validates every `_data/projects.yml` `frontend:` block (type, tier, framework, surfaces, token_version, entry_url, shell, enforce;… |
 | [`gen-catalog.py`](tools/gen-catalog.py) | Regenerates the root `CATALOG.md` — the master index of specs, kits, references, registries, tools, workflows, AI layer, docs, dash surfaces, diagrams — from disk + each… |
 | [`gen-dash-cli-doc.py`](tools/gen-dash-cli-doc.py) | Generate the dash CLI reference — the AUTO:dash-cli span in |
 | [`gen-projects-schema.py`](tools/gen-projects-schema.py) | Regenerates `projects/SCHEMA.md` from `.gitmodules` + the registry (`--check` gates staleness) |
@@ -178,6 +179,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`setup-terminal.sh`](tools/setup-terminal.sh) | macOS-only: bootstraps the [bashOS `chui/`](https://github.com/bamr87/bashos/tree/main/chui) terminal (Oh My Zsh, Powerlevel10k, MesloLGS Nerd Font), registers the font… |
 | [`setup.sh`](tools/setup.sh) | **Primary entrypoint** — cross-platform dev environment setup; on macOS its last step is `setup-terminal.sh` (`--skip-terminal` to opt out) |
 | [`test_backlog_fanout.py`](tools/test_backlog_fanout.py) | Fixture tests for tools/backlog_fanout.py + tools/fleet_activity.py. |
+| [`test_conformance_frontend.py`](tools/test_conformance_frontend.py) | Fixture tests for the § 18 frontend-platform rows in tools/conformance.py (UPS-FE-70..73): N/A for tier none, tokens/shell per tier, warn-only until `frontend.enforce: t… |
 | [`test_conformance_work.py`](tools/test_conformance_work.py) | Fixture tests for the contract-keyed rows in tools/conformance.py: UPS-WORK-01..13 (planning & delivery), UPS-AGENT-07/08/09 (decision D4: AGENTS.md canonical, CLAUDE.md… |
 | [`test_deep_dive.py`](tools/test_deep_dive.py) | Fixture tests for tools/deep_dive.py — the daily repo deep-dive tracker. |
 | [`test_docker_harmonize.py`](tools/test_docker_harmonize.py) | Fixture tests for tools/docker_harmonize.py — every rule, the |
@@ -189,15 +191,18 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore.py`](tools/test_fleetcore.py) | Fixture tests for tools/fleetcore's shared contracts — keys v1, the theme, the console client. |
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
+| [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_jev_adapter_repo_scout.py`](tools/test_jev_adapter_repo_scout.py) | Fixture tests for tools/jev/adapters/ — the loop engine's adapter contract and its first adapter, repo_scout (#486, ADR 0002 P1). |
 | [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
 | [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |
+| [`test_jev_context.py`](tools/test_jev_context.py) | Tests for tools/jev/context.py — the loop runner's context pack, engine half (#486): the history section from earlier runs' attempts.jsonl, gather over `tools/dash-gen c… |
 | [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.auto_tiers` switch that keeps the conflict engine at tier 0. |
 | [`test_jev_headless.py`](tools/test_jev_headless.py) | Fixture tests for tools/jev/headless.py — the headless Claude Code layer a local loop attempt runs through. |
 | [`test_jev_ledger.py`](tools/test_jev_ledger.py) | Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the monthly cap. |
 | [`test_jev_loop.py`](tools/test_jev_loop.py) | End-to-end tests for tools/jev/loop.py — the local loop engine (#486, ADR 0002 P1): `list`, `doctor` (and `--live`, the canary), `plan`, `run` (the rehearsal and live at… |
 | [`test_jev_number.py`](tools/test_jev_number.py) | Fixture tests for tools/jev/number.py — the assign-at-merge numbering compiler. |
+| [`test_jev_ratify.py`](tools/test_jev_ratify.py) | Fixture tests for tools/jev/ratify.py — the ratification, acceptance and completion records a maintainer's merge decided, the guard that decides whether the job may merg… |
 | [`test_jev_spec.py`](tools/test_jev_spec.py) | Fixture tests for tools/jev/spec.py — the loop step specs (#485, ADR 0002). |
 | [`test_jev_workspace.py`](tools/test_jev_workspace.py) | Fixture tests for tools/jev/workspace.py — the local loop engine's throwaway workspaces (#486, ADR 0002 P1). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
@@ -234,7 +239,7 @@ The control-plane automation; standards and the full table in [`.github/workflow
 | [`fleet-verify.yml`](.github/workflows/fleet-verify.yml) | fleet-verify (reusable) | `workflow_call` | Agent verification: feature index, Playwright scenarios, optional Claude pass through the Playwright MCP. |
 | [`issue-pipeline.yml`](.github/workflows/issue-pipeline.yml) | 🧭 Issue Pipeline | daily 07:37, dispatch | **The issue loop.** `scan` derives each open fleet issue's stage from its labels and writes one work order per tier. |
 | [`jev-conflicts.yml`](.github/workflows/jev-conflicts.yml) | 🧩 JEV — conflict triage | every 6 h at :23, push `main`, `repository_dispatch` `jev-c… | **JEV conflict triage** (HUB-035): lists open fleet PRs GitHub reports as CONFLICTING, reproduces each with a trial merge, classifies it into tiers 0–3 and resolves at t… |
-| [`jev-number.yml`](.github/workflows/jev-number.yml) | 🔢 JEV — assign numbers at merge | push `main` (`features/features.d/**`, `changelog.d/**`, `d… | **JEV numbering at merge** (HUB-035, amendment 0002): `python3 -m tools.jev number apply` under `concurrency: jev-number` assigns HUB/FR/NFR/amendment numbers to fragmen… |
+| [`jev-number.yml`](.github/workflows/jev-number.yml) | 🔢 JEV — assign numbers at merge | push `main`, `issues` closed (ratify only), dispatch (dry r… | **JEV numbering at merge** (HUB-035, amendment 0002): `python3 -m tools.jev number apply` under `concurrency: jev-number` assigns HUB/FR/NFR/amendment numbers to fragmen… |
 | [`markdown-oneline.yml`](.github/workflows/markdown-oneline.yml) | markdown-oneline | PR, push `main` (Markdown) | One paragraph per line (`tools/unwrap-prose.py`): on a same-repo PR it pushes the unwrap to the branch itself; on a fork PR or `main` it fails with the command to run. |
 | [`publish-kits.yml`](.github/workflows/publish-kits.yml) | publish-kits | push `main` (kit `package.json` / `VERSION`), dispatch | Packs and verifies every `templates/*/package.json`; publishes new versions to npm `@bamr87/*` with `NPM_TOKEN`, skipping versions already on the registry. |
 | [`python-tests.yml`](.github/workflows/python-tests.yml) | 🐍 Python Tests | PR, push `main`, nightly 09:17, dispatch | Every Python fixture suite the hub carries (`.github/scripts/dash-gen/`, `tools/`, `tools/console/`, `tools/tui/`, `templates/*/`), each a standalone script; a file with… |
@@ -363,6 +368,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`DASH.md`](docs/DASH.md) | The dash architecture — the registry as the source of truth, the surfaces, monitoring, the drift gates and the self-evolution loop. |
 | [`DEEP-DIVE.md`](docs/DEEP-DIVE.md) | One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh (`deep-dive.yml`) and the… |
 | [`DEPENDENCIES.md`](docs/DEPENDENCIES.md) | The always-latest dependency policy: no exact pins, no ceilings, no committed lockfiles, and the few sanctioned exceptions. |
+| [`DESIGN-HARMONIZATION.md`](docs/DESIGN-HARMONIZATION.md) | How the fleet's front-ends move to one shell, layout and design language: inventory, shared tokens and shell, a warn-then-fail check, and fan-out PRs. |
 | [`DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Prerequisites, getting the source, running the console and the site, containers, and which check to run for what you changed. |
 | [`DOCKER.md`](docs/DOCKER.md) | One image standard for every Dockerfile and compose file in the fleet — versions from `_data/fleet.yml`, a harmonizer, a fan-out — and the `/docker/` view. |
 | [`DOCS-SYSTEM.md`](docs/DOCS-SYSTEM.md) | Plan (2026-10-03) for documentation by role across the fleet — a Jekyll front door, MkDocs guides, Sphinx API reference and a private handbook, on one content contract;… |
@@ -370,6 +376,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`EVOLUTION.md`](docs/EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository. |
 | [`FLEET-COMPOSE.md`](docs/FLEET-COMPOSE.md) | Launching and debugging any submodule from the hub with its real services, on a port nobody else claims, without a commit in the submodule. |
 | [`FORGE-HOST.md`](docs/FORGE-HOST.md) | Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash. |
+| [`FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC ide… |
 | [`HARNESS-OPS.md`](docs/HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via the harness fan-out (`fanout.yml`, kit `harness`), caps,… |
 | [`HARNESS.md`](docs/HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane: the layers, the ratchet rule, the health scorecard and the trip wires. |
 | [`ISSUE-PIPELINE.md`](docs/ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes. |

@@ -35,6 +35,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/DASH.md`](DASH.md) | The dash architecture — the registry as the source of truth, the surfaces, monitoring, the drift gates and the self-evolution loop. Start here for the machinery. |
 | [`docs/DEEP-DIVE.md`](DEEP-DIVE.md) | One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh (`deep-dive.yml`) and the `/deep-dive` dashboard (HUB-029, PRD FR24–FR25). |
 | [`docs/DEPENDENCIES.md`](DEPENDENCIES.md) | The always-latest dependency policy: no exact pins, no ceilings, no committed lockfiles, and the few sanctioned exceptions. |
+| [`docs/DESIGN-HARMONIZATION.md`](DESIGN-HARMONIZATION.md) | How the fleet's front-ends move to one shell, layout and design language: inventory, shared tokens and shell, a warn-then-fail check, and fan-out PRs. Rule: proposed amendment… |
 | [`docs/DEVELOPMENT.md`](DEVELOPMENT.md) | Prerequisites, getting the source, running the console and the site, containers, and which check to run for what you changed. |
 | [`docs/DOCKER.md`](DOCKER.md) | One image standard for every Dockerfile and compose file in the fleet — versions from `_data/fleet.yml`, a harmonizer, a fan-out — and the `/docker/` view. |
 | [`docs/DOCS-SYSTEM.md`](DOCS-SYSTEM.md) | Plan (2026-10-03) for documentation by role across the fleet — a Jekyll front door, MkDocs guides, Sphinx API reference and a private handbook, on one content contract; its repo layer is now specs/DOCS.md. |
@@ -42,6 +43,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/EVOLUTION.md`](EVOLUTION.md) | The weekly repo-evolution loop — a signal-led, draft-only AI improvement pass in each opted-in submodule's own repository. |
 | [`docs/FLEET-COMPOSE.md`](FLEET-COMPOSE.md) | Launching and debugging any submodule from the hub with its real services, on a port nobody else claims, without a commit in the submodule. |
 | [`docs/FORGE-HOST.md`](FORGE-HOST.md) | Running the fleet's containers on the `forge` LAN host while the Mac runs the terminal dash. |
+| [`docs/FRONTEND-PLATFORM.md`](FRONTEND-PLATFORM.md) | How the fleet's frontends share one platform without sharing one framework: six standard layers (tokens, Web Components, one app shell with micro-frontends, one OIDC identity, contracts, a registry with conformance), four tiers, three… |
 | [`docs/HARNESS-OPS.md`](HARNESS-OPS.md) | Managing the fleet's AI harnesses and schedules: the `harnesses:` contract, the daily inventory, mass deploy via the harness fan-out (`fanout.yml`, kit `harness`), caps, cost forecasting, and the local stack. |
 | [`docs/HARNESS.md`](HARNESS.md) | The six-layer harness architecture (Agent = Model + Harness) mapped onto this control plane: the layers, the ratchet rule, the health scorecard and the trip wires. |
 | [`docs/ISSUE-PIPELINE.md`](ISSUE-PIPELINE.md) | The three-tier loop that turns an open issue into a merge-ready PR: label state machine, evidence bundles, caps, autonomy gates and the two human brakes. |
