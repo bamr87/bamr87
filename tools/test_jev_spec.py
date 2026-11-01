@@ -606,6 +606,85 @@ def test_a_malformed_local_block_is_refused():
         "a publish needs a risk block to take its tier from"
 
 
+# --------------------------------------------------------------------------- #
+# local.context — the host-built context pack (#486)
+# --------------------------------------------------------------------------- #
+def test_the_scout_context_block_loads_with_the_defaults_spelled_out():
+    from tools.jev import context as C
+    ctx = scout().local.context
+    assert ctx == S.ContextSpec(mode="auto", file="context.md", providers=C.PROVIDERS,
+                                max_chars=C.DEFAULT_MAX_CHARS, deadline_s=C.DEFAULT_DEADLINE_S, days=C.DEFAULT_DAYS)
+    raw = yaml.safe_load((S.SPEC_ROOT / "repo-scout" / "scout.yml").read_text(encoding="utf-8"))["local"]["context"]
+    assert set(raw) == S.CONTEXT_KEYS, "scout.yml spells every key out"
+    assert set(S.PLANNER_BRIEFS) == S.PLANNER_COMMANDS, "every planner names its brief pattern"
+    assert S.PLANNER_BRIEFS["scout"].fullmatch("scout-workorder-edgar-pipeline.md")
+
+
+def test_an_absent_context_block_is_all_the_defaults_and_values_are_parsed():
+    root = tmp_root()
+    edit_spec(root, lambda d: d["local"].pop("context"))
+    assert S.load_spec("repo-scout", "scout", root=root, fleet=fleet()).local.context == scout().local.context
+    root = tmp_root()
+    edit_spec(root, lambda d: d["local"].update(context={"mode": "off", "file": "notes.md", "max_chars": 2000,
+                                                         "providers": ["index_code", "history"], "deadline_s": 300,
+                                                         "days": 365}))
+    c = S.load_spec("repo-scout", "scout", root=root, fleet=fleet()).local.context
+    assert c == S.ContextSpec(mode="off", file="notes.md", providers=("history", "index_code"), max_chars=2000,
+                              deadline_s=300.0, days=365), c
+    assert isinstance(c.deadline_s, float), c
+    assert c.providers == ("history", "index_code"), "providers in PROVIDERS order"
+
+
+def test_a_malformed_context_block_is_refused():
+    def ctx(**kw):
+        return lambda d: d["local"]["context"].update(kw)
+
+    cases = [
+        (ctx(extra=1), "unknown key"),
+        (lambda d: d["local"].update(context=[]), "a mapping"),
+        (ctx(mode=False), "quoted string"),            # a bare `off` is a YAML boolean
+        (ctx(mode="on"), "quoted string"),
+        (ctx(file="../x.md"), "bare .md"),
+        (ctx(file=".scout/x.md"), "bare .md"),
+        (ctx(file="context.txt"), "bare .md"),
+        (ctx(file=".hidden.md"), "bare .md"),
+        (ctx(file="x" * 62 + ".md"), "bare .md"),
+        (ctx(file="scout-workorder-SCHEMA.md"), "briefs take"),
+        (ctx(file="Scout-Workorder-x.md"), "briefs take"),
+        (ctx(file="prompt.md"), "item's run directory"),
+        (ctx(file="publish-plan.md"), "item's run directory"),
+        (ctx(file="Validate.md"), "item's run directory"),
+        (ctx(providers=[]), "non-empty list"),
+        (ctx(providers="history"), "non-empty list"),
+        (ctx(providers=["history", "history"]), "distinct"),
+        (ctx(providers=["history", "github"]), "non-empty list"),
+        (ctx(max_chars=1999), "max_chars"),
+        (ctx(max_chars=64001), "max_chars"),
+        (ctx(max_chars=True), "max_chars"),
+        (ctx(max_chars=16000.0), "max_chars"),
+        (ctx(deadline_s=0), "deadline_s"),
+        (ctx(deadline_s=300.5), "deadline_s"),
+        (ctx(deadline_s=float("nan")), "deadline_s"),
+        (ctx(deadline_s=float("inf")), "deadline_s"),
+        (ctx(deadline_s=True), "deadline_s"),
+        (ctx(deadline_s="20"), "deadline_s"),
+        (ctx(days=0), "days"),
+        (ctx(days=366), "days"),
+        (ctx(days=False), "days"),
+    ]
+    for fn, needle in cases:
+        root = tmp_root()
+        edit_spec(root, fn)
+        assert refused(lambda: S.load_spec("repo-scout", "scout", root=root, fleet=fleet()), needle), needle
+    # a declared output under the brief directory is never the pack's name (ignoring case: APFS)
+    for out, name in ((".scout/notes.md", "notes.md"), (".scout/notes.md", "NOTES.md"), (".scout/Notes.md", "notes.md")):
+        root = tmp_root()
+        edit_spec(root, lambda d, out=out, name=name: (d["workspace"]["outputs"].append(out),
+                                                       d["local"]["context"].update(file=name)))
+        assert refused(lambda: S.load_spec("repo-scout", "scout", root=root, fleet=fleet()),
+                       "declared workspace output"), name
+
+
 def test_render_argv_is_one_pass_and_refuses_unsafe_values():
     t = ("scout-file", "--nwo", "{nwo}", "--bodies-dir", "{item_dir}/bodies")
     assert S.render_argv(t, {"nwo": "o/r", "item_dir": "/x/{nwo}"}) == \
