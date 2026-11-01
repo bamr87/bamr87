@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0010 — Test evidence for major changes, visual evidence for frontend PRs, and a skilled-reviewer completeness pass
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0010
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/491 (merged 2026-10-31 by @bamr87)
 - **Affects:** constitution new § 15 (§ 13 is reserved by `eval-baseline-risk-tiers`, #482, still open; § 14 is `public-docs-site`, 0007); § 12 (adds a completeness review to the review gate); specs UPS-QA-52 (raised from SHOULD to MUST by reference); `.github/pull_request_template.md`; features `HUB-047`, `HUB-046`; requirements `FR44`, `FR43`
 - **Supersedes:** none (extends § 7, § 12 and UPS-QA-50..53)
 - **Related:** 0007 `public-docs-site` (per-repo warn-then-fail rollout pattern), 0008 `harness-prior-art-research`, 0009 `agent-merge-review-gate`, #482, docs/VERIFICATION.md, `.github/workflows/fleet-verify.yml`, `templates/verify/`, `templates/site-quality/`

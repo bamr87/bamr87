@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0013 — AI-ready foundation: every repo exposes an API layer, MCP, agent docs and machine-readable metadata, validated by AIEO
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0013
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/494 (merged 2026-10-31 by @bamr87)
 - **Affects:** constitution new § 16; `tools/aieo/` (new home of AIEO, migrated from `bamr87/zer0-CMS` `apps/aieo/`) (follows § 15 `major-change-evidence`, 0010; § 13 is 0011); specs UPS-AGENT, UPS-BE-12/31, UPS-DOC (by reference); `templates/` (new `templates/ai-ready/` kit); features `HUB-050`, `HUB-051`; requirements `FR47`, `FR48`
 - **Supersedes:** none (extends § 7, § 14 and UPS-AGENT)
 - **Related:** 0007 `public-docs-site` (warn-then-fail rollout), 0008 `harness-prior-art-research`, 0011 `eval-baseline-risk-tiers`, docs/MACHINE-API.md, docs/AI-INTEGRATION.md, specs/AGENT-CONTEXT.md, specs/BACKEND.md, `tools/fleetcore/mcp_server.py`, `bamr87/zer0-CMS` `apps/aieo/`

@@ -1,10 +1,10 @@
 # 0009 — Agent merge of mergeable PRs, and a review gate for human review
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0009
 - **Date:** 2026-10-30
 - **Proposed by:** Grok Bot (agent), for Amr
-- **Ratified by:** (blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/481 (merged 2026-10-31 by @bamr87)
 - **Affects:** constitution § 4, new § 12; AGENTS.md "Never"; feature `HUB-045`; requirement `FR42`
 - **Supersedes:** none (§ 8 step 2 and § 11.2 are unchanged)
 - **Related:** fleet-wide repo amendments that conform to this one; it-journey editorial charter PR bamr87/it-journey#889; prior-art proposal #480 (no overlap)

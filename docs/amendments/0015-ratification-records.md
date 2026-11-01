@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0015 — The post-merge job records ratification, acceptance and completion, and merges that record itself
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0015
 - **Date:** 2026-11-01
 - **Proposed by:** agent (Claude Code, on a branch opened for bamr87 at the maintainer's request of 2026-11-01)
-- **Ratified by:** the merged PR URL (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/568 (merged 2026-11-01 by @bamr87)
 - **Affects:** constitution § 8.3; § 12.3 (ADRs join the gated list, and the ratification-record carve-out); § 10.1 (a record PR that merges is not a project item); § 13.6 (the job's merge action is tagged and tiered here); `docs/adr/README.md` (ADR acceptance by merge, completion by the tracking epic); `docs/amendments/SCHEMA.md`, `docs/amendments/proposed/SCHEMA.md` (status lines are recorded, not edited); `.github/workflows/jev-number.yml` (new job `ratify`, kill switch `vars.JEV_RATIFY_ENABLED`); feature `jev-ratify` (HUB-061); requirement FR57
 - **Supersedes:** none (extends amendment 0002's post-merge job; leaves § 12.2 and § 12.5 as they are)
 - **Related:** epic bamr87/bamr87#484 and ADR 0002 (the record that prompted it), amendment 0005 (the one correctly recorded ratification), 0008 `harness-prior-art-research`, 0009 `agent-merge-review-gate` (§ 12), bamr87/bamr87#501 and #505 (HUB-056, the governance records lint), `central-loop-switches` (its stale slug reference to its own requirement is resolved to FR54 in this PR, which unwedges numbering), [docs/JEV.md](../../JEV.md#ratification-records)
