@@ -39,6 +39,7 @@ import contextlib
 import functools
 import hashlib
 import json
+import math
 import os
 import queue
 import re
@@ -359,7 +360,11 @@ def version_str(v: tuple[int, int, int] | None) -> str | None:
 def run_prefix(cap_usd: float, *, stream: bool) -> list[str]:
     """What ai-run puts before every passthrough: print mode, the output format
     its parser reads, and the dollar cap. One source, so the preflight parses
-    the argv the run will use."""
+    the argv the run will use. A cap that is not a finite number above 0 is
+    refused here too, the last line before claude: `inf` or `nan` caps nothing."""
+    if isinstance(cap_usd, bool) or not isinstance(cap_usd, (int, float)) or not (math.isfinite(cap_usd)
+                                                                                 and cap_usd > 0):
+        raise JevError(f"refusing: a dollar cap must be a finite number above 0, got {cap_usd!r}")
     fmt = ["--output-format", "stream-json", "--verbose"] if stream else ["--output-format", "json"]
     return ["-p", *fmt, "--max-budget-usd", f"{cap_usd:g}"]
 

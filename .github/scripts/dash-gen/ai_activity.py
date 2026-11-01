@@ -50,6 +50,7 @@ import datetime as dt
 import fcntl
 import importlib
 import json
+import math
 import os
 import platform
 import re
@@ -770,6 +771,15 @@ def run(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 # `dash ai run` — the capped headless wrapper
 # --------------------------------------------------------------------------- #
+def positive_cap(value) -> float | None:
+    """A number that bounds something: finite and above 0. YAML's `.inf` and a
+    `--max-budget-usd inf` or `nan` would otherwise pass a `> 0` test and hand
+    claude a cap that caps nothing (NaN compares false with everything)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0:
+        return float(value)
+    return None
+
+
 def load_local_budget() -> float:
     """The dollar ceiling for a local headless run, from _data/fleet.yml.
 
@@ -785,9 +795,9 @@ def load_local_budget() -> float:
     budget = fleet.get("budget") if isinstance(fleet, dict) else None
     if isinstance(budget, dict):
         for key in ("local_usd", "default_usd"):
-            value = budget.get(key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
-                return float(value)
+            value = positive_cap(budget.get(key))
+            if value is not None:
+                return value
     return BUDGET_FALLBACK_USD
 
 
@@ -856,10 +866,7 @@ def load_fleet_config() -> dict:
 def call_site_cap(fleet: dict, call_site: str) -> float | None:
     """`budget.call_sites[<workflow file>:<job id>]` — the CI cap, for a local run of the same step."""
     sites = ((fleet.get("budget") or {}).get("call_sites") or {})
-    value = sites.get(call_site) if isinstance(sites, dict) else None
-    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
-        return float(value)
-    return None
+    return positive_cap(sites.get(call_site) if isinstance(sites, dict) else None)
 
 
 def allowed_model_ids(fleet: dict) -> set[str]:
@@ -1010,11 +1017,14 @@ def run_headless(args: argparse.Namespace) -> int:
         budget = args.max_budget_usd if args.max_budget_usd is not None else site_cap
     else:
         budget = args.max_budget_usd if args.max_budget_usd is not None else load_local_budget()
-    if budget <= 0:
-        sys.stderr.write("--max-budget-usd must be greater than 0\n")
+    if positive_cap(budget) is None:
+        sys.stderr.write(f"--max-budget-usd must be a finite number greater than 0, got {budget:g}\n")
         return 2
-    if args.ledger_wait <= 0:
-        sys.stderr.write("--ledger-wait must be greater than 0\n")
+    if positive_cap(args.ledger_wait) is None:
+        sys.stderr.write(f"--ledger-wait must be a finite number greater than 0, got {args.ledger_wait:g}\n")
+        return 2
+    if args.timeout is not None and positive_cap(args.timeout) is None:
+        sys.stderr.write(f"--timeout must be a finite number greater than 0, got {args.timeout:g}\n")
         return 2
     if args.isolate_tmp and not args.isolate:
         sys.stderr.write("--isolate-tmp only means something with --isolate\n")

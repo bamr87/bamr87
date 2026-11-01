@@ -113,10 +113,14 @@ def git(args: list[str], cwd: Path, timeout: int = 900, env: dict | None = None,
 
     A checkout JEV did not write can name a hook directory or an fsmonitor
     program in its config; either would run on the next `git status`. Every
-    call also passes `assert_safe_git`, so no history is ever rewritten remotely.
+    call also passes `assert_safe_git`, so no history is ever rewritten remotely,
+    and a push or fetch names git's own pack program, so one in config never runs.
     `inherit_env=False` makes `env` the whole environment (see `run`).
     """
-    assert_safe_git(args, env)
+    i = assert_safe_git(args, env)
+    pin = _GIT_PACK_PINS.get(args[i])
+    if pin:
+        args = [*args[:i + 1], pin, *args[i + 1:]]
     return run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.pager=cat",
                 *args], cwd=cwd, timeout=timeout, env=env, inherit_env=inherit_env)
 
@@ -333,12 +337,32 @@ _PUSH_REFSPEC_RX = re.compile(r"[^+:\s][^:\s]*:[^:\s]+")
 #: option, so a prefix counts
 _PUSH_DANGEROUS = ("force", "force-with-lease", "force-if-includes", "mirror", "delete", "prune", "receive-pack",
                    "exec")
-#: environment variables that inject git config, a repository or a git binary
-#: directory (a global or system config file is let through only as /dev/null,
-#: which is what engine_git sets)
-_GIT_ENV_REFUSED_RX = re.compile(r"^(GIT_CONFIG_PARAMETERS|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_\d+|GIT_CONFIG_VALUE_\d+"
-                                 r"|GIT_CONFIG|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_DIR|GIT_EXEC_PATH)$")
+#: `git init` options JEV passes (no `--template`, whose `config` file is
+#: copied into the new repository, and no `--separate-git-dir`)
+_GIT_INIT_OPTS = {"--quiet": False, "-q": False, "--initial-branch": True, "-b": True, "--bare": False}
+#: the GIT_* environment variables JEV hands git: an ALLOWLIST, because the
+#: names that inject config, a repository, a template or a program are many
+#: (GIT_CONFIG_*, GIT_DIR, GIT_COMMON_DIR, GIT_TEMPLATE_DIR, GIT_SSH_COMMAND,
+#: GIT_EXEC_PATH, …). A global or system config file only as /dev/null, which
+#: is what engine_git sets.
+_GIT_ENV_ALLOWED = frozenset({"GIT_LFS_SKIP_SMUDGE", "GIT_TERMINAL_PROMPT", "GIT_CONFIG_NOSYSTEM", "GIT_OPTIONAL_LOCKS",
+                              "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE", "GIT_COMMITTER_NAME",
+                              "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE"})
 _GIT_ENV_DEVNULL = frozenset({"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"})
+#: where git finds its global config when GIT_CONFIG_GLOBAL does not say
+_GIT_ENV_HOMES = ("HOME", "XDG_CONFIG_HOME")
+#: the pack programs every push and fetch names itself, so a `receivepack` or
+#: `uploadpack` planted in config past the guard never runs (the command line wins)
+_GIT_PACK_PINS = {"push": "--receive-pack=git-receive-pack", "fetch": "--upload-pack=git-upload-pack"}
+
+
+def _git_env_problems(env: dict | None) -> list[str]:
+    env = env or {}
+    bad = [k for k, v in env.items() if k.startswith("GIT_") and k not in _GIT_ENV_ALLOWED
+           and not (k in _GIT_ENV_DEVNULL and v == "/dev/null")]
+    if env.get("GIT_CONFIG_GLOBAL") != "/dev/null":
+        bad += [k for k in _GIT_ENV_HOMES if k in env and env[k] != os.environ.get(k)]
+    return sorted(bad)
 
 
 def _git_options(what: str, args: list[str], allowed: dict[str, bool]) -> tuple[list[tuple[str, str]], list[str]]:
@@ -385,28 +409,34 @@ def assert_safe_clone(args: list[str], what: str = "git clone") -> None:
                            f"{', '.join(sorted(_GIT_CLONE_CONFIG))})")
 
 
-def assert_safe_git(args: list[str], env: dict | None = None) -> None:
-    """No force-push, mirror or remote delete, whatever the caller meant.
+def assert_safe_git(args: list[str], env: dict | None = None) -> int:
+    """No force-push, mirror or remote delete, whatever the caller meant; the
+    index of the subcommand in `args` when the call is allowed.
 
     A push that rewrites or removes a remote ref discards somebody's commits
     and detaches review comments from them; JEV only ever adds a merge commit.
     The guard fails closed: the subcommand must be one JEV runs
     (`_GIT_ALLOWED`), a global option one JEV passes (`_GIT_GLOBAL_OPTS`; no
     `--config-env`), a `-c` key one JEV sets (`_GIT_CONFIG_KEYS`), and `env`
-    may inject no config (a global or system file only as /dev/null). The
+    may set only the GIT_* names in `_GIT_ENV_ALLOWED` (a global or system
+    config file only as /dev/null) and may move HOME or XDG_CONFIG_HOME, where
+    git finds its global config, only when that config is /dev/null. The
     subcommands that could plant config a later push follows are held to the
-    options JEV uses: `clone` (its `-c` pinned, no `--mirror`), `fetch`,
-    `remote` (list and remove only) and `config` (a write only of the keys in
+    options JEV uses: `clone` (its `-c` pinned, no `--mirror` or
+    `--template`), `init` (`-q`, `-b`, `--bare`), `fetch`, `remote` (list and
+    remove only) and `config` (a write only of the keys in
     `_GIT_CONFIG_WRITES`). A push is refused for a force, mirror, delete or
     prune flag in any spelling (bundled short flags, long-option prefixes), any
     option JEV does not pass, and any refspec but an explicit `<src>:<dst>` —
     so a push refspec or mirror flag in config, wherever it came from, never
-    applies (git ignores the first and refuses the second beside a refspec).
+    applies (git ignores the first and refuses the second beside a refspec) —
+    and `git()` pins every push's and fetch's pack program (`_GIT_PACK_PINS`),
+    so a `receivepack` or `uploadpack` in config never runs either.
     """
-    bad_env = sorted(k for k, v in (env or {}).items()
-                     if _GIT_ENV_REFUSED_RX.match(k) and not (k in _GIT_ENV_DEVNULL and v == "/dev/null"))
+    bad_env = _git_env_problems(env)
     if bad_env:
-        raise JevError(f"refusing: JEV never hands git config through the environment ({', '.join(bad_env)})")
+        raise JevError(f"refusing: JEV never hands git config, a repository or a program through the environment "
+                       f"({', '.join(bad_env)})")
     i, config = 0, []
     while i < len(args) and args[i].startswith("-"):
         a = args[i]
@@ -434,6 +464,10 @@ def assert_safe_git(args: list[str], env: dict | None = None) -> None:
         assert_safe_clone(tail)
     elif sub == "fetch":
         _git_options("git fetch", tail, _GIT_FETCH_OPTS)
+    elif sub == "init":
+        _opts, positionals = _git_options("git init", tail, _GIT_INIT_OPTS)
+        if len(positionals) > 1:
+            raise JevError(f"refusing: git init takes one directory, not {' '.join(positionals)}")
     elif sub == "remote":
         if tail not in ([], ["-v"]) and not (len(tail) == 2 and tail[0] in ("remove", "rm", "get-url")):
             raise JevError(f"refusing: JEV only lists and removes remotes, never `git remote {' '.join(tail[:2])}`")
@@ -447,6 +481,7 @@ def assert_safe_git(args: list[str], env: dict | None = None) -> None:
                                "push or run a command)")
     elif sub == "push":
         _assert_safe_push(tail)
+    return i
 
 
 def _assert_safe_push(tail: list[str]) -> None:
