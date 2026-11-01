@@ -102,6 +102,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-055](features/features.yml) | Copier-style 3-way kit upgrade for hand-edited files | planned | [`tools/fanout.sh`](tools/fanout.sh) · [`docs/STANDARDS.md`](docs/STANDARDS.md) | FR52 |
 | [HUB-056](features/features.yml) | Governance records lint: amendment status, constitution order, doc links | planned | [`tools/governance_lint.py`](tools/governance_lint.py) · [`docs/amendments/README.md`](docs/amendments/README.md) | FR53 |
 | [HUB-057](features/features.yml) | Centrally managed loop kill switches | planned | [`_data/fleet.yml`](_data/fleet.yml) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR54 |
+| [HUB-058](features/features.yml) | Agentic design patterns map | partial | [`docs/agentic-patterns/patterns.json`](docs/agentic-patterns/patterns.json) · [`docs/agentic-patterns/README.md`](docs/agentic-patterns/README.md) | FR55 |
 
 **Requirement → feature trace**
 
@@ -172,6 +173,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR52 | HUB-055 |
 | FR53 | HUB-056 |
 | FR54 | HUB-057 |
+| FR55 | HUB-058 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -220,6 +222,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR52: fanout.sh --upgrade --merge must 3-way-merge a hand-modified kit file against the recorded seed commit, and must open a draft PR instead of resolving a conflict.
 - FR53: governance_lint check must fail when a features.yml or PRD.md link targets a missing path, a numbered amendment record is not in a terminal status, constitution sections are not in ascending order, or a PRD requirement cites a feature id it is not mapped to.
 - FR54: Every scheduled or AI-calling workflow in the fleet must have a kill switch resolved from one switches map in _data/fleet.yml, changeable per repo, per loop, per group or globally through a dry-run-by-default, audited operation, with drift against live repo variables reported.
+- FR55: The hub must publish a per-chapter map of agentic design patterns to fleet evidence, where every rating cites a pinned permalink and every gap links an issue, with a machine-readable index linked from llms.txt.
 
 **Non-functional**
 

@@ -67,6 +67,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/WORKFLOW-OPTIMIZATION.md`](WORKFLOW-OPTIMIZATION.md) | The fleet-wide GitHub Actions audit of 2026-09 and the record of what changed because of it. |
 | [`docs/WORKFLOW-VERSIONING.md`](WORKFLOW-VERSIONING.md) | How the reusable workflows are tagged (`vX.Y.Z` plus a floating `vX`), what each bump promises, and how a release is cut and rolled back. |
 | [`docs/adr/`](adr/README.md) | Decisions for bamr87 that are hard to reverse — the stack, data model, security model, public interfaces, and any relaxation of a gate — one file each. |
+| [`docs/agentic-patterns/`](agentic-patterns/README.md) | How each pattern in Antonio Gulli's *Agentic Design Patterns* shows up in the bamr87 fleet: one page per chapter, each rated proven, partial or gap against pinned, reproducible evidence. |
 | [`docs/amendments/`](amendments/README.md) | The append-only log of numbered changes to the constitution, ratified only when the maintainer merges the PR. |
 
 ### `docs/prd/`
