@@ -27,8 +27,9 @@ Description: JEV capability two — loop STEP SPECS. One file pair per agent ste
              The optional `local:` block (P1, #486) says how `python3 -m
              tools.jev loop` runs the step on a workstation: the adapter, the
              kill switch (held equal to the workflow's gating `if:`), the
-             planner and publish argv templates and the budget-hit rule. CI and
-             every P0 consumer ignore it.
+             planner and publish argv templates, the budget-hit rule and the
+             host-built context pack (`local.context`). CI and every P0
+             consumer ignore it.
 Author: bamr87
 Created: 2026-10-30
 Version: 0.1.0
@@ -118,8 +119,21 @@ RISK_KEYS = frozenset({"what", "tags", "tier"})
 FORBIDDEN_TEMPLATE_CHARS = {"\r": "CR", "\t": "tab", "\x00": "NUL", "﻿": "BOM"}
 # `local:` (P1). Every sub-key has a consumer in tools/jev/loop.py; P3 adds more
 # (tiers, workspace kinds, rounds) as optional sub-keys, which keeps v1.
-LOCAL_KEYS = frozenset({"adapter", "switch", "planner", "publish", "on_budget_hit"})
+LOCAL_KEYS = frozenset({"adapter", "switch", "planner", "publish", "on_budget_hit", "context"})
 LOCAL_REQUIRED = frozenset({"adapter", "planner"})
+#: `local.context`: how the engine builds the context pack (tools/jev/context.py)
+#: for this step. Every key is optional; an absent block is all the defaults.
+CONTEXT_KEYS = frozenset({"mode", "file", "providers", "max_chars", "deadline_s", "days"})
+CONTEXT_MAX_CHARS = (2000, 64000)
+#: Each planner's brief file name (the plan row's `brief`): the pack's file is
+#: placed beside the brief, so it may never be a name a brief could take.
+#: Adding a planner to PLANNER_COMMANDS adds its pattern here.
+PLANNER_BRIEFS = {"scout": re.compile(r"scout-workorder-.+\.md", re.I)}
+#: The stems of the files the engine writes in an item's run directory, where
+#: the pack and its `.json` twin are written too — so neither may be one of
+#: them (tools/test_jev_loop.py holds this set to what a live run writes).
+ITEM_DIR_STEMS = frozenset({"prompt", "settings", "argv", "env-keys", "validate", "publish-plan", "publish-result",
+                            "outcome", "result", "trace", "tree", "ai-run-dry", "debug", "debug-sandbox"})
 SWITCH_KEYS = frozenset({"config", "variable", "default"})
 PLANNER_KEYS = frozenset({"argv", "flags"})
 #: engine option → the planner's own flag (`--target NAME` is passed as `--target=NAME`)
@@ -203,6 +217,20 @@ class ArgvTemplate:
 
 
 @dataclass(frozen=True)
+class ContextSpec:
+    """`local.context`: the context pack the engine builds on the host before
+    an attempt and places beside the brief in the clone (tools/jev/context.py,
+    docs/JEV.md "The context pack"). `mode` 'off' is the CI-identical run."""
+
+    mode: str
+    file: str
+    providers: tuple[str, ...]
+    max_chars: int
+    deadline_s: float
+    days: int
+
+
+@dataclass(frozen=True)
 class LocalSpec:
     """How the local loop engine runs this step (`local:`; ADR 0002, P1)."""
 
@@ -211,6 +239,8 @@ class LocalSpec:
     switch: Switch | None = None
     publish: ArgvTemplate | None = None
     on_budget_hit: str = "discard"
+    #: always set by the loader (an absent `local.context` is all the defaults)
+    context: ContextSpec | None = None
 
 
 @dataclass(frozen=True)
@@ -416,7 +446,70 @@ def _argv_template(raw: object, at: str, commands: Collection[str], refused_flag
     return tuple(raw)
 
 
-def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str) -> LocalSpec:
+def _is_int(value: object) -> TypeGuard[int]:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _check_context(raw: object, workspace: Workspace, planner: str, at: str) -> ContextSpec:
+    """`local.context`, validated; every key optional (the defaults are
+    tools/jev/context.py's). The pack's file sits beside the brief in the
+    clone and, with its `.json` twin, in the item's run directory, so it may
+    not be a name a brief could take, a declared output under the brief
+    directory (compared ignoring case: APFS) or an engine file's stem."""
+    from . import context as ctxmod  # lazy: importing spec.py stays light and side-effect free
+    if not isinstance(raw, Mapping):
+        raise StepSpecError(f"{at}: a mapping of {sorted(CONTEXT_KEYS)} (each optional)")
+    unknown = set(raw) - CONTEXT_KEYS
+    if unknown:   # YAML keys need not be strings: sorted by their text, never compared across types
+        raise StepSpecError(f"{at}: unknown key(s) {sorted(map(str, unknown))} (known: {sorted(CONTEXT_KEYS)})")
+    mode = raw.get("mode", ctxmod.DEFAULT_MODE)
+    if mode not in ctxmod.MODES or not isinstance(mode, str):
+        # a bare `off` is a YAML 1.1 boolean, so the value must be quoted
+        raise StepSpecError(f"{at}.mode: the quoted string 'auto', 'off' or 'require', not {mode!r}")
+    file = raw.get("file", "context.md")
+    if not ctxmod.is_pack_file(file):
+        # written verbatim into the brief's pointer: no space, backtick, line break or invisible character
+        raise StepSpecError(f"{at}.file: a plain .md file name ({ctxmod.FILE_RX.pattern}: no directory, "
+                            f"not hidden, ≤ 64 characters), not {file!r}")
+    brief_rx = PLANNER_BRIEFS.get(planner)
+    if brief_rx is None:
+        raise StepSpecError(f"{at}: the planner {planner!r} has no brief pattern in tools/jev/spec.py PLANNER_BRIEFS")
+    if brief_rx.fullmatch(file):
+        raise StepSpecError(f"{at}.file: {file!r} is a name the {planner} planner's briefs take "
+                            f"({brief_rx.pattern}) — the pack is placed beside the brief")
+    here = f"{workspace.brief_dir.rstrip('/')}/{file}".lower()
+    if any(o.lower().strip("/") == here for o in workspace.outputs):
+        raise StepSpecError(f"{at}.file: {file!r} under {workspace.brief_dir}/ is a declared workspace output — "
+                            "the pack would be harvested as the agent's")
+    stem = file[: -len(".md")].lower()
+    if stem in ITEM_DIR_STEMS:
+        raise StepSpecError(f"{at}.file: {file!r} (and its .json twin) would collide with the engine's own "
+                            f"{stem}.* in the item's run directory")
+    providers = raw.get("providers", list(ctxmod.PROVIDERS))
+    if (not isinstance(providers, list) or not providers or not all(isinstance(p, str) for p in providers)
+            or len(set(providers)) != len(providers) or not set(providers) <= set(ctxmod.PROVIDERS)):
+        raise StepSpecError(f"{at}.providers: a non-empty list of distinct names from {list(ctxmod.PROVIDERS)}, "
+                            f"not {providers!r}")
+    max_chars = raw.get("max_chars", ctxmod.DEFAULT_MAX_CHARS)
+    low, high = CONTEXT_MAX_CHARS
+    if not _is_int(max_chars) or not low <= max_chars <= high:
+        raise StepSpecError(f"{at}.max_chars: an integer in {low}..{high}, not {max_chars!r}")
+    deadline = raw.get("deadline_s", ctxmod.DEFAULT_DEADLINE_S)
+    try:   # an int too large for a float overflows: refused like any other out-of-range value
+        seconds = float(deadline) if isinstance(deadline, (int, float)) and not isinstance(deadline, bool) else None
+    except OverflowError:
+        seconds = None
+    if seconds is None or not math.isfinite(seconds) or not 0 < seconds <= ctxmod.MAX_DEADLINE_S:
+        raise StepSpecError(f"{at}.deadline_s: a finite number of seconds in (0, {ctxmod.MAX_DEADLINE_S:g}], "
+                            f"not {deadline!r}")
+    days = raw.get("days", ctxmod.DEFAULT_DAYS)
+    if not _is_int(days) or not 1 <= days <= ctxmod.MAX_DAYS:
+        raise StepSpecError(f"{at}.days: an integer in 1..{ctxmod.MAX_DAYS}, not {days!r}")
+    return ContextSpec(mode=mode, file=file, providers=tuple(p for p in ctxmod.PROVIDERS if p in providers),
+                       max_chars=max_chars, deadline_s=seconds, days=days)
+
+
+def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str, workspace: Workspace) -> LocalSpec:
     """The `local:` block, validated. Unknown sub-keys are refused like unknown keys."""
     at = f"{where}: local"
     if not isinstance(raw, Mapping):
@@ -481,8 +574,9 @@ def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str) 
     on_hit = raw.get("on_budget_hit", "discard")
     if on_hit not in ON_BUDGET_HIT:
         raise StepSpecError(f"{at}.on_budget_hit: one of {sorted(ON_BUDGET_HIT)}, not {on_hit!r}")
+    context = _check_context(raw.get("context", {}), workspace, planner.argv[0], f"{at}.context")
     return LocalSpec(adapter=raw["adapter"], planner=planner, switch=switch, publish=publish,
-                     on_budget_hit=on_hit)
+                     on_budget_hit=on_hit, context=context)
 
 
 def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | None = None) -> StepSpec:
@@ -578,7 +672,7 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
     fleet = load_fleet() if fleet is None else fleet
     resolved = resolve(fleet, model_from=data["model_from"],
                        max_turns_from=data["max_turns_from"], call_site=call_site, where=where)
-    local = _check_local(data["local"], data.get("risk"), fleet, where) if "local" in data else None
+    local = _check_local(data["local"], data.get("risk"), fleet, where, workspace) if "local" in data else None
     return StepSpec(path=path, loop=loop, step=step, call_site=call_site, step_id=data["step_id"],
                     prompt_file=prompt_file, template=template, inputs=dict(inputs),
                     model_from=data["model_from"], max_turns_from=data["max_turns_from"],

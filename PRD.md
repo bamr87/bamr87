@@ -105,6 +105,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-058](features/features.yml) | Agentic design patterns map | partial | [`docs/agentic-patterns/patterns.json`](docs/agentic-patterns/patterns.json) · [`docs/agentic-patterns/README.md`](docs/agentic-patterns/README.md) | FR55 |
 | [HUB-059](features/features.yml) | JEV: loop step specs — one spec per agent step, rendered the same in CI and locally | partial | [`tools/jev/steps/README.md`](tools/jev/steps/README.md) · [`docs/JEV.md`](docs/JEV.md) | FR45 |
 | [HUB-060](features/features.yml) | JEV: run a loop's agent step locally (the loop runner) | partial | [`tools/jev/loop.py`](tools/jev/loop.py) · [`docs/JEV.md`](docs/JEV.md) | FR56 |
+| [HUB-061](features/features.yml) | JEV: ratification, acceptance and completion recorded after the maintainer merges | shipped | [`tools/jev/ratify.py`](tools/jev/ratify.py) · [`docs/JEV.md`](docs/JEV.md) | FR57 |
+| [HUB-062](features/features.yml) | Fleet frontend platform: registry frontend: block, tiers and UPS-FE-70..73 | partial | [`tools/frontend_registry.py`](tools/frontend_registry.py) · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58 |
+| [HUB-063](features/features.yml) | JEV: the loop runner's context pack — the fleet's planes, read on the host for a sealed agent | partial | [`tools/jev/context.py`](tools/jev/context.py) · [`docs/JEV.md`](docs/JEV.md) | FR59 |
 
 **Requirement → feature trace**
 
@@ -177,6 +180,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR54 | HUB-057 |
 | FR55 | HUB-058 |
 | FR56 | HUB-060 |
+| FR57 | HUB-061 |
+| FR58 | HUB-062 |
+| FR59 | HUB-063 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -227,6 +233,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR54: Every scheduled or AI-calling workflow in the fleet must have a kill switch resolved from one switches map in _data/fleet.yml, changeable per repo, per loop, per group or globally through a dry-run-by-default, audited operation, with drift against live repo variables reported.
 - FR55: The hub must publish a per-chapter map of agentic design patterns to fleet evidence, where every rating cites a pinned permalink and every gap links an issue, with a machine-readable index linked from llms.txt.
 - FR56: The hub must run any loop agent step that has a step spec with a local: block on the maintainer's workstation with headless Claude Code, with the same planner, prompt bytes, allowlist and per-attempt cap as CI, inside an isolated and sandboxed session with no network and no GitHub credential, held to a monthly local ceiling, and publishing only the exact bytes of a dry-run preview under the maintainer's explicit --apply.
+- FR57: When the maintainer merges the pull request that proposes an amendment, adds an ADR or adds an ADR phase, the hub must record it without a human edit: the record's status becomes ratified or accepted with a link to that pull request, its merge date and who merged it, the index row follows, and an ADR whose tracking epic closes as completed with every sub-issue closed is marked completed; the record change is a pull request limited to those lines, merged with a merge commit only after every check passed and a diff check proved it holds nothing else.
+- FR58: Every fleet repo declares its frontend tier in the registry; shell-tier apps use the fleet tokens and app shell, tokens-tier sites, games and extensions use the fleet tokens, tier-none repos are N/A; the UPS-FE-70..73 checks warn until a repo's adoption PR merges, then fail.
+- FR59: Before a local loop attempt, the hub must give the sealed agent read-only, capped, redacted and freshness-stamped context from the fleet's data lake, code index, telemetry and the loop's own earlier attempts as a file beside the brief in its clone, built on the host without changing the reviewed prompt bytes, with a mode that turns it off for a CI-identical run and a mode that refuses to spend when a plane is unavailable.
 
 **Non-functional**
 

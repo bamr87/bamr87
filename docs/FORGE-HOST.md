@@ -43,7 +43,7 @@ Hub URLs on the LAN (ports from `.env`):
 
 | Service | URL |
 |---|---|
-| Console (review / launch) | http://forge.local:4001 |
+| Console (review / launch) | http://forge.local:4001 (compose path); the bashOS service binds loopback: [below](#the-harness-console-as-a-bashos-service) |
 | Devenv (exec to build) | `ssh forge 'docker exec -it bamr87-devenv bash'` |
 | Wiki | http://forge.local:3000 |
 | MkDocs | http://forge.local:8001 |
@@ -64,6 +64,17 @@ labels:
 ```
 
 The older `bamr87.project` label still works, but new services should use the standard one.
+
+## The Harness Console as a bashOS service
+
+forge also runs the [bashOS](../projects/bashos/docs/OS.md) OS layer (`bashos os install`, 2026-11-01). That serves the hub's `tools/console` without Docker: `bashos-harness.service`, a systemd user unit, runs `tools/console/run.sh` from the checkout in `~/dev/bamr87`, restarts it if it dies, and starts at boot (linger is on).
+
+- **Reaching it:** it binds `127.0.0.1:4001`, so use a tunnel: `ssh -N -L 4001:127.0.0.1:4001 forge`, then open http://localhost:4001. If the Mac's own `tools/dash up` console already holds :4001, use another local port (`-L 14001:127.0.0.1:4001`).
+- **On the LAN:** set `BASHOS_HARNESS_HOST` in `/etc/bashos/os.conf` and put `DASH_CONSOLE_TOKEN` in `~/.config/bashos/harness.env` (mode 0600). `bashos-harness` refuses a LAN address without the token. `BASHOS_LAN_CIDR` adds the ufw rule, like the one-time step above.
+- **Operating it:** `bashos os status` gives the verdicts. `bashos os harness status|logs|restart|url` covers the unit.
+- **One owner for :4001.** The compose `console` service (`tools/dash host rebuild`, `compose/forge.yml`) and `bashos-harness` can't both bind it. Either stop the service before a rebuild (`bashos os harness stop`), or set `BASHOS_HARNESS=compose` so systemd supervises the compose console itself.
+
+forge can also boot the whole bashOS image from a USB stick, once, without touching its disk. It then runs as `forge-bashos.local`, serves the same console on its loopback, and offers the monitor's keyboard and mouse over VNC through ssh. While it does, `ssh forge` and `ssh://forge` (the TUI's Docker poll) don't answer. `sudo reboot` returns to Debian. How: [bashOS docs/OS.md § forge, step by step](../projects/bashos/docs/OS.md#forge-step-by-step).
 
 ## What belongs on forge
 

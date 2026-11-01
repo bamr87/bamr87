@@ -121,7 +121,14 @@ if scenario == "probe":
     keys = ",".join(user.get("env") or {}) if "--restricted" not in argv else ""
     debug(f"2026-10-31 [DEBUG] CA certs: Config fallback - globalEnv keys: , settingsEnv keys: {keys or 'none'}")
     if "--restricted" in argv:
-        debug("2026-10-31 [DEBUG] Applying permission update: Adding 5 allow rule(s) to destination 'flagSettings'")
+        # 2.1.308's read-fence line: the --settings document's denyRead keeps the CLI's scratch dir fenced
+        try:
+            deny = json.load(open(argv[argv.index("--settings") + 1]))["sandbox"]["filesystem"]["denyRead"]
+        except (ValueError, OSError, KeyError, IndexError, TypeError):
+            deny = []
+        if deny:
+            debug(f"2026-10-31 [DEBUG] Sandbox: blockReadsOutsideWorkingDirectories: {deny[0]}/ stays under an "
+                  "existing denyRead and is not re-opened")
         debug("2026-10-31 [DEBUG] $.fs.ancestors (cc-plugin-agents-md): project memory is off")
         emit({"type": "system", "subtype": "init", "tools": ["Bash", "Read", "Grep", "Glob", "Write"],
               "mcp_servers": [], "permissionMode": "dontAsk", "output_style": "default", "skills": []})
@@ -133,6 +140,9 @@ if scenario == "probe":
     emit(json.loads(__NOT_LOGGED_IN__))
     sys.exit(1)
 emit({"type": "system", "subtype": "init", "session_id": "s-1"})
+if scenario == "string_message":   # 2.1.308 prints events whose `message` is a string
+    emit({"type": "system", "subtype": "notice", "message": "Sandbox blocked a read"})
+    emit({"type": "user", "message": "a plain-text user event"})
 emit({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "ls"}}]}})
 emit(result)
 '''
@@ -664,6 +674,66 @@ def test_a_normal_run_keeps_init_the_last_result_and_the_tool_counts():
     assert "API-equivalent estimate" in tee
 
 
+def test_an_event_whose_message_is_a_string_is_read_traced_and_never_ends_the_run():
+    trace = Path(tempfile.mkdtemp()) / "trace.jsonl"
+    got, _ = run_stub("string_message", trace=trace)
+    assert got.result and got.result["total_cost_usd"] == 0.25 and got.tool_uses == {"Bash": 1}
+    assert got.unread_events == 0, got.unread_detail
+    rows = [json.loads(x) for x in trace.read_text().splitlines()]
+    assert {"type": "system", "subtype": "notice", "message": "Sandbox blocked a read"} in rows
+    assert H.classify(got, 8.0).kind == "ok"
+    assert H.tool_calls(rows) == H.tool_calls([r for r in rows if not isinstance(r.get("message"), str)])
+    assert H._clip_tool_results({"type": "user", "message": "x"}) == {"type": "user", "message": "x"}
+
+
+class _TraceThatRaises(H.Trace):
+    """A trace writer that cannot handle one event shape: the bug class that
+    once ended a canary mid-session, so its spend went unrecorded."""
+
+    def write(self, event, raw):
+        if isinstance(event, dict) and event.get("subtype") == "notice":
+            raise AttributeError("'str' object has no attribute 'get'")
+        super().write(event, raw)
+
+
+def test_an_event_the_runner_cannot_process_never_ends_the_session_and_fails_closed():
+    d, claude = stub_dir()
+    red = H.Redactor({})
+    path = d / "trace.jsonl"
+    got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                   env=stub_env(STUB_SCENARIO="string_message"), timeout_s=None, trace=_TraceThatRaises(path, red),
+                   redactor=red, cap_usd=8.0)
+    assert got.rc == 0 and got.result and got.result["total_cost_usd"] == 0.25, "the session ran to its result"
+    assert got.unread_events == 1 and "AttributeError" in got.unread_detail
+    rows = [json.loads(x) for x in path.read_text().splitlines()]
+    assert any(r.get("type") == "jev_raw" and "Sandbox blocked" in r.get("text", "") for r in rows), rows
+    out = H.classify(got, 8.0)
+    assert (out.kind, out.cost_source, out.cost_usd) == ("agent_error", "reported", 0.25), out
+    assert "could not read 1 stream event" in out.detail
+
+
+class _TeeThatRaises:
+    """A tee that fails with something other than the OSError the read loop expects of a dead terminal."""
+
+    def write(self, text):
+        if "init" in text:
+            raise RuntimeError("tee broke")
+
+    def flush(self):
+        return None
+
+
+def test_a_failure_outside_the_trace_is_caught_too_and_the_session_still_ends_with_its_result():
+    d, claude = stub_dir()
+    red = H.Redactor({})
+    got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                   env=stub_env(STUB_SCENARIO="ok"), timeout_s=None, trace=None, redactor=red, cap_usd=8.0,
+                   echo=_TeeThatRaises())
+    assert got.rc == 0 and got.result and got.result["total_cost_usd"] == 0.25
+    assert got.unread_events == 1 and "RuntimeError: tee broke" in got.unread_detail
+    assert H.classify(got, 8.0).kind == "agent_error"
+
+
 def test_the_wall_clock_is_sigint_first_and_the_result_is_kept():
     got, _ = run_stub("result_on_sigint", timeout_s=0.5)
     assert got.timed_out and got.result and got.result["total_cost_usd"] == 0.4
@@ -1016,11 +1086,12 @@ NO_ENV_LINE = "CA certs: Config fallback - globalEnv keys: , settingsEnv keys: n
 
 
 def judge_probe(plain: H.ProbeRun, isolated: H.ProbeRun, expected=None, *,
-                restricted: H.ProbeRun | None = None) -> H.ProbeResult:
-    """judge_probe with a passing restricted leg unless one is given."""
+                restricted: H.ProbeRun | None = None, deny_read=None) -> H.ProbeResult:
+    """judge_probe with a passing restricted leg and DENY as the document's denyRead unless given."""
     expected = EXPECTED if expected is None else expected
     restricted = restricted or probe_run([dict(INIT)], [NO_ENV_LINE])
-    return H.judge_probe(plain, isolated, expected, restricted=restricted)
+    return H.judge_probe(plain, isolated, expected, restricted=restricted,
+                         deny_read=DENY if deny_read is None else deny_read)
 
 
 def control() -> H.ProbeRun:
@@ -1033,13 +1104,16 @@ CONTROL_EVENTS = [{"type": "system", "subtype": "hook_started"},
                    "mcp_servers": [{"name": "jev-probe", "status": "failed", "source": "project"}],
                    "output_style": H.PROBE_OUTPUT_STYLE, "skills": ["jev-probe"]}]
 ISOLATED = [dict(INIT)]
-FLAG_LINE = ["Applying permission update: Adding 5 allow rule(s) to destination 'flagSettings'",
-             "$.fs.ancestors (cc-plugin-agents-md): project memory is off"]
+#: the line 2.1.308 writes when the --settings document's read fence holds (headless.SETTINGS_FENCE_RX)
+DENY = ("/private/tmp/claude-501",)
+FENCE_LINE = ("Sandbox: blockReadsOutsideWorkingDirectories: /private/tmp/claude-501/ stays under an existing "
+              "denyRead and is not re-opened")
+SETTINGS_LINES = [FENCE_LINE, "$.fs.ancestors (cc-plugin-agents-md): project memory is off"]
 EXPECTED = ("Bash", "Read", "Grep", "Glob", "Write")
 
 
 def test_the_probe_passes_a_live_control_and_a_clean_isolated_run():
-    got = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
+    got = judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES), EXPECTED)
     assert got.ok, got.problems
 
 
@@ -1053,22 +1127,62 @@ def test_the_probe_fails_an_isolated_run_that_leaks_anything():
         [{**INIT, "skills": ["jev-probe"]}],
     ]
     for events in leaks:
-        got = judge_probe(control(), probe_run(events, FLAG_LINE), EXPECTED)
+        got = judge_probe(control(), probe_run(events, SETTINGS_LINES), EXPECTED)
         assert not got.ok, events
-    for debug, why in (([], "no flagSettings line"), (FLAG_LINE[:1], "no memory-off line"),
-                       ([*FLAG_LINE, USER_ENV_LINE], "user env block"),
-                       ([*FLAG_LINE, "[ERROR] Invalid setting skipped without dialog: x"], "settings skipped")):
+    for debug, why in (([], "no read-fence line"), (SETTINGS_LINES[:1], "no memory-off line"),
+                       ([*SETTINGS_LINES, USER_ENV_LINE], "user env block"),
+                       ([*SETTINGS_LINES, "[ERROR] Invalid setting skipped without dialog: x"], "settings skipped")):
         assert not judge_probe(control(), probe_run(ISOLATED, debug), EXPECTED).ok, why
-    assert not judge_probe(control(), probe_run(ISOLATED, FLAG_LINE, hook=True), EXPECTED).ok
-    assert not judge_probe(control(), probe_run(ISOLATED, FLAG_LINE, mcp=True), EXPECTED).ok
+    assert not judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES, hook=True), EXPECTED).ok
+    assert not judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES, mcp=True), EXPECTED).ok
+
+
+def test_the_probe_wants_the_settings_documents_own_read_fence():
+    memory_off = SETTINGS_LINES[1]
+    # 2.1.308 logs no flagSettings line before a model call: that wording alone proves nothing
+    old = "Applying permission update: Adding 5 allow rule(s) to destination 'flagSettings'"
+    got = judge_probe(control(), probe_run(ISOLATED, [old, memory_off]), EXPECTED)
+    assert not got.ok and any("read fence" in p for p in got.problems), got.problems
+    # a fence line naming a path no denyRead entry covers is not the document's (a sibling is not under)
+    stray = FENCE_LINE.replace("/private/tmp/claude-501/", "/private/tmp/claude-5010/")
+    got = judge_probe(control(), probe_run(ISOLATED, [stray, memory_off]), EXPECTED)
+    assert not got.ok and any("under none" in p for p in got.problems), got.problems
+    # nothing to check it against (the reduced posture's document, or an unreadable one): fails closed
+    got = judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES), EXPECTED, deny_read=())
+    assert not got.ok and any("no positive proof" in p for p in got.problems), got.problems
+    got = judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES), EXPECTED)
+    assert got.ok and got.facts["settings_fence"] == ["/private/tmp/claude-501/"], got
+    exact = FENCE_LINE.replace("/private/tmp/claude-501/", "/private/tmp/claude-501")
+    assert judge_probe(control(), probe_run(ISOLATED, [exact, memory_off]), EXPECTED).ok, "the entry itself"
+
+
+def test_settings_deny_read_reads_the_document_the_flags_name():
+    d = Path(tempfile.mkdtemp())
+    doc = d / "s.json"
+    doc.write_text(json.dumps(H.settings_doc(SANDBOX, hub=Path("/hub"), private_reads=("/private/tmp/claude-1",),
+                                             dotenv=False)))
+    assert "/private/tmp/claude-1" in H.settings_deny_read(["-p", "--settings", str(doc)])
+    assert H.settings_deny_read(["-p"]) == [] and H.settings_deny_read(["-p", "--settings"]) == []
+    for bad in ("not json", "[]", '{"sandbox": null}', '{"sandbox": {"filesystem": {"denyRead": "/x"}}}'):
+        doc.write_text(bad)
+        assert H.settings_deny_read(["--settings", str(doc)]) == [], bad
+    assert H.settings_deny_read(["--settings", str(d / "missing.json")]) == []
+
+
+def test_the_reduced_debug_log_keeps_the_read_fence_line():
+    d = Path(tempfile.mkdtemp())
+    log = d / "debug.log"
+    log.write_text("2026-11-01T16:15:09.016Z [DEBUG] " + FENCE_LINE + "\n2026-11-01 [DEBUG] something else\n")
+    kept = H.reduce_debug_log(log)
+    assert len(kept) == 1 and H.SETTINGS_FENCE_RX.search(kept[0]) and not log.exists(), kept
 
 
 def test_a_spec_may_grant_edit_but_never_a_never_grantable_tool():
     with_edit = [{**INIT, "tools": [*INIT["tools"], "Edit"]}]
-    assert judge_probe(control(), probe_run(with_edit, FLAG_LINE), (*EXPECTED, "Edit")).ok
-    assert not judge_probe(control(), probe_run(with_edit, FLAG_LINE), EXPECTED).ok, "ungranted Edit"
+    assert judge_probe(control(), probe_run(with_edit, SETTINGS_LINES), (*EXPECTED, "Edit")).ok
+    assert not judge_probe(control(), probe_run(with_edit, SETTINGS_LINES), EXPECTED).ok, "ungranted Edit"
     with_send = [{**INIT, "tools": [*INIT["tools"], "SendMessage"]}]
-    got = judge_probe(control(), probe_run(with_send, FLAG_LINE), (*EXPECTED, "SendMessage"))
+    got = judge_probe(control(), probe_run(with_send, SETTINGS_LINES), (*EXPECTED, "SendMessage"))
     assert not got.ok and any("never-grantable" in p for p in got.problems)
 
 
@@ -1079,28 +1193,28 @@ def test_init_problems_is_the_per_run_posture_check():
 
 
 def test_a_control_that_shows_nothing_it_planted_is_a_stale_detector():
-    got = judge_probe(probe_run([{**INIT, "permissionMode": "default"}]), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
+    got = judge_probe(probe_run([{**INIT, "permissionMode": "default"}]), probe_run(ISOLATED, SETTINGS_LINES), EXPECTED)
     assert not got.ok and any("detector stale" in p for p in got.problems)
-    got = judge_probe(probe_run(CONTROL_EVENTS, [NO_ENV_LINE]), probe_run(ISOLATED, FLAG_LINE))
+    got = judge_probe(probe_run(CONTROL_EVENTS, [NO_ENV_LINE]), probe_run(ISOLATED, SETTINGS_LINES))
     assert not got.ok and any("planted user env" in p for p in got.problems), "an uncalibrated env detector is stale"
     no_skill = [CONTROL_EVENTS[0], {**CONTROL_EVENTS[1], "skills": []}]
-    got = judge_probe(probe_run(no_skill), probe_run(ISOLATED, FLAG_LINE), EXPECTED)
+    got = judge_probe(probe_run(no_skill), probe_run(ISOLATED, SETTINGS_LINES), EXPECTED)
     assert not got.ok and any("init.skills" in p for p in got.problems), "an uncalibrated skills check is stale"
 
 
 def test_the_restricted_leg_proves_restricted_alone_ignores_the_project_settings_file():
-    good = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE))
+    good = judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES))
     assert good.ok and good.facts["restricted_style"] == "default", good.problems
     read = probe_run([{**INIT, "output_style": H.PROBE_OUTPUT_STYLE}], [NO_ENV_LINE])
-    got = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE), restricted=read)
+    got = judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES), restricted=read)
     assert not got.ok and any("--restricted read the project settings file" in p for p in got.problems)
-    got = judge_probe(control(), probe_run(ISOLATED, FLAG_LINE),
+    got = judge_probe(control(), probe_run(ISOLATED, SETTINGS_LINES),
                       restricted=probe_run([], [NO_ENV_LINE]))
     assert not got.ok and any("restricted: no init" in p for p in got.problems)
 
 
 def test_a_probe_that_spent_anything_fails():
-    spent = probe_run(ISOLATED, FLAG_LINE)
+    spent = probe_run(ISOLATED, SETTINGS_LINES)
     spent.result = result(total_cost_usd=0.01)
     assert not judge_probe(control(), spent, EXPECTED).ok
 
@@ -1115,6 +1229,8 @@ def test_probe_isolation_refuses_a_logged_in_environment_without_running_claude(
 
 def test_probe_isolation_end_to_end_against_a_stub():
     d, claude = stub_dir()
+    (d / "s.json").write_text(json.dumps(H.settings_doc(SANDBOX, hub=Path("/hub"), private_reads=("/private/tmp/c-1",),
+                                                        dotenv=False)))
     saved = {k: os.environ.get(k) for k in FAKE_CREDS}
     os.environ.update(FAKE_CREDS)
     try:
@@ -1130,6 +1246,7 @@ def test_probe_isolation_end_to_end_against_a_stub():
             else:
                 os.environ[k] = v
     assert got.ok, got.problems
+    assert got.facts["settings_fence"], "the stub's read-fence line, read from the document the flags name"
     rows = env_rows(d)
     assert len(rows) == 3 and all(r["present"] == [] for r in rows), [r["present"] for r in rows]
     assert {r["CLAUDE_CONFIG_DIR"] for r in rows} == {str(d / "scratch" / "config")}

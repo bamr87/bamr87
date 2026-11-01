@@ -205,6 +205,25 @@ def test_an_unresolved_slug_reference_is_reported_not_silently_dropped():
     assert (d / "docs/amendments/proposed/x.md").exists()
 
 
+def test_a_reference_to_a_key_an_earlier_run_compiled_says_to_use_its_id():
+    # 45ede64: #527 compiled FR-NEW:central-loop-switches to FR54, then #528's
+    # amendment still said FR-NEW:central-loop-switches and wedged every run
+    body = ("# NEW — Switches\n\n- **Status:** proposed\n- **Number:** NEW\n"
+            "- **Affects:** requirement `FR-NEW:central-loop-switches`\n")
+    d = mk({"docs/amendments/proposed/central-loop-switches.md": body})
+    plan = n.plan(d)
+    assert len(plan.errors) == 1, plan.errors
+    err = plan.errors[0]
+    assert err.startswith("docs/amendments/proposed/central-loop-switches.md: unresolved reference(s) "
+                          "FR-NEW:central-loop-switches")
+    assert "already have been compiled in an earlier run" in err and "assigned id" in err
+    assert n.apply(d).errors == plan.errors, "apply refuses on the plan's error and consumes nothing"
+    assert (d / "docs/amendments/proposed/central-loop-switches.md").exists()
+    fixed = body.replace("`FR-NEW:central-loop-switches`", "`FR2`")
+    (d / "docs/amendments/proposed/central-loop-switches.md").write_text(fixed)
+    assert not n.plan(d).errors
+
+
 # --------------------------------------------------------------------------- #
 # changelog
 # --------------------------------------------------------------------------- #
@@ -230,6 +249,7 @@ def test_lint_rejects_a_hand_picked_number_in_a_compiled_file():
             "+  - id: HUB-033\n"
             "+++ b/PRD.md\n"
             "+- FR28: the product must do a thing\n"
+            "--- /dev/null\n"
             "+++ b/docs/amendments/0002-thing.md\n"
             "+# 0002 — Thing\n")
     problems = n.lint_diff(diff)
@@ -248,6 +268,27 @@ def test_lint_leaves_fragments_and_prose_alone():
             "+++ b/docs/amendments/proposed/thing.md\n"
             "+# NEW — Thing\n")
     assert n.lint_diff(diff) == []
+
+
+def test_lint_flags_only_an_added_numbered_amendment_not_a_modified_one():
+    # A ratification-record PR (tools/jev/ratify.py) MODIFIES a numbered
+    # record's Status line; only a new numbered file is a hand-picked number.
+    modified = ("diff --git a/docs/amendments/0002-thing.md b/docs/amendments/0002-thing.md\n"
+                "--- a/docs/amendments/0002-thing.md\n"
+                "+++ b/docs/amendments/0002-thing.md\n"
+                "@@ -4 +4 @@\n"
+                "-- **Status:** proposed\n"
+                "+- **Status:** ratified\n")
+    assert n.lint_diff(modified) == []
+    added = ("diff --git a/docs/amendments/0003-other.md b/docs/amendments/0003-other.md\n"
+             "new file mode 100644\n"
+             "--- /dev/null\n"
+             "+++ b/docs/amendments/0003-other.md\n"
+             "@@ -0,0 +1 @@\n"
+             "+# 0003 — Other\n")
+    problems = n.lint_diff(modified + added)
+    assert problems == ["docs/amendments/0003-other.md: a new amendment is proposed as "
+                        "docs/amendments/proposed/<slug>.md; the number is assigned at merge"], problems
 
 
 def test_rewrite_refs_leaves_an_unknown_slug_legible():

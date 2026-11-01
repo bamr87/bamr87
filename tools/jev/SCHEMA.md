@@ -5,7 +5,7 @@ coverage: listed
 
 # SCHEMA — tools/jev
 
-> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), and the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
+> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the ratification and acceptance recorder (`ratify.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`), and its context pack (`context.py`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
 
 ## Conventions
 
@@ -19,18 +19,20 @@ coverage: listed
 | --- | --- | --- | --- |
 | `README.md` | file | How to run JEV, set up the merge driver, and read the tier ladder | required |
 | `__init__.py` | file | Package marker and version | required |
-| `__main__.py` | file | The CLI entry point — the `number`, `conflicts`, `generated`, `steps` and `loop` command groups | required |
-| `common.py` | file | Hub paths, `_data/fleet.yml` `jev:` / `budget.jev` reader, the `gh` and `git` wrappers (no hooks, no fsmonitor), the guards they apply (no merge, no `--admin`, no destructive or settings verb, allowlists of the gh commands and the git subcommands, options and `-c` keys JEV uses, no `gh api` but a GET or an inline GraphQL query, no force-push, mirror or remote delete), the shared `owner/repo` and bare-file-name checks, the subprocess helper (merged or replaced environment) and the named-keys `.env` reader | required |
+| `__main__.py` | file | The CLI entry point — the `number`, `ratify`, `conflicts`, `generated`, `steps` and `loop` command groups | required |
+| `common.py` | file | Hub paths, `_data/fleet.yml` `jev:` / `budget.jev` reader, the `gh` and `git` wrappers (no hooks, no fsmonitor; `git_bytes` for a blob's exact bytes), the guards they apply (no merge, no `--admin`, no destructive or settings verb, allowlists of the gh commands and the git subcommands, options and `-c` keys JEV uses, no `gh api` but a GET or an inline GraphQL query, no force-push, mirror or remote delete), the shared `owner/repo` and bare-file-name checks, the subprocess helper (merged or replaced environment) and the named-keys `.env` reader | required |
 | `classify.py` | file | The deterministic classifier: conflicted file → kind, and (files, hunks, lines, history) → one tier | required |
 | `number.py` | file | The assign-at-merge compiler: fragments → `features/features.yml`, `PRD.md`, `CHANGELOG.md`, `docs/amendments/NNNN-*.md`; plus the hand-picked-number lint | required |
+| `ratify.py` | file | Ratification, acceptance and completion records: from one commit's state, plan the Status / Ratified by / Accepted in / Completed lines and index cells a maintainer's merge (or a closed tracking epic) decided, with each trigger's evidence; apply that plan byte-exact, prove a diff is exactly it (`check-diff`), pick the job's own record PR (`select`), decide whether the job may merge it (`guard`: go, not yet, refuse, re-cut, stop), and write the record PR's body. GitHub GETs only | required |
 | `conflicts.py` | file | Detect, trial-merge, triage, resolve by tier, validate, push a merge commit, escalate | required |
 | `ledger.py` | file | `_data/jev_resolutions.yml` — append-only cost records and the monthly cap arithmetic | required |
 | `merge-regen.sh` | file | The `jev-regen` git merge driver: keep ours, record the path for regeneration | required |
 | `generated.py` | file | Main-only generated files: list them, guard pull requests against editing them, regenerate them on main | required |
 | `headless.py` | file | The local loop runner's headless Claude Code layer: the § 13.8 isolation flags, the `--settings` sandbox document, the agent environment built from scratch, the CLAUDE_AUTH_ORDER credential choice, redaction, the SIGINT-first streaming runner, the outcome classifier, the $0 probes, the per-run posture checks and the canary's judge (imported by dash-gen `ai-run`, never the reverse) | required |
 | `spec.py` | file | Loop step specs: load and validate a `steps/<loop>/<step>.yml` and its optional `local:` block, resolve its `_data/fleet.yml` references (exact model ids only), render its prompt and argv templates in one pass, and hold it equal to its workflow, the kill switch included (`steps check`, `steps render`) | required |
-| `loop.py` | file | The local loop runner, `python3 -m tools.jev loop` (`list`, `doctor [--live]`, `plan`, `run`, `publish`, `show`, `budget`): gates, the host checks, the `budget.loops` ceiling, the plan, tier 0, classify, the workspace, the attempt through `dash-gen ai-run`, the per-run posture checks, harvest and validation, the dry-run preview, the `--apply` gate and the filing, the canary, and the run record under `.fleet/runs/` | required |
-| `workspace.py` | file | The runner's throwaway workspaces: a hardened clone outside the hub under `~/.cache/jev/work`, an engine-held pristine GIT_DIR that every engine git call on the clone uses, a tamper baseline over `.git` and any nested `.git`, a no-follow, regular-file-only harvest, and a `destroy` that never chmods through a symlink | required |
+| `loop.py` | file | The local loop runner, `python3 -m tools.jev loop` (`list`, `doctor [--live]`, `plan`, `run`, `publish`, `show`, `budget`): gates, the host checks, the `budget.loops` ceiling, the plan, tier 0, classify, the workspace, the attempt through `dash-gen ai-run`, the per-run posture checks, harvest and validation, the dry-run preview, the `--apply` gate and the filing, the canary, the per-item context pack (built on the host, placed beside the brief; `--context`, `--refresh-context`, the `loop plan` preview and the `loop doctor` planes section), and the run record under `.fleet/runs/` | required |
+| `workspace.py` | file | The runner's throwaway workspaces: a hardened clone outside the hub under `~/.cache/jev/work`, an engine-held pristine GIT_DIR that every engine git call on the clone uses, a tamper baseline over `.git` and any nested `.git`, a placement that writes only new files under real directories (`O_EXCL`, no link followed), a no-follow, regular-file-only harvest, and a `destroy` that never chmods through a symlink | required |
+| `context.py` | file | The loop runner's context pack, engine half: this loop's earlier attempts on the item (`attempts.jsonl`, `validate.json`), the planes' `fleet-context/v1` document through `ctx.dash_gen(['context', …])` (a subprocess, never an import), the markdown render (data inside fences no row can close, a size cap trimmed lowest priority first), redaction, the 0600 `context.md` / `context.json` in the item's run directory, the brief pointer paragraph and the status line; modes `auto`, `off`, `require` (tested by `tools/test_jev_context.py`) | required |
 | `adapters/` | dir | One adapter per loop the runner can run (the contract and `REGISTRY`); see its SCHEMA | |
 | `steps/` | dir | The loop step specs themselves, one directory per loop workflow (data only); see its SCHEMA | |
 
@@ -42,6 +44,7 @@ coverage: listed
 
 ## Forbidden
 
+- No ratification-record edit outside the four record files and their status lines (`ratify.ALLOWED_PATH`, `ratify._shape_problem`); the merge of that PR belongs to the `ratify` job's YAML step, never to the Python.
 - No `gh pr merge`, no `--admin`, no repository-settings call, no `gh api` write, no gh command outside the allowlist — asserted in `common.assert_no_admin`; no force-push, mirror or remote delete, no git subcommand, global option or `-c` key outside the allowlist — asserted in `common.assert_safe_git`; both covered by `tools/test_jev_conflicts.py`.
 - No secret, token or model credential in this directory; the `claude` CLI reads its own environment.
 - No import of dash-gen (`.github/scripts/dash-gen/`) from any module here; dash-gen imports `tools.jev` lazily, never the reverse.

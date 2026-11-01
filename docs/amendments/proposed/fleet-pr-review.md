@@ -6,7 +6,7 @@
 - **Date:** 2026-11-01
 - **Proposed by:** agent (Grok Bot, as Platform Architect, on a branch opened for bamr87)
 - **Ratified by:** _(blank until the pull request is merged)_
-- **Affects:** constitution § 2 (new invariant), new § 19 (follows § 18 `fleet-design-consistency`, PR bamr87/bamr87#554; becomes § 18 if this merges first, numbered at merge); feature `fleet-pr-review` (HUB-NEW); requirement `FR-NEW:fleet-pr-review`; roadmap FF-0033
+- **Affects:** constitution § 2 (new invariant), new § 19 (follows § 18 `fleet-design-consistency`, PR bamr87/bamr87#554; becomes § 18 if this merges first, numbered at merge); feature `fleet-pr-review` (HUB-NEW); requirement `FR-NEW:fleet-pr-review`; roadmap FF-0034
 - **Supersedes:** none (extends § 11, § 12, § 13, § 15 and § 17)
 - **Related:** 0009 `agent-merge-review-gate`, 0010 `major-change-evidence`, 0011 `eval-baseline-risk-tiers`, 0013 `ai-ready-foundation` (warn-then-fail rollout), `central-loop-switches` (§ 17), UPS-WORK-07 (reusable gate consumed by reference), `standard-ci.yml`
 

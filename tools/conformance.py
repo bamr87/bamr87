@@ -724,6 +724,83 @@ def _meta(r, k):
     return _ok(hit or "") if hit else _no("no og:/seo meta block")
 
 
+# --------------------------------------------------------------------------- #
+# § 18 fleet frontend platform (UPS-FE-70..73; docs/FRONTEND-PLATFORM.md).
+# The tier comes from the registry `frontend:` block; tier none is N/A (pass).
+# Warn-only per repo until `frontend.enforce: true`, then a failure. Static greps.
+# --------------------------------------------------------------------------- #
+FE_TIERS = ("shell", "tokens", "none")
+FE_TOKEN_RX = r"@bamr87/fleet-tokens|fleet-tokens(\.css|\.json|@v?\d)|--fleet-color-"
+FE_SHELL_RX = r"@bamr87/fleet-shell|<fleet-shell[\s>]|fleet-mfe\.json"
+FE_STAMP_RX = r"fleet-(tokens|shell) (v\d+\.\d+\.\d+)"
+
+
+def _frontend(r) -> dict | None:
+    e = registry_entry(r)
+    fe = (e or {}).get("frontend")
+    return fe if isinstance(fe, dict) else None
+
+
+def _fe_verdict(fe: dict, ok: bool, detail: str):
+    if ok:
+        return _ok(detail)
+    if fe.get("enforce") is True:
+        return _no(detail)
+    return WARN, detail + " (warn-only until registry frontend.enforce: true)"
+
+
+@check("UPS-FE-70")
+def _fe_declared(r, k):
+    e = registry_entry(r)
+    if e is None:
+        return None, "no hub registry entry for this repo; tier not decidable"
+    fe = _frontend(r)
+    if fe is None:
+        return WARN, "registry entry has no frontend: block (§ 18; tier none if no frontend)"
+    if fe.get("tier") not in FE_TIERS:
+        return _fe_verdict(fe, False, f"frontend.tier {fe.get('tier')!r} not in {FE_TIERS}")
+    return _ok("n/a: no frontend (tier none)" if fe["tier"] == "none" else f"tier {fe['tier']}")
+
+
+@check("UPS-FE-71")
+def _fe_tokens(r, k):
+    fe = _frontend(r)
+    if fe is None or fe.get("tier") not in ("shell", "tokens"):
+        return _ok("n/a: no frontend tier declared" if fe is None else "n/a: tier none")
+    if r.zer0_theme() or r.is_theme_repo():
+        return _ok("theme-provided (zer0 consumes the fleet tokens)")
+    hit = r.grep(FE_TOKEN_RX, {".css", ".scss", ".json", ".ts", ".tsx", ".js", ".html", ".kt", ".gd", ".toml", ".yml"})
+    if hit and Path(hit).name.startswith("fleet-feedback"):
+        hit = None  # the feedback widget's own fallback tokens are not adoption
+    return _fe_verdict(fe, bool(hit), hit or "no fleet design-token reference (@bamr87/fleet-tokens or --fleet-color-*)")
+
+
+@check("UPS-FE-72")
+def _fe_shell(r, k):
+    fe = _frontend(r)
+    if fe is None or fe.get("tier") != "shell":
+        return _ok("n/a: not shell tier")
+    hit = r.grep(FE_SHELL_RX, {".json", ".ts", ".tsx", ".js", ".jsx", ".html", ".kt", ".py"})
+    return _fe_verdict(fe, bool(hit), hit or "fleet app shell not mounted (@bamr87/fleet-shell / <fleet-shell> / fleet-mfe.json)")
+
+
+@check("UPS-FE-73")
+def _fe_no_fork(r, k):
+    fe = _frontend(r)
+    if fe is None or fe.get("tier") not in ("shell", "tokens"):
+        return _ok("n/a")
+    want = str(fe.get("token_version") or "none")
+    forks = []
+    for t in r.tracked():
+        name = Path(t).name
+        if not (name.startswith("fleet-tokens.") or name.startswith("fleet-shell.")):
+            continue
+        m = re.search(FE_STAMP_RX, r.read(t, 4000))
+        if not m or (m.group(1) == "tokens" and m.group(2) != want):
+            forks.append(f"{t} ({'unstamped' if not m else m.group(2) + ' != ' + want})")
+    return _fe_verdict(fe, not forks, "forked copy: " + "; ".join(forks[:3]) if forks else "")
+
+
 @check("UPS-FB-07")
 def _fb_template(r, k):
     return _ok() if r.has(".github/ISSUE_TEMPLATE/page_feedback.yml") else _no("no .github/ISSUE_TEMPLATE/page_feedback.yml")

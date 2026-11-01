@@ -1182,6 +1182,42 @@ requirements:
     satisfied_by: "no shadowed theme files"
     seed: "zer0 `_includes/custom/`"
     gap: false
+  - id: UPS-FE-70
+    area: FE
+    section: "Fleet frontend platform (§ 18)"
+    level: MUST
+    applies: [all]
+    requirement: "The repo's hub registry entry declares a valid `frontend:` block (type, tier, framework, surfaces, token_version, entry_url, shell); `tier: none` marks a repo with no frontend (N/A)."
+    satisfied_by: "registry block"
+    seed: "`tools/frontend_registry.py`"
+    gap: false
+  - id: UPS-FE-71
+    area: FE
+    section: "Fleet frontend platform (§ 18)"
+    level: MUST
+    applies: [all]
+    requirement: "A `shell` or `tokens` tier repo consumes the fleet design tokens: the zer0 theme (which consumes them), a reference to the published token package (`@bamr87/fleet-tokens` / `fleet-tokens`), or a stylesheet using `--fleet-color-*`."
+    satisfied_by: "token reference"
+    seed: "hub token source (docs/FRONTEND-PLATFORM.md)"
+    gap: false
+  - id: UPS-FE-72
+    area: FE
+    section: "Fleet frontend platform (§ 18)"
+    level: MUST
+    applies: [all]
+    requirement: "A `shell` tier repo mounts the fleet app shell (`@bamr87/fleet-shell`, `<fleet-shell>`) or runs as a micro-frontend inside it (`fleet-mfe.json`); `tokens` tier repos (sites, games, extensions) are exempt."
+    satisfied_by: "shell reference"
+    seed: "hub app shell (FF-0032)"
+    gap: false
+  - id: UPS-FE-73
+    area: FE
+    section: "Fleet frontend platform (§ 18)"
+    level: MUST
+    applies: [all]
+    requirement: "No fork: a tracked copy of a fleet token or shell build (`fleet-tokens.*`, `fleet-shell.*`) carries the `fleet-tokens vX.Y.Z` / `fleet-shell vX.Y.Z` stamp of a published release equal to the registry `token_version`; an unstamped or mismatched copy is a fork."
+    satisfied_by: "stamped copy"
+    seed: "—"
+    gap: true
   - id: UPS-FE-40
     area: FE
     section: "Content and front matter (sites)"
