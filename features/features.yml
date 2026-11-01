@@ -819,3 +819,210 @@ features:
     - na: planned; tier-table lint lands in a follow-up PR
     prd:
     - FR46
+  - id: HUB-050
+    title: 'AI-ready foundation: API layer, MCP, agent docs and metadata in every repo'
+    description: 'Constitution § 16: every active repo exposes an API layer (OpenAPI for services, a static
+      JSON data API for content sites, --json for CLIs), an MCP server (each content site its own, local
+      stdio), AGENTS.md plus llms.txt, and an ai-ready.yml manifest, built from the hub''s templates/ai-ready/
+      kit. Validated by HUB-051.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/ai-ready-foundation.md
+    tags:
+    - governance
+    - ai
+    - mcp
+    - api
+    date: 2026-10-30
+    tests:
+    - na: planned; the kit and check land in follow-up PRs
+    prd:
+    - FR47
+  - id: HUB-051
+    title: 'AIEO AI-readiness check: scores every repo''s AI foundation'
+    description: 'A repo-readiness mode in the AIEO engine (hub tools/aieo/, migrated from zer0-CMS apps/aieo)
+      run by tools/conformance.py as check ai-ready: validates each layer (OpenAPI, server.json, llms.txt,
+      --json, JSON-LD) and scores agent docs; warn-only per repo until its fan-out PR lands, then a hard
+      fail; the score is advisory until AIEO passes its § 13 eval set, then a score below the minimum (80/100)
+      also fails. Enforces HUB-050.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/aieo/
+    docs: docs/amendments/proposed/ai-ready-foundation.md
+    tags:
+    - governance
+    - ai
+    - conformance
+    - aieo
+    date: 2026-10-30
+    tests:
+    - na: planned; the check lands in a follow-up PR
+    prd:
+    - FR48
+  - id: HUB-052
+    title: Backstage catalog-info.yaml export of the registry
+    description: tools/dash-gen catalog-info projects _data/projects.yml into a generated, drift-gated catalog-info.yaml
+      (one Backstage Component per repo, lifecycle from registry status) for interop with Backstage, Port
+      and Cortex (bamr87/bamr87#516).
+    implemented: false
+    status: planned
+    surface: infra
+    link: .github/scripts/dash-gen
+    docs: docs/DASH.md
+    tags:
+    - registry
+    - catalog
+    - interop
+    date: 2026-10-31
+    tests:
+    - .github/scripts/dash-gen/test_catalog_info.py
+    prd:
+    - FR49
+  - id: HUB-053
+    title: 'Fan-out campaigns page: per-repo PR, CI and merge state per kit rollout'
+    description: Each fanout.sh --apply run records a campaign (kit, version, targets, PRs); a read-only
+      /campaigns console page rolls up PR, CI and merge state per repo, Batch Changes-style (bamr87/bamr87#517).
+    implemented: false
+    status: planned
+    surface: ui
+    link: tools/fanout.sh
+    docs: docs/STANDARDS.md
+    tags:
+    - fanout
+    - console
+    - campaigns
+    date: 2026-10-31
+    tests:
+    - tools/test_campaigns.py
+    prd:
+    - FR50
+  - id: HUB-054
+    title: Tag selectors for --target
+    description: The --target flag accepts selectors resolved from _data/projects.yml (tag:python, lang:js,
+      group:sites, !name) through one shared resolver, printing the resolved list in dry-run, mani/gita-style
+      (bamr87/bamr87#519).
+    implemented: false
+    status: planned
+    surface: cli
+    link: tools/fanout.sh
+    docs: docs/DASH.md
+    tags:
+    - fanout
+    - cli
+    - selectors
+    date: 2026-10-31
+    tests:
+    - tools/test_target_selectors.py
+    prd:
+    - FR51
+  - id: HUB-055
+    title: Copier-style 3-way kit upgrade for hand-edited files
+    description: 'A per-repo .fleet/kits.yml answers file records kit, version and hub commit; fanout.sh
+      --upgrade --merge opens a 3-way-merged PR for hand-modified seeds and surfaces conflicts as a draft
+      for human review; the remainder of #127 (bamr87/bamr87#518).'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/fanout.sh
+    docs: docs/STANDARDS.md
+    tags:
+    - fanout
+    - kits
+    - upgrade
+    date: 2026-10-31
+    tests:
+    - tools/test_fanout.py
+    prd:
+    - FR52
+  - id: HUB-056
+    title: 'Governance records lint: amendment status, constitution order, doc links'
+    description: governance_lint.py check also fails on dead docs/link paths in features.yml and PRD.md,
+      merged amendment records not marked ratified, constitution sections out of order, and PRD requirements
+      citing a HUB id they are not mapped to; jev number apply stamps Status ratified when it numbers a
+      record (bamr87/bamr87#505).
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/governance_lint.py
+    docs: docs/amendments/README.md
+    tags:
+    - governance
+    - lint
+    date: 2026-10-31
+    tests:
+    - tools/test_governance_lint.py
+    prd:
+    - FR53
+  - id: HUB-057
+    title: Centrally managed loop kill switches
+    description: 'One switches: map in _data/fleet.yml (global, group, loop and repo levels with state,
+      reason, set_by and expiry) is the source of truth for every loop''s kill switch; a dry-run-by-default
+      op projects it to one repo''s or loop''s *_ENABLED variables, a console Loops page and MCP pause/resume
+      tools act on it, a workflow-atlas rule fails any scheduled or AI workflow without a switch, every
+      flip is audited, and a drift check compares fleet.yml to live variables. Extends #511, reuses #512
+      (bamr87/bamr87#526).'
+    implemented: false
+    status: planned
+    surface: infra
+    link: _data/fleet.yml
+    docs: docs/AI-INTEGRATION.md
+    tags:
+    - loops
+    - kill-switch
+    - console
+    - governance
+    date: 2026-10-31
+    tests:
+    - tools/test_loop_switches.py
+    prd:
+    - FR54
+  - id: HUB-058
+    title: Agentic design patterns map
+    description: One evidence-rated page per chapter of Gulli's Agentic Design Patterns under docs/agentic-patterns/,
+      each pinned to commits with a reproduce block and an issue for every gap, plus a patterns.json index
+      (schema-validated) that llms.txt links for agents.
+    implemented: true
+    status: partial
+    surface: infra
+    link: docs/agentic-patterns/patterns.json
+    docs: docs/agentic-patterns/README.md
+    tags:
+    - docs
+    - agents
+    - ai
+    date: 2026-10-31
+    tests:
+    - .github/scripts/dash-gen/test_machine_api.py
+    prd:
+    - FR55
+  - id: HUB-059
+    title: 'JEV: loop step specs — one spec per agent step, rendered the same in CI and locally'
+    description: 'JEV capability two (ADR 0002, bamr87/bamr87#485, epic #484): each agent step a loop runs
+      gets one reviewed file pair under tools/jev/steps/<loop>/ — <step>.yml (caller-filled {{UPPER_SNAKE}}
+      inputs, the --allowedTools grant, timeout, workspace contract, § 13.6 risk tags, an evals slot) and
+      <step>.prompt.txt (the hard-rules prompt, LF, byte-pinned). Model, turns and the call-site dollar
+      cap are references into _data/fleet.yml, and the model must resolve to an exact id in ai_models.allowed
+      (an alias is refused). python3 -m tools.jev steps check holds every literal the workflow keeps (caps,
+      allowlist, timeout, artifact paths, the token-free agent env, the JEV_STEP_SHA256 content hash of
+      the spec pair) equal to the resolved spec and lints the prompt against its own grant (#89); steps
+      render prints the prompt byte-exact in one pass. First spec: repo-scout/scout, which the plan job
+      renders per matrix leg. The local loop engine (P1) is not built yet.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/jev/steps/README.md
+    docs: docs/JEV.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - specs
+    date: 2026-10-30
+    tests:
+    - tools/test_jev_spec.py
+    - .github/scripts/dash-gen/test_scout.py
+    prd:
+    - FR45

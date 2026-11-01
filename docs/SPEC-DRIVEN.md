@@ -1,5 +1,7 @@
 # The spec-driven loop (AO-SDLC), run from the hub
 
+> How a fleet repo turns a backlog item into a merged change with a machine-checked spec record, using machinery the hub owns.
+
 How a fleet repo turns a backlog item into a merged change with a persistent, machine-checked record: `BACKLOG.md` → `/specify` → `/clarify` → `/plan` → `/tasks` → `/implement` → gates → PR → follow-ups → `BACKLOG.md`. The hub owns every moving part of the loop; a repo owns only its content (its specs, its backlog, its constitution) and declares that it runs the loop. The requirement is [`specs/WORK.md`](../specs/WORK.md) UPS-WORK-07; the machine contract is [`specs/WORK.contract.yml`](../specs/WORK.contract.yml); the kit is [`templates/spec-driven/`](../templates/spec-driven/README.md).
 
 The loop was first built inside [bamr87/law-ai](https://github.com/bamr87/law-ai) (its `AO-SDLC_Outline_Guide.md` v2.0, 2026-08-11) and ported to gitorio; on 2026-10-25 the machinery was lifted out of both and into this kit so that a product repo carries no SDLC harness of its own. law-ai is the reference consumer.
