@@ -10,10 +10,10 @@ Description: The loop runner's context pack, engine half (#486). A local loop
              index, the Claude Code telemetry in Elasticsearch) and this
              loop's own earlier attempts (`.fleet/runs/*/attempts.jsonl`),
              and writes ONE capped, redacted, freshness-stamped markdown file,
-             `context.md`, into the item's run directory. The engine (a later
-             phase) places it as `<brief_dir>/context.md` beside the brief in
-             the throwaway clone and appends `pointer()` to the clone's copy
-             of the brief. The pack is DATA, never instructions: every row
+             `context.md`, into the item's run directory. The engine
+             (tools/jev/loop.py `item_pack`, `place_inputs`) places it as
+             `<brief_dir>/<file>` beside the brief in the throwaway clone and
+             writes the clone's copy of the brief with `pointer()` appended. The pack is DATA, never instructions: every row
              sits inside a fenced block whose fence is longer than any
              backtick run in it, so no title or snippet can close the fence or
              add a heading. CI runs keep the plain brief; `mode='off'` is the
@@ -23,8 +23,9 @@ Description: The loop runner's context pack, engine half (#486). A local loop
 Author: bamr87
 Created: 2026-10-31
 Version: 0.1.0
-Usage: the loop engine — `build(ctx, item, ContextRequest(nwo, name, queries))`
-       then `status_line(pack)`; docs/JEV.md "The context pack".
+Usage: the loop engine — `build(ctx, item, adapter.context_request(ctx, item),
+       mode=…, sections=…)` then `status_line(pack)`, per the step spec's
+       `local.context`; docs/JEV.md "The context pack".
 Dependencies: Python 3.12 stdlib. Reaches dash-gen only through
               `ctx.dash_gen(argv)` (a subprocess); never imports it.
 """
