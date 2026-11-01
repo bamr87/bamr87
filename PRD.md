@@ -108,6 +108,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-061](features/features.yml) | JEV: ratification, acceptance and completion recorded after the maintainer merges | shipped | [`tools/jev/ratify.py`](tools/jev/ratify.py) · [`docs/JEV.md`](docs/JEV.md) | FR57 |
 | [HUB-062](features/features.yml) | Fleet frontend platform: registry frontend: block, tiers and UPS-FE-70..73 | partial | [`tools/frontend_registry.py`](tools/frontend_registry.py) · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58 |
 | [HUB-063](features/features.yml) | JEV: the loop runner's context pack — the fleet's planes, read on the host for a sealed agent | partial | [`tools/jev/context.py`](tools/jev/context.py) · [`docs/JEV.md`](docs/JEV.md) | FR59 |
+| [HUB-064](features/features.yml) | In-flight job status for agents: state, ages and slowness diagnostics | planned | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/job-status.md`](tools/console/docs/job-status.md) | FR60 |
 
 **Requirement → feature trace**
 
@@ -183,6 +184,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR57 | HUB-061 |
 | FR58 | HUB-062 |
 | FR59 | HUB-063 |
+| FR60 | HUB-064 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -236,6 +238,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR57: When the maintainer merges the pull request that proposes an amendment, adds an ADR or adds an ADR phase, the hub must record it without a human edit: the record's status becomes ratified or accepted with a link to that pull request, its merge date and who merged it, the index row follows, and an ADR whose tracking epic closes as completed with every sub-issue closed is marked completed; the record change is a pull request limited to those lines, merged with a merge commit only after every check passed and a diff check proved it holds nothing else.
 - FR58: Every fleet repo declares its frontend tier in the registry; shell-tier apps use the fleet tokens and app shell, tokens-tier sites, games and extensions use the fleet tokens, tier-none repos are N/A; the UPS-FE-70..73 checks warn until a repo's adoption PR merges, then fail.
 - FR59: Before a local loop attempt, the hub must give the sealed agent read-only, capped, redacted and freshness-stamped context from the fleet's data lake, code index, telemetry and the loop's own earlier attempts as a file beside the brief in its clone, built on the host without changing the reviewed prompt bytes, with a mode that turns it off for a CI-identical run and a mode that refuses to spend when a plane is unavailable.
+- FR60: The Harness Console must report each in-flight job's state (queued, running, stalled, done, failed), time since sent and since last progress, and slowness diagnostics, through its API, its MCP layer (job_status, jobs_list) and the Jobs page.
 
 **Non-functional**
 
