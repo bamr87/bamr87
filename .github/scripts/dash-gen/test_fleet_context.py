@@ -637,6 +637,18 @@ def test_token_masks_leave_english_alone_and_catch_header_and_url_shapes():
         assert value not in out and "[REDACTED" in out, (text, out)
 
 
+def test_file_urls_and_claudes_dashed_home_form_are_masked():
+    sid = "0b9a4a4e-1f0e-4a5e-9d55-1f2e3d4c5b6a"
+    text = (f"open file:///private/tmp/claude-501/-Users-alice-bamr87/{sid}/scratchpad/x "
+            "file:///Users/bob/notes.md ls -Users-alice-bamr87/ and -Users-bob-proj cat file:///var/folders/q/T/z")
+    out = scrubber().text(text)
+    for raw in ("/private/tmp", "-Users-", "/Users/bob", "/var/folders", sid, "alice", "bob"):
+        assert raw not in out, (raw, out)
+    assert "file://<tmp>" in out and "file://~/notes.md" in out and "ls ~-bamr87/" in out, out
+    assert fc.Scrubber(home="/home/runner", hosts=[], paths=[]).text("x -home-runner-proj") == "x ~-proj"
+    assert fc.command_head("ls /Users/alice/.claude/projects/-Users-alice-bamr87/") == "ls", "a dashed dir is no flag"
+
+
 def test_redaction_covers_every_plane_end_to_end():
     secret_chunk = f"ROOT = '{FAKE_HOME}/bamr87'  # on {FAKE_HOST}\nKEY = '{ANT_KEY}'\nTMP = '/var/folders/q/T/z'"
     routes = {**index_routes(), **es_routes()}

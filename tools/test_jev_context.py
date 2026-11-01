@@ -627,6 +627,23 @@ def test_short_host_names_nested_masks_and_glued_tokens():
         assert GH_TOKEN[4:12] not in glued and "kkkkkkkk" not in glued, glued
 
 
+def test_file_urls_and_claudes_dashed_home_form_are_masked():
+    sid = "0b9a4a4e-1f0e-4a5e-9d55-1f2e3d4c5b6a"
+    dashed_home = str(FAKE_HOME).replace("/", "-")
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        out = C.redact(f"open file:///private/tmp/claude-501/-Users-bob-bamr87/{sid}/scratchpad/x "
+                       f"file:///Users/bob/notes.md ls {dashed_home}-hub and -Users-bob-proj", ctx)
+    for raw in ("/private/tmp", "-Users-", "/Users/bob", sid, dashed_home, "bob"):
+        assert raw not in out, (raw, out)
+    assert "file://<tmp>" in out and "file://~/notes.md" in out and "ls ~-hub" in out, out
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.append(str(DASH_GEN_DIR))
+    import fleet_context as fc
+    for name in ("_TMP", "_MAC_HOME", "_DASHED_HOME", "_EMAIL"):
+        assert getattr(C, name).pattern == getattr(fc, name).pattern, f"{name} drifted from the planes'"
+
+
 def test_build_auto_writes_both_files_private_and_notes_what_is_missing():
     doc = plane_doc(index_code=sec("qdrant", "unavailable", note="Qdrant refused the connection"),
                     lake_ci=sec("lake", "stale", plane_doc()["sections"]["lake_ci"]["rows"], age=80.4,

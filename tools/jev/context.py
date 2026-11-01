@@ -173,14 +173,22 @@ _GLUED_SECRETS: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"), "sk-ant-[REDACTED]"),
 )
 _SECRETS = (*_GLUED_SECRETS, *_OBSERVE_REDACTIONS, *_PLANES_REDACTIONS)
-# Any macOS home, a temp path (the whole path: its tail names session ids) and
-# an address — the planes' own rules, held here too for the engine-side text.
-_MAC_HOME = re.compile(r"(?<![\w.~/-])/Users/[^/\s'\"`<>|;&()]+")
-_TMP = re.compile(r"(?<![\w.~/-])(?:/private)?(?:/tmp|/var/folders)(?:/[^\s'\"`<>|;&()\[\]{}]*)?")
+# Any macOS home, a temp path (the whole path: its tail names session ids), a
+# home in Claude Code's dashed project-directory form (`-Users-alice-proj`)
+# and an address — the planes' own rules, held here too for the engine-side
+# text (tools/test_jev_context.py holds the patterns equal).
+_MAC_HOME = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))/Users/[^/\s'\"`<>|;&()]+")
+_TMP = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))(?:/private)?(?:/tmp|/var/folders)(?:/[^\s'\"`<>|;&()\[\]{}]*)?")
+_DASHED_HOME = re.compile(r"(?<![\w-])-Users-[A-Za-z0-9_]+")
 _EMAIL = re.compile(r"(?<![\w.%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
 #: the scout adapter's floor: a name of three characters or fewer ("mac") is an
 #: ordinary word, so it is masked only inside a longer (dotted) host name
 HOST_FLOOR = 3
+
+
+def _dashed(path: str) -> str:
+    """A path in Claude Code's project-directory form: `/` and `.` as `-`."""
+    return path.replace("/", "-").replace(".", "-")
 
 
 def _path_forms(p: object) -> set[str]:
@@ -203,8 +211,9 @@ def _plan(home: str, work_root: str, hostname: str, env_home: str) -> tuple[tupl
     root, host name, $HOME): resolving a path is a filesystem call, and
     `redact` runs on every string of the document.
 
-    Needles: the work root (raw, resolved, and as `~/…` under either home) →
-    <work>, then the home → ~, applied longest first. Hosts: the host name,
+    Needles: the work root (raw, resolved, dashed, and as `~/…` under either
+    home) → <work>, then the home (and its dashed form) → ~, applied longest
+    first. Hosts: the host name,
     and this machine's fully qualified name when it starts with it; a name
     over HOST_FLOOR characters is masked wherever it appears (the scout
     adapter withholds a proposal on a plain substring match), never inside
@@ -213,11 +222,14 @@ def _plan(home: str, work_root: str, hostname: str, env_home: str) -> tuple[tupl
     pairs: dict[str, str] = {}
     for w in _path_forms(work_root):
         pairs[w] = "<work>"
+        pairs[_dashed(w)] = "<work>"
         for h in homes:
             if w.startswith(h + "/"):
                 pairs["~" + w[len(h):]] = "<work>"
     for h in _path_forms(home):
         pairs.setdefault(h, "~")
+        if len(h) > 5:
+            pairs.setdefault(_dashed(h), "~")
     names = {hostname}
     for full in (platform.node(), socket.gethostname()):
         if hostname and full and full.lower().split(".")[0] == hostname.lower():
@@ -232,8 +244,10 @@ def redact(text: str, ctx) -> str:
     marker, which would leave the body with nothing to anchor on), then
     headless.Redactor (secret env values, credential shapes, $HOME → ~), then
     every credential shape the planes mask, then this machine: ctx.work_root
-    → <work>, ctx.home → ~ (longest first), any /Users/<name> → ~, temp paths
-    → <tmp>, addresses → <email>, ctx.hostname → <host>. Every replacement is
+    → <work>, ctx.home → ~ (longest first; both as written and in Claude
+    Code's dashed form), any /Users/<name> → ~ (after `file://` too), temp
+    paths → <tmp>, any `-Users-<name>` → ~, addresses → <email>,
+    ctx.hostname → <host>. Every replacement is
     free of backticks and line breaks, so it cannot change a fence or a
     heading."""
     if not text:
@@ -248,6 +262,7 @@ def redact(text: str, ctx) -> str:
         s = s.replace(needle, repl)
     s = _MAC_HOME.sub("~", s)
     s = _TMP.sub("<tmp>", s)
+    s = _DASHED_HOME.sub("~", s)
     s = _EMAIL.sub("<email>", s)
     for rx in hosts:
         s = rx.sub("<host>", s)

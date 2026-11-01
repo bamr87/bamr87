@@ -261,10 +261,21 @@ EXTRA_REDACTIONS: list[tuple[re.Pattern, str]] = [
 ]
 # A temp path is a session's scratchpad or a clone: the whole path goes, not
 # only its prefix, because the tail names this machine's session ids.
-_TMP = re.compile(r"(?<![\w.~/-])(?:/private)?(?:/tmp|/var/folders)(?:/[^\s'\"`<>|;&()\[\]{}]*)?")
+_TMP = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))(?:/private)?(?:/tmp|/var/folders)(?:/[^\s'\"`<>|;&()\[\]{}]*)?")
 # Any macOS home, not only this operator's: a transcript can carry another
 # account's path (a shared box, a copied log) and it is just as local.
-_MAC_HOME = re.compile(r"(?<![\w.~/-])/Users/[^/\s'\"`<>|;&()]+")
+_MAC_HOME = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))/Users/[^/\s'\"`<>|;&()]+")
+# Claude Code names a project's directory after its path with `/` and `.` as
+# `-` (~/.claude/projects/-Users-alice-proj, and the temp dirs under it): the
+# same home, in a form no `/Users/` rule sees. Any account's, as for _MAC_HOME.
+_DASHED_HOME = re.compile(r"(?<![\w-])-Users-[A-Za-z0-9_]+")
+
+
+def dashed(path: str) -> str:
+    """A path in Claude Code's project-directory form: `/` and `.` as `-`."""
+    return path.replace("/", "-").replace(".", "-")
+
+
 # An address is a person: a `git -c user.email=…` head would otherwise carry one.
 _EMAIL = re.compile(r"(?<![\w.%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
 
@@ -315,8 +326,12 @@ class Scrubber:
             s = s.replace(p, "<work>")
         for h in self._homes:
             s = s.replace(h, "~")
+        for h in self._homes:
+            if len(h) > 5:
+                s = s.replace(dashed(h), "~")
         s = _MAC_HOME.sub("~", s)
         s = _TMP.sub("<tmp>", s)
+        s = _DASHED_HOME.sub("~", s)
         s = _EMAIL.sub("<email>", s)
         for rx in self._hosts:
             s = rx.sub("<host>", s)
