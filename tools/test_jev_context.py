@@ -40,6 +40,7 @@ HUB = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HUB))
 
 from tools.jev import context as C  # noqa: E402
+from tools.jev import common as C_COMMON  # noqa: E402
 from tools.jev import workspace as W  # noqa: E402
 from tools.jev.adapters import Item  # noqa: E402
 from tools.jev.common import Run, run  # noqa: E402
@@ -746,8 +747,36 @@ def test_file_urls_and_claudes_dashed_home_form_are_masked():
     if str(DASH_GEN_DIR) not in sys.path:
         sys.path.append(str(DASH_GEN_DIR))
     import fleet_context as fc
-    for name in ("_TMP", "_MAC_HOME", "_DASHED_HOME", "_EMAIL"):
+    for name in ("_TMP", "_MAC_HOME", "_MAC_HOME_ENCODED", "_DASHED_HOME", "_EMAIL"):
         assert getattr(C, name).pattern == getattr(fc, name).pattern, f"{name} drifted from the planes'"
+    assert C.machine_names.__module__ == "tools.jev.common" and fc.MAC_NAME_KEYS == C_COMMON.MAC_NAME_KEYS
+
+
+def test_every_name_of_this_machine_and_its_home_in_any_case_or_encoding_are_masked():
+    import platform
+    fake = ("Fake-Bonjour-Name", "Fake-Bonjour-Name.local", "Fake’s Computer Name")
+    real = C.machine_names
+    C.machine_names = lambda: fake
+    C._plan.cache_clear()
+    try:
+        with _tmp() as root:
+            this = FakeCtx(root, hostname=platform.node().split(".")[0] or "localhost-x")
+            other = FakeCtx(root)
+            text = ("on Fake-Bonjour-Name.local, fake-bonjour-name and FAKE’S COMPUTER NAME: "
+                    f"{str(FAKE_HOME).upper()}/a {str(FAKE_HOME).replace('/', '%2F')}%2Fb "
+                    f"{str(FAKE_HOME).replace('/', '%2f')}%2fc {str(FAKE_HOME).replace('/', chr(92) + '/')}" + "\\/d "
+                    f"{str(FAKE_WORK).replace('/', '%2F')}%2Frun1 /users/x is a route, %2FUsers%2Fbob%2Fe "
+                    "\\/Users\\/bob\\/f")
+            out = C.redact(text, this)
+            assert C.redact(text, other).count("<host>") == 0, "only this machine's names are this machine's"
+    finally:
+        C.machine_names = real
+        C._plan.cache_clear()
+    for raw in ("Bonjour", "bonjour", "COMPUTER", str(FAKE_HOME).upper(), "srv%2F", "srv%2f", "srv\\/", "bob",
+                "jevtester"):
+        assert raw not in out, (raw, out)
+    assert out.count("<host>") == 3 and "~/a" in out and "~%2Fb" in out and "~%2fc" in out and "~\\/d" in out, out
+    assert "<work>%2Frun1" in out and "/users/x is a route" in out and "~%2Fe" in out and "~\\/f" in out, out
 
 
 def test_build_auto_writes_both_files_private_and_notes_what_is_missing():

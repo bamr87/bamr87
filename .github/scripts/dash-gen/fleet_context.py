@@ -57,14 +57,17 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import functools
 import http.client
 import json
 import os
 import platform
 import re
 import shlex
+import shutil
 import socket
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -266,6 +269,8 @@ _TMP = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))(?:/private)?(?:/tmp|/var/fold
 # Any macOS home, not only this operator's: a transcript can carry another
 # account's path (a shared box, a copied log) and it is just as local.
 _MAC_HOME = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))/Users/[^/\s'\"`<>|;&()]+")
+# The same home `%2F`-encoded (a URL's query) or `\/`-escaped (a JSON writer's).
+_MAC_HOME_ENCODED = re.compile(r"(?:%2[Ff]|\\/)Users(?:%2[Ff]|\\/)[^/\\%\s'\"`<>|;&()]+")
 # Claude Code names a project's directory after its path with `/` and `.` as
 # `-` (~/.claude/projects/-Users-alice-proj, and the temp dirs under it): the
 # same home, in a form no `/Users/` rule sees. Any account's, as for _MAC_HOME.
@@ -279,6 +284,39 @@ def dashed(path: str) -> str:
 
 # An address is a person: a `git -c user.email=…` head would otherwise carry one.
 _EMAIL = re.compile(r"(?<![\w.%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
+
+
+def encoded(path: str) -> set[str]:
+    """A path as written, `%2F`-encoded (a URL's query) and `\\/`-escaped (a JSON writer's)."""
+    return {path, path.replace("/", "%2F"), path.replace("/", "\\/")}
+
+
+#: macOS's other names for this machine (`scutil --get`): the Bonjour name, which
+#: is also reachable as `<name>.local`, and the "Computer Name" people see
+MAC_NAME_KEYS = ("LocalHostName", "ComputerName")
+
+
+@functools.lru_cache(maxsize=1)
+def machine_names() -> tuple[str, ...]:
+    """Every name this machine answers to: `platform.node()`,
+    `socket.gethostname()`, their first labels, and on macOS the
+    LocalHostName (bare and with `.local`) and the ComputerName. `scutil` is
+    a local configd read, never the network; a name it cannot give is left
+    out (tools/jev/common.machine_names is the engine's twin)."""
+    names = [platform.node(), socket.gethostname()]
+    names += [h.split(".")[0] for h in names]
+    if sys.platform == "darwin" and shutil.which("scutil"):
+        for key in MAC_NAME_KEYS:
+            try:
+                res = subprocess.run(["scutil", "--get", key], capture_output=True, text=True, timeout=5,
+                                     stdin=subprocess.DEVNULL, check=False)
+            except (OSError, subprocess.SubprocessError) as exc:
+                sys.stderr.write(f"fleet_context: scutil --get {key}: {exc}\n")
+                continue
+            value = res.stdout.strip() if res.returncode == 0 else ""
+            if value and "\n" not in value:
+                names += [value, f"{value}.local"] if key == "LocalHostName" else [value]
+    return tuple(n for n in names if n)
 
 
 def mask_credentials(s: str) -> str:
@@ -304,14 +342,15 @@ class Scrubber:
                  paths: list[str] | None = None):
         homes = [home] if home is not None else [os.environ.get("HOME") or "", str(Path.home())]
         if hosts is None:
-            hosts = [platform.node(), socket.gethostname()]
-            hosts += [h.split(".")[0] for h in hosts]
+            hosts = list(machine_names())
         if paths is None:
             paths = [os.environ.get("JEV_WORK_ROOT") or ""]
-        self._paths = sorted({p.rstrip("/") for p in paths if p and len(p.rstrip("/")) > 1},
-                             key=len, reverse=True)
-        self._homes = sorted({h.rstrip("/") for h in homes if h and len(h.rstrip("/")) > 1},
-                             key=len, reverse=True)
+        # applied longest first and ignoring case: APFS paths are case-insensitive
+        work = {e for p in paths if p and len(p.rstrip("/")) > 1 for e in encoded(p.rstrip("/"))}
+        mine = {h.rstrip("/") for h in homes if h and len(h.rstrip("/")) > 1}
+        home_forms = {e for h in mine for f in ((h, dashed(h)) if len(h) > 5 else (h,)) for e in encoded(f)}
+        self._paths = [re.compile(re.escape(p), re.I) for p in sorted(work, key=len, reverse=True)]
+        self._homes = [re.compile(re.escape(h), re.I) for h in sorted(home_forms, key=len, reverse=True)]
         names = sorted({h for h in hosts if h and len(h) > 3 and h.lower() != "localhost"},
                        key=len, reverse=True)
         self._hosts = [re.compile(r"(?<![\w.-])" + re.escape(h) + r"(?![\w-])", re.I) for h in names]
@@ -323,14 +362,12 @@ class Scrubber:
         if oneline:
             s = _BREAKS.sub(" ", s).strip()
         s = mask_credentials(s)
-        for p in self._paths:
-            s = s.replace(p, "<work>")
-        for h in self._homes:
-            s = s.replace(h, "~")
-        for h in self._homes:
-            if len(h) > 5:
-                s = s.replace(dashed(h), "~")
+        for rx in self._paths:
+            s = rx.sub("<work>", s)
+        for rx in self._homes:
+            s = rx.sub("~", s)
         s = _MAC_HOME.sub("~", s)
+        s = _MAC_HOME_ENCODED.sub("~", s)
         s = _TMP.sub("<tmp>", s)
         s = _DASHED_HOME.sub("~", s)
         s = _EMAIL.sub("<email>", s)

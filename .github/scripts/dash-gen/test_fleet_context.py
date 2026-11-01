@@ -40,10 +40,12 @@ import datetime as dt
 import io
 import json
 import os
+import platform
 import shutil
 import socket
 import sqlite3
 import stat
+import subprocess
 import sys
 import tempfile
 import threading
@@ -660,6 +662,27 @@ def test_scrubber_masks_this_machine_and_credentials():
     home = os.path.expanduser("~")
     if len(home) > 1:
         assert home not in fc.Scrubber().text(f"x {home}/y")
+
+
+def test_every_name_of_this_machine_and_its_home_in_any_case_or_encoding_are_masked():
+    real = fc.machine_names
+    fc.machine_names = lambda: ("Fake-Bonjour-Name", "Fake-Bonjour-Name.local", "Fake\u2019s Computer Name")
+    try:
+        s = fc.Scrubber(home="/Users/alice", paths=["/srv/jev/work"])
+    finally:
+        fc.machine_names = real
+    out = s.text("on Fake-Bonjour-Name.local and FAKE\u2019S COMPUTER NAME: /users/ALICE/a %2FUsers%2Falice%2Fb "
+                 "\\/Users\\/alice\\/c %2FSRV%2Fjev%2Fwork%2Fd %2FUsers%2Fbob%2Fe \\/Users\\/bob\\/f GET /users/:id")
+    for raw in ("Bonjour", "COMPUTER", "alice", "ALICE", "SRV", "bob"):
+        assert raw not in out, (raw, out)
+    assert out.count("<host>") == 2 and "~/a" in out and "~%2Fb" in out and "~\\/c" in out, out
+    assert "<work>%2Fd" in out and "~%2Fe" in out and "~\\/f" in out and "GET /users/:id" in out, out
+    names = fc.machine_names()
+    assert platform.node() in names and socket.gethostname() in names, names
+    if sys.platform == "darwin" and shutil.which("scutil"):
+        bonjour = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True).stdout.strip()
+        if bonjour:
+            assert bonjour in names and f"{bonjour}.local" in names, names
 
 
 def test_token_masks_leave_english_alone_and_catch_header_and_url_shapes():

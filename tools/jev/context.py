@@ -47,6 +47,7 @@ from pathlib import Path
 
 from . import headless
 from . import workspace as wsp
+from .common import machine_names
 
 #: what `tools/dash-gen context` prints (.github/scripts/dash-gen/fleet_context.py;
 #: tools/test_jev_context.py holds these equal to the planes module's own)
@@ -181,6 +182,8 @@ _SECRETS = (*_GLUED_SECRETS, *_OBSERVE_REDACTIONS, *_PLANES_REDACTIONS)
 # and an address — the planes' own rules, held here too for the engine-side
 # text (tools/test_jev_context.py holds the patterns equal).
 _MAC_HOME = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))/Users/[^/\s'\"`<>|;&()]+")
+#: the same home `%2F`-encoded (a URL's query) or `\/`-escaped (a JSON writer's)
+_MAC_HOME_ENCODED = re.compile(r"(?:%2[Ff]|\\/)Users(?:%2[Ff]|\\/)[^/\\%\s'\"`<>|;&()]+")
 _TMP = re.compile(r"(?:(?<=file://)|(?<![\w.~/-]))(?:/private)?(?:/tmp|/var/folders)(?:/[^\s'\"`<>|;&()\[\]{}]*)?")
 _DASHED_HOME = re.compile(r"(?<![\w-])-Users-[A-Za-z0-9_]+")
 _EMAIL = re.compile(r"(?<![\w.%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
@@ -207,39 +210,50 @@ def _path_forms(p: object) -> set[str]:
     return {f for f in out if len(f) > 1}
 
 
+def _encoded(path: str) -> set[str]:
+    """A path as a URL query writes it (`/` as `%2F`) and as an escaping JSON
+    writer does (`\\/`): both are still this machine's path."""
+    return {path, path.replace("/", "%2F"), path.replace("/", "\\/")}
+
+
 @functools.lru_cache(maxsize=32)
-def _plan(home: str, work_root: str, hostname: str, env_home: str) -> tuple[tuple[tuple[str, str], ...],
+def _plan(home: str, work_root: str, hostname: str, env_home: str) -> tuple[tuple[tuple[re.Pattern, str], ...],
                                                                            tuple[re.Pattern, ...]]:
-    """This machine's (needles, host patterns), worked out once per (home, work
-    root, host name, $HOME): resolving a path is a filesystem call, and
-    `redact` runs on every string of the document.
+    """This machine's (needle patterns, host patterns), worked out once per
+    (home, work root, host name, $HOME): resolving a path is a filesystem
+    call, and `redact` runs on every string of the document.
 
     Needles: the work root (raw, resolved, dashed, and as `~/…` under either
-    home) → <work>, then the home (and its dashed form) → ~, applied longest
-    first. Hosts: the host name,
-    and this machine's fully qualified name when it starts with it; a name
-    over HOST_FLOOR characters is masked wherever it appears (the scout
-    adapter withholds a proposal on a plain substring match), never inside
-    the `<host>` it leaves, so a host called `host` cannot nest."""
+    home) → <work>, then the home (and its dashed form) → ~, each also
+    `%2F`-encoded and `\\/`-escaped, applied longest first and IGNORING
+    CASE (APFS paths are case-insensitive: `/users/alice` is alice's home).
+    Hosts: the host name and, when it is this machine's (`platform.node()`
+    starts with it), every name the machine answers to
+    (common.machine_names: the FQDN, and on macOS the Bonjour LocalHostName,
+    `<it>.local` and the ComputerName); a name over HOST_FLOOR characters is
+    masked wherever it appears (the scout adapter withholds a proposal on a
+    plain substring match), never inside the `<host>` it leaves, so a host
+    called `host` cannot nest."""
     homes = _path_forms(home) | _path_forms(env_home)
     pairs: dict[str, str] = {}
     for w in _path_forms(work_root):
-        pairs[w] = "<work>"
-        pairs[_dashed(w)] = "<work>"
-        for h in homes:
-            if w.startswith(h + "/"):
-                pairs["~" + w[len(h):]] = "<work>"
+        for form in (w, _dashed(w), *(("~" + w[len(h):]) for h in homes if w.startswith(h + "/"))):
+            for enc in _encoded(form):
+                pairs[enc.lower()] = "<work>"
     for h in _path_forms(home):
-        pairs.setdefault(h, "~")
-        if len(h) > 5:
-            pairs.setdefault(_dashed(h), "~")
+        for form in (h, *((_dashed(h),) if len(h) > 5 else ())):
+            for enc in _encoded(form):
+                pairs.setdefault(enc.lower(), "~")
+    needles = tuple((re.compile(re.escape(n), re.I), r) for n, r in sorted(pairs.items(), key=lambda kv: -len(kv[0])))
     names = {hostname}
+    if hostname and platform.node().lower().split(".")[0] == hostname.lower():
+        names.update(machine_names())
     for full in (platform.node(), socket.gethostname()):
         if hostname and full and full.lower().split(".")[0] == hostname.lower():
             names.add(full)
     keep = sorted({n for n in names if len(n) > HOST_FLOOR and n.lower() != "localhost"}, key=len, reverse=True)
     hosts = tuple(re.compile(r"(?<!<)" + re.escape(n) + r"(?!>)", re.I) for n in keep)
-    return tuple(sorted(pairs.items(), key=lambda kv: -len(kv[0]))), hosts
+    return needles, hosts
 
 
 def redact(text: str, ctx) -> str:
@@ -247,12 +261,12 @@ def redact(text: str, ctx) -> str:
     marker, which would leave the body with nothing to anchor on), then
     headless.Redactor (secret env values, credential shapes, $HOME → ~), then
     every credential shape the planes mask, then this machine: ctx.work_root
-    → <work>, ctx.home → ~ (longest first; both as written and in Claude
-    Code's dashed form), any /Users/<name> → ~ (after `file://` too), temp
-    paths → <tmp>, any `-Users-<name>` → ~, addresses → <email>,
-    ctx.hostname → <host>. Every replacement is
-    free of backticks and line breaks, so it cannot change a fence or a
-    heading."""
+    → <work>, ctx.home → ~ (longest first, ignoring case; as written, in
+    Claude Code's dashed form, `%2F`-encoded and `\\/`-escaped), any
+    /Users/<name> → ~ (after `file://` too, and encoded or escaped), temp
+    paths → <tmp>, any `-Users-<name>` → ~, addresses → <email>, the
+    machine's names → <host>. Every replacement is free of backticks and
+    line breaks, so it cannot change a fence or a heading."""
     if not text:
         return text
     rx, repl = _PRIVATE_KEY_BLOCK
@@ -261,9 +275,10 @@ def redact(text: str, ctx) -> str:
         s = rx.sub(repl, s)
     needles, hosts = _plan(str(getattr(ctx, "home", "") or ""), str(getattr(ctx, "work_root", "") or ""),
                            str(getattr(ctx, "hostname", "") or ""), os.environ.get("HOME") or "")
-    for needle, repl in needles:
-        s = s.replace(needle, repl)
+    for rx, repl in needles:
+        s = rx.sub(repl, s)
     s = _MAC_HOME.sub("~", s)
+    s = _MAC_HOME_ENCODED.sub("~", s)
     s = _TMP.sub("<tmp>", s)
     s = _DASHED_HOME.sub("~", s)
     s = _EMAIL.sub("<email>", s)
