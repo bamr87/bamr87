@@ -668,7 +668,7 @@ def test_a_key_marker_the_render_joins_cannot_swallow_a_fence_or_forge_a_heading
         "a note split by a newline": plane_doc(index_code=sec("qdrant", "ok", [snippet], as_of=None, age=None,
                                                               note="chunks from -----BEGIN RSA\nPRIVATE KEY----- era")),
         "a note split by a zero-width space": plane_doc(index_code=sec(
-            "qdrant", "ok", [snippet], as_of=None, age=None, note="chunks from -----BEGIN RSA PRIVATE ​KEY----- era")),
+            "qdrant", "ok", [snippet], as_of=None, age=None, note="chunks from -----BEGIN RSA PRIVATE \u200bKEY----- era")),
         "a title with no END anywhere": plane_doc(lake_issues=sec("lake", "ok", [title])),
     }
     for what, doc in variants.items():
@@ -683,7 +683,7 @@ def test_a_key_marker_the_render_joins_cannot_swallow_a_fence_or_forge_a_heading
         for later in ("## Claude Code tool errors — ok", "## Code index — ok", "failure streak 2"):
             assert later in md, f"{what}: {later!r} was swallowed"
         if "zero-width" in what:
-            assert "​" not in twin and "BEGIN RSA PRIVATE" not in twin, "context.json is masked as the pack is"
+            assert "\u200b" not in twin and "BEGIN RSA PRIVATE" not in twin, "context.json is masked as the pack is"
     fenced = C.render(variants["a note split by a newline"], brief_dir=".scout")
     assert "## Forged section — ok" in fenced and "## Forged section — ok" not in headings(fenced), "data, fenced"
 
