@@ -435,6 +435,49 @@ def test_the_real_planes_command_takes_a_dash_leading_query_as_a_value():
         {"lake_issues": "ok", "lake_ci": "ok"}, doc["sections"]
 
 
+def test_the_clone_is_checked_in_both_halves_rides_in_its_own_word_and_is_recorded_redacted():
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.append(str(DASH_GEN_DIR))
+    import fleet_context as fc
+    nwo, name = "bamr87/jev-context-fixture", "jev-context-fixture"
+    with _tmp() as root:
+        real = Path(os.path.realpath(root))
+        work = real / "work"
+        clone = work / "20261101T000000Z-repo-scout-scout-aaaaaa" / "bamr87__jev-context-fixture" / name
+        clone.mkdir(parents=True)
+        (real / "via").symlink_to(work)
+        req = C.ContextRequest(nwo, name, ("q",), target_dir=f"{clone}/")
+        assert req.target_dir == str(clone) and C.ContextRequest(nwo, name).target_dir is None
+        assert C.context_argv(req, C.PLANE_SECTIONS, 5)[-2:] == [f"--target-dir={clone}", "--json"]
+        for bad, why in (("relative/clone", "absolute"), (f"{clone}/../{name}", "absolute"),
+                         (f"{clone}\n", "absolute"), (str(real / "nope"), "cannot be read"),
+                         (str(real / "via"), "not a real directory"),
+                         (str(real / "via" / clone.relative_to(work)), "symlink in its path")):
+            try:
+                C.ContextRequest(nwo, name, target_dir=bad)
+            except ValueError as exc:
+                assert "target_dir" in str(exc) and why in str(exc), (bad, exc)
+            else:
+                raise AssertionError(f"target_dir {bad!r} was accepted")
+            assert fc.target_dir_problem(bad), f"the planes accept {bad!r}, which the engine refuses"
+        assert fc.target_dir_problem(str(clone)) is None and fc.target_dir_problem(f"{clone}/") is None
+        lake = _fixture_lake(root, nwo, name)
+        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
+        env.update(DASH_LAKE_DIR=str(lake), PYTHON=sys.executable)
+        ctx = FakeCtx(root, work_root=work, answer=lambda argv: run([str(HUB / "tools" / "dash-gen"), *argv], cwd=HUB,
+                                                                     env=env, timeout=60, inherit_env=False))
+        item = Item(key=nwo, name=name, nwo=nwo, branch="main", row={}, brief=None)
+        pack = C.build(ctx, item, req, sections=["history", "lake_issues"], deadline_s=5)
+        record = json.loads(pack.doc_path.read_text(encoding="utf-8"))
+        refused = run([str(HUB / "tools" / "dash-gen"), "context", f"--nwo={nwo}", f"--name={name}",
+                       "--sections=lake_issues", f"--target-dir={real / 'via' / clone.relative_to(work)}", "--json"],
+                      cwd=HUB, env=env, timeout=60, inherit_env=False)
+    assert ctx.calls[-1][-2] == f"--target-dir={clone}" and pack.sections["lake_issues"] == "ok", (ctx.calls, pack)
+    assert record["document"]["target_dir"] == "<work>/20261101T000000Z-repo-scout-scout-aaaaaa/" \
+        "bamr87__jev-context-fixture/jev-context-fixture", record["document"]["target_dir"]
+    assert refused.code == 2 and "--target-dir" in refused.err and "symlink in its path" in refused.err, refused
+
+
 def test_every_plane_problem_makes_every_plane_section_unavailable_without_raising():
     def boom(_argv):
         raise RuntimeError(f"dash-gen vanished under {FAKE_HOME}/x")

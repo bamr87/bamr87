@@ -40,6 +40,7 @@ import os
 import platform
 import re
 import socket
+import stat
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -118,7 +119,7 @@ SCHEMA_WORDS = frozenset({
     "status", "source", "as_of", "age_hours", "note", "elapsed_ms", "truncated", "rows",
     # the document (gather) and its planes meta
     "schema", "generated_at", "nwo", "name", "loop", "step", "item", "window_days", "queries", "planes",
-    "sections", "exit", "problem",
+    "sections", "target_dir", "exit", "problem",
     # context.json's record
     "file", "mode", "sha256", "bytes", "chars", "max_chars", "statuses", "missing", "notes", "structure_problem",
     "total", "document",
@@ -373,15 +374,40 @@ def redact_lines(md: str, ctx) -> str:
 # --------------------------------------------------------------------------- #
 # the request and the result
 # --------------------------------------------------------------------------- #
+def check_target_dir(path) -> str:
+    """The planes' rule for --target-dir (fleet_context.target_dir_problem),
+    checked before the call: the agent's clone of the target, which its
+    code-index hits are checked against — absolute, no `..`, no control or
+    line-break character, no symlink anywhere in it (its own realpath), a
+    real directory. Its normalised form, or ValueError."""
+    s = str(path or "")
+    if not s or _CTRL.search(s) or _BREAKS.search(s) or not os.path.isabs(s) or ".." in Path(s).parts:
+        raise ValueError(f"context target_dir must be an absolute path with no '..' or control character, got {s!r}")
+    try:
+        st = os.lstat(s)
+    except OSError as exc:
+        raise ValueError(f"context target_dir {s!r} cannot be read: {exc.strerror}") from None
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise ValueError(f"context target_dir {s!r} is not a real directory")
+    if os.path.realpath(s) != os.path.normpath(s):
+        raise ValueError(f"context target_dir {s!r} has a symlink in its path")
+    return os.path.normpath(s)
+
+
 @dataclass
 class ContextRequest:
     """What the pack is for. `name` is the checkout directory name (the lake's
-    sessions.repo, the code index's project); queries go to the code index."""
+    sessions.repo, the code index's project); queries go to the code index.
+    `target_dir` is the agent's clone of the target (the engine sets it after
+    the clone; None in a plan, a preview or an offline rehearsal): the
+    planes check the target's code-index hits against its files, the ones
+    the agent reads, instead of the hub's checkout of the submodule."""
 
     nwo: str
     name: str
     queries: tuple[str, ...] = ()
     days: int = DEFAULT_DAYS
+    target_dir: str | None = None
 
     def __post_init__(self) -> None:
         """Queries and the window as the planes accept them, checked HERE: a
@@ -390,7 +416,8 @@ class ContextRequest:
         under mode 'require', the item. Control characters go and line breaks
         fold to a space (a query is one line); empty and repeated ones are
         dropped; more than MAX_QUERIES, one over MAX_QUERY_CHARS, or `days`
-        outside 1..MAX_DAYS is the caller's error."""
+        outside 1..MAX_DAYS, or a `target_dir` check_target_dir refuses, is
+        the caller's error."""
         if isinstance(self.days, bool) or not isinstance(self.days, int) or not 1 <= self.days <= MAX_DAYS:
             raise ValueError(f"context days must be an int in 1..{MAX_DAYS}, got {self.days!r}")
         if isinstance(self.queries, str):
@@ -405,6 +432,8 @@ class ContextRequest:
         if len(kept) > MAX_QUERIES:
             raise ValueError(f"at most {MAX_QUERIES} context queries, got {len(kept)}")
         self.queries = tuple(kept)
+        if self.target_dir is not None:
+            self.target_dir = check_target_dir(self.target_dir)
 
 
 @dataclass
@@ -586,6 +615,8 @@ def context_argv(req: ContextRequest, planes: Iterable[str], deadline_s: float) 
     argv += [f"--days={int(req.days)}", f"--deadline-s={check_deadline(deadline_s):g}"]
     if planes != list(PLANE_SECTIONS):
         argv.append(f"--sections={','.join(planes)}")
+    if req.target_dir is not None:
+        argv.append(f"--target-dir={req.target_dir}")
     return [*argv, "--json"]
 
 
@@ -701,8 +732,8 @@ def gather(ctx, req: ContextRequest, *, sections: Iterable[str] | None = None,
         found["history"] = history_section(ctx, item_key or req.nwo)
     return {"schema": PACK_SCHEMA, "generated_at": _iso(), "nwo": req.nwo, "name": req.name,
             "loop": ctx.spec.loop, "step": ctx.spec.step, "item": item_key or req.nwo,
-            "window_days": int(req.days), "queries": list(req.queries), "planes": meta,
-            "sections": {k: found[k] for k in PROVIDERS if k in found}}
+            "window_days": int(req.days), "queries": list(req.queries), "target_dir": req.target_dir,
+            "planes": meta, "sections": {k: found[k] for k in PROVIDERS if k in found}}
 
 
 # --------------------------------------------------------------------------- #

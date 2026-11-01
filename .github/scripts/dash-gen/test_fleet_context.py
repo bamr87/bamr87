@@ -997,6 +997,32 @@ def test_usage_errors_exit_2():
             assert out == "", (argv, "no document for a bad request")
 
 
+def test_target_dir_must_be_an_absolute_real_directory_with_no_link_in_it():
+    with _env(), _tmp() as tmp:
+        real = Path(os.path.realpath(tmp))
+        (real / "clone").mkdir()
+        (real / "under" / "deep").mkdir(parents=True)
+        (real / "file").write_text("x", encoding="utf-8")
+        (real / "link").symlink_to(real / "clone")
+        (real / "via").symlink_to(real / "under")
+        assert fc.target_dir_problem(str(real / "clone")) is None and fc.target_dir_problem(f"{real}/clone/") is None
+        for bad, why in ((f"{real}/clone/../clone", "no '..'"), ("relative/clone", "absolute"),
+                         (str(real / "nope"), "does not exist"), (str(real / "file"), "not a real directory"),
+                         (str(real / "link"), "not a real directory"),
+                         (str(real / "via" / "deep"), "symlink in its path"),
+                         (f"{real}/clone\n", "control character"), ("", "non-empty")):
+            assert why in (fc.target_dir_problem(bad) or ""), (bad, fc.target_dir_problem(bad))
+        base = ["--nwo", NWO, "--name", NAME, "--lake-dir", str(real / "no-lake"), "--sections", "lake_issues",
+                "--json"]
+        code, out, err = run_main([*base, "--target-dir", "relative/clone"])
+        assert code == 2 and out == "" and "--target-dir must be an absolute path" in err, (code, err)
+        code, out, err = run_main([*base, f"--target-dir={real / 'via' / 'deep'}"])
+        assert code == 2 and "symlink in its path" in err, (code, err)
+        code, out, err = run_main([*base, f"--target-dir={real / 'clone'}"])
+        doc = json.loads(out)
+    assert code == 0 and doc["target_dir"] and str(real) not in out, (code, err, doc.get("target_dir"))
+
+
 def test_dash_gen_registers_the_subcommand():
     import dash_gen
     out, err = io.StringIO(), io.StringIO()
@@ -1120,6 +1146,102 @@ def test_index_code_withholds_code_the_checkout_no_longer_has():
     assert sec["status"] == "stale" and "1 hit(s) from changed files, 1 from files not in" in sec["note"], sec
     assert fc.REMEDY_INDEX in sec["note"], sec["note"]
     assert fc.file_freshness("../escape", "0" * 64, root) is None and fc.file_freshness("/abs", "0" * 64, root) is None
+
+
+def _hashed(path, score, chunk, data: bytes):
+    """A hit Kilo cut from a file holding `data`: its fileHash is the sha256 of those bytes."""
+    import hashlib
+    return {"id": path, "score": score, "payload": {"filePath": path, "startLine": "1", "endLine": "16",
+                                                     "codeChunk": chunk, "fileHash": hashlib.sha256(data).hexdigest()}}
+
+
+def _index_with(found):
+    routes = index_routes()
+    routes[("POST", "/collections/ws-test/points/search")] = lambda _b: (200, {"result": found})
+    return routes
+
+
+def test_index_code_checks_the_targets_hits_against_the_agents_clone():
+    # Every hit was compared with the hub checkout running the planes, but the agent reads its own clone of the
+    # target at the branch head, which the hub's submodule pointer can lag: the target's hits are checked
+    # against --target-dir (whose root is the repository's), the hub's still against the hub checkout.
+    new, old = b"# zer0-CMS: one Python platform\n", b"# zer0-CMS: Rails 8.1 on Administrate\n"
+    kept = b"still in the hub's checkout\n"
+    found = [_hashed("tools/fresh.py", 0.9, "print('as indexed')", b"print('as indexed')\n"),
+             _hashed(f"projects/{NAME}/README.md", 0.88, "one Python platform", new)]
+    with _env(), _tmp() as tmp:
+        root, clone = tmp / "hub", tmp / "clone"
+        (root / "tools").mkdir(parents=True)
+        (root / "projects" / NAME).mkdir(parents=True)
+        clone.mkdir()
+        (root / "tools" / "fresh.py").write_bytes(b"print('as indexed')\n")
+        (root / "projects" / NAME / "README.md").write_bytes(old)   # the hub's pointer lags the branch head
+        (root / "projects" / NAME / "kept.md").write_bytes(kept)
+        (clone / "README.md").write_bytes(new)
+        with Stub(_index_with(found)) as stub:
+            lagging = build(tmp / "no-lake", stub.url, queries=["cms"], sections=["index_code"], index_root=root)
+            cloned = build(tmp / "no-lake", stub.url, queries=["cms"], sections=["index_code"], index_root=root,
+                           target_dir=clone)
+        with Stub(_index_with([*found, _hashed(f"projects/{NAME}/kept.md", 0.87, "kept", kept)])) as stub:
+            behind = build(tmp / "no-lake", stub.url, queries=["cms"], sections=["index_code"], index_root=root,
+                           target_dir=clone)["sections"]["index_code"]
+    sec = lagging["sections"]["index_code"]
+    assert sec["status"] == "stale" and fc.REMEDY_INDEX in sec["note"], "against the hub's lagging checkout"
+    sec = cloned["sections"]["index_code"]
+    rows = {r["path"]: r for r in sec["rows"]}
+    assert sec["status"] == "ok" and rows[f"projects/{NAME}/README.md"]["snippet"] == "one Python platform", sec
+    assert rows["tools/fresh.py"]["snippet"], "the hub's hit is checked against the hub checkout, not the clone"
+    assert "checked against its clone" in sec["note"] and "target_dir" not in lagging, sec["note"]
+    assert cloned["target_dir"] and str(clone) not in json.dumps(cloned), ("recorded, redacted", cloned["target_dir"])
+    rows = {r["path"]: r for r in behind["rows"]}
+    assert behind["status"] == "stale" and rows[f"projects/{NAME}/kept.md"]["stale"], behind
+    assert "index behind the agent's clone: 0 hit(s) from changed files, 1 from files not in" in behind["note"]
+    assert f"`tools/update-submodules.sh --no-commit {NAME}`" in behind["note"], behind["note"]
+    assert fc.REMEDY_INDEX not in behind["note"], "a re-scan alone cannot catch the hub's checkout up"
+
+
+def test_index_code_without_the_targets_checkout_says_so_and_never_blames_the_index():
+    # From a worktree or a fresh clone without submodules, every hashed hit from the target was 'missing', the
+    # section 'stale' and the remedy a Kilo re-scan, which cannot help: the submodule is not checked out here.
+    found = [_hashed(f"projects/{NAME}/README.md", 0.88, "one Python platform", b"# zer0-CMS\n"),
+             _hit(f"projects/{NAME}/Gemfile", 0.80),                       # no fileHash: never checkable, shown
+             _hashed("tools/fresh.py", 0.9, "print('as indexed')", b"print('as indexed')\n")]
+    for layout in ("empty", "absent"):
+        with _env(), _tmp() as tmp:
+            root = tmp / "worktree"
+            (root / "tools").mkdir(parents=True)
+            (root / "tools" / "fresh.py").write_bytes(b"print('as indexed')\n")
+            if layout == "empty":
+                (root / "projects" / NAME).mkdir(parents=True)
+            assert not fc.checked_out(root, NAME), layout
+            with Stub(_index_with(found)) as stub:
+                sec = build(tmp / "no-lake", stub.url, queries=["cms"], sections=["index_code"],
+                            index_root=root)["sections"]["index_code"]
+        rows = {r["path"]: r for r in sec["rows"]}
+        readme = rows[f"projects/{NAME}/README.md"]
+        assert sec["status"] == "ok" and readme["snippet"] is None and "stale" not in readme, (layout, sec)
+        assert f"projects/{NAME} is not checked out here" in readme["withheld"], readme
+        assert rows[f"projects/{NAME}/Gemfile"]["snippet"] and rows["tools/fresh.py"]["snippet"], rows
+        assert f"`git submodule update --init projects/{NAME}`" in sec["note"] and "--target-dir" in sec["note"]
+        assert fc.REMEDY_INDEX not in sec["note"] and "index behind" not in sec["note"], sec["note"]
+
+
+def test_file_freshness_follows_no_link_in_the_tree():
+    import hashlib
+    with _tmp() as tmp:
+        clone, outside = tmp / "clone", tmp / "outside"
+        (outside / "docs").mkdir(parents=True)
+        clone.mkdir()
+        (outside / "docs" / "a.md").write_bytes(b"x\n")
+        (clone / "docs").symlink_to(outside / "docs")
+        (clone / "f.md").symlink_to(outside / "docs" / "a.md")
+        (clone / "plain").write_bytes(b"a file, not a directory\n")
+        h = hashlib.sha256(b"x\n").hexdigest()
+        assert fc.file_freshness("docs/a.md", h, outside) == "fresh"
+        assert fc.file_freshness("docs/a.md", h, clone) is None, "a linked directory is never followed"
+        assert fc.file_freshness("f.md", h, clone) is None, "nor a linked file"
+        assert fc.file_freshness("plain/a.md", h, clone) == "missing", "a file where the index saw a directory"
+        assert fc.checked_out(clone.parent, "nope") is False
 
 
 def test_index_code_without_queries_is_empty_and_asks_nothing():

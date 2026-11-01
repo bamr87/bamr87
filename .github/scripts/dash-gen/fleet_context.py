@@ -25,7 +25,10 @@ Five sections, each stamped with its source, its freshness and its status:
   index_code        the Kilo code index (Qdrant + native Ollama) for up to
                     three queries; code only from the hub and the target —
                     the registry has no visibility field and a sibling may be
-                    private, so a sibling's hit is a pointer with no code
+                    private, so a sibling's hit is a pointer with no code —
+                    and only from a file still as indexed: the target's hits
+                    checked against the agent's clone (--target-dir), the
+                    hub's against this checkout
   telemetry_errors  Claude Code's own OTel events in Elasticsearch: failed tool
                     results by tool and command head, plus the API errors
 
@@ -36,7 +39,8 @@ allowlists, caps, time limits and redaction):
               fleet_lake.connect (which creates and migrates); HTTP is an
               allowlist of read routes on the configured planes, whose URL
               must be scheme://host:port (a path or query is refused), with
-              no proxy and no redirect; nothing here talks to GitHub
+              no proxy and no redirect; --target-dir is only read (lstat,
+              no link followed); nothing here talks to GitHub
   bounded     in wall-clock time: every request <= 5 s and everything under
               --deadline-s, a plane that trickles bytes included; a plane
               that is down, slow or missing becomes a section saying so with
@@ -151,6 +155,11 @@ REMEDY_OLLAMA = "start native Ollama (`ollama serve`, model `ollama pull nomic-e
 REMEDY_TELEMETRY = "point Claude Code at the collector with `tools/dash observe claude enable --apply`"
 REMEDY_DEADLINE = "raise --deadline-s"
 REMEDY_INDEX = "let Kilo re-scan the workspace (kilo.jsonc `indexing`)"
+#: the target's hits checked against the agent's clone (--target-dir) and behind it: Kilo scanned the hub's
+#: checkout of the target, which can lag the branch head the clone holds
+REMEDY_INDEX_CLONE = "bring {what} to its branch head ({how}), then let Kilo re-scan"
+#: no --target-dir, and the hub running the planes holds no checkout of the target to check its hits against
+REMEDY_CHECKOUT = "`git submodule update --init projects/{dir}`, or pass --target-dir (a loop run passes its clone)"
 
 #: The hub's copies of the registry: the registry itself and the projections
 #: generated from it. A hit there repeats what the brief already says about
@@ -1184,41 +1193,96 @@ def _int(value):
         return None
 
 
+_FILE_HASH = re.compile(r"[0-9a-f]{64}")
+
+
 def file_freshness(path: str, file_hash, root: Path, deadline: Deadline | None = None) -> str | None:
-    """Whether the checkout still holds the file a hit was cut from: 'fresh'
-    (its sha256 is the index's `fileHash`), 'changed', 'missing', or None
-    when it cannot be told (no hash, an unsafe path, a link, a file over
-    FRESH_MAX_BYTES, the deadline spent)."""
-    if not isinstance(file_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", file_hash):
+    """Whether the tree at `root` still holds the file a hit was cut from:
+    'fresh' (its sha256 is the index's `fileHash`), 'changed', 'missing', or
+    None when it cannot be told (no hash, an unsafe path, a link anywhere
+    below `root`, a file over FRESH_MAX_BYTES, the deadline spent). Every
+    directory on the way is lstat-ed and the file is opened O_NOFOLLOW:
+    the agent's clone (--target-dir) is the target's own content, so no link
+    in it is followed out of it."""
+    if not isinstance(file_hash, str) or not _FILE_HASH.fullmatch(file_hash):
         return None
     parts = Path(path).parts
     if not parts or Path(path).is_absolute() or ".." in parts or (deadline is not None and deadline.expired()):
         return None
-    target = Path(root).joinpath(*parts)
-    try:
-        st = os.lstat(target)
-    except FileNotFoundError:
-        return "missing"
-    except OSError:
-        return None
+    node = Path(root)
+    for i, part in enumerate(parts):
+        node = node / part
+        try:
+            st = os.lstat(node)
+        except FileNotFoundError:
+            return "missing"
+        except OSError:
+            return None
+        if stat.S_ISLNK(st.st_mode):
+            return None
+        if i < len(parts) - 1 and not stat.S_ISDIR(st.st_mode):
+            return "missing"   # a file where the index saw a directory: the hit's file is gone
     if not stat.S_ISREG(st.st_mode) or st.st_size > FRESH_MAX_BYTES:
         return None
     try:
-        data = target.read_bytes()
+        with os.fdopen(os.open(node, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)), "rb") as fh:
+            data = fh.read(FRESH_MAX_BYTES + 1)
     except OSError:
         return None
     return "fresh" if hashlib.sha256(data).hexdigest() == file_hash else "changed"
 
 
+def checked_out(root: Path, checkout: str) -> bool:
+    """Whether the hub checkout at `root` holds projects/<checkout>: a real
+    directory with an entry in it (a submodule a fresh clone or a worktree
+    never initialised is an empty one)."""
+    node = Path(root) / "projects" / checkout
+    try:
+        if not stat.S_ISDIR(os.lstat(node).st_mode):
+            return False
+        with os.scandir(node) as entries:
+            return next(entries, None) is not None
+    except OSError:
+        return False
+
+
+def target_dir_problem(path) -> str | None:
+    """Why `path` cannot be --target-dir — the agent's clone of the target,
+    whose files the target's code-index hits are checked against — or None:
+    absolute, no `..`, no control character, and no symlink anywhere in it
+    (it is its own realpath), naming a real directory. Only read."""
+    s = str(path or "")
+    if not s or _has_control(s):
+        return "must be a non-empty path with no control character"
+    if not os.path.isabs(s) or ".." in Path(s).parts:
+        return f"must be an absolute path with no '..', got {s!r}"
+    try:
+        st = os.lstat(s)
+    except OSError:
+        return f"{s!r} does not exist"
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        return f"{s!r} is not a real directory"
+    if os.path.realpath(s) != os.path.normpath(s):
+        return f"{s!r} has a symlink in its path; pass its realpath"
+    return None
+
+
 def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, now: dt.datetime,
-               cfg: dict | None = None, *, checkout: str | None = None, root: Path | str | None = None) -> dict:
+               cfg: dict | None = None, *, checkout: str | None = None, root: Path | str | None = None,
+               target_dir: Path | str | None = None) -> dict:
     """Up to CAP_HITS distinct hits per query (a path and line range once,
     across queries), never from the hub's copies of the registry
     (INDEX_EXCLUDED). `checkout` is the target's directory under projects/
     (the registry's submodule_path; default `name`). A hit whose code would
-    be shown is checked against the checkout at `root` (default the hub's):
-    from a file that changed since the index scanned it, or that is not
-    there, its code is withheld and the section is 'stale'."""
+    be shown is checked against the files the agent reads: the target's own
+    hits against `target_dir` (its clone, --target-dir) when given, the
+    rest — and the target's without one — against the hub checkout at
+    `root` (default the hub's). From a file that changed since the index
+    scanned it, or that is not there, its code is withheld and the section
+    is 'stale'. Without `target_dir`, a target whose projects/<checkout> is
+    not checked out at `root` (a worktree, a fresh clone) cannot be checked:
+    its hits' code is withheld, the note says so with the remedy
+    (REMEDY_CHECKOUT), and that alone never makes the section stale."""
     if not queries:
         return section("index_code", "empty", now=now,
                        note="no --query given: the code index is asked only what the step names")
@@ -1227,13 +1291,17 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
     model, floor = cfg.get("model") or "nomic-embed-text", float(cfg.get("min_score") or 0)
     checkout = checkout or name
     root = Path(root) if root is not None else REPO_ROOT
+    clone = Path(target_dir) if target_dir else None
+    own = {name.lower(), checkout.lower()}
+    here = is_hub or clone is not None or checked_out(root, checkout)
     collection = resolve_collection(qdrant, deadline)
     vectors = embed_all(embedder, model, queries, deadline)
     # Code only from what is certainly public or certainly the agent's own: the
     # hub and the target. A sibling may be private — the registry cannot say.
     allowed = {fleet_index.HUB, name.lower(), checkout.lower()}
     rows, truncated, seen = [], 0, set()
-    changed = missing = 0
+    changed = missing = unchecked = 0
+    behind_clone = False
     for query, vector in zip(queries, vectors):
         found = http_json("qdrant", qdrant, "POST", f"/collections/{collection}/points/search",
                           {"vector": vector, "limit": SEARCH_LIMIT, "score_threshold": floor,
@@ -1263,15 +1331,28 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
             if project.lower() not in allowed:
                 row["withheld"] = "sibling repo, visibility unknown"
             else:
-                fresh = file_freshness(path, payload.get("fileHash"), root, deadline)
+                file_hash = payload.get("fileHash")
+                target = project == fleet_index.HUB if is_hub else project.lower() in own
+                if target and clone is not None:   # the clone's root is the repository's: no projects/<dir>/
+                    fresh = file_freshness(path if is_hub else "/".join(Path(path).parts[2:]), file_hash, clone,
+                                           deadline)
+                    behind_clone = behind_clone or fresh in ("changed", "missing")
+                elif target and not here:
+                    fresh = "unchecked" if isinstance(file_hash, str) and _FILE_HASH.fullmatch(file_hash) else None
+                else:
+                    fresh = file_freshness(path, file_hash, root, deadline)
                 if fresh == "changed":
                     changed += 1
                     row.update(stale=True, withheld="the file changed since the index scanned it; read it in the "
                                                     "repository")
                 elif fresh == "missing":
                     missing += 1
-                    row.update(stale=True, withheld="the file is not in this checkout (deleted since the scan, or "
-                                                    "not checked out)")
+                    row.update(stale=True, withheld="the file is not in this checkout (deleted since the index "
+                                                    "scanned it)")
+                elif fresh == "unchecked":
+                    unchecked += 1
+                    row["withheld"] = (f"projects/{checkout} is not checked out here, so the hit cannot be checked; "
+                                       "read it in the repository")
                 else:
                     row["snippet"] = snippet_of(payload.get("codeChunk"))
             rows.append(row)
@@ -1279,10 +1360,20 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
     note += _chunk_note(qdrant, collection, name, is_hub, deadline, checkout)
     if not rows:
         note = f"no hit at or above min_score {floor:g}; {note}"
+    if clone is not None and not behind_clone:
+        note += "; the target's hits checked against its clone (--target-dir)"
+    if unchecked:
+        note = (f"projects/{checkout} is not checked out here: {unchecked} hit(s) from {name} not checked (code "
+                f"withheld) — {REMEDY_CHECKOUT.format(dir=checkout)}; {note}")
     stale = bool(changed or missing)
     if stale:
-        note = (f"index behind the checkout: {changed} hit(s) from changed files, {missing} from files not in "
-                f"this checkout (code withheld) — {REMEDY_INDEX}; {note}")
+        where, remedy = "the checkout", REMEDY_INDEX
+        if behind_clone:
+            what, how = (("the hub checkout", "`git pull`") if is_hub else
+                         (f"projects/{checkout}", f"`tools/update-submodules.sh --no-commit {checkout}`"))
+            where, remedy = "the agent's clone", REMEDY_INDEX_CLONE.format(what=what, how=how)
+        note = (f"index behind {where}: {changed} hit(s) from changed files, {missing} from files not in "
+                f"this checkout (code withheld) — {remedy}; {note}")
     status = "stale" if stale else ("ok" if rows else "empty")
     return section("index_code", status, rows, now=now, note=note, truncated=truncated)
 
@@ -1478,8 +1569,11 @@ def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = 
           lake_dir: Path | str | None = None, fleet_path: Path | str | None = None,
           registry_path: Path | str | None = None, now: dt.datetime | None = None,
           scrubber: Scrubber | None = None, index_cfg: dict | None = None,
-          contract: dict | None = None, home: str | None = None, index_root: Path | str | None = None) -> dict:
-    """The whole fleet-context/v1 document. Never raises for a plane; usage is checked by the caller."""
+          contract: dict | None = None, home: str | None = None, index_root: Path | str | None = None,
+          target_dir: Path | str | None = None) -> dict:
+    """The whole fleet-context/v1 document. Never raises for a plane; usage is checked by the caller.
+    `target_dir` (--target-dir) is the agent's clone of the target, which its code-index hits are checked
+    against; it is recorded in the document (redacted like the rest) when given."""
     now = now or utcnow()
     deadline = Deadline(deadline_s)
     queries = list(queries or [])
@@ -1526,11 +1620,13 @@ def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = 
         checkout = checkout_dir(registry_path, nwo, name)
         out["index_code"] = _run("index_code",
                                  lambda: index_code(queries, name, is_hub, deadline, now, index_cfg,
-                                                    checkout=checkout, root=index_root),
+                                                    checkout=checkout, root=index_root, target_dir=target_dir),
                                  now, deadline)
 
     doc = {"schema": SCHEMA, "generated_at": fleet_lake.iso(now), "nwo": nwo, "name": name,
            "window_days": int(days), "queries": queries, "sections": {k: out[k] for k in wanted}}
+    if target_dir:
+        doc["target_dir"] = str(target_dir)
     return (scrubber or Scrubber()).obj(doc)
 
 
@@ -1566,6 +1662,9 @@ def usage_problems(args: argparse.Namespace) -> list[str]:
     unknown = [s for s in parse_sections(args.sections) if s not in SECTIONS]
     if unknown:
         problems.append(f"unknown section(s) {', '.join(unknown)}; known: {', '.join(SECTIONS)}")
+    why = None if args.target_dir is None else target_dir_problem(args.target_dir)
+    if why:
+        problems.append(f"--target-dir {why}")
     return problems
 
 
@@ -1590,7 +1689,8 @@ def cmd_context(args: argparse.Namespace) -> int:
             sys.stderr.write(f"dash-gen context: {p}\n")
         return 2
     doc = build(args.nwo, args.name, queries=[q.strip() for q in args.query or []], days=args.days,
-                sections=parse_sections(args.sections), deadline_s=args.deadline_s, lake_dir=args.lake_dir)
+                sections=parse_sections(args.sections), deadline_s=args.deadline_s, lake_dir=args.lake_dir,
+                target_dir=os.path.normpath(args.target_dir) if args.target_dir is not None else None)
     sys.stdout.write(json.dumps(doc, indent=2, ensure_ascii=True) + "\n")
     if not args.json:
         sys.stderr.write(summary(doc))
@@ -1610,6 +1710,10 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                              f"each request is also capped at {REQUEST_TIMEOUT_S:g} s)")
     parser.add_argument("--lake-dir", default=None,
                         help="lake directory (DASH_LAKE_DIR; default .dash-lake/ at the repo root)")
+    parser.add_argument("--target-dir", default=None, metavar="PATH",
+                        help="the agent's clone of the target (absolute, a real directory, no symlink in it): the "
+                             "target's code-index hits are checked against its files instead of projects/<dir> "
+                             "in this checkout; only read"),
     parser.add_argument("--json", action="store_true",
                         help="stdout only (the document is always on stdout; without this a summary goes to stderr)")
     parser.set_defaults(func=cmd_context)

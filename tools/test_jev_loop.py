@@ -2521,6 +2521,8 @@ def test_a_rehearsal_places_the_pack_and_its_pointer_beside_the_brief_and_record
     assert call[:3] == ["context", f"--nwo={NWO}", f"--name={TARGET}"] and "--json" in call, call
     assert any(a.startswith("--query=Pyramid Schema") for a in call), "the brief's registry line is a query"
     assert "--days=30" in call and "--deadline-s=20" in call, call
+    # the planes check the target's code hits against the clone the agent reads, named by its realpath
+    assert call[-2:] == [f"--target-dir={os.path.realpath(clone)}", "--json"], call
     W.destroy(W.Workspace(root=clone.parent, path=clone, nwo=NWO, branch="main", head_sha="", brief_dir=".scout"))
     no_writes(box)
     assert hub_status() == before
@@ -2778,6 +2780,7 @@ def test_plan_previews_each_items_context_and_off_skips_it():
         calls = len(box.planes_calls())
         code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--json", "--context", "off")
         assert code == 0 and "context" not in json.loads(out)["items"][0] and len(box.planes_calls()) == calls
+    assert not any(a.startswith("--target-dir") for c in box.planes_calls() for a in c), "a plan has no clone"
     assert not box.run_dirs() and not [c for c in box.gh_calls() if c[:2] == ["repo", "clone"]], "plan writes nothing"
     no_writes(box)
 

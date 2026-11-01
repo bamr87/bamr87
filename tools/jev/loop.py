@@ -1246,17 +1246,22 @@ def context_request(ctx: RunContext, item: Item) -> cpack.ContextRequest | None:
     return None if req is None else dataclasses.replace(req, days=context_settings(ctx.spec).days)
 
 
-def item_pack(ctx: RunContext, item: Item, report: dict, row: dict) -> cpack.Pack | None:
+def item_pack(ctx: RunContext, item: Item, report: dict, row: dict, *,
+              target_dir: Path | None = None) -> cpack.Pack | None:
     """Build this item's pack into its run directory (`context.build`) and
     record it: `report["context"]`, and on `row` (every later attempt row) the
     pack's sha256 and a compact status. Mode 'off' builds and places nothing,
     and the adapter is not asked; an adapter that asks for no pack (None) is
-    'none'. A plane that is down is a status in the pack, never an exception
-    here; an error that does raise (a bad request, an unwritable run
-    directory) is the engine's own and is not caught."""
+    'none'. `target_dir` is the item's clone (None offline): the planes check
+    the target's code-index hits against its files, the ones the agent
+    reads, passed as its realpath. A plane that is down is a status in the
+    pack, never an exception here; an error that does raise (a bad request,
+    an unwritable run directory) is the engine's own and is not caught."""
     cs = context_settings(ctx.spec)
     mode = context_mode(ctx)
     req = cpack.ContextRequest(item.nwo, item.name, days=cs.days) if mode == "off" else context_request(ctx, item)
+    if req is not None and mode != "off" and target_dir is not None:
+        req = dataclasses.replace(req, target_dir=os.path.realpath(target_dir))
     if req is None:
         report["context"] = {"mode": mode, "sha256": None, "bytes": 0, "file": cs.file, "statuses": {},
                              "missing": [], "ages": {}, "elapsed_ms": 0,
@@ -1475,8 +1480,9 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
             brief = brief_in_plan(ctx, item)
         # The context pack, built on the HOST now — after tier 0, the usage block, classify and the clone, before
         # the budget lock — into the item's run directory (offline: only there). The sealed agent reads the copy
-        # placed beside the brief; it can ask the planes nothing itself.
-        pack = item_pack(ctx, item, report, row)
+        # placed beside the brief; it can ask the planes nothing itself. The planes check the target's code hits
+        # against this clone, the files the agent reads.
+        pack = item_pack(ctx, item, report, row, target_dir=ws.path if ws is not None else None)
         if pack is not None and pack.blocked:
             why = (f"context: mode require and {', '.join(pack.missing)} unavailable — the item does not run "
                    "(no budget lock, no ai-run, no spend)")
