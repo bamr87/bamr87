@@ -258,7 +258,8 @@ def test_an_unmerged_trigger_or_a_merge_by_anyone_but_the_maintainer_is_skipped(
     p = planned(repo, fake)
     assert not [e for e in p.edits if e.kind == "ratify"]
     reasons = {s["record"]: s["reason"] for s in p.skipped}
-    assert "#10" in reasons["docs/amendments/0002-alpha.md"] and "not merged" in reasons["docs/amendments/0002-alpha.md"]
+    alpha = reasons["docs/amendments/0002-alpha.md"]
+    assert "#10" in alpha and "not merged" in alpha
     assert "@mallory, not the maintainer @o" in reasons["docs/amendments/0003-beta.md"]
 
 
