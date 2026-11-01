@@ -630,6 +630,9 @@ def test_ai_run_sees_one_claude_credential_and_no_github_secret_and_the_planner_
     assert "SSH_AUTH_SOCK" not in ai and not set(H.AUTH_OVERRIDE_ENV) & set(ai)
     planner = [r["env"] for r in rows if r["sub"] == "scout"]
     assert planner and all(not ({*H.CREDENTIAL_ENV.values(), *H.AUTH_OVERRIDE_ENV} & set(e)) for e in planner)
+    planes = [r["env"] for r in rows if r["sub"] == "context"]
+    assert planes and all(not ({*H.CREDENTIAL_ENV.values(), *H.AUTH_OVERRIDE_ENV} & set(e)) for e in planes), \
+        "the context planes are read with no Claude credential"
 
 
 def test_keep_workspace_leaves_a_hardened_clone():
