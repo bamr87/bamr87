@@ -11,6 +11,7 @@ coverage: listed
 
 - `NNNN-short-kebab-title.md`, four-digit sequence, never renumbered; a superseded ADR is never deleted, it links forward.
 - Every ADR carries Status, Context, Decision, Consequences, Alternatives considered, Supersedes / Superseded by.
+- Merging the PR that adds an ADR (or a phase with its own Status line) accepts it; the post-merge `ratify` job writes `accepted`, **Accepted in** and, once the **Tracking** epic closes, **Completed** (README.md § Lifecycle).
 
 ## Structure
 
@@ -28,3 +29,4 @@ coverage: listed
 ## Forbidden
 
 - No renumbering, no deleting a superseded ADR, no decisions recorded only in a PR comment.
+- No hand-written **Accepted in** or **Completed** line; the ratify job writes them.

@@ -7,6 +7,7 @@ The append-only log of changes to [the constitution](../constitution.md). Proces
 
 - A proposal is written as [`proposed/<kebab-slug>.md`](proposed/) with `**Number:** NEW` (copy [0000-template.md](0000-template.md)); `python3 -m tools.jev number apply` numbers it `NNNN-kebab-slug.md` here at merge and appends its row below. Numbers are never reused (amendment [0002](0002-conflict-free-numbering.md)).
 - Status: `proposed` → `ratified` (PR merged) | `rejected` | `withdrawn` | `superseded`.
+- After the maintainer merges a proposal, the post-merge `ratify` job in `jev-number.yml` records it: `Status: ratified`, `Ratified by:` the PR, and the status cell below, through a ratification-record PR (constitution § 8.3, § 12.3; `python3 -m tools.jev ratify plan` shows what it would record).
 - Validate: `python3 <bamr87/bamr87>/tools/governance_lint.py check .`
 
 | # | Title | Status | Affects |

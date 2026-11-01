@@ -1,0 +1,19 @@
+id: HUB-NEW
+slug: jev-ratify
+title: 'JEV: ratification, acceptance and completion recorded after the maintainer merges'
+description: "After every push to main (and when an issue closes), jev-number.yml's ratify job runs python3 -m tools.jev ratify: from main's state it finds every amendment still marked proposed whose PR the maintainer merged, every ADR Status line (header or phase) still proposed whose introducing PR the maintainer merged, and every accepted ADR whose Tracking epic the maintainer closed as completed with all sub-issues closed; a trigger from an automation branch or a bot decides nothing. It writes only those Status, Ratified by, Accepted in and Completed lines and index status cells onto chore/jev-ratify, opens a PR with the probed FLEET_TOKEN whose body names each trigger PR (merge date, merged by, merge commit, closing issues), skips and open epics, and merges it with a merge commit (never squash, --admin or --auto) only on the read-only ratify guard's go: the job's own PR, one commit on main's tip, every check on that SHA passed, the diff exactly its plan with every trigger still holding; it waits on a running check or a failed read, re-cuts when main moves, and only a refusal labels it needs-amr. Read-only towards GitHub in Python; kill switch vars.JEV_RATIFY_ENABLED (amendment ratification-records; complements HUB-056, #505)."
+implemented: true
+status: shipped
+surface: infra
+link: tools/jev/ratify.py
+docs: docs/JEV.md
+tags: [governance, jev, amendments, adr]
+date: 2026-11-01
+tests:
+  - tools/test_jev_ratify.py
+  - tools/test_jev_number.py
+prd: ["FR-NEW:ratification-records"]
+prd_new:
+  - key: ratification-records
+    kind: FR
+    text: "When the maintainer merges the pull request that proposes an amendment, adds an ADR or adds an ADR phase, the hub must record it without a human edit: the record's status becomes ratified or accepted with a link to that pull request, its merge date and who merged it, the index row follows, and an ADR whose tracking epic closes as completed with every sub-issue closed is marked completed; the record change is a pull request limited to those lines, merged with a merge commit only after every check passed and a diff check proved it holds nothing else."

@@ -4,6 +4,7 @@
 - **Date**: 2026-10-30
 - **Deciders**: proposed by an agent for bamr87/bamr87#485; the maintainer accepts or rejects it in that PR's review
 - **Related**: epic bamr87/bamr87#484, P0 bamr87/bamr87#485, the motivating incident bamr87/bamr87#89, constitution § 10.8 (PR #480), § 12.3 (PR #481), § 13 (PR #482), § 15 (PR #491), [`docs/JEV.md`](../JEV.md)
+- **Tracking**: #484
 
 ## Context
 

@@ -26,4 +26,4 @@ coverage: listed
 ## Forbidden
 
 - No numbered file names here — the number is assigned at merge and never reused.
-- No edit to a record that has already been numbered; it is append-only history (constitution § 8).
+- No edit to a record that has already been numbered; it is append-only history (constitution § 8). The one exception is its Status, Ratified by and index status cell, which the post-merge ratify job records (§ 8.3).
