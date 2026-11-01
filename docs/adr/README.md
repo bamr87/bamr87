@@ -11,6 +11,14 @@ Add an ADR in the same PR as the change it justifies.
 - Start from [`0000-template.md`](0000-template.md).
 - Required sections: **Status**, **Context**, **Decision**, **Consequences**, **Alternatives considered**, **Supersedes / Superseded by**.
 - Status values: `proposed`, `accepted`, `superseded`, `deprecated`. A superseded ADR is never deleted; it links forward to the ADR that replaced it.
+- Optional header field **Tracking**: `- **Tracking**: #N`, the issue or epic that delivers the decision.
+
+## Lifecycle
+
+- **Proposed** in the PR that adds the ADR, or that adds a phase section with its own `- **Status**: proposed` line.
+- **Accepted by the merge.** The maintainer's merge of that PR accepts it (the maintainer's ruling of 2026-11-01, amendment `ratification-records`). The post-merge `ratify` job in [`jev-number.yml`](../../.github/workflows/jev-number.yml) then sets that line to `accepted` (the rest of the line stays), adds `- **Accepted in**: <PR URL> (merged YYYY-MM-DD by @login)` under it, and sets the status cell of the row below (header line only). A PR merged by anyone else accepts nothing.
+- **Completed when the tracking epic closes.** When the issue named by **Tracking** closes as completed and every one of its sub-issues is closed, the job adds `- **Completed**: YYYY-MM-DD (#N closed)` to the header of an accepted ADR.
+- **Accepted in** and **Completed** are written by the job through a ratification-record PR (constitution § 12.3), never by hand. Run `python3 -m tools.jev ratify plan` to see what it would record ([docs/JEV.md](../JEV.md#ratification-records)).
 
 ## Index
 
