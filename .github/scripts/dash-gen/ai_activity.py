@@ -1075,7 +1075,13 @@ def run_headless(args: argparse.Namespace) -> int:
             order = (hl.auth_order({}, {"CLAUDE_AUTH_ORDER": args.auth_order}) if args.auth_order
                      else hl.auth_order(fleet, os.environ))
             dotenv = hl.hub_dotenv()
-            choice = hl.choose_auth(order, os.environ, dotenv, lambda: hl.stored_login(claude, os.environ))
+            if args.auth_source:
+                if len(order) != 1:
+                    raise hl.JevError("--auth-source needs --auth-order naming exactly one method")
+                choice = hl.pinned_auth(order[0], args.auth_source, os.environ, dotenv,
+                                        lambda: hl.stored_login(claude, os.environ))
+            else:
+                choice = hl.choose_auth(order, os.environ, dotenv, lambda: hl.stored_login(claude, os.environ))
         except hl.NoCredential as exc:
             sys.stderr.write(f"refusing to run: {exc}\n")
             refused = hl.Outcome("credential_rejected", 0.0, "no-spend", detail=str(exc)).as_dict()
@@ -1335,6 +1341,9 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
                              "other one and the CLI's other auth inputs (ANTHROPIC_AUTH_TOKEN, "
                              "ANTHROPIC_BASE_URL, CLAUDE_CONFIG_DIR, the provider switches) are unset "
                              "(default with --isolate: CLAUDE_AUTH_ORDER / ai_auth)")
+    parser.add_argument("--auth-source", choices=("env", "login", "dotenv"), default=None,
+                        help="with a one-method --auth-order: use exactly this source of it, or refuse (exit 3) — "
+                             "the loop engine's pin of the credential it chose and proved the canary for")
     parser.add_argument("--usage-limit", choices=("fail", "skip"), default="fail",
                         help="skip = a spent usage window exits 0 with a warning (capacity, not a defect)")
     parser.add_argument("--meta", action="append", default=[], metavar="KEY=VALUE",

@@ -281,6 +281,22 @@ def choose_auth(order: Iterable[str], environ: Mapping[str, str], dotenv: Mappin
         "ANTHROPIC_API_KEY, run `claude login`, or put one in the hub .env")
 
 
+def pinned_auth(method: str, source: str, environ: Mapping[str, str], dotenv: Mapping[str, str],
+                login: Callable[[], bool]) -> AuthChoice:
+    """Exactly the credential a caller already chose (the loop engine's
+    `--auth-source`), or NoCredential — never the next one in the order. The
+    engine's canary is keyed by the credential exposure it chose, so a stored
+    login that reads logged out now must not become the hub .env token."""
+    choice = AuthChoice(method, source)
+    name = CREDENTIAL_ENV[method]
+    present = (bool(environ.get(name)) if source == "env" else bool(dotenv.get(name)) if source == "dotenv"
+               else method == "oauth" and login())
+    if not present:
+        raise NoCredential(f"the credential the caller chose ({choice}) is not present now — refusing rather than "
+                           "use another source")
+    return choice
+
+
 def credential_value(choice: AuthChoice, environ: Mapping[str, str], dotenv: Mapping[str, str]) -> str | None:
     """The chosen credential's value, or None for a stored login (the CLI reads it)."""
     if choice.source == "login":
@@ -417,15 +433,38 @@ def _user_temp_dir() -> str | None:
     return os.path.realpath(out) if out else None
 
 
+def claude_temp_roots() -> tuple[str, ...]:
+    """Every Claude Code session's temp root on this account: `/tmp/claude-<uid>`
+    and its `/private/tmp` real path."""
+    uid = os.getuid()
+    return (f"/tmp/claude-{uid}", f"/private/tmp/claude-{uid}")
+
+
+def work_root_problem(root: Path | None = None) -> str | None:
+    """Why the work root cannot hold a workspace (host safety, exit 4), or
+    None. Inside the hub a clone would be walked by hub scanners and reach the
+    hub's CLAUDE.md; inside a Claude temp root it would drop that root's read
+    deny (`private_read_paths` leaves out a path holding the work root), opening
+    every other session's temp files to a sandboxed command."""
+    root = work_root() if root is None else Path(root)
+    if root.resolve().is_relative_to(HUB.resolve()):
+        return f"the work root {root} is inside the hub tree (set JEV_WORK_ROOT outside it)"
+    held = next((p for p in claude_temp_roots() if _under(root, Path(p))), None)
+    if held:
+        return (f"the work root {root} is inside the Claude temp root {held}, whose read deny it would lift for "
+                "every session's files there (set JEV_WORK_ROOT outside it)")
+    return None
+
+
 def private_read_paths(work: Path | None = None) -> tuple[str, ...]:
     """Private places OUTSIDE the home fence a sandboxed command could otherwise
     read: every Claude Code session's temp root on this account
-    (`/tmp/claude-<uid>`, with its `/private/tmp` real path) and the per-user
-    temp directory. A path that holds the work root is left out, since the
-    clone must stay readable; the canary plants a second secret in the first
+    (`claude_temp_roots`) and the per-user temp directory. A path that holds
+    the work root is left out, since the clone must stay readable — only the
+    per-user temp directory can be, because `work_root_problem` refuses a work
+    root in a Claude temp root; the canary plants a second secret in the first
     one that is kept."""
-    uid = os.getuid()
-    paths = [f"/tmp/claude-{uid}", f"/private/tmp/claude-{uid}"]
+    paths = list(claude_temp_roots())
     if _user_temp_dir():
         paths.append(str(_user_temp_dir()))
     root = work_root() if work is None else Path(work)

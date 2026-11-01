@@ -850,11 +850,10 @@ class HostReport:
 
 
 def work_root_problem(root: Path | None = None) -> str | None:
-    """Why the work root cannot hold a workspace (host safety, exit 4); None when it can."""
-    root = headless.work_root() if root is None else root
-    if root.resolve().is_relative_to(HUB.resolve()):
-        return f"the work root {root} is inside the hub tree (set JEV_WORK_ROOT outside it)"
-    return None
+    """Why the work root cannot hold a workspace (host safety, exit 4); None
+    when it can (`headless.work_root_problem`: not in the hub, not in a Claude
+    temp root)."""
+    return headless.work_root_problem(root)
 
 
 def private_work_root() -> Path:
@@ -983,9 +982,19 @@ def item_values(ctx: RunContext, item: Item, *, validated: Path | str | None = N
     return out
 
 
+def auth_pin(auth: headless.AuthChoice | None) -> list[str]:
+    """ai-run's flags for exactly this credential: its method, and the source
+    it must come from (no fallback to the next source, which could carry a
+    variable the canary never proved hidden)."""
+    return ["--auth-order", auth.method, "--auth-source", auth.source] if auth else []
+
+
 def ai_run_argv(ctx: RunContext, item: Item, *, cwd: Path, tmp: Path, flags: list[str], attempt_id: str,
-                method: str | None, claude: str) -> list[str]:
-    """The `tools/dash-gen ai-run` command a live attempt runs."""
+                auth: headless.AuthChoice | None, claude: str) -> list[str]:
+    """The `tools/dash-gen ai-run` command a live attempt runs. It carries the
+    exact cap the ceiling was judged on (ai-run refuses one above the call
+    site's, and never re-reads a higher one) and the exact credential source
+    the host check chose and the canary was proved for (`auth_pin`)."""
     d = ctx.item_dir(item)
     spec = ctx.spec
     argv = ["ai-run", "--stream", "--isolate", "--isolate-tmp", str(tmp),
@@ -993,9 +1002,8 @@ def ai_run_argv(ctx: RunContext, item: Item, *, cwd: Path, tmp: Path, flags: lis
             "--cwd", str(cwd), "--prompt-file", str(d / "prompt.txt"), "--trace", str(d / "trace.jsonl"),
             "--result-file", str(d / "result.json"), "--outcome-file", str(d / "outcome.json"),
             "--usage-limit", "skip", "--source", f"jev loop {spec.loop}/{spec.step}", "--claude-bin", claude,
-            "--ledger", str(ledger_path())]
-    if method:
-        argv += ["--auth-order", method]
+            "--ledger", str(ledger_path()), "--max-budget-usd", f"{spec.resolved.max_budget_usd:g}"]
+    argv += auth_pin(auth)
     meta = {"origin": "local", "run_id": ctx.run.run_id if ctx.run else "plan", "attempt_id": attempt_id,
             "loop": spec.loop, "step": spec.step, "item": item.key, "tier": TIER}
     for k, v in meta.items():
@@ -1240,7 +1248,7 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
                                    "baseline_sha256": _sha(json.dumps(ws.baseline, sort_keys=True))}
         cwd, tmp = (ws.path, ws.tmp) if ws else (d, d / "tmp")
         argv = ai_run_argv(ctx, item, cwd=cwd, tmp=tmp, flags=flags, attempt_id=attempt_id,
-                           method=host.auth.method if host.auth else None, claude=host.claude or ctx.opts.claude_bin)
+                           auth=host.auth, claude=host.claude or ctx.opts.claude_bin)
         env_keys = set(headless.agent_env(os.environ, None, credential_value=None, tmp=tmp,
                                           gh_config_dir=tmp / "gh-none", work=ctx.work_root))
         if headless.credential_exposure(host.auth):
@@ -1454,7 +1462,10 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
     if changed:
         (d / "tree.txt").write_text(f"not inspected: .git changed ({', '.join(changed)})\n", encoding="utf-8")
         return done("failed", f"the workspace was tampered with: {changed} — destroyed with no git run in it")
-    breach = posture_breach(spec, posture, outcome, debug, headless.read_events(d / "trace.jsonl"))
+    pinned = {"method": host.auth.method, "source": host.auth.source} if host.auth else None
+    breach = ((f"the session ran under the credential {outcome['auth']}, not the one the host check chose and "
+               f"the canary proved ({host.auth})") if "auth" in outcome and outcome["auth"] != pinned
+              else posture_breach(spec, posture, outcome, debug, headless.read_events(d / "trace.jsonl")))
     if breach:
         ctx.stop = (EXIT["host_unsafe"], breach)
         return done("unsafe", breach, EXIT["host_unsafe"])
@@ -2137,8 +2148,7 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
                 "--result-file", str(d / "result.json"), "--outcome-file", str(d / "outcome.json"),
                 "--usage-limit", "skip", "--source", f"jev loop doctor --live ({spec.loop}/{spec.step} canary)",
                 "--claude-bin", host.claude or "claude", "--ledger", str(ledger_path())]
-        if host.auth:
-            argv += ["--auth-order", host.auth.method]
+        argv += auth_pin(host.auth)
         for k, v in {"origin": "local", "run_id": run_id, "attempt_id": attempt_id, "loop": spec.loop,
                      "step": spec.step, "item": "canary", "tier": "canary"}.items():
             argv += ["--meta", f"{k}={v}"]

@@ -428,6 +428,20 @@ def test_the_auth_order_comes_from_the_env_then_ai_auth():
     raise AssertionError("unknown method accepted")
 
 
+def test_a_pinned_credential_is_that_source_or_none_never_the_next():
+    env, dot = {"CLAUDE_CODE_OAUTH_TOKEN": "env-tok"}, {"CLAUDE_CODE_OAUTH_TOKEN": "dot-tok"}
+    assert H.pinned_auth("oauth", "env", env, dot, lambda: False) == H.AuthChoice("oauth", "env")
+    assert H.pinned_auth("oauth", "login", {}, dot, lambda: True) == H.AuthChoice("oauth", "login")
+    assert H.choose_auth(["oauth"], {}, dot, lambda: False) == H.AuthChoice("oauth", "dotenv"), "the fallback"
+    for method, source, environ in (("oauth", "login", {}), ("oauth", "env", {}), ("api_key", "dotenv", env)):
+        try:
+            H.pinned_auth(method, source, environ, dot, lambda: False)
+        except H.NoCredential as exc:
+            assert "refusing rather than use another source" in str(exc)
+            continue
+        raise AssertionError(f"{method}/{source} fell through to another source")
+
+
 def test_dotenv_is_parsed_for_the_named_keys_only_and_never_sourced():
     d = Path(tempfile.mkdtemp())
     marker = d / "sourced"

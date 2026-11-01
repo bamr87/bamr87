@@ -234,6 +234,20 @@ def test_a_brief_dir_that_leaves_the_clone_is_refused():
         assert not (WORK / rid).exists() and not (OUTSIDE / "abs").exists()
 
 
+def test_a_work_root_inside_a_claude_temp_root_is_refused():
+    # it would lift that root's read deny: every other session's temp files, readable by the agent
+    for base in (f"/tmp/claude-{os.getuid()}", f"/private/tmp/claude-{os.getuid()}"):
+        root = Path(base) / "jev-test-never-made" / "work"
+        with env(JEV_WORK_ROOT=str(root)):
+            try:
+                make(run_id="t-claude-tmp")
+            except JevError as exc:
+                assert "Claude temp root" in str(exc), exc
+            else:
+                raise AssertionError(f"a work root under {base} was accepted")
+        assert not root.parent.exists()
+
+
 def test_a_work_root_inside_the_hub_is_refused():
     with env(JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
         try:

@@ -70,6 +70,11 @@ if argv[:1] == ["--version"]:
 if argv[:2] == ["auth", "status"]:
     logged = os.environ.get("STUB_LOGGED_IN") == "1" or any(
         os.environ.get(n) for n in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"))
+    if os.environ.get("STUB_LOGIN_FLIPS") and not os.environ.get("CLAUDE_CONFIG_DIR"):
+        # the default keychain login: read logged in once, then logged out (a locked keychain, an expiry)
+        flag = os.path.join(HERE, "login-read")
+        logged = not os.path.exists(flag)
+        open(flag, "a").close()
     print(json.dumps({"loggedIn": logged, "authMethod": "claude.ai"})); sys.exit(0)
 note("argv.jsonl", argv)
 note("cwd.jsonl", os.getcwd())
@@ -1097,6 +1102,13 @@ def test_refusals_exit_with_their_documented_codes():
         assert code == 4 and rec["status"] == "refused" and rec["items"] == [] and "plan" not in rec, (offline, rec)
         assert any("inside the hub" in n for n in rec["notes"]) and not (HUB / ".fleet" / "work").exists()
         assert len(box.claude_calls()) == calls, "refused before any CLI runs or anything is planned"
+    claude_tmp = Path(f"/tmp/claude-{os.getuid()}") / "jev-test-never-made" / "work"
+    with world(box, JEV_WORK_ROOT=str(claude_tmp)):
+        code, _, err = jev("doctor")
+        assert code == 4 and "Claude temp root" in err, err
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET)
+        assert code == 4 and any("Claude temp root" in n for n in box.last()["notes"]), box.last()["notes"]
+    assert not claude_tmp.parent.exists()
     # `loop plan` exits on no host problem: it says the work root is inside the hub and still reads the host
     with world(box, JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
         code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--offline")
@@ -1638,6 +1650,55 @@ def test_a_canary_passed_on_a_stored_login_does_not_unlock_a_run_that_carries_a_
         assert not box.live_calls()
         box.seed_live({"kind": "ok", "proposals": GOOD})
         assert jev("run", "repo-scout", "--target", TARGET)[0] == 0, "the env-token canary unlocks the env-token run"
+
+
+def test_ai_run_uses_the_credential_source_the_engine_chose_or_none():
+    # the host check sees a stored login; by ai-run's own read it is gone, and the hub .env holds a token
+    box = Box()
+    dotenv = box.root / "hub.env"
+    dotenv.write_text("CLAUDE_CODE_OAUTH_TOKEN=fake-dotenv-oauth-5678\n", encoding="utf-8")
+    with world(box, CLAUDE_CODE_OAUTH_TOKEN="", STUB_LOGIN_FLIPS="1", JEV_DOTENV=str(dotenv)):
+        box.seed_live({"kind": "ok", "proposals": GOOD}, auth=H.AuthChoice("oauth", "login"))
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+    rec = box.last()
+    assert rec["host"]["auth"] == {"method": "oauth", "source": "login"}, rec["host"]
+    assert not box.live_calls(), "no session ran under a credential the canary never proved"
+    assert code == 3 and rec["items"][0]["outcome"] == "credential_rejected", (code, rec["items"], err[-400:])
+    [call] = [c for c in box.attempts() if c.get("outcome")]
+    argv = json.loads((box.latest() / "items" / "bamr87__SCHEMA" / "argv.json").read_text())["ai_run"]
+    assert argv[argv.index("--auth-source") + 1] == "login" and call["cost_source"] == "no-spend"
+    # and should an ai-run choose again anyway, the engine reads its outcome's auth before any output
+    real_pin = L.auth_pin
+    L.auth_pin = lambda auth: ["--auth-order", auth.method] if auth else []
+    try:
+        (box.bin / "login-read").unlink()
+        with world(box, CLAUDE_CODE_OAUTH_TOKEN="", STUB_LOGIN_FLIPS="1", JEV_DOTENV=str(dotenv)):
+            code, _, _ = jev("run", "repo-scout", "--target", TARGET)
+    finally:
+        L.auth_pin = real_pin
+    item = box.last()["items"][0]
+    assert code == 4 and item["status"] == "unsafe" and "not the one the host check chose" in item["reason"], item
+    assert not (box.latest() / "items" / "bamr87__SCHEMA" / "outputs").exists(), "its outputs are never read"
+
+
+def test_ai_run_is_given_the_cap_the_ceiling_was_judged_on():
+    # the engine judged the month on a $5 cap; ai-run re-reading _data/fleet.yml from disk would give claude $8
+    box = Box()
+    real = L.load_step
+
+    def judged_at_5(*a, **k):
+        spec = real(*a, **k)
+        return dataclasses.replace(spec, resolved=dataclasses.replace(spec.resolved, max_budget_usd=5.0))
+    L.load_step = judged_at_5
+    try:
+        with world(box):
+            box.seed_live({"kind": "ok", "proposals": GOOD})
+            code, _, err = jev("run", "repo-scout", "--target", TARGET)
+    finally:
+        L.load_step = real
+    [call] = box.live_calls()
+    assert call["argv"][call["argv"].index("--max-budget-usd") + 1] == "5", (call["argv"], err[-300:])
+    assert code == 0 and [r["cap_usd"] for r in box.ledger_rows()] == [5.0]
 
 
 # --------------------------------------------------------------------------- #
