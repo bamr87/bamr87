@@ -270,7 +270,8 @@ def redact(text: str, ctx) -> str:
     /Users/<name> → ~ (after `file://` too, and encoded or escaped), temp
     paths → <tmp>, any `-Users-<name>` → ~, addresses → <email>, the
     machine's names → <host>. Every replacement is free of backticks and
-    line breaks, so it cannot change a fence or a heading."""
+    line breaks, so it cannot add, close or move a fence or a heading
+    (`redact_lines` keeps the engine's own lines as written)."""
     if not text:
         return text
     rx, repl = _PRIVATE_KEY_BLOCK
@@ -319,6 +320,10 @@ def strip_obj(obj):
     return obj
 
 
+#: the only fence lines `fence` writes for `render`: an opening bar with its info string, a closing bar
+_ENGINE_FENCE = re.compile(r"`{3,}(?:text)?")
+
+
 def redact_lines(md: str, ctx) -> str:
     """`redact` over the rendered pack ONE LINE AT A TIME. Rendering folds a
     field's line breaks into spaces, so a mask can first match there (a key
@@ -326,8 +331,23 @@ def redact_lines(md: str, ctx) -> str:
     by line, no pattern — the private-key block's runs to an END marker or
     the end of its text — can reach past its own line and swallow a fence or
     a heading. Every replacement is free of line breaks, so the line count
-    is kept."""
-    return "\n".join(redact(line, ctx) for line in md.split("\n"))
+    is kept. When `md` passes `structure_problem`, the lines the engine
+    itself wrote are left as written: the fences (`_ENGINE_FENCE`) and the
+    section headings, all of them its own constants, and the header title's
+    `HEADER_TITLE` (its nwo is redacted). A host name that is one of their
+    words (`text`, the fence's info string; `Code`, a title) would otherwise
+    rewrite them and fail every pack closed; every data line is still
+    redacted, and `redaction_problem` still checks the result."""
+    keep: dict[int, str] = {}
+    if structure_problem(md) is None:
+        for i, kind, line in skeleton(md)[0]:
+            if kind == "fence" and _ENGINE_FENCE.fullmatch(line):
+                keep[i] = line
+            elif kind == "heading" and line.startswith(HEADER_TITLE):
+                keep[i] = HEADER_TITLE + redact(line[len(HEADER_TITLE):], ctx)
+            elif kind == "heading":
+                keep[i] = line   # '## <Title> — <status>': structure_problem admits only the engine's own
+    return "\n".join(keep[i] if i in keep else redact(line, ctx) for i, line in enumerate(md.split("\n")))
 
 
 # --------------------------------------------------------------------------- #

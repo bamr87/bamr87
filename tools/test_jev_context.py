@@ -620,6 +620,31 @@ def test_a_pack_that_loses_its_structure_fails_closed_to_its_header():
     assert any("fail closed" in n for n in pack.notes) and "did not write" in record["structure_problem"], pack.notes
 
 
+def test_a_host_named_like_the_packs_own_words_keeps_its_structure_and_masks_every_data_line():
+    # A host called `text` (the fence's info string, and in "Context") turned every "```text" into "```<host>"
+    # and failed every pack closed; one called `pack` rewrote the title. The engine's own lines stay as written.
+    title = {"number": 9, "kind": "issue", "title": "Plain text blocks render in the pack", "labels": [],
+             "closed_at": "2026-10-30T00:00:00Z", "scout": False}
+    doc = plane_doc(lake_issues=sec("lake", "ok", [title]))
+    for host in ("text", "pack"):
+        with _tmp() as root:
+            pack = C.build(FakeCtx(root, hostname=host, answer=lambda _a: ok_answer(doc)), ITEM, REQ)
+            md = pack.path.read_text(encoding="utf-8")
+        assert not md.endswith(C.FAIL_CLOSED + "\n") and not any("fail closed" in n for n in pack.notes), \
+            (host, pack.notes)
+        assert headings(md) == expected_headings({"nwo": NWO, "sections": {"history": {"status": "empty"},
+                                                                           **doc["sections"]}}), (host, headings(md))
+        marks, closed = C.skeleton(md)
+        fences = [line for _i, kind, line in marks if kind == "fence"]
+        assert closed and fences.count("```text") >= 6 and all(re.fullmatch(r"`{3,}(text)?", f) for f in fences), \
+            (host, fences)
+        structure = {i for i, _kind, _line in marks}
+        lines = md.split("\n")
+        leaked = [line for i, line in enumerate(lines) if i not in structure and host.lower() in line.lower()]
+        assert not leaked, (host, leaked)
+        assert "<host>" in next(line for line in lines if line.startswith("#9 issue")), host
+
+
 def test_the_cap_cuts_rows_lowest_priority_first_and_is_never_exceeded():
     big = plane_doc()
     big["sections"]["index_code"]["rows"] = [
