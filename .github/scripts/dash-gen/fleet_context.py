@@ -120,6 +120,13 @@ LABEL_CHARS = 50
 NAME_CHARS = 80               # workflow, job, step and tool names
 HEAD_CHARS = 60
 HEAD_TOKENS = 3
+CAP_MODELS = 6                # per ci_agent_runs row; the rest fold into "(other)"
+#: untrusted text is cut to its clip plus this BEFORE the credential masks run
+#: over it (longer than any credential shape but a key block, whose pattern
+#: masks to the end of what is left), so a 100 KB title costs a 652-char scan
+CLIP_SLACK = 512
+HEAD_SCAN_CHARS = 8192        # of a command, read for its head
+LAKE_TEXT_CHARS = 1024        # of a lake text column, read at all (SQL substr)
 
 SCOUT_LABEL_DEFAULT = "ai-scout"   # repo_scout.DEFAULTS["label"]; fleet.yml `scout.label` overrides
 ERROR_CONCLUSIONS = tuple(fleet_lake.ERROR_CONCLUSIONS)
@@ -184,6 +191,19 @@ class Deadline:
     def timeout(self, cap: float = REQUEST_TIMEOUT_S) -> float:
         self.check()
         return max(0.05, min(cap, self.left()))
+
+    def within(self, what: str) -> None:
+        """Mid-section, per row: past the budget the section stops and says so.
+        The SQLite progress handler only reaches inside a query; the Python
+        work on each row is bounded here."""
+        if self.expired():
+            raise Unavailable(f"cut off: the --deadline-s {self.seconds:g} budget ran out while reading {what}",
+                              REMEDY_DEADLINE)
+
+
+def _within(deadline: Deadline | None, what: str) -> None:
+    if deadline is not None:
+        deadline.within(what)
 
 
 def utcnow() -> dt.datetime:
@@ -313,15 +333,17 @@ class Scrubber:
 
 
 def clean_line(s, limit: int) -> str:
-    """An untrusted one-line field (title, label, name): controls out, clipped."""
-    s = _BREAKS.sub(" ", _CTRL.sub("", str(s or ""))).strip()
+    """An untrusted one-line field (title, label, name): cut to the clip plus
+    CLIP_SLACK, controls out, credentials masked, clipped."""
+    s = _BREAKS.sub(" ", _CTRL.sub("", str(s or "")[: limit + CLIP_SLACK])).strip()
     return mask_credentials(s)[:limit]
 
 
 def snippet_of(chunk) -> str:
-    """At most SNIPPET_LINES lines and SNIPPET_CHARS characters of a code chunk."""
-    text = mask_credentials(_CTRL.sub("", str(chunk or "")).replace("\r\n", "\n").replace("\r", "\n"))
-    return "\n".join(text.split("\n")[:SNIPPET_LINES])[:SNIPPET_CHARS]
+    """At most SNIPPET_LINES lines and SNIPPET_CHARS characters of a code chunk
+    (cut to SNIPPET_CHARS + CLIP_SLACK before it is masked)."""
+    text = _CTRL.sub("", str(chunk or "")[: SNIPPET_CHARS + CLIP_SLACK]).replace("\r\n", "\n").replace("\r", "\n")
+    return "\n".join(mask_credentials(text).split("\n")[:SNIPPET_LINES])[:SNIPPET_CHARS]
 
 
 # --------------------------------------------------------------------------- #
@@ -570,7 +592,7 @@ def command_head(command) -> str:
     characters. Absent any such segment, the first segment's words stand (a
     failing `cd` is still a `cd`).
     """
-    return _head(str(command or ""), 0)[0]
+    return _head(str(command or "")[:HEAD_SCAN_CHARS], 0)[0]
 
 
 _COMMAND_FIELD = re.compile(r'"(?:command|full_command)"\s*:\s*"((?:[^"\\]|\\.)*)')
@@ -819,14 +841,17 @@ def _labels(raw) -> list[str]:
     return out
 
 
-def lake_issues(conn, tables, nwo: str, since: str, now: dt.datetime, scout_label: str) -> dict:
+def lake_issues(conn, tables, nwo: str, since: str, now: dt.datetime, scout_label: str,
+                deadline: Deadline | None = None) -> dict:
     _need(tables, "issues")
     as_of, stale, note = github_freshness(conn, tables, nwo, now)
     where = "nwo = ? COLLATE NOCASE AND state = 'closed' AND closed_at IS NOT NULL AND closed_at >= ?"
     total = int(_scalar(conn, f"SELECT COUNT(*) FROM issues WHERE {where}", (nwo, since)) or 0)
     rows = []
-    for r in conn.execute(f"SELECT number, is_pr, title, labels, closed_at FROM issues WHERE {where} "
-                          "ORDER BY closed_at DESC, number DESC LIMIT ?", (nwo, since, CAP_ISSUES)):
+    for r in conn.execute(f"SELECT number, is_pr, substr(title, 1, {LAKE_TEXT_CHARS}) AS title, labels, "
+                          f"closed_at FROM issues WHERE {where} ORDER BY closed_at DESC, number DESC LIMIT ?",
+                          (nwo, since, CAP_ISSUES)):
+        _within(deadline, "the lake's issues")
         labels = _labels(r["labels"])
         rows.append({"number": r["number"], "kind": "pr" if r["is_pr"] else "issue",
                      "title": clean_line(r["title"], TITLE_CHARS), "labels": labels[:CAP_LABELS],
@@ -849,20 +874,25 @@ def tracked_branch(conn, tables, nwo: str, registry: dict) -> str:
     return "main"
 
 
-def lake_ci(conn, tables, nwo: str, since: str, now: dt.datetime, branch: str) -> dict:
+def lake_ci(conn, tables, nwo: str, since: str, now: dt.datetime, branch: str,
+            deadline: Deadline | None = None) -> dict:
     _need(tables, "runs")
     as_of, stale, note = github_freshness(conn, tables, nwo, now)
     groups: dict[str, list] = {}
     # Fail open, as fleet_triage does: a run missing head_branch or event is kept.
     for r in conn.execute(
-            "SELECT id, workflow_path, workflow_name, event, status, conclusion, head_branch, created_at "
+            f"SELECT id, substr(workflow_path, 1, {LAKE_TEXT_CHARS}) AS workflow_path, "
+            f"substr(workflow_name, 1, {LAKE_TEXT_CHARS}) AS workflow_name, event, status, "
+            "substr(conclusion, 1, 40) AS conclusion, head_branch, created_at "
             "FROM runs WHERE nwo = ? COLLATE NOCASE AND created_at >= ? "
             "AND (head_branch IS NULL OR head_branch = ?) "
             f"AND (event IS NULL OR event NOT IN ({','.join('?' * len(PR_EVENTS))})) "
             "ORDER BY created_at DESC, id DESC LIMIT 5000", (nwo, since, branch, *PR_EVENTS)):
+        _within(deadline, "the lake's runs")
         groups.setdefault(r["workflow_path"] or r["workflow_name"] or "?", []).append(r)
     rows, failed_ids = [], {}
     for path, runs in groups.items():
+        _within(deadline, "the lake's runs")
         verdicts = [r for r in runs if r["conclusion"] and r["conclusion"] not in NO_VERDICT]
         completed = [r for r in runs if r["conclusion"]]
         last = verdicts[0] if verdicts else (completed[0] if completed else runs[0])
@@ -881,13 +911,14 @@ def lake_ci(conn, tables, nwo: str, since: str, now: dt.datetime, branch: str) -
                              -w["fail_streak"], -w["failures"], w["workflow"].lower()))
     kept = rows[:CAP_WORKFLOWS]
     if "jobs" in tables:
-        _failing_steps(conn, tables, kept, failed_ids)
+        _failing_steps(conn, tables, kept, failed_ids, deadline)
     scope = f"runs on {clean_line(branch, NAME_CHARS)}, pull-request runs excluded"
     return _done("lake_ci", kept, as_of, now, stale, f"{note}; {scope}" if note else scope,
                  len(rows) - len(kept))
 
 
-def _failing_steps(conn, tables, kept: list[dict], failed_ids: dict[str, list[int]]) -> None:
+def _failing_steps(conn, tables, kept: list[dict], failed_ids: dict[str, list[int]],
+                   deadline: Deadline | None = None) -> None:
     """`job / step` for each kept workflow's failed runs, newest first — where the lake has them."""
     wanted = [i for w in kept for i in failed_ids.get(w["path"], [])]
     if not wanted:
@@ -896,15 +927,18 @@ def _failing_steps(conn, tables, kept: list[dict], failed_ids: dict[str, list[in
     errs = ",".join("?" * len(ERROR_CONCLUSIONS))
     by_run: dict[int, list[str]] = {}
     if "steps" in tables:
-        sql = (f"SELECT j.run_id, j.name AS job, j.conclusion AS jc, s.name AS step, s.number "
+        sql = (f"SELECT j.run_id, substr(j.name, 1, {LAKE_TEXT_CHARS}) AS job, j.conclusion AS jc, "
+               f"substr(s.name, 1, {LAKE_TEXT_CHARS}) AS step, s.number "
                f"FROM jobs j LEFT JOIN steps s ON s.job_id = j.id AND s.conclusion IN ({errs}) "
                f"WHERE j.run_id IN ({marks}) ORDER BY j.run_id, j.id, s.number")
         params = (*ERROR_CONCLUSIONS, *wanted)
     else:
-        sql = (f"SELECT run_id, name AS job, conclusion AS jc, NULL AS step, NULL AS number FROM jobs "
+        sql = (f"SELECT run_id, substr(name, 1, {LAKE_TEXT_CHARS}) AS job, conclusion AS jc, NULL AS step, "
+               f"NULL AS number FROM jobs "
                f"WHERE run_id IN ({marks}) ORDER BY run_id, id")
         params = tuple(wanted)
     for r in conn.execute(sql, params):
+        _within(deadline, "the lake's jobs")
         job = clean_line(r["job"], NAME_CHARS)
         if r["step"]:
             by_run.setdefault(r["run_id"], []).append(f"{job} / {clean_line(r['step'], NAME_CHARS)}")
@@ -919,24 +953,28 @@ def _failing_steps(conn, tables, kept: list[dict], failed_ids: dict[str, list[in
         w["failing_steps"] = seen[:CAP_FAILING_STEPS]
 
 
-def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime) -> dict:
+def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime,
+                deadline: Deadline | None = None) -> dict:
     if "agent_runs" not in tables and "sessions" not in tables:
         _need(tables, "agent_runs", "sessions")
     rows, notes, stamps, stale_any, truncated = [], [], [], False, 0
     if "agent_runs" in tables:
         as_of, stale, note = github_freshness(conn, tables, nwo, now, "CI agent runs (the lake's GitHub sync)")
         if "runs" in tables:
-            sql = ("SELECT a.model, a.num_turns, a.cost_usd, a.permission_denials, a.is_error, "
+            sql = ("SELECT substr(a.model, 1, 200) AS model, a.num_turns, a.cost_usd, a.permission_denials, "
+                   "a.is_error, "
                    "COALESCE(a.started_at, r.created_at) AS at FROM agent_runs a "
                    "LEFT JOIN runs r ON r.id = a.run_id WHERE a.nwo = ? COLLATE NOCASE "
                    "AND COALESCE(a.started_at, r.created_at) >= ?")
         else:
-            sql = ("SELECT model, num_turns, cost_usd, permission_denials, is_error, started_at AS at "
+            sql = ("SELECT substr(model, 1, 200) AS model, num_turns, cost_usd, permission_denials, is_error, "
+                   "started_at AS at "
                    "FROM agent_runs WHERE nwo = ? COLLATE NOCASE AND started_at >= ?")
         agg = {"kind": "ci_agent_runs", "count": 0, "errors": 0, "permission_denials": 0, "turns": 0,
                "cost_usd": 0.0, "models": {}, "last_at": None, "as_of": as_of}
         last = None
         for r in conn.execute(sql, (nwo, since)):
+            _within(deadline, "the lake's agent runs")
             agg["count"] += 1
             agg["errors"] += 1 if r["is_error"] else 0
             agg["permission_denials"] += int(r["permission_denials"] or 0)
@@ -950,6 +988,8 @@ def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime)
         if agg["count"]:
             agg["cost_usd"] = round(agg["cost_usd"], 4)
             agg["last_at"] = iso_z(last)
+            agg["models"], folded = top_models(agg["models"])
+            truncated += folded
             rows.append(agg)
         stale_any |= stale
         notes += [note] if note else []
@@ -963,7 +1003,7 @@ def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime)
             rows.append({"kind": "local_sessions", "count": int(r["n"]), "tool_calls": int(r["calls"] or 0),
                          "tool_errors": int(r["errs"] or 0), "last_at": iso_z(r["last"]), "as_of": as_of})
         if "session_tools" in tables:
-            commands, dropped = failing_commands(conn, name, since)
+            commands, dropped = failing_commands(conn, name, since, deadline)
             rows += commands
             truncated += dropped
         stale, note = freshness(as_of, now, "local sessions", REMEDY_SESSIONS)
@@ -983,14 +1023,26 @@ def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime)
     return _done("lake_agents", rows, as_of, now, stale_any, "; ".join(notes), truncated)
 
 
-def failing_commands(conn, name: str, since: str) -> tuple[list[dict], int]:
+def top_models(models: dict[str, int]) -> tuple[dict[str, int], int]:
+    """At most CAP_MODELS keys, most used first: past that, the top
+    CAP_MODELS - 1 and an "(other)" count. Returns (models, how many folded)."""
+    ranked = sorted(models.items(), key=lambda kv: (-kv[1], kv[0]))
+    if len(ranked) <= CAP_MODELS:
+        return dict(ranked), 0
+    kept, rest = ranked[: CAP_MODELS - 1], ranked[CAP_MODELS - 1:]
+    return {**dict(kept), "(other)": sum(n for _m, n in rest)}, len(rest)
+
+
+def failing_commands(conn, name: str, since: str, deadline: Deadline | None = None) -> tuple[list[dict], int]:
     """Failed Bash calls in this repo's local sessions, by command head. Never the command itself."""
     heads: dict[str, dict] = {}
     for r in conn.execute(
-            "SELECT t.input, COALESCE(t.started_at, s.started_at) AS at FROM session_tools t "
+            f"SELECT substr(t.input, 1, {HEAD_SCAN_CHARS}) AS input, COALESCE(t.started_at, s.started_at) AS at "
+            "FROM session_tools t "
             "JOIN sessions s ON s.key = t.key WHERE s.repo = ? COLLATE NOCASE AND t.is_error = 1 "
             "AND t.name = 'Bash' AND COALESCE(t.started_at, s.started_at) >= ? "
             "ORDER BY at DESC LIMIT ?", (name, since, COMMAND_SAMPLE)):
+        _within(deadline, "the lake's session tools")
         head = command_head(command_of(r["input"])) or "(unparsed)"
         row = heads.setdefault(head, {"kind": "failing_command", "head": head, "count": 0, "last_at": None})
         row["count"] += 1
@@ -1159,6 +1211,7 @@ def telemetry_errors(nwo: str, since: str, deadline: Deadline, now: dt.datetime,
     total = int(total.get("value") or 0) if isinstance(total, dict) else int(total or 0)
     groups: dict[tuple, dict] = {}
     for hit in hits:
+        deadline.within("the telemetry hits")
         src = hit.get("_source") or {}
         tool = clean_line(_src(src, "claude.tool_name") or "unknown", NAME_CHARS)
         head = None
@@ -1292,10 +1345,10 @@ def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = 
             open_ms = int((time.monotonic() - opened) * 1000)
             registry = registry_branches(registry_path) if "lake_ci" in lake_keys else {}
             jobs = {
-                "lake_issues": lambda: lake_issues(conn, tables, nwo, since, now, scout_label),
+                "lake_issues": lambda: lake_issues(conn, tables, nwo, since, now, scout_label, deadline),
                 "lake_ci": lambda: lake_ci(conn, tables, nwo, since, now,
-                                           tracked_branch(conn, tables, nwo, registry)),
-                "lake_agents": lambda: lake_agents(conn, tables, nwo, name, since, now),
+                                           tracked_branch(conn, tables, nwo, registry), deadline),
+                "lake_agents": lambda: lake_agents(conn, tables, nwo, name, since, now, deadline),
             }
             try:
                 for k in lake_keys:

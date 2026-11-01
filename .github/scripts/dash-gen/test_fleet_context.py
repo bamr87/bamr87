@@ -830,6 +830,73 @@ def test_a_plane_url_with_a_path_or_query_is_refused_before_a_socket_opens():
     assert fc.plane_origin("qdrant", "http://127.0.0.1:6333/")[3] == "http://127.0.0.1:6333"
 
 
+def test_untrusted_text_is_cut_before_the_masks_run():
+    seen = []
+    saved = fc.mask_credentials
+    fc.mask_credentials = lambda text: seen.append(len(text)) or saved(text)
+    try:
+        huge = "fix the build " + "ab12 " * 800_000   # 4 MB: the masks would scan all of it
+        assert fc.clean_line(huge, fc.TITLE_CHARS).startswith("fix the build ab12")
+        assert fc.snippet_of(huge).startswith("fix the build")
+        assert fc.command_head("make " + huge) == "make fix the"
+        key = "-----BEGIN RSA PRIVATE KEY-----\n" + "K" * 10_000 + "\n-----END RSA PRIVATE KEY-----"
+        out = fc.clean_line("x " + key, fc.TITLE_CHARS)   # the cut lands inside the block: masked to its end
+    finally:
+        fc.mask_credentials = saved
+    assert max(seen) <= fc.HEAD_SCAN_CHARS, max(seen)
+    assert "KKKK" not in out and "[REDACTED PRIVATE KEY]" in out, out
+
+
+class _Ticking:
+    """A clock that moves 0.3 s every time it is read: a Deadline(1) on it
+    expires after a handful of rows, whatever the machine's speed."""
+
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        self.t += 0.3
+        return self.t
+
+
+def test_the_deadline_reaches_the_python_work_on_each_row():
+    with _tmp() as tmp:
+        lake = rich_lake(tmp)
+        conn, tables = fc._open_lake(lake, fc.Deadline(30))
+        since = ago(days=30)
+        try:
+            calls = {
+                "lake_issues": lambda d: fc.lake_issues(conn, tables, NWO, since, NOW, "ai-scout", d),
+                "lake_ci": lambda d: fc.lake_ci(conn, tables, NWO, since, NOW, "main", d),
+                "lake_agents": lambda d: fc.lake_agents(conn, tables, NWO, NAME, since, NOW, d),
+                "failing_commands": lambda d: fc.failing_commands(conn, NAME, since, d),
+            }
+            for what, call in calls.items():
+                try:
+                    call(fc.Deadline(1.0, clock=_Ticking()))
+                    raise AssertionError(f"{what} ran on past the deadline")
+                except fc.Unavailable as exc:
+                    assert "cut off" in exc.note() and "--deadline-s" in exc.note(), (what, exc.note())
+                assert call(fc.Deadline(30)) is not None, what   # and an ample budget reads it all
+        finally:
+            conn.close()
+
+
+def test_ci_agent_runs_models_are_capped():
+    with _env(), _tmp() as tmp:
+        lake = make_lake(tmp)
+        _insert(lake, "agent_runs", [{"run_id": 7000 + i, "nwo": NWO, "model": f"model-{i:02d}",
+                                      "num_turns": 1, "cost_usd": 0.01, "permission_denials": 0,
+                                      "is_error": 0, "started_at": ago(hours=1)} for i in range(20)]
+                + [{"run_id": 7100 + i, "nwo": NWO, "model": "claude-opus-5-5", "num_turns": 1, "cost_usd": 0.01,
+                    "permission_denials": 0, "is_error": 0, "started_at": ago(hours=1)} for i in range(3)])
+        sec = build(lake, closed_port_url(), sections=["lake_agents"])["sections"]["lake_agents"]
+    models = sec["rows"][0]["models"]
+    assert len(models) == fc.CAP_MODELS and list(models)[0] == "claude-opus-5-5", models
+    assert models["(other)"] == 20 - (fc.CAP_MODELS - 2) and sum(models.values()) == 23, models
+    assert sec["truncated"] >= 20 - (fc.CAP_MODELS - 2), sec["truncated"]
+
+
 def test_usage_errors_exit_2():
     base = ["--nwo", NWO, "--name", NAME, "--lake-dir", "/nonexistent"]
     bad = [
