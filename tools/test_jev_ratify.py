@@ -167,6 +167,7 @@ class FakeGitHub:
                             "state": "open", "state_reason": None, "closed_at": None}}
         self.subs = {50: [{"number": 51, "state": "closed"}, {"number": 52, "state": "open"}]}
         self.graphql_ok = True
+        self.unknown: set[str] = set()      # commits GitHub has never seen (answers 422)
         self.calls: list[list[str]] = []
 
     def close_epic(self, reason: str = "completed", subs_closed: bool = True) -> None:
@@ -188,6 +189,8 @@ class FakeGitHub:
         parts = path.split("?")[0].split("/")
         if path == "repos/o/r":
             return {"default_branch": "main"}
+        if parts[3] == "commits" and parts[4] in self.unknown:
+            raise C.JevError("gh api failed: No commit found for SHA (HTTP 422)")
         if parts[3] == "commits":
             return [copy.deepcopy(self.pulls[n]) for n in self.commit_pulls.get(parts[4], [])]
         if parts[3] == "pulls":
@@ -265,6 +268,16 @@ def test_a_pr_merged_into_another_branch_does_not_ratify():
     fake.pulls[10] = pr(10, base="feature/x")
     p = planned(repo, fake)
     assert "docs/amendments/0002-alpha.md" in {s["record"] for s in p.skipped}
+
+
+def test_a_commit_github_has_never_seen_is_skipped_not_fatal():
+    repo, shas = build()
+    fake = FakeGitHub(shas)
+    fake.unknown.add(shas["alpha"])
+    p = planned(repo, fake)
+    skip = next(s for s in p.skipped if s["record"] == "docs/amendments/0002-alpha.md")
+    assert "cannot list the pull requests" in skip["reason"] and "422" in skip["reason"]
+    assert any(e.record == "docs/amendments/0003-beta.md" for e in p.edits), "the other records still plan"
 
 
 def test_a_record_that_reached_main_by_a_direct_push_is_skipped():
@@ -460,7 +473,8 @@ def test_the_pr_body_carries_every_trigger_and_the_guard():
     assert "[ADR 0001](docs/adr/0001-first.md) The first decision | L3 |" in body
     assert "#10 closed #110" in body, "closing issues are listed"
     assert "@mallory, not the maintainer @o" in body, "skips carry their reason"
-    assert "#50" in body and "completes when" in body, "an open tracking issue is a follow-up"
+    assert "#50" in body and "completes when" in body and "(open sub-issues: #52)" in body, \
+        "an open tracking issue is a follow-up"
     assert "--merge --match-head-commit" in body and "never squash" in body
     assert R.pr_title(p) == "chore(jev): record ratification and acceptance (1 ratified, 2 accepted)"
 

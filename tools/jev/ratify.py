@@ -280,7 +280,11 @@ def _resolve_pr(tree: Tree, github: GitHub, sha: str, default: str) -> tuple[dic
         candidate = sha if step == 0 else tree.mainline(sha)
         if not candidate or (step == 1 and candidate == sha):
             continue
-        pulls = github.pulls_for_commit(candidate)
+        try:
+            pulls = github.pulls_for_commit(candidate)
+        except JevError as exc:     # a commit GitHub has never seen (not pushed) answers 422
+            why = str(exc).rsplit("failed: ", 1)[-1].strip()[:160]
+            return None, f"GitHub cannot list the pull requests of commit {candidate[:7]} ({why})"
         tried += pulls
         merged = sorted((p for p in pulls if p.get("merged_at") and (p.get("base") or {}).get("ref") == default),
                         key=lambda p: str(p.get("merged_at")))
@@ -669,7 +673,9 @@ def pr_body(p: Plan, root: Path | None = None) -> str:
     follow = [f"- #{n} closed {', '.join(f'#{i}' for i in t['closing_issues'])}"
               for n, t in sorted(triggers.items()) if t.get("closing_issues")]
     follow += [f"- {x['record']}: completes when [#{x['issue']}]({x['url']}) closes as completed with every "
-               f"sub-issue closed — {x['reason']}" for x in p.pending]
+               f"sub-issue closed — {x['reason']}"
+               + (f" (open sub-issues: {', '.join(f'#{n}' for n in x['open_sub_issues'])})"
+                  if x.get("open_sub_issues") else "") for x in p.pending]
     if follow:
         out += ["### Closing issues and follow-ups", "", *follow, ""]
     if p.skipped:
