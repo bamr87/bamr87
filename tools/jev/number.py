@@ -455,14 +455,22 @@ def lint_diff(diff: str) -> list[str]:
     doc that quotes `HUB-001` is not assigning anything. The signal this looks
     for is narrow on purpose: a new `id: HUB-NNN` row in the catalog, a new
     `FRn:` / `NFRn:` requirement bullet in the PRD, or a new numbered amendment
-    file. Those are exactly the three races the scheme removes.
+    file. Those are exactly the three races the scheme removes. A numbered
+    amendment counts only when it is ADDED (its `--- ` side is /dev/null): a
+    ratification-record PR modifies a numbered record's Status line, which
+    assigns nothing (tools/jev/ratify.py).
     """
     problems: list[str] = []
     current = ""
+    old_side = ""
     for line in diff.split("\n"):
+        if line.startswith("--- "):
+            old_side = line[4:].strip()
+            continue
         if line.startswith("+++ b/"):
             current = line[6:].strip()
-            if AMEND_FILE.match(current.rsplit("/", 1)[-1]) and current.startswith(AMENDMENTS):
+            added, old_side = old_side == "/dev/null", ""
+            if added and AMEND_FILE.match(current.rsplit("/", 1)[-1]) and current.startswith(AMENDMENTS):
                 problems.append(f"{current}: a new amendment is proposed as "
                                 f"{AMENDMENTS_PROPOSED}/<slug>.md; the number is assigned at merge")
             continue

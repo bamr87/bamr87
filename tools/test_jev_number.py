@@ -249,6 +249,7 @@ def test_lint_rejects_a_hand_picked_number_in_a_compiled_file():
             "+  - id: HUB-033\n"
             "+++ b/PRD.md\n"
             "+- FR28: the product must do a thing\n"
+            "--- /dev/null\n"
             "+++ b/docs/amendments/0002-thing.md\n"
             "+# 0002 — Thing\n")
     problems = n.lint_diff(diff)
@@ -267,6 +268,27 @@ def test_lint_leaves_fragments_and_prose_alone():
             "+++ b/docs/amendments/proposed/thing.md\n"
             "+# NEW — Thing\n")
     assert n.lint_diff(diff) == []
+
+
+def test_lint_flags_only_an_added_numbered_amendment_not_a_modified_one():
+    # A ratification-record PR (tools/jev/ratify.py) MODIFIES a numbered
+    # record's Status line; only a new numbered file is a hand-picked number.
+    modified = ("diff --git a/docs/amendments/0002-thing.md b/docs/amendments/0002-thing.md\n"
+                "--- a/docs/amendments/0002-thing.md\n"
+                "+++ b/docs/amendments/0002-thing.md\n"
+                "@@ -4 +4 @@\n"
+                "-- **Status:** proposed\n"
+                "+- **Status:** ratified\n")
+    assert n.lint_diff(modified) == []
+    added = ("diff --git a/docs/amendments/0003-other.md b/docs/amendments/0003-other.md\n"
+             "new file mode 100644\n"
+             "--- /dev/null\n"
+             "+++ b/docs/amendments/0003-other.md\n"
+             "@@ -0,0 +1 @@\n"
+             "+# 0003 — Other\n")
+    problems = n.lint_diff(modified + added)
+    assert problems == ["docs/amendments/0003-other.md: a new amendment is proposed as "
+                        "docs/amendments/proposed/<slug>.md; the number is assigned at merge"], problems
 
 
 def test_rewrite_refs_leaves_an_unknown_slug_legible():
