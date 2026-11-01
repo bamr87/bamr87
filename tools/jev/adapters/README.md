@@ -24,7 +24,7 @@ The engine owns the workspace, the argv, the agent's environment, the `--setting
 
 ## repo_scout
 
-[`repo_scout.py`](repo_scout.py) maps `tools/dash-gen scout` (the plan job) and `tools/dash-gen scout-file` (the file job). Tier 0 reuses an attempt whose HEAD and brief are the same, the brief's per-run `Prepared …` line aside. `classify` blocks `--apply` on a row whose open-issue dedupe was unavailable. `validate` withholds any proposal carrying a local path or the host name, flags (never rejects) a proposal citing a sandbox or offline denial, and runs the filer's own rules with `scout-file --offline`. `publish` turns the filer's "filing without the duplicate check" into a blocker and its `gh issue create failed` rows into failures, the way CI's file job fails on them.
+[`repo_scout.py`](repo_scout.py) maps `tools/dash-gen scout` (the plan job) and `tools/dash-gen scout-file` (the file job). Tier 0 reuses an attempt whose HEAD and brief are the same, the brief's per-run `Prepared …` line aside. `classify` blocks `--apply` on a row whose open-issue dedupe was unavailable. `validate` withholds any proposal carrying a local path or the host name, flags (never rejects) a proposal citing a sandbox or offline denial, and runs the filer's own rules with `scout-file --offline`. `publish` turns the filer's "filing without the duplicate check" into a blocker, a body `--reviewed-bodies` withheld as not in the reviewed preview into a blocker too (the filing is then `partial`), and its `gh issue create failed` rows into failures, the way CI's file job fails on them.
 
 ## Adding one
 
