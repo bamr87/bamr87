@@ -32,6 +32,7 @@ Dependencies: Python 3.12 stdlib, git, and gh for `clone` (via common.gh).
 """
 from __future__ import annotations
 
+import contextlib
 import errno
 import hashlib
 import os
@@ -266,12 +267,12 @@ def place_bytes(ws: Workspace, data: bytes, rel: str, *, mode: int = 0o666) -> P
             st = os.lstat(node)
         except FileNotFoundError:
             try:
-                os.mkdir(node, 0o700)
-            except FileExistsError:   # made between the lstat and the mkdir: checked below like any other
-                pass
+                # one made between the lstat and the mkdir is lstat-ed below like any other
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(node, 0o700)
+                st = os.lstat(node)
             except OSError as exc:
                 raise JevError(f"could not make {node} in the clone: {exc}") from exc
-            st = os.lstat(node)
         if stat.S_ISLNK(st.st_mode):
             raise JevError(f"refusing to place {rel}: {node} is a symlink in the clone")
         if not stat.S_ISDIR(st.st_mode):
