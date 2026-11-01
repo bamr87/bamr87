@@ -18,6 +18,7 @@ clone` of a local fixture. Run: python3 tools/test_jev_workspace.py
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import hashlib
 import json
 import os
@@ -544,6 +545,19 @@ def test_place_writes_only_a_new_file_under_real_directories():
     else:
         raise AssertionError("placed under a file")
     assert sorted(p.name for p in outside.iterdir()) == ["present.md"], "nothing was written outside the clone"
+    # the clone root itself is lstat-ed too: a workspace whose path is a link never writes through it
+    elsewhere = Path(tempfile.mkdtemp(prefix="jev-place-root-"))
+    (elsewhere / ".scout").mkdir()
+    linked = ws.root / "linked-clone"
+    os.symlink(elsewhere, linked)
+    try:
+        W.place_bytes(dataclasses.replace(ws, path=linked), b"x", ".scout/context.md")
+    except JevError as exc:
+        assert "is a symlink" in str(exc) and str(linked) in str(exc), exc
+    else:
+        raise AssertionError("placed through a symlinked clone root")
+    assert list((elsewhere / ".scout").iterdir()) == [], "nothing was written through the root link"
+    shutil.rmtree(elsewhere)
     W.destroy(ws)
 
 

@@ -2521,6 +2521,89 @@ def test_a_rehearsal_places_the_pack_and_its_pointer_beside_the_brief_and_record
     assert hub_status() == before
 
 
+def _no_pack(box: Box, item: dict, run: Path, calls_before: int) -> None:
+    """Nothing of a context pack for this item: no planes call for it, no record, no file, no row field."""
+    asked = [c for c in box.planes_calls()[calls_before:] if f"--nwo={item['key']}" in c]
+    assert not asked, f"{item['key']} ({item.get('decision')}) asked the planes: {asked}"
+    assert "context" not in item, (item.get("decision"), item["context"])
+    d = run / "items" / item["dir"]
+    assert not (d / "context.md").exists() and not (d / "context.json").exists(), sorted(p.name for p in d.iterdir())
+    rows = [r for r in box.attempts(run) if r["item"] == item["key"]]
+    assert rows and all("context_sha256" not in r and "context_status" not in r for r in rows), rows
+
+
+def test_no_pack_is_built_for_an_item_that_never_reaches_the_model():
+    # the pack is built after tier 0, the usage block and classify: an item any of them stops costs no planes call
+    box = Box()
+    with world(box):
+        box.seed_probe()
+        assert jev("run", "repo-scout", "--rehearse", "--target", TARGET)[0] == 0
+        for published, status in ((False, "reused"), (True, "skipped")):
+            _seed_completed(box, published=published)
+            calls = len(box.planes_calls())
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+            [item] = box.last()["items"]
+            assert code == 0 and item["status"] == status, (status, item, err)
+            _no_pack(box, item, box.latest(), calls)
+    from tools.jev.adapters import Triage
+    from tools.jev.adapters import repo_scout as RS
+    real = RS.RepoScout.classify
+    RS.RepoScout.classify = lambda self, ctx, item: Triage(True, "test: classify blocks this item")
+    try:
+        with world(box):
+            calls = len(box.planes_calls())
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--fresh")
+            [item] = box.last()["items"]
+    finally:
+        RS.RepoScout.classify = real
+    assert item["status"] == "blocked" and item["decision"] == "blocked", (item, err)
+    _no_pack(box, item, box.latest(), calls)
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "usage_limit", "proposals": GOOD})
+        code, _, err = jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31")
+        rec = box.last()
+    first, second = rec["items"]
+    assert first["status"] == "usage-limited" and first["context"]["sha256"], "the item that ran had its pack"
+    assert second["decision"] == "usage-skip", second
+    _no_pack(box, second, box.latest(), 0)
+
+
+def test_an_adapter_that_asks_for_no_pack_gets_none_even_under_require():
+    from tools.jev.adapters import repo_scout as RS
+    box = Box()
+    real = RS.RepoScout.context_request
+    RS.RepoScout.context_request = lambda self, ctx, item: None
+    try:
+        with world(box, JEV_TEST_CONTEXT="down"):
+            box.seed_probe()
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--keep-workspace",
+                               "--context", "require")
+            rec = box.last()
+            code_plan, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--json", "--context", "require")
+    finally:
+        RS.RepoScout.context_request = real
+    assert code == 0 and rec["exit_code"] == 0, err
+    [item] = rec["items"]
+    assert item["status"] == "rehearsed" and item["decision"] == "rehearsed", "require blocks nothing it never asked"
+    c = item["context"]
+    assert c["sha256"] is None and c["statuses"] == {} and c["missing"] == [] and c["line"].startswith("context none")
+    assert box.planes_calls() == [], "no pack, no planes call"
+    [row] = box.attempts()
+    assert row["context_status"] == "none" and row["context_sha256"] is None, row
+    d = box.latest() / "items" / ITEM
+    assert not (d / "context.md").exists() and "context_sha256" not in json.loads((d / "argv.json").read_text())
+    clone = Path(item["kept_workspace"])
+    assert sorted(p.name for p in (clone / ".scout").iterdir()) == [".tmp", BRIEF], "nothing placed"
+    assert (clone / ".scout" / BRIEF).read_bytes() == (box.latest() / "plan" / BRIEF).read_bytes(), "no pointer"
+    assert "Context `bamr87/SCHEMA`: context none" in (box.latest() / "summary.md").read_text()
+    preview = json.loads(out)["items"][0]["context"]
+    assert code_plan == 0 and preview["would_block"] is False and preview["statuses"] == {}, preview
+    assert preview["note"] == "the adapter asks for no pack for this item", preview
+    W.destroy_root(clone.parent)
+    no_writes(box)
+
+
 def test_context_off_is_the_ci_identical_attempt_and_auto_changes_no_prompt_byte_or_reuse_key():
     box = Box()
     runs = {}
