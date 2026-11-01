@@ -23,8 +23,10 @@ handing it this machine:
     deadline each cost one section, never the document, and exit 0; a bad
     request exits 2;
   * the lake is never written: a 0444 file in a 0555 directory, bytes and
-    mtime unchanged, and the connection itself refuses a write; the HTTP side
-    refuses any route that is not a read before a socket opens.
+    mtime unchanged, and on a WRITABLE copy each of the connection's two
+    read-only layers (`query_only`, `mode=ro`) refuses a write on its own; the
+    HTTP side refuses any route that is not a read, and any plane URL that is
+    not scheme://host:port, before a socket opens.
 
 No network beyond in-process stubs on 127.0.0.1, no gh, no claude, no pytest.
 Needs only PyYAML:
@@ -973,6 +975,27 @@ def test_the_lake_is_never_written():
             {k: doc["sections"][k]["note"] for k in doc["sections"]}
         assert (db.read_bytes(), db.stat().st_mtime_ns) == before, "the lake file changed"
         assert sorted(p.name for p in lake.iterdir()) == [fl.DB_NAME], "no journal or sidecar was left"
+
+
+def test_each_read_only_layer_refuses_a_write_on_its_own():
+    # A WRITABLE lake (0644 in a 0755 directory), so the filesystem refuses
+    # nothing and only open_ro's own layers stand between it and a write.
+    with _tmp() as tmp:
+        db = rich_lake(tmp) / fl.DB_NAME
+        before = db.read_bytes()
+        conn = fc.open_ro(db)
+        try:
+            assert conn.execute("PRAGMA query_only").fetchone()[0] == 1, "query_only is on"
+            for layer in ("query_only", "mode=ro"):
+                try:
+                    conn.execute("INSERT INTO meta (key, value) VALUES ('x', 'y')")
+                    raise AssertionError(f"a write got past {layer}")
+                except sqlite3.OperationalError as exc:
+                    assert "readonly" in str(exc).lower(), (layer, exc)
+                conn.execute("PRAGMA query_only = OFF")   # peel the top layer: mode=ro must refuse alone
+        finally:
+            conn.close()
+        assert db.read_bytes() == before, "the lake file changed"
 
 
 def test_only_read_routes_reach_a_plane():
