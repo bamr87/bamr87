@@ -2599,7 +2599,8 @@ def test_require_with_a_plane_down_fails_the_item_before_any_spend():
         assert item["context"]["missing"] == list(C.PLANE_SECTIONS), item["context"]
         assert item["context"]["statuses"]["history"] == "ok", "the engine's own memory needs no plane"
     hist = (box.latest() / "items" / ITEM / "context.md").read_text()
-    assert "context-blocked" in hist and "preview would file 2" in hist, "the next pack remembers both attempts"
+    assert "preview would file 2" in hist, "the next pack remembers the agent's attempt"
+    assert "context-blocked" not in hist and "rehearsed" not in hist, "and not the rows where no agent ran"
 
 
 def test_the_pack_placed_in_the_clone_is_redacted():

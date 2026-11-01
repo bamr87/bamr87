@@ -260,13 +260,12 @@ def test_history_lists_what_was_filed_then_the_newest_attempts_with_their_proble
     assert s["status"] == "ok" and s["source"] == C.HISTORY_SOURCE and s["truncated"] == 0, s
     assert C.COST_LABEL in s["note"]
     kinds = [r["kind"] for r in s["rows"]]
-    assert kinds == ["filed", "attempt", "attempt", "attempt"], kinds
+    assert kinds == ["filed", "attempt", "attempt"], kinds
     filed = s["rows"][0]
     assert filed["count"] == 2 and filed["runs"] == ["20261030T100000Z-repo-scout-scout-bbbbbb"], filed
-    newest, validated, rejected = s["rows"][1:]
-    assert [r["ts"] for r in s["rows"][1:]] == ["2026-10-31T10:00:00Z", "2026-10-30T10:00:00Z",
-                                                "2026-10-29T10:05:00Z"], "newest first"
-    assert newest["decision"] == "tier0-skip" and "problems" not in newest
+    validated, rejected = s["rows"][1:]
+    assert [r["ts"] for r in s["rows"][1:]] == ["2026-10-30T10:00:00Z", "2026-10-29T10:05:00Z"], "newest first"
+    assert "tier0-skip" not in json.dumps(s), "a tier-0 skip ran no agent: not an attempt"
     assert validated["status"] == "validated" and validated["would_file"] == 2 and validated["publishable"]
     assert rejected["status"] == "rejected" and rejected["cost_usd"] == 0.42 and rejected["head_sha"] == "abcdef123456"
     assert len(rejected["reason"]) <= C.REASON_CHARS and rejected["reason"].endswith("…"), rejected["reason"]
@@ -296,7 +295,32 @@ def test_history_limit_counts_what_it_left_out():
         ctx = FakeCtx(root)
         seed_history(ctx.runs)
         s = C.history_section(ctx, NWO, limit=1)
-    assert [r["kind"] for r in s["rows"]] == ["filed", "attempt"] and s["truncated"] == 2, s
+    assert [r["kind"] for r in s["rows"]] == ["filed", "attempt"] and s["truncated"] == 1, s
+
+
+def test_rehearsals_skips_and_engine_blocks_never_crowd_a_real_attempt_out():
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        run_id = "20261029T100000Z-repo-scout-scout-aaaaaa"
+        write_attempts(ctx.runs, run_id, [
+            {"ts": "2026-10-29T10:05:00Z", "decision": "attempt", "status": "rejected", "outcome": "rejected",
+             "reason": "proposal 1 cites no evidence"}])
+        write_validate(ctx.runs, run_id, ["proposal 1: no evidence line"])
+        engine = ("rehearsed", "context-blocked", "usage-skip", "budget-skip", "budget-locked", "blocked",
+                  "tier0-skip", "tier0-reuse", "planned-skip")
+        write_attempts(ctx.runs, "20261031T100000Z-repo-scout-scout-zzzzzz", [
+            {"ts": f"2026-10-31T10:{i:02d}:00Z", "decision": d, "outcome": d, "reason": f"engine row {d}"}
+            for i, d in enumerate(engine * 2)])
+        s = C.history_section(ctx, NWO)
+    assert [r["decision"] for r in s["rows"]] == ["attempt"] and s["truncated"] == 0, s["rows"]
+    assert s["rows"][0]["problems"] == ["proposal 1: no evidence line"], s["rows"][0]
+    assert "engine row" not in json.dumps(s), "no row the engine wrote without an agent"
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        write_attempts(ctx.runs, "20261031T100000Z-repo-scout-scout-zzzzzz", [
+            {"ts": "2026-10-31T10:00:00Z", "decision": "rehearsed", "outcome": "rehearsed"}])
+        s = C.history_section(ctx, NWO)
+    assert s["status"] == "empty" and s["note"] == "first local attempt on this item", "rehearsals are no attempt"
 
 
 def test_history_of_a_new_item_is_empty_with_its_note():
@@ -487,7 +511,8 @@ def test_render_has_the_header_the_fixed_order_and_a_provenance_line_per_section
     assert "CI agent runs: 2 (1 error(s), 2 permission denial(s), 15 turns, $0.7500 API-equivalent (estimate))" in md
     assert "failing Bash command x3: bundle exec jekyll" in md and "Bash failed x3: bundle exec jekyll" in md
     assert "already filed: 2 issue(s) from this item" in md and "    problem: problem 0" in md
-    assert md.index("2026-10-31T10:00:00Z tier0-skip") < md.index("2026-10-29T10:05:00Z attempt -> rejected")
+    assert md.index("2026-10-30T10:00:00Z attempt -> validated") < md.index("2026-10-29T10:05:00Z attempt -> rejected")
+    assert "tier0-skip" not in md
 
 
 def test_a_snippet_has_its_own_block_with_path_lines_and_score_and_a_withheld_one_says_so():

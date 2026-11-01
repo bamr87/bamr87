@@ -94,8 +94,12 @@ REASON_CHARS = 200
 PROBLEM_CHARS = 200
 MAX_PROBLEMS = 5
 VALIDATE_MAX_BYTES = 1024 * 1024
-#: attempts.jsonl decisions that are not attempts of their own
-FOLDED_DECISIONS = ("publish-preview", "publish-apply", "planned-skip")
+#: the attempts.jsonl decisions where an agent ran (or was about to): the only
+#: rows the history lists. A rehearsal, a tier-0 skip or reuse, a planned
+#: skip and the engine's own blocks (usage, budget, classify, context) never
+#: reached a model, so they say nothing about the work and would crowd the
+#: real attempts out of the limit; publish rows are folded into what was filed
+AGENT_DECISIONS = ("attempt",)
 COST_LABEL = "API-equivalent (estimate)"   # § 10.7, as loop.COST_LABEL
 LINE_CHARS = 400        # one rendered row line, at most
 NOTE_CHARS = 300        # a provenance note, at most
@@ -437,11 +441,12 @@ def _problems(base: Path | None, run_id: str, item_key: str, ctx) -> list[str]:
 def history_section(ctx, item_key: str, *, limit: int = 5) -> dict:
     """A section (source 'jev-history') from ctx.history.rows() for this loop,
     step and item: what was already filed (the publish-apply rows, a partial
-    filing's failures counted as failed), then the
-    newest `limit` attempts — ts, decision, status/outcome, reason (clipped),
-    cost — with validate.json's problems for a rejected or failed attempt
-    whose item directory still holds one. Planned skips are ignored; a
-    preview is folded into its attempt."""
+    filing's failures counted as failed), then the newest `limit` agent
+    attempts (AGENT_DECISIONS) — ts, decision, status/outcome, reason
+    (clipped), cost — with validate.json's problems for a rejected or failed
+    attempt whose item directory still holds one. A preview is folded into
+    its attempt; rehearsals, tier-0 skips and reuses, planned skips and the
+    engine's blocks are left out and never count toward `limit`."""
     started = time.monotonic()
     spec = ctx.spec
     base = getattr(ctx.history, "base", None)
@@ -471,7 +476,7 @@ def history_section(ctx, item_key: str, *, limit: int = 5) -> dict:
         if decision == "publish-preview":
             previews[(run_id, row.get("attempt_id"))] = row
             continue
-        if decision in FOLDED_DECISIONS:
+        if decision not in AGENT_DECISIONS:
             continue
         attempts.append((ts, order, run_id, row))
     attempts.sort(key=lambda a: (a[0], a[1]), reverse=True)
