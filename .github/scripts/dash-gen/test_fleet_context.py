@@ -1324,6 +1324,32 @@ def test_index_code_counts_each_trees_stale_hits_under_its_own_name():
         assert "checked against its clone" not in sec["note"], sec["note"]
 
 
+def test_index_code_names_the_checkout_in_the_clone_remedy_and_git_pull_for_the_hub():
+    # The registry names it zer0-CMS, the checkout projects/zer0-cms: the remedy's command takes the directory,
+    # which a case-sensitive filesystem tells apart from the name. The hub's own clone catches up with `git pull`.
+    with _env(), _tmp() as tmp:
+        registry = tmp / "projects.yml"
+        registry.write_text("- name: zer0-CMS\n  submodule_path: projects/zer0-cms\n  branch: main\n"
+                            "  repo_url: https://github.com/bamr87/zer0-CMS\n", encoding="utf-8")
+        root, clone = tmp / "hub", tmp / "clone"
+        (root / "projects" / "zer0-cms").mkdir(parents=True)
+        (clone / "tools").mkdir(parents=True)
+        (clone / "README.md").write_bytes(b"the branch head\n")
+        (clone / "tools" / "hub.py").write_bytes(b"the hub's branch head\n")
+        with Stub(_index_with([_hashed("projects/zer0-cms/README.md", 0.9, "as indexed", b"as indexed\n")])) as stub:
+            cms = build(tmp / "no-lake", stub.url, nwo="bamr87/zer0-CMS", name="zer0-CMS", queries=["q"],
+                        sections=["index_code"], registry_path=registry, index_root=root,
+                        target_dir=clone)["sections"]["index_code"]
+        with Stub(_index_with([_hashed("tools/hub.py", 0.9, "as indexed", b"as indexed\n")])) as stub:
+            hub = build(tmp / "no-lake", stub.url, nwo="bamr87/bamr87", name="bamr87", queries=["q"],
+                        sections=["index_code"], index_root=root, target_dir=clone)["sections"]["index_code"]
+    assert cms["note"].startswith("index behind the agent's clone: 1 changed, 0 missing hit(s) (code withheld) — "
+                                  "`tools/update-submodules.sh --no-commit zer0-cms`, then let Kilo re-scan; "), \
+        cms["note"]
+    assert hub["note"].startswith("index behind the agent's clone: 1 changed, 0 missing hit(s) (code withheld) — "
+                                  "`git pull`, then let Kilo re-scan; "), hub["note"]
+
+
 def test_index_code_without_the_targets_checkout_says_so_and_never_blames_the_index():
     # From a worktree or a fresh clone without submodules, every hashed hit from the target was 'missing', the
     # section 'stale' and the remedy a Kilo re-scan, which cannot help: the submodule is not checked out here.
