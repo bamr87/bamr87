@@ -370,6 +370,31 @@ def test_requests_are_checked_so_one_bad_query_cannot_cost_the_lake():
     assert C.MAX_QUERY_CHARS == 300
 
 
+def test_a_window_or_deadline_the_planes_refuse_is_refused_before_any_call():
+    # the planes exit 2 on either, which would cost every plane section (the review's probe)
+    for days in (0, C.MAX_DAYS + 1, True, "30", 30.0):
+        try:
+            C.ContextRequest(NWO, NAME, days=days)
+        except ValueError as exc:
+            assert "days" in str(exc), (days, exc)
+        else:
+            raise AssertionError(f"days={days!r} was accepted")
+    assert C.ContextRequest(NWO, NAME, days=C.MAX_DAYS).days == C.MAX_DAYS
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        for deadline in (0, -1, C.MAX_DEADLINE_S + 1, float("nan"), float("inf")):
+            for call in (lambda d: C.build(ctx, ITEM, REQ, deadline_s=d),
+                         lambda d: C.gather(ctx, REQ, deadline_s=d)):
+                try:
+                    call(deadline)
+                except ValueError as exc:
+                    assert "deadline_s" in str(exc), (deadline, exc)
+                else:
+                    raise AssertionError(f"deadline_s={deadline!r} was accepted")
+        assert ctx.calls == [], ctx.calls
+        assert C.context_argv(REQ, C.PLANE_SECTIONS, C.MAX_DEADLINE_S)[-2] == "--deadline-s=300"
+
+
 def test_the_real_planes_command_takes_a_dash_leading_query_as_a_value():
     nwo, name = "bamr87/jev-context-fixture", "jev-context-fixture"
     with _tmp() as root:
@@ -789,8 +814,8 @@ def test_the_shared_constants_match_the_planes_module():
     assert fc.SCHEMA == C.PLANES_SCHEMA and tuple(fc.SECTIONS) == C.PLANE_SECTIONS
     assert fc.SOURCES == C.PLANE_SOURCES and tuple(fc.STATUSES) == C.STATUSES
     assert fc.MAX_QUERIES == C.MAX_QUERIES and fc.MAX_QUERY_CHARS == C.MAX_QUERY_CHARS
-    assert fc.DAYS_DEFAULT == C.DEFAULT_DAYS
-    assert fc.DEADLINE_DEFAULT_S == C.DEFAULT_DEADLINE_S
+    assert fc.DAYS_DEFAULT == C.DEFAULT_DAYS and fc.MAX_DAYS == C.MAX_DAYS
+    assert fc.DEADLINE_DEFAULT_S == C.DEFAULT_DEADLINE_S and fc.MAX_DEADLINE_S == C.MAX_DEADLINE_S
     assert set(C.TITLES) == set(C.PROVIDERS) == set(C.RENDER_ORDER) == set(C.TRIM_ORDER)
     assert C.TRIM_ORDER[-1] == "history" and C.RENDER_ORDER[0] == "history"
     # docs/JEV.md states the trim order literally; the cap sweep derives its expectation from TRIM_ORDER

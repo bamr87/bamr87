@@ -34,6 +34,7 @@ import datetime as dt
 import functools
 import hashlib
 import json
+import math
 import os
 import platform
 import re
@@ -56,6 +57,8 @@ PLANE_SOURCES = {"lake_issues": "lake", "lake_ci": "lake", "lake_agents": "lake"
 STATUSES = ("ok", "empty", "stale", "unavailable")
 MAX_QUERIES = 3
 MAX_QUERY_CHARS = 300
+MAX_DAYS = 365
+MAX_DEADLINE_S = 300.0
 #: the engine-side document this module writes as context.json
 PACK_SCHEMA = "jev-context-pack/v1"
 
@@ -296,12 +299,15 @@ class ContextRequest:
     days: int = DEFAULT_DAYS
 
     def __post_init__(self) -> None:
-        """Queries as the planes accept them, checked HERE: one the planes
-        refuse makes `dash-gen context` exit 2, and that costs every plane
-        section, the lake's (which use no query) included — under mode
-        'require', the item. Control characters go and line breaks fold to a
-        space (a query is one line); empty and repeated ones are dropped; more
-        than MAX_QUERIES, or one over MAX_QUERY_CHARS, is the caller's error."""
+        """Queries and the window as the planes accept them, checked HERE: a
+        value the planes refuse makes `dash-gen context` exit 2, and that
+        costs every plane section, the lake's (which use no query) included —
+        under mode 'require', the item. Control characters go and line breaks
+        fold to a space (a query is one line); empty and repeated ones are
+        dropped; more than MAX_QUERIES, one over MAX_QUERY_CHARS, or `days`
+        outside 1..MAX_DAYS is the caller's error."""
+        if isinstance(self.days, bool) or not isinstance(self.days, int) or not 1 <= self.days <= MAX_DAYS:
+            raise ValueError(f"context days must be an int in 1..{MAX_DAYS}, got {self.days!r}")
         if isinstance(self.queries, str):
             raise ValueError("queries is a sequence of strings, not one string")
         kept: list[str] = []
@@ -474,6 +480,16 @@ def _wanted(sections: Iterable[str] | None) -> list[str]:
     return [k for k in PROVIDERS if k in picked]
 
 
+def check_deadline(deadline_s) -> float:
+    """The planes' own bound, checked before the call: a deadline they refuse
+    (0, over MAX_DEADLINE_S, NaN) would cost every plane section, as a bad
+    query would."""
+    d = float(deadline_s)
+    if not (math.isfinite(d) and 0 < d <= MAX_DEADLINE_S):
+        raise ValueError(f"context deadline_s must be in (0, {MAX_DEADLINE_S:g}], got {deadline_s!r}")
+    return d
+
+
 def context_argv(req: ContextRequest, planes: Iterable[str], deadline_s: float) -> list[str]:
     """The `tools/dash-gen context` argv for this request and these plane
     sections. Every value rides in its option's own word (`--query=-v`), so
@@ -481,7 +497,7 @@ def context_argv(req: ContextRequest, planes: Iterable[str], deadline_s: float) 
     planes = list(planes)
     argv = ["context", f"--nwo={req.nwo}", f"--name={req.name}"]
     argv += [f"--query={q}" for q in req.queries]
-    argv += [f"--days={int(req.days)}", f"--deadline-s={float(deadline_s):g}"]
+    argv += [f"--days={int(req.days)}", f"--deadline-s={check_deadline(deadline_s):g}"]
     if planes != list(PLANE_SECTIONS):
         argv.append(f"--sections={','.join(planes)}")
     return [*argv, "--json"]
@@ -589,6 +605,7 @@ def gather(ctx, req: ContextRequest, *, sections: Iterable[str] | None = None,
     plane sections from `ctx.dash_gen(['context', …, '--json'])` and the
     engine's 'history' (for `item_key`, default the nwo — scout's item key)."""
     wanted = _wanted(sections)
+    deadline_s = check_deadline(deadline_s)
     planes = [k for k in PLANE_SECTIONS if k in wanted]
     found: dict[str, dict] = {}
     meta: dict = {"schema": PLANES_SCHEMA, "exit": None, "generated_at": None, "problem": None, "elapsed_ms": 0}
@@ -903,6 +920,7 @@ def build(ctx, item, req: ContextRequest, *, mode: str = DEFAULT_MODE, sections:
         raise ValueError(f"context mode {mode!r} is not one of {', '.join(MODES)}")
     if not is_bare_name(file) or not file.endswith(".md"):
         raise ValueError(f"{file!r} is not a bare .md file name")
+    deadline_s = check_deadline(deadline_s)
     if mode == "off":
         return Pack(path=None, sha256=None, bytes=0, sections={}, notes=["context: off (a CI-identical run)"],
                     missing=[], doc_path=None, mode=mode)
