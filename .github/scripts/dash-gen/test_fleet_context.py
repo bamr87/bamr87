@@ -1045,6 +1045,83 @@ def test_index_code_for_the_hub_counts_the_hub_and_keeps_its_code():
     assert "must_not" in count["filter"] and "the hub has" in sec["note"], (count, sec["note"])
 
 
+def test_index_code_counts_the_target_under_its_checkout_directory():
+    # the registry names it zer0-CMS, the checkout (and so the index) projects/zer0-cms
+    routes = index_routes()
+    routes[("POST", "/collections/ws-test/points/count")] = lambda b: (200, {"result": {"count": (
+        302 if b["filter"]["must"][1]["match"] == {"value": "zer0-cms"} else 0)}})
+    with _env(), _tmp() as tmp, Stub(routes) as stub:
+        registry = tmp / "projects.yml"
+        registry.write_text("- name: zer0-CMS\n  submodule_path: projects/zer0-cms\n  branch: main\n"
+                            "  repo_url: https://github.com/bamr87/zer0-CMS\n", encoding="utf-8")
+        sec = build(tmp / "no-lake", stub.url, nwo="bamr87/zer0-CMS", name="zer0-CMS", queries=["jekyll build"],
+                    sections=["index_code"], registry_path=registry)["sections"]["index_code"]
+    assert "zer0-CMS has ~302 chunks" in sec["note"] and "holds no chunks" not in sec["note"], sec["note"]
+    assert any(r["project"] == "zer0-cms" and r["snippet"] for r in sec["rows"]), "the target's code is its own"
+    assert fc.checkout_dir("/nonexistent/projects.yml", "bamr87/x", "x") == "x", "no registry row: the name"
+
+
+def test_index_code_leaves_out_the_registry_copies_and_shows_a_range_once():
+    def hit(path, score, start="39", end="43"):
+        return {"id": f"{path}{score}", "score": score,
+                "payload": {"filePath": path, "startLine": start, "endLine": end, "codeChunk": "code"}}
+    searches = {0: [hit("_data/cv_portfolio.json", 0.821), hit("_data/cv_portfolio.json", 0.801),
+                    hit("_data/projects.yml", 0.80), hit("projects/SCHEMA.md", 0.79),
+                    hit("specs/STACKS.md", 0.70, "23", "36"), hit("specs/STACKS.md", 0.69, "23", "36"),
+                    hit("docs/STANDARDS.md", 0.68)],
+                1: [hit("specs/STACKS.md", 0.75, "23", "36"), hit("pages/SCHEMA.md", 0.70)]}
+    routes = index_routes()
+    routes[("POST", "/collections/ws-test/points/search")] = \
+        lambda b: (200, {"result": searches.get(int(b["vector"][0]), [])})
+    with _env(), _tmp() as tmp, Stub(routes) as stub:
+        sec = build(tmp / "no-lake", stub.url, queries=["docs project in jekyll, ruby", "schema"],
+                    sections=["index_code"])["sections"]["index_code"]
+    paths = [(r["query"], r["path"]) for r in sec["rows"]]
+    assert paths == [("docs project in jekyll, ruby", "specs/STACKS.md"),
+                     ("docs project in jekyll, ruby", "docs/STANDARDS.md"), ("schema", "pages/SCHEMA.md")], paths
+    assert sec["truncated"] == 0 and sec["status"] == "ok", sec
+    body = next(r for r in stub.requests if r[1].endswith("/points/search"))[2]
+    assert body["filter"] == {"must_not": [{"key": "filePath", "match": {"any": list(fc.INDEX_EXCLUDED)}}]}, body
+    assert "fileHash" in body["with_payload"], body
+
+
+def test_index_code_withholds_code_the_checkout_no_longer_has():
+    import hashlib
+
+    def hit(path, score, chunk, file_hash=None):
+        payload = {"filePath": path, "startLine": "1", "endLine": "16", "codeChunk": chunk}
+        if file_hash is not None:
+            payload["fileHash"] = file_hash
+        return {"id": path, "score": score, "payload": payload}
+    with _env(), _tmp() as tmp:
+        root = tmp / "checkout"
+        (root / "tools").mkdir(parents=True)
+        (root / "projects" / NAME).mkdir(parents=True)
+        (root / "tools" / "fresh.py").write_bytes(b"print('as indexed')\n")
+        (root / "projects" / NAME / "README.md").write_bytes(b"# zer0-CMS: one Python platform\n")
+        sha = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
+        found = [hit("tools/fresh.py", 0.9, "print('as indexed')", sha(b"print('as indexed')\n")),
+                 hit(f"projects/{NAME}/README.md", 0.88, "Fleet CMS: Rails 8.1 on Administrate",
+                     sha(b"# zer0-CMS: Rails 8.1 on Administrate\n")),
+                 hit(f"projects/{NAME}/gone.md", 0.87, "deleted since the scan", "0" * 64),
+                 hit("tools/unhashed.py", 0.86, "no hash in the payload")]
+        routes = index_routes()
+        routes[("POST", "/collections/ws-test/points/search")] = lambda _b: (200, {"result": found})
+        with Stub(routes) as stub:
+            sec = build(tmp / "no-lake", stub.url, queries=["cms"], sections=["index_code"],
+                        index_root=root)["sections"]["index_code"]
+    rows = {r["path"]: r for r in sec["rows"]}
+    assert rows["tools/fresh.py"]["snippet"] == "print('as indexed')" and "stale" not in rows["tools/fresh.py"]
+    assert rows["tools/unhashed.py"]["snippet"], "no hash: the hit cannot be checked and is shown as before"
+    readme, gone = rows[f"projects/{NAME}/README.md"], rows[f"projects/{NAME}/gone.md"]
+    assert readme["snippet"] is None and readme["stale"] and "changed since the index scanned it" in readme["withheld"]
+    assert gone["snippet"] is None and gone["stale"] and "not in this checkout" in gone["withheld"], gone
+    assert "Rails 8.1" not in json.dumps(sec), "the outdated code never reaches the pack"
+    assert sec["status"] == "stale" and "1 hit(s) from changed files, 1 from files not in" in sec["note"], sec
+    assert fc.REMEDY_INDEX in sec["note"], sec["note"]
+    assert fc.file_freshness("../escape", "0" * 64, root) is None and fc.file_freshness("/abs", "0" * 64, root) is None
+
+
 def test_index_code_without_queries_is_empty_and_asks_nothing():
     with _env(), _tmp() as tmp, Stub(index_routes()) as stub:
         sec = build(tmp / "no-lake", stub.url, sections=["index_code"])["sections"]["index_code"]

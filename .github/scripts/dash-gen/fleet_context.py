@@ -58,6 +58,7 @@ import argparse
 import contextlib
 import datetime as dt
 import functools
+import hashlib
 import http.client
 import json
 import os
@@ -67,6 +68,7 @@ import shlex
 import shutil
 import socket
 import sqlite3
+import stat
 import subprocess
 import sys
 import threading
@@ -148,6 +150,15 @@ REMEDY_PLANES = "start the planes with `tools/dash observe up`"
 REMEDY_OLLAMA = "start native Ollama (`ollama serve`, model `ollama pull nomic-embed-text`)"
 REMEDY_TELEMETRY = "point Claude Code at the collector with `tools/dash observe claude enable --apply`"
 REMEDY_DEADLINE = "raise --deadline-s"
+REMEDY_INDEX = "let Kilo re-scan the workspace (kilo.jsonc `indexing`)"
+
+#: The hub's copies of the registry: the registry itself and the projections
+#: generated from it. A hit there repeats what the brief already says about
+#: the repository (its description, category and stack), so the search leaves
+#: them out.
+INDEX_EXCLUDED = ("_data/projects.yml", "_data/cv_portfolio.json", "projects/SCHEMA.md")
+#: a file larger than this is not read to check a hit against the checkout
+FRESH_MAX_BYTES = 4 * 1024 * 1024
 
 NWO_RX = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 NAME_RX = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
@@ -1173,60 +1184,122 @@ def _int(value):
         return None
 
 
+def file_freshness(path: str, file_hash, root: Path, deadline: Deadline | None = None) -> str | None:
+    """Whether the checkout still holds the file a hit was cut from: 'fresh'
+    (its sha256 is the index's `fileHash`), 'changed', 'missing', or None
+    when it cannot be told (no hash, an unsafe path, a link, a file over
+    FRESH_MAX_BYTES, the deadline spent)."""
+    if not isinstance(file_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", file_hash):
+        return None
+    parts = Path(path).parts
+    if not parts or Path(path).is_absolute() or ".." in parts or (deadline is not None and deadline.expired()):
+        return None
+    target = Path(root).joinpath(*parts)
+    try:
+        st = os.lstat(target)
+    except FileNotFoundError:
+        return "missing"
+    except OSError:
+        return None
+    if not stat.S_ISREG(st.st_mode) or st.st_size > FRESH_MAX_BYTES:
+        return None
+    try:
+        data = target.read_bytes()
+    except OSError:
+        return None
+    return "fresh" if hashlib.sha256(data).hexdigest() == file_hash else "changed"
+
+
 def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, now: dt.datetime,
-               cfg: dict | None = None) -> dict:
+               cfg: dict | None = None, *, checkout: str | None = None, root: Path | str | None = None) -> dict:
+    """Up to CAP_HITS distinct hits per query (a path and line range once,
+    across queries), never from the hub's copies of the registry
+    (INDEX_EXCLUDED). `checkout` is the target's directory under projects/
+    (the registry's submodule_path; default `name`). A hit whose code would
+    be shown is checked against the checkout at `root` (default the hub's):
+    from a file that changed since the index scanned it, or that is not
+    there, its code is withheld and the section is 'stale'."""
     if not queries:
         return section("index_code", "empty", now=now,
                        note="no --query given: the code index is asked only what the step names")
     cfg = cfg or fleet_index.analysis_config()
     qdrant, embedder = (cfg.get("qdrant") or "").rstrip("/"), (cfg.get("embedder") or "").rstrip("/")
     model, floor = cfg.get("model") or "nomic-embed-text", float(cfg.get("min_score") or 0)
+    checkout = checkout or name
+    root = Path(root) if root is not None else REPO_ROOT
     collection = resolve_collection(qdrant, deadline)
     vectors = embed_all(embedder, model, queries, deadline)
     # Code only from what is certainly public or certainly the agent's own: the
     # hub and the target. A sibling may be private — the registry cannot say.
-    allowed = {fleet_index.HUB, name.lower()}
-    rows, truncated = [], 0
+    allowed = {fleet_index.HUB, name.lower(), checkout.lower()}
+    rows, truncated, seen = [], 0, set()
+    changed = missing = 0
     for query, vector in zip(queries, vectors):
         found = http_json("qdrant", qdrant, "POST", f"/collections/{collection}/points/search",
                           {"vector": vector, "limit": SEARCH_LIMIT, "score_threshold": floor,
-                           "with_payload": ["filePath", "startLine", "endLine", "codeChunk"],
+                           "filter": {"must_not": [{"key": "filePath", "match": {"any": list(INDEX_EXCLUDED)}}]},
+                           "with_payload": ["filePath", "startLine", "endLine", "codeChunk", "fileHash"],
                            "with_vector": False}, deadline=deadline) or {}
         hits = []
         for hit in found.get("result") or []:
             payload = hit.get("payload") or {}
             score = float(hit.get("score") or 0)
-            if score >= floor and payload.get("filePath"):
+            if score >= floor and payload.get("filePath") and str(payload["filePath"]) not in INDEX_EXCLUDED:
                 hits.append((score, payload))
         hits.sort(key=lambda h: -h[0])
-        truncated += max(0, len(hits) - CAP_HITS)
-        for score, payload in hits[:CAP_HITS]:
+        unique = []
+        for score, payload in hits:   # the index can hold one range twice; a range one query showed is shown once
+            where = (str(payload.get("filePath")), _int(payload.get("startLine")), _int(payload.get("endLine")))
+            if where not in seen:
+                seen.add(where)
+                unique.append((score, payload))
+        truncated += max(0, len(unique) - CAP_HITS)
+        for score, payload in unique[:CAP_HITS]:
             path = str(payload.get("filePath"))
             project = fleet_index.project_of(path)
             row = {"query": query, "project": project, "path": clean_line(path, 300),
                    "start_line": _int(payload.get("startLine")), "end_line": _int(payload.get("endLine")),
                    "score": round(score, 3), "snippet": None}
-            if project.lower() in allowed:
-                row["snippet"] = snippet_of(payload.get("codeChunk"))
-            else:
+            if project.lower() not in allowed:
                 row["withheld"] = "sibling repo, visibility unknown"
+            else:
+                fresh = file_freshness(path, payload.get("fileHash"), root, deadline)
+                if fresh == "changed":
+                    changed += 1
+                    row.update(stale=True, withheld="the file changed since the index scanned it; read it in the "
+                                                    "repository")
+                elif fresh == "missing":
+                    missing += 1
+                    row.update(stale=True, withheld="the file is not in this checkout (deleted since the scan, or "
+                                                    "not checked out)")
+                else:
+                    row["snippet"] = snippet_of(payload.get("codeChunk"))
             rows.append(row)
     note = f"collection {collection}; floor {floor:g}"
-    note += _chunk_note(qdrant, collection, name, is_hub, deadline)
+    note += _chunk_note(qdrant, collection, name, is_hub, deadline, checkout)
     if not rows:
         note = f"no hit at or above min_score {floor:g}; {note}"
-    return section("index_code", "ok" if rows else "empty", rows, now=now, note=note, truncated=truncated)
+    stale = bool(changed or missing)
+    if stale:
+        note = (f"index behind the checkout: {changed} hit(s) from changed files, {missing} from files not in "
+                f"this checkout (code withheld) — {REMEDY_INDEX}; {note}")
+    status = "stale" if stale else ("ok" if rows else "empty")
+    return section("index_code", status, rows, now=now, note=note, truncated=truncated)
 
 
-def _chunk_note(qdrant: str, collection: str, name: str, is_hub: bool, deadline: Deadline) -> str:
-    """How much of the target the index can see. Best effort: one count, never the reason to fail."""
+def _chunk_note(qdrant: str, collection: str, name: str, is_hub: bool, deadline: Deadline,
+                checkout: str | None = None) -> str:
+    """How much of the target the index can see, counted under its checkout
+    directory (the index's own key, `projects/<dir>/…`, which can differ
+    from the registry name in case). Best effort: one count, never the
+    reason to fail."""
     if deadline.left() < 0.5:
         return ""
     if is_hub:
         filt = {"must_not": [{"key": "pathSegments.0", "match": {"value": "projects"}}]}
     else:
         filt = {"must": [{"key": "pathSegments.0", "match": {"value": "projects"}},
-                         {"key": "pathSegments.1", "match": {"value": name}}]}
+                         {"key": "pathSegments.1", "match": {"value": checkout or name}}]}
     try:
         doc = http_json("qdrant", qdrant, "POST", f"/collections/{collection}/points/count",
                         {"filter": filt, "exact": False}, deadline=deadline) or {}
@@ -1345,6 +1418,15 @@ def registry_branches(path: Path | str | None) -> dict:
     return out
 
 
+def checkout_dir(registry_path: Path | str | None, nwo: str, name: str) -> str:
+    """The target's directory under projects/ — the code index's key for it —
+    from the registry's submodule_path (zer0-CMS is checked out as
+    projects/zer0-cms), else `name`."""
+    row = registry_branches(registry_path).get(nwo.lower()) or {}
+    sub = Path(str(row.get("submodule_path") or ""))
+    return sub.name if len(sub.parts) == 2 and sub.parts[0] == "projects" and NAME_RX.match(sub.name) else name
+
+
 def _open_lake(lake_dir, deadline: Deadline) -> tuple[sqlite3.Connection, set[str]]:
     _, db = fleet_lake.lake_paths(lake_dir)
     if not Path(db).is_file():
@@ -1396,7 +1478,7 @@ def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = 
           lake_dir: Path | str | None = None, fleet_path: Path | str | None = None,
           registry_path: Path | str | None = None, now: dt.datetime | None = None,
           scrubber: Scrubber | None = None, index_cfg: dict | None = None,
-          contract: dict | None = None, home: str | None = None) -> dict:
+          contract: dict | None = None, home: str | None = None, index_root: Path | str | None = None) -> dict:
     """The whole fleet-context/v1 document. Never raises for a plane; usage is checked by the caller."""
     now = now or utcnow()
     deadline = Deadline(deadline_s)
@@ -1441,8 +1523,10 @@ def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = 
                                        lambda: telemetry_errors(nwo, since, deadline, now, contract),
                                        now, deadline)
     if "index_code" in wanted:
+        checkout = checkout_dir(registry_path, nwo, name)
         out["index_code"] = _run("index_code",
-                                 lambda: index_code(queries, name, is_hub, deadline, now, index_cfg),
+                                 lambda: index_code(queries, name, is_hub, deadline, now, index_cfg,
+                                                    checkout=checkout, root=index_root),
                                  now, deadline)
 
     doc = {"schema": SCHEMA, "generated_at": fleet_lake.iso(now), "nwo": nwo, "name": name,
