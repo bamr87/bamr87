@@ -37,6 +37,9 @@ coverage: listed
 | `devtools.conf` | file | Shared config for the devtools scripts | |
 | `fanout.sh` | file | Shared fan-out engine — clone→branch→seed→commit→PR loop with dry-run and external-upstream guard (called by .github/workflows/fanout.yml for every kit, and by dash harnesses/verify deploy) | |
 | `backlog_fanout.py` | file | The backlog fan-out routine (HUB-027, FR22) — pending hub issues / unserved PRD requirements / unshipped features → idempotent `backlog/<item>` PRs in the repos they apply to via `fanout.sh --kit backlog`; dry-run default, never merges (backlog-fanout.yml; docs/BACKLOG-FANOUT.md) | |
+| `frontend_registry.py` | file | The § 18 frontend registry: lints every `_data/projects.yml` `frontend:` block (drift check (o)) and generates the shell launcher manifest and the registry table (docs/FRONTEND-PLATFORM.md) | |
+| `test_frontend_registry.py` | file | Tests for the frontend registry lint and launcher | |
+| `test_conformance_frontend.py` | file | Fixture tests for UPS-FE-70..73 (tiers, N/A, warn-then-fail, forks) | |
 | `fleet_activity.py` | file | Fire-and-forget fleet activity log client (FR23) — event schema from the activity-log PRD (#409), bounded redacted JSONL spool, best-effort flush; never raises | |
 | `test_backlog_fanout.py` | file | Fixture tests for backlog_fanout.py + fleet_activity.py — mapping, idempotent update, cadence, cap, retries, graceful degradation of the activity log (run by python-tests.yml) | |
 | `deep_dive.py` | file | The daily repo deep-dive tracker (HUB-029, FR24–FR25) — today's repo, record a run, refresh open `deep-dive` issue/PR counts from GitHub, rollover, and the `_data/deep_dive.json` projection (docs/DEEP-DIVE.md) | |
