@@ -1927,6 +1927,47 @@ def test_a_dedupe_unavailable_at_the_live_recheck_files_nothing():
     assert not _issue_creates(box)
 
 
+def test_the_filing_itself_files_nothing_when_its_own_dedupe_list_fails():
+    # the preview deduped GOOD[1] against #7; the recheck and the fresh dry run list fine, the apply's own list fails
+    box = Box()
+    dup = json.dumps([{"number": 7, "title": GOOD[1]["title"], "url": "", "labels": [], "body": ""}])
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        run_id = box.last()["run_id"]
+        assert box.last()["items"][0]["would_file"] == 1
+        listed = sum(1 for c in box.gh_calls() if c[:2] == ["issue", "list"])
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup, STUB_GH_LIST_FAIL_FROM=str(listed + 3)):
+        code, out, _ = jev("publish", run_id, "--apply")
+    assert sum(1 for c in box.gh_calls() if c[:2] == ["issue", "list"]) == listed + 3, "the apply's list was the one"
+    assert code == 1 and out.startswith("publish-failed") and "exited 3" in out, out
+    assert not _issue_creates(box), "nothing is filed without the duplicate check the preview had"
+
+
+def test_the_filing_withholds_a_body_the_preview_had_dropped_when_its_duplicate_closes():
+    # #7 closes between the fresh dry run and the filing: GOOD[1] is no longer a duplicate, but nobody reviewed it
+    box = Box()
+    dup = json.dumps([{"number": 7, "title": GOOD[1]["title"], "url": "", "labels": [], "body": ""}])
+    real = L._fresh_dry
+
+    def then_closed(ctx, item, validated):
+        out = real(ctx, item, validated)
+        ctx.publish_env["STUB_GH_ISSUES"] = "[]"   # the filing's own environment
+        return out
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        run_id = box.last()["run_id"]
+        L._fresh_dry = then_closed
+        try:
+            code, out, _ = jev("publish", run_id, "--apply")
+        finally:
+            L._fresh_dry = real
+    titles = [c[c.index("--title") + 1] for c in _issue_creates(box)]
+    assert titles == [GOOD[0]["title"]], titles
+    assert code == 1 and out.startswith("partial") and "not in the reviewed preview" in out, out
+
+
 def test_a_concurrent_apply_that_claims_the_result_first_is_refused():
     box = Box()
     real = L._fresh_dry

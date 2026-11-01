@@ -571,6 +571,8 @@ def test_a_malformed_local_block_is_refused():
         (lambda d: d["local"]["publish"]["argv"].append("--appl"), "spells --apply"),
         (lambda d: d["local"]["publish"]["argv"].append("--app"), "spells --apply"),
         (lambda d: d["local"]["publish"]["argv"].append("--apply=1"), "spells --apply"),
+        (lambda d: d["local"]["publish"]["argv"].extend(["--reviewed-bodies", "{item_dir}"]),
+         "spells --reviewed-bodies"),
         (lambda d: d["local"]["publish"]["argv"].append("--"), "passthrough"),
         (lambda d: d["local"]["publish"]["argv"].__setitem__(0, "ai-run"), "may run"),
         # a planner runs in `loop plan` (write-free): no writer, no apply flag, no passthrough

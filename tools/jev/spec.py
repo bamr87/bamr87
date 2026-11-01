@@ -139,6 +139,11 @@ SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
 #: A filer is pinned with its own apply flag: a spec's `apply_flag` must be it.
 PLANNER_COMMANDS = frozenset({"scout"})
 PUBLISH_COMMANDS = {"scout-file": "--apply"}
+#: Each filer's flag naming the reviewed preview's bodies directory, which the
+#: engine adds beside the apply flag (a template never carries it): the filer
+#: then files no body that is not byte-identical to a reviewed one, and nothing
+#: when it cannot list the open issues to dedupe against.
+PUBLISH_REVIEWED_FLAGS = {"scout-file": "--reviewed-bodies"}
 #: the write flag no planner may carry, whatever the spec's publish block says
 APPLY_FLAG = "--apply"
 FLAG_RX = re.compile(r"--[a-z][a-z0-9-]*")
@@ -462,7 +467,8 @@ def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str) 
             raise StepSpecError(f"{at}.publish: needs exactly {sorted(PUBLISH_KEYS)}")
         if not isinstance(pb["apply_flag"], str) or not FLAG_RX.fullmatch(pb["apply_flag"]):
             raise StepSpecError(f"{at}.publish.apply_flag: a --long-flag, not {pb['apply_flag']!r}")
-        argv = _argv_template(pb["argv"], f"{at}.publish.argv", PUBLISH_COMMANDS, refused)
+        argv = _argv_template(pb["argv"], f"{at}.publish.argv", PUBLISH_COMMANDS,
+                              (*refused, *PUBLISH_REVIEWED_FLAGS.values()))
         if pb["apply_flag"] != PUBLISH_COMMANDS[argv[0]]:
             raise StepSpecError(f"{at}.publish.apply_flag: {pb['apply_flag']!r} is not {argv[0]}'s apply flag "
                                 f"({PUBLISH_COMMANDS[argv[0]]}, tools/jev/spec.py PUBLISH_COMMANDS)")

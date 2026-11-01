@@ -298,6 +298,25 @@ def test_proposals() -> None:
                                  capture_output=True, text=True, check=False)
         check("scout-file --apply refuses a --bodies-dir that already holds bodies",
               refused.returncode == 2 and "already holds bodies" in refused.stderr)
+        # --reviewed-bodies: the filing files only bytes the preview held, before any label or issue is made
+        only_first = Path(tmp) / "only-first"
+        only_first.mkdir()
+        (only_first / "01-x.md").write_text(rs.issue_body(ok[0], c, "bamr87/alpha", "R"), encoding="utf-8")
+        made = []
+        two = [ok[0], dict(ok[1], body=ok[1]["body"] + "\n\nA detail the preview never showed.")]
+        held = rs.file_proposals("bamr87/alpha", two, c, existing_titles=[], run_url="R", apply=True,
+                                 gh=lambda cmd: made.append(cmd) or "https://github.com/bamr87/alpha/issues/9",
+                                 reviewed={hashlib.sha256((only_first / "01-x.md").read_bytes()).hexdigest()})
+        check("reviewed= files only a body byte-identical to a reviewed one and withholds the rest unmade",
+              [f["title"] for f in held["filed"]] == [ok[0]["title"]]
+              and [s["reason"] for s in held["skipped"]] == [rs.NOT_REVIEWED]
+              and not any(two[1]["title"] in " ".join(x) for x in made))
+        no_list = subprocess.run([sys.executable, str(HERE / "dash_gen.py"), "scout-file", "--nwo", "bamr87/alpha",
+                                  "--proposals", str(prop), "--offline", "--apply", "--reviewed-bodies",
+                                  str(only_first)], capture_output=True, text=True, check=False)
+        check("scout-file --apply --reviewed-bodies files nothing (exit 3) without the open-issue list",
+              no_list.returncode == 3 and "files nothing without the duplicate check" in no_list.stderr
+              and not no_list.stdout.strip())
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "proposals.json"
         check("a missing proposals file is an empty, valid result", rs.load_proposals(p) == ([], ""))

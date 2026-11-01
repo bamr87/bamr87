@@ -59,8 +59,8 @@ from . import workspace as wsp
 from .adapters import REUSE_DAYS, Adapter, Item, PlanResult, PublishPlan, Verdict
 from .common import HUB, JevError, Run, dotenv_values, gh, git, hub_repo, is_bare_name, load_config, run
 from .ledger import BudgetState, Ledger, budget_state
-from .spec import (SPEC_ROOT, StepSpec, StepSpecError, allowed_models, fleet_value, load_fleet, load_spec,
-                   render_argv, render_prompt, spec_files, values_from)
+from .spec import (PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, StepSpec, StepSpecError, allowed_models, fleet_value,
+                   load_fleet, load_spec, render_argv, render_prompt, spec_files, values_from)
 
 DASH_GEN = HUB / "tools" / "dash-gen"
 RUN_SCHEMA = "jev-loop-run/v1"
@@ -1467,13 +1467,20 @@ def publish_phase(ctx: RunContext, item: Item, verdict: Verdict, report: dict, r
 
 
 def publish_values(ctx: RunContext, item: Item, validated: Path, *, apply: bool,
-                   bodies_dir: Path | None = None) -> list[str]:
+                   bodies_dir: Path | None = None, reviewed: Path | None = None) -> list[str]:
+    """The publish argv; with `apply`, the filer's apply flag and its reviewed
+    flag naming `reviewed` (the preview's bodies), so the filing itself files
+    no byte nobody reviewed and nothing it cannot dedupe."""
     pub = ctx.spec.local.publish
     values = item_values(ctx, item, validated=validated, apply=apply)
     if bodies_dir is not None:
         values["bodies_dir"] = str(bodies_dir)
     argv = render_argv(pub.argv, values)
-    return [*argv, pub.apply_flag] if apply else argv
+    if not apply:
+        return argv
+    if reviewed is None:
+        raise JevError("internal: an apply argv without the reviewed bodies")
+    return [*argv, pub.apply_flag, PUBLISH_REVIEWED_FLAGS[argv[0]], str(reviewed)]
 
 
 def preview(ctx: RunContext, item: Item, verdict: Verdict) -> dict:
@@ -1609,7 +1616,7 @@ def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
         return refused("already applied (a concurrent apply claimed it)")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump({"schema": PUBLISH_RESULT_SCHEMA, "status": "applying", "plan_id": doc["plan_id"], "at": iso()}, fh)
-    apply_argv = publish_values(ctx, item, validated, apply=True)
+    apply_argv = publish_values(ctx, item, validated, apply=True, reviewed=ctx.bodies_dir(item, apply=False))
     env = ctx.publish_env
     filed = ctx.adapter.publish(ctx, item, verdict, lambda: dash_gen(apply_argv, env=env), apply=True)
     urls = [r["url"] for r in filed.rows if r.get("url")]
