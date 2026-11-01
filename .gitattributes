@@ -1,5 +1,6 @@
 # =============================================================================
-# .gitattributes — how git treats this repo's GENERATED and APPEND-ONLY files.
+# .gitattributes — how git treats this repo's GENERATED and APPEND-ONLY files,
+# and the byte-pinned agent prompts (eol=lf, tools/jev/steps/).
 #
 # Amendment 0002 (docs/amendments/0002-conflict-free-numbering.md): a generated
 # file is never hand-merged. `merge=jev-regen` keeps OURS and records the path
@@ -58,3 +59,8 @@ CHANGELOG.md               merge=jev-regen
 # structure a repeated line would break (union does not deduplicate).
 docs/amendments/README.md  merge=union
 _data/jev_resolutions.yml  merge=union
+
+# --- byte-pinned agent prompts (tools/jev/steps/, docs/adr/0002) -------------
+# The rendered prompt's sha256 is pinned in tools/jev and dash-gen tests, and
+# tools/jev/spec.py refuses a CR, so a CRLF checkout fails closed at load.
+tools/jev/steps/**/*.prompt.txt text eol=lf

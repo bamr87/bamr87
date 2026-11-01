@@ -267,4 +267,4 @@ Wrapped by `tools/dash sync` (which also regenerates dash data) and the `bamr87-
 
 ## JEV
 
-[`jev/`](jev/) is the harness-level agent logic engine: the assign-at-merge numbering compiler (`python3 -m tools.jev number`) and the tiered pull-request conflict triage and resolution engine (`python3 -m tools.jev conflicts`). It never merges a pull request and never uses `--admin`. Doc: [docs/JEV.md](../docs/JEV.md).
+[`jev/`](jev/) is the harness-level agent logic engine: the assign-at-merge numbering compiler (`python3 -m tools.jev number`), the tiered pull-request conflict triage and resolution engine (`python3 -m tools.jev conflicts`), and the loop step specs (`python3 -m tools.jev steps check|render`) — one file pair per agent step that CI and the local engine render the same prompt from. It never merges a pull request and never uses `--admin`. Doc: [docs/JEV.md](../docs/JEV.md).

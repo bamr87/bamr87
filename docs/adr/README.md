@@ -17,3 +17,4 @@ Add an ADR in the same PR as the change it justifies.
 | ID | Title | Status |
 | --- | --- | --- |
 | 0001 | [Record architecture decisions](0001-record-architecture-decisions.md) | accepted |
+| 0002 | [Agent step specs and the local loop runner](0002-agent-step-specs-and-local-runner.md) | proposed |

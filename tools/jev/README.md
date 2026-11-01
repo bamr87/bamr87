@@ -1,10 +1,10 @@
 # tools/jev/ — JEV
 
-> The harness-level agent logic engine. Capability one: conflict-free numbering, and tiered pull-request conflict triage and resolution.
+> The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, and loop step specs that CI and a local run render alike.
 
-JEV is the fleet's planned agent logic layer ([bamr87/it-journey](https://github.com/bamr87/it-journey) `PRD.md`, Roadmap 2027 Q1). This directory is its first working capability, and it answers one question the fleet asks several times a week: **a pull request says `This branch has conflicts that must be resolved` — now what?**
+JEV is the fleet's planned agent logic layer ([bamr87/it-journey](https://github.com/bamr87/it-journey) `PRD.md`, Roadmap 2027 Q1). This directory holds its first two working capabilities. The first answers one question the fleet asks several times a week: **a pull request says `This branch has conflicts that must be resolved` — now what?**
 
-The answer has two halves. The first removes the conflicts that should never have existed (numbering). The second resolves what is left, at the cheapest tier that can finish the job (the conflict engine). Full operator doc: [`docs/JEV.md`](../../docs/JEV.md). The rules it is held to: [amendment 0002](../../docs/amendments/0002-conflict-free-numbering.md).
+The second, [loop step specs](#loop-step-specs), gives each agent step one spec that CI and a local run render the same bytes from. The first capability's answer has two halves. The first removes the conflicts that should never have existed (numbering). The second resolves what is left, at the cheapest tier that can finish the job (the conflict engine). Full operator doc: [`docs/JEV.md`](../../docs/JEV.md). The rules it is held to: [amendment 0002](../../docs/amendments/0002-conflict-free-numbering.md).
 
 ## Quick reference
 
@@ -19,9 +19,17 @@ python3 -m tools.jev conflicts scan --repo bamr87/bamr87
 python3 -m tools.jev conflicts triage  --pr bamr87/bamr87#437
 python3 -m tools.jev conflicts resolve --pr bamr87/bamr87#437 --dry-run
 python3 -m tools.jev conflicts budget  --scheduled      # month to date against the cap
+
+python3 -m tools.jev steps check                        # every step spec against its workflow and fleet.yml
+python3 -m tools.jev steps render repo-scout scout --set NWO=bamr87/beta --set REPO_NAME=beta \
+    --set BRANCH=main --set BRIEF=scout-workorder-beta.md   # the exact prompt bytes one leg gets
 ```
 
 Run from the repository root — `tools.jev` is imported as a package, so `python3 tools/jev/conflicts.py` will not work.
+
+## Loop step specs
+
+[`spec.py`](spec.py) loads the specs under [`steps/`](steps/README.md): one `<step>.yml` plus its `<step>.prompt.txt` per agent step a loop workflow runs. The spec holds what has no other home — the hard-rules prompt, the caller-filled `{{TOKEN}}` inputs, the tool allowlist, the wall clock, the workspace contract and the § 13.6 risk tags — and **references** `_data/fleet.yml` for the model, the turn cap and the call-site dollar cap. The model must resolve to an exact id in `ai_models.allowed`; an alias is refused. `steps check` holds every literal the workflow still carries (`--max-turns`, `--max-budget-usd`, the cost step's `budget-usd`, `timeout-minutes`, `--allowedTools`, the artifact paths, no GitHub token in the agent step's effective env — workflow, job and step — its `github_token` input or an earlier `$GITHUB_ENV` export) equal to the resolved spec, requires the agent step's `JEV_STEP_SHA256` to equal the spec pair's content hash, reports each declared `workspace.exceptions` gap (claude-code-action's own OIDC App token is outside the step's env, so it is declared there until the ADR 0002 follow-up closes it), and fails when the prompt orders a tool the allowlist does not grant. `steps render` prints the prompt byte-exact, rendered in one pass. Decision record: [ADR 0002](../../docs/adr/0002-agent-step-specs-and-local-runner.md).
 
 ## The merge driver
 
@@ -82,6 +90,7 @@ python3 tools/test_jev_classify.py    # the tier ladder and the file-kind rules
 python3 tools/test_jev_conflicts.py   # eligibility, validation, the no-merge/no-admin guard
 python3 tools/test_jev_ledger.py      # the ledger and the monthly cap
 python3 tools/test_jev_generated.py   # the main-only guard and the tier-0 main-only resolution
+python3 tools/test_jev_spec.py        # step specs: byte identity, parity, the #89 lint, loader refusals
 ```
 
 They are standalone scripts — no pytest, no network, no `gh` — and `tools/run-all-tests.sh` and `.github/workflows/python-tests.yml` pick them up automatically.

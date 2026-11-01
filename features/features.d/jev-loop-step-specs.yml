@@ -1,0 +1,15 @@
+id: HUB-NEW
+slug: jev-loop-step-specs
+title: "JEV: loop step specs — one spec per agent step, rendered the same in CI and locally"
+description: "JEV capability two (ADR 0002, bamr87/bamr87#485, epic #484): each agent step a loop runs gets one reviewed file pair under tools/jev/steps/<loop>/ — <step>.yml (caller-filled {{UPPER_SNAKE}} inputs, the --allowedTools grant, timeout, workspace contract, § 13.6 risk tags, an evals slot) and <step>.prompt.txt (the hard-rules prompt, LF, byte-pinned). Model, turns and the call-site dollar cap are references into _data/fleet.yml, and the model must resolve to an exact id in ai_models.allowed (an alias is refused). python3 -m tools.jev steps check holds every literal the workflow keeps (caps, allowlist, timeout, artifact paths, the token-free agent env, the JEV_STEP_SHA256 content hash of the spec pair) equal to the resolved spec and lints the prompt against its own grant (#89); steps render prints the prompt byte-exact in one pass. First spec: repo-scout/scout, which the plan job renders per matrix leg. The local loop engine (P1) is not built yet."
+implemented: true
+status: partial
+surface: cli
+link: tools/jev/steps/README.md
+docs: docs/JEV.md
+tags: [ jev, ai, loops, specs ]
+date: 2026-10-30
+tests:
+  - tools/test_jev_spec.py
+  - .github/scripts/dash-gen/test_scout.py
+prd: [FR45]
