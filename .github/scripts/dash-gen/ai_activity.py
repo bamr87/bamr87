@@ -25,13 +25,19 @@ answers the pilot question "what would this cost on standard API pricing?":
 
 It also owns the other half of local AI accounting, `dash ai run`:
 
-  run     wrap `claude -p --output-format json` with the dollar ceiling from
-          _data/fleet.yml `budget.local_usd`, then record the run's OWN
-          reported cost — `total_cost_usd`, straight from the CLI, not an
-          estimate — into a `runs` section of the same ledger, keyed by
-          session id. Headless runs are reported as their own table and are
-          NEVER added to the scan-derived estimates above: both halves see the
-          same session, so summing them would double-count it.
+  run     wrap `claude -p` with a dollar ceiling — `budget.local_usd`, or a
+          call site's `budget.call_sites` cap with `--call-site` — then record
+          the run's OWN reported cost — `total_cost_usd`, straight from the
+          CLI, not an estimate — into a `runs` section of the same ledger,
+          keyed by session id. A run that leaves no result is still recorded:
+          charged at the cap as `estimated` when it may have spent, `no-spend`
+          when the CLI provably never reached the model. Headless runs are
+          reported as their own table and are NEVER added to the scan-derived
+          estimates above: both halves see the same session, so summing them
+          would double-count it.
+          It is also the executor of JEV's local loop runner (docs/adr/0002,
+          P1): `--stream`, `--timeout`, `--isolate` and the rest come from
+          tools/jev/headless.py, imported lazily so `dash ai` never needs it.
 
 Local-only by design: the data source is this machine's ~/.claude, so unlike
 `health` this subcommand is NOT part of `dash-gen all` and never runs in CI.
@@ -39,14 +45,22 @@ Local-only by design: the data source is this machine's ~/.claude, so unlike
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import fcntl
+import importlib
 import json
+import math
 import os
 import platform
 import re
 import shutil
-import subprocess
+import signal
 import sys
+import tempfile
+import time
+import uuid
+from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
 
@@ -127,11 +141,29 @@ USAGE_FIELDS = ("input", "output", "cache_5m", "cache_1h", "cache_read", "turns"
 LEDGER_VERSION = 1
 
 # One record per headless `dash ai run`, keyed by session id in the ledger's
-# `runs` section. Ordered as it is documented in dash-gen/README.md.
+# `runs` section. Ordered as it is documented in dash-gen/README.md. The fields
+# after `source` were added for the JEV loop runner (P1); like `runs` itself
+# they are additive, so a row written before them simply lacks them.
 RUN_FIELDS = (
     "timestamp", "machine", "repo", "session_id",
     "models", "usage", "total_cost_usd", "source",
+    "call_site", "origin", "run_id", "attempt_id", "loop", "step", "item", "tier",
+    "model", "outcome", "cost_source", "cap_usd", "auth_method", "cli_version", "duration_s",
 )
+# `--meta KEY=VALUE` may set only these, so a caller cannot overwrite a cost.
+META_FIELDS = ("origin", "run_id", "attempt_id", "loop", "step", "item", "tier")
+# A row is billed only when the CLI reported its cost; a row written before
+# cost_source existed was always a reported one.
+BILLED_SOURCES = (None, "", "reported")
+# How long `dash ai run` waits for the ledger lock (`--ledger-wait`). It holds
+# a cancel while it records a run, so a writer that is stopped (a `dash ai`
+# suspended with Ctrl-Z) or hung must not keep it, and the Ctrl-C it ignores,
+# waiting for ever.
+LEDGER_WAIT_S = 30.0
+
+
+class LedgerBusy(TimeoutError):
+    """Another writer held the ledger lock for longer than the wait."""
 
 # Fallback ceiling for `dash ai run` when _data/fleet.yml is unreadable (the
 # wrapper must still be usable from a checkout that has no registry).
@@ -348,11 +380,45 @@ def load_ledger(ledger_path: Path) -> dict:
     return ledger
 
 
+@contextlib.contextmanager
+def ledger_lock(ledger_path: Path, wait_s: float | None = None) -> Iterator[None]:
+    """An exclusive flock beside the ledger for one read-modify-write.
+
+    Three writers rewrite the WHOLE file — `dash ai` (merge_ledger), the
+    ai-usage collector (which calls merge_ledger) and every `dash ai run`
+    (record_run) — and a loop runs several of the last at once. Without the
+    lock, two of them loading the same version means one's rows are silently
+    gone. One machine only: rows carry `machine` for the rest.
+
+    With `wait_s`, LedgerBusy once the lock has been held elsewhere that long;
+    without, it waits as long as it takes.
+    """
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = ledger_path.with_name(ledger_path.name + ".lock")
+    with lock.open("a") as fh:
+        if wait_s is None:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        else:
+            deadline = time.monotonic() + wait_s
+            while True:
+                try:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise LedgerBusy(f"another writer held {lock} for {wait_s:g}s") from None
+                    time.sleep(0.1)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
 def save_ledger(ledger_path: Path, ledger: dict) -> None:
     """Stamp and write the ledger atomically."""
     ledger["updated_at"] = dt.datetime.now().astimezone().isoformat(timespec="seconds")
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = ledger_path.with_suffix(".tmp")
+    tmp = ledger_path.with_name(f"{ledger_path.name}.{os.getpid()}.tmp")
     with tmp.open("w") as fh:
         json.dump(ledger, fh, separators=(",", ":"))
     tmp.replace(ledger_path)
@@ -364,20 +430,21 @@ def merge_ledger(ledger_path: Path, usage: dict, sessions: dict) -> dict:
     A day's tokens only grow while its transcripts exist and only shrink when
     Claude Code prunes them — so per-key max preserves the true daily total.
     """
-    ledger = load_ledger(ledger_path)
+    with ledger_lock(ledger_path):
+        ledger = load_ledger(ledger_path)
 
-    for key, row in usage.items():
-        old = ledger["usage"].setdefault(key, dict.fromkeys(USAGE_FIELDS, 0))
-        for f in USAGE_FIELDS:
-            old[f] = max(old.get(f, 0), row[f])
-    for key, ids in sessions.items():
-        ledger["sessions"][key] = sorted(set(ledger["sessions"].get(key, [])) | ids)
+        for key, row in usage.items():
+            old = ledger["usage"].setdefault(key, dict.fromkeys(USAGE_FIELDS, 0))
+            for f in USAGE_FIELDS:
+                old[f] = max(old.get(f, 0), row[f])
+        for key, ids in sessions.items():
+            ledger["sessions"][key] = sorted(set(ledger["sessions"].get(key, [])) | ids)
 
-    save_ledger(ledger_path, ledger)
+        save_ledger(ledger_path, ledger)
     return ledger
 
 
-def record_run(ledger_path: Path, record: dict) -> dict:
+def record_run(ledger_path: Path, record: dict, wait_s: float | None = None) -> dict:
     """Merge ONE headless run record into the ledger's `runs` section.
 
     Keyed by `session_id`, so re-running the wrapper against the same session
@@ -385,11 +452,13 @@ def record_run(ledger_path: Path, record: dict) -> dict:
     CLI's `total_cost_usd` is cumulative for the session, and two rows would be
     two charges for one conversation. A run the CLI gave no session id for
     falls back to a timestamp key — still one row, just not deduplicable.
+    `wait_s` bounds the wait for the lock (ledger_lock).
     """
-    ledger = load_ledger(ledger_path)
     key = record.get("session_id") or f"unknown-{record['timestamp']}"
-    ledger["runs"][key] = {f: record.get(f) for f in RUN_FIELDS}
-    save_ledger(ledger_path, ledger)
+    with ledger_lock(ledger_path, wait_s):
+        ledger = load_ledger(ledger_path)
+        ledger["runs"][key] = {f: record.get(f) for f in RUN_FIELDS}
+        save_ledger(ledger_path, ledger)
     return ledger
 
 
@@ -412,8 +481,11 @@ def cost_usd(model: str, row: dict) -> float:
 def _headless_section(ledger: dict, window_start: str) -> dict:
     """The `dash ai run` table, kept SEPARATE from the scan-derived estimates.
 
-    Every number here is the CLI's own `total_cost_usd` — a reported cost, not
-    a shadow price off the PRICING table. The two accountings deliberately
+    A row is BILLED only when the CLI reported its own `total_cost_usd` (a
+    reported cost, not a shadow price off the PRICING table). A run that left
+    no result is charged at its cap as `estimated`, and those dollars are
+    reported apart — summed into `billed_cost_usd` an $8 guess would read as
+    spend the CLI measured, which is HUB-032's failure again. The two accountings deliberately
     overlap: a headless run leaves a transcript that `scan()` also reads. That
     is precisely why they are never summed, and why each row carries
     `also_in_scan` so a reader can see which sessions are counted twice if they
@@ -429,13 +501,21 @@ def _headless_section(ledger: dict, window_start: str) -> dict:
         sid = rec.get("session_id") or key
         ts = str(rec.get("timestamp") or "")
         usage = rec.get("usage") or {}
+        cost = round(float(rec.get("total_cost_usd") or 0.0), 4)
+        source = rec.get("cost_source")
+        billed = source in BILLED_SOURCES
         rows.append({
             "session_id": sid,
             "timestamp": ts,
             "machine": rec.get("machine"),
             "repo": rec.get("repo"),
             "models": rec.get("models") or [],
-            "billed_cost_usd": round(float(rec.get("total_cost_usd") or 0.0), 4),
+            "billed_cost_usd": cost if billed else 0.0,
+            "estimated_cost_usd": cost if source == "estimated" else 0.0,
+            "cost_source": source or "reported",
+            "outcome": rec.get("outcome"),
+            "call_site": rec.get("call_site"),
+            "origin": rec.get("origin"),
             "turns": usage.get("turns", 0),
             "tokens": {
                 "input": usage.get("input", 0),
@@ -451,14 +531,18 @@ def _headless_section(ledger: dict, window_start: str) -> dict:
 
     return {
         "note": (
-            "Billed cost as reported by `claude -p --output-format json`, not a "
-            "shadow price. Headless runs also leave a transcript the scan above "
-            "reads, so these totals are NOT additive with the estimates — they "
-            "are the same spend, measured two ways."
+            "Billed cost as reported by `claude -p` itself, not a shadow price; "
+            "runs that left no result are charged at their cap and shown as "
+            "estimated_cost_usd, never as billed. Under subscription auth both "
+            "are API-equivalent (estimate), not an invoice. Headless runs also "
+            "leave a transcript the scan above reads, so these totals are NOT "
+            "additive with the estimates — they are the same spend, measured two ways."
         ),
         "count": len(rows),
         "billed_cost_usd": round(sum(r["billed_cost_usd"] for r in rows), 2),
         "window_billed_cost_usd": round(sum(r["billed_cost_usd"] for r in in_window), 2),
+        "estimated_cost_usd": round(sum(r["estimated_cost_usd"] for r in rows), 2),
+        "window_estimated_cost_usd": round(sum(r["estimated_cost_usd"] for r in in_window), 2),
         "runs": rows[:50],
     }
 
@@ -658,6 +742,15 @@ def run(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 # `dash ai run` — the capped headless wrapper
 # --------------------------------------------------------------------------- #
+def positive_cap(value) -> float | None:
+    """A number that bounds something: finite and above 0. YAML's `.inf` and a
+    `--max-budget-usd inf` or `nan` would otherwise pass a `> 0` test and hand
+    claude a cap that caps nothing (NaN compares false with everything)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0:
+        return float(value)
+    return None
+
+
 def load_local_budget() -> float:
     """The dollar ceiling for a local headless run, from _data/fleet.yml.
 
@@ -673,45 +766,10 @@ def load_local_budget() -> float:
     budget = fleet.get("budget") if isinstance(fleet, dict) else None
     if isinstance(budget, dict):
         for key in ("local_usd", "default_usd"):
-            value = budget.get(key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
-                return float(value)
+            value = positive_cap(budget.get(key))
+            if value is not None:
+                return value
     return BUDGET_FALLBACK_USD
-
-
-def result_record(stdout: str) -> dict | None:
-    """The LAST `type: "result"` object in `claude -p --output-format json`.
-
-    Accepts the three shapes the CLI has emitted: a bare result object, an
-    array of stream records, and JSONL. Returns None when there is no result
-    record at all — which is a real outcome (the process died before the model
-    answered), not an error to swallow.
-    """
-    def _results(value) -> list[dict]:
-        if isinstance(value, dict):
-            if value.get("type") == "result":
-                return [value]
-            return []
-        if isinstance(value, list):
-            return [r for item in value for r in _results(item)]
-        return []
-
-    stdout = stdout.strip()
-    if not stdout:
-        return None
-    try:
-        found = _results(json.loads(stdout))
-    except json.JSONDecodeError:
-        found = []
-        for line in stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                found.extend(_results(json.loads(line)))
-            except json.JSONDecodeError:
-                continue
-    return found[-1] if found else None
 
 
 # claude-code-action and the CLI have both spelled these fields more than one
@@ -754,18 +812,153 @@ def models_from_result(result: dict) -> list[str]:
     return sorted({normalize_model(m) or m for m in model_usage})
 
 
-def budget_was_hit(result: dict, budget: float) -> bool:
-    """Did `--max-budget-usd` stop this run?
+def headless():
+    """tools.jev.headless — the isolation, streaming and classification layer.
 
-    Two tests, because the abort's `subtype` is not a documented contract: the
-    subtype naming the budget, or a FAILED run that reached the ceiling. The
-    second alone would misread an ordinary failure that happened to be
-    expensive, so it is gated on `is_error`.
+    Imported lazily with the hub root APPENDED to sys.path (the way
+    repo_scout.step_spec() reaches tools.jev.spec), so this directory's own
+    modules keep precedence and `dash ai`, which never runs claude, never
+    imports it. The dependency points one way: tools/jev never imports dash-gen.
     """
-    if "budget" in str(result.get("subtype") or "").lower():
-        return True
-    cost = float(result.get("total_cost_usd") or 0.0)
-    return bool(result.get("is_error")) and budget > 0 and cost >= budget
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    return importlib.import_module("tools.jev.headless")
+
+
+def load_fleet_config() -> dict:
+    try:
+        with FLEET.open() as fh:
+            fleet = yaml.safe_load(fh) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    return fleet if isinstance(fleet, dict) else {}
+
+
+def call_site_cap(fleet: dict, call_site: str) -> float | None:
+    """`budget.call_sites[<workflow file>:<job id>]` — the CI cap, for a local run of the same step."""
+    sites = ((fleet.get("budget") or {}).get("call_sites") or {})
+    return positive_cap(sites.get(call_site) if isinstance(sites, dict) else None)
+
+
+def allowed_model_ids(fleet: dict) -> set[str]:
+    allowed = (fleet.get("ai_models") or {}).get("allowed")
+    lists = allowed.values() if isinstance(allowed, dict) else [allowed or []]
+    return {str(m) for ids in lists for m in (ids or [])}
+
+
+# Passed through to claude, these would undo what the wrapper is for: its cap,
+# the output format its parser reads, or the permission system.
+_OFF_MACHINE = ("a cloud session runs off this machine, outside the wrapper's isolation, and one it attaches "
+                "to enforces no --max-budget-usd or --max-turns from this invocation")
+REFUSED_PASSTHROUGH = {
+    "--max-budget-usd": "the cap is this wrapper's job — set it with `dash ai run --max-budget-usd` "
+                        "or `--call-site`",
+    "--output-format": "the wrapper chooses the output format it parses (`--stream` for stream-json)",
+    "-p": "the wrapper already runs claude in print mode",
+    "--print": "the wrapper already runs claude in print mode",
+    "--dangerously-skip-permissions": "a capped run never bypasses the permission system",
+    "--allow-dangerously-skip-permissions": "a capped run never bypasses the permission system",
+    "--cloud": _OFF_MACHINE,
+    # the CLI's deprecated alias for --cloud
+    "--remote": _OFF_MACHINE,
+    "--teleport": _OFF_MACHINE,
+}
+#: Both name a permission mode: the second (hidden) one is used when nothing
+#: else sets a mode, so it bypasses as surely as the first.
+PERMISSION_MODE_FLAGS = ("--permission-mode", "--inherit-permission-mode")
+SESSION_FLAGS = ("--session-id", "--resume", "-r", "--continue", "-c")
+#: § 10.7: every AI dollar figure the wrapper prints carries this.
+COST_LABEL = "API-equivalent (estimate)"
+
+
+def _flag_values(args: list[str], names: tuple[str, ...]) -> list[str]:
+    """Every value of a flag, in order (`--flag value` and `--flag=value`)."""
+    out = []
+    for i, a in enumerate(args):
+        name, eq, value = a.partition("=")
+        if name in names:
+            out.append(value if eq else (args[i + 1] if i + 1 < len(args) else ""))
+    return out
+
+
+def _flag_value(args: list[str], names: tuple[str, ...]) -> str | None:
+    """The value the CLI uses: the LAST occurrence, as its option parser keeps."""
+    values = _flag_values(args, names)
+    return values[-1] if values else None
+
+
+def _json_value(value: str, cwd: Path) -> object:
+    """A JSON flag value: inline, or a file — a relative path read from `cwd`,
+    the directory claude resolves it in. ValueError when it is neither: the
+    guard never vouches for a document it could not read."""
+    text = value
+    if not value.lstrip().startswith(("{", "[")):
+        path = Path(value).expanduser()
+        try:
+            text = (path if path.is_absolute() else cwd / path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ValueError(f"cannot read {value!r} from {cwd}: {exc}") from exc
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{value!r} is not JSON: {exc}") from exc
+
+
+def _document_modes(flag: str, value: str, cwd: Path) -> list[str]:
+    """The permission modes a `--settings` (`permissions.defaultMode`) or an
+    `--agents` (each agent's `permissionMode`) value sets."""
+    doc = _json_value(value, cwd)
+    if flag == "--settings":
+        perms = doc.get("permissions") if isinstance(doc, dict) else None
+        found = [perms.get("defaultMode")] if isinstance(perms, dict) else []
+    else:
+        found = [a.get("permissionMode") for a in (doc.values() if isinstance(doc, dict) else [])
+                 if isinstance(a, dict)]
+    return [str(m) for m in found if m]
+
+
+def refused_passthrough(passthrough: list[str], cwd: Path | None = None) -> str | None:
+    """Why the passthrough may not run, or None.
+
+    Flags only. Every run, `--isolate`d or not, still loads the user's and the
+    project's settings files (`--isolate` builds the environment, not the
+    settings sources; only a passthrough carrying `--restricted`, as JEV's
+    headless.claude_flags does, ignores them), and those files — or an
+    `--agent` defined in them — can set a permission mode this cannot see. A
+    `--settings` or `--agents` value is read the way claude reads it, a
+    relative path from `cwd`, and one that cannot be read is refused.
+    """
+    cwd = Path.cwd() if cwd is None else cwd
+    for a in passthrough:
+        name = a.partition("=")[0]
+        if name in REFUSED_PASSTHROUGH:
+            return f"{name} passed through to claude: {REFUSED_PASSTHROUGH[name]}"
+    for flag in PERMISSION_MODE_FLAGS:
+        if "bypassPermissions" in _flag_values(passthrough, (flag,)):
+            return f"{flag} bypassPermissions passed through: a capped run never bypasses permissions"
+    for flag in ("--settings", "--agents"):
+        for value in _flag_values(passthrough, (flag,)):
+            try:
+                modes = _document_modes(flag, value, cwd)
+            except ValueError as exc:
+                return f"{flag}: {exc} — a document the wrapper cannot read could bypass permissions"
+            if "bypassPermissions" in modes:
+                return f"{flag} sets permission mode bypassPermissions: a capped run never bypasses permissions"
+    return None
+
+
+def parse_meta(items: list[str]) -> dict[str, str]:
+    meta: dict[str, str] = {}
+    for item in items or []:
+        key, sep, value = item.partition("=")
+        if not sep or key not in META_FIELDS or key in meta:
+            raise ValueError(f"--meta {item!r}: KEY=VALUE once per key, KEY one of {', '.join(META_FIELDS)}")
+        if key == "origin" and value != "local":
+            # budget.loops counts `origin: local` rows: a row this wrapper
+            # wrote is local whatever the caller says (P4 adds `ci` elsewhere)
+            raise ValueError(f"--meta {item!r}: every row this wrapper writes is origin local")
+        meta[key] = value
+    return meta
 
 
 def run_headless(args: argparse.Namespace) -> int:
@@ -773,96 +966,356 @@ def run_headless(args: argparse.Namespace) -> int:
 
     The cap is the point: `--max-turns` bounds iterations, not spend, so a
     local script looping over repos has had no ceiling at all. Everything else
-    here is bookkeeping around it.
+    here is bookkeeping around it — and, for JEV's local loop runner, the
+    isolation, streaming and wall clock tools/jev/headless.py supplies.
     """
-    budget = args.max_budget_usd if args.max_budget_usd is not None else load_local_budget()
-    if budget <= 0:
-        sys.stderr.write("--max-budget-usd must be greater than 0\n")
+    # Whatever an earlier invocation left at these paths is never read as this
+    # one's: every exit below either writes them afresh or leaves none.
+    for stale in (args.result_file, args.outcome_file):
+        if stale:
+            Path(stale).unlink(missing_ok=True)
+    fleet = load_fleet_config()
+    if args.call_site:
+        site_cap = call_site_cap(fleet, args.call_site)
+        if site_cap is None:
+            sys.stderr.write(f"_data/fleet.yml budget.call_sites has no positive cap for {args.call_site!r}\n")
+            return 2
+        if args.max_budget_usd is not None and args.max_budget_usd > site_cap:
+            sys.stderr.write(
+                f"refusing to run: --max-budget-usd {args.max_budget_usd:g} is above the "
+                f"{args.call_site} cap ${site_cap:g} {COST_LABEL} — a call-site cap may only be lowered.\n")
+            return 2
+        budget = args.max_budget_usd if args.max_budget_usd is not None else site_cap
+    else:
+        budget = args.max_budget_usd if args.max_budget_usd is not None else load_local_budget()
+    if positive_cap(budget) is None:
+        sys.stderr.write(f"--max-budget-usd must be a finite number greater than 0, got {budget:g}\n")
+        return 2
+    if positive_cap(args.ledger_wait) is None:
+        sys.stderr.write(f"--ledger-wait must be a finite number greater than 0, got {args.ledger_wait:g}\n")
+        return 2
+    if args.timeout is not None and positive_cap(args.timeout) is None:
+        sys.stderr.write(f"--timeout must be a finite number greater than 0, got {args.timeout:g}\n")
+        return 2
+    if args.isolate_tmp and not args.isolate:
+        sys.stderr.write("--isolate-tmp only means something with --isolate\n")
+        return 2
+    try:
+        meta = parse_meta(args.meta)
+    except ValueError as exc:
+        sys.stderr.write(f"{exc}\n")
         return 2
 
+    passthrough = list(args.claude_args or [])
+    if passthrough and passthrough[0] == "--":
+        passthrough = passthrough[1:]
+    # resolved first: a relative --settings or --agents path is claude's,
+    # read from the directory claude runs in
+    cwd = Path(args.cwd).expanduser().resolve() if args.cwd else Path.cwd()
+    if not cwd.is_dir():
+        sys.stderr.write(f"--cwd {cwd} is not a directory\n")
+        return 2
+    refused = refused_passthrough(passthrough, cwd)
+    if refused:
+        sys.stderr.write(f"refusing to run: {refused}.\n")
+        return 2
+
+    hl = headless()
     claude = shutil.which(args.claude_bin)
     if not claude:
         sys.stderr.write(
             f"{args.claude_bin} not found on PATH — install Claude Code first "
             "(npm install -g @anthropic-ai/claude-code)\n"
         )
+        missing = hl.Outcome("cli_missing", 0.0, "no-spend").as_dict()
+        hl.write_json(args.outcome_file, {**missing, "cap_usd": budget, "exit_code": 127})
         return 127
 
-    passthrough = list(args.claude_args or [])
-    if passthrough and passthrough[0] == "--":
-        passthrough = passthrough[1:]
-    if any(a == "--max-budget-usd" for a in passthrough):
-        sys.stderr.write(
-            "refusing to run: --max-budget-usd passed through to claude. The cap "
-            "is this wrapper's job — set it with `dash ai run --max-budget-usd`.\n"
-        )
-        return 2
+    prompt = None
+    if args.prompt_file:
+        try:
+            prompt = Path(args.prompt_file).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            sys.stderr.write(f"--prompt-file: {exc}\n")
+            return 2
 
-    cmd = [claude, "-p", "--output-format", "json",
-           "--max-budget-usd", f"{budget:g}", *passthrough]
-    sys.stderr.write(f"  $ {' '.join(cmd)}\n  cap: ${budget:,.2f}\n")
+    # A session id the wrapper chose is the row's key even when no result ever
+    # arrives — which is exactly the run whose cost most needs a row.
+    session_id = _flag_value(passthrough, ("--session-id",))
+    added_session = []
+    if _flag_value(passthrough, SESSION_FLAGS) is None:
+        session_id = str(uuid.uuid4())
+        added_session = ["--session-id", session_id]
+
+    choice = None
+    extra_secrets: dict[str, str] = {}
+    env = None
+    made_tmp = None
+    if args.isolate or args.auth_order:
+        try:
+            order = (hl.auth_order({}, {"CLAUDE_AUTH_ORDER": args.auth_order}) if args.auth_order
+                     else hl.auth_order(fleet, os.environ))
+            dotenv = hl.hub_dotenv()
+            choice = hl.choose_auth(order, os.environ, dotenv, lambda: hl.stored_login(claude, os.environ))
+        except hl.NoCredential as exc:
+            sys.stderr.write(f"refusing to run: {exc}\n")
+            refused = hl.Outcome("credential_rejected", 0.0, "no-spend", detail=str(exc)).as_dict()
+            hl.write_json(args.outcome_file, {**refused, "cap_usd": budget, "exit_code": 3})
+            return 3
+        except hl.JevError as exc:
+            sys.stderr.write(f"{exc}\n")
+            return 2
+        value = hl.credential_value(choice, os.environ, dotenv)
+        if value:
+            extra_secrets[hl.CREDENTIAL_ENV[choice.method]] = value
+        if args.isolate:
+            tmp = Path(args.isolate_tmp).expanduser() if args.isolate_tmp else None
+            if tmp is None:
+                tmp = made_tmp = Path(tempfile.mkdtemp(prefix="jev-ai-run-"))
+            tmp.mkdir(parents=True, exist_ok=True)
+            gh_none = tmp / "gh-none"
+            gh_none.mkdir(exist_ok=True)
+            env = hl.agent_env(os.environ, choice, credential_value=value, tmp=tmp, gh_config_dir=gh_none,
+                               hub=REPO_ROOT)
+        else:
+            env = hl.with_one_credential(os.environ, choice, value)
+    redactor = hl.Redactor(os.environ, extra_secrets)
+
+    cmd = [claude, *hl.run_prefix(budget, stream=args.stream), *added_session, *passthrough]
+    sys.stderr.write(f"  $ {redactor.text(' '.join(cmd))}\n  cap: ${budget:,.2f}"
+                     f"{f' ({args.call_site})' if args.call_site else ''} {COST_LABEL}\n")
+    if choice is not None:
+        sys.stderr.write(f"  auth: {choice}{' · isolated environment' if args.isolate else ''}\n")
     if args.dry_run:
+        if made_tmp is not None:
+            shutil.rmtree(made_tmp, ignore_errors=True)
         return 0
 
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if proc.stderr:
-        sys.stderr.write(proc.stderr)
+    # Read BEFORE the run: once claude has reported its cost, nothing may start
+    # another process ahead of the ledger row.
+    cli_ver = hl.version_str(hl.cli_version(claude))
+    signals: list[str] = []
+    # Held from here until the row and the files are written: a signal before
+    # claude starts cancels it, one while it runs starts stream's ladder, and
+    # one after it exits waits for the bookkeeping.
+    with hl.held_signals(signals):
+        try:
+            inv = hl.stream(cmd, prompt=prompt, cwd=cwd, env=env,
+                            trace=hl.Trace(Path(args.trace) if args.trace else None, redactor),
+                            timeout_s=args.timeout, redactor=redactor, cap_usd=budget,
+                            echo=sys.stderr if args.stream else None,
+                            fmt="stream-json" if args.stream else "json", received=signals)
+        finally:
+            if made_tmp is not None:
+                shutil.rmtree(made_tmp, ignore_errors=True)
+        # the ones claude was still running for; stream's own tidying and the
+        # rmtree above happen after it exited, so a signal there is late
+        during = inv.signals_seen
+        code = _settle(args, hl, inv, budget=budget, redactor=redactor, choice=choice, cwd=cwd, meta=meta,
+                       passthrough=passthrough, session_id=session_id, cli_ver=cli_ver, fleet=fleet)
+    late = signals[during:]
+    if late:
+        sys.stderr.write(f"! {late[0]} arrived after claude exited, while the run was being recorded; its "
+                         f"record is complete, and ai-run exits as {late[0]} would.\n")
+        return 128 + signal.Signals[late[0]].value
+    return code
 
-    result = result_record(proc.stdout)
-    if result is None:
-        sys.stdout.write(proc.stdout)
-        sys.stderr.write(
-            "! no result record in the CLI's output — nothing recorded to the "
-            "ledger. The run is still whatever claude's exit code says it is.\n"
-        )
-        return proc.returncode or 1
 
-    cost = float(result.get("total_cost_usd") or 0.0)
+def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choice, cwd: Path, meta: dict,
+            passthrough: list[str], session_id: str | None, cli_ver: str | None, fleet: dict) -> int:
+    """Classify one finished invocation, persist it, then say so; the exit code.
+
+    Persisting comes FIRST: after a hangup a write to the dead terminal can
+    raise, and the ledger row, the result file and the outcome file must not
+    depend on it."""
+    outcome = hl.classify(inv, budget, redactor)
+    outcome.detail = redactor.text(outcome.detail)
+    if not inv.started and outcome.kind == "interrupted":
+        # cancelled before claude was started: no process ran, so no row
+        hl.write_json(args.outcome_file, {**outcome.as_dict(), "cap_usd": budget, "exit_code": 130,
+                                          "interrupted": inv.interrupted})
+        sys.stderr.write(f"! INTERRUPTED ({inv.interrupted}) before claude was started; nothing ran and "
+                         "nothing is recorded.\n")
+        return 130
+    if not inv.started:
+        # found on PATH but it could not be started (say, a broken shebang):
+        # no process ran, so — as when it is not found at all — no row
+        hl.write_json(args.outcome_file, {**outcome.as_dict(), "cap_usd": budget, "exit_code": 127})
+        sys.stderr.write(f"{args.claude_bin} could not be started: {outcome.detail}\n")
+        return 127
+    # A signal-killed claude has a negative return code; the shell's 128+N is
+    # what this process can exit with, and what the outcome file records.
+    rc = 128 - inv.rc if inv.rc < 0 else inv.rc
+    result = inv.result
+    models = models_from_result(result) if result else []
     record = {
         "timestamp": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
         "machine": platform.node().split(".")[0] or "local",
-        "repo": repo_for(os.getcwd()),
-        "session_id": result.get("session_id"),
-        "models": models_from_result(result),
-        "usage": usage_from_result(result),
-        "total_cost_usd": round(cost, 6),
+        "repo": args.repo or repo_for(str(cwd)),
+        "session_id": (result or {}).get("session_id") or outcome.session_id or session_id,
+        "models": models,
+        "usage": usage_from_result(result) if result else {**dict.fromkeys(_TOKEN_KEYS, 0), "turns": 0},
+        "total_cost_usd": round(outcome.cost_usd, 6),
         "source": args.source,
+        "call_site": args.call_site or "local",
+        "origin": "local",
+        **meta,
+        # never guessed from modelUsage: its first key is often a helper model
+        "model": (normalize_model((inv.init or {}).get("model"))
+                  or normalize_model(_flag_value(passthrough, ("--model",)))),
+        "outcome": outcome.kind,
+        "cost_source": outcome.cost_source,
+        "cap_usd": budget,
+        "auth_method": choice.method if choice else None,
+        "cli_version": cli_ver,
+        "duration_s": inv.duration_s,
     }
+    cost = record["total_cost_usd"]
+    allowed = allowed_model_ids(fleet)
+    flagged = [m for m in models if allowed and m not in allowed]
+
+    kind = outcome.kind
+    if kind == "budget_hit":
+        # A budget abort is LOUD. It stops the agent mid-task, so a silent exit
+        # 0 would hand back partial work as if it were finished.
+        warning = (
+            f"! BUDGET CAP HIT — ${cost:,.4f} against a ${budget:,.2f} ceiling ({COST_LABEL}). "
+            "The run was stopped MID-TASK and its output is probably partial. "
+            "Raise `budget.local_usd` (or the call site's `budget.call_sites` entry) "
+            "in _data/fleet.yml or pass --max-budget-usd.\n"
+        )
+        code = rc or 2
+    elif kind == "timeout":
+        warning = (f"! TIMED OUT after {args.timeout:g}s — {outcome.detail}; charged "
+                   f"${cost:,.4f} {COST_LABEL} ({outcome.cost_source}).\n")
+        code = 124
+    elif kind == "interrupted":
+        # A cancel or Ctrl-C, not a verdict on the credential or the agent.
+        warning = (f"! INTERRUPTED ({inv.interrupted}) — {outcome.detail}; charged "
+                   f"${cost:,.4f} {COST_LABEL} ({outcome.cost_source}).\n")
+        code = 130
+    elif kind == "usage_limit":
+        # Capacity, not a defect (AGENTS.md): the credential WORKED.
+        warning = (
+            f"! USAGE LIMIT — {outcome.detail}. The credential is VALID — do NOT rotate it. "
+            "The subscription's window is spent; run again after the reset. Nothing falls back "
+            "to the other credential (#348).\n")
+        code = 0 if args.usage_limit == "skip" else (rc or 1)
+    elif kind == "credential_rejected":
+        if choice is None:
+            fix = "or rotate CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY, whichever this run used"
+        elif choice.source == "login":
+            fix = "or log in again (`claude login`)"
+        else:
+            fix = f"or rotate {hl.CREDENTIAL_ENV[choice.method]}"
+        warning = (
+            f"! CREDENTIAL REJECTED — Claude was never reached ($0, empty modelUsage): {outcome.detail}. "
+            f"{'Auth: ' + str(choice) + '. ' if choice else ''}Run `claude auth status`, {fix} "
+            "(docs/TOKEN-ROTATION.md).\n")
+        code = rc or 1
+    elif result is None:
+        warning = (
+            f"! no result record in the CLI's output ({kind}) — recorded as {outcome.cost_source}"
+            f"{f', charged at the ${budget:g} cap {COST_LABEL}' if outcome.cost_source == 'estimated' else ''}. "
+            "The run is still whatever claude's exit code says it is.\n"
+        )
+        code = rc or 1
+    else:
+        warning = ""
+        code = rc
+
     ledger_path = Path(args.ledger)
-    record_run(ledger_path, record)
+    ledger_error = ""
+    try:
+        record_run(ledger_path, record, wait_s=args.ledger_wait)
+    except LedgerBusy as exc:
+        # the session happened: keep its outcome file, say so loudly, and fail
+        ledger_error = str(exc)
+        code = code or 1
+        warning += (f"! THIS RUN IS NOT LEDGERED — {exc}. Its cost is in the outcome file; "
+                    "find the stopped or hung writer (`fuser` / `lsof` on the lock file).\n")
+    if result is not None:
+        # redacted like the trace; the cost and token numbers claude-cost's
+        # `log:` reads are not strings, so they come through unchanged
+        hl.write_json(args.result_file, redactor.obj(result))
+    hl.write_json(args.outcome_file, {
+        **outcome.as_dict(), "cap_usd": budget, "exit_code": code, "rc": rc,
+        "timed_out": inv.timed_out, "interrupted": inv.interrupted, "duration_s": inv.duration_s,
+        "auth": {"method": choice.method, "source": choice.source} if choice else None,
+        "cli_version": cli_ver, "tool_uses": inv.tool_uses,
+        "permission_denials": inv.permission_denials, "models_flagged": flagged,
+        "ledger": str(ledger_path), "ledger_error": ledger_error or None, "call_site": record["call_site"],
+    })
 
-    sys.stdout.write(str(result.get("result") or ""))
-    if not str(result.get("result") or "").endswith("\n"):
-        sys.stdout.write("\n")
-
+    if inv.stderr_tail:
+        sys.stderr.write(inv.stderr_tail if inv.stderr_tail.endswith("\n") else inv.stderr_tail + "\n")
+    # with no result record, what the CLI printed (redacted) is the only
+    # diagnosis there is
+    echoed = (redactor.text(str(result.get("result") or "")) if result is not None
+              else (inv.stdout_text or inv.stdout_noise))
+    if result is not None or echoed:
+        sys.stdout.write(echoed if echoed.endswith("\n") else echoed + "\n")
     sys.stderr.write(
         f"  {record['repo']} · {record['usage']['turns']} turn(s) · "
-        f"${cost:,.4f} of ${budget:,.2f} "
-        f"({(cost / budget * 100) if budget else 0:.0f}%) · "
+        f"${cost:,.4f} of ${budget:,.2f} {COST_LABEL} "
+        f"({(cost / budget * 100) if budget else 0:.0f}%, {outcome.cost_source}) · {outcome.kind} · "
         f"session {record['session_id'] or 'unknown'}\n"
-        f"  recorded to {ledger_path}\n"
+        f"  {'NOT recorded to' if ledger_error else 'recorded to'} {ledger_path}\n"
     )
-
-    # A budget abort is LOUD. It stops the agent mid-task, so a silent exit 0
-    # would hand back partial work as if it were finished.
-    if budget_was_hit(result, budget):
-        sys.stderr.write(
-            f"! BUDGET CAP HIT — ${cost:,.4f} against a ${budget:,.2f} ceiling. "
-            "The run was stopped MID-TASK and its output is probably partial. "
-            "Raise `budget.local_usd` in _data/fleet.yml or pass "
-            "--max-budget-usd.\n"
-        )
-        return proc.returncode or 2
-    return proc.returncode
+    if flagged:
+        sys.stderr.write(f"! model(s) outside _data/fleet.yml ai_models.allowed in modelUsage: "
+                         f"{', '.join(flagged)}\n")
+    if warning:
+        sys.stderr.write(warning)
+    return code
 
 
 def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-budget-usd", type=float, default=None, metavar="USD",
-                        help="dollar ceiling (default: budget.local_usd in _data/fleet.yml)")
+                        help="dollar ceiling (default: budget.local_usd in _data/fleet.yml; with "
+                             "--call-site it may only LOWER that site's cap)")
+    parser.add_argument("--call-site", default=None, metavar="FILE:JOB",
+                        help="take the cap from budget.call_sites[FILE:JOB], the CI cap of that step")
     parser.add_argument("--ledger", default=str(LEDGER_DEFAULT), metavar="PATH",
                         help=f"persistent ledger (default: {LEDGER_DEFAULT})")
+    parser.add_argument("--ledger-wait", type=float, default=LEDGER_WAIT_S, metavar="SECONDS",
+                        help=f"wait at most SECONDS for another ledger writer's lock (default: {LEDGER_WAIT_S:g}); "
+                             "a cancel waits that long too, and past it the run is not ledgered (exit non-zero)")
     parser.add_argument("--source", default="dash ai run", metavar="LABEL",
                         help="how this run was invoked, recorded on the ledger entry")
+    parser.add_argument("--repo", default=None, metavar="NWO",
+                        help="the repo the run is attributed to (default: from the working directory)")
+    parser.add_argument("--cwd", default=None, metavar="DIR", help="run claude in DIR")
+    parser.add_argument("--prompt-file", default=None, metavar="PATH",
+                        help="send PATH's contents as the prompt, on stdin (never in argv)")
+    parser.add_argument("--stream", action="store_true",
+                        help="stream-json with a condensed live tee to stderr")
+    parser.add_argument("--timeout", type=float, default=None, metavar="SECONDS",
+                        help="wall clock: SIGINT (the turn ends, a result is still reported), "
+                             "then SIGTERM, then SIGKILL; exit 124")
+    parser.add_argument("--trace", default=None, metavar="PATH",
+                        help="write a redacted, size-capped JSONL trace of the session")
+    parser.add_argument("--result-file", default=None, metavar="PATH",
+                        help="write the last result record as one JSON object (claude-cost `log:` reads it), "
+                             "redacted like the trace; removed when ai-run starts")
+    parser.add_argument("--outcome-file", default=None, metavar="PATH",
+                        help="write the classified outcome (kind, cost, cost_source, exit code) as JSON; "
+                             "removed when ai-run starts")
+    parser.add_argument("--isolate", action="store_true",
+                        help="build claude's environment from scratch: no GitHub token, no SSH agent, "
+                             "one Claude credential (tools/jev/headless.py agent_env)")
+    parser.add_argument("--isolate-tmp", default=None, metavar="DIR",
+                        help="TMPDIR for the isolated environment (default: a fresh temporary directory)")
+    parser.add_argument("--auth-order", default=None, metavar="LIST",
+                        help="credential order, e.g. oauth,api_key; the first PRESENT one is used, and the "
+                             "other one and the CLI's other auth inputs (ANTHROPIC_AUTH_TOKEN, "
+                             "ANTHROPIC_BASE_URL, CLAUDE_CONFIG_DIR, the provider switches) are unset "
+                             "(default with --isolate: CLAUDE_AUTH_ORDER / ai_auth)")
+    parser.add_argument("--usage-limit", choices=("fail", "skip"), default="fail",
+                        help="skip = a spent usage window exits 0 with a warning (capacity, not a defect)")
+    parser.add_argument("--meta", action="append", default=[], metavar="KEY=VALUE",
+                        help=f"record KEY on the ledger row ({', '.join(META_FIELDS)}; origin may only be "
+                             "local); repeatable")
     parser.add_argument("--claude-bin", default="claude", metavar="BIN",
                         help="Claude Code executable (default: claude)")
     parser.add_argument("--dry-run", action="store_true",
