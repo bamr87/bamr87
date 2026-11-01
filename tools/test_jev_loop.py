@@ -925,6 +925,12 @@ def test_refusals_exit_with_their_documented_codes():
         assert code == 4 and rec["status"] == "refused" and rec["items"] == [] and "plan" not in rec, (offline, rec)
         assert any("inside the hub" in n for n in rec["notes"]) and not (HUB / ".fleet" / "work").exists()
         assert len(box.claude_calls()) == calls, "refused before any CLI runs or anything is planned"
+    # `loop plan` exits on no host problem: it says the work root is inside the hub and still reads the host
+    with world(box, JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--offline")
+    assert code == 0 and "host problem: the work root" in out and "inside the hub" in out, out
+    assert "host: claude 2.1.308" in out and "auth oauth" in out, out
+    assert not (HUB / ".fleet" / "work").exists()
 
 
 def test_show_prints_the_latest_run():

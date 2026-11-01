@@ -554,19 +554,23 @@ def private_work_root() -> Path:
 
 
 def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bin: str, scratch: Path | None, *,
-               live: bool, preflight: bool, probe_cache: bool = True) -> HostReport:
+               live: bool, preflight: bool, probe_cache: bool = True, report: bool = False) -> HostReport:
     """What the host proves before an attempt. `live=False` (doctor, rehearse)
     reports a missing probe, canary or credential as a note; a live attempt
     (PR-C) refuses on each of them. `probe_cache=False` skips the cached
     probe (doctor runs it afresh). A work root inside the hub is refused first
-    (exit 4), before any CLI runs. The flag preflight runs in `scratch`, or with
-    None in a throwaway directory under the work root — never inside the hub,
-    where a session would reach the hub's CLAUDE.md. Nothing here reaches a model."""
+    (exit 4), before any CLI runs — except with `report=True` (`loop plan`,
+    which exits on no host problem and writes nothing under the work root):
+    the problem is recorded and the CLI, probe and credential are still read.
+    The flag preflight runs in `scratch`, or with None in a throwaway directory
+    under the work root — never inside the hub, where a session would reach
+    the hub's CLAUDE.md. Nothing here reaches a model."""
     rep = HostReport()
     inside = work_root_problem()
     if inside:
         rep.problems.append((EXIT["host_unsafe"], inside))
-        return rep
+        if not report or preflight:
+            return rep
 
     def gap(code: int, why: str) -> None:
         if live:
@@ -1072,7 +1076,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
         if stop:
             out["notes"].append(stop[1])
             return _print_plan(out, opts, stop[0])
-        host = host_check(spec, posture, fleet, opts.claude_bin, None, live=False, preflight=False)
+        host = host_check(spec, posture, fleet, opts.claude_bin, None, live=False, preflight=False, report=True)
         out["host"] = host.as_dict()
         plan, stop = obtain_plan(ctx)
         if stop:
@@ -1119,6 +1123,8 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
     if host:
         print(f"host: claude {host.get('version') or 'missing'} · probe {host.get('probe')} · canary "
               f"{host.get('canary')} · auth {(host.get('auth') or {}).get('method') or 'none'}")
+        for why in host.get("problems") or []:
+            print(f"host problem: {why}")
     for i in out["items"]:
         print(f"{i['key']} @ {i['branch']}  →  {i['decision']}")
         if i.get("note"):
