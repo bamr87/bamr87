@@ -46,6 +46,16 @@ def is_bare_name(value: object) -> bool:
             and Path(value).name == value and not any(c in value for c in "/\\\0"))
 
 
+def is_clone_relpath(value: object) -> bool:
+    """A relative POSIX path that stays inside a clone: not absolute, no
+    backslash or NUL, and no `.`, `..` or `.git` part. What a step's
+    `workspace.brief_dir` must be — the agent's TMPDIR is built from it."""
+    if not isinstance(value, str) or not value or value.startswith("/") or any(c in value for c in "\\\0"):
+        return False
+    parts = [p for p in value.split("/") if p]
+    return bool(parts) and not any(p in (".", "..", ".git") for p in parts)
+
+
 class JevError(RuntimeError):
     """A condition JEV refuses to guess its way past (bad config, no gh, …)."""
 

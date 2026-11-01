@@ -195,6 +195,45 @@ def test_a_target_that_commits_the_brief_directory_is_refused_and_leaves_nothing
         assert not (WORK / rid).exists(), "the refused clone is removed with its run directory"
 
 
+def test_a_ctrl_c_during_the_clone_or_the_hardening_leaves_no_clone_behind():
+    """KeyboardInterrupt is no Exception: the clone (a private repository's
+    content, perhaps) must still go, whichever step it lands in."""
+    real = (W.git, W.harden, W._pristine_gitdir)
+
+    def git_then_interrupt(args, cwd, **kw):
+        res = real[0](args, cwd, **kw)
+        if args[:1] == ["clone"]:
+            raise KeyboardInterrupt
+        return res
+
+    def interrupt(*_a, **_kw):
+        raise KeyboardInterrupt
+    for name, patch in (("git", git_then_interrupt), ("harden", interrupt), ("_pristine_gitdir", interrupt)):
+        rid = f"t-int-{name.strip('_')}-{os.urandom(3).hex()}"
+        setattr(W, name, patch)
+        try:
+            W.clone_local(FIXTURE, "bamr87/alpha", "main", run_id=rid, brief_dir=".scout")
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError(f"{name}: the interrupt was swallowed")
+        finally:
+            W.git, W.harden, W._pristine_gitdir = real
+        assert not (WORK / rid).exists(), f"Ctrl-C in {name}: the clone and its run directory are removed"
+
+
+def test_a_brief_dir_that_leaves_the_clone_is_refused():
+    for bad in ("../escape", str(OUTSIDE / "abs"), ".", "a/../../b", ".git", "x/.git", ""):
+        rid = f"t-bd-{os.urandom(3).hex()}"
+        try:
+            W.clone_local(FIXTURE, "bamr87/alpha", "main", run_id=rid, brief_dir=bad)
+        except JevError as exc:
+            assert "brief_dir" in str(exc), exc
+        else:
+            raise AssertionError(f"brief_dir {bad!r} was accepted")
+        assert not (WORK / rid).exists() and not (OUTSIDE / "abs").exists()
+
+
 def test_a_work_root_inside_the_hub_is_refused():
     with env(JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
         try:
@@ -313,7 +352,9 @@ def test_a_commondir_redirect_is_caught_and_never_read():
     with _bypass_tamper_check():
         W.tree_report(ws)
         W.discard_tracked(ws)
-    assert not marker.exists(), "the engine's git never reads the clone's .git"
+    assert not marker.exists(), "the engine's git never reads the clone's config or commondir"
+    git(["status", "--porcelain"], cwd=ws.path)   # control: the clone's own git follows commondir
+    assert marker.exists(), "control: the planted commondir is real"
     W.destroy(ws)
 
 
@@ -332,6 +373,8 @@ def test_a_gitfile_planted_in_a_submodule_directory_is_caught_and_never_followed
     with _bypass_tamper_check():
         W.tree_report(ws)
     assert not marker.exists(), "--ignore-submodules=all: no submodule is entered"
+    git(["status", "--porcelain"], cwd=ws.path / "sub")   # control: plain git follows the planted gitfile
+    assert marker.exists(), "control: the planted gitfile is real"
     W.destroy(ws)
 
 
@@ -344,6 +387,45 @@ def test_the_git_wrapper_never_runs_a_repositorys_fsmonitor():
     assert git(["config", "--local", "core.fsmonitor", str(script)], cwd=repo).ok
     assert git(["status", "--porcelain"], cwd=repo).ok
     assert not marker.exists(), "common.git passes core.fsmonitor=false"
+    subprocess.run(["git", "status", "--porcelain"], cwd=repo, stdin=subprocess.DEVNULL, capture_output=True,
+                   check=False)   # control: git without the wrapper runs it
+    assert marker.exists(), "control: the planted fsmonitor is real"
+
+
+def test_a_filter_in_the_users_global_or_system_config_never_runs_in_the_engines_git():
+    """The tamper check sees nothing here: `.gitattributes` is the agent's to
+    write, and the filter lives in the user's own config, outside `.git`. Only
+    engine_git's GIT_CONFIG_GLOBAL=/dev/null (and GIT_CONFIG_NOSYSTEM, for the
+    machine's own system file, which a test cannot write) keep it from running
+    on the host."""
+    ws = make()
+    home = Path(tempfile.mkdtemp(prefix="jev-ws-home-"))
+    marker = OUTSIDE / f"PWNED-global-{os.urandom(3).hex()}"
+    marker_filter(home / ".gitconfig", marker)
+    (ws.path / ".gitattributes").write_text("* filter=x\n")
+    (ws.path / "README.md").write_text("# fixturX\n")   # same size: git must hash it
+    seen: list[dict] = []
+    real_git = W.git
+
+    def spy(args, cwd, **kw):
+        seen.append(dict(kw.get("env") or {}))
+        return real_git(args, cwd, **kw)
+    W.git = spy
+    try:
+        with env(HOME=str(home), XDG_CONFIG_HOME=str(home / "xdg"), GIT_CONFIG_SYSTEM=str(home / ".gitconfig")):
+            assert W.tampered(ws) == [], "nothing under .git changed"
+            rep = W.tree_report(ws)
+            W.discard_tracked(ws)
+            assert "README.md" in rep.tracked and not marker.exists(), "the engine's git reads no global config"
+            (ws.path / "README.md").write_text("# fixturX\n")
+            subprocess.run(["git", "status", "--porcelain"], cwd=ws.path, stdin=subprocess.DEVNULL,
+                           capture_output=True, check=False)   # control: plain git with this HOME runs it
+    finally:
+        W.git = real_git
+    assert marker.exists(), "control: the global filter is real"
+    assert seen and all(e.get("GIT_CONFIG_GLOBAL") == "/dev/null" and e.get("GIT_CONFIG_NOSYSTEM") == "1"
+                        and "GIT_CONFIG_SYSTEM" not in e for e in seen), "no global or system config, ever"
+    W.destroy(ws)
 
 
 def test_the_tree_report_ignores_the_brief_and_discard_restores_tracked_files():
