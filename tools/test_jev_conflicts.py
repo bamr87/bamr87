@@ -12,6 +12,7 @@ Run: python3 tools/test_jev_conflicts.py
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -331,6 +332,105 @@ def test_the_git_guard_refuses_config_that_a_later_plain_push_would_follow():
         assert git(["push", "-q", "origin", "HEAD:refs/heads/x"], cwd=work).ok and alive()
         plant("remote.origin.mirror", "true")
         assert not git(["push", "-q", "origin", "HEAD:refs/heads/y"], cwd=work).ok and alive()
+
+
+def test_the_git_guard_holds_init_and_the_environment_and_pins_the_pack_programs():
+    """A third review planted `remote.origin.receivepack` — a program git runs
+    on a push to a local or ssh remote, explicit refspec or not — through
+    `init --template`, a clone's GIT_TEMPLATE_DIR and a push's GIT_COMMON_DIR,
+    and deleted a remote branch. Each route is refused; HOME and
+    XDG_CONFIG_HOME cannot move the global config; and a receivepack or
+    uploadpack planted past the guard never runs, because git() names the
+    pack program itself."""
+    from tools.jev.common import assert_safe_git
+    from tools.jev.workspace import CLONE_ENV, CLONE_OPTS
+    for argv in (["init", "--template=/tmp/t", "w"], ["init", "-q", "--template", "/tmp/t", "w"],
+                 ["init", "--templ=/tmp/t", "w"], ["init", "--separate-git-dir=/tmp/g", "w"],
+                 ["init", "--shared=all", "w"], ["init", "-q", "a", "b"], ["fetch", "--upload-pack", "sh", "origin"]):
+        try:
+            assert_safe_git(argv)
+        except JevError as exc:
+            assert "refusing" in str(exc), (argv, exc)
+        else:
+            raise AssertionError(f"git {argv} was not refused")
+    for env in ({"GIT_TEMPLATE_DIR": "/tmp/t"}, {"GIT_COMMON_DIR": "/tmp/r.git"}, {"GIT_SSH_COMMAND": "sh -c x"},
+                {"GIT_SSH": "/tmp/x"}, {"GIT_PROXY_COMMAND": "/tmp/x"}, {"GIT_ASKPASS": "/tmp/x"},
+                {"GIT_EXTERNAL_DIFF": "/tmp/x"}, {"GIT_NAMESPACE": "x"}, {"GIT_OBJECT_DIRECTORY": "/tmp/o"},
+                {"GIT_WORK_TREE": "/tmp/w"}, {"GIT_INDEX_FILE": "/tmp/i"}, {"GIT_CONFIG_SYSTEM": "/tmp/s"},
+                {"HOME": "/tmp/evil-home"}, {"XDG_CONFIG_HOME": "/tmp/evil-xdg"},
+                {"HOME": "/tmp/evil-home", "GIT_CONFIG_GLOBAL": "/tmp/evil.cfg"}):
+        try:
+            assert_safe_git(["push", "origin", "HEAD:refs/heads/x"], env)
+        except JevError as exc:
+            assert "environment" in str(exc), (env, exc)
+        else:
+            raise AssertionError(f"{env} was not refused")
+    # what JEV itself hands git still passes: the clone's env, engine_git's env
+    # (the caller's own HOME), and a moved HOME once the global config is /dev/null
+    assert_safe_git(["clone", "--branch", "main", *CLONE_OPTS, "/src", "/dest"], CLONE_ENV)
+    engine_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    engine_env.update(GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1", GIT_TERMINAL_PROMPT="0")
+    assert_safe_git(["status"], engine_env)
+    assert_safe_git(["status"], {"HOME": "/tmp/h", "GIT_CONFIG_GLOBAL": "/dev/null"})
+    assert assert_safe_git(["init", "-q", "-b", "main"]) == 0
+    assert_safe_git(["init", "-q", "--bare", "-b", "main", "r"])
+    assert assert_safe_git(["-C", "/w", "push", "origin", "HEAD:refs/heads/x"]) == 2
+    with tempfile.TemporaryDirectory() as tmp:
+        t = Path(tmp)
+        remote, work = t / "remote.git", t / "work"
+        assert git(["init", "-q", "--bare", "-b", "main", str(remote)], cwd=t).ok
+        assert git(["clone", "-q", str(remote), str(work)], cwd=t).ok
+        commit = ["-c", "user.name=t", "-c", "user.email=t@x", "-c", "commit.gpgsign=false", "commit", "-qm", "m"]
+        (work / "f").write_text("x\n")
+        assert git(["add", "f"], cwd=work).ok and git(commit, cwd=work).ok
+        assert git(["push", "-q", "origin", "HEAD:refs/heads/main", "HEAD:refs/heads/keep"], cwd=work).ok
+        marker = t / "pack-program-ran"
+        rp = t / "rp.sh"   # deletes keep, then does a real receive-pack so the push still "works"
+        rp.write_text(f'#!/bin/sh\ntouch {marker}\ngit --git-dir="$1" update-ref -d refs/heads/keep\n'
+                      'exec git-receive-pack "$@"\n')
+        up = t / "up.sh"
+        up.write_text(f'#!/bin/sh\ntouch {marker}\nexec git-upload-pack "$@"\n')
+        for p in (rp, up):
+            p.chmod(0o755)
+        tpl = t / "tpl"
+        tpl.mkdir()
+        (tpl / "config").write_text(f'[remote "origin"]\n\treceivepack = {rp}\n')
+        other = t / "other.git"
+        assert subprocess.run(["git", "init", "-q", "--bare", str(other)], stdin=subprocess.DEVNULL).returncode == 0
+        subprocess.run(["git", "--git-dir", str(other), "config", "remote.origin.receivepack", str(rp)], check=True)
+        home = t / "home"
+        home.mkdir()
+        (home / ".gitconfig").write_text(f'[remote "origin"]\n\treceivepack = {rp}\n')
+
+        def alive() -> bool:
+            return git(["--git-dir", str(remote), "rev-parse", "--verify", "-q", "refs/heads/keep"], cwd=t).ok
+        # the review's routes, each with the push that would follow it
+        routes = [(["init", "-q", "-b", "main", f"--template={tpl}", str(t / "w1")], None, t / "w1"),
+                  (["clone", "-q", "--branch", "main", *CLONE_OPTS, str(remote), str(t / "w2")],
+                   {"GIT_TEMPLATE_DIR": str(tpl)}, t / "w2"),
+                  (None, {"GIT_COMMON_DIR": str(other)}, work),
+                  (None, {"HOME": str(home)}, work)]
+        for plant, env, cwd in routes:
+            try:
+                if plant:
+                    git(plant, cwd=t, env=env if plant[0] == "clone" else None)
+                git(["push", "-q", "origin", "HEAD:refs/heads/x"], cwd=cwd, env=None if plant else env)
+            except JevError:
+                pass
+            else:
+                raise AssertionError(f"{plant} / {env} then a push ran")
+            assert alive() and not marker.exists(), f"{plant} / {env} ran the planted receive-pack"
+        # planted behind the guard's back with plain git: git() names the pack
+        # program itself, so neither the receivepack nor the uploadpack runs
+        for key, value in (("remote.origin.receivepack", rp), ("remote.origin.uploadpack", up)):
+            subprocess.run(["git", "config", key, str(value)], cwd=work, check=True, stdin=subprocess.DEVNULL)
+        assert git(["push", "-q", "origin", "HEAD:refs/heads/x"], cwd=work).ok
+        assert git(["fetch", "--quiet", "origin", "main"], cwd=work).ok
+        assert alive() and not marker.exists(), "a planted pack program ran"
+        # the control: plain git with the planted config does run it (so the probe is real)
+        plain = ["git", "-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "HEAD:refs/heads/y"]
+        assert subprocess.run(plain, cwd=work, stdin=subprocess.DEVNULL, capture_output=True).returncode == 0
+        assert marker.exists() and not alive(), "the probe's receive-pack never ran under plain git"
 
 
 def test_a_fork_branch_is_never_eligible_however_trusted_the_author():
