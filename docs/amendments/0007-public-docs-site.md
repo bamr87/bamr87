@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0007 — Every fleet repo publishes a public site with all its documentation
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0007
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/483 (merged 2026-10-31 by @bamr87)
 - **Affects:** constitution new § 14 (numbering contingent on § 12 from #481 and § 13 from #482); specs UPS-DOC (extended, not replaced); features `HUB-043`, `HUB-042`; requirements `FR36`, `FR35`
 - **Supersedes:** none (extends UPS-DOC, merged in #404)
 - **Related:** #404 (UPS-DOC fleet docs framework), #480 (`harness-prior-art-research`), #481 (`agent-merge-review-gate`), #482 (`eval-baseline-risk-tiers`, fan-out pattern), `templates/site-quality/`, `tools/conformance.py`, `tools/docs_index.py`

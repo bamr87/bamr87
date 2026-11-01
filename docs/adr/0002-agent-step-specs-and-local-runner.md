@@ -1,6 +1,7 @@
 # ADR 0002 — Agent step specs and the local loop runner
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/521 (merged 2026-11-01 by @bamr87)
 - **Date**: 2026-10-30
 - **Deciders**: proposed by an agent for bamr87/bamr87#485; the maintainer accepts or rejects it in that PR's review
 - **Related**: epic bamr87/bamr87#484, P0 bamr87/bamr87#485, the motivating incident bamr87/bamr87#89, constitution § 10.8 (PR #480), § 12.3 (PR #481), § 13 (PR #482), § 15 (PR #491), [`docs/JEV.md`](../JEV.md)
@@ -207,7 +208,8 @@ Every later phase that changes the format or the executor (the P1 runner, the P4
 
 ## P1 — the headless executor and its § 13.8 posture
 
-- **Status**: proposed, with the maintainer's decisions of 2026-10-31 for #486 (P1 of #484) recorded below
+- **Status**: accepted, with the maintainer's decisions of 2026-10-31 for #486 (P1 of #484) recorded below
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/523 (merged 2026-11-01 by @bamr87)
 - **Date**: 2026-10-31
 - **Scope**: the executor and the posture (PR-A, `feature/jev-headless-executor`); the $0 engine (PR-B, `feature/jev-loop-engine`); attempts, the canary, the monthly ceiling and publishing (PR-C, `feature/jev-loop-run`); the last two are recorded at the end of this section
 

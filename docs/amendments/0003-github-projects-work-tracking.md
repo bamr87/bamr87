@@ -1,10 +1,10 @@
 <!-- kit: governance v0.1.0 -->
 # 0003 — GitHub Projects as the fleet's system of record for work
 
-- **Status:** proposed
+- **Status:** ratified
 - **Date:** 2026-10-29
 - **Proposed by:** Grok Bot (Fleet Ops / Platform Architect) for bamr87
-- **Ratified by:** the merged PR that adds this record (governance/github-projects)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/439 (merged 2026-10-30 by @bamr87)
 - **Affects:** constitution § 6 (change process), § 7 (quality gates), new § 9 (work tracking); PRD FR-NEW:projects-coverage, FR-NEW:projects-sync, NFR-NEW:projects-scope-honest; features HUB-NEW:github-projects-framework, HUB-NEW:projects-coverage-gate, HUB-NEW:projects-sync-console (fragments in `features/features.d/`; ids assigned at merge per amendment 0002)
 - **Supersedes:** none
 - **Related:** [docs/PROJECTS-FRAMEWORK.md](../PROJECTS-FRAMEWORK.md), [templates/projects/framework.yml](../../templates/projects/framework.yml)
