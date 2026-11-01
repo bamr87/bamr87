@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import classify as cls
-from .common import JevConfig, JevError, git, gh, gh_json, hub_repo, load_config, load_fleet, \
+from .common import JevConfig, JevError, finite_usd, git, gh, gh_json, hub_repo, load_config, load_fleet, \
     registry_repos, run
 from .ledger import Ledger, Resolution, budget_state
 
@@ -373,10 +373,14 @@ def claude_argv(model: str, prompt: str, max_usd: float, max_turns: int) -> list
     Every headless call carries `--max-budget-usd` (AGENTS.md; the caps come
     from `_data/fleet.yml` `budget.jev`), and `--output-format json` is what
     makes `total_cost_usd` readable afterwards — a run whose cost cannot be
-    read is a run charged to nobody.
+    read is a run charged to nobody. This argv never passes through
+    headless.run_prefix, so it refuses a cap that bounds nothing itself
+    (`inf`, `nan`, 0 or below): load_config refuses one first, and this is
+    the last line before claude.
     """
+    cap = finite_usd(max_usd, "the --max-budget-usd cap of a JEV conflicts attempt")
     return ["claude", "-p", "--output-format", "json", "--model", model,
-            "--max-turns", str(max_turns), "--max-budget-usd", f"{max_usd:g}", prompt]
+            "--max-turns", str(max_turns), "--max-budget-usd", f"{cap:g}", prompt]
 
 
 def _prompt(ws: Workspace, triage: cls.Triage) -> str:

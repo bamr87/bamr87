@@ -18,12 +18,13 @@ Dependencies: PyYAML.
 from __future__ import annotations
 
 import datetime as _dt
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import yaml
 
-from .common import HUB, JevConfig
+from .common import HUB, JevConfig, JevError
 
 LEDGER_PATH = HUB / "_data" / "jev_resolutions.yml"
 SCHEMA = "jev-resolutions/v1"
@@ -72,24 +73,48 @@ class Ledger:
 
     @classmethod
     def load(cls, path: Path | None = None) -> Ledger:
+        """A ledger that is not a mapping with a `resolutions` list refuses: read
+        as no rows, the month would be $0, and the next save would drop them."""
         p = path or LEDGER_PATH
         if not p.is_file():
             return cls(path=p)
         data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        rows = (data.get("resolutions") or []) if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            raise JevError(f"{p} is not a mapping with a `resolutions` list — the monthly ceiling cannot be "
+                           "judged; repair it in place")
         return cls(path=p, schema=str(data.get("schema") or SCHEMA),
-                   resolutions=[r for r in (data.get("resolutions") or []) if isinstance(r, dict)])
+                   resolutions=[r for r in rows if isinstance(r, dict)])
 
     def append(self, record: Resolution) -> None:
         self.resolutions.append({k: v for k, v in asdict(record).items() if v != ""})
 
+    def _cost(self, r: dict) -> float:
+        """A row's `cost_usd` as the ceiling can add it: finite and not negative
+        (a row without one spent nothing). YAML reads `.inf`, `-.inf` and
+        `.nan`; one NaN makes every comparison with the cap false, which reads
+        as "fits", and a negative figure gives spend back — so such a row
+        refuses, and the run with it, until it is repaired in place."""
+        raw = r.get("cost_usd")
+        if raw is None:
+            return 0.0
+        try:
+            cost = float(raw)
+        except (TypeError, ValueError):
+            cost = math.nan
+        if isinstance(raw, bool) or not math.isfinite(cost) or cost < 0:
+            raise JevError(f"{self.path} has a resolution ({r.get('repo')}#{r.get('pr')}, {r.get('date')}) whose "
+                           f"cost_usd {raw!r} is not a finite figure of 0 or more — the monthly ceiling cannot be "
+                           "judged; repair the row in place, never drop it (it is this month's spend)")
+        return cost
+
     def month_total(self, month: str | None = None) -> float:
         m = month or _dt.date.today().strftime("%Y-%m")
-        return round(sum(float(r.get("cost_usd") or 0)
-                         for r in self.resolutions if str(r.get("date", ""))[:7] == m), 4)
+        return round(sum(self._cost(r) for r in self.resolutions if str(r.get("date", ""))[:7] == m), 4)
 
     def month_estimated(self, month: str | None = None) -> float:
         m = month or _dt.date.today().strftime("%Y-%m")
-        return round(sum(float(r.get("cost_usd") or 0) for r in self.resolutions
+        return round(sum(self._cost(r) for r in self.resolutions
                          if str(r.get("date", ""))[:7] == m
                          and str(r.get("cost_source")) in ESTIMATED_SOURCES), 4)
 
