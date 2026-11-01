@@ -248,6 +248,57 @@ def test_proposals() -> None:
     check("a dry run files nothing and calls no writing verb",
           dry["filed"] and dry["filed"][0]["url"] is None and len(creates) == c["max_issues_per_repo"])
     with tempfile.TemporaryDirectory() as tmp:
+        bodies = Path(tmp) / "bodies"
+        bodies.mkdir()
+        (bodies / "07-stale.md").write_text("old")
+        before = len(calls)
+        res = rs.file_proposals("bamr87/alpha", ok, c, existing_titles=[titles[0]], run_url="local run R",
+                                apply=False, gh=gh, bodies_dir=bodies)
+        files = sorted(bodies.iterdir())
+        check("--bodies-dir writes one body per would-file proposal, numbered, and drops stale ones",
+              [f.name for f in files] == [r["body_file"] for r in res["filed"]] and len(files) == c["max_issues_per_repo"]
+              and files[0].name.startswith("01-") and not (bodies / "07-stale.md").exists())
+        check("each body is the exact issue body, marker first",
+              all(f.read_text().splitlines()[0] == rs.marker_line(c, "bamr87/alpha") for f in files)
+              and files[0].read_text() == rs.issue_body(ok[1], c, "bamr87/alpha", "local run R"))
+        check("a bodies-dir dry run still calls no gh verb", len(calls) == before)
+        plain = rs.file_proposals("bamr87/alpha", ok[:1], c, existing_titles=[], apply=False, gh=gh)
+        check("without --bodies-dir nothing is written and no body_file key appears",
+              "body_file" not in plain["filed"][0])
+        prop = Path(tmp) / "props.json"
+        prop.write_text(json.dumps({"proposals": many}))
+        out = subprocess.run([sys.executable, str(HERE / "dash_gen.py"), "scout-file", "--nwo", "bamr87/alpha",
+                              "--proposals", str(prop), "--offline", "--bodies-dir", str(Path(tmp) / "cli")],
+                             capture_output=True, text=True, check=False)
+        check("scout-file --offline --bodies-dir writes the bodies from the CLI",
+              out.returncode == 0 and len(list((Path(tmp) / "cli").glob("0*.md"))) == c["max_issues_per_repo"])
+        # the local engine's two phases: a reviewed dry preview in one directory, the apply in its own
+        preview, filed_dir = Path(tmp) / "preview", Path(tmp) / "filed"
+        rs.file_proposals("bamr87/alpha", ok, c, existing_titles=[], run_url="R", apply=False, gh=gh,
+                          bodies_dir=preview)
+        reviewed = {f.name: f.read_bytes() for f in preview.iterdir()}
+        creates_seen = []
+
+        def flaky(cmd):   # the second issue fails to file
+            if cmd[:3] == ["gh", "issue", "create"]:
+                creates_seen.append(cmd)
+                return "" if len(creates_seen) == 2 else f"https://github.com/bamr87/alpha/issues/{len(creates_seen)}"
+            return ""
+        applied = rs.file_proposals("bamr87/alpha", ok, c, existing_titles=[], run_url="R", apply=True, gh=flaky,
+                                    bodies_dir=filed_dir)
+        check("an apply into its own directory leaves the reviewed preview's names and bytes untouched",
+              {f.name: f.read_bytes() for f in preview.iterdir()} == reviewed
+              and any(s["reason"] == "gh issue create failed" for s in applied["skipped"]))
+        stale_apply = rs.file_proposals("bamr87/alpha", ok[:1], c, existing_titles=[], run_url="R", apply=True,
+                                        gh=gh, bodies_dir=preview)
+        check("an apply never clears a directory's existing bodies",
+              all(preview.joinpath(n).is_file() for n in reviewed) and stale_apply["filed"])
+        refused = subprocess.run([sys.executable, str(HERE / "dash_gen.py"), "scout-file", "--nwo", "bamr87/alpha",
+                                  "--proposals", str(prop), "--offline", "--apply", "--bodies-dir", str(preview)],
+                                 capture_output=True, text=True, check=False)
+        check("scout-file --apply refuses a --bodies-dir that already holds bodies",
+              refused.returncode == 2 and "already holds bodies" in refused.stderr)
+    with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "proposals.json"
         check("a missing proposals file is an empty, valid result", rs.load_proposals(p) == ([], ""))
         p.write_text("{not json")
@@ -367,6 +418,7 @@ def test_workflow_contract() -> None:
     check("the workflow never merges, closes, or edits an issue",
           "gh pr merge" not in raw and "gh issue close" not in raw and "gh issue edit" not in raw and "--auto" not in raw)
     check("no scout job step pushes", "git push" not in yaml.safe_dump(scout))
+    check("CI never passes the local engine's --bodies-dir", "--bodies-dir" not in raw)
 
 
 def main() -> int:

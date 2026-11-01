@@ -27,7 +27,7 @@ Author: bamr87
 Created: 2026-10-31
 Version: 0.1.0
 Usage: imported by .github/scripts/dash-gen/ai_activity.py (`dash ai run`); P1's
-       engine (tools/jev/loop.py, PR-B) will import it as well.
+       engine (tools/jev/loop.py) imports it as well.
 Dependencies: Python 3.12 stdlib, plus tools.jev.common (PyYAML). The claude
               CLI only when a function runs it.
 """

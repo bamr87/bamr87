@@ -17,8 +17,9 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools.jev import conflicts as CF  # noqa: E402
 from tools.jev import ledger as L  # noqa: E402
-from tools.jev.common import JevConfig, load_config  # noqa: E402
+from tools.jev.common import JevConfig, JevError, load_config, load_fleet  # noqa: E402
 
 CFG = JevConfig(monthly_usd=10.0, scheduled_stop_pct=80)
 
@@ -129,6 +130,60 @@ def test_the_hubs_own_configuration_keeps_jev_inside_the_fleet_budget():
         assert 0 < policy.max_usd < cfg.monthly_usd, f"{tier} attempt cap is not inside the month"
         assert policy.max_turns > 0, f"{tier} has no turn cap"
     assert cfg.tier("tier1").max_usd < cfg.tier("tier2").max_usd, "the cheap tier must be cheaper"
+
+
+def _refused(call, what: str, *needles: str) -> None:
+    try:
+        call()
+    except JevError as exc:
+        for needle in needles:
+            assert needle in str(exc), exc
+    else:
+        raise AssertionError(f"{what} was accepted")
+
+
+def test_a_cap_a_ceiling_or_a_stop_that_bounds_nothing_is_refused():
+    # YAML reads .inf and .nan: an infinite ceiling affords every attempt, one NaN reads as "fits"
+    nan, inf = float("nan"), float("inf")
+    for key, bad in (("monthly_usd", inf), ("monthly_usd", nan), ("monthly_usd", 0), ("monthly_usd", None),
+                     ("monthly_usd", True), ("scheduled_stop_pct", 1000), ("scheduled_stop_pct", 0),
+                     ("scheduled_stop_pct", 80.5), ("tier2_usd", -1), ("tier2_usd", inf), ("tier1_usd", nan),
+                     ("tier1_usd", 0)):
+        fleet = load_fleet()
+        fleet["budget"]["jev"][key] = bad
+        _refused(lambda f=fleet: load_config(f), f"budget.jev.{key} {bad!r}", f"budget.jev.{key}")
+    fleet = load_fleet()
+    del fleet["budget"]["jev"]["tier2_usd"]         # a tier that buys a model, with no cap anywhere
+    _refused(lambda: load_config(fleet), "tier2 with a model and no cap", "budget.jev.tier2_usd")
+    # the conflicts argv never passes through headless.run_prefix: it refuses on its own
+    for cap in (inf, nan, -1, 0, True):
+        _refused(lambda c=cap: CF.claude_argv("m", "p", c, 5), f"claude_argv cap {cap!r}", "--max-budget-usd")
+    assert CF.claude_argv("m", "p", 1.5, 5)[-3:-1] == ["--max-budget-usd", "1.5"]
+
+
+def test_a_ledger_figure_that_is_not_finite_or_is_negative_never_reads_as_room():
+    # the committed file is YAML, which no gate checks row by row: a negative row gave spend
+    # back, and one -.inf row made the month -inf, affordable forever
+    def ledger(*rows: str) -> L.Ledger:
+        p = Path(tempfile.mkdtemp()) / "jev_resolutions.yml"
+        p.write_text("schema: jev-resolutions/v1\nresolutions:\n" + "".join(f"- {r}\n" for r in rows))
+        return L.Ledger.load(p)
+
+    spent = "{repo: o/r, pr: 1, tier: tier2, outcome: failed, date: '2026-10-01', cost_usd: 50.0}"
+    for bad in ("-.inf", ".inf", ".nan", "-45.0", "true", "lots"):
+        led = ledger(spent, f"{{repo: o/r, pr: 2, tier: tier2, outcome: failed, date: '2026-10-02', "
+                            f"cost_usd: {bad}, cost_source: estimated}}")
+        for call in (lambda d=led: L.budget_state(CFG, d, scheduled=True, month="2026-10"),
+                     lambda d=led: d.month_estimated("2026-10")):
+            _refused(call, f"a ledger row of cost_usd {bad}", "cannot be judged", "o/r#2")
+        assert led.month_total("2026-11") == 0.0, "another month's row is not this month's spend"
+    led = ledger(spent, "{repo: o/r, pr: 3, tier: tier0, outcome: resolved, date: '2026-10-03'}")
+    state = L.budget_state(CFG, led, scheduled=True, month="2026-10")
+    assert state.spent_usd == 50.0 and state.exhausted and not state.affords(1.5), "a row with no cost spent nothing"
+    for body in ("- {cost_usd: 50.0, date: '2026-10-01'}\n", "schema: x\nresolutions: {a: {cost_usd: 50.0}}\n"):
+        p = Path(tempfile.mkdtemp()) / "jev_resolutions.yml"
+        p.write_text(body)
+        _refused(lambda q=p: L.Ledger.load(q), f"a ledger shaped {body!r}", "cannot be judged")
 
 
 if __name__ == "__main__":

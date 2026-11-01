@@ -2,11 +2,13 @@
 """
 File: tools/jev/__main__.py
 Description: The JEV command line — `python3 -m tools.jev <group> <action>`.
-             Four groups today: `number` (the assign-at-merge compiler, the
+             Five groups today: `number` (the assign-at-merge compiler, the
              conflict-free numbering scheme), `conflicts` (the tiered
              conflict triage and resolution engine), `generated` (the
-             main-only generated files guard) and `steps` (the loop step
-             specs: parity check and byte-exact prompt render). Doc: docs/JEV.md.
+             main-only generated files guard), `steps` (the loop step specs:
+             parity check and byte-exact prompt render) and `loop` (the local
+             loop runner: a loop's agent step on this workstation, isolated
+             and sandboxed). Doc: docs/JEV.md.
 Author: bamr87
 Created: 2026-10-29
 Version: 0.1.0
@@ -15,14 +17,16 @@ Usage:
   python3 -m tools.jev conflicts scan|triage|resolve|budget [--pr owner/repo#n] [--dry-run]
   python3 -m tools.jev generated list|guard|regen [--base origin/main]
   python3 -m tools.jev steps     check | render <loop> <step> [--set TOKEN=value …]
-Exit: 0 clean, 1 a problem the caller must fix, 2 usage.
+  python3 -m tools.jev loop      list | doctor | plan <loop> | run <loop> --rehearse | show <run_id>|--latest
+Exit: 0 clean, 1 a problem the caller must fix, 2 usage (`loop` adds 3 credential,
+      4 host safety, 127 no claude CLI; docs/JEV.md).
 """
 from __future__ import annotations
 
 import argparse
 import sys
 
-from . import VERSION, conflicts, generated, number, spec
+from . import VERSION, conflicts, generated, loop, number, spec
 from .common import JevError
 
 
@@ -35,13 +39,16 @@ def build_parser() -> argparse.ArgumentParser:
     conflicts.add_arguments(sub.add_parser("conflicts", help="tiered PR conflict triage"))
     generated.add_arguments(sub.add_parser("generated", help="main-only generated files: guard and regen"))
     spec.add_arguments(sub.add_parser("steps", help="loop step specs: parity check and prompt render"))
+    loop.add_arguments(sub.add_parser(
+        "loop", help="run a loop's agent step locally with headless Claude Code: isolated, sandboxed, a dry run"))
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        mod = {"number": number, "conflicts": conflicts, "generated": generated, "steps": spec}[args.group]
+        mod = {"number": number, "conflicts": conflicts, "generated": generated, "steps": spec,
+               "loop": loop}[args.group]
         return mod.main(args)
     except JevError as exc:
         print(f"jev: {exc}", file=sys.stderr)

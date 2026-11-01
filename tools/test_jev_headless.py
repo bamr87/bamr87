@@ -430,6 +430,25 @@ def test_common_run_can_replace_the_environment_instead_of_merging():
         del os.environ["JEV_TEST_LEAK"]
 
 
+def test_common_run_never_hands_a_child_the_callers_stdin():
+    # The caller's stdin is a pipe that stays open and is never written: a child
+    # that inherited it would block on read until the inner timeout (code 124).
+    code = ("import sys; sys.path.insert(0, %r); from tools.jev import common; "
+            "r = common.run([sys.executable, '-c', 'import sys; print(repr(sys.stdin.read()))'], timeout=20); "
+            "print(r.code, r.out.strip())") % str(HUB)
+    proc = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        proc.wait(timeout=60)
+        assert proc.stdout is not None
+        assert proc.stdout.read().strip() == "0 ''", "the child read the caller's stdin"
+    finally:
+        assert proc.stdin is not None
+        proc.stdin.close()
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+
+
 def test_stored_login_reads_auth_status_with_the_credentials_unset():
     d, claude = stub_dir()
     assert H.stored_login(str(claude), {**stub_env(), "STUB_LOGGED_IN": "1"}) is True

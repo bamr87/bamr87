@@ -441,6 +441,10 @@ def test_the_spec_is_refused_when_malformed():
         (lambda d: d["workspace"].update({"github_credential": "fleet"}), "github_credential"),
         (lambda d: d["workspace"].update({"outputs": ".scout/proposals.json"}), "outputs a list"),
         (lambda d: d["workspace"].update({"cwd": 1}), "outputs a list"),
+        # the agent's TMPDIR is built from brief_dir: it never leaves the clone
+        (lambda d: d["workspace"].update({"brief_dir": "../x"}), "inside the clone"),
+        (lambda d: d["workspace"].update({"brief_dir": "/Users/x/newdir"}), "inside the clone"),
+        (lambda d: d["workspace"].update({"brief_dir": ".git/x"}), "inside the clone"),
         (lambda d: d["workspace"]["exceptions"].update({"other-gap": "x"}), "workspace.exceptions"),
         (lambda d: d["workspace"]["exceptions"].update({"app-token": ""}), "workspace.exceptions"),
         (lambda d: d.update({"step": "other"}), "disagree with the path"),
@@ -516,8 +520,122 @@ def test_risk_and_evals_are_shape_checked_when_present():
             continue
         assert refused(_load(root), needle), needle
     root = tmp_root()
-    edit_spec(root, lambda d: (d.pop("risk"), d.pop("evals")))
+    # (a local.publish takes its tier from risk, so the optional case drops it too)
+    edit_spec(root, lambda d: (d.pop("risk"), d.pop("evals"), d["local"].pop("publish")))
     assert S.load_spec("repo-scout", "scout", root=root, fleet=fleet()).risk is None, "risk is optional"
+
+
+# --------------------------------------------------------------------------- #
+# the optional local: block (P1, #486)
+# --------------------------------------------------------------------------- #
+def test_the_scout_local_block_loads():
+    loc = scout().local
+    assert loc.adapter == "repo_scout" and loc.on_budget_hit == "discard"
+    assert loc.switch == S.Switch(config="scout.enabled", variable="REPO_SCOUT_ENABLED", default="off")
+    assert loc.planner.argv == ("scout", "--out-dir", "{plan_dir}") and loc.planner.flags["no_files"] == "--no-briefs"
+    assert loc.publish.argv[:3] == ("scout-file", "--nwo", "{nwo}") and loc.publish.apply_flag == "--apply"
+    assert scout().risk[loc.publish.risk]["tier"] == "high"
+
+
+def test_a_spec_without_local_loads_as_in_p0():
+    root = tmp_root()
+    edit_spec(root, lambda d: d.pop("local"))
+    s = S.load_spec("repo-scout", "scout", root=root, fleet=fleet())
+    assert s.local is None
+    assert S.switch_errors(s, workflow()) == []
+
+
+def test_a_malformed_local_block_is_refused():
+    def sub(key, **kw):
+        return lambda d: d["local"][key].update(kw)
+
+    cases = [
+        (lambda d: d["local"].update(tiers=[]), "unknown"),
+        (lambda d: d["local"].pop("planner"), "missing"),
+        (lambda d: d.update(local=[]), "a mapping"),
+        (lambda d: d["local"].update(adapter="os"), "REGISTRY"),
+        (sub("switch", extra=1), "switch"),
+        (sub("switch", default=False), "quoted string"),          # a bare `off` is a YAML boolean
+        (sub("switch", variable="REPO_SCOUT"), "_ENABLED"),
+        (sub("switch", config="scout.sample"), "not a boolean"),
+        (sub("switch", config="scout.nope"), "has no"),
+        (sub("planner", extra=1), "planner"),
+        (lambda d: d["local"]["planner"]["flags"].update(registry="--registry"), "planner.flags"),
+        (lambda d: d["local"]["planner"]["flags"].update(target="target"), "--long-flags"),
+        (lambda d: d["local"]["planner"].update(argv=["Scout"]), "subcommand"),
+        (lambda d: d["local"]["planner"].update(argv=[]), "non-empty"),
+        (lambda d: d["local"]["publish"]["argv"].append("{secret}"), "unknown token"),
+        (lambda d: d["local"]["publish"]["argv"].append("{nwo"), "brace"),
+        (lambda d: d["local"]["publish"]["argv"].append("--apply"), "after the gate"),
+        # argparse takes a prefix, so each of these is --apply to scout-file
+        (lambda d: d["local"]["publish"]["argv"].append("--appl"), "spells --apply"),
+        (lambda d: d["local"]["publish"]["argv"].append("--app"), "spells --apply"),
+        (lambda d: d["local"]["publish"]["argv"].append("--apply=1"), "spells --apply"),
+        (lambda d: d["local"]["publish"]["argv"].append("--"), "passthrough"),
+        (lambda d: d["local"]["publish"]["argv"].__setitem__(0, "ai-run"), "may run"),
+        # a planner runs in `loop plan` (write-free): no writer, no apply flag, no passthrough
+        (lambda d: d["local"]["planner"].update(argv=["scout-file", "--nwo", "o/r", "--proposals", "{plan_dir}"]),
+         "may run"),
+        (lambda d: d["local"]["planner"].update(argv=["ai-run", "--call-site", "repo-scout.yml:scout", "--", "hi"]),
+         "may run"),
+        (lambda d: d["local"]["planner"]["argv"].append("--apply"), "spells --apply"),
+        (lambda d: d["local"]["planner"]["argv"].append("--appl"), "spells --apply"),
+        (lambda d: d["local"]["planner"]["flags"].update(offline="--appl"), "write flag"),
+        (sub("publish", risk="file"), "names no action"),
+        (sub("publish", apply_flag="apply"), "apply_flag"),
+        # the filer's real apply flag is pinned: a spec cannot rename it and carry --apply
+        (lambda d: (d["local"]["publish"].update(apply_flag="--yes"), d["local"]["publish"]["argv"].append("--apply")),
+         "spells --apply"),
+        (lambda d: (d["local"]["publish"].update(apply_flag="--yes"), d["local"]["publish"]["argv"].append("--appl")),
+         "spells --apply"),
+        (sub("publish", apply_flag="--yes"), "not scout-file's apply flag"),
+        (lambda d: d["local"]["publish"].pop("risk"), "publish"),
+        (lambda d: d["local"].update(on_budget_hit="publish-flagged"), "on_budget_hit"),
+    ]
+    for fn, needle in cases:
+        root = tmp_root()
+        edit_spec(root, fn)
+        assert refused(lambda: S.load_spec("repo-scout", "scout", root=root, fleet=fleet()), needle), needle
+    root = tmp_root()
+    edit_spec(root, lambda d: (d.pop("risk"), d.update(evals=None)))
+    assert refused(lambda: S.load_spec("repo-scout", "scout", root=root, fleet=fleet()), "names no action"), \
+        "a publish needs a risk block to take its tier from"
+
+
+def test_render_argv_is_one_pass_and_refuses_unsafe_values():
+    t = ("scout-file", "--nwo", "{nwo}", "--bodies-dir", "{item_dir}/bodies")
+    assert S.render_argv(t, {"nwo": "o/r", "item_dir": "/x/{nwo}"}) == \
+        ["scout-file", "--nwo", "o/r", "--bodies-dir", "/x/{nwo}/bodies"], "a value is never re-scanned"
+    for values, needle in (({"nwo": "-o/r", "item_dir": "/x"}, "starts with '-'"),
+                           ({"nwo": "o/r", "item_dir": "/x\n--apply"}, "control"),
+                           ({"nwo": "o/r", "item_dir": ""}, "empty"),
+                           ({"nwo": "o/r/x", "item_dir": "/x"}, "owner/repo"),
+                           ({"nwo": "o/r"}, "has no value"),
+                           ({"nwo": "o/r", "item_dir": "/x", "secret": "s"}, "unknown token")):
+        assert refused(lambda: S.render_argv(t, values), needle), needle
+
+
+def test_switch_parity_holds_the_workflow_gate_to_the_spec_default():
+    s = scout()
+    assert S.switch_errors(s, workflow()) == []
+    for mutate, needle in (("vars.REPO_SCOUT_ENABLED != 'false'", "needs a job"),
+                           ("vars.OTHER_ENABLED == 'true'", "needs a job")):
+        wf = workflow()
+        wf["jobs"]["plan"]["if"] = wf["jobs"]["plan"]["if"].replace("vars.REPO_SCOUT_ENABLED == 'true'", mutate)
+        errs = S.parity_errors(s, wf, fleet())
+        assert any(needle in e for e in errs), errs
+        wdir = Path(tempfile.mkdtemp())
+        (wdir / "repo-scout.yml").write_text(yaml.safe_dump(wf), encoding="utf-8")
+        _, check_errs = S.check_all(workflows=wdir, fleet=fleet())
+        assert any("local.switch" in e for e in check_errs), "steps check carries switch parity"
+    wf = workflow()
+    wf["jobs"]["file"]["if"] = str(wf["jobs"]["file"].get("if")) + " && vars.REPO_SCOUT_ENABLED != 'false'"
+    assert any("opposite" in e for e in S.switch_errors(s, wf)), "both forms at once is a contradiction"
+    root = tmp_root()
+    edit_spec(root, lambda d: d["local"]["switch"].update(default="on"))
+    on = S.load_spec("repo-scout", "scout", root=root, fleet=fleet())
+    errs = S.switch_errors(on, workflow())
+    assert any("!= 'false'" in e for e in errs) and any("opposite" in e for e in errs), errs
 
 
 def test_template_hygiene():
