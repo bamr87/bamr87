@@ -1,0 +1,1238 @@
+#!/usr/bin/env python3
+"""
+fleet_context — the read-only planes behind the loop runner's context pack.
+
+JEV's local loop runner seals its agent: no network, an empty MCP config, a
+Seatbelt sandbox (constitution 13.8, "both layers"). A sealed agent cannot ask
+the lake what CI said last week, the code index where a pattern already lives,
+or the telemetry which commands keep failing in this repo. The HOST can. This
+module is the host's half of that: one bounded, read-only pass over the local
+planes that prints ONE JSON document (`fleet-context/v1`), which the engine
+renders as `<brief_dir>/context.md` beside the brief in the throwaway clone.
+The pack is DATA the agent may read, never instructions it must follow. A live
+MCP for the agent is out of scope: it would need its own 13.8 analysis.
+
+Five sections, each stamped with its source, its freshness and its status:
+
+  lake_issues       issues and PRs of the repo CLOSED in the window (the open
+                    ones are already in the brief), the scout's flagged
+  lake_ci           per workflow on the tracked branch: runs, failures, the
+                    failure streak, the failing job / step where recorded
+  lake_agents       CI agent runs, local Claude Code sessions, and the Bash
+                    commands that failed in them — by command HEAD, never the
+                    command, the prompt, the cwd or the branch
+  index_code        the Kilo code index (Qdrant + native Ollama) for up to
+                    three queries; code only from the hub and the target —
+                    the registry has no visibility field and a sibling may be
+                    private, so a sibling's hit is a pointer with no code
+  telemetry_errors  Claude Code's own OTel events in Elasticsearch: failed tool
+                    results by tool and command head, plus the API errors
+
+The rules it keeps (constitution § 10: new tools are read-only, with
+allowlists, caps, time limits and redaction):
+
+  read-only   the lake is opened `mode=ro` + `query_only`, never through
+              fleet_lake.connect (which creates and migrates); HTTP is an
+              allowlist of read routes on the configured planes, with no
+              proxy and no redirect; nothing here talks to GitHub
+  bounded     every request <= 5 s and everything under --deadline-s; a plane
+              that is down, slow or missing becomes a section saying so with
+              its remedy, and the command still prints the document, exit 0
+  capped      rows per section, lines and characters per snippet, queries
+  redacted    $HOME -> ~, the host name -> <host>, temp dirs -> <tmp>,
+              addresses -> <email>, credential shapes masked, control
+              characters stripped — over the WHOLE document, once every
+              section is in, before printing (credentials also before every
+              clip, so a token cut in half cannot survive as its first half)
+
+Exit codes: 0 with a document (whatever the planes said), 2 for a usage
+error. Fixture tests (no network beyond in-process loopback stubs):
+`python3 test_fleet_context.py`.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import platform
+import re
+import shlex
+import socket
+import sqlite3
+import sys
+import time
+import unicodedata
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover
+    sys.stderr.write("fleet_context requires PyYAML: pip install pyyaml\n")
+    sys.exit(2)
+
+import fleet_index
+import fleet_lake
+import fleet_observe
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+FLEET_DEFAULT = REPO_ROOT / "_data" / "fleet.yml"
+REGISTRY_DEFAULT = REPO_ROOT / "_data" / "projects.yml"
+
+SCHEMA = "fleet-context/v1"
+SECTIONS = ("lake_issues", "lake_ci", "lake_agents", "index_code", "telemetry_errors")
+SOURCES = {"lake_issues": "lake", "lake_ci": "lake", "lake_agents": "lake",
+           "index_code": "qdrant", "telemetry_errors": "elasticsearch"}
+STATUSES = ("ok", "empty", "stale", "unavailable")
+
+DAYS_DEFAULT = 30
+MAX_DAYS = 365
+DEADLINE_DEFAULT_S = 20.0
+MAX_DEADLINE_S = 300.0
+REQUEST_TIMEOUT_S = 5.0
+STALE_AFTER_H = 72.0
+MAX_BODY_BYTES = 16 * 1024 * 1024
+
+MAX_QUERIES = 3
+MAX_QUERY_CHARS = 300
+CAP_ISSUES = 25
+CAP_LABELS = 10
+CAP_WORKFLOWS = 15
+CAP_FAILING_STEPS = 5
+FAILED_RUNS_SCANNED = 20      # per workflow, newest first, for its failing steps
+CAP_COMMANDS = 10
+COMMAND_SAMPLE = 2000         # newest failed Bash calls read from the lake
+CAP_HITS = 4                  # per query
+SEARCH_LIMIT = 12             # asked per query; the hits past CAP_HITS are counted as truncated
+CAP_TELEMETRY = 10
+TELEMETRY_SAMPLE = 500        # newest failed tool results read from Elasticsearch
+SNIPPET_LINES = 12
+SNIPPET_CHARS = 600
+TITLE_CHARS = 140
+LABEL_CHARS = 50
+NAME_CHARS = 80               # workflow, job, step and tool names
+HEAD_CHARS = 60
+HEAD_TOKENS = 3
+
+SCOUT_LABEL_DEFAULT = "ai-scout"   # repo_scout.DEFAULTS["label"]; fleet.yml `scout.label` overrides
+ERROR_CONCLUSIONS = tuple(fleet_lake.ERROR_CONCLUSIONS)
+# A run with no verdict says nothing about the workflow's health: a skipped run
+# was gated off, a cancelled one superseded by its concurrency group.
+NO_VERDICT = ("skipped", "cancelled")
+# fleet_triage.PR_EVENTS: a red pull-request run is the gate doing its job, not
+# a standing failure, and reporting it as one sends an agent to "fix" a
+# workflow that is green on the tracked branch (bamr87/bamr87#205).
+PR_EVENTS = ("pull_request", "pull_request_target")
+
+REMEDY_LAKE = "run `tools/dash lake sync`"
+REMEDY_SESSIONS = "run `tools/dash lake sessions`"
+REMEDY_PLANES = "start the planes with `tools/dash observe up`"
+REMEDY_OLLAMA = "start native Ollama (`ollama serve`, model `ollama pull nomic-embed-text`)"
+REMEDY_TELEMETRY = "point Claude Code at the collector with `tools/dash observe claude enable --apply`"
+REMEDY_DEADLINE = "raise --deadline-s"
+
+NWO_RX = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
+NAME_RX = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
+COLLECTION_RX = re.compile(r"^[\w.-]{1,128}$")
+
+
+# --------------------------------------------------------------------------- #
+# errors + the clock
+# --------------------------------------------------------------------------- #
+class Unavailable(Exception):
+    """A plane that cannot answer: one line of reason, one of remedy."""
+
+    def __init__(self, reason: str, remedy: str = ""):
+        super().__init__(reason)
+        self.reason = reason
+        self.remedy = remedy
+
+    def note(self) -> str:
+        return f"{self.reason} — {self.remedy}" if self.remedy else self.reason
+
+
+class RouteRefused(Exception):
+    """A request outside READ_ROUTES. Raised before any socket opens."""
+
+
+class Deadline:
+    """The overall --deadline-s every plane shares, and the per-request cap under it."""
+
+    def __init__(self, seconds: float, clock=time.monotonic):
+        self.seconds = float(seconds)
+        self._clock = clock
+        self._end = clock() + self.seconds
+
+    def left(self) -> float:
+        return self._end - self._clock()
+
+    def expired(self) -> bool:
+        return self.left() <= 0
+
+    def check(self) -> None:
+        if self.expired():
+            raise Unavailable(f"skipped: the --deadline-s {self.seconds:g} budget was spent before this "
+                              f"plane was asked", REMEDY_DEADLINE)
+
+    def timeout(self, cap: float = REQUEST_TIMEOUT_S) -> float:
+        self.check()
+        return max(0.05, min(cap, self.left()))
+
+
+def utcnow() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def iso_z(value) -> str | None:
+    """Any stamp the planes emit (7-digit .NET ticks, +00:00, ms) -> YYYY-MM-DDTHH:MM:SSZ."""
+    ts = value if isinstance(value, dt.datetime) else fleet_lake.parse_iso(value)
+    return fleet_lake.iso(ts) if ts else None
+
+
+def age_hours(as_of: str | None, now: dt.datetime) -> float | None:
+    ts = fleet_lake.parse_iso(as_of)
+    if ts is None:
+        return None
+    return round(max(0.0, (now - ts).total_seconds() / 3600.0), 1)
+
+
+# --------------------------------------------------------------------------- #
+# pure: redaction
+# --------------------------------------------------------------------------- #
+# C0/C1 controls (newline and tab survive in a snippet), zero-width and BOM, and
+# the bidi overrides a "Trojan Source" title would use to read one way and run
+# another. Titles and snippets are untrusted text; this strips, never interprets.
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
+_BREAKS = re.compile(r"[\t\n\r]+")
+# What fleet_observe.REDACTIONS does not already cover: the shorter and the
+# user-to-server GitHub shapes, bearer/token headers, private-key blocks, AWS
+# and Slack keys, and a secret-named variable assigned inline in a command.
+EXTRA_REDACTIONS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b(gh[pousr])_[A-Za-z0-9]{16,}"), r"\1_[REDACTED]"),
+    (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{16,}"), "github_pat_[REDACTED]"),
+    (re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{8,}"), "sk-ant-[REDACTED]"),
+    (re.compile(r"(?i)\b(bearer|token)(\s+)[A-Za-z0-9._~+/=\-]{12,}"), r"\1\2[REDACTED]"),
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"),
+     "[REDACTED PRIVATE KEY]"),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AKIA[REDACTED]"),
+    (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}"), "xox-[REDACTED]"),
+    (re.compile(r"\b([A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY)[A-Z0-9_]*)=(['\"]?)[^\s'\"$]{8,}\2"),
+     r"\1=[REDACTED]"),
+]
+# A temp path is a session's scratchpad or a clone: the whole path goes, not
+# only its prefix, because the tail names this machine's session ids.
+_TMP = re.compile(r"(?<![\w.~/-])(?:/private)?(?:/tmp|/var/folders)(?:/[^\s'\"`<>|;&()\[\]{}]*)?")
+# Any macOS home, not only this operator's: a transcript can carry another
+# account's path (a shared box, a copied log) and it is just as local.
+_MAC_HOME = re.compile(r"(?<![\w.~/-])/Users/[^/\s'\"`<>|;&()]+")
+# An address is a person: a `git -c user.email=…` head would otherwise carry one.
+_EMAIL = re.compile(r"(?<![\w.%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
+
+
+def mask_credentials(s: str) -> str:
+    """Every credential shape, masked. Runs BEFORE any clip as well as over the
+    whole document: a token cut in half by a 140-character title clip is too
+    short for its own pattern, and its first half would otherwise survive."""
+    s = fleet_observe.redact(s)
+    for rx, repl in EXTRA_REDACTIONS:
+        s = rx.sub(repl, s)
+    return s
+
+
+class Scrubber:
+    """Masks this machine out of everything the document carries.
+
+    Host names of three characters or fewer are not masked as bare words — the
+    same floor the scout adapter uses for its own withhold check, because a
+    short name ("mac") is an ordinary word in code and titles. The fully
+    qualified name always is.
+    """
+
+    def __init__(self, home: str | None = None, hosts: list[str] | None = None,
+                 paths: list[str] | None = None):
+        homes = [home] if home is not None else [os.environ.get("HOME") or "", str(Path.home())]
+        if hosts is None:
+            hosts = [platform.node(), socket.gethostname()]
+            hosts += [h.split(".")[0] for h in hosts]
+        if paths is None:
+            paths = [os.environ.get("JEV_WORK_ROOT") or ""]
+        self._paths = sorted({p.rstrip("/") for p in paths if p and len(p.rstrip("/")) > 1},
+                             key=len, reverse=True)
+        self._homes = sorted({h.rstrip("/") for h in homes if h and len(h.rstrip("/")) > 1},
+                             key=len, reverse=True)
+        names = sorted({h for h in hosts if h and len(h) > 3 and h.lower() != "localhost"},
+                       key=len, reverse=True)
+        self._hosts = [re.compile(r"(?<![\w.-])" + re.escape(h) + r"(?![\w-])", re.I) for h in names]
+
+    def text(self, s: str, *, oneline: bool = False) -> str:
+        if not s:
+            return s
+        s = _CTRL.sub("", s)
+        if oneline:
+            s = _BREAKS.sub(" ", s).strip()
+        s = mask_credentials(s)
+        for p in self._paths:
+            s = s.replace(p, "<work>")
+        for h in self._homes:
+            s = s.replace(h, "~")
+        s = _MAC_HOME.sub("~", s)
+        s = _TMP.sub("<tmp>", s)
+        s = _EMAIL.sub("<email>", s)
+        for rx in self._hosts:
+            s = rx.sub("<host>", s)
+        return s
+
+    def obj(self, o):
+        if isinstance(o, str):
+            return self.text(o)
+        if isinstance(o, list):
+            return [self.obj(x) for x in o]
+        if isinstance(o, dict):
+            return {(self.text(k) if isinstance(k, str) else k): self.obj(v) for k, v in o.items()}
+        return o
+
+
+def clean_line(s, limit: int) -> str:
+    """An untrusted one-line field (title, label, name): controls out, clipped."""
+    s = _BREAKS.sub(" ", _CTRL.sub("", str(s or ""))).strip()
+    return mask_credentials(s)[:limit]
+
+
+def snippet_of(chunk) -> str:
+    """At most SNIPPET_LINES lines and SNIPPET_CHARS characters of a code chunk."""
+    text = mask_credentials(_CTRL.sub("", str(chunk or "")).replace("\r\n", "\n").replace("\r", "\n"))
+    return "\n".join(text.split("\n")[:SNIPPET_LINES])[:SNIPPET_CHARS]
+
+
+# --------------------------------------------------------------------------- #
+# pure: the command head
+# --------------------------------------------------------------------------- #
+_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=")
+_REDIR_ALONE = re.compile(r"^\d*(?:>>?|<|&>>?|>&|<&|>\|)$")
+_REDIR_ATTACHED = re.compile(r"^\d*(?:>>?|<|&>>?|>&|<&)\S")
+# Claude Code's telemetry clips a long tool input as `…[N chars]`; what follows
+# the marker is the JSON's next field, not the command.
+_CLIP_MARK = re.compile(r"\u2026\[\d+ chars\].*$")
+_SKIP_HEADS = {"cd", "pushd", "popd", "export", "unset", "set"}
+# A segment that is shell structure, not a command: the loop header, the closers.
+_NOT_COMMANDS = {"for", "select", "case", "done", "fi", "esac", "}", ")", "function"}
+# Words that lead a command without being it: `if grep -q`, `do wc -l`, `! test`.
+_LEADERS = {"if", "elif", "while", "until", "then", "do", "else", "!", "time", "exec", "{", "("}
+_SHELLS = {"sh", "bash", "zsh", "dash", "ksh"}
+_SHELL_C = re.compile(r"^-[a-z]*c$")   # -c, -lc, -ec
+_ENV_ARG_OPTS = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
+
+
+def _segments(line: str) -> list[str]:
+    """Split one shell line on && || | ; & outside quotes. `2>&1` and `&>` stay whole."""
+    out, buf, quote, i = [], [], None, 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            buf.append(ch)
+            if ch == quote:
+                quote = None
+            elif ch == "\\" and quote == '"' and i + 1 < len(line):
+                buf.append(line[i + 1])
+                i += 1
+        elif ch in "'\"":
+            quote = ch
+            buf.append(ch)
+        elif ch == "\\" and i + 1 < len(line):
+            buf.extend((ch, line[i + 1]))
+            i += 1
+        elif ch in ";|&":
+            if ch == "&" and ((buf and buf[-1] in "<>") or line[i + 1:i + 2] == ">"):
+                buf.append(ch)
+            else:
+                out.append("".join(buf))
+                buf = []
+                if line[i + 1:i + 2] == ch:   # && || ;;
+                    i += 1
+        else:
+            buf.append(ch)
+        i += 1
+    out.append("".join(buf))
+    return [s.strip() for s in out if s.strip()]
+
+
+def _split(segment: str) -> list[str]:
+    """shlex, closing a quote the first line (or the telemetry clip) left open."""
+    for tail in ("", "'", '"', "\"'", "'\""):
+        try:
+            return shlex.split(segment + tail, posix=True)
+        except ValueError:
+            continue
+    return segment.split()
+
+
+def _words(segment: str) -> list[str]:
+    """A segment's words: quotes gone, heredoc markers and redirections dropped."""
+    words, skip = [], False
+    for tok in _split(segment):
+        if skip:
+            skip = False
+            continue
+        if tok.startswith("#"):
+            break
+        if tok in ("<<", "<<-", "<<<") or _REDIR_ALONE.match(tok):
+            skip = True   # the marker or the redirection's target is the next word
+            continue
+        if tok.startswith("<<") or _REDIR_ATTACHED.match(tok):
+            continue
+        if not words and " " not in tok:
+            tok = tok.lstrip("({")   # `(which ruff`, `{ make`
+        tok = tok.replace('"', "").replace("'", "").replace("`", "")
+        if tok:
+            words.append(tok)
+    return words
+
+
+def _command_words(words: list[str]) -> list[str]:
+    """Drop what leads a command without being it: keywords, `env` and its options, VAR=value."""
+    while True:
+        if words and words[0] in _LEADERS:
+            words = words[1:]
+        elif words and words[0] == "env":
+            words = words[1:]
+            while words and words[0].startswith("-"):
+                opt = words.pop(0)
+                if opt in _ENV_ARG_OPTS and words:
+                    words.pop(0)
+        elif words and _ASSIGN.match(words[0]):
+            words = words[1:]
+        else:
+            return words
+
+
+def _basename(tok: str) -> str:
+    if "/" not in tok:
+        return tok
+    return tok.rstrip("/").rsplit("/", 1)[-1] or tok
+
+
+HEAD_LINES = 5   # a first line with no command (`set -e`, `cd x`) reads on, this far
+
+
+def _unclip(line: str) -> str:
+    """The line up to a telemetry clip marker, less the word the clip cut in half."""
+    m = _CLIP_MARK.search(line)
+    if not m:
+        return line
+    kept = line[:m.start()]
+    return kept if not kept or kept[-1].isspace() else re.sub(r"\S+$", "", kept)
+
+
+def _head(text: str, depth: int) -> tuple[str, bool]:
+    """(head, found). found is False when only the fallback (a bare `cd`, say) stood."""
+    fallback = ""
+    for line in text.strip().splitlines()[:HEAD_LINES]:
+        line = mask_credentials(_unclip(_CTRL.sub("", line)))
+        head, found, feeds_shell = _line_head(line, depth)
+        if found:
+            return head, True
+        fallback = fallback or head
+        # A heredoc's body is data (python, a commit message), never the next
+        # command — unless the heredoc feeds a shell (`bash <<'EOF'`), whose
+        # body is exactly the commands.
+        if "<<" in line and not feeds_shell:
+            break
+    if not fallback and _CLIP_MARK.search(text):
+        fallback = "(clipped)"   # the command was past the telemetry's clip
+    return fallback, False
+
+
+def _line_head(first: str, depth: int) -> tuple[str, bool, bool]:
+    """(head, found, feeds_shell) for one line."""
+    fallback: list[str] = []
+    feeds_shell = False
+    for seg in _segments(first):
+        words = _command_words(_words(seg))
+        if not words or words[0] in _NOT_COMMANDS:
+            continue
+        shell = _basename(words[0]) in _SHELLS
+        if shell and len(words) == 1 and "<<" in seg:
+            feeds_shell = True
+            fallback = fallback or words
+            continue
+        # `bash -c '<script>'`: the script is the command, one level down (two at
+        # most). Even its fallback (`cd theme`) says more than `bash -c`.
+        if shell and len(words) > 2 and _SHELL_C.match(words[1]) and depth < 2:
+            inner, found = _head(words[2], depth + 1)
+            if inner:
+                return inner, found, False
+        if words[0] in _SKIP_HEADS:
+            # `export PATH=…` stands as `export`: the value is not the command
+            fallback = fallback or [words[0]] + [w for w in words[1:] if not _ASSIGN.match(w)]
+            continue
+        fallback = fallback or words
+        return " ".join(_basename(w) for w in words[:HEAD_TOKENS])[:HEAD_CHARS], True, False
+    return " ".join(_basename(w) for w in fallback[:HEAD_TOKENS])[:HEAD_CHARS], False, feeds_shell
+
+
+def command_head(command) -> str:
+    """What a failing Bash call was trying to run, without what it ran it on.
+
+    The first line (reading on, five lines at most, only while a line holds no
+    command, and never into a heredoc's body), cut at a telemetry clip marker;
+    split on && ; | (and || &) outside quotes; the first segment that is a
+    command — not a bare `cd`/`pushd`, an env assignment or `export`, a
+    `set -…`, a loop header or a closer; leading keywords (`if`, `do`, `!`…),
+    `env` with its options and VAR=value words dropped; a `bash -c '<script>'`
+    read through to its script; its first three words, a word with a slash cut
+    to its basename; heredoc markers, redirections and quotes dropped; clipped
+    to 60 characters. Absent any such segment, the first segment's words stand
+    (a failing `cd` is still a `cd`).
+    """
+    return _head(str(command or ""), 0)[0]
+
+
+_COMMAND_FIELD = re.compile(r'"(?:command|full_command)"\s*:\s*"((?:[^"\\]|\\.)*)')
+
+
+def command_of(raw) -> str:
+    """The `command` of a Bash tool input: a dict, a JSON string, or one clipped mid-string."""
+    if isinstance(raw, dict):
+        return str(raw.get("command") or raw.get("full_command") or "")
+    text = str(raw or "")
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        doc = None
+    if isinstance(doc, dict):
+        return str(doc.get("command") or doc.get("full_command") or "")
+    m = _COMMAND_FIELD.search(text)
+    if not m:
+        return ""
+    body = m.group(1)
+    for candidate in (body, body.rstrip("\\")):
+        try:
+            return json.loads(f'"{candidate}"')
+        except ValueError:
+            continue
+    return body.replace("\\n", "\n").replace('\\"', '"')
+
+
+# --------------------------------------------------------------------------- #
+# i/o: the read routes
+# --------------------------------------------------------------------------- #
+#: (method, path) a plane may be asked. Anything else is refused before a socket
+#: opens: the same planes take writes (Qdrant upserts, an Elasticsearch _bulk,
+#: an Ollama pull), and a read-only tool must not be one typo away from them.
+READ_ROUTES: dict[str, tuple[tuple[str, re.Pattern], ...]] = {
+    "qdrant": (("GET", re.compile(r"/collections")),
+               ("GET", re.compile(r"/collections/[\w.-]+")),
+               ("POST", re.compile(r"/collections/[\w.-]+/points/(?:search|count)"))),
+    "ollama": (("POST", re.compile(r"/api/embed")),),
+    "elasticsearch": (("POST", re.compile(r"/logs-[\w.*-]+/_search")),),
+}
+PLANE_LABEL = {"qdrant": "Qdrant", "ollama": "the embedder (Ollama)", "elasticsearch": "Elasticsearch"}
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A plane that redirects is answering for something else; do not follow it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):   # noqa: D401
+        return None
+
+
+# No ProxyHandler entries: an HTTP_PROXY in the environment must not route a
+# loopback plane's answer — or this host's query — through somebody else.
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+
+
+def http_json(plane: str, base: str, method: str, path: str, payload=None, *,
+              deadline: Deadline, remedy: str = REMEDY_PLANES):
+    """One read request to one plane, bounded by the deadline. Raises Unavailable."""
+    if not any(m == method and rx.fullmatch(path) for m, rx in READ_ROUTES.get(plane, ())):
+        raise RouteRefused(f"{method} {path} is not a read route of {plane}")
+    label = PLANE_LABEL.get(plane, plane)
+    base = (base or "").rstrip("/")
+    if urllib.parse.urlsplit(base).scheme not in ("http", "https"):
+        raise Unavailable(f"{label} has no http(s) URL in the contract ({base or 'none'})",
+                          "set it in _data/fleet.yml `observability:`")
+    timeout = deadline.timeout()
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(base + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json", "Accept": "application/json"})
+    try:
+        with _OPENER.open(req, timeout=timeout) as fh:
+            body = fh.read(MAX_BODY_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        raise Unavailable(f"{label} at {base} answered HTTP {exc.code} to {method} {path}", remedy) from None
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        reason = getattr(exc, "reason", exc)
+        if isinstance(reason, (TimeoutError, socket.timeout)) or isinstance(exc, (TimeoutError, socket.timeout)):
+            why = f"did not answer within {timeout:.1f} s"
+        elif isinstance(reason, ConnectionRefusedError):
+            why = "refused the connection"
+        else:
+            why = f"is not reachable ({clean_line(reason, 120)})"
+        raise Unavailable(f"{label} at {base} {why}", remedy) from None
+    if len(body) > MAX_BODY_BYTES:
+        raise Unavailable(f"{label} at {base} answered more than {MAX_BODY_BYTES} bytes", remedy)
+    try:
+        return json.loads(body.decode("utf-8"))
+    except ValueError:
+        raise Unavailable(f"{label} at {base} answered something that is not JSON", remedy) from None
+
+
+# --------------------------------------------------------------------------- #
+# i/o: the lake, read-only
+# --------------------------------------------------------------------------- #
+def open_ro(db: Path, timeout: float = REQUEST_TIMEOUT_S) -> sqlite3.Connection:
+    """The lake as a reader: `mode=ro` at the VFS, `query_only` above it.
+
+    Never fleet_lake.connect: that one creates the directory, runs the schema
+    DDL and stamps `meta`, which is a write on every open.
+    """
+    uri = f"file:{urllib.parse.quote(str(db))}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True, timeout=timeout)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only = ON")
+    return conn
+
+
+def _need(tables: set[str], *names: str, remedy: str = REMEDY_LAKE) -> None:
+    missing = [n for n in names if n not in tables]
+    if missing:
+        raise Unavailable(f"the lake has no {', '.join(missing)} table", remedy)
+
+
+def _scalar(conn: sqlite3.Connection, sql: str, params=()):
+    row = conn.execute(sql, params).fetchone()
+    return row[0] if row else None
+
+
+def sync_as_of(conn: sqlite3.Connection, tables: set[str]) -> str | None:
+    if "syncs" not in tables:
+        return None
+    return iso_z(_scalar(conn, "SELECT MAX(finished_at) FROM syncs WHERE finished_at IS NOT NULL"))
+
+
+def sessions_as_of(conn: sqlite3.Connection, tables: set[str]) -> str | None:
+    if "sessions" not in tables:
+        return None
+    return iso_z(_scalar(conn, "SELECT MAX(synced_at) FROM sessions"))
+
+
+def freshness(as_of: str | None, now: dt.datetime, what: str, remedy: str) -> tuple[bool, str]:
+    """(stale, note). Never synced is stale too: an empty answer from it means nothing."""
+    age = age_hours(as_of, now)
+    if age is None:
+        return True, f"{what} has never been refreshed — {remedy}"
+    if age > STALE_AFTER_H:
+        return True, f"{what} last refreshed {age:.0f} h ago (over {STALE_AFTER_H:g} h) — {remedy}"
+    return False, ""
+
+
+def _labels(raw) -> list[str]:
+    try:
+        items = json.loads(raw) if isinstance(raw, str) else (raw or [])
+    except ValueError:
+        items = []
+    out = []
+    for item in items if isinstance(items, list) else []:
+        name = item.get("name") if isinstance(item, dict) else item
+        if name:
+            out.append(clean_line(name, LABEL_CHARS))
+    return out
+
+
+def lake_issues(conn, tables, nwo: str, since: str, now: dt.datetime, scout_label: str) -> dict:
+    _need(tables, "issues")
+    as_of = sync_as_of(conn, tables)
+    where = "nwo = ? COLLATE NOCASE AND state = 'closed' AND closed_at IS NOT NULL AND closed_at >= ?"
+    total = int(_scalar(conn, f"SELECT COUNT(*) FROM issues WHERE {where}", (nwo, since)) or 0)
+    rows = []
+    for r in conn.execute(f"SELECT number, is_pr, title, labels, closed_at FROM issues WHERE {where} "
+                          "ORDER BY closed_at DESC, number DESC LIMIT ?", (nwo, since, CAP_ISSUES)):
+        labels = _labels(r["labels"])
+        rows.append({"number": r["number"], "kind": "pr" if r["is_pr"] else "issue",
+                     "title": clean_line(r["title"], TITLE_CHARS), "labels": labels[:CAP_LABELS],
+                     "closed_at": iso_z(r["closed_at"]), "scout": scout_label in labels})
+    stale, note = freshness(as_of, now, "the lake's GitHub sync", REMEDY_LAKE)
+    scope = f"closed since {since[:10]}, newest first; the open ones are in the brief"
+    return _done("lake_issues", rows, as_of, now, stale, f"{note}; {scope}" if note else scope,
+                 max(0, total - len(rows)))
+
+
+def tracked_branch(conn, tables, nwo: str, registry: dict) -> str:
+    """The registry's declared branch, else the lake's default_branch, else main."""
+    row = registry.get(nwo.lower()) or {}
+    declared = str(row.get("branch") or "").strip()
+    if declared:
+        return declared
+    if "repos" in tables:
+        found = _scalar(conn, "SELECT default_branch FROM repos WHERE nwo = ? COLLATE NOCASE", (nwo,))
+        if found:
+            return str(found)
+    return "main"
+
+
+def lake_ci(conn, tables, nwo: str, since: str, now: dt.datetime, branch: str) -> dict:
+    _need(tables, "runs")
+    as_of = sync_as_of(conn, tables)
+    groups: dict[str, list] = {}
+    # Fail open, as fleet_triage does: a run missing head_branch or event is kept.
+    for r in conn.execute(
+            "SELECT id, workflow_path, workflow_name, event, status, conclusion, head_branch, created_at "
+            "FROM runs WHERE nwo = ? COLLATE NOCASE AND created_at >= ? "
+            "AND (head_branch IS NULL OR head_branch = ?) "
+            f"AND (event IS NULL OR event NOT IN ({','.join('?' * len(PR_EVENTS))})) "
+            "ORDER BY created_at DESC, id DESC LIMIT 5000", (nwo, since, branch, *PR_EVENTS)):
+        groups.setdefault(r["workflow_path"] or r["workflow_name"] or "?", []).append(r)
+    rows, failed_ids = [], {}
+    for path, runs in groups.items():
+        verdicts = [r for r in runs if r["conclusion"] and r["conclusion"] not in NO_VERDICT]
+        completed = [r for r in runs if r["conclusion"]]
+        last = verdicts[0] if verdicts else (completed[0] if completed else runs[0])
+        streak = 0
+        for r in verdicts:
+            if r["conclusion"] not in ERROR_CONCLUSIONS:
+                break
+            streak += 1
+        failed = [r["id"] for r in runs if r["conclusion"] in ERROR_CONCLUSIONS]
+        failed_ids[path] = failed[:FAILED_RUNS_SCANNED]
+        rows.append({"workflow": clean_line(runs[0]["workflow_name"] or path, NAME_CHARS),
+                     "path": clean_line(path, 200), "runs": len(runs), "failures": len(failed),
+                     "last_conclusion": last["conclusion"], "last_at": iso_z(last["created_at"]),
+                     "fail_streak": streak, "failing_steps": []})
+    rows.sort(key=lambda w: (0 if w["fail_streak"] else 1 if w["failures"] else 2,
+                             -w["fail_streak"], -w["failures"], w["workflow"].lower()))
+    kept = rows[:CAP_WORKFLOWS]
+    if "jobs" in tables:
+        _failing_steps(conn, tables, kept, failed_ids)
+    stale, note = freshness(as_of, now, "the lake's GitHub sync", REMEDY_LAKE)
+    scope = f"runs on {clean_line(branch, NAME_CHARS)}, pull-request runs excluded"
+    return _done("lake_ci", kept, as_of, now, stale, f"{note}; {scope}" if note else scope,
+                 len(rows) - len(kept))
+
+
+def _failing_steps(conn, tables, kept: list[dict], failed_ids: dict[str, list[int]]) -> None:
+    """`job / step` for each kept workflow's failed runs, newest first — where the lake has them."""
+    wanted = [i for w in kept for i in failed_ids.get(w["path"], [])]
+    if not wanted:
+        return
+    marks = ",".join("?" * len(wanted))
+    errs = ",".join("?" * len(ERROR_CONCLUSIONS))
+    by_run: dict[int, list[str]] = {}
+    if "steps" in tables:
+        sql = (f"SELECT j.run_id, j.name AS job, j.conclusion AS jc, s.name AS step, s.number "
+               f"FROM jobs j LEFT JOIN steps s ON s.job_id = j.id AND s.conclusion IN ({errs}) "
+               f"WHERE j.run_id IN ({marks}) ORDER BY j.run_id, j.id, s.number")
+        params = (*ERROR_CONCLUSIONS, *wanted)
+    else:
+        sql = (f"SELECT run_id, name AS job, conclusion AS jc, NULL AS step, NULL AS number FROM jobs "
+               f"WHERE run_id IN ({marks}) ORDER BY run_id, id")
+        params = tuple(wanted)
+    for r in conn.execute(sql, params):
+        job = clean_line(r["job"], NAME_CHARS)
+        if r["step"]:
+            by_run.setdefault(r["run_id"], []).append(f"{job} / {clean_line(r['step'], NAME_CHARS)}")
+        elif r["jc"] in ERROR_CONCLUSIONS:
+            by_run.setdefault(r["run_id"], []).append(job)
+    for w in kept:
+        seen: list[str] = []
+        for run_id in failed_ids.get(w["path"], []):
+            for label in by_run.get(run_id, []):
+                if label not in seen:
+                    seen.append(label)
+        w["failing_steps"] = seen[:CAP_FAILING_STEPS]
+
+
+def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime) -> dict:
+    if "agent_runs" not in tables and "sessions" not in tables:
+        _need(tables, "agent_runs", "sessions")
+    rows, notes, stamps, stale_any, truncated = [], [], [], False, 0
+    if "agent_runs" in tables:
+        as_of = sync_as_of(conn, tables)
+        if "runs" in tables:
+            sql = ("SELECT a.model, a.num_turns, a.cost_usd, a.permission_denials, a.is_error, "
+                   "COALESCE(a.started_at, r.created_at) AS at FROM agent_runs a "
+                   "LEFT JOIN runs r ON r.id = a.run_id WHERE a.nwo = ? COLLATE NOCASE "
+                   "AND COALESCE(a.started_at, r.created_at) >= ?")
+        else:
+            sql = ("SELECT model, num_turns, cost_usd, permission_denials, is_error, started_at AS at "
+                   "FROM agent_runs WHERE nwo = ? COLLATE NOCASE AND started_at >= ?")
+        agg = {"kind": "ci_agent_runs", "count": 0, "errors": 0, "permission_denials": 0, "turns": 0,
+               "cost_usd": 0.0, "models": {}, "last_at": None, "as_of": as_of}
+        last = None
+        for r in conn.execute(sql, (nwo, since)):
+            agg["count"] += 1
+            agg["errors"] += 1 if r["is_error"] else 0
+            agg["permission_denials"] += int(r["permission_denials"] or 0)
+            agg["turns"] += int(r["num_turns"] or 0)
+            agg["cost_usd"] += float(r["cost_usd"] or 0)
+            model = clean_line(r["model"] or "unknown", NAME_CHARS)
+            agg["models"][model] = agg["models"].get(model, 0) + 1
+            at = fleet_lake.parse_iso(r["at"])
+            if at and (last is None or at > last):
+                last = at
+        if agg["count"]:
+            agg["cost_usd"] = round(agg["cost_usd"], 4)
+            agg["last_at"] = iso_z(last)
+            rows.append(agg)
+        stale, note = freshness(as_of, now, "CI agent runs (the lake's GitHub sync)", REMEDY_LAKE)
+        stale_any |= stale
+        notes += [note] if note else []
+        stamps.append(as_of)
+    if "sessions" in tables:
+        as_of = sessions_as_of(conn, tables)
+        r = conn.execute("SELECT COUNT(*) AS n, SUM(tool_calls) AS calls, SUM(tool_errors) AS errs, "
+                         "MAX(COALESCE(ended_at, started_at)) AS last FROM sessions "
+                         "WHERE repo = ? COLLATE NOCASE AND started_at >= ?", (name, since)).fetchone()
+        if r and r["n"]:
+            rows.append({"kind": "local_sessions", "count": int(r["n"]), "tool_calls": int(r["calls"] or 0),
+                         "tool_errors": int(r["errs"] or 0), "last_at": iso_z(r["last"]), "as_of": as_of})
+        if "session_tools" in tables:
+            commands, dropped = failing_commands(conn, name, since)
+            rows += commands
+            truncated += dropped
+        stale, note = freshness(as_of, now, "local sessions", REMEDY_SESSIONS)
+        stale_any |= stale
+        notes += [note] if note else []
+        stamps.append(as_of)
+    else:
+        notes.append(f"the lake has no sessions table — {REMEDY_SESSIONS}")
+    if "agent_runs" not in tables:
+        notes.append(f"the lake has no agent_runs table — {REMEDY_LAKE}")
+    if any(r["kind"] == "ci_agent_runs" for r in rows):
+        notes.append("cost_usd is API-equivalent (estimate)")
+    # The OLDER stamp speaks for the section: a fresh half must not vouch for a
+    # stale one. Each aggregate row carries its own as_of beside it.
+    known = [s for s in stamps if s]
+    as_of = min(known, key=fleet_lake.parse_iso) if known and len(known) == len(stamps) else None
+    return _done("lake_agents", rows, as_of, now, stale_any, "; ".join(notes), truncated)
+
+
+def failing_commands(conn, name: str, since: str) -> tuple[list[dict], int]:
+    """Failed Bash calls in this repo's local sessions, by command head. Never the command itself."""
+    heads: dict[str, dict] = {}
+    for r in conn.execute(
+            "SELECT t.input, COALESCE(t.started_at, s.started_at) AS at FROM session_tools t "
+            "JOIN sessions s ON s.key = t.key WHERE s.repo = ? COLLATE NOCASE AND t.is_error = 1 "
+            "AND t.name = 'Bash' AND COALESCE(t.started_at, s.started_at) >= ? "
+            "ORDER BY at DESC LIMIT ?", (name, since, COMMAND_SAMPLE)):
+        head = command_head(command_of(r["input"])) or "(unparsed)"
+        row = heads.setdefault(head, {"kind": "failing_command", "head": head, "count": 0, "last_at": None})
+        row["count"] += 1
+        row["last_at"] = row["last_at"] or iso_z(r["at"])
+    ranked = sorted(heads.values(), key=lambda h: (-h["count"], h["head"]))
+    return ranked[:CAP_COMMANDS], max(0, len(ranked) - CAP_COMMANDS)
+
+
+def _done(key: str, rows: list, as_of, now, stale: bool, note: str, truncated: int) -> dict:
+    status = "stale" if stale else ("ok" if rows else "empty")
+    return section(key, status, rows, as_of=as_of, now=now, note=note, truncated=truncated)
+
+
+# --------------------------------------------------------------------------- #
+# i/o: the code index (Qdrant + Ollama)
+# --------------------------------------------------------------------------- #
+def resolve_collection(qdrant: str, deadline: Deadline) -> str:
+    """fleet_index's choice (env override, then `ws-`, then the fullest), asked under the deadline."""
+    override = fleet_index.collection_env()
+    listed = http_json("qdrant", qdrant, "GET", "/collections", deadline=deadline)
+    names = [c.get("name") for c in ((listed or {}).get("result") or {}).get("collections") or []
+             if isinstance(c, dict) and c.get("name")]
+    if not names and not override:
+        raise Unavailable(f"Qdrant at {qdrant} holds no collection",
+                          "the Kilo workspace scan has not written one (kilo.jsonc `indexing`)")
+    counts: dict[str, int] = {}
+    pool = [n for n in names if n.startswith(fleet_index.WORKSPACE_PREFIX)] or names
+    if not override and len(pool) > 1:
+        for n in pool[:5]:
+            if COLLECTION_RX.match(n):
+                detail = http_json("qdrant", qdrant, "GET", f"/collections/{n}", deadline=deadline) or {}
+                counts[n] = int((detail.get("result") or {}).get("points_count") or 0)
+    name = fleet_index.pick_collection(names, counts, override)
+    if not name or not COLLECTION_RX.match(name):
+        raise Unavailable(f"the collection name {name!r} is not a plain name",
+                          f"fix {fleet_index.COLLECTION_ENV}")
+    return name
+
+
+def embed_all(embedder: str, model: str, queries: list[str], deadline: Deadline) -> list[list[float]]:
+    doc = http_json("ollama", embedder, "POST", "/api/embed", {"model": model, "input": list(queries)},
+                    deadline=deadline, remedy=REMEDY_OLLAMA) or {}
+    vectors = doc.get("embeddings") or ([doc["embedding"]] if doc.get("embedding") else [])
+    if len(vectors) != len(queries) or not all(isinstance(v, list) and v for v in vectors):
+        raise Unavailable(f"the embedder at {embedder} returned {len(vectors)} embedding(s) for "
+                          f"{len(queries)} quer{'y' if len(queries) == 1 else 'ies'}",
+                          f"check `ollama pull {model}`")
+    return vectors
+
+
+def _int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, now: dt.datetime,
+               cfg: dict | None = None) -> dict:
+    if not queries:
+        return section("index_code", "empty", now=now,
+                       note="no --query given: the code index is asked only what the step names")
+    cfg = cfg or fleet_index.analysis_config()
+    qdrant, embedder = (cfg.get("qdrant") or "").rstrip("/"), (cfg.get("embedder") or "").rstrip("/")
+    model, floor = cfg.get("model") or "nomic-embed-text", float(cfg.get("min_score") or 0)
+    collection = resolve_collection(qdrant, deadline)
+    vectors = embed_all(embedder, model, queries, deadline)
+    # Code only from what is certainly public or certainly the agent's own: the
+    # hub and the target. A sibling may be private — the registry cannot say.
+    allowed = {fleet_index.HUB, name.lower()}
+    rows, truncated = [], 0
+    for query, vector in zip(queries, vectors):
+        found = http_json("qdrant", qdrant, "POST", f"/collections/{collection}/points/search",
+                          {"vector": vector, "limit": SEARCH_LIMIT, "score_threshold": floor,
+                           "with_payload": ["filePath", "startLine", "endLine", "codeChunk"],
+                           "with_vector": False}, deadline=deadline) or {}
+        hits = []
+        for hit in found.get("result") or []:
+            payload = hit.get("payload") or {}
+            score = float(hit.get("score") or 0)
+            if score >= floor and payload.get("filePath"):
+                hits.append((score, payload))
+        hits.sort(key=lambda h: -h[0])
+        truncated += max(0, len(hits) - CAP_HITS)
+        for score, payload in hits[:CAP_HITS]:
+            path = str(payload.get("filePath"))
+            project = fleet_index.project_of(path)
+            row = {"query": query, "project": project, "path": clean_line(path, 300),
+                   "start_line": _int(payload.get("startLine")), "end_line": _int(payload.get("endLine")),
+                   "score": round(score, 3), "snippet": None}
+            if project.lower() in allowed:
+                row["snippet"] = snippet_of(payload.get("codeChunk"))
+            else:
+                row["withheld"] = "sibling repo, visibility unknown"
+            rows.append(row)
+    note = f"collection {collection}; floor {floor:g}"
+    note += _chunk_note(qdrant, collection, name, is_hub, deadline)
+    if not rows:
+        note = f"no hit at or above min_score {floor:g}; {note}"
+    return section("index_code", "ok" if rows else "empty", rows, now=now, note=note, truncated=truncated)
+
+
+def _chunk_note(qdrant: str, collection: str, name: str, is_hub: bool, deadline: Deadline) -> str:
+    """How much of the target the index can see. Best effort: one count, never the reason to fail."""
+    if deadline.left() < 0.5:
+        return ""
+    if is_hub:
+        filt = {"must_not": [{"key": "pathSegments.0", "match": {"value": "projects"}}]}
+    else:
+        filt = {"must": [{"key": "pathSegments.0", "match": {"value": "projects"}},
+                         {"key": "pathSegments.1", "match": {"value": name}}]}
+    try:
+        doc = http_json("qdrant", qdrant, "POST", f"/collections/{collection}/points/count",
+                        {"filter": filt, "exact": False}, deadline=deadline) or {}
+    except Unavailable:
+        return "; chunk count unavailable"
+    n = int((doc.get("result") or {}).get("count") or 0)
+    who = "the hub" if is_hub else name
+    if n == 0:
+        return f"; the index holds no chunks for {who} (submodule not checked out, or not scanned)"
+    return f"; {who} has ~{n} chunks"
+
+
+# --------------------------------------------------------------------------- #
+# i/o: Claude Code telemetry (Elasticsearch)
+# --------------------------------------------------------------------------- #
+def _src(src: dict, dotted: str):
+    """A field of a _source that may come back nested or flattened (logsdb synthesises it)."""
+    if dotted in src:
+        return src[dotted]
+    cur = src
+    for part in dotted.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def telemetry_errors(nwo: str, since: str, deadline: Deadline, now: dt.datetime,
+                     contract: dict | None = None) -> dict:
+    contract = contract or fleet_observe.load_contract()
+    logs = contract["logs"]
+    es = fleet_observe.probe_url("elasticsearch", logs.get("elasticsearch") or "")
+    pattern = f"logs-{logs['datasets']['claude']}-*"
+    repo = {"term": {"fleet.repo": {"value": nwo, "case_insensitive": True}}}
+    window = {"range": {"@timestamp": {"gte": since}}}
+    body = {
+        "size": TELEMETRY_SAMPLE, "track_total_hits": True, "timeout": "4s",
+        "_source": ["@timestamp", "claude.tool_name", "claude.tool_input", "claude.tool_parameters"],
+        "sort": [{"@timestamp": {"order": "desc"}}],
+        "query": {"bool": {"filter": [{"term": {"claude.event_name": "tool_result"}},
+                                      {"term": {"claude.success": "false"}}, repo, window]}},
+        # `global` escapes the query: the newest event in the WHOLE stream is the
+        # plane's freshness, and the API errors are a different event name.
+        "aggs": {"all": {"global": {}, "aggs": {
+            "newest": {"max": {"field": "@timestamp"}},
+            "api_errors": {"filter": {"bool": {"filter": [{"term": {"claude.event_name": "api_error"}},
+                                                          repo, window]}}}}}},
+    }
+    doc = http_json("elasticsearch", es, "POST", f"/{pattern}/_search", body, deadline=deadline) or {}
+    aggs = (doc.get("aggregations") or {}).get("all") or {}
+    newest = aggs.get("newest") or {}
+    as_of = iso_z(newest.get("value_as_string")) if newest.get("value") is not None else None
+    hits = (doc.get("hits") or {}).get("hits") or []
+    total = ((doc.get("hits") or {}).get("total") or {})
+    total = int(total.get("value") or 0) if isinstance(total, dict) else int(total or 0)
+    groups: dict[tuple, dict] = {}
+    for hit in hits:
+        src = hit.get("_source") or {}
+        tool = clean_line(_src(src, "claude.tool_name") or "unknown", NAME_CHARS)
+        head = None
+        if tool == "Bash":
+            raw = _src(src, "claude.tool_input") or _src(src, "claude.tool_parameters")
+            head = command_head(command_of(raw)) or "(unparsed)"
+        row = groups.setdefault((tool, head), {"kind": "tool_error", "tool": tool, "head": head,
+                                               "count": 0, "last_at": None})
+        row["count"] += 1
+        row["last_at"] = row["last_at"] or iso_z(_src(src, "@timestamp"))
+    ranked = sorted(groups.values(), key=lambda g: (-g["count"], g["tool"], g["head"] or ""))
+    rows = ranked[:CAP_TELEMETRY]
+    dropped = len(ranked) - len(rows)
+    api_errors = int(((aggs.get("api_errors") or {}).get("doc_count")) or 0)
+    if api_errors:
+        rows.append({"kind": "api_errors", "count": api_errors})
+    if as_of is None:   # the stream holds nothing at all: telemetry was never pointed here
+        return section("telemetry_errors", "empty", rows, now=now, truncated=dropped,
+                       note=f"no Claude Code telemetry in {pattern} — {REMEDY_TELEMETRY}")
+    notes = [f"{pattern}, fleet.repo {nwo}"]
+    if total > len(hits):
+        notes.append(f"the newest {len(hits)} of {total} failed tool results were read")
+    stale, note = freshness(as_of, now, "Claude Code telemetry", f"is the OTel collector up? {REMEDY_PLANES}")
+    return _done("telemetry_errors", rows, as_of, now, stale, "; ".join(([note] if note else []) + notes),
+                 dropped)
+
+
+# --------------------------------------------------------------------------- #
+# the document
+# --------------------------------------------------------------------------- #
+def section(key: str, status: str, rows=None, *, as_of: str | None = None, now: dt.datetime | None = None,
+            note: str = "", truncated: int = 0, elapsed_ms: int = 0) -> dict:
+    assert status in STATUSES, status
+    return {"status": status, "source": SOURCES[key], "as_of": as_of,
+            "age_hours": age_hours(as_of, now or utcnow()), "note": note,
+            "elapsed_ms": int(elapsed_ms), "truncated": int(max(0, truncated)), "rows": list(rows or [])}
+
+
+def unavailable(key: str, exc: Unavailable, now: dt.datetime) -> dict:
+    return section(key, "unavailable", now=now, note=exc.note())
+
+
+def _load_yaml(path: Path | str | None):
+    try:
+        with Path(path).open(encoding="utf-8") as fh:
+            return yaml.load(fh, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))  # noqa: S506 - a SafeLoader
+    except (OSError, yaml.YAMLError, TypeError):
+        return None
+
+
+def registry_branches(path: Path | str | None) -> dict:
+    """lower(nwo) -> registry row, for the tracked branch."""
+    out = {}
+    for row in _load_yaml(path or REGISTRY_DEFAULT) or []:
+        url = str((row or {}).get("repo_url") or "").rstrip("/").removesuffix(".git")
+        if "github.com/" in url:
+            out[url.split("github.com/", 1)[1].lower()] = row
+    return out
+
+
+def _open_lake(lake_dir, deadline: Deadline) -> tuple[sqlite3.Connection, set[str]]:
+    _, db = fleet_lake.lake_paths(lake_dir)
+    if not Path(db).is_file():
+        raise Unavailable(f"no lake at {db}", f"{REMEDY_LAKE} (or point DASH_LAKE_DIR at one)")
+    conn = None
+    try:
+        conn = open_ro(Path(db), timeout=deadline.timeout())
+        # The deadline reaches inside a query too: past it, sqlite interrupts.
+        conn.set_progress_handler(lambda: 1 if deadline.expired() else 0, 2000)
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    except sqlite3.Error as exc:
+        if conn is not None:
+            conn.close()
+        raise Unavailable(f"the lake could not be read: {clean_line(exc, 160)}", REMEDY_LAKE) from None
+    return conn, tables
+
+
+def _run(key: str, fn, now: dt.datetime, deadline: Deadline) -> dict:
+    """One section, timed; whatever it raises becomes the section, never the document's end."""
+    started = time.monotonic()
+    try:
+        deadline.check()
+        doc = fn()
+    except Unavailable as exc:
+        doc = unavailable(key, exc, now)
+    except sqlite3.OperationalError as exc:
+        if "interrupt" in str(exc).lower():
+            doc = unavailable(key, Unavailable("the lake read was cut off by the --deadline-s budget",
+                                               REMEDY_DEADLINE), now)
+        else:
+            doc = unavailable(key, Unavailable(f"the lake read failed: {clean_line(exc, 160)}",
+                                               "retry; a `lake sync` may hold the lock"), now)
+    except sqlite3.Error as exc:
+        doc = unavailable(key, Unavailable(f"the lake read failed: {clean_line(exc, 160)}", REMEDY_LAKE), now)
+    except Exception as exc:   # a bug here (RouteRefused included) costs one section, and says so
+        doc = unavailable(key, Unavailable(f"internal error: {type(exc).__name__}: {clean_line(exc, 160)}",
+                                           "report it; the other sections stand"), now)
+    doc["elapsed_ms"] = int((time.monotonic() - started) * 1000)
+    return doc
+
+
+def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = DAYS_DEFAULT,
+          sections: list[str] | tuple[str, ...] = SECTIONS, deadline_s: float = DEADLINE_DEFAULT_S,
+          lake_dir: Path | str | None = None, fleet_path: Path | str | None = None,
+          registry_path: Path | str | None = None, now: dt.datetime | None = None,
+          scrubber: Scrubber | None = None, index_cfg: dict | None = None,
+          contract: dict | None = None) -> dict:
+    """The whole fleet-context/v1 document. Never raises for a plane; usage is checked by the caller."""
+    now = now or utcnow()
+    deadline = Deadline(deadline_s)
+    queries = list(queries or [])
+    since = fleet_lake.iso(now - dt.timedelta(days=days))
+    fleet = _load_yaml(fleet_path or FLEET_DEFAULT) or {}
+    hub = str(((fleet.get("hub") or {}).get("repo")) or "")
+    is_hub = bool(hub) and hub.lower() == nwo.lower()
+    scout_label = str(((fleet.get("scout") or {}).get("label")) or SCOUT_LABEL_DEFAULT)
+    wanted = [k for k in SECTIONS if k in sections]
+    out: dict[str, dict] = {}
+
+    lake_keys = [k for k in wanted if SOURCES[k] == "lake"]
+    if lake_keys:
+        opened = time.monotonic()
+        try:
+            conn, tables = _open_lake(lake_dir, deadline)
+        except Unavailable as exc:
+            conn, tables = None, set()
+            for k in lake_keys:
+                out[k] = unavailable(k, exc, now)
+                out[k]["elapsed_ms"] = int((time.monotonic() - opened) * 1000)
+        if conn is not None:
+            open_ms = int((time.monotonic() - opened) * 1000)
+            registry = registry_branches(registry_path) if "lake_ci" in lake_keys else {}
+            jobs = {
+                "lake_issues": lambda: lake_issues(conn, tables, nwo, since, now, scout_label),
+                "lake_ci": lambda: lake_ci(conn, tables, nwo, since, now,
+                                           tracked_branch(conn, tables, nwo, registry)),
+                "lake_agents": lambda: lake_agents(conn, tables, nwo, name, since, now),
+            }
+            try:
+                for k in lake_keys:
+                    out[k] = _run(k, jobs[k], now, deadline)
+                out[lake_keys[0]]["elapsed_ms"] += open_ms   # opening the lake is the first section's cost
+            finally:
+                conn.close()
+
+    # Elasticsearch before Qdrant: one request, where the index needs several.
+    if "telemetry_errors" in wanted:
+        out["telemetry_errors"] = _run("telemetry_errors",
+                                       lambda: telemetry_errors(nwo, since, deadline, now, contract),
+                                       now, deadline)
+    if "index_code" in wanted:
+        out["index_code"] = _run("index_code",
+                                 lambda: index_code(queries, name, is_hub, deadline, now, index_cfg),
+                                 now, deadline)
+
+    doc = {"schema": SCHEMA, "generated_at": fleet_lake.iso(now), "nwo": nwo, "name": name,
+           "window_days": int(days), "queries": queries, "sections": {k: out[k] for k in wanted}}
+    return (scrubber or Scrubber()).obj(doc)
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+def _has_control(text: str) -> bool:
+    return any(unicodedata.category(c) == "Cc" for c in text) or bool(_CTRL.search(text))
+
+
+def usage_problems(args: argparse.Namespace) -> list[str]:
+    """Everything that makes the request itself wrong. Any of these exits 2."""
+    problems = []
+    nwo, name = args.nwo or "", args.name or ""
+    if not NWO_RX.match(nwo) or nwo.split("/")[1] in (".", ".."):
+        problems.append(f"--nwo must be OWNER/REPO, got {nwo!r}")
+    if not NAME_RX.match(name) or name in (".", ".."):
+        problems.append(f"--name must be a checkout directory name ([A-Za-z0-9._-], no slash), got {name!r}")
+    queries = args.query or []
+    if len(queries) > MAX_QUERIES:
+        problems.append(f"at most {MAX_QUERIES} --query, got {len(queries)}")
+    for q in queries:
+        if not q.strip():
+            problems.append("--query is empty")
+        elif len(q) > MAX_QUERY_CHARS:
+            problems.append(f"--query is over {MAX_QUERY_CHARS} characters ({len(q)})")
+        elif _has_control(q):
+            problems.append("--query carries a control character")
+    if not 1 <= args.days <= MAX_DAYS:
+        problems.append(f"--days must be 1..{MAX_DAYS}, got {args.days}")
+    if not 0 < args.deadline_s <= MAX_DEADLINE_S:
+        problems.append(f"--deadline-s must be in (0, {MAX_DEADLINE_S:g}], got {args.deadline_s:g}")
+    unknown = [s for s in parse_sections(args.sections) if s not in SECTIONS]
+    if unknown:
+        problems.append(f"unknown section(s) {', '.join(unknown)}; known: {', '.join(SECTIONS)}")
+    return problems
+
+
+def parse_sections(raw: str | None) -> list[str]:
+    picked = [s.strip() for s in (raw or "").split(",") if s.strip()]
+    return picked or list(SECTIONS)
+
+
+def summary(doc: dict) -> str:
+    lines = [f"context {doc['nwo']} ({doc['name']}), {doc['window_days']} d window"]
+    for key, sec in doc["sections"].items():
+        age = f" ({sec['age_hours']:g} h old)" if sec.get("age_hours") is not None else ""
+        lines.append(f"  {key:<17} {sec['status']:<12} {len(sec['rows']):>3} rows  "
+                     f"{sec['elapsed_ms']:>5} ms{age}  {sec['note'][:110]}")
+    return "\n".join(lines) + "\n"
+
+
+def cmd_context(args: argparse.Namespace) -> int:
+    problems = usage_problems(args)
+    if problems:
+        for p in problems:
+            sys.stderr.write(f"dash-gen context: {p}\n")
+        return 2
+    doc = build(args.nwo, args.name, queries=[q.strip() for q in args.query or []], days=args.days,
+                sections=parse_sections(args.sections), deadline_s=args.deadline_s, lake_dir=args.lake_dir)
+    sys.stdout.write(json.dumps(doc, indent=2, ensure_ascii=True) + "\n")
+    if not args.json:
+        sys.stderr.write(summary(doc))
+    return 0
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--nwo", required=True, help="OWNER/REPO the pack is for")
+    parser.add_argument("--name", required=True,
+                        help="the repo's checkout directory name (the lake's sessions.repo, the index's project)")
+    parser.add_argument("--query", action="append", default=[], metavar="TEXT",
+                        help=f"a code-index query (repeatable, at most {MAX_QUERIES}, {MAX_QUERY_CHARS} chars)")
+    parser.add_argument("--days", type=int, default=DAYS_DEFAULT, help=f"window (default {DAYS_DEFAULT})")
+    parser.add_argument("--sections", default="", help=f"comma list of {','.join(SECTIONS)} (default all)")
+    parser.add_argument("--deadline-s", type=float, default=DEADLINE_DEFAULT_S,
+                        help=f"overall time budget in seconds (default {DEADLINE_DEFAULT_S:g}; "
+                             f"each request is also capped at {REQUEST_TIMEOUT_S:g} s)")
+    parser.add_argument("--lake-dir", default=None,
+                        help="lake directory (DASH_LAKE_DIR; default .dash-lake/ at the repo root)")
+    parser.add_argument("--json", action="store_true",
+                        help="stdout only (the document is always on stdout; without this a summary goes to stderr)")
+    parser.set_defaults(func=cmd_context)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="dash-gen context", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_arguments(parser)
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
