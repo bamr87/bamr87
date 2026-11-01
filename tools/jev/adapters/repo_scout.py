@@ -37,6 +37,8 @@ LOCAL_ARTEFACT_RX = re.compile(r"EAI_AGAIN|ENOTFOUND|Could not resolve host|geta
 FILE_FAILED = "gh issue create failed"
 #: scout-file's stderr when the open issues cannot be listed
 NO_DEDUPE = "filing without the duplicate check"
+#: scout-file's skip reason for a body --reviewed-bodies withheld (its NOT_REVIEWED)
+NOT_REVIEWED = "not in the reviewed preview"
 
 
 def _last_json(text: str) -> dict:
@@ -149,6 +151,9 @@ class RepoScout(Adapter):
             return PublishPlan(False, [f"scout-file printed no result: {exc}"], [], None)
         blockers = ["dedupe_unavailable"] if NO_DEDUPE in res.err else []
         failures = [s.get("title", "?") for s in out.get("skipped") or [] if s.get("reason") == FILE_FAILED]
+        withheld = [s for s in out.get("skipped") or [] if str(s.get("reason") or "").startswith(NOT_REVIEWED)]
+        if withheld:
+            blockers.append(f"withheld {len(withheld)} body(ies) not in the reviewed preview")
         rows = [{"title": f.get("title"), "labels": f.get("labels"), "url": f.get("url"),
                  "body_file": f.get("body_file")} for f in out.get("filed") or []]
         return PublishPlan(publishable=bool(rows) and not blockers, blockers=blockers, rows=rows,

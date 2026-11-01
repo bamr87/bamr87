@@ -38,6 +38,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+import math
 import os
 import platform
 import re
@@ -48,6 +49,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from collections import deque
 from collections.abc import Iterator
@@ -59,8 +61,8 @@ from . import workspace as wsp
 from .adapters import REUSE_DAYS, Adapter, Item, PlanResult, PublishPlan, Verdict
 from .common import HUB, JevError, Run, dotenv_values, gh, git, hub_repo, is_bare_name, load_config, run
 from .ledger import BudgetState, Ledger, budget_state
-from .spec import (SPEC_ROOT, StepSpec, StepSpecError, allowed_models, fleet_value, load_fleet, load_spec,
-                   render_argv, render_prompt, spec_files, values_from)
+from .spec import (PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, StepSpec, StepSpecError, allowed_models, fleet_value,
+                   load_fleet, load_spec, render_argv, render_prompt, spec_files, values_from)
 
 DASH_GEN = HUB / "tools" / "dash-gen"
 RUN_SCHEMA = "jev-loop-run/v1"
@@ -88,6 +90,8 @@ BACKSTOP_KILL_S = 60
 #: directory and the adapter's own `sources`: the engine, its config, and the
 #: executor that builds the agent's environment, credential and redactor.
 ENGINE_SOURCES = ("tools/jev/", "_data/fleet.yml", ".github/scripts/dash-gen/ai_activity.py", "tools/dash-gen")
+ALLOW_DIRTY_HELP = ("let --apply run with a dirty spec, adapter or engine (tools/jev/, _data/fleet.yml, ai-run, "
+                    "tools/dash-gen)")
 
 
 def runs_dir() -> Path:
@@ -257,10 +261,13 @@ def relay_dash_gen(argv: list[str], *, env: dict[str, str], timeout: float) -> R
     record. At `timeout` (the spec's wall clock plus OUTER_GRACE_S: ai-run
     enforces the clock itself, this is the backstop) ai-run gets SIGTERM,
     which it turns into claude's SIGINT-first ladder, so the session still
-    reports its cost; SIGKILL a minute later. A Ctrl-C reaches ai-run through
-    the terminal as well: the engine waits for it to write its outcome and
-    ledger row, then stops the run (a SIGTERM to the engine, such as a console
-    cancel, is turned into the same KeyboardInterrupt by `cmd_run`)."""
+    reports its cost; SIGKILL a minute later. An interrupt of the engine (a
+    Ctrl-C, or the SIGTERM or SIGHUP `interrupt_on_signals` turns into one) is
+    passed on to ai-run as SIGTERM — a signal that reached only the engine
+    would otherwise leave ai-run and its session running, unledgered — and the
+    engine then waits for ai-run's outcome and ledger row, through any further
+    interrupt, before it stops the run. ai-run starts its ladder once, so the
+    copy a Ctrl-C or a killpg already delivered changes nothing."""
     proc = subprocess.Popen(  # noqa: S603 - argv is a list, never a shell string
         [str(DASH_GEN), *argv], cwd=HUB, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
@@ -282,11 +289,15 @@ def relay_dash_gen(argv: list[str], *, env: dict[str, str], timeout: float) -> R
         t.start()
 
     def settle(grace: float) -> int:
-        try:
-            return proc.wait(timeout=grace)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            return proc.wait()
+        deadline = time.monotonic() + grace
+        while True:
+            try:
+                return proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                return proc.wait()
+            except KeyboardInterrupt:   # a second cancel: ai-run is already stopping; its record is still owed
+                continue
 
     try:
         code = proc.wait(timeout=timeout)
@@ -295,6 +306,9 @@ def relay_dash_gen(argv: list[str], *, env: dict[str, str], timeout: float) -> R
         code = settle(BACKSTOP_KILL_S)
         tail.append(f"jev loop: the engine's backstop stopped ai-run after {timeout:g}s\n")
     except KeyboardInterrupt:
+        if proc.poll() is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.terminate()
         settle(BACKSTOP_KILL_S)
         raise
     finally:
@@ -315,10 +329,10 @@ def loops_budget(fleet: dict) -> tuple[float, int]:
     """`_data/fleet.yml` `budget.loops`: (monthly_usd, scheduled_stop_pct)."""
     b = ((fleet.get("budget") or {}).get("loops") or {})
     usd, pct = b.get("monthly_usd"), b.get("scheduled_stop_pct")
-    if (not isinstance(usd, (int, float)) or isinstance(usd, bool) or usd <= 0
+    if (not isinstance(usd, (int, float)) or isinstance(usd, bool) or not math.isfinite(usd) or usd <= 0
             or not isinstance(pct, int) or isinstance(pct, bool) or not 0 < pct <= 100):
-        raise StepSpecError("_data/fleet.yml budget.loops needs monthly_usd > 0 and scheduled_stop_pct in 1..100 "
-                            "— the local loops' monthly ceiling")
+        raise StepSpecError("_data/fleet.yml budget.loops needs a finite monthly_usd > 0 and scheduled_stop_pct in "
+                            "1..100 — the local loops' monthly ceiling")
     return float(usd), pct
 
 
@@ -333,6 +347,32 @@ def _utc_month(ts: str) -> str | None:
 #: dash-gen ai_activity.LEDGER_VERSION (this package never imports dash-gen;
 #: tools/test_jev_loop.py holds the two equal)
 LEDGER_VERSION = 1
+
+
+def unledgered_path(ledger: Path | None = None) -> Path:
+    """Beside the AI ledger (never pruned with the runs): the engine's own
+    charge for an attempt whose ai-run left no ledger row — it died, the
+    backstop killed it, or its ledger write failed. budget_position counts
+    each one whose attempt_id the ledger does not have, so a later run, and
+    the canary, see that spend."""
+    p = ledger or ledger_path()
+    return p.with_name(p.name + ".loops-unledgered.jsonl")
+
+
+def record_unledgered(ctx: RunContext, row: dict, attempt_id: str, cost: float, source: str) -> None:
+    """Make an unledgered charge durable (under budget_lock, which the attempt
+    holds); kept in this run's memory as well only if the file cannot take it."""
+    line = {"timestamp": iso(), "origin": "local", "loop": ctx.spec.loop, "step": ctx.spec.step,
+            "run_id": ctx.run.run_id, "attempt_id": attempt_id, "item": row.get("item"),
+            "cost_usd": round(cost, 6), "cost_source": source}
+    try:
+        fd = os.open(unledgered_path(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line, sort_keys=True) + "\n")
+    except OSError as exc:
+        print(f"jev loop: ! could not record the unledgered ${cost:g} charge in {unledgered_path()} ({exc}) — "
+              "only this run counts it", file=sys.stderr)
+        ctx.unledgered.append((cost, source))
 
 
 def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
@@ -351,11 +391,12 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            raise JevError(f"the AI ledger {p} cannot be read ({exc}) — the monthly ceiling cannot be judged") from exc
+            raise JevError(f"the AI ledger {p} cannot be read ({exc}) — the monthly ceiling cannot be judged; repair "
+                           "it in place (moved aside, the month would read as $0)") from exc
         if not isinstance(data, dict) or data.get("version") != LEDGER_VERSION:
             found = f"version {data.get('version')!r}" if isinstance(data, dict) else f"a JSON {type(data).__name__}"
             raise JevError(f"the AI ledger {p} is {found}, not version {LEDGER_VERSION} — the monthly ceiling cannot "
-                           "be judged")
+                           "be judged; migrate it in place (moved aside, the month would read as $0)")
         rows = data.get("runs") or {}
     spent = estimated = 0.0
     for rec in rows.values() if isinstance(rows, dict) else []:
@@ -363,15 +404,70 @@ def budget_position(fleet: dict, *, scheduled: bool, path: Path | None = None,
             continue
         if _utc_month(str(rec.get("timestamp") or "")) != m:
             continue
-        try:
-            cost = float(rec.get("total_cost_usd") or 0.0)
-        except (TypeError, ValueError):
-            cost = float(rec.get("cap_usd") or 0.0)   # an unreadable figure is charged at its cap
+        cost = _ledger_cost(rec, p)
         spent += cost
         if rec.get("cost_source") == "estimated":
             estimated += cost
+    ledgered = {str(r.get("attempt_id")) for r in (rows.values() if isinstance(rows, dict) else [])
+                if isinstance(r, dict) and r.get("attempt_id")}
+    for rec in _unledgered_rows(unledgered_path(p)):
+        if str(rec.get("attempt_id")) in ledgered or _utc_month(str(rec.get("timestamp") or "")) != m:
+            continue
+        spent += rec["cost_usd"]
+        if rec.get("cost_source") == "estimated":
+            estimated += rec["cost_usd"]
     return BudgetState(month=m, spent_usd=round(spent, 4), estimated_usd=round(estimated, 4), cap_usd=cap,
                        stop_usd=round(cap * pct / 100.0, 4), scheduled=scheduled)
+
+
+def _spend(value) -> float | None:
+    """A spend figure the ceiling can add: finite and not negative. JSON reads
+    `NaN` and `Infinity`, and one NaN would make every later comparison with
+    the ceiling false, which reads as "fits"; a negative figure would give
+    spend back."""
+    try:
+        cost = float(value)
+    except (TypeError, ValueError):
+        return None
+    return cost if math.isfinite(cost) and cost >= 0 else None
+
+
+def _ledger_cost(rec: dict, p: Path) -> float:
+    """A ledger row's cost; an unreadable figure is charged at its cap, and one
+    with no readable cap either refuses like an unreadable ledger."""
+    cost = _spend(rec.get("total_cost_usd") or 0.0)
+    if cost is None:
+        cost = _spend(rec.get("cap_usd") or 0.0)
+    if cost is None:
+        raise JevError(f"the AI ledger {p} has a row ({rec.get('session_id') or rec.get('attempt_id') or '?'}) whose "
+                       "cost and cap are both unreadable — the monthly ceiling cannot be judged; repair it in place")
+    return cost
+
+
+def _unledgered_rows(p: Path) -> list[dict]:
+    """The engine's durable unledgered charges; a line that cannot be read
+    refuses like an unreadable ledger (it is spend, not noise)."""
+    try:
+        text = p.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    except OSError as exc:
+        raise JevError(f"{p} cannot be read ({exc}) — the monthly ceiling cannot be judged") from exc
+    out = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+            cost = _spend(rec["cost_usd"])
+            if cost is None:
+                raise ValueError(f"cost_usd {rec['cost_usd']!r} is not a finite figure of 0 or more")
+            rec["cost_usd"] = cost
+        except (ValueError, TypeError, KeyError) as exc:
+            raise JevError(f"{p} line {n} cannot be read ({exc}) — the monthly ceiling cannot be judged; repair "
+                           "the line, never drop it (it is this month's spend)") from exc
+        out.append(rec)
+    return out
 
 
 def charge(state: BudgetState, cost: float, source: str | None) -> None:
@@ -677,6 +773,9 @@ def gates(ctx: RunContext) -> tuple[int, str] | None:
     `!= 'false'` one. (exit code, message) to stop."""
     sw = ctx.spec.local.switch
     if sw is None:
+        if ctx.opts.scheduled:   # AGENTS.md: every scheduled agent loop has a kill switch
+            return EXIT["usage"], (f"--scheduled: {ctx.spec.loop}/{ctx.spec.step} declares no local.switch — a "
+                                   "scheduled run refuses without a kill switch")
         return None
     if fleet_value(ctx.fleet, sw.config) is not True:
         return EXIT["ok"], f"disabled: _data/fleet.yml {sw.config} is false"
@@ -684,10 +783,16 @@ def gates(ctx: RunContext) -> tuple[int, str] | None:
         print(f"jev loop: manual run — bypasses vars.{sw.variable} exactly as a workflow_dispatch does",
               file=sys.stderr)
         return None
-    res = gh(["variable", "get", sw.variable, "-R", hub_repo(ctx.fleet)])
+    hub = hub_repo(ctx.fleet)
+    res = gh(["variable", "get", sw.variable, "-R", hub])
     if res.ok:
         value: str | None = res.out.strip()
     elif "not found" in (res.err or "").lower():
+        # gh says "not found" for any 404 — a repository this auth cannot see too.
+        # Unset arms a default-on switch, so that reading needs the hub shown readable.
+        if sw.default == "on" and not gh(["api", f"repos/{hub}", "--jq", ".full_name"]).ok:
+            return EXIT["usage"], (f"--scheduled: vars.{sw.variable} reads as not found, but {hub} is not readable "
+                                   "with this gh auth — a scheduled run refuses rather than guess its switch")
         value = None
     else:
         return EXIT["usage"], (f"--scheduled: cannot read vars.{sw.variable} ({(res.err or res.out).strip()[-200:]})"
@@ -771,13 +876,38 @@ class HostReport:
                 "probe": self.probe, "canary": self.canary}
 
 
-def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bin: str, scratch: Path, *,
-               live: bool, preflight: bool, probe_cache: bool = True) -> HostReport:
+def work_root_problem(root: Path | None = None) -> str | None:
+    """Why the work root cannot hold a workspace (host safety, exit 4); None
+    when it can (`headless.work_root_problem`: not in the hub, not in a Claude
+    temp root)."""
+    return headless.work_root_problem(root)
+
+
+def private_work_root() -> Path:
+    root = headless.work_root()
+    root.mkdir(parents=True, exist_ok=True)
+    root.chmod(0o700)
+    return root
+
+
+def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bin: str, scratch: Path | None, *,
+               live: bool, preflight: bool, probe_cache: bool = True, report: bool = False) -> HostReport:
     """What the host proves before an attempt. `live=False` (doctor, rehearse)
     reports a missing probe, canary or credential as a note; a live attempt
     refuses on each of them. `probe_cache=False` skips the cached
-    probe (doctor runs it afresh). Nothing here reaches a model."""
+    probe (doctor runs it afresh). A work root inside the hub is refused first
+    (exit 4), before any CLI runs — except with `report=True` (`loop plan`,
+    which exits on no host problem and writes nothing under the work root):
+    the problem is recorded and the CLI, probe and credential are still read.
+    The flag preflight runs in `scratch`, or with None in a throwaway directory
+    under the work root — never inside the hub, where a session would reach
+    the hub's CLAUDE.md. Nothing here reaches a model."""
     rep = HostReport()
+    inside = work_root_problem()
+    if inside:
+        rep.problems.append((EXIT["host_unsafe"], inside))
+        if not report or preflight:
+            return rep
 
     def gap(code: int, why: str) -> None:
         if live:
@@ -798,17 +928,24 @@ def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bi
         rep.problems.append((EXIT["host_unsafe"], f"no sandbox here ({SANDBOX_EXEC} on macOS) — `--posture reduced` "
                                                   "runs the agent without Bash"))
     if preflight:
-        scratch.mkdir(parents=True, exist_ok=True)
-        settings = scratch / "settings.json"
-        write_json(settings, headless.settings_doc(posture))
-        argv = [*headless.run_prefix(spec.resolved.max_budget_usd, stream=True),
-                *headless.claude_flags(spec, posture, settings_path=settings, session_id=str(uuid.uuid4()),
-                                       debug_path=scratch / "preflight.debug.log")]
-        problem = headless.preflight_parse(rep.claude, argv, cwd=scratch)
+        own = scratch is None
+        scratch = Path(tempfile.mkdtemp(prefix=".preflight-", dir=private_work_root())) if own else scratch
+        try:
+            scratch.mkdir(parents=True, exist_ok=True)
+            settings = scratch / "settings.json"
+            write_json(settings, headless.settings_doc(posture))
+            argv = [*headless.run_prefix(spec.resolved.max_budget_usd, stream=True),
+                    *headless.claude_flags(spec, posture, settings_path=settings, session_id=str(uuid.uuid4()),
+                                           debug_path=scratch / "preflight.debug.log")]
+            problem = headless.preflight_parse(rep.claude, argv, cwd=scratch)
+        finally:
+            if own:
+                shutil.rmtree(scratch, ignore_errors=True)
         if problem:
             rep.problems.append((EXIT["host_unsafe"], f"flag preflight: {problem}"))
         else:
-            rep.notes.append("flag preflight: every flag parses and the --settings document loads ($0)")
+            rep.notes.append("flag preflight: every flag parses and nothing reports the --settings document skipped "
+                             "($0)")
     key = cache_key(rep.version, spec, posture)
     if probe_cache:
         probe = cached(".probe.json", key)
@@ -873,9 +1010,19 @@ def item_values(ctx: RunContext, item: Item, *, validated: Path | str | None = N
     return out
 
 
+def auth_pin(auth: headless.AuthChoice | None) -> list[str]:
+    """ai-run's flags for exactly this credential: its method, and the source
+    it must come from (no fallback to the next source, which could carry a
+    variable the canary never proved hidden)."""
+    return ["--auth-order", auth.method, "--auth-source", auth.source] if auth else []
+
+
 def ai_run_argv(ctx: RunContext, item: Item, *, cwd: Path, tmp: Path, flags: list[str], attempt_id: str,
-                method: str | None, claude: str) -> list[str]:
-    """The `tools/dash-gen ai-run` command a live attempt runs."""
+                auth: headless.AuthChoice | None, claude: str) -> list[str]:
+    """The `tools/dash-gen ai-run` command a live attempt runs. It carries the
+    exact cap the ceiling was judged on (ai-run refuses one above the call
+    site's, and never re-reads a higher one) and the exact credential source
+    the host check chose and the canary was proved for (`auth_pin`)."""
     d = ctx.item_dir(item)
     spec = ctx.spec
     argv = ["ai-run", "--stream", "--isolate", "--isolate-tmp", str(tmp),
@@ -883,9 +1030,8 @@ def ai_run_argv(ctx: RunContext, item: Item, *, cwd: Path, tmp: Path, flags: lis
             "--cwd", str(cwd), "--prompt-file", str(d / "prompt.txt"), "--trace", str(d / "trace.jsonl"),
             "--result-file", str(d / "result.json"), "--outcome-file", str(d / "outcome.json"),
             "--usage-limit", "skip", "--source", f"jev loop {spec.loop}/{spec.step}", "--claude-bin", claude,
-            "--ledger", str(ledger_path())]
-    if method:
-        argv += ["--auth-order", method]
+            "--ledger", str(ledger_path()), "--max-budget-usd", f"{spec.resolved.max_budget_usd:g}"]
+    argv += auth_pin(auth)
     meta = {"origin": "local", "run_id": ctx.run.run_id if ctx.run else "plan", "attempt_id": attempt_id,
             "loop": spec.loop, "step": spec.step, "item": item.key, "tier": TIER}
     for k, v in meta.items():
@@ -942,8 +1088,14 @@ def obtain_plan(ctx: RunContext) -> tuple[dict | None, tuple[int, str] | None]:
     """The planner's JSON in ctx.plan_dir (or one row of a saved plan)."""
     ctx.plan_dir.mkdir(parents=True, exist_ok=True)
     if ctx.opts.plan_file:
-        src = Path(ctx.opts.plan_file)
+        # `tools/dash loop` runs from the hub root: a relative path is the caller's
+        src = Path(os.environ.get("JEV_CALLER_CWD") or ".") / ctx.opts.plan_file
+        if not src.is_file():
+            return None, (EXIT["usage"], f"--plan-file {src}: no such file")
         saved = read_json(src)
+        shape = plan_shape_error(saved)
+        if shape:
+            return None, (EXIT["usage"], f"--plan-file {src}: {shape}")
         rows = [r for r in saved.get("include") or [] if ctx.opts.item in (r.get("name"), r.get("nwo"))]
         if len(rows) != 1:
             return None, (EXIT["usage"], f"--plan-file {src}: {len(rows)} row(s) named {ctx.opts.item!r}")
@@ -962,11 +1114,27 @@ def obtain_plan(ctx: RunContext) -> tuple[dict | None, tuple[int, str] | None]:
         plan = parse_last_json(res.out)
         if res.code not in (0, 1) or plan is None:
             return None, (EXIT["usage"], f"the planner exited {res.code}: {(res.err or res.out).strip()[-400:]}")
+        shape = plan_shape_error(plan)
+        if shape:
+            return None, (EXIT["usage"], f"the planner's plan: {shape}")
     write_json(ctx.plan_dir / "plan.json", plan)
     errs = check_plan_prompts(ctx.spec, plan)
     if errs:
         return None, (EXIT["usage"], "; ".join(errs))
     return plan, None
+
+
+def plan_shape_error(plan: dict) -> str | None:
+    """Why a plan is not readable (`include`, `skipped` and `dropped` must be
+    lists of objects, or absent); None when it is. A hand-edited or truncated
+    saved plan is a usage error, never a traceback that leaves a run at "running"."""
+    if not plan:
+        return "not a JSON object (or an empty one)"
+    for key in ("include", "skipped", "dropped"):
+        rows = plan.get(key)
+        if rows is not None and (not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows)):
+            return f"`{key}` must be a list of objects"
+    return None
 
 
 def check_items(result: PlanResult) -> None:
@@ -1010,8 +1178,9 @@ def _bodies(d: Path) -> dict[str, str]:
 
 
 def usage_block(ctx: RunContext) -> tuple[str, str] | None:
-    """(decision, why) before anything else runs: a usage window spent earlier
-    in this run stops the queue."""
+    """(decision, why) for an item that would call the model after a usage
+    window spent earlier in this run. Asked after tier 0, so a $0 reuse or
+    skip (and its preview or filing, which reach gh, not Claude) still runs."""
     if ctx.usage_limited:
         return "usage-skip", "the usage window was spent earlier in this run (capacity, not a defect)"
     return None
@@ -1020,16 +1189,17 @@ def usage_block(ctx: RunContext) -> tuple[str, str] | None:
 def budget_block(ctx: RunContext, held: bool) -> tuple[str, str] | None:
     """(decision, why) when the month cannot absorb this attempt's full cap.
     Asked just before the model call — after tier 0, so a $0 reuse is never
-    blocked — under `budget_lock`, against a FRESH read of the ledger plus this
-    run's unledgered charges, so another run's spend is seen."""
+    blocked — under `budget_lock`, against a FRESH read of the ledger and the
+    engine's unledgered charges (plus any this run could not write down), so
+    another run's spend is seen."""
     cap = ctx.spec.resolved.max_budget_usd
     if not held:
-        return "budget-skip", ("another local loop attempt (or the canary) holds the budget lock — the month "
+        return "budget-locked", ("another local loop attempt (or the canary) holds the budget lock — the month "
                                "cannot be judged while it spends; run again when it ends")
     try:
         state = budget_position(ctx.fleet, scheduled=ctx.opts.scheduled)
     except (JevError, StepSpecError) as exc:
-        return "budget-skip", f"monthly ceiling: {exc}"
+        return "budget-unreadable", f"monthly ceiling: {exc}"
     for cost, source in ctx.unledgered:
         charge(state, cost, source)
     ctx.budget = state
@@ -1052,12 +1222,6 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
            "item": item.key, "dir": dirname, "nwo": item.nwo, "tier": TIER, "model": ctx.spec.resolved.model,
            "cost_usd": 0.0, "cost_source": "no-spend"}
     ctx.inflight = report
-    if live:
-        blocked = usage_block(ctx)
-        if blocked:
-            report.update(status="skipped", decision=blocked[0], reason=blocked[1])
-            ctx.run.append_attempt({**row, "decision": blocked[0], "reason": blocked[1]})
-            return report
     sha, why = (None, "offline: no HEAD read") if ctx.opts.offline else head_sha(item.nwo, item.branch)
     if why:
         print(f"jev loop: {why}", file=sys.stderr)
@@ -1067,6 +1231,13 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
         reused = _tier0(ctx, item, t0, report, row, live=live)
         if reused is not None:
             return reused
+    if live:
+        # after tier 0: a spent usage window stops model calls, not a $0 reuse or skip
+        blocked = usage_block(ctx)
+        if blocked:
+            report.update(status="skipped", decision=blocked[0], reason=blocked[1])
+            ctx.run.append_attempt({**row, "decision": blocked[0], "reason": blocked[1]})
+            return report
     triage = ctx.adapter.classify(ctx, item)
     if triage.blocked:
         report.update(status="blocked", reason=triage.reason, decision="blocked")
@@ -1108,7 +1279,7 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
                                    "baseline_sha256": _sha(json.dumps(ws.baseline, sort_keys=True))}
         cwd, tmp = (ws.path, ws.tmp) if ws else (d, d / "tmp")
         argv = ai_run_argv(ctx, item, cwd=cwd, tmp=tmp, flags=flags, attempt_id=attempt_id,
-                           method=host.auth.method if host.auth else None, claude=host.claude or ctx.opts.claude_bin)
+                           auth=host.auth, claude=host.claude or ctx.opts.claude_bin)
         env_keys = set(headless.agent_env(os.environ, None, credential_value=None, tmp=tmp,
                                           gh_config_dir=tmp / "gh-none", work=ctx.work_root))
         if headless.credential_exposure(host.auth):
@@ -1133,13 +1304,16 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
                     ctx.run.append_attempt({**row, "decision": "attempt", "reason": str(exc), "status": "failed"})
                     return report
         _rehearsal_tail(ctx, item, ws, argv, host, report)
+    except JevError as exc:   # this item's failure (git status, the brief, …): recorded, and the run goes on
+        report.update(status="failed", reason=str(exc), code=EXIT["attention"])
     finally:
-        if ws is not None and not ctx.opts.keep_workspace:
+        # a tampered clone is destroyed even with --keep-workspace: git run in it would run the agent's config
+        if ws is not None and (not ctx.opts.keep_workspace or report.get("tampered")):
             wsp.destroy(ws)
         elif ws is not None:
             report["kept_workspace"] = str(ws.path)
-    ctx.run.append_attempt({**row, "decision": "rehearsed", "attempt_id": attempt_id, "outcome": report["status"],
-                            "reason": report["reason"]})
+    ctx.run.append_attempt({**row, "decision": report["decision"], "attempt_id": attempt_id,
+                            "outcome": report["status"], "reason": report["reason"]})
     return report
 
 
@@ -1159,7 +1333,12 @@ def _tier0(ctx: RunContext, item: Item, t0, report: dict, row: dict, *, live: bo
                    validated_rel=str(verdict.publish_file.relative_to(ctx.item_dir(item))))
         ctx.run.append_attempt({**row, "decision": decision, "reason": t0.reason,
                                 "reuse_from": str(t0.reuse_from) if t0.reuse_from else None})
-        return publish_phase(ctx, item, verdict, report, row)
+        try:
+            return publish_phase(ctx, item, verdict, report, row)
+        except JevError as exc:   # a planner or gh failure in the preview or the recheck: the item's, not the run's
+            report.update(status="failed", reason=str(exc), code=EXIT["attention"])
+            ctx.run.append_attempt({**row, "decision": decision, "reason": str(exc), "status": "failed"})
+            return report
     report.update(status="skipped" if t0.action == "skip" else "reused", reason=t0.reason, decision=decision)
     ctx.run.append_attempt({**row, "decision": decision, "reason": t0.reason,
                             "reuse_from": str(t0.reuse_from) if t0.reuse_from else None})
@@ -1202,7 +1381,8 @@ def _rehearsal_tail(ctx: RunContext, item: Item, ws, argv: list[str], host: Host
     if changed:
         # no git runs in a tampered clone: it is destroyed uninspected (the caller's finally)
         (d / "tree.txt").write_text(f"not inspected: .git changed ({', '.join(changed)})\n", encoding="utf-8")
-        report.update(status="failed", code=EXIT["attention"], reason=f"the workspace was tampered with: {changed}")
+        report.update(status="failed", code=EXIT["attention"], reason=f"the workspace was tampered with: {changed}",
+                      tampered=True)
         return
     tree = wsp.tree_report(ws)
     _write_tree(d, tree)
@@ -1276,7 +1456,7 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
         if ctx.budget is not None:
             charge(ctx.budget, cost, source)
         if not said or said.get("ledger_error"):
-            ctx.unledgered.append((cost, source))
+            record_unledgered(ctx, row, report["attempt_id"], cost, source)
         kind = str(said.get("kind") or "interrupted")
         ctx.run.append_attempt({**row, "decision": "attempt", "attempt_id": report["attempt_id"],
                                 "outcome": kind, "status": "interrupted", "cost_usd": cost, "cost_source": source})
@@ -1290,9 +1470,10 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
         outcome = {"kind": "unparseable", "cost_usd": cap, "cost_source": "estimated",
                    "detail": f"ai-run exited {res.code} without an outcome, so claude may not have run: "
                              f"{res.err.strip()[-200:]}"}
-        ctx.unledgered.append((cap, "estimated"))
+        record_unledgered(ctx, row, report["attempt_id"], cap, "estimated")
     elif outcome.get("ledger_error"):
-        ctx.unledgered.append((float(outcome.get("cost_usd") or 0.0), str(outcome.get("cost_source") or "reported")))
+        record_unledgered(ctx, row, report["attempt_id"], float(outcome.get("cost_usd") or 0.0),
+                          str(outcome.get("cost_source") or "reported"))
         report.setdefault("flags", []).append(f"this attempt is not in the AI ledger: {outcome['ledger_error']}")
     debug = headless.reduce_debug_log(d / "debug.log")
     (d / "debug-sandbox.txt").write_text("\n".join(debug) + "\n", encoding="utf-8")
@@ -1317,7 +1498,10 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
     if changed:
         (d / "tree.txt").write_text(f"not inspected: .git changed ({', '.join(changed)})\n", encoding="utf-8")
         return done("failed", f"the workspace was tampered with: {changed} — destroyed with no git run in it")
-    breach = posture_breach(spec, posture, outcome, debug, headless.read_events(d / "trace.jsonl"))
+    pinned = {"method": host.auth.method, "source": host.auth.source} if host.auth else None
+    breach = ((f"the session ran under the credential {outcome['auth']}, not the one the host check chose and "
+               f"the canary proved ({host.auth})") if "auth" in outcome and outcome["auth"] != pinned
+              else posture_breach(spec, posture, outcome, debug, headless.read_events(d / "trace.jsonl")))
     if breach:
         ctx.stop = (EXIT["host_unsafe"], breach)
         return done("unsafe", breach, EXIT["host_unsafe"])
@@ -1400,13 +1584,20 @@ def publish_phase(ctx: RunContext, item: Item, verdict: Verdict, report: dict, r
 
 
 def publish_values(ctx: RunContext, item: Item, validated: Path, *, apply: bool,
-                   bodies_dir: Path | None = None) -> list[str]:
+                   bodies_dir: Path | None = None, reviewed: Path | None = None) -> list[str]:
+    """The publish argv; with `apply`, the filer's apply flag and its reviewed
+    flag naming `reviewed` (the preview's bodies), so the filing itself files
+    no byte nobody reviewed and nothing it cannot dedupe."""
     pub = ctx.spec.local.publish
     values = item_values(ctx, item, validated=validated, apply=apply)
     if bodies_dir is not None:
         values["bodies_dir"] = str(bodies_dir)
     argv = render_argv(pub.argv, values)
-    return [*argv, pub.apply_flag] if apply else argv
+    if not apply:
+        return argv
+    if reviewed is None:
+        raise JevError("internal: an apply argv without the reviewed bodies")
+    return [*argv, pub.apply_flag, PUBLISH_REVIEWED_FLAGS[argv[0]], str(reviewed)]
 
 
 def preview(ctx: RunContext, item: Item, verdict: Verdict) -> dict:
@@ -1494,6 +1685,25 @@ def review_gap(ctx: RunContext, item: Item, doc: dict, fresh: PublishPlan, fresh
     return None
 
 
+#: The way on from an apply that filed nothing: its publish-result.json still
+#: refuses a second apply of that preview, but it is not a publish, so tier 0
+#: reuses the validated copy in a new run and previews it again.
+NOTHING_FILED_RETRY = ("nothing was filed: run the loop again to retry (tier 0 reuses the validated copy at $0 "
+                       "while HEAD and the brief are unchanged, and writes a new preview to apply)")
+
+
+def _already_applied(result_path: Path) -> str:
+    """Why a claimed publish-result.json refuses this apply — with the way on
+    when the earlier apply filed nothing."""
+    try:
+        prior = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prior = None
+    if isinstance(prior, dict) and prior.get("status") == "publish-failed" and not prior.get("urls"):
+        return f"already applied ({result_path.name} exists) and {NOTHING_FILED_RETRY}"
+    return f"already applied ({result_path.name} exists) — a second apply is refused"
+
+
 def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
     """File a preview's bytes. Refused (exit 2) when it was already applied
     (here, or in another run that filed the same validated bytes), when the
@@ -1512,7 +1722,7 @@ def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
     if ctx.publish_env is None:
         return refused("no probed publish token (internal: --apply without the token probe)")
     if result_path.exists():
-        return refused(f"already applied ({result_path.name} exists) — a second apply is refused")
+        return refused(_already_applied(result_path))
     elsewhere = ctx.history.published_run(ctx.spec, item.key, str(doc.get("validated_sha256")))
     if elsewhere:
         return refused(f"already published in run {elsewhere} (the same validated bytes) — a second apply is refused")
@@ -1542,7 +1752,7 @@ def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
         return refused("already applied (a concurrent apply claimed it)")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump({"schema": PUBLISH_RESULT_SCHEMA, "status": "applying", "plan_id": doc["plan_id"], "at": iso()}, fh)
-    apply_argv = publish_values(ctx, item, validated, apply=True)
+    apply_argv = publish_values(ctx, item, validated, apply=True, reviewed=ctx.bodies_dir(item, apply=False))
     env = ctx.publish_env
     filed = ctx.adapter.publish(ctx, item, verdict, lambda: dash_gen(apply_argv, env=env), apply=True)
     urls = [r["url"] for r in filed.rows if r.get("url")]
@@ -1552,7 +1762,8 @@ def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
               else "partial" if urls else "publish-failed")
     reason = (f"filed {len(urls)} issue(s)" + (f"; FAILED: {', '.join(filed.failures)}" if filed.failures else "")
               + (f"; {', '.join(filed.blockers)}" if filed.blockers else "")
-              + (f"; filed bodies not in the preview: {stray}" if stray else ""))
+              + (f"; filed bodies not in the preview: {stray}" if stray else "")
+              + (f"; {NOTHING_FILED_RETRY}" if status == "publish-failed" else ""))
     write_json(result_path, {"schema": PUBLISH_RESULT_SCHEMA, "status": status, "plan_id": doc["plan_id"],
                              "validated_sha256": doc["validated_sha256"], "urls": urls, "failures": filed.failures,
                              "blockers": filed.blockers, "stray_bodies": stray, "at": iso()})
@@ -1662,14 +1873,15 @@ def interrupt_on_signals() -> Iterator[None]:
     """SIGTERM and SIGHUP (a console cancel's killpg, a closed terminal) end the
     run like a Ctrl-C: the clone is destroyed, the in-flight attempt's cost is
     recorded and run.json ends `interrupted` (exit 130) instead of dying at
-    `running`. The previous handlers come back afterwards."""
+    `running`. A SIGHUP inherited ignored (`nohup`) stays ignored. The previous
+    handlers come back afterwards."""
     if threading.current_thread() is not threading.main_thread():
         yield
         return
 
     def interrupt(signum: int, _frame: object) -> None:
         raise KeyboardInterrupt(f"signal {signum}")
-    saved = {sig: signal.signal(sig, interrupt) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    saved = {sig: signal.signal(sig, interrupt) for sig in headless.honoured_signals((signal.SIGTERM, signal.SIGHUP))}
     try:
         yield
     finally:
@@ -1715,6 +1927,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         except OSError as exc:   # a file the run needed: the record still ends, never stuck at "running"
             record["notes"].append(f"{type(exc).__name__}: {exc}")
             return _finish(ctx, record, EXIT["attention"], "failed")
+        except Exception as exc:   # a bug: the record ends "failed" first, then the traceback
+            record["notes"].append(f"{type(exc).__name__}: {exc}")
+            _finish(ctx, record, EXIT["attention"], "failed")
+            raise
 
 
 def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
@@ -1746,8 +1962,7 @@ def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
         # not a stop: tier 0 can still reuse or skip at $0; an item that would spend is skipped
         record["notes"].append(f"monthly ceiling reached — {ctx.budget.summary()} ({COST_LABEL}); only $0 "
                                "tier-0 work can run")
-    host = host_check(ctx.spec, posture, ctx.fleet, ctx.opts.claude_bin, ctx.run.path / "host", live=live,
-                      preflight=True)
+    host = host_check(ctx.spec, posture, ctx.fleet, ctx.opts.claude_bin, None, live=live, preflight=True)
     record["host"] = host.as_dict()
     record["notes"] += host.notes
     refusal = host.refusal()
@@ -1822,7 +2037,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
         if stop:
             out["notes"].append(stop[1])
             return _print_plan(out, opts, stop[0])
-        host = host_check(spec, posture, fleet, opts.claude_bin, Path(tmp) / "host", live=False, preflight=False)
+        host = host_check(spec, posture, fleet, opts.claude_bin, None, live=False, preflight=False, report=True)
         out["host"] = host.as_dict()
         try:
             state = budget_position(fleet, scheduled=opts.scheduled)
@@ -1841,7 +2056,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
             return _print_plan(out, opts, EXIT["attention"])
         settings = headless.settings_doc(posture)
         for item in result.items:
-            sha, why = (None, "offline") if opts.offline else head_sha(item.nwo, item.branch)
+            sha, why = (None, "") if opts.offline else head_sha(item.nwo, item.branch)
             t0 = adapter.tier0(ctx, item, sha)
             triage = adapter.classify(ctx, item)
             decision = (f"tier0-{t0.action}: {t0.reason}" if t0.action != "continue" else
@@ -1874,12 +2089,16 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
     if host:
         print(f"host: claude {host.get('version') or 'missing'} · probe {host.get('probe')} · canary "
               f"{host.get('canary')} · auth {(host.get('auth') or {}).get('method') or 'none'}")
+        for why in host.get("problems") or []:
+            print(f"host problem: {why}")
     b = out.get("budget") or {}
     if b:
         print(f"budget.loops {b['month']}: ${b['spent_usd']:.2f} of ${b['cap_usd']:g} (this run stops at "
               f"${b['ceiling_usd']:g}; {COST_LABEL}){'' if b['affords_one_attempt'] else ' — an attempt would not fit'}")
     for i in out["items"]:
         print(f"{i['key']} @ {i['branch']}  →  {i['decision']}")
+        if i.get("note"):
+            print(f"    note: {i['note']}")
         print(f"    prompt sha256 {i['prompt_sha256'][:16]} · settings sha256 {i['settings_sha256'][:16]} · "
               f"dedupe {i['dedupe']}")
         print(f"    claude {' '.join(i['claude_flags'][:4])} … ({len(i['claude_flags'])} args)")
@@ -1986,8 +2205,7 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
                 "--result-file", str(d / "result.json"), "--outcome-file", str(d / "outcome.json"),
                 "--usage-limit", "skip", "--source", f"jev loop doctor --live ({spec.loop}/{spec.step} canary)",
                 "--claude-bin", host.claude or "claude", "--ledger", str(ledger_path())]
-        if host.auth:
-            argv += ["--auth-order", host.auth.method]
+        argv += auth_pin(host.auth)
         for k, v in {"origin": "local", "run_id": run_id, "attempt_id": attempt_id, "loop": spec.loop,
                      "step": spec.step, "item": "canary", "tier": "canary"}.items():
             argv += ["--meta", f"{k}={v}"]
@@ -1996,7 +2214,9 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
         return headless.judge_canary(
             headless.read_events(d / "trace.jsonl"), headless.reduce_debug_log(d / "debug.log"),
             read_json(d / "outcome.json"), plant=plant, left_behind=[str(t) for t in targets if t.exists()],
-            expected_tools=expected, credential_env=headless.credential_exposure(host.auth))
+            expected_tools=expected, credential_env=headless.credential_exposure(host.auth),
+            # ai-run's trace Redactor has the HOME it was given: the same one, so the same `~` paths
+            redact=headless.Redactor(ai_run_env(host.auth)).text)
     finally:
         if ws is not None:
             wsp.destroy(ws)
@@ -2034,17 +2254,15 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     ignored = git(["check-ignore", "-q", ".fleet/runs/x"], cwd=HUB).ok
     report: dict = {"posture": posture.name, "runs_dir_ignored": ignored, "steps": []}
     codes = [] if ignored else [EXIT["host_unsafe"]]
-    root = headless.work_root()
-    if root.resolve().is_relative_to(HUB.resolve()):
+    inside = work_root_problem()
+    if inside:
         # host safety, like every other refusal of a workspace inside the hub
-        print(f"jev loop: the work root {root} is inside the hub tree (set JEV_WORK_ROOT outside it)",
-              file=sys.stderr)
+        print(f"jev loop: {inside}", file=sys.stderr)
         if args.json:
-            print(json.dumps({**report, "work_root_inside_hub": str(root), "exit": EXIT["host_unsafe"]},
-                             indent=2, sort_keys=True))
+            print(json.dumps({**report, "work_root_inside_hub": str(headless.work_root()),
+                              "exit": EXIT["host_unsafe"]}, indent=2, sort_keys=True))
         return EXIT["host_unsafe"]
-    root.mkdir(parents=True, exist_ok=True)
-    root.chmod(0o700)
+    root = private_work_root()
     for spec in local_specs(fleet=fleet):
         scratch = Path(tempfile.mkdtemp(prefix=".doctor-", dir=root))
         try:
@@ -2295,7 +2513,8 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--target", default="all", metavar="NAME|all", help="one registry name, or today's sample")
     p.add_argument("--focus", default="", metavar="TEXT", help="operator focus, quoted into every brief")
     p.add_argument("--day", default=None, metavar="YYYY-MM-DD", help="the rotation day")
-    p.add_argument("--offline", action="store_true", help="no GitHub reads (no backpressure, no HEAD, no clone)")
+    p.add_argument("--offline", action="store_true",
+                   help="no GitHub reads (no backpressure, no HEAD, no clone) — --scheduled still reads its switch")
     p.add_argument("--plan-file", default=None, metavar="PLAN.json", help="take one row of a saved plan")
     p.add_argument("--item", default=None, metavar="NAME", help="the row of --plan-file")
     p.add_argument("--scheduled", action="store_true",
@@ -2332,14 +2551,14 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
                          "refused with --scheduled)")
     rn.add_argument("--max-items", type=int, default=None, metavar="N")
     rn.add_argument("--keep-workspace", action="store_true", help="keep the clone for inspection")
-    rn.add_argument("--allow-dirty", action="store_true", help="let --apply run with a dirty spec or adapter")
+    rn.add_argument("--allow-dirty", action="store_true", help=ALLOW_DIRTY_HELP)
     rn.add_argument("--run-id", default=None, metavar="ID")
     pb = sub.add_parser("publish", help="file a reviewed earlier dry run (--apply); without it, re-check its bytes")
     pb.add_argument("run_id")
     pb.add_argument("--item", default=None, metavar="KEY", help="the item to publish (when the run has several)")
     pb.add_argument("--apply", action="store_true", help="file the reviewed preview (idempotent: once per preview)")
     pb.add_argument("--plan-id", default=None, metavar="ID", help="refuse unless the preview has this plan id")
-    pb.add_argument("--allow-dirty", action="store_true", help="let --apply run with a dirty spec or adapter")
+    pb.add_argument("--allow-dirty", action="store_true", help=ALLOW_DIRTY_HELP)
     pb.add_argument("--json", action="store_true")
     sh = sub.add_parser("show", help="a run's summary (or run.json with --json)")
     sh.add_argument("run_id", nargs="?", default=None)

@@ -17,6 +17,7 @@ tests:
   - tools/test_jev_spec.py
   - .github/scripts/dash-gen/test_ai_run.py
   - .github/scripts/dash-gen/test_ai_budget.py
+  - .github/scripts/dash-gen/test_scout.py
 prd: ["FR-NEW:local-loop-runner"]
 prd_new:
   - key: local-loop-runner

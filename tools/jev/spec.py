@@ -40,16 +40,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import re
 import sys
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeGuard
 
 import yaml
 
-from .common import FLEET_YML, HUB, JevError, is_nwo
+from .common import FLEET_YML, HUB, JevError, is_clone_relpath, is_nwo
 
 SPEC_ROOT = HUB / "tools" / "jev" / "steps"
 WORKFLOWS_DIR = HUB / ".github" / "workflows"
@@ -132,6 +133,20 @@ ON_BUDGET_HIT = frozenset({"discard"})
 ARG_TOKENS = frozenset({"plan_dir", "nwo", "name", "branch", "item_dir", "validated", "run_ref", "bodies_dir"})
 ARG_TOKEN_RX = re.compile(r"\{([a-z_]+)\}")
 SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
+#: The `tools/dash-gen` subcommands a `local:` argv may run. A planner only
+#: reads (`loop plan` runs it, documented $0 and write-free); a filer writes
+#: only behind its apply flag, which the engine adds after the § 13.6 gate.
+#: Adding one is a reviewed change here (ai-run, or any writer, is never a planner).
+#: A filer is pinned with its own apply flag: a spec's `apply_flag` must be it.
+PLANNER_COMMANDS = frozenset({"scout"})
+PUBLISH_COMMANDS = {"scout-file": "--apply"}
+#: Each filer's flag naming the reviewed preview's bodies directory, which the
+#: engine adds beside the apply flag (a template never carries it): the filer
+#: then files no body that is not byte-identical to a reviewed one, and nothing
+#: when it cannot list the open issues to dedupe against.
+PUBLISH_REVIEWED_FLAGS = {"scout-file": "--reviewed-bodies"}
+#: the write flag no planner may carry, whatever the spec's publish block says
+APPLY_FLAG = "--apply"
 FLAG_RX = re.compile(r"--[a-z][a-z0-9-]*")
 SWITCH_VAR_RX = re.compile(r"[A-Z][A-Z0-9_]*_ENABLED")
 
@@ -290,7 +305,8 @@ def _positive_int(value: object) -> TypeGuard[int]:
 
 
 def _positive_number(value: object) -> TypeGuard[int | float]:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+    """Finite too: YAML's `.inf` passes `> 0`, and a cap of it caps nothing."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
 
 def resolve(fleet: Mapping, *, model_from: str, max_turns_from: str, call_site: str,
@@ -368,11 +384,29 @@ def _check_evals(evals: object, where: str) -> None:
         raise StepSpecError(f"{where}: evals path {evals} does not exist")
 
 
-def _argv_template(raw: object, at: str) -> tuple[str, ...]:
+def _spells_flag(arg: str, flag: str) -> bool:
+    """True when argparse would read `arg` as `flag`: the flag itself, `flag=…`,
+    or any prefix of it (dash-gen's parsers take an unambiguous prefix, so
+    `--appl` is `--apply`)."""
+    name = arg.split("=", 1)[0]
+    return arg.startswith("--") and len(name) > 2 and flag.startswith(name)
+
+
+def _argv_template(raw: object, at: str, commands: Collection[str], refused_flags: tuple[str, ...]
+                   ) -> tuple[str, ...]:
     if (not isinstance(raw, list) or not raw or not all(isinstance(a, str) and a for a in raw)):
         raise StepSpecError(f"{at}: a non-empty list of strings (a `tools/dash-gen` command line)")
     if not SUBCOMMAND_RX.fullmatch(raw[0]):
         raise StepSpecError(f"{at}[0]: {raw[0]!r} is not a dash-gen subcommand name")
+    if raw[0] not in commands:
+        raise StepSpecError(f"{at}[0]: {raw[0]!r} is not one of the dash-gen subcommands this role may run "
+                            f"({sorted(commands)}, tools/jev/spec.py)")
+    for arg in raw[1:]:
+        if arg == "--":
+            raise StepSpecError(f"{at}: carries `--` (a passthrough to another program)")
+        hit = next((f for f in refused_flags if _spells_flag(arg, f)), None)
+        if hit:
+            raise StepSpecError(f"{at}: {arg!r} spells {hit} — the engine adds it after the gate, never a template")
     for arg in raw:
         unknown = sorted(set(ARG_TOKEN_RX.findall(arg)) - ARG_TOKENS)
         if unknown:
@@ -420,18 +454,26 @@ def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str) 
     bad = [f for f in flags.values() if not isinstance(f, str) or not FLAG_RX.fullmatch(f)]
     if bad:
         raise StepSpecError(f"{at}.planner.flags: {bad} are not --long-flags")
-    planner = ArgvTemplate(argv=_argv_template(pl["argv"], f"{at}.planner.argv"), flags=dict(flags))
+    pb = raw.get("publish")
+    apply_flag = pb.get("apply_flag") if isinstance(pb, Mapping) else None
+    refused = tuple(dict.fromkeys(f for f in (APPLY_FLAG, apply_flag) if isinstance(f, str) and f))
+    spelled = [f for f in flags.values() if any(_spells_flag(f, r) for r in refused)]
+    if spelled:
+        raise StepSpecError(f"{at}.planner.flags: {spelled} spell a write flag — a planner only reads")
+    planner = ArgvTemplate(argv=_argv_template(pl["argv"], f"{at}.planner.argv", PLANNER_COMMANDS, refused),
+                           flags=dict(flags))
 
     publish = None
     if "publish" in raw:
-        pb = raw["publish"]
         if not isinstance(pb, Mapping) or set(pb) != PUBLISH_KEYS:
             raise StepSpecError(f"{at}.publish: needs exactly {sorted(PUBLISH_KEYS)}")
-        argv = _argv_template(pb["argv"], f"{at}.publish.argv")
         if not isinstance(pb["apply_flag"], str) or not FLAG_RX.fullmatch(pb["apply_flag"]):
             raise StepSpecError(f"{at}.publish.apply_flag: a --long-flag, not {pb['apply_flag']!r}")
-        if pb["apply_flag"] in argv:
-            raise StepSpecError(f"{at}.publish.argv: carries {pb['apply_flag']} — the engine adds it after the gate")
+        argv = _argv_template(pb["argv"], f"{at}.publish.argv", PUBLISH_COMMANDS,
+                              (*refused, *PUBLISH_REVIEWED_FLAGS.values()))
+        if pb["apply_flag"] != PUBLISH_COMMANDS[argv[0]]:
+            raise StepSpecError(f"{at}.publish.apply_flag: {pb['apply_flag']!r} is not {argv[0]}'s apply flag "
+                                f"({PUBLISH_COMMANDS[argv[0]]}, tools/jev/spec.py PUBLISH_COMMANDS)")
         if not isinstance(risk, Mapping) or pb["risk"] not in risk:
             raise StepSpecError(f"{at}.publish.risk: {pb['risk']!r} names no action in this spec's risk block")
         publish = ArgvTemplate(argv=argv, flags={}, apply_flag=pb["apply_flag"], risk=pb["risk"])
@@ -500,6 +542,9 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
     if (not isinstance(ws["cwd"], str) or not isinstance(ws["brief_dir"], str)
             or not isinstance(outputs, list) or not all(isinstance(o, str) and o for o in outputs)):
         raise StepSpecError(f"{where}: workspace cwd/brief_dir are strings, outputs a list of paths")
+    if not is_clone_relpath(ws["brief_dir"]):
+        raise StepSpecError(f"{where}: workspace.brief_dir {ws['brief_dir']!r} is a relative path inside the clone "
+                            "(no '..', '.' or '.git' part)")
     if ws["github_credential"] not in GITHUB_CREDENTIALS:
         raise StepSpecError(f"{where}: workspace.github_credential must be one of {sorted(GITHUB_CREDENTIALS)}")
     exceptions = ws.get("exceptions", {})

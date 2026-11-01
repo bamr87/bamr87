@@ -20,7 +20,7 @@ coverage: listed
 | `README.md` | file | How to run JEV, set up the merge driver, and read the tier ladder | required |
 | `__init__.py` | file | Package marker and version | required |
 | `__main__.py` | file | The CLI entry point — the `number`, `conflicts`, `generated`, `steps` and `loop` command groups | required |
-| `common.py` | file | Hub paths, `_data/fleet.yml` `jev:` / `budget.jev` reader, the `gh` and `git` wrappers (no hooks, no fsmonitor), the guards they apply (no merge, no `--admin`, no destructive or settings verb, no `gh api` but a GET or an inline GraphQL query, no force-push in any spelling), the shared `owner/repo` and bare-file-name checks, the subprocess helper (merged or replaced environment) and the named-keys `.env` reader | required |
+| `common.py` | file | Hub paths, `_data/fleet.yml` `jev:` / `budget.jev` reader, the `gh` and `git` wrappers (no hooks, no fsmonitor), the guards they apply (no merge, no `--admin`, no destructive or settings verb, allowlists of the gh commands and the git subcommands, options and `-c` keys JEV uses, no `gh api` but a GET or an inline GraphQL query, no force-push, mirror or remote delete), the shared `owner/repo` and bare-file-name checks, the subprocess helper (merged or replaced environment) and the named-keys `.env` reader | required |
 | `classify.py` | file | The deterministic classifier: conflicted file → kind, and (files, hunks, lines, history) → one tier | required |
 | `number.py` | file | The assign-at-merge compiler: fragments → `features/features.yml`, `PRD.md`, `CHANGELOG.md`, `docs/amendments/NNNN-*.md`; plus the hand-picked-number lint | required |
 | `conflicts.py` | file | Detect, trial-merge, triage, resolve by tier, validate, push a merge commit, escalate | required |
@@ -43,7 +43,7 @@ coverage: listed
 
 ## Forbidden
 
-- No `gh pr merge`, no `--admin`, no repository-settings call, no `gh api` write — asserted in `common.assert_no_admin`; no force-push — asserted in `common.assert_safe_git`; both covered by `tools/test_jev_conflicts.py`.
+- No `gh pr merge`, no `--admin`, no repository-settings call, no `gh api` write, no gh command outside the allowlist — asserted in `common.assert_no_admin`; no force-push, mirror or remote delete, no git subcommand, global option or `-c` key outside the allowlist — asserted in `common.assert_safe_git`; both covered by `tools/test_jev_conflicts.py`.
 - No secret, token or model credential in this directory; the `claude` CLI reads its own environment.
 - No import of dash-gen (`.github/scripts/dash-gen/`) from any module here; dash-gen imports `tools.jev` lazily, never the reverse.
 - No GitHub credential in a local loop-step agent's environment, and no loop-step `claude -p` outside `headless.claude_flags` and `headless.agent_env` (ADR 0002, P1) — except `conflicts.claude_argv` (tiers 1–2), not yet isolated and switched off by `jev.auto_tiers: [tier0]`; it moves onto headless.py before tier1 or tier2 is enabled.

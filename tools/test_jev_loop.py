@@ -70,8 +70,14 @@ if argv[:1] == ["--version"]:
 if argv[:2] == ["auth", "status"]:
     logged = os.environ.get("STUB_LOGGED_IN") == "1" or any(
         os.environ.get(n) for n in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"))
+    if os.environ.get("STUB_LOGIN_FLIPS") and not os.environ.get("CLAUDE_CONFIG_DIR"):
+        # the default keychain login: read logged in once, then logged out (a locked keychain, an expiry)
+        flag = os.path.join(HERE, "login-read")
+        logged = not os.path.exists(flag)
+        open(flag, "a").close()
     print(json.dumps({"loggedIn": logged, "authMethod": "claude.ai"})); sys.exit(0)
 note("argv.jsonl", argv)
+note("cwd.jsonl", os.getcwd())
 def debug(line):
     if "--debug-file" in argv:
         with open(argv[argv.index("--debug-file") + 1], "a") as fh:
@@ -188,7 +194,9 @@ if kind == "credential_rejected":
 if kind == "budget_hit":
     result(8.0, subtype="error_max_budget_usd", is_error=True); sys.exit(1)
 if sc.get("sleep"):   # a session that outlives the engine's backstop
-    import time
+    import signal, time
+    # as the CLI does: SIGINT ends the turn, and the result still reports its cost
+    signal.signal(signal.SIGINT, lambda *_: (result(float(sc.get("cost", 0.61))), sys.exit(0)))
     time.sleep(float(sc["sleep"]))
 result(float(sc.get("cost", 0.61)))
 sys.exit(0)
@@ -229,6 +237,10 @@ if argv[:1] == ["api"] and "/commits/" in argv[1]:
     if os.environ.get("STUB_GH_HEAD_MOVED"):
         print("0" * 40); sys.exit(0)
     print(head(nwo)); sys.exit(0)
+if argv[:1] == ["api"] and argv[1].startswith("repos/") and argv[1].count("/") == 2:
+    if os.environ.get("STUB_GH_REPO_UNREADABLE"):
+        sys.stderr.write("gh: Not Found (HTTP 404)\n"); sys.exit(1)
+    print(argv[1][len("repos/"):]); sys.exit(0)
 if argv[:2] == ["repo", "view"]:
     print(json.dumps({"hasIssuesEnabled": True})); sys.exit(0)
 if argv[:2] == ["issue", "list"]:
@@ -254,7 +266,7 @@ sys.exit(3)
 #: another fleet.yml (JEV_TEST_FILE_CONFIG) and log the environment's NAMES
 #: each subcommand received (JEV_TEST_ENV_LOG)
 DASH_GEN_WRAPPER = r'''#!__PY__
-import json, os, subprocess, sys
+import json, os, signal, subprocess, sys
 if os.environ.get("JEV_TEST_ENV_LOG"):
     with open(os.environ["JEV_TEST_ENV_LOG"], "a") as fh:
         fh.write(json.dumps({"sub": sys.argv[1], "env": sorted(os.environ)}) + "\n")
@@ -265,7 +277,13 @@ if sys.argv[1:2] == ["ai-run"] and "--dry-run" not in sys.argv and os.environ.ge
 args = sys.argv[1:]
 if args[:1] == ["scout-file"] and os.environ.get("JEV_TEST_FILE_CONFIG"):
     args += ["--config", os.environ["JEV_TEST_FILE_CONFIG"]]
-res = subprocess.run(["__REAL__", *args], capture_output=True, text=True, input=sys.stdin.read())
+# a cancel reaches the real ai-run as it does through the exec-ing tools/dash-gen
+proc = subprocess.Popen(["__REAL__", *args], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True)
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    signal.signal(sig, lambda n, _f: proc.send_signal(n))
+stdout, stderr = proc.communicate(sys.stdin.read())
+res = subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
 out = res.stdout
 if sys.argv[1:2] == ["scout"] and os.environ.get("JEV_TEST_MUTATE_PROMPT") and out.strip():
     lines = out.strip().splitlines()
@@ -322,6 +340,10 @@ class Box:
 
     def gh_calls(self) -> list[list[str]]:
         return [json.loads(x) for x in self.gh_log.read_text().splitlines()] if self.gh_log.exists() else []
+
+    def claude_cwds(self) -> list[str]:
+        f = self.bin / "cwd.jsonl"
+        return [json.loads(x) for x in f.read_text().splitlines()] if f.exists() else []
 
     def claude_calls(self) -> list[list[str]]:
         f = self.bin / "argv.jsonl"
@@ -660,6 +682,57 @@ def test_plan_file_refuses_a_brief_that_is_not_a_bare_name_and_copies_nothing():
     assert not [c for c in box.gh_calls() if c[:2] == ["repo", "clone"]]
 
 
+def test_a_malformed_or_missing_plan_file_is_refused_and_the_record_ends():
+    box = Box()
+    saved = box.root / "saved"
+    saved.mkdir()
+    with world(box):
+        for body, needle in (({"include": ["SCHEMA"]}, "list of objects"), ({"include": {"a": 1}}, "list of objects"),
+                             ({"include": "SCHEMA"}, "list of objects"), ([1], "not a JSON object")):
+            (saved / "plan.json").write_text(json.dumps(body))
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--plan-file", str(saved / "plan.json"),
+                             "--item", TARGET)
+            rec = box.last()
+            assert code == 2 and rec["status"] == "refused" and needle in " ".join(rec["notes"]), (body, rec)
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--plan-file", str(saved / "nope.json"),
+                         "--item", TARGET)
+        assert code == 2 and "no such file" in " ".join(box.last()["notes"]), box.last()["notes"]
+    assert all(json.loads((d / "run.json").read_text())["status"] != "running" for d in box.run_dirs())
+
+
+def test_a_relative_plan_file_is_the_callers_not_the_hubs():
+    box = Box()
+    saved = box.root / "saved"
+    with world(box):
+        res = L.dash_gen(["scout", "--offline", "--target", TARGET, "--out-dir", str(saved)])
+        (saved / "plan.json").write_text(res.out.strip().splitlines()[-1])
+    with world(box, JEV_CALLER_CWD=str(saved)):   # what tools/dash loop sets before its cd to the hub
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--offline", "--plan-file", "plan.json",
+                           "--item", TARGET)
+    assert code == 0 and box.last()["status"] == "rehearsed", (err, box.last()["notes"])
+    assert 'JEV_CALLER_CWD="${caller}"' in (HUB / "tools" / "dash").read_text()
+
+
+def test_an_unexpected_error_still_ends_the_record_and_an_oserror_fails_it():
+    box = Box()
+    real = L.obtain_plan
+    for exc, code_want in ((PermissionError("the brief is unreadable"), 1), (ValueError("a bug"), None)):
+        def boom(ctx, exc=exc):
+            raise exc
+        L.obtain_plan = boom
+        try:
+            with world(box):
+                try:
+                    code = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET)[0]
+                except ValueError:
+                    code = None
+        finally:
+            L.obtain_plan = real
+        rec = box.last()
+        assert code == code_want and rec["status"] == "failed" and rec["exit_code"] == 1, (exc, code, rec)
+        assert type(exc).__name__ in " ".join(rec["notes"]), rec["notes"]
+
+
 def test_a_target_committing_the_brief_directory_fails_the_item_not_the_run():
     box = Box()
     planted = fixture_repo({".scout": "committed by the target\n"})
@@ -725,6 +798,59 @@ def test_a_default_on_switch_reads_any_case_of_false_as_off():
                                plan_dir=box.root / "plan", history=L.History(box.runs))
             stop = L.gates(ctx)
             assert (stop is not None and stop[0] == 0 and "switched off" in stop[1]) == stops, (value, stop)
+
+
+def test_a_step_with_no_switch_never_runs_scheduled():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    bare = dataclasses.replace(spec, local=dataclasses.replace(spec.local, switch=None))
+    with world(box):
+        for scheduled, want in ((True, 2), (False, None)):
+            ctx = L.RunContext(spec=bare, adapter=None, fleet=S.load_fleet(), opts=L.Options(scheduled=scheduled),
+                               plan_dir=box.root / "plan", history=L.History(box.runs))
+            stop = L.gates(ctx)
+            assert (stop[0] if stop else None) == want, (scheduled, stop)
+            assert scheduled is False or "no local.switch" in stop[1]
+    assert not box.gh_calls(), "no switch to read: nothing is asked of GitHub"
+
+
+def test_a_default_on_switch_reads_not_found_as_unset_only_when_the_hub_is_readable():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    on = S.Switch(config=spec.local.switch.config, variable="REPO_SCOUT_ENABLED", default="on")
+    spec_on = dataclasses.replace(spec, local=dataclasses.replace(spec.local, switch=on))
+    for extra, want in (({}, None), ({"STUB_GH_REPO_UNREADABLE": "1"}, 2)):
+        with world(box, **extra):
+            ctx = L.RunContext(spec=spec_on, adapter=None, fleet=S.load_fleet(), opts=L.Options(scheduled=True),
+                               plan_dir=box.root / "plan", history=L.History(box.runs))
+            stop = L.gates(ctx)
+        assert (stop[0] if stop else None) == want, (extra, stop)
+    assert ["api", "repos/bamr87/bamr87", "--jq", ".full_name"] in box.gh_calls()
+
+
+def test_the_engine_splits_the_publish_directory_by_phase():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    rd = L.RunDir(box.root / "runs" / "r1")
+    ctx = L.RunContext(spec=spec, adapter=None, fleet={}, opts=L.Options(), plan_dir=rd.path / "plan",
+                       history=L.History(box.runs), run=rd)
+    item = Item(key=NWO, name=TARGET, nwo=NWO, branch="main", row={}, brief=None)
+    d = rd.path / "items" / "bamr87__SCHEMA"
+    assert ctx.bodies_dir(item, apply=False) == d / "bodies" and ctx.bodies_dir(item, apply=True) == d / "filed"
+    dry, wet = L.item_values(ctx, item), L.item_values(ctx, item, apply=True)
+    assert dry["bodies_dir"] == str(d / "bodies") and wet["bodies_dir"] == str(d / "filed")
+    argv = S.render_argv(spec.local.publish.argv, {**wet, "validated": str(d / "v.json")})
+    assert argv[argv.index("--bodies-dir") + 1] == str(d / "filed"), "the apply never writes the reviewed bodies"
+
+
+def test_the_rehearsal_preflight_runs_outside_the_hub_and_leaves_nothing():
+    box = Box()
+    with world(box):
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+    assert code == 0, err
+    cwds = [Path(c) for c in box.claude_cwds()]
+    assert cwds and not [c for c in cwds if c.resolve().is_relative_to(HUB.resolve())], cwds
+    assert all(c.resolve().is_relative_to(box.work.resolve()) and not c.exists() for c in cwds), cwds
 
 
 # --------------------------------------------------------------------------- #
@@ -851,6 +977,54 @@ def test_a_tampered_workspace_is_failed_and_destroyed_without_git_running_in_it(
     assert code == 1 and item["status"] == "failed" and "tampered" in item["reason"], item
     assert "not inspected" in (box.latest() / "items" / "bamr87__SCHEMA" / "tree.txt").read_text()
     assert not list(box.work.glob("*/*")), "destroyed"
+    L.wsp.tampered, L.wsp.tree_report = (lambda ws: ["commondir"]), no_git
+    try:
+        with world(box):
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--keep-workspace")
+    finally:
+        L.wsp.tampered, L.wsp.tree_report = saved
+    item = box.last()["items"][0]
+    assert code == 1 and "kept_workspace" not in item and not list(box.work.glob("*/*")), \
+        "--keep-workspace never keeps a tampered clone"
+
+
+def test_an_item_failure_after_the_clone_fails_that_item_and_the_run_goes_on():
+    box = Box()
+    saved = L.wsp.tree_report
+
+    def broken(ws):
+        raise common.JevError("git status failed (simulated)")
+    L.wsp.tree_report = broken
+    try:
+        with world(box):
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+    finally:
+        L.wsp.tree_report = saved
+    rec = box.last()
+    assert code == 1 and rec["status"] == "rehearsed", (code, rec["status"], rec["notes"])
+    [item] = rec["items"]
+    assert item["status"] == "failed" and "simulated" in item["reason"], item
+    rows = [json.loads(x) for x in (box.latest() / "attempts.jsonl").read_text().splitlines()]
+    assert [(r["decision"], r["outcome"]) for r in rows] == [("rehearsed", "failed")], rows
+    assert not list(box.work.glob("*/*")), "the clone is still destroyed"
+
+
+def test_ctrl_c_during_the_clone_leaves_nothing_in_the_work_root():
+    box = Box()
+    real = L.wsp.gh
+
+    def clone_then_interrupt(args, **kw):
+        real(args, **kw)   # the clone lands on disk, then the operator's Ctrl-C
+        raise KeyboardInterrupt
+    L.wsp.gh = clone_then_interrupt
+    try:
+        with world(box):
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+    finally:
+        L.wsp.gh = real
+    assert code == 130 and box.last()["status"] == "interrupted"
+    assert [c for c in box.gh_calls() if c[:2] == ["repo", "clone"]], "the clone did run"
+    assert not list(box.work.glob("*/*")), "the partial clone is removed"
 
 
 def test_head_sha_tells_an_empty_repository_from_a_missing_branch():
@@ -861,6 +1035,8 @@ def test_head_sha_tells_an_empty_repository_from_a_missing_branch():
         sha, why = L.head_sha(NWO, "nope")
         assert sha is None and "no branch `nope`" in why and "drift" in why
         code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET)
+        assert code == 0 and "note: bamr87/SCHEMA has no branch `main`" in out and "drift" in out, out
     item = box.last()["items"][0]
     # not skipped as "nothing to read": the item goes on to the clone, which a real gh fails loudly
     assert item["status"] != "skipped" and "no branch `main`" in err and "drift" in err, (item, err)
@@ -918,6 +1094,38 @@ def test_refusals_exit_with_their_documented_codes():
     with world(box, JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
         code, _, err = jev("doctor")
     assert code == 4 and "inside the hub" in err and not (HUB / ".fleet" / "work").exists()
+    for offline in ((), ("--offline",)):
+        calls = len(box.claude_calls())
+        with world(box, JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, *offline)
+        rec = box.last()
+        assert code == 4 and rec["status"] == "refused" and rec["items"] == [] and "plan" not in rec, (offline, rec)
+        assert any("inside the hub" in n for n in rec["notes"]) and not (HUB / ".fleet" / "work").exists()
+        assert len(box.claude_calls()) == calls, "refused before any CLI runs or anything is planned"
+    claude_tmp = Path(f"/tmp/claude-{os.getuid()}") / "jev-test-never-made" / "work"
+    with world(box, JEV_WORK_ROOT=str(claude_tmp)):
+        code, _, err = jev("doctor")
+        assert code == 4 and "Claude temp root" in err, err
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET)
+        assert code == 4 and any("Claude temp root" in n for n in box.last()["notes"]), box.last()["notes"]
+    assert not claude_tmp.parent.exists()
+    # `loop plan` exits on no host problem: it says the work root is inside the hub and still reads the host
+    with world(box, JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--offline")
+    assert code == 0 and "host problem: the work root" in out and "inside the hub" in out, out
+    assert "host: claude 2.1.308" in out and "auth oauth" in out, out
+    assert not (HUB / ".fleet" / "work").exists()
+
+
+def test_the_text_plan_names_a_host_problem_when_the_budget_cannot_be_read():
+    # an unreadable ledger leaves no `budget` key: the host problem is still printed
+    host = {"version": "2.1.308", "probe": "cached", "canary": "missing", "auth": {"method": "oauth"},
+            "problems": ["the work root /x is inside the hub tree"]}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = L._print_plan({"notes": ["budget: the ledger cannot be read"], "items": [], "host": host},
+                             L.Options(), 0)
+    assert code == 0 and "host problem: the work root /x is inside the hub tree" in out.getvalue(), out.getvalue()
 
 
 def test_show_prints_the_latest_run():
@@ -1162,6 +1370,92 @@ def test_a_filing_that_would_write_bytes_nobody_reviewed_is_refused():
     assert not (d / "publish-result.json").exists()
 
 
+def test_a_changed_publish_argv_or_a_symlinked_validated_file_refuses_the_filing():
+    box = Box()
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        run_id = box.last()["run_id"]
+        d = box.latest() / "items" / "bamr87__SCHEMA"
+        plan_file = d / "publish-plan.json"
+        reviewed = plan_file.read_text()
+        plan = json.loads(reviewed)
+        plan["argv"] = [*plan["argv"], "--run-url", "elsewhere"]   # the bytes match; the command does not
+        plan_file.write_text(json.dumps(plan))
+        code, out, _ = jev("publish", run_id, "--apply")
+        assert code == 2 and "publish argv is not the reviewed one" in out, out
+        plan_file.write_text(reviewed)
+        validated = d / "outputs" / "proposals.validated.json"
+        twin = d / "outputs" / "twin.json"
+        twin.write_bytes(validated.read_bytes())
+        validated.unlink()
+        validated.symlink_to(twin)   # the same bytes, behind a link the engine never follows
+        code, out, _ = jev("publish", run_id, "--apply")
+    assert code == 2 and "validated file changed" in out, out
+    assert not _issue_creates(box) and not (d / "publish-result.json").exists()
+
+
+def test_review_gap_and_posture_breach_fail_closed_on_their_edge_cases():
+    doc = {"bodies": {"01-a.md": "aa"}, "rows": [{"title": "A", "labels": []}]}
+    two_rows = L.PublishPlan(True, [], [{"title": "A", "labels": []}, {"title": "B", "labels": []}], None)
+    assert "cannot be compared" in L.review_gap(None, None, doc, two_rows, {"01-a.md": "aa"}, Path("v")), \
+        "two issues, one body file: the bytes of the other were never compared"
+    spec, sandbox = L.load_step("repo-scout"), H.Posture("sandbox")
+    no_init = {"kind": "agent_error", "cost_usd": 0.0, "cost_source": "estimated"}
+    assert "no init record" in L.posture_breach(spec, sandbox, {**no_init, "tool_uses": {"Read": 1}}, [], [])
+    assert "no init record" in L.posture_breach(spec, sandbox, no_init, [], [{"type": "assistant"}])
+    assert L.posture_breach(spec, sandbox, no_init, [], []) is None, "a cap estimate alone is accounting"
+
+
+def test_the_engine_paths_include_ai_run_and_a_hangup_is_an_interrupt():
+    assert ".github/scripts/dash-gen/ai_activity.py" in L.ENGINE_SOURCES and "tools/dash-gen" in L.ENGINE_SOURCES
+    before = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    try:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)   # whatever this test's parent does with a hangup
+        with L.interrupt_on_signals():
+            for sig in (signal.SIGTERM, signal.SIGHUP):
+                assert signal.getsignal(sig) not in (signal.SIG_DFL, signal.SIG_IGN, None), sig
+        assert signal.getsignal(signal.SIGTERM) is before[signal.SIGTERM], "the previous handlers come back"
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+        # under `nohup` a closed terminal ends nothing; a SIGTERM still interrupts
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        with L.interrupt_on_signals():
+            assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+            assert signal.getsignal(signal.SIGTERM) not in (signal.SIG_DFL, signal.SIG_IGN, None)
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+    finally:
+        signal.signal(signal.SIGHUP, before[signal.SIGHUP])
+
+
+def test_an_interrupted_attempt_that_left_no_outcome_is_charged_at_the_cap_durably():
+    box = Box()
+    d = Path(tempfile.mkdtemp())
+    marker, script = _signal_logger(d)   # an ai-run that ends on the interrupt without writing an outcome
+    saved = L.DASH_GEN
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        real_relay = L.relay_dash_gen
+
+        def relay(argv, **kw):   # the live attempt's ai-run is the fake; the rehearsal and planner are real
+            if argv[:1] == ["ai-run"] and "--dry-run" not in argv:
+                L.DASH_GEN = script
+                threading.Timer(1.0, os.kill, (os.getpid(), signal.SIGTERM)).start()
+            try:
+                return real_relay(argv, **kw)
+            finally:
+                L.DASH_GEN = saved
+        L.relay_dash_gen = relay
+        try:
+            code, _, _ = jev("run", "repo-scout", "--target", TARGET)
+        finally:
+            L.relay_dash_gen, L.DASH_GEN = real_relay, saved
+        later = L.budget_position(S.load_fleet(), scheduled=False)
+    item = box.last()["items"][0]
+    assert code == 130 and marker.exists() and item["status"] == "interrupted", (code, item)
+    assert (item["cost_usd"], item["cost_source"]) == (8.0, "estimated"), item
+    assert not box.ledger_rows() and later.spent_usd == 8.0, "no row from ai-run, and still the month's spend"
+
+
 def test_the_live_recheck_skips_filing_once_backpressure_is_reached():
     box = Box()
     marker = f'<!-- repo-scout key="{NWO}" -->'
@@ -1201,6 +1495,21 @@ def test_a_usage_limit_stops_the_queue_and_never_falls_back_to_the_api_key():
     assert "ANTHROPIC_API_KEY" not in call["env"] and "CLAUDE_CODE_OAUTH_TOKEN" in call["env"]
     assert "do not rotate" in err and "#348" in err
     assert [r["decision"] for r in box.attempts()][-1] == "usage-skip"
+
+
+def test_a_usage_limit_stops_model_calls_but_not_a_zero_cost_tier0_reuse():
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", "djangoerp")[0] == 0   # a validated, reusable djangoerp
+        box.seed_live([{"kind": "usage_limit"}])
+        code, _, err = jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31")
+    rec = box.last()
+    items = {i["key"]: i for i in rec["items"]}
+    assert code == 0 and items["bamr87/cv-pro"]["status"] == "usage-limited", (code, rec["items"])
+    reuse = items["bamr87/djangoerp"]
+    assert reuse["decision"] == "tier0-reuse" and reuse["status"] == "previewed", (reuse, err[-400:])
+    assert len(box.live_calls()) == 2, "one call per run: the reuse after the 429 made none"
 
 
 def test_a_rejected_credential_exits_3_and_stops_the_run():
@@ -1412,6 +1721,20 @@ def test_doctor_live_runs_the_canary_only_with_a_yes_and_judges_it():
                                  for p in step["canary_problems"]), step["canary_problems"]
 
 
+def test_the_canary_passes_with_its_directory_under_home_as_it_is_by_default():
+    # the default work root is ~/.cache/jev/work, so the plants sit under $HOME, which ai-run's trace writes as `~`
+    box = Box()
+    with world(box, HOME=str(box.root)):
+        (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_pass"}))
+        code, out, err = jev("doctor", "--live", "--yes", "--json")
+        step = json.loads(out)["steps"][0]
+        trace = next((box.root / "canary").glob("*"), None)
+    assert code == 0 and step["canary"] == "ok", (step.get("canary_problems"), err)
+    assert trace is None, "the canary's scratch is removed"
+    [row] = box.ledger_rows()
+    assert row["item"] == "canary"
+
+
 def test_doctor_live_at_the_ceiling_or_with_the_lock_held_runs_no_canary_and_says_so():
     box = Box()
     month = L.now_utc().strftime("%Y-%m")
@@ -1439,6 +1762,55 @@ def test_a_canary_passed_on_a_stored_login_does_not_unlock_a_run_that_carries_a_
         assert not box.live_calls()
         box.seed_live({"kind": "ok", "proposals": GOOD})
         assert jev("run", "repo-scout", "--target", TARGET)[0] == 0, "the env-token canary unlocks the env-token run"
+
+
+def test_ai_run_uses_the_credential_source_the_engine_chose_or_none():
+    # the host check sees a stored login; by ai-run's own read it is gone, and the hub .env holds a token
+    box = Box()
+    dotenv = box.root / "hub.env"
+    dotenv.write_text("CLAUDE_CODE_OAUTH_TOKEN=fake-dotenv-oauth-5678\n", encoding="utf-8")
+    with world(box, CLAUDE_CODE_OAUTH_TOKEN="", STUB_LOGIN_FLIPS="1", JEV_DOTENV=str(dotenv)):
+        box.seed_live({"kind": "ok", "proposals": GOOD}, auth=H.AuthChoice("oauth", "login"))
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+    rec = box.last()
+    assert rec["host"]["auth"] == {"method": "oauth", "source": "login"}, rec["host"]
+    assert not box.live_calls(), "no session ran under a credential the canary never proved"
+    assert code == 3 and rec["items"][0]["outcome"] == "credential_rejected", (code, rec["items"], err[-400:])
+    [call] = [c for c in box.attempts() if c.get("outcome")]
+    argv = json.loads((box.latest() / "items" / "bamr87__SCHEMA" / "argv.json").read_text())["ai_run"]
+    assert argv[argv.index("--auth-source") + 1] == "login" and call["cost_source"] == "no-spend"
+    # and should an ai-run choose again anyway, the engine reads its outcome's auth before any output
+    real_pin = L.auth_pin
+    L.auth_pin = lambda auth: ["--auth-order", auth.method] if auth else []
+    try:
+        (box.bin / "login-read").unlink()
+        with world(box, CLAUDE_CODE_OAUTH_TOKEN="", STUB_LOGIN_FLIPS="1", JEV_DOTENV=str(dotenv)):
+            code, _, _ = jev("run", "repo-scout", "--target", TARGET)
+    finally:
+        L.auth_pin = real_pin
+    item = box.last()["items"][0]
+    assert code == 4 and item["status"] == "unsafe" and "not the one the host check chose" in item["reason"], item
+    assert not (box.latest() / "items" / "bamr87__SCHEMA" / "outputs").exists(), "its outputs are never read"
+
+
+def test_ai_run_is_given_the_cap_the_ceiling_was_judged_on():
+    # the engine judged the month on a $5 cap; ai-run re-reading _data/fleet.yml from disk would give claude $8
+    box = Box()
+    real = L.load_step
+
+    def judged_at_5(*a, **k):
+        spec = real(*a, **k)
+        return dataclasses.replace(spec, resolved=dataclasses.replace(spec.resolved, max_budget_usd=5.0))
+    L.load_step = judged_at_5
+    try:
+        with world(box):
+            box.seed_live({"kind": "ok", "proposals": GOOD})
+            code, _, err = jev("run", "repo-scout", "--target", TARGET)
+    finally:
+        L.load_step = real
+    [call] = box.live_calls()
+    assert call["argv"][call["argv"].index("--max-budget-usd") + 1] == "5", (call["argv"], err[-300:])
+    assert code == 0 and [r["cap_usd"] for r in box.ledger_rows()] == [5.0]
 
 
 # --------------------------------------------------------------------------- #
@@ -1476,16 +1848,18 @@ def test_the_ceiling_is_read_afresh_before_each_attempt_and_held_under_the_budge
         blocked = L.budget_block(ctx, True)
         assert blocked and blocked[0] == "budget-skip" and ctx.budget.spent_usd == 20.0, (blocked, ctx.budget)
         assert ctx.budget.estimated_usd == 8.0, "an unledgered charge is added back to the fresh read"
-        assert "budget lock" in L.budget_block(ctx, False)[1]
+        assert L.budget_block(ctx, False)[0] == "budget-locked" and "budget lock" in L.budget_block(ctx, False)[1]
         (box.root / "ledger.json").write_text("{not json")
-        assert "cannot be read" in L.budget_block(ctx, True)[1], "an unreadable ledger skips, it never spends"
+        unreadable = L.budget_block(ctx, True)
+        assert unreadable[0] == "budget-unreadable" and "cannot be read" in unreadable[1], "it skips, never spends"
         box.seed_live({"kind": "ok", "proposals": GOOD})
         (box.root / "ledger.json").unlink()
         with (box.root / "ledger.json.loops.lock").open("a") as fh:
             fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
             code, _, _ = jev("run", "repo-scout", "--target", TARGET)
     item = box.last()["items"][0]
-    assert code == 0 and item["decision"] == "budget-skip" and "budget lock" in item["reason"], item
+    assert code == 0 and item["decision"] == "budget-locked" and "budget lock" in item["reason"], item
+    assert box.last()["status"] == "done", "a held lock is not the monthly ceiling"
     assert not box.live_calls()
 
 
@@ -1511,6 +1885,46 @@ def test_budget_position_counts_by_utc_month_and_refuses_a_foreign_ledger():
     sys.path.insert(0, str(HUB / ".github" / "scripts" / "dash-gen"))
     import ai_activity
     assert L.LEDGER_VERSION == ai_activity.LEDGER_VERSION
+
+
+def test_a_ceiling_or_a_spend_figure_that_is_not_finite_never_reads_as_room():
+    # one NaN makes every comparison with the ceiling false ("fits"); .inf caps nothing
+    for usd in (float("inf"), float("nan"), 0, -1, True):
+        f = S.load_fleet()
+        f["budget"]["loops"]["monthly_usd"] = usd
+        try:
+            L.loops_budget(f)
+        except S.StepSpecError as exc:
+            assert "finite monthly_usd" in str(exc), exc
+        else:
+            raise AssertionError(f"budget.loops.monthly_usd {usd!r} was accepted")
+    box = Box()
+    row = {"origin": "local", "loop": "repo-scout", "cost_source": "reported", "timestamp": L.now_utc().isoformat()}
+    with world(box):
+        # an unreadable figure is charged at its cap; a non-finite or negative one is unreadable
+        _seed_ledger(box, [{**row, "session_id": "a", "total_cost_usd": float("nan"), "cap_usd": 8.0},
+                           {**row, "session_id": "b", "total_cost_usd": float("inf"), "cap_usd": 8.0},
+                           {**row, "session_id": "c", "total_cost_usd": -50.0, "cap_usd": 8.0},
+                           {**row, "session_id": "d", "total_cost_usd": 1.5}])
+        assert L.budget_position(S.load_fleet(), scheduled=False).spent_usd == 25.5
+        _seed_ledger(box, [{**row, "session_id": "e", "total_cost_usd": float("nan"), "cap_usd": float("inf")}])
+        try:
+            L.budget_position(S.load_fleet(), scheduled=False)
+        except common.JevError as exc:
+            assert "cannot be judged" in str(exc), exc
+        else:
+            raise AssertionError("a row with no readable cost or cap read as room")
+        _seed_ledger(box, [])
+        unledgered = L.unledgered_path(box.root / "ledger.json")
+        for bad in ('{"cost_usd": NaN, "attempt_id": "x"}', '{"cost_usd": Infinity}', '{"cost_usd": -3}'):
+            unledgered.write_text(bad + "\n")
+            try:
+                L.budget_position(S.load_fleet(), scheduled=False)
+            except common.JevError as exc:
+                assert "cannot be judged" in str(exc), exc
+            else:
+                raise AssertionError(f"the unledgered line {bad} read as room")
+        unledgered.unlink()
 
 
 def test_an_unreadable_ledger_stays_unreadable_after_a_writer_tried_it():
@@ -1550,6 +1964,32 @@ def test_an_ai_run_that_dies_without_an_outcome_is_charged_at_the_cap_and_fails_
     assert rec["budget"]["after"]["spent_usd"] == 8.0 and item["cost_source"] == "estimated"
     [row] = [r for r in box.attempts() if r.get("outcome")]
     assert row["cost_usd"] == 8.0 and row["cost_source"] == "estimated" and not box.ledger_rows()
+    # no ledger row, but the charge is durable: the next run (or the canary) sees the month at $8, not $0
+    [kept] = [json.loads(x) for x in L.unledgered_path(box.root / "ledger.json").read_text().splitlines()]
+    assert kept["attempt_id"] == row["attempt_id"] and kept["cost_usd"] == 8.0, kept
+    with world(box):
+        later = L.budget_position(S.load_fleet(), scheduled=False)
+    assert later.spent_usd == 8.0 and later.estimated_usd == 8.0, later
+
+
+def test_an_unledgered_charge_counts_once_and_an_unreadable_one_refuses():
+    box = Box()
+    month = L.now_utc().strftime("%Y-%m")
+    with world(box):
+        _seed_ledger(box, [{"timestamp": f"{month}-01T00:30:00+00:00", "origin": "local", "loop": "repo-scout",
+                            "attempt_id": "a1", "total_cost_usd": 3.0, "cost_source": "reported"}])
+        extra = L.unledgered_path(box.root / "ledger.json")
+        extra.write_text("".join(json.dumps({"timestamp": f"{month}-02T00:00:00+00:00", "attempt_id": a,
+                                             "cost_usd": c, "cost_source": "estimated"}) + "\n"
+                                 for a, c in (("a1", 8.0), ("a2", 8.0))))
+        state = L.budget_position(S.load_fleet(), scheduled=False)
+        assert state.spent_usd == 11.0, "a1 is ledgered (its own row counts), a2 is not (the engine's charge does)"
+        extra.write_text(extra.read_text() + '{"attempt_id": "a3", "cost_u\n')
+        try:
+            L.budget_position(S.load_fleet(), scheduled=False)
+            raise AssertionError("a torn unledgered line read as no spend")
+        except common.JevError as exc:
+            assert "repair the line" in str(exc), exc
 
 
 def _short_clock(seconds: float):
@@ -1623,6 +2063,105 @@ def test_a_sigterm_to_the_engine_ends_the_run_interrupted_with_its_record():
     assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL, "the handler is restored"
 
 
+def _signal_logger(d: Path, *, slow: float = 0.0) -> tuple[Path, Path]:
+    """A fake ai-run that records the signal it gets (after `slow` seconds of
+    bookkeeping) and exits; it would otherwise run for 30 s."""
+    marker, script = d / "got", d / "dash-gen"
+    # its stdio is closed at once, so the engine's reader threads never stand in for the wait under test
+    script.write_text(f"#!{sys.executable}\nimport os, signal, sys, time\nos.close(1)\nos.close(2)\n"
+                      f"def on(n, _f):\n    time.sleep({slow})\n    open({str(marker)!r}, 'a').write(str(n) + '\\n')"
+                      "\n    sys.exit(0)\n"
+                      "signal.signal(signal.SIGTERM, on)\nsignal.signal(signal.SIGHUP, on)\ntime.sleep(30)\n")
+    script.chmod(0o755)
+    return marker, script
+
+
+@contextlib.contextmanager
+def hangup_default():
+    """SIGHUP at its default for a test that sends one. Under a parent that
+    ignores it (`nohup`, `trap '' HUP`) honoured_signals rightly keeps the
+    ignore, so the hangup would end nothing and the test would hang; the
+    caller's disposition comes back after."""
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL if before is None else before)
+
+
+def test_an_interrupt_that_reaches_only_the_engine_is_passed_on_to_ai_run():
+    # `kill <engine pid>`, or a SIGHUP to the engine alone: ai-run must still start claude's ladder at once
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        d = Path(tempfile.mkdtemp())
+        marker, script = _signal_logger(d)
+        saved = (L.DASH_GEN, L.BACKSTOP_KILL_S)
+        started = time.monotonic()
+        try:
+            L.DASH_GEN, L.BACKSTOP_KILL_S = script, 20
+            threading.Timer(1.0, os.kill, (os.getpid(), sig)).start()   # the engine's pid, not its group
+            with hangup_default(), L.interrupt_on_signals():
+                L.relay_dash_gen(["ai-run"], env=dict(os.environ), timeout=30)
+            raise AssertionError("the interrupt was swallowed")
+        except KeyboardInterrupt:
+            took = time.monotonic() - started
+        finally:
+            L.DASH_GEN, L.BACKSTOP_KILL_S = saved
+        assert marker.read_text().split() == [str(int(signal.SIGTERM))], (sig, marker.read_text())
+        assert took < 10, f"{sig!r}: ai-run was signalled, not left to the {20}s backstop ({took:.1f}s)"
+
+
+def test_a_second_interrupt_does_not_cut_short_the_wait_for_ai_runs_record():
+    d = Path(tempfile.mkdtemp())
+    marker, script = _signal_logger(d, slow=2.0)   # ai-run's ladder and ledger write take a while
+    saved = (L.DASH_GEN, L.BACKSTOP_KILL_S)
+    try:
+        L.DASH_GEN, L.BACKSTOP_KILL_S = script, 20
+        for at in (1.0, 1.5):
+            threading.Timer(at, os.kill, (os.getpid(), signal.SIGTERM)).start()
+        with L.interrupt_on_signals():
+            L.relay_dash_gen(["ai-run"], env=dict(os.environ), timeout=30)
+        raise AssertionError("the interrupt was swallowed")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        L.DASH_GEN, L.BACKSTOP_KILL_S = saved
+    assert marker.exists(), "the engine went on while ai-run was still writing its record"
+
+
+def test_an_engine_only_sigterm_leaves_ai_run_s_ledger_row_and_no_session_running():
+    # the real, exec-ing tools/dash-gen: ai-run is the engine's child itself, as on the maintainer's Mac
+    box = Box()
+    saved = L.DASH_GEN
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD, "sleep": 120})
+        L.DASH_GEN = L.HUB / "tools" / "dash-gen"
+
+        def cancel() -> None:
+            for _ in range(600):
+                if (box.bin / "live.jsonl").exists():
+                    time.sleep(0.5)
+                    os.kill(os.getpid(), signal.SIGTERM)   # the engine only, never its group
+                    return
+                time.sleep(0.05)
+        t = threading.Thread(target=cancel)
+        started = time.monotonic()
+        t.start()
+        try:
+            code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        finally:
+            L.DASH_GEN = saved
+        t.join()
+        took = time.monotonic() - started
+    assert code == 130 and took < 60, (code, took, err[-600:])
+    [row] = box.ledger_rows()
+    assert row["outcome"] == "interrupted" and row["attempt_id"] == box.last()["items"][0]["attempt_id"], row
+    outcome = json.loads((box.latest() / "items" / "bamr87__SCHEMA" / "outcome.json").read_text())
+    assert outcome["kind"] == "interrupted", outcome
+    alive = subprocess.run(["pgrep", "-f", str(box.bin / "claude")], capture_output=True, text=True).stdout.split()
+    assert not alive, f"a claude session outlived the engine: {alive}"
+
+
 def test_the_backstop_terminates_ai_run_before_it_kills_it():
     d = Path(tempfile.mkdtemp())
     marker = d / "got-sigterm"
@@ -1647,6 +2186,28 @@ def test_the_backstop_terminates_ai_run_before_it_kills_it():
         assert res.code == -signal.SIGKILL and time.monotonic() - started < 10, "then SIGKILL"
     finally:
         L.DASH_GEN, L.BACKSTOP_KILL_S = saved
+
+
+def test_a_recheck_failure_on_a_tier0_reuse_under_apply_fails_that_item_not_the_run():
+    box = Box()
+    real = L.RunContext.planner
+
+    def flaky(self, *, target=None, no_files=False):
+        if no_files:   # the live recheck before the filing
+            raise common.JevError("the planner exited 2: gh: HTTP 502")
+        return real(self, target=target, no_files=no_files)
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31")[0] == 0   # both reusable
+        L.RunContext.planner = flaky
+        try:
+            code, _, err = jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31", "--apply")
+        finally:
+            L.RunContext.planner = real
+    rec = box.last()
+    assert code == 1 and rec["status"] == "done", (code, rec["status"], rec["notes"], err[-300:])
+    assert [(i["decision"], i["status"]) for i in rec["items"]] == [("tier0-reuse", "failed")] * 2, rec["items"]
+    assert "HTTP 502" in rec["items"][0]["reason"] and not _issue_creates(box)
 
 
 def test_tier0_reuse_rehashes_the_earlier_validated_copy():
@@ -1734,6 +2295,58 @@ def test_a_dedupe_unavailable_at_the_live_recheck_files_nothing():
         code, out, _ = jev("publish", run_id, "--apply")
     assert code == 1 and out.startswith("publish-skipped"), out
     assert not _issue_creates(box)
+
+
+def test_the_filing_itself_files_nothing_when_its_own_dedupe_list_fails():
+    # the preview deduped GOOD[1] against #7; the recheck and the fresh dry run list fine, the apply's own list fails
+    box = Box()
+    dup = json.dumps([{"number": 7, "title": GOOD[1]["title"], "url": "", "labels": [], "body": ""}])
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        run_id = box.last()["run_id"]
+        assert box.last()["items"][0]["would_file"] == 1
+        listed = sum(1 for c in box.gh_calls() if c[:2] == ["issue", "list"])
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup, STUB_GH_LIST_FAIL_FROM=str(listed + 3)):
+        code, out, _ = jev("publish", run_id, "--apply")
+    assert sum(1 for c in box.gh_calls() if c[:2] == ["issue", "list"]) == listed + 3, "the apply's list was the one"
+    assert code == 1 and out.startswith("publish-failed") and "exited 3" in out, out
+    assert not _issue_creates(box), "nothing is filed without the duplicate check the preview had"
+    assert "nothing was filed: run the loop again" in out, out
+    # the way on: that preview stays claimed, and says so; a new run reuses the attempt at $0 and files it
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup):
+        code, out, _ = jev("publish", run_id, "--apply")
+        assert code == 2 and "already applied" in out and "nothing was filed: run the loop again" in out, out
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        item = box.last()["items"][0]
+        assert item["decision"] == "tier0-reuse" and item["status"] == "previewed", item
+        assert len(box.live_calls()) == 1, "the retry made no claude call"
+        code, out, _ = jev("publish", box.last()["run_id"], "--apply")
+    assert code == 0 and out.startswith("published") and len(_issue_creates(box)) == 1, out
+
+
+def test_the_filing_withholds_a_body_the_preview_had_dropped_when_its_duplicate_closes():
+    # #7 closes between the fresh dry run and the filing: GOOD[1] is no longer a duplicate, but nobody reviewed it
+    box = Box()
+    dup = json.dumps([{"number": 7, "title": GOOD[1]["title"], "url": "", "labels": [], "body": ""}])
+    real = L._fresh_dry
+
+    def then_closed(ctx, item, validated):
+        out = real(ctx, item, validated)
+        ctx.publish_env["STUB_GH_ISSUES"] = "[]"   # the filing's own environment
+        return out
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        run_id = box.last()["run_id"]
+        L._fresh_dry = then_closed
+        try:
+            code, out, _ = jev("publish", run_id, "--apply")
+        finally:
+            L._fresh_dry = real
+    titles = [c[c.index("--title") + 1] for c in _issue_creates(box)]
+    assert titles == [GOOD[0]["title"]], titles
+    assert code == 1 and out.startswith("partial") and "not in the reviewed preview" in out, out
 
 
 def test_a_concurrent_apply_that_claims_the_result_first_is_refused():

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import contextlib
 import os
 import signal
 import subprocess
@@ -224,6 +225,23 @@ def test_a_spec_granting_a_never_grantable_tool_is_refused_but_edit_is_grantable
     assert "Edit" in opt(flags_for_spec(edit), "--tools").split(",")
 
 
+def test_only_the_grantable_families_can_be_granted():
+    # a denylist would pass every tool the CLI ships next; these reach past the sandbox today
+    for bad in ("Artifact", "RemoteTrigger", "PushNotification", "SendUserFile", "Monitor", "mcp__x__y"):
+        spec = dataclasses.replace(SPEC, allowed_tools=(*SPEC.allowed_tools, bad))
+        try:
+            flags_for_spec(spec)
+        except common.JevError as exc:
+            assert bad in str(exc), exc
+            continue
+        raise AssertionError(f"{bad} granted")
+    assert not H.GRANTABLE_TOOLS & H.NEVER_GRANTABLE_TOOLS
+    assert set(H.tool_families(SPEC.allowed_tools)) <= H.GRANTABLE_TOOLS
+    wider = {**INIT, "tools": [*INIT["tools"], "RemoteTrigger"]}
+    problems = H.init_problems(wider, (*EXPECTED, "RemoteTrigger"))
+    assert any("outside the grantable" in p for p in problems), problems
+
+
 def test_a_posture_with_network_or_an_unknown_name_is_refused():
     for bad in (lambda: H.Posture(network=("pypi.org",)), lambda: H.Posture("open")):
         try:
@@ -276,6 +294,34 @@ def test_private_read_paths_cover_claude_temp_roots_but_never_the_work_root():
             os.environ.pop("JEV_DOTENV")
         else:
             os.environ["JEV_DOTENV"] = saved
+
+
+def test_a_work_root_in_the_per_user_temp_dir_keeps_its_claude_root_denied_and_has_its_own_key():
+    uid = os.getuid()
+    real = H._user_temp_dir
+    user_tmp = tempfile.mkdtemp()   # stands in for DARWIN_USER_TEMP_DIR, on any platform
+    saved = os.environ.get("JEV_WORK_ROOT")
+    try:
+        H._user_temp_dir = lambda: user_tmp
+        inside = Path(user_tmp) / "jev-work"
+        assert f"{user_tmp}/claude-{uid}" in H.claude_temp_roots()
+        assert H.work_root_problem(Path(user_tmp) / f"claude-{uid}" / "work"), "a Claude root there is refused"
+        assert H.work_root_problem(inside) is None, "the per-user temp directory itself can hold the work root"
+        paths = H.private_read_paths(inside)
+        assert user_tmp not in paths and f"{user_tmp}/claude-{uid}" in paths, paths
+        assert H.lifted_private_reads(inside) == ["user-tmp"]
+        assert H.lifted_private_reads(Path("/home/u/.cache/jev/work")) == []
+        os.environ["JEV_WORK_ROOT"] = "/home/u/.cache/jev/work"
+        full = H.posture_template_sha(SPEC, SANDBOX)
+        os.environ["JEV_WORK_ROOT"] = str(inside)
+        assert H.posture_template_sha(SPEC, SANDBOX) != full, "a narrowed deny list never reuses a cached pass"
+    finally:
+        H._user_temp_dir = real
+        if saved is None:
+            os.environ.pop("JEV_WORK_ROOT", None)
+        else:
+            os.environ["JEV_WORK_ROOT"] = saved
+        os.rmdir(user_tmp)
 
 
 def test_the_posture_template_sha_covers_everything_the_probe_proves_and_no_local_path():
@@ -411,6 +457,20 @@ def test_the_auth_order_comes_from_the_env_then_ai_auth():
     raise AssertionError("unknown method accepted")
 
 
+def test_a_pinned_credential_is_that_source_or_none_never_the_next():
+    env, dot = {"CLAUDE_CODE_OAUTH_TOKEN": "env-tok"}, {"CLAUDE_CODE_OAUTH_TOKEN": "dot-tok"}
+    assert H.pinned_auth("oauth", "env", env, dot, lambda: False) == H.AuthChoice("oauth", "env")
+    assert H.pinned_auth("oauth", "login", {}, dot, lambda: True) == H.AuthChoice("oauth", "login")
+    assert H.choose_auth(["oauth"], {}, dot, lambda: False) == H.AuthChoice("oauth", "dotenv"), "the fallback"
+    for method, source, environ in (("oauth", "login", {}), ("oauth", "env", {}), ("api_key", "dotenv", env)):
+        try:
+            H.pinned_auth(method, source, environ, dot, lambda: False)
+        except H.NoCredential as exc:
+            assert "refusing rather than use another source" in str(exc)
+            continue
+        raise AssertionError(f"{method}/{source} fell through to another source")
+
+
 def test_dotenv_is_parsed_for_the_named_keys_only_and_never_sourced():
     d = Path(tempfile.mkdtemp())
     marker = d / "sourced"
@@ -537,6 +597,25 @@ def test_an_interrupted_run_is_never_read_as_a_rejected_credential():
     assert H.classify(inv(rc=1, result=aborted), 8.0).kind == "credential_rejected", "without a signal it is"
 
 
+def test_json_mode_is_no_spend_only_for_the_clis_own_argv_refusal():
+    # json output never shows an init, so only the option parser's own refusal,
+    # as the FIRST stderr line, proves the model was never reached
+    cap = 5.0
+    refusals = ("error: unknown option '--x'\n",
+                "error: option '--permission-mode <mode>' argument 'x' is invalid. Allowed choices are default.\n",
+                "Error: Input must be provided either through stdin or as a prompt argument when using --print\n")
+    for tail in refusals:
+        got = H.classify(inv(rc=1, stderr_tail=tail, fmt="json"), cap)
+        assert (got.kind, got.cost_source, got.cost_usd) == ("startup_failed", "no-spend", 0.0), (tail, got)
+    may_have_spent = ("error: something broke mid-session\n",
+                      "hook value is invalid, ignoring\nUnhandled rejection\n",
+                      "starting\nerror: unknown option '--x'\n",
+                      "working\nError: Input must be provided either through stdin or as a prompt argument\n")
+    for tail in may_have_spent:
+        got = H.classify(inv(rc=1, stderr_tail=tail, fmt="json"), cap)
+        assert (got.kind, got.cost_source, got.cost_usd) == ("unparseable", "estimated", cap), (tail, got)
+
+
 def test_json_mode_with_no_result_does_not_claim_the_session_started():
     got = H.classify(inv(rc=1, fmt="json", stdout_text="Error: something"), 5.0)
     assert (got.kind, got.cost_source, got.cost_usd) == ("unparseable", "estimated", 5.0)
@@ -630,6 +709,147 @@ def test_a_signal_to_this_process_starts_the_ladder_and_keeps_the_result():
     assert signal.getsignal(signal.SIGTERM) is before, "the previous handler is restored"
 
 
+@contextlib.contextmanager
+def hangup_default():
+    """SIGHUP at its default for a test that sends one. Under a parent that
+    ignores it (`nohup`, `trap '' HUP`) honoured_signals rightly keeps the
+    ignore, so the hangup would end nothing and the test would hang; the
+    caller's disposition comes back after."""
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL if before is None else before)
+
+
+def test_a_hangup_a_quit_or_any_other_terminating_signal_starts_the_same_ladder():
+    # claude runs in its own session: a closed terminal reaches ai-run only,
+    # and a stray USR1 or a CPU limit's XCPU would otherwise end ai-run alone
+    for sig in (signal.SIGHUP, signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2, signal.SIGALRM, signal.SIGXCPU):
+        d, claude = stub_dir()
+        with hangup_default():
+            before = signal.getsignal(sig)
+            timer = threading.Timer(1.0, lambda sig=sig: os.kill(os.getpid(), sig))
+            timer.start()
+            try:
+                got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n",
+                               cwd=d, env=stub_env(STUB_SCENARIO="result_on_sigint"), timeout_s=None, trace=None,
+                               redactor=H.Redactor({}), cap_usd=8.0, int_grace=0.5, term_grace=0.5)
+            finally:
+                timer.cancel()
+            assert signal.getsignal(sig) is before
+        assert got.interrupted == signal.Signals(sig).name, got.interrupted
+        assert got.result and got.result["total_cost_usd"] == 0.4 and H.classify(got, 8.0).kind == "interrupted"
+
+
+def test_held_signals_are_recorded_not_fatal_and_stream_reads_them():
+    names: list[str] = []
+    before = signal.getsignal(signal.SIGTERM)
+    with H.held_signals(names):
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(0.2)
+        assert names == ["SIGTERM"], "held, and this process is still here"
+        # one held before stream is called cancels the run before claude starts
+        d, claude = stub_dir()
+        got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                       env=stub_env(STUB_SCENARIO="result_on_sigint"), timeout_s=None, trace=None,
+                       redactor=H.Redactor({}), cap_usd=8.0, int_grace=0.5, term_grace=0.5, received=names)
+        assert not got.started and not (d / "argv.jsonl").exists(), "claude was never started"
+        assert got.interrupted == "SIGTERM" and got.signals_seen == 1, got
+        out = H.classify(got, 8.0)
+        assert (out.kind, out.cost_source, out.cost_usd) == ("interrupted", "no-spend", 0.0), out
+        # and one held during a run starts the ladder, then stream restores the
+        # HELD handler, not the default
+        names.clear()
+        timer = threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        timer.start()
+        try:
+            got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n",
+                           cwd=d, env=stub_env(STUB_SCENARIO="result_on_sigint"), timeout_s=None, trace=None,
+                           redactor=H.Redactor({}), cap_usd=8.0, int_grace=0.5, term_grace=0.5, received=names)
+        finally:
+            timer.cancel()
+        assert got.interrupted == "SIGTERM" and H.classify(got, 8.0).kind == "interrupted", got
+        assert signal.getsignal(signal.SIGTERM) is not before, "stream restores the HELD handler, not the default"
+    assert signal.getsignal(signal.SIGTERM) is before
+
+
+class _CancelOnClose(H.Trace):
+    """A trace whose close, the last thing stream does after claude exits, is
+    where a cancel lands."""
+
+    def close(self) -> None:
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(0.1)
+        super().close()
+
+
+def test_a_signal_after_claude_exits_is_not_the_runs_interruption():
+    names: list[str] = []
+    with H.held_signals(names):
+        d, claude = stub_dir()
+        red = H.Redactor({})
+        got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                       env=stub_env(STUB_SCENARIO="ok"), timeout_s=None, trace=_CancelOnClose(None, red),
+                       redactor=red, cap_usd=8.0, received=names)
+    assert names == ["SIGTERM"], names
+    assert got.interrupted == "" and got.signals_seen == 0, got
+    assert H.classify(got, 8.0).kind == "ok", "a finished run is booked as what it was"
+
+
+class _HangupOnClose(H.Trace):
+    """A trace that closes the terminal (a SIGHUP) while stream's handlers are in."""
+
+    seen: object = None
+
+    def close(self) -> None:
+        self.seen = signal.getsignal(signal.SIGHUP)
+        os.kill(os.getpid(), signal.SIGHUP)
+        time.sleep(0.1)
+        super().close()
+
+
+def test_a_hangup_inherited_ignored_stays_ignored_under_nohup():
+    names: list[str] = []
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    try:
+        assert signal.SIGHUP not in H.honoured_signals(H.FORWARDED_SIGNALS)
+        assert signal.SIGTERM in H.honoured_signals(H.FORWARDED_SIGNALS)
+        with H.held_signals(names):
+            assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+            d, claude = stub_dir()
+            red = H.Redactor({})
+            trace = _HangupOnClose(None, red)
+            got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n",
+                           cwd=d, env=stub_env(STUB_SCENARIO="ok"), timeout_s=None, trace=trace, redactor=red,
+                           cap_usd=8.0, received=names)
+        assert trace.seen is signal.SIG_IGN and names == [], (trace.seen, names)
+        assert H.classify(got, 8.0).kind == "ok"
+        assert signal.getsignal(signal.SIGHUP) is signal.SIG_IGN
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)
+        assert signal.SIGHUP in H.honoured_signals(H.FORWARDED_SIGNALS), "a hangup not ignored is still forwarded"
+    finally:
+        signal.signal(signal.SIGHUP, before)
+
+
+class _DeadTerminal:
+    def write(self, _text: str) -> int:
+        raise OSError(5, "Input/output error")
+
+    def flush(self) -> None:
+        raise OSError(5, "Input/output error")
+
+
+def test_a_tee_that_cannot_be_written_is_dropped_and_the_run_goes_on():
+    d, claude = stub_dir()
+    got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                   env=stub_env(STUB_SCENARIO="ok"), timeout_s=None, trace=None, redactor=H.Redactor({}),
+                   cap_usd=8.0, echo=_DeadTerminal())
+    assert got.echo_lost and got.rc == 0 and got.result and got.result["total_cost_usd"] == 0.25
+
+
 def test_a_missing_binary_is_cli_missing():
     got = H.stream(["/nonexistent/claude"], prompt="x", cwd=None, env=None, timeout_s=None, trace=None,
                    redactor=H.Redactor({}), cap_usd=1.0)
@@ -696,6 +916,30 @@ def test_a_secret_straddling_the_tool_result_cut_is_redacted_before_the_clip():
     t.close()
     text = (d / "trace.jsonl").read_text()
     assert "ghp_QQ" not in text and "QQQQQQ" not in text, "no prefix of the token survives the cut"
+
+
+def test_the_tee_and_the_outcome_detail_redact_before_they_clip():
+    # each secret starts ~15 characters before its line's cut, so clipping first
+    # would leave a prefix no pattern or value match recognises
+    exact = "s3cr3t-fleet-token-value"
+    red = H.Redactor({"FLEET_TOKEN": exact})
+    for secret in ("ghp_" + "Q" * 36, exact):
+        events = [
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Bash", "input": {"command": "x" * (H.ECHO_INPUT - 30) + " " + secret}},
+                {"type": "text", "text": "y" * (H.ECHO_TEXT - 20) + " " + secret}]}},
+            {"type": "user", "message": {"content": [
+                {"type": "tool_result", "is_error": True,
+                 "content": "permission denied " + "z" * (H.ECHO_INPUT - 40) + " " + secret}]}},
+        ]
+        lines = [line for e in events for line in H.condensed(e, 8.0, red)]
+        assert len(lines) == 3, lines
+        for line in lines:
+            assert "ghp_Q" not in line and "s3cr3t" not in line, line
+        failed = result(subtype="error_during_execution", is_error=True, total_cost_usd=0.3,
+                        result="w" * 180 + " " + secret)
+        detail = H.classify(inv(result=failed), 8.0, red).detail
+        assert "ghp_Q" not in detail and "s3cr3t" not in detail, detail
 
 
 # --------------------------------------------------------------------------- #
@@ -1014,6 +1258,26 @@ def test_the_canary_passes_only_a_session_that_shows_every_fence_holding():
         assert not verdict.ok and any(needle in p for p in verdict.problems), (needle, verdict.problems)
     leaky_init = [{**INIT, "tools": [*INIT["tools"], "WebFetch"]}, *canary_events()[1:]]
     assert any(p.startswith("init:") for p in judge(leaky_init).problems)
+
+
+def test_the_canary_is_judged_on_the_trace_as_written_with_home_as_a_tilde():
+    # ai-run writes the trace through its Redactor, which turns $HOME (/home/u here) into `~`
+    path = Path(tempfile.mkdtemp()) / "trace.jsonl"
+    red = H.Redactor({"HOME": "/home/u"})
+    trace = H.Trace(path, red)
+    for e in canary_events():
+        trace.write(e, json.dumps(e))
+    trace.close()
+    events = H.read_events(path)
+    assert f"cat ~/.cache/jev/canary/secret.txt" in path.read_text(), "the trace holds the `~` form"
+    got = H.judge_canary(events, [FENCED], {"kind": "ok", "cost_usd": 0.03}, plant=PLANT, left_behind=[],
+                         expected_tools=H.tool_families(SPEC.allowed_tools), redact=red.text)
+    assert got.ok, got.problems
+    # a write target left on disk is still found by its real path
+    left = H.judge_canary(events, [FENCED], {"kind": "ok", "cost_usd": 0.03}, plant=PLANT,
+                          left_behind=[PLANT.written], expected_tools=H.tool_families(SPEC.allowed_tools),
+                          redact=red.text)
+    assert any("wrote outside the clone" in p for p in left.problems), left.problems
 
 
 def test_a_canary_whose_commands_did_not_run_is_inconclusive_not_a_pass():
