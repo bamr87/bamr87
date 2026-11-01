@@ -324,7 +324,9 @@ def scan(projects_dir: Path, machine: str) -> tuple[dict, dict, set[str]]:
                     continue  # truncated write mid-line; ignore
                 if rec.get("type") != "assistant":
                     continue
-                msg = rec.get("message") or {}
+                msg = rec.get("message")
+                if not isinstance(msg, dict):
+                    continue
                 u = msg.get("usage")
                 model = normalize_model(msg.get("model"))
                 if not u or not model:

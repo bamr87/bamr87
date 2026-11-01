@@ -152,6 +152,24 @@ def git(args: list[str], cwd: Path, timeout: int = 900, env: dict | None = None,
                 *args], cwd=cwd, timeout=timeout, env=env, inherit_env=inherit_env)
 
 
+def git_bytes(args: list[str], cwd: Path, timeout: int = 900) -> bytes | None:
+    """git's stdout as BYTES, or None on a non-zero exit — for a blob whose
+    exact bytes matter. `run` decodes in text mode, which turns CRLF and a bare
+    CR into LF, so a check that compares files through it cannot see a
+    line-ending change. Same guard and the same `-c` settings as `git`; no
+    push or fetch (nothing to pin)."""
+    i = assert_safe_git(args)
+    if args[i] in _GIT_PACK_PINS:
+        raise JevError(f"refusing: git_bytes reads; `git {args[i]}` goes through git()")
+    try:
+        proc = subprocess.run(  # noqa: S603 - argv is a list, never a shell string
+            ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.pager=cat", *args],
+            cwd=str(cwd), stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout, check=False)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
 def gh(args: list[str], cwd: Path | None = None, timeout: int = 180, env: dict | None = None) -> Run:
     """The ONE place JEV shells out to GitHub.
 
@@ -322,7 +340,7 @@ def _assert_api_read(args: list[str]) -> None:
 #: -f'` then `p`), an autocorrected typo (`psuh`) or plumbing that pushes
 #: (`send-pack`, `http-push`) fails closed. git itself refuses an alias that
 #: shadows one of these.
-_GIT_ALLOWED = frozenset({"add", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
+_GIT_ALLOWED = frozenset({"add", "blame", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
                           "fetch", "grep", "init", "log", "ls-files", "ls-tree", "merge", "merge-file", "push",
                           "remote", "rev-parse", "show", "status", "update-index"})
 #: git global options JEV passes, and whether each takes a value (`--opt=v` or

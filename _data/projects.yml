@@ -51,6 +51,17 @@
 #                            personas: [string] optional
 #                            preview: {command, ready_url} documented for leaf gates
 #                            baselines: none|visual|journey
+#   frontend       optional  fleet frontend platform (constitution § 18, docs/FRONTEND-PLATFORM.md;
+#                            linted by tools/frontend_registry.py, drift check (o)). Sub-keys:
+#                            type: app|console|site|game|ext|none
+#                            tier: shell|tokens|none (none = N/A, no frontend)
+#                            framework: free text (jekyll-zer0, nextjs-tailwind, godot, …) | TBD
+#                            surfaces: [browser|desktop|mobile|vscode|terminal]
+#                            token_version: fleet token release consumed (vX.Y.Z) | none
+#                            entry_url: URL the shell launcher opens (null = none)
+#                            shell: fleet|zer0|own|none|TBD (fleet = the hub app shell)
+#                            enforce: bool (default false) — true once the repo's
+#                            adoption PR merged: UPS-FE-70..72 warnings become failures
 #   auto_evolve    bool      opt-in to the weekly repo-evolution loop
 #                            (.github/workflows/repo-evolution.yml): a Claude Code pass
 #                            opens a DRAFT PR in this repo's own upstream. Submodules
@@ -78,6 +89,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: mkdocs
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bamr87.github.io/README/
+    shell: none
 
 - name: scripts
   slug: scripts
@@ -96,6 +115,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: skills
   slug: skills
@@ -113,6 +140,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: it-journey
   slug: it-journey
@@ -141,6 +176,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: jekyll-zer0
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://it-journey.dev
+    shell: zer0
 
 - name: zer0-mistakes
   slug: zer0-mistakes
@@ -169,6 +212,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: jekyll-zer0
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://zer0-mistakes.com
+    shell: zer0
 
 - name: gitorio
   slug: gitorio
@@ -188,6 +239,14 @@
   docs_url: null
   schema:
     status: none
+  frontend:
+    type: app
+    tier: shell
+    framework: react-vite-tailwind
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bamr87.github.io/gitorio/
+    shell: own
 
 - name: law-ai
   slug: law-ai
@@ -211,6 +270,14 @@
   docs_url: null
   schema:
     status: none
+  frontend:
+    type: app
+    tier: shell
+    framework: nextjs-tailwind
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bamr87.github.io/law-ai/
+    shell: own
 
 - name: githubai
   slug: githubai
@@ -228,6 +295,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: fredgar-ai
   slug: fredgar-ai
@@ -258,6 +333,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: app
+    tier: shell
+    framework: react-vite+django
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bamr87.github.io/fredgar-ai/
+    shell: own
 
 - name: ai-seed
   slug: ai-seed
@@ -295,6 +378,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: ext
+    tier: tokens
+    framework: vscode-webview
+    surfaces: [vscode]
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: zpl-viewer
   slug: zpl-viewer
@@ -318,6 +409,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: ext
+    tier: tokens
+    framework: vscode-webview
+    surfaces: [vscode]
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: csv-vscoode
   slug: csv-vscoode
@@ -356,6 +455,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: game
+    tier: tokens
+    framework: react-vite-tailwind
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bamr87.github.io/bashcrawl/
+    shell: none
 
 - name: bamr87.github.io
   slug: bamr87.github.io
@@ -381,6 +488,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: jekyll-zer0
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bamr87.github.io
+    shell: zer0
 
 - name: lifehacker.dev
   slug: lifehacker.dev
@@ -405,6 +520,14 @@
   docs_url: null
   schema:
     status: none
+  frontend:
+    type: site
+    tier: tokens
+    framework: jekyll-zer0
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://lifehacker.dev
+    shell: zer0
 
 # --- Accounting / finance Django experiments -------------------------------
 - name: djangoerp
@@ -429,6 +552,14 @@
   docs_url: null
   schema:
     status: none
+  frontend:
+    type: app
+    tier: shell
+    framework: django-templates
+    surfaces: [browser]
+    token_version: none
+    entry_url: null
+    shell: own
 
 # --- Personal content / CV -------------------------------------------------
 # --- Formerly forked tools (now first-party in substance) -------------------
@@ -454,6 +585,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: app
+    tier: shell
+    framework: react-mantine+vscode+django
+    surfaces: [browser, vscode]
+    token_version: none
+    entry_url: null
+    shell: own
 
 # --- Added in the 2026-09-07 reconciliation (live bamr87 repos that were
 # unregistered or registered without a checkout) -----------------------------
@@ -476,6 +615,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: python-tui
+    surfaces: [terminal]
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: ocrmd
   slug: ocrmd
@@ -493,6 +640,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: app
+    tier: shell
+    framework: static-html
+    surfaces: [browser]
+    token_version: none
+    entry_url: null
+    shell: own
 
 - name: rewind-arcade
   slug: rewind-arcade
@@ -518,6 +673,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: game
+    tier: tokens
+    framework: react-vite-tailwind-canvas
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bamr87.github.io/rewind-arcade/
+    shell: none
 
 - name: .github
   slug: dot-github
@@ -589,6 +752,14 @@
   schema:
     status: none     # its SCHEMA.md predates the Pyramid format (fails schema_lint)
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 # --- Added in the 2026-10-19 consolidation (docs/CONSOLIDATION.md): live repos
 # under bamr87 and the lineage orgs' root sites that were not registered, plus
@@ -609,6 +780,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: app
+    tier: shell
+    framework: react-vite-tailwind
+    surfaces: [browser]
+    token_version: none
+    entry_url: null
+    shell: own
 
 - name: godotgo
   slug: godotgo
@@ -626,6 +805,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: game
+    tier: tokens
+    framework: godot
+    surfaces: [desktop, browser]
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: bash-365-apex
   slug: bash-365-apex
@@ -643,6 +830,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: static-html
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bash-365.com
+    shell: none
 
 - name: year-of-ai.github.io
   slug: year-of-ai.github.io
@@ -660,6 +855,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: jekyll-zer0
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://year-of-ai.github.io/
+    shell: zer0
 
 - name: ai-world-view.github.io
   slug: ai-world-view.github.io
@@ -677,6 +880,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: jekyll-zer0
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://ai-world-view.github.io/
+    shell: zer0
 
 - name: bash-365.com
   slug: bash-365.com
@@ -694,6 +905,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: site
+    tier: tokens
+    framework: jekyll-zer0
+    surfaces: [browser]
+    token_version: none
+    entry_url: https://bash-365.com/
+    shell: zer0
 
 - name: fleet-infra
   slug: fleet-infra
@@ -712,6 +931,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: kvlite
   slug: kvlite
@@ -730,6 +957,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: netprobe
   slug: netprobe
@@ -748,6 +983,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: go-tui
+    surfaces: [terminal]
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: fleet-observe
   slug: fleet-observe
@@ -766,6 +1009,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: zer0-id
   slug: zer0-id
@@ -784,6 +1035,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: TBD
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: sec-lab
   slug: sec-lab
@@ -802,6 +1061,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: edgar-pipeline
   slug: edgar-pipeline
@@ -820,6 +1087,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: zer0-kernel
   slug: zer0-kernel
@@ -838,6 +1113,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: sensor-mesh
   slug: sensor-mesh
@@ -856,6 +1139,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: fleet-mobile
   slug: fleet-mobile
@@ -874,6 +1165,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: app
+    tier: shell
+    framework: compose-multiplatform
+    surfaces: [mobile]
+    token_version: none
+    entry_url: null
+    shell: TBD
 
 - name: schema-lang
   slug: schema-lang
@@ -892,6 +1191,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: none
+    tier: none
+    framework: none
+    surfaces: []
+    token_version: none
+    entry_url: null
+    shell: none
 
 - name: ragio-ai
   slug: ragio-ai
@@ -910,6 +1217,14 @@
   schema:
     status: none
   license: MIT
+  frontend:
+    type: app
+    tier: shell
+    framework: static-html+fastapi
+    surfaces: [browser]
+    token_version: none
+    entry_url: null
+    shell: own
 
 # Registry-only (no submodule): shown on the dash, not drift-checked. amrchy is a
 # 248 MB personal fork; the two demo sites already live in zer0-CMS sites/.

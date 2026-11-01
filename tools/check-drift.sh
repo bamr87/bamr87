@@ -32,6 +32,7 @@
 #       is in band, and compose/overrides/* + compose/fleet.yml are in sync
 #       with it. Offline, so it gates every PR. Advisory half: submodules
 #       still publishing a hardcoded port or setting a container_name.
+#   (o) frontend registry: every submodule's `frontend:` block is valid (§ 18)
 #   (n) the Docker standard: the hub's OWN Dockerfiles/compose files match the
 #       image registry (_data/fleet.yml `images:`) and the transformer's tests
 #       pass. Advisory half: how much drift the checked-out submodules carry.
@@ -871,6 +872,14 @@ if [[ -f "$ROOT/tools/docker_harmonize.py" ]]; then
   fi
 else
   warn "skipped (tools/docker_harmonize.py absent)"
+fi
+
+# --- (o): fleet frontend registry (constitution § 18) ----------------------
+echo "(o) frontend registry (_data/projects.yml frontend: blocks)"
+if [[ -f "$ROOT/tools/frontend_registry.py" ]]; then
+  if fe_out="$("$PY" "$ROOT/tools/frontend_registry.py" lint 2>&1)"; then ok "${fe_out##*$'\n'}"; else printf '%s\n' "$fe_out" | sed 's/^/    /'; bad "frontend registry (tools/frontend_registry.py lint)"; fi
+else
+  warn "skipped (tools/frontend_registry.py absent)"
 fi
 
 # --- (c): internal links ---------------------------------------------------

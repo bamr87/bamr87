@@ -24,14 +24,43 @@ name: 🔢 JEV — assign numbers at merge
 # job regenerates them after EVERY push to main. With nothing to change it
 # publishes nothing (publish-data no-ops on a clean diff), so its own publish
 # landing on main does not loop.
+#
+# THE RATIFY JOB (amendment `ratification-records`, docs/JEV.md "Ratification
+# records")
+# ----------------------------------------------------------------------------
+# Merging an amendment's PR ratifies it (constitution § 8.3) and merging the PR
+# that adds an ADR, or a phase of one, accepts it — but nothing wrote that down,
+# so merged records kept saying `proposed`. After numbering, `ratify` plans from
+# main's STATE (`python3 -m tools.jev ratify plan`: idempotent, so a missed run
+# heals on the next one) which records the maintainer's merges have decided,
+# and which tracked ADRs' epics the maintainer closed (the `issues: closed`
+# trigger). It writes only those Status / Ratified by / Accepted in / Completed
+# lines and index status cells as ONE commit on main's tip on chore/jev-ratify,
+# opens the PR with the probed FLEET_TOKEN (so its CI runs), and then polls
+# `python3 -m tools.jev ratify guard`, the read-only, unit-tested merge guard
+# (the PR is the job's own, its head unchanged and one commit on main's tip, no
+# hold label, every check on that SHA passed, mergeable, and the diff exactly
+# the plan it was built from with every trigger still holding). Only on two
+# "go" verdicts in a row does it merge, with a merge commit — never squash,
+# `--admin` or `--auto` (main has no required checks, so `--auto` would merge
+# before CI). "Not yet" waits (a check running, a GitHub read that failed);
+# "re-cut" (main moved) plans again from the new tip, at most 3 times; "stop"
+# (merged, closed or held by a person) leaves it; "refuse" labels it needs-amr,
+# moves its Fleet project item to Needs Amr and fails. The Python never merges;
+# only the step below does, under that amendment's § 12.3 carve-out. Kill
+# switch: vars.JEV_RATIFY_ENABLED (on unless 'false'; a manual dispatch
+# bypasses it, and lifts the hold a record PR closed unmerged puts on its plan).
 
 on:
   push:
     branches: [main]
+  # A tracked ADR is complete when its epic closes (`- **Tracking**: #N`).
+  issues:
+    types: [closed]
   workflow_dispatch:
     inputs:
       dry-run:
-        description: 'Report what would be assigned, change nothing'
+        description: 'Report what would be assigned and recorded, change nothing'
         type: boolean
         default: false
 
@@ -39,13 +68,19 @@ permissions:
   contents: read
 
 # Serialized, never cancelled: a cancelled compile would leave a fragment
-# consumed and its entry unwritten.
+# consumed and its entry unwritten. An `issues` run gets its own group: GitHub
+# keeps ONE pending run per group and drops the older, and a merge that closes
+# an issue fires a push and an issues event together — in one group the issues
+# run (which never numbers) would replace the pending numbering run. The ratify
+# jobs of both kinds are serialized with each other by their job-level group.
 concurrency:
-  group: jev-number
+  group: ${{ github.event_name == 'issues' && 'jev-number-issues' || 'jev-number' }}
   cancel-in-progress: false
 
 jobs:
   number:
+    # Numbering runs on pushes and dispatches only, never on an issue event.
+    if: ${{ github.event_name != 'issues' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -109,3 +144,234 @@ jobs:
           branch: chore/jev-numbering
           labels: automation,governance
           token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+
+  ratify:
+    name: Record ratification and acceptance
+    needs: number
+    # After numbering (whatever it did: a wedged compile must not hold every
+    # record hostage), and on an issue event, where `number` is skipped.
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || vars.JEV_RATIFY_ENABLED != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: jev-ratify
+      cancel-in-progress: false
+    # The job token only reads; the push, the PR and the merge use the probed
+    # FLEET_TOKEN (a GITHUB_TOKEN push or PR fires no CI, so nothing could
+    # prove the PR before the merge).
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    env:
+      BRANCH: chore/jev-ratify
+    steps:
+      # main's TIP, not the event SHA: `number` may just have published onto
+      # it, and a plan is true only of the commit it is computed on.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0          # git blame and log read the whole history
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyyaml
+
+      # Probe, never presence-check. The job token is the unprobed fallback,
+      # enough to PLAN (public reads); writing needs the PAT (checked below).
+      - name: Probe the fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
+
+      - name: Plan the records
+        id: plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/ratify-plan.json"
+          python3 -m tools.jev ratify plan --out "$plan"
+          echo "plan=$plan" >> "$GITHUB_OUTPUT"
+          echo "edits=$(jq '.edits | length' "$plan")" >> "$GITHUB_OUTPUT"
+          python3 -m tools.jev ratify pr-body --plan "$plan" >> "$GITHUB_STEP_SUMMARY"
+
+      # One step, because a re-cut (main moved while the checks ran) goes
+      # back to planning: at most 3 attempts inside the job's timeout. Every
+      # merge decision is `ratify guard` (tools/jev/ratify.py, unit-tested in
+      # tools/test_jev_ratify.py); the shell only acts on its exit code.
+      - name: Publish, prove and merge the record
+        id: publish
+        if: ${{ steps.plan.outputs.edits != '0' && !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PAT: ${{ steps.token.outputs.pat }}
+          PLAN: ${{ steps.plan.outputs.plan }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' && 'true' || '' }}
+          BOT_EMAIL: 10567847+bamr87@users.noreply.github.com
+        run: |
+          set -euo pipefail
+          if [ "$PAT" != 'true' ]; then
+            echo "::error::Records to write, but no working FLEET_TOKEN: a branch or PR made with GITHUB_TOKEN gets no CI, so it could never be proved and merged. Re-mint FLEET_TOKEN (docs/TOKEN-ROTATION.md)."
+            exit 1
+          fi
+          refuse() {
+            echo "$1" > "$RUNNER_TEMP/ratify-fail.txt"
+            echo "::error::#${number}: $1"
+            exit 1
+          }
+          git config user.name "bamr87-bot"
+          git config user.email "$BOT_EMAIL"
+          git config credential.helper '!gh auth git-credential'
+          gh label create jev-ratify --repo "$GITHUB_REPOSITORY" --color 6E40C9 --force \
+            --description "Ratification-record PR: opened and merged by the jev-number ratify job (amendment ratification-records)"
+          gh label create governance --repo "$GITHUB_REPOSITORY" --color 5319E7 --description "Constitution, amendments and ADRs" 2>/dev/null || true
+          gh label create needs-amr --repo "$GITHUB_REPOSITORY" --color B60205 --description "Gated: waits for the maintainer (constitution § 12.4)" 2>/dev/null || true
+
+          select_args=()
+          if [ -n "$MANUAL" ]; then select_args+=(--manual); fi
+          attempts=3
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            git fetch -q origin main
+            # A plan is true only of the commit it was computed on.
+            if [ "$(jq -r .ref "$PLAN")" != "$(git rev-parse origin/main)" ]; then
+              python3 -m tools.jev ratify plan --ref origin/main --out "$PLAN"
+              if [ "$(jq '.edits | length' "$PLAN")" = 0 ]; then
+                echo "main moved and there is nothing left to record."
+                exit 0
+              fi
+            fi
+            # Which PR is the job's: this repository's own branch, opened by
+            # the maintainer's token — a fork's branch of the same name is
+            # never edited, labelled or merged (`ratify select`).
+            choice="$(python3 -m tools.jev ratify select --plan "$PLAN" "${select_args[@]}")"
+            action="$(jq -r .action <<<"$choice")"
+            number="$(jq -r '.number // empty' <<<"$choice")"
+            if [ "$action" = hold ]; then
+              echo "::warning::$(jq -r .reason <<<"$choice")"
+              exit 0
+            fi
+
+            git checkout -q -B "$BRANCH" origin/main
+            python3 -m tools.jev ratify apply --plan "$PLAN"
+            git add -- docs/amendments docs/adr
+            git commit -q -m "chore(jev): record ratification and acceptance" \
+              -m "Recorded by the jev-number ratify job (run ${GITHUB_RUN_ID}) with python3 -m tools.jev ratify apply. Each trigger PR's merge by the maintainer is the ratification or acceptance; this commit only records it (constitution § 8.3, amendment ratification-records)."
+            # Nothing but the plan leaves this job.
+            set +e
+            python3 -m tools.jev ratify check-diff --base origin/main --plan "$PLAN"
+            proved=$?
+            set -e
+            if [ "$proved" = 3 ]; then
+              echo "::warning::GitHub could not be read to prove the record; nothing pushed. The next run retries."
+              exit 0
+            elif [ "$proved" != 0 ]; then
+              echo "::error::The applied plan is not exactly the plan (a bug in ratify apply); nothing pushed."
+              exit 1
+            fi
+
+            head="$(git rev-parse HEAD)"
+            # Reuse a head already up only when it IS this record: the same
+            # tree, ONE commit whose only parent is main's tip, by the job.
+            if git fetch -q origin "$BRANCH" 2>/dev/null \
+               && [ "$(git rev-parse "FETCH_HEAD^{tree}")" = "$(git rev-parse "HEAD^{tree}")" ] \
+               && [ "$(git log -1 --format='%P %ae' FETCH_HEAD)" = "$(git rev-parse origin/main) $BOT_EMAIL" ]; then
+              head="$(git rev-parse FETCH_HEAD)"
+              echo "$BRANCH already holds this record (${head:0:7}); not re-pushed, its checks are kept."
+            else
+              git push --force -q origin "HEAD:refs/heads/${BRANCH}"
+            fi
+
+            title="$(python3 -m tools.jev ratify pr-body --plan "$PLAN" --title)"
+            python3 -m tools.jev ratify pr-body --plan "$PLAN" > "$RUNNER_TEMP/ratify-body.md"
+            if [ "$action" = update ]; then
+              gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --title "$title" \
+                --body-file "$RUNNER_TEMP/ratify-body.md" --add-label jev-ratify,governance
+            else
+              url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "$title" \
+                       --body-file "$RUNNER_TEMP/ratify-body.md" --label jev-ratify --label governance)"
+              number="${url##*/}"
+            fi
+            echo "number=${number}" >> "$GITHUB_OUTPUT"
+            echo "Record PR: #${number} at ${head:0:7} (attempt ${attempt} of ${attempts})"
+
+            # Poll the guard. Two "go" verdicts 30 s apart, so a check that
+            # registers late is still seen; 30 minutes at most.
+            deadline=$(( $(date +%s) + 30 * 60 ))
+            go_count=0
+            recut=""
+            while :; do
+              git fetch -q origin "$BRANCH" main 2>/dev/null || true
+              set +e
+              python3 -m tools.jev ratify guard --pr "$number" --sha "$head" --plan "$PLAN" > "$RUNNER_TEMP/ratify-guard.txt" 2>&1
+              verdict=$?
+              set -e
+              cat "$RUNNER_TEMP/ratify-guard.txt"
+              case "$verdict" in
+                0)
+                  go_count=$((go_count + 1))
+                  if [ "$go_count" -ge 2 ]; then
+                    gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --merge --match-head-commit "$head" --delete-branch
+                    echo "Merged #${number} (${head:0:7}) with a merge commit."
+                    exit 0
+                  fi
+                  ;;
+                3) go_count=0 ;;
+                5) recut=yes; break ;;
+                6) echo "::notice::#${number}: $(tail -n 2 "$RUNNER_TEMP/ratify-guard.txt" | head -n 1 | sed 's/^ *//')"; exit 0 ;;
+                4) refuse "$(grep -v '^guard' "$RUNNER_TEMP/ratify-guard.txt" | sed 's/^ *//' | head -n 5 | paste -sd ';' -)" ;;
+                *) echo "::error::ratify guard failed (exit ${verdict}); #${number} is left as it is."; exit 1 ;;
+              esac
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "::warning::#${number}: the guard did not say go within 30 minutes ($(tail -n 2 "$RUNNER_TEMP/ratify-guard.txt" | head -n 1 | sed 's/^ *//')). Left open, unlabelled; the next run re-checks it."
+                exit 0
+              fi
+              sleep 30
+            done
+            if [ -n "$recut" ] && [ "$attempt" -ge "$attempts" ]; then
+              echo "::warning::main kept moving: ${attempts} re-cuts without a merge. #${number} is left open, unlabelled; the next run re-plans it."
+              exit 0
+            fi
+            echo "main moved after ${BRANCH} was cut; re-planning from the new tip."
+          done
+
+      # Only a REAL refusal (the guard's verdict, written to ratify-fail.txt)
+      # hands the PR over; a crash, a timeout or a GitHub read that failed
+      # does not park it. Only an open PR of the job's own is touched.
+      - name: Hand a refused record to the maintainer
+        if: ${{ failure() && steps.publish.outputs.number != '' }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PR: ${{ steps.publish.outputs.number }}
+        run: |
+          set -uo pipefail
+          [ -s "$RUNNER_TEMP/ratify-fail.txt" ] || { echo "Not a guard refusal; #${PR} is left as it is."; exit 0; }
+          why="$(cat "$RUNNER_TEMP/ratify-fail.txt")"
+          view="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state,isCrossRepository,author,url)" || exit 0
+          if [ "$(jq -r .state <<<"$view")" != OPEN ] || [ "$(jq -r .isCrossRepository <<<"$view")" != false ] \
+             || [ "$(jq -r .author.login <<<"$view")" != "$GITHUB_REPOSITORY_OWNER" ]; then
+            echo "#${PR} is not an open record PR of this job's; not labelled."
+            exit 0
+          fi
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label needs-amr || true
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "The ratify job did not merge this record: ${why}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Labelled \`needs-amr\`; the maintainer reviews, merges or closes it, and removes the label (constitution § 12.4)." || true
+          # § 12.4: the gate is the label AND the Fleet project item at Needs
+          # Amr. That needs the project scope; without it, a warning.
+          url="$(jq -r .url <<<"$view")"
+          if item="$(gh project item-add 14 --owner "$GITHUB_REPOSITORY_OWNER" --url "$url" --format json --jq .id 2>/dev/null)" \
+             && project="$(gh project view 14 --owner "$GITHUB_REPOSITORY_OWNER" --format json --jq .id 2>/dev/null)" \
+             && fields="$(gh project field-list 14 --owner "$GITHUB_REPOSITORY_OWNER" --format json 2>/dev/null)" \
+             && field="$(jq -r '.fields[] | select(.name == "Status") | .id' <<<"$fields")" \
+             && option="$(jq -r '.fields[] | select(.name == "Status") | .options[] | select(.name == "Needs Amr") | .id' <<<"$fields")" \
+             && [ -n "$field" ] && [ -n "$option" ] \
+             && gh project item-edit --id "$item" --project-id "$project" --field-id "$field" --single-select-option-id "$option" >/dev/null; then
+            echo "Fleet project #14: #${PR} set to Needs Amr."
+          else
+            echo "::warning::Could not set #${PR}'s Fleet project #14 item to Needs Amr (the token needs the project scope); the needs-amr label still gates it."
+          fi
