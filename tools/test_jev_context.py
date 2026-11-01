@@ -744,6 +744,8 @@ def _fixture_lake(d: Path, nwo: str, name: str) -> Path:
     conn = sqlite3.connect(lake / fl.DB_NAME)
     conn.executescript(fl.SCHEMA_SQL)
     conn.execute("INSERT INTO syncs (started_at, finished_at) VALUES (?, ?)", (ago(2.1), ago(2)))
+    conn.execute("INSERT INTO repos (nwo, name, default_branch, synced_at) VALUES (?, ?, ?, ?)",
+                 (nwo, name, "main", ago(2.1)))
     for n, title in ((7, "Fixture: the build was red"), (8, "Fixture: pin nothing")):
         conn.execute("INSERT INTO issues (nwo, number, title, state, is_pr, labels, author, created_at, updated_at, "
                      "closed_at, html_url, body) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",

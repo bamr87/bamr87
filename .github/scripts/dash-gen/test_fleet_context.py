@@ -104,7 +104,11 @@ def _tmp():
 # --------------------------------------------------------------------------- #
 # fixture lake
 # --------------------------------------------------------------------------- #
-def make_lake(root: Path, *, sync_age_h: float | None = 2, schema: bool = True) -> Path:
+def make_lake(root: Path, *, sync_age_h: float | None = 2, schema: bool = True,
+              repo_synced_h: float | None | bool = True) -> Path:
+    """A lake whose last `lake sync` finished `sync_age_h` ago. Like a real
+    sync it stamps the target's `repos` row with the pass's START (0.1 h
+    earlier); `repo_synced_h` overrides that stamp, None leaves no row."""
     d = root / "lake"
     d.mkdir()
     conn = sqlite3.connect(d / fl.DB_NAME)
@@ -115,6 +119,11 @@ def make_lake(root: Path, *, sync_age_h: float | None = 2, schema: bool = True) 
     if sync_age_h is not None:
         conn.execute("INSERT INTO syncs (started_at, finished_at) VALUES (?, ?)",
                      (ago(hours=sync_age_h + 0.1), ago(hours=sync_age_h)))
+    if repo_synced_h is True:
+        repo_synced_h = None if sync_age_h is None else sync_age_h + 0.1
+    if schema and repo_synced_h is not None:
+        conn.execute("INSERT INTO repos (nwo, name, default_branch, synced_at) VALUES (?, ?, ?, ?)",
+                     (NWO, NAME, "main", ago(hours=repo_synced_h)))
     conn.commit()
     conn.close()
     return d
@@ -162,8 +171,8 @@ def _tool(key, seq, command, *, name="Bash", is_error=1, hours=4):
             "input": json.dumps({"command": command, "description": "x"}), "started_at": ago(hours=hours)}
 
 
-def rich_lake(root: Path, *, sync_age_h: float = 2, sessions_h: float = 1) -> Path:
-    lake = make_lake(root, sync_age_h=sync_age_h)
+def rich_lake(root: Path, *, sync_age_h: float = 2, sessions_h: float = 1, repo_synced_h=True) -> Path:
+    lake = make_lake(root, sync_age_h=sync_age_h, repo_synced_h=repo_synced_h)
     issues = [_issue(100 + i, closed_h=1 + i, is_pr=i % 2) for i in range(30)]
     issues[0]["labels"] = json.dumps(["ai-scout", "bug"])
     issues[1]["title"] = f"fix\x1b[31m the build \u202e{FAKE_HOME}/repo {GH_TOKEN}\x00 " + "x" * 200
@@ -416,7 +425,7 @@ def test_lake_issues_are_closed_only_newest_first_capped_and_scout_flagged():
     assert all(r["scout"] is False for r in rows[1:])
     assert {r["kind"] for r in rows} == {"issue", "pr"} and rows[1]["kind"] == "pr"
     assert set(rows[0]) == {"number", "kind", "title", "labels", "closed_at", "scout"}
-    assert sec["as_of"] == ago(hours=2) and sec["age_hours"] == 2.0
+    assert sec["as_of"] == ago(hours=2.1) and sec["age_hours"] == 2.1, "the repo's own stamp: the sync's start"
     assert "the open ones are in the brief" in sec["note"]
 
 
@@ -481,7 +490,7 @@ def test_lake_agents_carries_aggregates_and_heads_never_the_session():
     ci = sec["rows"][0]
     assert (ci["count"], ci["errors"], ci["permission_denials"], ci["turns"]) == (2, 1, 2, 15), ci
     assert ci["cost_usd"] == 0.75 and ci["models"] == {"claude-opus-5-5": 1, "claude-sonnet-5-5": 1}, ci
-    assert ci["last_at"] == ago(hours=1) and ci["as_of"] == ago(hours=2)
+    assert ci["last_at"] == ago(hours=1) and ci["as_of"] == ago(hours=2.1)
     local = sec["rows"][1]
     assert (local["count"], local["tool_calls"], local["tool_errors"]) == (2, 20, 4), local
     heads = {r["head"]: r["count"] for r in sec["rows"] if r["kind"] == "failing_command"}
@@ -648,14 +657,47 @@ def test_a_fresh_ci_sync_does_not_vouch_for_stale_sessions():
     assert "lake sync" not in sec["note"], sec["note"]
     assert sec["as_of"] == ago(hours=100), "the older stamp speaks for the section"
     assert {r["kind"]: r.get("as_of") for r in sec["rows"][:2]} == \
-        {"ci_agent_runs": ago(hours=2), "local_sessions": ago(hours=100)}
+        {"ci_agent_runs": ago(hours=2.1), "local_sessions": ago(hours=100)}
 
 
 def test_a_lake_never_synced_is_stale_not_empty():
     with _env(), _tmp() as tmp:
         sec = build(make_lake(tmp, sync_age_h=None), closed_port_url(),
                     sections=["lake_issues"])["sections"]["lake_issues"]
+    assert sec["status"] == "stale" and sec["as_of"] is None, sec
+    assert f"the lake has never synced {NWO} — run `tools/dash lake sync --repo {NWO}`" in sec["note"], sec
+    with _env(), _tmp() as tmp:   # a repos row from an interrupted pass, and no finished sync at all
+        sec = build(make_lake(tmp, sync_age_h=None, repo_synced_h=1), closed_port_url(),
+                    sections=["lake_issues"])["sections"]["lake_issues"]
     assert sec["status"] == "stale" and sec["as_of"] is None and "never been refreshed" in sec["note"], sec
+
+
+def test_a_fresh_partial_sync_does_not_vouch_for_a_stale_repo():
+    # the newest `lake sync` (2 h ago) was a `--repo OTHER` pass: this repo was
+    # last reached twelve days ago, and its rows are that old
+    with _env(), _tmp() as tmp:
+        lake = rich_lake(tmp, sync_age_h=2, repo_synced_h=24 * 12)
+        _insert(lake, "issues", [_issue(900, closed_h=24 * 11)])
+        doc = build(lake, closed_port_url(), sections=["lake_issues", "lake_ci", "lake_agents"])
+    for key in ("lake_issues", "lake_ci", "lake_agents"):
+        sec = doc["sections"][key]
+        assert sec["status"] == "stale" and sec["as_of"] == ago(hours=24 * 12), (key, sec["status"], sec["as_of"])
+        assert f"tools/dash lake sync --repo {NWO}" in sec["note"], (key, sec["note"])
+    assert doc["sections"]["lake_issues"]["age_hours"] == 288.0
+    agents = {r["kind"]: r.get("as_of") for r in doc["sections"]["lake_agents"]["rows"][:2]}
+    assert agents == {"ci_agent_runs": ago(hours=24 * 12), "local_sessions": ago(hours=1)}, agents
+
+
+def test_a_registered_repo_the_lake_never_synced_is_stale_at_any_lake_age():
+    with _env(), _tmp() as tmp:
+        lake = make_lake(tmp, sync_age_h=2, repo_synced_h=None)
+        _insert(lake, "repos", [{"nwo": "bamr87/law-ai", "name": "law-ai", "synced_at": ago(hours=2.1)}])
+        doc = build(lake, closed_port_url(), sections=["lake_issues", "lake_ci", "lake_agents"])
+    for key in ("lake_issues", "lake_ci"):
+        sec = doc["sections"][key]
+        assert sec["status"] == "stale" and sec["as_of"] is None and sec["rows"] == [], (key, sec)
+        assert f"the lake has never synced {NWO}" in sec["note"], (key, sec["note"])
+    assert doc["sections"]["lake_agents"]["status"] == "stale", doc["sections"]["lake_agents"]
 
 
 # --------------------------------------------------------------------------- #

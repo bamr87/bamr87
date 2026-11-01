@@ -760,7 +760,36 @@ def sync_as_of(conn: sqlite3.Connection, tables: set[str]) -> str | None:
     return iso_z(_scalar(conn, "SELECT MAX(finished_at) FROM syncs WHERE finished_at IS NOT NULL"))
 
 
+def github_freshness(conn: sqlite3.Connection, tables: set[str], nwo: str, now: dt.datetime,
+                     what: str = "the lake's GitHub sync") -> tuple[str | None, bool, str]:
+    """(as_of, stale, note) for THIS repo's GitHub data in the lake.
+
+    `lake sync` stamps `repos.synced_at` for each repo it reaches (a repo it
+    skips keeps its old stamp) and writes one `syncs` row when the whole pass
+    finishes. The repo's stamp is the older of the two: a fresh `lake sync
+    --repo OTHER` must not vouch for this repo's twelve-day-old rows, and an
+    interrupted pass must not vouch for a repo it stamped before it died. A
+    repo with no `repos` row has never been synced, which is stale, not empty.
+    """
+    remedy = f"run `tools/dash lake sync --repo {nwo}`"
+    global_as_of = sync_as_of(conn, tables)
+    if "repos" not in tables:   # an older lake: the lake-wide stamp is all there is
+        stale, note = freshness(global_as_of, now, what, REMEDY_LAKE)
+        return global_as_of, stale, note
+    row = conn.execute("SELECT synced_at FROM repos WHERE nwo = ? COLLATE NOCASE", (nwo,)).fetchone()
+    own = iso_z(row[0]) if row else None
+    if own is None:
+        return None, True, f"the lake has never synced {nwo} — {remedy}"
+    stamps = [t for t in (own, global_as_of) if t]
+    as_of = min(stamps, key=fleet_lake.parse_iso) if global_as_of else None
+    stale, note = freshness(as_of, now, what, remedy)
+    return as_of, stale, note
+
+
 def sessions_as_of(conn: sqlite3.Connection, tables: set[str]) -> str | None:
+    """Lake-wide on purpose: `lake sessions` scans every transcript on the
+    machine and re-stamps only the changed ones, so the newest stamp is the
+    last import, and a repo with no new session since is fresh, not stale."""
     if "sessions" not in tables:
         return None
     return iso_z(_scalar(conn, "SELECT MAX(synced_at) FROM sessions"))
@@ -791,7 +820,7 @@ def _labels(raw) -> list[str]:
 
 def lake_issues(conn, tables, nwo: str, since: str, now: dt.datetime, scout_label: str) -> dict:
     _need(tables, "issues")
-    as_of = sync_as_of(conn, tables)
+    as_of, stale, note = github_freshness(conn, tables, nwo, now)
     where = "nwo = ? COLLATE NOCASE AND state = 'closed' AND closed_at IS NOT NULL AND closed_at >= ?"
     total = int(_scalar(conn, f"SELECT COUNT(*) FROM issues WHERE {where}", (nwo, since)) or 0)
     rows = []
@@ -801,7 +830,6 @@ def lake_issues(conn, tables, nwo: str, since: str, now: dt.datetime, scout_labe
         rows.append({"number": r["number"], "kind": "pr" if r["is_pr"] else "issue",
                      "title": clean_line(r["title"], TITLE_CHARS), "labels": labels[:CAP_LABELS],
                      "closed_at": iso_z(r["closed_at"]), "scout": scout_label in labels})
-    stale, note = freshness(as_of, now, "the lake's GitHub sync", REMEDY_LAKE)
     scope = f"closed since {since[:10]}, newest first; the open ones are in the brief"
     return _done("lake_issues", rows, as_of, now, stale, f"{note}; {scope}" if note else scope,
                  max(0, total - len(rows)))
@@ -822,7 +850,7 @@ def tracked_branch(conn, tables, nwo: str, registry: dict) -> str:
 
 def lake_ci(conn, tables, nwo: str, since: str, now: dt.datetime, branch: str) -> dict:
     _need(tables, "runs")
-    as_of = sync_as_of(conn, tables)
+    as_of, stale, note = github_freshness(conn, tables, nwo, now)
     groups: dict[str, list] = {}
     # Fail open, as fleet_triage does: a run missing head_branch or event is kept.
     for r in conn.execute(
@@ -853,7 +881,6 @@ def lake_ci(conn, tables, nwo: str, since: str, now: dt.datetime, branch: str) -
     kept = rows[:CAP_WORKFLOWS]
     if "jobs" in tables:
         _failing_steps(conn, tables, kept, failed_ids)
-    stale, note = freshness(as_of, now, "the lake's GitHub sync", REMEDY_LAKE)
     scope = f"runs on {clean_line(branch, NAME_CHARS)}, pull-request runs excluded"
     return _done("lake_ci", kept, as_of, now, stale, f"{note}; {scope}" if note else scope,
                  len(rows) - len(kept))
@@ -896,7 +923,7 @@ def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime)
         _need(tables, "agent_runs", "sessions")
     rows, notes, stamps, stale_any, truncated = [], [], [], False, 0
     if "agent_runs" in tables:
-        as_of = sync_as_of(conn, tables)
+        as_of, stale, note = github_freshness(conn, tables, nwo, now, "CI agent runs (the lake's GitHub sync)")
         if "runs" in tables:
             sql = ("SELECT a.model, a.num_turns, a.cost_usd, a.permission_denials, a.is_error, "
                    "COALESCE(a.started_at, r.created_at) AS at FROM agent_runs a "
@@ -923,7 +950,6 @@ def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime)
             agg["cost_usd"] = round(agg["cost_usd"], 4)
             agg["last_at"] = iso_z(last)
             rows.append(agg)
-        stale, note = freshness(as_of, now, "CI agent runs (the lake's GitHub sync)", REMEDY_LAKE)
         stale_any |= stale
         notes += [note] if note else []
         stamps.append(as_of)
