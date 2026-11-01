@@ -783,6 +783,9 @@ def test_a_host_named_like_a_section_key_status_or_field_keeps_the_document_whol
                                    age=None, note="index behind the checkout"))
     want = {"history": "empty", **{k: v["status"] for k, v in doc["sections"].items()}}
     rows = {k: [sorted(r) for r in v["rows"]] for k, v in doc["sections"].items()}
+    # the row values that are the document's own words, compared as they are: a row's kind, a code hit's project
+    own = {k: [(r.get("kind"), r.get("project")) for r in v["rows"]] for k, v in doc["sections"].items()}
+    assert ("issue", None) in own["lake_issues"] and (None, "_hub") in own["index_code"], own
     for host in ("Code", "lake", "stale", "rows", "history", "sections", "planes", "status", "require", "note",
                  "source", "name", "schema", "path", "kind", "issue", "snippet", "_hub"):
         planes = fc.Scrubber(home="/srv/nobody", hosts=[host], paths=[]).obj(doc)
@@ -797,6 +800,8 @@ def test_a_host_named_like_a_section_key_status_or_field_keeps_the_document_whol
         assert record["statuses"] == want and record["missing"] == ["lake_ci"] and record["mode"] == "require", host
         kept = record["document"]["sections"]
         assert {k: [sorted(r) for r in kept[k]["rows"]] for k in rows} == rows, (host, "a row lost a field")
+        assert {k: [(r.get("kind"), r.get("project")) for r in kept[k]["rows"]] for k in own} == own, \
+            (host, "a row's kind or a code hit's project was masked")
 
 
 def test_every_key_above_the_rows_is_a_schema_word():

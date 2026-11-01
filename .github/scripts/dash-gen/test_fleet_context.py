@@ -750,13 +750,20 @@ def test_redaction_covers_every_plane_end_to_end():
 
 
 def _words_of(o, *, data_keys: bool = False) -> set:
-    """Every key (but a ci_agent_runs row's model names, which are data) and every row kind of a document."""
+    """Every key (but a ci_agent_runs row's model names, which are data), every row kind and the hub's project
+    name in a code hit of a document."""
     if isinstance(o, list):
         return set().union(*(_words_of(x) for x in o))
     if not isinstance(o, dict):
         return set()
     words = set() if data_keys else set(o) | ({o["kind"]} if isinstance(o.get("kind"), str) else set())
+    words |= {o["project"]} if o.get("project") == fc.fleet_index.HUB else set()
     return words.union(*(_words_of(v, data_keys=k == "models") for k, v in o.items()))
+
+
+def _own_values(doc) -> list:
+    """The row values that are the document's own words: each row's kind and each code hit's project."""
+    return [(r.get("kind"), r.get("project")) for s in doc["sections"].values() for r in s["rows"]]
 
 
 def _shape(o):
@@ -782,10 +789,13 @@ def test_a_host_named_like_a_word_of_the_document_keeps_it_whole():
     assert words <= fc.DOC_WORDS, ("a field or row kind the planes write must be a DOC_WORDS word",
                                    sorted(words - fc.DOC_WORDS))
     assert {"issue", "ci_agent_runs", "local_sessions", "failing_command", "tool_error", "api_errors", "withheld",
-            "failing_steps", "target_dir"} <= words, sorted(words)
-    for host in sorted(w for w in fc.DOC_WORDS if len(w) > 3):
+            "failing_steps", "target_dir", "_hub"} <= words, sorted(words)
+    # _shape keeps only what DOC_WORDS holds, so a word missing from it is blanked on both sides: the row values
+    # are compared as they are, with a host named like each of the document's own words
+    for host in sorted(w for w in words | fc.DOC_WORDS if len(w) > 3):
         scrubbed = fc.Scrubber(home=FAKE_HOME, hosts=[host], paths=[]).obj(doc)
         assert _shape(scrubbed) == _shape(doc), (host, "the planes rewrote the document's own words")
+        assert _own_values(scrubbed) == _own_values(doc), (host, "a row's kind or a code hit's project was masked")
     tagged = {"title": "the stale cache", "note": "stale"}
     assert fc.Scrubber(home=FAKE_HOME, hosts=["stale"], paths=[]).obj(tagged) == \
         {"title": "the <host> cache", "note": "stale"}, "a word inside data is masked as ever"
