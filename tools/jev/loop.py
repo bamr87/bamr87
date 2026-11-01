@@ -445,6 +445,9 @@ def gates(ctx: RunContext) -> tuple[int, str] | None:
     `!= 'false'` one. (exit code, message) to stop."""
     sw = ctx.spec.local.switch
     if sw is None:
+        if ctx.opts.scheduled:   # AGENTS.md: every scheduled agent loop has a kill switch
+            return EXIT["usage"], (f"--scheduled: {ctx.spec.loop}/{ctx.spec.step} declares no local.switch — a "
+                                   "scheduled run refuses without a kill switch")
         return None
     if fleet_value(ctx.fleet, sw.config) is not True:
         return EXIT["ok"], f"disabled: _data/fleet.yml {sw.config} is false"
@@ -452,10 +455,16 @@ def gates(ctx: RunContext) -> tuple[int, str] | None:
         print(f"jev loop: manual run — bypasses vars.{sw.variable} exactly as a workflow_dispatch does",
               file=sys.stderr)
         return None
-    res = gh(["variable", "get", sw.variable, "-R", hub_repo(ctx.fleet)])
+    hub = hub_repo(ctx.fleet)
+    res = gh(["variable", "get", sw.variable, "-R", hub])
     if res.ok:
         value: str | None = res.out.strip()
     elif "not found" in (res.err or "").lower():
+        # gh says "not found" for any 404 — a repository this auth cannot see too.
+        # Unset arms a default-on switch, so that reading needs the hub shown readable.
+        if sw.default == "on" and not gh(["api", f"repos/{hub}", "--jq", ".full_name"]).ok:
+            return EXIT["usage"], (f"--scheduled: vars.{sw.variable} reads as not found, but {hub} is not readable "
+                                   "with this gh auth — a scheduled run refuses rather than guess its switch")
         value = None
     else:
         return EXIT["usage"], (f"--scheduled: cannot read vars.{sw.variable} ({(res.err or res.out).strip()[-200:]})"
@@ -529,13 +538,35 @@ class HostReport:
                 "probe": self.probe, "canary": self.canary}
 
 
-def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bin: str, scratch: Path, *,
+def work_root_problem(root: Path | None = None) -> str | None:
+    """Why the work root cannot hold a workspace (host safety, exit 4); None when it can."""
+    root = headless.work_root() if root is None else root
+    if root.resolve().is_relative_to(HUB.resolve()):
+        return f"the work root {root} is inside the hub tree (set JEV_WORK_ROOT outside it)"
+    return None
+
+
+def private_work_root() -> Path:
+    root = headless.work_root()
+    root.mkdir(parents=True, exist_ok=True)
+    root.chmod(0o700)
+    return root
+
+
+def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bin: str, scratch: Path | None, *,
                live: bool, preflight: bool, probe_cache: bool = True) -> HostReport:
     """What the host proves before an attempt. `live=False` (doctor, rehearse)
     reports a missing probe, canary or credential as a note; a live attempt
     (PR-C) refuses on each of them. `probe_cache=False` skips the cached
-    probe (doctor runs it afresh). Nothing here reaches a model."""
+    probe (doctor runs it afresh). A work root inside the hub is refused first
+    (exit 4), before any CLI runs. The flag preflight runs in `scratch`, or with
+    None in a throwaway directory under the work root — never inside the hub,
+    where a session would reach the hub's CLAUDE.md. Nothing here reaches a model."""
     rep = HostReport()
+    inside = work_root_problem()
+    if inside:
+        rep.problems.append((EXIT["host_unsafe"], inside))
+        return rep
 
     def gap(code: int, why: str) -> None:
         if live:
@@ -556,13 +587,19 @@ def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bi
         rep.problems.append((EXIT["host_unsafe"], f"no sandbox here ({SANDBOX_EXEC} on macOS) — `--posture reduced` "
                                                   "runs the agent without Bash"))
     if preflight:
-        scratch.mkdir(parents=True, exist_ok=True)
-        settings = scratch / "settings.json"
-        write_json(settings, headless.settings_doc(posture))
-        argv = [*headless.run_prefix(spec.resolved.max_budget_usd, stream=True),
-                *headless.claude_flags(spec, posture, settings_path=settings, session_id=str(uuid.uuid4()),
-                                       debug_path=scratch / "preflight.debug.log")]
-        problem = headless.preflight_parse(rep.claude, argv, cwd=scratch)
+        own = scratch is None
+        scratch = Path(tempfile.mkdtemp(prefix=".preflight-", dir=private_work_root())) if own else scratch
+        try:
+            scratch.mkdir(parents=True, exist_ok=True)
+            settings = scratch / "settings.json"
+            write_json(settings, headless.settings_doc(posture))
+            argv = [*headless.run_prefix(spec.resolved.max_budget_usd, stream=True),
+                    *headless.claude_flags(spec, posture, settings_path=settings, session_id=str(uuid.uuid4()),
+                                           debug_path=scratch / "preflight.debug.log")]
+            problem = headless.preflight_parse(rep.claude, argv, cwd=scratch)
+        finally:
+            if own:
+                shutil.rmtree(scratch, ignore_errors=True)
         if problem:
             rep.problems.append((EXIT["host_unsafe"], f"flag preflight: {problem}"))
         else:
@@ -697,8 +734,14 @@ def obtain_plan(ctx: RunContext) -> tuple[dict | None, tuple[int, str] | None]:
     """The planner's JSON in ctx.plan_dir (or one row of a saved plan)."""
     ctx.plan_dir.mkdir(parents=True, exist_ok=True)
     if ctx.opts.plan_file:
-        src = Path(ctx.opts.plan_file)
+        # `tools/dash loop` runs from the hub root: a relative path is the caller's
+        src = Path(os.environ.get("JEV_CALLER_CWD") or ".") / ctx.opts.plan_file
+        if not src.is_file():
+            return None, (EXIT["usage"], f"--plan-file {src}: no such file")
         saved = read_json(src)
+        shape = plan_shape_error(saved)
+        if shape:
+            return None, (EXIT["usage"], f"--plan-file {src}: {shape}")
         rows = [r for r in saved.get("include") or [] if ctx.opts.item in (r.get("name"), r.get("nwo"))]
         if len(rows) != 1:
             return None, (EXIT["usage"], f"--plan-file {src}: {len(rows)} row(s) named {ctx.opts.item!r}")
@@ -717,11 +760,27 @@ def obtain_plan(ctx: RunContext) -> tuple[dict | None, tuple[int, str] | None]:
         plan = parse_last_json(res.out)
         if res.code not in (0, 1) or plan is None:
             return None, (EXIT["usage"], f"the planner exited {res.code}: {(res.err or res.out).strip()[-400:]}")
+        shape = plan_shape_error(plan)
+        if shape:
+            return None, (EXIT["usage"], f"the planner's plan: {shape}")
     write_json(ctx.plan_dir / "plan.json", plan)
     errs = check_plan_prompts(ctx.spec, plan)
     if errs:
         return None, (EXIT["usage"], "; ".join(errs))
     return plan, None
+
+
+def plan_shape_error(plan: dict) -> str | None:
+    """Why a plan is not readable (`include`, `skipped` and `dropped` must be
+    lists of objects, or absent); None when it is. A hand-edited or truncated
+    saved plan is a usage error, never a traceback that leaves a run at "running"."""
+    if not plan:
+        return "not a JSON object (or an empty one)"
+    for key in ("include", "skipped", "dropped"):
+        rows = plan.get(key)
+        if rows is not None and (not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows)):
+            return f"`{key}` must be a list of objects"
+    return None
 
 
 def check_items(result: PlanResult) -> None:
@@ -838,7 +897,7 @@ def rehearse_item(ctx: RunContext, item: Item, host: HostReport, posture: headle
                 # no git runs in a tampered clone: it is destroyed uninspected (the finally below)
                 (d / "tree.txt").write_text(f"not inspected: .git changed ({', '.join(changed)})\n",
                                             encoding="utf-8")
-                report.update(status="failed", reason=f"the workspace was tampered with: {changed}")
+                report.update(status="failed", reason=f"the workspace was tampered with: {changed}", tampered=True)
             else:
                 tree = wsp.tree_report(ws)
                 (d / "tree.txt").write_text("\n".join([*(f"tracked {p}" for p in tree.tracked),
@@ -848,8 +907,11 @@ def rehearse_item(ctx: RunContext, item: Item, host: HostReport, posture: headle
                     report.update(status="failed", reason=f"the fresh workspace is not clean: tracked {tree.tracked}")
         else:
             report["reason"] = report["reason"] or "offline: no clone, no ai-run dry run"
+    except JevError as exc:   # this item's failure (git status, the brief, …): recorded, and the run goes on
+        report.update(status="failed", reason=str(exc))
     finally:
-        if ws is not None and not ctx.opts.keep_workspace:
+        # a tampered clone is destroyed even with --keep-workspace: git run in it would run the agent's config
+        if ws is not None and (not ctx.opts.keep_workspace or report.get("tampered")):
             wsp.destroy(ws)
         elif ws is not None:
             report["kept_workspace"] = str(ws.path)
@@ -939,6 +1001,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         except OSError as exc:   # a file the run needed: the record still ends, never stuck at "running"
             record["notes"].append(f"{type(exc).__name__}: {exc}")
             return _finish(ctx, record, EXIT["attention"], "failed")
+        except Exception as exc:   # a bug: the record ends "failed" first, then the traceback
+            record["notes"].append(f"{type(exc).__name__}: {exc}")
+            _finish(ctx, record, EXIT["attention"], "failed")
+            raise
 
 
 def _rehearse(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
@@ -946,8 +1012,7 @@ def _rehearse(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
     if stop:
         record["notes"].append(stop[1])
         return _finish(ctx, record, stop[0], "disabled" if stop[0] == 0 else "refused")
-    host = host_check(ctx.spec, posture, ctx.fleet, ctx.opts.claude_bin, ctx.run.path / "host", live=False,
-                      preflight=True)
+    host = host_check(ctx.spec, posture, ctx.fleet, ctx.opts.claude_bin, None, live=False, preflight=True)
     record["host"] = host.as_dict()
     record["notes"] += host.notes
     refusal = host.refusal()
@@ -1007,7 +1072,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
         if stop:
             out["notes"].append(stop[1])
             return _print_plan(out, opts, stop[0])
-        host = host_check(spec, posture, fleet, opts.claude_bin, Path(tmp) / "host", live=False, preflight=False)
+        host = host_check(spec, posture, fleet, opts.claude_bin, None, live=False, preflight=False)
         out["host"] = host.as_dict()
         plan, stop = obtain_plan(ctx)
         if stop:
@@ -1021,7 +1086,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
             return _print_plan(out, opts, EXIT["attention"])
         settings = headless.settings_doc(posture)
         for item in result.items:
-            sha, why = (None, "offline") if opts.offline else head_sha(item.nwo, item.branch)
+            sha, why = (None, "") if opts.offline else head_sha(item.nwo, item.branch)
             t0 = adapter.tier0(ctx, item, sha)
             triage = adapter.classify(ctx, item)
             decision = (f"tier0-{t0.action}: {t0.reason}" if t0.action != "continue" else
@@ -1056,6 +1121,8 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
               f"{host.get('canary')} · auth {(host.get('auth') or {}).get('method') or 'none'}")
     for i in out["items"]:
         print(f"{i['key']} @ {i['branch']}  →  {i['decision']}")
+        if i.get("note"):
+            print(f"    note: {i['note']}")
         print(f"    prompt sha256 {i['prompt_sha256'][:16]} · settings sha256 {i['settings_sha256'][:16]} · "
               f"dedupe {i['dedupe']}")
         print(f"    claude {' '.join(i['claude_flags'][:4])} … ({len(i['claude_flags'])} args)")
@@ -1085,17 +1152,15 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     ignored = git(["check-ignore", "-q", ".fleet/runs/x"], cwd=HUB).ok
     report: dict = {"posture": posture.name, "runs_dir_ignored": ignored, "steps": []}
     codes = [] if ignored else [EXIT["host_unsafe"]]
-    root = headless.work_root()
-    if root.resolve().is_relative_to(HUB.resolve()):
+    inside = work_root_problem()
+    if inside:
         # host safety, like every other refusal of a workspace inside the hub
-        print(f"jev loop: the work root {root} is inside the hub tree (set JEV_WORK_ROOT outside it)",
-              file=sys.stderr)
+        print(f"jev loop: {inside}", file=sys.stderr)
         if args.json:
-            print(json.dumps({**report, "work_root_inside_hub": str(root), "exit": EXIT["host_unsafe"]},
-                             indent=2, sort_keys=True))
+            print(json.dumps({**report, "work_root_inside_hub": str(headless.work_root()),
+                              "exit": EXIT["host_unsafe"]}, indent=2, sort_keys=True))
         return EXIT["host_unsafe"]
-    root.mkdir(parents=True, exist_ok=True)
-    root.chmod(0o700)
+    root = private_work_root()
     for spec in local_specs(fleet=fleet):
         scratch = Path(tempfile.mkdtemp(prefix=".doctor-", dir=root))
         try:
@@ -1201,7 +1266,8 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--target", default="all", metavar="NAME|all", help="one registry name, or today's sample")
     p.add_argument("--focus", default="", metavar="TEXT", help="operator focus, quoted into every brief")
     p.add_argument("--day", default=None, metavar="YYYY-MM-DD", help="the rotation day")
-    p.add_argument("--offline", action="store_true", help="no GitHub reads (no backpressure, no HEAD, no clone)")
+    p.add_argument("--offline", action="store_true",
+                   help="no GitHub reads (no backpressure, no HEAD, no clone) — --scheduled still reads its switch")
     p.add_argument("--plan-file", default=None, metavar="PLAN.json", help="take one row of a saved plan")
     p.add_argument("--item", default=None, metavar="NAME", help="the row of --plan-file")
     p.add_argument("--scheduled", action="store_true",

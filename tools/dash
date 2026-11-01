@@ -286,8 +286,10 @@ cmd_scout() {
 
 cmd_loop() {
   # The JEV local loop runner (docs/JEV.md "The loop runner"). Run from the hub
-  # root with the PyYAML-capable interpreter, because tools.jev is a package.
-  (cd "${ROOT}" && "${PY}" -m tools.jev loop "$@")
+  # root with the PyYAML-capable interpreter, because tools.jev is a package;
+  # JEV_CALLER_CWD lets a relative --plan-file mean the caller's directory.
+  local caller="${PWD}"
+  (cd "${ROOT}" && JEV_CALLER_CWD="${caller}" "${PY}" -m tools.jev loop "$@")
 }
 
 cmd_sync() {

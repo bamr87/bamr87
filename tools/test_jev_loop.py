@@ -65,6 +65,7 @@ if argv[:2] == ["auth", "status"]:
         os.environ.get(n) for n in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"))
     print(json.dumps({"loggedIn": logged, "authMethod": "claude.ai"})); sys.exit(0)
 note("argv.jsonl", argv)
+note("cwd.jsonl", os.getcwd())
 def debug(line):
     if "--debug-file" in argv:
         with open(argv[argv.index("--debug-file") + 1], "a") as fh:
@@ -112,6 +113,10 @@ if argv[:1] == ["api"] and "/commits/" in argv[1]:
     if os.environ.get("STUB_GH_HEAD_MOVED"):
         print("0" * 40); sys.exit(0)
     print(head(nwo)); sys.exit(0)
+if argv[:1] == ["api"] and argv[1].startswith("repos/") and argv[1].count("/") == 2:
+    if os.environ.get("STUB_GH_REPO_UNREADABLE"):
+        sys.stderr.write("gh: Not Found (HTTP 404)\n"); sys.exit(1)
+    print(argv[1][len("repos/"):]); sys.exit(0)
 if argv[:2] == ["repo", "view"]:
     print(json.dumps({"hasIssuesEnabled": True})); sys.exit(0)
 if argv[:2] == ["issue", "list"]:
@@ -194,6 +199,10 @@ class Box:
 
     def gh_calls(self) -> list[list[str]]:
         return [json.loads(x) for x in self.gh_log.read_text().splitlines()] if self.gh_log.exists() else []
+
+    def claude_cwds(self) -> list[str]:
+        f = self.bin / "cwd.jsonl"
+        return [json.loads(x) for x in f.read_text().splitlines()] if f.exists() else []
 
     def claude_calls(self) -> list[list[str]]:
         f = self.bin / "argv.jsonl"
@@ -496,6 +505,57 @@ def test_plan_file_refuses_a_brief_that_is_not_a_bare_name_and_copies_nothing():
     assert not [c for c in box.gh_calls() if c[:2] == ["repo", "clone"]]
 
 
+def test_a_malformed_or_missing_plan_file_is_refused_and_the_record_ends():
+    box = Box()
+    saved = box.root / "saved"
+    saved.mkdir()
+    with world(box):
+        for body, needle in (({"include": ["SCHEMA"]}, "list of objects"), ({"include": {"a": 1}}, "list of objects"),
+                             ({"include": "SCHEMA"}, "list of objects"), ([1], "not a JSON object")):
+            (saved / "plan.json").write_text(json.dumps(body))
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--plan-file", str(saved / "plan.json"),
+                             "--item", TARGET)
+            rec = box.last()
+            assert code == 2 and rec["status"] == "refused" and needle in " ".join(rec["notes"]), (body, rec)
+        code, _, _ = jev("run", "repo-scout", "--rehearse", "--offline", "--plan-file", str(saved / "nope.json"),
+                         "--item", TARGET)
+        assert code == 2 and "no such file" in " ".join(box.last()["notes"]), box.last()["notes"]
+    assert all(json.loads((d / "run.json").read_text())["status"] != "running" for d in box.run_dirs())
+
+
+def test_a_relative_plan_file_is_the_callers_not_the_hubs():
+    box = Box()
+    saved = box.root / "saved"
+    with world(box):
+        res = L.dash_gen(["scout", "--offline", "--target", TARGET, "--out-dir", str(saved)])
+        (saved / "plan.json").write_text(res.out.strip().splitlines()[-1])
+    with world(box, JEV_CALLER_CWD=str(saved)):   # what tools/dash loop sets before its cd to the hub
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--offline", "--plan-file", "plan.json",
+                           "--item", TARGET)
+    assert code == 0 and box.last()["status"] == "rehearsed", (err, box.last()["notes"])
+    assert 'JEV_CALLER_CWD="${caller}"' in (HUB / "tools" / "dash").read_text()
+
+
+def test_an_unexpected_error_still_ends_the_record_and_an_oserror_fails_it():
+    box = Box()
+    real = L.obtain_plan
+    for exc, code_want in ((PermissionError("the brief is unreadable"), 1), (ValueError("a bug"), None)):
+        def boom(ctx, exc=exc):
+            raise exc
+        L.obtain_plan = boom
+        try:
+            with world(box):
+                try:
+                    code = jev("run", "repo-scout", "--rehearse", "--offline", "--target", TARGET)[0]
+                except ValueError:
+                    code = None
+        finally:
+            L.obtain_plan = real
+        rec = box.last()
+        assert code == code_want and rec["status"] == "failed" and rec["exit_code"] == 1, (exc, code, rec)
+        assert type(exc).__name__ in " ".join(rec["notes"]), rec["notes"]
+
+
 def test_a_target_committing_the_brief_directory_fails_the_item_not_the_run():
     box = Box()
     planted = fixture_repo({".scout": "committed by the target\n"})
@@ -561,6 +621,59 @@ def test_a_default_on_switch_reads_any_case_of_false_as_off():
                                plan_dir=box.root / "plan", history=L.History(box.runs))
             stop = L.gates(ctx)
             assert (stop is not None and stop[0] == 0 and "switched off" in stop[1]) == stops, (value, stop)
+
+
+def test_a_step_with_no_switch_never_runs_scheduled():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    bare = dataclasses.replace(spec, local=dataclasses.replace(spec.local, switch=None))
+    with world(box):
+        for scheduled, want in ((True, 2), (False, None)):
+            ctx = L.RunContext(spec=bare, adapter=None, fleet=S.load_fleet(), opts=L.Options(scheduled=scheduled),
+                               plan_dir=box.root / "plan", history=L.History(box.runs))
+            stop = L.gates(ctx)
+            assert (stop[0] if stop else None) == want, (scheduled, stop)
+            assert scheduled is False or "no local.switch" in stop[1]
+    assert not box.gh_calls(), "no switch to read: nothing is asked of GitHub"
+
+
+def test_a_default_on_switch_reads_not_found_as_unset_only_when_the_hub_is_readable():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    on = S.Switch(config=spec.local.switch.config, variable="REPO_SCOUT_ENABLED", default="on")
+    spec_on = dataclasses.replace(spec, local=dataclasses.replace(spec.local, switch=on))
+    for extra, want in (({}, None), ({"STUB_GH_REPO_UNREADABLE": "1"}, 2)):
+        with world(box, **extra):
+            ctx = L.RunContext(spec=spec_on, adapter=None, fleet=S.load_fleet(), opts=L.Options(scheduled=True),
+                               plan_dir=box.root / "plan", history=L.History(box.runs))
+            stop = L.gates(ctx)
+        assert (stop[0] if stop else None) == want, (extra, stop)
+    assert ["api", "repos/bamr87/bamr87", "--jq", ".full_name"] in box.gh_calls()
+
+
+def test_the_engine_splits_the_publish_directory_by_phase():
+    box = Box()
+    spec = L.load_step("repo-scout")
+    rd = L.RunDir(box.root / "runs" / "r1")
+    ctx = L.RunContext(spec=spec, adapter=None, fleet={}, opts=L.Options(), plan_dir=rd.path / "plan",
+                       history=L.History(box.runs), run=rd)
+    item = Item(key=NWO, name=TARGET, nwo=NWO, branch="main", row={}, brief=None)
+    d = rd.path / "items" / "bamr87__SCHEMA"
+    assert ctx.bodies_dir(item, apply=False) == d / "bodies" and ctx.bodies_dir(item, apply=True) == d / "filed"
+    dry, wet = L.item_values(ctx, item), L.item_values(ctx, item, apply=True)
+    assert dry["bodies_dir"] == str(d / "bodies") and wet["bodies_dir"] == str(d / "filed")
+    argv = S.render_argv(spec.local.publish.argv, {**wet, "validated": str(d / "v.json")})
+    assert argv[argv.index("--bodies-dir") + 1] == str(d / "filed"), "the apply never writes the reviewed bodies"
+
+
+def test_the_rehearsal_preflight_runs_outside_the_hub_and_leaves_nothing():
+    box = Box()
+    with world(box):
+        code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+    assert code == 0, err
+    cwds = [Path(c) for c in box.claude_cwds()]
+    assert cwds and not [c for c in cwds if c.resolve().is_relative_to(HUB.resolve())], cwds
+    assert all(c.resolve().is_relative_to(box.work.resolve()) and not c.exists() for c in cwds), cwds
 
 
 # --------------------------------------------------------------------------- #
@@ -687,6 +800,54 @@ def test_a_tampered_workspace_is_failed_and_destroyed_without_git_running_in_it(
     assert code == 1 and item["status"] == "failed" and "tampered" in item["reason"], item
     assert "not inspected" in (box.latest() / "items" / "bamr87__SCHEMA" / "tree.txt").read_text()
     assert not list(box.work.glob("*/*")), "destroyed"
+    L.wsp.tampered, L.wsp.tree_report = (lambda ws: ["commondir"]), no_git
+    try:
+        with world(box):
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--keep-workspace")
+    finally:
+        L.wsp.tampered, L.wsp.tree_report = saved
+    item = box.last()["items"][0]
+    assert code == 1 and "kept_workspace" not in item and not list(box.work.glob("*/*")), \
+        "--keep-workspace never keeps a tampered clone"
+
+
+def test_an_item_failure_after_the_clone_fails_that_item_and_the_run_goes_on():
+    box = Box()
+    saved = L.wsp.tree_report
+
+    def broken(ws):
+        raise common.JevError("git status failed (simulated)")
+    L.wsp.tree_report = broken
+    try:
+        with world(box):
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+    finally:
+        L.wsp.tree_report = saved
+    rec = box.last()
+    assert code == 1 and rec["status"] == "rehearsed", (code, rec["status"], rec["notes"])
+    [item] = rec["items"]
+    assert item["status"] == "failed" and "simulated" in item["reason"], item
+    rows = [json.loads(x) for x in (box.latest() / "attempts.jsonl").read_text().splitlines()]
+    assert [(r["decision"], r["outcome"]) for r in rows] == [("rehearsed", "failed")], rows
+    assert not list(box.work.glob("*/*")), "the clone is still destroyed"
+
+
+def test_ctrl_c_during_the_clone_leaves_nothing_in_the_work_root():
+    box = Box()
+    real = L.wsp.gh
+
+    def clone_then_interrupt(args, **kw):
+        real(args, **kw)   # the clone lands on disk, then the operator's Ctrl-C
+        raise KeyboardInterrupt
+    L.wsp.gh = clone_then_interrupt
+    try:
+        with world(box):
+            code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+    finally:
+        L.wsp.gh = real
+    assert code == 130 and box.last()["status"] == "interrupted"
+    assert [c for c in box.gh_calls() if c[:2] == ["repo", "clone"]], "the clone did run"
+    assert not list(box.work.glob("*/*")), "the partial clone is removed"
 
 
 def test_head_sha_tells_an_empty_repository_from_a_missing_branch():
@@ -697,6 +858,8 @@ def test_head_sha_tells_an_empty_repository_from_a_missing_branch():
         sha, why = L.head_sha(NWO, "nope")
         assert sha is None and "no branch `nope`" in why and "drift" in why
         code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET)
+        code, out, _ = jev("plan", "repo-scout", "--target", TARGET)
+        assert code == 0 and "note: bamr87/SCHEMA has no branch `main`" in out and "drift" in out, out
     item = box.last()["items"][0]
     # not skipped as "nothing to read": the item goes on to the clone, which a real gh fails loudly
     assert item["status"] != "skipped" and "no branch `main`" in err and "drift" in err, (item, err)
@@ -754,6 +917,14 @@ def test_refusals_exit_with_their_documented_codes():
     with world(box, JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
         code, _, err = jev("doctor")
     assert code == 4 and "inside the hub" in err and not (HUB / ".fleet" / "work").exists()
+    for offline in ((), ("--offline",)):
+        calls = len(box.claude_calls())
+        with world(box, JEV_WORK_ROOT=str(HUB / ".fleet" / "work")):
+            code, _, err = jev("run", "repo-scout", "--rehearse", "--target", TARGET, *offline)
+        rec = box.last()
+        assert code == 4 and rec["status"] == "refused" and rec["items"] == [] and "plan" not in rec, (offline, rec)
+        assert any("inside the hub" in n for n in rec["notes"]) and not (HUB / ".fleet" / "work").exists()
+        assert len(box.claude_calls()) == calls, "refused before any CLI runs or anything is planned"
 
 
 def test_show_prints_the_latest_run():
