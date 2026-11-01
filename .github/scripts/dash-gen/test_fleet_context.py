@@ -471,6 +471,9 @@ def test_every_format_character_is_stripped_and_refused_in_a_query():
     assert fc.clean_line(smuggled, fc.TITLE_CHARS) == "Fix \u2764\ufe0f \U0001f642\ufe0f now", fc.clean_line(
         smuggled, fc.TITLE_CHARS)
     assert fc.snippet_of("x\ufe0e\ufe0f\nb\U000e0100") == "x\ufe0e\nb"
+    for run, kept in (("x\ufe0f\u200b\ufe01\u200b\ufe02", "x\ufe0f"),
+                      ("x\ufe00\ufe00\ufe01", "x\ufe00")):
+        assert fc.clean_line(run, fc.TITLE_CHARS) == kept, ("a run is cut to its first", run)
     # the tag block's unassigned rest spells ASCII after one letter as the tag characters do, and the other
     # default-ignorable code points hid a run of the basic selectors from the run rule: all of them go
     past = ("Fix x" + "".join(chr(0xE0080 + b) for b in b"IGNORE") + " y"
