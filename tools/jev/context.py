@@ -105,14 +105,16 @@ COST_LABEL = "API-equivalent (estimate)"   # § 10.7, as loop.COST_LABEL
 LINE_CHARS = 400        # one rendered row line, at most
 NOTE_CHARS = 300        # a provenance note, at most
 UNKNOWN_ROW_CHARS = 300
-#: the document's own vocabulary above its rows: the section keys, statuses,
-#: sources, modes and schema ids, and the field names of the document, its
-#: `planes`, a section and context.json's record. `redact_obj` never rewrites
-#: a string that IS one of these words (one that contains one is redacted as
-#: ever): a host called `Code`, `lake` or `stale` would turn `index_code`, the
-#: `lake_*` keys or a status into `<host>`, and the section would vanish from
-#: the pack and from Pack.missing (past mode require); one called `sections`
-#: would crash build. A row's keys and values are redacted as before.
+#: the document's own vocabulary: the section keys, statuses, sources, modes
+#: and schema ids, the field names of the document, its `planes`, a section,
+#: a row and context.json's record, and the row kinds. `redact_obj` never
+#: rewrites a string that IS one of these words (one that contains one is
+#: redacted as ever): a host called `Code`, `lake` or `stale` would turn
+#: `index_code`, the `lake_*` keys or a status into `<host>`, and the section
+#: would vanish from the pack and from Pack.missing (past mode require); one
+#: called `sections` would crash build, and one called `path` would drop every
+#: code hit's path. The planes keep the same words in their own pass
+#: (fleet_context.DOC_WORDS, every one of which is here).
 SCHEMA_WORDS = frozenset({
     *PROVIDERS, *STATUSES, HISTORY_SOURCE, *PLANE_SOURCES.values(), *MODES, PACK_SCHEMA, PLANES_SCHEMA,
     # a section
@@ -123,6 +125,15 @@ SCHEMA_WORDS = frozenset({
     # context.json's record
     "file", "mode", "sha256", "bytes", "chars", "max_chars", "statuses", "missing", "notes", "structure_problem",
     "total", "document",
+    # a plane row's fields and kinds (fleet_context.DOC_WORDS), and the hub's project name in a code hit
+    "number", "kind", "title", "labels", "closed_at", "scout",
+    "workflow", "path", "runs", "failures", "last_conclusion", "last_at", "fail_streak", "failing_steps",
+    "count", "errors", "permission_denials", "turns", "cost_usd", "models", "tool_calls", "tool_errors", "head",
+    "query", "project", "start_line", "end_line", "score", "snippet", "withheld", "tool",
+    "issue", "pr", "ci_agent_runs", "local_sessions", "failing_command", "tool_error", "api_errors", "_hub",
+    # a history row's fields and kinds
+    "ts", "run", "decision", "outcome", "reason", "cost_source", "head_sha", "would_file", "publishable",
+    "problems", "failed", "filed", "attempt",
 })
 
 # --------------------------------------------------------------------------- #

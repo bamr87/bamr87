@@ -100,6 +100,27 @@ SECTIONS = ("lake_issues", "lake_ci", "lake_agents", "index_code", "telemetry_er
 SOURCES = {"lake_issues": "lake", "lake_ci": "lake", "lake_agents": "lake",
            "index_code": "qdrant", "telemetry_errors": "elasticsearch"}
 STATUSES = ("ok", "empty", "stale", "unavailable")
+#: the document's own words: its schema id, section keys, statuses and sources,
+#: every field name the planes write (the document's, a section's, a row's) and
+#: every row kind. `Scrubber.obj` never rewrites a string that IS one of them
+#: (one that contains one is masked as ever): a host called `stale`, `rows`,
+#: `note`, `name` or `path` would turn a status, a key or a field into `<host>`,
+#: and the engine would read the section as malformed, so mode require would
+#: block an item whose planes all answered. tools/jev/context.SCHEMA_WORDS, the
+#: engine's twin, holds every one of them (tools/test_jev_context.py checks).
+DOC_WORDS = frozenset({
+    SCHEMA, *SECTIONS, *SOURCES.values(), *STATUSES,
+    # the document and a section
+    "schema", "generated_at", "nwo", "name", "window_days", "queries", "sections", "target_dir",
+    "status", "source", "as_of", "age_hours", "note", "elapsed_ms", "truncated", "rows",
+    # a row's fields, section by section
+    "number", "kind", "title", "labels", "closed_at", "scout",
+    "workflow", "path", "runs", "failures", "last_conclusion", "last_at", "fail_streak", "failing_steps",
+    "count", "errors", "permission_denials", "turns", "cost_usd", "models", "tool_calls", "tool_errors", "head",
+    "query", "project", "start_line", "end_line", "score", "snippet", "withheld", "tool",
+    # a row's kinds, and the hub's project name in a code hit
+    "issue", "pr", "ci_agent_runs", "local_sessions", "failing_command", "tool_error", "api_errors", fleet_index.HUB,
+})
 
 DAYS_DEFAULT = 30
 MAX_DAYS = 365
@@ -396,12 +417,14 @@ class Scrubber:
         return s
 
     def obj(self, o):
+        """`text` over every string of a JSON-shaped value, keys included, but
+        a DOC_WORDS word, which is the document's own and is kept."""
         if isinstance(o, str):
-            return self.text(o)
+            return o if o in DOC_WORDS else self.text(o)
         if isinstance(o, list):
             return [self.obj(x) for x in o]
         if isinstance(o, dict):
-            return {(self.text(k) if isinstance(k, str) else k): self.obj(v) for k, v in o.items()}
+            return {(self.obj(k) if isinstance(k, str) else k): self.obj(v) for k, v in o.items()}
         return o
 
 

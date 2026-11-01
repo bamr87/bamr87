@@ -726,6 +726,48 @@ def test_redaction_covers_every_plane_end_to_end():
     assert "~/bamr87" in snippet and "<host>" in snippet and "sk-ant-[REDACTED]" in snippet, snippet
 
 
+def _words_of(o, *, data_keys: bool = False) -> set:
+    """Every key (but a ci_agent_runs row's model names, which are data) and every row kind of a document."""
+    if isinstance(o, list):
+        return set().union(*(_words_of(x) for x in o))
+    if not isinstance(o, dict):
+        return set()
+    words = set() if data_keys else set(o) | ({o["kind"]} if isinstance(o.get("kind"), str) else set())
+    return words.union(*(_words_of(v, data_keys=k == "models") for k, v in o.items()))
+
+
+def _shape(o):
+    """A document with every string that is not one of its own words (DOC_WORDS) blanked."""
+    if isinstance(o, dict):
+        return {_shape(k): _shape(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_shape(x) for x in o]
+    return ("<data>" if o not in fc.DOC_WORDS else o) if isinstance(o, str) else o
+
+
+def test_a_host_named_like_a_word_of_the_document_keeps_it_whole():
+    # Scrubber.obj masked the document's own keys and values as well as its data: a host called `stale`,
+    # `rows`, `note`, `source`, `status`, `name` or `path` turned a status, a key or a field into `<host>`, and
+    # the engine read every section as malformed, so mode require blocked an item whose planes all answered.
+    routes = {**index_routes(), **es_routes()}
+    routes[("POST", "/collections/ws-test/points/search")] = lambda _b: (200, {"result": [
+        _hit("tools/dash", 0.91, "echo build"), _hit("projects/law-ai/secret.py", 0.87, "PRIVATE SIBLING CODE")]})
+    with _env(), _tmp() as tmp, Stub(routes) as stub:
+        doc = build(rich_lake(tmp), stub.url, queries=["jekyll build"], target_dir=str(tmp),
+                    scrubber=fc.Scrubber(home=FAKE_HOME, hosts=[], paths=[]))
+    words = _words_of(doc)
+    assert words <= fc.DOC_WORDS, ("a field or row kind the planes write must be a DOC_WORDS word",
+                                   sorted(words - fc.DOC_WORDS))
+    assert {"issue", "ci_agent_runs", "local_sessions", "failing_command", "tool_error", "api_errors", "withheld",
+            "failing_steps", "target_dir"} <= words, sorted(words)
+    for host in sorted(w for w in fc.DOC_WORDS if len(w) > 3):
+        scrubbed = fc.Scrubber(home=FAKE_HOME, hosts=[host], paths=[]).obj(doc)
+        assert _shape(scrubbed) == _shape(doc), (host, "the planes rewrote the document's own words")
+    tagged = {"title": "the stale cache", "note": "stale"}
+    assert fc.Scrubber(home=FAKE_HOME, hosts=["stale"], paths=[]).obj(tagged) == \
+        {"title": "the <host> cache", "note": "stale"}, "a word inside data is masked as ever"
+
+
 # --------------------------------------------------------------------------- #
 # freshness
 # --------------------------------------------------------------------------- #

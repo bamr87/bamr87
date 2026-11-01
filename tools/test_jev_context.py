@@ -692,20 +692,31 @@ def test_a_host_named_like_a_section_key_status_or_field_keeps_the_document_whol
     # redact_obj ran over the document's own keys and values too: a host called `Code` or `lake` turned
     # `index_code` or the `lake_*` keys into `index_<host>`, and the section vanished from the pack and from
     # Pack.missing, so a lake that was down no longer blocked mode require; `stale` turned a status into
-    # `<host>`; `sections`, `planes` or `status` crashed build.
+    # `<host>`; `sections`, `planes` or `status` crashed build. The planes' own pass (Scrubber.obj, which
+    # fleet_context.build ends with) did the same before the engine saw the document: `rows`, `note`,
+    # `source`, `status` or `name` turned every section 'unavailable', and `path` dropped every hit's path.
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.append(str(DASH_GEN_DIR))
+    import fleet_context as fc
     doc = plane_doc(lake_ci=sec("lake", "unavailable", note="the lake could not be read"),
                     index_code=sec("qdrant", "stale", plane_doc()["sections"]["index_code"]["rows"], as_of=None,
                                    age=None, note="index behind the checkout"))
     want = {"history": "empty", **{k: v["status"] for k, v in doc["sections"].items()}}
-    for host in ("Code", "lake", "stale", "rows", "history", "sections", "planes", "status", "require"):
+    rows = {k: [sorted(r) for r in v["rows"]] for k, v in doc["sections"].items()}
+    for host in ("Code", "lake", "stale", "rows", "history", "sections", "planes", "status", "require", "note",
+                 "source", "name", "schema", "path", "kind", "issue", "snippet", "_hub"):
+        planes = fc.Scrubber(home="/srv/nobody", hosts=[host], paths=[]).obj(doc)
         with _tmp() as root:
-            pack = C.build(FakeCtx(root, hostname=host, answer=lambda _a: ok_answer(doc)), ITEM, REQ, mode="require")
+            pack = C.build(FakeCtx(root, hostname=host, answer=lambda _a, d=planes: ok_answer(d)), ITEM, REQ,
+                           mode="require")
             md = pack.path.read_text(encoding="utf-8")
             record = json.loads(pack.doc_path.read_text(encoding="utf-8"))
         assert pack.sections == want and pack.missing == ["lake_ci"] and pack.blocked, (host, pack.sections)
         assert headings(md) == expected_headings({"nwo": NWO, "sections": {k: {"status": v} for k, v in want.items()}})
-        assert "-- tools/dash:10-52" in md, (host, "the code index's rows are in the pack")
+        assert "-- tools/dash:10-52" in md and "#101 " in md, (host, "the rows are in the pack")
         assert record["statuses"] == want and record["missing"] == ["lake_ci"] and record["mode"] == "require", host
+        kept = record["document"]["sections"]
+        assert {k: [sorted(r) for r in kept[k]["rows"]] for k in rows} == rows, (host, "a row lost a field")
 
 
 def test_every_key_above_the_rows_is_a_schema_word():
@@ -720,6 +731,26 @@ def test_every_key_above_the_rows_is_a_schema_word():
             keys |= {k for s in doc["sections"].values() for k in s}
             assert keys <= C.SCHEMA_WORDS, sorted(keys - C.SCHEMA_WORDS)
     assert {*C.PROVIDERS, *C.STATUSES, *C.MODES, C.HISTORY_SOURCE, *C.PLANE_SOURCES.values()} <= C.SCHEMA_WORDS
+
+
+def test_every_row_field_and_kind_is_a_schema_word_and_so_is_every_word_the_planes_keep():
+    # a row's field or kind the engine or the planes gain must be added to SCHEMA_WORDS (and the planes' to
+    # fleet_context.DOC_WORDS), or a host named like it drops the field from the pack
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.append(str(DASH_GEN_DIR))
+    import fleet_context as fc
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        seed_history(ctx.runs)
+        record = json.loads(C.build(ctx, ITEM, REQ).doc_path.read_text(encoding="utf-8"))
+    rows = [r for s in record["document"]["sections"].values() for r in s["rows"]]
+    assert {r["kind"] for r in rows if "kind" in r} >= {"filed", "attempt", "issue", "pr", "ci_agent_runs",
+                                                       "local_sessions", "failing_command", "tool_error",
+                                                       "api_errors"}, "every row kind is in the fixture"
+    words = {k for r in rows for k in r} | {r["kind"] for r in rows if "kind" in r} | {r["project"] for r in rows
+                                                                                      if r.get("project") == "_hub"}
+    assert words <= C.SCHEMA_WORDS, sorted(words - C.SCHEMA_WORDS)
+    assert fc.DOC_WORDS <= C.SCHEMA_WORDS, sorted(fc.DOC_WORDS - C.SCHEMA_WORDS)
 
 
 def test_a_redaction_that_changes_a_fence_line_fails_the_pack_closed():
