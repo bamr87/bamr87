@@ -304,8 +304,8 @@ def test_gather_asks_the_planes_once_with_the_request_and_adds_history():
     with _tmp() as root:
         ctx = FakeCtx(root)
         doc = C.gather(ctx, C.ContextRequest(NWO, NAME, ["a b", "c"], days=14), deadline_s=7.5)
-    assert ctx.calls == [["context", "--nwo", NWO, "--name", NAME, "--query", "a b", "--query", "c",
-                          "--days", "14", "--deadline-s", "7.5", "--json"]], ctx.calls
+    assert ctx.calls == [["context", f"--nwo={NWO}", f"--name={NAME}", "--query=a b", "--query=c",
+                          "--days=14", "--deadline-s=7.5", "--json"]], ctx.calls
     assert list(doc["sections"]) == list(C.PROVIDERS), list(doc["sections"])
     assert doc["schema"] == C.PACK_SCHEMA and doc["planes"]["exit"] == 0 and doc["planes"]["problem"] is None
     assert doc["sections"]["history"]["status"] == "empty"
@@ -318,7 +318,7 @@ def test_gather_picks_sections_and_skips_the_planes_when_only_history_is_wanted(
         doc = C.gather(ctx, REQ, sections=["history"])
         assert ctx.calls == [] and list(doc["sections"]) == ["history"]
         doc = C.gather(ctx, REQ, sections=["lake_ci", "history"])
-        assert ctx.calls[-1][-3:] == ["--sections", "lake_ci", "--json"], ctx.calls[-1]
+        assert ctx.calls[-1][-2:] == ["--sections=lake_ci", "--json"], ctx.calls[-1]
         assert list(doc["sections"]) == ["history", "lake_ci"]
         try:
             C.gather(ctx, REQ, sections=["lake_ci", "bogus"])
@@ -336,6 +336,34 @@ def test_gather_reads_the_last_document_one_line_or_indented():
             doc = C.gather(FakeCtx(root, answer=lambda _a, ans=answer: ans), REQ)
             statuses = {k: v["status"] for k, v in doc["sections"].items()}
             assert statuses["lake_issues"] == "ok" and statuses["index_code"] == "ok", (statuses, doc["planes"])
+
+
+def test_requests_are_checked_so_one_bad_query_cannot_cost_the_lake():
+    req = C.ContextRequest(NWO, NAME, ["  two\nlines\x07 ", "", "two lines", "-v"])
+    assert req.queries == ("two lines", "-v"), req.queries
+    for bad, why in (((*"abcd",), "at most 3"), (("x" * 301,), "over 300"), ("one string", "not one string")):
+        try:
+            C.ContextRequest(NWO, NAME, bad)
+        except ValueError as exc:
+            assert why in str(exc), (bad, exc)
+        else:
+            raise AssertionError(f"{bad!r} was accepted")
+    assert C.MAX_QUERY_CHARS == 300
+
+
+def test_the_real_planes_command_takes_a_dash_leading_query_as_a_value():
+    nwo, name = "bamr87/jev-context-fixture", "jev-context-fixture"
+    with _tmp() as root:
+        lake = _fixture_lake(root, nwo, name)
+        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
+        env.update(DASH_LAKE_DIR=str(lake), PYTHON=sys.executable)
+        ctx = FakeCtx(root, answer=lambda argv: run([str(HUB / "tools" / "dash-gen"), *argv], cwd=HUB, env=env,
+                                                    timeout=60, inherit_env=False))
+        req = C.ContextRequest(nwo, name, ("--dry-run", "-v", "--help"))
+        doc = C.gather(ctx, req, sections=["lake_issues", "lake_ci"], deadline_s=5)
+    assert doc["planes"]["exit"] == 0 and doc["planes"]["problem"] is None, doc["planes"]
+    assert {k: v["status"] for k, v in doc["sections"].items() if k != "history"} == \
+        {"lake_issues": "ok", "lake_ci": "ok"}, doc["sections"]
 
 
 def test_every_plane_problem_makes_every_plane_section_unavailable_without_raising():
@@ -724,7 +752,8 @@ def test_the_shared_constants_match_the_planes_module():
     import fleet_context as fc
     assert fc.SCHEMA == C.PLANES_SCHEMA and tuple(fc.SECTIONS) == C.PLANE_SECTIONS
     assert fc.SOURCES == C.PLANE_SOURCES and tuple(fc.STATUSES) == C.STATUSES
-    assert fc.MAX_QUERIES == C.MAX_QUERIES and fc.DAYS_DEFAULT == C.DEFAULT_DAYS
+    assert fc.MAX_QUERIES == C.MAX_QUERIES and fc.MAX_QUERY_CHARS == C.MAX_QUERY_CHARS
+    assert fc.DAYS_DEFAULT == C.DEFAULT_DAYS
     assert fc.DEADLINE_DEFAULT_S == C.DEFAULT_DEADLINE_S
     assert set(C.TITLES) == set(C.PROVIDERS) == set(C.RENDER_ORDER) == set(C.TRIM_ORDER)
     assert C.TRIM_ORDER[-1] == "history" and C.RENDER_ORDER[0] == "history"

@@ -55,6 +55,7 @@ PLANE_SOURCES = {"lake_issues": "lake", "lake_ci": "lake", "lake_agents": "lake"
                  "index_code": "qdrant", "telemetry_errors": "elasticsearch"}
 STATUSES = ("ok", "empty", "stale", "unavailable")
 MAX_QUERIES = 3
+MAX_QUERY_CHARS = 300
 #: the engine-side document this module writes as context.json
 PACK_SCHEMA = "jev-context-pack/v1"
 
@@ -280,7 +281,24 @@ class ContextRequest:
     days: int = DEFAULT_DAYS
 
     def __post_init__(self) -> None:
-        self.queries = tuple(self.queries or ())
+        """Queries as the planes accept them, checked HERE: one the planes
+        refuse makes `dash-gen context` exit 2, and that costs every plane
+        section, the lake's (which use no query) included — under mode
+        'require', the item. Control characters go and line breaks fold to a
+        space (a query is one line); empty and repeated ones are dropped; more
+        than MAX_QUERIES, or one over MAX_QUERY_CHARS, is the caller's error."""
+        if isinstance(self.queries, str):
+            raise ValueError("queries is a sequence of strings, not one string")
+        kept: list[str] = []
+        for q in self.queries or ():
+            q = _BREAKS.sub(" ", _CTRL.sub("", str(q))).strip()
+            if len(q) > MAX_QUERY_CHARS:
+                raise ValueError(f"a context query is over {MAX_QUERY_CHARS} characters ({len(q)}): {q[:60]!r}…")
+            if q and q not in kept:
+                kept.append(q)
+        if len(kept) > MAX_QUERIES:
+            raise ValueError(f"at most {MAX_QUERIES} context queries, got {len(kept)}")
+        self.queries = tuple(kept)
 
 
 @dataclass
@@ -438,14 +456,15 @@ def _wanted(sections: Iterable[str] | None) -> list[str]:
 
 
 def context_argv(req: ContextRequest, planes: Iterable[str], deadline_s: float) -> list[str]:
-    """The `tools/dash-gen context` argv for this request and these plane sections."""
+    """The `tools/dash-gen context` argv for this request and these plane
+    sections. Every value rides in its option's own word (`--query=-v`), so
+    a value that starts with a dash is a value, never an option."""
     planes = list(planes)
-    argv = ["context", "--nwo", req.nwo, "--name", req.name]
-    for q in req.queries:
-        argv += ["--query", q]
-    argv += ["--days", str(int(req.days)), "--deadline-s", f"{float(deadline_s):g}"]
+    argv = ["context", f"--nwo={req.nwo}", f"--name={req.name}"]
+    argv += [f"--query={q}" for q in req.queries]
+    argv += [f"--days={int(req.days)}", f"--deadline-s={float(deadline_s):g}"]
     if planes != list(PLANE_SECTIONS):
-        argv += ["--sections", ",".join(planes)]
+        argv.append(f"--sections={','.join(planes)}")
     return [*argv, "--json"]
 
 
