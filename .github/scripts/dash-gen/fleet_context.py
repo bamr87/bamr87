@@ -140,6 +140,7 @@ PR_EVENTS = ("pull_request", "pull_request_target")
 
 REMEDY_LAKE = "run `tools/dash lake sync`"
 REMEDY_SESSIONS = "run `tools/dash lake sessions`"
+REMEDY_LOCKED = "retry; a `lake sync` may hold the lock"
 REMEDY_PLANES = "start the planes with `tools/dash observe up`"
 REMEDY_OLLAMA = "start native Ollama (`ollama serve`, model `ollama pull nomic-embed-text`)"
 REMEDY_TELEMETRY = "point Claude Code at the collector with `tools/dash observe claude enable --apply`"
@@ -969,7 +970,11 @@ def _failing_steps(conn, tables, kept: list[dict], failed_ids: dict[str, list[in
 
 
 def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime,
-                deadline: Deadline | None = None) -> dict:
+                deadline: Deadline | None = None, home: str | None = None) -> dict:
+    """CI agent runs, local sessions and their failing commands. A session
+    whose cwd IS the home directory is nobody's repo: ai_activity.repo_for
+    falls back to the cwd's basename, which for $HOME is the user name, and
+    the hub's checkout is named after the user too."""
     if "agent_runs" not in tables and "sessions" not in tables:
         _need(tables, "agent_runs", "sessions")
     rows, notes, stamps, stale_any, truncated = [], [], [], False, 0
@@ -1013,12 +1018,13 @@ def lake_agents(conn, tables, nwo: str, name: str, since: str, now: dt.datetime,
         as_of = sessions_as_of(conn, tables)
         r = conn.execute("SELECT COUNT(*) AS n, SUM(tool_calls) AS calls, SUM(tool_errors) AS errs, "
                          "MAX(COALESCE(ended_at, started_at)) AS last FROM sessions "
-                         "WHERE repo = ? COLLATE NOCASE AND started_at >= ?", (name, since)).fetchone()
+                         "WHERE repo = ? COLLATE NOCASE AND started_at >= ? "
+                         "AND (cwd IS NULL OR cwd NOT IN (?, ?))", (name, since, *_home_cwds(home))).fetchone()
         if r and r["n"]:
             rows.append({"kind": "local_sessions", "count": int(r["n"]), "tool_calls": int(r["calls"] or 0),
                          "tool_errors": int(r["errs"] or 0), "last_at": iso_z(r["last"]), "as_of": as_of})
         if "session_tools" in tables:
-            commands, dropped = failing_commands(conn, name, since, deadline)
+            commands, dropped = failing_commands(conn, name, since, deadline, home)
             rows += commands
             truncated += dropped
         stale, note = freshness(as_of, now, "local sessions", REMEDY_SESSIONS)
@@ -1048,7 +1054,13 @@ def top_models(models: dict[str, int]) -> tuple[dict[str, int], int]:
     return {**dict(kept), "(other)": sum(n for _m, n in rest)}, len(rest)
 
 
-def failing_commands(conn, name: str, since: str, deadline: Deadline | None = None) -> tuple[list[dict], int]:
+def _home_cwds(home: str | None) -> tuple[str, str]:
+    h = (home if home is not None else (os.environ.get("HOME") or str(Path.home()))).rstrip("/") or "/"
+    return h, h + "/"
+
+
+def failing_commands(conn, name: str, since: str, deadline: Deadline | None = None,
+                     home: str | None = None) -> tuple[list[dict], int]:
     """Failed Bash calls in this repo's local sessions, by command head. Never the command itself."""
     heads: dict[str, dict] = {}
     for r in conn.execute(
@@ -1056,7 +1068,8 @@ def failing_commands(conn, name: str, since: str, deadline: Deadline | None = No
             "FROM session_tools t "
             "JOIN sessions s ON s.key = t.key WHERE s.repo = ? COLLATE NOCASE AND t.is_error = 1 "
             "AND t.name = 'Bash' AND COALESCE(t.started_at, s.started_at) >= ? "
-            "ORDER BY at DESC LIMIT ?", (name, since, COMMAND_SAMPLE)):
+            "AND (s.cwd IS NULL OR s.cwd NOT IN (?, ?)) "
+            "ORDER BY at DESC LIMIT ?", (name, since, *_home_cwds(home), COMMAND_SAMPLE)):
         _within(deadline, "the lake's session tools")
         head = command_head(command_of(r["input"])) or "(unparsed)"
         row = heads.setdefault(head, {"kind": "failing_command", "head": head, "count": 0, "last_at": None})
@@ -1300,7 +1313,12 @@ def _open_lake(lake_dir, deadline: Deadline) -> tuple[sqlite3.Connection, set[st
     except sqlite3.Error as exc:
         if conn is not None:
             conn.close()
-        raise Unavailable(f"the lake could not be read: {clean_line(exc, 160)}", REMEDY_LAKE) from None
+        # A lock is usually the sync itself, mid-write: telling the operator to
+        # run another one is wrong. A missing or corrupt lake is a sync's job.
+        said = str(exc).lower()
+        locked = isinstance(exc, sqlite3.OperationalError) and ("locked" in said or "busy" in said)
+        raise Unavailable(f"the lake could not be read: {clean_line(exc, 160)}",
+                          REMEDY_LOCKED if locked else REMEDY_LAKE) from None
     return conn, tables
 
 
@@ -1318,7 +1336,7 @@ def _run(key: str, fn, now: dt.datetime, deadline: Deadline) -> dict:
                                                REMEDY_DEADLINE), now)
         else:
             doc = unavailable(key, Unavailable(f"the lake read failed: {clean_line(exc, 160)}",
-                                               "retry; a `lake sync` may hold the lock"), now)
+                                               REMEDY_LOCKED), now)
     except sqlite3.Error as exc:
         doc = unavailable(key, Unavailable(f"the lake read failed: {clean_line(exc, 160)}", REMEDY_LAKE), now)
     except Exception as exc:   # a bug here (RouteRefused included) costs one section, and says so
@@ -1333,7 +1351,7 @@ def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = 
           lake_dir: Path | str | None = None, fleet_path: Path | str | None = None,
           registry_path: Path | str | None = None, now: dt.datetime | None = None,
           scrubber: Scrubber | None = None, index_cfg: dict | None = None,
-          contract: dict | None = None) -> dict:
+          contract: dict | None = None, home: str | None = None) -> dict:
     """The whole fleet-context/v1 document. Never raises for a plane; usage is checked by the caller."""
     now = now or utcnow()
     deadline = Deadline(deadline_s)
@@ -1363,7 +1381,7 @@ def build(nwo: str, name: str, *, queries: list[str] | None = None, days: int = 
                 "lake_issues": lambda: lake_issues(conn, tables, nwo, since, now, scout_label, deadline),
                 "lake_ci": lambda: lake_ci(conn, tables, nwo, since, now,
                                            tracked_branch(conn, tables, nwo, registry), deadline),
-                "lake_agents": lambda: lake_agents(conn, tables, nwo, name, since, now, deadline),
+                "lake_agents": lambda: lake_agents(conn, tables, nwo, name, since, now, deadline, home),
             }
             try:
                 for k in lake_keys:

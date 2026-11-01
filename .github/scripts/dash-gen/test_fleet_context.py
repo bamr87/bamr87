@@ -373,6 +373,7 @@ def build(lake_dir, url, **kw):
     kw.setdefault("contract", contract_for(url))
     kw.setdefault("index_cfg", cfg_for(url))
     kw.setdefault("registry_path", "/nonexistent/projects.yml")
+    kw.setdefault("home", FAKE_HOME)
     return fc.build(kw.pop("nwo", NWO), kw.pop("name", NAME), lake_dir=lake_dir, **kw)
 
 
@@ -519,6 +520,40 @@ def test_lake_agents_carries_aggregates_and_heads_never_the_session():
     text = json.dumps(doc)
     for s in SENTINELS + (GH_TOKEN, FAKE_HOME, ".jsonl"):
         assert s not in text, f"{s} leaked into the pack"
+
+
+def test_sessions_run_in_the_home_directory_are_nobodys_repo():
+    # ai_activity.repo_for names a session in $HOME after its basename, the user
+    # name, which is also the hub checkout's name: those sessions are not the hub's
+    with _env(), _tmp() as tmp:
+        lake = rich_lake(tmp)
+        home = {**_session("h1", calls=99, errors=50), "cwd": FAKE_HOME}
+        slash = {**_session("h2", calls=99, errors=50), "cwd": FAKE_HOME + "/"}
+        _insert(lake, "sessions", [home, slash])
+        _insert(lake, "session_tools", [_tool("h1", 1, "rm -rf junk"), _tool("h2", 1, "rm -rf junk")])
+        sec = build(lake, closed_port_url(), sections=["lake_agents"])["sections"]["lake_agents"]
+    local = next(r for r in sec["rows"] if r["kind"] == "local_sessions")
+    assert (local["count"], local["tool_calls"], local["tool_errors"]) == (2, 20, 4), local
+    assert not any(r.get("head") == "rm -rf" for r in sec["rows"]), sec["rows"]
+
+
+def test_a_locked_lake_says_retry_not_sync():
+    with _env(), _tmp() as tmp:
+        lake = rich_lake(tmp)
+        holder = sqlite3.connect(lake / fl.DB_NAME)
+        holder.execute("BEGIN EXCLUSIVE")
+        try:
+            started = time.monotonic()
+            doc = build(lake, closed_port_url(), sections=["lake_issues", "lake_ci"], deadline_s=0.5)
+            elapsed = time.monotonic() - started
+        finally:
+            holder.rollback()
+            holder.close()
+    assert elapsed < 2.0, elapsed
+    for key in ("lake_issues", "lake_ci"):
+        sec = doc["sections"][key]
+        assert sec["status"] == "unavailable" and "locked" in sec["note"], (key, sec["note"])
+        assert fc.REMEDY_LOCKED in sec["note"] and fc.REMEDY_LAKE not in sec["note"], (key, sec["note"])
 
 
 def test_failing_commands_are_capped_by_head():
