@@ -2246,6 +2246,17 @@ def test_the_filing_itself_files_nothing_when_its_own_dedupe_list_fails():
     assert sum(1 for c in box.gh_calls() if c[:2] == ["issue", "list"]) == listed + 3, "the apply's list was the one"
     assert code == 1 and out.startswith("publish-failed") and "exited 3" in out, out
     assert not _issue_creates(box), "nothing is filed without the duplicate check the preview had"
+    assert "nothing was filed: run the loop again" in out, out
+    # the way on: that preview stays claimed, and says so; a new run reuses the attempt at $0 and files it
+    with world(box, FLEET_TOKEN=FLEET_TOKEN, STUB_GH_ISSUES=dup):
+        code, out, _ = jev("publish", run_id, "--apply")
+        assert code == 2 and "already applied" in out and "nothing was filed: run the loop again" in out, out
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        item = box.last()["items"][0]
+        assert item["decision"] == "tier0-reuse" and item["status"] == "previewed", item
+        assert len(box.live_calls()) == 1, "the retry made no claude call"
+        code, out, _ = jev("publish", box.last()["run_id"], "--apply")
+    assert code == 0 and out.startswith("published") and len(_issue_creates(box)) == 1, out
 
 
 def test_the_filing_withholds_a_body_the_preview_had_dropped_when_its_duplicate_closes():

@@ -1660,6 +1660,25 @@ def review_gap(ctx: RunContext, item: Item, doc: dict, fresh: PublishPlan, fresh
     return None
 
 
+#: The way on from an apply that filed nothing: its publish-result.json still
+#: refuses a second apply of that preview, but it is not a publish, so tier 0
+#: reuses the validated copy in a new run and previews it again.
+NOTHING_FILED_RETRY = ("nothing was filed: run the loop again to retry (tier 0 reuses the validated copy at $0 "
+                       "while HEAD and the brief are unchanged, and writes a new preview to apply)")
+
+
+def _already_applied(result_path: Path) -> str:
+    """Why a claimed publish-result.json refuses this apply — with the way on
+    when the earlier apply filed nothing."""
+    try:
+        prior = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prior = None
+    if isinstance(prior, dict) and prior.get("status") == "publish-failed" and not prior.get("urls"):
+        return f"already applied ({result_path.name} exists) and {NOTHING_FILED_RETRY}"
+    return f"already applied ({result_path.name} exists) — a second apply is refused"
+
+
 def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
     """File a preview's bytes. Refused (exit 2) when it was already applied
     (here, or in another run that filed the same validated bytes), when the
@@ -1678,7 +1697,7 @@ def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
     if ctx.publish_env is None:
         return refused("no probed publish token (internal: --apply without the token probe)")
     if result_path.exists():
-        return refused(f"already applied ({result_path.name} exists) — a second apply is refused")
+        return refused(_already_applied(result_path))
     elsewhere = ctx.history.published_run(ctx.spec, item.key, str(doc.get("validated_sha256")))
     if elsewhere:
         return refused(f"already published in run {elsewhere} (the same validated bytes) — a second apply is refused")
@@ -1718,7 +1737,8 @@ def apply_item(ctx: RunContext, item: Item, doc: dict) -> dict:
               else "partial" if urls else "publish-failed")
     reason = (f"filed {len(urls)} issue(s)" + (f"; FAILED: {', '.join(filed.failures)}" if filed.failures else "")
               + (f"; {', '.join(filed.blockers)}" if filed.blockers else "")
-              + (f"; filed bodies not in the preview: {stray}" if stray else ""))
+              + (f"; filed bodies not in the preview: {stray}" if stray else "")
+              + (f"; {NOTHING_FILED_RETRY}" if status == "publish-failed" else ""))
     write_json(result_path, {"schema": PUBLISH_RESULT_SCHEMA, "status": status, "plan_id": doc["plan_id"],
                              "validated_sha256": doc["validated_sha256"], "urls": urls, "failures": filed.failures,
                              "blockers": filed.blockers, "stray_bodies": stray, "at": iso()})
