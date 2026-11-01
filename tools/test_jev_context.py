@@ -645,6 +645,23 @@ def test_a_host_named_like_the_packs_own_words_keeps_its_structure_and_masks_eve
         assert "<host>" in next(line for line in lines if line.startswith("#9 issue")), host
 
 
+def test_a_redaction_that_changes_a_fence_line_fails_the_pack_closed():
+    # build's own check behind redact_lines: the whole-line redaction redact_lines did before it kept the
+    # engine's lines turns "```text" into "```<host>" for a host called `text`; the pack keeps its header only
+    real = C.redact_lines
+    C.redact_lines = lambda md, ctx: "\n".join(C.redact(line, ctx) for line in md.split("\n"))
+    try:
+        with _tmp() as root:
+            pack = C.build(FakeCtx(root, hostname="text"), ITEM, REQ)
+            md = pack.path.read_text(encoding="utf-8")
+            record = json.loads(pack.doc_path.read_text(encoding="utf-8"))
+    finally:
+        C.redact_lines = real
+    assert md.endswith(C.FAIL_CLOSED + "\n") and len(headings(md)) == 1 and "```" not in md, md
+    assert record["structure_problem"] == "redaction changed a fence line", record["structure_problem"]
+    assert any("redaction changed a fence line" in n and "fail closed" in n for n in pack.notes), pack.notes
+
+
 def test_the_cap_cuts_rows_lowest_priority_first_and_is_never_exceeded():
     big = plane_doc()
     big["sections"]["index_code"]["rows"] = [
