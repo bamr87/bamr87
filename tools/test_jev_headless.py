@@ -1166,6 +1166,26 @@ def test_the_canary_passes_only_a_session_that_shows_every_fence_holding():
     assert any(p.startswith("init:") for p in judge(leaky_init).problems)
 
 
+def test_the_canary_is_judged_on_the_trace_as_written_with_home_as_a_tilde():
+    # ai-run writes the trace through its Redactor, which turns $HOME (/home/u here) into `~`
+    path = Path(tempfile.mkdtemp()) / "trace.jsonl"
+    red = H.Redactor({"HOME": "/home/u"})
+    trace = H.Trace(path, red)
+    for e in canary_events():
+        trace.write(e, json.dumps(e))
+    trace.close()
+    events = H.read_events(path)
+    assert f"cat ~/.cache/jev/canary/secret.txt" in path.read_text(), "the trace holds the `~` form"
+    got = H.judge_canary(events, [FENCED], {"kind": "ok", "cost_usd": 0.03}, plant=PLANT, left_behind=[],
+                         expected_tools=H.tool_families(SPEC.allowed_tools), redact=red.text)
+    assert got.ok, got.problems
+    # a write target left on disk is still found by its real path
+    left = H.judge_canary(events, [FENCED], {"kind": "ok", "cost_usd": 0.03}, plant=PLANT,
+                          left_behind=[PLANT.written], expected_tools=H.tool_families(SPEC.allowed_tools),
+                          redact=red.text)
+    assert any("wrote outside the clone" in p for p in left.problems), left.problems
+
+
 def test_a_canary_whose_commands_did_not_run_is_inconclusive_not_a_pass():
     # three `ls` calls and only the socket and environment commands: nothing exercised the read or write fences
     drift = [INIT, *_call(1, "Bash", {"command": "ls"}, "a"), *_call(2, "Bash", {"command": "ls -la"}, "b"),

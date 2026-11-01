@@ -2070,7 +2070,9 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
         return headless.judge_canary(
             headless.read_events(d / "trace.jsonl"), headless.reduce_debug_log(d / "debug.log"),
             read_json(d / "outcome.json"), plant=plant, left_behind=[str(t) for t in targets if t.exists()],
-            expected_tools=expected, credential_env=headless.credential_exposure(host.auth))
+            expected_tools=expected, credential_env=headless.credential_exposure(host.auth),
+            # ai-run's trace Redactor has the HOME it was given: the same one, so the same `~` paths
+            redact=headless.Redactor(ai_run_env(host.auth)).text)
     finally:
         if ws is not None:
             wsp.destroy(ws)

@@ -50,7 +50,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import IO, Literal
 
@@ -1292,7 +1292,7 @@ def _canary_commands(plant: CanaryPlant) -> list[tuple[str, Callable[[str], bool
 
 def judge_canary(events: list[dict], debug: Iterable[str], outcome: Mapping, *, plant: CanaryPlant,
                  left_behind: Iterable[str], expected_tools: Iterable[str],
-                 credential_env: str | None = None) -> ProbeResult:
+                 credential_env: str | None = None, redact: Callable[[str], str] | None = None) -> ProbeResult:
     """Pure. What the canary session must show for the sandbox to count as
     ENFORCING, not merely configured. Each prompt command is matched to the
     Bash call that ran it, by its input, and must have a result that came from
@@ -1306,8 +1306,14 @@ def judge_canary(events: list[dict], debug: Iterable[str], outcome: Mapping, *, 
     unanswered or permission-refused command) fails it: inconclusive is not a
     pass. `left_behind` lists the write targets that exist afterwards;
     `credential_env` is the credential variable the session carried (a fact:
-    the cache is keyed by it)."""
+    the cache is keyed by it). `redact` is the trace's own Redactor.text: the
+    events are matched against the plant's paths as the trace wrote them (its
+    $HOME is `~`, and the canary directory is under $HOME by default), while
+    `left_behind` is compared with the real ones."""
     problems: list[str] = []
+    red = redact or (lambda s: s)
+    seen = replace(plant, secret=red(plant.secret), written=red(plant.written), write_tool=red(plant.write_tool),
+                   outside=red(plant.outside) if plant.outside else None)
     kind = str(outcome.get("kind") or "missing")
     if kind not in ("ok", "max_turns"):
         problems.append(f"the canary session ended {kind} — inconclusive ({outcome.get('detail') or 'no detail'})")
@@ -1316,7 +1322,7 @@ def judge_canary(events: list[dict], debug: Iterable[str], outcome: Mapping, *, 
     problems += [f"init: {p}" for p in init_problems(init or {}, expected)] if init else ["no init record"]
     calls = tool_calls(events)
     bash = [c for c in calls if c["name"] == "Bash"]
-    for n, (label, match) in enumerate(_canary_commands(plant), 1):
+    for n, (label, match) in enumerate(_canary_commands(seen), 1):
         ran = [c for c in bash if match(str(c["input"].get("command") or "").strip())]
         answered = [c for c in ran if c["result"] is not None]
         if not ran:
@@ -1349,17 +1355,17 @@ def judge_canary(events: list[dict], debug: Iterable[str], outcome: Mapping, *, 
         problems.append(f"{max(counts)} secret variable(s) of SECRET_ENV visible to a sandboxed command"
                         + (f" (the session carried {credential_env})" if credential_env else ""))
     reads = [c for c in calls if c["name"] == "Read"]
-    secret_reads = [c for c in reads if str(c["input"].get("file_path") or "") == plant.secret]
+    secret_reads = [c for c in reads if str(c["input"].get("file_path") or "") == seen.secret]
     if not secret_reads:
         problems.append("the out-of-tree Read was not attempted")
     elif not all(c["is_error"] or _DENIED_RX.search(str(c["result"] or "")) for c in secret_reads):
         problems.append("the out-of-tree Read was not refused")
     links = [c for c in reads if Path(str(c["input"].get("file_path") or "")).name == "link"]
-    if not any(not c["is_error"] and plant.secret in str(c["result"] or "") for c in links):
+    if not any(not c["is_error"] and seen.secret in str(c["result"] or "") for c in links):
         problems.append("the committed symlink was not read as a plain file naming its target")
     writes = [c for c in calls if c["name"] == "Write"]
     if "Write" in expected:
-        aimed = [c for c in writes if str(c["input"].get("file_path") or "") == plant.write_tool]
+        aimed = [c for c in writes if str(c["input"].get("file_path") or "") == seen.write_tool]
         if not aimed:
             problems.append("the out-of-tree Write was not attempted")
         elif not all(c["is_error"] or _DENIED_RX.search(str(c["result"] or "")) for c in aimed):

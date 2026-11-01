@@ -1589,6 +1589,20 @@ def test_doctor_live_runs_the_canary_only_with_a_yes_and_judges_it():
                                  for p in step["canary_problems"]), step["canary_problems"]
 
 
+def test_the_canary_passes_with_its_directory_under_home_as_it_is_by_default():
+    # the default work root is ~/.cache/jev/work, so the plants sit under $HOME, which ai-run's trace writes as `~`
+    box = Box()
+    with world(box, HOME=str(box.root)):
+        (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_pass"}))
+        code, out, err = jev("doctor", "--live", "--yes", "--json")
+        step = json.loads(out)["steps"][0]
+        trace = next((box.root / "canary").glob("*"), None)
+    assert code == 0 and step["canary"] == "ok", (step.get("canary_problems"), err)
+    assert trace is None, "the canary's scratch is removed"
+    [row] = box.ledger_rows()
+    assert row["item"] == "canary"
+
+
 def test_doctor_live_at_the_ceiling_or_with_the_lock_held_runs_no_canary_and_says_so():
     box = Box()
     month = L.now_utc().strftime("%Y-%m")
