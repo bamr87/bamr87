@@ -26,12 +26,12 @@ Parallelization runs independent sub-tasks (LLM calls, tool calls, whole sub-age
 - Non-deterministic merge order.
 - Aggregation step silently dropping failed branches.
 
-## Fleet evidence
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 1. **Matrix fan-out of agent jobs, bounded and failure-isolated.** `.github/workflows/repo-scout.yml` L194-197: one scout agent job per repo, `fail-fast: false`, `max-parallel` from the plan job, then a fan-in summary job. Same shape in `repo-evolution.yml` L198-199. https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/repo-scout.yml#L194-L197 · green run: https://github.com/bamr87/bamr87/actions/runs/41169651906
 2. **Concurrent probes with fan-in.** `tools/fleet_smoke.py` L408-412: `ThreadPoolExecutor(max_workers=6)` + `as_completed` over all services. https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/fleet_smoke.py#L408-L412
 
-Reproduce:
+### Reproduce
 
 ```bash
 git clone --depth 1 https://github.com/bamr87/bamr87 && cd bamr87 && git checkout 2321b3a7c1199688042339d68b628f9d08bb46eb 2>/dev/null || true

@@ -26,7 +26,7 @@ Agents in the real world hit broken tools, bad credentials, overloaded APIs and 
 - Fallback on the credential most likely to be dead.
 - Recovery that discards partial work.
 
-## Fleet evidence (commit 2321b3a7c1199688042339d68b628f9d08bb46eb)
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Behavior | Permalink |
 |---|---|

@@ -27,7 +27,7 @@ Routing turns a fixed pipeline into a conditional one: a component inspects the 
 - LLM-router cost and latency on every request.
 - Routes that drift away from their handlers.
 
-## Fleet evidence (bamr87/law-ai @ 0870d4c)
+## Fleet evidence (`bamr87/law-ai@0870d4c`)
 
 1. **Provider routing/fallback (LLM_PROVIDER_CHAIN).** The default chain is set in [settings/base.py L40](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/settings/base.py#L40) as `claude_code,anthropic_api,xai,ollama`. It is resolved in [router.py L89-135](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/core/llm/router.py#L89-L135) and tried in order in `aroute` [L453-516](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/core/llm/router.py#L453-L516). Tiers with a remembered credential failure are skipped, each attempt is recorded, and `LLMUnavailableError` is raised when every tier fails. Each call is logged with the chain attempted (`_log_call`, [L397-420](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/core/llm/router.py#L397-L420)).
 2. **Content routing (rules tier).** `classify` in [playbooks.py L260-300](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/lsat/services/playbooks.py#L260-L300) sends an LSAT question to an archetype playbook in this order: an explicit stamp wins, then cue patterns with priority and concept-overlap tie-breaks, then a primary-concept fallback, then `None` when the case is ambiguous. It is deterministic and makes no model call.

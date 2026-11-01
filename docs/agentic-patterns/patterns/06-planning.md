@@ -16,6 +16,9 @@ Planning is an agent's ability to turn a goal into an ordered set of steps from 
 
 ## When to use / not
 
+Terms: `§` numbers refer to sections of the fleet's constitution (`docs/constitution.md`), its written governance rules. JEV is the fleet's agent logic engine (`tools/jev`); today it assigns ids at merge and triages pull-request conflicts in cost tiers. HITL means human-in-the-loop (ADP-13).
+
+
 - Use when the task has several steps, the path depends on intermediate results, or the work spans tools and repos.
 - Avoid when a deterministic script already solves the problem. The fleet's rule, "decide in code, let the agent do only the judgment", applies this directly.
 
@@ -26,17 +29,17 @@ Planning is an agent's ability to turn a goal into an ordered set of steps from 
 - Plans nobody can audit.
 - A planner that silently swallows constraints.
 
-## Fleet evidence
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Sub-aspect | Rating | Evidence |
 |---|---|---|
-| Fixed workflow preferred over a dynamic planner when the "how" is known | proven | Issue pipeline: queue, stage, caps and dedupe are computed in Python before any model runs ([docs/ISSUE-PIPELINE.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/ISSUE-PIPELINE.md), "What is deterministic vs what the AI decides"; [issue_pipeline.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/issue_pipeline.py)) |
-| Goal decomposition into staged subtasks | proven | Three tiers (intake → implement → complete), with stage derived from labels so each run reconciles state ([docs/ISSUE-PIPELINE.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/ISSUE-PIPELINE.md)). Last scheduled runs were green: [41181601564](https://github.com/bamr87/bamr87/actions/runs/41181601564), [41021622493](https://github.com/bamr87/bamr87/actions/runs/41021622493) |
-| Plan before execute (dry-run plan, then apply) | proven | JEV `number plan` / `number apply` ([tools/jev/number.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/jev/number.py), [docs/JEV.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/JEV.md)). The console's write-back uses a plan_id with confirm (constitution §11.4, [docs/constitution.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/constitution.md)) |
+| Fixed workflow preferred over a dynamic planner when the "how" is known | proven | Issue pipeline (the fleet's automated issue-to-PR workflow): queue, stage, caps and dedupe (dropping duplicate work items) are computed in Python before any model runs ([docs/ISSUE-PIPELINE.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/ISSUE-PIPELINE.md), "What is deterministic vs what the AI decides"; [issue_pipeline.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/issue_pipeline.py)) |
+| Goal decomposition into staged subtasks | proven | Three tiers, i.e. stages run by separate agent jobs (intake → implement → complete), with stage derived from labels so each run reconciles state ([docs/ISSUE-PIPELINE.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/ISSUE-PIPELINE.md)). Last scheduled runs were green: [41181601564](https://github.com/bamr87/bamr87/actions/runs/41181601564), [41021622493](https://github.com/bamr87/bamr87/actions/runs/41021622493) |
+| Plan before execute (dry-run plan, then apply) | proven | JEV `number plan` / `number apply` ([tools/jev/number.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/jev/number.py), [docs/JEV.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/JEV.md)). The console's write-back to GitHub first returns a plan (`plan_id`) and changes nothing until it is confirmed (constitution §11.4, [docs/constitution.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/constitution.md)) |
 | Replanning and escalation on failure | partial | JEV's conflict classifier picks the cheapest tier that can finish and escalates with attempts ([tools/jev/classify.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/jev/classify.py), `classify(..., attempts, max_attempts, force_min_tier)`). It is deterministic tier escalation, not LLM replanning |
 | Local plan→execute loop (`dash loop run`, dry run by default) | gap (in flight) | Evidence exists only on unmerged PRs, so it cannot count. Tracked as [#486](https://github.com/bamr87/bamr87/issues/486) ([issue](https://github.com/bamr87/bamr87/issues/486)), with open PRs #523/#524/#525 on `agent:hold` and nothing merged yet. Follow-up #488 |
 
-### Reproduce (run 2026-10-31 at 2321b3a7c1199688042339d68b628f9d08bb46eb)
+### Reproduce
 
 ```bash
 git clone https://github.com/bamr87/bamr87 && cd bamr87 && git checkout 2321b3a7c1199688042339d68b628f9d08bb46eb

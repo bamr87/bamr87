@@ -16,6 +16,9 @@ An agent needs a defined end state and a way to tell whether it has reached it. 
 
 ## When to use / not
 
+Terms: `§` numbers refer to sections of the fleet's constitution (`docs/constitution.md`), its written governance rules. Tier 1-3 are the issue pipeline's stages (intake, implement, complete), each run by a separate agent job. `agent:*` and `human-review` are GitHub labels the pipeline uses as state. JEV is the fleet's agent logic engine (`tools/jev`); its `loop` module is on the unmerged PR #525.
+
+
 - Use: multi-step, unattended work where "done" can be stated and checked, such as issue → PR, a release, or a budgeted loop.
 - Avoid: one-shot Q&A, or goals that can't be measured, where a judge loop only adds cost.
 
@@ -26,16 +29,16 @@ An agent needs a defined end state and a way to tell whether it has reached it. 
 - There is no iteration or budget cap (a runaway loop).
 - Something is monitored but nothing acts on it.
 
-## Fleet evidence (hub commit 2321b3a7c1199688042339d68b628f9d08bb46eb unless noted)
+## Fleet evidence (`bamr87/bamr87@2321b3a`, `bamr87/bamr87@80c6cee` (PR #525 head))
 
 | Behavior | Permalink |
 |---|---|
-| Goal must be stated before work: readiness gaps for missing acceptance criteria, scope or evidence, scored 0-100 | [issue_pipeline.py L200-L202, L311-L374](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/issue_pipeline.py#L311-L374) |
+| Goal must be stated before work: readiness gaps (what is missing before an issue is ready to work) for missing acceptance criteria, scope or evidence, scored 0-100 | [issue_pipeline.py L200-L202, L311-L374](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/issue_pipeline.py#L311-L374) |
 | Readiness threshold: below 70, intake must not pass an item on | [_data/fleet.yml L319-L320](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/_data/fleet.yml#L319-L320) |
 | Explicit definition of done (every check green, every acceptance criterion verified, tests fail without the change); iterate until green or genuinely stuck | [issue-pipeline.yml L915-L926](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/issue-pipeline.yml#L915-L926) |
 | Escalation instead of self-approval: `human-review` keeps the PR a draft; `never_merge: true` | [issue-pipeline.yml L928-L935](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/issue-pipeline.yml#L928-L935), [_data/fleet.yml L327](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/_data/fleet.yml#L327) |
 | Goal state on the board: `agent:queued` → Ready … `agent:done` → Done, with a fixed lifecycle | [templates/projects/framework.yml L37-L63](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/templates/projects/framework.yml#L37-L63) |
-| Staleness monitor: in-progress spec with no commit for 30+ days, or a P0/P1 issue idle for 30+ days | [specs/WORK.contract.yml L268-L277](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/specs/WORK.contract.yml#L268-L277) |
+| Staleness monitor: an in-progress spec (a written feature specification) with no commit for 30+ days, or a P0/P1 issue idle for 30+ days | [specs/WORK.contract.yml L268-L277](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/specs/WORK.contract.yml#L268-L277) |
 | Stop conditions for loops: `budget.loops` monthly ceiling ($25) with a scheduled stop at 80%, checked before each model call (open PR [#525](https://github.com/bamr87/bamr87/pull/525), head 80c6ceec91fc925b3bb31c6bce0540e5d19d7a52) | [fleet.yml L580-L582](https://github.com/bamr87/bamr87/blob/80c6ceec91fc925b3bb31c6bce0540e5d19d7a52/_data/fleet.yml#L580-L582), [tools/jev/loop.py L1020-L1040](https://github.com/bamr87/bamr87/blob/80c6ceec91fc925b3bb31c6bce0540e5d19d7a52/tools/jev/loop.py#L1020-L1040) |
 
 ### Reproduce

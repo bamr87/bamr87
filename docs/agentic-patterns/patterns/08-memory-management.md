@@ -16,6 +16,9 @@ An agent that does more than answer one question needs memory. Gulli splits it i
 
 ## When to use / not
 
+Terms: `§` numbers refer to sections of the fleet's constitution (`docs/constitution.md`), its written governance rules. MCP (Model Context Protocol) is the standard way tools and data are exposed to agents; an MCP server offers them as callable tools. ADK is Google's Agent Development Kit. The "lake" is the fleet's local SQLite data store of agent sessions and runs; the "spool" is a capped log file of activity events.
+
+
 - Use it for multi-step tasks, recurring bots that should not repeat past mistakes, and personalization.
 - Skip it for stateless one-shot transforms. Persisting those only adds privacy risk and staleness.
 
@@ -28,16 +31,16 @@ An agent that does more than answer one question needs memory. Gulli splits it i
 - No eviction or provenance.
 - Recall that floods the context window.
 
-## Fleet evidence (hub commit 2321b3a7c1199688042339d68b628f9d08bb46eb; README commit d4ea571b470cc826ff8ab10323e3aff68f64111d)
+## Fleet evidence (`bamr87/bamr87@2321b3a`, `bamr87/README@d4ea571`)
 
 | Memory kind | Fleet implementation | Permalink |
 |---|---|---|
 | Procedural (long-term rules every agent loads) | `AGENTS.md` + `.claude/skills/*` + constitution are the fleet's standing instructions, versioned in git | [AGENTS.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/AGENTS.md), [.claude/skills](https://github.com/bamr87/bamr87/tree/2321b3a7c1199688042339d68b628f9d08bb46eb/.claude/skills) |
-| Short-term context injection at session start | SessionStart hook adds standing context to every Claude Code session; fails open | [settings.json L16-25](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.claude/settings.json#L16-L25), [future_features_session_start.py L1-12](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.claude/hooks/future_features_session_start.py#L1-L12) |
-| Episodic (past sessions, turns, tool calls) | Data lake `.dash-lake/fleet.sqlite`: `sessions`, `session_turns`, `session_tools` tables; mtime-skip makes re-ingest idempotent | [fleet_lake.py L128-142](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/fleet_lake.py#L128-L142), [L1577-1583](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/fleet_lake.py#L1577-L1583), architecture [HARNESS-OPS.md L96-109](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/HARNESS-OPS.md#L96-L109) |
+| Short-term context injection at session start | A SessionStart hook (a script Claude Code runs when a session opens) adds standing context to every Claude Code session; if it fails, the session still starts (fails open) | [settings.json L16-25](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.claude/settings.json#L16-L25), [future_features_session_start.py L1-12](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.claude/hooks/future_features_session_start.py#L1-L12) |
+| Episodic (past sessions, turns, tool calls) | Data lake `.dash-lake/fleet.sqlite`: `sessions`, `session_turns`, `session_tools` tables; files whose modification time is unchanged are skipped, so re-ingesting is safe to repeat (idempotent) | [fleet_lake.py L128-142](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/fleet_lake.py#L128-L142), [L1577-1583](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/fleet_lake.py#L1577-L1583), architecture [HARNESS-OPS.md L96-109](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/HARNESS-OPS.md#L96-L109) |
 | Episodic recall exposed to agents | Console MCP read tools `agent_activity`, `lake_status`, `lake_runs` | [mcp_layer/server.py L321-388](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/console/mcp_layer/server.py#L321-L388) |
 | Bounded, redacted event memory (eviction + provenance) | Activity spool capped at 5000 events, oldest dropped with a `dropped` marker, token redaction before write | [fleet_activity.py L50](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/fleet_activity.py#L50), [L94-101](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/fleet_activity.py#L94-L101), [L196-215](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/fleet_activity.py#L196-L215) |
-| Semantic (distilled fleet facts) + fingerprinted AI cache | README context pyramid (cards/facts/apex) served read-only over MCP; AI cache keyed by fingerprint, so an unchanged corpus makes 0 API calls | [mcp/server.py L1-19](https://github.com/bamr87/README/blob/d4ea571b470cc826ff8ab10323e3aff68f64111d/mcp/server.py#L1-L19), [PLAN.md L555](https://github.com/bamr87/README/blob/d4ea571b470cc826ff8ab10323e3aff68f64111d/PLAN.md#L555) |
+| Semantic (distilled fleet facts) + fingerprinted AI cache | README context pyramid (layers of short summaries: per-project cards, facts, and a top-level apex) served read-only over MCP; AI cache keyed by fingerprint, so an unchanged corpus makes 0 API calls | [mcp/server.py L1-19](https://github.com/bamr87/README/blob/d4ea571b470cc826ff8ab10323e3aff68f64111d/mcp/server.py#L1-L19), [PLAN.md L555](https://github.com/bamr87/README/blob/d4ea571b470cc826ff8ab10323e3aff68f64111d/PLAN.md#L555) |
 
 ### Reproduce
 

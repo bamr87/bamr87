@@ -25,7 +25,7 @@ An agent is only as trustworthy as the evidence that it still works. This patter
 - Evals defined in policy but never built.
 - Cost metrics presented as invoices.
 
-## Fleet evidence (commit 2321b3a7c1199688042339d68b628f9d08bb46eb)
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Behavior | Permalink / workflow |
 |---|---|

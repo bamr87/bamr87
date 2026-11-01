@@ -26,7 +26,7 @@ This chapter is a catalog of ways to let a model think harder on harder problems
 - Self-critique that rubber-stamps.
 - ReAct loops without turn caps.
 
-## Fleet evidence (bamr87/bamr87 @ 2321b3a7c1199688042339d68b628f9d08bb46eb)
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Technique | Permalink |
 |---|---|

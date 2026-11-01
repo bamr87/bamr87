@@ -26,13 +26,15 @@ Where MCP connects an agent to tools, A2A connects agents to each other across f
 - Long tasks without status/streaming.
 - No task ID tracing.
 
-## Fleet evidence (partial — policy only)
+## Fleet evidence (`bamr87/bamr87@2321b3a`, `bamr87/outbox@fcbc4c6`)
+
+Policy only: the standard requires A2A artifacts, but nothing implements them yet.
 
 1. Constitution §16 L192 mandates an Agent Card at `/.well-known/agent-card.json` for any repo running an agent. https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/constitution.md#L192
 2. The ai-ready README (L17) lists an `agent-card.template.json`, but that file is **not committed** at this SHA (`git ls-files templates/ai-ready | grep -i card` returns nothing). Another gap.
 3. Informal inter-bot protocol: outbox `agents/` holds prose "agent cards" for Grok Bot group chats (`agents/grok_bots_kickoff.md`) — human-pasted instructions, not A2A. https://github.com/bamr87/outbox/blob/fcbc4c6032c0fd89054dc7bf52b7f59eb640dc92/agents/grok_bots_kickoff.md
 
-Reproduce:
+### Reproduce
 
 ```bash
 for r in bamr87 bashos gitorio githubai outbox; do git clone -q --depth 1 https://github.com/bamr87/$r; done

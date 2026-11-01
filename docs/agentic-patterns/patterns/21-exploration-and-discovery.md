@@ -26,7 +26,7 @@ Beyond optimizing a known process, an exploring agent proactively looks for "unk
 - Exploration that writes to production.
 - Hallucinated novelty without citations.
 
-## Fleet evidence (bamr87/bamr87 @ 2321b3a7c1199688042339d68b628f9d08bb46eb)
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Behavior | Permalink |
 |---|---|

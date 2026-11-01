@@ -26,7 +26,7 @@ Don't ask a model to do a big, many-part job in one prompt. Split it into a shor
 - Context grows at every step until the "focused" prompts aren't focused anymore.
 - No stop condition: a step runs even after the step before it was refused or ran out of budget.
 
-## Fleet evidence (commit 2321b3a7c1199688042339d68b628f9d08bb46eb)
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 The hub's **Issue Pipeline** is a working four-step chain that turns an open issue into a merge-ready PR. Steps: scan (no AI), then tier 1 intake, then tier 2 implement, then tier 3 complete.
 

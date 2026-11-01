@@ -26,7 +26,7 @@ An agent that never changes after it ships gets worse as the world around it cha
 - Self-edits without review.
 - Drift no one measures.
 
-## Fleet evidence (bamr87/bamr87 @ 2321b3a7c1199688042339d68b628f9d08bb46eb)
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Behavior | Permalink |
 |---|---|

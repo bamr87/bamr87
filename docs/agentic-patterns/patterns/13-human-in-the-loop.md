@@ -16,6 +16,9 @@ Human-in-the-loop (HITL) deliberately combines human judgment with an agent's sp
 
 ## When to use / not
 
+Terms: `§` numbers refer to sections of the fleet's constitution (`docs/constitution.md`), its written governance rules. `needs-amr` is the label that marks a decision only Amr (the maintainer) can make. `agent:hold` and `human-review` are labels the issue pipeline obeys. QA Lead is a planned reviewer bot (#492). "Earned autonomy" means an agent gets more freedom only after a track record on lower-risk work.
+
+
 - Use for irreversible, external, money, security or governance actions, and for anything ambiguous.
 - Avoid for routine reversible steps, where a human gate only adds latency. Earn autonomy instead.
 
@@ -25,7 +28,7 @@ Human-in-the-loop (HITL) deliberately combines human judgment with an agent's sp
 - Gates that agents can bypass.
 - Unclear ownership of who approves.
 
-## Fleet evidence
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Sub-aspect | Rating | Evidence |
 |---|---|---|
@@ -33,11 +36,11 @@ Human-in-the-loop (HITL) deliberately combines human judgment with an agent's sp
 | Per-item human brakes | proven | `agent:hold` excludes an issue from every tier. `human-review` leaves the PR as a draft ([docs/ISSUE-PIPELINE.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/ISSUE-PIPELINE.md) "The two human brakes"; [issue_pipeline.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/scripts/dash-gen/issue_pipeline.py)). Live: #486 and #523–#526 carry `agent:hold` |
 | Forced escalation by category | proven | `issue_pipeline.autonomy`: `never_merge: true`, and `assisted_types: [security]` / `assisted_sizes: [size:xl]` ([_data/fleet.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/_data/fleet.yml) L325–330) |
 | Human sets priority (human-on-the-loop) | proven | [_data/work_queue.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/_data/work_queue.yml) `order:` overrides the computed priority |
-| Dry-run → human confirm on write-back | proven (policy+code) | §11.4 plan_id/confirm, `HARNESS_PROJECTS_WRITES` off by default (constitution §11) |
+| Dry run, then human confirmation, before writing back to GitHub | proven (policy+code) | §11.4: a write returns a plan (`plan_id`) and runs only after confirm; the `HARNESS_PROJECTS_WRITES` setting is off by default (constitution §11) |
 | Risk tiers + earned autonomy (§13.6–13.7) | gap | Only the policy text exists, with no registry or enforcement code (`grep -rn risk_tier tools .github` returns nothing). Filed [#529](https://github.com/bamr87/bamr87/issues/529) |
-| Bot reviewer (QA Lead) with Amr as fallback | partial | §15.5 interim bridge. #492 is open |
+| Bot reviewer (QA Lead) with Amr as fallback | partial | §15.5 interim bridge: until QA Lead exists, Amr reviews in its place. #492 is open |
 
-### Reproduce (2026-10-31, 2321b3a7c1199688042339d68b628f9d08bb46eb)
+### Reproduce
 
 ```bash
 sed -n 69,76p docs/ISSUE-PIPELINE.md

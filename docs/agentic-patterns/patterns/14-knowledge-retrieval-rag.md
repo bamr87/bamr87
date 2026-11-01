@@ -28,7 +28,7 @@ Retrieval-augmented generation (RAG) adds a lookup step before the model answers
 - Uncited answers.
 - No retrieval eval, so tuning is guesswork.
 
-## Fleet evidence
+## Fleet evidence (`bamr87/bamr87@2321b3a`, `bamr87/README@d4ea571`, `bamr87/it-journey@64826f2`, `bamr87/ragio-ai@4546952`)
 
 Fleet design: **one read path per site**. Constitution §16.2 requires every content site to expose "a static JSON data API … and their own MCP server, shipped as a local stdio server" ([constitution.md L190](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/constitution.md#L190)). The kit spec names a per-site `mcp-site/` server with `search`/`read_page` tools ([templates/ai-ready/README.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/templates/ai-ready/README.md)). The README context engine is the fleet-wide retrieval layer, and it-journey is an existing per-site server.
 

@@ -25,7 +25,7 @@ Agents spend money, tokens, time and compute. This pattern treats those limits a
 - Unpriced proxies (wall-clock) mistaken for cost.
 - Caps drifting from the code.
 
-## Fleet evidence (commit 2321b3a7c1199688042339d68b628f9d08bb46eb)
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Behavior | Permalink |
 |---|---|

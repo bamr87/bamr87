@@ -26,12 +26,12 @@ Tool use lets a model do things its training data can't. The agent lists the too
 - Over-privileged tools.
 - Huge outputs blowing the context.
 
-## Fleet evidence
+## Fleet evidence (`bamr87/bamr87@2321b3a`, `bamr87/bashos@66fb61d`)
 
 1. **Deny-by-default tool profiles per agent.** bashOS `src/bashos/opencode/project.py` L75-95 `build_agents`: a read-only inspection agent and a sealed no-tool agent, tools supplied by the policy module; the engine executes tools (bashOS hard rule 1). https://github.com/bamr87/bashos/blob/66fb61d884e4acaab3ac65c1c007fd690d95101f/src/bashos/opencode/project.py#L75-L95 Tests: `tests/test_opencode.py` L43 `test_mutating_and_outbound_tools_are_denied_and_hidden`, L57 `test_sealed_profile_offers_no_tools_at_all`.
 2. **Typed tool schemas, errors as tool results, output truncation.** hub `tools/fleetcore/mcp_server.py` (`_schema` L205, `handle` L272); tests `tools/test_fleetcore_mcp.py` (`test_bad_arguments_are_tool_errors`, `test_long_logs_are_truncated_to_the_tail`). https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/fleetcore/mcp_server.py#L205
 
-Reproduce (run 2026-10-31):
+### Reproduce
 
 ```bash
 git clone https://github.com/bamr87/bashos && cd bashos && git checkout 66fb61d884e4acaab3ac65c1c007fd690d95101f

@@ -26,14 +26,14 @@ MCP standardizes how agents discover and call external capabilities. A server ex
 - Tool output too large.
 - Writes without human confirm.
 
-## Fleet evidence
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 1. **Repo-level MCP registration.** `.mcp.json` registers github, memory, playwright and the in-house `fleet` server (`tools/console/mcp.sh --fleet-compat`). https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.mcp.json
 2. **Harness Console MCP server.** `tools/console/mcp_layer/server.py`: stdio + streamable HTTP (loopback, own bearer token), write tools only registered when explicitly enabled, annotated destructive, and need `confirm=true` per call. https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/console/mcp_layer/server.py
 3. **Fleetcore stdlib MCP server** (compat entry). https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/fleetcore/mcp_server.py
 4. Policy: constitution §16 L192 requires MCP manifests per the MCP Registry `server.json` schema. https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/constitution.md#L192
 
-Reproduce (run 2026-10-31):
+### Reproduce
 
 ```bash
 git clone https://github.com/bamr87/bamr87 && cd bamr87 && git checkout 2321b3a7c1199688042339d68b628f9d08bb46eb

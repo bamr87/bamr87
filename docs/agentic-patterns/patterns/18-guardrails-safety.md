@@ -16,6 +16,9 @@ Guardrails are layered controls that keep an agent safe, on task and compliant a
 
 ## When to use / not
 
+Terms: `§` numbers refer to sections of the fleet's constitution (`docs/constitution.md`), its written governance rules. A kill switch is a setting that stops a scheduled loop without a code change. Prompt injection is untrusted text that tries to give an agent new instructions. The "lethal trifecta" is an agent that combines private data, untrusted input and a way to send data out; any two are tolerable, all three are not. Evals are fixed test sets that score an AI step's output. HITL means human-in-the-loop (ADP-13).
+
+
 - Always use them in some form. Scale the layers to the risk: public triggers, secrets, external sends and money get the most.
 
 ## Failure modes
@@ -25,21 +28,21 @@ Guardrails are layered controls that keep an agent safe, on task and compliant a
 - Guardrails nobody tests.
 - Kill switches that are scattered or undocumented.
 
-## Fleet evidence
+## Fleet evidence (`bamr87/bamr87@2321b3a`)
 
 | Sub-aspect | Rating | Evidence |
 |---|---|---|
-| Input gating on who may trigger an agent | proven | [claude.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/claude.yml): `@claude` runs only for OWNER/MEMBER/COLLABORATOR `author_association`. Least-privilege `permissions:` (contents/issues/PR read) |
+| Input gating on who may trigger an agent | proven | [claude.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/claude.yml): `@claude` runs only for OWNER/MEMBER/COLLABORATOR `author_association`. Least-privilege `permissions:` (the workflow token gets only contents/issues/PR read) |
 | Tool restrictions and budget caps | proven | [claude-run/action.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/actions/claude-run/action.yml): `allowed-tools`, `max-turns`, and `max-budget-usd` defaulting to the fleet `budget.default_usd` (asserted by test_ai_budget.py) |
-| Model allowlist / pinning | proven | `ai_models.allowed` = claude-opus-5-5 / sonnet-5-5 / haiku-5-5 ([_data/fleet.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/_data/fleet.yml) L1540), policy in §13.3 |
+| Model allowlist / pinning (exact model versions only) | proven | `ai_models.allowed` = claude-opus-5-5 / sonnet-5-5 / haiku-5-5 ([_data/fleet.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/_data/fleet.yml) L1540), policy in §13.3 |
 | Action allowlist plus never-list for write-back | proven (policy) | §11.1–11.2 `ALLOWLIST` in tools/console/gh_projects_write.py, which never merges, deletes or touches settings or secrets |
-| Behavioral constraints / governance as code | proven | [constitution](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/constitution.md) §2 invariants, §4 roles. [tools/governance_lint.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/governance_lint.py) check passes (output below) |
+| Behavioral constraints / governance as code (rules checked by a linter, not just written down) | proven | [constitution](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/constitution.md) §2 invariants, §4 roles. [tools/governance_lint.py](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/tools/governance_lint.py) check passes (output below) |
 | Kill switches | partial | Per-loop variables gate schedules: `ISSUE_PIPELINE_ENABLED`, `REPO_SCOUT_ENABLED`, `FLEET_PULSE_ENABLED`, `JEV_CONFLICTS_ENABLED`, `REPO_EVOLUTION_ENABLED`, `API_KEYS_ENABLED` (e.g. [issue-pipeline.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/issue-pipeline.yml) L115). The central `switches:` map (proposed §17, PR #528) is not in fleet.yml yet: #526, PR #528 open, catalog PR #527 merged |
 | Human oversight | proven | See ADP-13 (§12 gate, `agent:hold`) |
 | Input sanitization for injection / output secret scan / trifecta gate | gap | No code yet. Filed [#531](https://github.com/bamr87/bamr87/issues/531) |
 | Guardrail evals (§13.1) | gap | Filed [#530](https://github.com/bamr87/bamr87/issues/530) |
 
-### Reproduce (2026-10-31, 2321b3a7c1199688042339d68b628f9d08bb46eb)
+### Reproduce
 
 ```bash
 python3 tools/governance_lint.py check .

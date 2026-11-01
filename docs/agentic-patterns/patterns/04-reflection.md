@@ -27,7 +27,7 @@ Reflection adds a feedback loop. An agent produces output, the output is evaluat
 - Revision regressing parts that were already correct.
 - Loops quietly replacing human review.
 
-## Fleet evidence (bamr87/law-ai @ 0870d4c)
+## Fleet evidence (`bamr87/law-ai@0870d4c`)
 
 1. **Author → gates → judge → revise loop.** [lsat/factory/revise.py L1-67](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/lsat/factory/revise.py#L1-L67) defines `DEFAULT_MAX_ROUNDS = 3` and a per-round history (`ReviseRound`: gate issues, judge verdict, critique). `author_with_review` [L132-212](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/lsat/factory/revise.py#L132-L212) runs deterministic gates and then an adversarial judge, and feeds every objection back as `critique` for the next round. It stops early on acceptance and runs an optional final reviewer. Output goes to the **HITL queue**: the loop "improves what a human is shown, never who decides" (module docstring, citing constitution §5).
 2. **Applied to the existing bank.** [lsat/services/rewrite.py L1-14, L174-238](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/lsat/services/rewrite.py#L174-L238) has the judge review bank items. On an objection it runs the loop and files a pending `rewrite` proposal for a human to promote. The gates include a routing self-check ([L92-97](https://github.com/bamr87/law-ai/blob/0870d4c56ed495a6fad97af33c79885264522c39/backend/law_ai/lsat/services/rewrite.py#L92-L97)): a rewrite whose stem reclassifies to a different archetype is rejected.
