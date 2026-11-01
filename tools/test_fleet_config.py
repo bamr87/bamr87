@@ -261,6 +261,25 @@ def test_the_live_api_keys_contract_resolves_cleanly():
     assert {t["slot"] for t in targets.values()} >= {"default", "bamr87"}, targets
 
 
+def test_inventory_reads_the_workspace_from_scope_and_tolerates_org_scoped_keys():
+    """#522: the SDK's BetaAPIKey has no top-level workspace_id; an
+    organization-scoped key has none at all. Neither may crash the watch."""
+    from types import SimpleNamespace as NS
+
+    def k(kid, scope, **extra):
+        return NS(id=kid, name=kid, status="active", created_at=NOW, expires_at=None,
+                  partial_key_hint="sk-ant-api03-ab...wxyz", scope=scope, **extra)
+
+    keys = [k("ws", NS(type="workspace", workspace_id="wrkspc_A")),
+            k("org", NS(type="organization")),
+            k("legacy", None, workspace_id="wrkspc_B")]
+    admin = NS(beta=NS(organization=NS(workspaces=NS(list=lambda limit: [NS(name="A", id="wrkspc_A")]),
+                                       api_keys=NS(list=lambda limit: keys))))
+    workspaces, inv = fc.console_inventory(admin)
+    assert workspaces == {"A": "wrkspc_A"}, workspaces
+    assert [r["scope_workspace_id"] for r in inv] == ["wrkspc_A", None, "wrkspc_B"], inv
+
+
 def main() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

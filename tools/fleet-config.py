@@ -1094,6 +1094,14 @@ def _admin_client(kc: dict, values: dict[str, str]):
     return anthropic, anthropic.Anthropic(api_key=cred)
 
 
+def key_workspace_id(k) -> str | None:
+    """The key's workspace id, or None. Current SDKs carry it only on
+    `scope` ({"type": "workspace", "workspace_id": ...}); an organization-scoped
+    key has no workspace and no top-level `workspace_id`. Older SDKs had the
+    top-level field, so it stays as a fallback (#522)."""
+    return getattr(getattr(k, "scope", None), "workspace_id", None) or getattr(k, "workspace_id", None)
+
+
 def console_inventory(admin) -> tuple[dict[str, str], list[dict]]:
     """(workspace name → id, key records) from the Admin API. No secret is ever
     returned by these endpoints — only names, ids, statuses and hints."""
@@ -1105,7 +1113,7 @@ def console_inventory(admin) -> tuple[dict[str, str], list[dict]]:
             "id": k.id, "name": k.name, "status": k.status,
             "created_at": k.created_at, "expires_at": k.expires_at,
             "partial_key_hint": getattr(k, "partial_key_hint", None),
-            "scope_workspace_id": getattr(scope, "workspace_id", None) or k.workspace_id,
+            "scope_workspace_id": key_workspace_id(k),
         })
     return workspaces, keys
 
