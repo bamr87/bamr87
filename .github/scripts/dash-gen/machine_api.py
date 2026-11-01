@@ -394,6 +394,11 @@ def build_llms_txt(index: dict) -> str:
         f"- issue_pipeline: {RAW_BASE}/_data/issue_pipeline.yml",
         f"- projects: {RAW_BASE}/_data/projects.yml",
         "",
+        "## Reference",
+        "",
+        "- Agentic design patterns map (per-chapter evidence, proven/partial/gap): https://github.com/bamr87/bamr87/blob/main/docs/agentic-patterns/README.md",
+        f"- Agentic design patterns index (JSON): {RAW_BASE}/docs/agentic-patterns/patterns.json",
+        "",
         f"Repo: https://github.com/bamr87/bamr87",
         "",
     ]

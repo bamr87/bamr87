@@ -17,7 +17,7 @@ Also: https://bamr87.github.io/bamr87/llms.txt
 | `/api/v1/health.json` | `_data/project_health.yml` (ephemeral) | Per-repo attention board |
 | `/api/v1/harness.json` | `_data/harness_health.yml` | Scorecard + trip wires |
 | `/api/v1/issues.json` | `_data/issue_pipeline.yml` | Pipeline stages / caps |
-| `/llms.txt` | derived | Plain-text agent discovery |
+| `/llms.txt` | derived | Plain-text agent discovery; its Reference section links the [agentic design patterns map](agentic-patterns/README.md) and its `patterns.json` index |
 
 `schema_version` is currently `1.0`. Missing inputs emit `status: "degraded"` with a reason — never a hard build failure.
 

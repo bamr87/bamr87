@@ -94,6 +94,16 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-047](features/features.yml) | Major-change evidence: JEV-judged major PRs, tests, visual before/after, JEV + QA Lead review | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/major-change-evidence.md` | FR44 |
 | [HUB-048](features/features.yml) | Eval baseline: per-role eval sets, pinned models, run tracing | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/eval-baseline-risk-tiers.md` | FR45 |
 | [HUB-049](features/features.yml) | Risk tiers: reversible/external/money tags gate agent actions | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/eval-baseline-risk-tiers.md` | FR46 |
+| [HUB-050](features/features.yml) | AI-ready foundation: API layer, MCP, agent docs and metadata in every repo | planned | [`docs/constitution.md`](docs/constitution.md) · `docs/amendments/proposed/ai-ready-foundation.md` | FR47 |
+| [HUB-051](features/features.yml) | AIEO AI-readiness check: scores every repo's AI foundation | planned | `tools/aieo/` · `docs/amendments/proposed/ai-ready-foundation.md` | FR48 |
+| [HUB-052](features/features.yml) | Backstage catalog-info.yaml export of the registry | planned | [`.github/scripts/dash-gen`](.github/scripts/dash-gen) · [`docs/DASH.md`](docs/DASH.md) | FR49 |
+| [HUB-053](features/features.yml) | Fan-out campaigns page: per-repo PR, CI and merge state per kit rollout | planned | [`tools/fanout.sh`](tools/fanout.sh) · [`docs/STANDARDS.md`](docs/STANDARDS.md) | FR50 |
+| [HUB-054](features/features.yml) | Tag selectors for --target | planned | [`tools/fanout.sh`](tools/fanout.sh) · [`docs/DASH.md`](docs/DASH.md) | FR51 |
+| [HUB-055](features/features.yml) | Copier-style 3-way kit upgrade for hand-edited files | planned | [`tools/fanout.sh`](tools/fanout.sh) · [`docs/STANDARDS.md`](docs/STANDARDS.md) | FR52 |
+| [HUB-056](features/features.yml) | Governance records lint: amendment status, constitution order, doc links | planned | [`tools/governance_lint.py`](tools/governance_lint.py) · [`docs/amendments/README.md`](docs/amendments/README.md) | FR53 |
+| [HUB-057](features/features.yml) | Centrally managed loop kill switches | planned | [`_data/fleet.yml`](_data/fleet.yml) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR54 |
+| [HUB-058](features/features.yml) | Agentic design patterns map | partial | [`docs/agentic-patterns/patterns.json`](docs/agentic-patterns/patterns.json) · [`docs/agentic-patterns/README.md`](docs/agentic-patterns/README.md) | FR55 |
+| [HUB-059](features/features.yml) | JEV: loop step specs — one spec per agent step, rendered the same in CI and locally | partial | [`tools/jev/steps/README.md`](tools/jev/steps/README.md) · [`docs/JEV.md`](docs/JEV.md) | FR45 |
 
 **Requirement → feature trace**
 
@@ -154,8 +164,17 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR42 | HUB-045 |
 | FR43 | HUB-046 |
 | FR44 | HUB-047 |
-| FR45 | HUB-048 |
+| FR45 | HUB-048, HUB-059 |
 | FR46 | HUB-049 |
+| FR47 | HUB-050 |
+| FR48 | HUB-051 |
+| FR49 | HUB-052 |
+| FR50 | HUB-053 |
+| FR51 | HUB-054 |
+| FR52 | HUB-055 |
+| FR53 | HUB-056 |
+| FR54 | HUB-057 |
+| FR55 | HUB-058 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -196,6 +215,15 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR44: A PR judged major by JEV (or labelled major; interim: heuristics plus reviewer, when in doubt major) must list its added or updated tests and link a green CI run; every frontend-impacting PR must include before/after screenshots or a recording at two or more viewports; and every major or frontend PR must pass a completeness review by JEV and QA Lead, neither being its author (interim: QA Lead alone, then Amr) (see HUB-046).
 - FR45: Each agent role, harness and loop must keep an eval set of about 20 real past tasks, rerun it after any prompt, tool or model change as a required CI check, pin exact model versions from _data/fleet.yml ai_models.allowed (no aliases), move a step to a cheaper model only if evals pass, and trace tool calls per run (see HUB-049).
 - FR46: Every agent tool or action must carry reversible/external/money tags and a low/medium/high tier; high waits for Amr's approval, medium writes an audit record, a tier drops only after 25 consecutive clean approvals, and any run with private data, untrusted content and an external send requires a human gate (see HUB-048).
+- FR47: Every active fleet repo must expose, sized to its type, an API layer (OpenAPI 3.1 for apps and services, a static JSON data API for content sites, --json output for CLIs), an MCP server with an MCP Registry server.json manifest (each content site shipping its own local stdio server), AGENTS.md and llms.txt, and an ai-ready.yml manifest, starting from the templates/ai-ready/ kit; archived and retired repos are exempt (see HUB-051).
+- FR48: The conformance gate must run an AIEO ai-ready check on every non-exempt repo that fails a missing or invalid layer (OpenAPI, MCP server.json, llms.txt, --json output, JSON-LD) and reports an AI-readiness score; warn-only for a repo until its fan-out PR lands, then a hard failure, with the score advisory until AIEO passes its § 13 eval set and then failing below the minimum score (see HUB-050).
+- FR49: The hub must generate a Backstage-format catalog-info.yaml from _data/projects.yml deterministically, and check-drift must fail when the committed file is stale.
+- FR50: Every applied fan-out must be recorded as a campaign, and the console must show each campaign's per-repo PR, CI and merge state read-only.
+- FR51: Fleet commands taking --target must resolve tag, language and group selectors from the registry, excluding archived repos by default, and fail on an empty or unknown selection.
+- FR52: fanout.sh --upgrade --merge must 3-way-merge a hand-modified kit file against the recorded seed commit, and must open a draft PR instead of resolving a conflict.
+- FR53: governance_lint check must fail when a features.yml or PRD.md link targets a missing path, a numbered amendment record is not in a terminal status, constitution sections are not in ascending order, or a PRD requirement cites a feature id it is not mapped to.
+- FR54: Every scheduled or AI-calling workflow in the fleet must have a kill switch resolved from one switches map in _data/fleet.yml, changeable per repo, per loop, per group or globally through a dry-run-by-default, audited operation, with drift against live repo variables reported.
+- FR55: The hub must publish a per-chapter map of agentic design patterns to fleet evidence, where every rating cites a pinned permalink and every gap links an issue, with a machine-readable index linked from llms.txt.
 
 **Non-functional**
 
