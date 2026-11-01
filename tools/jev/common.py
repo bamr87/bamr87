@@ -155,6 +155,8 @@ def assert_no_admin(args: list[str]) -> None:
     issues pass (`_GH_ALLOWED`), named by the argv's first two words — gh
     finds the verb past a flag (`gh pr -R o/r merge`) and takes aliases
     (`gh secret remove`), so a flag there, or any other command, is refused.
+    What `gh repo clone` hands git after `--` is held to the options of a
+    `git clone` (`assert_safe_clone`).
     """
     if "--admin" in args or any(a.startswith("--admin=") for a in args):
         raise JevError("refusing: JEV never uses --admin")
@@ -170,6 +172,9 @@ def assert_no_admin(args: list[str]) -> None:
         raise JevError(f"refusing: JEV never runs `gh {noun} {verb}` ({why})")
     if verb == "comment" and any(a.split("=", 1)[0] in ("--delete-last", "--edit-last") for a in args):
         raise JevError("refusing: JEV only adds comments (never --edit-last or --delete-last)")
+    if (noun, verb) == ("repo", "clone") and "--" in args:
+        # gh hands everything after `--` to `git clone`, past assert_safe_git
+        assert_safe_clone(args[args.index("--") + 1:], "gh repo clone … --")
     if noun == "api":
         _assert_api_read(args)
 
@@ -179,7 +184,7 @@ def assert_no_admin(args: list[str]) -> None:
 #: closed. Adding one is a reviewed change here plus a case in
 #: tools/test_jev_conflicts.py. `api` is checked on its own (`_assert_api_read`).
 _GH_ALLOWED = frozenset({
-    ("api", None), ("auth", "status"), ("issue", "create"), ("issue", "list"), ("issue", "view"),
+    ("api", None), ("issue", "create"), ("issue", "list"), ("issue", "view"),
     ("label", "create"), ("pr", "comment"), ("pr", "edit"), ("pr", "list"), ("pr", "view"),
     ("repo", "clone"), ("repo", "list"), ("repo", "view"), ("variable", "get"),
 })
@@ -294,20 +299,90 @@ _GIT_ALLOWED = frozenset({"add", "check-attr", "check-ignore", "checkout", "clon
 #: `--exec-path`, …) is refused.
 _GIT_GLOBAL_OPTS = {"-c": True, "-C": True, "--git-dir": True, "--work-tree": True, "--no-pager": False}
 #: the only keys JEV sets with `-c` — not alias.*, help.autocorrect or any
-#: remote.*/push.* key, through which a plain push forces, mirrors or deletes
-_GIT_CONFIG_KEYS = frozenset({"core.attributesfile", "core.fsmonitor", "core.hookspath", "core.pager",
-                              "core.symlinks", "diff.ignoresubmodules", "submodule.recurse", "user.email",
-                              "user.name", "commit.gpgsign"})
-#: config a `git config` write may never set (they redirect a later push or run a command)
-_GIT_CONFIG_WRITE_RX = re.compile(r"(?i)^(alias\..|help\.autocorrect$|remote\..+\.(push|mirror|receivepack)$|push\.)")
+#: remote.*/push.* key, through which a plain push forces, mirrors or deletes,
+#: and not core.hooksPath, core.fsmonitor or core.pager: `git` sets those
+#: itself, and a later `-c` would win over it
+_GIT_CONFIG_KEYS = frozenset({"core.attributesfile", "core.symlinks", "diff.ignoresubmodules", "submodule.recurse",
+                              "user.email", "user.name", "commit.gpgsign"})
+#: the keys a `git config` write may set, each with the one value it may take
+#: (None: any). Every other key — include.*, url.*, remote.*.push or .mirror,
+#: alias.*, core.sshCommand — redirects a later push or runs a command.
+_GIT_CONFIG_WRITES = {"user.name": None, "user.email": None, "commit.gpgsign": None, "core.symlinks": None,
+                      "remote.origin.url": None, "remote.origin.pushurl": None, "credential.helper": "",
+                      "core.fsmonitor": "false", "core.hookspath": "/dev/null"}
+#: `git config` options JEV passes (True = takes a value); a read option makes the call a read
+_GIT_CONFIG_OPTS = {"--local": False, "--get": False, "--get-all": False, "--get-regexp": False, "--list": False,
+                    "-l": False}
+_GIT_CONFIG_READS = frozenset({"--get", "--get-all", "--get-regexp", "--list", "-l"})
+#: `git clone` options JEV passes (workspace.CLONE_OPTS, `jev conflicts`' gh
+#: passthrough), and the only `clone -c` settings, each pinned: they harden
+#: the new clone's own config. `--mirror`, `--upload-pack`, `--template` and
+#: any other `-c` are refused.
+_GIT_CLONE_OPTS = {"--branch": True, "-b": True, "-c": True, "--config": True, "--no-recurse-submodules": False,
+                   "--no-tags": False, "--quiet": False, "-q": False}
+_GIT_CLONE_CONFIG = frozenset({"core.symlinks=false", "core.hookspath=/dev/null", "core.fsmonitor=false"})
+#: `git fetch` and `git push` options JEV passes (no `--upload-pack`, `--repo`, `--all`, …)
+_GIT_FETCH_OPTS = {"--quiet": False, "-q": False, "--no-tags": False}
+_GIT_PUSH_OPTS = {"--quiet": False, "-q": False, "--set-upstream": False, "-u": False, "--dry-run": False,
+                  "-n": False, "--porcelain": False, "--no-verify": False, "--atomic": False, "--verbose": False,
+                  "-v": False}
+#: a push refspec JEV sends: an explicit `<src>:<dst>`, never `+` (force) or an empty source (delete)
+_PUSH_REFSPEC_RX = re.compile(r"[^+:\s][^:\s]*:[^:\s]+")
 #: push options that rewrite or remove a remote ref, or run a program
 #: (`--receive-pack`/`--exec`); git accepts any unambiguous prefix of a long
 #: option, so a prefix counts
 _PUSH_DANGEROUS = ("force", "force-with-lease", "force-if-includes", "mirror", "delete", "prune", "receive-pack",
                    "exec")
-#: environment variables that inject git config or a git binary directory
+#: environment variables that inject git config, a repository or a git binary
+#: directory (a global or system config file is let through only as /dev/null,
+#: which is what engine_git sets)
 _GIT_ENV_REFUSED_RX = re.compile(r"^(GIT_CONFIG_PARAMETERS|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_\d+|GIT_CONFIG_VALUE_\d+"
-                                 r"|GIT_EXEC_PATH)$")
+                                 r"|GIT_CONFIG|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_DIR|GIT_EXEC_PATH)$")
+_GIT_ENV_DEVNULL = frozenset({"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"})
+
+
+def _git_options(what: str, args: list[str], allowed: dict[str, bool]) -> tuple[list[tuple[str, str]], list[str]]:
+    """([(option, value)], positionals) of a git argv, every option one in
+    `allowed` (True = takes a value: `--opt=v`, `--opt v`, `-ov`, `-o v`).
+    Anything else — a prefix git would expand, a bundle of short flags, a
+    value on a flag that takes none — is refused (JevError)."""
+    opts, positionals, i, ended = [], [], 0, False
+    while i < len(args):
+        a = args[i]
+        if ended or a == "-" or not a.startswith("-"):
+            positionals.append(a)
+            i += 1
+            continue
+        if a == "--":
+            ended, i = True, i + 1
+            continue
+        name, eq, value = a.partition("=") if a.startswith("--") else (a[:2], "", a[2:])
+        takes = allowed.get(name)
+        if takes is None or (not takes and (eq or value)):
+            raise JevError(f"refusing: JEV never passes `{a.split('=', 1)[0]}` to {what}")
+        if not takes:
+            opts.append((name, ""))
+            i += 1
+            continue
+        attached = eq or value
+        if not attached and i + 1 >= len(args):
+            raise JevError(f"refusing: {what} {name} needs a value")
+        opts.append((name, value if attached else args[i + 1]))
+        i += 1 if attached else 2
+    return opts, positionals
+
+
+def assert_safe_clone(args: list[str], what: str = "git clone") -> None:
+    """A `git clone` tail (or `gh repo clone`'s passthrough after `--`) passes
+    only the options JEV uses, and `-c` only the pinned hardening settings — a
+    clone's own `-c remote.origin.push=:ref` or `--mirror` would turn a later
+    plain push into a delete."""
+    opts, _positionals = _git_options(what, args, _GIT_CLONE_OPTS)
+    for name, value in opts:
+        key, _eq, val = value.partition("=")
+        if name in ("-c", "--config") and f"{key.lower()}={val}" not in _GIT_CLONE_CONFIG:
+            raise JevError(f"refusing: JEV never clones with `{name} {value}` (only "
+                           f"{', '.join(sorted(_GIT_CLONE_CONFIG))})")
 
 
 def assert_safe_git(args: list[str], env: dict | None = None) -> None:
@@ -318,11 +393,18 @@ def assert_safe_git(args: list[str], env: dict | None = None) -> None:
     The guard fails closed: the subcommand must be one JEV runs
     (`_GIT_ALLOWED`), a global option one JEV passes (`_GIT_GLOBAL_OPTS`; no
     `--config-env`), a `-c` key one JEV sets (`_GIT_CONFIG_KEYS`), and `env`
-    may inject no config. A push is then refused for bundled short flags
-    (`-fu`), a long-option prefix (`--forc`) and a `+` or `:` refspec, and a
-    `git config` write for a key that would redirect a later push.
+    may inject no config (a global or system file only as /dev/null). The
+    subcommands that could plant config a later push follows are held to the
+    options JEV uses: `clone` (its `-c` pinned, no `--mirror`), `fetch`,
+    `remote` (list and remove only) and `config` (a write only of the keys in
+    `_GIT_CONFIG_WRITES`). A push is refused for a force, mirror, delete or
+    prune flag in any spelling (bundled short flags, long-option prefixes), any
+    option JEV does not pass, and any refspec but an explicit `<src>:<dst>` —
+    so a push refspec or mirror flag in config, wherever it came from, never
+    applies (git ignores the first and refuses the second beside a refspec).
     """
-    bad_env = sorted(k for k in (env or {}) if _GIT_ENV_REFUSED_RX.match(k))
+    bad_env = sorted(k for k, v in (env or {}).items()
+                     if _GIT_ENV_REFUSED_RX.match(k) and not (k in _GIT_ENV_DEVNULL and v == "/dev/null"))
     if bad_env:
         raise JevError(f"refusing: JEV never hands git config through the environment ({', '.join(bad_env)})")
     i, config = 0, []
@@ -348,14 +430,26 @@ def assert_safe_git(args: list[str], env: dict | None = None) -> None:
     if sub not in _GIT_ALLOWED:
         raise JevError(f"refusing: JEV never runs `git {sub}` (not one of the git commands it issues)")
     tail = args[i + 1:]
-    if sub == "config":
-        keys = [a for a in tail if _GIT_CONFIG_WRITE_RX.match(a)]
-        if keys:
-            raise JevError(f"refusing: JEV never sets git config that redirects a push or runs a command ({keys[0]})")
-        return
-    if sub != "push":
-        return
+    if sub == "clone":
+        assert_safe_clone(tail)
+    elif sub == "fetch":
+        _git_options("git fetch", tail, _GIT_FETCH_OPTS)
+    elif sub == "remote":
+        if tail not in ([], ["-v"]) and not (len(tail) == 2 and tail[0] in ("remove", "rm", "get-url")):
+            raise JevError(f"refusing: JEV only lists and removes remotes, never `git remote {' '.join(tail[:2])}`")
+    elif sub == "config":
+        opts, positionals = _git_options("git config", tail, _GIT_CONFIG_OPTS)
+        if not any(name in _GIT_CONFIG_READS for name, _v in opts) and len(positionals) > 1:
+            key, value = positionals[0].lower(), positionals[1]
+            pinned = _GIT_CONFIG_WRITES.get(key, ())
+            if len(positionals) != 2 or pinned == () or (pinned is not None and value != pinned):
+                raise JevError(f"refusing: JEV never sets git config {positionals[0]}={value} (it would redirect a "
+                               "push or run a command)")
+    elif sub == "push":
+        _assert_safe_push(tail)
 
+
+def _assert_safe_push(tail: list[str]) -> None:
     def dangerous(a: str) -> bool:
         if a.startswith("--"):
             name = a[2:].split("=", 1)[0]
@@ -367,6 +461,11 @@ def assert_safe_git(args: list[str], env: dict | None = None) -> None:
     bad = [a for a in tail if dangerous(a)]
     if bad:
         raise JevError(f"refusing: JEV never force-pushes or deletes a remote ref ({' '.join(bad)})")
+    _opts, positionals = _git_options("git push", tail, _GIT_PUSH_OPTS)
+    refspecs = positionals[1:]
+    if not refspecs or not all(_PUSH_REFSPEC_RX.fullmatch(r) for r in refspecs):
+        raise JevError(f"refusing: JEV pushes only an explicit <src>:<dst> refspec (`git push {' '.join(tail)}`), "
+                       "so no push refspec or mirror flag in config ever applies")
 
 
 def dotenv_values(names: list[str] | tuple[str, ...], path: Path | None = None) -> dict[str, str]:

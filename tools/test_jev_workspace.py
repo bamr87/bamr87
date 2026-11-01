@@ -384,7 +384,9 @@ def test_the_git_wrapper_never_runs_a_repositorys_fsmonitor():
     script = OUTSIDE / f"fsmonitor-{os.urandom(3).hex()}.sh"
     script.write_text(f"#!/bin/sh\ntouch {marker}\n")
     script.chmod(0o755)
-    assert git(["config", "--local", "core.fsmonitor", str(script)], cwd=repo).ok
+    # planted with plain git: common.git refuses to write an fsmonitor program
+    subprocess.run(["git", "config", "--local", "core.fsmonitor", str(script)], cwd=repo, stdin=subprocess.DEVNULL,
+                   check=True)
     assert git(["status", "--porcelain"], cwd=repo).ok
     assert not marker.exists(), "common.git passes core.fsmonitor=false"
     subprocess.run(["git", "status", "--porcelain"], cwd=repo, stdin=subprocess.DEVNULL, capture_output=True,
