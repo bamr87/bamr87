@@ -1024,6 +1024,13 @@ def test_telemetry_caps_groups_and_says_when_the_stream_is_empty():
     assert sec["status"] == "empty" and "observe claude enable" in sec["note"], sec
 
 
+def test_telemetry_older_than_72_hours_is_stale_and_keeps_its_rows():
+    with _env(), _tmp() as tmp, Stub(es_routes(newest="2026-10-27T11:00:00.000Z")) as stub:
+        sec = build(tmp / "no-lake", stub.url, sections=["telemetry_errors"])["sections"]["telemetry_errors"]
+    assert sec["status"] == "stale" and sec["rows"] and sec["age_hours"] == 97.0, (sec["status"], sec["age_hours"])
+    assert "Claude Code telemetry last refreshed 97 h ago" in sec["note"] and "observe up" in sec["note"], sec["note"]
+
+
 # --------------------------------------------------------------------------- #
 # read-only
 # --------------------------------------------------------------------------- #

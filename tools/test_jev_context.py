@@ -191,6 +191,8 @@ def seed_history(runs: Path) -> None:
          "reason": "another item"},
         {"ts": "2026-10-29T10:07:00Z", "decision": "attempt", "loop": "repo-evolution", "status": "rejected",
          "reason": "another loop"},
+        {"ts": "2026-10-29T10:08:00Z", "decision": "attempt", "step": "file", "status": "rejected",
+         "reason": "another step"},
     ])
     write_validate(runs, "20261029T100000Z-repo-scout-scout-aaaaaa",
                    [f"problem {i} " + "p" * 300 for i in range(7)])
@@ -202,6 +204,8 @@ def seed_history(runs: Path) -> None:
         {"ts": "2026-10-30T10:02:00Z", "decision": "publish-apply", "published": True, "filed": 2,
          "status": "published", "validated_sha256": "f" * 64},
     ])
+    # a validated attempt's run may hold a validate.json too: its problems are never shown
+    write_validate(runs, "20261030T100000Z-repo-scout-scout-bbbbbb", ["a validated attempt's problem"])
     write_attempts(runs, "20261031T100000Z-repo-scout-scout-cccccc", [
         {"ts": "2026-10-31T10:00:00Z", "decision": "tier0-skip", "reason": "the same HEAD and brief were published",
          "cost_usd": 0.0, "cost_source": "no-spend"},
@@ -267,8 +271,23 @@ def test_history_lists_what_was_filed_then_the_newest_attempts_with_their_proble
     assert len(rejected["reason"]) <= C.REASON_CHARS and rejected["reason"].endswith("…"), rejected["reason"]
     assert len(rejected["problems"]) == C.MAX_PROBLEMS and all(len(p) <= C.PROBLEM_CHARS for p in rejected["problems"])
     text = json.dumps(s)
-    for absent in ("never shown", "another item", "another loop"):
+    assert "problems" not in validated, "problems only for a rejected or failed attempt"
+    for absent in ("never shown", "another item", "another loop", "another step", "a validated attempt's problem"):
         assert absent not in text, f"{absent!r} leaked into the history"
+
+
+def test_a_partial_filing_counts_its_failures():
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        write_attempts(ctx.runs, "20261031T130000Z-repo-scout-scout-gggggg", [
+            {"ts": "2026-10-31T13:00:00Z", "decision": "publish-apply", "published": True, "filed": 1,
+             "failures": ["proposal 2: HTTP 422", "proposal 3: HTTP 422"], "status": "partial"},
+            {"ts": "2026-10-31T13:05:00Z", "decision": "publish-apply", "published": False, "filed": 0,
+             "failures": ["proposal 1: HTTP 500"], "status": "publish-failed"}])
+        s = C.history_section(ctx, NWO)
+    filed = s["rows"][0]
+    assert filed["kind"] == "filed" and filed["count"] == 1 and filed["failed"] == 3, filed
+    assert "1 issue(s) from this item" in C._row_history(filed) and "3 filing(s) failed" in C._row_history(filed)
 
 
 def test_history_limit_counts_what_it_left_out():
@@ -774,6 +793,11 @@ def test_the_shared_constants_match_the_planes_module():
     assert fc.DEADLINE_DEFAULT_S == C.DEFAULT_DEADLINE_S
     assert set(C.TITLES) == set(C.PROVIDERS) == set(C.RENDER_ORDER) == set(C.TRIM_ORDER)
     assert C.TRIM_ORDER[-1] == "history" and C.RENDER_ORDER[0] == "history"
+    # docs/JEV.md states the trim order literally; the cap sweep derives its expectation from TRIM_ORDER
+    assert C.TRIM_ORDER == ("index_code", "telemetry_errors", "lake_ci", "lake_agents", "lake_issues", "history")
+    doc = (HUB / "docs" / "JEV.md").read_text(encoding="utf-8")
+    assert ("`index_code`, then `telemetry_errors`, `lake_ci`, `lake_agents`, `lake_issues`, and `history` last"
+            in doc), "docs/JEV.md's trim order drifted"
     from tools.jev import loop
     assert C.COST_LABEL == loop.COST_LABEL
 

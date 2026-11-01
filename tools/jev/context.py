@@ -389,7 +389,8 @@ def _problems(base: Path | None, run_id: str, item_key: str, ctx) -> list[str]:
 
 def history_section(ctx, item_key: str, *, limit: int = 5) -> dict:
     """A section (source 'jev-history') from ctx.history.rows() for this loop,
-    step and item: what was already filed (the publish-apply rows), then the
+    step and item: what was already filed (the publish-apply rows, a partial
+    filing's failures counted as failed), then the
     newest `limit` attempts — ts, decision, status/outcome, reason (clipped),
     cost — with validate.json's problems for a rejected or failed attempt
     whose item directory still holds one. Planned skips are ignored; a
@@ -414,6 +415,9 @@ def history_section(ctx, item_key: str, *, limit: int = 5) -> dict:
                 if run_id not in filed["runs"]:
                     filed["runs"].append(run_id)
                 filed["last_at"] = max(filed["last_at"] or "", ts) or None
+                if str(row.get("status") or "") == "partial":   # some filed, some failed (loop.publish)
+                    failures = row.get("failures")
+                    filed["failed"] += len(failures) if isinstance(failures, list) and failures else 1
             elif str(row.get("status") or "") == "publish-failed":
                 filed["failed"] += 1
             continue
@@ -890,10 +894,11 @@ def build(ctx, item, req: ContextRequest, *, mode: str = DEFAULT_MODE, sections:
           deadline_s: float = DEFAULT_DEADLINE_S) -> Pack:
     """The pack for one item: `ctx.item_dir(item)/<file>` (markdown, 0600) and
     its `.json` twin (the redacted document, the statuses, sha256, bytes and
-    elapsed). Mode 'off' writes nothing (a CI-identical run); 'auto' notes an
-    unavailable plane; 'require' also lists it in `missing`, and the caller
-    fails the item before any spend (`Pack.blocked`). 'stale' is never a
-    failure."""
+    elapsed). Mode 'off' writes nothing (a CI-identical run). Both 'auto' and
+    'require' list the unavailable plane sections in `Pack.missing` and note
+    them; only 'require' sets `Pack.blocked`, which the caller uses to fail
+    the item before any spend — so gate on `blocked`, never on `missing`.
+    'stale' is never a failure."""
     if mode not in MODES:
         raise ValueError(f"context mode {mode!r} is not one of {', '.join(MODES)}")
     if not is_bare_name(file) or not file.endswith(".md"):
