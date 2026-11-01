@@ -641,14 +641,24 @@ def test_a_malformed_context_block_is_refused():
 
     cases = [
         (ctx(extra=1), "unknown key"),
+        (lambda d: d["local"]["context"].update({1: "x", "extra": 2}), "unknown key"),   # mixed key types
         (lambda d: d["local"].update(context=[]), "a mapping"),
         (ctx(mode=False), "quoted string"),            # a bare `off` is a YAML boolean
         (ctx(mode="on"), "quoted string"),
-        (ctx(file="../x.md"), "bare .md"),
-        (ctx(file=".scout/x.md"), "bare .md"),
-        (ctx(file="context.txt"), "bare .md"),
-        (ctx(file=".hidden.md"), "bare .md"),
-        (ctx(file="x" * 62 + ".md"), "bare .md"),
+        (ctx(file="../x.md"), "plain .md"),
+        (ctx(file=".scout/x.md"), "plain .md"),
+        (ctx(file="context.txt"), "plain .md"),
+        (ctx(file=".hidden.md"), "plain .md"),
+        (ctx(file="x" * 62 + ".md"), "plain .md"),
+        (ctx(file=17), "plain .md"),
+        # the name is written verbatim into the brief's pointer: nothing that can break or hide a line
+        (ctx(file="x\n## Injected\n.md"), "plain .md"),
+        (ctx(file="x`y.md"), "plain .md"),
+        (ctx(file="x\ty.md"), "plain .md"),
+        (ctx(file="con\u202etext.md"), "plain .md"),
+        (ctx(file="cont\u200bext.md"), "plain .md"),
+        (ctx(file="my context.md"), "plain .md"),
+        (ctx(file="contéxt.md"), "plain .md"),
         (ctx(file="scout-workorder-SCHEMA.md"), "briefs take"),
         (ctx(file="Scout-Workorder-x.md"), "briefs take"),
         (ctx(file="prompt.md"), "item's run directory"),
@@ -668,6 +678,7 @@ def test_a_malformed_context_block_is_refused():
         (ctx(deadline_s=float("inf")), "deadline_s"),
         (ctx(deadline_s=True), "deadline_s"),
         (ctx(deadline_s="20"), "deadline_s"),
+        (ctx(deadline_s=10 ** 400), "deadline_s"),   # too large for a float
         (ctx(days=0), "days"),
         (ctx(days=366), "days"),
         (ctx(days=False), "days"),

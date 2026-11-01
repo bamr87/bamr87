@@ -51,7 +51,7 @@ from typing import TypeGuard
 
 import yaml
 
-from .common import FLEET_YML, HUB, JevError, is_bare_name, is_clone_relpath, is_nwo
+from .common import FLEET_YML, HUB, JevError, is_clone_relpath, is_nwo
 
 SPEC_ROOT = HUB / "tools" / "jev" / "steps"
 WORKFLOWS_DIR = HUB / ".github" / "workflows"
@@ -460,16 +460,17 @@ def _check_context(raw: object, workspace: Workspace, planner: str, at: str) -> 
     if not isinstance(raw, Mapping):
         raise StepSpecError(f"{at}: a mapping of {sorted(CONTEXT_KEYS)} (each optional)")
     unknown = set(raw) - CONTEXT_KEYS
-    if unknown:
-        raise StepSpecError(f"{at}: unknown key(s) {sorted(unknown)} (known: {sorted(CONTEXT_KEYS)})")
+    if unknown:   # YAML keys need not be strings: sorted by their text, never compared across types
+        raise StepSpecError(f"{at}: unknown key(s) {sorted(map(str, unknown))} (known: {sorted(CONTEXT_KEYS)})")
     mode = raw.get("mode", ctxmod.DEFAULT_MODE)
     if mode not in ctxmod.MODES or not isinstance(mode, str):
         # a bare `off` is a YAML 1.1 boolean, so the value must be quoted
         raise StepSpecError(f"{at}.mode: the quoted string 'auto', 'off' or 'require', not {mode!r}")
     file = raw.get("file", "context.md")
-    if not is_bare_name(file) or not file.endswith(".md") or file.startswith(".") or len(file) > 64:
-        raise StepSpecError(f"{at}.file: a bare .md file name (no directory, not hidden, ≤ 64 characters), "
-                            f"not {file!r}")
+    if not ctxmod.is_pack_file(file):
+        # written verbatim into the brief's pointer: no space, backtick, line break or invisible character
+        raise StepSpecError(f"{at}.file: a plain .md file name ({ctxmod.FILE_RX.pattern}: no directory, "
+                            f"not hidden, ≤ 64 characters), not {file!r}")
     brief_rx = PLANNER_BRIEFS.get(planner)
     if brief_rx is None:
         raise StepSpecError(f"{at}: the planner {planner!r} has no brief pattern in tools/jev/spec.py PLANNER_BRIEFS")
@@ -494,15 +495,18 @@ def _check_context(raw: object, workspace: Workspace, planner: str, at: str) -> 
     if not _is_int(max_chars) or not low <= max_chars <= high:
         raise StepSpecError(f"{at}.max_chars: an integer in {low}..{high}, not {max_chars!r}")
     deadline = raw.get("deadline_s", ctxmod.DEFAULT_DEADLINE_S)
-    if (not isinstance(deadline, (int, float)) or isinstance(deadline, bool) or not math.isfinite(deadline)
-            or not 0 < deadline <= ctxmod.MAX_DEADLINE_S):
+    try:   # an int too large for a float overflows: refused like any other out-of-range value
+        seconds = float(deadline) if isinstance(deadline, (int, float)) and not isinstance(deadline, bool) else None
+    except OverflowError:
+        seconds = None
+    if seconds is None or not math.isfinite(seconds) or not 0 < seconds <= ctxmod.MAX_DEADLINE_S:
         raise StepSpecError(f"{at}.deadline_s: a finite number of seconds in (0, {ctxmod.MAX_DEADLINE_S:g}], "
                             f"not {deadline!r}")
     days = raw.get("days", ctxmod.DEFAULT_DAYS)
     if not _is_int(days) or not 1 <= days <= ctxmod.MAX_DAYS:
         raise StepSpecError(f"{at}.days: an integer in 1..{ctxmod.MAX_DAYS}, not {days!r}")
     return ContextSpec(mode=mode, file=file, providers=tuple(p for p in ctxmod.PROVIDERS if p in providers),
-                       max_chars=max_chars, deadline_s=float(deadline), days=days)
+                       max_chars=max_chars, deadline_s=seconds, days=days)
 
 
 def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str, workspace: Workspace) -> LocalSpec:
