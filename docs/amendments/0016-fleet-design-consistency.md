@@ -1,12 +1,12 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — One front-end shell, layout and design language across the fleet
+# 0016 — One front-end shell, layout and design language across the fleet
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0016
 - **Date:** 2026-11-01
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87 at Amr's request on 2026-11-01)
 - **Ratified by:** _(blank until the pull request is merged)_
-- **Affects:** constitution new § 18 (follows § 17 `central-loop-switches`); `tools/conformance.py` (new check `design`); roadmap FF-0032; feature and requirement ids: HUB-NEW:frontend-platform, FR-NEW:frontend-platform (the fragment #566 adds, as its body asks)
+- **Affects:** constitution new § 18 (follows § 17 `central-loop-switches`); `tools/conformance.py` (new check `design`); roadmap FF-0032; feature and requirement ids: HUB-062, FR58 (the fragment #566 adds, as its body asks)
 - **Supersedes:** none (extends § 14 and § 15)
 - **Related:** roadmap FF-0032 (bamr87/bamr87#553), [docs/DESIGN-HARMONIZATION.md](../../DESIGN-HARMONIZATION.md), 0007 `public-docs-site` (zer0 theme), 0010 `major-change-evidence` (visual evidence), 0013 `ai-ready-foundation` (warn-then-fail rollout), issue #364 (fleet theme contrast rollup)
 
