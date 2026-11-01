@@ -8,16 +8,25 @@ evidence_repos: [bamr87/bamr87]
 last_verified: 2026-10-31
 owner_bot: Platform Architect
 ---
-# ADP-18 Guardrails / Safety Patterns
+# Guardrails / Safety Patterns
 
 ## Summary
+
 Guardrails are layered controls that keep an agent safe, on task and compliant as its autonomy grows. Gulli places them at several layers: input validation and sanitization, output filtering, behavioral constraints set in prompts, tool-use restrictions, external moderation, and human oversight. A cheap, fast model can pre-screen inputs or double-check outputs. Supporting engineering practices include least privilege, checkpoint and rollback, structured logging and observability, and treating guardrails as part of the design rather than an afterthought. The aim is not to cripple the agent but to make its behavior predictable and trustworthy. (Paraphrased from Gulli, Ch. 18.)
 
 ## When to use / not
+
 - Always use them in some form. Scale the layers to the risk: public triggers, secrets, external sends and money get the most.
-- Failure modes: a single layer of defense, prompt-only rules, guardrails nobody tests, and kill switches that are scattered or undocumented.
+
+## Failure modes
+
+- A single layer of defense.
+- Prompt-only rules.
+- Guardrails nobody tests.
+- Kill switches that are scattered or undocumented.
 
 ## Fleet evidence
+
 | Sub-aspect | Rating | Evidence |
 |---|---|---|
 | Input gating on who may trigger an agent | proven | [claude.yml](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/claude.yml): `@claude` runs only for OWNER/MEMBER/COLLABORATOR `author_association`. Least-privilege `permissions:` (contents/issues/PR read) |
@@ -31,24 +40,30 @@ Guardrails are layered controls that keep an agent safe, on task and compliant a
 | Guardrail evals (§13.1) | gap | Filed [#530](https://github.com/bamr87/bamr87/issues/530) |
 
 ### Reproduce (2026-10-31, 2321b3a7c1199688042339d68b628f9d08bb46eb)
+
 ```bash
 python3 tools/governance_lint.py check .
 grep -ho "vars\.[A-Z_]*ENABLED" .github/workflows/*.yml | sort -u
 grep -n "author_association" .github/workflows/claude.yml
 grep -n "switches:" _data/fleet.yml   # no match on main -> the proposed loop-switch amendment (PR #528) is not live
 ```
+
 Actual output:
+
 ```
 /tmp/adp-hub: ok (prd=PRD.md, features=features/features.yml, constitution=docs/constitution.md, amendments=13)
   warn:  HUB-039: names no PRD requirement (`prd: [TBD]` if unknown)
 vars.API_KEYS_ENABLED vars.FLEET_PULSE_ENABLED vars.ISSUE_PIPELINE_ENABLED vars.JEV_CONFLICTS_ENABLED vars.REPO_EVOLUTION_ENABLED vars.REPO_SCOUT_ENABLED
 ```
+
 Note: the variables are not uniform in polarity. Issue pipeline runs unless the variable is `'false'`, while repo scout runs only when it is `'true'`. CI: python-tests was green on 8ad8cf5 (https://github.com/bamr87/bamr87/actions/runs/41256529231); the cited files are identical at 2321b3a and the commands were rerun locally there.
 
 ## Gaps
+
 - [#531](https://github.com/bamr87/bamr87/issues/531): input/output guardrails and the lethal-trifecta gate.
 - [#530](https://github.com/bamr87/bamr87/issues/530): evals.
 - #526 / #528 (existing): central kill switches.
 
 ## Cross-links
+
 ADP-13, ADP-07, constitution §2, §11, §12, §13; proposed loop-switch amendment (PR #528).

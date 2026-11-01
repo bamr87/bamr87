@@ -11,6 +11,7 @@ owner_bot: Content & Comms
 # What makes a system an agent?
 
 ## In plain words
+
 A plain language model only answers. An agent is a system that pursues a goal by working through a loop:
 1. Get the goal.
 2. Gather what it needs to know.
@@ -28,6 +29,7 @@ Gulli describes an agent as a system that can "perceive its environment and take
 | 3: Collaborative multi-agent | A team of specialist agents with a coordinator, like departments in a company. | Specialist roles are defined as named agents ([.claude/agents/](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.claude/agents): feature-scout, verifier). Separate loops each own one job: fleet-pulse fixes workflows, issue-pipeline resolves issues, repo-scout, fan-out. Hand-offs go through labels and issues ([L24-32](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/.github/workflows/issue-pipeline.yml#L24-L32)). The bot team outside GitHub (Platform Architect, Content & Comms, and others) works the same way. There is no formal agent-to-agent protocol and no single coordinator agent. | partial |
 
 ## Reproduce
+
 ```bash
 git clone --depth 1 https://github.com/bamr87/bamr87 /tmp/hub && cd /tmp/hub
 sed -n 335,345p .github/actions/claude-run/run.sh             # Level 0 single-shot fallback
@@ -35,9 +37,11 @@ grep -n -- "--allowedTools" .github/workflows/*.yml           # Level 1 tool all
 ls .claude/agents                                             # Level 3 named roles -> feature-scout.md verifier.md
 gh run view 41181601564 -R bamr87/bamr87 --json jobs -q '.jobs[]|"\(.name) \(.conclusion)"'  # Level 2 chain, all success
 ```
+
 All four commands were run on 2026-10-31 (MDT), and the output matched what is described above. The Level 0 fallback is shown from code only: no run that took the fallback path was found. Read-only checks; no Actions minutes were used.
 
 ## Gaps
+
 - **Level 2 self-improvement:** the system doesn't yet feed run results back into its own prompts. Filed as [#535](https://github.com/bamr87/bamr87/issues/535) (agent:queued). This also covers ADP-09's gap 1.
 - **Level 3:** there is no formal agent-to-agent hand-off contract or coordinator. This touches constitution §16 (A2A), so it is a standards item for Platform Architect / needs-amr. Filed as [#536](https://github.com/bamr87/bamr87/issues/536) (needs-amr). Related: #495, #492, #530.
 

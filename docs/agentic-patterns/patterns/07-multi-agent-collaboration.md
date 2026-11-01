@@ -8,17 +8,26 @@ evidence_repos: [bamr87/bamr87]
 last_verified: 2026-10-31
 owner_bot: Platform Architect
 ---
-# ADP-07 Multi-Agent Collaboration
+# Multi-Agent Collaboration
 
 ## Summary
+
 Some problems are too broad for one monolithic agent. Multi-agent collaboration splits the work across specialized agents, each with its own role, tools and context, and coordinates them through a defined protocol. Gulli lists several topologies: sequential handoffs, parallel workers, debate and consensus, hierarchical supervisor/worker, critic/reviewer pairs, and agents exposed as tools to other agents. The gains are modularity, specialization and robustness. The costs are coordination overhead, error propagation between agents, and harder debugging, so communication contracts and observability are essential. (Paraphrased from Gulli, Ch. 7.)
 
 ## When to use / not
+
 - Use when the subtasks need different expertise, tools or permissions, or can run in parallel.
 - Avoid when a single agent with a few tools is enough. Every handoff is a new place to fail.
-- Failure modes: agents racing on shared state, unclear ownership, cascading hallucinations, runaway cost.
+
+## Failure modes
+
+- Agents racing on shared state.
+- Unclear ownership.
+- Cascading hallucinations.
+- Runaway cost.
 
 ## Fleet evidence
+
 | Sub-aspect | Rating | Evidence |
 |---|---|---|
 | Specialized roles with a sequential handoff | proven | Issue pipeline T1 intake → T2 implement → T3 complete, where each tier hands a structured evidence bundle to the next ([docs/ISSUE-PIPELINE.md](https://github.com/bamr87/bamr87/blob/2321b3a7c1199688042339d68b628f9d08bb46eb/docs/ISSUE-PIPELINE.md)). Green runs: [41181601564](https://github.com/bamr87/bamr87/actions/runs/41181601564) |
@@ -30,21 +39,27 @@ Some problems are too broad for one monolithic agent. Multi-agent collaboration 
 | Interop protocol (A2A agent card) and per-role evals | gap | §16.4 requires an A2A Agent Card, tracked under AIEO #495. §13.1 role eval sets don't exist yet, filed as [#530](https://github.com/bamr87/bamr87/issues/530) |
 
 ### Reproduce (run 2026-10-31 at 2321b3a7c1199688042339d68b628f9d08bb46eb)
+
 ```bash
 python3 tools/deep_dive.py today --date 2026-10-31
 python3 -m pytest -q tools/test_deep_dive.py tools/test_governance_lint.py tools/test_pin_policy.py tools/test_fleet_ci_gate.py .github/scripts/dash-gen/test_scout.py .github/scripts/dash-gen/test_work_board.py
 ```
+
 Actual output:
+
 ```
 2026-10-31  cycle 1 day 2/42  scheduled: bamr87
 45 passed in 0.87s
 ```
+
 CI: python-tests was green on 8ad8cf5 (https://github.com/bamr87/bamr87/actions/runs/41256529231); the cited files are identical at 2321b3a and the commands were rerun locally there.
 
 ## Gaps
+
 - [#530](https://github.com/bamr87/bamr87/issues/530): eval sets per agent role, plus an eval-regression check (shared with Fleet Ops ADP-19 G19-1).
 - #492 (existing): build the QA Lead critic agent.
 - #495 (existing): AIEO / A2A agent card.
 
 ## Cross-links
+
 ADP-06 Planning, ADP-13 HITL, ADP-18 Guardrails, constitution §12, §13, §15, §16.
