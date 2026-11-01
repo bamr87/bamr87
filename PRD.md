@@ -104,6 +104,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-057](features/features.yml) | Centrally managed loop kill switches | planned | [`_data/fleet.yml`](_data/fleet.yml) · [`docs/AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | FR54 |
 | [HUB-058](features/features.yml) | Agentic design patterns map | partial | [`docs/agentic-patterns/patterns.json`](docs/agentic-patterns/patterns.json) · [`docs/agentic-patterns/README.md`](docs/agentic-patterns/README.md) | FR55 |
 | [HUB-059](features/features.yml) | JEV: loop step specs — one spec per agent step, rendered the same in CI and locally | partial | [`tools/jev/steps/README.md`](tools/jev/steps/README.md) · [`docs/JEV.md`](docs/JEV.md) | FR45 |
+| [HUB-060](features/features.yml) | JEV: run a loop's agent step locally (the loop runner) | partial | [`tools/jev/loop.py`](tools/jev/loop.py) · [`docs/JEV.md`](docs/JEV.md) | FR56 |
 
 **Requirement → feature trace**
 
@@ -175,6 +176,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR53 | HUB-056 |
 | FR54 | HUB-057 |
 | FR55 | HUB-058 |
+| FR56 | HUB-060 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -224,6 +226,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR53: governance_lint check must fail when a features.yml or PRD.md link targets a missing path, a numbered amendment record is not in a terminal status, constitution sections are not in ascending order, or a PRD requirement cites a feature id it is not mapped to.
 - FR54: Every scheduled or AI-calling workflow in the fleet must have a kill switch resolved from one switches map in _data/fleet.yml, changeable per repo, per loop, per group or globally through a dry-run-by-default, audited operation, with drift against live repo variables reported.
 - FR55: The hub must publish a per-chapter map of agentic design patterns to fleet evidence, where every rating cites a pinned permalink and every gap links an issue, with a machine-readable index linked from llms.txt.
+- FR56: The hub must run any loop agent step that has a step spec with a local: block on the maintainer's workstation with headless Claude Code, with the same planner, prompt bytes, allowlist and per-attempt cap as CI, inside an isolated and sandboxed session with no network and no GitHub credential, held to a monthly local ceiling, and publishing only the exact bytes of a dry-run preview under the maintainer's explicit --apply.
 
 **Non-functional**
 

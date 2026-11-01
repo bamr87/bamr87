@@ -190,12 +190,16 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
+| [`test_jev_adapter_repo_scout.py`](tools/test_jev_adapter_repo_scout.py) | Fixture tests for tools/jev/adapters/ — the loop engine's adapter contract and its first adapter, repo_scout (#486, ADR 0002 P1). |
 | [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
 | [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |
 | [`test_jev_generated.py`](tools/test_jev_generated.py) | Fixture tests for tools/jev/generated.py — the main-only generated-file guard — and the `jev.auto_tiers` switch that keeps the conflict engine at tier 0. |
+| [`test_jev_headless.py`](tools/test_jev_headless.py) | Fixture tests for tools/jev/headless.py — the headless Claude Code layer a local loop attempt runs through. |
 | [`test_jev_ledger.py`](tools/test_jev_ledger.py) | Fixture tests for tools/jev/ledger.py — the conflict-resolution ledger and the monthly cap. |
+| [`test_jev_loop.py`](tools/test_jev_loop.py) | End-to-end tests for tools/jev/loop.py — the local loop engine (#486, ADR 0002 P1): `list`, `doctor` (and `--live`, the canary), `plan`, `run` (the rehearsal and live at… |
 | [`test_jev_number.py`](tools/test_jev_number.py) | Fixture tests for tools/jev/number.py — the assign-at-merge numbering compiler. |
 | [`test_jev_spec.py`](tools/test_jev_spec.py) | Fixture tests for tools/jev/spec.py — the loop step specs (#485, ADR 0002). |
+| [`test_jev_workspace.py`](tools/test_jev_workspace.py) | Fixture tests for tools/jev/workspace.py — the local loop engine's throwaway workspaces (#486, ADR 0002 P1). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
