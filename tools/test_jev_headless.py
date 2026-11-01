@@ -295,6 +295,34 @@ def test_private_read_paths_cover_claude_temp_roots_but_never_the_work_root():
             os.environ["JEV_DOTENV"] = saved
 
 
+def test_a_work_root_in_the_per_user_temp_dir_keeps_its_claude_root_denied_and_has_its_own_key():
+    uid = os.getuid()
+    real = H._user_temp_dir
+    user_tmp = tempfile.mkdtemp()   # stands in for DARWIN_USER_TEMP_DIR, on any platform
+    saved = os.environ.get("JEV_WORK_ROOT")
+    try:
+        H._user_temp_dir = lambda: user_tmp
+        inside = Path(user_tmp) / "jev-work"
+        assert f"{user_tmp}/claude-{uid}" in H.claude_temp_roots()
+        assert H.work_root_problem(Path(user_tmp) / f"claude-{uid}" / "work"), "a Claude root there is refused"
+        assert H.work_root_problem(inside) is None, "the per-user temp directory itself can hold the work root"
+        paths = H.private_read_paths(inside)
+        assert user_tmp not in paths and f"{user_tmp}/claude-{uid}" in paths, paths
+        assert H.lifted_private_reads(inside) == ["user-tmp"]
+        assert H.lifted_private_reads(Path("/home/u/.cache/jev/work")) == []
+        os.environ["JEV_WORK_ROOT"] = "/home/u/.cache/jev/work"
+        full = H.posture_template_sha(SPEC, SANDBOX)
+        os.environ["JEV_WORK_ROOT"] = str(inside)
+        assert H.posture_template_sha(SPEC, SANDBOX) != full, "a narrowed deny list never reuses a cached pass"
+    finally:
+        H._user_temp_dir = real
+        if saved is None:
+            os.environ.pop("JEV_WORK_ROOT", None)
+        else:
+            os.environ["JEV_WORK_ROOT"] = saved
+        os.rmdir(user_tmp)
+
+
 def test_the_posture_template_sha_covers_everything_the_probe_proves_and_no_local_path():
     sha = H.posture_template_sha(SPEC, SANDBOX)
     assert sha == H.posture_template_sha(SPEC, H.Posture("sandbox")) != H.posture_template_sha(SPEC, REDUCED)

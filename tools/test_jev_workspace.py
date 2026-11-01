@@ -30,6 +30,7 @@ from pathlib import Path
 HUB = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HUB))
 
+from tools.jev import headless as H  # noqa: E402
 from tools.jev import workspace as W  # noqa: E402
 from tools.jev.common import JevError, git  # noqa: E402
 
@@ -236,16 +237,30 @@ def test_a_brief_dir_that_leaves_the_clone_is_refused():
 
 def test_a_work_root_inside_a_claude_temp_root_is_refused():
     # it would lift that root's read deny: every other session's temp files, readable by the agent
-    for base in (f"/tmp/claude-{os.getuid()}", f"/private/tmp/claude-{os.getuid()}"):
-        root = Path(base) / "jev-test-never-made" / "work"
-        with env(JEV_WORK_ROOT=str(root)):
-            try:
-                make(run_id="t-claude-tmp")
-            except JevError as exc:
-                assert "Claude temp root" in str(exc), exc
-            else:
-                raise AssertionError(f"a work root under {base} was accepted")
-        assert not root.parent.exists()
+    uid = os.getuid()
+    real_user_tmp_fn = H._user_temp_dir
+    real_user_tmp = real_user_tmp_fn()
+    fake_user_tmp = tempfile.mkdtemp()   # the per-user temp directory's Claude root, on any platform
+    cases = [(None, f"/tmp/claude-{uid}"), (None, f"/private/tmp/claude-{uid}"),
+             (fake_user_tmp, f"{fake_user_tmp}/claude-{uid}"),
+             *([(None, f"{real_user_tmp}/claude-{uid}")] if real_user_tmp else [])]
+    try:
+        for user_tmp, base in cases:
+            if user_tmp:
+                H._user_temp_dir = lambda user_tmp=user_tmp: user_tmp
+            root = Path(base) / "jev-test-never-made" / "work"
+            with env(JEV_WORK_ROOT=str(root)):
+                try:
+                    make(run_id="t-claude-tmp")
+                except JevError as exc:
+                    assert "Claude temp root" in str(exc), exc
+                else:
+                    raise AssertionError(f"a work root under {base} was accepted")
+            H._user_temp_dir = real_user_tmp_fn
+            assert not root.parent.exists()
+    finally:
+        H._user_temp_dir = real_user_tmp_fn
+        shutil.rmtree(fake_user_tmp, ignore_errors=True)
 
 
 def test_a_work_root_inside_the_hub_is_refused():

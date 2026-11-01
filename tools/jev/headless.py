@@ -434,10 +434,12 @@ def _user_temp_dir() -> str | None:
 
 
 def claude_temp_roots() -> tuple[str, ...]:
-    """Every Claude Code session's temp root on this account: `/tmp/claude-<uid>`
-    and its `/private/tmp` real path."""
+    """Every Claude Code session's temp root on this account: `/tmp/claude-<uid>`,
+    its `/private/tmp` real path and, on macOS, `claude-<uid>` in the per-user
+    temp directory (where a TMPDIR or CLAUDE_CODE_TMPDIR would put one)."""
     uid = os.getuid()
-    return (f"/tmp/claude-{uid}", f"/private/tmp/claude-{uid}")
+    user_tmp = _user_temp_dir()
+    return (f"/tmp/claude-{uid}", f"/private/tmp/claude-{uid}", *([f"{user_tmp}/claude-{uid}"] if user_tmp else []))
 
 
 def work_root_problem(root: Path | None = None) -> str | None:
@@ -456,19 +458,33 @@ def work_root_problem(root: Path | None = None) -> str | None:
     return None
 
 
+def _private_read_candidates() -> list[tuple[str, str]]:
+    """(kind, path) for every private read deny: the Claude temp roots, then the per-user temp directory."""
+    return [*(("claude-tmp", p) for p in claude_temp_roots()),
+            *([("user-tmp", str(_user_temp_dir()))] if _user_temp_dir() else [])]
+
+
 def private_read_paths(work: Path | None = None) -> tuple[str, ...]:
     """Private places OUTSIDE the home fence a sandboxed command could otherwise
     read: every Claude Code session's temp root on this account
     (`claude_temp_roots`) and the per-user temp directory. A path that holds
     the work root is left out, since the clone must stay readable — only the
     per-user temp directory can be, because `work_root_problem` refuses a work
-    root in a Claude temp root; the canary plants a second secret in the first
-    one that is kept."""
-    paths = list(claude_temp_roots())
-    if _user_temp_dir():
-        paths.append(str(_user_temp_dir()))
+    root in a Claude temp root (its `claude-<uid>` root stays denied), and
+    `lifted_private_reads` puts that in the cache key; the canary plants a
+    second secret in the first one that is kept."""
     root = work_root() if work is None else Path(work)
-    return tuple(p for p in dict.fromkeys(paths) if not _under(root, Path(p)))
+    return tuple(p for p in dict.fromkeys(p for _, p in _private_read_candidates()) if not _under(root, Path(p)))
+
+
+def lifted_private_reads(work: Path | None = None) -> list[str]:
+    """The kinds of private read deny the work root lifts (`private_read_paths`
+    leaves them out): `user-tmp` for a work root in the per-user temp
+    directory, and nothing for the default one. Part of the posture template,
+    so a narrowed deny list is its own cache key and never reuses a probe or
+    canary passed with the full one."""
+    root = work_root() if work is None else Path(work)
+    return sorted({kind for kind, p in _private_read_candidates() if _under(root, Path(p))})
 
 
 def dotenv_override() -> Path | None:
@@ -525,9 +541,11 @@ def posture_template(spec, posture: Posture) -> dict:
     """Everything the probe and the canary prove, with every per-run value and
     every local path held fixed: the `--settings` document, the isolation
     flags (which carry the spec's toolset, allowlist and deny list), the agent
-    environment's key set and the posture's name."""
+    environment's key set, the posture's name and the private read denies
+    this work root lifts (`lifted_private_reads`)."""
     return {
         "posture": posture.name,
+        "lifted_private_reads": lifted_private_reads(),
         "settings": settings_doc(posture, hub=Path("/HUB"), private_reads=("/PRIVATE",), dotenv=False),
         "flags": claude_flags(spec, posture, settings_path=Path("/SETTINGS"), session_id="SESSION",
                               debug_path=Path("/DEBUG")),
