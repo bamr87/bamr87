@@ -684,16 +684,21 @@ class Redactor:
         return o
 
 
+def _message_content(event: dict) -> list:
+    """An assistant or user event's content blocks; [] for any other shape.
+    2.1.308 also prints stream events whose `message` is a string."""
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return content if isinstance(content, list) else []
+
+
 def _clip_tool_results(event: dict) -> dict:
     """tool_result blocks over TOOL_RESULT_CAP keep their head and a sha256.
 
     Applied to an ALREADY-redacted event: clipping first could cut a secret in
     two and leave a prefix no pattern matches, and the digest would be of the
     unredacted text."""
-    content = (event.get("message") or {}).get("content")
-    if not isinstance(content, list):
-        return event
-    for block in content:
+    for block in _message_content(event):
         if not isinstance(block, dict) or block.get("type") != "tool_result":
             continue
         body = block.get("content")
@@ -752,7 +757,7 @@ def condensed(event: dict, cap_usd: float, redactor: Redactor) -> list[str]:
         out.append(f"· init {event.get('model', '?')} · {len(event.get('tools') or [])} tools · "
                    f"{event.get('permissionMode', '?')}")
     elif kind == "assistant":
-        for block in (event.get("message") or {}).get("content") or []:
+        for block in _message_content(event):
             if not isinstance(block, dict):
                 continue
             # redacted BEFORE the clip: a cut secret keeps a prefix no pattern
@@ -763,7 +768,7 @@ def condensed(event: dict, cap_usd: float, redactor: Redactor) -> list[str]:
             elif block.get("type") == "text" and str(block.get("text") or "").strip():
                 out.append(f"◂ {_one_line(redactor.text(str(block['text'])), ECHO_TEXT)}")
     elif kind == "user":
-        for block in (event.get("message") or {}).get("content") or []:
+        for block in _message_content(event):
             if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
                 body = block.get("content")
                 text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
@@ -805,6 +810,12 @@ class Invocation:
     #: the tee could not be written (a hung-up terminal): it is dropped, and
     #: the run — and its ledger row — go on
     echo_lost: bool = False
+    #: stream events the runner could not process (a shape it did not expect):
+    #: each is kept in the trace as redacted raw text and the session goes on,
+    #: and an otherwise-ok outcome becomes `agent_error` — a check may have
+    #: missed what the event showed, so the attempt fails closed
+    unread_events: int = 0
+    unread_detail: str = ""
     #: how many of the caller's `received` signals arrived while claude was
     #: still running (or before it was started); any later one did not stop
     #: the run, and is the caller's to act on
@@ -1009,7 +1020,7 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
             text = raw.decode("utf-8", errors="replace")
             if fmt == "json":
                 out_buf.append(text)
-            _take(text, inv, trace, redactor, cap_usd, echo)
+            _take_guarded(text, inv, trace, redactor, cap_usd, echo)
     finally:
         rc = proc.poll()
         if rc is None:
@@ -1029,7 +1040,7 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
                 text = raw.decode("utf-8", errors="replace")
                 if fmt == "json":
                     out_buf.append(text)
-                _take(text, inv, trace, redactor, cap_usd, echo)
+                _take_guarded(text, inv, trace, redactor, cap_usd, echo)
         if trace is not None:
             trace.close()
     inv.rc = rc
@@ -1041,6 +1052,23 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
         inv.stdout_text = redactor.text("".join(out_buf))
         inv.result = inv.result or last_result("".join(out_buf))
     return inv
+
+
+def _unread(inv: Invocation, redactor: Redactor, exc: Exception) -> None:
+    inv.unread_events += 1
+    if not inv.unread_detail:
+        inv.unread_detail = _one_line(redactor.text(f"{type(exc).__name__}: {exc}"), 200)
+
+
+def _take_guarded(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, cap_usd: float,
+                  echo: IO[str] | None) -> None:
+    """`_take`, except that an event it cannot process never ends the read
+    loop: the loop's finally would SIGKILL claude mid-session, and the run's
+    result, its outcome and its ledger row would be lost with it."""
+    try:
+        _take(text, inv, trace, redactor, cap_usd, echo)
+    except Exception as exc:  # noqa: BLE001 — any event shape the CLI may print
+        _unread(inv, redactor, exc)
 
 
 def _take(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, cap_usd: float,
@@ -1058,7 +1086,11 @@ def _take(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, c
             trace.write(None, stripped)
         return
     if trace is not None:
-        trace.write(event, stripped)
+        try:
+            trace.write(event, stripped)
+        except Exception as exc:  # noqa: BLE001 — the trace keeps it raw; the event is still read below
+            _unread(inv, redactor, exc)
+            trace.write(None, stripped)
     if not isinstance(event, dict):
         return
     kind = event.get("type")
@@ -1076,7 +1108,7 @@ def _take(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, c
             name = str(d.get("tool_name") or "?")
             inv.denied_tools[name] = inv.denied_tools.get(name, 0) + 1
     elif kind == "assistant":
-        for block in (event.get("message") or {}).get("content") or []:
+        for block in _message_content(event):
             if isinstance(block, dict) and block.get("type") == "tool_use":
                 name = str(block.get("name") or "?")
                 inv.tool_uses[name] = inv.tool_uses.get(name, 0) + 1
@@ -1176,6 +1208,10 @@ def classify(inv: Invocation, cap_usd: float, redactor: Redactor | None = None) 
         return Outcome("max_turns", cost, "reported", detail=f"{base['turns']} turns", **base)
     if is_error or subtype.startswith("error"):
         return Outcome("agent_error", cost, "reported", detail=message or subtype, **base)
+    if inv.unread_events:
+        return Outcome("agent_error", cost, "reported",
+                       detail=f"the runner could not read {inv.unread_events} stream event(s): {inv.unread_detail}",
+                       **base)
     return Outcome("ok", cost, "reported", **base)
 
 
@@ -1296,7 +1332,7 @@ def tool_calls(events: Iterable[dict]) -> list[dict]:
     calls: list[dict] = []
     by_id: dict[str, dict] = {}
     for e in events:
-        for block in (e.get("message") or {}).get("content") or []:
+        for block in _message_content(e):
             if not isinstance(block, dict):
                 continue
             if e.get("type") == "assistant" and block.get("type") == "tool_use":

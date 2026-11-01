@@ -140,6 +140,9 @@ if scenario == "probe":
     emit(json.loads(__NOT_LOGGED_IN__))
     sys.exit(1)
 emit({"type": "system", "subtype": "init", "session_id": "s-1"})
+if scenario == "string_message":   # 2.1.308 prints events whose `message` is a string
+    emit({"type": "system", "subtype": "notice", "message": "Sandbox blocked a read"})
+    emit({"type": "user", "message": "a plain-text user event"})
 emit({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "ls"}}]}})
 emit(result)
 '''
@@ -669,6 +672,66 @@ def test_a_normal_run_keeps_init_the_last_result_and_the_tool_counts():
     tee = (d / "tee.txt").read_text()
     assert "· init" in tee and "▸ Bash" in tee and "■ success turns=2 $0.2500 of $8" in tee
     assert "API-equivalent estimate" in tee
+
+
+def test_an_event_whose_message_is_a_string_is_read_traced_and_never_ends_the_run():
+    trace = Path(tempfile.mkdtemp()) / "trace.jsonl"
+    got, _ = run_stub("string_message", trace=trace)
+    assert got.result and got.result["total_cost_usd"] == 0.25 and got.tool_uses == {"Bash": 1}
+    assert got.unread_events == 0, got.unread_detail
+    rows = [json.loads(x) for x in trace.read_text().splitlines()]
+    assert {"type": "system", "subtype": "notice", "message": "Sandbox blocked a read"} in rows
+    assert H.classify(got, 8.0).kind == "ok"
+    assert H.tool_calls(rows) == H.tool_calls([r for r in rows if not isinstance(r.get("message"), str)])
+    assert H._clip_tool_results({"type": "user", "message": "x"}) == {"type": "user", "message": "x"}
+
+
+class _TraceThatRaises(H.Trace):
+    """A trace writer that cannot handle one event shape: the bug class that
+    once ended a canary mid-session, so its spend went unrecorded."""
+
+    def write(self, event, raw):
+        if isinstance(event, dict) and event.get("subtype") == "notice":
+            raise AttributeError("'str' object has no attribute 'get'")
+        super().write(event, raw)
+
+
+def test_an_event_the_runner_cannot_process_never_ends_the_session_and_fails_closed():
+    d, claude = stub_dir()
+    red = H.Redactor({})
+    path = d / "trace.jsonl"
+    got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                   env=stub_env(STUB_SCENARIO="string_message"), timeout_s=None, trace=_TraceThatRaises(path, red),
+                   redactor=red, cap_usd=8.0)
+    assert got.rc == 0 and got.result and got.result["total_cost_usd"] == 0.25, "the session ran to its result"
+    assert got.unread_events == 1 and "AttributeError" in got.unread_detail
+    rows = [json.loads(x) for x in path.read_text().splitlines()]
+    assert any(r.get("type") == "jev_raw" and "Sandbox blocked" in r.get("text", "") for r in rows), rows
+    out = H.classify(got, 8.0)
+    assert (out.kind, out.cost_source, out.cost_usd) == ("agent_error", "reported", 0.25), out
+    assert "could not read 1 stream event" in out.detail
+
+
+class _TeeThatRaises:
+    """A tee that fails with something other than the OSError the read loop expects of a dead terminal."""
+
+    def write(self, text):
+        if "init" in text:
+            raise RuntimeError("tee broke")
+
+    def flush(self):
+        return None
+
+
+def test_a_failure_outside_the_trace_is_caught_too_and_the_session_still_ends_with_its_result():
+    d, claude = stub_dir()
+    red = H.Redactor({})
+    got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n", cwd=d,
+                   env=stub_env(STUB_SCENARIO="ok"), timeout_s=None, trace=None, redactor=red, cap_usd=8.0,
+                   echo=_TeeThatRaises())
+    assert got.rc == 0 and got.result and got.result["total_cost_usd"] == 0.25
+    assert got.unread_events == 1 and "RuntimeError: tee broke" in got.unread_detail
+    assert H.classify(got, 8.0).kind == "agent_error"
 
 
 def test_the_wall_clock_is_sigint_first_and_the_result_is_kept():
