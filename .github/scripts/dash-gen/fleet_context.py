@@ -19,8 +19,9 @@ Five sections, each stamped with its source, its freshness and its status:
   lake_ci           per workflow on the tracked branch: runs, failures, the
                     failure streak, the failing job / step where recorded
   lake_agents       CI agent runs, local Claude Code sessions, and the Bash
-                    commands that failed in them — by command HEAD, never the
-                    command, the prompt, the cwd or the branch
+                    commands that failed in them — by command HEAD (an
+                    allowlist that never reaches an option's value), never
+                    the command, the prompt, the cwd or the branch
   index_code        the Kilo code index (Qdrant + native Ollama) for up to
                     three queries; code only from the hub and the target —
                     the registry has no visibility field and a sibling may be
@@ -417,6 +418,66 @@ def _basename(tok: str) -> str:
     return tok.rstrip("/").rsplit("/", 1)[-1] or tok
 
 
+# The words a head may carry after the command word. An ALLOWLIST: a word that
+# fits none of these ends the head, because the first words of a command are
+# exactly where `curl -u user:pass`, `mysql -pSECRET`, `-H 'X-Api-Key: …'`
+# and `redis-cli -a PASSWORD` put their secrets.
+#: the command word itself (its basename): a name, or `[` / `[[` — never `^X=`
+#: that a `tok=$(grep '^X=' …)` leaves behind once its assignment is dropped
+_COMMAND_WORD = re.compile(r"^(?:\[\[?|[A-Za-z0-9_.+-]+)$")
+#: a subcommand or a file's basename (`exec`, `status`, `x.py`): lower case, short
+_HEAD_WORD = re.compile(r"^[a-z][a-z0-9._+-]{0,30}$")
+#: a short flag cluster (`-rn`, `-j4`) or a long flag (`--short`), nothing attached
+_HEAD_FLAG = re.compile(r"^(?:-[A-Za-z][A-Za-z0-9]{0,2}|--[a-z][a-z0-9-]{1,30})$")
+#: options whose value is a credential, a header, a body or an environment: the
+#: head keeps the option and stops, so its value — next word or attached — is never read
+_VALUE_FLAGS = frozenset({
+    "-u", "--user", "-U", "--proxy-user", "-p", "--pass", "--password", "-a", "--auth", "-H", "--header",
+    "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-F", "--form", "-b", "--cookie",
+    "-K", "--config", "-e", "--env", "--token", "--secret", "--body", "--key", "--api-key",
+})
+#: `python -m <module>`: the one value a head keeps, and only as a module name
+_MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,40}$")
+
+
+def _secretish(word: str) -> bool:
+    """A long word thick with digits reads as an id or a password, not a subcommand."""
+    return len(word) >= 12 and sum(c.isdigit() for c in word) >= 3
+
+
+def _head_words(words: list[str]) -> list[str]:
+    """The command word, then — at most HEAD_TOKENS words in all — subcommand
+    words and flags, never an option's value: a positional after a flag ends
+    the head (`grep -q`, not `grep -q <pattern>`), except python's `-m <module>`."""
+    if not words:
+        return []
+    out, flagged = [_basename(words[0])], False
+    for w in words[1:]:
+        if len(out) >= HEAD_TOKENS:
+            break
+        if w.startswith("-") and w != "-":
+            name = w.split("=", 1)[0] if w.startswith("--") else w
+            short = name if name.startswith("--") else name[:2]
+            if short in _VALUE_FLAGS:
+                out.append(short)   # `-pSECRET`, `--password=x`, `-H <header>`: the option, never the value
+                break
+            if "=" in w or not _HEAD_FLAG.match(w):
+                break
+            out.append(w)
+            flagged = True
+            continue
+        if flagged:
+            if out[-1] == "-m" and _MODULE.match(w):
+                out.append(w)
+                continue
+            break
+        word = w if w == "-" else _basename(w)
+        if word != "-" and (not _HEAD_WORD.match(word) or _secretish(word)):
+            break
+        out.append(word)
+    return out
+
+
 HEAD_LINES = 5   # a first line with no command (`set -e`, `cd x`) reads on, this far
 
 
@@ -454,7 +515,7 @@ def _line_head(first: str, depth: int) -> tuple[str, bool, bool]:
     feeds_shell = False
     for seg in _segments(first):
         words = _command_words(_words(seg))
-        if not words or words[0] in _NOT_COMMANDS:
+        if not words or words[0] in _NOT_COMMANDS or not _COMMAND_WORD.match(_basename(words[0])):
             continue
         shell = _basename(words[0]) in _SHELLS
         if shell and len(words) == 1 and "<<" in seg:
@@ -472,8 +533,8 @@ def _line_head(first: str, depth: int) -> tuple[str, bool, bool]:
             fallback = fallback or [words[0]] + [w for w in words[1:] if not _ASSIGN.match(w)]
             continue
         fallback = fallback or words
-        return " ".join(_basename(w) for w in words[:HEAD_TOKENS])[:HEAD_CHARS], True, False
-    return " ".join(_basename(w) for w in fallback[:HEAD_TOKENS])[:HEAD_CHARS], False, feeds_shell
+        return " ".join(_head_words(words))[:HEAD_CHARS], True, False
+    return " ".join(_head_words(fallback))[:HEAD_CHARS], False, feeds_shell
 
 
 def command_head(command) -> str:
@@ -485,10 +546,16 @@ def command_head(command) -> str:
     command — not a bare `cd`/`pushd`, an env assignment or `export`, a
     `set -…`, a loop header or a closer; leading keywords (`if`, `do`, `!`…),
     `env` with its options and VAR=value words dropped; a `bash -c '<script>'`
-    read through to its script; its first three words, a word with a slash cut
-    to its basename; heredoc markers, redirections and quotes dropped; clipped
-    to 60 characters. Absent any such segment, the first segment's words stand
-    (a failing `cd` is still a `cd`).
+    read through to its script; heredoc markers, redirections and quotes
+    dropped. Of that segment, at most three words by ALLOWLIST (_head_words):
+    the command word (a path cut to its basename), then lower-case subcommand
+    words and bare flags. An option that takes a credential, header or body
+    (`-u`, `-p`, `-H`, `--password`, `-d`…) is kept and ends the head, so its
+    value never appears, attached (`-pSECRET`) or not; any other word — a
+    positional after a flag, a word with `:`, `@`, `=` or upper case, one
+    over 31 characters or thick with digits — ends it too. Clipped to 60
+    characters. Absent any such segment, the first segment's words stand (a
+    failing `cd` is still a `cd`).
     """
     return _head(str(command or ""), 0)[0]
 

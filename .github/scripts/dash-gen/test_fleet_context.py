@@ -523,19 +523,41 @@ def test_command_head_examples():
         "git status --short || true": "git status --short",
         "python3 - <<'PY'\nprint(1)\nPY": "python3 -",
         "cat >> tests/aieo/test_x.py <<'EOF'": "cat",
-        'grep -rn "a/b c" src 2>/dev/null': "grep -rn b c",
-        "bash -c 'cd /x/y && make -j4 all'": "make -j4 all",
+        'grep -rn "a/b c" src 2>/dev/null': "grep -rn",   # a positional after a flag is a value
+        "bash -c 'cd /x/y && make -j4 all'": "make -j4",
         "bash -c 'S=/private/tmp/x/scratchpad; cd $S\u2026[597 chars]": "cd",
         "rm -f scratchp\u2026[878 chars]": "rm -f",   # the word the clip cut is not a word
         "DJANGO_SETTINGS_MODUL\u2026[300 chars]": "(clipped)",
-        "for f in *.md; do wc -l \"$f\"; done": "wc -l $f",
-        "if grep -q foo bar.txt; then echo y; fi": "grep -q foo",
+        "for f in *.md; do wc -l \"$f\"; done": "wc -l",
+        "if grep -q foo bar.txt; then echo y; fi": "grep -q",
         "(which ruff || pip install ruff)": "which ruff",
         "cd /tmp/x": "cd x",
         "bash <<'EOF'\ncd /x/y\nS=/private/tmp/z\npython3 - <<'PY'\nprint(1)\nPY\nEOF": "python3 -",
         'export PATH="/private/tmp/a/stubbin:$PATH"; cd \u2026[864 chars]': "export",
         'H=/private/tmp/x && E="-c user.email=1056\u2026[2742 chars]': "(clipped)",
         "": "",
+        # an option's value never stands in a head, attached or not (the
+        # verifiers' probes): the option is kept and the head ends there
+        "curl -u admin:hunter2pass https://example.invalid/x": "curl -u",
+        "curl --user admin:Sup3rS3cret https://example.invalid/x": "curl --user",
+        "curl --password=hunter2 https://example.invalid/x": "curl --password",
+        "sshpass -p 'S3cretPass!' ssh host": "sshpass -p",
+        "mysql -pMyDbPassw0rd -u root db": "mysql -p",
+        "redis-cli -a myredispassword123 ping": "redis-cli -a",
+        "curl -H 'X-Api-Key: 0123456789abcdef0123456789abcdef' https://x": "curl -H",
+        "curl -H 'Authorization: Basic YWRtaW46aHVudGVyMg==' https://x": "curl -H",
+        "curl --data-raw '{\"token\":\"abc\"}' https://x": "curl --data-raw",
+        # positionals: lower-case subcommand words only, never an id or a password
+        "echo npm_AbCdEf0123456789AbCdEf0123456789AbCd": "echo",
+        "redis-cli auth myredispassword123": "redis-cli auth",
+        "cat ~/.claude/projects/-Users-bamr87-bamr87/0b9a4a4e-1f0e-4a5e-9d55-1f2e3d4c5b6a.jsonl": "cat",
+        "ls -la local_2bc336f8-1234-4abc-9def-0123456789ab": "ls -la",
+        "git -c user.email=someone@example.com commit -m x": "git -c",
+        "docker login -u bot --password-stdin": "docker login -u",
+        "gh secret set FLEET_TOKEN --body x": "gh secret set",
+        "python3 -c 'import os; print(os.environ)'": "python3 -c",
+        "python3 test_fleet_context.py": "python3 test_fleet_context.py",
+        "tok=$(grep '^DASH_CONSOLE_TOKEN=' .env | cut -d= -f2-)": "cut -d",   # a pattern is not a command
     }
     for command, want in cases.items():
         got = fc.command_head(command)
