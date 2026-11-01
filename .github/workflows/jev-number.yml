@@ -152,7 +152,9 @@ jobs:
     # record hostage), and on an issue event, where `number` is skipped.
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || vars.JEV_RATIFY_ENABLED != 'false') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Three attempts (a re-cut when main moves), each waiting up to 30 minutes
+    # for the record PR's checks — python-tests alone takes 15-20 — plus setup.
+    timeout-minutes: 105
     concurrency:
       group: jev-ratify
       cancel-in-progress: false
@@ -228,7 +230,7 @@ jobs:
           git config user.email "$BOT_EMAIL"
           git config credential.helper '!gh auth git-credential'
           gh label create jev-ratify --repo "$GITHUB_REPOSITORY" --color 6E40C9 --force \
-            --description "Ratification-record PR: opened and merged by the jev-number ratify job (amendment ratification-records)"
+            --description "Ratification-record PR, opened and merged by the jev-number ratify job (amendment 0015)"
           gh label create governance --repo "$GITHUB_REPOSITORY" --color 5319E7 --description "Constitution, amendments and ADRs" 2>/dev/null || true
           gh label create needs-amr --repo "$GITHUB_REPOSITORY" --color B60205 --description "Gated: waits for the maintainer (constitution § 12.4)" 2>/dev/null || true
 

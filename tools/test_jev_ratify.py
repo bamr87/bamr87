@@ -1076,7 +1076,8 @@ def test_the_ratify_job_merges_only_with_a_merge_commit_after_its_guard():
     cond = str(job["if"])
     assert "!cancelled()" in cond and "github.event_name == 'workflow_dispatch'" in cond
     assert "vars.JEV_RATIFY_ENABLED != 'false'" in cond, "the kill switch defaults on and dispatch bypasses it"
-    assert int(job["timeout-minutes"]) <= 60
+    # three attempts, each waiting up to 30 minutes for the record PR's checks, fit; still bounded
+    assert 3 * 30 + 10 <= int(job["timeout-minutes"]) <= 120, job["timeout-minutes"]
     runs = "\n".join(str(s.get("run") or "") for s in job["steps"])
     code = [ln for ln in runs.splitlines() if not ln.strip().startswith("#")]
     merges = [ln for ln in code if "gh pr merge" in ln]
@@ -1087,6 +1088,20 @@ def test_the_ratify_job_merges_only_with_a_merge_commit_after_its_guard():
     assert "resolve-fleet-token" in json.dumps(job["steps"]), "the token is probed, never presence-checked"
     checkout = next(s for s in job["steps"] if str(s.get("uses", "")).startswith("actions/checkout"))
     assert checkout["with"]["ref"] == "main" and int(checkout["with"]["fetch-depth"]) == 0
+
+
+def test_every_label_a_workflow_creates_fits_githubs_description_limit():
+    # The first live ratify run died on `gh label create`: GitHub refuses a
+    # description over 100 characters (HTTP 422), and `set -e` ended the step.
+    found = 0
+    for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        # join `\`-continued shell lines first, so a description on the next line is seen
+        text = re.sub(r"\\\n\s*", " ", path.read_text(encoding="utf-8"))
+        for m in re.finditer(r"gh label create[^\n]*", text):
+            for d in re.findall(r'--description\s+"([^"]*)"', m.group(0)):
+                found += 1
+                assert len(d) <= 100, f"{path.name}: label description is {len(d)} characters: {d!r}"
+    assert found >= 3, "the ratify job's three labels are checked"
 
 
 def test_the_merge_runs_only_on_the_python_guards_go():
