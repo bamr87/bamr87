@@ -104,6 +104,25 @@ COST_LABEL = "API-equivalent (estimate)"   # § 10.7, as loop.COST_LABEL
 LINE_CHARS = 400        # one rendered row line, at most
 NOTE_CHARS = 300        # a provenance note, at most
 UNKNOWN_ROW_CHARS = 300
+#: the document's own vocabulary above its rows: the section keys, statuses,
+#: sources, modes and schema ids, and the field names of the document, its
+#: `planes`, a section and context.json's record. `redact_obj` never rewrites
+#: a string that IS one of these words (one that contains one is redacted as
+#: ever): a host called `Code`, `lake` or `stale` would turn `index_code`, the
+#: `lake_*` keys or a status into `<host>`, and the section would vanish from
+#: the pack and from Pack.missing (past mode require); one called `sections`
+#: would crash build. A row's keys and values are redacted as before.
+SCHEMA_WORDS = frozenset({
+    *PROVIDERS, *STATUSES, HISTORY_SOURCE, *PLANE_SOURCES.values(), *MODES, PACK_SCHEMA, PLANES_SCHEMA,
+    # a section
+    "status", "source", "as_of", "age_hours", "note", "elapsed_ms", "truncated", "rows",
+    # the document (gather) and its planes meta
+    "schema", "generated_at", "nwo", "name", "loop", "step", "item", "window_days", "queries", "planes",
+    "sections", "exit", "problem",
+    # context.json's record
+    "file", "mode", "sha256", "bytes", "chars", "max_chars", "statuses", "missing", "notes", "structure_problem",
+    "total", "document",
+})
 
 # --------------------------------------------------------------------------- #
 # text hygiene
@@ -293,15 +312,16 @@ def redact(text: str, ctx) -> str:
 
 
 def redact_obj(obj, ctx):
-    """`redact` over every string (keys included) of a JSON-shaped value."""
+    """`redact` over every string (keys included) of a JSON-shaped value,
+    but a SCHEMA_WORDS word, which is the document's own and is kept."""
     if isinstance(obj, str):
-        return redact(obj, ctx)
+        return obj if obj in SCHEMA_WORDS else redact(obj, ctx)
     if isinstance(obj, list):
         return [redact_obj(x, ctx) for x in obj]
     if isinstance(obj, tuple):
         return [redact_obj(x, ctx) for x in obj]
     if isinstance(obj, dict):
-        return {(redact(k, ctx) if isinstance(k, str) else k): redact_obj(v, ctx) for k, v in obj.items()}
+        return {(redact_obj(k, ctx) if isinstance(k, str) else k): redact_obj(v, ctx) for k, v in obj.items()}
     return obj
 
 

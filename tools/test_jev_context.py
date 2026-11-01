@@ -645,6 +645,40 @@ def test_a_host_named_like_the_packs_own_words_keeps_its_structure_and_masks_eve
         assert "<host>" in next(line for line in lines if line.startswith("#9 issue")), host
 
 
+def test_a_host_named_like_a_section_key_status_or_field_keeps_the_document_whole():
+    # redact_obj ran over the document's own keys and values too: a host called `Code` or `lake` turned
+    # `index_code` or the `lake_*` keys into `index_<host>`, and the section vanished from the pack and from
+    # Pack.missing, so a lake that was down no longer blocked mode require; `stale` turned a status into
+    # `<host>`; `sections`, `planes` or `status` crashed build.
+    doc = plane_doc(lake_ci=sec("lake", "unavailable", note="the lake could not be read"),
+                    index_code=sec("qdrant", "stale", plane_doc()["sections"]["index_code"]["rows"], as_of=None,
+                                   age=None, note="index behind the checkout"))
+    want = {"history": "empty", **{k: v["status"] for k, v in doc["sections"].items()}}
+    for host in ("Code", "lake", "stale", "rows", "history", "sections", "planes", "status", "require"):
+        with _tmp() as root:
+            pack = C.build(FakeCtx(root, hostname=host, answer=lambda _a: ok_answer(doc)), ITEM, REQ, mode="require")
+            md = pack.path.read_text(encoding="utf-8")
+            record = json.loads(pack.doc_path.read_text(encoding="utf-8"))
+        assert pack.sections == want and pack.missing == ["lake_ci"] and pack.blocked, (host, pack.sections)
+        assert headings(md) == expected_headings({"nwo": NWO, "sections": {k: {"status": v} for k, v in want.items()}})
+        assert "-- tools/dash:10-52" in md, (host, "the code index's rows are in the pack")
+        assert record["statuses"] == want and record["missing"] == ["lake_ci"] and record["mode"] == "require", host
+
+
+def test_every_key_above_the_rows_is_a_schema_word():
+    # SCHEMA_WORDS is what redact_obj keeps: a field the document or its record gains must be added to it
+    with _tmp() as root:
+        pack = C.build(FakeCtx(root), ITEM, REQ)
+        failed = C.build(FakeCtx(root, answer=lambda _a: Run(1, "", "boom")), ITEM, REQ)
+        for p in (pack, failed):
+            record = json.loads(p.doc_path.read_text(encoding="utf-8"))
+            doc = record["document"]
+            keys = {*record, *record["elapsed_ms"], *record["statuses"], *doc, *doc["planes"], *doc["sections"]}
+            keys |= {k for s in doc["sections"].values() for k in s}
+            assert keys <= C.SCHEMA_WORDS, sorted(keys - C.SCHEMA_WORDS)
+    assert {*C.PROVIDERS, *C.STATUSES, *C.MODES, C.HISTORY_SOURCE, *C.PLANE_SOURCES.values()} <= C.SCHEMA_WORDS
+
+
 def test_a_redaction_that_changes_a_fence_line_fails_the_pack_closed():
     # build's own check behind redact_lines: the whole-line redaction redact_lines did before it kept the
     # engine's lines turns "```text" into "```<host>" for a host called `text`; the pack keeps its header only
