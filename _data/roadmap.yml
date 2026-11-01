@@ -1310,7 +1310,7 @@
   issue_url: null
 
 - id: FF-0032
-  title: "Rebuild or redesign and improve the app shell in the Harness Console"
+  title: "Rebuild or redesign and improve the app shell in the Harness Console, distributed across the fleet"
   project: bamr87
   repo_url: https://github.com/bamr87/bamr87
   status: proposed
@@ -1322,11 +1322,15 @@
     fixed: its parts cannot be collapsed, managed or customized.
   proposal: >-
     Rebuild or redesign and improve the app shell in the Harness Console so
-    things can be collapsible, manageable, customizable, etc.
+    things can be collapsible, manageable, customizable, etc., distributed
+    and applied across the fleet for consistent UI/UX, including design.
+    Phased plan: docs/DESIGN-HARMONIZATION.md (with the fleet design
+    consistency amendment).
   acceptance:
     - "Shell sections (navigation, panels) can be collapsed and expanded."
     - "Shell layout can be managed and customized, and the choice persists."
     - "The static Pages build renders the same shell."
+    - "The shell and its design tokens ship as a shared package that fleet front-ends adopt through fan-out PRs, checked by a conformance check (warn, then fail per repo)."
   source: manual
   created: 2026-11-01
   issue_url: null
