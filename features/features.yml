@@ -956,3 +956,26 @@ features:
     - tools/test_governance_lint.py
     prd:
     - FR53
+  - id: HUB-057
+    title: Centrally managed loop kill switches
+    description: 'One switches: map in _data/fleet.yml (global, group, loop and repo levels with state,
+      reason, set_by and expiry) is the source of truth for every loop''s kill switch; a dry-run-by-default
+      op projects it to one repo''s or loop''s *_ENABLED variables, a console Loops page and MCP pause/resume
+      tools act on it, a workflow-atlas rule fails any scheduled or AI workflow without a switch, every
+      flip is audited, and a drift check compares fleet.yml to live variables. Extends #511, reuses #512
+      (bamr87/bamr87#526).'
+    implemented: false
+    status: planned
+    surface: infra
+    link: _data/fleet.yml
+    docs: docs/AI-INTEGRATION.md
+    tags:
+    - loops
+    - kill-switch
+    - console
+    - governance
+    date: 2026-10-31
+    tests:
+    - tools/test_loop_switches.py
+    prd:
+    - FR54
