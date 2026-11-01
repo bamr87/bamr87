@@ -1,0 +1,402 @@
+{
+  "schema": "patterns.schema.json",
+  "book": "Agentic Design Patterns (Antonio Gulli)",
+  "generated_from": "front matter of patterns/*.md",
+  "patterns": [
+    {
+      "id": "ADP-00",
+      "chapter": 0,
+      "title": "Introduction: what makes a system an agent, and the fleet's agent levels",
+      "book_pages": "Intro: 'What makes an AI system an Agent?'",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Content & Comms",
+      "path": "docs/agentic-patterns/patterns/00-introduction.md",
+      "linked_issues": [
+        "bamr87/bamr87#480",
+        "bamr87/bamr87#492",
+        "bamr87/bamr87#495",
+        "bamr87/bamr87#530",
+        "bamr87/bamr87#535",
+        "bamr87/bamr87#536"
+      ]
+    },
+    {
+      "id": "ADP-01",
+      "chapter": 1,
+      "title": "Prompt Chaining",
+      "book_pages": "Ch. 1 (12 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Content & Comms",
+      "path": "docs/agentic-patterns/patterns/01-prompt-chaining.md",
+      "linked_issues": [
+        "bamr87/bamr87#348",
+        "bamr87/bamr87#534"
+      ]
+    },
+    {
+      "id": "ADP-02",
+      "chapter": 2,
+      "title": "Routing",
+      "book_pages": "Ch. 2 (13 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/law-ai"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Grok Bot",
+      "path": "docs/agentic-patterns/patterns/02-routing.md",
+      "linked_issues": [
+        "bamr87/law-ai#204"
+      ]
+    },
+    {
+      "id": "ADP-03",
+      "chapter": 3,
+      "title": "Parallelization",
+      "book_pages": "50-64",
+      "status": "proven",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Tools",
+      "path": "docs/agentic-patterns/patterns/03-parallelization.md",
+      "linked_issues": []
+    },
+    {
+      "id": "ADP-04",
+      "chapter": 4,
+      "title": "Reflection",
+      "book_pages": "Ch. 4 (13 pp.)",
+      "status": "proven",
+      "evidence_repos": [
+        "bamr87/law-ai"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Grok Bot",
+      "path": "docs/agentic-patterns/patterns/04-reflection.md",
+      "linked_issues": [
+        "bamr87/law-ai#205"
+      ]
+    },
+    {
+      "id": "ADP-05",
+      "chapter": 5,
+      "title": "Tool Use (Function Calling)",
+      "book_pages": "79-99",
+      "status": "proven",
+      "evidence_repos": [
+        "bamr87/bashos",
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Tools",
+      "path": "docs/agentic-patterns/patterns/05-tool-use.md",
+      "linked_issues": []
+    },
+    {
+      "id": "ADP-06",
+      "chapter": 6,
+      "title": "Planning",
+      "book_pages": "100-112 (PDF pages)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Platform Architect",
+      "path": "docs/agentic-patterns/patterns/06-planning.md",
+      "linked_issues": [
+        "bamr87/bamr87#486",
+        "bamr87/bamr87#523",
+        "bamr87/bamr87#525"
+      ]
+    },
+    {
+      "id": "ADP-07",
+      "chapter": 7,
+      "title": "Multi-Agent Collaboration",
+      "book_pages": "113-131 (PDF pages)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Platform Architect",
+      "path": "docs/agentic-patterns/patterns/07-multi-agent-collaboration.md",
+      "linked_issues": [
+        "bamr87/bamr87#492",
+        "bamr87/bamr87#495",
+        "bamr87/bamr87#530"
+      ]
+    },
+    {
+      "id": "ADP-08",
+      "chapter": 8,
+      "title": "Memory Management",
+      "book_pages": "Ch. 8 (21 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87",
+        "bamr87/README"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/08-memory-management.md",
+      "linked_issues": [
+        "bamr87/README#46",
+        "bamr87/bamr87#546"
+      ]
+    },
+    {
+      "id": "ADP-09",
+      "chapter": 9,
+      "title": "Learning and Adaptation",
+      "book_pages": "Ch. 9 (12 pp.), book.txt L5971-6360",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/09-learning-and-adaptation.md",
+      "linked_issues": [
+        "bamr87/bamr87#530",
+        "bamr87/bamr87#535",
+        "bamr87/bamr87#539"
+      ]
+    },
+    {
+      "id": "ADP-10",
+      "chapter": 10,
+      "title": "Model Context Protocol (MCP)",
+      "book_pages": "167-182",
+      "status": "proven",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Tools",
+      "path": "docs/agentic-patterns/patterns/10-model-context-protocol.md",
+      "linked_issues": [
+        "bamr87/bamr87#541"
+      ]
+    },
+    {
+      "id": "ADP-11",
+      "chapter": 11,
+      "title": "Goal Setting and Monitoring",
+      "book_pages": "Ch. 11 (12 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/11-goal-setting-and-monitoring.md",
+      "linked_issues": [
+        "bamr87/bamr87#492",
+        "bamr87/bamr87#523",
+        "bamr87/bamr87#525",
+        "bamr87/bamr87#537"
+      ]
+    },
+    {
+      "id": "ADP-12",
+      "chapter": 12,
+      "title": "Exception Handling and Recovery",
+      "book_pages": "Ch. 12 (8 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/12-exception-handling-and-recovery.md",
+      "linked_issues": [
+        "bamr87/bamr87#238",
+        "bamr87/bamr87#522",
+        "bamr87/bamr87#532"
+      ]
+    },
+    {
+      "id": "ADP-13",
+      "chapter": 13,
+      "title": "Human-in-the-Loop",
+      "book_pages": "204-212 (PDF pages)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Platform Architect",
+      "path": "docs/agentic-patterns/patterns/13-human-in-the-loop.md",
+      "linked_issues": [
+        "bamr87/bamr87#492",
+        "bamr87/bamr87#529"
+      ]
+    },
+    {
+      "id": "ADP-14",
+      "chapter": 14,
+      "title": "Knowledge Retrieval (RAG)",
+      "book_pages": "Ch. 14 (17 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/README",
+        "bamr87/ragio-ai",
+        "bamr87/it-journey",
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/14-knowledge-retrieval-rag.md",
+      "linked_issues": [
+        "bamr87/README#46",
+        "bamr87/README#47",
+        "bamr87/bamr87#495",
+        "bamr87/bamr87#547",
+        "bamr87/ragio-ai#3"
+      ]
+    },
+    {
+      "id": "ADP-15",
+      "chapter": 15,
+      "title": "Inter-Agent Communication (A2A)",
+      "book_pages": "231-245",
+      "status": "gap",
+      "evidence_repos": [
+        "bamr87/bamr87",
+        "bamr87/outbox"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Tools",
+      "path": "docs/agentic-patterns/patterns/15-inter-agent-communication.md",
+      "linked_issues": [
+        "bamr87/bamr87#495",
+        "bamr87/bamr87#536",
+        "bamr87/bamr87#542",
+        "bamr87/bamr87#543",
+        "bamr87/bashos#67"
+      ]
+    },
+    {
+      "id": "ADP-16",
+      "chapter": 16,
+      "title": "Resource-Aware Optimization",
+      "book_pages": "Ch. 16 (15 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/16-resource-aware-optimization.md",
+      "linked_issues": [
+        "bamr87/bamr87#502",
+        "bamr87/bamr87#530",
+        "bamr87/bamr87#533"
+      ]
+    },
+    {
+      "id": "ADP-17",
+      "chapter": 17,
+      "title": "Reasoning Techniques",
+      "book_pages": "Ch. 17 (~24 pp.), book.txt L10098-11030",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/17-reasoning-techniques.md",
+      "linked_issues": [
+        "bamr87/bamr87#492",
+        "bamr87/bamr87#530",
+        "bamr87/bamr87#540",
+        "bamr87/bamr87#544"
+      ]
+    },
+    {
+      "id": "ADP-18",
+      "chapter": 18,
+      "title": "Guardrails / Safety Patterns",
+      "book_pages": "286-305 (PDF pages)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "Platform Architect",
+      "path": "docs/agentic-patterns/patterns/18-guardrails-safety.md",
+      "linked_issues": [
+        "bamr87/bamr87#526",
+        "bamr87/bamr87#528",
+        "bamr87/bamr87#530",
+        "bamr87/bamr87#531"
+      ]
+    },
+    {
+      "id": "ADP-19",
+      "chapter": 19,
+      "title": "Evaluation and Monitoring",
+      "book_pages": "Ch. 19 (18 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/19-evaluation-and-monitoring.md",
+      "linked_issues": [
+        "bamr87/bamr87#446",
+        "bamr87/bamr87#451",
+        "bamr87/bamr87#492",
+        "bamr87/bamr87#495",
+        "bamr87/bamr87#522",
+        "bamr87/bamr87#530"
+      ]
+    },
+    {
+      "id": "ADP-20",
+      "chapter": 20,
+      "title": "Prioritization",
+      "book_pages": "Ch. 20 (10 pp.)",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/20-prioritization.md",
+      "linked_issues": [
+        "bamr87/bamr87#538"
+      ]
+    },
+    {
+      "id": "ADP-21",
+      "chapter": 21,
+      "title": "Exploration and Discovery",
+      "book_pages": "Ch. 21 (13 pp.), book.txt L13102-13620",
+      "status": "partial",
+      "evidence_repos": [
+        "bamr87/bamr87"
+      ],
+      "last_verified": "2026-10-31",
+      "owner_bot": "executor (Grok Bot)",
+      "path": "docs/agentic-patterns/patterns/21-exploration-and-discovery.md",
+      "linked_issues": [
+        "bamr87/bamr87#540",
+        "bamr87/bamr87#545"
+      ]
+    }
+  ]
+}
