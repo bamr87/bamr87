@@ -7,7 +7,8 @@ Description: repo-scout's agent step on the JEV loop engine (#486). The two
              and this module maps their JSON, adding the local-only checks:
              tier-0 reuse (same HEAD, same brief), the dedupe block on
              --apply, the privacy filter (no local path or host name reaches a
-             public tracker) and the local-runner artefact flags. It imports
+             public tracker), the local-runner artefact flags and the context
+             pack's code-index queries, read from the brief. It imports
              nothing from dash-gen (ADR 0002) and has no GitHub write path of
              its own: the engine runs the spec-declared publish argv.
 Author: bamr87
@@ -24,6 +25,7 @@ import json
 import re
 
 from ..common import JevError, is_bare_name, is_nwo
+from ..context import MAX_QUERIES, MAX_QUERY_CHARS, ContextRequest
 from . import Adapter, Item, PlanResult, PublishPlan, Tier0, Triage, Verdict
 
 OUTPUT = ".scout/proposals.json"
@@ -39,6 +41,70 @@ FILE_FAILED = "gh issue create failed"
 NO_DEDUPE = "filing without the duplicate check"
 #: scout-file's skip reason for a body --reviewed-bodies withheld (its NOT_REVIEWED)
 NOT_REVIEWED = "not in the reviewed preview"
+#: The brief lines the context pack's code-index queries come from
+#: (dash-gen repo_scout.render_brief and evolution.render_conformance; the
+#: adapter tests hold them to the real planner's brief). Each is read only
+#: inside its own `## ` section, so no line elsewhere in the brief (an issue
+#: title, the goals) can stand in for one.
+BRIEF_SECTION_RX = re.compile(r"## (.+?)\s*")
+REPOSITORY_SECTION = "Repository (from the registry)"
+CONFORMANCE_SECTION = "Conformance gaps (Universal Project Standard)"
+FOCUS_SECTION = "Focus for this run"
+DESCRIPTION_RX = re.compile(r"- \*\*Description:\*\* (.+)")
+CATEGORY_RX = re.compile(r"- \*\*Category:\*\* (.+?) · \*\*Status:\*\* .*? · \*\*Stack:\*\* (.+)")
+GAP_RX = re.compile(r"\s*- `([^`]+)` \(([A-Z]+)\) — (.+?)(?: → `[^`]*`)?\s*")
+NO_DESCRIPTION = "(no description in the registry)"
+NO_FOCUS = "_No operator focus was given"
+BRIEF_MAX_BYTES = 1024 * 1024
+
+
+def _brief_sections(text: str) -> dict[str, list[str]]:
+    """`## heading` → its lines, up to the next heading; the first section of a name wins."""
+    out: dict[str, list[str]] = {}
+    lines: list[str] | None = None
+    for line in text.splitlines():
+        m = BRIEF_SECTION_RX.fullmatch(line)
+        if m:
+            lines = None if m.group(1) in out else out.setdefault(m.group(1), [])
+        elif lines is not None:
+            lines.append(line)
+    return out
+
+
+def _query(text: str) -> str:
+    """One line, whitespace folded, clipped to the planes' query bound."""
+    return " ".join(text.split())[:MAX_QUERY_CHARS].rstrip()
+
+
+def brief_queries(text: str) -> list[str]:
+    """Up to MAX_QUERIES code-index queries from a scout brief, in order: the
+    registry description, the category and stack, then the operator focus —
+    or, with no focus, the first conformance gap the brief lists. Each is one
+    line of at most MAX_QUERY_CHARS; an empty or missing one is dropped. The
+    brief is the engine's own planner file, but its text is still data: it
+    only ever becomes a query string."""
+    sections = _brief_sections(text)
+    repo = sections.get(REPOSITORY_SECTION, [])
+    out: list[str] = []
+    desc = next((m.group(1) for m in map(DESCRIPTION_RX.fullmatch, repo) if m), "").strip()
+    if desc and desc != NO_DESCRIPTION:
+        out.append(_query(desc))
+    cat = next((m for m in map(CATEGORY_RX.fullmatch, repo) if m), None)
+    if cat:
+        category, stack = cat.group(1).strip(), cat.group(2).strip()
+        out.append(_query(f"{category} project in {stack}" if stack and stack != "unknown" else category))
+    focus = " ".join(ln.strip() for ln in sections.get(FOCUS_SECTION, []) if ln.strip())
+    if focus and not focus.startswith(NO_FOCUS):
+        out.append(_query(focus))
+    else:
+        gap = next((m for m in map(GAP_RX.fullmatch, sections.get(CONFORMANCE_SECTION, [])) if m), None)
+        if gap:
+            out.append(_query(f"{gap.group(1)} {gap.group(3)}"))
+    kept = []
+    for q in out:
+        if q and q not in kept:
+            kept.append(q)
+    return kept[:MAX_QUERIES]
 
 
 def _last_json(text: str) -> dict:
@@ -158,6 +224,19 @@ class RepoScout(Adapter):
                  "body_file": f.get("body_file")} for f in out.get("filed") or []]
         return PublishPlan(publishable=bool(rows) and not blockers, blockers=blockers, rows=rows,
                            bodies_dir=ctx.bodies_dir(item, apply=apply), failures=failures)
+
+    def context_request(self, ctx, item: Item) -> ContextRequest:
+        """The repo, its registry name (the lake's and the index's name for it)
+        and `brief_queries` from the item's brief in the plan directory — a
+        regular file of at most BRIEF_MAX_BYTES, or no queries at all."""
+        text = ""
+        b = item.brief
+        try:
+            if b is not None and not b.is_symlink() and b.is_file() and b.stat().st_size <= BRIEF_MAX_BYTES:
+                text = b.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            text = ""
+        return ContextRequest(item.nwo, item.name, tuple(brief_queries(text)))
 
     def recheck(self, ctx, item: Item) -> str | None:
         plan = ctx.planner(target=item.name, no_files=True)   # live: issues enabled + backpressure
