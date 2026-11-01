@@ -116,7 +116,8 @@ jobs:
 
       - name: Install Claude Code
         if: ${{ steps.claude-auth.outputs.method != 'none' }}
-        run: npm install -g @anthropic-ai/claude-code
+        # @latest: a bare name resolves to an old release on Node < 22 (engines).
+        run: npm install -g @anthropic-ai/claude-code@latest
 
       - name: Scan the fleet
         id: scan

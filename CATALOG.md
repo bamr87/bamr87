@@ -44,6 +44,7 @@ Versioned file sets copied into repos by [`tools/fanout.sh`](tools/fanout.sh) an
 | Kit | Version | Updated | Seeded by | Files |
 | --- | --- | --- | --- | --- |
 | [`agent-context/`](templates/agent-context/) | 0.5.0 | 2026-09-30 | .github/workflows/fanout.yml (kit standardize or harness; artifacts agent-context, claude… | `CLAUDE.template.md`, `agent-auditor.template.md`, `claude.yml`, `quarantine.template.md`, `settings.template.json` |
+| [`ai-ready/`](templates/ai-ready/) | 0.0.0 | 2026-10-30 | not yet; fan-out follows ratification of constitution § 16 (amendment ai-ready-foundation) | `README.md` |
 | [`ai-runner/`](templates/ai-runner/) | 0.2.0 | 2026-09-30 | consumed BY REFERENCE (uses: bamr87/bamr87/.github/actions/claude-run@main, or the reusab… | `README.md`, `ai-lane.template.yml`, `tests/contract.sh` |
 | [`community/`](templates/community/) | 0.1.0 | 2026-10-03 | Distribution is by INHERITANCE first: the PR template, the issue forms, CONTRIBUTING.md,… | `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/documentation.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/… |
 | [`conformance/`](templates/conformance/) | 0.1.0 | 2026-09-01 | tools/fanout.sh --kit standardize --artifacts conformance (fanout.yml, kit standardize) | `README.md`, `conformance.yml` |
@@ -347,7 +348,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | --- | --- |
 | [`AI-INTEGRATION.md`](docs/AI-INTEGRATION.md) | The AI layer — every surface where Claude runs, the Claude auth order and secrets matrix, the loops, and how all of it propagates to the fleet. |
 | [`ARCH-RESEARCH-HARNESS.md`](docs/ARCH-RESEARCH-HARNESS.md) | A research-and-development harness that studies the high-level architecture and the deeper structural challenges of every codebase in the bamr87 fleet, grounds each judg… |
-| [`BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | The backlog fan-out routine (HUB-027, PRD FR22 and FR23) turns the hub's pending backlog into tracking PRs in the fleet repos each item applies to. |
+| [`BACKLOG-FANOUT.md`](docs/BACKLOG-FANOUT.md) | Turns the hub's pending backlog into tracking PRs in each fleet repo an item applies to — dry run by default, PR-only and additive. |
 | [`COCKPIT.md`](docs/COCKPIT.md) | Decision record (2026-09-18): GitFactory (gitorio) as the one front door for designing, running and refining harnesses, with this hub as its runtime. |
 | [`CONSOLE-PAGES.md`](docs/CONSOLE-PAGES.md) | The public site is the Harness Console built static: the API snapshot it reads, connecting GitHub or a running console from the page, and what is never published. |
 | [`CONSOLIDATION.md`](docs/CONSOLIDATION.md) | The 2026-10-19 repository consolidation: which repositories merged into which, the zer0-CMS recipe, the hub's add and retire steps, and the decisions still open. |
@@ -376,7 +377,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`SCOUT.md`](docs/SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |
 | [`SMOKE.md`](docs/SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
-| [`SPEC-DRIVEN.md`](docs/SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a persistent, machine-checked record: `BACKLOG.md` → `/specify` → `/clarify` → `/plan` → `/tasks` → `/imp… |
+| [`SPEC-DRIVEN.md`](docs/SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a machine-checked spec record, using machinery the hub owns. |
 | [`STANDARDS.md`](docs/STANDARDS.md) | The tiered standardization baseline — which files each kind of repository must have — and the way to the Universal Project Standard in `specs/`. |
 | [`SUBMODULES.md`](docs/SUBMODULES.md) | The submodule workflow, documented once: where the project list lives, how a change moves (commit in the submodule first, then record its pointer here), and what the aut… |
 | [`TERMINAL-FRAMEWORK.md`](docs/TERMINAL-FRAMEWORK.md) | The plan to consolidate the fleet's CLIs and TUIs onto bashOS: the inventory, `keys v1`, the per-repo plan and the phases. |

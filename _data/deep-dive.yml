@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-10-30T12:29:57Z'
+refreshed_at: '2026-10-31T12:22:48Z'
 repos:
 - day: 1
   repo: it-journey
@@ -27,7 +27,7 @@ repos:
   - https://github.com/bamr87/it-journey/issues/867
   prs:
   - https://github.com/bamr87/it-journey/pull/875
-  open_issues: 8
+  open_issues: 6
   open_prs: 1
   findings: 'Early manual run (2026-10-29, scheduled 2026-10-30). UPS conformance 45/58, 8 MUST failing: page_feedback off (FB-01/FE-13), issue templates lack type labels (WORK-09), fleet actions @main (WORK-10, needs-human), tracked site-quality package-lock (QA-40/REPO-07), vendored unwrap-prose drift + docs summary (fixed in PR #875). Bugs: make test checks removed pages/_posts; /feed.xml has 0 entries. Catalog lists retired posts/docs/notebooks as tbd. Planned FR-ITJ-014 quest feed, FR-ITJ-015 page feedback.'
   score: 72.0
@@ -39,18 +39,21 @@ repos:
   last_processed: '2026-10-31'
   cycle: 1
   issues:
-  - https://github.com/bamr87/bamr87/issues/500
-  - https://github.com/bamr87/bamr87/issues/501
-  - https://github.com/bamr87/bamr87/issues/502
-  - https://github.com/bamr87/bamr87/issues/503
-  - https://github.com/bamr87/bamr87/issues/504
+  - https://github.com/bamr87/bamr87/issues/507
+  - https://github.com/bamr87/bamr87/issues/506
   - https://github.com/bamr87/bamr87/issues/505
+  - https://github.com/bamr87/bamr87/issues/504
+  - https://github.com/bamr87/bamr87/issues/503
+  - https://github.com/bamr87/bamr87/issues/502
+  - https://github.com/bamr87/bamr87/issues/501
+  - https://github.com/bamr87/bamr87/issues/500
   prs:
   - https://github.com/bamr87/bamr87/pull/431
-  - https://github.com/bamr87/bamr87/pull/508
+  - https://github.com/bamr87/bamr87/pull/510
   - https://github.com/bamr87/bamr87/pull/509
-  open_issues: 0
-  open_prs: 1
+  - https://github.com/bamr87/bamr87/pull/508
+  open_issues: 8
+  open_prs: 3
   findings: 'Cycle 1 day 2. Previously known items now FIXED: python-tests.yml runs every tools/console/dash-gen/tui/templates test file and fails ones with no __main__; v1/v2 tags and releases exist. Open: 7 dead amendments/proposed/* links in PRD.md + features.yml, and FR45 cites HUB-049 (#500, held for Amr). Merged amendments 0002-0011 are still marked proposed, and constitution § 13 comes before § 12 with stale numbered-at-merge notes (#501). PRD NFR11 says $75 but fleet.yml says $200 (#502). docs_index --lint is red on main and not gated (#503, fix PR #508). Console DataTable sort headers and rows are not keyboard or screen-reader operable, and there is no reduced-motion handling or skip link (#504). Planned governance-records-lint feature (#505, PR #509). HUB-039 has no PRD requirement (warning).'
   score: 78.0
   next_focus: 'Amr: go-ahead on #500 and the status flips in #501; budget decision in #502. Verify #508/#509 merged and HUB-050/FR47 numbered; gate docs_index --lint (#503); a11y pass on the console (#504) with § 15 evidence; land #494/#496 so § 15/§ 16 numbering is final.'
