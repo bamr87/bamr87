@@ -114,7 +114,7 @@ python3 -m tools.jev conflicts budget  --scheduled
 
 | Tier | Cost | Entry condition | Resolution |
 | --- | --- | --- | --- |
-| **0** | $0, no model | Every conflicted file is generated, a fragment, union-safe, or an id collision | take ours + re-run the generators · union both sides · `number.py apply` to renumber |
+| **0** | $0, no model | Every conflicted file is generated, a fragment, union-safe, a pure append to an `append_paths` list, or an id collision | take ours + re-run the generators · main's copy of a main-only or compiled file · union both sides · append main's entries then the branch's (only when both sides purely appended and the YAML still parses with unique keys and ids) — never `number apply` on the branch: ids are assigned on main (amendment 0002) |
 | **1** | ≤ $0.25/attempt · Haiku 4.5 · 8 turns | ≤ 3 files **and** ≤ 40 conflicted lines, and nothing under `.github/workflows/`, no auth/secret file, no migration, no lockfile | capped headless `claude -p` on the conflicted tree |
 | **2** | ≤ $1.50/attempt · Sonnet · 24 turns | ≤ 15 files **or** ≤ 400 conflicted lines, or tier 1 failed | the same, stronger model |
 | **3** | $0 | anything larger; a binary or a lockfile; a semantic conflict in a workflow or a secret; a squash-only repository; two failed attempts; the monthly cap reached | label `jev:needs-human` and comment the triage report |

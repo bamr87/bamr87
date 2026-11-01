@@ -535,6 +535,148 @@ def test_tier0_keeps_both_sides_of_a_union_file_rather_than_dropping_ours():
     assert good, problems
 
 
+ROADMAP = "_data/roadmap.yml"
+
+
+def entry(fid: str, title: str) -> str:
+    return f"\n- id: {fid}\n  title: \"{title}\"\n  status: proposed\n"
+
+
+def roadmap_conflict(base: str, ours: str, theirs: str, extra: dict | None = None) -> Path:
+    """A real repository mid-merge of main INTO a feature branch, with the
+    roadmap conflicted: `ours` is the branch's file, `theirs` main's."""
+    d = Path(tempfile.mkdtemp()) / "repo"
+    (d / "_data").mkdir(parents=True)
+    git(["init", "-q", "-b", "main"], cwd=d)
+    git(["config", "user.name", "t"], cwd=d)
+    git(["config", "user.email", "t@example.com"], cwd=d)
+    for rel, text in (extra or {}).items():
+        (d / rel).parent.mkdir(parents=True, exist_ok=True)
+        (d / rel).write_text(text)
+    (d / ROADMAP).write_text(base)
+    git(["add", "-A"], cwd=d)
+    git(["commit", "-qm", "base"], cwd=d)
+    git(["checkout", "-qb", "feature"], cwd=d)
+    (d / ROADMAP).write_text(ours)
+    git(["commit", "-qam", "ours"], cwd=d)
+    git(["checkout", "-q", "main"], cwd=d)
+    (d / ROADMAP).write_text(theirs)
+    git(["commit", "-qam", "theirs"], cwd=d)
+    git(["checkout", "-q", "feature"], cwd=d)
+    git(["merge", "--no-ff", "main", "-m", "merge"], cwd=d)
+    assert git(["diff", "--name-only", "--diff-filter=U"], cwd=d).out.strip() == ROADMAP
+    return d
+
+
+BASE = entry("FF-0001", "one")
+
+
+def test_an_append_path_is_its_own_kind_and_the_dangerous_kinds_still_win():
+    assert cls.kind_of(ROADMAP, append=[ROADMAP]) == cls.APPEND
+    assert cls.kind_of(ROADMAP) == cls.SOURCE
+    assert cls.kind_of(".github/workflows/x.yml", append=[".github/workflows/*"]) == cls.WORKFLOW
+    assert cls.APPEND in cls.DETERMINISTIC_KINDS
+
+
+def test_two_branches_appending_to_the_roadmap_resolve_main_first_then_the_branch():
+    # the conflict #555 and #563 (and #553) kept having: each appends one entry at the end
+    d = roadmap_conflict(BASE, BASE + entry("FF-0003", "branch"), BASE + entry("FF-0002", "main"))
+    assert cf.append_kind(d, ROADMAP) == cls.APPEND
+    ws = cf.Workspace(path=d, pr=pr(), merge_failed=True,
+                      conflicted=[cls.ConflictFile(ROADMAP, 1, 8, cls.APPEND)])
+    done, detail = cf.resolve_tier0(ws)
+    assert done and "append (main's entries, then this branch's)" in detail, detail
+    import yaml
+    data = yaml.safe_load((d / ROADMAP).read_text())
+    assert [e["id"] for e in data] == ["FF-0001", "FF-0002", "FF-0003"], data
+    good, problems = cf.validate(d)
+    assert good, problems
+
+
+def test_an_edit_to_an_existing_entry_is_not_an_append_and_escalates():
+    # union would keep both titles under one key and YAML would silently keep the last
+    edited = lambda title: entry("FF-0001", title)  # noqa: E731
+    d = roadmap_conflict(BASE, edited("branch's title"), edited("main's title"))
+    text, why = cf.append_resolution(d, ROADMAP)
+    assert text is None and "changes or deletes" in why, why
+    assert cf.append_kind(d, ROADMAP) == cls.SOURCE
+
+
+def test_two_branches_claiming_one_id_escalate_to_a_person():
+    # what #555 and #563 did with FF-0033: a numbering question, not a merge
+    d = roadmap_conflict(BASE, BASE + entry("FF-0002", "branch"), BASE + entry("FF-0002", "main"))
+    text, why = cf.append_resolution(d, ROADMAP)
+    assert text is None and "both sides claim id FF-0002" in why, why
+    assert cf.append_kind(d, ROADMAP) == cls.SOURCE
+
+
+def test_an_append_that_breaks_the_yaml_escalates():
+    d = roadmap_conflict(BASE, BASE + "\n- id: FF-0003\n  title: [unclosed\n",
+                         BASE + entry("FF-0002", "main"))
+    text, why = cf.append_resolution(d, ROADMAP)
+    assert text is None and "not valid YAML" in why, why
+
+
+def test_a_duplicate_key_in_the_result_is_refused_rather_than_silently_kept():
+    import yaml
+    try:
+        yaml.load("- id: a\n  title: x\n  title: y\n", Loader=cf._UniqueKeyLoader)
+    except yaml.YAMLError as exc:
+        assert "duplicate key" in str(exc)
+    else:
+        raise AssertionError("a duplicate key was accepted")
+
+
+def test_tier0_never_numbers_on_a_pull_request_branch():
+    # ids are assigned on main (amendment 0002); `number apply` on the branch
+    # would consume its fragments and pick numbers another branch may pick too
+    d = conflicted_repo("file.txt merge=jev-regen\n")
+    (d / "tools" / "jev").mkdir(parents=True)
+    (d / "tools" / "jev" / "number.py").write_text("# stand-in\n")
+    calls: list[list[str]] = []
+    real = cf.run
+    cf.run = lambda argv, **kw: calls.append(list(argv))  # noqa: E731
+    try:
+        ws = cf.Workspace(path=d, pr=pr(), merge_failed=True,
+                          conflicted=[cls.ConflictFile("file.txt", 1, 2, cls.GENERATED)])
+        done, detail = cf.resolve_tier0(ws)
+    finally:
+        cf.run = real
+    assert done, detail
+    assert not any("number" in a and "apply" in a for a in calls), calls
+
+
+def test_a_compiled_catalog_takes_mains_copy_only_where_the_repo_compiles_it():
+    # features.yml compiled from features.d is never edited by a pull request
+    # (constitution § 5): keeping the branch's copy would drop what main compiled
+    for compiled in (True, False):
+        d = Path(tempfile.mkdtemp()) / "repo"
+        (d / "features").mkdir(parents=True)
+        git(["init", "-q", "-b", "main"], cwd=d)
+        git(["config", "user.name", "t"], cwd=d)
+        git(["config", "user.email", "t@example.com"], cwd=d)
+        if compiled:
+            (d / "features" / "features.d").mkdir()
+            (d / "features" / "features.d" / "README.md").write_text("fragments\n")
+        (d / "features" / "features.yml").write_text("base\n")
+        git(["add", "-A"], cwd=d)
+        git(["commit", "-qm", "base"], cwd=d)
+        git(["checkout", "-qb", "feature"], cwd=d)
+        (d / "features" / "features.yml").write_text("branch\n")
+        git(["commit", "-qam", "ours"], cwd=d)
+        git(["checkout", "-q", "main"], cwd=d)
+        (d / "features" / "features.yml").write_text("main compiled HUB-064\n")
+        git(["commit", "-qam", "theirs"], cwd=d)
+        git(["checkout", "-q", "feature"], cwd=d)
+        git(["merge", "--no-ff", "main", "-m", "merge"], cwd=d)
+        ws = cf.Workspace(path=d, pr=pr(), merge_failed=True,
+                          conflicted=[cls.ConflictFile("features/features.yml", 1, 2, cls.GENERATED)])
+        done, detail = cf.resolve_tier0(ws)
+        assert done, detail
+        got = (d / "features" / "features.yml").read_text()
+        assert got == ("main compiled HUB-064\n" if compiled else "branch\n"), (compiled, got, detail)
+
+
 def test_an_id_collision_is_recognised_on_the_compiled_files_and_the_fragments():
     assert cf.id_collision([cls.ConflictFile("features/features.d/x.yml", 1, 2, cls.FRAGMENT)])
     assert cf.id_collision([cls.ConflictFile("features/features.yml", 1, 2, cls.GENERATED)])

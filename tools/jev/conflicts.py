@@ -36,6 +36,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 from . import classify as cls
 from .common import JevConfig, JevError, finite_usd, git, gh, gh_json, hub_repo, load_config, load_fleet, \
     registry_repos, run
@@ -258,7 +260,9 @@ def trial_merge(cfg: JevConfig, pr: PullRequest, workdir: Path | None = None) ->
         hunks, lines = cls.count_conflict_hunks(text)
         kind = declared.get(rel) or cls.kind_of(
             rel, generated=cfg.generated_paths, fragments=cfg.fragment_paths,
-            union=cfg.union_paths, binary=binary)
+            union=cfg.union_paths, append=cfg.append_paths, binary=binary)
+        if kind == cls.APPEND:
+            kind = append_kind(path, rel)
         ws.conflicted.append(cls.ConflictFile(path=rel, hunks=hunks, lines=lines, kind=kind))
     ws.merge_failed = True
     return ws
@@ -307,6 +311,97 @@ def union_resolve(repo_path: Path, rel: str) -> bool:
     return True
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """safe_load that refuses a mapping with a duplicate key: PyYAML would keep
+    the last one silently, which is exactly how a bad merge of two edits to one
+    entry would hide."""
+
+
+def _unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode, deep: bool = False) -> dict:
+    seen: set = set()
+    for key_node, _value in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(None, None, f"duplicate key {key!r}", key_node.start_mark)
+        seen.add(key)
+    return loader.construct_mapping(node, deep=deep)
+
+
+_UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping)
+
+_DIFF3_BLOCK = re.compile(r"^<<<<<<< [^\n]*\n(?P<ours>.*?)^\|\|\|\|\|\|\| [^\n]*\n(?P<base>.*?)"
+                          r"^=======\n(?P<theirs>.*?)^>>>>>>> [^\n]*\n", re.S | re.M)
+
+
+def append_resolution(repo_path: Path, rel: str) -> tuple[str | None, str]:
+    """The resolved text of an append-only list, or None and why not.
+
+    Read from the three merge stages, so the working file (and its markers,
+    which tier 1 and 2 would need) is left as it is. Every conflict must be a
+    pure insertion on both sides: its base part empty. Then the base branch's
+    entries go first and this branch's after them, which is the order the
+    merges would have made one after the other. A YAML file must still parse,
+    with no duplicate key, and its list entries must not repeat an `id`
+    (two branches claiming one id is a numbering question for a person).
+    """
+    stages = {}
+    for stage, name in ((1, "base"), (2, "ours"), (3, "theirs")):
+        blob = git(["show", f":{stage}:{rel}"], cwd=repo_path)
+        if not blob.ok:
+            return None, f"stage {name} is missing (an add/add or delete conflict)"
+        stages[name] = blob.out
+    tmp = Path(tempfile.mkdtemp(prefix="jev-append-"))
+    try:
+        files = {}
+        for name, text in stages.items():
+            files[name] = tmp / name
+            files[name].write_text(text, encoding="utf-8")
+        merged = git(["merge-file", "--diff3", "-p", str(files["ours"]), str(files["base"]),
+                      str(files["theirs"])], cwd=repo_path)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    text = merged.out
+    blocks = list(_DIFF3_BLOCK.finditer(text))
+    if not blocks:
+        return None, "no conflict block to resolve"
+    if any(b.group("base") for b in blocks):
+        return None, "a conflict changes or deletes lines, not only adds them"
+    out, at = [], 0
+    for b in blocks:
+        out += [text[at:b.start()], b.group("theirs"), b.group("ours")]
+        at = b.end()
+    out.append(text[at:])
+    resolved = "".join(out)
+    if re.search(r"^(<<<<<<<|=======|>>>>>>>|\|\|\|\|\|\|\|)( |$)", resolved, re.M):
+        return None, "conflict markers remain"
+    if rel.endswith((".yml", ".yaml")):
+        try:
+            data = yaml.load(resolved, Loader=_UniqueKeyLoader)
+        except yaml.YAMLError as exc:
+            return None, f"the result is not valid YAML: {str(exc).splitlines()[0]}"
+        entries = data if isinstance(data, list) else []
+        ids = [e.get("id") for e in entries if isinstance(e, dict) and e.get("id") is not None]
+        dup = sorted({i for i in ids if ids.count(i) > 1}, key=str)
+        if dup:
+            return None, f"both sides claim id {dup[0]}"
+    return resolved, "pure appends on both sides"
+
+
+def append_kind(repo_path: Path, rel: str) -> str:
+    """APPEND when tier 0 can finish the file, SOURCE when it must escalate."""
+    text, _why = append_resolution(repo_path, rel)
+    return cls.APPEND if text is not None else cls.SOURCE
+
+
+#: Compiled at merge from fragments, never edited by a pull request
+#: (constitution § 5): main's copy is the answer, as for a main-only file. Only
+#: where the repo compiles them — a release-please CHANGELOG.md is not this.
+COMPILED_FROM_FRAGMENTS: dict[str, str] = {
+    "features/features.yml": "features/features.d",
+    "CHANGELOG.md": "changelog.d",
+}
+
+
 #: Generator -> the file it writes, for the main-only rule: a file marked
 #: `jev-main-only` in .gitattributes is written on main by the post-merge job
 #: and never on a pull request branch, so JEV neither regenerates nor
@@ -326,7 +421,7 @@ def _main_only_generators(repo_path: Path) -> set[str]:
 
 
 def resolve_tier0(ws: Workspace, repo_path: Path | None = None) -> tuple[bool, str]:
-    """Deterministic resolution: ours + regenerate, union, or renumber.
+    """Deterministic resolution: ours + regenerate, main's copy, union or append.
 
     "Ours" is the head branch, because the merge direction is base-INTO-head:
     for a generated file whatever the generator produces next is the real
@@ -338,6 +433,8 @@ def resolve_tier0(ws: Workspace, repo_path: Path | None = None) -> tuple[bool, s
     path = repo_path or ws.path
     notes: list[str] = []
     main_only = set(generated.main_only_files(path, [f.path for f in ws.conflicted]))
+    main_only |= {f.path for f in ws.conflicted
+                  if f.path in COMPILED_FROM_FRAGMENTS and (path / COMPILED_FROM_FRAGMENTS[f.path]).is_dir()}
     for f in ws.conflicted:
         if f.path in main_only:
             # Main owns it: take the base's copy ("theirs" when base is merged
@@ -346,6 +443,12 @@ def resolve_tier0(ws: Workspace, repo_path: Path | None = None) -> tuple[bool, s
             if not res.ok:
                 return False, f"theirs checkout failed for {f.path}"
             notes.append(f"{f.path}: main's copy (main-only)")
+        elif f.kind == cls.APPEND:
+            text, why = append_resolution(path, f.path)
+            if text is None:
+                return False, f"append merge refused for {f.path}: {why}"
+            (path / f.path).write_text(text, encoding="utf-8")
+            notes.append(f"{f.path}: append (main's entries, then this branch's)")
         elif f.kind == cls.UNION:
             if not union_resolve(path, f.path):
                 return False, f"union merge failed for {f.path}"
@@ -361,8 +464,9 @@ def resolve_tier0(ws: Workspace, repo_path: Path | None = None) -> tuple[bool, s
     for marker, argv in REGENERATORS:
         if (path / marker).is_file() and marker not in skip:
             run(argv, cwd=path, timeout=600)
-    if (path / "tools" / "jev" / "number.py").is_file():
-        run(["python3", "-m", "tools.jev", "number", "apply"], cwd=path, timeout=600)
+    # No `number apply` here: ids are assigned on main by the post-merge job,
+    # never on a pull request branch (amendment 0002). Compiling on the branch
+    # would consume its fragments and pick numbers another branch may also pick.
     git(["add", "-A"], cwd=path)
     return True, "; ".join(notes)
 

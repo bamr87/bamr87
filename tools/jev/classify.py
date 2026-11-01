@@ -33,6 +33,12 @@ from dataclasses import dataclass, field
 #              content one.
 #   union      an append-only list where order carries no meaning, so both
 #              sides are the answer.
+#   append     an ordered list of entries (a YAML list) that branches only ever
+#              add to, at its end: resolvable ONLY when every conflict is two
+#              pure insertions at the same place, nothing deleted or changed on
+#              either side. Tier 0 checks that against the merge stages, and
+#              that the result still parses with unique ids; anything else is
+#              treated as source.
 #   lockfile   the fleet commits none (docs/DEPENDENCIES.md); one in a conflict
 #              is a policy problem a human owns.
 #   workflow   a semantic conflict here changes what runs with which token.
@@ -45,6 +51,7 @@ from dataclasses import dataclass, field
 GENERATED = "generated"
 FRAGMENT = "fragment"
 UNION = "union"
+APPEND = "append"
 LOCKFILE = "lockfile"
 WORKFLOW = "workflow"
 SECRET = "secret"
@@ -53,7 +60,7 @@ BINARY = "binary"
 SOURCE = "source"
 
 #: Kinds tier 0 can finish on its own.
-DETERMINISTIC_KINDS = frozenset({GENERATED, FRAGMENT, UNION})
+DETERMINISTIC_KINDS = frozenset({GENERATED, FRAGMENT, UNION, APPEND})
 #: Kinds no model is allowed to touch, whatever the size of the diff.
 HUMAN_ONLY_KINDS = frozenset({LOCKFILE, BINARY})
 #: Kinds a cheap model is not allowed to touch (tier 1's exclusion list).
@@ -92,7 +99,7 @@ def _matches(path: str, globs) -> bool:
 
 
 def kind_of(path: str, *, generated: tuple | list = (), fragments: tuple | list = (),
-            union: tuple | list = (), binary: bool = False) -> str:
+            union: tuple | list = (), append: tuple | list = (), binary: bool = False) -> str:
     """The one kind a conflicted path has, most-restrictive rule first.
 
     Order matters: a lockfile under `.github/workflows/` is still a lockfile,
@@ -115,6 +122,8 @@ def kind_of(path: str, *, generated: tuple | list = (), fragments: tuple | list 
         return FRAGMENT
     if _matches(path, tuple(union)):
         return UNION
+    if _matches(path, tuple(append)):
+        return APPEND
     if _matches(path, tuple(generated) + DEFAULT_GENERATED_GLOBS):
         return GENERATED
     return SOURCE
