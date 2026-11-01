@@ -140,20 +140,25 @@ SCHEMA_WORDS = frozenset({
 # text hygiene
 # --------------------------------------------------------------------------- #
 # C0/C1 controls (newline and tab survive in a snippet), U+2028/U+2029 (a line
-# end to str.splitlines and some readers, never to CommonMark) and every Unicode
-# format (Cf) character: zero-width and BOM, the bidi marks and overrides a
-# "Trojan Source" line would use, the word joiner and the invisible operators,
-# the soft hyphen, and the tag characters, which spell text a model reads but a
-# person reviewing the pack cannot see — as the planes strip. The variation
-# selectors (Mn) spell text the same way, a byte per selector after one visible
-# character: the supplement (U+E0100-E01EF) is stripped, and a run of the
-# sixteen basic ones (U+FE00-FE0F), found through anything stripped inside it,
-# is cut to its first, so an emoji keeps its one presentation selector (U+FE0F).
-# Written as escapes: the module itself carries none of them.
-_STRIPPED = (r"\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\xad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891"
-             r"\u08e2\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\U000110bd"
-             r"\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a"
-             r"\U000e0000-\U000e007f\U000e0100-\U000e01ef")
+# end to str.splitlines and some readers, never to CommonMark), every Unicode
+# format (Cf) character and every other default-ignorable code point (Unicode's
+# Default_Ignorable_Code_Point, which a reader that cannot show one shows as
+# nothing): zero-width and BOM, the bidi marks and overrides a "Trojan Source"
+# line would use, the word joiner and the invisible operators, the soft hyphen,
+# the combining grapheme joiner, the Hangul fillers, the Khmer inherent vowels,
+# the Mongolian free variation selectors, U+FFF0-FFF8, and the whole tag block
+# (U+E0000-E0FFF: the tag characters, the variation-selector supplement and the
+# unassigned rest, which spells ASCII after one visible character the same way),
+# all text a model reads but a person reviewing the pack cannot see — as the
+# planes strip. The sixteen basic variation selectors (U+FE00-FE0F, Mn) spell
+# text the same way, four bits per selector after one visible character: a run
+# of them, found through anything stripped inside it, is cut to its first, so
+# an emoji keeps its one presentation selector (U+FE0F). Written as escapes:
+# the module itself carries none of them.
+_STRIPPED = (r"\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\xad\u034f\u0600-\u0605\u061c\u06dd"
+             r"\u070f\u0890\u0891\u08e2\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f"
+             r"\u2028-\u202e\u2060-\u206f\u3164\ufeff\uffa0\ufff0-\ufffb\U000110bd\U000110cd"
+             r"\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0000-\U000e0fff")
 _CTRL = re.compile(rf"(?<=[\ufe00-\ufe0f])[{_STRIPPED}\ufe00-\ufe0f]*[\ufe00-\ufe0f]|[{_STRIPPED}]")
 _BREAKS = re.compile(r"[\t\n\r]+")
 _BACKTICKS = re.compile(r"`+")

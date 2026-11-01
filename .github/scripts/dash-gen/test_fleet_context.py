@@ -471,8 +471,16 @@ def test_every_format_character_is_stripped_and_refused_in_a_query():
     assert fc.clean_line(smuggled, fc.TITLE_CHARS) == "Fix \u2764\ufe0f \U0001f642\ufe0f now", fc.clean_line(
         smuggled, fc.TITLE_CHARS)
     assert fc.snippet_of("x\ufe0e\ufe0f\nb\U000e0100") == "x\ufe0e\nb"
+    # the tag block's unassigned rest spells ASCII after one letter as the tag characters do, and the other
+    # default-ignorable code points hid a run of the basic selectors from the run rule: all of them go
+    past = ("Fix x" + "".join(chr(0xE0080 + b) for b in b"IGNORE") + " y"
+            + "".join(chr(0xE0200 + b) for b in b"IGNORE")
+            + "\u034f\u115f\u1160\u17b4\u17b5\u180b\u180f\u3164\uffa0\ufff0 z\ufe07\u034f\ufe02\u3164\ufe06 now")
+    assert fc.clean_line(past, fc.TITLE_CHARS) == "Fix x y z\ufe07 now", fc.clean_line(past, fc.TITLE_CHARS)
+    assert fc.snippet_of("a\U000e00f2\nb\U000e0fff") == "a\nb"
     with _env():
-        for query in ("a\u2060b", "a\ufe0f\ufe01", "a\U000e0100", "a\ufe0f\u200b\ufe0f"):
+        for query in ("a\u2060b", "a\ufe0f\ufe01", "a\U000e0100", "a\ufe0f\u200b\ufe0f", "a\U000e0272\U000e026d",
+                      "a\u034fb", "a\ufe0f\u3164\ufe0f"):
             code, out, _err = run_main(["--nwo", NWO, "--name", NAME, "--lake-dir", "/nonexistent",
                                         "--query", query])
             assert code == 2 and out == "", (query, code, out)
