@@ -211,3 +211,7 @@ The spec-driven (AO-SDLC) kit that bamr87/law-ai and bamr87/gitorio run (spec: [
 | `review-questions.example.json` | the optional `specs/_review_questions.json` (law-ai's constitution §13 check, as data) |
 | `archive/` | byte-exact pre-kit copies from law-ai and gitorio (`*-0.0.0-*`) |
 | `test_spec_driven_kit.py` | kit tests; `--target <repo>` reports a repo's byte-identity |
+
+## `ai-ready/`
+
+The AI-ready foundation kit (constitution § 16, proposed amendment `ai-ready-foundation`). Spec only for now: see [`ai-ready/README.md`](ai-ready/README.md) for the manifest, the generators, the per-service and per-content-site MCP servers, `server.json`, CLI `--json`, the AIEO score threshold, and the local stdio MCP server each content site ships.

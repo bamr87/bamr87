@@ -85,7 +85,11 @@ runs:
         fi
         # Keep the install log: when the CLI is missing, `command -v claude`
         # fails silently downstream and the run looks like an auth problem.
-        if ! npm install -g @anthropic-ai/claude-code >"$RUNNER_TEMP/npm-install.log" 2>&1; then
+        # `@latest` explicitly: Claude Code declares engines node>=22, and on the
+        # fleet's Node 20 a bare name makes npm skip to the newest engine-
+        # compatible release (2.1.197), which current models reject with a 400.
+        # The CLI is a native binary, so it runs on any Node.
+        if ! npm install -g @anthropic-ai/claude-code@latest >"$RUNNER_TEMP/npm-install.log" 2>&1; then
           echo "::warning::Claude Code install failed — using the Claude API fallback."
           tail -n 40 "$RUNNER_TEMP/npm-install.log" >&2 || true
         fi
