@@ -20,7 +20,10 @@ Description: The local loop engine's throwaway workspaces (#486, ADR 0002 P1).
              removed on any failure before it is handed back, Ctrl-C included. The
              harvest follows no symlink: only a regular file inside the clone,
              read from the descriptor that was checked, ever leaves it, and
-             `destroy` never chmods or follows a link out of it.
+             `destroy` never chmods or follows a link out of it; `place`
+             writes only a new file, under directories lstat-ed as real ones
+             (O_EXCL | O_NOFOLLOW), so no link in a clone redirects an
+             engine write.
 Author: bamr87
 Created: 2026-10-31
 Version: 0.1.0
@@ -29,6 +32,7 @@ Dependencies: Python 3.12 stdlib, git, and gh for `clone` (via common.gh).
 """
 from __future__ import annotations
 
+import contextlib
 import errno
 import hashlib
 import os
@@ -239,10 +243,49 @@ def harden(ws: Workspace) -> None:
 
 
 def place(ws: Workspace, src: Path, rel: str) -> Path:
-    """Copy `src` (a file the engine wrote) to `rel` inside the clone."""
+    """Copy `src` (a file the engine wrote) to `rel` inside the clone, as `place_bytes`."""
+    return place_bytes(ws, Path(src).read_bytes(), rel)
+
+
+def place_bytes(ws: Workspace, data: bytes, rel: str, *, mode: int = 0o666) -> Path:
+    """Write `data` as a NEW file at `rel` inside the clone — never through a
+    symlink, never over a file. Every directory on the way, the clone root
+    included, is lstat-ed and must be a real directory (a missing one is made
+    0700 and checked again), and the file is opened O_CREAT | O_EXCL |
+    O_NOFOLLOW: an existing name, a dangling link included, refuses. So nothing
+    a target commits or plants (a symlinked brief directory, a file already
+    at the name) can redirect an engine write out of the clone or replace a
+    file in it. `mode` is before the umask (0o666 is what shutil.copyfile
+    gives, so a placed brief is the file it always was). The agent has not
+    run yet when the engine places a file, so the walk-then-open window is
+    not one it can race."""
     dest = _inside(ws, rel)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(src, dest)
+    node = ws.path
+    for part in (None, *Path(rel).parts[:-1]):
+        node = node if part is None else node / part
+        try:
+            st = os.lstat(node)
+        except FileNotFoundError:
+            try:
+                # one made between the lstat and the mkdir is lstat-ed below like any other
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(node, 0o700)
+                st = os.lstat(node)
+            except OSError as exc:
+                raise JevError(f"could not make {node} in the clone: {exc}") from exc
+        if stat.S_ISLNK(st.st_mode):
+            raise JevError(f"refusing to place {rel}: {node} is a symlink in the clone")
+        if not stat.S_ISDIR(st.st_mode):
+            raise JevError(f"refusing to place {rel}: {node} is not a directory")
+    try:
+        fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), mode)
+    except FileExistsError as exc:
+        raise JevError(f"refusing to place {rel}: something is already at {dest} (the engine never overwrites "
+                       "a file in the clone, nor writes through a link)") from exc
+    except OSError as exc:
+        raise JevError(f"could not place {rel} in the clone: {exc}") from exc
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
     return dest
 
 

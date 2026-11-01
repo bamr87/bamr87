@@ -20,11 +20,17 @@ Description: JEV capability two's runner — `python3 -m tools.jev loop`, the
              exact issue bodies — and with `--apply`, typed by the maintainer,
              the filing in the same run; `--rehearse` stops before the model
              call at $0); `publish` (files a reviewed earlier dry run,
-             idempotently); `show`; `budget`.
+             idempotently); `show`; `budget`. Before each attempt the HOST
+             builds the item's context pack (tools/jev/context.py: the lake,
+             the code index, the telemetry, this loop's earlier attempts) and
+             places it beside the brief in the clone, with a pointer in the
+             clone's copy of the brief — the sealed agent only reads a file;
+             `--context off` is the CI-identical run.
 Author: bamr87
 Created: 2026-10-31
 Version: 0.2.0
 Usage: python3 -m tools.jev loop list | doctor [--live] | plan <loop> | run <loop> [--rehearse|--apply]
+                                   [--context auto|off|require] [--refresh-context]
                                    | publish <run_id> [--apply] | show <run_id>|--latest | budget
        (also `tools/dash loop …`; docs/JEV.md "The loop runner")
 Dependencies: PyYAML; git and gh for the plan, the clone and the filing; the
@@ -34,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
 import datetime as dt
 import fcntl
 import hashlib
@@ -55,14 +62,16 @@ from collections import deque
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 from . import adapters, headless
+from . import context as cpack
 from . import workspace as wsp
 from .adapters import REUSE_DAYS, Adapter, Item, PlanResult, PublishPlan, Verdict
 from .common import HUB, JevError, Run, dotenv_values, gh, git, hub_repo, is_bare_name, load_config, run
 from .ledger import BudgetState, Ledger, budget_state
-from .spec import (PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, StepSpec, StepSpecError, allowed_models, fleet_value,
-                   load_fleet, load_spec, render_argv, render_prompt, spec_files, values_from)
+from .spec import (PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, ContextSpec, StepSpec, StepSpecError, allowed_models,
+                   fleet_value, load_fleet, load_spec, render_argv, render_prompt, spec_files, values_from)
 
 DASH_GEN = HUB / "tools" / "dash-gen"
 RUN_SCHEMA = "jev-loop-run/v1"
@@ -92,6 +101,16 @@ BACKSTOP_KILL_S = 60
 ENGINE_SOURCES = ("tools/jev/", "_data/fleet.yml", ".github/scripts/dash-gen/ai_activity.py", "tools/dash-gen")
 ALLOW_DIRTY_HELP = ("let --apply run with a dirty spec, adapter or engine (tools/jev/, _data/fleet.yml, ai-run, "
                     "tools/dash-gen)")
+#: the engine's backstop beyond the planes' own --deadline-s (they bound themselves; a timeout is a plane problem)
+CONTEXT_GRACE_S = 30
+#: `--refresh-context`: the lake's LOCAL import of this machine's Claude Code
+#: transcripts (claude_projects_dir() → the lake, nothing else written;
+#: dash-gen fleet_lake cmd_sessions). Never `lake sync`, which reads GitHub.
+REFRESH_ARGV = ("lake", "sessions")
+#: `loop doctor`'s one code-index probe query (an Ollama embedding, local and $0). It
+#: proves Qdrant and Ollama answer: a search that answers is an index that is UP,
+#: hit or no hit (with no query the planes would not ask the index at all)
+DOCTOR_QUERY = "the loop runner and its context pack"
 
 
 def runs_dir() -> Path:
@@ -146,6 +165,9 @@ class Options:
     run_id: str | None = None
     claude_bin: str = "claude"
     json: bool = False
+    #: the context pack's mode for this run (None = the spec's local.context.mode)
+    context: str | None = None
+    refresh_context: bool = False
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> Options:
@@ -177,6 +199,13 @@ def option_refusal(opts: Options, *, verb: str) -> str | None:
         return "--max-items must be at least 1"
     if opts.run_id and not wsp.RUN_ID_RX.fullmatch(opts.run_id):
         return f"--run-id {opts.run_id!r} must match {wsp.RUN_ID_RX.pattern}"
+    if opts.context is not None and opts.context not in cpack.MODES:
+        return f"--context {opts.context!r} is not one of {', '.join(cpack.MODES)}"
+    if opts.refresh_context and opts.scheduled:
+        return ("--refresh-context with --scheduled is refused: the session import reads this account's ~/.claude "
+                "transcripts, a hand-run step")
+    if opts.refresh_context and opts.context == "off":
+        return "--refresh-context with --context off is refused: there is no pack to refresh"
     return None
 
 
@@ -757,6 +786,10 @@ class RunContext:
         return f"local run {self.run.run_id if self.run else 'plan'} (tools/jev loop)"
 
     def dash_gen(self, argv: list[str], *, stdin: str | None = None) -> Run:
+        if argv[:1] == ["context"]:
+            # the planes bound themselves by --deadline-s; this is the backstop, and a timeout is a plane
+            # problem (context.gather makes every plane section unavailable), never the run's
+            return dash_gen(argv, stdin=stdin, timeout=context_backstop(argv))
         return dash_gen(argv, stdin=stdin)
 
     def planner(self, *, target: str | None = None, no_files: bool = False) -> dict:
@@ -1168,6 +1201,172 @@ def explain_empty(ctx: RunContext, result: PlanResult) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# the context pack (tools/jev/context.py): built on the host, read by the sealed agent
+# --------------------------------------------------------------------------- #
+def context_settings(spec: StepSpec) -> ContextSpec:
+    """The spec's `local.context` (the loader always sets it; a LocalSpec made
+    by hand without one gets the loader's defaults)."""
+    if spec.local is not None and spec.local.context is not None:
+        return spec.local.context
+    return ContextSpec(mode=cpack.DEFAULT_MODE, file="context.md", providers=cpack.PROVIDERS,
+                       max_chars=cpack.DEFAULT_MAX_CHARS, deadline_s=cpack.DEFAULT_DEADLINE_S, days=cpack.DEFAULT_DAYS)
+
+
+def context_mode(ctx: RunContext) -> str:
+    """`--context` when given, else the spec's mode."""
+    return ctx.opts.context or context_settings(ctx.spec).mode
+
+
+def context_backstop(argv: list[str]) -> int:
+    """`dash-gen context`'s subprocess timeout: its own --deadline-s plus CONTEXT_GRACE_S."""
+    said = next((a.split("=", 1)[1] for a in argv if a.startswith("--deadline-s=")), "")
+    try:
+        secs = cpack.check_deadline(said)
+    except ValueError:
+        secs = cpack.MAX_DEADLINE_S
+    return int(math.ceil(secs)) + CONTEXT_GRACE_S
+
+
+def _finite(value) -> float | None:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
+def context_status(statuses: dict[str, str]) -> str:
+    """The attempt row's compact form: `history:ok,lake_ci:stale,…`."""
+    return ",".join(f"{k}:{v}" for k, v in statuses.items())
+
+
+def context_request(ctx: RunContext, item: Item) -> cpack.ContextRequest | None:
+    """The adapter's request with the spec's window; None when it asks for no pack."""
+    req = ctx.adapter.context_request(ctx, item)
+    return None if req is None else dataclasses.replace(req, days=context_settings(ctx.spec).days)
+
+
+def item_pack(ctx: RunContext, item: Item, report: dict, row: dict, *,
+              target_dir: Path | None = None) -> cpack.Pack | None:
+    """Build this item's pack into its run directory (`context.build`) and
+    record it: `report["context"]`, and on `row` (every later attempt row) the
+    pack's sha256 and a compact status. Mode 'off' builds and places nothing,
+    and the adapter is not asked; an adapter that asks for no pack (None) is
+    'none'. `target_dir` is the item's clone (None offline): the planes check
+    the target's code-index hits against its files, the ones the agent
+    reads, passed as its realpath. A plane that is down is a status in the
+    pack, never an exception here; an error that does raise (a bad request,
+    an unwritable run directory) is the engine's own and is not caught."""
+    cs = context_settings(ctx.spec)
+    mode = context_mode(ctx)
+    req = cpack.ContextRequest(item.nwo, item.name, days=cs.days) if mode == "off" else context_request(ctx, item)
+    if req is not None and mode != "off" and target_dir is not None:
+        req = dataclasses.replace(req, target_dir=os.path.realpath(target_dir))
+    if req is None:
+        report["context"] = {"mode": mode, "sha256": None, "bytes": 0, "file": cs.file, "statuses": {},
+                             "missing": [], "ages": {}, "elapsed_ms": 0,
+                             "notes": ["context: the adapter asks for no pack for this item"],
+                             "line": "context none (the adapter asks for no pack for this item)"}
+        row.update(context_sha256=None, context_status="none")
+        return None
+    pack = cpack.build(ctx, item, req, mode=mode, sections=cs.providers, max_chars=cs.max_chars, file=cs.file,
+                       deadline_s=cs.deadline_s)
+    report["context"] = {"mode": pack.mode, "sha256": pack.sha256, "bytes": pack.bytes, "file": cs.file,
+                         "statuses": dict(pack.sections), "missing": list(pack.missing),
+                         "ages": {k: _finite(v) for k, v in pack.ages.items()}, "elapsed_ms": pack.elapsed_ms,
+                         "notes": list(pack.notes), "queries": len(req.queries), "line": cpack.status_line(pack)}
+    row.update(context_sha256=pack.sha256, context_status="off" if pack.path is None else context_status(pack.sections))
+    return pack
+
+
+def place_inputs(ctx: RunContext, ws: wsp.Workspace, brief: Path | None, pack: cpack.Pack | None) -> None:
+    """The brief and (when one was built) the pack into the clone's brief
+    directory, each as a NEW file (workspace.place_bytes: O_EXCL, no link
+    followed). With a pack, the clone's copy of the brief is the plan's
+    bytes + "\n" + `context.pointer` — written once, never placed and then
+    rewritten. The plan directory's brief is never touched, so the adapter's
+    reuse key, computed from it, and with it tier 0, are the same with or
+    without a pack. Without one (mode off) the clone gets the plan's brief
+    byte for byte, as it always did."""
+    bd = ctx.spec.workspace.brief_dir
+    built = pack is not None and pack.path is not None
+    file = context_settings(ctx.spec).file
+    if built and brief is not None and brief.name.lower() == file.lower():
+        raise JevError(f"the brief {brief.name} and the context pack {file} would be one file in {bd}/")
+    if brief is not None:
+        data = brief.read_bytes()
+        if built:
+            data += b"\n" + cpack.pointer(bd, file).encode("utf-8")
+        wsp.place_bytes(ws, data, f"{bd}/{brief.name}")
+    if built:
+        data = pack.path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != pack.sha256:
+            raise JevError(f"the context pack {pack.path} changed since it was built")
+        wsp.place_bytes(ws, data, f"{bd}/{file}", mode=0o600)
+
+
+def context_preview(ctx: RunContext, item: Item) -> dict | None:
+    """`loop plan`'s look at what this item's pack would hold: each
+    section's status and age (no rows, nothing written anywhere), or None
+    under mode 'off'."""
+    mode = context_mode(ctx)
+    if mode == "off":
+        return None
+    req = context_request(ctx, item)
+    if req is None:
+        return {"mode": mode, "statuses": {}, "ages": {}, "missing": [], "queries": 0, "would_block": False,
+                "note": "the adapter asks for no pack for this item"}
+    cs = context_settings(ctx.spec)
+    doc = cpack.gather(ctx, req, sections=cs.providers, deadline_s=cs.deadline_s, item_key=item.key)
+    secs = doc["sections"]
+    statuses = {k: str(secs[k].get("status")) for k in secs}
+    missing = [k for k in cpack.PLANE_SECTIONS if statuses.get(k) == "unavailable"]
+    return {"mode": mode, "statuses": statuses, "ages": {k: _finite(secs[k].get("age_hours")) for k in secs},
+            "missing": missing, "queries": len(req.queries), "would_block": mode == "require" and bool(missing)}
+
+
+def context_bits(statuses: dict[str, str], ages: dict[str, float | None]) -> str:
+    out = []
+    for k, v in statuses.items():
+        age = ages.get(k)
+        out.append(f"{k} {v}" + (f"({age:.0f}h)" if v == "stale" and age is not None else ""))
+    return " · ".join(out)
+
+
+REFRESH_CMD_RX = re.compile(r"`(tools/dash [^`]+)`")
+
+
+def doctor_planes(fleet: dict, spec: StepSpec) -> dict:
+    """`loop doctor`'s context-planes section: each plane section's status
+    and age for the hub (fleet.yml hub.repo — the hub is not in the
+    registry), with the refresh command its note names. One `dash-gen
+    context` call, read-only and $0 (one embedding of DOCTOR_QUERY)."""
+    hub = hub_repo(fleet)
+    with tempfile.TemporaryDirectory(prefix="jev-doctor-context-") as tmp:
+        ctx = RunContext(spec=spec, adapter=adapters.get(spec.local.adapter), fleet=fleet, opts=Options(),
+                         plan_dir=Path(tmp) / "plan", history=History())
+        req = cpack.ContextRequest(hub, hub.split("/", 1)[1], (DOCTOR_QUERY,), days=context_settings(spec).days)
+        doc = cpack.redact_obj(cpack.gather(ctx, req, sections=cpack.PLANE_SECTIONS,
+                                            deadline_s=context_settings(spec).deadline_s, item_key=hub), ctx)
+    out: dict = {"nwo": hub, "sections": {}, "problem": (doc.get("planes") or {}).get("problem")}
+    for k, sec in doc["sections"].items():
+        note = str(sec.get("note") or "")
+        found = REFRESH_CMD_RX.search(note)
+        entry = {"status": sec.get("status"), "age_hours": _finite(sec.get("age_hours")),
+                 "as_of": sec.get("as_of"), "refresh": found.group(1) if found else None,
+                 "note": " ".join(note.split())[:200]}
+        if k == "index_code":   # the probe query was searched: answered is up, whether or not it hit
+            entry["up"] = sec.get("status") in ("ok", "empty") and "holds no chunks" not in note
+        out["sections"][k] = entry
+    return out
+
+
+def host_ctx() -> SimpleNamespace:
+    """What `context.redact` reads to mask this machine, without a RunContext."""
+    return SimpleNamespace(home=Path.home(), work_root=headless.work_root(), hostname=platform.node().split(".")[0])
+
+
+# --------------------------------------------------------------------------- #
 # one item: rehearsal or attempt
 # --------------------------------------------------------------------------- #
 def _file_sha(p: Path) -> str | None:
@@ -1260,6 +1459,7 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
                                   debug_path=d / "debug.log")
     ws = None
     try:
+        brief = None
         if not ctx.opts.offline:
             try:
                 ws = wsp.clone(item.nwo, item.branch, run_id=ctx.run.run_id, brief_dir=ctx.spec.workspace.brief_dir,
@@ -1278,8 +1478,19 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
                     if reused is not None:
                         return reused
             brief = brief_in_plan(ctx, item)
-            if brief is not None:
-                wsp.place(ws, brief, f"{ctx.spec.workspace.brief_dir}/{brief.name}")
+        # The context pack, built on the HOST now — after tier 0, the usage block, classify and the clone, before
+        # the budget lock — into the item's run directory (offline: only there). The sealed agent reads the copy
+        # placed beside the brief; it can ask the planes nothing itself. The planes check the target's code hits
+        # against this clone, the files the agent reads.
+        pack = item_pack(ctx, item, report, row, target_dir=ws.path if ws is not None else None)
+        if pack is not None and pack.blocked:
+            why = (f"context: mode require and {', '.join(pack.missing)} unavailable — the item does not run "
+                   "(no budget lock, no ai-run, no spend)")
+            report.update(status="failed", decision="context-blocked", reason=why, code=EXIT["attention"])
+            ctx.run.append_attempt({**row, "decision": "context-blocked", "attempt_id": attempt_id, "reason": why})
+            return report
+        if ws is not None:
+            place_inputs(ctx, ws, brief, pack)
             report["workspace"] = {"head_sha": ws.head_sha, "baseline_entries": len(ws.baseline),
                                    "baseline_sha256": _sha(json.dumps(ws.baseline, sort_keys=True))}
         cwd, tmp = (ws.path, ws.tmp) if ws else (d, d / "tmp")
@@ -1290,10 +1501,12 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
         if headless.credential_exposure(host.auth):
             env_keys.add(str(headless.credential_exposure(host.auth)))
         write_json(d / "env-keys.json", sorted(env_keys))   # names only, never a value
-        write_json(d / "argv.json", {"claude_flags": flags, "ai_run": [str(DASH_GEN), *argv],
-                                     "prompt_sha256": _sha(prompt), "prompt_bytes": len(prompt.encode("utf-8")),
-                                     "settings_sha256": _sha(json.dumps(headless.settings_doc(posture),
-                                                                        sort_keys=True))})
+        planned = {"claude_flags": flags, "ai_run": [str(DASH_GEN), *argv],
+                   "prompt_sha256": _sha(prompt), "prompt_bytes": len(prompt.encode("utf-8")),
+                   "settings_sha256": _sha(json.dumps(headless.settings_doc(posture), sort_keys=True))}
+        if pack is not None and pack.path is not None:   # the prompt is the same bytes either way
+            planned["context_sha256"] = pack.sha256
+        write_json(d / "argv.json", planned)
         if live:
             with budget_lock() as held:
                 blocked = budget_block(ctx, held)
@@ -1798,6 +2011,8 @@ def _new_record(ctx: RunContext, posture: headless.Posture) -> dict:
                  "cap_usd": spec.resolved.max_budget_usd},
         "publish": {"risk": spec.local.publish.risk if spec.local.publish else None, "tier": publish_tier(spec),
                     "on_budget_hit": spec.local.on_budget_hit},
+        "context": {**asdict(context_settings(spec)), "mode": context_mode(ctx),
+                    "mode_from": "--context" if ctx.opts.context else "spec"},
         "options": asdict(ctx.opts), "items": [], "notes": [], "exit_code": None, "usage_limited": False,
         "budget": {}, "totals": {},
     }
@@ -1848,6 +2063,10 @@ def _summary(record: dict) -> str:
     for i in record.get("items") or []:
         if i.get("plan_id"):
             lines.append(f"\nPreview `{i['key']}`: `items/{i['dir']}/publish-plan.md` (plan {i['plan_id']})")
+    for i in record.get("items") or []:
+        line = (i.get("context") or {}).get("line")
+        if line:
+            lines.append(f"\nContext `{i['key']}`: {line}")
     return "\n".join(lines) + "\n"
 
 
@@ -1864,6 +2083,8 @@ def _finish(ctx: RunContext, record: dict, code: int, status: str) -> int:
         print(f"  {i['status']:<14} {i['key']}  {i.get('reason') or ''}", file=sys.stderr)
         for f in i.get("flags") or []:
             print(f"  {'':<14} ! {f}", file=sys.stderr)
+        if (i.get("context") or {}).get("line"):
+            print(f"  {'':<14} · {i['context']['line']}", file=sys.stderr)
     t = record["totals"]
     print(f"jev loop: {status} — ${t['spent_usd']:.2f} spent ({COST_LABEL}); exit {code}", file=sys.stderr)
     if ctx.opts.json:
@@ -1938,6 +2159,47 @@ def cmd_run(args: argparse.Namespace) -> int:
             raise
 
 
+def claude_projects_dir() -> Path:
+    """This operator's Claude Code transcripts: `$CLAUDE_CONFIG_DIR/projects`,
+    else `~/.claude/projects`. Read from the ENGINE's environment and passed
+    as `--claude-dir`: the planes' environment (deterministic_env) drops
+    CLAUDE_CONFIG_DIR with every other auth override, and the lake would
+    fall back to ~/.claude."""
+    base = os.environ.get("CLAUDE_CONFIG_DIR")
+    return (Path(base).expanduser() if base else Path.home() / ".claude") / "projects"
+
+
+def refresh_context(ctx: RunContext, record: dict) -> None:
+    """`--refresh-context`, once per run, before the first pack: the lake's
+    LOCAL session import (`tools/dash-gen lake sessions`: this machine's
+    Claude Code transcripts, from `claude_projects_dir()`, into the lake,
+    nothing else written), never `lake sync`. A failed import, or one that
+    found no transcripts, is a note, never the run's failure — the pack then
+    reads the lake as it is (stale is reported, never fatal)."""
+    if context_mode(ctx) == "off":
+        record["notes"].append("--refresh-context: nothing to refresh, the context pack is off for this step")
+        return
+    argv = [*REFRESH_ARGV, f"--claude-dir={claude_projects_dir()}", f"--days={context_settings(ctx.spec).days}",
+            "--json"]
+    res = ctx.dash_gen(argv)
+    doc = cpack.parse_document(res.out) or {}
+    counts = {k: doc[k] for k in ("scanned", "sessions", "turns", "tool_calls", "skipped")
+              if isinstance(doc.get(k), int) and not isinstance(doc.get(k), bool)}
+    shown = [cpack.redact(a, ctx) for a in argv]   # the transcript directory is under the home
+    record["context_refresh"] = {"argv": shown, "exit": res.code, **counts}
+    said = " ".join(cpack.redact((res.err or res.out or "").strip()[-400:], ctx).split())[-200:]
+    if res.code != 0:
+        record["notes"].append(f"--refresh-context: `tools/dash-gen {' '.join(shown)}` exited {res.code}"
+                               + (f": {said}" if said else "") + " — the pack reads the lake as it is")
+    elif not counts:   # `lake sessions --json` prints nothing when the directory is missing
+        record["notes"].append(f"--refresh-context: the lake's local session import found no transcripts at "
+                               f"{cpack.redact(str(claude_projects_dir()), ctx)}" + (f" ({said})" if said else "")
+                               + " — the pack reads the lake as it is")
+    else:
+        record["notes"].append(f"--refresh-context: the lake's local session import read {counts.get('scanned', '?')}"
+                               f" transcript(s), {counts.get('sessions', '?')} new or changed")
+
+
 def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
     """The run, in order: gates, the --apply refusals, the ceiling, the host,
     the publish token (all $0 and before anything spends), the plan, then the
@@ -1998,6 +2260,8 @@ def _run(ctx: RunContext, record: dict, posture: headless.Posture) -> int:
         explicit = ctx.opts.target != "all" or ctx.opts.item
         record["notes"].append(explain_empty(ctx, result) if explicit else "nothing planned today")
         return _finish(ctx, record, EXIT["attention"] if explicit else EXIT["ok"], "empty")
+    if ctx.opts.refresh_context:
+        refresh_context(ctx, record)
     for n, item in enumerate(result.items):
         if ctx.stop is not None:
             record["items"].append({"key": item.key, "dir": wsp.item_dirname(item.key), "status": "skipped",
@@ -2077,10 +2341,14 @@ def cmd_plan(args: argparse.Namespace) -> int:
                     **item_values(ctx, item), "item_dir": where, "bodies_dir": f"{where}/bodies",
                     "run_ref": "local run <run_id> (tools/jev loop)",
                     "validated": f"{where}/<the adapter's validated file>"})
-            out["items"].append({"key": item.key, "branch": item.branch, "head_sha": sha, "decision": decision,
-                                 "dedupe": item.row.get("dedupe"), "prompt_sha256": _sha(prompt),
-                                 "settings_sha256": _sha(json.dumps(settings, sort_keys=True)),
-                                 "claude_flags": flags, "dry_filing": filing, "note": why or None})
+            entry = {"key": item.key, "branch": item.branch, "head_sha": sha, "decision": decision,
+                     "dedupe": item.row.get("dedupe"), "prompt_sha256": _sha(prompt),
+                     "settings_sha256": _sha(json.dumps(settings, sort_keys=True)),
+                     "claude_flags": flags, "dry_filing": filing, "note": why or None}
+            preview = context_preview(ctx, item)   # statuses and ages only; nothing is written anywhere
+            if preview is not None:
+                entry["context"] = preview
+            out["items"].append(entry)
     return _print_plan(out, opts, EXIT["ok"])
 
 
@@ -2109,6 +2377,11 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
         print(f"    claude {' '.join(i['claude_flags'][:4])} … ({len(i['claude_flags'])} args)")
         if i["dry_filing"]:
             print(f"    dry filing: tools/dash-gen {' '.join(i['dry_filing'])}")
+        c = i.get("context")
+        if c:
+            print(f"    context ({c['mode']}): {context_bits(c['statuses'], c['ages']) or c.get('note') or '-'}"
+                  + (f" — a run fails this item before any spend: {', '.join(c['missing'])} unavailable"
+                     if c.get("would_block") else ""))
     plan = out.get("plan") or {}
     for r in [*plan.get("skipped", []), *plan.get("dropped", [])]:
         print(f"skip {r.get('name')}: {r.get('reason')}")
@@ -2323,6 +2596,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
     report["exit"] = worst = severest(codes)
+    specs = local_specs(fleet=fleet)
+    if specs and args.context != "off":
+        try:
+            report["context_planes"] = doctor_planes(fleet, specs[0])
+        # a diagnostic section, never a reason for doctor to fail: its exit code stays the host checks'
+        except Exception as exc:  # noqa: BLE001
+            said = cpack.redact(" ".join(f"{type(exc).__name__}: {exc}".split()), host_ctx())
+            report["context_planes"] = {"problem": said[:300], "sections": {}}
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True, default=str))
         return worst
@@ -2339,6 +2620,23 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print(f"  ✗ canary: {p}")
         for n in e.get("notes") or []:
             print(f"  · {n}")
+    planes = report.get("context_planes")
+    if planes is not None:
+        print(f"context planes ({planes.get('nwo') or 'the hub'}; read-only, informational — never this exit code):")
+        if planes.get("problem"):
+            print(f"  · {planes['problem']}")
+        for k, sec in (planes.get("sections") or {}).items():
+            age = sec.get("age_hours")
+            status = "up" if sec.get("up") else sec.get("status")
+            line = f"  · {k} {status}" + (f" ({age:.0f} h old)" if age is not None else "")
+            if status == "unavailable" and sec.get("note"):
+                line += f" — {sec['note']}"   # the reason first: "no lake at …", and the note's own remedy
+            elif status == "up":
+                line += f" — the search answered; {sec['note']}" if sec.get("note") else " — the search answered"
+            elif status != "ok":
+                line += (f" — refresh: {sec['refresh']}" if sec.get("refresh") else
+                         f" — {sec['note']}" if sec.get("note") else "")
+            print(line)
     if args.live:
         print(f"spend: the canary is ledgered like any attempt (≤ ${CANARY_CAP_USD:.2f}, {COST_LABEL}); every other "
               "check runs credential-free or with stdin /dev/null")
@@ -2544,6 +2842,10 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--posture", choices=("sandbox", "reduced"), default="sandbox",
                    help="sandbox (Bash in Seatbelt, the default) or reduced (no Bash; never scheduled)")
     p.add_argument("--claude-bin", default="claude", metavar="BIN")
+    p.add_argument("--context", choices=cpack.MODES, default=None,
+                   help="the context pack: auto (build it, note a missing plane), off (none: the CI-identical run) "
+                        "or require (a missing plane fails the item before any spend); default the spec's "
+                        "local.context.mode")
     p.add_argument("--json", action="store_true", help="print the result as JSON on stdout")
 
 
@@ -2560,6 +2862,8 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
                           "proving the sandbox enforces (the maintainer's § 10.5 yes)")
     doc.add_argument("--yes", action="store_true", help="--live without the terminal confirmation")
     doc.add_argument("--claude-bin", default="claude", metavar="BIN")
+    doc.add_argument("--context", choices=cpack.MODES, default=None,
+                     help="off skips the informational context-planes section (it never changes the exit code)")
     doc.add_argument("--json", action="store_true")
     pl = sub.add_parser("plan", help="what a run would do, per item — never clones, never calls a model")
     _common(pl)
@@ -2574,6 +2878,9 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     rn.add_argument("--keep-workspace", action="store_true", help="keep the clone for inspection")
     rn.add_argument("--allow-dirty", action="store_true", help=ALLOW_DIRTY_HELP)
     rn.add_argument("--run-id", default=None, metavar="ID")
+    rn.add_argument("--refresh-context", action="store_true",
+                    help="before the first pack, run the lake's local session import (`tools/dash-gen lake sessions`: "
+                         "~/.claude transcripts into the lake, never a GitHub sync); refused with --scheduled")
     pb = sub.add_parser("publish", help="file a reviewed earlier dry run (--apply); without it, re-check its bytes")
     pb.add_argument("run_id")
     pb.add_argument("--item", default=None, metavar="KEY", help="the item to publish (when the run has several)")

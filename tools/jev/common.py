@@ -15,12 +15,16 @@ Dependencies: PyYAML, and the `gh` CLI for gh().
 """
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
+import platform
 import re
 import shutil
+import socket
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -106,6 +110,28 @@ def run(argv: list[str], cwd: Path | None = None, env: dict | None = None,
     except subprocess.TimeoutExpired as exc:
         return Run(124, exc.stdout or "", f"timed out after {timeout}s")
     return Run(proc.returncode, proc.stdout or "", proc.stderr or "")
+
+
+#: macOS's other names for this machine (`scutil --get`): the Bonjour name, which
+#: is also reachable as `<name>.local`, and the "Computer Name" people see
+MAC_NAME_KEYS = ("LocalHostName", "ComputerName")
+
+
+@functools.lru_cache(maxsize=1)
+def machine_names() -> tuple[str, ...]:
+    """Every name this machine answers to that a log, a transcript or a title
+    can carry: `platform.node()`, `socket.gethostname()`, and on macOS the
+    LocalHostName (bare and with `.local`) and the ComputerName. Read once
+    per process (`scutil` is a local configd read, never the network); a
+    name that cannot be read is left out."""
+    names = {platform.node(), socket.gethostname()}
+    if sys.platform == "darwin" and shutil.which("scutil"):
+        for key in MAC_NAME_KEYS:
+            res = run(["scutil", "--get", key], timeout=5)
+            value = res.out.strip() if res.code == 0 else ""
+            if value and "\n" not in value:
+                names |= {value, f"{value}.local"} if key == "LocalHostName" else {value}
+    return tuple(sorted(n for n in names if n))
 
 
 def git(args: list[str], cwd: Path, timeout: int = 900, env: dict | None = None, *,

@@ -15,7 +15,8 @@ Author: bamr87
 Created: 2026-10-31
 Version: 0.1.0
 Usage: `adapters.get(spec.local.adapter)` from tools/jev/loop.py.
-Dependencies: Python 3.12 stdlib. No dash-gen import.
+Dependencies: Python 3.12 stdlib, tools/jev/context.py (ContextRequest). No
+              dash-gen import.
 """
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ import importlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+from ..context import ContextRequest
 
 #: name → module; a module exposes ADAPTER, an Adapter instance. Adding one is a
 #: reviewed change here plus `tools/test_jev_adapter_<name>.py` (SCHEMA.md).
@@ -145,3 +148,11 @@ class Adapter:
     def recheck(self, ctx, item: Item) -> str | None:
         """Live state re-read just before an applied write; a reason cancels it."""
         return None
+
+    def context_request(self, ctx, item: Item) -> ContextRequest | None:
+        """What the host-built context pack is for (tools/jev/context.py): the
+        repository and its checkout name, plus up to three code-index queries
+        a loop derives from its own item. None = no pack for this item (the
+        engine then places nothing, whatever the mode). The engine sets the
+        window (`days`) from the spec's `local.context`."""
+        return ContextRequest(item.nwo, item.name)

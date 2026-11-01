@@ -19,12 +19,13 @@ The engine owns the workspace, the argv, the agent's environment, the `--setting
 | `validate(ctx, item, harvested, outcome)` | every declared output present | whether the harvested outputs are publishable; names the validated copy to publish in `Verdict.publish_file` (the engine's `{validated}`), never the raw output |
 | `publish(ctx, item, verdict, execute, *, apply)` | required when the spec declares `local.publish` | parses what the spec's publish argv printed, dry or applied, into rows, blockers and per-item failures; its bodies are in `ctx.bodies_dir(item, apply=apply)` (the spec's `{bodies_dir}`: the preview's and the apply's differ) |
 | `recheck(ctx, item)` | `None` | a live re-read just before an applied write; a reason cancels the filing |
+| `context_request(ctx, item)` | `ContextRequest(item.nwo, item.name)`, no queries | what the host-built context pack is for (`tools/jev/context.py`): the repository, its checkout name and up to three code-index queries of one line and at most 300 characters each (`ContextRequest` refuses more); `None` places no pack for the item. The engine sets the window from the spec's `local.context.days` |
 
 `sources` lists the hub paths the adapter's behaviour depends on besides `tools/jev/`; the engine records whether they were dirty when a run started, and a later `--apply` refuses a dirty one without `--allow-dirty`.
 
 ## repo_scout
 
-[`repo_scout.py`](repo_scout.py) maps `tools/dash-gen scout` (the plan job) and `tools/dash-gen scout-file` (the file job). Tier 0 reuses an attempt whose HEAD and brief are the same, the brief's per-run `Prepared …` line aside. `classify` blocks `--apply` on a row whose open-issue dedupe was unavailable. `validate` withholds any proposal carrying a local path or the host name, flags (never rejects) a proposal citing a sandbox or offline denial, and runs the filer's own rules with `scout-file --offline`. `publish` turns the filer's "filing without the duplicate check" into a blocker, a body `--reviewed-bodies` withheld as not in the reviewed preview into a blocker too (the filing is then `partial`), and its `gh issue create failed` rows into failures, the way CI's file job fails on them.
+[`repo_scout.py`](repo_scout.py) maps `tools/dash-gen scout` (the plan job) and `tools/dash-gen scout-file` (the file job). Tier 0 reuses an attempt whose HEAD and brief are the same, the brief's per-run `Prepared …` line aside; the key is always computed from the plan's brief, never from the clone's copy that carries the context pack's pointer. `context_request` turns the brief into the pack's code-index queries: the registry description, the category and stack, then the operator focus or, with none, the first conformance gap, each read only inside its own `## ` section of the brief and clipped to one line of 300 characters. `classify` blocks `--apply` on a row whose open-issue dedupe was unavailable. `validate` withholds any proposal carrying a local path or the host name, flags (never rejects) a proposal citing a sandbox or offline denial, and runs the filer's own rules with `scout-file --offline`. `publish` turns the filer's "filing without the duplicate check" into a blocker, a body `--reviewed-bodies` withheld as not in the reviewed preview into a blocker too (the filing is then `partial`), and its `gh issue create failed` rows into failures, the way CI's file job fails on them.
 
 ## Adding one
 
@@ -33,5 +34,5 @@ Write `<name>.py` exposing `ADAPTER`, add it to `REGISTRY`, add a row to [`SCHEM
 ## Tests
 
 ```bash
-python3 tools/test_jev_adapter_repo_scout.py   # items from the real offline planner, tier 0, classify, validate, publish, the source guard
+python3 tools/test_jev_adapter_repo_scout.py   # items from the real offline planner, tier 0, classify, validate, publish, the context queries, the source guard
 ```

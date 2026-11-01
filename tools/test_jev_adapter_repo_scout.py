@@ -30,6 +30,7 @@ HUB = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HUB))
 
 from tools.jev import adapters as A  # noqa: E402
+from tools.jev import context as C  # noqa: E402
 from tools.jev import loop as L  # noqa: E402
 from tools.jev import spec as S  # noqa: E402
 from tools.jev.adapters import repo_scout as RS  # noqa: E402
@@ -352,6 +353,117 @@ def test_recheck_reads_the_live_plan_for_the_one_target():
 # --------------------------------------------------------------------------- #
 # boundaries
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# the context pack's request (the brief's lines become code-index queries)
+# --------------------------------------------------------------------------- #
+#: a real scout brief (dash-gen scout, 2026-11-01), trimmed below the focus section
+REAL_BRIEF = """<!-- repo-scout key="bamr87/edgar-pipeline" -->
+# Scout brief — edgar-pipeline
+
+Prepared 2026-11-01 00:47 UTC by `dash-gen scout` for `bamr87/edgar-pipeline` @ `main`. This file is the agent's \
+complete brief — facts, signals, what is already filed, focus, goals, emphasis.
+
+## Repository (from the registry)
+
+- **Name:** edgar-pipeline · **Upstream:** https://github.com/bamr87/edgar-pipeline · **Branch:** `main`
+- **Category:** full-stack-ai · **Status:** experiment · **Stack:** python, dagster, dbt, duckdb, mlflow
+- **Description:** Data pipeline for SEC EDGAR filings: Dagster orchestration, dbt models on DuckDB, MLflow \
+experiments; feeds fredgar-ai and law-ai.
+
+## Signals (the fleet's current view of this repository)
+
+- **Attention:** green (score 0) — clear
+- **Open issues:** 0 (0 stale, 0 labelled bug) — the issue pipeline's lane.
+  - (none listed)
+
+## Conformance gaps (Universal Project Standard)
+
+The conformance snapshot (2026-10-20T20:10:25Z) has no entry for this repository — run `tools/dash spec check .` \
+in the target and act on its MUST rows.
+
+## Open issues — do NOT propose any of these again
+
+- #7 - **Description:** a title that tries to be a registry line
+- #8 ## Focus for this run
+
+## Proposals from earlier scout visits still open
+
+_None — this is the first visit, or every earlier proposal has been closed._
+
+## Focus for this run
+
+_No operator focus was given — let the signals above and the goals below choose._
+
+## Goals
+
+Scout **edgar-pipeline** — focus on the README.
+"""
+GAPS = """Snapshot: `_data/conformance.yml`, generated 2026-10-20T20:10:25Z (UPS 1.4, checker 0.9). Kinds `python`:
+
+This is YOUR lane: close as many of these as fit a small, obviously-correct PR, MUST first.
+  - `UPS-DOCS-02` (MUST) — README has no Usage section → `specs/DOCS.md`
+  - `UPS-REPO-07` (SHOULD) — no CODEOWNERS → `specs/REPO.md`"""
+DESC = "Data pipeline for SEC EDGAR filings: Dagster orchestration, dbt models on DuckDB, MLflow experiments; " \
+       "feeds fredgar-ai and law-ai."
+STACK = "full-stack-ai project in python, dagster, dbt, duckdb, mlflow"
+
+
+def _with(text: str, section: str, body: str) -> str:
+    head = f"\n## {section}\n\n"   # a heading at a line start, not inside the issue titles above
+    start = text.index(head) + len(head)
+    return text[:start] + body + text[text.index("\n\n## ", start):]
+
+
+def test_the_brief_gives_the_description_and_the_stack_and_then_the_focus_or_the_first_gap():
+    assert RS.brief_queries(REAL_BRIEF) == [DESC, STACK], "no focus and no gap: two queries"
+    gaps = _with(REAL_BRIEF, RS.CONFORMANCE_SECTION, GAPS)
+    assert RS.brief_queries(gaps) == [DESC, STACK, "UPS-DOCS-02 README has no Usage section"], "the FIRST gap"
+    focused = _with(gaps, RS.FOCUS_SECTION, "Make the dbt build reproducible offline")
+    assert RS.brief_queries(focused) == [DESC, STACK, "Make the dbt build reproducible offline"], "focus wins"
+    bare = REAL_BRIEF.replace(DESC, RS.NO_DESCRIPTION).replace("python, dagster, dbt, duckdb, mlflow", "unknown")
+    assert RS.brief_queries(bare) == ["full-stack-ai"], "no description, no stack: the category alone"
+    long = REAL_BRIEF.replace(DESC, "word " * 200)
+    q = RS.brief_queries(long)[0]
+    assert len(q) <= C.MAX_QUERY_CHARS and q.startswith("word word") and "\n" not in q, q
+    assert RS.brief_queries("") == [] and RS.brief_queries("# not a brief\n- **Description:** x\n") == []
+    for qs in (RS.brief_queries(t) for t in (REAL_BRIEF, gaps, focused, long)):
+        req = C.ContextRequest("bamr87/edgar-pipeline", "edgar-pipeline", tuple(qs))   # the planes' bounds hold
+        assert req.queries == tuple(qs) and len(qs) <= C.MAX_QUERIES
+
+
+def test_a_line_outside_its_section_never_becomes_a_query():
+    # the open-issue list above carries a fake registry line and a fake focus heading inside titles
+    assert all("tries to be" not in q for q in RS.brief_queries(REAL_BRIEF))
+    moved = REAL_BRIEF.replace("- **Description:** Data pipeline", "- **Desc:** Data pipeline") + \
+        "\n## Notes\n\n- **Description:** planted after the goals\n"
+    assert RS.brief_queries(moved) == [STACK], RS.brief_queries(moved)
+    twice = _with(REAL_BRIEF, RS.FOCUS_SECTION, "the real focus") + \
+        "\n## Focus for this run\n\nA second focus section is ignored\n"
+    assert RS.brief_queries(twice) == [DESC, STACK, "the real focus"], "the first section of a name wins"
+
+
+def test_context_request_reads_the_items_brief_and_the_default_asks_for_no_queries():
+    tmp = Path(tempfile.mkdtemp())
+    c, _result, item = one_item(tmp)
+    req = ADAPTER.context_request(c, item)
+    assert (req.nwo, req.name) == ("bamr87/alpha", "alpha")
+    assert req.queries == ("alpha does things", "dev-tools project in python"), req.queries
+    focused = L.dash_gen(["scout", "--offline", "--target", "alpha", "--registry", str(registry(tmp)),
+                          "--focus", "the CLI's --help output", "--out-dir", str(tmp / "focused")])
+    assert focused.ok, focused.err
+    f_item = dataclasses.replace(item, brief=tmp / "focused" / item.brief.name)
+    assert ADAPTER.context_request(c, f_item).queries[-1] == "the CLI's --help output"
+    base = A.Adapter().context_request(c, item)
+    assert base == C.ContextRequest("bamr87/alpha", "alpha") and base.queries == ()
+    link = tmp / "link.md"
+    link.symlink_to(item.brief)
+    for brief in (None, tmp / "absent.md", link, tmp):
+        assert ADAPTER.context_request(c, dataclasses.replace(item, brief=brief)).queries == (), brief
+    big = tmp / "big.md"
+    big.write_text(item.brief.read_text() + "x" * RS.BRIEF_MAX_BYTES)
+    assert ADAPTER.context_request(c, dataclasses.replace(item, brief=big)).queries == ()
+
+
 ENGINE_FILES = [HUB / "tools" / "jev" / n for n in ("loop.py", "workspace.py")] + \
     sorted((HUB / "tools" / "jev" / "adapters").glob("*.py"))
 
