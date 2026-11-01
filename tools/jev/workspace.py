@@ -11,11 +11,13 @@ Description: The local loop engine's throwaway workspaces (#486, ADR 0002 P1).
              credential helper, no push URL on any remote, no upstream remote,
              no submodules, no LFS smudge), refused when the target commits the
              brief directory, and carries a tamper baseline over all of `.git`
-             but its objects and index plus any nested `.git`. The engine never
-             runs git on the clone's own `.git` once an agent could have touched
-             it: status and checkout run against an engine-held copy of the
-             fresh GIT_DIR beside the clone (no global or system config, no
-             attributes file, no submodule), and refuse a tampered clone. The
+             but its objects and index plus any nested `.git`. Once an agent
+             could have touched the clone the engine's git reads none of its
+             `.git` configuration: status and checkout run against an
+             engine-held copy of the fresh GIT_DIR beside the clone (sharing
+             only the object store; no global or system config, no attributes
+             file, no submodule), and refuse a tampered clone. A clone is
+             removed on any failure before it is handed back, Ctrl-C included. The
              harvest follows no symlink: only a regular file inside the clone,
              read from the descriptor that was checked, ever leaves it, and
              `destroy` never chmods or follows a link out of it.
@@ -36,7 +38,7 @@ import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .common import HUB, JevError, gh, git, is_nwo
+from .common import HUB, JevError, gh, git, is_clone_relpath, is_nwo
 from .headless import work_root
 
 RUN_ID_RX = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
@@ -137,9 +139,18 @@ def _item_root(nwo: str, run_id: str, dirname: str | None = None) -> Path:
     return root
 
 
+def check_brief_dir(brief_dir: object) -> str:
+    """The brief directory, refused (JevError) unless it stays inside the clone
+    (`common.is_clone_relpath`): the agent's TMPDIR and the git-exclude line
+    are built from it, and destroy removes only what is under the item root."""
+    if not is_clone_relpath(brief_dir):
+        raise JevError(f"brief_dir {brief_dir!r} must be a relative path inside the clone (no '..', '.' or '.git')")
+    return brief_dir
+
+
 def _finish(root: Path, nwo: str, branch: str, brief_dir: str) -> Workspace:
-    """Harden the fresh clone and take its baseline — or remove it and raise
-    JevError, so a failure here is the item's failure, never a stray clone."""
+    """Harden the fresh clone and take its baseline; an OSError is the item's
+    JevError. The caller (`_made`) removes the root on any failure."""
     path = root / nwo.split("/", 1)[1]
     try:
         # the clone is fresh: git wrote its .git, nothing has run in it yet
@@ -153,39 +164,52 @@ def _finish(root: Path, nwo: str, branch: str, brief_dir: str) -> Workspace:
         harden(ws)
         ws.gitdir = _pristine_gitdir(ws)
         ws.baseline = baseline(ws)
-    except JevError:
-        destroy_root(root)
-        raise
     except OSError as exc:
-        destroy_root(root)
         raise JevError(f"could not prepare the workspace for {nwo}: {exc}") from exc
     return ws
+
+
+def _made(root: Path, make) -> Workspace:
+    """Run `make()` (the clone, then `_finish`) and hand back its Workspace — or
+    remove `root` on ANY exit without one (a failure, a JevError, a Ctrl-C),
+    so a private repository's content never stays behind in the work root."""
+    try:
+        return make()
+    except BaseException:
+        destroy_root(root)
+        raise
 
 
 def clone(nwo: str, branch: str, *, run_id: str, brief_dir: str, dirname: str | None = None) -> Workspace:
     """A fresh, hardened clone of `nwo` at `branch`, full history (CI's fetch-depth 0).
     `--no-upstream`: for a fork, gh would otherwise add and fetch the parent as
     a second remote with a live push URL."""
+    check_brief_dir(brief_dir)
     root = _item_root(nwo, run_id, dirname)
     dest = root / nwo.split("/", 1)[1]
-    res = gh(["repo", "clone", nwo, str(dest), "--no-upstream", "--", "--branch", branch, *CLONE_OPTS],
-             env=CLONE_ENV, timeout=900)
-    if not res.ok:
-        destroy_root(root)
-        raise JevError(f"gh repo clone {nwo} ({branch}) failed: {(res.err or res.out).strip()[-300:]}")
-    return _finish(root, nwo, branch, brief_dir)
+
+    def make() -> Workspace:
+        res = gh(["repo", "clone", nwo, str(dest), "--no-upstream", "--", "--branch", branch, *CLONE_OPTS],
+                 env=CLONE_ENV, timeout=900)
+        if not res.ok:
+            raise JevError(f"gh repo clone {nwo} ({branch}) failed: {(res.err or res.out).strip()[-300:]}")
+        return _finish(root, nwo, branch, brief_dir)
+    return _made(root, make)
 
 
 def clone_local(src: Path, nwo: str, branch: str, *, run_id: str, brief_dir: str,
                 dirname: str | None = None) -> Workspace:
     """The same workspace from a local repository (the tests and the canary)."""
+    check_brief_dir(brief_dir)
     root = _item_root(nwo, run_id, dirname)
     dest = root / nwo.split("/", 1)[1]
-    res = git(["clone", "--branch", branch, *CLONE_OPTS, str(src), str(dest)], cwd=root, env=CLONE_ENV)
-    if not res.ok:
-        destroy_root(root)
-        raise JevError(f"git clone {src} failed: {res.err.strip()[-300:]}")
-    return _finish(root, nwo, branch, brief_dir)
+
+    def make() -> Workspace:
+        res = git(["clone", "--branch", branch, *CLONE_OPTS, str(src), str(dest)], cwd=root, env=CLONE_ENV)
+        if not res.ok:
+            raise JevError(f"git clone {src} failed: {res.err.strip()[-300:]}")
+        return _finish(root, nwo, branch, brief_dir)
+    return _made(root, make)
 
 
 def harden(ws: Workspace) -> None:

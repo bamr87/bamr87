@@ -35,6 +35,7 @@ Dependencies: Python 3.12 stdlib, plus tools.jev.common (PyYAML). The claude
 """
 from __future__ import annotations
 
+import contextlib
 import functools
 import hashlib
 import json
@@ -48,7 +49,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import IO, Literal
@@ -103,8 +104,14 @@ SANDBOX_LINE_RX = re.compile(r"\[Sandbox (macOS|Linux)\] Applied restrictions")
 #: drops every read deny and the write fence at wrap time, and says so only in
 #: the debug log; the wrap line then reads `read: none, write: none`.
 RELAXED_POLICY_RX = re.compile(r"relaxed filesystem policy", re.I)
-#: What the CLI prints when it refuses its own argv before any request.
-STARTUP_ERROR_RX = re.compile(r"^error: |unknown option|is invalid|Input must be provided", re.M)
+#: What the CLI prints when it refuses its own argv before any request: the
+#: option parser's wordings and the missing-prompt error. classify() reads it
+#: against the FIRST stderr line only — json output cannot show whether a
+#: session started, so a looser match (any `error: ` line, `is invalid`
+#: anywhere in the tail) would book a run that spent as no-spend.
+STARTUP_ERROR_RX = re.compile(r"^error: (?:unknown option|too many arguments|missing required argument|"
+                              r"required option|option '[^']*' argument (?:missing|'[^']*' is invalid))"
+                              r"|Input must be provided")
 INPUT_REQUIRED = "Input must be provided"
 OUTCOMES = ("ok", "budget_hit", "max_turns", "usage_limit", "credential_rejected", "agent_error",
             "unparseable", "timeout", "interrupted", "startup_failed", "cli_missing")
@@ -113,12 +120,31 @@ EMPTY_MCP = '{"mcpServers":{}}'
 #: Tools the default `-p` toolset carries that no spec may grant a loop agent:
 #: SendMessage and ListAgents reach the user's other local Claude sessions,
 #: ScheduleWakeup keeps a `-p` run alive, the rest widen the grant or reach the
-#: network. Edit and NotebookEdit are not here: a spec may grant them (doctor,
-#: evolve and the issue tiers edit files), and the probe's exact-toolset check
-#: refuses them wherever the spec does not.
+#: network. Named so a refusal can say why; GRANTABLE_TOOLS below is the rule.
+#: Edit and NotebookEdit are grantable (doctor, evolve and the issue tiers edit
+#: files), and the probe's exact-toolset check refuses them wherever the spec
+#: does not grant them.
 NEVER_GRANTABLE_TOOLS = frozenset({"Task", "Agent", "Skill", "SendMessage", "ListAgents", "CronCreate",
                                    "CronDelete", "CronList", "ScheduleWakeup", "Workflow", "EnterWorktree",
                                    "ExitWorktree", "ToolSearch", "WebFetch", "WebSearch"})
+#: The ONLY tool families a spec may grant — an allowlist, because the CLI
+#: keeps shipping tools that reach past the Bash sandbox (Artifact,
+#: RemoteTrigger, PushNotification, SendUserFile, Monitor, MCP tools, …) and a
+#: denylist would let each new one through. Widening it is a reviewed change
+#: here, never a spec's choice.
+GRANTABLE_TOOLS = frozenset({"Bash", "Read", "Write", "Edit", "NotebookEdit", "Glob", "Grep"})
+#: The asynchronous signals whose default action would end ai-run: INT, TERM,
+#: HUP and QUIT (Ctrl-C, a cancel or backstop, a closed terminal, Ctrl-\) and
+#: the ones nothing here sends but a stray `kill` or a CPU limit can (USR1,
+#: USR2, ALRM, VTALRM, PROF, XCPU). Each starts the SIGINT-first ladder, so
+#: claude — which runs in its own session, out of the terminal's reach — is
+#: still ended and the run still leaves a ledger row. Python already ignores
+#: PIPE and XFSZ. What is left orphans claude, bounded by its own cap and turn
+#: limit: SIGKILL, which nothing can catch, a fault (SEGV, BUS, …) and, on
+#: Linux, a real-time or other platform signal.
+FORWARDED_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT", "SIGUSR1",
+                                                       "SIGUSR2", "SIGALRM", "SIGVTALRM", "SIGPROF", "SIGXCPU")
+                          if hasattr(signal, n))
 TRACE_CAP_BYTES = 20 * 1024 * 1024
 TOOL_RESULT_CAP = 4096
 STDERR_RING = 64 * 1024
@@ -345,13 +371,18 @@ def claude_flags(spec, posture: Posture, *, settings_path: Path, session_id: str
     from it (resolved from _data/fleet.yml); `-p`, the output format and the
     dollar cap are ai-run's own prefix. Every variadic option gets ONE
     comma-joined value, and there is no positional prompt — it goes on stdin.
-    A spec that grants a NEVER_GRANTABLE_TOOLS family is refused here, before
-    any probe or run.
+    A spec that grants a family outside GRANTABLE_TOOLS (a NEVER_GRANTABLE_TOOLS
+    one included) is refused here, before any probe or run.
     """
     allowed = posture_tools(spec.allowed_tools, posture)
-    never = sorted(set(tool_families(allowed)) & NEVER_GRANTABLE_TOOLS)
+    families = set(tool_families(allowed))
+    never = sorted(families & NEVER_GRANTABLE_TOOLS)
     if never:
         raise JevError(f"the spec grants {never}, which no loop agent may hold")
+    unknown = sorted(families - GRANTABLE_TOOLS)
+    if unknown:
+        raise JevError(f"the spec grants {unknown}, outside the families a loop agent may hold "
+                       f"({', '.join(sorted(GRANTABLE_TOOLS))})")
     return [
         "--model", spec.resolved.model,
         "--max-turns", str(spec.resolved.max_turns),
@@ -655,18 +686,20 @@ def condensed(event: dict, cap_usd: float, redactor: Redactor) -> list[str]:
         for block in (event.get("message") or {}).get("content") or []:
             if not isinstance(block, dict):
                 continue
+            # redacted BEFORE the clip: a cut secret keeps a prefix no pattern
+            # or value match recognises
             if block.get("type") == "tool_use":
                 args = json.dumps(block.get("input") or {}, ensure_ascii=False)
-                out.append(f"▸ {block.get('name')} {_one_line(args, ECHO_INPUT)}")
+                out.append(f"▸ {block.get('name')} {_one_line(redactor.text(args), ECHO_INPUT)}")
             elif block.get("type") == "text" and str(block.get("text") or "").strip():
-                out.append(f"◂ {_one_line(block['text'], ECHO_TEXT)}")
+                out.append(f"◂ {_one_line(redactor.text(str(block['text'])), ECHO_TEXT)}")
     elif kind == "user":
         for block in (event.get("message") or {}).get("content") or []:
             if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
                 body = block.get("content")
                 text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
                 if re.search(r"permission|denied|not allowed", text, re.I):
-                    out.append(f"✗ denied {_one_line(text, ECHO_INPUT)}")
+                    out.append(f"✗ denied {_one_line(redactor.text(text), ECHO_INPUT)}")
     elif kind == "result":
         cost = float(event.get("total_cost_usd") or 0.0)
         out.append(f"■ {event.get('subtype')} turns={event.get('num_turns', 0)} ${cost:.4f} of "
@@ -700,6 +733,13 @@ class Invocation:
     stdout_noise: str = ""
     started: bool = True
     fmt: str = "stream-json"
+    #: the tee could not be written (a hung-up terminal): it is dropped, and
+    #: the run — and its ledger row — go on
+    echo_lost: bool = False
+    #: how many of the caller's `received` signals arrived while claude was
+    #: still running (or before it was started); any later one did not stop
+    #: the run, and is the caller's to act on
+    signals_seen: int = 0
 
 
 def last_result(text: str) -> dict | None:
@@ -726,6 +766,33 @@ def last_result(text: str) -> dict | None:
     return hits[-1] if hits else None
 
 
+@contextlib.contextmanager
+def held_signals(into: list[str]) -> Iterator[list[str]]:
+    """Hold FORWARDED_SIGNALS until the block ends: each one is appended to
+    `into` by name instead of ending the process.
+
+    ai-run wraps a run AND its bookkeeping in this, so a cancel that lands
+    after claude has reported its cost (a second Ctrl-C, a backstop SIGTERM)
+    cannot kill it before the ledger row and the outcome file are written.
+    `stream` saves and restores whatever handler is installed — this one — and
+    reads `into`: a signal already there cancels the run before claude starts,
+    and one that lands after claude exited stays there for the caller.
+    Outside the main thread nothing can be installed, and nothing is."""
+    if threading.current_thread() is not threading.main_thread():
+        yield into
+        return
+
+    def hold(signum: int, _frame: object) -> None:
+        into.append(signal.Signals(signum).name)
+
+    old = {sig: signal.signal(sig, hold) for sig in FORWARDED_SIGNALS}
+    try:
+        yield into
+    finally:
+        for sig, handler in old.items():
+            signal.signal(sig, handler)
+
+
 def _signal_group(pid: int, sig: int) -> None:
     try:
         os.killpg(pid, sig)
@@ -736,17 +803,35 @@ def _signal_group(pid: int, sig: int) -> None:
 def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mapping[str, str] | None,
            timeout_s: float | None, trace: Trace | None, redactor: Redactor, cap_usd: float,
            echo: IO[str] | None = None, fmt: str = "stream-json",
-           int_grace: float = 15.0, term_grace: float = 10.0) -> Invocation:
+           int_grace: float = 15.0, term_grace: float = 10.0, received: list[str] | None = None) -> Invocation:
     """Run claude in its own process group, read it line by line, keep its end.
 
     The wall clock is SIGINT first: SIGINT ends the turn and the CLI still
     reports a result (cost included), while SIGTERM records none. After
-    `int_grace` seconds SIGTERM, after `term_grace` more SIGKILL. A SIGINT or
-    SIGTERM sent to THIS process starts the same ladder, so an outer backstop
-    still gets a result. When the leader exits, whatever is left of its group
-    is killed: nothing is orphaned.
+    `int_grace` seconds SIGTERM, after `term_grace` more SIGKILL. Any of
+    FORWARDED_SIGNALS sent to THIS process starts the same ladder, so an outer
+    backstop or a closed terminal still gets a result. When the leader exits,
+    whatever is left of its group is killed. A signal outside that set that
+    ends this process (SIGKILL, which nothing can catch, or a fault) orphans
+    claude.
+
+    `received` is the caller's list of signal names, when it holds them
+    (`held_signals`): one already there means the run was cancelled before it
+    began, so claude is never started; one arriving before this installs its
+    own handlers starts the ladder, and the names land in it. Only a signal
+    that arrived while claude was still running is the run's `interrupted`
+    (`signals_seen` counts them): one that lands after claude exited, as this
+    tidies up, is left in `received` for the caller.
     """
     start = time.monotonic()
+    received = [] if received is None else received
+    if received:
+        # cancelled while the caller was still setting up: nothing to stop,
+        # and nothing spent
+        if trace is not None:
+            trace.close()
+        return Invocation(rc=128 + signal.Signals[received[0]].value, started=False, fmt=fmt,
+                          interrupted=",".join(received), signals_seen=len(received))
     # In its own session claude is not the terminal's foreground group, so an
     # inherited TTY stdin would stop it (SIGTTIN). With no prompt to send, a
     # pipe stays inherited and a terminal becomes /dev/null — `claude -p`
@@ -764,6 +849,8 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
             stdin=stdin,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
     except FileNotFoundError as exc:
+        if trace is not None:
+            trace.close()
         return Invocation(rc=127, started=False, stderr_tail=str(exc), fmt=fmt)
 
     lines: queue.Queue[bytes | None] = queue.Queue()
@@ -801,7 +888,6 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
 
     inv = Invocation(rc=0, fmt=fmt)
     ladder: list[tuple[float, int]] = []
-    received: list[str] = []
 
     def begin_ladder(now: float) -> None:
         if not ladder:
@@ -813,15 +899,22 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
         def forward(signum: int, _frame: object) -> None:
             received.append(signal.Signals(signum).name)
             begin_ladder(time.monotonic())
-        for sig in (signal.SIGINT, signal.SIGTERM):
+        for sig in FORWARDED_SIGNALS:
             old_handlers[sig] = signal.signal(sig, forward)
 
     deadline = start + timeout_s if timeout_s else None
     out_buf: list[str] = []
     eof = False
+    alive_seen = 0
     try:
         while True:
             now = time.monotonic()
+            if proc.poll() is None:
+                # every signal so far reached a claude that was still running
+                alive_seen = len(received)
+            if received and not ladder:
+                # held by the caller before this process's handlers were in
+                begin_ladder(now)
             if deadline is not None and now >= deadline and not ladder:
                 inv.timed_out = True
                 begin_ladder(now)
@@ -873,7 +966,8 @@ def stream(argv: list[str], *, prompt: str | None, cwd: Path | None, env: Mappin
     inv.rc = rc
     inv.duration_s = round(time.monotonic() - start, 3)
     inv.stderr_tail = redactor.text("".join(ring))
-    inv.interrupted = ",".join(received)
+    inv.signals_seen = alive_seen
+    inv.interrupted = ",".join(received[:alive_seen])
     if fmt == "json":
         inv.stdout_text = redactor.text("".join(out_buf))
         inv.result = inv.result or last_result("".join(out_buf))
@@ -917,10 +1011,15 @@ def _take(text: str, inv: Invocation, trace: Trace | None, redactor: Redactor, c
             if isinstance(block, dict) and block.get("type") == "tool_use":
                 name = str(block.get("name") or "?")
                 inv.tool_uses[name] = inv.tool_uses.get(name, 0) + 1
-    if echo is not None:
-        for line in condensed(event, cap_usd, redactor):
-            echo.write(f"  {line}\n")
-        echo.flush()
+    if echo is not None and not inv.echo_lost:
+        try:
+            for line in condensed(event, cap_usd, redactor):
+                echo.write(f"  {line}\n")
+            echo.flush()
+        except OSError:
+            # EIO/EPIPE once the terminal is gone: losing the tee must not end
+            # the read loop, whose finally would SIGKILL claude before its result
+            inv.echo_lost = True
 
 
 # --------------------------------------------------------------------------- #
@@ -942,21 +1041,29 @@ class Outcome:
         return asdict(self)
 
 
-def classify(inv: Invocation, cap_usd: float) -> Outcome:
+def classify(inv: Invocation, cap_usd: float, redactor: Redactor | None = None) -> Outcome:
     """The invocation's outcome, in claude-cost's order (budget, usage limit,
     credential, then agent failure), plus the cases only a local run has.
 
     Charge-at-cap: a run that may have spent but left no figure is charged the
     cap as `estimated` (HUB-032 — a run whose cost cannot be read is otherwise a
     run charged to nobody). `no-spend` only where the model was provably never
-    reached: no process, or no init and the CLI's own argv refusal.
+    reached: no process; under stream-json, no init event (the CLI prints it
+    before any request); under json, no output and the CLI's own argv refusal
+    as the first stderr line (STARTUP_ERROR_RX).
 
-    A forwarded SIGINT/SIGTERM (Ctrl-C, a console cancel) is read like the wall
-    clock, BEFORE the usage-limit and credential tests: a turn aborted before
+    With a `redactor`, the result message is redacted BEFORE it is clipped to
+    the detail's 200 characters, so a cut secret cannot survive as a prefix.
+
+    A forwarded signal (Ctrl-C, a console cancel, a hangup) is read like the
+    wall clock, BEFORE the usage-limit and credential tests: a turn aborted before
     its first response reports $0 and an empty modelUsage — the
     credential-rejected signature — for a request that was in flight.
     """
     if not inv.started:
+        if inv.interrupted:
+            return Outcome("interrupted", 0.0, "no-spend",
+                           detail=f"stopped by {inv.interrupted} before claude was started")
         return Outcome("cli_missing", 0.0, "no-spend", detail=_one_line(inv.stderr_tail, 200))
     r = inv.result
     stopped_by = f"stopped by {inv.interrupted}" if inv.interrupted else ""
@@ -967,7 +1074,8 @@ def classify(inv: Invocation, cap_usd: float) -> Outcome:
         if inv.interrupted:
             return Outcome("interrupted", cap_usd, "estimated", sid,
                            detail=f"{stopped_by} before a result; charged at the cap")
-        startup = not inv.init and not inv.stdout_text.strip() and STARTUP_ERROR_RX.search(inv.stderr_tail or "")
+        first = next((line.strip() for line in (inv.stderr_tail or "").splitlines() if line.strip()), "")
+        startup = not inv.init and not inv.stdout_text.strip() and STARTUP_ERROR_RX.search(first)
         if inv.init or (inv.fmt == "json" and not startup):
             started = ("after the session started" if inv.init
                        else "and json output cannot show whether the session started")
@@ -981,7 +1089,8 @@ def classify(inv: Invocation, cap_usd: float) -> Outcome:
     usage = r.get("modelUsage")
     models = sorted(usage) if isinstance(usage, dict) else []
     base = dict(session_id=r.get("session_id"), turns=int(r.get("num_turns") or 0), models=models)
-    message = _one_line(r.get("result") or "", 200)
+    text = str(r.get("result") or "")
+    message = _one_line(redactor.text(text) if redactor is not None else text, 200)
     if "budget" in subtype.lower() or (is_error and cap_usd > 0 and cost >= cap_usd):
         return Outcome("budget_hit", cost, "reported", detail=f"stopped at ${cost:.4f} of ${cap_usd:g}", **base)
     if inv.timed_out:
@@ -1267,7 +1376,7 @@ def judge_canary(events: list[dict], debug: Iterable[str], outcome: Mapping, *, 
 def init_problems(init: Mapping, expected_tools: Iterable[str]) -> list[str]:
     """Pure and fail-closed: what a session's own init record shows that the
     isolation posture forbids — exactly the spec's tool families, nothing
-    never-grantable, `dontAsk`, no MCP server, no skill, the default output
+    never-grantable or outside GRANTABLE_TOOLS, `dontAsk`, no MCP server, no skill, the default output
     style. The probe's isolated run is held to it, and so is every attempt's
     init before its output is read (tools/jev/loop.py posture_breach)."""
     problems: list[str] = []
@@ -1277,6 +1386,9 @@ def init_problems(init: Mapping, expected_tools: Iterable[str]) -> list[str]:
         problems.append(f"tools {sorted(tools)} != {sorted(expected)}")
     if tools & NEVER_GRANTABLE_TOOLS:
         problems.append(f"never-grantable tools {sorted(tools & NEVER_GRANTABLE_TOOLS)}")
+    outside = tools - GRANTABLE_TOOLS - NEVER_GRANTABLE_TOOLS
+    if outside:
+        problems.append(f"tools outside the grantable families {sorted(outside)}")
     if init.get("permissionMode") != "dontAsk":
         problems.append(f"permissionMode {init.get('permissionMode')!r}, not dontAsk")
     if init.get("mcp_servers"):
@@ -1320,21 +1432,25 @@ def _logged_in(claude_bin: str, env: Mapping[str, str]) -> bool | None:
 def preflight_parse(claude_bin: str, flags: list[str], cwd: Path | None = None,
                     environ: Mapping[str, str] | None = None) -> str | None:
     """$0: the real argv with stdin /dev/null must answer "Input must be
-    provided", and its `--settings` document must have loaded.
+    provided", and nothing it prints or logs may report its `--settings`
+    document skipped.
 
     The CLI validates every option before it reads input, so this proves each
     flag parses — the hidden --max-turns included — on THIS CLI version. Under
     `-p` a settings document that fails validation is skipped with nothing but
-    a debug-log line, so the debug log is read too. It does NOT prove which
-    settings keys the CLI honours (unknown keys are dropped silently): only the
-    canary proves enforcement.
+    a debug-log line, so the debug log is read too. This is a NEGATIVE check:
+    a debug log that was never written passes it. The positive proof that the
+    rules loaded (a `flagSettings` line) is the isolation probe's, and only
+    the canary proves which settings keys the CLI enforces (unknown keys are
+    dropped silently).
 
     What keeps it at $0: stdin /dev/null and the probe environment (no
     credential, a scratch CLAUDE_CONFIG_DIR), refused outright when that
     environment is logged in. `flags` must carry print mode and the dollar cap
     (`run_prefix(...) + claude_flags(...)`), so not even a stray positional
-    could run uncapped. None means the argv parses and the settings loaded;
-    otherwise the problem, naming the flag or the settings line.
+    could run uncapped. None means the argv parses and no settings document
+    was reported skipped; otherwise the problem, naming the flag or the
+    settings line.
     """
     if not {"-p", "--print"} & set(flags) or "--max-budget-usd" not in flags:
         return "refusing to preflight: flags must carry -p and --max-budget-usd (run_prefix + claude_flags)"
