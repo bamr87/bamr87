@@ -286,6 +286,32 @@ def redact_obj(obj, ctx):
     return obj
 
 
+def strip_obj(obj):
+    """Every string (keys included) of a JSON-shaped value without the control,
+    zero-width and bidi characters `render` drops (_CTRL; line breaks and tabs
+    stay). Run BEFORE `redact_obj`, so the masks see the text the pack will
+    show: a token or a key marker split by a zero-width character is whole
+    again when it is scanned, in context.json as in context.md."""
+    if isinstance(obj, str):
+        return _CTRL.sub("", obj)
+    if isinstance(obj, (list, tuple)):
+        return [strip_obj(x) for x in obj]
+    if isinstance(obj, dict):
+        return {(_CTRL.sub("", k) if isinstance(k, str) else k): strip_obj(v) for k, v in obj.items()}
+    return obj
+
+
+def redact_lines(md: str, ctx) -> str:
+    """`redact` over the rendered pack ONE LINE AT A TIME. Rendering folds a
+    field's line breaks into spaces, so a mask can first match there (a key
+    marker split across two lines of a title is one line of the pack); line
+    by line, no pattern — the private-key block's runs to an END marker or
+    the end of its text — can reach past its own line and swallow a fence or
+    a heading. Every replacement is free of line breaks, so the line count
+    is kept."""
+    return "\n".join(redact(line, ctx) for line in md.split("\n"))
+
+
 # --------------------------------------------------------------------------- #
 # the request and the result
 # --------------------------------------------------------------------------- #
@@ -856,6 +882,76 @@ def render(doc: dict, *, brief_dir: str, max_chars: int = DEFAULT_MAX_CHARS) -> 
 
 
 # --------------------------------------------------------------------------- #
+# the structure check: the pack the agent reads is the one the engine wrote
+# --------------------------------------------------------------------------- #
+# CommonMark's fence line (backticks or tildes, up to three spaces in) and ATX heading
+_FENCE_LINE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
+_ATX_LINE = re.compile(r" {0,3}#{1,6}(?:[ \t]|$)")
+HEADER_TITLE = "# Context pack — "
+#: the line a pack that failed its structure check carries instead of its sections
+FAIL_CLOSED = ("The sections were left out: the redacted pack did not keep the structure the engine wrote, so the "
+               "engine kept only this header (it fails closed).")
+
+
+def skeleton(md: str) -> tuple[list[tuple[int, str, str]], bool]:
+    """(marks, closed): every fence line and every ATX heading outside a fenced
+    block, as (line number, 'fence' | 'heading', line), walked as CommonMark
+    walks them; `closed` is False when a fence is never closed."""
+    marks: list[tuple[int, str, str]] = []
+    bar = ""
+    for i, line in enumerate(md.split("\n")):
+        m = _FENCE_LINE.fullmatch(line)
+        if bar:
+            if m and m.group(1)[0] == bar[0] and len(m.group(1)) >= len(bar) and not m.group(2).strip():
+                bar = ""
+                marks.append((i, "fence", line))
+            continue
+        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            bar = m.group(1)
+            marks.append((i, "fence", line))
+        elif _ATX_LINE.match(line):
+            marks.append((i, "heading", line))
+    return marks, not bar
+
+
+def structure_problem(md: str) -> str | None:
+    """Why `md` — a pack as `render` wrote it, before the line-wise redaction
+    — is not one the engine writes, or None: every fence closed, and the
+    headings outside them exactly the header's, then '## <Title> — <status>'
+    for known sections, each once, in RENDER_ORDER."""
+    marks, closed = skeleton(md)
+    if not closed:
+        return "a fenced block is never closed"
+    heads = [line for _i, kind, line in marks if kind == "heading"]
+    if not heads or not heads[0].startswith(HEADER_TITLE):
+        return "the pack does not start with its own header"
+    rank = {f"## {TITLES[k]} — {s}": n for n, k in enumerate(RENDER_ORDER) for s in STATUSES}
+    order = []
+    for h in heads[1:]:
+        if h not in rank:
+            return f"a heading the engine did not write: {_one(h, 80)!r}"
+        order.append(rank[h])
+    if order != sorted(set(order)):
+        return "the section headings are repeated or out of order"
+    return None
+
+
+def redaction_problem(rendered: str, md: str) -> str | None:
+    """Why the line-wise redaction of `rendered` (`md`) does not keep its
+    structure — the same lines, the same fences and headings on the same
+    lines, every fence closed — or None."""
+    if md.count("\n") != rendered.count("\n"):
+        return "redaction changed the number of lines"
+    before, _ = skeleton(rendered)
+    after, closed = skeleton(md)
+    if not closed or [(i, k) for i, k, _ in before] != [(i, k) for i, k, _ in after]:
+        return "redaction moved a fence or a heading"
+    if [x for x in before if x[1] == "fence"] != [x for x in after if x[1] == "fence"]:
+        return "redaction changed a fence line"
+    return None
+
+
+# --------------------------------------------------------------------------- #
 # the pointer the engine appends to the clone's copy of the brief
 # --------------------------------------------------------------------------- #
 _BRIEF_DIR_RX = re.compile(r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*")
@@ -926,17 +1022,22 @@ def build(ctx, item, req: ContextRequest, *, mode: str = DEFAULT_MODE, sections:
         return Pack(path=None, sha256=None, bytes=0, sections={}, notes=["context: off (a CI-identical run)"],
                     missing=[], doc_path=None, mode=mode)
     started = time.monotonic()
-    doc = redact_obj(gather(ctx, req, sections=sections, deadline_s=deadline_s, item_key=item.key), ctx)
+    doc = redact_obj(strip_obj(gather(ctx, req, sections=sections, deadline_s=deadline_s, item_key=item.key)), ctx)
     brief_dir = str(ctx.spec.workspace.brief_dir)
     budget = int(max_chars)
-    md = ""
+    md, problem = "", None
     for _ in range(6):   # redaction can lengthen text (`<host>` for a four-letter name): render tighter
-        md = redact(render(doc, brief_dir=brief_dir, max_chars=budget), ctx)
+        rendered = render(doc, brief_dir=brief_dir, max_chars=budget)
+        md = redact_lines(rendered, ctx)
         if len(md) <= max_chars:
+            # fail closed: the agent reads the structure the engine wrote, or no section at all
+            problem = structure_problem(rendered) or redaction_problem(rendered, md)
             break
         budget = max(0, budget - (len(md) - max_chars) - 64)
     else:
-        md = _clip_lines(redact(_header(doc, brief_dir, []), ctx), max_chars)
+        md = _clip_lines(redact_lines(_header(doc, brief_dir, []), ctx), max_chars)
+    if problem:
+        md = _clip_lines(redact_lines(f"{_header(doc, brief_dir, [])}\n\n{FAIL_CLOSED}\n", ctx), max_chars)
     data = md.encode("utf-8")
     sha = hashlib.sha256(data).hexdigest()
     secs = doc["sections"]
@@ -944,6 +1045,8 @@ def build(ctx, item, req: ContextRequest, *, mode: str = DEFAULT_MODE, sections:
     ages = {k: _num(secs[k].get("age_hours")) for k in statuses}
     missing = [k for k in PLANE_SECTIONS if statuses.get(k) == "unavailable"]
     notes = _notes(statuses, ages, missing, mode)
+    if problem:
+        notes.append(f"context: {problem} — the pack carries its header only (fail closed)")
     d = Path(ctx.item_dir(item))
     d.mkdir(parents=True, exist_ok=True, mode=0o700)
     path, doc_path = d / file, d / (file[: -len(".md")] + ".json")
@@ -951,7 +1054,7 @@ def build(ctx, item, req: ContextRequest, *, mode: str = DEFAULT_MODE, sections:
     elapsed = int((time.monotonic() - started) * 1000)
     record = {"schema": PACK_SCHEMA, "file": file, "mode": mode, "sha256": sha, "bytes": len(data),
               "chars": len(md), "max_chars": int(max_chars), "statuses": statuses, "missing": missing,
-              "notes": notes, "elapsed_ms": {"total": elapsed, "planes": doc["planes"].get("elapsed_ms"),
+              "notes": notes, "structure_problem": problem, "elapsed_ms": {"total": elapsed, "planes": doc["planes"].get("elapsed_ms"),
                                              **{k: secs[k].get("elapsed_ms") for k in statuses}},
               "document": doc}
     _write_private(doc_path, json.dumps(redact_obj(record, ctx), indent=2, sort_keys=True, ensure_ascii=False) + "\n")
