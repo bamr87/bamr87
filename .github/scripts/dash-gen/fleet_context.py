@@ -206,10 +206,11 @@ def age_hours(as_of: str | None, now: dt.datetime) -> float | None:
 # --------------------------------------------------------------------------- #
 # pure: redaction
 # --------------------------------------------------------------------------- #
-# C0/C1 controls (newline and tab survive in a snippet), zero-width and BOM, and
-# the bidi overrides a "Trojan Source" title would use to read one way and run
-# another. Titles and snippets are untrusted text; this strips, never interprets.
-_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
+# C0/C1 controls (newline and tab survive in a snippet), zero-width and BOM, the
+# bidi overrides a "Trojan Source" title would use to read one way and run
+# another, and U+2028/U+2029 (a line end to str.splitlines, not to CommonMark).
+# Titles and snippets are untrusted text; this strips, never interprets.
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]")
 _BREAKS = re.compile(r"[\t\n\r]+")
 # What fleet_observe.REDACTIONS does not already cover: a whole private-key
 # block (FIRST, so nothing else takes only its marker), the shorter and the

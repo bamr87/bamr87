@@ -100,8 +100,10 @@ UNKNOWN_ROW_CHARS = 300
 # text hygiene
 # --------------------------------------------------------------------------- #
 # C0/C1 controls (newline and tab survive in a snippet), zero-width and BOM,
-# and the bidi overrides a "Trojan Source" line would use — as the planes strip.
-_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f​-‏‪-‮⁦-⁩﻿]")
+# the bidi overrides a "Trojan Source" line would use, and U+2028/U+2029 (a
+# line end to str.splitlines and some readers, never to CommonMark) — as the
+# planes strip. Written as escapes: the module itself carries none of them.
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]")
 _BREAKS = re.compile(r"[\t\n\r]+")
 _BACKTICKS = re.compile(r"`+")
 

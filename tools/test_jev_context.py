@@ -32,6 +32,7 @@ import stat
 import sys
 import tempfile
 import time
+import unicodedata
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -706,6 +707,15 @@ def test_the_module_reaches_dash_gen_only_through_the_ctx_seam():
                 "pr merge", "type: ignore", "dangerously"):
         assert bad not in src, bad
     assert not re.search(r"^\s*except[^\n]*:\s*\n\s*pass\b", src, re.M), "an empty handler"
+
+
+def test_separators_are_stripped_and_the_module_carries_no_invisible_characters():
+    ls, ps = chr(0x2028), chr(0x2029)
+    assert C._one(f"a{ls}## h{ps}b") == "a## hb", repr(C._one(f"a{ls}## h{ps}b"))
+    assert ls not in C._block_text(f"x{ls}## y")
+    src = (HUB / "tools" / "jev" / "context.py").read_text(encoding="utf-8")
+    hidden = sorted({f"U+{ord(c):04X}" for c in src if unicodedata.category(c) in ("Cf", "Zl", "Zp")})
+    assert not hidden, f"context.py carries invisible characters {hidden}: write them as escapes"
 
 
 def test_the_shared_constants_match_the_planes_module():

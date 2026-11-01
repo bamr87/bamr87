@@ -46,6 +46,7 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -436,6 +437,20 @@ def test_titles_are_untrusted_text_stripped_and_clipped():
     assert len(title) <= fc.TITLE_CHARS, len(title)
     assert not any(c in title for c in "\x1b\x00\u202e"), repr(title)
     assert FAKE_HOME not in title and GH_TOKEN not in title and "~/repo" in title, title
+
+
+def test_line_and_paragraph_separators_are_stripped_and_refused_in_a_query():
+    ls, ps = chr(0x2028), chr(0x2029)   # a line end to str.splitlines, not to CommonMark
+    out = fc.clean_line(f"line{ls}## heading{ps}para", fc.TITLE_CHARS)
+    assert ls not in out and ps not in out, repr(out)
+    assert ls not in fc.snippet_of(f"a{ls}## b")
+    with _env():
+        code, out, _err = run_main(["--nwo", NWO, "--name", NAME, "--lake-dir", "/nonexistent",
+                                    "--query", f"a{ls}b"])
+    assert code == 2 and out == "", (code, out)
+    src = Path(fc.__file__).read_text(encoding="utf-8")
+    hidden = sorted({f"U+{ord(c):04X}" for c in src if unicodedata.category(c) in ("Cf", "Zl", "Zp")})
+    assert not hidden, f"fleet_context.py carries invisible characters {hidden}: write them as escapes"
 
 
 def test_a_token_cut_by_a_clip_is_masked_before_the_clip():
