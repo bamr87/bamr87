@@ -1359,6 +1359,80 @@ def test_a_filing_that_would_write_bytes_nobody_reviewed_is_refused():
     assert not (d / "publish-result.json").exists()
 
 
+def test_a_changed_publish_argv_or_a_symlinked_validated_file_refuses_the_filing():
+    box = Box()
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", TARGET)[0] == 0
+        run_id = box.last()["run_id"]
+        d = box.latest() / "items" / "bamr87__SCHEMA"
+        plan_file = d / "publish-plan.json"
+        reviewed = plan_file.read_text()
+        plan = json.loads(reviewed)
+        plan["argv"] = [*plan["argv"], "--run-url", "elsewhere"]   # the bytes match; the command does not
+        plan_file.write_text(json.dumps(plan))
+        code, out, _ = jev("publish", run_id, "--apply")
+        assert code == 2 and "publish argv is not the reviewed one" in out, out
+        plan_file.write_text(reviewed)
+        validated = d / "outputs" / "proposals.validated.json"
+        twin = d / "outputs" / "twin.json"
+        twin.write_bytes(validated.read_bytes())
+        validated.unlink()
+        validated.symlink_to(twin)   # the same bytes, behind a link the engine never follows
+        code, out, _ = jev("publish", run_id, "--apply")
+    assert code == 2 and "validated file changed" in out, out
+    assert not _issue_creates(box) and not (d / "publish-result.json").exists()
+
+
+def test_review_gap_and_posture_breach_fail_closed_on_their_edge_cases():
+    doc = {"bodies": {"01-a.md": "aa"}, "rows": [{"title": "A", "labels": []}]}
+    two_rows = L.PublishPlan(True, [], [{"title": "A", "labels": []}, {"title": "B", "labels": []}], None)
+    assert "cannot be compared" in L.review_gap(None, None, doc, two_rows, {"01-a.md": "aa"}, Path("v")), \
+        "two issues, one body file: the bytes of the other were never compared"
+    spec, sandbox = L.load_step("repo-scout"), H.Posture("sandbox")
+    no_init = {"kind": "agent_error", "cost_usd": 0.0, "cost_source": "estimated"}
+    assert "no init record" in L.posture_breach(spec, sandbox, {**no_init, "tool_uses": {"Read": 1}}, [], [])
+    assert "no init record" in L.posture_breach(spec, sandbox, no_init, [], [{"type": "assistant"}])
+    assert L.posture_breach(spec, sandbox, no_init, [], []) is None, "a cap estimate alone is accounting"
+
+
+def test_the_engine_paths_include_ai_run_and_a_hangup_is_an_interrupt():
+    assert ".github/scripts/dash-gen/ai_activity.py" in L.ENGINE_SOURCES and "tools/dash-gen" in L.ENGINE_SOURCES
+    with L.interrupt_on_signals():
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            assert signal.getsignal(sig) not in (signal.SIG_DFL, signal.SIG_IGN, None), sig
+    assert signal.getsignal(signal.SIGHUP) is signal.SIG_DFL
+
+
+def test_an_interrupted_attempt_that_left_no_outcome_is_charged_at_the_cap_durably():
+    box = Box()
+    d = Path(tempfile.mkdtemp())
+    marker, script = _signal_logger(d)   # an ai-run that ends on the interrupt without writing an outcome
+    saved = L.DASH_GEN
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        real_relay = L.relay_dash_gen
+
+        def relay(argv, **kw):   # the live attempt's ai-run is the fake; the rehearsal and planner are real
+            if argv[:1] == ["ai-run"] and "--dry-run" not in argv:
+                L.DASH_GEN = script
+                threading.Timer(1.0, os.kill, (os.getpid(), signal.SIGTERM)).start()
+            try:
+                return real_relay(argv, **kw)
+            finally:
+                L.DASH_GEN = saved
+        L.relay_dash_gen = relay
+        try:
+            code, _, _ = jev("run", "repo-scout", "--target", TARGET)
+        finally:
+            L.relay_dash_gen, L.DASH_GEN = real_relay, saved
+        later = L.budget_position(S.load_fleet(), scheduled=False)
+    item = box.last()["items"][0]
+    assert code == 130 and marker.exists() and item["status"] == "interrupted", (code, item)
+    assert (item["cost_usd"], item["cost_source"]) == (8.0, "estimated"), item
+    assert not box.ledger_rows() and later.spent_usd == 8.0, "no row from ai-run, and still the month's spend"
+
+
 def test_the_live_recheck_skips_filing_once_backpressure_is_reached():
     box = Box()
     marker = f'<!-- repo-scout key="{NWO}" -->'
@@ -1398,6 +1472,21 @@ def test_a_usage_limit_stops_the_queue_and_never_falls_back_to_the_api_key():
     assert "ANTHROPIC_API_KEY" not in call["env"] and "CLAUDE_CODE_OAUTH_TOKEN" in call["env"]
     assert "do not rotate" in err and "#348" in err
     assert [r["decision"] for r in box.attempts()][-1] == "usage-skip"
+
+
+def test_a_usage_limit_stops_model_calls_but_not_a_zero_cost_tier0_reuse():
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", "djangoerp")[0] == 0   # a validated, reusable djangoerp
+        box.seed_live([{"kind": "usage_limit"}])
+        code, _, err = jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31")
+    rec = box.last()
+    items = {i["key"]: i for i in rec["items"]}
+    assert code == 0 and items["bamr87/cv-pro"]["status"] == "usage-limited", (code, rec["items"])
+    reuse = items["bamr87/djangoerp"]
+    assert reuse["decision"] == "tier0-reuse" and reuse["status"] == "previewed", (reuse, err[-400:])
+    assert len(box.live_calls()) == 2, "one call per run: the reuse after the 429 made none"
 
 
 def test_a_rejected_credential_exits_3_and_stops_the_run():
@@ -1736,16 +1825,18 @@ def test_the_ceiling_is_read_afresh_before_each_attempt_and_held_under_the_budge
         blocked = L.budget_block(ctx, True)
         assert blocked and blocked[0] == "budget-skip" and ctx.budget.spent_usd == 20.0, (blocked, ctx.budget)
         assert ctx.budget.estimated_usd == 8.0, "an unledgered charge is added back to the fresh read"
-        assert "budget lock" in L.budget_block(ctx, False)[1]
+        assert L.budget_block(ctx, False)[0] == "budget-locked" and "budget lock" in L.budget_block(ctx, False)[1]
         (box.root / "ledger.json").write_text("{not json")
-        assert "cannot be read" in L.budget_block(ctx, True)[1], "an unreadable ledger skips, it never spends"
+        unreadable = L.budget_block(ctx, True)
+        assert unreadable[0] == "budget-unreadable" and "cannot be read" in unreadable[1], "it skips, never spends"
         box.seed_live({"kind": "ok", "proposals": GOOD})
         (box.root / "ledger.json").unlink()
         with (box.root / "ledger.json.loops.lock").open("a") as fh:
             fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
             code, _, _ = jev("run", "repo-scout", "--target", TARGET)
     item = box.last()["items"][0]
-    assert code == 0 and item["decision"] == "budget-skip" and "budget lock" in item["reason"], item
+    assert code == 0 and item["decision"] == "budget-locked" and "budget lock" in item["reason"], item
+    assert box.last()["status"] == "done", "a held lock is not the monthly ceiling"
     assert not box.live_calls()
 
 
@@ -2018,6 +2109,28 @@ def test_the_backstop_terminates_ai_run_before_it_kills_it():
         assert res.code == -signal.SIGKILL and time.monotonic() - started < 10, "then SIGKILL"
     finally:
         L.DASH_GEN, L.BACKSTOP_KILL_S = saved
+
+
+def test_a_recheck_failure_on_a_tier0_reuse_under_apply_fails_that_item_not_the_run():
+    box = Box()
+    real = L.RunContext.planner
+
+    def flaky(self, *, target=None, no_files=False):
+        if no_files:   # the live recheck before the filing
+            raise common.JevError("the planner exited 2: gh: HTTP 502")
+        return real(self, target=target, no_files=no_files)
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        assert jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31")[0] == 0   # both reusable
+        L.RunContext.planner = flaky
+        try:
+            code, _, err = jev("run", "repo-scout", "--target", "all", "--day", "2026-10-31", "--apply")
+        finally:
+            L.RunContext.planner = real
+    rec = box.last()
+    assert code == 1 and rec["status"] == "done", (code, rec["status"], rec["notes"], err[-300:])
+    assert [(i["decision"], i["status"]) for i in rec["items"]] == [("tier0-reuse", "failed")] * 2, rec["items"]
+    assert "HTTP 502" in rec["items"][0]["reason"] and not _issue_creates(box)
 
 
 def test_tier0_reuse_rehashes_the_earlier_validated_copy():

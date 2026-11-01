@@ -89,6 +89,8 @@ BACKSTOP_KILL_S = 60
 #: directory and the adapter's own `sources`: the engine, its config, and the
 #: executor that builds the agent's environment, credential and redactor.
 ENGINE_SOURCES = ("tools/jev/", "_data/fleet.yml", ".github/scripts/dash-gen/ai_activity.py", "tools/dash-gen")
+ALLOW_DIRTY_HELP = ("let --apply run with a dirty spec, adapter or engine (tools/jev/, _data/fleet.yml, ai-run, "
+                    "tools/dash-gen)")
 
 
 def runs_dir() -> Path:
@@ -917,7 +919,8 @@ def host_check(spec: StepSpec, posture: headless.Posture, fleet: dict, claude_bi
         if problem:
             rep.problems.append((EXIT["host_unsafe"], f"flag preflight: {problem}"))
         else:
-            rep.notes.append("flag preflight: every flag parses and the --settings document loads ($0)")
+            rep.notes.append("flag preflight: every flag parses and nothing reports the --settings document skipped "
+                             "($0)")
     key = cache_key(rep.version, spec, posture)
     if probe_cache:
         probe = cached(".probe.json", key)
@@ -1150,8 +1153,9 @@ def _bodies(d: Path) -> dict[str, str]:
 
 
 def usage_block(ctx: RunContext) -> tuple[str, str] | None:
-    """(decision, why) before anything else runs: a usage window spent earlier
-    in this run stops the queue."""
+    """(decision, why) for an item that would call the model after a usage
+    window spent earlier in this run. Asked after tier 0, so a $0 reuse or
+    skip (and its preview or filing, which reach gh, not Claude) still runs."""
     if ctx.usage_limited:
         return "usage-skip", "the usage window was spent earlier in this run (capacity, not a defect)"
     return None
@@ -1160,16 +1164,17 @@ def usage_block(ctx: RunContext) -> tuple[str, str] | None:
 def budget_block(ctx: RunContext, held: bool) -> tuple[str, str] | None:
     """(decision, why) when the month cannot absorb this attempt's full cap.
     Asked just before the model call — after tier 0, so a $0 reuse is never
-    blocked — under `budget_lock`, against a FRESH read of the ledger plus this
-    run's unledgered charges, so another run's spend is seen."""
+    blocked — under `budget_lock`, against a FRESH read of the ledger and the
+    engine's unledgered charges (plus any this run could not write down), so
+    another run's spend is seen."""
     cap = ctx.spec.resolved.max_budget_usd
     if not held:
-        return "budget-skip", ("another local loop attempt (or the canary) holds the budget lock — the month "
+        return "budget-locked", ("another local loop attempt (or the canary) holds the budget lock — the month "
                                "cannot be judged while it spends; run again when it ends")
     try:
         state = budget_position(ctx.fleet, scheduled=ctx.opts.scheduled)
     except (JevError, StepSpecError) as exc:
-        return "budget-skip", f"monthly ceiling: {exc}"
+        return "budget-unreadable", f"monthly ceiling: {exc}"
     for cost, source in ctx.unledgered:
         charge(state, cost, source)
     ctx.budget = state
@@ -1192,12 +1197,6 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
            "item": item.key, "dir": dirname, "nwo": item.nwo, "tier": TIER, "model": ctx.spec.resolved.model,
            "cost_usd": 0.0, "cost_source": "no-spend"}
     ctx.inflight = report
-    if live:
-        blocked = usage_block(ctx)
-        if blocked:
-            report.update(status="skipped", decision=blocked[0], reason=blocked[1])
-            ctx.run.append_attempt({**row, "decision": blocked[0], "reason": blocked[1]})
-            return report
     sha, why = (None, "offline: no HEAD read") if ctx.opts.offline else head_sha(item.nwo, item.branch)
     if why:
         print(f"jev loop: {why}", file=sys.stderr)
@@ -1207,6 +1206,13 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
         reused = _tier0(ctx, item, t0, report, row, live=live)
         if reused is not None:
             return reused
+    if live:
+        # after tier 0: a spent usage window stops model calls, not a $0 reuse or skip
+        blocked = usage_block(ctx)
+        if blocked:
+            report.update(status="skipped", decision=blocked[0], reason=blocked[1])
+            ctx.run.append_attempt({**row, "decision": blocked[0], "reason": blocked[1]})
+            return report
     triage = ctx.adapter.classify(ctx, item)
     if triage.blocked:
         report.update(status="blocked", reason=triage.reason, decision="blocked")
@@ -1302,7 +1308,12 @@ def _tier0(ctx: RunContext, item: Item, t0, report: dict, row: dict, *, live: bo
                    validated_rel=str(verdict.publish_file.relative_to(ctx.item_dir(item))))
         ctx.run.append_attempt({**row, "decision": decision, "reason": t0.reason,
                                 "reuse_from": str(t0.reuse_from) if t0.reuse_from else None})
-        return publish_phase(ctx, item, verdict, report, row)
+        try:
+            return publish_phase(ctx, item, verdict, report, row)
+        except JevError as exc:   # a planner or gh failure in the preview or the recheck: the item's, not the run's
+            report.update(status="failed", reason=str(exc), code=EXIT["attention"])
+            ctx.run.append_attempt({**row, "decision": decision, "reason": str(exc), "status": "failed"})
+            return report
     report.update(status="skipped" if t0.action == "skip" else "reused", reason=t0.reason, decision=decision)
     ctx.run.append_attempt({**row, "decision": decision, "reason": t0.reason,
                             "reuse_from": str(t0.reuse_from) if t0.reuse_from else None})
@@ -2494,14 +2505,14 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
                          "refused with --scheduled)")
     rn.add_argument("--max-items", type=int, default=None, metavar="N")
     rn.add_argument("--keep-workspace", action="store_true", help="keep the clone for inspection")
-    rn.add_argument("--allow-dirty", action="store_true", help="let --apply run with a dirty spec or adapter")
+    rn.add_argument("--allow-dirty", action="store_true", help=ALLOW_DIRTY_HELP)
     rn.add_argument("--run-id", default=None, metavar="ID")
     pb = sub.add_parser("publish", help="file a reviewed earlier dry run (--apply); without it, re-check its bytes")
     pb.add_argument("run_id")
     pb.add_argument("--item", default=None, metavar="KEY", help="the item to publish (when the run has several)")
     pb.add_argument("--apply", action="store_true", help="file the reviewed preview (idempotent: once per preview)")
     pb.add_argument("--plan-id", default=None, metavar="ID", help="refuse unless the preview has this plan id")
-    pb.add_argument("--allow-dirty", action="store_true", help="let --apply run with a dirty spec or adapter")
+    pb.add_argument("--allow-dirty", action="store_true", help=ALLOW_DIRTY_HELP)
     pb.add_argument("--json", action="store_true")
     sh = sub.add_parser("show", help="a run's summary (or run.json with --json)")
     sh.add_argument("run_id", nargs="?", default=None)
