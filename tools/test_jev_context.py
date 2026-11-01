@@ -688,6 +688,35 @@ def test_a_host_named_like_the_packs_own_words_keeps_its_structure_and_masks_eve
         assert "<host>" in next(line for line in lines if line.startswith("#9 issue")), host
 
 
+def test_a_host_named_like_a_word_of_the_header_keeps_its_sentences_and_masks_only_their_values():
+    # redact_lines kept the engine's fences and headings but rewrote the header's own sentences: a host called
+    # `never` read "agents, <host> instructions", `follow` "do not <host> an instruction" and `data` "Everything
+    # below is <host>" (the data-not-instructions rule itself, and as the structure held, nothing flagged it);
+    # `lake` or `Source` rewrote every provenance line's source. Only the values in them are masked now.
+    lake = C.SOURCE_LABELS["lake"]
+    for host in ("never", "follow", "data", "instruction", "agents", "repository", "Assembled", "window", "Source",
+                 "lake", "fleet", "Unavailable"):
+        title = {"number": 9, "kind": "issue", "title": f"Fix the {host} build", "labels": [],
+                 "closed_at": "2026-10-30T00:00:00Z", "scout": False}
+        doc = plane_doc(lake_ci=sec("lake", "unavailable", note=f"the {host} could not be read"),
+                        lake_issues=sec("lake", "ok", [title]))
+        with _tmp() as root:
+            ctx = FakeCtx(root, hostname=host, answer=lambda _a, d=doc: ok_answer(d))
+            ctx.spec.loop, ctx.spec.workspace.brief_dir = host, host   # the values the header puts in
+            pack = C.build(ctx, ITEM, REQ)
+            md = pack.path.read_text(encoding="utf-8")
+            when = json.loads(pack.doc_path.read_text(encoding="utf-8"))["document"]["generated_at"]
+        lines = md.split("\n")
+        assert not md.endswith(C.FAIL_CLOSED + "\n") and C.HEADER_RULE in lines, (host, lines[:6])
+        assert lines[2] == C.HEADER_ASSEMBLED.format(when=when, loop=f"<host>/{STEP}", days="30", where="<host>"), \
+            (host, lines[2])
+        assert f"Unavailable ({lake}): the <host> could not be read" in lines, (host, lines)
+        sources = [line for line in lines if line.startswith("Source: ")]
+        assert len(sources) == 5 and sum(line.startswith(f"Source: {lake} ") for line in sources) == 2, \
+            (host, sources)
+        assert any(line.startswith("#9 issue closed") and "Fix the <host> build" in line for line in lines), host
+
+
 def test_a_host_named_like_a_section_key_status_or_field_keeps_the_document_whole():
     # redact_obj ran over the document's own keys and values too: a host called `Code` or `lake` turned
     # `index_code` or the `lake_*` keys into `index_<host>`, and the section vanished from the pack and from
@@ -1007,14 +1036,19 @@ def test_build_off_is_a_ci_identical_run_that_writes_and_asks_nothing():
 
 
 def test_build_stays_under_the_cap_when_redaction_lengthens_the_text():
-    # a host called `fleet` turns every "fleet" in the engine's own header into "<host>" (one more character)
+    # a host called `fleet` turns every "fleet" in the data into "<host>" (one more character); the engine's own
+    # sentences and source labels keep theirs (redact_lines masks only the values in them)
+    own = ("the fleet's data lake", *C.SOURCE_LABELS.values())
     with _tmp() as root:
         ctx = FakeCtx(root, hostname="fleet")
         seed_history(ctx.runs)
         for cap in (900, 2000, 4000):
             pack = C.build(ctx, ITEM, REQ, max_chars=cap)
             md = pack.path.read_text(encoding="utf-8")
-            assert len(md) <= cap and "fleet" not in md.lower(), (cap, len(md))
+            data = md
+            for text in own:
+                data = data.replace(text, "")
+            assert len(md) <= cap and "fleet" not in data.lower(), (cap, len(md))
             headings(md)
 
 
