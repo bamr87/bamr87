@@ -201,6 +201,19 @@ def unresolved_refs(text: str) -> list[str]:
     return sorted({m.group(0) for m in SLUG_REF.finditer(text)})
 
 
+def unresolved_error(rel: str, left: list[str]) -> str:
+    """The error for a fragment whose slug references this run cannot resolve.
+
+    A slug resolves only against the fragments compiled in the SAME run: the
+    compiled entry keeps no slug. A reference to a key an earlier run already
+    numbered (FR-NEW:central-loop-switches after it became FR54, 45ede64) can
+    never resolve, so the message says to write the assigned id instead.
+    """
+    return (f"{rel}: unresolved reference(s) {', '.join(left)} — no pending fragment defines that key; it may "
+            f"already have been compiled in an earlier run, so reference its assigned id instead (look it up in "
+            f"{FEATURES} or {PRD})")
+
+
 def plan(repo: Path) -> Plan:
     """Read every fragment and decide which id each new thing gets.
 
@@ -246,6 +259,13 @@ def plan(repo: Path) -> Plan:
         p.amendments.append(frag.relative_to(repo).as_posix())
 
     p.changelog = [f.relative_to(repo).as_posix() for f in _fragments(repo, CHANGELOG_D, ".md")]
+
+    # A reference nothing in this run defines fails the plan, so `number plan`
+    # (and the PR-side dry run) reports it before `apply` consumes anything.
+    for rel in p.features + p.amendments:
+        left = unresolved_refs(rewrite_refs((repo / rel).read_text(encoding="utf-8"), p.assignments))
+        if left:
+            p.errors.append(unresolved_error(rel, left))
     return p
 
 
@@ -390,7 +410,7 @@ def apply(repo: Path, *, write: bool = True) -> Plan:
         ordered.update(entry)
         left = unresolved_refs(yaml.safe_dump(ordered))
         if left:
-            p.errors.append(f"{rel}: unresolved reference(s) {', '.join(left)}")
+            p.errors.append(unresolved_error(rel, left))
             continue
         _append_feature(repo, ordered)
         frag.unlink()
@@ -407,7 +427,7 @@ def apply(repo: Path, *, write: bool = True) -> Plan:
                       body, count=1, flags=re.M)
         left = unresolved_refs(body)
         if left:
-            p.errors.append(f"{rel}: unresolved reference(s) {', '.join(left)}")
+            p.errors.append(unresolved_error(rel, left))
             continue
         (repo / AMENDMENTS / f"{number}-{frag.stem}.md").write_text(body, encoding="utf-8")
         title = (re.search(r"^#\s+\S+\s+—\s+(.+)$", body, re.M) or re.search(r"^#\s+(.+)$", body, re.M))

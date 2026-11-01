@@ -205,6 +205,25 @@ def test_an_unresolved_slug_reference_is_reported_not_silently_dropped():
     assert (d / "docs/amendments/proposed/x.md").exists()
 
 
+def test_a_reference_to_a_key_an_earlier_run_compiled_says_to_use_its_id():
+    # 45ede64: #527 compiled FR-NEW:central-loop-switches to FR54, then #528's
+    # amendment still said FR-NEW:central-loop-switches and wedged every run
+    body = ("# NEW — Switches\n\n- **Status:** proposed\n- **Number:** NEW\n"
+            "- **Affects:** requirement `FR-NEW:central-loop-switches`\n")
+    d = mk({"docs/amendments/proposed/central-loop-switches.md": body})
+    plan = n.plan(d)
+    assert len(plan.errors) == 1, plan.errors
+    err = plan.errors[0]
+    assert err.startswith("docs/amendments/proposed/central-loop-switches.md: unresolved reference(s) "
+                          "FR-NEW:central-loop-switches")
+    assert "already have been compiled in an earlier run" in err and "assigned id" in err
+    assert n.apply(d).errors == plan.errors, "apply refuses on the plan's error and consumes nothing"
+    assert (d / "docs/amendments/proposed/central-loop-switches.md").exists()
+    fixed = body.replace("`FR-NEW:central-loop-switches`", "`FR2`")
+    (d / "docs/amendments/proposed/central-loop-switches.md").write_text(fixed)
+    assert not n.plan(d).errors
+
+
 # --------------------------------------------------------------------------- #
 # changelog
 # --------------------------------------------------------------------------- #
