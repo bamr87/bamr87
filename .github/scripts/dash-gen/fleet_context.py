@@ -33,9 +33,11 @@ allowlists, caps, time limits and redaction):
 
   read-only   the lake is opened `mode=ro` + `query_only`, never through
               fleet_lake.connect (which creates and migrates); HTTP is an
-              allowlist of read routes on the configured planes, with no
-              proxy and no redirect; nothing here talks to GitHub
-  bounded     every request <= 5 s and everything under --deadline-s; a plane
+              allowlist of read routes on the configured planes, whose URL
+              must be scheme://host:port (a path or query is refused), with
+              no proxy and no redirect; nothing here talks to GitHub
+  bounded     in wall-clock time: every request <= 5 s and everything under
+              --deadline-s, a plane that trickles bytes included; a plane
               that is down, slow or missing becomes a section saying so with
               its remedy, and the command still prints the document, exit 0
   capped      rows per section, lines and characters per snippet, queries
@@ -52,7 +54,9 @@ error. Fixture tests (no network beyond in-process loopback stubs):
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import http.client
 import json
 import os
 import platform
@@ -61,11 +65,10 @@ import shlex
 import socket
 import sqlite3
 import sys
+import threading
 import time
 import unicodedata
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
 
 try:
@@ -532,52 +535,117 @@ READ_ROUTES: dict[str, tuple[tuple[str, re.Pattern], ...]] = {
 PLANE_LABEL = {"qdrant": "Qdrant", "ollama": "the embedder (Ollama)", "elasticsearch": "Elasticsearch"}
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """A plane that redirects is answering for something else; do not follow it."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):   # noqa: D401
-        return None
+REMEDY_URL = "set it to scheme://host:port in _data/fleet.yml `observability:` (or its env override)"
 
 
-# No ProxyHandler entries: an HTTP_PROXY in the environment must not route a
-# loopback plane's answer — or this host's query — through somebody else.
-_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+def plane_origin(plane: str, base: str) -> tuple[str, str, int | None, str]:
+    """(scheme, host, port, origin) of a plane's configured URL, which must be
+    scheme://host[:port] and nothing more. A path, query, fragment or userinfo
+    is refused, not appended to: `<base>/_delete_by_query?…&_=` + a read path
+    would otherwise send a read body to a write endpoint."""
+    label = PLANE_LABEL.get(plane, plane)
+    raw = (base or "").strip()
+    try:
+        parts = urllib.parse.urlsplit(raw)
+        port = parts.port
+    except ValueError:
+        raise Unavailable(f"{label}'s URL is not a URL", REMEDY_URL) from None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        shown = clean_line(raw.rsplit("@", 1)[-1], 80) or "none"
+        raise Unavailable(f"{label} has no http(s) URL in the contract ({shown})", REMEDY_URL)
+    if parts.path not in ("", "/") or parts.query or parts.fragment or "@" in parts.netloc:
+        raise Unavailable(f"{label}'s URL carries a path, query, fragment or credentials; only "
+                          "scheme://host:port is accepted", REMEDY_URL)
+    host = parts.hostname
+    origin = f"{parts.scheme}://{f'[{host}]' if ':' in host else host}" + (f":{port}" if port else "")
+    return parts.scheme, host, port, origin
+
+
+def _exchange(scheme: str, host: str, port: int | None, method: str, path: str, data: bytes | None,
+              end: float, box: dict) -> None:
+    """One HTTP exchange, on a worker thread. http.client, not urllib: no
+    proxy is ever consulted and no redirect followed. Each recv is bounded by
+    what is left of `end`; the caller's join bounds the whole of it (the
+    connect, the name lookup and a header phase that trickles)."""
+    conn = None
+    try:
+        cls = http.client.HTTPSConnection if scheme == "https" else http.client.HTTPConnection
+        conn = cls(host, port, timeout=max(0.05, end - time.monotonic()))
+        conn.connect()
+        sock = conn.sock
+        box["sock"] = sock
+        conn.request(method, path, body=data,
+                     headers={"Content-Type": "application/json", "Accept": "application/json"})
+        sock.settimeout(max(0.05, end - time.monotonic()))
+        resp = conn.getresponse()
+        box["status"] = resp.status
+        if not 200 <= resp.status < 300:
+            return
+        chunks, size = [], 0
+        while not resp.isclosed():   # the read that completes the body closes it
+            left = end - time.monotonic()
+            if left <= 0:
+                raise TimeoutError("the per-request budget ran out mid-body")
+            sock.settimeout(left)
+            chunk = resp.read1(65536)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_BODY_BYTES:
+                box["too_big"] = True
+                return
+            chunks.append(chunk)
+        box["body"] = b"".join(chunks)
+    except Exception as exc:   # handed back to the caller, which names it in the section
+        box["exc"] = exc
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def http_json(plane: str, base: str, method: str, path: str, payload=None, *,
               deadline: Deadline, remedy: str = REMEDY_PLANES):
-    """One read request to one plane, bounded by the deadline. Raises Unavailable."""
+    """One read request to one plane, bounded in WALL-CLOCK time by the
+    per-request cap and the overall deadline, whichever ends first: a plane
+    that trickles a byte at a time is cut off there, not after every byte
+    has made its own timeout. Raises Unavailable (RouteRefused for a route
+    that is not a read, before any socket opens)."""
     if not any(m == method and rx.fullmatch(path) for m, rx in READ_ROUTES.get(plane, ())):
         raise RouteRefused(f"{method} {path} is not a read route of {plane}")
     label = PLANE_LABEL.get(plane, plane)
-    base = (base or "").rstrip("/")
-    if urllib.parse.urlsplit(base).scheme not in ("http", "https"):
-        raise Unavailable(f"{label} has no http(s) URL in the contract ({base or 'none'})",
-                          "set it in _data/fleet.yml `observability:`")
-    timeout = deadline.timeout()
+    scheme, host, port, origin = plane_origin(plane, base)
+    budget = deadline.timeout()
+    end = time.monotonic() + budget
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    req = urllib.request.Request(base + path, data=data, method=method,
-                                 headers={"Content-Type": "application/json", "Accept": "application/json"})
-    try:
-        with _OPENER.open(req, timeout=timeout) as fh:
-            body = fh.read(MAX_BODY_BYTES + 1)
-    except urllib.error.HTTPError as exc:
-        raise Unavailable(f"{label} at {base} answered HTTP {exc.code} to {method} {path}", remedy) from None
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        reason = getattr(exc, "reason", exc)
-        if isinstance(reason, (TimeoutError, socket.timeout)) or isinstance(exc, (TimeoutError, socket.timeout)):
-            why = f"did not answer within {timeout:.1f} s"
-        elif isinstance(reason, ConnectionRefusedError):
+    box: dict = {}
+    worker = threading.Thread(target=_exchange, args=(scheme, host, port, method, path, data, end, box),
+                              name=f"fleet-context-{plane}", daemon=True)
+    worker.start()
+    worker.join(max(0.0, end - time.monotonic()) + 0.05)
+    if worker.is_alive():
+        sock = box.get("sock")
+        if sock is not None:   # wake the worker's recv; it closes its own connection
+            with contextlib.suppress(OSError):
+                sock.shutdown(socket.SHUT_RDWR)
+        raise Unavailable(f"{label} at {origin} did not answer within {budget:.1f} s", remedy)
+    exc = box.get("exc")
+    if exc is not None:
+        if isinstance(exc, TimeoutError):
+            why = f"did not answer within {budget:.1f} s"
+        elif isinstance(exc, ConnectionRefusedError):
             why = "refused the connection"
         else:
-            why = f"is not reachable ({clean_line(reason, 120)})"
-        raise Unavailable(f"{label} at {base} {why}", remedy) from None
-    if len(body) > MAX_BODY_BYTES:
-        raise Unavailable(f"{label} at {base} answered more than {MAX_BODY_BYTES} bytes", remedy)
+            why = f"is not reachable ({clean_line(f'{type(exc).__name__}: {exc}', 120)})"
+        raise Unavailable(f"{label} at {origin} {why}", remedy)
+    status = box.get("status")
+    if status is not None and not 200 <= status < 300:
+        raise Unavailable(f"{label} at {origin} answered HTTP {status} to {method} {path}", remedy)
+    if box.get("too_big"):
+        raise Unavailable(f"{label} at {origin} answered more than {MAX_BODY_BYTES} bytes", remedy)
     try:
-        return json.loads(body.decode("utf-8"))
+        return json.loads((box.get("body") or b"").decode("utf-8"))
     except ValueError:
-        raise Unavailable(f"{label} at {base} answered something that is not JSON", remedy) from None
+        raise Unavailable(f"{label} at {origin} answered something that is not JSON", remedy) from None
 
 
 # --------------------------------------------------------------------------- #

@@ -233,7 +233,10 @@ class _Server(ThreadingHTTPServer):
 class Stub:
     """One loopback server answering for Qdrant, Ollama and Elasticsearch alike."""
 
-    def __init__(self, routes: dict, delay: float = 0.0):
+    def __init__(self, routes: dict, delay: float = 0.0, trickle: float = 0.0, trickle_body: bool = False):
+        """`trickle` sends the answer one byte at a time, that many seconds
+        apart — from the status line on, or (`trickle_body`) after headers
+        sent at once."""
         self.routes, self.delay, self.requests = routes, delay, []
         stub = self
 
@@ -247,6 +250,18 @@ class Stub:
                 fn = stub.routes.get((self.command, self.path))
                 code, doc = fn(body) if fn else (404, {"error": "no route"})
                 data = json.dumps(doc).encode()
+                if trickle:
+                    head = (f"HTTP/1.0 {code} OK\r\nContent-Type: application/json\r\n"
+                            f"Content-Length: {len(data)}\r\n\r\n").encode()
+                    try:
+                        if trickle_body:
+                            self.wfile.write(head)
+                        for b in (data if trickle_body else head + data):
+                            self.wfile.write(bytes([b]))
+                            time.sleep(trickle)
+                    except OSError:   # the client gave up: the behaviour under test
+                        stub.gave_up = True
+                    return
                 self.send_response(code)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
@@ -679,6 +694,44 @@ def test_the_deadline_reaches_inside_a_lake_query():
             assert "interrupt" in str(exc).lower(), exc
         finally:
             conn.close()
+
+
+def test_a_plane_that_trickles_is_cut_off_at_the_deadline():
+    # One byte every 0.2 s: each recv returns within any per-recv timeout, so
+    # only a wall-clock bound stops it. Headers trickled (the join bounds it)
+    # and headers at once with the body trickled (the read loop bounds it).
+    for trickle_body in (False, True):
+        with _env(), _tmp() as tmp, Stub({**index_routes(), **es_routes()}, trickle=0.2,
+                                         trickle_body=trickle_body) as stub:
+            started = time.monotonic()
+            doc = build(tmp / "no-lake", stub.url, queries=["x"], deadline_s=2.0,
+                        sections=["telemetry_errors", "index_code"])
+            elapsed = time.monotonic() - started
+        assert elapsed < 3.0, f"took {elapsed:.2f} s against a 2 s deadline (trickle_body={trickle_body})"
+        tele, index = doc["sections"]["telemetry_errors"], doc["sections"]["index_code"]
+        assert tele["status"] == "unavailable" and "did not answer within" in tele["note"], tele["note"]
+        assert index["status"] == "unavailable" and "--deadline-s" in index["note"], index["note"]
+
+
+def test_a_plane_url_with_a_path_or_query_is_refused_before_a_socket_opens():
+    with _env(), _tmp() as tmp, Stub({**index_routes(), **es_routes()}) as stub:
+        es = stub.url + "/logs-fleet.claude-2026/_delete_by_query?conflicts=proceed&_="
+        qd = stub.url + "/collections/ws-test/points/delete?wait=true&_="
+        doc = build(tmp / "no-lake", stub.url, queries=["x"], sections=["telemetry_errors", "index_code"],
+                    contract=contract_for(es), index_cfg=cfg_for(qd))
+        for bad in (stub.url + "/x", stub.url + "?a=b", stub.url + "#f",
+                    stub.url.replace("http://", "http://user:pw@")):
+            try:
+                fc.http_json("elasticsearch", bad, "POST", "/logs-fleet.claude-*/_search", {},
+                             deadline=fc.Deadline(5))
+                raise AssertionError(f"{bad} was used")
+            except fc.Unavailable as exc:
+                assert "pw" not in exc.note() and "only scheme://host:port" in exc.note(), exc.note()
+        assert stub.requests == [], stub.requests
+    for key in ("telemetry_errors", "index_code"):
+        sec = doc["sections"][key]
+        assert sec["status"] == "unavailable" and "carries a path" in sec["note"], (key, sec["note"])
+    assert fc.plane_origin("qdrant", "http://127.0.0.1:6333/")[3] == "http://127.0.0.1:6333"
 
 
 def test_usage_errors_exit_2():
