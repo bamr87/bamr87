@@ -129,22 +129,47 @@ def fence(content: str, info: str = "text") -> str:
 # --------------------------------------------------------------------------- #
 # redaction
 # --------------------------------------------------------------------------- #
-# What headless.SECRET_RE does not already cover: the shorter and the
-# user-to-server GitHub shapes, a whole private-key block, AWS and Slack keys,
-# a bearer header. The same shapes the planes mask (fleet_context.EXTRA_REDACTIONS).
-_EXTRA_SECRETS: tuple[tuple[re.Pattern, str], ...] = (
-    # a full-length token glued to the word before it (`x…ghp_…`) has no \b to anchor on
-    (re.compile(r"(gh[pousr])_[A-Za-z0-9]{30,}"), r"\1_[REDACTED]"),
-    (re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"), "sk-ant-[REDACTED]"),
+# The planes' credential shapes, carried VERBATIM (this module cannot import
+# dash-gen; tools/test_jev_context.py holds both lists equal to their owners),
+# so the text only the engine handles — history reasons, validate.json
+# problems, dash-gen's stderr — is masked exactly as the planes mask theirs.
+#: fleet_observe.REDACTIONS
+_OBSERVE_REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
+    (re.compile(r"sk-ant-[A-Za-z0-9_\-]+"), "sk-ant-[REDACTED]"),
+    (re.compile(r"github_pat_[A-Za-z0-9_]+"), "github_pat_[REDACTED]"),
+    (re.compile(r"ghp_[A-Za-z0-9]{20,}"), "ghp_[REDACTED]"),
+    (re.compile(r"gho_[A-Za-z0-9]{20,}"), "gho_[REDACTED]"),
+    (re.compile(r"ghs_[A-Za-z0-9]{20,}"), "ghs_[REDACTED]"),
+    (re.compile(r"AIza[A-Za-z0-9_\-]{20,}"), "AIza[REDACTED]"),
+)
+#: fleet_context.EXTRA_REDACTIONS — the private-key block first
+_PLANES_REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"),
+     "[REDACTED PRIVATE KEY]"),
     (re.compile(r"\b(gh[pousr])_[A-Za-z0-9]{16,}"), r"\1_[REDACTED]"),
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{16,}"), "github_pat_[REDACTED]"),
     (re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{8,}"), "sk-ant-[REDACTED]"),
-    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"),
-     "[REDACTED PRIVATE KEY]"),
+    (re.compile(r"\bnpm_[A-Za-z0-9]{36}\b"), "npm_[REDACTED]"),
+    (re.compile(r"(?i)\b((?:proxy-)?authorization\s*:\s*(?:(?:bearer|token|basic|digest)\s+)?)"
+                r"[A-Za-z0-9._~+/=\-]{8,}"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b((?:x-)?(?:api[-_]?key|auth[-_]?token|access[-_]?token|private[-_]?token)['\"]?"
+                r"\s*[:=]\s*['\"]?)[A-Za-z0-9._~+/=\-]{8,}"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b(bearer|token)(\s+)(?=[A-Za-z0-9._~+/=\-]*\d)[A-Za-z0-9._~+/=\-]{12,}"),
+     r"\1\2[REDACTED]"),
+    (re.compile(r"\b([a-z][a-z0-9+.-]*://)[^\s/@:'\"`]+:[^\s/@'\"`]+@"), r"\1[REDACTED]@"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AKIA[REDACTED]"),
     (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}"), "xox-[REDACTED]"),
-    (re.compile(r"(?i)\b(bearer)(\s+)[A-Za-z0-9._~+/=\-]{12,}"), r"\1\2[REDACTED]"),
+    (re.compile(r"\b([A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE_KEY)[A-Z0-9_]*)"
+                r"=(['\"]?)[^\s'\"$]{8,}\2"), r"\1=[REDACTED]"),
 )
+_PRIVATE_KEY_BLOCK = _PLANES_REDACTIONS[0]
+#: the engine's own: a full-length token glued to the word before it (`x…ghp_…`)
+#: has no \b for the planes' shapes to anchor on
+_GLUED_SECRETS: tuple[tuple[re.Pattern, str], ...] = (
+    (re.compile(r"(gh[pousr])_[A-Za-z0-9]{30,}"), r"\1_[REDACTED]"),
+    (re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"), "sk-ant-[REDACTED]"),
+)
+_SECRETS = (*_GLUED_SECRETS, *_OBSERVE_REDACTIONS, *_PLANES_REDACTIONS)
 # Any macOS home, a temp path (the whole path: its tail names session ids) and
 # an address — the planes' own rules, held here too for the engine-side text.
 _MAC_HOME = re.compile(r"(?<![\w.~/-])/Users/[^/\s'\"`<>|;&()]+")
@@ -200,15 +225,19 @@ def _plan(home: str, work_root: str, hostname: str, env_home: str) -> tuple[tupl
 
 
 def redact(text: str, ctx) -> str:
-    """headless.Redactor (secret env values, credential shapes, $HOME → ~), the
-    planes' extra credential shapes, then this machine: ctx.work_root → <work>,
-    ctx.home → ~ (longest first), any /Users/<name> → ~, temp paths → <tmp>,
-    addresses → <email>, ctx.hostname → <host>. Every replacement is free of
-    backticks and line breaks, so it cannot change a fence or a heading."""
+    """A whole private-key block first (headless.SECRET_RE masks only its
+    marker, which would leave the body with nothing to anchor on), then
+    headless.Redactor (secret env values, credential shapes, $HOME → ~), then
+    every credential shape the planes mask, then this machine: ctx.work_root
+    → <work>, ctx.home → ~ (longest first), any /Users/<name> → ~, temp paths
+    → <tmp>, addresses → <email>, ctx.hostname → <host>. Every replacement is
+    free of backticks and line breaks, so it cannot change a fence or a
+    heading."""
     if not text:
         return text
-    s = headless.Redactor(os.environ).text(str(text))
-    for rx, repl in _EXTRA_SECRETS:
+    rx, repl = _PRIVATE_KEY_BLOCK
+    s = headless.Redactor(os.environ).text(rx.sub(repl, str(text)))
+    for rx, repl in _SECRETS:
         s = rx.sub(repl, s)
     needles, hosts = _plan(str(getattr(ctx, "home", "") or ""), str(getattr(ctx, "work_root", "") or ""),
                            str(getattr(ctx, "hostname", "") or ""), os.environ.get("HOME") or "")

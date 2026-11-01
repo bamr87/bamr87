@@ -596,6 +596,21 @@ def test_scrubber_masks_this_machine_and_credentials():
         assert home not in fc.Scrubber().text(f"x {home}/y")
 
 
+def test_token_masks_leave_english_alone_and_catch_header_and_url_shapes():
+    for english in ("fix: token authentication for the console", "Rotate the token automatically every week",
+                    "the bearer of bad news", "Authorization headers are documented"):
+        assert fc.clean_line(english, fc.TITLE_CHARS) == english, fc.clean_line(english, fc.TITLE_CHARS)
+    for text, value in (("token abc123def456ghi789", "abc123def456ghi789"),
+                        ("Authorization: Basic YWRtaW46aHVudGVyMg==", "YWRtaW46aHVudGVyMg=="),
+                        ("X-Api-Key: 0123456789abcdef0123", "0123456789abcdef0123"),
+                        ('{"access_token": "abcdefgh12345678"}', "abcdefgh12345678"),
+                        ("https://admin:hunter3hunter3@example.invalid/x", "hunter3hunter3"),
+                        ("npm_AbCdEf0123456789AbCdEf0123456789AbCd", "AbCdEf0123456789"),
+                        ("DB_PRIVATE_KEY=abcdefgh12345678", "abcdefgh12345678")):
+        out = fc.mask_credentials(text)
+        assert value not in out and "[REDACTED" in out, (text, out)
+
+
 def test_redaction_covers_every_plane_end_to_end():
     secret_chunk = f"ROOT = '{FAKE_HOME}/bamr87'  # on {FAKE_HOST}\nKEY = '{ANT_KEY}'\nTMP = '/var/folders/q/T/z'"
     routes = {**index_routes(), **es_routes()}

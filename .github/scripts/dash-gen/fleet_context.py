@@ -211,20 +211,32 @@ def age_hours(as_of: str | None, now: dt.datetime) -> float | None:
 # another. Titles and snippets are untrusted text; this strips, never interprets.
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
 _BREAKS = re.compile(r"[\t\n\r]+")
-# What fleet_observe.REDACTIONS does not already cover: the shorter and the
-# user-to-server GitHub shapes, bearer/token headers, private-key blocks, AWS
-# and Slack keys, and a secret-named variable assigned inline in a command.
+# What fleet_observe.REDACTIONS does not already cover: a whole private-key
+# block (FIRST, so nothing else takes only its marker), the shorter and the
+# user-to-server GitHub shapes, npm tokens, Authorization and API-key headers,
+# a bare bearer/token value (one with a digit, so "token authentication" stays
+# English), URL userinfo, AWS and Slack keys, and a secret-named variable
+# assigned inline in a command. tools/jev/context.py carries this list
+# verbatim (it cannot import dash-gen); tools/test_jev_context.py holds the two
+# equal, so engine-only text is masked exactly as the planes mask theirs.
 EXTRA_REDACTIONS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"),
+     "[REDACTED PRIVATE KEY]"),
     (re.compile(r"\b(gh[pousr])_[A-Za-z0-9]{16,}"), r"\1_[REDACTED]"),
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{16,}"), "github_pat_[REDACTED]"),
     (re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{8,}"), "sk-ant-[REDACTED]"),
-    (re.compile(r"(?i)\b(bearer|token)(\s+)[A-Za-z0-9._~+/=\-]{12,}"), r"\1\2[REDACTED]"),
-    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"),
-     "[REDACTED PRIVATE KEY]"),
+    (re.compile(r"\bnpm_[A-Za-z0-9]{36}\b"), "npm_[REDACTED]"),
+    (re.compile(r"(?i)\b((?:proxy-)?authorization\s*:\s*(?:(?:bearer|token|basic|digest)\s+)?)"
+                r"[A-Za-z0-9._~+/=\-]{8,}"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b((?:x-)?(?:api[-_]?key|auth[-_]?token|access[-_]?token|private[-_]?token)['\"]?"
+                r"\s*[:=]\s*['\"]?)[A-Za-z0-9._~+/=\-]{8,}"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b(bearer|token)(\s+)(?=[A-Za-z0-9._~+/=\-]*\d)[A-Za-z0-9._~+/=\-]{12,}"),
+     r"\1\2[REDACTED]"),
+    (re.compile(r"\b([a-z][a-z0-9+.-]*://)[^\s/@:'\"`]+:[^\s/@'\"`]+@"), r"\1[REDACTED]@"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AKIA[REDACTED]"),
     (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}"), "xox-[REDACTED]"),
-    (re.compile(r"\b([A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY)[A-Z0-9_]*)=(['\"]?)[^\s'\"$]{8,}\2"),
-     r"\1=[REDACTED]"),
+    (re.compile(r"\b([A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE_KEY)[A-Z0-9_]*)"
+                r"=(['\"]?)[^\s'\"$]{8,}\2"), r"\1=[REDACTED]"),
 ]
 # A temp path is a session's scratchpad or a clone: the whole path goes, not
 # only its prefix, because the tail names this machine's session ids.

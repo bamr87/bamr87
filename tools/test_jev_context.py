@@ -537,6 +537,57 @@ def test_redaction_masks_home_host_work_root_env_secrets_and_tokens_in_both_file
     json.loads(js)   # still JSON
 
 
+KEY_BODY = "MIIEpAIBAAKCAQEAsecretKEYbody0123456789"
+KEY_BLOCK = f"-----BEGIN RSA PRIVATE KEY-----\n{KEY_BODY}\nQUJDREVGR0hJSktMTU5PUFFSU1RVVldY\n-----END RSA PRIVATE KEY-----"
+INLINE = {   # what each shape is, and the value that must not survive it
+    "X_TOKEN=hunter2hunter2 gh api user": "hunter2hunter2",
+    "Authorization: token abcdef1234567890abcdef": "abcdef1234567890abcdef",
+    "FLEET_TOKEN=abcdEFGH12345678xyz": "abcdEFGH12345678xyz",
+    "OPENAI_API_KEY='sk-proj-abcdefghijklmnop0123'": "sk-proj-abcdefghijklmnop0123",
+    "key AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q": "SyA1b2C3d4E5f6G7h8I9j0",
+    "npm_AbCdEf0123456789AbCdEf0123456789AbCd": "AbCdEf0123456789AbCdEf0123456789AbCd",
+    "curl -H 'X-Api-Key: 0123456789abcdef0123'": "0123456789abcdef0123",
+    "https://admin:hunter3hunter3@example.invalid/x": "hunter3hunter3",
+}
+
+
+def test_engine_redaction_carries_the_planes_patterns_verbatim():
+    if str(DASH_GEN_DIR) not in sys.path:
+        sys.path.append(str(DASH_GEN_DIR))
+    import fleet_context as fc
+    import fleet_observe as fo
+
+    def shapes(pairs):
+        return [(rx.pattern, rx.flags, repl) for rx, repl in pairs]
+
+    assert shapes(C._OBSERVE_REDACTIONS) == shapes(fo.REDACTIONS), "fleet_observe.REDACTIONS drifted"
+    assert shapes(C._PLANES_REDACTIONS) == shapes(fc.EXTRA_REDACTIONS), "fleet_context.EXTRA_REDACTIONS drifted"
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        for text, value in {KEY_BLOCK: KEY_BODY, **INLINE}.items():
+            engine, planes = C.redact(text, ctx), fc.mask_credentials(text)
+            assert value not in engine, f"the engine leaves {value!r} in {engine!r}"
+            assert value not in planes, f"the planes leave {value!r} in {planes!r}"
+        assert C.redact(KEY_BLOCK, ctx) == "[REDACTED PRIVATE KEY]", C.redact(KEY_BLOCK, ctx)
+
+
+def test_a_key_block_and_inline_secrets_in_engine_only_text_never_reach_the_pack():
+    with _tmp() as root:
+        ctx = FakeCtx(root)
+        run_id = "20261031T120000Z-repo-scout-scout-ffffff"
+        write_attempts(ctx.runs, run_id, [
+            {"ts": "2026-10-31T12:00:00Z", "decision": "attempt", "status": "rejected",
+             "reason": f"validator said: {KEY_BLOCK} and X_TOKEN=hunter2hunter2"}])
+        write_validate(ctx.runs, run_id, [KEY_BLOCK, *INLINE])
+        pack = C.build(ctx, ITEM, REQ)
+        md = pack.path.read_text(encoding="utf-8")
+        js = pack.doc_path.read_text(encoding="utf-8")
+    assert "problem: " in md and "[REDACTED PRIVATE KEY]" in md, md
+    for name, text in (("context.md", md), ("context.json", js)):
+        for value in (KEY_BODY, "QUJDREVGR0hJSktMTU5PUFFSU1RVVldY", *INLINE.values()):
+            assert value not in text, f"{name} carries {value!r}"
+
+
 def test_short_host_names_nested_masks_and_glued_tokens():
     with _tmp() as root:
         ctx = FakeCtx(root, hostname="mac")
