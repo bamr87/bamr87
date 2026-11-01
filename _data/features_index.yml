@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-10-31T06:04:35Z'
+generated_at: '2026-11-01T06:02:16Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,9 +17,9 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 49
-  implemented: 34
-  covered: 48
+  features: 58
+  implemented: 35
+  covered: 52
   evidenced: 10
   verified: 8
   ui: 18
@@ -27,13 +27,18 @@ totals:
   ui_verified: 8
   scenarios: 11
   screenshots: 50
-  dangling: 0
+  dangling: 5
 pct:
-  coverage: 141
+  coverage: 149
   evidence: 29
-  verified: 24
+  verified: 23
   ui_coverage: 100
-attention: []
+attention:
+- repo: bamr87
+  severity: 40
+  kind: dangling-links
+  detail: 5 test/scenario/evidence path(s) in the index do not exist
+  lever: fix the paths in features/features.yml
 repos:
 - name: bamr87
   slug: bamr87
@@ -57,6 +62,13 @@ repos:
     - 'features/features.yml HUB-047: docs path not found: docs/amendments/proposed/major-change-evidence.md'
     - 'features/features.yml HUB-048: docs path not found: docs/amendments/proposed/eval-baseline-risk-tiers.md'
     - 'features/features.yml HUB-049: docs path not found: docs/amendments/proposed/eval-baseline-risk-tiers.md'
+    - 'features/features.yml HUB-050: docs path not found: docs/amendments/proposed/ai-ready-foundation.md'
+    - 'features/features.yml HUB-051: docs path not found: docs/amendments/proposed/ai-ready-foundation.md'
+    - 'features/features.yml HUB-052: tests path not found: .github/scripts/dash-gen/test_catalog_info.py'
+    - 'features/features.yml HUB-053: tests path not found: tools/test_campaigns.py'
+    - 'features/features.yml HUB-054: tests path not found: tools/test_target_selectors.py'
+    - 'features/features.yml HUB-055: tests path not found: tools/test_fanout.py'
+    - 'features/features.yml HUB-057: tests path not found: tools/test_loop_switches.py'
   kit:
     config: true
     runner: true
@@ -70,21 +82,22 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 49
-    implemented: 34
-    covered: 48
+    features: 58
+    implemented: 35
+    covered: 52
     evidenced: 10
     verified: 8
     ui: 18
     ui_covered: 18
     ui_verified: 8
-    dangling: 0
+    dangling: 5
   pct:
     coverage: 100
     evidence: 29
-    verified: 24
+    verified: 23
   last_run: null
-  gaps: []
+  gaps:
+  - 5 dangling test/scenario/evidence link(s)
   items:
   - id: HUB-001
     title: Portfolio + dashboard from the registry
@@ -1878,6 +1891,294 @@ repos:
       docs: https://github.com/bamr87/bamr87/blob/main/docs/amendments/proposed/eval-baseline-risk-tiers.md
       evidence: []
       tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-050
+    title: 'AI-ready foundation: API layer, MCP, agent docs and metadata in every repo'
+    surface: infra
+    implemented: false
+    link: docs/constitution.md
+    docs: docs/amendments/proposed/ai-ready-foundation.md
+    tags:
+    - governance
+    - ai
+    - mcp
+    - api
+    date: '2026-10-30'
+    provenance: null
+    tests: []
+    waived:
+    - planned; the kit and check land in follow-up PRs
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Constitution § 16: every active repo exposes an API layer (OpenAPI for services, a static JSON data API for
+      content sites, --json for CLIs), an MCP server (each content site its own, local stdio), AGENTS.md plus llms.txt, and
+      an ai-ready.ym'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/constitution.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/amendments/proposed/ai-ready-foundation.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-051
+    title: 'AIEO AI-readiness check: scores every repo''s AI foundation'
+    surface: infra
+    implemented: false
+    link: tools/aieo/
+    docs: docs/amendments/proposed/ai-ready-foundation.md
+    tags:
+    - governance
+    - ai
+    - conformance
+    - aieo
+    date: '2026-10-30'
+    provenance: null
+    tests: []
+    waived:
+    - planned; the check lands in a follow-up PR
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'A repo-readiness mode in the AIEO engine (hub tools/aieo/, migrated from zer0-CMS apps/aieo) run by tools/conformance.py
+      as check ai-ready: validates each layer (OpenAPI, server.json, llms.txt, --json, JSON-LD) and scores agent docs; warn-o'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/aieo/
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/amendments/proposed/ai-ready-foundation.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-052
+    title: Backstage catalog-info.yaml export of the registry
+    surface: infra
+    implemented: false
+    link: .github/scripts/dash-gen
+    docs: docs/DASH.md
+    tags:
+    - registry
+    - catalog
+    - interop
+    date: '2026-10-31'
+    provenance: null
+    tests: []
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: false
+    evidenced: false
+    dangling:
+    - .github/scripts/dash-gen/test_catalog_info.py
+    summary: tools/dash-gen catalog-info projects _data/projects.yml into a generated, drift-gated catalog-info.yaml (one
+      Backstage Component per repo, lifecycle from registry status) for interop with Backstage, Port and Cortex (bamr87/bamr87#516).
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/DASH.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-053
+    title: 'Fan-out campaigns page: per-repo PR, CI and merge state per kit rollout'
+    surface: ui
+    implemented: false
+    link: tools/fanout.sh
+    docs: docs/STANDARDS.md
+    tags:
+    - fanout
+    - console
+    - campaigns
+    date: '2026-10-31'
+    provenance: null
+    tests: []
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: false
+    evidenced: false
+    dangling:
+    - tools/test_campaigns.py
+    summary: Each fanout.sh --apply run records a campaign (kit, version, targets, PRs); a read-only /campaigns console page
+      rolls up PR, CI and merge state per repo, Batch Changes-style (bamr87/bamr87#517).
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/fanout.sh
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/STANDARDS.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-054
+    title: Tag selectors for --target
+    surface: cli
+    implemented: false
+    link: tools/fanout.sh
+    docs: docs/DASH.md
+    tags:
+    - fanout
+    - cli
+    - selectors
+    date: '2026-10-31'
+    provenance: null
+    tests: []
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: false
+    evidenced: false
+    dangling:
+    - tools/test_target_selectors.py
+    summary: The --target flag accepts selectors resolved from _data/projects.yml (tag:python, lang:js, group:sites, !name)
+      through one shared resolver, printing the resolved list in dry-run, mani/gita-style (bamr87/bamr87#519).
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/fanout.sh
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/DASH.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-055
+    title: Copier-style 3-way kit upgrade for hand-edited files
+    surface: infra
+    implemented: false
+    link: tools/fanout.sh
+    docs: docs/STANDARDS.md
+    tags:
+    - fanout
+    - kits
+    - upgrade
+    date: '2026-10-31'
+    provenance: null
+    tests: []
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: false
+    evidenced: false
+    dangling:
+    - tools/test_fanout.py
+    summary: 'A per-repo .fleet/kits.yml answers file records kit, version and hub commit; fanout.sh --upgrade --merge opens
+      a 3-way-merged PR for hand-modified seeds and surfaces conflicts as a draft for human review; the remainder of #127
+      (bamr87/bamr8'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/fanout.sh
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/STANDARDS.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-056
+    title: 'Governance records lint: amendment status, constitution order, doc links'
+    surface: infra
+    implemented: false
+    link: tools/governance_lint.py
+    docs: docs/amendments/README.md
+    tags:
+    - governance
+    - lint
+    date: '2026-10-31'
+    provenance: null
+    tests:
+    - tools/test_governance_lint.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: governance_lint.py check also fails on dead docs/link paths in features.yml and PRD.md, merged amendment records
+      not marked ratified, constitution sections out of order, and PRD requirements citing a HUB id they are not mapped to;
+      jev numbe
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/governance_lint.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/amendments/README.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_governance_lint.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-057
+    title: Centrally managed loop kill switches
+    surface: infra
+    implemented: false
+    link: _data/fleet.yml
+    docs: docs/AI-INTEGRATION.md
+    tags:
+    - loops
+    - kill-switch
+    - console
+    - governance
+    date: '2026-10-31'
+    provenance: null
+    tests: []
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: false
+    evidenced: false
+    dangling:
+    - tools/test_loop_switches.py
+    summary: 'One switches: map in _data/fleet.yml (global, group, loop and repo levels with state, reason, set_by and expiry)
+      is the source of truth for every loop''s kill switch; a dry-run-by-default op projects it to one repo''s or loop''s
+      *_ENABLED vari'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/_data/fleet.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/AI-INTEGRATION.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-058
+    title: Agentic design patterns map
+    surface: infra
+    implemented: true
+    link: docs/agentic-patterns/patterns.json
+    docs: docs/agentic-patterns/README.md
+    tags:
+    - docs
+    - agents
+    - ai
+    date: '2026-10-31'
+    provenance: null
+    tests:
+    - .github/scripts/dash-gen/test_machine_api.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: One evidence-rated page per chapter of Gulli's Agentic Design Patterns under docs/agentic-patterns/, each pinned
+      to commits with a reproduce block and an issue for every gap, plus a patterns.json index (schema-validated) that llms.txt
+      links
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/agentic-patterns/patterns.json
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/agentic-patterns/README.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_machine_api.py
       scenarios: []
       screenshots: []
   truncated: false

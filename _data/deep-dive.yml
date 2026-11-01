@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-10-31T12:22:48Z'
+refreshed_at: '2026-11-01T12:23:08Z'
 repos:
 - day: 1
   repo: it-journey
@@ -47,16 +47,25 @@ repos:
   - https://github.com/bamr87/bamr87/issues/502
   - https://github.com/bamr87/bamr87/issues/501
   - https://github.com/bamr87/bamr87/issues/500
+  - https://github.com/bamr87/bamr87/issues/519
+  - https://github.com/bamr87/bamr87/issues/518
+  - https://github.com/bamr87/bamr87/issues/517
+  - https://github.com/bamr87/bamr87/issues/516
+  - https://github.com/bamr87/bamr87/issues/515
+  - https://github.com/bamr87/bamr87/issues/514
+  - https://github.com/bamr87/bamr87/issues/513
+  - https://github.com/bamr87/bamr87/issues/512
+  - https://github.com/bamr87/bamr87/issues/511
   prs:
   - https://github.com/bamr87/bamr87/pull/431
   - https://github.com/bamr87/bamr87/pull/510
   - https://github.com/bamr87/bamr87/pull/509
   - https://github.com/bamr87/bamr87/pull/508
-  open_issues: 8
-  open_prs: 3
-  findings: 'Cycle 1 day 2. Previously known items now FIXED: python-tests.yml runs every tools/console/dash-gen/tui/templates test file and fails ones with no __main__; v1/v2 tags and releases exist. Open: 7 dead amendments/proposed/* links in PRD.md + features.yml, and FR45 cites HUB-049 (#500, held for Amr). Merged amendments 0002-0011 are still marked proposed, and constitution § 13 comes before § 12 with stale numbered-at-merge notes (#501). PRD NFR11 says $75 but fleet.yml says $200 (#502). docs_index --lint is red on main and not gated (#503, fix PR #508). Console DataTable sort headers and rows are not keyboard or screen-reader operable, and there is no reduced-motion handling or skip link (#504). Planned governance-records-lint feature (#505, PR #509). HUB-039 has no PRD requirement (warning).'
+  open_issues: 17
+  open_prs: 1
+  findings: 'Cycle 1 day 2, final. Outcomes: Amr merged #508 (docs_index --lint fix) and #509 (governance-records-lint feature); issues #500-#505 filed (dead amendment links + FR45/HUB-049 #500, amendment status/§ 13 ordering #501, NFR11 budget mismatch #502, ungated docs_index lint #503, console a11y #504, governance-records-lint #505). Previously known python-tests and v1/v2 tag items were already fixed. HUB-039 has no PRD requirement (warning).'
   score: 78.0
-  next_focus: 'Amr: go-ahead on #500 and the status flips in #501; budget decision in #502. Verify #508/#509 merged and HUB-050/FR47 numbered; gate docs_index --lint (#503); a11y pass on the console (#504) with § 15 evidence; land #494/#496 so § 15/§ 16 numbering is final.'
+  next_focus: 'Amr: go-ahead on #500 and #501 status flips; budget decision in #502. Gate docs_index --lint in CI (#503); console a11y pass (#504) with § 15 evidence; land #494/#496 so § 15/§ 16 numbering is final.'
 - day: 3
   repo: bamr87.github.io
   scheduled: '2026-11-01'
