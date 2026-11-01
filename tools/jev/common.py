@@ -3,8 +3,9 @@
 File: tools/jev/common.py
 Description: The shared bottom layer of JEV — locating the hub, reading
              `_data/fleet.yml` `jev:` / `budget:`, the one `gh` wrapper every
-             GitHub call goes through (and the guard it applies), the `git`
-             wrapper (no hooks, no fsmonitor, no force-push), the small
+             gh call JEV makes itself goes through (and the allowlist guard it
+             applies), the `git` wrapper (no hooks, no fsmonitor, no
+             force-push; an allowlist of subcommands and options), the small
              subprocess helper, and a `.env` reader that returns named keys
              only. Nothing here talks to a model or writes a file.
 Author: bamr87
@@ -105,7 +106,7 @@ def git(args: list[str], cwd: Path, timeout: int = 900, env: dict | None = None,
     call also passes `assert_safe_git`, so no history is ever rewritten remotely.
     `inherit_env=False` makes `env` the whole environment (see `run`).
     """
-    assert_safe_git(args)
+    assert_safe_git(args, env)
     return run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "core.pager=cat",
                 *args], cwd=cwd, timeout=timeout, env=env, inherit_env=inherit_env)
 
@@ -139,61 +140,92 @@ def assert_no_admin(args: list[str]) -> None:
     `gh pr merge --admin` bypasses branch protection, and `gh api -X PATCH
     /repos/...` can change settings. Both are outside JEV's mandate (the
     constitution's agent row: an agent never merges its own work and never
-    changes settings), so they are refused at the one choke point rather than
-    trusted not to be written.
+    changes settings), so they are refused here rather than trusted not to be
+    written. The guard fails closed: only the `gh <noun> <verb>` commands JEV
+    issues pass (`_GH_ALLOWED`), named by the argv's first two words — gh
+    finds the verb past a flag (`gh pr -R o/r merge`) and takes aliases
+    (`gh secret remove`), so a flag there, or any other command, is refused.
     """
-    if "--admin" in args:
+    if "--admin" in args or any(a.startswith("--admin=") for a in args):
         raise JevError("refusing: JEV never uses --admin")
-    verb = tuple(args[:2])
-    if verb == ("pr", "merge"):
+    noun = args[0] if args else ""
+    verb = (args[1] if len(args) > 1 else "") if noun != "api" else None
+    if not noun or noun.startswith("-") or (verb is not None and (not verb or verb.startswith("-"))):
+        raise JevError(f"refusing: `gh {' '.join(args[:3])}` — JEV's gh argv starts with its command "
+                       "(`gh <noun> <verb>`, no flag before the verb)")
+    if (noun, verb) == ("pr", "merge"):
         raise JevError("refusing: JEV never merges a pull request")
-    if verb in _REFUSED_VERBS:
-        raise JevError(f"refusing: JEV never runs `gh {' '.join(verb)}` ({_REFUSED_VERBS[verb]})")
-    if verb == ("repo", "sync") and any(a in ("--force", "-f") for a in args):
-        raise JevError("refusing: JEV never force-syncs a repository (it rewrites the branch)")
-    if args[:1] == ["api"]:
+    if (noun, verb) not in _GH_ALLOWED:
+        why = _GH_REFUSED_WHY.get(noun, "not one of the gh commands JEV issues")
+        raise JevError(f"refusing: JEV never runs `gh {noun} {verb}` ({why})")
+    if verb == "comment" and any(a.split("=", 1)[0] in ("--delete-last", "--edit-last") for a in args):
+        raise JevError("refusing: JEV only adds comments (never --edit-last or --delete-last)")
+    if noun == "api":
         _assert_api_read(args)
 
 
-#: `gh <noun> <verb>` pairs no JEV caller may run, with why. Allowed and in use:
-#: `label create --force`, `pr edit --add-label`, `pr comment`, `issue create`,
-#: `repo clone`, `variable get` and `api` GETs.
-_REFUSED_VERBS = {
-    **{("issue", v): "an agent loop files and comments; it never closes, deletes, moves or locks an issue"
-       for v in ("close", "delete", "transfer", "lock")},
-    **{("repo", v): "repository settings and lifecycle belong to a person"
-       for v in ("delete", "archive", "edit", "rename", "transfer")},
-    **{(n, v): "secrets and variables are written hub-first by the token loops, never by JEV"
-       for n in ("secret", "variable") for v in ("set", "delete")},
+#: The `gh` commands JEV issues — an allowlist, so a destructive verb, an alias
+#: of one (`secret remove`, `variable remove`) or a command nobody listed fails
+#: closed. Adding one is a reviewed change here plus a case in
+#: tools/test_jev_conflicts.py. `api` is checked on its own (`_assert_api_read`).
+_GH_ALLOWED = frozenset({
+    ("api", None), ("auth", "status"), ("issue", "create"), ("issue", "list"), ("issue", "view"),
+    ("label", "create"), ("pr", "comment"), ("pr", "edit"), ("pr", "list"), ("pr", "view"),
+    ("repo", "clone"), ("repo", "list"), ("repo", "view"), ("variable", "get"),
+})
+#: why a command outside _GH_ALLOWED is refused, by noun (for the message)
+_GH_REFUSED_WHY = {
+    "issue": "an agent loop files and comments; it never closes, deletes, moves or locks an issue",
+    "pr": "JEV comments on and labels a pull request; it never merges, closes or reopens one",
+    "repo": "repository settings and lifecycle belong to a person",
+    "secret": "secrets and variables are written hub-first by the token loops, never by JEV",
+    "variable": "secrets and variables are written hub-first by the token loops, never by JEV",
 }
 
 
 #: `gh api` flags that take a value (the value is never the endpoint)
 _API_VALUE_FLAGS = frozenset({"-X", "--method", "-f", "--raw-field", "-F", "--field", "-H", "--header", "--input",
                               "-q", "--jq", "-t", "--template", "--cache", "--hostname", "-p", "--preview"})
+#: `gh api`'s boolean shorthands (`-i`/--include), which pflag lets lead a bundle such as `-iXPUT`
+_API_BOOL_SHORT = frozenset({"i"})
 #: `gh api` flags that add a request parameter — and with it gh's implicit POST
 _API_PARAM_FLAGS = ("-f", "--raw-field", "-F", "--field", "--input")
 
 
 def _api_fields(args: list[str]) -> tuple[str | None, list[tuple[str, str]]]:
     """(endpoint, [(flag, value)]) of a `gh api …` argv, every spelling of a
-    flag's value included (`-f k=v`, `-fk=v`, `--field=k=v`)."""
+    flag's value included (`-f k=v`, `-fk=v`, `--field=k=v`), and a shorthand
+    bundle read the way gh's flag parser (pflag) reads it: `-iXPUT` is `-i`
+    then `-X PUT`, `-if k=v` is `-i` then `-f k=v`. A shorthand this guard does
+    not know is refused (JevError) rather than guessed."""
     endpoint, fields, i = None, [], 1
     while i < len(args):
         a = args[i]
-        name, eq, attached = a.partition("=") if a.startswith("--") else (a[:2], "", a[2:])
-        if a.startswith("--") and name in _API_VALUE_FLAGS:
-            value = attached if eq else (args[i + 1] if i + 1 < len(args) else "")
-            i += 1 if eq else 2
-        elif a.startswith("-") and not a.startswith("--") and name in _API_VALUE_FLAGS:
-            value = attached or (args[i + 1] if i + 1 < len(args) else "")
-            i += 1 if attached else 2
-        else:
-            if endpoint is None and not a.startswith("-"):
-                endpoint = a
-            i += 1
+        if a.startswith("--"):
+            name, eq, attached = a.partition("=")
+            if name in _API_VALUE_FLAGS:
+                fields.append((name, attached if eq else (args[i + 1] if i + 1 < len(args) else "")))
+                i += 1 if eq else 2
+            else:
+                i += 1
             continue
-        fields.append((name, value))
+        if a.startswith("-") and len(a) > 1:
+            j, took_next = 1, False
+            while j < len(a):
+                c = a[j]
+                if f"-{c}" in _API_VALUE_FLAGS:
+                    rest = a[j + 1:]
+                    took_next = not rest
+                    fields.append((f"-{c}", rest or (args[i + 1] if i + 1 < len(args) else "")))
+                    break
+                if c not in _API_BOOL_SHORT:
+                    raise JevError(f"refusing: `gh api {a}` — a shorthand flag this guard cannot read (-{c})")
+                j += 1
+            i += 2 if took_next else 1
+            continue
+        if endpoint is None:
+            endpoint = a
+        i += 1
     return endpoint, fields
 
 
@@ -240,38 +272,79 @@ def _assert_api_read(args: list[str]) -> None:
                        "`gh <noun> <verb>`)")
 
 
-#: git global options whose value may follow as the next argument
-_GIT_VALUE_OPTS = frozenset({"-c", "-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix",
-                             "--config-env", "--list-cmds", "--attr-source"})
-#: push options that rewrite or remove a remote ref (git accepts any
-#: unambiguous prefix of a long option, so a prefix counts)
-_PUSH_DANGEROUS = ("force", "force-with-lease", "force-if-includes", "mirror", "delete", "prune")
-#: a `-c` value that makes a plain push rewrite or mirror
-_PUSH_CONFIG_RX = re.compile(r"(?i)^remote\..+\.(push\s*=\s*\+|mirror\s*=)|^push\..*=\s*\+")
+#: The git subcommands JEV runs — an allowlist, so an alias (`-c alias.p='push
+#: -f'` then `p`), an autocorrected typo (`psuh`) or plumbing that pushes
+#: (`send-pack`, `http-push`) fails closed. git itself refuses an alias that
+#: shadows one of these.
+_GIT_ALLOWED = frozenset({"add", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
+                          "fetch", "grep", "init", "log", "ls-files", "ls-tree", "merge", "merge-file", "push",
+                          "remote", "rev-parse", "show", "status", "update-index"})
+#: git global options JEV passes, and whether each takes a value (`--opt=v` or
+#: `--opt v`; `-c k=v` or `-ck=v`). Every other one (`--config-env`,
+#: `--exec-path`, …) is refused.
+_GIT_GLOBAL_OPTS = {"-c": True, "-C": True, "--git-dir": True, "--work-tree": True, "--no-pager": False}
+#: the only keys JEV sets with `-c` — not alias.*, help.autocorrect or any
+#: remote.*/push.* key, through which a plain push forces, mirrors or deletes
+_GIT_CONFIG_KEYS = frozenset({"core.attributesfile", "core.fsmonitor", "core.hookspath", "core.pager",
+                              "core.symlinks", "diff.ignoresubmodules", "submodule.recurse", "user.email",
+                              "user.name", "commit.gpgsign"})
+#: config a `git config` write may never set (they redirect a later push or run a command)
+_GIT_CONFIG_WRITE_RX = re.compile(r"(?i)^(alias\..|help\.autocorrect$|remote\..+\.(push|mirror|receivepack)$|push\.)")
+#: push options that rewrite or remove a remote ref, or run a program
+#: (`--receive-pack`/`--exec`); git accepts any unambiguous prefix of a long
+#: option, so a prefix counts
+_PUSH_DANGEROUS = ("force", "force-with-lease", "force-if-includes", "mirror", "delete", "prune", "receive-pack",
+                   "exec")
+#: environment variables that inject git config or a git binary directory
+_GIT_ENV_REFUSED_RX = re.compile(r"^(GIT_CONFIG_PARAMETERS|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_\d+|GIT_CONFIG_VALUE_\d+"
+                                 r"|GIT_EXEC_PATH)$")
 
 
-def assert_safe_git(args: list[str]) -> None:
+def assert_safe_git(args: list[str], env: dict | None = None) -> None:
     """No force-push, mirror or remote delete, whatever the caller meant.
 
     A push that rewrites or removes a remote ref discards somebody's commits
     and detaches review comments from them; JEV only ever adds a merge commit.
-    Every spelling counts: bundled short flags (`-fu`), a long-option prefix
-    (`--forc`), a global option with a separate value (`--git-dir DIR push`)
-    and a forced refspec or mirror set through `-c`.
+    The guard fails closed: the subcommand must be one JEV runs
+    (`_GIT_ALLOWED`), a global option one JEV passes (`_GIT_GLOBAL_OPTS`; no
+    `--config-env`), a `-c` key one JEV sets (`_GIT_CONFIG_KEYS`), and `env`
+    may inject no config. A push is then refused for bundled short flags
+    (`-fu`), a long-option prefix (`--forc`) and a `+` or `:` refspec, and a
+    `git config` write for a key that would redirect a later push.
     """
+    bad_env = sorted(k for k in (env or {}) if _GIT_ENV_REFUSED_RX.match(k))
+    if bad_env:
+        raise JevError(f"refusing: JEV never hands git config through the environment ({', '.join(bad_env)})")
     i, config = 0, []
     while i < len(args) and args[i].startswith("-"):
-        if args[i] in _GIT_VALUE_OPTS:
-            if args[i] == "-c" and i + 1 < len(args):
-                config.append(args[i + 1])
-            i += 2
-        else:
-            if args[i].startswith("-c") and len(args[i]) > 2:
-                config.append(args[i][2:])
+        a = args[i]
+        name, eq, value = a.partition("=") if a.startswith("--") else (a[:2], "", a[2:])
+        if name not in _GIT_GLOBAL_OPTS:
+            raise JevError(f"refusing: JEV never passes the git option {a.split('=', 1)[0]}")
+        if not _GIT_GLOBAL_OPTS[name]:
             i += 1
-    if args[i:i + 1] != ["push"]:
-        return
+            continue
+        attached = value if (eq or not a.startswith("--")) else ""
+        if not attached and i + 1 >= len(args):
+            raise JevError(f"refusing: git {name} needs a value")
+        if name == "-c":
+            config.append(attached or args[i + 1])
+        i += 1 if attached else 2
+    for c in config:
+        if c.partition("=")[0].lower() not in _GIT_CONFIG_KEYS:
+            raise JevError(f"refusing: JEV never sets `-c {c.partition('=')[0]}` on git (only "
+                           f"{', '.join(sorted(_GIT_CONFIG_KEYS))})")
+    sub = args[i] if i < len(args) else ""
+    if sub not in _GIT_ALLOWED:
+        raise JevError(f"refusing: JEV never runs `git {sub}` (not one of the git commands it issues)")
     tail = args[i + 1:]
+    if sub == "config":
+        keys = [a for a in tail if _GIT_CONFIG_WRITE_RX.match(a)]
+        if keys:
+            raise JevError(f"refusing: JEV never sets git config that redirects a push or runs a command ({keys[0]})")
+        return
+    if sub != "push":
+        return
 
     def dangerous(a: str) -> bool:
         if a.startswith("--"):
@@ -281,7 +354,7 @@ def assert_safe_git(args: list[str]) -> None:
             return bool(set(a[1:]) & {"f", "d"})
         return (a.startswith("+") and len(a) > 1) or (a.startswith(":") and len(a) > 1)
 
-    bad = [a for a in tail if dangerous(a)] + [c for c in config if _PUSH_CONFIG_RX.search(c)]
+    bad = [a for a in tail if dangerous(a)]
     if bad:
         raise JevError(f"refusing: JEV never force-pushes or deletes a remote ref ({' '.join(bad)})")
 

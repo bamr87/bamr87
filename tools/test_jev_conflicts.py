@@ -120,11 +120,9 @@ def test_the_guard_refuses_destructive_and_settings_verbs_and_allows_what_jev_us
     assert _api_method(["api", "repos/o/r", "--jq", ".x"]) == "GET"
     for argv in (["push", "--force", "origin", "x"], ["push", "-f"], ["push", "--force-with-lease"],
                  ["push", "origin", "+HEAD:refs/heads/x"], ["push", "origin", ":x"], ["push", "--mirror"],
-                 ["push", "--delete", "origin", "x"], ["-c", "a=b", "push", "-f"],
+                 ["push", "--delete", "origin", "x"], ["-c", "core.symlinks=false", "push", "-f"],
                  ["push", "-fu", "origin", "x"], ["push", "--forc", "origin", "x"], ["push", "--mirr"],
-                 ["--git-dir", "/r/.git", "push", "-f", "origin", "x"], ["--work-tree", "/w", "push", "--force"],
-                 ["-c", "remote.origin.push=+refs/heads/*:refs/heads/*", "push", "origin"],
-                 ["-c", "remote.origin.mirror=true", "push", "origin"]):
+                 ["--git-dir", "/r/.git", "push", "-f", "origin", "x"], ["--work-tree", "/w", "push", "--force"]):
         try:
             assert_safe_git(argv)
         except JevError as exc:
@@ -132,6 +130,8 @@ def test_the_guard_refuses_destructive_and_settings_verbs_and_allows_what_jev_us
         else:
             raise AssertionError(f"git {argv} was not refused")
     assert_safe_git(["push", "origin", "HEAD:refs/heads/fix/x"])   # what commit_and_push sends
+    assert_safe_git(["-c", "user.name=t", "-cuser.email=t@x", "commit", "-q", "-m", "m"])
+    assert_safe_git(["config", "--local", "remote.origin.pushurl", "no-push://disabled"])   # what harden sets
     assert_safe_git(["push", "-u", "--dry-run", "origin", "x"])
     assert_safe_git(["--git-dir=/r/.git", "--work-tree=/w", "status"])
     assert_safe_git(["log", "--grep", "push", "-f"])
@@ -141,6 +141,87 @@ def test_the_guard_refuses_destructive_and_settings_verbs_and_allows_what_jev_us
         assert "force-push" in str(exc)
     else:
         raise AssertionError("common.git did not apply the guard")
+
+
+def test_the_gh_guard_fails_closed_on_every_spelling_gh_would_still_run():
+    """gh finds the verb past a flag and takes aliases, and pflag splits a
+    shorthand bundle (`-iXPUT` is `-i -X PUT`): each spelling a post-fix review
+    showed gh sending as a merge, a delete or a POST is refused."""
+    from tools.jev.common import assert_no_admin
+    for argv in (["pr", "-R", "o/r", "merge", "1", "--squash"], ["pr", "--repo=o/r", "merge", "1"],
+                 ["issue", "-R", "o/r", "close", "1"], ["secret", "-R", "o/r", "delete", "FLEET_TOKEN"],
+                 ["-R", "o/r", "pr", "merge", "1"], ["secret", "remove", "FLEET_TOKEN"], ["variable", "remove", "X"],
+                 ["repo", "sync", "o/r", "--force=true"], ["pr", "close", "1"], ["label", "delete", "x"],
+                 ["release", "delete", "v1"], ["run", "delete", "1"], ["cache", "delete", "1"], ["co", "1"],
+                 ["pr", "comment", "1", "--delete-last"], ["pr", "comment", "1", "--edit-last", "--body", "x"],
+                 ["api", "-iXPUT", "repos/o/r/pulls/1/merge"], ["api", "-iX", "PUT", "repos/o/r/pulls/1/merge"],
+                 ["api", "-iXDELETE", "repos/o/r/git/refs/heads/main"], ["api", "-if", "title=x", "repos/o/r/issues"],
+                 ["api", "-iftitle=x", "repos/o/r/issues"],
+                 ["api", "repos/o/r/pulls/1/merge", "-ifmerge_method=squash"],
+                 ["api", "-iZPUT", "repos/o/r"], ["api", "graphql", "-if", "query=mutation { x }"], []):
+        try:
+            assert_no_admin(argv)
+        except JevError as exc:
+            assert "refusing" in str(exc), (argv, exc)
+        else:
+            raise AssertionError(f"gh {argv} was not refused")
+    from tools.jev.common import _api_method
+    assert _api_method(["api", "-iXPUT", "x"]) == "PUT" and _api_method(["api", "-if", "a=b", "x"]) == "POST"
+    assert _api_method(["api", "-i", "repos/o/r"]) == "GET"
+    assert_no_admin(["api", "-i", "repos/o/r/commits/main"])
+    assert_no_admin(["api", "-iXGET", "repos/o/r"])
+
+
+def test_the_git_guard_fails_closed_on_aliases_config_and_plumbing():
+    """An alias, an autocorrected typo, plumbing, `--config-env`, a `:ref`
+    refspec set through -c, a push key written with `git config` and config
+    injected through the environment each forced or deleted a remote ref past
+    the old guard (a post-fix review ran them against a bare remote)."""
+    from tools.jev.common import assert_safe_git
+    for argv in (["-c", "alias.fp=push --force", "fp", "origin", "main"],
+                 ["-c", "help.autocorrect=immediate", "psuh", "--force", "origin", "main"],
+                 ["-c", "remote.origin.push=:refs/heads/keep", "push", "origin"],
+                 ["-cremote.origin.push=:refs/heads/main", "push", "origin"],
+                 ["-c", "remote.origin.push=+refs/heads/*:refs/heads/*", "push", "origin"],
+                 ["-c", "remote.origin.mirror=true", "push", "origin"],
+                 ["--config-env", "remote.origin.mirror=MIRROR", "push", "origin"],
+                 ["--config-env=remote.origin.push=PUSHSPEC", "push", "origin"],
+                 ["send-pack", "--force", "../remote.git", "main"], ["http-push", "--force", "u", "main"],
+                 ["--exec-path=/tmp/x", "push", "origin"], ["push", "--receive-pack=sh -c x", "origin"],
+                 ["config", "remote.origin.push", ":refs/heads/main"], ["config", "--local", "alias.st", "push -f"],
+                 ["config", "remote.origin.mirror", "true"], ["-c"], []):
+        try:
+            assert_safe_git(argv)
+        except JevError as exc:
+            assert "refusing" in str(exc), (argv, exc)
+        else:
+            raise AssertionError(f"git {argv} was not refused")
+    for env in ({"GIT_CONFIG_PARAMETERS": "'remote.origin.push'=':x'"},
+                {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "alias.p", "GIT_CONFIG_VALUE_0": "push -f"}):
+        try:
+            assert_safe_git(["push", "origin"], env)
+        except JevError as exc:
+            assert "environment" in str(exc)
+        else:
+            raise AssertionError(f"{env} was not refused")
+    # end to end: the delete refspec through -c is refused and the remote branch survives
+    with tempfile.TemporaryDirectory() as tmp:
+        remote, work = Path(tmp) / "remote.git", Path(tmp) / "work"
+        assert git(["init", "-q", "--bare", "-b", "main", str(remote)], cwd=Path(tmp)).ok
+        assert git(["clone", "-q", str(remote), str(work)], cwd=Path(tmp)).ok
+        (work / "f").write_text("x\n")
+        assert git(["add", "f"], cwd=work).ok
+        assert git(["-c", "user.name=t", "-c", "user.email=t@x", "-c", "commit.gpgsign=false", "commit", "-qm", "m"],
+                   cwd=work).ok
+        assert git(["push", "-q", "origin", "HEAD:refs/heads/main", "HEAD:refs/heads/keep"], cwd=work).ok
+        try:
+            git(["-c", "remote.origin.push=:refs/heads/keep", "push", "origin"], cwd=work)
+        except JevError:
+            pass
+        else:
+            raise AssertionError("the -c delete refspec ran")
+        branches = git(["--git-dir", str(remote), "rev-parse", "--verify", "-q", "refs/heads/keep"], cwd=Path(tmp))
+        assert branches.ok, "the remote branch was deleted"
 
 
 def test_a_fork_branch_is_never_eligible_however_trusted_the_author():
