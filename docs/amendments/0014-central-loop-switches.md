@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Every scheduled or AI workflow has a centrally managed kill switch
+# 0014 — Every scheduled or AI workflow has a centrally managed kill switch
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0014
 - **Date:** 2026-10-31
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87, approved to open by Amr on 2026-10-31)
 - **Ratified by:** _(blank until the pull request is merged)_
