@@ -1335,6 +1335,33 @@
   created: 2026-11-01
   issue_url: null
 
+- id: FF-0033
+  title: "In-flight job status for agents in the Harness Console"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: M
+  category: feature
+  problem: >-
+    A job sent through the console gives the bot only a receipt, so it cannot
+    audit progress or see why a job is slow (a slow Claude Code session lookup
+    could not be diagnosed).
+  proposal: >-
+    Per job, report state (queued, running, stalled, done, failed), time since
+    sent and since last progress, and diagnostics on slowness (queue wait,
+    collector lag, long-running step, no heartbeat), as MCP tools (job_status,
+    jobs_list) and on the Jobs page. Feature console-job-status; design in
+    tools/console/docs/job-status.md.
+  acceptance:
+    - "job_status(job_id) returns state, age_s, idle_s and diagnostics."
+    - "jobs_list rows carry the same fields and filter by state."
+    - "A running job with no progress past the threshold reads as stalled."
+    - "The Jobs page shows state, ages and diagnostics."
+  source: manual
+  created: 2026-11-01
+  issue_url: null
+
 - id: FF-0034
   title: "Standardize and centralize fleet PR review, analysis and comments"
   project: bamr87

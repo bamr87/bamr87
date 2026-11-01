@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0008 — Prior-art research before any new harness or loop design
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0008
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/480 (merged 2026-10-31 by @bamr87)
 - **Affects:** constitution §10 (new item 8, "Prior art first"); AGENTS.md standing rules (follow-up); harness and loop design docs
 - **Supersedes:** none (extends § 10)
 - **Related:** #479 (live loop/harness map, the first application), #477 and PR #478 (architecture research harness), #476 (Starred Repos dashboard)

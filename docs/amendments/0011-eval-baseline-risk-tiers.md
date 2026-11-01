@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0011 — Eval baseline and risk tiers for every agent, harness and loop
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0011
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/482 (merged 2026-10-31 by @bamr87)
 - **Affects:** `_data/fleet.yml` `ai_models`; constitution new § 13 (follows § 12 proposed by `agent-merge-review-gate`, PR #481); § 10.6; features `HUB-048`, `HUB-049`; requirements `FR45`, `FR46`
 - **Supersedes:** none (extends § 10 and § 12)
 - **Related:** #480 (`harness-prior-art-research`, prior-art rule), #481 (`agent-merge-review-gate`, merge authority and review gate), amendment 0005 (§ 10)

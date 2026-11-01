@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0006 — Guarded harness write-back to GitHub Projects, issues and pull requests
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0006
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/475 (merged 2026-10-30 by @bamr87)
 - **Affects:** constitution §4 (AI agent row), new §11 (Harness write-back to GitHub); AGENTS.md standing rules; docs/PROJECTS-FRAMEWORK.md; feature `projects-console` (HUB-NEW); PRD FR-NEW:`projects-aggregate`, FR-NEW:`projects-linked-view`, FR-NEW:`projects-writeback-guarded`
 - **Supersedes:** none (extends 0003 and 0005; also records 0005 as ratified by PR #452)
 - **Related:** epic #468 (phases #469–#474), [docs/PROJECTS-FRAMEWORK.md](../../PROJECTS-FRAMEWORK.md), `tools/console/gh_projects.py`, `tools/console/gh_projects_write.py`

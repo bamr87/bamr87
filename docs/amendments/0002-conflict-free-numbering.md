@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0002 — Assign sequential ids at merge, not in a pull request
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0002
 - **Date:** 2026-10-29
 - **Proposed by:** agent (Claude Opus 5, on a branch opened by bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/440 (merged 2026-10-30 by @bamr87)
 - **Affects:** constitution §2 (invariants), §5 (how the artifacts relate), §6 (change process), §8 (amendments); PRD FR28, NFR11; feature HUB-035
 - **Supersedes:** none
 - **Related:** [docs/JEV.md](../JEV.md), [tools/jev/README.md](../../tools/jev/README.md), [docs/DEPENDENCIES.md](../DEPENDENCIES.md), [specs/WORK.md](../../specs/WORK.md) UPS-WORK-15 / UPS-WORK-16

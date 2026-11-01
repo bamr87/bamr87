@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0004 — Generated files are written on main only
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0004
 - **Date:** 2026-10-29
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/442 (merged 2026-10-30 by @bamr87)
 - **Affects:** constitution §2 (invariants); feature HUB-035
 - **Supersedes:** none (refines the second §2 invariant added by amendment 0002)
 - **Related:** `docs/JEV.md` ("Main-only generated files"), `tools/jev/README.md`, `tools/jev/generated.py`, amendment 0002 (`docs/amendments/0002-conflict-free-numbering.md`)

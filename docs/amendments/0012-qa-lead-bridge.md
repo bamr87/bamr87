@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0012 — QA Lead first: a short warn-only bridge for the § 15 completeness review, and § 15 numbering made final
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0012
 - **Date:** 2026-10-30
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/496 (merged 2026-10-31 by @bamr87)
 - **Affects:** constitution § 15 (header note and item 5 "Interim"); features: none (HUB-046 and HUB-047 already say "interim fallback" generically; the compiled features.yml is not hand-edited)
 - **Supersedes:** none (amends the interim clause of 0010 `major-change-evidence`; 0010 itself is not edited, per § 8)
 - **Related:** #491 (merged as 0010), #492 (Build QA Lead), 0011 `eval-baseline-risk-tiers` (#482, merged), 0009 `agent-merge-review-gate`

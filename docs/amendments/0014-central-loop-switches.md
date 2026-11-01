@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0014 — Every scheduled or AI workflow has a centrally managed kill switch
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0014
 - **Date:** 2026-10-31
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87, approved to open by Amr on 2026-10-31)
-- **Ratified by:** _(blank until the pull request is merged)_
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/528 (merged 2026-11-01 by @bamr87)
 - **Affects:** constitution § 2 (new invariant), new § 17 (follows § 16 `ai-ready-foundation`, 0013); `_data/fleet.yml` (`switches:` map); feature `central-loop-switches` (HUB-NEW, bamr87/bamr87#527); requirement `FR54`
 - **Supersedes:** none (extends § 7 and § 10)
 - **Related:** issue bamr87/bamr87#526, PR bamr87/bamr87#527, #511 (fleet-wide agent pause), #512 (repo settings as code), 0008 `harness-prior-art-research`, 0011 `eval-baseline-risk-tiers`, 0013 `ai-ready-foundation` (warn-then-fail rollout)
