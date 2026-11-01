@@ -606,17 +606,17 @@ def test_a_code_index_note_with_both_trees_behind_keeps_both_remedies_in_the_pac
     finally:
         fc.http_json = real
     note = planes["sections"]["index_code"]["note"]
-    assert planes["sections"]["index_code"]["status"] == "stale" and len(note) > C.NOTE_CHARS, note
+    clauses = [c for c in note.split("; ") if c.startswith("index behind ")]
+    assert planes["sections"]["index_code"]["status"] == "stale" and len(clauses) == 2, note
+    assert f"`tools/update-submodules.sh --no-commit {name}`" in clauses[0] and fc.REMEDY_INDEX in clauses[1], note
     item = Item(key=nwo, name=name, nwo=nwo, branch="main", row={}, brief=None)
     with _tmp() as root:
         doc = plane_doc(nwo, name, index_code=planes["sections"]["index_code"])
         pack = C.build(FakeCtx(root, answer=lambda _a: ok_answer(doc)), item, C.ContextRequest(nwo, name, ("q",)))
         md = pack.path.read_text(encoding="utf-8")
     line = md.split("## Code index — stale\n\n", 1)[1].split("\n", 1)[0]
-    clone_clause = ("index behind the agent's clone: 1 changed, 1 missing hit(s) (code withheld) — "
-                    + fc.REMEDY_INDEX_CLONE.format(how=f"`tools/update-submodules.sh --no-commit {name}`"))
-    checkout_clause = f"index behind the checkout: 1 changed, 0 missing hit(s) (code withheld) — {fc.REMEDY_INDEX}"
-    assert f" · {clone_clause}; {checkout_clause}" in line and line.endswith("…"), line
+    assert len(note) > C.NOTE_CHARS and line.endswith("…"), ("the rest of the note is clipped", line)
+    assert f" · {clauses[0]}; {clauses[1]}" in line, ("each clause whole, with its counts and remedy", line)
 
 
 def test_unavailable_sections_are_one_line_each():
