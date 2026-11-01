@@ -5,7 +5,7 @@ coverage: listed
 
 # SCHEMA — tools/jev
 
-> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), and the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
+> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`), and its context pack (`context.py`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
 
 ## Conventions
 
@@ -31,6 +31,7 @@ coverage: listed
 | `spec.py` | file | Loop step specs: load and validate a `steps/<loop>/<step>.yml` and its optional `local:` block, resolve its `_data/fleet.yml` references (exact model ids only), render its prompt and argv templates in one pass, and hold it equal to its workflow, the kill switch included (`steps check`, `steps render`) | required |
 | `loop.py` | file | The local loop runner, `python3 -m tools.jev loop` (`list`, `doctor [--live]`, `plan`, `run`, `publish`, `show`, `budget`): gates, the host checks, the `budget.loops` ceiling, the plan, tier 0, classify, the workspace, the attempt through `dash-gen ai-run`, the per-run posture checks, harvest and validation, the dry-run preview, the `--apply` gate and the filing, the canary, and the run record under `.fleet/runs/` | required |
 | `workspace.py` | file | The runner's throwaway workspaces: a hardened clone outside the hub under `~/.cache/jev/work`, an engine-held pristine GIT_DIR that every engine git call on the clone uses, a tamper baseline over `.git` and any nested `.git`, a no-follow, regular-file-only harvest, and a `destroy` that never chmods through a symlink | required |
+| `context.py` | file | The loop runner's context pack, engine half: this loop's earlier attempts on the item (`attempts.jsonl`, `validate.json`), the planes' `fleet-context/v1` document through `ctx.dash_gen(['context', …])` (a subprocess, never an import), the markdown render (data inside fences no row can close, a size cap trimmed lowest priority first), redaction, the 0600 `context.md` / `context.json` in the item's run directory, the brief pointer paragraph and the status line; modes `auto`, `off`, `require` (tested by `tools/test_jev_context.py`) | required |
 | `adapters/` | dir | One adapter per loop the runner can run (the contract and `REGISTRY`); see its SCHEMA | |
 | `steps/` | dir | The loop step specs themselves, one directory per loop workflow (data only); see its SCHEMA | |
 
