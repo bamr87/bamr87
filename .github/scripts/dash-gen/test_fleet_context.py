@@ -465,10 +465,20 @@ def test_every_format_character_is_stripped_and_refused_in_a_query():
     title = "Fix the build" + "\U000e0001" + hidden + "\U000e007f" + "\xad\u061c\u180e\u2060\u2064\ufff9" + " now"
     assert fc.clean_line(title, fc.TITLE_CHARS) == "Fix the build now", repr(fc.clean_line(title, fc.TITLE_CHARS))
     assert fc.snippet_of("a\u2060b\U000e0041\nc\xad") == "ab\nc"
+    # the variation selectors as a byte channel after one visible character: the supplement goes, and a run of the
+    # basic ones, through anything stripped inside it, is cut to its first, so an emoji keeps its VS16
+    smuggled = "Fix \u2764\ufe0f \U0001f642\ufe0f\ufe00\u200b\ufe0e\U000e0100\U000e01ef\ufe01 now"
+    assert fc.clean_line(smuggled, fc.TITLE_CHARS) == "Fix \u2764\ufe0f \U0001f642\ufe0f now", fc.clean_line(
+        smuggled, fc.TITLE_CHARS)
+    assert fc.snippet_of("x\ufe0e\ufe0f\nb\U000e0100") == "x\ufe0e\nb"
     with _env():
+        for query in ("a\u2060b", "a\ufe0f\ufe01", "a\U000e0100", "a\ufe0f\u200b\ufe0f"):
+            code, out, _err = run_main(["--nwo", NWO, "--name", NAME, "--lake-dir", "/nonexistent",
+                                        "--query", query])
+            assert code == 2 and out == "", (query, code, out)
         code, out, _err = run_main(["--nwo", NWO, "--name", NAME, "--lake-dir", "/nonexistent",
-                                    "--query", "a\u2060b"])
-    assert code == 2 and out == "", (code, out)
+                                    "--sections", "lake_issues", "--query", "fix \u2764\ufe0f", "--json"])
+    assert code == 0 and json.loads(out)["queries"] == ["fix \u2764\ufe0f"], (code, out)
 
 
 def test_a_token_cut_by_a_clip_is_masked_before_the_clip():

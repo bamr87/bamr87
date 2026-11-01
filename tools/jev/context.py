@@ -144,12 +144,17 @@ SCHEMA_WORDS = frozenset({
 # format (Cf) character: zero-width and BOM, the bidi marks and overrides a
 # "Trojan Source" line would use, the word joiner and the invisible operators,
 # the soft hyphen, and the tag characters, which spell text a model reads but a
-# person reviewing the pack cannot see — as the planes strip. Written as
-# escapes: the module itself carries none of them.
-_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\xad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891"
-                   r"\u08e2\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\U000110bd"
-                   r"\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a"
-                   r"\U000e0000-\U000e007f]")
+# person reviewing the pack cannot see — as the planes strip. The variation
+# selectors (Mn) spell text the same way, a byte per selector after one visible
+# character: the supplement (U+E0100-E01EF) is stripped, and a run of the
+# sixteen basic ones (U+FE00-FE0F), found through anything stripped inside it,
+# is cut to its first, so an emoji keeps its one presentation selector (U+FE0F).
+# Written as escapes: the module itself carries none of them.
+_STRIPPED = (r"\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\xad\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891"
+             r"\u08e2\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb\U000110bd"
+             r"\U000110cd\U00013430-\U0001343f\U0001bca0-\U0001bca3\U0001d173-\U0001d17a"
+             r"\U000e0000-\U000e007f\U000e0100-\U000e01ef")
+_CTRL = re.compile(rf"(?<=[\ufe00-\ufe0f])[{_STRIPPED}\ufe00-\ufe0f]*[\ufe00-\ufe0f]|[{_STRIPPED}]")
 _BREAKS = re.compile(r"[\t\n\r]+")
 _BACKTICKS = re.compile(r"`+")
 
