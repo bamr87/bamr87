@@ -147,6 +147,10 @@ FORWARDED_SIGNALS = tuple(getattr(signal, n) for n in ("SIGINT", "SIGTERM", "SIG
                                                        "SIGUSR2", "SIGALRM", "SIGVTALRM", "SIGPROF", "SIGXCPU")
                           if hasattr(signal, n))
 TRACE_CAP_BYTES = 20 * 1024 * 1024
+TOOL_RESULT_CAP = 4096
+STDERR_RING = 64 * 1024
+NOISE_CAP = 4096
+ECHO_INPUT, ECHO_TEXT = 120, 160
 
 
 def honoured_signals(sigs: Iterable[int]) -> tuple[int, ...]:
@@ -154,10 +158,6 @@ def honoured_signals(sigs: Iterable[int]) -> tuple[int, ...]:
     the closed terminal the operator asked to outlive then ends nothing, in the
     engine or in the ai-run it starts, which inherits the ignore."""
     return tuple(s for s in sigs if not (s == signal.SIGHUP and signal.getsignal(s) is signal.SIG_IGN))
-TOOL_RESULT_CAP = 4096
-STDERR_RING = 64 * 1024
-NOISE_CAP = 4096
-ECHO_INPUT, ECHO_TEXT = 120, 160
 
 
 class NoCredential(JevError):

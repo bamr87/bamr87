@@ -457,10 +457,25 @@ def test_a_usage_limit_is_a_warning_under_skip_and_a_failure_by_default():
     assert {r["outcome"] for r in rig.rows()} == {"usage_limit"}
 
 
+@contextlib.contextmanager
+def hangup_default():
+    """SIGHUP at its default for a test that sends one. Under a parent that
+    ignores it (`nohup`, `trap '' HUP`) honoured_signals rightly keeps the
+    ignore, so the hangup would end nothing and the test would hang; the
+    caller's disposition comes back after."""
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL if before is None else before)
+
+
 def started(rig: Rig, *flags: str) -> subprocess.Popen:
     argv, env = rig.command(*flags)
-    p = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         text=True)
+    with hangup_default():   # ai-run inherits the disposition at exec, a nohup'd parent's ignore with it
+        p = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True)
     deadline = time.monotonic() + 30
     while not (rig.bin / "ready").exists():
         assert time.monotonic() < deadline and p.poll() is None, "the stub never got ready"

@@ -2076,6 +2076,20 @@ def _signal_logger(d: Path, *, slow: float = 0.0) -> tuple[Path, Path]:
     return marker, script
 
 
+@contextlib.contextmanager
+def hangup_default():
+    """SIGHUP at its default for a test that sends one. Under a parent that
+    ignores it (`nohup`, `trap '' HUP`) honoured_signals rightly keeps the
+    ignore, so the hangup would end nothing and the test would hang; the
+    caller's disposition comes back after."""
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL if before is None else before)
+
+
 def test_an_interrupt_that_reaches_only_the_engine_is_passed_on_to_ai_run():
     # `kill <engine pid>`, or a SIGHUP to the engine alone: ai-run must still start claude's ladder at once
     for sig in (signal.SIGTERM, signal.SIGHUP):
@@ -2086,7 +2100,7 @@ def test_an_interrupt_that_reaches_only_the_engine_is_passed_on_to_ai_run():
         try:
             L.DASH_GEN, L.BACKSTOP_KILL_S = script, 20
             threading.Timer(1.0, os.kill, (os.getpid(), sig)).start()   # the engine's pid, not its group
-            with L.interrupt_on_signals():
+            with hangup_default(), L.interrupt_on_signals():
                 L.relay_dash_gen(["ai-run"], env=dict(os.environ), timeout=30)
             raise AssertionError("the interrupt was swallowed")
         except KeyboardInterrupt:

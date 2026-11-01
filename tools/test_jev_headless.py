@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import contextlib
 import os
 import signal
 import subprocess
@@ -708,23 +709,38 @@ def test_a_signal_to_this_process_starts_the_ladder_and_keeps_the_result():
     assert signal.getsignal(signal.SIGTERM) is before, "the previous handler is restored"
 
 
+@contextlib.contextmanager
+def hangup_default():
+    """SIGHUP at its default for a test that sends one. Under a parent that
+    ignores it (`nohup`, `trap '' HUP`) honoured_signals rightly keeps the
+    ignore, so the hangup would end nothing and the test would hang; the
+    caller's disposition comes back after."""
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL if before is None else before)
+
+
 def test_a_hangup_a_quit_or_any_other_terminating_signal_starts_the_same_ladder():
     # claude runs in its own session: a closed terminal reaches ai-run only,
     # and a stray USR1 or a CPU limit's XCPU would otherwise end ai-run alone
     for sig in (signal.SIGHUP, signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2, signal.SIGALRM, signal.SIGXCPU):
         d, claude = stub_dir()
-        before = signal.getsignal(sig)
-        timer = threading.Timer(1.0, lambda sig=sig: os.kill(os.getpid(), sig))
-        timer.start()
-        try:
-            got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n",
-                           cwd=d, env=stub_env(STUB_SCENARIO="result_on_sigint"), timeout_s=None, trace=None,
-                           redactor=H.Redactor({}), cap_usd=8.0, int_grace=0.5, term_grace=0.5)
-        finally:
-            timer.cancel()
+        with hangup_default():
+            before = signal.getsignal(sig)
+            timer = threading.Timer(1.0, lambda sig=sig: os.kill(os.getpid(), sig))
+            timer.start()
+            try:
+                got = H.stream([str(claude), "-p", "--output-format", "stream-json", "--verbose"], prompt="hi\n",
+                               cwd=d, env=stub_env(STUB_SCENARIO="result_on_sigint"), timeout_s=None, trace=None,
+                               redactor=H.Redactor({}), cap_usd=8.0, int_grace=0.5, term_grace=0.5)
+            finally:
+                timer.cancel()
+            assert signal.getsignal(sig) is before
         assert got.interrupted == signal.Signals(sig).name, got.interrupted
         assert got.result and got.result["total_cost_usd"] == 0.4 and H.classify(got, 8.0).kind == "interrupted"
-        assert signal.getsignal(sig) is before
 
 
 def test_held_signals_are_recorded_not_fatal_and_stream_reads_them():
