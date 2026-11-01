@@ -24,14 +24,36 @@ name: 🔢 JEV — assign numbers at merge
 # job regenerates them after EVERY push to main. With nothing to change it
 # publishes nothing (publish-data no-ops on a clean diff), so its own publish
 # landing on main does not loop.
+#
+# THE RATIFY JOB (amendment `ratification-records`, docs/JEV.md "Ratification
+# records")
+# ----------------------------------------------------------------------------
+# Merging an amendment's PR ratifies it (constitution § 8.3) and merging the PR
+# that adds an ADR, or a phase of one, accepts it — but nothing wrote that down,
+# so merged records kept saying `proposed`. After numbering, `ratify` plans from
+# main's STATE (`python3 -m tools.jev ratify plan`: idempotent, so a missed run
+# heals on the next one) which records the maintainer's merges have decided,
+# and which tracked ADRs' epics closed (the `issues: closed` trigger). It
+# writes only those Status / Ratified by / Accepted in / Completed lines and
+# index status cells onto chore/jev-ratify, opens the PR with the probed
+# FLEET_TOKEN (so its CI runs), waits for every check, re-proves the diff with
+# `ratify check-diff`, and merges it with a merge commit — never squash,
+# `--admin` or `--auto` (main has no required checks, so `--auto` would merge
+# before CI). Any failed guard labels the PR needs-amr and stops. The Python
+# never merges; only the step below does, under that amendment's § 12.3
+# carve-out. Kill switch: vars.JEV_RATIFY_ENABLED (on unless 'false'; a manual
+# dispatch bypasses it).
 
 on:
   push:
     branches: [main]
+  # A tracked ADR is complete when its epic closes (`- **Tracking**: #N`).
+  issues:
+    types: [closed]
   workflow_dispatch:
     inputs:
       dry-run:
-        description: 'Report what would be assigned, change nothing'
+        description: 'Report what would be assigned and recorded, change nothing'
         type: boolean
         default: false
 
@@ -39,13 +61,19 @@ permissions:
   contents: read
 
 # Serialized, never cancelled: a cancelled compile would leave a fragment
-# consumed and its entry unwritten.
+# consumed and its entry unwritten. An `issues` run gets its own group: GitHub
+# keeps ONE pending run per group and drops the older, and a merge that closes
+# an issue fires a push and an issues event together — in one group the issues
+# run (which never numbers) would replace the pending numbering run. The ratify
+# jobs of both kinds are serialized with each other by their job-level group.
 concurrency:
-  group: jev-number
+  group: ${{ github.event_name == 'issues' && 'jev-number-issues' || 'jev-number' }}
   cancel-in-progress: false
 
 jobs:
   number:
+    # Numbering runs on pushes and dispatches only, never on an issue event.
+    if: ${{ github.event_name != 'issues' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -109,3 +137,214 @@ jobs:
           branch: chore/jev-numbering
           labels: automation,governance
           token: ${{ secrets.FLEET_TOKEN || secrets.GITHUB_TOKEN }}
+
+  ratify:
+    name: Record ratification and acceptance
+    needs: number
+    # After numbering (whatever it did: a wedged compile must not hold every
+    # record hostage), and on an issue event, where `number` is skipped.
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || vars.JEV_RATIFY_ENABLED != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: jev-ratify
+      cancel-in-progress: false
+    # The job token only reads; the push, the PR and the merge use the probed
+    # FLEET_TOKEN (a GITHUB_TOKEN push or PR fires no CI, so nothing could
+    # prove the PR before the merge).
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    env:
+      BRANCH: chore/jev-ratify
+    steps:
+      # main's TIP, not the event SHA: `number` may just have published onto
+      # it, and a plan is true only of the commit it is computed on.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0          # git blame and log read the whole history
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyyaml
+
+      # Probe, never presence-check. The job token is the unprobed fallback,
+      # enough to PLAN (public reads); writing needs the PAT (checked below).
+      - name: Probe the fleet token
+        id: token
+        uses: ./.github/actions/resolve-fleet-token
+        with:
+          fleet-token: ${{ secrets.FLEET_TOKEN }}
+          default-token: ${{ github.token }}
+
+      - name: Plan the records
+        id: plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/ratify-plan.json"
+          python3 -m tools.jev ratify plan --out "$plan"
+          echo "plan=$plan" >> "$GITHUB_OUTPUT"
+          echo "edits=$(jq '.edits | length' "$plan")" >> "$GITHUB_OUTPUT"
+          python3 -m tools.jev ratify pr-body --plan "$plan" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the record branch and pull request
+        id: publish
+        if: ${{ steps.plan.outputs.edits != '0' && !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PAT: ${{ steps.token.outputs.pat }}
+          PLAN: ${{ steps.plan.outputs.plan }}
+        run: |
+          set -euo pipefail
+          if [ "$PAT" != 'true' ]; then
+            echo "::error::Records to write, but no working FLEET_TOKEN: a branch or PR made with GITHUB_TOKEN gets no CI, so it could never be proved and merged. Re-mint FLEET_TOKEN (docs/TOKEN-ROTATION.md)."
+            exit 1
+          fi
+          existing="$(gh pr list --head "$BRANCH" --base main --state open --json number,labels --jq '.[0] // empty')"
+          number=""
+          if [ -n "$existing" ]; then
+            number="$(jq -r '.number' <<<"$existing")"
+            held="$(jq -r '[.labels[].name | select(. == "needs-amr" or . == "agent:hold" or . == "blocked")] | join(",")' <<<"$existing")"
+            if [ -n "$held" ]; then
+              echo "::warning::#${number} carries ${held}: it is the maintainer's now (constitution § 12.4); not updated, not merged."
+              exit 0
+            fi
+          fi
+
+          git config user.name "bamr87-bot"
+          git config user.email "10567847+bamr87@users.noreply.github.com"
+          git config credential.helper '!gh auth git-credential'
+          git checkout -q -B "$BRANCH" origin/main
+          python3 -m tools.jev ratify apply --plan "$PLAN"
+          git add -- docs/amendments docs/adr
+          git commit -q -m "chore(jev): record ratification and acceptance" \
+            -m "Recorded by the jev-number ratify job (run ${GITHUB_RUN_ID}) with python3 -m tools.jev ratify apply. Each trigger PR's merge by the maintainer is the ratification or acceptance; this commit only records it (constitution § 8.3, amendment ratification-records)."
+          # Nothing but the plan leaves this job.
+          python3 -m tools.jev ratify check-diff --base origin/main
+
+          head="$(git rev-parse HEAD)"
+          if git fetch -q origin "$BRANCH" 2>/dev/null \
+             && [ "$(git rev-parse "FETCH_HEAD^{tree}")" = "$(git rev-parse "HEAD^{tree}")" ] \
+             && [ "$(git rev-parse "FETCH_HEAD^")" = "$(git rev-parse origin/main)" ]; then
+            head="$(git rev-parse FETCH_HEAD)"   # the same record is already up: keep its checks
+            echo "chore/jev-ratify already holds this record (${head:0:7}); not re-pushed."
+          else
+            git push --force -q origin "HEAD:refs/heads/${BRANCH}"
+          fi
+
+          gh label create jev-ratify --color 6E40C9 --force \
+            --description "Ratification-record PR: opened and merged by the jev-number ratify job (amendment ratification-records)"
+          gh label create governance --color 5319E7 --description "Constitution, amendments and ADRs" 2>/dev/null || true
+          gh label create needs-amr --color B60205 --description "Gated: waits for the maintainer (constitution § 12.4)" 2>/dev/null || true
+          title="$(python3 -m tools.jev ratify pr-body --plan "$PLAN" --title)"
+          python3 -m tools.jev ratify pr-body --plan "$PLAN" > "$RUNNER_TEMP/ratify-body.md"
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body-file "$RUNNER_TEMP/ratify-body.md" --add-label jev-ratify,governance
+          else
+            url="$(gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/ratify-body.md" \
+                     --label jev-ratify --label governance)"
+            number="${url##*/}"
+          fi
+          echo "number=${number}" >> "$GITHUB_OUTPUT"
+          echo "head=${head}" >> "$GITHUB_OUTPUT"
+          echo "Record PR: #${number} at ${head:0:7}"
+
+      # main has no required checks, so "mergeable" means nothing until the
+      # job has watched every check finish. At least one must exist, and two
+      # quiet polls in a row mean no check is still arriving.
+      - name: Wait for every check on the record
+        if: ${{ steps.publish.outputs.number != '' }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PR: ${{ steps.publish.outputs.number }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 30 * 60 ))
+          last=""
+          while :; do
+            checks="$(gh pr checks "$PR" --json name,bucket 2>/dev/null || true)"
+            jq -e 'type == "array"' <<<"$checks" >/dev/null 2>&1 || checks='[]'
+            total="$(jq 'length' <<<"$checks")"
+            pending="$(jq '[.[] | select(.bucket == "pending")] | length' <<<"$checks")"
+            bad="$(jq -r '[.[] | select(.bucket != "pass" and .bucket != "skipping" and .bucket != "pending") | "\(.name) (\(.bucket))"] | join(", ")' <<<"$checks")"
+            if [ -n "$bad" ]; then
+              echo "check(s) did not pass: ${bad}" > "$RUNNER_TEMP/ratify-fail.txt"
+              echo "::error::#${PR}: check(s) did not pass: ${bad}"
+              exit 1
+            fi
+            if [ "$total" -gt 0 ] && [ "$pending" -eq 0 ]; then
+              [ "$last" = "$total" ] && break
+              last="$total"
+            else
+              last=""
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "the checks did not finish within 30 minutes (${total} seen, ${pending} pending)" > "$RUNNER_TEMP/ratify-fail.txt"
+              echo "::error::#${PR}: $(cat "$RUNNER_TEMP/ratify-fail.txt")"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "#${PR}: all ${total} check(s) passed or were skipped."
+
+      # Re-verified LIVE immediately before the merge (constitution § 12.1).
+      - name: Merge the record
+        if: ${{ steps.publish.outputs.number != '' }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PR: ${{ steps.publish.outputs.number }}
+          HEAD_SHA: ${{ steps.publish.outputs.head }}
+        run: |
+          set -euo pipefail
+          refuse() {
+            echo "$1" > "$RUNNER_TEMP/ratify-fail.txt"
+            echo "::error::#${PR}: $1"
+            exit 1
+          }
+          view="$(gh pr view "$PR" --json state,isDraft,headRefOid,baseRefName,labels,mergeable,mergeStateStatus)"
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            [ "$(jq -r .mergeable <<<"$view")" != "UNKNOWN" ] && break
+            sleep 6
+            view="$(gh pr view "$PR" --json state,isDraft,headRefOid,baseRefName,labels,mergeable,mergeStateStatus)"
+          done
+          [ "$(jq -r .state <<<"$view")" = "OPEN" ] || refuse "the PR is no longer open"
+          [ "$(jq -r .isDraft <<<"$view")" = "false" ] || refuse "the PR is a draft"
+          [ "$(jq -r .baseRefName <<<"$view")" = "main" ] || refuse "the PR's base is not main"
+          [ "$(jq -r .headRefOid <<<"$view")" = "$HEAD_SHA" ] || refuse "the head moved from ${HEAD_SHA:0:7} to $(jq -r .headRefOid <<<"$view" | cut -c1-7) after the checks"
+          held="$(jq -r '[.labels[].name | select(. == "needs-amr" or . == "agent:hold" or . == "blocked")] | join(",")' <<<"$view")"
+          if [ -n "$held" ]; then
+            echo "::warning::#${PR} now carries ${held}: left to the maintainer."
+            exit 0
+          fi
+          git fetch -q origin main "$BRANCH"
+          if [ "$(git rev-parse "${HEAD_SHA}^")" != "$(git rev-parse origin/main)" ]; then
+            echo "::warning::main moved after ${BRANCH} was cut; not merged. The next run re-plans from the new tip and re-cuts the branch."
+            exit 0
+          fi
+          [ "$(jq -r .mergeable <<<"$view")" = "MERGEABLE" ] || refuse "GitHub reports it $(jq -r .mergeable <<<"$view"), not MERGEABLE"
+          case "$(jq -r .mergeStateStatus <<<"$view")" in
+            CLEAN|HAS_HOOKS) ;;
+            *) refuse "merge state is $(jq -r .mergeStateStatus <<<"$view"), not CLEAN" ;;
+          esac
+          git checkout -q --detach "$HEAD_SHA"
+          python3 -m tools.jev ratify check-diff --base origin/main \
+            || refuse "ratify check-diff: the head is not exactly the plan as of main (see the job log)"
+          gh pr merge "$PR" --merge --match-head-commit "$HEAD_SHA" --delete-branch
+          echo "Merged #${PR} (${HEAD_SHA:0:7}) with a merge commit."
+
+      - name: Hand a refused record to the maintainer
+        if: ${{ failure() && steps.publish.outputs.number != '' }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PR: ${{ steps.publish.outputs.number }}
+        run: |
+          set -uo pipefail
+          why="$(cat "$RUNNER_TEMP/ratify-fail.txt" 2>/dev/null || echo "a step failed; see the run log")"
+          gh pr edit "$PR" --add-label needs-amr || true
+          gh pr comment "$PR" --body "The ratify job did not merge this record: ${why}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Labelled \`needs-amr\`; the maintainer reviews, merges or closes it, and removes the label (constitution § 12.4)." || true

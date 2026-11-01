@@ -5,7 +5,7 @@ coverage: listed
 
 # SCHEMA — tools/jev
 
-> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), and the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
+> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the ratification and acceptance recorder (`ratify.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), and the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
 
 ## Conventions
 
@@ -19,10 +19,11 @@ coverage: listed
 | --- | --- | --- | --- |
 | `README.md` | file | How to run JEV, set up the merge driver, and read the tier ladder | required |
 | `__init__.py` | file | Package marker and version | required |
-| `__main__.py` | file | The CLI entry point — the `number`, `conflicts`, `generated`, `steps` and `loop` command groups | required |
+| `__main__.py` | file | The CLI entry point — the `number`, `ratify`, `conflicts`, `generated`, `steps` and `loop` command groups | required |
 | `common.py` | file | Hub paths, `_data/fleet.yml` `jev:` / `budget.jev` reader, the `gh` and `git` wrappers (no hooks, no fsmonitor), the guards they apply (no merge, no `--admin`, no destructive or settings verb, allowlists of the gh commands and the git subcommands, options and `-c` keys JEV uses, no `gh api` but a GET or an inline GraphQL query, no force-push, mirror or remote delete), the shared `owner/repo` and bare-file-name checks, the subprocess helper (merged or replaced environment) and the named-keys `.env` reader | required |
 | `classify.py` | file | The deterministic classifier: conflicted file → kind, and (files, hunks, lines, history) → one tier | required |
 | `number.py` | file | The assign-at-merge compiler: fragments → `features/features.yml`, `PRD.md`, `CHANGELOG.md`, `docs/amendments/NNNN-*.md`; plus the hand-picked-number lint | required |
+| `ratify.py` | file | Ratification, acceptance and completion records: from one commit's state, plan the Status / Ratified by / Accepted in / Completed lines and index cells a maintainer's merge (or a closed tracking epic) decided, with each trigger's evidence; apply that plan, prove a diff is exactly it (`check-diff`, the ratify job's merge guard), and write the record PR's body. GitHub GETs only | required |
 | `conflicts.py` | file | Detect, trial-merge, triage, resolve by tier, validate, push a merge commit, escalate | required |
 | `ledger.py` | file | `_data/jev_resolutions.yml` — append-only cost records and the monthly cap arithmetic | required |
 | `merge-regen.sh` | file | The `jev-regen` git merge driver: keep ours, record the path for regeneration | required |
@@ -42,6 +43,7 @@ coverage: listed
 
 ## Forbidden
 
+- No ratification-record edit outside the four record files and their status lines (`ratify.ALLOWED_PATH`, `ratify._shape_problem`); the merge of that PR belongs to the `ratify` job's YAML step, never to the Python.
 - No `gh pr merge`, no `--admin`, no repository-settings call, no `gh api` write, no gh command outside the allowlist — asserted in `common.assert_no_admin`; no force-push, mirror or remote delete, no git subcommand, global option or `-c` key outside the allowlist — asserted in `common.assert_safe_git`; both covered by `tools/test_jev_conflicts.py`.
 - No secret, token or model credential in this directory; the `claude` CLI reads its own environment.
 - No import of dash-gen (`.github/scripts/dash-gen/`) from any module here; dash-gen imports `tools.jev` lazily, never the reverse.

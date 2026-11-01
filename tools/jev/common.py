@@ -296,7 +296,7 @@ def _assert_api_read(args: list[str]) -> None:
 #: -f'` then `p`), an autocorrected typo (`psuh`) or plumbing that pushes
 #: (`send-pack`, `http-push`) fails closed. git itself refuses an alias that
 #: shadows one of these.
-_GIT_ALLOWED = frozenset({"add", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
+_GIT_ALLOWED = frozenset({"add", "blame", "check-attr", "check-ignore", "checkout", "clone", "commit", "config", "diff",
                           "fetch", "grep", "init", "log", "ls-files", "ls-tree", "merge", "merge-file", "push",
                           "remote", "rev-parse", "show", "status", "update-index"})
 #: git global options JEV passes, and whether each takes a value (`--opt=v` or

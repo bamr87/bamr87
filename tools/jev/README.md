@@ -14,6 +14,12 @@ python3 -m tools.jev number plan                        # what the pending fragm
 python3 -m tools.jev number apply                       # assign, compile, consume the fragments
 python3 -m tools.jev number lint --base origin/main     # reject a hand-picked next number
 
+python3 -m tools.jev ratify plan                        # records a maintainer's merge decided that still say otherwise (GETs only)
+python3 -m tools.jev ratify plan --json --out plan.json # … as the JSON the ratify job applies and checks
+python3 -m tools.jev ratify apply --plan plan.json      # write exactly that plan; refuses on any mismatch
+python3 -m tools.jev ratify check-diff --base origin/main   # the merge guard: HEAD differs from base by the plan and nothing else
+python3 -m tools.jev ratify pr-body --plan plan.json    # the record PR's body (--title for its title)
+
 python3 -m tools.jev conflicts scan                     # every CONFLICTING open PR in the fleet
 python3 -m tools.jev conflicts scan --repo bamr87/bamr87
 python3 -m tools.jev conflicts triage  --pr bamr87/bamr87#437
@@ -37,6 +43,10 @@ python3 -m tools.jev loop budget                        # the month against budg
 ```
 
 Run from the repository root — `tools.jev` is imported as a package, so `python3 tools/jev/conflicts.py` will not work.
+
+## Ratification records
+
+`ratify.py` records what a merge decided. From one commit's state it plans: every amendment whose `**Status:**` is still `proposed` although the PR that added it was merged by the maintainer (→ `ratified`, `**Ratified by:**` that PR, its date and merger, the index cell); every ADR `- **Status**: proposed` line, header or phase, whose introducing PR (`git blame`) the maintainer merged (→ `accepted`, `- **Accepted in**:`, the index cell for the header); and every accepted ADR whose `- **Tracking**: #N` epic closed as completed with all sub-issues closed (→ `- **Completed**:`). Each edit carries its trigger evidence; everything else is listed as skipped with the reason. The plan reads GitHub with GETs only and writes nothing remote: the `ratify` job in [`jev-number.yml`](../../.github/workflows/jev-number.yml) pushes `chore/jev-ratify`, opens the PR and merges it with a merge commit after every check passed and `check-diff` held (amendment `ratification-records`; [docs/JEV.md](../../docs/JEV.md#ratification-records)).
 
 ## Loop step specs
 
@@ -119,6 +129,7 @@ Swapping the model is a one-line change in `_data/fleet.yml` `jev.tiers.<tier>.m
 
 ```bash
 python3 tools/test_jev_number.py      # the compiler: assignment, slug refs, consumption, the lint
+python3 tools/test_jev_ratify.py      # ratify: triggers, skips, accept/complete, apply, check-diff, the PR body, the job's merge guard
 python3 tools/test_jev_classify.py    # the tier ladder and the file-kind rules
 python3 tools/test_jev_conflicts.py   # eligibility, validation, the no-merge/no-admin guard
 python3 tools/test_jev_ledger.py      # the ledger and the monthly cap
