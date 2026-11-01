@@ -1117,6 +1117,17 @@ def test_refusals_exit_with_their_documented_codes():
     assert not (HUB / ".fleet" / "work").exists()
 
 
+def test_the_text_plan_names_a_host_problem_when_the_budget_cannot_be_read():
+    # an unreadable ledger leaves no `budget` key: the host problem is still printed
+    host = {"version": "2.1.308", "probe": "cached", "canary": "missing", "auth": {"method": "oauth"},
+            "problems": ["the work root /x is inside the hub tree"]}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = L._print_plan({"notes": ["budget: the ledger cannot be read"], "items": [], "host": host},
+                             L.Options(), 0)
+    assert code == 0 and "host problem: the work root /x is inside the hub tree" in out.getvalue(), out.getvalue()
+
+
 def test_show_prints_the_latest_run():
     box = Box()
     with world(box):

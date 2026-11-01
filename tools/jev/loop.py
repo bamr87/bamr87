@@ -2043,12 +2043,12 @@ def _print_plan(out: dict, opts: Options, code: int) -> int:
     if host:
         print(f"host: claude {host.get('version') or 'missing'} · probe {host.get('probe')} · canary "
               f"{host.get('canary')} · auth {(host.get('auth') or {}).get('method') or 'none'}")
+        for why in host.get("problems") or []:
+            print(f"host problem: {why}")
     b = out.get("budget") or {}
     if b:
         print(f"budget.loops {b['month']}: ${b['spent_usd']:.2f} of ${b['cap_usd']:g} (this run stops at "
               f"${b['ceiling_usd']:g}; {COST_LABEL}){'' if b['affords_one_attempt'] else ' — an attempt would not fit'}")
-        for why in host.get("problems") or []:
-            print(f"host problem: {why}")
     for i in out["items"]:
         print(f"{i['key']} @ {i['branch']}  →  {i['decision']}")
         if i.get("note"):
