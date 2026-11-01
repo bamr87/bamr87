@@ -8,7 +8,7 @@ label: deep-dive
 cycle: 1
 cycle_start: '2026-10-30'
 cycle_days: 42
-refreshed_at: '2026-10-31T12:22:48Z'
+refreshed_at: '2026-11-01T12:23:08Z'
 repos:
 - day: 1
   repo: it-journey
@@ -47,13 +47,22 @@ repos:
   - https://github.com/bamr87/bamr87/issues/502
   - https://github.com/bamr87/bamr87/issues/501
   - https://github.com/bamr87/bamr87/issues/500
+  - https://github.com/bamr87/bamr87/issues/519
+  - https://github.com/bamr87/bamr87/issues/518
+  - https://github.com/bamr87/bamr87/issues/517
+  - https://github.com/bamr87/bamr87/issues/516
+  - https://github.com/bamr87/bamr87/issues/515
+  - https://github.com/bamr87/bamr87/issues/514
+  - https://github.com/bamr87/bamr87/issues/513
+  - https://github.com/bamr87/bamr87/issues/512
+  - https://github.com/bamr87/bamr87/issues/511
   prs:
   - https://github.com/bamr87/bamr87/pull/431
   - https://github.com/bamr87/bamr87/pull/510
   - https://github.com/bamr87/bamr87/pull/509
   - https://github.com/bamr87/bamr87/pull/508
-  open_issues: 8
-  open_prs: 3
+  open_issues: 17
+  open_prs: 1
   findings: ''
   score: null
   next_focus: ''
