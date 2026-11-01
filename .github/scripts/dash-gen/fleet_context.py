@@ -179,8 +179,9 @@ REMEDY_INDEX = "let Kilo re-scan (kilo.jsonc `indexing`)"
 #: the target's hits checked against the agent's clone (--target-dir) and behind it: Kilo scanned the hub's
 #: checkout of the target, which can lag the branch head the clone holds, and `{how}` brings it there
 REMEDY_INDEX_CLONE = "{how}, then let Kilo re-scan"
-#: no --target-dir, and the hub running the planes holds no checkout of the target to check its hits against
-REMEDY_CHECKOUT = "`git submodule update --init projects/{dir}`, or pass --target-dir (a loop run passes its clone)"
+#: no --target-dir (a loop run passes its clone), and the hub running the planes holds no checkout of the target
+#: to check its hits against
+REMEDY_CHECKOUT = "`git submodule update --init projects/{dir}` or --target-dir"
 
 #: The hub's copies of the registry: the registry itself and the projections
 #: generated from it. A hit there repeats what the brief already says about
@@ -1407,12 +1408,13 @@ def index_code(queries: list[str], name: str, is_hub: bool, deadline: Deadline, 
     if clone is not None and not any(behind["clone"]):
         note += "; the target's hits checked against its clone (--target-dir)"
     if unchecked:
-        note = (f"projects/{checkout} is not checked out here: {unchecked} hit(s) from {name} not checked (code "
-                f"withheld) — {REMEDY_CHECKOUT.format(dir=checkout)}; {note}")
+        note = (f"the target is not checked out here: {unchecked} hit(s) unchecked (code withheld) — "
+                f"{REMEDY_CHECKOUT.format(dir=checkout)}; {note}")
     # each tree with its own counts and remedy: the target's hits were checked against the clone, the rest
     # (the hub's, with --target-dir) against the hub checkout. The clauses lead the note, short enough that both
     # fit the engine's 300-character note clip (tools/jev/context.NOTE_CHARS) for a directory name of up to 40
-    # characters, so neither remedy is cut off; each row says why its own code is withheld
+    # characters, so neither remedy is cut off (nor, with no clone, the unchecked target's clause after the
+    # checkout's); each row says why its own code is withheld
     clauses = []
     changed, missing = behind["clone"]
     if changed or missing:

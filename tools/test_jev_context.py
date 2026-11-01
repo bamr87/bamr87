@@ -598,11 +598,13 @@ def test_a_code_index_note_with_both_trees_behind_keeps_both_remedies_in_the_pac
             clone.mkdir()
             (hub / "tools" / "hub.py").write_bytes(b"edited in the hub checkout since the scan\n")
             (clone / "README.md").write_bytes(b"the branch head\n")   # and gone.md deleted
-            planes = fc.build(nwo, name, queries=["q"], sections=["index_code"], registry_path="/nonexistent",
-                              index_cfg={"qdrant": "http://127.0.0.1:9", "embedder": "http://127.0.0.1:9",
-                                         "min_score": 0.5},
-                              index_root=hub, target_dir=clone,
-                              scrubber=fc.Scrubber(home="/srv/nobody", hosts=[], paths=[]))
+            planes, offline = (fc.build(nwo, name, queries=["q"], sections=["index_code"],
+                                        registry_path="/nonexistent",
+                                        index_cfg={"qdrant": "http://127.0.0.1:9", "embedder": "http://127.0.0.1:9",
+                                                   "min_score": 0.5},
+                                        index_root=hub, target_dir=target_dir,
+                                        scrubber=fc.Scrubber(home="/srv/nobody", hosts=[], paths=[]))
+                               for target_dir in (clone, None))
     finally:
         fc.http_json = real
     note = planes["sections"]["index_code"]["note"]
@@ -610,13 +612,24 @@ def test_a_code_index_note_with_both_trees_behind_keeps_both_remedies_in_the_pac
     assert planes["sections"]["index_code"]["status"] == "stale" and len(clauses) == 2, note
     assert f"`tools/update-submodules.sh --no-commit {name}`" in clauses[0] and fc.REMEDY_INDEX in clauses[1], note
     item = Item(key=nwo, name=name, nwo=nwo, branch="main", row={}, brief=None)
-    with _tmp() as root:
-        doc = plane_doc(nwo, name, index_code=planes["sections"]["index_code"])
-        pack = C.build(FakeCtx(root, answer=lambda _a: ok_answer(doc)), item, C.ContextRequest(nwo, name, ("q",)))
-        md = pack.path.read_text(encoding="utf-8")
-    line = md.split("## Code index — stale\n\n", 1)[1].split("\n", 1)[0]
+
+    def code_line(section: dict) -> str:
+        with _tmp() as root:
+            doc = plane_doc(nwo, name, index_code=section)
+            pack = C.build(FakeCtx(root, answer=lambda _a: ok_answer(doc)), item, C.ContextRequest(nwo, name, ("q",)))
+            md = pack.path.read_text(encoding="utf-8")
+        return md.split("## Code index — stale\n\n", 1)[1].split("\n", 1)[0]
+
+    line = code_line(planes["sections"]["index_code"])
     assert len(note) > C.NOTE_CHARS and line.endswith("…"), ("the rest of the note is clipped", line)
     assert f" · {clauses[0]}; {clauses[1]}" in line, ("each clause whole, with its counts and remedy", line)
+    # with no clone (a plan, an offline rehearsal) and the target not checked out in the hub, the checkout's
+    # clause and the unchecked target's lead the note, and both reach the pack whole
+    note = offline["sections"]["index_code"]["note"]
+    clauses = note.split("; ")[:2]
+    assert clauses[0].startswith("index behind the checkout: 1 changed, 0 missing") and clauses[1].endswith(
+        f"2 hit(s) unchecked (code withheld) — `git submodule update --init projects/{name}` or --target-dir"), note
+    assert f" · {clauses[0]}; {clauses[1]}" in code_line(offline["sections"]["index_code"]), note
 
 
 def test_unavailable_sections_are_one_line_each():
