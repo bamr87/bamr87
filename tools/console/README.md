@@ -115,7 +115,7 @@ keys v1, from `/api/keys` ([`tools/fleetcore/keys.py`](../fleetcore/keys.py)), t
 
 ## What it refuses to do
 
-- Run anything outside the allowlist in `core.py` (`OPS`): parameters are validated by regex/range and become argv elements, never a shell string. The Terminal page runs exactly one program, the terminal dash, and that program submits its jobs through the same allowlist.
+- Run anything outside the allowlist in `core.py` (`OPS`): parameters are validated by regex/range and become argv elements, never a shell string. A Config number field refuses `inf` and `nan` as well as a negative: a `.inf` ceiling would make every gate that holds spend inside it vacuous. The Terminal page runs exactly one program, the terminal dash, and that program submits its jobs through the same allowlist.
 - Write to GitHub without an explicit confirm (`apply`, `dispatch`) — and only one such job runs at a time.
 - Write to a repo the hub does not own, or merge, delete or push through its GitHub page. Its GitHub writes are issues, runs and workflows, each confirmed and logged.
 - Commit, push, or merge. Generated data lands in the working tree; you review it in git.

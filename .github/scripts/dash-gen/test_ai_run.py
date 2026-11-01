@@ -457,10 +457,25 @@ def test_a_usage_limit_is_a_warning_under_skip_and_a_failure_by_default():
     assert {r["outcome"] for r in rig.rows()} == {"usage_limit"}
 
 
+@contextlib.contextmanager
+def hangup_default():
+    """SIGHUP at its default for a test that sends one. Under a parent that
+    ignores it (`nohup`, `trap '' HUP`) honoured_signals rightly keeps the
+    ignore, so the hangup would end nothing and the test would hang; the
+    caller's disposition comes back after."""
+    before = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, signal.SIG_DFL if before is None else before)
+
+
 def started(rig: Rig, *flags: str) -> subprocess.Popen:
     argv, env = rig.command(*flags)
-    p = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         text=True)
+    with hangup_default():   # ai-run inherits the disposition at exec, a nohup'd parent's ignore with it
+        p = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True)
     deadline = time.monotonic() + 30
     while not (rig.bin / "ready").exists():
         assert time.monotonic() < deadline and p.poll() is None, "the stub never got ready"
@@ -746,6 +761,21 @@ for i in range({n}):
     else:
         ai_activity.record_run(p, {{"timestamp": "t", "session_id": f"{{sys.argv[1]}}-{{i}}", "total_cost_usd": 0.1}})
 """
+
+
+def test_a_session_against_an_unreadable_ledger_is_loud_unledgered_and_fails():
+    # the session ran and spent: ai-run keeps the ledger as it found it, writes the outcome and exits non-zero
+    for bad in ("{truncated", json.dumps({"version": 2, "runs": {}})):
+        rig = Rig()
+        rig.ledger.write_text(bad)
+        outcome = rig.dir / "outcome.json"
+        out = rig.run("--outcome-file", str(outcome))
+        assert out.returncode == 1 and rig.calls() == 1, (out.returncode, out.stderr)
+        assert rig.ledger.read_text() == bad, "never replaced with only this run's row"
+        got = json.loads(outcome.read_text())
+        assert got["ledger_error"] and (got["kind"], got["cost_usd"], got["exit_code"]) == ("ok", 0.61, 1), got
+        assert "THIS RUN IS NOT LEDGERED" in out.stderr and "NOT recorded to" in out.stderr, out.stderr
+        assert "in place" in out.stderr and "move it aside" not in out.stderr, out.stderr
 
 
 def test_concurrent_writers_lose_no_rows():

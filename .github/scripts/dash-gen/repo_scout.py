@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import importlib
 import json
 import math
@@ -117,8 +118,12 @@ SECRET_RE = re.compile(
 # config + helpers
 # --------------------------------------------------------------------------- #
 def load_yaml(path: Path | str):
+    # libyaml's SafeLoader when PyYAML has it: the plan reads ~350 KB of YAML
+    # (fleet.yml, the registry, triage, conformance) on every run, and the pure
+    # loader spends most of the plan's time parsing it. Same objects either way
+    # (test_scout.py's test_loader holds them equal over _data/*.yml).
     with Path(path).open(encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+        return yaml.load(fh, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))  # noqa: S506 - a SafeLoader
 
 
 def load_config(path: Path | str | None) -> dict:
@@ -575,15 +580,23 @@ def body_file_name(n: int, title: str) -> str:
     return f"{n:02d}-{slug}.md"
 
 
+#: why `--reviewed-bodies` withheld a proposal (tools/jev/adapters/repo_scout.py reads it)
+NOT_REVIEWED = "not in the reviewed preview (its body is not byte-identical to a reviewed one)"
+
+
 def file_proposals(nwo: str, proposals: list[dict], cfg: dict, *, existing_titles: list[str],
-                   run_url: str = "", apply: bool = False, gh=_gh_text, bodies_dir: Path | str | None = None) -> dict:
+                   run_url: str = "", apply: bool = False, gh=_gh_text, bodies_dir: Path | str | None = None,
+                   reviewed: set[str] | None = None) -> dict:
     """Dedupe, cap, (create labels,) file. Returns the record the run summary renders.
 
     `bodies_dir` (the local loop engine's; CI never passes it) also writes
     every would-file or filed issue's exact body there as `NN-<slug>.md`, so
     the human gate reads the bytes that would be filed. A dry run clears the
     directory's stale bodies first; an --apply never clears one (run_file
-    refuses a non-empty one), so filing cannot destroy a reviewed preview."""
+    refuses a non-empty one), so filing cannot destroy a reviewed preview.
+    `reviewed` (sha256 hex digests, the engine's `--reviewed-bodies`) withholds
+    every body that is not byte-identical to a reviewed one, before any label
+    or issue is created for it."""
     cap = int(cfg["max_issues_per_repo"])
     filed: list[dict] = []
     skipped: list[dict] = []
@@ -601,12 +614,16 @@ def file_proposals(nwo: str, proposals: list[dict], cfg: dict, *, existing_title
         if dup:
             skipped.append({"title": p["title"], "reason": f"duplicates an open issue: {dup}"})
             continue
+        body = issue_body(p, cfg, nwo, run_url)
+        if reviewed is not None and hashlib.sha256(body.encode("utf-8")).hexdigest() not in reviewed:
+            skipped.append({"title": p["title"], "reason": NOT_REVIEWED})
+            continue
         seen.append(p["title"])
         rec = {"title": p["title"], "kind": p["kind"], "labels": p["labels"], "url": None}
         if apply:
             ensure_labels(nwo, p["labels"], cfg, gh)
             with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as fh:
-                fh.write(issue_body(p, cfg, nwo, run_url))
+                fh.write(body)
                 body_path = fh.name
             url = gh(["gh", "issue", "create", "-R", nwo, "--title", p["title"], "--body-file", body_path,
                       "--label", ",".join(p["labels"])])
@@ -616,7 +633,7 @@ def file_proposals(nwo: str, proposals: list[dict], cfg: dict, *, existing_title
             rec["url"] = url.strip().splitlines()[-1]
         if out_dir is not None:
             rec["body_file"] = body_file_name(len(filed) + 1, p["title"])
-            (out_dir / rec["body_file"]).write_text(issue_body(p, cfg, nwo, run_url), encoding="utf-8")
+            (out_dir / rec["body_file"]).write_text(body, encoding="utf-8")
         filed.append(rec)
     return {"nwo": nwo, "apply": apply, "filed": filed, "skipped": skipped}
 
@@ -698,6 +715,10 @@ def add_file_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bodies-dir", default=None, metavar="DIR",
                         help="also write each would-file/filed issue body to DIR/NN-<slug>.md (the local loop "
                              "engine's human gate; CI does not pass it)")
+    parser.add_argument("--reviewed-bodies", default=None, metavar="DIR",
+                        help="with --apply: file only a body byte-identical to one of DIR's NN-<slug>.md files (a "
+                             "reviewed preview), and file nothing (exit 3) when the open issues cannot be listed "
+                             "(the local loop engine's apply; CI does not pass it)")
     parser.set_defaults(func=run_file)
 
 
@@ -710,11 +731,20 @@ def run_file(args: argparse.Namespace) -> int:
     raw, notes = load_proposals(args.proposals)
     proposals, rejected = validate_proposals(raw, cfg)
     existing = None if args.offline else open_issues(args.nwo, 200, _gh_json)
+    reviewed = None
+    if args.apply and args.reviewed_bodies:
+        if existing is None:
+            # the reviewed preview was deduped: filing without the list could file what it dropped
+            sys.stderr.write(f"could not list open issues of {args.nwo} — --reviewed-bodies files nothing without "
+                             "the duplicate check\n")
+            return 3
+        reviewed = {hashlib.sha256(f.read_bytes()).hexdigest()
+                    for f in Path(args.reviewed_bodies).glob("[0-9][0-9]-*.md") if f.is_file()}
     if existing is None and not args.offline:
         sys.stderr.write(f"could not list open issues of {args.nwo} — filing without the duplicate check\n")
     titles = [i["title"] for i in (existing or [])]
     result = file_proposals(args.nwo, proposals, cfg, existing_titles=titles, run_url=args.run_url,
-                            apply=args.apply, bodies_dir=args.bodies_dir)
+                            apply=args.apply, bodies_dir=args.bodies_dir, reviewed=reviewed)
     result["rejected"] = rejected
     result["notes"] = notes
     verb = "filed" if args.apply else "would file"

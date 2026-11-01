@@ -161,6 +161,8 @@ def test_a_missing_or_invalid_fleet_reference_is_refused_and_reported():
         (lambda f: f["budget"]["call_sites"].pop(site), "budget.call_sites has no"),
         (lambda f: f["budget"]["call_sites"].update({site: 0}), "not a positive number"),
         (lambda f: f["budget"]["call_sites"].update({site: "8"}), "not a positive number"),
+        (lambda f: f["budget"]["call_sites"].update({site: float("inf")}), "not a positive number"),
+        (lambda f: f["budget"]["call_sites"].update({site: float("nan")}), "not a positive number"),
         (lambda f: f["scout"].pop("model"), "has no `scout.model`"),
         (lambda f: f["scout"].pop("max_turns"), "has no `scout.max_turns`"),
     ]
@@ -571,6 +573,8 @@ def test_a_malformed_local_block_is_refused():
         (lambda d: d["local"]["publish"]["argv"].append("--appl"), "spells --apply"),
         (lambda d: d["local"]["publish"]["argv"].append("--app"), "spells --apply"),
         (lambda d: d["local"]["publish"]["argv"].append("--apply=1"), "spells --apply"),
+        (lambda d: d["local"]["publish"]["argv"].extend(["--reviewed-bodies", "{item_dir}"]),
+         "spells --reviewed-bodies"),
         (lambda d: d["local"]["publish"]["argv"].append("--"), "passthrough"),
         (lambda d: d["local"]["publish"]["argv"].__setitem__(0, "ai-run"), "may run"),
         # a planner runs in `loop plan` (write-free): no writer, no apply flag, no passthrough

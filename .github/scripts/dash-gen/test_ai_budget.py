@@ -39,7 +39,10 @@ Guarded here:
     session records one row rather than two charges for one conversation;
   * headless spend is reported separately and never folded into the
     scan-derived interactive estimates, which see the SAME sessions;
-  * a budget abort is detected from either tell the CLI gives.
+  * a budget abort is detected from either tell the CLI gives;
+  * the local loop runner's monthly ceiling (`budget.loops`, tools/jev/loop.py)
+    covers at least one full-cap attempt of every step that runs locally, and
+    `budget.loops` + `budget.jev` stay inside harnesses.budget.monthly_ai_usd.
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -48,7 +51,9 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 
 from __future__ import annotations
 
+import copy
 import json
+import math
 import re
 import sys
 import tempfile
@@ -70,6 +75,7 @@ CLAUDE_COST = REPO_ROOT / ".github" / "actions" / "claude-cost"
 COST_EXEMPT = {"claude.yml:claude"}
 FLEET = REPO_ROOT / "_data" / "fleet.yml"
 DASH = REPO_ROOT / "tools" / "dash"
+STEP_SPECS = REPO_ROOT / "tools" / "jev" / "steps"
 
 CHECKS: list[tuple[str, bool]] = []
 
@@ -401,10 +407,9 @@ def check_ledger() -> None:
         path = Path(tmp) / "ai-activity-ledger.json"
         path.write_text(json.dumps(V1_FIXTURE))
 
-        # A v1 ledger with no `runs` key must SURVIVE. merge_ledger discards the
-        # whole prior ledger on a version mismatch, so bumping LEDGER_VERSION
-        # for this additive key would have silently deleted every day of
-        # history the first time it ran.
+        # A v1 ledger with no `runs` key must SURVIVE. The writers refuse a
+        # ledger of another version, so bumping LEDGER_VERSION for this additive
+        # key would have stopped every writer the first time it ran.
         ledger = ai_activity.record_run(path, run_record("sess-a", 1.25))
         check("v1 ledger: prior `usage` survives the first run record",
               ledger["usage"] == V1_FIXTURE["usage"])
@@ -458,6 +463,29 @@ def check_ledger() -> None:
               by_id["sess-a"]["also_in_scan"] is True)
         check("a run with no scanned transcript is not marked",
               by_id["sess-b"]["also_in_scan"] is False)
+
+        # An unreadable ledger is not an empty one: no writer replaces it with
+        # only its own rows (the month's local-loop spend, budget.loops, is in it),
+        # and a reader still sees it as empty rather than crashing.
+        for bad in ("{truncated", json.dumps({"version": 2, "runs": {"r": {"total_cost_usd": 20}}}), "[]"):
+            path.write_text(bad)
+            for name, write in (("merge_ledger", lambda: ai_activity.merge_ledger(path, {}, {})),
+                                ("record_run", lambda: ai_activity.record_run(path, run_record("sess-z", 1.0)))):
+                try:
+                    write()
+                    refused, said = False, ""
+                except ai_activity.LedgerUnreadable as exc:
+                    refused, said = True, str(exc)
+                check(f"{name} refuses to overwrite a ledger it cannot read ({bad[:12]}…)",
+                      refused and path.read_text() == bad)
+                # moved aside, the ledger would read as an empty month: budget.loops back at $0
+                check(f"{name}'s refusal says to repair it in place, never to move it aside ({bad[:12]}…)",
+                      "in place" in said and "budget.loops" in said and "move it aside" not in said)
+            check(f"a reader sees an unreadable ledger ({bad[:12]}…) as empty",
+                  ai_activity.load_ledger(path)["runs"] == {})
+        path.unlink()
+        check("an absent ledger is simply new to a writer",
+              list(ai_activity.record_run(path, run_record("sess-n", 1.0))["runs"]) == ["sess-n"])
 
 
 # --------------------------------------------------------------------------- #
@@ -521,9 +549,80 @@ def check_wrapper() -> None:
           re.search(r'\*\)\s*"\$\{TOOLS\}/dash-gen"\s+ai\s', dash) is not None)
 
 
+# --------------------------------------------------------------------------- #
+# the local loop runner's monthly ceiling
+# --------------------------------------------------------------------------- #
+def check_loops_budget(fleet: dict) -> None:
+    """`budget.loops` is the local runner's monthly TOTAL (the `budget.jev`
+    shape); each attempt is still held to its step's `call_sites` cap. Read
+    from the spec files directly — a step runs locally iff its spec has a
+    `local:` block — so this needs no tools.jev import."""
+    budget = fleet.get("budget") or {}
+    loops = budget.get("loops") or {}
+    usd, pct = loops.get("monthly_usd"), loops.get("scheduled_stop_pct")
+    check("budget.loops declares a finite monthly_usd above 0", _bounds(usd))
+    check("budget.loops.scheduled_stop_pct is in 1..100",
+          isinstance(pct, int) and not isinstance(pct, bool) and 0 < pct <= 100)
+    if not _bounds(usd):
+        return
+    sites = budget.get("call_sites") or {}
+    local = []
+    for path in sorted(STEP_SPECS.glob("*/*.yml")):
+        spec = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if isinstance(spec, dict) and spec.get("local"):
+            local.append(str(spec.get("call_site")))
+    check("at least one step spec runs locally (a local: block)", bool(local))
+    for site in local:
+        cap = sites.get(site)
+        check(f"local step {site} has a budget.call_sites cap", _bounds(cap))
+        check(f"budget.loops (${usd:g}) covers one full-cap attempt of {site} (${cap})",
+              _bounds(cap) and usd >= cap)
+    jev = (budget.get("jev") or {}).get("monthly_usd")
+    ceiling = ((fleet.get("harnesses") or {}).get("budget") or {}).get("monthly_ai_usd")
+    check("budget.jev declares a finite monthly_usd above 0", _bounds(jev))
+    check("harnesses.budget.monthly_ai_usd is declared, a finite number above 0", _bounds(ceiling))
+    if _bounds(jev) and _bounds(ceiling):
+        check(f"budget.loops + budget.jev (${usd + jev:g}) stay inside harnesses.budget.monthly_ai_usd "
+              f"(${ceiling:g})", usd + jev <= ceiling)
+
+
+def _bounds(value) -> bool:
+    """A cap or ceiling that bounds something: a finite number above 0. YAML's
+    `.inf` passes `> 0`, and `x <= inf` is always true, so a bare `> 0` gate
+    over an infinite ceiling holds nothing."""
+    return (isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+            and value > 0)
+
+
+def check_loops_budget_gate(fleet: dict) -> None:
+    """The ceiling gate above is itself held: run on a copy of the fleet whose
+    money bounds nothing, it must fail. The console's config form is one way
+    such a value reaches `_data/fleet.yml`."""
+    ceiling, loops, jev = ("harnesses", "budget", "monthly_ai_usd"), ("budget", "loops", "monthly_usd"), \
+        ("budget", "jev", "monthly_usd")
+    cases = (("harnesses.budget.monthly_ai_usd .inf", [(ceiling, math.inf)]),
+             ("harnesses.budget.monthly_ai_usd .nan", [(ceiling, math.nan)]),
+             ("budget.loops.monthly_usd and the ceiling .inf", [(loops, math.inf), (ceiling, math.inf)]),
+             ("budget.jev.monthly_usd 'lots'", [(jev, "lots")]))
+    for label, edits in cases:
+        trial = copy.deepcopy(fleet)
+        for path, value in edits:
+            node = trial
+            for key in path[:-1]:
+                node = node.setdefault(key, {})
+            node[path[-1]] = value
+        mark = len(CHECKS)
+        check_loops_budget(trial)
+        verdicts = CHECKS[mark:]
+        del CHECKS[mark:]
+        check(f"the loops ceiling gate fails a fleet with {label}", any(not ok for _, ok in verdicts))
+
+
 def main() -> int:
     fleet = yaml.safe_load(FLEET.read_text(encoding="utf-8"))
     check_workflows(fleet)
+    check_loops_budget(fleet)
+    check_loops_budget_gate(fleet)
     check_abort_contract(call_sites())
     check_ledger()
     check_wrapper()

@@ -132,13 +132,26 @@ DATE_SUFFIX = re.compile(r"-20\d{6}$")
 USAGE_FIELDS = ("input", "output", "cache_5m", "cache_1h", "cache_read", "turns")
 
 # The ledger version is NOT bumped by the addition of the `runs` section, and
-# that is deliberate. `merge_ledger` discards the WHOLE prior ledger when the
-# version does not match, so a bump here would silently throw away every day of
-# history the moment this landed — for a purely additive key. `runs` is read
-# with a default instead: a v1 ledger written before this existed simply gains
-# an empty section on its next merge. Bump only for a change that makes old
-# data WRONG, and write a migration when you do.
+# that is deliberate. The writers (`merge_ledger`, `record_run`) refuse a ledger
+# whose version does not match — they used to discard the WHOLE prior ledger —
+# so a bump here would stop every writer the moment this landed, for a purely
+# additive key. `runs` is read with a default instead: a v1 ledger written
+# before this existed simply gains an empty section on its next merge. Bump
+# only for a change that makes old data WRONG, and write a migration when you do.
 LEDGER_VERSION = 1
+
+
+#: What to do about a ledger no writer may replace. Never "move it aside": a
+#: missing ledger reads as an empty month, so budget.loops would restart at $0.
+LEDGER_REMEDY = ("repair or migrate it in place — moving it aside would reset this month's budget.loops spend to $0 "
+                 "(a missing ledger reads as an empty month)")
+
+
+class LedgerUnreadable(ValueError):
+    """The ledger exists but is not one this code can read (not JSON, not an
+    object, another version). A writer refuses rather than replace it with its
+    own rows: the month's local-loop spend lives there (`budget.loops`)."""
+
 
 # One record per headless `dash ai run`, keyed by session id in the ledger's
 # `runs` section. Ordered as it is documented in dash-gen/README.md. The fields
@@ -361,22 +374,34 @@ def scan(projects_dir: Path, machine: str) -> tuple[dict, dict, set[str]]:
 # --------------------------------------------------------------------------- #
 # ledger: persistence across Claude Code's transcript cleanup
 # --------------------------------------------------------------------------- #
-def load_ledger(ledger_path: Path) -> dict:
-    """Read the ledger, tolerating absence, corruption, and a missing `runs`.
+def load_ledger(ledger_path: Path, *, strict: bool = False) -> dict:
+    """Read the ledger, tolerating absence and a missing `runs`.
 
     `runs` defaults rather than being required, so a v1 ledger written before
     the headless wrapper existed keeps all of its history — see LEDGER_VERSION.
+    A file that exists but cannot be read as this version reads as empty for a
+    reader; with `strict` (every writer) it raises LedgerUnreadable instead, so
+    no writer replaces it with only its own rows.
     """
     ledger = {"version": LEDGER_VERSION, "usage": {}, "sessions": {}, "runs": {}}
     try:
         with ledger_path.open() as fh:
             prior = json.load(fh)
-        if isinstance(prior, dict) and prior.get("version") == LEDGER_VERSION:
-            ledger["usage"] = prior.get("usage", {})
-            ledger["sessions"] = prior.get("sessions", {})
-            ledger["runs"] = prior.get("runs", {})
-    except (OSError, json.JSONDecodeError):
-        pass
+    except FileNotFoundError:
+        return ledger
+    except (OSError, json.JSONDecodeError) as exc:
+        if strict:
+            raise LedgerUnreadable(f"the AI ledger {ledger_path} cannot be read ({exc}) — refusing to overwrite "
+                                   f"it; {LEDGER_REMEDY}") from exc
+        return ledger
+    if isinstance(prior, dict) and prior.get("version") == LEDGER_VERSION:
+        ledger["usage"] = prior.get("usage", {})
+        ledger["sessions"] = prior.get("sessions", {})
+        ledger["runs"] = prior.get("runs", {})
+    elif strict:
+        found = f"version {prior.get('version')!r}" if isinstance(prior, dict) else f"a JSON {type(prior).__name__}"
+        raise LedgerUnreadable(f"the AI ledger {ledger_path} is {found}, not version {LEDGER_VERSION} — refusing to "
+                               f"overwrite it; {LEDGER_REMEDY}")
     return ledger
 
 
@@ -431,7 +456,7 @@ def merge_ledger(ledger_path: Path, usage: dict, sessions: dict) -> dict:
     Claude Code prunes them — so per-key max preserves the true daily total.
     """
     with ledger_lock(ledger_path):
-        ledger = load_ledger(ledger_path)
+        ledger = load_ledger(ledger_path, strict=True)
 
         for key, row in usage.items():
             old = ledger["usage"].setdefault(key, dict.fromkeys(USAGE_FIELDS, 0))
@@ -456,7 +481,7 @@ def record_run(ledger_path: Path, record: dict, wait_s: float | None = None) -> 
     """
     key = record.get("session_id") or f"unknown-{record['timestamp']}"
     with ledger_lock(ledger_path, wait_s):
-        ledger = load_ledger(ledger_path)
+        ledger = load_ledger(ledger_path, strict=True)
         ledger["runs"][key] = {f: record.get(f) for f in RUN_FIELDS}
         save_ledger(ledger_path, ledger)
     return ledger
@@ -709,7 +734,11 @@ def run(args: argparse.Namespace) -> int:
 
     machine = platform.node().split(".")[0] or "local"
     usage, sessions, models_seen = scan(projects_dir, machine)
-    ledger = merge_ledger(Path(args.ledger), usage, sessions)
+    try:
+        ledger = merge_ledger(Path(args.ledger), usage, sessions)
+    except LedgerUnreadable as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 1
     report = build_report(ledger, machine, args.window)
 
     out = Path(args.out)
@@ -1056,7 +1085,13 @@ def run_headless(args: argparse.Namespace) -> int:
             order = (hl.auth_order({}, {"CLAUDE_AUTH_ORDER": args.auth_order}) if args.auth_order
                      else hl.auth_order(fleet, os.environ))
             dotenv = hl.hub_dotenv()
-            choice = hl.choose_auth(order, os.environ, dotenv, lambda: hl.stored_login(claude, os.environ))
+            if args.auth_source:
+                if len(order) != 1:
+                    raise hl.JevError("--auth-source needs --auth-order naming exactly one method")
+                choice = hl.pinned_auth(order[0], args.auth_source, os.environ, dotenv,
+                                        lambda: hl.stored_login(claude, os.environ))
+            else:
+                choice = hl.choose_auth(order, os.environ, dotenv, lambda: hl.stored_login(claude, os.environ))
         except hl.NoCredential as exc:
             sys.stderr.write(f"refusing to run: {exc}\n")
             refused = hl.Outcome("credential_rejected", 0.0, "no-spend", detail=str(exc)).as_dict()
@@ -1234,6 +1269,11 @@ def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choic
         code = code or 1
         warning += (f"! THIS RUN IS NOT LEDGERED — {exc}. Its cost is in the outcome file; "
                     "find the stopped or hung writer (`fuser` / `lsof` on the lock file).\n")
+    except LedgerUnreadable as exc:
+        # the same, for a ledger no writer may replace (budget.loops lives in it)
+        ledger_error = str(exc)
+        code = code or 1
+        warning += f"! THIS RUN IS NOT LEDGERED — {exc}. Its cost is in the outcome file.\n"
     if result is not None:
         # redacted like the trace; the cost and token numbers claude-cost's
         # `log:` reads are not strings, so they come through unchanged
@@ -1243,7 +1283,7 @@ def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choic
         "timed_out": inv.timed_out, "interrupted": inv.interrupted, "duration_s": inv.duration_s,
         "auth": {"method": choice.method, "source": choice.source} if choice else None,
         "cli_version": cli_ver, "tool_uses": inv.tool_uses,
-        "permission_denials": inv.permission_denials, "models_flagged": flagged,
+        "permission_denials": inv.permission_denials, "denied_tools": inv.denied_tools, "models_flagged": flagged,
         "ledger": str(ledger_path), "ledger_error": ledger_error or None, "call_site": record["call_site"],
     })
 
@@ -1311,6 +1351,9 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
                              "other one and the CLI's other auth inputs (ANTHROPIC_AUTH_TOKEN, "
                              "ANTHROPIC_BASE_URL, CLAUDE_CONFIG_DIR, the provider switches) are unset "
                              "(default with --isolate: CLAUDE_AUTH_ORDER / ai_auth)")
+    parser.add_argument("--auth-source", choices=("env", "login", "dotenv"), default=None,
+                        help="with a one-method --auth-order: use exactly this source of it, or refuse (exit 3) — "
+                             "the loop engine's pin of the credential it chose and proved the canary for")
     parser.add_argument("--usage-limit", choices=("fail", "skip"), default="fail",
                         help="skip = a spent usage window exits 0 with a warning (capacity, not a defect)")
     parser.add_argument("--meta", action="append", default=[], metavar="KEY=VALUE",

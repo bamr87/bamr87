@@ -38,8 +38,8 @@ import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .common import HUB, JevError, gh, git, is_clone_relpath, is_nwo
-from .headless import work_root
+from .common import JevError, gh, git, is_clone_relpath, is_nwo
+from .headless import work_root, work_root_problem
 
 RUN_ID_RX = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 #: `git clone` options every workspace is made with (after gh's `--`)
@@ -127,9 +127,9 @@ def _item_root(nwo: str, run_id: str, dirname: str | None = None) -> Path:
     if not DIRNAME_RX.fullmatch(name or "") or name in (".", ".."):
         raise JevError(f"item directory {name!r} is not a plain name")
     base = work_root()
-    if base.resolve().is_relative_to(HUB.resolve()):
-        raise JevError(f"the work root {base} is inside the hub tree — a clone there would be walked by hub "
-                       "scanners and reach the hub's CLAUDE.md (set JEV_WORK_ROOT outside it)")
+    problem = work_root_problem(base)
+    if problem:
+        raise JevError(f"{problem} — no workspace is made there")
     _private_dir(base)
     _private_dir(base / run_id)
     root = base / run_id / name
