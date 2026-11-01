@@ -1186,9 +1186,20 @@ def classify(inv: Invocation, cap_usd: float, redactor: Redactor | None = None) 
 #: and, under json or stream-json output, says so ONLY in the debug log — the
 #: run then goes ahead without its sandbox.
 SETTINGS_SKIPPED_RX = re.compile(r"Invalid setting skipped|did not load|Invalid or malformed JSON")
+#: The positive proof that a `--settings` document's rules were applied. At
+#: startup, credential-free, 2.1.308 logs this when the document's
+#: `permissions.blockReadsOutsideWorkingDirectories` meets one of its own
+#: `sandbox.filesystem.denyRead` entries: the CLI's scratch directory
+#: (/private/tmp/claude-<uid>/, which the document denies) stays fenced. A $0
+#: run with no `--settings`, or with an empty denyRead, logs no such line, and
+#: 2.1.308 logs no `flagSettings` line at all before a model call (both checked
+#: against the real CLI, 2026-11-01). Undocumented wording.
+SETTINGS_FENCE_RX = re.compile(
+    r"Sandbox: blockReadsOutsideWorkingDirectories: (?P<path>\S+) stays under an existing denyRead")
 #: cc-plugin-agents-md under --safe-mode: no CLAUDE.md / AGENTS.md is loaded.
 MEMORY_OFF_RX = re.compile(r"project memory is off")
-DEBUG_KEEP_RX = re.compile(r"\[Sandbox|\[sandbox\]|settingsEnv keys|flagSettings|"
+DEBUG_KEEP_RX = re.compile(r"\[Sandbox|\[sandbox\]|settingsEnv keys|"
+                           + SETTINGS_FENCE_RX.pattern + "|"
                            + RELAXED_POLICY_RX.pattern + "|" + SETTINGS_SKIPPED_RX.pattern + "|"
                            + MEMORY_OFF_RX.pattern)
 
@@ -1515,7 +1526,7 @@ def preflight_parse(claude_bin: str, flags: list[str], cwd: Path | None = None,
     `-p` a settings document that fails validation is skipped with nothing but
     a debug-log line, so the debug log is read too. This is a NEGATIVE check:
     a debug log that was never written passes it. The positive proof that the
-    rules loaded (a `flagSettings` line) is the isolation probe's, and only
+    rules loaded (a SETTINGS_FENCE_RX line) is the isolation probe's, and only
     the canary proves which settings keys the CLI enforces (unknown keys are
     dropped silently).
 
@@ -1647,15 +1658,36 @@ def _names(items: object) -> set[str]:
     return out
 
 
+def _under(path: str, root: str) -> bool:
+    p, r = str(path).rstrip("/"), str(root).rstrip("/")
+    return bool(r) and (p == r or p.startswith(r + "/"))
+
+
+def settings_deny_read(flags: list[str]) -> list[str]:
+    """The `sandbox.filesystem.denyRead` entries of the `--settings` document
+    `flags` name; [] when there is none or it cannot be read (fail closed: the
+    probe then has nothing its read-fence line could prove)."""
+    if "--settings" not in flags or flags.index("--settings") + 1 >= len(flags):
+        return []
+    try:
+        doc = json.loads(Path(flags[flags.index("--settings") + 1]).read_text(encoding="utf-8"))
+        deny = doc["sandbox"]["filesystem"]["denyRead"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return [d for d in deny if isinstance(d, str) and d] if isinstance(deny, list) else []
+
+
 def judge_probe(control: ProbeRun, isolated: ProbeRun, expected_tools: Iterable[str], *,
-                restricted: ProbeRun) -> ProbeResult:
+                restricted: ProbeRun, deny_read: Iterable[str] = ()) -> ProbeResult:
     """Pure. Three legs. The control (plain `claude -p`) must SHOW what was
     planted — the hook, the MCP server, the output style, the skill and the
     scratch user settings' `env` block — or the detectors are stale and
     nothing they say can be trusted. The isolated run must show none of it: its
     init passes `init_problems`, no hook or server ran, the planted user `env`
-    is not applied, its debug log shows the --settings rules applied, nothing
-    skipped, and project memory (CLAUDE.md, AGENTS.md) off. The restricted leg
+    is not applied, its debug log shows the --settings rules applied (a
+    SETTINGS_FENCE_RX line naming a path under one of `deny_read`, the
+    document's own denyRead entries), nothing skipped, and project memory
+    (CLAUDE.md, AGENTS.md) off. The restricted leg
     is the isolation flags minus `--safe-mode` — which on its own drops hooks,
     MCP, skills and output styles — so its default output style shows
     `--restricted` itself ignored the project settings file, the one that can
@@ -1694,8 +1726,18 @@ def judge_probe(control: ProbeRun, isolated: ProbeRun, expected_tools: Iterable[
     for run, label in ((isolated, "isolated"), (restricted, "restricted")):
         if user_settings_env_keys(run.debug):
             problems.append(f"{label}: a user settings env block was applied ({user_settings_env_keys(run.debug)})")
-    if not any("flagSettings" in line for line in isolated.debug):
-        problems.append("isolated: no flagSettings line in the debug log (were the --settings rules applied?)")
+    deny = [d for d in deny_read if d]
+    fenced = sorted({m.group("path") for line in isolated.debug for m in [SETTINGS_FENCE_RX.search(line)] if m})
+    if not deny:
+        # the reduced posture's document has no sandbox, and 2.1.308 logs nothing for it at $0 (checked: not even
+        # with a disabled sandbox block carrying denyRead), so its rules have no positive proof: fail closed
+        problems.append("isolated: the --settings document has no sandbox denyRead, so nothing at $0 shows its "
+                        "rules applied (no positive proof for the reduced posture on this CLI)")
+    elif not any(_under(p, d) for p in fenced for d in deny):
+        problems.append("isolated: no debug line shows the --settings document's read fence applied (were its "
+                        "rules applied?)" if not fenced else
+                        f"isolated: the read-fence line names {fenced[0]}, which is under none of the --settings "
+                        "document's denyRead entries")
     skipped = [line for line in isolated.debug if SETTINGS_SKIPPED_RX.search(line)]
     if skipped:
         problems.append(f"isolated: the --settings document did not load: {_one_line(skipped[0], 200)}")
@@ -1709,7 +1751,7 @@ def judge_probe(control: ProbeRun, isolated: ProbeRun, expected_tools: Iterable[
     tools = set(i.get("tools") or [])
     facts = {"tools": sorted(tools), "permission_mode": i.get("permissionMode"),
              "cli_version": i.get("claude_code_version"), "control_style": c.get("output_style"),
-             "restricted_style": restricted.init.get("output_style")}
+             "restricted_style": restricted.init.get("output_style"), "settings_fence": fenced}
     return ProbeResult(ok=not problems, problems=problems, facts=facts)
 
 
@@ -1750,9 +1792,11 @@ def probe_isolation(claude_bin: str, flags_for: Callable[[Path], list[str]], scr
                         markers={k: m.exists() for k, m in markers.items()})
 
     control = one("control", [])
-    isolated = one("isolated", flags_for(scratch / "isolated.debug.log"))
+    isolated_flags = flags_for(scratch / "isolated.debug.log")
+    isolated = one("isolated", isolated_flags)
     restricted = one("restricted", [f for f in flags_for(scratch / "restricted.debug.log") if f != "--safe-mode"])
-    return judge_probe(control, isolated, expected_tools, restricted=restricted)
+    return judge_probe(control, isolated, expected_tools, restricted=restricted,
+                       deny_read=settings_deny_read(isolated_flags))
 
 
 def at_least(version: tuple[int, int, int] | None, floor: tuple[int, int, int] = MIN_CLI) -> bool:

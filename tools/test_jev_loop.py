@@ -98,7 +98,14 @@ if prompt == "Reply with the single word ok.\n":   # the credential-free isolati
     keys = ",".join(user.get("env") or {}) if "--restricted" not in argv else ""
     debug("[DEBUG] CA certs: Config fallback - globalEnv keys: , settingsEnv keys: " + (keys or "none"))
     if "--restricted" in argv:
-        debug("[DEBUG] Applying permission update: Adding 5 allow rule(s) to destination 'flagSettings'")
+        # 2.1.308's read-fence line: the --settings document's denyRead keeps the CLI's scratch dir fenced
+        try:
+            deny = json.load(open(argv[argv.index("--settings") + 1]))["sandbox"]["filesystem"]["denyRead"]
+        except (ValueError, OSError, KeyError, IndexError, TypeError):
+            deny = []
+        if deny:
+            debug(f"[DEBUG] Sandbox: blockReadsOutsideWorkingDirectories: {deny[0]}/ stays under an "
+                  "existing denyRead and is not re-opened")
         debug("[DEBUG] $.fs.ancestors (cc-plugin-agents-md): project memory is off")
         emit({"type": "system", "subtype": "init", "tools": argv[argv.index("--tools") + 1].split(","),
               "mcp_servers": [], "permissionMode": "dontAsk", "output_style": "default", "skills": []})
@@ -130,7 +137,13 @@ if not sc.get("no_init"):
     emit({"type": "system", "subtype": "init", "session_id": sid, "tools": tools, "mcp_servers": [],
           "permissionMode": "dontAsk", "output_style": "default", "skills": [], "claude_code_version": "2.1.308",
           "model": argv[argv.index("--model") + 1]})
-debug("[DEBUG] Applying permission update: Adding 44 allow rule(s) to destination 'flagSettings'")
+try:   # 2.1.308's read-fence line, as in the probe
+    _deny = json.load(open(argv[argv.index("--settings") + 1]))["sandbox"]["filesystem"]["denyRead"]
+except (ValueError, OSError, KeyError, IndexError, TypeError):
+    _deny = []
+if _deny:
+    debug(f"[DEBUG] Sandbox: blockReadsOutsideWorkingDirectories: {_deny[0]}/ stays under an existing denyRead "
+          "and is not re-opened")
 if sc.get("settings_env"):
     debug("[DEBUG] CA certs: Config fallback - globalEnv keys: , settingsEnv keys: ANTHROPIC_BASE_URL")
 FENCES = sc.get("fences", "read: denyOnly(3), write: allowOnly(2)")
@@ -1173,7 +1186,10 @@ def test_doctor_exits_127_without_claude_and_4_without_a_sandbox():
     with world(box, sandbox=False):
         code, out, _ = jev("doctor", "--json")
         assert code == 4 and "no sandbox" in " ".join(json.loads(out)["steps"][0]["problems"])
-        assert jev("doctor", "--posture", "reduced")[0] == 0
+        # the reduced posture's document has no sandbox, and 2.1.308 logs no $0 proof that it applied: refused
+        code, out, _ = jev("doctor", "--posture", "reduced", "--json")
+        assert code == 4 and "no positive proof for the reduced posture" in " ".join(
+            json.loads(out)["steps"][0]["probe_problems"]), out
 
 
 def test_the_runs_dir_is_git_ignored():
