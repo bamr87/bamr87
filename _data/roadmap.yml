@@ -1361,3 +1361,32 @@
   source: manual
   created: 2026-11-01
   issue_url: null
+
+- id: FF-0034
+  title: "Standardize and centralize fleet PR review, analysis and comments"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: L
+  category: infra
+  problem: >-
+    An audit of 269 fleet PRs (2026-10-18 to 2026-11-01) found 173 comments,
+    only 10 actionable; 77 were posted as bamr87 by automation, with false
+    Docs Warden CLAUDE.md demands, merge-agent LGTM self-reviews, Dependabot
+    label warnings, a 40,038-issue repo-wide dump and a new comment per push.
+  proposal: >-
+    One reusable hub workflow .github/workflows/pr-review.yml with a per-repo
+    stub: one sticky summary updated in place and silent when clean,
+    severity-tagged deduplicated inline findings, a fleet signature footer,
+    bot identities only, content checks skip Dependabot and release PRs, AI
+    review on opened/ready_for_review/label behind the central switch, cost
+    and test tables in job summaries. Governed by amendment fleet-pr-review.
+  acceptance:
+    - "pr-review.yml upserts one summary comment per PR by marker and posts nothing when every check is clean."
+    - "Every automated comment carries <!-- fleet:source= trigger= run= --> and no fleet workflow posts with Amr's PAT."
+    - "Content and docs checks are skipped on Dependabot and release PRs."
+    - "Conformance check is warn-only per repo until its fan-out PR lands, then fails."
+  source: session
+  created: 2026-11-01
+  issue_url: null

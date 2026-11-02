@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: fleet-pr-review
+title: "Fleet PR review workflow with one sticky summary"
+description: "A reusable hub workflow (.github/workflows/pr-review.yml) and per-repo stub that run every PR check, post one sticky summary updated in place (silent when clean), severity-tagged deduplicated inline findings and a fleet signature footer, as github-actions or the fleet app, never Amr's token; proposed by amendment fleet-pr-review."
+implemented: false
+status: planned
+surface: infra
+link: docs/amendments/proposed/fleet-pr-review.md
+docs: docs/amendments/proposed/fleet-pr-review.md
+tags: [ ci, governance, review ]
+date: 2026-11-01
+tests:
+  - {na: "planned; tests land with the implementation issue"}
+prd: ["FR-NEW:fleet-pr-review"]
+prd_new:
+  - key: fleet-pr-review
+    kind: FR
+    text: "The hub must provide a reusable PR review workflow that posts at most one sticky summary comment per PR (none when clean), inline comments only for severity-tagged deduplicated findings, a fleet signature footer on every comment, never posts with the maintainer's personal token, skips content checks on Dependabot and release PRs, runs AI review only on opened, ready_for_review or label events behind the central switch, and sends cost and test tables to job summaries."
