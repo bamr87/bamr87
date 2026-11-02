@@ -1185,3 +1185,23 @@ features:
     - na: planned; tests land with the implementation
     prd:
     - FR60
+  - id: HUB-065
+    title: Fleet PR review workflow with one sticky summary
+    description: A reusable hub workflow (.github/workflows/pr-review.yml) and per-repo stub that run every
+      PR check, post one sticky summary updated in place (silent when clean), severity-tagged deduplicated
+      inline findings and a fleet signature footer, as github-actions or the fleet app, never Amr's token;
+      proposed by amendment fleet-pr-review.
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/amendments/proposed/fleet-pr-review.md
+    docs: docs/amendments/proposed/fleet-pr-review.md
+    tags:
+    - ci
+    - governance
+    - review
+    date: 2026-11-01
+    tests:
+    - na: planned; tests land with the implementation issue
+    prd:
+    - FR61
