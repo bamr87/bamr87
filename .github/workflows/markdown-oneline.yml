@@ -29,7 +29,7 @@ on:
     paths: ["**/*.md", "**/*.markdown", "tools/unwrap-prose.py", ".github/workflows/markdown-oneline.yml"]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: markdown-oneline-${{ github.ref }}
@@ -39,6 +39,8 @@ jobs:
   oneline:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write   # the PR repair pushes back to its own branch
     steps:
       - uses: actions/checkout@v7
         with:
