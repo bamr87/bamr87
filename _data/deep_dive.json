@@ -11,14 +11,14 @@
     "cycle_days": 42,
     "total": 38,
     "day": 4,
-    "processed": 2,
+    "processed": 3,
     "counts": {
-      "pending": 36,
+      "pending": 35,
       "in_progress": 0,
-      "done": 2,
+      "done": 3,
       "skipped": 0
     },
-    "progress": 0.0526,
+    "progress": 0.0789,
     "today": {
       "date": "2026-11-02",
       "cycle": 1,
@@ -35,9 +35,9 @@
       "kind": "scheduled",
       "repo": "zer0-mistakes"
     },
-    "last": "bamr87",
-    "last_date": "2026-10-31",
-    "avg_score": 75.0,
+    "last": "fredgar-ai",
+    "last_date": "2026-11-02",
+    "avg_score": 52.5,
     "open_issues": 26,
     "open_prs": 4
   },
@@ -133,16 +133,27 @@
       "day": 4,
       "repo": "fredgar-ai",
       "scheduled": "2026-11-02",
-      "status": "pending",
-      "last_processed": null,
+      "status": "done",
+      "last_processed": "2026-11-02",
       "cycle": 1,
-      "issues": [],
-      "prs": [],
+      "issues": [
+        "https://github.com/bamr87/fredgar-ai/issues/107",
+        "https://github.com/bamr87/fredgar-ai/issues/108",
+        "https://github.com/bamr87/fredgar-ai/issues/109",
+        "https://github.com/bamr87/fredgar-ai/issues/110",
+        "https://github.com/bamr87/fredgar-ai/issues/111",
+        "https://github.com/bamr87/fredgar-ai/issues/112",
+        "https://github.com/bamr87/fredgar-ai/issues/113"
+      ],
+      "prs": [
+        "https://github.com/bamr87/fredgar-ai/pull/114",
+        "https://github.com/bamr87/fredgar-ai/pull/115"
+      ],
       "open_issues": 0,
       "open_prs": 0,
-      "findings": "",
-      "score": null,
-      "next_focus": ""
+      "findings": "Green: 308 pytest, ruff, migrations, reference, governance lint, eslint, tsc+vite build. Gaps: UPS-BE-10/11 missing (/healthz,/readyz,/version, readiness shape, no Dockerfile HEALTHCHECK) #107; empty except-pass in enrichment webdiscovery #108; AI_ANALYSIS_MODEL unvalidated #109; PRD drift on AI default #115. UPS-FE-12 ThemeToggle lacks auto mode (handed to Sites); public task-result endpoint handed to Fleet Ops. Features FREDGAR-010..013 (13F, alerts, FRED transforms/vintages, metric-vs-macro overlay) planned in #114. deep-dive label missing in repo.",
+      "score": 7.5,
+      "next_focus": "Land #107 health/version endpoints; re-check UPS-FE-12 after #101; statement views and 13F groundwork"
     },
     {
       "day": 5,
