@@ -1,585 +1,1237 @@
 {
   // ==========================================================================
-  // Launch configurations — Docker-first, fleet-aware.
+  // Launch configurations — every surface of the harness, from F5.
   //
-  // TWO WAYS a project runs, and the registry (_data/ports.yml) decides which:
+  // ONE FRONT DOOR. Every entry goes through `tools/dash` (the command router,
+  // docs/DASH.md) or the console's own entry points, never through a second
+  // implementation: what F5 runs is what the CLI, the Harness Console's job
+  // API and CI run. Where a hub tool is best debugged natively (the console's
+  // FastAPI, a generator test), the entry is a real `debugpy` launch against
+  // `.venv-console` — the venv tools/console/run.sh owns — so breakpoints work.
   //
-  //   host: compose   The project has its own docker-compose.yml. It runs as
-  //                   its OWN compose project, driven by tools/fleet-dev.sh,
-  //                   joined to the others by the external `fleet-net`.
-  //                   (Not one merged compose file: `include:` collapses every
-  //                   service into one namespace and the fleet's names collide
-  //                   — `jekyll` is claimed by 5 repos, `redis` by 4.)
+  // TWO PLANES, and which one an entry talks to:
   //
-  //   host: devenv    The project has no compose of its own, so it runs inside
-  //                   the shared workspace container via `docker compose exec`.
+  //   the shared core   `tools/dash up`: compose project `fleet` from
+  //                     docker-compose.yml — devenv (the workspace), console
+  //                     (:4001), db, redis; phoenix / docs / elk / mcp behind
+  //                     profiles (docs/CONTAINERS.md). The workspace-hosted
+  //                     projects below (no compose file of their own) run
+  //                     INSIDE devenv on its workspace block: Jekyll 4040-4049
+  //                     (+ livereload 35760-35769), Vite 5000-5001, MkDocs 8000.
+  //   per-project       `tools/dash dev up <project> [--debug]`: the submodule's
+  //   stacks            own docker-compose.yml as its OWN compose project on
+  //                     `fleet-net`, ports from _data/ports.yml via the
+  //                     committed compose/overrides/ (docs/FLEET-COMPOSE.md;
+  //                     drift check (m) gates the map). `--debug` layers the
+  //                     repo's debugpy compose for the attach entries.
   //
-  // EVERY PORT BELOW COMES FROM _data/ports.yml. Do not invent one here — add
-  // it to the registry, run `tools/fleet-compose.py sync`, and drift check (m)
-  // keeps the two in agreement. Bands: 4010-4039 Jekyll, 5000-5199 frontends,
-  // 8100-8149 APIs, 5700-5749 debuggers, 35730-35759 livereload.
+  // PORTS ARE NEVER INVENTED HERE. Compose-hosted ports come from
+  // _data/ports.yml; workspace ports from _data/fleet.yml `containers.ports.
+  // workspace*` (what devenv publishes); hub ports from docker-compose.yml.
+  // The /docker/ page (tools/dash docker view) joins this file to the port
+  // registry by the `:NNNN` in each entry's name, so keep the port in the name.
   //
-  // Groups:
-  //   0-fleet       start/stop/inspect whole projects (tools/fleet-dev.sh)
-  //   1-view        the hub site (tools/dash serve :4000, or the console :4001) in a browser
-  //   2-generators  dash-gen / console / lake inside devenv
-  //   3-verify      dash-gen fixture tests inside devenv
-  //   4-docs        MkDocs
-  //   5-jekyll      the Jekyll fleet
-  //   6-apps        Vite / Node frontends
-  //   7-python      Django / FastAPI + REAL debugpy attach
-  //   8-ext         compile in devenv, Extension Host on the host
-  //   9-cli         Python / Node CLIs
-  //   10-content    quick file peeks inside devenv
+  // Groups (the console's own sections, in its order):
+  //   0-fleet      the container plane: core, projects, ps, ports, smoke, down
+  //   1-console    the Harness Console: native debug, page dev server, compose, TUI, MCP
+  //   2-site       the public site (the console built static) + Playwright verify
+  //   3-observe    the lake, the log/metrics planes, the code index, the content atlas
+  //   4-generate   dash-gen and the registries (the console's observe/plan operations)
+  //   5-loops      the local loop runner (JEV), scout, evolution, workflow scaffolding
+  //   6-verify     the gates and tests, natively (debuggable) and in devenv
+  //   7-projects   compose-hosted submodules + real debugpy attach
+  //   8-workspace  devenv-hosted submodules (Jekyll, Vite, MkDocs) and a devenv shell
+  //   9-ext        VS Code extensions: compile in devenv, Extension Host on the host
+  //   10-cli       submodule CLIs and test suites in devenv
   //
   // Servers started inside a container bind 0.0.0.0 so the published loopback
-  // mapping reaches them.
+  // mapping reaches them; everything is published on 127.0.0.1 only.
   // ==========================================================================
   "version": "0.2.0",
   "configurations": [
     // ----------------------------------------------------------------- FLEET
     {
-      "name": "🚀 Fleet: up (pick a project)",
+      "name": "🏗️ Fleet: up core (devenv, console, db, redis)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up ${input:fleetProject}",
+      "command": "tools/dash up",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 1 }
     },
     {
-      "name": "🐞 Fleet: up --debug (pick a project)",
+      "name": "🏗️ Fleet: up core + a profile (traces, docs, admin, mcp, elk, metrics)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up ${input:fleetProject} --debug",
+      "command": "tools/dash up --profile ${input:hubProfile}",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 2 }
     },
     {
-      "name": "🏗️ Fleet: up hub (devenv + console + phoenix + shared)",
+      "name": "🚀 Fleet: dev up (pick a project)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up hub",
+      "command": "tools/dash dev up ${input:fleetProject}",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 3 }
     },
     {
-      "name": "🌍 Fleet: up --all (every checked-out project)",
+      "name": "🐞 Fleet: dev up --debug (pick a project)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up --all",
+      "command": "tools/dash dev up ${input:fleetProject} --debug",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 4 }
     },
     {
-      "name": "📋 Fleet: ps (what is running, with URLs)",
+      "name": "🌍 Fleet: dev up several projects…",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh ps --all",
+      "command": "tools/dash dev up ${input:fleetProjects}",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 5 }
     },
     {
-      "name": "🔌 Fleet: ports (the allocation table)",
+      "name": "📋 Fleet: ps (fleet-wide, who is on the network)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh ports",
+      "command": "tools/dash ps",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 6 }
     },
     {
-      "name": "🛑 Fleet: down --all",
+      "name": "📋 Fleet: dev ps --all (per project, with URLs)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh down --all",
+      "command": "tools/dash dev ps --all",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 7 }
     },
     {
-      "name": "📜 Fleet: logs (pick a project)",
+      "name": "🔌 Fleet: dev ports (the allocation table)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh logs ${input:fleetProject}",
+      "command": "tools/dash dev ports",
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "0-fleet", "order": 8 }
     },
-
-    // ------------------------------------------------------------------ VIEW
     {
-      "name": "🛰️ Dash: Debug Site in Browser (Docker)",
+      "name": "📜 Fleet: dev logs (pick a project)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev logs ${input:fleetProject}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 9 }
+    },
+    {
+      "name": "🧪 Fleet: smoke check (every running container vs _data/smoke.yml)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev smoke check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 10 }
+    },
+    {
+      "name": "🧪 Fleet: smoke record (rewrite the baseline)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev smoke record",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 11 }
+    },
+    {
+      "name": "🐳 Fleet: docker view --write (the /docker/ page → _data/docker.yml)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash docker view --write",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 12 }
+    },
+    {
+      "name": "🩺 Fleet: doctor (environment checks, dry run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash doctor",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 13 }
+    },
+    {
+      "name": "🛑 Fleet: dev down (pick a project)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev down ${input:fleetProject}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 14 }
+    },
+    {
+      "name": "🛑 Fleet: down core (and every project with --all)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash down ${input:downScope}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "0-fleet", "order": 15 }
+    },
+
+    // --------------------------------------------------------------- CONSOLE
+    // The Harness Console (tools/console/README.md): the write-capable front
+    // end, every allowlisted `dash` operation as a job. Three ways to run it:
+    //   native debug  uvicorn under debugpy on :4004 (so it never fights the
+    //                 compose console on :4001); breakpoints in app.py/core.py
+    //   compose       `tools/dash console --docker` — the long-lived service
+    //   native        `CONSOLE_RELOAD=1 tools/dash console` on :4001
+    // The page is a Vite app (tools/console/web); its dev server on :5173
+    // proxies /api to whichever console the task names.
+    {
+      "name": "🎛️ Console: API — debug natively (debugpy, uvicorn :4004)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app:app", "--host", "127.0.0.1", "--port", "4004"],
+      "cwd": "${workspaceFolder}/tools/console",
+      "python": "${workspaceFolder}/.venv-console/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "CONSOLE_PORT": "4004",
+        // The page's dev server origin, so the Terminal page's WebSocket is admitted.
+        "DASH_CONSOLE_ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "preLaunchTask": "Console: bootstrap venv",
+      "serverReadyAction": {
+        "pattern": "Uvicorn running on (https?://[^\\s]+)",
+        "uriFormat": "http://127.0.0.1:4004/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "1-console", "order": 1 }
+    },
+    {
+      "name": "🎛️ Console: page in Edge (:5173 → debug API :4004)",
       "type": "msedge",
       "request": "launch",
-      "url": "http://127.0.0.1:${input:portNumber}",
-      "webRoot": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
+      "url": "http://127.0.0.1:5173/",
+      "webRoot": "${workspaceFolder}/tools/console/web",
+      "sourceMaps": true,
+      "smartStep": true,
+      "skipFiles": ["<node_internals>/**"],
+      "preLaunchTask": "Console: web dev server (→ debug API :4004)",
+      "presentation": { "group": "1-console", "order": 2 }
+    },
+    {
+      "name": "🎛️ Console: page in Edge (:5173 → compose console :4001)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://127.0.0.1:5173/",
+      "webRoot": "${workspaceFolder}/tools/console/web",
+      "sourceMaps": true,
+      "smartStep": true,
+      "skipFiles": ["<node_internals>/**"],
+      "preLaunchTask": "Console: web dev server (→ compose console :4001)",
+      "presentation": { "group": "1-console", "order": 3 }
+    },
+    {
+      "name": "🎛️ Console: compose service (:4001, follow logs)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash console --docker && docker compose logs -f --tail=50 console",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "console: (http://\\S+)",
+        "uriFormat": "http://127.0.0.1:4001/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "1-console", "order": 4 }
+    },
+    {
+      "name": "🎛️ Console: native with auto-reload (:4001; stop the compose console first)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "CONSOLE_RELOAD=1 DASH_CONSOLE_ALLOWED_ORIGINS=http://localhost:5173 tools/dash console",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "Uvicorn running on (https?://[^\\s]+)",
+        "uriFormat": "http://127.0.0.1:4001/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "1-console", "order": 5 }
+    },
+    {
+      "name": "🎛️ Console: open in Edge (debug the built page, pick a hub port)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://127.0.0.1:${input:portNumber}/",
+      "webRoot": "${workspaceFolder}/tools/console/web",
       "runtimeArgs": ["--remote-debugging-port=9222"],
       "sourceMaps": true,
       "smartStep": true,
       "skipFiles": ["<node_internals>/**"],
-      "internalConsoleOptions": "openOnSessionStart",
-      "presentation": { "group": "1-view" }
+      "presentation": { "group": "1-console", "order": 6 }
     },
     {
-      "name": "🔗 Dash: Attach to Running Browser",
+      "name": "🔗 Console: attach to a running Edge (9222)",
       "type": "msedge",
       "request": "attach",
       "port": 9222,
-      "webRoot": "${workspaceFolder}",
+      "webRoot": "${workspaceFolder}/tools/console/web",
       "sourceMaps": true,
       "smartStep": true,
       "skipFiles": ["<node_internals>/**"],
       "urlFilter": "127.0.0.1:*",
-      "presentation": { "group": "1-view" }
-    },
-    // ------------------------------------------------------------------ DOCS
-    {
-      "name": "📚 MkDocs: Serve (README submodule, compose :8001)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose logs -f --tail=50 mkdocs",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
-      "serverReadyAction": {
-        "pattern": "Serving on (https?://[^\\s]+)",
-        "uriFormat": "http://127.0.0.1:8001/",
-        "action": "openExternally"
-      },
-      "presentation": { "group": "4-docs" }
+      "presentation": { "group": "1-console", "order": 7 }
     },
     {
-      "name": "🔨 MkDocs: Build Strict (README submodule)",
+      "name": "🖥️ TUI: terminal dash (native, .venv-tui)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose run --rm mkdocs build --strict --clean",
+      "command": "tools/dash tui",
       "cwd": "${workspaceFolder}",
-      "presentation": { "group": "4-docs" }
+      "presentation": { "group": "1-console", "order": 8 }
+    },
+    {
+      "name": "🖥️ TUI: terminal dash in Docker (joins the compose console)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash tui --docker",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "1-console", "order": 9 }
+    },
+    {
+      "name": "🔌 MCP: list the fleet server's tools",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash mcp --list-tools",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "1-console", "order": 10 }
+    },
+    {
+      "name": "🔌 MCP: streamable HTTP server (:4002; stop the compose `mcp` first)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash mcp --http",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "1-console", "order": 11 }
+    },
+    {
+      "name": "🔌 MCP: compose service + tunnel URL",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash up --profile mcp --profile mcp-tunnel && tools/dash mcp --tunnel-url",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "1-console", "order": 12 }
+    },
+    {
+      "name": "🔌 MCP: live smoke test against the running console",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": ".venv-console/bin/python tools/console/smoke_mcp_layer.py",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "1-console", "order": 13 }
     },
 
-    // ---------------------------------------------------------------- JEKYLL
-    // Compose-hosted sites run as their own project; devenv-hosted ones have no
-    // compose file of their own and are served from inside the workspace
-    // container. Both land on the port _data/ports.yml allocates them.
+    // ------------------------------------------------------------------ SITE
+    // The public site is the console's page built static (docs/CONSOLE-PAGES.md).
     {
-  "name": "💎 Jekyll: it-journey (:4010)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "tools/fleet-dev.sh up it-journey && tools/fleet-dev.sh logs it-journey",
-  "cwd": "${workspaceFolder}",
-  "serverReadyAction": {
-    "pattern": "Server address: (https?://\\\\S+)",
-    "uriFormat": "http://127.0.0.1:4010/",
-    "action": "openExternally"
-  },
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: bamr87.github.io (:4012, devenv)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "docker compose exec -T -w /workspace/projects/bamr87.github.io devenv bundle exec jekyll serve --host 0.0.0.0 --port 4012 --livereload --livereload-port 35732",
-  "cwd": "${workspaceFolder}",
-  "preLaunchTask": "Fleet: up hub",
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    {
-  "name": "💎 Jekyll: lifehacker.dev (:4013, devenv)",
-  "type": "node-terminal",
-  "request": "launch",
-  "command": "docker compose exec -T -w /workspace/projects/lifehacker.dev devenv bundle exec jekyll serve --host 0.0.0.0 --port 4013 --livereload --livereload-port 35733",
-  "cwd": "${workspaceFolder}",
-  "preLaunchTask": "Fleet: up hub",
-  "presentation": {
-    "group": "5-jekyll"
-  }
-},
-    // ------------------------------------------------------------------ APPS
-    // NOTE: the devenv entries below run `npx vite` against a BIND-MOUNTED
-    // source tree that has no node_modules of its own — install inside the
-    // container first (`docker compose exec -w /workspace/projects/<p> devenv
-    // npm install`). Only cv-builder-pro is shielded by a named volume; the
-    // host's own node_modules would carry darwin-arm64 binaries into Linux.
-    {
-      "name": "⚡ law-ai/frontend (:5110)",
+      "name": "🌐 Site: build + serve the public snapshot (:4000)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up law-ai && tools/fleet-dev.sh logs law-ai frontend",
+      "command": "tools/dash serve",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5110/",
+        "pattern": "dash serve: (http://\\S+)",
+        "uriFormat": "http://127.0.0.1:4000/",
         "action": "openExternally"
       },
-      "presentation": {
-        "group": "6-apps"
-      }
+      "presentation": { "group": "2-site", "order": 1 }
     },
     {
-      "name": "⚡ fredgar-ai/frontend (:5111)",
+      "name": "🌐 Site: debug in Edge (:4000)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://127.0.0.1:4000/",
+      "webRoot": "${workspaceFolder}/tools/console/web",
+      "sourceMaps": true,
+      "smartStep": true,
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "2-site", "order": 2 }
+    },
+    {
+      "name": "🏗️ Site: build exactly as CI (build-pages.sh + machine API → _site)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up fredgar-ai && tools/fleet-dev.sh logs fredgar-ai frontend",
+      "command": "CONSOLE_BASE=/ OUT=_site tools/console/build-pages.sh && tools/dash-gen machine-api --out _site && echo 'built: _site/'",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "2-site", "order": 3 }
+    },
+    {
+      "name": "🧪 Verify: every user scenario (Playwright → test/evidence/)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash verify",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Verify: install Playwright",
+      "presentation": { "group": "2-site", "order": 4 }
+    },
+    {
+      "name": "🧪 Verify: one scenario, headed (pick)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash verify --only ${input:verifyScenario} --headed",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Verify: install Playwright",
+      "presentation": { "group": "2-site", "order": 5 }
+    },
+    {
+      "name": "🧪 Verify: list scenarios and the features they prove",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash verify --list",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Verify: install Playwright",
+      "presentation": { "group": "2-site", "order": 6 }
+    },
+
+    // --------------------------------------------------------------- OBSERVE
+    // The local stack's data: the lake (.dash-lake/fleet.sqlite), Phoenix
+    // traces, the ELK/Grafana planes, the Qdrant code index, the content atlas
+    // (docs/HARNESS-OPS.md, docs/OBSERVABILITY.md, docs/CONTENT-ATLAS.md).
+    {
+      "name": "🌊 Lake: sync (GitHub → the lake, pick a window)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake sync --days ${input:lakeDays}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 1 }
+    },
+    {
+      "name": "🌊 Lake: sessions (this machine's Claude Code transcripts)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake sessions",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 2 }
+    },
+    {
+      "name": "🌊 Lake: review (both planes, offline)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake review --days ${input:lakeDays}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 3 }
+    },
+    {
+      "name": "🌊 Lake: status",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake status",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 4 }
+    },
+    {
+      "name": "🔭 Lake: export traces to Phoenix (:6006; dry run, incl. local sessions)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake export --local --dry-run",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core + traces",
+      "presentation": { "group": "3-observe", "order": 5 }
+    },
+    {
+      "name": "🔭 Lake: export traces to Phoenix (:6006; ship)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash lake export --local && echo 'phoenix: http://127.0.0.1:6006/projects'",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core + traces",
+      "serverReadyAction": {
+        "pattern": "phoenix: (http://\\S+)",
+        "uriFormat": "http://127.0.0.1:6006/projects",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "3-observe", "order": 6 }
+    },
+    {
+      "name": "🔭 Observe: status (every plane, sizes vs budget)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash observe status",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 7 }
+    },
+    {
+      "name": "🔭 Observe: up (ELK + Grafana + Qdrant + OTel + Prometheus) and open the Observe tab",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash observe up && tools/dash observe open",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 8 }
+    },
+    {
+      "name": "🔭 Observe: ship the lake's Actions logs (ECS → Logstash)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash observe ship",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 9 }
+    },
+    {
+      "name": "🔭 Observe: Claude Code OTel status (this machine)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash observe claude status",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 10 }
+    },
+    {
+      "name": "🔭 Observe: down (keeps the data)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash observe down",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 11 }
+    },
+    {
+      "name": "🔎 Index: status + coverage (the Qdrant code index)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash index status && tools/dash index coverage",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 12 }
+    },
+    {
+      "name": "🔎 Index: semantic search…",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash index search \"${input:indexQuery}\"",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 13 }
+    },
+    {
+      "name": "📰 Content: report (the atlas)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash content report",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 14 }
+    },
+    {
+      "name": "📰 Content: sync one site into the lake (pick)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash content sync --site ${input:contentSite}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 15 }
+    },
+    {
+      "name": "📰 Content: a site's editorial brief (pick)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash content brief --site ${input:contentSite}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "3-observe", "order": 16 }
+    },
+
+    // -------------------------------------------------------------- GENERATE
+    // The registry generators — the same operations the console's Operations
+    // page lists (tools/console/core.py OPS). Auth is inherited (`gh auth
+    // login`, or GH_TOKEN / FLEET_TOKEN); every generator degrades without it.
+    {
+      "name": "🧭 dash gen: run a generator…",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash gen ${input:dashGenCommand}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 1 }
+    },
+    {
+      "name": "🧭 dash: any subcommand…",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash ${input:dashCommand}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 2 }
+    },
+    {
+      "name": "📊 dash status (submodules, registry, drift)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash status",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 3 }
+    },
+    {
+      "name": "📊 dash monitor (refresh health, print repos needing attention)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash monitor",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 4 }
+    },
+    {
+      "name": "🛠️ Harness inventory: live fleet scan",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash harnesses",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 5 }
+    },
+    {
+      "name": "🛠️ Harness inventory: offline (reuse the committed scan)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash harnesses --offline",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 6 }
+    },
+    {
+      "name": "🛠️ Harness inventory: fan-out gap targets",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash harnesses gaps",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 7 }
+    },
+    {
+      "name": "🛠️ Harness scorecard + trip wires (offline)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash harness",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 8 }
+    },
+    {
+      "name": "🗺️ Workflow atlas: list / health (from the lake)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash workflows list && tools/dash workflows health --days ${input:lakeDays}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 9 }
+    },
+    {
+      "name": "🗂️ Features: aggregate the fleet feature index (--write)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash features fleet --write",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 10 }
+    },
+    {
+      "name": "📥 Issues: build the issue-pipeline queues",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash issues",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 11 }
+    },
+    {
+      "name": "📥 Triage: fleet open-state snapshot",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash triage",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 12 }
+    },
+    {
+      "name": "💸 Actions usage analytics (pick a window)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash actions --days ${input:lakeDays}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 13 }
+    },
+    {
+      "name": "💸 AI usage: local Claude Code spend (shadow-priced) + reconcile",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash ai && tools/dash ai check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 14 }
+    },
+    {
+      "name": "🧮 Remediate: the ranked fix queue (feeds fleet-pulse)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash remediate",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 15 }
+    },
+    {
+      "name": "🔁 Reconcile: registry + .gitmodules vs GitHub (report only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash reconcile",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 16 }
+    },
+    {
+      "name": "📐 Spec: UPS conformance for every submodule (--write)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash spec fleet --write",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 17 }
+    },
+    {
+      "name": "⚙️ Config: show the fleet contract (dotted key)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash config show ${input:configKey}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 18 }
+    },
+    {
+      "name": "🔐 Secrets: rotation plan + API keys status (read-only)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash secrets plan && tools/dash keys status",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 19 }
+    },
+
+    // ----------------------------------------------------------------- LOOPS
+    // Every loop's agent step runs locally through JEV (docs/JEV.md): `plan`
+    // and `run --rehearse` cost nothing; a `run` is capped by budget.loops and
+    // previews; only `--apply`, typed by the maintainer, files anything.
+    {
+      "name": "🔁 Loop: list (every step spec with a local block)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash loop list",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 1 }
+    },
+    {
+      "name": "🔁 Loop: doctor ($0 host checks)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash loop doctor",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 2 }
+    },
+    {
+      "name": "🔁 Loop: plan (pick a loop; never calls a model)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash loop plan ${input:loopId}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 3 }
+    },
+    {
+      "name": "🔁 Loop: run --rehearse (pick a loop; free)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash loop run ${input:loopId} --rehearse",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 4 }
+    },
+    {
+      "name": "🔁 Loop: run (pick a loop; capped, previews, never files)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash loop run ${input:loopId}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 5 }
+    },
+    {
+      "name": "🔁 Loop: budget (this month vs budget.loops)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash loop budget",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 6 }
+    },
+    {
+      "name": "🔭 Scout: plan today's sample and briefs (offline)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash scout plan",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 7 }
+    },
+    {
+      "name": "🧬 Evolve: how the monorepo evolves (the local /evolve loop)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash evolve",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 8 }
+    },
+    {
+      "name": "🗺️ Workflow atlas: scaffold a workflow inside the standards (dry run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash workflows new --kind ${input:workflowKind} --id ${input:workflowId}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 9 }
+    },
+    {
+      "name": "🧾 Evidence: build one issue's evidence bundle (repo, number)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash evidence ${input:evidenceRepo} ${input:evidenceIssue}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 10 }
+    },
+
+    // ---------------------------------------------------------------- VERIFY
+    // The hub gate (AGENTS.md "A change is done when…"). The native debug
+    // entries use .venv-console: the generators' dependencies plus pytest.
+    {
+      "name": "✅ Gate: drift check (--report)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/check-drift.sh --report",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "6-verify", "order": 1 }
+    },
+    {
+      "name": "✅ Gate: pick a check…",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "${input:gateCommand}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "6-verify", "order": 2 }
+    },
+    {
+      "name": "✅ Tests: run everything that can run (tools/run-all-tests.sh)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash test",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "6-verify", "order": 3 }
+    },
+    {
+      "name": "🧪 Debug: current test file (native, debugpy)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv-console/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "6-verify", "order": 4 }
+    },
+    {
+      "name": "🧪 Debug: one unittest case (file + Class.method)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "args": ["${input:unittestCase}"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv-console/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "6-verify", "order": 5 }
+    },
+    {
+      "name": "🧪 Debug: pytest on the current file (native, e.g. test_cv_fragment.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv-console/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "6-verify", "order": 6 }
+    },
+    {
+      "name": "🧪 Debug: current Python file (native, .venv-console)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv-console/bin/python",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "6-verify", "order": 7 }
+    },
+    {
+      "name": "🧪 Console: tests (test_console, test_pages, mcp layer, gh projects)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "for t in test_console test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || { echo FAILED: tools/console/$t.py; break; }; done",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Console: bootstrap venv",
+      "presentation": { "group": "6-verify", "order": 8 }
+    },
+    {
+      "name": "🧪 devenv: current test file (python3 inside the workspace container)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -T -w /workspace devenv python3 \"${relativeFile}\"",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "6-verify", "order": 9 }
+    },
+
+    // -------------------------------------------------------------- PROJECTS
+    // Compose-hosted submodules: `tools/dash dev up <p>` starts the project's
+    // OWN stack (database, cache, queue) on the ports _data/ports.yml allots,
+    // then follows one service's logs. Attach entries need the repo's debugpy
+    // layer, which the preLaunchTask provides.
+    {
+      "name": "💎 it-journey: jekyll (:4010)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev up it-journey && tools/dash dev logs it-journey",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5111/",
+        "pattern": "Server address: (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:4010/",
         "action": "openExternally"
       },
-      "presentation": {
-        "group": "6-apps"
-      }
+      "presentation": { "group": "7-projects", "order": 1 }
     },
     {
-      "name": "⚡ fredgar-ai/frontend-prod (:5115)",
+      "name": "⚡ gitorio: dev (:5113)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up fredgar-ai && tools/fleet-dev.sh logs fredgar-ai frontend-prod",
-      "cwd": "${workspaceFolder}",
-      "serverReadyAction": {
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5115/",
-        "action": "openExternally"
-      },
-      "presentation": {
-        "group": "6-apps"
-      }
-    },
-    {
-      "name": "⚡ gitorio/dev (:5113)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "tools/fleet-dev.sh up gitorio && tools/fleet-dev.sh logs gitorio dev",
+      "command": "tools/dash dev up gitorio && tools/dash dev logs gitorio dev",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
         "uriFormat": "http://127.0.0.1:5113/",
         "action": "openExternally"
       },
-      "presentation": {
-        "group": "6-apps"
-      }
+      "presentation": { "group": "7-projects", "order": 2 }
     },
     {
-      "name": "⚡ gitorio/preview (:5114)",
+      "name": "⚡ gitorio: preview (:5114)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up gitorio && tools/fleet-dev.sh logs gitorio preview",
+      "command": "tools/dash dev up gitorio && tools/dash dev logs gitorio preview",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
         "uriFormat": "http://127.0.0.1:5114/",
         "action": "openExternally"
       },
-      "presentation": {
-        "group": "6-apps"
-      }
+      "presentation": { "group": "7-projects", "order": 3 }
     },
     {
-      "name": "⚡ cv-builder-pro (:5000, devenv)",
+      "name": "🐍 law-ai: backend (:8110) — up the whole stack",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/cv-builder-pro devenv npx vite --host 0.0.0.0 --port 5000",
+      "command": "tools/dash dev up law-ai && tools/dash dev logs law-ai backend",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
+      "presentation": { "group": "7-projects", "order": 4 }
+    },
+    {
+      "name": "⚡ law-ai: frontend (:5110)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev up law-ai && tools/dash dev logs law-ai frontend",
+      "cwd": "${workspaceFolder}",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5000/",
+        "uriFormat": "http://127.0.0.1:5110/",
         "action": "openExternally"
       },
-      "presentation": {
-        "group": "6-apps"
-      }
-    },
-    {
-      "name": "⚡ rewind-arcade (:5175, devenv)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/rewind-arcade/arcade devenv npx vite --host 0.0.0.0 --port 5175",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
-      "serverReadyAction": {
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5175/",
-        "action": "openExternally"
-      },
-      "presentation": {
-        "group": "6-apps"
-      }
-    },
-    {
-      "name": "⚡ gitnexus (:5177, devenv)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/gitnexus devenv npx vite --host 0.0.0.0 --port 5177",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
-      "serverReadyAction": {
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://127.0.0.1:5177/",
-        "action": "openExternally"
-      },
-      "presentation": {
-        "group": "6-apps"
-      }
-    },
-    // ---------------------------------------------------------------- PYTHON
-    // These now start the project's OWN compose stack — with its database,
-    // cache and queue — instead of running `manage.py` inside devenv, where
-    // the hostnames its settings resolve (postgres, barodydb, db) do not
-    // exist and the first query 500s.
-    {
-      "name": "🐍 law-ai: up stack (backend :8110)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "tools/fleet-dev.sh up law-ai && tools/fleet-dev.sh logs law-ai backend",
-      "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "7-python"
-      }
+      "presentation": { "group": "7-projects", "order": 5 }
     },
     {
       "name": "🐞 Attach: law-ai/backend (debugpy :5713)",
       "type": "debugpy",
       "request": "attach",
-      "connect": {
-        "host": "127.0.0.1",
-        "port": 5713
-      },
-      "pathMappings": [
-        {
-          "localRoot": "${workspaceFolder}/projects/law-ai/backend",
-          "remoteRoot": "/app"
-        }
-      ],
+      "connect": { "host": "127.0.0.1", "port": 5713 },
+      "pathMappings": [{ "localRoot": "${workspaceFolder}/projects/law-ai/backend", "remoteRoot": "/app" }],
       "justMyCode": false,
-      "preLaunchTask": "Fleet: up law-ai (debug)",
-      "presentation": {
-        "group": "7-python"
-      }
+      "preLaunchTask": "Fleet: dev up law-ai (debug)",
+      "presentation": { "group": "7-projects", "order": 6 }
     },
     {
       "name": "🐞 Attach: law-ai/worker (debugpy :5714)",
       "type": "debugpy",
       "request": "attach",
-      "connect": {
-        "host": "127.0.0.1",
-        "port": 5714
-      },
-      "pathMappings": [
-        {
-          "localRoot": "${workspaceFolder}/projects/law-ai/backend",
-          "remoteRoot": "/app"
-        }
-      ],
+      "connect": { "host": "127.0.0.1", "port": 5714 },
+      "pathMappings": [{ "localRoot": "${workspaceFolder}/projects/law-ai/backend", "remoteRoot": "/app" }],
       "justMyCode": false,
-      "preLaunchTask": "Fleet: up law-ai (debug)",
-      "presentation": {
-        "group": "7-python"
-      }
+      "preLaunchTask": "Fleet: dev up law-ai (debug)",
+      "presentation": { "group": "7-projects", "order": 7 }
     },
     {
-      "name": "🐍 djangoerp: up stack (web :8111)",
+      "name": "🐍 djangoerp: web (:8111) — up the whole stack",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up djangoerp && tools/fleet-dev.sh logs djangoerp web",
+      "command": "tools/dash dev up djangoerp && tools/dash dev logs djangoerp web",
       "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "7-python"
-      }
+      "presentation": { "group": "7-projects", "order": 8 }
     },
     {
       "name": "🐞 Attach: djangoerp/web (debugpy :5710)",
       "type": "debugpy",
       "request": "attach",
-      "connect": {
-        "host": "127.0.0.1",
-        "port": 5710
-      },
-      "pathMappings": [
-        {
-          "localRoot": "${workspaceFolder}/projects/djangoerp",
-          "remoteRoot": "/app"
-        }
-      ],
+      "connect": { "host": "127.0.0.1", "port": 5710 },
+      "pathMappings": [{ "localRoot": "${workspaceFolder}/projects/djangoerp", "remoteRoot": "/app" }],
       "justMyCode": false,
-      "preLaunchTask": "Fleet: up djangoerp (debug)",
-      "presentation": {
-        "group": "7-python"
-      }
+      "preLaunchTask": "Fleet: dev up djangoerp (debug)",
+      "presentation": { "group": "7-projects", "order": 9 }
     },
     {
       "name": "🐞 Attach: djangoerp/worker (debugpy :5711)",
       "type": "debugpy",
       "request": "attach",
-      "connect": {
-        "host": "127.0.0.1",
-        "port": 5711
-      },
-      "pathMappings": [
-        {
-          "localRoot": "${workspaceFolder}/projects/djangoerp",
-          "remoteRoot": "/app"
-        }
-      ],
+      "connect": { "host": "127.0.0.1", "port": 5711 },
+      "pathMappings": [{ "localRoot": "${workspaceFolder}/projects/djangoerp", "remoteRoot": "/app" }],
       "justMyCode": false,
-      "preLaunchTask": "Fleet: up djangoerp (debug)",
-      "presentation": {
-        "group": "7-python"
-      }
+      "preLaunchTask": "Fleet: dev up djangoerp (debug)",
+      "presentation": { "group": "7-projects", "order": 10 }
     },
     {
-      "name": "🐍 fredgar-ai: up stack (web :8112)",
+      "name": "🐍 fredgar-ai: web (:8112) — up the whole stack",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up fredgar-ai && tools/fleet-dev.sh logs fredgar-ai web",
+      "command": "tools/dash dev up fredgar-ai && tools/dash dev logs fredgar-ai web",
       "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "7-python"
-      }
+      "presentation": { "group": "7-projects", "order": 11 }
+    },
+    {
+      "name": "⚡ fredgar-ai: frontend (:5111)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev up fredgar-ai && tools/dash dev logs fredgar-ai frontend",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:5111/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "7-projects", "order": 12 }
+    },
+    {
+      "name": "⚡ fredgar-ai: frontend-prod (:5115)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash dev up fredgar-ai && tools/dash dev logs fredgar-ai frontend-prod",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:5115/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "7-projects", "order": 13 }
     },
     {
       "name": "🐞 Attach: fredgar-ai/web (debugpy :5712)",
       "type": "debugpy",
       "request": "attach",
-      "connect": {
-        "host": "127.0.0.1",
-        "port": 5712
-      },
-      "pathMappings": [
-        {
-          "localRoot": "${workspaceFolder}/projects/fredgar-ai/src",
-          "remoteRoot": "/app/src"
-        }
-      ],
+      "connect": { "host": "127.0.0.1", "port": 5712 },
+      "pathMappings": [{ "localRoot": "${workspaceFolder}/projects/fredgar-ai/src", "remoteRoot": "/app/src" }],
       "justMyCode": false,
-      "preLaunchTask": "Fleet: up fredgar-ai (debug)",
-      "presentation": {
-        "group": "7-python"
-      }
+      "preLaunchTask": "Fleet: dev up fredgar-ai (debug)",
+      "presentation": { "group": "7-projects", "order": 14 }
     },
     {
-      "name": "🐍 bashos: up stack (langgraph-dev :8116)",
+      "name": "🐍 bashos: langgraph-dev (:8116)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "tools/fleet-dev.sh up bashos && tools/fleet-dev.sh logs bashos langgraph-dev",
+      "command": "tools/dash dev up bashos && tools/dash dev logs bashos langgraph-dev",
       "cwd": "${workspaceFolder}",
-      "presentation": {
-        "group": "7-python"
-      }
+      "presentation": { "group": "7-projects", "order": 15 }
     },
     {
-      "name": "🧪 pytest: current file (in devenv)",
+      "name": "🧩 zer0-cms: content (:8117) + imagegen (:8118)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace devenv python3 -m pytest \"${relativeFile}\" -v",
+      "command": "tools/dash dev up zer0-cms && tools/dash dev logs zer0-cms",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Fleet: up hub",
-      "presentation": {
-        "group": "7-python"
-      }
-    },
-    // --------------------------------------------- MONITOR / ORCHESTRATE
-    // All generators run through the one dispatcher inside devenv; auth
-    // comes from compose env (GH_TOKEN/GITHUB_TOKEN) and every generator
-    // degrades rather than dies without it.
-    {
-      "name": "🧭 dash-gen: run a generator…",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py ${input:dashGenCommand}",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "2-generators" }
-    },
-    {
-      "name": "🛠️ Harness Inventory: live fleet scan",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py harnesses",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "2-generators" }
-    },
-    {
-      "name": "🛠️ Harness Inventory: offline (reuse committed scan)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py harnesses --offline",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "2-generators" }
-    },
-    {
-      "name": "🛠️ Harness Inventory: fan-out gap targets",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py harnesses --gaps",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "2-generators" }
+      "presentation": { "group": "7-projects", "order": 16 }
     },
 
-    // --------------------------------------------------------------- CONSOLE
-    // The Harness Console — compose service `console` on 127.0.0.1:4001.
+    // ------------------------------------------------------------- WORKSPACE
+    // Submodules with no compose file of their own run INSIDE devenv (Ruby 3.4,
+    // Node, Python, MkDocs are in the image) on its workspace block — ports
+    // from _data/fleet.yml `containers.ports.workspace*`, deliberately clear of
+    // the fleet map. Gems and node_modules live in the container: each entry
+    // installs on first use. Ctrl-C in the terminal stops the server.
     {
-      "name": "🎛️ Harness Console (compose)",
+      "name": "💎 Jekyll: bamr87.github.io (:4040, devenv)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose logs -f --tail=50 console",
+      "command": "docker compose exec -w /workspace/projects/bamr87.github.io devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4040 --livereload --livereload-port 35760'",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure console",
+      "preLaunchTask": "Fleet: up core",
       "serverReadyAction": {
-        "pattern": "Uvicorn running on (https?://[^\\s]+)",
-        "uriFormat": "http://127.0.0.1:4001/",
+        "pattern": "Server address: (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:4040/",
         "action": "openExternally"
       },
-      "presentation": { "group": "2-generators" }
-    },
-
-    // ------------------------------------------------------------------ LAKE
-    {
-      "name": "🌊 Lake: sync (extract GitHub → .dash-lake/fleet.sqlite)",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py lake sync --days 7",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure lake stack",
-      "presentation": { "group": "2-generators" }
+      "presentation": { "group": "8-workspace", "order": 1 }
     },
     {
-      "name": "🌊 Lake: status",
+      "name": "💎 Jekyll: lifehacker.dev (:4041, devenv)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py lake status",
+      "command": "docker compose exec -w /workspace/projects/lifehacker.dev devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4041 --livereload --livereload-port 35761'",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure lake stack",
-      "presentation": { "group": "2-generators" }
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Server address: (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:4041/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 2 }
     },
     {
-      "name": "🔭 Lake: export traces to Phoenix (dry run, incl. local sessions)",
+      "name": "💎 Jekyll: zer0-mistakes theme (:4042, devenv)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T devenv python3 .github/scripts/dash-gen/dash_gen.py lake export --local --dry-run",
+      "command": "docker compose exec -w /workspace/projects/zer0-mistakes devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4042 --livereload --livereload-port 35762'",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure lake stack",
-      "presentation": { "group": "2-generators" }
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Server address: (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:4042/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 3 }
     },
-    // ---------------------------------------------------------------- VERIFY
     {
-      "name": "🧪 dash-gen: Debug Current Fixture Test",
+      "name": "💎 Jekyll: year-of-ai.github.io (:4043, devenv)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace devenv python3 \"${relativeFile}\"",
+      "command": "docker compose exec -w /workspace/projects/year-of-ai.github.io devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4043 --livereload --livereload-port 35763'",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "3-verify" }
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Server address: (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:4043/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 4 }
+    },
+    {
+      "name": "💎 Jekyll: ai-world-view.github.io (:4044, devenv)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -w /workspace/projects/ai-world-view.github.io devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4044 --livereload --livereload-port 35764'",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Server address: (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:4044/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 5 }
+    },
+    {
+      "name": "💎 Jekyll: bash-365.com (:4045, devenv)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -w /workspace/projects/bash-365.com devenv sh -c 'bundle check >/dev/null 2>&1 || bundle install; exec bundle exec jekyll serve --host 0.0.0.0 --port 4045 --livereload --livereload-port 35765'",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Server address: (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:4045/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 6 }
+    },
+    {
+      "name": "⚡ Vite: cv-pro/app (:5000, devenv)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -w /workspace/projects/cv-pro/app devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; exec npx vite --host 0.0.0.0 --port 5000'",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:5000/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 7 }
+    },
+    {
+      "name": "⚡ Vite: rewind-arcade/arcade (:5001, devenv)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -w /workspace/projects/rewind-arcade/arcade devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; exec npx vite --host 0.0.0.0 --port 5001'",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:5001/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 8 }
+    },
+    {
+      "name": "⚡ Vite: gitorio/packages/gitnexus (:8080, devenv)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -w /workspace/projects/gitorio/packages/gitnexus devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; exec npm run dev'",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:8080/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 9 }
+    },
+    {
+      "name": "📚 MkDocs: projects/README in devenv (:8000)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -w /workspace/projects/README devenv mkdocs serve --dev-addr 0.0.0.0:8000",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "serverReadyAction": {
+        "pattern": "Serving on (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:8000/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 10 }
+    },
+    {
+      "name": "📚 MkDocs: compose service (:8001, docs profile)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash up --profile docs && docker compose --profile docs logs -f --tail=50 mkdocs",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "Serving on (https?://\\S+)",
+        "uriFormat": "http://127.0.0.1:8001/",
+        "action": "openExternally"
+      },
+      "presentation": { "group": "8-workspace", "order": 11 }
+    },
+    {
+      "name": "🔨 MkDocs: build --strict (projects/README, devenv)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -T -w /workspace/projects/README devenv mkdocs build --strict --clean",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "8-workspace", "order": 12 }
+    },
+    {
+      "name": "🐚 devenv: shell in the workspace container",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec devenv bash",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "8-workspace", "order": 13 }
+    },
+    {
+      "name": "⌨️ devenv: run a command in a submodule… (pick, then type)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -w /workspace/projects/${input:submodule} devenv ${input:devenvCommand}",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "8-workspace", "order": 14 }
     },
 
     // ----------------------------------------------------------- EXTENSIONS
-    // Compile inside devenv (container-first); Extension Host still runs on
-    // the host because it is VS Code itself.
+    // Compile inside devenv (container-first); the Extension Host still runs
+    // on the host because it is VS Code itself.
     {
       "name": "🧩 Ext: vs-sonic-pi",
       "type": "extensionHost",
@@ -587,7 +1239,7 @@
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/vs-sonic-pi"],
       "outFiles": ["${workspaceFolder}/projects/vs-sonic-pi/dist/**/*.js"],
       "preLaunchTask": "devenv: compile vs-sonic-pi",
-      "presentation": { "group": "8-ext" }
+      "presentation": { "group": "9-ext", "order": 1 }
     },
     {
       "name": "🧩 Ext: zpl-viewer",
@@ -596,7 +1248,7 @@
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/zpl-viewer"],
       "outFiles": ["${workspaceFolder}/projects/zpl-viewer/dist/**/*.js"],
       "preLaunchTask": "devenv: compile zpl-viewer",
-      "presentation": { "group": "8-ext" }
+      "presentation": { "group": "9-ext", "order": 2 }
     },
     {
       "name": "🧩 Ext: zer0-cms",
@@ -605,8 +1257,9 @@
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/projects/zer0-cms"],
       "outFiles": ["${workspaceFolder}/projects/zer0-cms/dist/**/*.js"],
       "preLaunchTask": "devenv: compile zer0-cms",
-      "presentation": { "group": "8-ext" }
+      "presentation": { "group": "9-ext", "order": 3 }
     },
+
     // ------------------------------------------------------------------- CLI
     {
       "name": "⌨️ CLI: bashos --help",
@@ -614,8 +1267,8 @@
       "request": "launch",
       "command": "docker compose exec -T -w /workspace/projects/bashos -e PYTHONPATH=/workspace/projects/bashos/src devenv python3 -m bashos.shell.cli --help",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 1 }
     },
     {
       "name": "⌨️ CLI: ocrmd --help",
@@ -623,72 +1276,71 @@
       "request": "launch",
       "command": "docker compose exec -T -w /workspace/projects/ocrmd devenv python3 -m ocrmd.cli --help",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 2 }
     },
     {
-      "name": "⌨️ CLI: lawmode --help",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/lawmode devenv python3 -m lawmode.cli --help",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
-    },
-    {
-      "name": "⌨️ CLI: wtd --help",
+      "name": "⌨️ CLI: wtd --help (gitorio/packages/wtd)",
       "type": "node-terminal",
       "request": "launch",
       "command": "docker compose exec -T -w /workspace/projects/gitorio/packages/wtd devenv python3 -m wtd.cli --help",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 3 }
     },
     {
-      "name": "⌨️ CLI: books --help",
+      "name": "⌨️ CLI: gwtp --help (gitorio/packages/git-with-the-program)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/books -e PYTHONPATH=/workspace/projects/books/src devenv python3 -m bookshelf.cli --help",
+      "command": "docker compose exec -T -w /workspace/projects/gitorio/packages/git-with-the-program devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; npx tsx src/cli/index.ts --help'",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 4 }
     },
     {
-      "name": "⌨️ CLI: gwtp --help",
+      "name": "🧪 Node test: bashcrawl",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/git-with-the-program devenv npx tsx src/cli/index.ts --help",
+      "command": "docker compose exec -T -w /workspace/projects/bashcrawl devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; npm test'",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
-    },
-    {
-      "name": "⌨️ Node test: bashcrawl",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/bashcrawl devenv npm test",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 5 }
     },
     {
       "name": "🧪 pytest: githubai",
       "type": "node-terminal",
       "request": "launch",
-      "command": "docker compose exec -T -w /workspace/projects/githubai devenv python3 -m pytest -v",
+      "command": "docker compose exec -T -w /workspace/projects/githubai devenv python3 -m pytest -q",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "9-cli" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 6 }
     },
-    // -------------------------------------------------------------- CONTENT
     {
-      "name": "📝 scripts: current file",
+      "name": "🧪 pytest: a submodule… (pick)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -T -w /workspace/projects/${input:submodule} devenv python3 -m pytest -q",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 7 }
+    },
+    {
+      "name": "🧪 npm script: a submodule… (pick, then name the script)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "docker compose exec -T -w /workspace/projects/${input:submodule} devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; npm run ${input:npmScript}'",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 8 }
+    },
+    {
+      "name": "📝 scripts: current file (devenv python3)",
       "type": "node-terminal",
       "request": "launch",
       "command": "docker compose exec -T -w /workspace/projects/scripts devenv python3 \"/workspace/${relativeFile}\"",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "10-content" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 9 }
     },
     {
       "name": "📝 skills: show Agents.md",
@@ -696,51 +1348,234 @@
       "request": "launch",
       "command": "docker compose exec -T devenv head -n 80 /workspace/projects/skills/Agents.md",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Docker: Ensure devenv",
-      "presentation": { "group": "10-content" }
+      "preLaunchTask": "Fleet: up core",
+      "presentation": { "group": "10-cli", "order": 10 }
+    }
+  ],
+
+  "compounds": [
+    {
+      // The console end to end with breakpoints on both sides: uvicorn under
+      // debugpy on :4004 and the page's dev server on :5173 proxied to it,
+      // opened in Edge with source maps.
+      "name": "🎛️ Console: full stack (API debug :4004 + page :5173)",
+      "configurations": [
+        "🎛️ Console: API — debug natively (debugpy, uvicorn :4004)",
+        "🎛️ Console: page in Edge (:5173 → debug API :4004)"
+      ],
+      "stopAll": true,
+      "presentation": { "group": "1-console", "order": 0 }
     }
   ],
 
   "inputs": [
     {
-      // Every project with a compose file of its own, from _data/ports.yml.
+      // Every compose-hosted project in _data/ports.yml (`tools/dash dev list`).
       "id": "fleetProject",
-      "description": "Fleet project (tools/fleet-dev.sh list)",
+      "description": "Fleet project (tools/dash dev list)",
       "type": "pickString",
-      "options": ["hub", "law-ai", "djangoerp", "fredgar-ai", "gitorio", "bashos", "it-journey", "zer0-cms"],
-      "default": "hub"
+      "options": ["it-journey", "zer0-cms", "gitorio", "law-ai", "djangoerp", "fredgar-ai", "bashos"],
+      "default": "it-journey"
     },
     {
-      // The hub's own surfaces only. Everything else has a dedicated config.
+      // Several at once; `--all` is avoided because it also starts the
+      // `fleet-hub` pseudo-project, which collides with the running core.
+      "id": "fleetProjects",
+      "description": "Projects to dev up, space-separated",
+      "type": "promptString",
+      "default": "it-journey zer0-cms"
+    },
+    {
+      "id": "downScope",
+      "description": "tools/dash down: the core only, or every project too",
+      "type": "pickString",
+      "options": ["core", "--all"],
+      "default": "core"
+    },
+    {
+      // docker-compose.yml profiles beyond the always-on core.
+      "id": "hubProfile",
+      "description": "Hub profile (traces = Phoenix :6006 · docs = MkDocs :8001 + wiki :3000 · admin = pgAdmin :5050 · mcp = MCP :4002 · elk / metrics = the log and metrics planes)",
+      "type": "pickString",
+      "options": ["traces", "docs", "admin", "mcp", "elk", "metrics"],
+      "default": "traces"
+    },
+    {
+      // The hub's own surfaces. Everything else has a dedicated entry.
       "id": "portNumber",
-      "description": "Hub port (4000 dash · 4001 console · 5000 CV · 8000 MkDocs · 6006 Phoenix)",
+      "description": "Hub port (4000 site · 4001 console · 4004 console debug · 5173 page dev · 4002 MCP · 6006 Phoenix · 5601 Kibana · 3001 Grafana · 8000/8001 MkDocs)",
       "type": "pickString",
-      "options": ["4000", "4001", "5000", "5173", "8000", "6006"],
-      "default": "4000"
+      "options": ["4001", "4000", "4004", "5173", "6006", "5601", "3001", "9090", "8000", "8001", "3000", "5050"],
+      "default": "4001"
     },
     {
+      // dash-gen subcommands with their usual flags (.github/scripts/dash-gen/README.md).
+      // Those marked (token) need GitHub auth; the rest run offline.
       "id": "dashGenCommand",
-      "description": "dash-gen subcommand (see .github/scripts/dash-gen/README.md)",
+      "description": "dash gen subcommand (tools/dash-gen --help)",
       "type": "pickString",
       "options": [
+        "harnesses --offline",
         "harnesses",
+        "harnesses --gaps",
         "harness",
+        "health",
+        "readme",
+        "readme --check",
+        "cv",
         "triage",
-        "actions",
-        "ai-usage",
-        "daily",
+        "actions --days 30",
+        "ai-usage --days 30",
+        "daily --days 1",
         "remediate",
         "issues",
         "reconcile",
-        "health",
-        "readme",
-        "cv",
+        "targets --no-dedupe",
+        "scout",
         "estimate",
         "ledger",
-        "targets",
-        "ai"
+        "vendor",
+        "workflows list",
+        "workflows lint",
+        "compose --check",
+        "machine-api --out _site",
+        "all"
       ],
-      "default": "harnesses"
+      "default": "harnesses --offline"
+    },
+    {
+      "id": "dashCommand",
+      "description": "tools/dash <subcommand and args> (tools/dash help)",
+      "type": "promptString",
+      "default": "help"
+    },
+    {
+      "id": "configKey",
+      "description": "fleet.yml dotted key (empty = the whole contract)",
+      "type": "promptString",
+      "default": "containers"
+    },
+    {
+      // Window for the lake-backed readers and the analytics generators.
+      "id": "lakeDays",
+      "description": "Window in days",
+      "type": "pickString",
+      "options": ["7", "14", "30", "90"],
+      "default": "7"
+    },
+    {
+      // Loops with a local: block (tools/dash loop list).
+      "id": "loopId",
+      "description": "Loop id (tools/dash loop list)",
+      "type": "promptString",
+      "default": "repo-scout/scout"
+    },
+    {
+      // _data/fleet.yml `content.sites`.
+      "id": "contentSite",
+      "description": "Content site (fleet.yml content.sites)",
+      "type": "pickString",
+      "options": ["lifehacker.dev", "it-journey", "bash-365.com", "year-of-ai.github.io", "ai-world-view.github.io", "irony-works", "wargames", "2005", "china"],
+      "default": "it-journey"
+    },
+    {
+      // verify/scenarios/*.yml (tools/dash verify --list).
+      "id": "verifyScenario",
+      "description": "Scenario id (verify/scenarios/)",
+      "type": "pickString",
+      "options": ["home", "dashboard", "connect", "engagements", "features", "harnesses", "monitor", "roadmap", "triage", "work", "workflows"],
+      "default": "home"
+    },
+    {
+      "id": "indexQuery",
+      "description": "Semantic search over the code index",
+      "type": "promptString",
+      "default": "how are ports allocated"
+    },
+    {
+      "id": "workflowKind",
+      "description": "Workflow kind to scaffold (dry run; add --write by hand)",
+      "type": "pickString",
+      "options": ["loop", "agent-loop", "gate", "reusable", "dispatch"],
+      "default": "gate"
+    },
+    {
+      "id": "workflowId",
+      "description": "Workflow id (kebab-case file stem)",
+      "type": "promptString",
+      "default": "my-check"
+    },
+    {
+      "id": "evidenceRepo",
+      "description": "Repo (owner/name or registry name)",
+      "type": "promptString",
+      "default": "bamr87/bamr87"
+    },
+    {
+      "id": "evidenceIssue",
+      "description": "Issue number",
+      "type": "promptString",
+      "default": "1"
+    },
+    {
+      // `python3 file.py Class.method` — the unittest runner inside each test file.
+      "id": "unittestCase",
+      "description": "Test case as Class.test_method, for the open file",
+      "type": "promptString",
+      "default": "MachineApiTests.test_degraded_without_inputs"
+    },
+    {
+      // The hub gate's individual checks (AGENTS.md "Stack & commands").
+      "id": "gateCommand",
+      "description": "Gate / check to run",
+      "type": "pickString",
+      "options": [
+        "tools/check-drift.sh --report",
+        "tools/check-drift.sh",
+        "tools/check-drift.sh --remote",
+        "python3 tools/schema_lint.py check .",
+        "python3 tools/schema_lint.py check . --fix",
+        "python3 tools/docs_index.py --check",
+        "python3 tools/unwrap-prose.py --check ${relativeFile}",
+        "python3 tools/gen-specs-data.py --check",
+        "python3 tools/gen-catalog.py --check",
+        "python3 -m tools.jev generated guard --base origin/main",
+        "python3 tools/governance_lint.py check .",
+        "tools/dash workflows lint --strict",
+        "tools/dash-gen compose --check",
+        "tools/dash features check .",
+        "shellcheck tools/*.sh tools/observability/*.sh",
+        "actionlint .github/workflows/*.yml",
+        "python3 tools/console/test_pages.py"
+      ],
+      "default": "tools/check-drift.sh --report"
+    },
+    {
+      // Every checked-out submodule directory (.gitmodules).
+      "id": "submodule",
+      "description": "Submodule directory under projects/",
+      "type": "pickString",
+      "options": [
+        "README", "ai-world-view.github.io", "bamr87.github.io", "bash-365-apex", "bash-365.com",
+        "bashcrawl", "bashos", "cv-pro", "djangoerp", "edgar-pipeline", "fleet-infra", "fleet-mobile",
+        "fleet-observe", "fredgar-ai", "githubai", "gitorio", "godotgo", "it-journey", "kvlite",
+        "law-ai", "lifehacker.dev", "netprobe", "ocrmd", "outbox", "ragio-ai", "rewind-arcade",
+        "schema-lang", "scripts", "sec-lab", "sensor-mesh", "skills", "vs-sonic-pi",
+        "year-of-ai.github.io", "zer0-cms", "zer0-id", "zer0-kernel", "zer0-mistakes", "zpl-viewer"
+      ],
+      "default": "scripts"
+    },
+    {
+      "id": "devenvCommand",
+      "description": "Command to run in that directory inside devenv",
+      "type": "promptString",
+      "default": "bash"
+    },
+    {
+      "id": "npmScript",
+      "description": "npm script name (package.json scripts)",
+      "type": "promptString",
+      "default": "test"
     }
   ]
 }
