@@ -110,7 +110,7 @@ Tiers are decided by `classify.py` from the trial merge alone — conflicted fil
 
 | Tier | Cost | What it handles | How |
 | --- | --- | --- | --- |
-| 0 | $0, no model | Every conflicted file is generated, a fragment, union-safe, or an id collision | regenerate · union · renumber via `number.py` |
+| 0 | $0, no model | Every conflicted file is generated, a fragment, union-safe, a pure append to an `append_paths` list (`_data/roadmap.yml`), or an id collision | regenerate · main's copy (main-only, or compiled from fragments) · union · append (main's entries, then the branch's; refused when an entry was edited, the YAML breaks or both sides claim one id) — numbering stays on main |
 | 1 | ≤ $0.25/attempt, Haiku 4.5 | ≤ 3 files, ≤ 40 conflicted lines, nothing under `.github/workflows/`, no auth/secret, migration or lockfile | a capped headless `claude -p` |
 | 2 | ≤ $1.50/attempt, Sonnet | ≤ 15 files **or** ≤ 400 conflicted lines, or tier 1 failed | the same, with a stronger model |
 | 3 | $0 | Anything larger; binary or lockfile; a workflow/secret semantic conflict; a squash-only repo; two failed attempts; the monthly cap | label `jev:needs-human` + the triage report as a comment |

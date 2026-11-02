@@ -665,6 +665,13 @@ jev:
   union_paths:
     - "docs/amendments/README.md"
     - "_data/jev_resolutions.yml"
+  # Ordered append-only lists: tier 0 resolves a conflict in one only when both
+  # sides purely appended (main's entries first, then the branch's) and the
+  # result still parses with no duplicate key or id; otherwise it escalates
+  # (tools/jev/classify.py APPEND). Not merge=union: union would merge two edits
+  # to one entry into duplicate keys, and YAML keeps the last one silently.
+  append_paths:
+    - "_data/roadmap.yml"
 
 # --------------------------------------------------------------------------- #
 # Harness — the six-layer harness health scorecard + trip wires.
