@@ -148,28 +148,57 @@ def source_meta(data, now: dt.datetime) -> dict:
 
 
 def run_quiet(argv: list[str], timeout: int = 15, cwd: Path = REPO_ROOT) -> tuple[int, str]:
+    # Its own process group, killed whole on a timeout: `git status` forks one
+    # child per submodule, and killing only the parent left those running and
+    # then defunct under a container PID 1 that never reaps them.
     try:
-        out = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, cwd=str(cwd))
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                cwd=str(cwd), start_new_session=True)
+    except FileNotFoundError:
         return 127, ""
-    return out.returncode, (out.stdout or "") + (out.stderr or "")
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, 9)
+        except (AttributeError, OSError):
+            proc.kill()
+        proc.communicate()
+        return 127, ""
+    return proc.returncode, (out or "") + (err or "")
 
 
 # --------------------------------------------------------------------------- #
 # STATE — the committed fleet, as one document
 # --------------------------------------------------------------------------- #
+# Every /api/state asks for this, and a plain `git status` walks all ~40
+# submodule working trees: 17s over the Docker Desktop bind mount, past
+# run_quiet's timeout, so the chip read "clean tree" while each poll stacked
+# another walk. Dirt INSIDE a submodule is not the hub's to commit (a moved
+# pointer still shows), and concurrent polls share one answer for a few seconds.
+GIT_INFO_TTL = 10.0
+_GIT_INFO: dict = {}
+_GIT_INFO_LOCK = threading.Lock()
+
+
 def git_info() -> dict:
-    rc, branch = run_quiet(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-    rc2, sha = run_quiet(["git", "rev-parse", "--short", "HEAD"])
-    rc3, porcelain = run_quiet(["git", "status", "--porcelain"])
-    dirty = [line[3:] for line in porcelain.splitlines() if line.strip()] if rc3 == 0 else []
-    return {
-        "available": rc == 0,
-        "branch": branch.strip() if rc == 0 else None,
-        "head": sha.strip() if rc2 == 0 else None,
-        "dirty": dirty[:50],
-        "dirty_count": len(dirty),
-    }
+    with _GIT_INFO_LOCK:
+        if _GIT_INFO and time.monotonic() - _GIT_INFO["at"] < GIT_INFO_TTL:
+            return _GIT_INFO["doc"]
+        rc, branch = run_quiet(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+        rc2, sha = run_quiet(["git", "rev-parse", "--short", "HEAD"])
+        rc3, porcelain = run_quiet(["git", "status", "--porcelain", "--ignore-submodules=dirty"])
+        dirty = [line[3:] for line in porcelain.splitlines() if line.strip()] if rc3 == 0 else []
+        doc = {
+            # a status that failed or timed out is "unknown", never "clean"
+            "available": rc == 0 and rc3 == 0,
+            "branch": branch.strip() if rc == 0 else None,
+            "head": sha.strip() if rc2 == 0 else None,
+            "dirty": dirty[:50],
+            "dirty_count": len(dirty),
+        }
+        _GIT_INFO.update(at=time.monotonic(), doc=doc)
+        return doc
 
 
 def describe_cron(cron: str) -> str:
