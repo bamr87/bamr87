@@ -1,0 +1,18 @@
+id: HUB-NEW
+slug: deep-dive-showcase
+title: "Quest Log showcase: every deep-dived repo gets an article, two LinkedIn drafts and a better first screen"
+description: "Extends the daily deep dive (HUB-029): each repo the routine processes also gets a Quest Log showcase, made by the deep-dive-showcase skill for the scheduled routine or Amr by hand. The pieces are a long-form article and a personal LinkedIn draft in bamr87/bamr87.github.io (pages/_posts/quest-log/, .zer0/drafts/linkedin/), a company-page LinkedIn draft in bash-365/bash-365.com (drafts/linkedin/, which publishes when merged), and a presentation PR in the repo itself (README first screen, live-site first impression, a GitHub About proposal it never applies). Each is a pull request Amr merges. tools/deep_dive.py record --article/--linkedin-personal/--linkedin-company/--presentation-pr/--showcase-note writes an optional per-repo showcase mapping into _data/deep-dive.yml without touching the run's status; the _data/deep_dive.json projection carries it, plus a summary count of repos showcased this cycle once any showcase exists, so older ledgers project unchanged; today --json adds the slug and the done repos still missing a showcase. Partial: the routine's own prompt must call the skill, and Amr's personal LinkedIn channel is not connected yet, so personal posts are posted by hand. Campaign: docs/SHOWCASE.md."
+implemented: true
+status: partial
+surface: infra
+link: .claude/skills/deep-dive-showcase/SKILL.md
+docs: docs/SHOWCASE.md
+tags: [ deep-dive, showcase, linkedin, content, routine ]
+date: 2026-11-01
+tests:
+  - tools/test_deep_dive.py
+prd: ["FR-NEW:deep-dive-showcase", NFR8]
+prd_new:
+  - key: deep-dive-showcase
+    kind: FR
+    text: "Every repo the deep-dive routine processes also gets a Quest Log showcase drafted for approval: a long-form article and a personal LinkedIn draft on bamr87.github.io, a company-page LinkedIn draft on bash-365.com and a presentation pull request in the repo itself, each a pull request a human merges, with nothing posted, published or changed in a repo's settings before that merge; the ledger records each repo's showcase (article, both drafts, presentation PRs) without changing its deep-dive status, and its projection counts the repos showcased this cycle; see docs/SHOWCASE.md"

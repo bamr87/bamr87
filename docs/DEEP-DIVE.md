@@ -1,6 +1,6 @@
 # Daily repo deep dive
 
-> One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh (`deep-dive.yml`) and the `/deep-dive` dashboard (HUB-029, PRD FR24–FR25).
+> One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh, the `/deep-dive` dashboard (HUB-029, PRD FR24–FR25) and each repo's showcase record.
 
 ## What it is
 
@@ -14,13 +14,16 @@ The rotation is every non-archived repo owned by `bamr87` (forks included), olde
 python3 tools/deep_dive.py today [--date 2026-10-30] [--json]     # the repo for a date
 python3 tools/deep_dive.py record REPO --status done \
   --issue URL --pr URL --findings "…" --score 78 --next-focus "…"  # record a run
+python3 tools/deep_dive.py record REPO --article URL \
+  --linkedin-personal URL --linkedin-company URL \
+  --presentation-pr URL [--showcase-note "…"]                      # record its showcase (status untouched)
 python3 tools/deep_dive.py refresh [--dry-run]                     # open deep-dive issues/PRs per repo (GH_TOKEN)
 python3 tools/deep_dive.py json [--write | --check]                # the frontend projection
 python3 tools/deep_dive.py rollover [--force]                      # start the next cycle
 python3 tools/deep_dive.py init --from-github --force              # rebuild the rotation from GitHub
 ```
 
-Every write rewrites both `_data/deep-dive.yml` and `_data/deep_dive.json`. Tests: `python3 tools/test_deep_dive.py`.
+Every write rewrites both `_data/deep-dive.yml` and `_data/deep_dive.json`. `record` with only showcase flags records the showcase and leaves the run's `status`, `cycle` and `last_processed` alone; any run flag makes it a run again, defaulting to `done`. `today --json` also prints `showcase_slug` (the Quest Log slug for the day's repo) and `showcase_missed` (repos done this cycle, before today, with no showcase yet). Tests: `python3 tools/test_deep_dive.py`.
 
 ## Schema (`deep-dive/v1`)
 
@@ -41,8 +44,22 @@ Each `repos[]` entry:
 | `findings` | string | summary of the last run's findings |
 | `score` | number \| null | 0–100 health / UPS conformance score from the last run |
 | `next_focus` | string | what the next pass on this repo should look at |
+| `showcase` | mapping, optional | the repo's Quest Log showcase ([SHOWCASE.md](SHOWCASE.md)); absent until one is recorded, so older ledgers load unchanged |
+| `showcase.cycle` | int | the cycle the showcase belongs to; a record in a later cycle replaces the mapping |
+| `showcase.date` | date | when it was last recorded |
+| `showcase.article` | URL \| null | the article's canonical page on bamr87.github.io |
+| `showcase.linkedin_personal` | URL \| null | the personal post: the bamr87.github.io PR that stages it, then the post once it is up |
+| `showcase.linkedin_company` | URL \| null | the company post: the bash-365.com PR that stages it, then the post once it is up |
+| `showcase.presentation_prs` | list of URLs | PRs in the repo itself (README first screen, live-site first impression; deduplicated) |
+| `showcase.note` | string | what is still owed, for example `screenshots pending` |
 
-`_data/deep_dive.json` is the same document plus a precomputed `summary` (progress x/N, counts per status, today / next / last repo, average score, open totals), pinned to `refreshed_at` so `--check` is deterministic; the page recomputes today from the viewer's clock.
+Unknown keys under `showcase` fail validation, so a misspelt field is caught rather than kept.
+
+`_data/deep_dive.json` is the same document plus a precomputed `summary` (progress x/N, counts per status, today / next / last repo, average score, open totals and, once any repo carries a `showcase`, `showcased`: the repos showcased this cycle with an article), pinned to `refreshed_at` so `--check` is deterministic; the page recomputes today from the viewer's clock. `showcased` is left out while no showcase exists, so a ledger from before the field projects byte for byte as it did.
+
+## Showcase
+
+Every repo that gets its deep dive also gets a Quest Log showcase: a long-form article and a personal LinkedIn draft on bamr87.github.io, a company-page LinkedIn draft on bash-365.com, and a presentation PR in the repo itself, each a PR a human merges. The campaign is [SHOWCASE.md](SHOWCASE.md); the per-day procedure is the [`deep-dive-showcase`](../.claude/skills/deep-dive-showcase/SKILL.md) skill, which ends with the `record` call above.
 
 ## Refresh workflow
 
