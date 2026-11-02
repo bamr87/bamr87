@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-01T06:02:16Z'
+generated_at: '2026-11-02T06:03:33Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,9 +17,9 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 58
-  implemented: 35
-  covered: 52
+  features: 65
+  implemented: 40
+  covered: 59
   evidenced: 10
   verified: 8
   ui: 18
@@ -29,9 +29,9 @@ totals:
   screenshots: 50
   dangling: 5
 pct:
-  coverage: 149
-  evidence: 29
-  verified: 23
+  coverage: 148
+  evidence: 25
+  verified: 20
   ui_coverage: 100
 attention:
 - repo: bamr87
@@ -69,6 +69,10 @@ repos:
     - 'features/features.yml HUB-054: tests path not found: tools/test_target_selectors.py'
     - 'features/features.yml HUB-055: tests path not found: tools/test_fanout.py'
     - 'features/features.yml HUB-057: tests path not found: tools/test_loop_switches.py'
+    - 'features/features.yml HUB-059: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'features/features.yml HUB-060: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'features/features.yml HUB-063: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'features/features.yml HUB-065: docs path not found: docs/amendments/proposed/fleet-pr-review.md'
   kit:
     config: true
     runner: true
@@ -82,9 +86,9 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 58
-    implemented: 35
-    covered: 52
+    features: 65
+    implemented: 40
+    covered: 59
     evidenced: 10
     verified: 8
     ui: 18
@@ -93,8 +97,8 @@ repos:
     dangling: 5
   pct:
     coverage: 100
-    evidence: 29
-    verified: 23
+    evidence: 25
+    verified: 20
   last_run: null
   gaps:
   - 5 dangling test/scenario/evidence link(s)
@@ -2179,6 +2183,274 @@ repos:
       evidence: []
       tests:
       - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_machine_api.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-059
+    title: 'JEV: loop step specs — one spec per agent step, rendered the same in CI and locally'
+    surface: cli
+    implemented: true
+    link: tools/jev/steps/README.md
+    docs: docs/JEV.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - specs
+    date: '2026-10-30'
+    provenance: null
+    tests:
+    - tools/test_jev_spec.py
+    - .github/scripts/dash-gen/test_scout.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'JEV capability two (ADR 0002, bamr87/bamr87#485, epic #484): each agent step a loop runs gets one reviewed file
+      pair under tools/jev/steps/<loop>/ — <step>.yml (caller-filled {{UPPER_SNAKE}} inputs, the --allowedTools grant, timeout,
+      worksp'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/steps/README.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/JEV.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_spec.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_scout.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-060
+    title: 'JEV: run a loop''s agent step locally (the loop runner)'
+    surface: cli
+    implemented: true
+    link: tools/jev/loop.py
+    docs: docs/JEV.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - sandbox
+    date: '2026-10-31'
+    provenance: null
+    tests:
+    - tools/test_jev_loop.py
+    - tools/test_jev_headless.py
+    - tools/test_jev_workspace.py
+    - tools/test_jev_adapter_repo_scout.py
+    - tools/test_jev_spec.py
+    - .github/scripts/dash-gen/test_ai_run.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    - .github/scripts/dash-gen/test_scout.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'JEV capability two''s runner (ADR 0002 P1, bamr87/bamr87#486, epic #484): python3 -m tools.jev loop (also tools/dash
+      loop) runs a loop''s agent step on a workstation with headless Claude Code — the planner CI runs, the prompt bytes rendered
+      f'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/loop.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/JEV.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_loop.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_headless.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_workspace.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_adapter_repo_scout.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_spec.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_ai_run.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_ai_budget.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_scout.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-061
+    title: 'JEV: ratification, acceptance and completion recorded after the maintainer merges'
+    surface: infra
+    implemented: true
+    link: tools/jev/ratify.py
+    docs: docs/JEV.md
+    tags:
+    - governance
+    - jev
+    - amendments
+    - adr
+    date: '2026-11-01'
+    provenance: null
+    tests:
+    - tools/test_jev_ratify.py
+    - tools/test_jev_number.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'After every push to main (and when an issue closes), jev-number.yml''s ratify job runs python3 -m tools.jev
+      ratify: from main''s state it finds every amendment still marked proposed whose PR the maintainer merged, every ADR
+      Status line (heade'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/ratify.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/JEV.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_ratify.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_number.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-062
+    title: 'Fleet frontend platform: registry frontend: block, tiers and UPS-FE-70..73'
+    surface: infra
+    implemented: true
+    link: tools/frontend_registry.py
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - frontend
+    - design
+    - conformance
+    - registry
+    date: '2026-11-01'
+    provenance: null
+    tests:
+    - tools/test_frontend_registry.py
+    - tools/test_conformance_frontend.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Every registry entry declares its frontend (type, tier shell|tokens|none, framework, surfaces, token version,
+      entry URL, shell); tools/frontend_registry.py lints it (drift check (o)) and generates the shell launcher; tools/conformance.py
+      ch
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/frontend_registry.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/FRONTEND-PLATFORM.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_frontend_registry.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_conformance_frontend.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-063
+    title: 'JEV: the loop runner''s context pack — the fleet''s planes, read on the host for a sealed agent'
+    surface: cli
+    implemented: true
+    link: tools/jev/context.py
+    docs: docs/JEV.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - context
+    date: '2026-10-31'
+    provenance: null
+    tests:
+    - tools/test_jev_context.py
+    - tools/test_jev_loop.py
+    - tools/test_jev_spec.py
+    - tools/test_jev_adapter_repo_scout.py
+    - tools/test_jev_workspace.py
+    - .github/scripts/dash-gen/test_fleet_context.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'The loop runner''s context pack (bamr87/bamr87#561, epic #484; built on #486): before each local attempt the
+      HOST reads the fleet''s planes — the SQLite data lake (closed issues and PRs, CI on the tracked branch, agent runs and
+      failing comman'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/context.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/JEV.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_context.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_loop.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_spec.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_adapter_repo_scout.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_workspace.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_fleet_context.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-064
+    title: 'In-flight job status for agents: state, ages and slowness diagnostics'
+    surface: infra
+    implemented: false
+    link: tools/console/mcp_layer/server.py
+    docs: tools/console/docs/job-status.md
+    tags:
+    - console
+    - mcp
+    - jobs
+    - observability
+    - agents
+    date: '2026-11-01'
+    provenance: null
+    tests: []
+    waived:
+    - planned; tests land with the implementation
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A job sent through the Harness Console reports, per job, a derived state (queued, running, stalled, done, failed),
+      the time since it was sent and since its last progress (log growth or heartbeat), and basic diagnostics on why it may
+      be slow
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/console/mcp_layer/server.py
+      docs: https://github.com/bamr87/bamr87/blob/main/tools/console/docs/job-status.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-065
+    title: Fleet PR review workflow with one sticky summary
+    surface: infra
+    implemented: false
+    link: docs/amendments/proposed/fleet-pr-review.md
+    docs: docs/amendments/proposed/fleet-pr-review.md
+    tags:
+    - ci
+    - governance
+    - review
+    date: '2026-11-01'
+    provenance: null
+    tests: []
+    waived:
+    - planned; tests land with the implementation issue
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: A reusable hub workflow (.github/workflows/pr-review.yml) and per-repo stub that run every PR check, post one
+      sticky summary updated in place (silent when clean), severity-tagged deduplicated inline findings and a fleet signature
+      footer, as
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/amendments/proposed/fleet-pr-review.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/amendments/proposed/fleet-pr-review.md
+      evidence: []
+      tests: []
       scenarios: []
       screenshots: []
   truncated: false
