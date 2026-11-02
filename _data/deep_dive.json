@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-01T12:23:08Z",
+  "refreshed_at": "2026-11-02T12:26:32Z",
   "summary": {
-    "as_of": "2026-11-01",
+    "as_of": "2026-11-02",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 3,
+    "day": 4,
     "processed": 2,
     "counts": {
       "pending": 36,
@@ -20,14 +20,6 @@
     },
     "progress": 0.0526,
     "today": {
-      "date": "2026-11-01",
-      "cycle": 1,
-      "day": 3,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "bamr87.github.io"
-    },
-    "next": {
       "date": "2026-11-02",
       "cycle": 1,
       "day": 4,
@@ -35,11 +27,19 @@
       "kind": "scheduled",
       "repo": "fredgar-ai"
     },
+    "next": {
+      "date": "2026-11-03",
+      "cycle": 1,
+      "day": 5,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "zer0-mistakes"
+    },
     "last": "bamr87",
     "last_date": "2026-10-31",
     "avg_score": 75.0,
-    "open_issues": 23,
-    "open_prs": 2
+    "open_issues": 26,
+    "open_prs": 4
   },
   "repos": [
     {
@@ -60,10 +60,11 @@
         "https://github.com/bamr87/it-journey/issues/867"
       ],
       "prs": [
-        "https://github.com/bamr87/it-journey/pull/875"
+        "https://github.com/bamr87/it-journey/pull/875",
+        "https://github.com/bamr87/it-journey/pull/901"
       ],
       "open_issues": 6,
-      "open_prs": 1,
+      "open_prs": 2,
       "findings": "Early manual run (2026-10-29, scheduled 2026-10-30). UPS conformance 45/58, 8 MUST failing: page_feedback off (FB-01/FE-13), issue templates lack type labels (WORK-09), fleet actions @main (WORK-10, needs-human), tracked site-quality package-lock (QA-40/REPO-07), vendored unwrap-prose drift + docs summary (fixed in PR #875). Bugs: make test checks removed pages/_posts; /feed.xml has 0 entries. Catalog lists retired posts/docs/notebooks as tbd. Planned FR-ITJ-014 quest feed, FR-ITJ-015 page feedback.",
       "score": 72.0,
       "next_focus": "Verify #875 merged and FR-ITJ-014/015 shipped; workflow pinning (#873); quest UI/UX at 390px; catalog retirement (#868)."
@@ -98,7 +99,8 @@
         "https://github.com/bamr87/bamr87/pull/431",
         "https://github.com/bamr87/bamr87/pull/510",
         "https://github.com/bamr87/bamr87/pull/509",
-        "https://github.com/bamr87/bamr87/pull/508"
+        "https://github.com/bamr87/bamr87/pull/508",
+        "https://github.com/bamr87/bamr87/pull/579"
       ],
       "open_issues": 17,
       "open_prs": 1,
@@ -113,10 +115,16 @@
       "status": "pending",
       "last_processed": null,
       "cycle": 1,
-      "issues": [],
-      "prs": [],
-      "open_issues": 0,
-      "open_prs": 0,
+      "issues": [
+        "https://github.com/bamr87/bamr87.github.io/issues/49",
+        "https://github.com/bamr87/bamr87.github.io/issues/48",
+        "https://github.com/bamr87/bamr87.github.io/issues/47"
+      ],
+      "prs": [
+        "https://github.com/bamr87/bamr87.github.io/pull/54"
+      ],
+      "open_issues": 3,
+      "open_prs": 1,
       "findings": "",
       "score": null,
       "next_focus": ""
