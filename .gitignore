@@ -78,6 +78,7 @@ mkdocs-build.log
 .env
 .env.local
 .env.*.local
+.env.bak*
 .claude/settings.local.json
 .claude/worktrees/
 .claude/skills/run-dash/*.png

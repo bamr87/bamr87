@@ -1,0 +1,33 @@
+{
+	"folders": [
+		{
+			"path": "projects/bash-365.com"
+		},
+		{
+			"path": "projects/zer0-cms"
+		},
+		{
+			"path": "projects/bamr87.github.io"
+		},
+		{
+			"path": "projects/lifehacker.dev"
+		},
+		{
+			"path": "projects/it-journey"
+		},
+		{
+			"path": "projects/zer0-mistakes"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.html": "liquid"
+		},
+		"emmet.includeLanguages": {
+			"liquid": "html"
+		},
+		"yaml.schemas": {
+			"https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
+		}
+	}
+}
