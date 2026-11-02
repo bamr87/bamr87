@@ -68,6 +68,10 @@ Pickers are generated from the registries by hand and must follow them: `fleetPr
 
 `settings.json` is machine-neutral: the raised `git.detectSubmodulesLimit` the ~40 submodules need, the interpreter the debug entries use (`.venv-console`), Docker Compose v2, file associations for the fleet's stacks, soft wrap for the one-paragraph-per-line Markdown, and the ignores that keep watching and search off the venvs, the lake, the compose overrides, the built site and page, and the evidence bundles. Personal preferences (font, line height, minimap, auto-save) belong in [`home.code-workspace`](../home.code-workspace) or user settings. `extensions.json` is the union of what the dev container installs and what the launch and task entries rely on, so the host and the container agree.
 
+## Governance
+
+Constitution § 20 (proposed amendment `editor-front-door`) makes this directory a front door: entries call `tools/dash` or a tool's own entry point, pickers and ports follow the registries, and a new surface adds its entry in the same PR. [`tools/test_vscode_launch.py`](../tools/test_vscode_launch.py) is the gate (run by `tools/run-all-tests.sh`): the four files parse, every task and input resolves, each picker equals its registry, every named port is one its plane publishes, and nothing calls `fleet-dev.sh` directly or starts `fleet-hub`. Fleet repos are held to the same idea by UPS-REPO-40 ([specs/REPOSITORY.md](../specs/REPOSITORY.md), audited by `tools/conformance.py`) and surfaced by `dash audit` as the `vscode` artifact; this directory is the reference until a `templates/vscode/` kit exists. [`SCHEMA.md`](SCHEMA.md) lists the files and the placement rules.
+
 ## Notes
 
 - The console's compose service and the native debug session coexist (:4001 and :4004). `Console: native with auto-reload` and `MCP: streamable HTTP server` take :4001 and :4002 and so expect the compose `console` / `mcp` services stopped first.

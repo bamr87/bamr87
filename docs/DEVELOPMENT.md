@@ -88,4 +88,4 @@ Before a pull request: the checks for what you changed pass, generated files are
 
 ## Editors
 
-`.vscode/` carries the shared settings, tasks and launch configurations — notably the raised `git.detectSubmodulesLimit` the submodules need. `home.code-workspace` opens the hub together with related clones as one multi-root workspace.
+`.vscode/` carries the shared settings, tasks and launch configurations — notably the raised `git.detectSubmodulesLimit` the submodules need — and is the editor's front door to every harness surface: F5 entries for the container plane, the console (natively under `debugpy`), the site, the lake and log planes, the generators, the loop runner, the gates and every submodule, each through `tools/dash` ([.vscode/README.md](../.vscode/README.md), constitution § 20). `home.code-workspace` opens the hub together with related clones as one multi-root workspace.

@@ -88,9 +88,11 @@ mkdocs-build.log
 
 # ---- editors + OS -----------------------------------------------------------
 # .vscode/ is ignored except the shared config this repo deliberately tracks
-# (notably the raised git.detectSubmodulesLimit the ~45 submodules need).
+# (the editor front door, constitution § 20; tools/test_vscode_launch.py holds
+# this list equal to the files .vscode/SCHEMA.md declares).
 .vscode/*
 !.vscode/README.md
+!.vscode/SCHEMA.md
 !.vscode/extensions.json
 !.vscode/launch.json
 !.vscode/settings.json
