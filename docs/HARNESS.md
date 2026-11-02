@@ -183,6 +183,10 @@ Phase 2 (worth doing next, each one small):
 - **Wire → doctor handoff**: let a tripped `cost-spike`/`standing-failures` wire annotate the remediation queue's ranking, so the alarm and the fix queue converge on the same candidates (today they compute independently from the same data).
 - **Grok Bot integration in the console frontend**: add Grok Bot, Amr's primary assistant, to the harness console web app (`tools/console/web/`), so he can ask about, trigger and follow fleet work from the same pages that show harness health, inventory and loops. It reuses the console's existing MCP endpoint (the harness-console connector) instead of adding a new backend, keeps every write behind the same PR-only, draft-first and brake-label guardrails, and degrades to a plain read-only view when Grok Bot is unreachable.
 
+Epics (larger, multi-phase):
+
+- **Epic: fleet knowledge capture and retrieval**: capture, consolidate, extract, organize and store the content and context that is scattered across content management systems (it-journey, lifehacker and the other sites), codebases and documentation, from any source in the fleet. Index and vectorize that content into one searchable store that keeps each item's source, repo and freshness, and expose it to Claude Code and any other AI provider (for example through the console's MCP endpoint) so agents pull accurate, current context before they act. Success is measured by agent accuracy: fewer wrong or stale answers and fewer review fixes. Design for Failure applies: a stale or unreachable index falls back to reading the source files directly, and every retrieved item cites where it came from.
+
 Deliberately **not** planned, per the playbook's over-engineering warnings: no LLM-as-judge gates (the deterministic sensors are the gates; the agents are already advisory), no knowledge graph (the `_data/` files are the shared state and the recovery test passes without one), no additional approval workflow (the caps + draft-only + brake labels are the graduated scope the playbook prescribes).
 
 ## Multi-agent extensions (playbook §XVII)
