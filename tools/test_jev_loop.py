@@ -1831,6 +1831,40 @@ def test_a_live_run_refuses_without_a_passing_canary_and_reduced_needs_none():
         (box.latest() / "items" / "bamr87__SCHEMA" / "settings.json").read_text())
 
 
+def test_the_canary_adds_the_probe_grants_a_narrower_allowlist_lacks_and_records_them():
+    scout, doctor = L.load_step("repo-scout"), L.load_step("fleet-pulse", "doctor")
+    sandbox = H.Posture("sandbox")
+    assert L.canary_grants(scout, sandbox) == [], "scout grants cat and python3 itself"
+    assert L.canary_grants(doctor, sandbox) == ["Bash(python3:*)"], "the doctor grants cat but no python3"
+    assert L.canary_grants(doctor, H.Posture("reduced")) == [], "no Bash, nothing to add"
+    paths = dict(settings_path=Path("/s.json"), session_id="sid", debug_path=Path("/d.log"))
+    for spec in (scout, doctor):
+        flags = L.canary_flags(spec, sandbox, **paths)
+        base = H.claude_flags(spec, sandbox, **paths)
+        allowed = flags[flags.index("--allowedTools") + 1].split(",")
+        assert all(g in allowed for g in L.CANARY_GRANTS), (spec.loop, allowed)
+        assert flags[flags.index("--tools") + 1] == base[base.index("--tools") + 1], "the families are the step's"
+        assert flags[flags.index("--disallowedTools") + 1] == base[base.index("--disallowedTools") + 1]
+        head_f, head_b = flags[:flags.index("--allowedTools")], base[:base.index("--allowedTools")]
+        diff = [(a, b) for a, b in zip(head_f, head_b) if a != b]
+        assert diff == [(L.CANARY_MODEL, base[base.index("--model") + 1]),
+                        (str(L.CANARY_TURNS), base[base.index("--max-turns") + 1])], diff
+        assert flags[flags.index("--allowedTools") + 2:] == base[base.index("--allowedTools") + 2:]
+    # end to end: the doctor's canary passes in the box and its verdict records the grant
+    box = Box()
+    with world(box):
+        box.seed_probe(loop="fleet-pulse")
+        (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_pass"}))
+        code, out, err = jev("doctor", "fleet-pulse", "--live", "--yes", "--json")
+        report = json.loads(out)
+        assert code == 0 and report["steps"][0]["canary"] == "ok", (report, err)
+        key = L.canary_key((2, 1, 308), doctor, sandbox, H.AuthChoice("oauth", "env"))
+        entry = L.cached(".canary.json", key)
+        assert entry["ok"] is True and entry["facts"]["grants_added"] == ["Bash(python3:*)"], entry
+        [call] = box.live_calls()
+        assert "Bash(python3:*)" in call["argv"][call["argv"].index("--allowedTools") + 1]
+
+
 def test_doctor_live_runs_the_canary_only_with_a_yes_and_judges_it():
     box = Box()
     with world(box):
