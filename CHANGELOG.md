@@ -23,6 +23,10 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Fixed
 
 - `.github/actions/claude-run`: installs `@anthropic-ai/claude-code@latest` explicitly. Claude Code now declares `engines: node>=22`, so on the fleet's Node 20 a bare package name made npm fall back to 2.1.197, which current models reject (`400 … version 2.1.280 or newer is required`); every `claude-run` step on Node 20 failed over to the API path. The CLI is a native binary and runs on any Node.
+- `tools/dash up` checks the core `db` volume against its Postgres image and refuses to recreate onto an older major, naming the exact migration; the PG 15 → 18 bump had left the core database restarting in a loop on the first recreate.
+- The core `db` healthcheck passes `-d` to `pg_isready`, so it no longer logs `FATAL: database "wikijs" does not exist` into the log plane every 10 seconds.
+- `tools/pg-major-upgrade.sh` reads the cluster the image will open (`<major>/docker`, then the mount root) before searching, so a volume holding a second cluster cannot report the wrong major.
+- `docker-compose.yml`, `docs/DOCKER.md` and `AGENTS.md` no longer point the core's migration at `dash dev db-upgrade hub`, which targets the separate `fleet-hub` volume.
 
 ## [2.0.0] - 2026-10-14
 
