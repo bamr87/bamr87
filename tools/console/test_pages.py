@@ -19,6 +19,7 @@ tools/console/test_pages.py`. The FastAPI checks skip without fastapi.
 """
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -124,6 +125,15 @@ def test_build_writes_a_page_per_route_and_the_feeds():
         sitemap = (out / "sitemap.xml").read_text()
         assert "https://example.test/bamr87/portfolio" in sitemap and "/bamr87/triage<" not in sitemap
         assert not (out / "snapshot" / "auth.json").exists()
+        # The link card: the image the profile names ships in web/public/, every
+        # page's og:image points at it, and a wide image gets the large card.
+        ident = site_docs.profile().get("site") or {}
+        if ident.get("image"):
+            assert (HERE / "web" / "public" / ident["image"]).is_file(), f"site.image {ident['image']} not in web/public/"
+            home = (out / "index.html").read_text()
+            assert f'og:image" content="https://example.test/bamr87/{ident["image"]}"' in home
+            assert 'twitter:card" content="summary_large_image"' in home
+            assert f'name="description" content="{html.escape(" ".join(ident["description"].split()))}"' in home
 
 
 def test_site_documents_are_json_and_refuse_what_is_not_listed():

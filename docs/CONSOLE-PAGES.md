@@ -53,7 +53,7 @@ The snapshot never publishes, whatever the build machine holds (`test_pages.py` 
 
 Beside the documents it writes:
 
-- one `index.html` per route, with its own title, description, canonical link and Open Graph tags, so a deep link returns 200
+- one `index.html` per route, with its own title, description, canonical link and Open Graph tags, so a deep link returns 200; every page's card image is the profile's wide `site.image` (a large card), or the avatar when none is set
 - `404.html`
 - `sitemap.xml`, `feed.xml` (Atom) and `robots.txt`
 - `theme.css`
@@ -65,7 +65,7 @@ Beside the documents it writes:
 
 | What | Where |
 | --- | --- |
-| Identity (name, title, links, avatar) | `_data/profile.yml` |
+| Identity (name, title, links, avatar), the Home description and the link-card image (`site.description`, `site.image`) | `_data/profile.yml`; images under `tools/console/web/public/` |
 | Long-form pages | `pages/profile/<slug>.md`, routed at `/<slug>`; the four in `nav.ts` `PROFILE_PAGES` |
 | Posts | `pages/posts/YYYY-MM-DD-<slug>.md`, at `/blog/<slug>`; `draft: true` shows only on a console |
 | Registries the pages read | `site_docs.PUBLIC_DATA` — the only `_data` files served at `/api/data/<name>` |

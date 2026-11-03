@@ -8,6 +8,14 @@ I build sustainable enterprise systems and empower internal teams, transforming 
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/amrabdel) [![Portfolio](https://img.shields.io/badge/Portfolio-bashconsultants.com-green?style=for-the-badge&logo=googlechrome)](https://bashconsultants.com) [![Email](https://img.shields.io/badge/Email-amr.abdel%40gmail.com-red?style=for-the-badge&logo=gmail)](mailto:amr.abdel@gmail.com) [![CV](https://img.shields.io/badge/CV-Download-orange?style=for-the-badge&logo=adobeacrobatreader)](https://github.com/bamr87/cv-pro/blob/main/cv/cv.pdf)
 
+**This profile is also a control plane:** one repository that manages, monitors and standardizes about forty others, their AI agents and budgets included.
+
+**[Live](https://bamr87.github.io/bamr87/)** · **[Source](https://github.com/bamr87/bamr87)** · **[Read the story](https://bamr87.github.io/posts/2026/11/02/quest-log-bamr87/)**
+
+[![The Harness Console home page: Amr's profile card above tiles for projects, items that need attention, failing workflows, triage flags, Claude spend in CI and Actions hours, then cards for the portfolio, agentic harness management and GitHub orchestration](tools/console/web/public/readme-hero.jpg)](https://bamr87.github.io/bamr87/)
+
+<sub>The published Harness Console, snapshot of 1 November 2026; its Claude figure is an API-equivalent estimate, not a bill. The site rebuilds every day. This picture does not.</sub>
+
 </div>
 
 ---
