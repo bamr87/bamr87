@@ -145,13 +145,20 @@ try:   # 2.1.308's read-fence line, as in the probe
     _deny = json.load(open(argv[argv.index("--settings") + 1]))["sandbox"]["filesystem"]["denyRead"]
 except (ValueError, OSError, KeyError, IndexError, TypeError):
     _deny = []
-if _deny:
+if _deny and not sc.get("no_fence_line"):
     debug(f"[DEBUG] Sandbox: blockReadsOutsideWorkingDirectories: {_deny[0]}/ stays under an existing denyRead "
           "and is not re-opened")
 if sc.get("settings_env"):
     debug("[DEBUG] CA certs: Config fallback - globalEnv keys: , settingsEnv keys: ANTHROPIC_BASE_URL")
 FENCES = sc.get("fences", "read: denyOnly(3), write: allowOnly(2)")
-SANDBOX_LINE = "[DEBUG] [Sandbox macOS] Applied restrictions - network: false, " + FENCES
+SANDBOX_LINE = "[Sandbox macOS] Applied restrictions - network: false, " + FENCES
+def wrapped():
+    # 2.1.308: the sandbox runtime's logger prints the per-command line to STDERR, prefixed, and only under
+    # SRT_DEBUG (which the engine's agent_env sets); an older CLI (sandbox_line_where=debug) logged it to --debug-file
+    if sc.get("sandbox_line_where", "stderr") == "debug":
+        debug("[DEBUG] " + SANDBOX_LINE)
+    elif os.environ.get("SRT_DEBUG"):
+        sys.stderr.write("[SandboxDebug] " + SANDBOX_LINE + "\n"); sys.stderr.flush()
 n = [0]
 def tool(name, inp, result, is_error=False):
     n[0] += 1
@@ -165,7 +172,7 @@ def result(cost, **kw):
           "session_id": sid, "modelUsage": usage, "permission_denials": denials, **kw})
 if kind.startswith("canary"):
     import re
-    cmds = dict(re.findall(r"^([1-6])\. (.+)$", prompt, re.M))
+    cmds = dict(re.findall(r"^([1-7])\. (.+)$", prompt, re.M))
     secret = re.search(r"cat (\S+)", cmds["1"]).group(1)
     write_to = re.search(r"Write tool to create (\S+) containing", prompt).group(1)
     leak = open(secret).read().strip() if kind == "canary_leak" else ""
@@ -178,10 +185,12 @@ if kind.startswith("canary"):
     tool("Bash", {"command": cmds["4"]}, denied, True)
     tool("Bash", {"command": cmds["5"]}, f"SECRETS={seen}")
     tool("Bash", {"command": cmds["6"]}, "cat: Operation not permitted", True)
+    if "7" in cmds:
+        tool("Bash", {"command": cmds["7"]}, denied, True)
     tool("Read", {"file_path": os.path.join(os.getcwd(), "link")}, "     1\t" + open("link").read())
     tool("Read", {"file_path": secret}, "File is outside the allowed working directories", True)
     tool("Write", {"file_path": write_to, "content": "x"}, "File is outside the allowed working directories", True)
-    debug(SANDBOX_LINE)
+    wrapped()
     result(0.03)
     sys.exit(0)
 for i in range(int(sc.get("bash", 2))):
@@ -189,7 +198,7 @@ for i in range(int(sc.get("bash", 2))):
 for i in range(int(sc.get("denied_bash", 0))):
     tool("Bash", {"command": "rg x"}, "Permission to use Bash with command rg x has been denied.", True)
 if sc.get("bash", 2) and sc.get("sandbox_line", True):
-    debug(SANDBOX_LINE)
+    wrapped()
 os.makedirs(".scout", exist_ok=True)
 if sc.get("symlink"):
     os.symlink(sc["symlink"], ".scout/proposals.json")
@@ -1663,6 +1672,42 @@ def test_bash_without_the_sandbox_line_stops_the_run_with_4_and_reads_nothing():
     d = box.latest() / "items" / "bamr87__SCHEMA"
     assert not (d / "outputs").exists() and not (d / "bodies").exists(), "the outputs are destroyed unread"
     assert not list(box.work.glob("*/*"))
+
+
+def test_the_per_command_line_comes_from_the_runtimes_stderr_under_srt_debug_and_an_older_cli_still_passes():
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        code, _, err = jev("run", "repo-scout", "--target", TARGET)
+        item = box.last()["items"][0]
+        assert code == 0 and item["status"] == "previewed", (item, err)
+        assert "SRT_DEBUG" in box.live_calls()[0]["env"], "the engine switches the runtime's logger on"
+        d = box.latest() / "items" / "bamr87__SCHEMA"
+        assert "SRT_DEBUG" in json.loads((d / "env-keys.json").read_text())
+        outcome = json.loads((d / "outcome.json").read_text())
+        assert any(l.startswith("[SandboxDebug] [Sandbox macOS] Applied restrictions") for l in outcome["sandbox_lines"])
+        kept = (d / "debug-sandbox.txt").read_text()
+        assert "Applied restrictions" in kept and "blockReadsOutsideWorkingDirectories" in kept
+        # an older CLI that wrote the line to --debug-file is still evidence
+        box.seed_live({"kind": "ok", "proposals": GOOD, "sandbox_line_where": "debug"})
+        code, _, err = jev("run", "repo-scout", "--target", TARGET, "--fresh")
+        item = box.last()["items"][0]
+        assert code == 0 and item["status"] == "previewed", (item, err)
+        outcome = json.loads((box.latest() / "items" / "bamr87__SCHEMA" / "outcome.json").read_text())
+        assert outcome["sandbox_lines"] == []
+
+
+def test_a_session_without_the_settings_read_fence_line_stops_the_run_with_4():
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "ok", "proposals": GOOD, "no_fence_line": True})
+        code, _, _ = jev("run", "repo-scout", "--target", TARGET)
+    rec = box.last()
+    item = rec["items"][0]
+    assert code == 4 and rec["status"] == "stopped" and item["status"] == "unsafe", item
+    assert "read-fence" in item["reason"] and "not proven applied" in item["reason"], item
+    d = box.latest() / "items" / "bamr87__SCHEMA"
+    assert not (d / "outputs").exists() and not (d / "bodies").exists(), "the outputs are destroyed unread"
 
 
 def test_a_settings_env_block_or_an_unprobed_toolset_stops_the_run_with_4():
