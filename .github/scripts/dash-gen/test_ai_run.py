@@ -94,6 +94,9 @@ STUB = textwrap.dedent(r'''
         sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
     def init():
         if stream:
+            if os.environ.get("SRT_DEBUG"):   # 2.1.308: the sandbox runtime logs the wrap to stderr only under this
+                sys.stderr.write("[SandboxDebug] [Sandbox macOS] Applied restrictions - network: false, "
+                                 "read: denyAllExcept, write: allowAllExcept\n"); sys.stderr.flush()
             emit({"type": "system", "subtype": "init", "session_id": sid, "model": "claude-sonnet-5-5",
                   "tools": ["Bash", "Read"], "permissionMode": "dontAsk"})
     ok = {"type": "result", "subtype": "success", "is_error": False, "num_turns": 3, "session_id": sid,
@@ -363,6 +366,19 @@ def test_stream_tees_a_redacted_view_and_writes_the_three_files():
     outcome = json.loads(files["outcome"].read_text())
     assert outcome["kind"] == "ok" and outcome["cost_source"] == "reported" and outcome["exit_code"] == 0
     assert outcome["tool_uses"] == {"Bash": 1}
+    assert outcome["sandbox_lines"] == [], "no SRT_DEBUG outside --isolate: the runtime printed nothing"
+
+
+def test_an_isolated_run_records_the_sandbox_runtimes_stderr_lines_in_the_outcome():
+    rig = Rig()
+    files = {k: rig.dir / f"{k}.json" for k in ("result", "outcome")}
+    out = rig.run("--stream", "--isolate", "--auth-order", "oauth", "--result-file", str(files["result"]),
+                  "--outcome-file", str(files["outcome"]), env={"CLAUDE_CODE_OAUTH_TOKEN": OAUTH})
+    assert out.returncode == 0, out.stderr
+    outcome = json.loads(files["outcome"].read_text())
+    assert outcome["sandbox_lines"] == ["[SandboxDebug] [Sandbox macOS] Applied restrictions - network: false, "
+                                        "read: denyAllExcept, write: allowAllExcept"], outcome["sandbox_lines"]
+    assert OAUTH not in json.dumps(outcome)
 
 
 def test_the_result_file_and_the_echo_are_redacted_like_the_trace():

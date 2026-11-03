@@ -1634,7 +1634,11 @@ def posture_breach(spec: StepSpec, posture: headless.Posture, outcome: dict, deb
     accounting, not evidence: that attempt fails as attention instead. Bash
     calls the permission layer denied never ran, so only executed ones need
     the sandbox line (and its fences); without per-tool denials (an older
-    outcome) every call counts as executed."""
+    outcome) every call counts as executed. `debug` is `headless.posture_lines`:
+    the reduced debug log plus the sandbox runtime's stderr lines the outcome
+    carries, since 2.1.308 logs the per-command line only there (#560,
+    decision 4c: the document's read-fence line AND the per-command line,
+    each failing closed)."""
     applied = headless.user_settings_env_keys(debug)
     if applied:
         return (f"a user settings env block was applied to the session ({', '.join(applied)}): a settings file "
@@ -1650,13 +1654,18 @@ def posture_breach(spec: StepSpec, posture: headless.Posture, outcome: dict, deb
     elif ((outcome.get("cost_source") == "reported" and float(outcome.get("cost_usd") or 0) > 0)
           or kind in ("ok", "budget_hit", "max_turns") or tool_uses or events):
         return "the session reported a result or tool use but left no init record, so its posture cannot be checked"
+    if init is not None and posture.name == "sandbox":
+        fence = headless.settings_fence_problems(debug)
+        if fence:
+            return "the --settings document is not proven applied to this session: " + "; ".join(fence)
     bash = int(tool_uses.get("Bash") or 0)
     if bash and posture.name == "reduced":
         return f"Bash ran {bash} time(s) under the reduced posture, which grants none"
     denied = outcome.get("denied_tools")
     executed = bash - int(denied.get("Bash") or 0) if isinstance(denied, dict) else bash
     if executed > 0 and not headless.sandbox_engaged(debug):
-        return (f"Bash executed {executed} time(s) but the debug log shows no sandbox engaged — the outputs are "
+        return (f"Bash executed {executed} time(s) but no sandbox engaged: neither the debug log nor the sandbox "
+                f"runtime's stderr ({headless.SANDBOX_DEBUG_ENV}) shows a wrapped command — the outputs are "
                 "destroyed unread; re-run `tools/dash loop doctor` and the canary")
     fences = headless.sandbox_fence_problems(debug) if executed > 0 else []
     if fences:
@@ -1701,7 +1710,7 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
         record_unledgered(ctx, row, report["attempt_id"], float(outcome.get("cost_usd") or 0.0),
                           str(outcome.get("cost_source") or "reported"))
         report.setdefault("flags", []).append(f"this attempt is not in the AI ledger: {outcome['ledger_error']}")
-    debug = headless.reduce_debug_log(d / "debug.log")
+    debug = headless.posture_lines(headless.reduce_debug_log(d / "debug.log"), outcome)
     (d / "debug-sandbox.txt").write_text("\n".join(debug) + "\n", encoding="utf-8")
     kind = str(outcome.get("kind"))
     cost = float(outcome.get("cost_usd") or 0.0)
@@ -2457,11 +2466,11 @@ def _plant(path: Path, token: str) -> None:
 
 def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, fleet: dict) -> headless.ProbeResult:
     """The ≤ $0.10 canary: one real session (it is ledgered like any attempt)
-    in a canary clone, asked to read a planted secret (inside the home fence,
-    and a second copy in a denied private path outside it) with `cat` and with
-    python, reach the network, write outside the clone with a sandboxed command
-    and with the Write tool, count the SECRET_ENV variables it can see, and read
-    a committed symlink. It runs under the run's own credential, so its pass
+    in a canary clone, asked to read a planted fixture file holding a random
+    token (inside the home fence, and a second copy in a denied private path
+    outside it) with `cat` and with python, reach the network, write outside
+    the clone with a sandboxed command and with the Write tool, count the
+    SECRET_ENV variables it can see, and read a committed symlink. It runs under the run's own credential, so its pass
     is cached for that exposure. `headless.judge_canary` decides; the secrets
     and every scratch file are removed whatever happens."""
     if CANARY_MODEL not in allowed_models(fleet):
@@ -2472,9 +2481,10 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
     token = secrets.token_hex(16)
     outside_root = next((Path(p).resolve() for p in headless.private_read_paths() if Path(p).is_dir()), None)
     outside_dir = Path(tempfile.mkdtemp(prefix="jev-canary-", dir=outside_root)) if outside_root else None
-    plant = headless.CanaryPlant(token=token, secret=str(cdir / "secret.txt"), written=str(cdir / "written.txt"),
+    # neutral names: a model asked to read a `secret` may decline on its own (#560, item 3)
+    plant = headless.CanaryPlant(token=token, secret=str(cdir / "fixture.txt"), written=str(cdir / "written.txt"),
                                  write_tool=str(cdir / "written-by-write.txt"),
-                                 outside=str(outside_dir / "secret.txt") if outside_dir else None)
+                                 outside=str(outside_dir / "fixture.txt") if outside_dir else None)
     targets = [Path(plant.written), Path(plant.write_tool)]
     for t in targets:
         t.unlink(missing_ok=True)
@@ -2506,9 +2516,11 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
             argv += ["--meta", f"{k}={v}"]
         relay_dash_gen([*argv, "--", *flags], env=ai_run_env(host.auth), timeout=CANARY_TIMEOUT_S + OUTER_GRACE_S)
         expected = headless.tool_families(headless.posture_tools(spec.allowed_tools, posture))
+        outcome = read_json(d / "outcome.json")
         return headless.judge_canary(
-            headless.read_events(d / "trace.jsonl"), headless.reduce_debug_log(d / "debug.log"),
-            read_json(d / "outcome.json"), plant=plant, left_behind=[str(t) for t in targets if t.exists()],
+            headless.read_events(d / "trace.jsonl"),
+            headless.posture_lines(headless.reduce_debug_log(d / "debug.log"), outcome),
+            outcome, plant=plant, left_behind=[str(t) for t in targets if t.exists()],
             expected_tools=expected, credential_env=headless.credential_exposure(host.auth),
             # ai-run's trace Redactor has the HOME it was given: the same one, so the same `~` paths
             redact=headless.Redactor(ai_run_env(host.auth)).text)
@@ -2608,6 +2620,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                                    "credential_env": headless.credential_exposure(host.auth), "at": iso()})
                             host.canary = "ok" if verdict.ok else "failed"
                             canary_problems = verdict.problems
+                            if verdict.ok:
+                                # the host check's note was written before the canary ran
+                                host.notes = [n for n in host.notes if not n.startswith("canary: none passing")]
+                                host.notes.append(
+                                    f"canary: passed — {verdict.facts.get('sandbox_lines', 0)} sandboxed command "
+                                    f"line(s), fences {verdict.facts.get('fences') or {}}; cached for this CLI, "
+                                    "posture template and credential exposure")
                             if not verdict.ok:
                                 host.problems.append((EXIT["host_unsafe"],
                                                       "the canary failed: the sandbox did not enforce"))
