@@ -144,6 +144,9 @@ No scheduled AI is added; any AI step gets a `vars.*_ENABLED` kill switch (§ 17
 
 ## 8. Phases (proposed epic)
 
+Superseded in detail by the implementation plan [FLEET-ACTIVITY-REPLAY-PLAN.md](FLEET-ACTIVITY-REPLAY-PLAN.md) (phases P0–P5, milestones, acceptance criteria), which also records the research-driven choices: Phoenix + OTel GenAI as the trace store of record, Redis pub/sub + stream into Postgres, agent-prism components, and a Module Federation 2.0 plugin. The outline below is kept for history.
+
+
 1. Prior-art decision recorded; envelope + `fleet_activity` schema; Docker events and job sources; `/api/activity/events` and `/health`; tests.
 2. Redis tail, `/stream` and `/replay` SSE, MCP read tools, session and `fleet_event` sources.
 3. `/replay` view (graph + timeline + inspector), snapshot sample for Pages, scenario and evidence under `test/evidence/fleet-activity-replay/` (docs/VERIFICATION.md).

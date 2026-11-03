@@ -1,17 +1,17 @@
 id: HUB-NEW
 slug: fleet-activity-replay
 title: "Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed)"
-description: "Design only (Draft). Captures container lifecycle and stats, agent session, job and fleet_event activity from the fleet Docker stack into the fleet's own storage (an append-only fleet_activity table in the fleet-db Postgres, hot tail in Redis Streams), serves it through one read-only console API that both streams live (SSE, the /api/live/stream pattern) and replays any past window at a chosen speed, and renders it as an animated timeline + node graph console plugin (/replay) in the fleet shell, with Grafana, Kibana and Phoenix deep links per event. Builds on the activity log (HUB-024), the pipeline map (HUB-025) and /live (HUB-030); it is the runtime/history layer the /map roadmap item (bamr87/bamr87#479) consumes. Spec: docs/prd/FLEET-ACTIVITY-REPLAY.md."
+description: "Design only (Draft). Captures container lifecycle and stats, agent session, job and fleet_event activity from the fleet Docker stack into the fleet's own storage (an append-only fleet_activity table in the fleet-db Postgres, hot tail in Redis Streams), serves it through one read-only console API that both streams live (SSE, the /api/live/stream pattern) and replays any past window at a chosen speed, and renders it as an animated timeline + node graph console plugin (/replay) in the fleet shell, with Grafana, Kibana and Phoenix deep links per event. Builds on the activity log (HUB-024), the pipeline map (HUB-025) and /live (HUB-030); it is the runtime/history layer the /map roadmap item (bamr87/bamr87#479) consumes. Spec: docs/prd/FLEET-ACTIVITY-REPLAY.md; implementation plan and epic: docs/prd/FLEET-ACTIVITY-REPLAY-PLAN.md (Phoenix + OTel GenAI spans as the trace store of record, the existing OTel Collector fanning out to Phoenix and Grafana, hook and container events through Redis pub/sub and a capped stream into Postgres, agent-prism trace components, and a Module Federation 2.0 fleet-shell plugin)."
 implemented: false
 status: planned
 surface: ui
 link: docs/prd/FLEET-ACTIVITY-REPLAY.md
 docs: docs/prd/FLEET-ACTIVITY-REPLAY.md
-tags: [ console, observability, activity-log, replay, timeline, docker, storage, visualization ]
+tags: [ console, otel, phoenix, epic, observability, activity-log, replay, timeline, docker, storage, visualization ]
 date: 2026-11-03
 tests:
   - {na: "design-only PRD; nothing implemented yet"}
-prd: ["FR5", "FR7", "FR10", "FR15", "FR16", "FR17", "FR18", "FR19", "FR20", "FR26", "FR60", "NFR4", "NFR5", "NFR6", "NFR7", "NFR9", "FR-NEW:activity-capture", "FR-NEW:activity-stream-replay", "FR-NEW:activity-replay-view", "NFR-NEW:activity-replay-bounded"]
+prd: ["FR5", "FR7", "FR10", "FR15", "FR16", "FR17", "FR18", "FR19", "FR20", "FR26", "FR60", "NFR4", "NFR5", "NFR6", "NFR7", "NFR9", "FR-NEW:activity-capture", "FR-NEW:activity-stream-replay", "FR-NEW:activity-replay-view", "NFR-NEW:activity-replay-bounded", "FR-NEW:agent-trace-otel"]
 prd_new:
   - key: activity-capture
     kind: FR
@@ -25,3 +25,6 @@ prd_new:
   - key: activity-replay-bounded
     kind: NFR
     text: "Activity capture and replay never block, slow or fail a fleet container, agent or loop: the collector is read-only (docker.sock read-only, no exec), bounded (rate, payload and retention caps from _data/fleet.yml), redacts before storage, counts every dropped event, binds to loopback, and never stores, prints or returns a secret."
+  - key: agent-trace-otel
+    kind: FR
+    text: "Every fleet agent turn and tool call must be recorded as an OpenTelemetry GenAI span through the fleet's OTel Collector into Phoenix as the trace store of record, with span-derived metrics in Prometheus/Grafana and the same trace_id carried on every activity event, so the console can open any event's trace tree."
