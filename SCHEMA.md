@@ -26,6 +26,7 @@ coverage: listed
 | `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
 | `features/` | dir | The hub's own feature index (`features/v1`): what the dash does for a user, where it lives, what proves it — aggregated fleet-wide by `dash features fleet` (docs/VERIFICATION.md) | required |
+| `infra/` | dir | Infrastructure as code (OpenTofu, MPL-2.0): each fleet node's `fleet` network and data volumes, planned and applied by `tools/dash infra` from `_data/fleet.yml` `nodes:` (ADR 0003, docs/PLATFORM.md) | required |
 | `verify/` | dir | The hub's agent-verification harness: run config, user scenarios, the rendered Playwright runner, the Playwright MCP config (kit: `templates/verify/`) | required |
 | `test/` | dir | Verification outputs — evidence bundles (`test/evidence/<scenario>/`) written by `tools/dash verify`; hub unit tests live beside their modules | required |
 | `pages/` | dir | The public site's Markdown — `profile/` pages and `posts/` — served by `tools/console/site_docs.py` (docs/CONSOLE-PAGES.md) | required |

@@ -1,0 +1,41 @@
+# The IaC layer's gate (ADR 0003, docs/PLATFORM.md). OpenTofu checks the
+# formatting of infra/, then initialises every root module without a backend
+# and validates it: nothing is read from a node and no state exists here.
+# CI never holds an SSH key to a fleet node, so `plan` and `apply` stay local
+# (`tools/dash infra`); this job only proves the HCL is well-formed.
+name: infra
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+      - name: Format
+        run: tofu fmt -check -recursive -diff infra
+      - name: Initialise and validate each root module
+        run: |
+          set -euo pipefail
+          for dir in infra/*/; do
+            echo "::group::${dir}"
+            tofu -chdir="$dir" init -backend=false -input=false
+            tofu -chdir="$dir" validate
+            echo "::endgroup::"
+          done
