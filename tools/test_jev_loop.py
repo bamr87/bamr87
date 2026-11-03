@@ -184,13 +184,30 @@ if kind.startswith("canary"):
     debug(SANDBOX_LINE)
     result(0.03)
     sys.exit(0)
+for rel, text in (sc.get("edits") or {}).items():   # the doctor edits tracked files in the checkout
+    with open(rel, "a") as fh:
+        fh.write(text)
+for rel, text in (sc.get("new_files") or {}).items():
+    os.makedirs(os.path.dirname(rel) or ".", exist_ok=True)
+    with open(rel, "w") as fh:
+        fh.write(text)
+if sc.get("branch"):   # …branches and commits with its own allowed git (local.harvest: patch tolerates it)
+    import subprocess
+    for cmd in (["git", "checkout", "-q", "-b", sc["branch"]], ["git", "add", "-A"],
+                ["git", "-c", "user.name=stub", "-c", "user.email=stub@example.com", "-c", "commit.gpgsign=false",
+                 "commit", "-q", "-m", "fix"]):
+        subprocess.run(cmd, check=True, capture_output=True)
+    tool("Bash", {"command": f"git checkout -b {sc['branch']}"}, f"Switched to a new branch '{sc['branch']}'")
+for cmd, out_, err_ in (sc.get("calls") or []):   # scripted calls, e.g. the gh create the permission layer refused
+    tool("Bash", {"command": cmd}, out_, bool(err_))
 for i in range(int(sc.get("bash", 2))):
     tool("Bash", {"command": "git log -1"}, "commit abc")
 for i in range(int(sc.get("denied_bash", 0))):
     tool("Bash", {"command": "rg x"}, "Permission to use Bash with command rg x has been denied.", True)
 if sc.get("bash", 2) and sc.get("sandbox_line", True):
     debug(SANDBOX_LINE)
-os.makedirs(".scout", exist_ok=True)
+if sc.get("proposals") is not None or sc.get("symlink"):
+    os.makedirs(".scout", exist_ok=True)
 if sc.get("symlink"):
     os.symlink(sc["symlink"], ".scout/proposals.json")
 elif sc.get("proposals") is not None:
@@ -218,6 +235,9 @@ if sc.get("sleep"):   # a session that outlives the engine's backstop
 result(float(sc.get("cost", 0.61)))
 sys.exit(0)
 '''
+
+REFUSED_GH = ("Permission to use Bash has been denied because Claude Code is running in don't ask mode. "
+              "IMPORTANT: You *may* attempt to accomplish this action using other tools.")
 
 STUB_GH = r'''#!__PY__
 import json, os, subprocess, sys
@@ -415,18 +435,19 @@ class Box:
     def last(self) -> dict:
         return json.loads((self.latest() / "run.json").read_text())
 
-    def seed_probe(self, ok: bool = True, posture: str = "sandbox") -> None:
-        spec = L.load_step("repo-scout")
+    def seed_probe(self, ok: bool = True, posture: str = "sandbox", loop: str = "repo-scout") -> None:
+        spec = L.load_step(loop)
         L.store(".probe.json", L.cache_key((2, 1, 308), spec, H.Posture(posture)),
                 {"ok": ok, "problems": [] if ok else ["isolated: a project hook ran"], "at": L.iso()})
 
     def seed_live(self, scenario: dict | list | None = None, *, canary: bool = True,
-                  posture: str = "sandbox", auth: H.AuthChoice | None = H.AuthChoice("oauth", "env")) -> None:
+                  posture: str = "sandbox", auth: H.AuthChoice | None = H.AuthChoice("oauth", "env"),
+                  loop: str = "repo-scout") -> None:
         """What a live attempt needs: a passing probe (and canary, for `auth`'s
         credential exposure: the box's env OAuth token by default), and the stub's script."""
-        self.seed_probe(posture=posture)
+        self.seed_probe(posture=posture, loop=loop)
         if canary:
-            L.store(".canary.json", L.canary_key((2, 1, 308), L.load_step("repo-scout"), H.Posture(posture), auth),
+            L.store(".canary.json", L.canary_key((2, 1, 308), L.load_step(loop), H.Posture(posture), auth),
                     {"ok": True, "problems": [], "at": L.iso()})
         if scenario is not None:
             (self.bin / "scenario.json").write_text(json.dumps(scenario))
@@ -487,6 +508,13 @@ def world(box: Box, *, sandbox: bool = True, fleet_edit=None, dirty: list[str] |
         L.DASH_GEN, L.sandbox_available, L.load_fleet, L.hub_state, H.private_read_paths = saved
 
 
+def pilot_ceiling(f: dict) -> None:
+    """The $25 budget.loops the scout pilot was set at: the budget tests' arithmetic
+    (an $8 cap, a $20 scheduled stop) is written against it, whatever the hub's
+    current ceiling (the doctor's $40 cap raised it to $50, ADR 0002 P3)."""
+    f["budget"]["loops"].update({"monthly_usd": 25, "scheduled_stop_pct": 80})
+
+
 def jev(*argv: str) -> tuple[int, str, str]:
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -509,12 +537,17 @@ def hub_status() -> str:
 # --------------------------------------------------------------------------- #
 # refusals before anything runs
 # --------------------------------------------------------------------------- #
-def test_list_shows_the_scout_step():
+def test_list_shows_every_local_step():
     code, out, _ = jev("list", "--json")
     rows = json.loads(out)
-    assert code == 0 and [r["step"] for r in rows] == ["repo-scout/scout"]
-    assert rows[0]["publish_tier"] == "high" and rows[0]["switch"]["variable"] == "REPO_SCOUT_ENABLED"
-    assert rows[0]["cap_usd"] == 8.0 and rows[0]["on_budget_hit"] == "discard"
+    assert code == 0 and [r["step"] for r in rows] == ["fleet-pulse/doctor", "repo-scout/scout"]
+    scout = rows[1]
+    assert scout["publish_tier"] == "high" and scout["switch"]["variable"] == "REPO_SCOUT_ENABLED"
+    assert scout["cap_usd"] == 8.0 and scout["on_budget_hit"] == "discard"
+    doctor = rows[0]
+    assert doctor["adapter"] == "fleet_pulse_doctor" and doctor["cap_usd"] == 40.0 and doctor["publish_tier"] == "high"
+    assert doctor["switch"] == {"config": "remediation.enabled", "config_value": True, "variable": "FLEET_PULSE_ENABLED",
+                                "default": "on"}
 
 
 def test_a_live_run_offline_is_refused_before_anything_runs():
@@ -1212,10 +1245,11 @@ def test_json_output_is_only_the_run_record():
 def test_doctor_runs_the_probe_credential_free_and_caches_it():
     box = Box()
     with world(box):
-        code, out, err = jev("doctor", "--json")
+        code, out, err = jev("doctor", "repo-scout", "--json")
         report = json.loads(out)
         assert code == 0, (report, err)
         [step] = report["steps"]
+        assert step["step"] == "repo-scout/scout", "the positional filter runs one step's checks"
         assert step["probe"] == "ok" and step["probe_problems"] == [] and report["runs_dir_ignored"] is True
         assert step["auth"] == {"method": "oauth", "source": "env"}
         probed = [json.loads(x) for x in (box.bin / "probed.jsonl").read_text().splitlines()]
@@ -1225,6 +1259,9 @@ def test_doctor_runs_the_probe_credential_free_and_caches_it():
         assert L.cached(".probe.json", L.cache_key((2, 1, 308), spec, H.Posture("sandbox")))["ok"] is True
         code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--offline")
         assert code == 0 and box.last()["host"]["probe"] == "ok", "a rehearsal reads the cached probe"
+        code, out, _ = jev("doctor", "--json")
+        assert code == 0 and [e["step"] for e in json.loads(out)["steps"]] == ["fleet-pulse/doctor", "repo-scout/scout"]
+        assert jev("doctor", "no-such-loop")[0] == 2
     assert not box.prompted() and not list(box.work.glob(".doctor-*")), "scratch removed"
 
 
@@ -1233,10 +1270,10 @@ def test_doctor_exits_127_without_claude_and_4_without_a_sandbox():
     with world(box):
         assert jev("doctor", "--claude-bin", "no-such-claude")[0] == 127
     with world(box, sandbox=False):
-        code, out, _ = jev("doctor", "--json")
+        code, out, _ = jev("doctor", "repo-scout", "--json")
         assert code == 4 and "no sandbox" in " ".join(json.loads(out)["steps"][0]["problems"])
         # the reduced posture's document has no sandbox, and 2.1.308 logs no $0 proof that it applied: refused
-        code, out, _ = jev("doctor", "--posture", "reduced", "--json")
+        code, out, _ = jev("doctor", "repo-scout", "--posture", "reduced", "--json")
         assert code == 4 and "no positive proof for the reduced posture" in " ".join(
             json.loads(out)["steps"][0]["probe_problems"]), out
 
@@ -1601,10 +1638,10 @@ def test_the_monthly_ceiling_skips_an_attempt_that_would_not_fit_and_scheduled_s
              "total_cost_usd": 13.0, "cost_source": "reported"}
     noise = [{**spent, "loop": None, "total_cost_usd": 100.0},                                # a plain dash ai run
              {**spent, "timestamp": "2020-01-31T23:00:00-06:00", "total_cost_usd": 100.0}]    # another month
-    with world(box, STUB_GH_VAR_REPO_SCOUT_ENABLED="true"):
+    with world(box, STUB_GH_VAR_REPO_SCOUT_ENABLED="true", fleet_edit=pilot_ceiling):
         box.seed_live({"kind": "ok", "proposals": GOOD})
         _seed_ledger(box, [spent, *noise])
-        state = L.budget_position(S.load_fleet(), scheduled=False)
+        state = L.budget_position(L.load_fleet(), scheduled=False)
         assert state.spent_usd == 13.0 and state.cap_usd == 25.0 and state.stop_usd == 20.0
         code, _, _ = jev("run", "repo-scout", "--target", TARGET, "--scheduled")
         item = box.last()["items"][0]
@@ -1752,11 +1789,11 @@ def test_a_live_run_refuses_without_a_passing_canary_and_reduced_needs_none():
 def test_doctor_live_runs_the_canary_only_with_a_yes_and_judges_it():
     box = Box()
     with world(box):
-        code, _, err = jev("doctor", "--live")
+        code, _, err = jev("doctor", "repo-scout", "--live")
         assert code == 2 and "--yes" in err and not box.live_calls(), "no terminal, no --yes: refused"
-        assert jev("doctor", "--live", "--yes", "--posture", "reduced")[0] == 2
+        assert jev("doctor", "repo-scout", "--live", "--yes", "--posture", "reduced")[0] == 2
         (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_pass"}))
-        code, out, err = jev("doctor", "--live", "--yes", "--json")
+        code, out, err = jev("doctor", "repo-scout", "--live", "--yes", "--json")
         report = json.loads(out)
         assert code == 0 and report["steps"][0]["canary"] == "ok", (report, err)
         spec = L.load_step("repo-scout")
@@ -1774,13 +1811,13 @@ def test_doctor_live_runs_the_canary_only_with_a_yes_and_judges_it():
         assert not (box.root / "canary" / "secret.txt").exists(), "the planted secret is removed"
         assert not list((box.root / "private").iterdir()), "and so is its copy outside home"
         (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_leak"}))
-        code, out, _ = jev("doctor", "--live", "--yes", "--json")
+        code, out, _ = jev("doctor", "repo-scout", "--live", "--yes", "--json")
         step = json.loads(out)["steps"][0]
         assert code == 4 and step["canary"] == "failed"
         assert any("planted secret reached" in p for p in step["canary_problems"]), step["canary_problems"]
         assert L.cached(".canary.json", key)["ok"] is False
         (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_env_leak"}))
-        code, out, _ = jev("doctor", "--live", "--yes", "--json")
+        code, out, _ = jev("doctor", "repo-scout", "--live", "--yes", "--json")
         step = json.loads(out)["steps"][0]
         assert code == 4 and any("SECRET_ENV visible" in p and "CLAUDE_CODE_OAUTH_TOKEN" in p
                                  for p in step["canary_problems"]), step["canary_problems"]
@@ -1791,7 +1828,7 @@ def test_the_canary_passes_with_its_directory_under_home_as_it_is_by_default():
     box = Box()
     with world(box, HOME=str(box.root)):
         (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_pass"}))
-        code, out, err = jev("doctor", "--live", "--yes", "--json")
+        code, out, err = jev("doctor", "repo-scout", "--live", "--yes", "--json")
         step = json.loads(out)["steps"][0]
         trace = next((box.root / "canary").glob("*"), None)
     assert code == 0 and step["canary"] == "ok", (step.get("canary_problems"), err)
@@ -1803,17 +1840,17 @@ def test_the_canary_passes_with_its_directory_under_home_as_it_is_by_default():
 def test_doctor_live_at_the_ceiling_or_with_the_lock_held_runs_no_canary_and_says_so():
     box = Box()
     month = L.now_utc().strftime("%Y-%m")
-    with world(box):
+    with world(box, fleet_edit=pilot_ceiling):
         (box.bin / "scenario.json").write_text(json.dumps({"kind": "canary_pass"}))
         _seed_ledger(box, [{"timestamp": f"{month}-01T00:30:00+00:00", "origin": "local", "loop": "repo-scout",
                             "total_cost_usd": 25.0, "cost_source": "reported"}])
-        code, out, _ = jev("doctor", "--live", "--yes", "--json")
+        code, out, _ = jev("doctor", "repo-scout", "--live", "--yes", "--json")
         step = json.loads(out)["steps"][0]
         assert code == 1 and any("canary not run" in p for p in step["problems"]), step
         (box.root / "ledger.json").unlink()
         with (box.root / "ledger.json.loops.lock").open("a") as fh:
             fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            code, out, _ = jev("doctor", "--live", "--yes", "--json")
+            code, out, _ = jev("doctor", "repo-scout", "--live", "--yes", "--json")
         assert code == 1 and any("budget lock" in p for p in json.loads(out)["steps"][0]["problems"])
     assert not box.live_calls(), "a canary the month cannot absorb, or that another attempt races, never runs"
 
@@ -1900,9 +1937,9 @@ def test_at_the_ceiling_a_tier0_reuse_still_runs_at_zero_cost():
 def test_the_ceiling_is_read_afresh_before_each_attempt_and_held_under_the_budget_lock():
     box = Box()
     month = L.now_utc().strftime("%Y-%m")
-    with world(box):
+    with world(box, fleet_edit=pilot_ceiling):
         spec = L.load_step("repo-scout")
-        ctx = L.RunContext(spec=spec, adapter=None, fleet=S.load_fleet(), opts=L.Options(),
+        ctx = L.RunContext(spec=spec, adapter=None, fleet=L.load_fleet(), opts=L.Options(),
                            plan_dir=box.root / "plan", history=L.History(box.runs))
         ctx.budget = L.budget_position(ctx.fleet, scheduled=False)
         assert ctx.budget.spent_usd == 0 and L.budget_block(ctx, True) is None
@@ -2976,6 +3013,106 @@ def test_loop_budget_says_so_when_the_caps_exceed_the_fleet_ceiling_or_it_cannot
             jcode, jout, _ = jev("budget", "--json")
         assert code == L.EXIT["attention"] and "both inside" not in out and needle in out, (code, out)
         assert jcode == L.EXIT["attention"] and json.loads(jout)["inside_monthly_ai_usd"] is False, jout
+
+
+# --------------------------------------------------------------------------- #
+# the fleet doctor (ADR 0002 P3): cwd hub, a brief at a fixed root name, the
+# agent's own branch and commits, the patch harvest and the refused apply
+# --------------------------------------------------------------------------- #
+DOCTOR_KEY = "bamr87/bamr87:.github/workflows/ci.yml"
+DOCTOR_MARKER = f'<!-- fleet-doctor key="{DOCTOR_KEY}" -->'
+
+
+def doctor_plan(box: Box, *, where: str = "hub", repo: str = "bamr87/bamr87") -> Path:
+    """A saved one-item doctor plan (what `dash-gen remediate --plan-dir` writes), beside its brief."""
+    d = box.root / "doctor-plan"
+    d.mkdir(exist_ok=True)
+    spec = L.load_step("fleet-pulse")
+    key = f"{repo}:.github/workflows/ci.yml"
+    marker = f'<!-- fleet-doctor key="{key}" -->'
+    (d / "doctor-workorder-ci.md").write_text(
+        "# Fleet doctor — remediation work order\n\n## 1. x/ci.yml  `[failing]`\n\n- **MARKER**\n\n"
+        f"{marker}\n", encoding="utf-8")
+    row = {"key": key, "name": "ci", "nwo": "bamr87/bamr87", "branch": "main", "repo": repo, "workflow": "CI",
+           "path": ".github/workflows/ci.yml", "where": where, "signals": ["failing"], "marker": marker,
+           "brief": "doctor-workorder-ci.md", "dedupe": "clear", "evidence": "offline"}
+    row["prompt"] = S.render_prompt(spec, S.values_from(spec, row))
+    plan = {"count": 1, "include": [row], "skipped": [], "dropped": [], "total": 1, "max_candidates": 4}
+    (d / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+    return d / "plan.json"
+
+
+def test_the_doctor_runs_in_the_hub_edits_commits_and_its_patch_and_filing_are_previewed():
+    box = Box()
+    gh_call = ('gh pr create --draft --base main --label fleet-doctor --label automation '
+               '--title "ci: pin the runner image" --body "' + DOCTOR_MARKER +
+               '\n\n**Problem** — the CI workflow fails on the unpinned image."')
+    with world(box):
+        box.seed_live({"kind": "ok", "bash": 1, "edits": {"README.md": "a fix\n"},
+                       "new_files": {".github/workflows/ci.yml": "name: CI\n"},
+                       "branch": "fix/fleet-doctor-ci", "calls": [[gh_call, REFUSED_GH, True]]}, loop="fleet-pulse")
+        plan = doctor_plan(box)
+        code, _, err = jev("run", "fleet-pulse", "--plan-file", str(plan), "--item", "ci", "--context", "off")
+    rec = box.last()
+    item = rec["items"][0]
+    assert code == 0 and item["status"] == "previewed", (item, err)
+    assert not item.get("tampered") and "harvested as changes.patch" in " ".join(item.get("flags") or []), item
+    d = box.latest() / "items" / item["dir"]
+    patch = (d / "outputs" / "changes.patch").read_text()
+    assert "+a fix" in patch and "ci.yml" in patch and "name: CI" in patch, patch[:400]
+    doc = json.loads((d / "outputs" / "doctor.validated.json").read_text())
+    assert doc["kind"] == "pr" and doc["title"] == "ci: pin the runner image" and doc["branch"] == "fix/fleet-doctor-ci"
+    assert doc["body"].splitlines()[0] == DOCTOR_MARKER and doc["source"] == "gh-call" and doc["patch"] == "doctor.patch"
+    plan_doc = json.loads((d / "publish-plan.json").read_text())
+    assert plan_doc["publishable"] and plan_doc["rows"][0]["kind"] == "pr" and plan_doc["rows"][0]["url"] is None
+    assert list((d / "bodies").glob("*.md")) and list((d / "bodies").glob("*.patch"))
+    # the agent's live claude ran in the hub clone with the brief at its fixed root name, and no credential
+    [call] = box.live_calls()
+    assert call["cwd"].endswith("/bamr87") and not {"GH_TOKEN", "GITHUB_TOKEN", "FLEET_TOKEN"} & set(call["env"])
+    assert "remediation-workorder.md" in (d / "prompt.txt").read_text()
+    no_writes(box)
+    assert not list(box.work.glob("*/*")), "the clone is destroyed after the harvest"
+
+
+def test_a_submodule_candidate_falls_back_to_the_issue_the_agent_asked_for():
+    box = Box()
+    marker = '<!-- fleet-doctor key="bamr87/alpha:.github/workflows/ci.yml" -->'
+    with world(box):
+        box.seed_live({"kind": "ok", "bash": 1, "calls": [
+            ['GH_TOKEN="$FLEET_WRITE_TOKEN" gh api user --jq .login', REFUSED_GH, True],
+            ['gh issue create -R bamr87/bamr87 --label fleet-doctor --label automation --title "alpha CI fails" '
+             '--body "' + marker + '\n\nthe token was rejected here"', REFUSED_GH, True]]}, loop="fleet-pulse")
+        plan = doctor_plan(box, where="submodule", repo="bamr87/alpha")
+        code, _, err = jev("run", "fleet-pulse", "--plan-file", str(plan), "--item", "ci", "--context", "off")
+    item = box.last()["items"][0]
+    assert code == 0 and item["status"] == "previewed", (item, err)
+    d = box.latest() / "items" / item["dir"]
+    doc = json.loads((d / "outputs" / "doctor.validated.json").read_text())
+    assert doc["kind"] == "issue" and doc["repo"] == "bamr87/bamr87" and doc["patch"] is None
+    assert doc["body"].startswith(marker)
+    no_writes(box)
+
+
+def test_an_attempt_with_no_fix_and_no_filing_is_rejected_and_apply_is_refused_by_the_filer():
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "ok", "bash": 1}, loop="fleet-pulse")
+        plan = doctor_plan(box)
+        code, _, _ = jev("run", "fleet-pulse", "--plan-file", str(plan), "--item", "ci", "--context", "off")
+        item = box.last()["items"][0]
+        assert code == 1 and item["status"] == "rejected" and "neither a fix" in item["reason"], item
+    gh_call = 'gh pr create --draft --title "t" --body "' + DOCTOR_MARKER + '\n\nbody"'
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "bash": 1, "edits": {"README.md": "x\n"}, "branch": "fix/fleet-doctor-ci",
+                       "calls": [[gh_call, REFUSED_GH, True]]}, loop="fleet-pulse")
+        code, _, _ = jev("run", "fleet-pulse", "--plan-file", str(plan), "--item", "ci", "--context", "off",
+                         "--apply", "--fresh")
+        item = box.last()["items"][0]
+    # the live recheck (the real planner against today's queue) or the filer's own refusal (#488) stops the
+    # filing: either way nothing is written, and the preview is on disk for the reviewer
+    assert item["status"] in ("publish-skipped", "publish-failed", "partial") and item.get("published", 0) == 0, item
+    assert item["publishable"] and item["would_file"] == 1
+    no_writes(box)
 
 
 if __name__ == "__main__":

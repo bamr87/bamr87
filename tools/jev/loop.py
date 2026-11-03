@@ -70,7 +70,8 @@ from . import workspace as wsp
 from .adapters import REUSE_DAYS, Adapter, Item, PlanResult, PublishPlan, Verdict
 from .common import HUB, JevError, Run, dotenv_values, gh, git, hub_repo, is_bare_name, load_config, run
 from .ledger import BudgetState, Ledger, budget_state
-from .spec import (PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, ContextSpec, StepSpec, StepSpecError, allowed_models,
+from .spec import (PATCH_OUTPUT, PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, ContextSpec, StepSpec, StepSpecError,
+                   allowed_models,
                    fleet_value, load_fleet, load_spec, render_argv, render_prompt, spec_files, values_from)
 
 DASH_GEN = HUB / "tools" / "dash-gen"
@@ -91,7 +92,10 @@ CANARY_TURNS = 12
 CANARY_CAP_USD = 0.10
 CANARY_TIMEOUT_S = 300
 SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
-TARGET_RX = re.compile(r"[A-Za-z0-9_.-]+")
+#: `--target`: a registry name (scout), or a planner's own item key — the doctor's
+#: marker key `owner/repo:.github/workflows/x.yml`, `owner/repo/workflow` or a file
+#: stem. One token: no whitespace, no control character, never option-shaped.
+TARGET_RX = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./:@-]{0,199}")
 DAY_RX = re.compile(r"\d{4}-\d{2}-\d{2}")
 #: the backstop's SIGTERM-to-SIGKILL grace: ai-run's own SIGINT-first ladder needs well under it
 BACKSTOP_KILL_S = 60
@@ -190,7 +194,7 @@ def option_refusal(opts: Options, *, verb: str) -> str | None:
     if bool(opts.plan_file) != bool(opts.item):
         return "--plan-file and --item go together (one row of a saved plan)"
     if opts.target != "all" and not TARGET_RX.fullmatch(opts.target or ""):
-        return f"--target {opts.target!r} is not a registry name"
+        return f"--target {opts.target!r} is not a registry name or a planner item key (one plain token)"
     if opts.day and not DAY_RX.fullmatch(opts.day):
         return f"--day {opts.day!r} is not YYYY-MM-DD"
     if any(c in (opts.focus or "") for c in "\0\r\n"):
@@ -236,9 +240,11 @@ def load_step(loop: str, step: str | None = None, *, fleet: dict | None = None) 
     if spec.local is None:
         raise StepSpecError(f"{spec.loop}/{spec.step}: no local runner for this step yet "
                             "(its spec has no local: block)")
-    if spec.workspace.cwd != "target" or spec.workspace.github_credential != "none":
-        raise StepSpecError(f"{spec.loop}/{spec.step}: workspace cwd {spec.workspace.cwd!r} / github_credential "
-                            f"{spec.workspace.github_credential!r} — P1 runs only cwd target with no credential (P3)")
+    # Every workspace kind and credential posture the loader accepts runs here
+    # the same way: the clone is the item's `nwo` (the adapter names the hub for
+    # a `cwd: hub` step), and the agent's environment carries NO GitHub
+    # credential under any posture — `fleet-write` describes what CI hands the
+    # step; locally the engine's publish step holds the token (§ 13.8, ADR 0002 P3).
     return spec
 
 
@@ -1297,7 +1303,8 @@ def place_inputs(ctx: RunContext, ws: wsp.Workspace, brief: Path | None, pack: c
         data = brief.read_bytes()
         if built:
             data += b"\n" + cpack.pointer(bd, file).encode("utf-8")
-        wsp.place_bytes(ws, data, f"{bd}/{brief.name}")
+        # a step whose prompt reads the brief by a fixed name gets it in the clone root (workspace.brief_file)
+        wsp.place_bytes(ws, data, ctx.spec.workspace.brief_file or f"{bd}/{brief.name}")
     if built:
         data = pack.path.read_bytes()
         if hashlib.sha256(data).hexdigest() != pack.sha256:
@@ -1463,7 +1470,8 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
         if not ctx.opts.offline:
             try:
                 ws = wsp.clone(item.nwo, item.branch, run_id=ctx.run.run_id, brief_dir=ctx.spec.workspace.brief_dir,
-                               dirname=dirname)
+                               dirname=dirname, brief_file=ctx.spec.workspace.brief_file,
+                               allow_commits=ctx.spec.local.harvest == "patch")
             except JevError as exc:
                 report.update(status="failed", reason=str(exc), code=EXIT["attention"])
                 ctx.run.append_attempt({**row, "decision": report["decision"], "attempt_id": attempt_id,
@@ -1751,13 +1759,22 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
 
     tree = wsp.tree_report(ws)
     _write_tree(d, tree)
-    if tree.tracked:
-        wsp.discard_tracked(ws)   # CI's "Verify the tree is untouched"
-        report.setdefault("flags", []).append(f"tracked edits discarded: {', '.join(tree.tracked)}")
-    if tree.untracked:
-        report.setdefault("flags", []).append(f"untracked files outside {spec.workspace.brief_dir}/ left in the "
-                                              f"clone (ignored): {', '.join(tree.untracked[:10])}")
-    harvested = {rel: wsp.harvest(ws, rel, d / "outputs") for rel in spec.workspace.outputs}
+    if spec.local.harvest == "patch":
+        # the agent's edits ARE the output: one patch through the engine's own git, nothing discarded
+        patch = wsp.diff_patch(ws, d / "outputs")
+        harvested = {PATCH_OUTPUT: patch}
+        if tree.tracked or tree.untracked:
+            report.setdefault("flags", []).append(
+                f"{len(tree.tracked)} tracked edit(s) and {len(tree.untracked)} new file(s) harvested as "
+                f"{PATCH_OUTPUT} ({patch.reason}, {patch.size} bytes)")
+    else:
+        if tree.tracked:
+            wsp.discard_tracked(ws)   # CI's "Verify the tree is untouched"
+            report.setdefault("flags", []).append(f"tracked edits discarded: {', '.join(tree.tracked)}")
+        if tree.untracked:
+            report.setdefault("flags", []).append(f"untracked files outside {spec.workspace.brief_dir}/ left in "
+                                                  f"the clone (ignored): {', '.join(tree.untracked[:10])}")
+        harvested = {rel: wsp.harvest(ws, rel, d / "outputs") for rel in spec.workspace.outputs}
     verdict = ctx.adapter.validate(ctx, item, harvested, outcome)
     write_json(d / "validate.json", {"ok": verdict.ok, "problems": verdict.problems, "flags": verdict.flags,
                                      "facts": verdict.facts,
@@ -2541,7 +2558,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                               "exit": EXIT["host_unsafe"]}, indent=2, sort_keys=True))
         return EXIT["host_unsafe"]
     root = private_work_root()
-    for spec in local_specs(fleet=fleet):
+    chosen = local_specs(fleet=fleet)
+    if getattr(args, "loop", None):
+        chosen = [s for s in chosen if s.loop == args.loop and (args.step is None or s.step == args.step)]
+        if not chosen:
+            print(f"jev loop: no step spec with a local: block for {args.loop}"
+                  f"{'/' + args.step if args.step else ''} (`loop list`)", file=sys.stderr)
+            return EXIT["usage"]
+    for spec in chosen:
         scratch = Path(tempfile.mkdtemp(prefix=".doctor-", dir=root))
         try:
             host = host_check(spec, posture, fleet, args.claude_bin, scratch / "preflight", live=False,
@@ -2855,7 +2879,9 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     ls.add_argument("--json", action="store_true")
     doc = sub.add_parser("doctor",
                          help="$0 host checks: CLI floor, sandbox, credential, flag preflight, isolation probe; "
-                              "--live adds the one-time canary (≤ $0.10)")
+                              "--live adds the one-time canary (≤ $0.10); every local step, or the one named")
+    doc.add_argument("loop", nargs="?", default=None, help="only this loop's step(s) (default: every local step)")
+    doc.add_argument("step", nargs="?", default=None, help="only this step of the loop")
     doc.add_argument("--posture", choices=("sandbox", "reduced"), default="sandbox")
     doc.add_argument("--live", action="store_true",
                      help=f"also run the canary: one ledgered session, ≤ ${CANARY_CAP_USD:.2f} ({COST_LABEL}), "
