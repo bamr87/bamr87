@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for flee
 from fleetcore import fleet as fl  # noqa: E402
 from fleetcore import host as dh  # noqa: E402
 from fleetcore import keys as fk  # noqa: E402
+from fleetcore import loopjob as floop  # noqa: E402
 from fleetcore import theme as ftheme  # noqa: E402
 from fleetcore.client import ConsoleClient, ConsoleError  # noqa: E402
 
@@ -58,6 +59,7 @@ KEY_ACTIONS = {
     "bottom": "cursor_edge(1)", "next_tab": "tab_step(1)", "prev_tab": "tab_step(-1)",
     "refresh": "reload", "refresh_full": "refresh_health", "copy": "copy_link",
     "open": "open_repo", "open_live": "open_live", "sort": "cycle_sort",
+    "loop_run": "loop_run",
 }
 
 
@@ -240,6 +242,7 @@ class DashTui(App):
         self.jobs: list[dict] = []
         self.console_error: str | None = None
         self._job_id: str | None = None   # the job whose log is shown
+        self._job_summarised: str | None = None   # the loop-run whose summary was written
         self._job_offset = 0
         self._job_ansi = ""                # an escape sequence split across two polls
         self._job_polling = False
@@ -1034,34 +1037,67 @@ class DashTui(App):
             if text:
                 self.query_one("#joblog", Log).write(text)
             self._job_offset = tail.get("offset", self._job_offset)
+            # a finished loop-run: the fields fleetcore parsed once, as text
+            # under the log (the page renders the same fields as a table)
+            if tail.get("done") and tail.get("loop") and self._job_summarised != self._job_id:
+                self._job_summarised = self._job_id
+                lines = floop.summary_lines(tail["loop"])
+                if lines:
+                    self.query_one("#joblog", Log).write("\n".join(lines) + "\n")
         self._paint()
 
-    def run_op(self, op_id: str, confirm: bool = False) -> None:
+    def run_op(self, op_id: str, confirm: bool = False, params: dict | None = None) -> None:
         """Submit one allowlisted operation. The console answers 409 when the
-        operation writes to GitHub (or destroys local data); that becomes a
-        yes/no here, and only a yes resubmits with confirm=true."""
+        operation writes to GitHub (or destroys local data, or spends Claude
+        budget); that becomes a yes/no here, and only a yes resubmits with
+        confirm=true — with the same parameters."""
         if self.runtime is None:
             self.notify("No console runtime — start it with `tools/dash console`", severity="warning")
             return
+        params = dict(params or {})
 
         def work() -> None:
             try:
-                job = self.runtime.submit(op_id, {}, confirm=confirm)
+                job = self.runtime.submit(op_id, params, confirm=confirm)
                 self.call_from_thread(self._submitted, job)
             except ConsoleError as exc:
-                self.call_from_thread(self._submit_failed, op_id, str(exc), confirm)
+                self.call_from_thread(self._submit_failed, op_id, str(exc), confirm, params)
 
         threading.Thread(target=work, daemon=True).start()
+
+    def action_loop_run(self) -> None:
+        """`L` — run the selected repo through a loop's agent step on THIS
+        machine: the console's `loop-run` op (the JEV loop runner, a dry run
+        that never files). The step comes from the op's own data, so the TUI
+        keeps no list; a live attempt spends, so the console asks first."""
+        op = next((o for o in self.ops if o.get("id") == "loop-run"), None)
+        if self.runtime is None or op is None:
+            self.notify("No console runtime with a loop-run operation — start it with `tools/dash console`",
+                        severity="warning")
+            return
+        if op.get("unavailable"):
+            self.notify(str(op["unavailable"]), title="loop-run", severity="warning", markup=False, timeout=12)
+            return
+        steps = op.get("agent_steps") or []
+        table = self._active_table()
+        if table is None or table.id != "apps" or not self._selected:
+            self.notify("Select a repo on the Apps tab first", severity="warning")
+            return
+        if not steps:
+            self.notify("No loop has a local agent step yet (tools/jev/steps/)", severity="warning")
+            return
+        step = steps[0]
+        self.run_op("loop-run", params={"loop": step["loop"], "step": step["step"], "target": self._selected})
 
     def _submitted(self, job: dict) -> None:
         self.notify(f"Started: {job.get('title') or job.get('op')}")
         self.query_one("#tabs", TabbedContent).active = "tab-jobs"
         self._show_job(job.get("id"))
 
-    def _submit_failed(self, op_id: str, err: str, confirmed: bool) -> None:
+    def _submit_failed(self, op_id: str, err: str, confirmed: bool, params: dict | None = None) -> None:
         if "confirm" in err and not confirmed:
             self.push_screen(Confirm(f"{op_id}: {err}"),
-                             lambda yes: self.run_op(op_id, confirm=True) if yes else None)
+                             lambda yes: self.run_op(op_id, confirm=True, params=params) if yes else None)
         else:
             self.notify(err, title=op_id, severity="error", markup=False, timeout=12)
 

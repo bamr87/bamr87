@@ -97,7 +97,7 @@ export function OperationPage() {
       {(list) => {
         const o = list.find((x) => x.id === id);
         if (!o) return <Banner tone="warn" title="Not on the allowlist">No operation named {id}. <Anchor component={Link} to={to.ops()}>All operations</Anchor></Banner>;
-        const loops = (state.data?.loops ?? []).filter((l) => l.local_ops.includes(o.id));
+        const loops = (state.data?.loops ?? []).filter((l) => l.local_ops.includes(o.id) || (o.id === 'loop-run' && (l.agent_steps?.length ?? 0) > 0));
         // Newest first — the API already sends that order; reversing it showed the oldest run on top.
         const at = (j: { started?: string | null; created?: string | null }) => j.started ?? j.created ?? '';
         const mine = (jobs.data ?? []).filter((j) => j.op === o.id).sort((a, b) => at(b).localeCompare(at(a)));
@@ -106,7 +106,7 @@ export function OperationPage() {
             <PageHeader
               crumbs={[{ label: 'Operations', to: to.ops() }, { label: o.title }]}
               title={o.title}
-              badges={<><Badge variant="default">{o.group}</Badge>{o.remote_write ? <Badge color="yellow" variant="light">writes to GitHub with apply</Badge> : null}{o.needs_token ? <Badge variant="light">needs gh auth</Badge> : null}{o.exclusive ? <Badge variant="light" color="grape" title={`one ${o.exclusive} writer at a time — a second is refused while this runs`}>runs alone</Badge> : null}</>}
+              badges={<><Badge variant="default">{o.group}</Badge>{o.remote_write ? <Badge color="yellow" variant="light">{o.confirm === 'spend' ? 'spends Claude budget unless rehearsed' : 'writes to GitHub with apply'}</Badge> : null}{o.needs_token ? <Badge variant="light">needs gh auth</Badge> : null}{o.exclusive ? <Badge variant="light" color="grape" title={o.exclusive === 'loop' ? 'one local run per loop at a time — a second run of the same loop is refused while this runs' : `one ${o.exclusive} writer at a time — a second is refused while this runs`}>{o.exclusive === 'loop' ? 'one per loop' : 'runs alone'}</Badge> : null}</>}
               description={o.desc}
             />
             <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">

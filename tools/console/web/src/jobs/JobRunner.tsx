@@ -36,9 +36,11 @@ export function useRunner(): Runner {
   return r;
 }
 
-/** Same rule as the server: a remote op writes only with apply, except the always-writing ones. */
+/** Same rule as the server: a remote op writes only with apply, except the always-writing ones;
+ * an op whose confirm guards SPEND (loop-run) asks unless it is a $0 rehearsal. */
 export function remoteWrite(op: Op | undefined, params: Params = {}): boolean {
   if (!op?.remote_write) return false;
+  if (op.confirm === 'spend') return params.rehearse !== true;
   return params.apply === true || op.id === 'dispatch' || op.id === 'observe-reset';
 }
 
@@ -46,6 +48,7 @@ function confirmText(op: Op, p: Params): string {
   const fields = JSON.stringify(p.fields ?? {});
   switch (op.id) {
     case 'dispatch': return `Dispatch ${String(p.workflow)}.yml in GitHub Actions with ${fields}.`;
+    case 'loop-run': return `Run ${String(p.loop)}${p.step ? `/${String(p.step)}` : ''} locally on ${p.target && p.target !== 'all' ? String(p.target) : "today's sample"}: one capped attempt per item through headless Claude Code in the sandbox, then a dry-run preview under .fleet/runs/ — nothing is filed. This spends Claude budget (API-equivalent, an estimate), held to budget.loops.`;
     case 'content-file': return `${op.title} for ${String(p.target)}. With apply, this opens issues in that site's GitHub repo.`;
     case 'keys-rotate': return `Write each workspace's new Anthropic API key from .env to the repos it serves (hub first), then DISABLE the key each one replaces in the Console.${p.allow_long_lived ? ' Keys that outlive the lifetime policy are allowed.' : ''}`;
     case 'ai-auth-sync': return `Set CLAUDE_AUTH_ORDER on ${String(p.target || 'every fleet repo')} from ai_auth: in _data/fleet.yml. This changes which Claude credential those repos' AI steps use first.`;
@@ -102,10 +105,13 @@ export function JobRunner({ children }: { children: ReactNode }) {
       }
       const remote = remoteWrite(op, params);
       if (remote) {
-        const ok = await confirm('This writes to GitHub', (
+        const spend = op.confirm === 'spend';
+        const ok = await confirm(spend ? 'This spends Claude budget' : 'This writes to GitHub', (
           <Stack gap="xs">
             <Text size="sm">{confirmText(op, params)}</Text>
-            <Text size="xs" c="dimmed">Only one GitHub-writing job runs at a time. The console never commits or merges.</Text>
+            <Text size="xs" c="dimmed">{spend
+              ? 'One confirmed job runs at a time, and one run per loop. Tick "rehearse" for a $0 pass that stops before the model call. The console never commits, merges or files.'
+              : 'Only one GitHub-writing job runs at a time. The console never commits or merges.'}</Text>
           </Stack>
         ), 'Run it', true);
         if (!ok) return null;

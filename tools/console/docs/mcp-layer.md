@@ -166,6 +166,7 @@ Write tools — registered only with `HARNESS_MCP_ALLOW_WRITES=1`, annotated `de
 | Tool | Console route | Effect |
 | --- | --- | --- |
 | `run_op` | `POST /api/jobs` | Start an allowlisted operation (`op`, `params`) |
+| `run_op` with `op: loop-run` | `POST /api/jobs` | The JEV loop runner as a job: `params: {loop, step, target, rehearse}` — a dry run that files nothing; `rehearse: true` is $0, a live attempt spends and needs the console's confirm; `apply` is refused with #487 named until the § 11 write-path decision |
 | `cancel_job` | `POST /api/jobs/{id}/cancel` | Cancel a running job |
 | `console_run` / `console_cancel` | as `run_op` / `cancel_job` | Legacy `fleet` names (also with `--fleet-compat`; the console's confirm gate still applies) |
 | `workflow_kill_switch` | `POST /api/github/repos/{owner}/{repo}/actions` | `workflow.enable` / `workflow.disable` by `workflow_id` (needs the console's GitHub writes on) |

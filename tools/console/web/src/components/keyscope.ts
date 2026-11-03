@@ -13,6 +13,7 @@ export interface KeyHandlers {
   openLive?: () => void;                // l
   copy?: () => void;                    // y
   sort?: () => void;                    // s
+  loopRun?: () => void;                 // L — run this loop's agent step locally
   back?: () => boolean;                 // esc — true when handled
 }
 

@@ -1,0 +1,196 @@
+{
+  "id": "loop-run",
+  "title": "A loop page shows its agent step and offers Run locally only on a console",
+  "features": [
+    "HUB-NEW:console-loop-run-op"
+  ],
+  "path": "verify/scenarios/loop-run.yml",
+  "started": "2026-11-03T20:01:36.794Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/loops/repo_scout",
+          "ok": true,
+          "ms": 714
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='agent-step']"
+          },
+          "ok": true,
+          "ms": 37
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "repo-scout/scout"
+          },
+          "ok": true,
+          "ms": 3
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "API-equivalent (estimate)"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Dispatch in CI"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='run-locally']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "loop-page",
+          "ok": true,
+          "file": "test/evidence/loop-run/desktop-loop-page.png",
+          "ms": 50
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/loop-run/desktop-loop-page.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/loops/repo_scout/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/loops/repo_scout",
+          "ok": true,
+          "ms": 613
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "[data-testid='agent-step']"
+          },
+          "ok": true,
+          "ms": 23
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "repo-scout/scout"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "API-equivalent (estimate)"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Dispatch in CI"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "[data-testid='run-locally']",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "loop-page",
+          "ok": true,
+          "file": "test/evidence/loop-run/mobile-loop-page.png",
+          "ms": 18
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/loop-run/mobile-loop-page.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:4020/loops/repo_scout/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-03T20:01:38.515Z",
+  "base": "http://127.0.0.1:4020"
+}
