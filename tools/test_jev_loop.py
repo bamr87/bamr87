@@ -291,6 +291,8 @@ if argv[:1] == ["api"] and argv[1].startswith("repos/") and argv[1].count("/") =
     print(argv[1][len("repos/"):]); sys.exit(0)
 if argv[:2] == ["repo", "view"]:
     print(json.dumps({"hasIssuesEnabled": True})); sys.exit(0)
+if argv[:2] == ["pr", "list"]:   # the evolve filer's open-pass dedupe: STUB_GH_PRS, default no open pass
+    print(os.environ.get("STUB_GH_PRS") or "[]"); sys.exit(0)
 if argv[:2] == ["issue", "list"]:
     listed = sum(1 for line in open(os.environ["STUB_GH_LOG"]) if line.startswith('["issue", "list"'))
     if listed >= int(os.environ.get("STUB_GH_LIST_FAIL_FROM") or 10 ** 6):
@@ -554,10 +556,10 @@ def test_list_shows_every_local_step():
     assert code == 0 and [r["step"] for r in rows] == ["fleet-pulse/doctor", "repo-evolution/evolve", "repo-scout/scout"]
     evolve = next(r for r in rows if r["step"] == "repo-evolution/evolve")
     assert evolve["adapter"] == "repo_evolution_evolve" and evolve["cap_usd"] == 20.0 and evolve["on_budget_hit"] == "publish-flagged"
-    scout = rows[1]
+    scout = next(r for r in rows if r["step"] == "repo-scout/scout")
     assert scout["publish_tier"] == "high" and scout["switch"]["variable"] == "REPO_SCOUT_ENABLED"
     assert scout["cap_usd"] == 8.0 and scout["on_budget_hit"] == "discard"
-    doctor = rows[0]
+    doctor = next(r for r in rows if r["step"] == "fleet-pulse/doctor")
     assert doctor["adapter"] == "fleet_pulse_doctor" and doctor["cap_usd"] == 40.0 and doctor["publish_tier"] == "high"
     assert doctor["switch"] == {"config": "remediation.enabled", "config_value": True, "variable": "FLEET_PULSE_ENABLED",
                                 "default": "on"}
