@@ -349,8 +349,15 @@ jobs:
         # every other failure still fails the job. test_ai_budget.py pairs them.
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
+        # JEV_STEP_SHA256: the step spec pair's content hash (tools/jev/steps/
+        # fleet-pulse/: doctor.yml, NUL, doctor.prompt.txt). A no-op at run
+        # time; `python3 -m tools.jev steps check` requires it to equal the
+        # spec, and holds the prompt below byte-equal to doctor.prompt.txt, so
+        # changing the hard rules also changes this workflow file — which
+        # GITHUB_TOKEN and the Claude App cannot push (docs/adr/0002, P3).
         env:
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
+          JEV_STEP_SHA256: 0363cfad2d1c7f1d4a81796bfbc10fa45afeb2875d2eaba66eee5da53f2f940f
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
@@ -382,11 +389,21 @@ jobs:
           # is declared in _data/fleet.yml `budget.call_sites` and repeated
           # here because `claude_args` is a literal; test_ai_budget.py asserts
           # the two agree and that the cap clears `usd_per_turn * max-turns`.
+          #
+          # MODEL and TURNS are the literals of _data/fleet.yml remediation.model
+          # and remediation.max_turns (an exact id, constitution § 13.3; the
+          # step spec references the same keys): `steps check` holds them equal.
           claude_args: >-
-            --model opus
+            --model claude-opus-5-5
             --max-turns 240
             --max-budget-usd 40
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(mkdir:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(jq:*),Bash(echo:*),Read,Grep,Glob,Edit,Write"
+          # PROMPT: the hard rules are the JEV step spec tools/jev/steps/
+          # fleet-pulse/doctor.prompt.txt, which has no caller-filled part, so
+          # this inline text IS that file, byte for byte — `steps check`
+          # accepts the inline form only while they are equal, and the local
+          # loop runner renders the same bytes from the spec. An edit here
+          # without the spec (or the reverse) fails the gate.
           prompt: |
             You are the **fleet doctor** (Opus) for the bamr87 monorepo dash, the
             control plane for ~40 submodule repos. A deterministic triage step has

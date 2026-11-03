@@ -21,7 +21,13 @@ Guarded here:
     raising `max_candidates` cannot silently under-fund the agent;
   * the queue cap in the workflow and the one declared in `_data/fleet.yml`
     agree — the workflow passes an explicit `--limit`, which shadows the
-    registry value, so a lone edit to either one is a lie.
+    registry value, so a lone edit to either one is a lie;
+  * the prompt is read from the STEP SPEC (tools/jev/steps/fleet-pulse/
+    doctor.prompt.txt, ADR 0002 P3), the one source CI and the local loop
+    runner render from, and the workflow's inline copy is byte-equal to it —
+    so the allowlist checks guard the text both runners actually use, and the
+    model and turn literals are `_data/fleet.yml` remediation.model /
+    remediation.max_turns.
 
 Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAML:
 
@@ -31,6 +37,7 @@ Deliberately dependency-light — no network, no gh, no pytest. Needs only PyYAM
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -38,6 +45,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "fleet-pulse.yml"
 FLEET = REPO_ROOT / "_data" / "fleet.yml"
+SPEC_DIR = REPO_ROOT / "tools" / "jev" / "steps" / "fleet-pulse"
 
 # Commands the `Diagnose & fix` prompt cannot be carried out without. `gh`/`git`
 # are the work itself; the filters exist because the prompt tells the agent to
@@ -74,10 +82,23 @@ def doctor_claude_args(workflow: dict) -> str:
 
 
 def doctor_prompt(workflow: dict) -> str:
+    """The workflow's inline copy of the prompt (held byte-equal to the spec below)."""
     for step in workflow["jobs"]["doctor"]["steps"]:
         if step.get("name") == "Diagnose & fix":
             return step["with"]["prompt"]
     raise AssertionError("fleet-pulse.yml: doctor job has no 'Diagnose & fix' step")
+
+
+def spec_prompt() -> str:
+    """The rendered step spec — the prompt CI and the local loop runner both run.
+    Rendered through tools.jev.spec (hub root appended, so this directory's
+    modules keep precedence), exactly as the planners do."""
+    import importlib
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    jev = importlib.import_module("tools.jev.spec")
+    spec = jev.load_spec("fleet-pulse", "doctor")
+    return jev.render_prompt(spec, {})
 
 
 def workflow_candidate_cap(workflow: dict) -> int:
@@ -99,7 +120,14 @@ def main() -> int:
     fleet = yaml.safe_load(FLEET.read_text(encoding="utf-8"))
 
     args = doctor_claude_args(workflow)
-    prompt = doctor_prompt(workflow)
+    prompt = spec_prompt()
+    inline = doctor_prompt(workflow)
+
+    # --- the spec is the prompt ---------------------------------------------- #
+    check("the workflow's inline prompt is byte-equal to tools/jev/steps/fleet-pulse/doctor.prompt.txt "
+          "(the spec CI and the local runner render)", inline == prompt)
+    check("doctor.prompt.txt ends in exactly one newline and carries no {{TOKEN}}",
+          prompt.endswith("\n") and not prompt.endswith("\n\n") and "{{" not in prompt)
 
     # --- allowlist covers the prompt ---------------------------------------- #
     m = re.search(r'--allowedTools\s+"([^"]+)"', args)
@@ -123,6 +151,13 @@ def main() -> int:
     m = re.search(r"--max-turns\s+(\d+)", args)
     check("doctor claude_args declares --max-turns", bool(m))
     max_turns = int(m.group(1)) if m else 0
+    rem = fleet["remediation"]
+    check(f"--max-turns ({max_turns}) is the literal of _data/fleet.yml remediation.max_turns ({rem.get('max_turns')})",
+          max_turns == rem.get("max_turns"))
+    m_model = re.search(r"--model\s+(\S+)", args)
+    allowed_ids = {str(x) for ids in (fleet.get("ai_models", {}).get("allowed") or {}).values() for x in ids or []}
+    check(f"--model is the literal of remediation.model ({rem.get('model')}), an exact id in ai_models.allowed",
+          bool(m_model) and m_model.group(1) == rem.get("model") and rem.get("model") in allowed_ids)
 
     cap = workflow_candidate_cap(workflow)
     needed = cap * MIN_TURNS_PER_CANDIDATE
