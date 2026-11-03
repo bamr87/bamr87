@@ -102,7 +102,17 @@ analyze() {
   VOLUME="${PROJECT}_${VOLSRC}"
   OLD_MAJOR=""
   if [[ -n "$VOLSRC" ]] && docker volume inspect "$VOLUME" >/dev/null 2>&1; then
-    OLD_MAJOR="$(docker run --rm -v "$VOLUME":/v:ro alpine sh -c 'f=$(find /v -maxdepth 3 -name PG_VERSION 2>/dev/null | head -1); [ -n "$f" ] && cat "$f"' 2>/dev/null | tr -dc '0-9' || true)"
+    # Read the cluster the image will actually open, in the order its entrypoint
+    # looks: 18+ keeps it at <major>/docker under the mount, older majors at the
+    # mount root. Only then fall back to a search. A bare `find | head -1` is in
+    # directory order, so a volume holding the 18 cluster beside anything else
+    # with a PG_VERSION (the 17/docker an in-volume pg_upgrade leaves, an old
+    # cluster moved aside) can report the wrong major.
+    OLD_MAJOR="$(docker run --rm -v "$VOLUME":/v:ro alpine sh -c '
+      for f in "/v/$1/docker/PG_VERSION" /v/PG_VERSION /v/data/PG_VERSION /v/*/docker/PG_VERSION; do
+        [ -s "$f" ] && { cat "$f"; exit 0; }
+      done
+      f=$(find /v -maxdepth 3 -name PG_VERSION 2>/dev/null | sort | head -1); [ -n "$f" ] && cat "$f"' sh "$NEW_MAJOR" 2>/dev/null | tr -dc '0-9' || true)"
   fi
 }
 

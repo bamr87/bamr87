@@ -850,12 +850,14 @@ services:
       - docs
 
   db:
-    # fleet-pin: Wiki.js content lives in the `db-data` volume, written by
-    # PostgreSQL 15. A major bump orphans it — and because 18 also moved its data
-    # directory, the new server would start on an EMPTY cluster while the old
-    # data sat unreachable in the same volume, which reads as "the wiki lost
-    # everything". Migrate deliberately, then delete this pin:
-    #   tools/dash dev db-upgrade hub --service db --yes
+    # A major bump orphans the `db-data` volume: 18 refuses a cluster written by
+    # an older major, and it also moved the data directory (a single mount at
+    # /var/lib/postgresql, the cluster under 18/docker). `dash up` checks the
+    # volume before it recreates this service and stops with the fix, because
+    # a recreate onto an old volume replaces a working server with one that
+    # restarts in a loop. The fix is this project's, not `dash dev`'s — that
+    # one's `hub` is the separate fleet-hub stack and a different volume:
+    #   tools/pg-major-upgrade.sh --service db --yes -- --project-directory .
     labels:
       <<: *fleet-labels
       com.bamr87.fleet.stack: postgres
@@ -887,7 +889,9 @@ services:
       - fleet
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${WIKI_DB_USER:-wikijs}"]
+      # -d as well as -U: without it pg_isready asks for a database named after
+      # the user, which passes but logs a FATAL every interval into the log plane.
+      test: ["CMD-SHELL", "pg_isready -U ${WIKI_DB_USER:-wikijs} -d ${WIKI_DB_NAME:-wiki}"]
       interval: 10s
       timeout: 5s
       retries: 5
