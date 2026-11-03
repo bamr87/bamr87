@@ -555,6 +555,10 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     assert back.exclusive == job.exclusive
     tmp = Path(tempfile.mkdtemp())
     saved_argv = core.OPS["loop-run"]["argv"]
+    saved_unavailable = core.claude_unavailable
+    # the job-manager checks below are about confirm, the lock and the parsed fields, so the host's
+    # `claude` is stubbed as present (CI runners have none); the unavailable path is tested at the end
+    core.claude_unavailable = lambda: None
     try:
         jm = core.JobManager(job_dir=tmp)
         try:
@@ -587,6 +591,7 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
         assert "loop" not in jm.tail(jm.submit("gaps").id), "the parsed fields are a loop-run's only"
     finally:
         core.OPS["loop-run"]["argv"] = saved_argv
+        core.claude_unavailable = saved_unavailable
         shutil.rmtree(tmp, ignore_errors=True)
     # no claude on PATH: unavailable with the host command, refused at submit, never started
     saved_which = core.shutil.which
