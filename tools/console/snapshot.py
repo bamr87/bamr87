@@ -73,7 +73,7 @@ LOCAL_ONLY = ("runs on the operator's machine and is never published — "
 # engine or a link preview should say about it. test_snapshot.py holds this
 # list equal to the <Route path> table in web/src/main.tsx.
 STATIC_ROUTES: dict[str, tuple[str, str]] = {
-    "": ("Home", "Portfolio and agentic harness control plane for the bamr87 fleet."),
+    "": ("Home", ""),  # empty: Home says _data/profile.yml site.description
     "overview": ("Overview", "Fleet attention queue, KPIs and signal freshness."),
     "about": ("About", ""),
     "experience": ("Experience", ""),
@@ -299,7 +299,7 @@ def _page(template: str, title: str, description: str, url: str, site: dict) -> 
         f'<meta property="og:url" content="{html.escape(url)}">',
         f'<meta property="og:image" content="{html.escape(site["image"])}">',
         '<meta property="og:type" content="website">',
-        '<meta name="twitter:card" content="summary">',
+        f'<meta name="twitter:card" content="{site.get("card", "summary")}">',
         f'<link rel="alternate" type="application/atom+xml" title="{html.escape(site["title"])}" href="{html.escape(site["feed"])}">',
     ])
     page = re.sub(r"<title>.*?</title>", f"<title>{html.escape(full)}</title>", template, count=1, flags=re.S)
@@ -338,9 +338,13 @@ def build(out: Path, base: str, site_url: str) -> dict:
     site_url = site_url.rstrip("/")
     prof = docs["site"]["profile"]
     ident = prof.get("site") or {}
+    # The link card: the profile's wide site.image when it names one (a large
+    # card), else the square avatar (a small one).
+    card_image = ident.get("image") or prof.get("avatar") or "favicon.svg"
     site = {"title": ident.get("title") or HUB, "name": prof.get("name") or "",
             "description": ident.get("description") or "", "url": site_url,
-            "feed": f"{site_url}/feed.xml", "image": f"{site_url}/{prof.get('avatar') or 'favicon.svg'}"}
+            "feed": f"{site_url}/feed.xml", "image": f"{site_url}/{card_image}",
+            "card": "summary_large_image" if ident.get("image") else "summary"}
     pages = routes(docs)
     for path, (title, desc) in pages.items():
         target = out / path / "index.html" if path else index

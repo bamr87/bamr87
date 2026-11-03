@@ -1,51 +1,48 @@
 {
-  // ==================================================
-  // UNIFIED VS CODE EXTENSIONS - Docker-First Development
-  // ==================================================
-  // Optimized for it-journey, zer0-mistakes, barodybroject
-  // Last Updated: 2025-10-26
-  
+  // ==========================================================================
+  // Recommended extensions — the union of what .devcontainer/devcontainer.json
+  // installs in devenv and what launch.json / tasks.json rely on, kept in
+  // one list so the host and the container agree.
+  // ==========================================================================
   "recommendations": [
-    // ==========================================
-    // CORE DEVELOPMENT TOOLS
-    // ==========================================
+    // The harness: Claude Code, Copilot, GitHub
+    "anthropic.claude-code",
     "github.copilot",
-    "ms-azuretools.vscode-docker",
-    
-    // ==========================================
-    // PYTHON/DJANGO DEVELOPMENT
-    // ==========================================
-    "ms-python.python",
-    "ms-python.black-formatter",
-    "ms-python.flake8",
-    "ms-python.pylint",
-    "ms-python.debugpy",
-    
-    // ==========================================
-    // JEKYLL/WEB DEVELOPMENT
-    // ==========================================
-    "shopify.liquid",
-    "ms-vscode.vscode-json",
-    "redhat.vscode-yaml",
-    
-    // ==========================================
-    // UTILITY EXTENSIONS
-    // ==========================================
-    "ms-vscode.vscode-typescript-next",
+    "github.copilot-chat",
+    "github.vscode-github-actions",
+    "github.vscode-pull-request-github",
+    "eamodio.gitlens",
+
+    // Containers (Compose v2) and the dev container
+    "ms-azuretools.vscode-containers",
     "ms-vscode-remote.remote-containers",
-    "ms-vscode.remote-repositories",
-    
-    // ==========================================
-    // OPTIONAL ENHANCEMENTS
-    // ==========================================
-    "ms-vscode.live-server",
+
+    // Python: the console, the generators, the hub tools (debugpy = the launch type)
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+
+    // The console's page (React + TypeScript) and the verify kit
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-playwright.playwright",
+    "bradlc.vscode-tailwindcss",
+
+    // Data, docs and shell: fleet.yml, SCHEMA.md, the loops' workflows
+    "redhat.vscode-yaml",
+    "davidanson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one",
+    "timonwong.shellcheck",
+    "foxundermoon.shell-format",
+    "editorconfig.editorconfig",
+    "streetsidesoftware.code-spell-checker",
+
+    // The Jekyll fleet (Liquid templates)
+    "shopify.liquid"
   ],
-  
-  // ==========================================
-  // WORKSPACE SPECIFIC RECOMMENDATIONS
-  // ==========================================
   "unwantedRecommendations": [
-    "ms-vscode.vscode-typescript",
+    // Replaced by ms-azuretools.vscode-containers.
+    "ms-azuretools.vscode-docker",
     "ms-vscode.nodejs-extension-pack"
   ]
 }

@@ -4,6 +4,8 @@
 
 The Mac runs the terminal dash (`tools/dash tui`). **Forge runs the containers.** The registry is still `_data/projects.yml` — Docker is live state, not a second inventory.
 
+**Which services run on forge is now declared, not rebuilt.** `_data/fleet.yml` `nodes:` places each hub service on the Mac (the edge) or forge (a workload node); `tools/dash node plan` shows the move, OpenTofu (`tools/dash infra`) owns forge's network and data volumes, and an SSH link keeps every address the same. That is [docs/PLATFORM.md](PLATFORM.md) and [ADR 0003](adr/0003-fleet-platform-nodes-iac-and-scale-out.md). The whole-hub rebuild below is the legacy path, kept for an empty forge.
+
 ```
 Mac TUI  --ssh://forge-->  forge dockerd
    │                         │
@@ -28,12 +30,12 @@ tools/dash host setup          # docker context "forge" → ssh://forge
 ssh forge 'sudo ufw allow from 192.168.4.0/24 to any port 4001 proto tcp comment "dash console LAN"'
 ```
 
-## Rebuild the hub stack (wipes containers + volumes)
+## The legacy whole-hub rebuild (wipes containers + volumes)
 
 Uses `bamr87/.env` for tokens and compose ports.
 
 ```bash
-tools/dash host rebuild        # rsync hub+.env, docker rm -f, compose --build
+tools/dash host rebuild --wipe-all   # rsync hub+.env, docker rm -f, DROP every volume, compose --build
 tools/dash host ps
 tools/dash host up <slug>      # launch one submodule compose in ~/dev/<slug>
 tools/dash tui                 # Apps tab Docker column + the Docker tab

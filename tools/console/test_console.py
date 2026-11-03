@@ -523,6 +523,48 @@ def test_state_document_degrades_without_signals(monkeypatch_dir=None):
     assert core.source_meta(None, core.dt.datetime.now(core.dt.timezone.utc))["present"] is False
 
 
+def test_run_quiet_timeout_kills_the_whole_process_group():
+    # `git status` forks a child per submodule; a timeout that killed only the
+    # parent left those running, then defunct under the container's PID 1.
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        pidfile = tmp / "grandchild.pid"
+        started = time.monotonic()
+        rc, _ = core.run_quiet(["sh", "-c", f"sleep 30 & echo $! > {pidfile}; wait"], timeout=1)
+        assert rc == 127 and time.monotonic() - started < 10, rc
+        pid = int(pidfile.read_text().strip())
+        for _ in range(50):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            raise AssertionError(f"grandchild {pid} outlived the timeout")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_git_info_is_shared_and_never_claims_clean_on_failure():
+    calls: list[list[str]] = []
+
+    def fake(argv, timeout=15, cwd=None):
+        calls.append(argv)
+        return (127, "") if argv[1] == "status" else (0, "main\n")
+
+    saved_run, saved_doc = core.run_quiet, dict(core._GIT_INFO)
+    core.run_quiet = fake
+    core._GIT_INFO.clear()
+    try:
+        first = core.git_info()
+        assert core.git_info() is first and len(calls) == 3, calls   # one walk per TTL, not per poll
+        assert "--ignore-submodules=dirty" in calls[2], calls[2]
+        assert first["available"] is False and first["branch"] == "main", first
+    finally:
+        core.run_quiet = saved_run
+        core._GIT_INFO.clear(); core._GIT_INFO.update(saved_doc)
+
+
 def test_capabilities_report_names_not_values():
     caps = core.capabilities()
     # every credential the console can be handed, plus every one the contract

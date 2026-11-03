@@ -1,45 +1,60 @@
 {
-  // ==================================================
-  // UNIFIED VS CODE TASKS - Docker-First Development
-  // ==================================================
-  // Optimized for it-journey, zer0-mistakes, barodybroject
-  // Last Updated: 2025-10-26
-  
+  // ==========================================================================
+  // Tasks — the silent helpers launch.json leans on, and the hub gate.
+  //
+  // Same rule as launch.json: a task calls `tools/dash` or a tool's own entry
+  // point, never a second implementation. Three kinds live here:
+  //
+  //   ensure / bootstrap   preLaunch helpers (silent): the shared core, a
+  //                        project's debug layer, the console's venv and page
+  //                        deps, Playwright for verify, a compile in devenv
+  //   gates (group test)   the hub gate from AGENTS.md "Stack & commands" —
+  //                        drift, schema, docs index, prose, specs, catalog,
+  //                        JEV generated guard, workflows lint, governance,
+  //                        shellcheck, actionlint, the test runners
+  //   fleet / docker       up, down, logs, rebuild, port sync, Django chores
+  //
+  // Ports and project names come from the registries (_data/ports.yml,
+  // _data/fleet.yml, .gitmodules), never from here.
+  // ==========================================================================
   "version": "2.0.0",
   "tasks": [
-    
-    // ==========================================
-    // CORE DOCKER OPERATIONS
-    // ==========================================
-    // ---------------------------------------------------------------- FLEET
-    // tools/fleet-dev.sh is the single entry point for the dev stack: it
-    // ensures `fleet-net` and compose/fleet.env exist, then drives each project as its
-    // own compose project. See docs/FLEET-COMPOSE.md.
+    // ----------------------------------------------------------------- FLEET
     {
-      "label": "Fleet: up hub",
+      "label": "Fleet: up core",
+      "detail": "tools/dash up — devenv, console (:4001), db, redis on the `fleet` network (docs/CONTAINERS.md)",
       "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["up", "hub"],
+      "command": "tools/dash up",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
       "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
       "problemMatcher": []
     },
     {
-      "label": "Fleet: up all",
+      "label": "Fleet: up core + traces",
+      "detail": "tools/dash up --profile traces — the core plus Phoenix (:6006)",
       "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["up", "--all"],
+      "command": "tools/dash up --profile traces",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
-      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
       "problemMatcher": []
     },
     {
-      "label": "Fleet: down all",
+      "label": "Fleet: up core + docs",
+      "detail": "tools/dash up --profile docs — the core plus MkDocs (:8001) and Wiki.js (:3000)",
       "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["down", "--all"],
+      "command": "tools/dash up --profile docs",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "Fleet: down core",
+      "detail": "tools/dash down — stop the shared core (projects stay up; `tools/dash down --all` for everything)",
+      "type": "shell",
+      "command": "tools/dash down",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
       "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
@@ -47,9 +62,9 @@
     },
     {
       "label": "Fleet: ps",
+      "detail": "tools/dash ps — every container fleet-wide and who is on the network",
       "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["ps", "--all"],
+      "command": "tools/dash ps",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "test",
       "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "showReuseMessage": false, "clear": true },
@@ -57,487 +72,514 @@
     },
     {
       "label": "Fleet: sync port allocation",
+      "detail": "tools/fleet-compose.py sync — regenerate compose/fleet.env + compose/overrides/ from _data/ports.yml (drift check m)",
       "type": "shell",
-      "command": "tools/fleet-compose.py",
-      "args": ["sync"],
+      "command": "tools/fleet-compose.py sync",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
       "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
       "problemMatcher": []
     },
-    // djangoerp ships no docker-compose.debug.yml: its MAIN compose is already
-    // debug-capable and only needs the switch thrown, hence the env var rather
-    // than a --debug layer.
+    // The attach entries' preLaunch: the project's stack with its debugpy layer.
+    // law-ai and fredgar-ai ship a docker-compose.debug.yml that --debug layers in;
+    // djangoerp's MAIN compose is already debug-capable behind DEBUGPY_ENABLE.
     {
-      "label": "Fleet: up djangoerp (debug)",
+      "label": "Fleet: dev up law-ai (debug)",
+      "detail": "tools/dash dev up law-ai --debug — backend debugpy :5713, worker :5714",
       "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["up", "djangoerp"],
+      "command": "tools/dash dev up law-ai --debug",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "Fleet: dev up fredgar-ai (debug)",
+      "detail": "tools/dash dev up fredgar-ai --debug — web debugpy :5712",
+      "type": "shell",
+      "command": "tools/dash dev up fredgar-ai --debug",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "Fleet: dev up djangoerp (debug)",
+      "detail": "DEBUGPY_ENABLE=1 tools/dash dev up djangoerp — web debugpy :5710, worker :5711",
+      "type": "shell",
+      "command": "tools/dash dev up djangoerp",
       "options": { "cwd": "${workspaceFolder}", "env": { "DEBUGPY_ENABLE": "1" } },
       "group": "build",
       "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
       "problemMatcher": []
     },
+
+    // --------------------------------------------------------------- CONSOLE
     {
-      "label": "Fleet: up law-ai (debug)",
+      "label": "Console: ensure compose service",
+      "detail": "tools/dash console --docker — the long-lived Harness Console on 127.0.0.1:4001",
       "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["up", "law-ai", "--debug"],
+      "command": "tools/dash console --docker",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
       "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
       "problemMatcher": []
     },
     {
-      "label": "Fleet: up fredgar-ai (debug)",
+      // Mirrors tools/console/run.sh's bootstrap (venv + requirements at
+      // latest) without starting the server, and adds pytest — the one
+      // pytest-only suite is test_cv_fragment.py. Skips the install when the
+      // venv already imports what the debug entries need, so F5 stays quick.
+      "label": "Console: bootstrap venv",
+      "detail": ".venv-console: create if missing, install tools/console/requirements.txt + pytest if anything is missing",
       "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["up", "fredgar-ai", "--debug"],
+      "command": "test -x .venv-console/bin/python || python3 -m venv .venv-console; if ! .venv-console/bin/python -c 'import fastapi, uvicorn, yaml, github, pytest' 2>/dev/null; then .venv-console/bin/pip install --quiet --upgrade pip && .venv-console/bin/pip install --quiet --upgrade -r tools/console/requirements.txt pytest; fi",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
       "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
       "problemMatcher": []
     },
     {
-      "label": "Docker: Compose Up (Detached)",
+      "label": "Console: upgrade venv (always-latest)",
+      "detail": "Re-resolve .venv-console to the newest published versions, exactly as run.sh does on every start",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "-d"],
+      "command": "python3 -m venv .venv-console && .venv-console/bin/pip install --quiet --upgrade pip && .venv-console/bin/pip install --quiet --upgrade -r tools/console/requirements.txt pytest",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Start Docker containers in detached mode"
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
     },
-
     {
-      "label": "Docker: Compose Stop",
-      "type": "shell", 
-      "command": "docker",
-      "args": ["compose", "stop"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Stop running Docker containers"
-    },
-
-    {
-      "label": "Docker: Compose Down",
+      "label": "Console: web install",
+      "detail": "tools/console/web: npm install (no lockfile) when node_modules is missing",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "down"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "command": "[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund --loglevel=error",
+      "options": { "cwd": "${workspaceFolder}/tools/console/web" },
       "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Stop and remove Docker containers, networks"
+      "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
     },
-
     {
-      "label": "Docker: Rebuild (Force)",
+      // Background: VS Code waits for Vite's "Local:" line before launching
+      // the browser entry that depends on this task.
+      "label": "Console: web dev server (→ compose console :4001)",
+      "detail": "Vite on :5173 with hot reload, /api proxied to the compose console",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "--build", "--force-recreate", "-d"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": true
-      },
-      "problemMatcher": [],
-      "detail": "Force rebuild and recreate all Docker containers"
+      "command": "npx vite",
+      "options": { "cwd": "${workspaceFolder}/tools/console/web", "env": { "CONSOLE_URL": "http://127.0.0.1:4001" } },
+      "dependsOn": ["Console: web install"],
+      "isBackground": true,
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "dedicated", "showReuseMessage": false, "clear": true },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": [{ "regexp": ".", "file": 1, "location": 2, "message": 3 }],
+        "background": { "activeOnStart": true, "beginsPattern": "VITE v|vite v", "endsPattern": "Local:|ready in" }
+      }
     },
-
     {
-      "label": "Docker: Ensure devenv",
+      "label": "Console: web dev server (→ debug API :4004)",
+      "detail": "Vite on :5173 with hot reload, /api proxied to the natively debugged console on :4004",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "-d", "devenv"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "silent",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": false,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Start only the devenv workspace container (repo mounted at /workspace)"
+      "command": "npx vite",
+      "options": { "cwd": "${workspaceFolder}/tools/console/web", "env": { "CONSOLE_URL": "http://127.0.0.1:4004" } },
+      "dependsOn": ["Console: web install"],
+      "isBackground": true,
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "dedicated", "showReuseMessage": false, "clear": true },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": [{ "regexp": ".", "file": 1, "location": 2, "message": 3 }],
+        "background": { "activeOnStart": true, "beginsPattern": "VITE v|vite v", "endsPattern": "Local:|ready in" }
+      }
     },
-
     {
-      "label": "Docker: Ensure console",
+      "label": "Console: web build",
+      "detail": "tools/console/web → dist/ (what app.py serves); run.sh does this on start",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "-d", "console"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/tools/console/web" },
+      "dependsOn": ["Console: web install"],
       "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "silent",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": false,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Start the Harness Console container on 127.0.0.1:4001"
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": ["$tsc"]
     },
-
     {
-      "label": "Docker: Ensure mkdocs",
+      "label": "Console: web typecheck",
+      "detail": "tsc -b --noEmit on the page",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "-d", "mkdocs"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "silent",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": false,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Start the MkDocs container for projects/README on :8001"
+      "command": "npm run typecheck",
+      "options": { "cwd": "${workspaceFolder}/tools/console/web" },
+      "dependsOn": ["Console: web install"],
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": ["$tsc"]
     },
 
+    // --------------------------------------------------------------- OBSERVE
     {
-      "label": "Docker: Ensure phoenix",
+      "label": "Observe: up",
+      "detail": "tools/dash observe up — ELK + Grafana + Qdrant + OTel collector + Prometheus, then ILM + dashboards",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "-d", "phoenix"],
+      "command": "tools/dash observe up",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "silent",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": false,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Start Arize Phoenix on 127.0.0.1:6006"
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
     },
 
+    // ---------------------------------------------------------------- VERIFY
     {
-      "label": "Docker: Ensure lake stack",
+      // verify/runner.mjs needs @playwright/test + yaml at the repo root and a
+      // Chromium. No package.json here on purpose (fleet policy: no lockfiles),
+      // so the install is --no-save; node_modules/ is gitignored.
+      "label": "Verify: install Playwright",
+      "detail": "Install @playwright/test + yaml (no-save) and Chromium when missing",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "up", "-d", "devenv", "phoenix"],
+      "command": "[ -x node_modules/.bin/playwright ] || npm install --no-save --no-package-lock --no-audit --no-fund --loglevel=error @playwright/test yaml; npx playwright install chromium",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "silent",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": false,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Start devenv + Phoenix for dash-gen lake sync/export"
+      "presentation": { "echo": true, "reveal": "silent", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
     },
 
+    // ------------------------------------------------------------- WORKSPACE
+    // Compile a VS Code extension inside devenv before the Extension Host
+    // (which is VS Code itself and so runs on the host).
     {
       "label": "devenv: compile vs-sonic-pi",
+      "detail": "npm run build inside devenv (installs node_modules there on first use)",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/vs-sonic-pi", "devenv", "npm", "run", "build"],
+      "command": "docker compose exec -T -w /workspace/projects/vs-sonic-pi devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; npm run build'",
       "options": { "cwd": "${workspaceFolder}" },
-      "dependsOn": "Docker: Ensure devenv",
-      "problemMatcher": [],
-      "detail": "Build vs-sonic-pi inside devenv before Extension Host"
+      "dependsOn": ["Fleet: up core"],
+      "problemMatcher": ["$tsc"]
     },
     {
       "label": "devenv: compile zpl-viewer",
+      "detail": "npm run compile inside devenv (installs node_modules there on first use)",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/zpl-viewer", "devenv", "npm", "run", "compile"],
+      "command": "docker compose exec -T -w /workspace/projects/zpl-viewer devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; npm run compile'",
       "options": { "cwd": "${workspaceFolder}" },
-      "dependsOn": "Docker: Ensure devenv",
-      "problemMatcher": [],
-      "detail": "Compile zpl-viewer inside devenv before Extension Host"
+      "dependsOn": ["Fleet: up core"],
+      "problemMatcher": ["$tsc"]
     },
     {
       "label": "devenv: compile zer0-cms",
+      "detail": "npm run compile inside devenv (installs node_modules there on first use)",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/zer0-cms", "devenv", "npm", "run", "compile"],
+      "command": "docker compose exec -T -w /workspace/projects/zer0-cms devenv sh -c '[ -d node_modules/.bin ] || npm install --no-package-lock --no-audit --no-fund; npm run compile'",
       "options": { "cwd": "${workspaceFolder}" },
-      "dependsOn": "Docker: Ensure devenv",
-      "problemMatcher": [],
-      "detail": "Compile zer0-cms inside devenv before Extension Host"
+      "dependsOn": ["Fleet: up core"],
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "devenv: bundle install (pick a submodule)",
+      "detail": "Install a Jekyll site's gems inside devenv (gems live in the bundle-gems volume, never on the host)",
+      "type": "shell",
+      "command": "docker compose exec -T -w /workspace/projects/${input:submodule} devenv bundle install",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Fleet: up core"],
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "devenv: npm install (pick a submodule)",
+      "detail": "Install a Node project's dependencies inside devenv (Linux binaries; the host's node_modules would not run there)",
+      "type": "shell",
+      "command": "docker compose exec -T -w /workspace/projects/${input:submodule} devenv npm install --no-package-lock --no-audit --no-fund",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Fleet: up core"],
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "Django: migrate (djangoerp)",
+      "detail": "tools/dash dev exec djangoerp web python manage.py migrate",
+      "type": "shell",
+      "command": "tools/dash dev exec djangoerp web python manage.py migrate",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "clear": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "Django: createsuperuser (djangoerp)",
+      "detail": "tools/dash dev exec djangoerp web python manage.py createsuperuser",
+      "type": "shell",
+      "command": "tools/dash dev exec djangoerp web python manage.py createsuperuser",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "clear": false },
+      "problemMatcher": []
     },
 
+    // ----------------------------------------------------------------- GATES
+    // AGENTS.md: a change is done when check-drift is green, the focused tests
+    // pass, the nearest README/SCHEMA say what changed, and generated
+    // projections are regenerated. These are those checks, one task each.
     {
-      "label": "Docker: View Logs",
+      "label": "Gate: drift (report)",
+      "detail": "tools/check-drift.sh --report — every check, never fails the shell",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "logs", "-f", "--tail=100"],
+      "command": "tools/check-drift.sh --report",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "test",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "dedicated",
-        "showReuseMessage": false,
-        "clear": true
-      },
-      "isBackground": true,
-      "problemMatcher": [],
-      "detail": "Follow Docker container logs in real-time"
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
     },
-
-    // ==========================================
-    // APPLICATION SPECIFIC TASKS
-    // ==========================================
     {
-      "label": "Jekyll: Build Site",
+      "label": "Gate: drift (full)",
+      "detail": "tools/check-drift.sh — the gating checks, non-zero on failure (as CI runs it)",
       "type": "shell",
-      // Was `docker-compose exec jekyll ...`: the hub's compose has no
-      // `jekyll` service (that is barodybroject's name), so this never ran.
-      // The theme lives in zer0-CMS since 2026-10-19 (packages/zer0-mistakes); it has no
-      // compose project of its own any more, so it builds inside the workspace container.
-      "command": "docker",
-      "args": ["compose", "exec", "-T", "-w", "/workspace/projects/zer0-cms/packages/zer0-mistakes", "devenv", "bundle", "exec", "jekyll", "build"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "dependsOn": "Docker: Compose Up (Detached)",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Build Jekyll site inside Docker container"
-    },
-
-    {
-      "label": "Django: Run Migrations",
-      "type": "shell",
-      // Was `docker-compose exec web ...`: no `web` service in the hub's
-      // compose. djangoerp is the Django app the hub actually drives.
-      "command": "tools/fleet-dev.sh",
-      "args": ["exec", "djangoerp", "web", "python", "manage.py", "migrate"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "dependsOn": "Docker: Compose Up (Detached)",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Run Django database migrations in Docker"
-    },
-
-    {
-      "label": "Django: Create Superuser",
-      "type": "shell",
-      "command": "tools/fleet-dev.sh",
-      "args": ["exec", "djangoerp", "web", "python", "manage.py", "createsuperuser"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "dependsOn": "Docker: Compose Up (Detached)",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "shared",
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Create Django superuser in Docker container"
-    },
-
-    // ==========================================
-    // TESTING TASKS
-    // ==========================================
-    {
-      "label": "Test: Run All Tests",
-      "type": "shell",
-      "command": "docker",
-      "args": ["compose", "exec", "${input:serviceContext}", "${input:testCommand}"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      },
-      "dependsOn": "Docker: Compose Up (Detached)",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "dedicated",
-        "clear": true
-      },
-      "problemMatcher": [],
-      "detail": "Run test suite in Docker container"
-    },
-
-    {
-      "label": "Lint: Run All Linters",
-      "type": "shell",
-      "command": "docker",
-      "args": ["compose", "exec", "${input:serviceContext}", "${input:lintCommand}"],
+      "command": "tools/check-drift.sh",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "test",
-      "dependsOn": "Docker: Compose Up (Detached)",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "shared",
-        "clear": true
-      },
-      "problemMatcher": [],
-      "detail": "Run linting tools in Docker container"
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
     },
-
-    // ==========================================
-    // MAINTENANCE TASKS
-    // ==========================================
     {
-      "label": "Docker: Clean Up",
+      "label": "Test: run all (tools/run-all-tests.sh)",
+      "detail": "Root checks + dash-gen + console + every checked-out submodule suite whose deps are present",
       "type": "shell",
-      "command": "docker",
-      "args": ["system", "prune", "-f"],
+      "command": "tools/dash test",
       "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "clear": false
-      },
-      "problemMatcher": [],
-      "detail": "Clean up Docker system (containers, networks, images)"
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "dedicated", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
     },
-
     {
-      "label": "Dependencies: Update",
+      "label": "Gate: schema lint",
+      "detail": "python3 tools/schema_lint.py check . — the SCHEMA.md pyramid (warnings fail the gate too; --fix for mechanical drift)",
       "type": "shell",
-      "command": "docker",
-      "args": ["compose", "exec", "${input:serviceContext}", "${input:updateCommand}"],
+      "command": "python3 tools/schema_lint.py check .",
       "options": { "cwd": "${workspaceFolder}" },
-      "group": "build",
-      "dependsOn": "Docker: Compose Up (Detached)",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "shared",
-        "clear": true
-      },
-      "problemMatcher": [],
-      "detail": "Update project dependencies in Docker container"
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
     },
-
-    // ==========================================
-    // MARKDOWN LINTING
-    // ==========================================
+    {
+      "label": "Gate: docs index",
+      "detail": "python3 tools/docs_index.py --check — docs/README.md index is fresh (main-only file: never commit it from a PR)",
+      "type": "shell",
+      "command": "python3 tools/docs_index.py --check",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: prose (current file)",
+      "detail": "python3 tools/unwrap-prose.py --check <file> — one paragraph per line (--write fixes)",
+      "type": "shell",
+      "command": "python3 tools/unwrap-prose.py --check \"${relativeFile}\"",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: specs data",
+      "detail": "python3 tools/gen-specs-data.py --check — _data/specs.yml matches specs/",
+      "type": "shell",
+      "command": "python3 tools/gen-specs-data.py --check",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: catalog (main only)",
+      "detail": "python3 tools/gen-catalog.py --check — CATALOG.md is regenerated on main; a PR never commits it",
+      "type": "shell",
+      "command": "python3 tools/gen-catalog.py --check",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: generated guard (JEV)",
+      "detail": "python3 -m tools.jev generated guard --base origin/main — no main-only generated file edited on this branch",
+      "type": "shell",
+      "command": "python3 -m tools.jev generated guard --base origin/main",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: workflows lint",
+      "detail": "tools/dash workflows lint --strict — the workflow atlas holds the hub's workflows to the standards",
+      "type": "shell",
+      "command": "tools/dash workflows lint --strict",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: governance lint",
+      "detail": "python3 tools/governance_lint.py check . — constitution, amendments, PRD ↔ feature link",
+      "type": "shell",
+      "command": "python3 tools/governance_lint.py check .",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Gate: shellcheck",
+      "detail": "shellcheck tools/*.sh tools/observability/*.sh (gcc-style output → Problems panel)",
+      "type": "shell",
+      "command": "shellcheck -f gcc tools/*.sh tools/observability/*.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Gate: actionlint",
+      "detail": "actionlint .github/workflows/*.yml",
+      "type": "shell",
+      "command": "actionlint .github/workflows/*.yml",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      // Everything above that runs offline, in order, stopping at the first failure.
+      "label": "Gate: all offline checks",
+      "detail": "drift (report) → schema → docs index → specs → catalog → generated guard → workflows lint → governance → shellcheck → actionlint",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Gate: drift (report)",
+        "Gate: schema lint",
+        "Gate: docs index",
+        "Gate: specs data",
+        "Gate: catalog (main only)",
+        "Gate: generated guard (JEV)",
+        "Gate: workflows lint",
+        "Gate: governance lint",
+        "Gate: shellcheck",
+        "Gate: actionlint"
+      ],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: console",
+      "detail": "Every tools/console/test_*.py, dependency-light, with .venv-console",
+      "type": "shell",
+      "command": "for t in test_console test_pages test_mcp_layer test_gh_projects test_subscription test_claude_telemetry test_tui_bridge test_health_autostart; do .venv-console/bin/python tools/console/$t.py || exit 1; done",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Console: bootstrap venv"],
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: dash-gen (all fixture tests)",
+      "detail": "Every .github/scripts/dash-gen/test_*.py as the plain scripts they are (offline fixtures)",
+      "type": "shell",
+      "command": "for t in .github/scripts/dash-gen/test_*.py; do .venv-console/bin/python \"$t\" || exit 1; done",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Console: bootstrap venv"],
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: current file (native)",
+      "detail": "Run the open test_*.py with .venv-console (dash-gen, tools/, tools/console tests are plain scripts)",
+      "type": "shell",
+      "command": ".venv-console/bin/python \"${relativeFile}\"",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Console: bootstrap venv"],
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: CV projection (pytest)",
+      "detail": "python -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q — the one pytest-only suite",
+      "type": "shell",
+      "command": ".venv-console/bin/python -m pytest .github/scripts/dash-gen/test_cv_fragment.py -q",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Console: bootstrap venv"],
+      "group": "test",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
     {
       "type": "markdownlint",
       "problemMatcher": ["$markdownlint"],
       "label": "Lint: Markdown Files",
+      "detail": "markdownlint over the workspace (DavidAnson.vscode-markdownlint)",
       "group": "test",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "clear": false
-      },
-      "detail": "Lint all Markdown files with markdownlint"
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "clear": false }
+    },
+
+    // ---------------------------------------------------------------- DOCKER
+    {
+      "label": "Docker: core logs",
+      "detail": "docker compose logs -f --tail=100 — the hub project's services",
+      "type": "shell",
+      "command": "docker compose logs -f --tail=100",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "isBackground": true,
+      "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "dedicated", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: rebuild core images",
+      "detail": "docker compose build devenv console — after a .devcontainer/Dockerfile or requirements change; then `tools/dash up`",
+      "type": "shell",
+      "command": "docker compose build devenv console",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "showReuseMessage": false, "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: recreate devenv",
+      "detail": "docker compose up -d --force-recreate devenv — pick up new port mappings or image",
+      "type": "shell",
+      "command": "docker compose up -d --force-recreate devenv",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false, "clear": false },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: prune (system prune -f)",
+      "detail": "Remove stopped containers, dangling images and unused networks (volumes untouched)",
+      "type": "shell",
+      "command": "docker system prune -f",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "clear": false },
+      "problemMatcher": []
     }
   ],
 
-  // ==========================================
-  // INPUT VARIABLES
-  // ==========================================
   "inputs": [
     {
-      "id": "serviceContext",
-      "description": "Docker service context",
+      // Every checked-out submodule directory (.gitmodules); same list as launch.json.
+      "id": "submodule",
+      "description": "Submodule directory under projects/",
       "type": "pickString",
       "options": [
-        "jekyll",
-        "web",
-        "app"
+        "README", "ai-world-view.github.io", "bamr87.github.io", "bash-365-apex", "bash-365.com",
+        "bashcrawl", "bashos", "cv-pro", "djangoerp", "edgar-pipeline", "fleet-infra", "fleet-mobile",
+        "fleet-observe", "fredgar-ai", "githubai", "gitorio", "godotgo", "it-journey", "kvlite",
+        "law-ai", "lifehacker.dev", "netprobe", "ocrmd", "outbox", "ragio-ai", "rewind-arcade",
+        "schema-lang", "scripts", "sec-lab", "sensor-mesh", "skills", "vs-sonic-pi",
+        "year-of-ai.github.io", "zer0-cms", "zer0-id", "zer0-kernel", "zer0-mistakes", "zpl-viewer"
       ],
-      "default": "jekyll"
-    },
-    {
-      "id": "testCommand",
-      "description": "Test command to run",
-      "type": "pickString", 
-      "options": [
-        "bundle exec rspec",
-        "python src/manage.py test",
-        "pytest",
-        "npm test"
-      ],
-      "default": "bundle exec rspec"
-    },
-    {
-      "id": "lintCommand",
-      "description": "Lint command to run",
-      "type": "pickString",
-      "options": [
-        "rubocop",
-        "flake8 src/",
-        "black --check src/",
-        "eslint ."
-      ],
-      "default": "rubocop"
-    },
-    {
-      "id": "updateCommand", 
-      "description": "Update command to run",
-      "type": "pickString",
-      "options": [
-        "bundle update",
-        "pip install -r requirements.txt",
-        "npm update"
-      ],
-      "default": "bundle update"
+      "default": "bamr87.github.io"
     }
   ]
 }

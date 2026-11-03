@@ -69,10 +69,12 @@ jobs:
 
 ## What It Does
 
-1. **Configures Git User**: Sets `user.name` and `user.email` globally
-2. **Sets Up Authentication**: Configures Git to use the GitHub token for HTTPS operations
+1. **Configures Git User**: Sets `user.name` and `user.email` globally (inputs reach the script through `env:`, never `${{ }}` inside `run:`)
+2. **Sets Up Authentication**: Exports a job-scoped `insteadOf` token rewrite for the remaining steps of the job — never written to `~/.gitconfig` (see [Authentication Method](#authentication-method))
 3. **Marks Safe Directory**: Adds the workspace and all subdirectories as safe
 4. **Verifies Setup**: Attempts to verify authentication (with graceful failure)
+
+Callers in this hub: `update-submodules.yml` (fetches private submodules, then publishes the pointer bump) and `deep-dive.yml` (publishes the refreshed tracker).
 
 ## Common Use Cases
 
@@ -141,15 +143,23 @@ jobs:
   uses: peter-evans/create-pull-request@v8
 ```
 
-## Authentication Methods
+## Authentication Method
 
-The action configures Git to use HTTPS with token authentication:
+The token arrives as `env: GIT_AUTH_TOKEN` and is appended to the job environment through `$GITHUB_ENV` as git's environment config:
 
 ```bash
-git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+GIT_CONFIG_KEY_<n>=url.https://x-access-token:${GIT_AUTH_TOKEN}@github.com/.insteadOf
+GIT_CONFIG_VALUE_<n>=https://github.com/
+GIT_CONFIG_COUNT=<n+1>
 ```
 
-This allows Git operations to authenticate automatically without manual credential entry.
+`<n>` is the job's existing `GIT_CONFIG_COUNT` (0 if unset), so config another step already exported is kept. Why this shape:
+
+- **Not `git config --global`.** The old action wrote the rewrite to `~/.gitconfig`, where `git config --list` or `GIT_TRACE` in any later step could print it in a form the log mask may not match (issue #507).
+- **Not `git config --local`.** Submodule fetches do not read the superproject's local config, so `git submodule update --remote` would fail on private submodules with `could not read Username`. Environment config is inherited by every child git process, submodules included.
+- **Job-scoped.** `$GITHUB_ENV` lasts until the job ends; nothing is written to the runner's git config. Steps after this one in the same job still see the token in their environment, so call the action as late as the job allows.
+
+`python3 .github/scripts/dash-gen/test_configure_git.py` runs the real step in a throwaway `HOME` and asserts all of the above.
 
 ## Permissions Required
 
@@ -190,7 +200,8 @@ permissions:
 
 - The action uses GitHub's built-in `GITHUB_TOKEN` by default
 - Tokens are masked in logs automatically
-- Git credentials are configured per-workflow, not persisted
+- Git credentials are exported to the job environment only, never written to `~/.gitconfig`
+- Every input reaches the scripts through `env:`, never as `${{ }}` inside `run:`
 - Safe directory configuration prevents security warnings
 
 ## Example: Complete Auto-Update Workflow

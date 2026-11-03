@@ -110,6 +110,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-063](features/features.yml) | JEV: the loop runner's context pack — the fleet's planes, read on the host for a sealed agent | partial | [`tools/jev/context.py`](tools/jev/context.py) · [`docs/JEV.md`](docs/JEV.md) | FR59 |
 | [HUB-064](features/features.yml) | In-flight job status for agents: state, ages and slowness diagnostics | planned | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/job-status.md`](tools/console/docs/job-status.md) | FR60 |
 | [HUB-065](features/features.yml) | Fleet PR review workflow with one sticky summary | planned | `docs/amendments/proposed/fleet-pr-review.md` | FR61 |
+| [HUB-066](features/features.yml) | Quest Log showcase: every deep-dived repo gets an article, two LinkedIn drafts and a better first screen | partial | [`.claude/skills/deep-dive-showcase/SKILL.md`](.claude/skills/deep-dive-showcase/SKILL.md) · [`docs/SHOWCASE.md`](docs/SHOWCASE.md) | FR62, NFR8 |
+| [HUB-067](features/features.yml) | The editor is a front door: every harness surface from VS Code through tools/dash | shipped | [`.vscode/launch.json`](.vscode/launch.json) · [`.vscode/README.md`](.vscode/README.md) | FR63 |
+| [HUB-068](features/features.yml) | Workloads placed across fleet nodes, with OpenTofu for node infrastructure | partial | [`tools/fleetcore/nodes.py`](tools/fleetcore/nodes.py) · [`docs/PLATFORM.md`](docs/PLATFORM.md) | FR64 |
 
 **Requirement → feature trace**
 
@@ -145,7 +148,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR23 | HUB-027 |
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
-| NFR8 | HUB-029 |
+| NFR8 | HUB-029, HUB-066 |
 | FR26 | HUB-031 |
 | NFR9 | HUB-031 |
 | FR27 | HUB-032 |
@@ -187,6 +190,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR59 | HUB-063 |
 | FR60 | HUB-064 |
 | FR61 | HUB-065 |
+| FR62 | HUB-066 |
+| FR63 | HUB-067 |
+| FR64 | HUB-068 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -242,6 +248,9 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR59: Before a local loop attempt, the hub must give the sealed agent read-only, capped, redacted and freshness-stamped context from the fleet's data lake, code index, telemetry and the loop's own earlier attempts as a file beside the brief in its clone, built on the host without changing the reviewed prompt bytes, with a mode that turns it off for a CI-identical run and a mode that refuses to spend when a plane is unavailable.
 - FR60: The Harness Console must report each in-flight job's state (queued, running, stalled, done, failed), time since sent and since last progress, and slowness diagnostics, through its API, its MCP layer (job_status, jobs_list) and the Jobs page.
 - FR61: The hub must provide a reusable PR review workflow that posts at most one sticky summary comment per PR (none when clean), inline comments only for severity-tagged deduplicated findings, a fleet signature footer on every comment, never posts with the maintainer's personal token, skips content checks on Dependabot and release PRs, runs AI review only on opened, ready_for_review or label events behind the central switch, and sends cost and test tables to job summaries.
+- FR62: Every repo the deep-dive routine processes also gets a Quest Log showcase drafted for approval: a long-form article and a personal LinkedIn draft on bamr87.github.io, a company-page LinkedIn draft on bash-365.com and a presentation pull request in the repo itself, each a pull request a human merges, with nothing posted, published or changed in a repo's settings before that merge; the ledger records each repo's showcase (article, both drafts, presentation PRs) without changing its deep-dive status, and its projection counts the repos showcased this cycle; see docs/SHOWCASE.md
+- FR63: Every development tool, loop, gate and surface of the hub is reachable from the editor through the same entry points the CLI, the Harness Console's job API and CI run (`tools/dash`, a tool's own entry point, or `docker compose` against the hub's services), never a second implementation; every port, project, site, scenario and loop an editor configuration names comes from its registry and a gate (`tools/test_vscode_launch.py`) holds the pickers equal to those registries; a new surface adds its editor entry in the same pull request; fleet repos with a run, test or debug command carry their own `.vscode/launch.json` + `tasks.json` calling their own one-command entry points (UPS-REPO-40); see constitution § 20 and `.vscode/README.md`
+- FR64: The placement of every hub service on a fleet node is declared once in `_data/fleet.yml` `nodes:` and resolved by one implementation shared by every surface; a placement that would pin an edge-bound service off the edge, make a workload node call back to the edge, put durable data on a node without an off-box backup, or collide a link port is refused before anything runs; a node's durable infrastructure (its network and data volumes) is owned by OpenTofu with durable volumes protected from deletion; and no step that changes a machine runs without an explicit, planned deploy (constitution § 10.5)
 
 **Non-functional**
 

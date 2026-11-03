@@ -1,13 +1,111 @@
 {
-  // ==================================================
-  // UNIFIED VS CODE SETTINGS - Docker-First Development
-  // ==================================================
-  // Optimized for it-journey, zer0-mistakes, barodybroject
-  // Last Updated: 2025-10-26
-  
-  // ==========================================
-  // GITHUB COPILOT CONFIGURATION
-  // ==========================================
+  // ==========================================================================
+  // Workspace settings for the hub — shared and machine-neutral.
+  //
+  // Personal editor preferences (font, line height, minimap, auto-save) live
+  // in home.code-workspace or user settings, not here (that file says so).
+  // This file carries what the repo itself needs: the submodule cap, the
+  // interpreter the debug entries use, Docker Compose v2, file associations
+  // for the fleet's stacks, and the ignores that keep search and watching
+  // off generated and ephemeral trees.
+  // ==========================================================================
+
+  // ---------------------------------------------------------- git/submodules
+  // ~40 submodules under projects/. VS Code's default detectSubmodulesLimit is
+  // 10, so most never appeared in Source Control. Raise the cap so every
+  // submodule is registered.
+  "git.detectSubmodules": true,
+  "git.detectSubmodulesLimit": 100,
+  "git.autoRepositoryDetection": "subFolders",
+  "git.openRepositoryInParentFolders": "always",
+
+  // ------------------------------------------------------------------ python
+  // The debug entries in launch.json run natively against .venv-console — the
+  // venv tools/console/run.sh owns, which carries dash-gen's dependencies too
+  // (the "Console: bootstrap venv" task creates it). Test discovery stays off:
+  // the hub's test_*.py are plain scripts with their own runner, and the
+  // launch/tasks entries run them; the one pytest suite is a task.
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv-console/bin/python",
+  "python.testing.pytestEnabled": false,
+  "python.testing.unittestEnabled": false,
+  "python.analysis.extraPaths": [
+    ".github/scripts/dash-gen",
+    "tools",
+    "tools/console",
+    "tools/fleetcore",
+    "tools/tui"
+  ],
+
+  // ------------------------------------------------------------------ docker
+  // Compose v2 (`docker compose`); the hub's compose project is pinned to
+  // `fleet` in docker-compose.yml (docs/CONTAINERS.md).
+  "containers.composeCommand": "docker compose",
+  "containers.images.label": "latest",
+
+  // ----------------------------------------------------------------- editing
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.associations": {
+    "**/projects/**/*.html": "liquid",
+    "*.md": "markdown",
+    "*.yml": "yaml",
+    "*.yaml": "yaml",
+    "_config*.yml": "yaml",
+    "docker-compose*.yml": "yaml",
+    "Dockerfile*": "dockerfile",
+    ".env*": "properties",
+    "*.code-workspace": "jsonc"
+  },
+  "editor.tabCompletion": "on",
+  "editor.wordBasedSuggestions": "matchingDocuments",
+
+  // Markdown is one paragraph per line (tools/unwrap-prose.py), so soft-wrap
+  // it on screen instead of hard-wrapping it in the file.
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.lineNumbers": "on",
+    "editor.quickSuggestions": { "other": true, "comments": true, "strings": true }
+  },
+  "markdown.preview.breaks": true,
+  "markdown.preview.linkify": true,
+
+  "[yaml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.autoIndent": "advanced"
+  },
+  "yaml.format.enable": true,
+  "yaml.completion": true,
+  "yaml.hover": true,
+  "yaml.validate": true,
+
+  "[liquid]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "liquid.format.enable": true,
+  "emmet.includeLanguages": { "liquid": "html" },
+
+  "[javascript][typescript][typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json][jsonc]": {
+    "editor.tabSize": 2
+  },
+
+  "shellcheck.useWorkspaceRootAsCwd": true,
+
+  // ---------------------------------------------------------------- terminal
+  "terminal.integrated.env.osx": {
+    "JEKYLL_ENV": "development",
+    "DOCKER_BUILDKIT": "1"
+  },
+  "terminal.integrated.env.linux": {
+    "JEKYLL_ENV": "development",
+    "DOCKER_BUILDKIT": "1"
+  },
+
+  // ---------------------------------------------------------------- copilot
   "github.copilot.enable": {
     "*": true,
     "markdown": true,
@@ -21,125 +119,12 @@
     "json": true,
     "jsonc": true
   },
-  "github.copilot.advanced": {
-    "enableSuggestionAutoTrigger": true,
-    "contextLength": 4096,
-    "enableAutoCompletions": true
-  },
 
-  // ==========================================
-  // FILE ASSOCIATIONS & LANGUAGE SUPPORT
-  // ==========================================
-  "files.associations": {
-    "**/projects/**/*.html": "liquid",
-    "*.md": "markdown", 
-    "*.yml": "yaml",
-    "*.yaml": "yaml",
-    "_config*.yml": "yaml",
-    "docker-compose*.yml": "yaml",
-    "Dockerfile*": "dockerfile"
-  },
-
-  // ==========================================
-  // EDITOR CONFIGURATION
-  // ==========================================
-  "editor.quickSuggestions": {
-    "other": true,
-    "comments": true,
-    "strings": true
-  },
-  "editor.tabCompletion": "on",
-  "editor.wordBasedSuggestions": "matchingDocuments",
-  "editor.minimap.enabled": false,
-  "editor.fontSize": 14,
-  "editor.lineHeight": 26,
-
-  // ==========================================
-  // MARKDOWN CONFIGURATION
-  // ==========================================
-  "[markdown]": {
-    "editor.fontSize": 14,
-    "editor.lineHeight": 26,
-    "editor.wordWrapColumn": 80,
-    "editor.lineNumbers": "on",
-    "editor.wordWrap": "bounded",
-    "editor.minimap.enabled": false
-  },
-  "markdown.preview.breaks": true,
-  "markdown.preview.linkify": true,
-
-  // ==========================================
-  // YAML CONFIGURATION
-  // ==========================================
-  "[yaml]": {
-    "editor.insertSpaces": true,
-    "editor.tabSize": 2,
-    "editor.autoIndent": "advanced"
-  },
-  "yaml.format.enable": true,
-  "yaml.completion": true,
-  "yaml.hover": true,
-  "yaml.validate": true,
-
-  // ==========================================
-  // LIQUID TEMPLATE CONFIGURATION
-  // ==========================================
-  "[liquid]": {
-    "editor.tabSize": 2,
-    "editor.insertSpaces": true
-  },
-  "liquid.format.enable": true,
-  "emmet.includeLanguages": {
-    "liquid": "html"
-  },
-
-  // ==========================================
-  // PYTHON CONFIGURATION
-  // ==========================================
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter",
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit"
-    }
-  },
-  "python.testing.pytestEnabled": true,
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestArgs": ["src", "tests"],
-  "python.defaultInterpreterPath": "./venv/bin/python",
-
-  // ==========================================
-  // DOCKER CONFIGURATION
-  // ==========================================
-  "docker.images.label": "latest",
-  "docker.commands.compose": "docker-compose",
-
-  // ==========================================
-  // TERMINAL CONFIGURATION
-  // ==========================================
-  "terminal.integrated.env.osx": {
-    "JEKYLL_ENV": "development",
-    "DOCKER_BUILDKIT": "1"
-  },
-  "terminal.integrated.env.linux": {
-    "JEKYLL_ENV": "development", 
-    "DOCKER_BUILDKIT": "1"
-  },
-
-  // ==========================================
-  // GIT / SUBMODULES
-  // ==========================================
-  // This repo has ~40 submodules under projects/. VS Code's default
-  // git.detectSubmodulesLimit is 10, so most submodules never appear in the
-  // Source Control panel. Raise the cap so every submodule is registered.
-  "git.detectSubmodules": true,
-  "git.detectSubmodulesLimit": 100,
-  "git.autoRepositoryDetection": "subFolders",
-  "git.openRepositoryInParentFolders": "always",
-
-  // ==========================================
-  // FILE WATCHING & PERFORMANCE
-  // ==========================================
+  // ----------------------------------------------- watching / search / files
+  // Generated and ephemeral trees (AGENTS.md "Generated, never hand-edited"):
+  // the venvs, the lake, the compose overrides, the built site and page, the
+  // evidence bundles. Excluded from watching and search; only the usual
+  // caches are hidden from the explorer.
   "files.watcherExclude": {
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true,
@@ -151,7 +136,14 @@
     "**/__pycache__/**": true,
     "**/*.pyc": true,
     "**/venv/**": true,
-    "**/env/**": true
+    "**/.venv*/**": true,
+    "**/env/**": true,
+    "**/dist/**": true,
+    "**/dist-pages/**": true,
+    "**/.dash-lake/**": true,
+    "**/.dash-live/**": true,
+    "**/.fleet/**": true,
+    "**/test/evidence/**": true
   },
   "files.exclude": {
     "**/node_modules": true,
@@ -168,28 +160,30 @@
     "**/*.code-search": true,
     "**/_site": true,
     "**/vendor": true,
-    "**/__pycache__": true
+    "**/__pycache__": true,
+    "**/.venv*": true,
+    "**/dist": true,
+    "**/dist-pages": true,
+    "**/.dash-lake": true,
+    "**/.dash-live": true,
+    "**/.fleet": true,
+    "**/test/evidence": true
   },
 
-  // ==========================================
-  // AUTO-SAVE & LIVE RELOAD
-  // ==========================================
-  "files.autoSave": "afterDelay",
-  "files.autoSaveDelay": 1000,
-
-  // ==========================================
-  // FRONT MATTER CMS INTEGRATION
-  // ==========================================
+  // ------------------------------------------------------------ front matter
   "frontMatter.dashboard.openOnStart": false,
   "frontMatter.content.autoUpdateDate": true,
 
-  // ==========================================
-  // SPELL CHECKING
-  // ==========================================
+  // ----------------------------------------------------------------- spelling
   "cSpell.words": [
+    "actionlint",
     "bamr",
+    "barodybroject",
+    "debugpy",
+    "devenv",
     "endcapture",
     "endraw",
+    "fleetcore",
     "Groking",
     "Inkscape",
     "Jamstack",
@@ -197,11 +191,11 @@
     "lastmod",
     "markdownify",
     "MERN",
+    "parodynews",
     "Picade",
+    "shellcheck",
     "sublinks",
-    "winget",
-    "barodybroject",
-    "parodynews"
-  ],
-  "containers.images.label": "latest"
+    "uvicorn",
+    "winget"
+  ]
 }

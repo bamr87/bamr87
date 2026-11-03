@@ -19,7 +19,7 @@ coverage: listed
 | `tsconfig.json` | file | Strict TypeScript, type-check only (Vite bundles) | required |
 | `vite.config.ts` | file | Build to `dist/` (or `CONSOLE_OUT`) under `CONSOLE_BASE`; the public build's CSP `<meta>`; the dev server's proxy to a running console (HTTP + the `/api/tui` WebSocket) | required |
 | `index.html` | file | The entry document — links `/theme.css` (fleetcore's palette) and the bundle | required |
-| `public/` | dir | Files copied verbatim into the build (`favicon.svg`, `headshot.jpg` — the avatar `_data/profile.yml` names) | terminal |
+| `public/` | dir | Files copied verbatim into the build (`favicon.svg`; `headshot.jpg`, the avatar `_data/profile.yml` names; `social-preview.png`, its 1280x640 `site.image` link card, also the repo's GitHub social preview; `readme-hero.jpg`, the profile README's hero screenshot) | terminal |
 | `src/` | dir | The app: `main.tsx`, `nav.ts`, `theme.ts`, `styles.css`, and `api/`, `lib/`, `components/`, `jobs/`, `github/`, `pages/` (see README) | terminal |
 | `dist/` | generated | Vite's build output — what the console serves; gitignored, rebuilt by `../run.sh` | generated |
 | `dist-pages/` | generated | The public site built locally by `../build-pages.sh` (page + snapshot); gitignored — CI builds into `_site/` | generated |

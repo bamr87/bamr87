@@ -26,6 +26,7 @@ coverage: listed
 | `diagrams/` | dir | Harness + loop illustrations: archify JSON IR and the delivered HTML (tools/render-diagrams.sh) | required |
 | `docs/` | dir | Operator docs for the dash machinery, UPPERCASE topic files | required |
 | `features/` | dir | The hub's own feature index (`features/v1`): what the dash does for a user, where it lives, what proves it — aggregated fleet-wide by `dash features fleet` (docs/VERIFICATION.md) | required |
+| `infra/` | dir | Infrastructure as code (OpenTofu, MPL-2.0): each fleet node's `fleet` network and data volumes, planned and applied by `tools/dash infra` from `_data/fleet.yml` `nodes:` (ADR 0003, docs/PLATFORM.md) | required |
 | `verify/` | dir | The hub's agent-verification harness: run config, user scenarios, the rendered Playwright runner, the Playwright MCP config (kit: `templates/verify/`) | required |
 | `test/` | dir | Verification outputs — evidence bundles (`test/evidence/<scenario>/`) written by `tools/dash verify`; hub unit tests live beside their modules | required |
 | `pages/` | dir | The public site's Markdown — `profile/` pages and `posts/` — served by `tools/console/site_docs.py` (docs/CONSOLE-PAGES.md) | required |
@@ -47,7 +48,9 @@ coverage: listed
 | `kilo.jsonc` | file | Kilo Code project config — codebase indexing for this worktree, including checked-out submodules; URLs must agree with `_data/fleet.yml` `observability.indexing` | |
 | `.gitattributes` | file | How git treats generated and append-only files: `merge=jev-regen` (keep ours, regenerate — `tools/jev/merge-regen.sh`) and `merge=union`; amendment 0002, docs/JEV.md; and byte-pinned agent prompts (`eol=lf`, `tools/jev/steps/`) | |
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
+| `.vscode/` | dir | The editor as a front door (constitution § 20): launch configurations and tasks for every harness surface through `tools/dash`, machine-neutral settings, the shared extension list; pickers held to the registries by `tools/test_vscode_launch.py` | required |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
+| `*.code-workspace` | pattern | Other VS Code multi-root workspaces over a group of submodules (e.g. `bash-cms`: the content sites) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
 | `issue-workorder-t*.md` | pattern | Ephemeral per-tier issue work orders (`dash issues` → issue-pipeline.yml; gitignored) | generated |
 | `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |
@@ -61,6 +64,7 @@ coverage: listed
 - New gate, generator, or fleet script → `tools/`
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
 - New dash surface or loop → a fragment in `features/features.d/<slug>.yml` (`id: HUB-NEW`, numbered at merge) + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
+- New dash subcommand, loop, gate, scenario, site or submodule → also its F5 entry in `.vscode/launch.json` (+ `tasks.json`, the picker, the `.vscode/README.md` line) in the same change (constitution § 20)
 - New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`
 - New registry → `_data/`, registered in `_data/SCHEMA.md`
 - New fleet dev-stack service or project → `_data/ports.yml`, then `tools/fleet-compose.py sync`
