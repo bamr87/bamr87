@@ -5,7 +5,7 @@ output "network" {
 
 output "volumes" {
   description = "The volumes this state owns, by kind."
-  value       = {
+  value = {
     durable     = sort([for v in docker_volume.durable : v.name])
     rebuildable = sort([for v in docker_volume.rebuildable : v.name])
   }
