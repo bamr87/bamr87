@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-02T06:03:33Z'
+generated_at: '2026-11-03T06:03:59Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,9 +17,9 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 65
-  implemented: 40
-  covered: 59
+  features: 68
+  implemented: 43
+  covered: 62
   evidenced: 10
   verified: 8
   ui: 18
@@ -29,9 +29,9 @@ totals:
   screenshots: 50
   dangling: 5
 pct:
-  coverage: 148
-  evidence: 25
-  verified: 20
+  coverage: 144
+  evidence: 23
+  verified: 19
   ui_coverage: 100
 attention:
 - repo: bamr87
@@ -73,6 +73,7 @@ repos:
     - 'features/features.yml HUB-060: description contains ''<'' or ''>'' — renders as markup on the features page'
     - 'features/features.yml HUB-063: description contains ''<'' or ''>'' — renders as markup on the features page'
     - 'features/features.yml HUB-065: docs path not found: docs/amendments/proposed/fleet-pr-review.md'
+    - 'features/features.yml HUB-067: description contains ''<'' or ''>'' — renders as markup on the features page'
   kit:
     config: true
     runner: true
@@ -86,9 +87,9 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 65
-    implemented: 40
-    covered: 59
+    features: 68
+    implemented: 43
+    covered: 62
     evidenced: 10
     verified: 8
     ui: 18
@@ -97,8 +98,8 @@ repos:
     dangling: 5
   pct:
     coverage: 100
-    evidence: 25
-    verified: 20
+    evidence: 23
+    verified: 19
   last_run: null
   gaps:
   - 5 dangling test/scenario/evidence link(s)
@@ -2451,6 +2452,116 @@ repos:
       docs: https://github.com/bamr87/bamr87/blob/main/docs/amendments/proposed/fleet-pr-review.md
       evidence: []
       tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-066
+    title: 'Quest Log showcase: every deep-dived repo gets an article, two LinkedIn drafts and a better first screen'
+    surface: infra
+    implemented: true
+    link: .claude/skills/deep-dive-showcase/SKILL.md
+    docs: docs/SHOWCASE.md
+    tags:
+    - deep-dive
+    - showcase
+    - linkedin
+    - content
+    - routine
+    date: '2026-11-01'
+    provenance: null
+    tests:
+    - tools/test_deep_dive.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Extends the daily deep dive (HUB-029): each repo the routine processes also gets a Quest Log showcase, made
+      by the deep-dive-showcase skill for the scheduled routine or Amr by hand. The pieces are a long-form article and a personal
+      LinkedIn'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.claude/skills/deep-dive-showcase/SKILL.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/SHOWCASE.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_deep_dive.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-067
+    title: 'The editor is a front door: every harness surface from VS Code through tools/dash'
+    surface: infra
+    implemented: true
+    link: .vscode/launch.json
+    docs: .vscode/README.md
+    tags:
+    - vscode
+    - editor
+    - dash
+    - debug
+    - developer-experience
+    date: '2026-11-02'
+    provenance: null
+    tests:
+    - tools/test_vscode_launch.py
+    - tools/test_docker_view.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Every development tool, loop, gate and surface of the hub is reachable from VS Code (.vscode/launch.json, 131
+      configurations in eleven groups that follow the console's sections, plus tasks.json) through tools/dash, a tool's own
+      entry point,
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/.vscode/launch.json
+      docs: https://github.com/bamr87/bamr87/blob/main/.vscode/README.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_vscode_launch.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_docker_view.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-068
+    title: Workloads placed across fleet nodes, with OpenTofu for node infrastructure
+    surface: infra
+    implemented: true
+    link: tools/fleetcore/nodes.py
+    docs: docs/PLATFORM.md
+    tags:
+    - platform
+    - nodes
+    - forge
+    - opentofu
+    - iac
+    - docker
+    - placement
+    - offload
+    date: '2026-11-02'
+    provenance: null
+    tests:
+    - tools/test_fleetcore_nodes.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'Where every hub service runs is data: _data/fleet.yml `nodes:` places each compose service on the Mac (the edge)
+      or forge (a workload node), and tools/fleetcore/nodes.py resolves it against docker-compose.yml, refusing an edge-bound
+      service'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/fleetcore/nodes.py
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/PLATFORM.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_nodes.py
       scenarios: []
       screenshots: []
   truncated: false
