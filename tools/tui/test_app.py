@@ -249,11 +249,17 @@ class FakeConsole:
 
     def __init__(self) -> None:
         self.submitted: list[tuple[str, bool]] = []
+        self.params: list[dict] = []
         self._jobs: list[dict] = []
 
     def ops(self) -> list[dict]:
         return [{"id": "harness", "title": "Harness scorecard", "group": "observe", "desc": "", "remote_write": False},
-                {"id": "deploy", "title": "Deploy the kit", "group": "deploy", "desc": "", "remote_write": True}]
+                {"id": "deploy", "title": "Deploy the kit", "group": "deploy", "desc": "", "remote_write": True},
+                {"id": "loop-run", "title": "Run a loop's agent step locally (dry run)", "group": "plan", "desc": "",
+                 "remote_write": True, "confirm": "spend", "exclusive": "loop", "unavailable": None,
+                 "agent_steps": [{"id": "repo-scout/scout", "loop": "repo-scout", "step": "scout",
+                                  "model": "claude-sonnet-5-5", "max_turns": 40, "cap_usd": 8.0,
+                                  "cost_label": "API-equivalent (estimate)"}]}]
 
     def jobs(self) -> list[dict]:
         return list(self._jobs)
@@ -261,7 +267,10 @@ class FakeConsole:
     def submit(self, op: str, params=None, confirm: bool = False) -> dict:
         if op == "deploy" and not confirm:
             raise A.ConsoleError("'deploy' writes to GitHub — resubmit with confirm=true")
+        if op == "loop-run" and not confirm and not (params or {}).get("rehearse"):
+            raise A.ConsoleError("'loop-run' with these parameters spends Claude budget — resubmit with confirm=true")
         self.submitted.append((op, confirm))
+        self.params.append(dict(params or {}))
         job = {"id": f"{len(self._jobs):012x}", "op": op, "title": op, "status": "succeeded",
                "created": "2026-10-07T12:00:00+00:00", "started": "2026-10-07T12:00:01+00:00", "exit_code": 0}
         self._jobs.insert(0, job)
@@ -270,7 +279,18 @@ class FakeConsole:
     def tail(self, job_id: str, offset: int = 0) -> dict:
         job = next(j for j in self._jobs if j["id"] == job_id)
         text = "$ dash-gen harness\n\x1b[1m== Harness ==\x1b[0m\nok\n"
-        return {"job": job, "text": text[offset:], "offset": len(text), "done": True}
+        out = {"job": job, "text": text[offset:], "offset": len(text), "done": True}
+        if job["op"] == "loop-run":
+            # what the console's tail carries for a loop-run (tools/fleetcore/loopjob.py)
+            out["loop"] = {"schema": "loop-job/v1", "record": True, "run_id": "r-1", "status": "rehearsed",
+                           "exit_code": 0, "mode": "rehearse", "loop": "repo-scout", "step": "scout",
+                           "target": "alpha", "model": "claude-sonnet-5-5", "max_turns": 40, "cap_usd": 8.0,
+                           "spent_usd": 0.0, "estimated_usd": 0, "cost_label": "API-equivalent (estimate)",
+                           "attempts": 0, "published": 0, "usage_limited": False, "finished": None,
+                           "items": [{"key": "bamr87/alpha", "status": "rehearsed", "reason": "", "decision": None,
+                                      "outcome": None, "cost_usd": None, "cost_source": None, "turns": None,
+                                      "flags": [], "urls": []}], "run_dir": None, "notes": []}
+        return out
 
     def cancel(self, job_id: str) -> dict:
         return {}
@@ -323,6 +343,34 @@ async def t_jobs_through_the_console(root: Path) -> None:
         await pilot.press("y")
         assert await until(pilot, lambda: ("deploy", True) in fake.submitted)
         assert fake.submitted == [("harness", False), ("deploy", True)], fake.submitted
+
+
+async def t_loop_run_key_runs_the_selected_repo_through_the_console(root: Path) -> None:
+    """`L` on the Apps tab submits the console's loop-run op for the row under
+    the cursor with the op's first agent step; the console's confirm (a live
+    attempt spends) becomes the yes/no, a yes resubmits with the SAME
+    parameters, and the finished job's parsed fields are written under its
+    log as text — the same fields the page renders."""
+    fake = FakeConsole()
+    app = A.DashTui(root=root, hosts=[], console=fake)
+    async with app.run_test(size=SIZE) as pilot:
+        await pilot.pause()
+        await pilot.press("1", "j")   # the second app row
+        await pilot.pause()
+        app._sync_selection()
+        selected = app._selected
+        assert selected, "no app row selected"
+        await pilot.press("L")
+        assert await until(pilot, lambda: isinstance(app.screen, A.Confirm))
+        await pilot.press("y")
+        assert await until(pilot, lambda: ("loop-run", True) in fake.submitted)
+        assert fake.params[-1] == {"loop": "repo-scout", "step": "scout", "target": selected}, fake.params
+        assert await until(pilot, lambda: "── loop-run" in "\n".join(app.query_one("#joblog").lines))
+        shown = "\n".join(app.query_one("#joblog").lines)
+        assert "rehearsed" in shown and "$0.00 spent (API-equivalent (estimate))" in shown and "bamr87/alpha" in shown, shown
+        await pilot.press("7", "L")   # not on the Apps tab: refused politely, nothing submitted
+        await pilot.pause()
+        assert fake.submitted.count(("loop-run", True)) == 1
 
 
 async def t_strip_ansi_holds_a_split_sequence(root: Path) -> None:
@@ -450,6 +498,7 @@ CASES = [
     t_no_browser_shows_the_link,
     t_keys_v1,
     t_jobs_through_the_console,
+    t_loop_run_key_runs_the_selected_repo_through_the_console,
     t_without_a_console_jobs_explains,
     t_strip_ansi_holds_a_split_sequence,
     t_search_and_escape,

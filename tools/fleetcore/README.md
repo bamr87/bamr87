@@ -8,6 +8,7 @@ The Harness Console (browser, `tools/console/`) and the terminal dash (TTY, `too
 | `keys.py` (keys v1) | `/api/keys` → the page's key handler and `?` sheet | its Bindings, footer and `?` panel |
 | `theme.py` (bashOS palette) | `/theme.css` (Mantine's variables point at it) and `/api/theme` (the Terminal page's xterm colours) | the `bashos-dark` Textual theme |
 | `client.py` | — (the console *is* the runtime) | the **Jobs** tab and the `:` palette submit jobs to the console |
+| `loopjob.py` | `/api/jobs/:id` → `loop` on a `loop-run` job (the Job page's run summary) | the Jobs tab's summary under a finished loop-run |
 | `nodes.py` | — (planned: a Nodes page, `/api/nodes`, MCP `fleet_nodes`; ADR 0003 phase 11) | — (planned: a node column on the Docker tab); today `tools/dash node` and `tools/dash infra` |
 | `mcp_server.py` | — | — (the third surface: AI agents, below) |
 
