@@ -114,6 +114,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-067](features/features.yml) | The editor is a front door: every harness surface from VS Code through tools/dash | shipped | [`.vscode/launch.json`](.vscode/launch.json) · [`.vscode/README.md`](.vscode/README.md) | FR63 |
 | [HUB-068](features/features.yml) | Workloads placed across fleet nodes, with OpenTofu for node infrastructure | partial | [`tools/fleetcore/nodes.py`](tools/fleetcore/nodes.py) · [`docs/PLATFORM.md`](docs/PLATFORM.md) | FR64 |
 | [HUB-069](features/features.yml) | Run a loop's agent step locally from the console, the TUI and the MCP (loop-run) | partial | route `/loops/repo_scout` · [`tools/console/README.md`](tools/console/README.md) | FR56, FR65 |
+| [HUB-070](features/features.yml) | JEV: the fleet doctor's step spec and local dry run (P3, step 1) | partial | [`tools/jev/steps/fleet-pulse/doctor.yml`](tools/jev/steps/fleet-pulse/doctor.yml) · [`docs/DAILY-ANALYSIS.md`](docs/DAILY-ANALYSIS.md) | FR56 |
 
 **Requirement → feature trace**
 
@@ -185,7 +186,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR53 | HUB-056 |
 | FR54 | HUB-057 |
 | FR55 | HUB-058 |
-| FR56 | HUB-060, HUB-069 |
+| FR56 | HUB-060, HUB-069, HUB-070 |
 | FR57 | HUB-061 |
 | FR58 | HUB-062 |
 | FR59 | HUB-063 |
