@@ -45,6 +45,7 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `README.md` | file | Projects index page | |
+| `*.code-workspace` | pattern | VS Code multi-root workspaces over a subset of the submodules (folder paths relative to this directory) | |
 """
 
 FOOTER = """\
