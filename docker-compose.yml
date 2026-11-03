@@ -251,6 +251,10 @@ services:
     networks:
       - fleet
     restart: unless-stopped
+    # serve.py is exec'd as PID 1 and never waits on processes it did not
+    # start, so every orphaned job grandchild and timed-out healthcheck curl
+    # stayed defunct for the life of the container. tini reaps them.
+    init: true
     command: tools/console/run.sh
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:4001/api/health || exit 1"]
