@@ -33,7 +33,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/CONTENT-ATLAS.md`](CONTENT-ATLAS.md) | Content observability and editorial direction for the fleet's content sites, and the committed editorial plan in `_data/editorial.yml`. |
 | [`docs/DAILY-ANALYSIS.md`](DAILY-ANALYSIS.md) | The daily fleet loop (`fleet-pulse.yml`): gather every signal, rank the failing and expensive workflows into one queue, and let the doctor open the fixes. |
 | [`docs/DASH.md`](DASH.md) | The dash architecture — the registry as the source of truth, the surfaces, monitoring, the drift gates and the self-evolution loop. Start here for the machinery. |
-| [`docs/DEEP-DIVE.md`](DEEP-DIVE.md) | One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh (`deep-dive.yml`) and the `/deep-dive` dashboard (HUB-029, PRD FR24–FR25). |
+| [`docs/DEEP-DIVE.md`](DEEP-DIVE.md) | One bamr87 repo a day, every repo once per 42-day cycle: the ledger (`_data/deep-dive.yml`), its tool (`tools/deep_dive.py`), the daily refresh, the `/deep-dive` dashboard (HUB-029, PRD FR24–FR25) and each repo's showcase record. |
 | [`docs/DEPENDENCIES.md`](DEPENDENCIES.md) | The always-latest dependency policy: no exact pins, no ceilings, no committed lockfiles, and the few sanctioned exceptions. |
 | [`docs/DESIGN-HARMONIZATION.md`](DESIGN-HARMONIZATION.md) | How the fleet's front-ends move to one shell, layout and design language: inventory, shared tokens and shell, a warn-then-fail check, and fan-out PRs. Rule: proposed amendment… |
 | [`docs/DEVELOPMENT.md`](DEVELOPMENT.md) | Prerequisites, getting the source, running the console and the site, containers, and which check to run for what you changed. |
@@ -50,12 +50,14 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/JEV.md`](JEV.md) | The fleet's harness-level AI agent logic engine: conflict-free numbering (ids assigned at merge, never in a pull request), tiered pull-request conflict triage and resolution, and loop step specs that CI and a local run render alike. |
 | [`docs/MACHINE-API.md`](MACHINE-API.md) | The agent-facing JSON the site publishes (`/api/v1/*.json`, `llms.txt`) and how to start from it. |
 | [`docs/OBSERVABILITY.md`](OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
+| [`docs/PLATFORM.md`](PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-premise cluster. |
 | [`docs/PORTFOLIO.md`](PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
 | [`docs/PROJECTS-FRAMEWORK.md`](PROJECTS-FRAMEWORK.md) | Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and PRD requirements `projects-coverage`, `projects-sync`… |
 | [`docs/RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`docs/SCHEMA.md`](SCHEMA.md) | Operator documentation for the dash machinery — how the hub, gates, and fleet workflows are meant to be run. |
 | [`docs/SCOUT.md`](SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |
+| [`docs/SHOWCASE.md`](SHOWCASE.md) | The Quest Log campaign: each repo the daily deep dive processes is also showcased on LinkedIn (an article and a post on Amr's profile, a post on the BASH Consulting page) and given a better first screen, each piece a PR Amr merges. |
 | [`docs/SMOKE.md`](SMOKE.md) | The live smoke test: record every running container's probes, then re-run them and fail on any regression. |
 | [`docs/SPEC-DRIVEN.md`](SPEC-DRIVEN.md) | How a fleet repo turns a backlog item into a merged change with a machine-checked spec record, using machinery the hub owns. |
 | [`docs/STANDARDS.md`](STANDARDS.md) | The tiered standardization baseline — which files each kind of repository must have — and the way to the Universal Project Standard in `specs/`. |

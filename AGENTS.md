@@ -49,6 +49,7 @@ See [`SCHEMA.md`](SCHEMA.md) and the chain of `SCHEMA.md` files down to where yo
 | `.github/` | Workflows (the loops), composite actions, the `dash-gen` generator (`scripts/dash-gen/`); `agents|instructions|prompts/` are Copilot-format reference templates read in place by hub skills |
 | `specs/` | The Universal Project Standard every fleet repo is built to (machine twin `_data/specs.yml`) |
 | `templates/` | Kits fanned out into the fleet (CI, agent context, sdlc, schema, feedback, verify, …) |
+| `infra/` | Infrastructure as code: OpenTofu root modules for each fleet node's network and data volumes (`tools/dash infra`); Ansible and Salt arrive with their phases ([ADR 0003](docs/adr/0003-fleet-platform-nodes-iac-and-scale-out.md), [docs/PLATFORM.md](docs/PLATFORM.md)) |
 | `docs/` | Operator documentation, indexed in [`docs/README.md`](docs/README.md) |
 | `pages/`, `compose/`, `diagrams/` | Site Markdown, compose overrides, harness diagrams |
 | `features/`, `verify/`, `test/` | The hub's own feature index, user scenarios and evidence ([docs/VERIFICATION.md](docs/VERIFICATION.md)) |
@@ -66,6 +67,7 @@ See [`SCHEMA.md`](SCHEMA.md) and the chain of `SCHEMA.md` files down to where yo
 - **Central configuration is `_data/fleet.yml`** — toolchains, schedules, caps, budgets, the token contract and the canonical repo variables; read it with `tools/dash config show [key]`. `bamr87` is a personal account with no org-level secrets or variables, so the contract is declared here and projected onto the fleet (`dash config sync`, `dash secrets sync`). Reusable CI resolves a toolchain version as caller input → the repo's `vars.*` → the built-in default, so a bump here reaches every repo.
 - **Secrets:** `_data/` is public site data. Secret values live only in GitHub secrets or `.env`; `fleet.yml` names them, never holds them.
 - **Markdown** is one paragraph per line; respect `.prettierignore` (Prettier can desynchronize generated Markdown). Hooks compete through `core.hooksPath` — `bash tools/audit-git-hooks.sh` diagnoses.
+- **The editor is a front door (constitution § 20):** every dash subcommand, loop, gate, scenario, site and submodule has its F5 entry in `.vscode/launch.json`; entries call `tools/dash`, a tool's own entry point or `docker compose`, never a second implementation; pickers and ports follow the registries (`python3 tools/test_vscode_launch.py` holds them). A new surface adds its entry and the `.vscode/README.md` line in the same PR.
 - **Verify like a user:** a change to what someone sees or does follows [docs/VERIFICATION.md](docs/VERIFICATION.md) — feature index, scenario, evidence bundle under `test/evidence/<slug>/`; a non-visual change gets `skip-evidence` with a reason.
 - **Never:** push to `main`, merge a PR that is not mergeable or is held by the review gate (constitution § 12), commit lockfiles or secrets, suppress type errors, leave empty exception handlers, or edit generated files by hand.
 
@@ -110,6 +112,7 @@ Each of these came from an incident; the linked doc tells it.
 | `tools/dash lake` / `observe` / `content` | The local data lake, the log/metrics/trace planes, the content atlas | [HARNESS-OPS.md](docs/HARNESS-OPS.md), [OBSERVABILITY.md](docs/OBSERVABILITY.md), [CONTENT-ATLAS.md](docs/CONTENT-ATLAS.md) |
 | `tools/dash workflows` | The workflow atlas: the hub's workflows and actions as one model, linted against the standards, failures classified from the lake, new workflows scaffolded inside the rules (console `/workflows`, MCP `fleet_workflows`) | [WORKFLOW-ATLAS.md](docs/WORKFLOW-ATLAS.md) |
 | `tools/dash up` / `dev` / `docker` | The container plane, per-project dev stacks, the image standard | [CONTAINERS.md](docs/CONTAINERS.md), [FLEET-COMPOSE.md](docs/FLEET-COMPOSE.md), [DOCKER.md](docs/DOCKER.md) |
+| `tools/dash node` / `infra` | Where hub workloads run — the Mac edge and the forge workload node, from `_data/fleet.yml` `nodes:`: status, plan, generated overlays and Ansible inventory, the forwarding-only link key; OpenTofu for a node's network and volumes (apply needs `--yes` and a current plan) | [PLATFORM.md](docs/PLATFORM.md), [ADR 0003](docs/adr/0003-fleet-platform-nodes-iac-and-scale-out.md) |
 
 ## Gotchas
 

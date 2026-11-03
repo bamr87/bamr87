@@ -1,5 +1,5 @@
 name: 'Configure Git Environment'
-description: 'Configure Git with user information and authentication for automated commits'
+description: 'Configure Git with user information and job-scoped authentication for automated commits'
 inputs:
   user-name:
     description: 'Git user name'
@@ -16,34 +16,60 @@ inputs:
 runs:
   using: composite
   steps:
+    # Every input reaches the scripts through env:, never through `${{ }}`
+    # inside run: (GitHub's hardening guide: an expression expanded into a
+    # script becomes literal script text).
     - name: Configure Git User
       shell: bash
+      env:
+        GIT_USER_NAME: ${{ inputs.user-name }}
+        GIT_USER_EMAIL: ${{ inputs.user-email }}
       run: |
-        git config --global user.name "${{ inputs.user-name }}"
-        git config --global user.email "${{ inputs.user-email }}"
-        
-        echo "::notice::Git configured with user: ${{ inputs.user-name }}"
-    
+        git config --global user.name "${GIT_USER_NAME}"
+        git config --global user.email "${GIT_USER_EMAIL}"
+
+        echo "::notice::Git configured with user: ${GIT_USER_NAME}"
+
+    # The token is never written to ~/.gitconfig. It is exported for the
+    # remaining steps of THIS job as GIT_CONFIG_COUNT / GIT_CONFIG_KEY_n /
+    # GIT_CONFIG_VALUE_n, which git reads as command-scoped config. Unlike a
+    # repo-local `git config --local`, environment config also reaches the
+    # child fetches of `git submodule update --remote`, which private
+    # submodules need. An existing GIT_CONFIG_COUNT is extended, not replaced.
     - name: Setup Git Authentication
       shell: bash
+      env:
+        GIT_AUTH_TOKEN: ${{ inputs.github-token }}
       run: |
-        # Configure Git to use the GitHub token for authentication
-        git config --global url."https://x-access-token:${{ inputs.github-token }}@github.com/".insteadOf "https://github.com/"
-        
-        # Verify authentication setup
-        if ! git ls-remote --exit-code origin HEAD > /dev/null 2>&1; then
+        set -euo pipefail
+        echo "::add-mask::${GIT_AUTH_TOKEN}"
+
+        n="${GIT_CONFIG_COUNT:-0}"
+        {
+          echo "GIT_CONFIG_KEY_${n}=url.https://x-access-token:${GIT_AUTH_TOKEN}@github.com/.insteadOf"
+          echo "GIT_CONFIG_VALUE_${n}=https://github.com/"
+          echo "GIT_CONFIG_COUNT=$((n + 1))"
+        } >> "$GITHUB_ENV"
+
+        # Verify with the same config, scoped to a subshell.
+        if ! (
+          export "GIT_CONFIG_KEY_${n}=url.https://x-access-token:${GIT_AUTH_TOKEN}@github.com/.insteadOf"
+          export "GIT_CONFIG_VALUE_${n}=https://github.com/"
+          export GIT_CONFIG_COUNT=$((n + 1))
+          git ls-remote --exit-code origin HEAD > /dev/null 2>&1
+        ); then
           echo "::warning::Git authentication verification failed - proceeding anyway"
         else
-          echo "::notice::Git authentication configured successfully"
+          echo "::notice::Git authentication configured for this job (environment-scoped, not written to ~/.gitconfig)"
         fi
-    
+
     - name: Set Git Safe Directory
       shell: bash
       run: |
         # Mark the current directory as safe for Git operations
         git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-        
+
         # Also mark any subdirectories that might be needed
         git config --global --add safe.directory '*'
-        
+
         echo "::notice::Git safe directory configuration completed"

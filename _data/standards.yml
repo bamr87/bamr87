@@ -51,6 +51,10 @@ artifacts:
                   "*/tests", "*/test", "*/__tests__", "*/cypress", "*/tests.py", "packages/*/tests", "packages/*/test",
                   verify/scenarios]
   container:     [Dockerfile, .devcontainer, docker-compose.yml, compose.yml]
+  # The editor is a front door (constitution § 20, UPS-REPO-40): run/test/debug
+  # from VS Code through the repo's OWN entry points. launch.json is the
+  # artifact; tasks.json rides with it (conformance.py checks both resolve).
+  vscode:        [.vscode/launch.json]
   release:       [release-please-config.json, .release-please-manifest.json, CHANGELOG.md]
 
 tiers:
@@ -66,6 +70,7 @@ tiers:
     tests: required
     container: recommended
     release: recommended
+    vscode: recommended
   experiment:
     label: "Early / experimental"
     readme: required
@@ -78,6 +83,7 @@ tiers:
     tests: na
     container: na
     release: na
+    vscode: na
   content:
     label: "Markdown / knowledge base"
     readme: required
@@ -90,6 +96,7 @@ tiers:
     tests: na
     container: na
     release: na
+    vscode: na
   fork:
     label: "Fork of an upstream project (rely on upstream)"
     readme: recommended
@@ -101,6 +108,7 @@ tiers:
     tests: na
     container: na
     release: na
+    vscode: na
   archived:
     label: "Archived / read-only"
     readme: required
@@ -112,6 +120,7 @@ tiers:
     tests: na
     container: na
     release: na
+    vscode: na
 
 # Default tier derived from the registry `status`.
 status_tier:
@@ -126,6 +135,7 @@ kind_overrides:
     tests: recommended     # build-validation + verify/scenarios prove a site
   content:
     tests: na
+    vscode: na
 
 # Explicit per-project tier overrides (project name -> tier).
 # Keys MUST be exact registry `name` values from _data/projects.yml and values

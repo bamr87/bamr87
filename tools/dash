@@ -68,7 +68,9 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
                          \`view [--write]\` builds the consolidated /docker/ dashboard (_data/docker.yml)
   ${c_bold}dash serve${c_off}             build the public site (the console, static) and serve it on :4000
   ${c_bold}dash tui [--docker]${c_off}    terminal command center — registry, health, triage inbox, harness wires + live Docker (DASH_DOCKER_HOST, default local,ssh://forge)
-  ${c_bold}dash host [setup|ps|up|rebuild]${c_off}  forge Docker host — rebuild hub from bamr87/.env, or up a submodule
+  ${c_bold}dash host [setup|ps|up|rebuild --wipe-all]${c_off}  forge Docker host — up a submodule, or the legacy whole-hub rebuild (deletes every container and volume on forge, so it needs --wipe-all)
+  ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
+  ${c_bold}dash infra [plan|apply] [node]${c_off}  the IaC layer — OpenTofu plans a workload node's network and volumes (infra/); apply needs --yes and a saved plan of the current inputs
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash mcp [--http|--tunnel]${c_off} the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -209,6 +211,17 @@ cmd_host() {
       ssh forge "cd ~/dev/$proj && docker compose --env-file ~/dev/bamr87/.env up -d #nomirror"
       ;;
     rebuild)
+      # The legacy whole-hub path: rsync this tree (uncommitted edits included),
+      # then DELETE every container and volume on forge. Once forge holds a
+      # placed service's data (_data/fleet.yml `nodes:`, ADR 0003) that is a
+      # data-loss button, so it must be asked for by name. Placed services are
+      # deployed with `dash node` / `dash infra` instead (docs/PLATFORM.md).
+      if [[ "${1:-}" != "--wipe-all" ]]; then
+        echo "dash host rebuild deletes EVERY container and volume on forge, then rebuilds the whole hub from this tree." >&2
+        echo "Placed services go through 'dash node plan' + 'dash infra plan' (docs/PLATFORM.md)." >&2
+        echo "To wipe forge anyway: dash host rebuild --wipe-all" >&2
+        return 2
+      fi
       local dest="forge:dev/bamr87/"
       echo "rsync $ROOT → $dest"
       rsync -a --delete \
@@ -229,11 +242,22 @@ docker compose -f docker-compose.yml -f compose/forge.yml --env-file .env --prof
 REMOTE
       ;;
     *)
-      echo "usage: dash host setup|ps|up <project>|rebuild" >&2
+      echo "usage: dash host setup|ps|up <project>|rebuild --wipe-all" >&2
       return 1
       ;;
   esac
 }
+
+# Fleet nodes (ADR 0003, docs/PLATFORM.md): where each hub workload runs — the
+# Mac edge and the forge workload node — resolved from _data/fleet.yml
+# `nodes:` against docker-compose.yml (tools/fleetcore/nodes.py, the core the
+# console and MCP share). status/plan/key only read; gen writes .fleet/nodes/.
+cmd_node() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes "$@"); }
+
+# The IaC layer (infra/, OpenTofu): `plan` reads the node and saves a plan;
+# `apply` changes the node, so it refuses without --yes and a saved plan of the
+# current inputs (constitution § 10.5).
+cmd_infra() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes infra "$@"); }
 
 # The Harness Console: the credentialed, write-capable front end of the local
 # stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
@@ -872,6 +896,8 @@ main() {
     serve)   cmd_serve "$@" ;;
     tui)     cmd_tui "$@" ;;
     host)    cmd_host "$@" ;;
+    node)    cmd_node "$@" ;;
+    infra)   cmd_infra "$@" ;;
     console) cmd_console "$@" ;;
     mcp)     cmd_mcp "$@" ;;
     sync)    cmd_sync "$@" ;;

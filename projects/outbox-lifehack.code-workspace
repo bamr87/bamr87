@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "outbox"
+		},
+		{
+			"path": "zer0-cms"
+		},
+		{
+			"path": "lifehacker.dev"
+		},
+		{
+			"path": "gitorio"
+		},
+		{
+			"path": "scripts"
+		}
+	],
+	"settings": {}
+}

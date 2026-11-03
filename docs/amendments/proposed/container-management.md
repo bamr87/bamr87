@@ -6,7 +6,7 @@
 - **Date:** 2026-11-02
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** the merged PR URL (leave blank until merged)
-- **Affects:** constitution § 2 (new invariant), new § 20 (follows § 19 `fleet-pr-review`); feature `fleet-container-management` (HUB-NEW, follow-up fragment); requirements: none yet
+- **Affects:** constitution § 2 (new invariant), new § 21 (follows § 20 `editor-front-door`); feature `fleet-container-management` (HUB-NEW, follow-up fragment); requirements: none yet
 - **Supersedes:** none (extends § 13, § 17 and the image standard in `docs/DOCKER.md`)
 - **Related:** bamr87/bamr87#590 (backlog issue), #588, #589, Fleet project #14, `docs/DOCKER.md`, `docs/CONTAINERS.md`, `docs/FLEET-COMPOSE.md`, release-please, Design for Failure (DFF, `.github/copilot-instructions.md`)
 
@@ -27,11 +27,11 @@ Add to constitution § 2 (Invariants):
 
 > - A production container image is built once and promoted through environments by digest, never rebuilt per environment, and never contains a secret. _(amendment `container-management`, numbered at merge)_
 
-Add constitution § 20 "Container images and containers" with the text in `docs/constitution.md`.
+Add constitution § 21 "Container images and containers" with the text in `docs/constitution.md`.
 
 ## Consequences
 
 - Follow-up (#590): choose the registry and tagging scheme, write the reusable build/scan/promote workflow and the per-repo stub, add the feature fragment `fleet-container-management` (HUB-NEW), and file the GitHub-facing parts as a githubai feature.
-- `docs/DOCKER.md` gains a "build and ship" section once #590 settles the open questions; until then § 20 is warn-only per repo.
+- `docs/DOCKER.md` gains a "build and ship" section once #590 settles the open questions; until then § 21 is warn-only per repo.
 - Repos with no image are not applicable; dev-only images follow items 1, 5, 6 and 7 only.
 - Merging the pull request that carries this record ratifies it. An agent never merges it.

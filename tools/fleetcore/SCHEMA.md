@@ -20,6 +20,7 @@ coverage: listed
 | `__init__.py` | file | Package marker (`from fleetcore import …` with `tools/` on the path) | required |
 | `fleet.py` | file | The data layer: registry ⨝ `project_health.yml` ⨝ `fleet_triage.yml` ⨝ `harness_health.yml`, the inbox and per-repo drill-down, source freshness, filters and sorts — degrading cleanly when any signal is absent | required |
 | `host.py` | file | Docker inventory over every `DASH_DOCKER_HOST` endpoint, attributed to registry rows by the UPS-OPS-17 label, then by name | required |
+| `nodes.py` | file | Where each hub workload runs: `_data/fleet.yml` `nodes:` resolved against `docker-compose.yml` (edge-bound, dependency-direction, durable-data and link-port rules), the plan against running containers, the per-node compose overlays and OpenTofu inputs (`dash node`, `dash infra`; ADR 0003) | required |
 | `views.py` | file | `dash_view()` / `docker_view()` — the views as plain data, filtered and sorted by `fleet.py`'s own functions; the console serves them at `/api/fleet` | required |
 | `keys.py` | file | keys v1 as data — the TUI builds its Bindings from it and the console serves it at `/api/keys` | required |
 | `theme.py` | file | The bashOS palette as tokens → console CSS (`/theme.css`) and Textual themes (`bashos-dark` / `bashos-light`) | required |
