@@ -1,6 +1,7 @@
 # ADR 0003 — The fleet platform: workloads placed across nodes, OpenTofu for infrastructure, Ansible and Salt for configuration, a path to any cluster
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/606 (merged 2026-11-03 by @bamr87)
 - **Date**: 2026-11-02
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-02); the maintainer accepts or rejects it by merging the PR that adds it
 - **Related**: [docs/PLATFORM.md](../PLATFORM.md), [docs/FORGE-HOST.md](../FORGE-HOST.md), [docs/CONTAINERS.md](../CONTAINERS.md), [docs/OBSERVABILITY.md](../OBSERVABILITY.md), roadmap `FF-0035`, the proposed amendment `container-management` (#591, backlog #590), #512 (declarative repo settings), [ADR 0002](0002-agent-step-specs-and-local-runner.md) (the local loop runner), #593 (the console's git-status saturation)
