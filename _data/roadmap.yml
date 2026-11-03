@@ -1390,3 +1390,209 @@
   source: session
   created: 2026-11-01
   issue_url: null
+
+- id: FF-0035
+  title: "Fleet platform: offload the Mac onto forge, OpenTofu for infrastructure, Ansible and Salt for configuration, and a path to any cluster"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: in-progress
+  priority: P1
+  effort: XL
+  category: infra
+  problem: >-
+    The Mac carries the whole fleet: 25 containers used 6.53 GiB of its 7.75
+    GiB Docker VM (84%) on 2026-11-02, the observability planes alone about
+    3.2 GiB and 4 cores, and Elasticsearch is held to a 512 MB heap after an
+    OOM kill. forge (i7-3820, 32 GB, ~464 GB free) sits nearly idle, but
+    nothing says which service belongs where, nothing keeps a moved service
+    reachable at its old address, `dash host rebuild` deletes every volume on
+    forge, there is no infrastructure as code, and no path from the local
+    stack to a cloud or on-premise cluster.
+  proposal: >-
+    A local-first platform placed across nodes (ADR 0003, docs/PLATFORM.md).
+    `_data/fleet.yml` `nodes:` maps each hub service to the Mac (the edge) or
+    forge (a workload node); `tools/fleetcore/nodes.py` resolves it against
+    docker-compose.yml under four rules (edge-bound services stay, workload
+    services never call back to the edge, durable data moves only where it is
+    backed up, link ports never collide). An SSH ambassador with a
+    forwarding-only key keeps 127.0.0.1 ports and service names working
+    wherever a service runs. OpenTofu (the MPL-2.0 Terraform fork) owns each
+    node's network and data volumes, prevent_destroy on durable ones; Ansible
+    bootstraps nodes and runs every ordered deploy step (check mode is the
+    plan) from an inventory generated from `nodes:`; Salt holds the steady
+    state and ships its events to ELK; compose owns containers; bashOS owns
+    forge's interactive layer. Then, phase by phase: the
+    observability planes to forge, Docker logs streamed into the console and
+    analysed in ELK, multi-node buildx images by digest, the Docker MCP
+    Gateway per node, delegated batch work, stateful services and app stacks,
+    and Kubernetes as the scale-out target with manifests generated from
+    compose, clusters from OpenTofu and delivery by GitOps.
+  acceptance:
+    - "P0 lands: the nodes: model with forge disabled, `dash node status|plan|gen|key`, `dash infra plan|apply` (apply gated on --yes and a current plan), infra/node, the infra.yml gate, the rebuild fence, ADR 0003 and docs/PLATFORM.md."
+    - "With forge enabled the observability planes run on forge, the Mac reaches them at unchanged addresses, and the Mac's container memory drops by at least 3 GiB, measured."
+    - "Docker logs from every node reach Elasticsearch, and the console shows a live, redacted tail plus error signatures and OOM/restart events."
+    - "forge is bootstrapped by an Ansible playbook whose --check --diff run is reviewed first, and held steady by Salt highstate (test=True preview, central kill switch) with beacon and reactor events in ELK; every managed resource has exactly one owner."
+    - "Images build natively for arm64 and amd64 on the two nodes and deploy by digest with SBOM, provenance, a scan and a signature."
+    - "MCP servers run behind the Docker MCP Gateway with tool allowlists; Playwright runs on forge."
+    - "One app's compose services render to validated Kubernetes manifests, deploy to a k3s pilot on forge, and the same OpenTofu + GitOps path targets a cloud cluster."
+    - "Every step that changes a machine is an approved deploy; no step deletes durable data."
+  scope:
+    in:
+      - placement model, resolver and planner; the SSH link; OpenTofu node infrastructure
+      - configuration management: Ansible (bootstrap, deploy steps) and Salt (steady state, events)
+      - observability planes, logs streaming and analysis, images, MCP gateway, delegated work
+      - stateful services and app stacks on forge; Kubernetes portability (generated manifests, k3s pilot, cluster modules, GitOps)
+    out:
+      - Kubernetes as the daily development runtime
+      - automatic failover of stateful services between nodes
+      - a self-hosted GitHub Actions runner on forge (fork PRs on public repos; separate decision)
+      - two-way file sync of the hub working tree
+      - managing the Mac with Ansible or Salt (opt-in later, § 10.5)
+  risks:
+    - forge becomes a dependency for the planes; while it is off they are unavailable (agents buffer; editing is unaffected).
+    - The SSH link is LAN-only until the overlay-network decision (Tailscale, Headscale or WireGuard).
+    - OpenTofu state for forge lives on the Mac; it needs a backup.
+    - Durable data migration (Postgres, wiki) needs an off-box backup and a restore drill first.
+    - A Salt master is a high-value target; it stays off the internet, keys are accepted by hand, and patches are prompt.
+  source: session:283f688e-9960-4294-9f3f-ed53bd90bbce
+  created: 2026-11-02
+  issue_url: https://github.com/bamr87/bamr87/issues/594
+
+- id: FF-0036
+  title: "Inbox + Work board: link a failing workflow to its green, mergeable fix PR and rank 'merge #N to clear X' first"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: M
+  category: enhancement
+  problem: >-
+    The fleet inbox (fleet_triage.py build_inbox → _data/fleet_triage.yml →
+    fleetcore, the console Inbox, the TUI and MCP fleet_inbox) and the Work
+    board (work_board.py) rank every red item on its own, and a green PR idle
+    for 14 days or less never enters the inbox at all. On 2026-11-02
+    bashcrawl's CI on main sat at priority 90 (markdownlint MD004 on
+    release-please's CHANGELOG.md) and #127, #134 and #137 sat at 70 failing
+    the same Lint job, while #133 ("fix(ci): exclude release-please
+    CHANGELOG.md from markdownlint"), open three days, all checks green,
+    MERGEABLE/CLEAN, appeared nowhere. The board even ranks it below them (a
+    failing PR is auto-P1, a green one P2). The fleet-pulse doctor dedupes
+    only PRs carrying its own fleet-doctor marker, so it cannot see a
+    human-authored fix either.
+  proposal: >-
+    In fleet_triage.py, for each repo with a failing tracked-branch workflow,
+    grade its open non-draft PRs with passing head checks (checked even past
+    --pr-ci-cap, under a small per-repo cap) as candidate fixes: verified (a
+    run of the failing workflow's path on the PR head SHA, newer than the
+    branch's latest failing run, in which the jobs that failed on the branch
+    ran and passed); doctor (the body carries remediation.py's fleet-doctor
+    marker for that workflow); weak (touches the failing workflow file, or a
+    fix(ci)/ci: title or branch). Read mergeable_state from the single-PR GET
+    (the list endpoint omits it). Record fix_prs on the failing workflow and
+    clears on the PR: the workflow plus every open PR in the repo failing the
+    same jobs (pr_ci_state already holds each head's check runs, so the
+    failing names cost no extra call). A verified or doctor PR that is green
+    and clean becomes one inbox item of a new kind, merge, at priority 95:
+    "Merge #133: clears CI on main and #127, #134, #137 once their branches
+    are updated". Covered items stay, annotated "fix: #133"; weak evidence
+    annotates without re-ranking. fleetcore, the console Inbox, the TUI and
+    MCP fleet_inbox render the kind; the Work board sorts the fix PR card
+    ahead of the cards it clears and adds a _hints line naming the merge;
+    remediation.py counts a verified fix as already tracked. Read-only: GET
+    requests only, and the merge stays a human action (constitution § 12).
+  acceptance:
+    - "An offline fixture of bashcrawl on 2026-11-02 (CI failing on main; #133 green, clean, CI passed on its head after the failure; #127, #134, #137 failing the same Lint job) yields exactly one merge item for #133 at priority 95, whose clears lists the workflow and the three PRs."
+    - "A green PR whose run of the failing workflow skipped the job that failed on the branch, or ran before the branch's latest failure, is not verified and yields no merge item."
+    - "A PR whose mergeable_state is not clean (dirty, blocked, behind, unstable, or still unknown after one retry) yields no merge item, and its state shows on the annotation."
+    - "Weak evidence alone adds a 'possible fix: #N' annotation to the failing item and changes no priority."
+    - "fleetcore repo_items and fleet_triage build_inbox give the merge kind the same priority (a test holds them equal, as the repo_items docstring promises for the existing kinds), and MCP fleet_inbox returns clears."
+    - "On the Work board the fix PR card sorts ahead of every PR card it clears and carries clears in its detail, a _hints line names the merge, and test_work_board.py covers both."
+    - "remediation.py treats a failing workflow with a verified fix PR as already tracked and names the PR in its brief."
+    - "Extra API calls are made only for repos with a failing workflow, are capped per repo and counted in the triage run summary; the change adds no GitHub write call."
+    - "docs/DAILY-ANALYSIS.md, docs/WORK-BOARD.md and .github/scripts/dash-gen/README.md describe the link, its evidence tiers and the merge kind."
+  scope:
+    in:
+      - "candidate-fix linking, evidence tiers and the merge inbox kind in fleet_triage.py"
+      - "rendering in fleetcore, the console Inbox, the TUI, MCP fleet_inbox and the Work board"
+      - "a verified fix counting as already tracked in remediation.py"
+    out:
+      - "merging, approving, commenting on or updating any PR (constitution § 12)"
+      - "updating the symptom PRs' branches after the fix merges"
+      - "failures that exist only on PR branches (triage ignores them by contract)"
+  risks:
+    - "'Clears' overpromises unless it says how: the symptom PRs ran against the old base and turn green only after their branch is updated (release-please regenerates its own PR), so the item text must say so."
+    - "A job gated to push or schedule is skipped on pull_request runs and looks like a pass; the job-level check is what stops any green docs PR from being called a fix."
+    - "GitHub computes mergeable_state lazily (null or unknown on first read); retry once, then treat it as not ready, never loop."
+    - "Several PRs can qualify for one failure; list them on one item (strongest evidence, then oldest) so the inbox never shows two merge items for the same red."
+  source: session:283f688e-9960-4294-9f3f-ed53bd90bbce
+  created: 2026-11-02
+  issue_url: https://github.com/bamr87/bamr87/issues/609
+
+- id: FF-0037
+  title: "Detect fleet callers that pin a hub reusable workflow or action at a ref where it does not exist"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P1
+  effort: M
+  category: infra
+  problem: >-
+    law-ai's CI on main has been red since 2026-10-30 with a zero-job startup
+    failure: .github/workflows/ci.yml line 83 calls
+    bamr87/bamr87/.github/workflows/spec-gate.yml@v2, but v2 (cut 2026-10-14
+    at 2fc1099) predates spec-gate.yml, which exists only on main and is
+    still listed under CHANGELOG.md [Unreleased]. The same pin is in the
+    hub's own kit, templates/spec-driven/workflows/spec-gate.yml:29, and
+    test_spec_driven_kit.py only checks that the caller pins "@v" and that
+    the file exists in the working tree, so `tools/fanout.sh --kit
+    spec-driven --apply` would seed the failure into every target. Nothing in
+    the hub named the cause: the inbox showed law-ai's ci.yml as "latest run
+    failure", and it surfaced only as a law-ai backlog item.
+  proposal: >-
+    One stdlib module (name open, e.g. .github/scripts/dash-gen/hub_refs.py)
+    extracts every `uses: bamr87/bamr87/.github/workflows/<file>@<ref>` and
+    `bamr87/bamr87/.github/actions/<name>@<ref>` and resolves each distinct
+    target and ref once per run as ok, ref-missing, file-missing-at-ref or
+    unverified (any non-404 error). The hub is public, so a 404 there is
+    authoritative; the ref is resolved first (commits/<ref>), then the
+    contents at it. Each finding carries a computed fix: if the file is on
+    main under [Unreleased], cut vX.Y.0 and move vX (docs/WORKFLOW-VERSIONING.md,
+    Cutting a release); if the ref was never cut, cut it or repin; if the
+    file is gone from main too, repin to its replacement. Three callers use
+    it: (1) a new check-drift.sh check (p) that resolves every hub ref in
+    templates/ against the hub's own tags offline, as a warning, and under
+    --remote/--ci lists broken fleet callers from the committed daily scan;
+    (2) a tools/fanout.sh pre-flight that refuses --apply for a kit whose
+    caller template pins an unresolved ref; (3) harness_registry.py's daily
+    fleet-pulse scan, which already reads every owned repo's workflow files
+    with the probed fleet token, records hub_refs per repo and raises a
+    hub-ref-broken attention item on /harnesses/. A caller in a repo the
+    token cannot read is unread, never broken and never clean, the rule
+    checks (g) and (k) already follow.
+  acceptance:
+    - "Fixture tests for the module cover job- and step-level uses, quoted refs and trailing comments, local ./ refs and other owners (ignored), and all four resolution states; each distinct target and ref costs one lookup per run."
+    - "A fixture reproducing law-ai (ci.yml:83 calls spec-gate.yml@v2; v2 lacks the file; main has it under [Unreleased]) yields one hub-ref-broken finding whose first fix is 'cut v2.1.0 and move v2'."
+    - "check-drift.sh (p) on today's tree warns on templates/spec-driven/workflows/spec-gate.yml:29 without an API call, and drift-check.yml fetches the v* tags it needs."
+    - "tools/fanout.sh --kit spec-driven names the unresolved pin in its dry-run and refuses --apply until the ref resolves."
+    - "Rows in _data/harness_registry.yml gain an additive hub_refs list (path, line, target, ref, status), a broken caller adds an attention item of severity 85 or more whose action states the computed fix, and the schema marker is unchanged."
+    - "A repo the token cannot read, and workflow files past inventory.max_workflow_files, are counted and shown as unread, never as clean, and a caller-side 404 is never a finding."
+    - "The check-drift.sh header, docs/WORKFLOW-VERSIONING.md (a pre-tag step, and the rule that a kit template pins only a ref containing its target) and docs/HARNESS-OPS.md describe the check."
+  scope:
+    in:
+      - "the shared resolver module and its fixture tests"
+      - "check-drift (p): the offline template half and the --remote listing"
+      - "the fanout.sh pre-flight"
+      - "hub_refs and the attention item in harness_registry.py"
+    out:
+      - "the immediate fix, cutting v2.1.0 or repinning law-ai (operational, tracked separately)"
+      - "moving tags or opening repin PRs automatically (releases are cut by hand; fan-outs stay dry-run and PR-only)"
+      - "checking with: inputs, secrets or hub-ref: against the target's interface"
+      - "attaching the cause to the triage inbox item (a cheap follow-up joining on repo and path)"
+  risks:
+    - "Every repin bends a rule: check (k) flags @vX.Y and SHA pins and the proposed UPS-WORK-10 forbids @main, so for a floating-major caller the hub release is the only clean fix; label repins as stopgaps that name the rule they bend."
+    - "Making the template half gating would turn the hub red until v2.1.0 is cut; keep it a warning and make the fan-out the hard stop."
+    - "_data/harness_registry.yml is consumed by GitFactory's Fleet Studio; hub_refs must stay additive."
+    - "drift-check.yml checks out shallow and without tags; a tag missing locally must read as unverified, never as ref-missing."
+  source: session:283f688e-9960-4294-9f3f-ed53bd90bbce
+  created: 2026-11-02
+  issue_url: https://github.com/bamr87/bamr87/issues/610

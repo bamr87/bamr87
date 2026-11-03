@@ -1178,6 +1178,79 @@ containers:
   max_projects: 8
 
 # --------------------------------------------------------------------------- #
+# Nodes — WHERE the fleet's workloads run (ADR 0003, docs/PLATFORM.md)
+#
+# The Mac is the EDGE: the editor, Claude Code, the browser, the working tree
+# and every service that bind-mounts it. forge is the WORKLOAD node: the
+# always-on planes and the batch work the Mac's 7.7 GiB Docker VM should not
+# carry. Placement is declared once, here. `tools/dash node plan` resolves and
+# validates it against docker-compose.yml, `dash node gen` writes each node's
+# compose overlay, OpenTofu inputs and the Ansible inventory (.fleet/nodes/,
+# gitignored), and `dash infra plan` shows what OpenTofu would create on the
+# node (infra/). Ansible bootstraps a node, Salt holds its steady state.
+#
+# Nothing moves while a workload node is `enabled: false`: every service
+# placed on it resolves to the edge. Flipping that flag is the deploy step
+# (constitution § 10.5), taken per phase of the epic with Amr's explicit yes.
+# --------------------------------------------------------------------------- #
+nodes:
+  edge: mac # the node with the working tree; anything unplaced runs here
+  hosts:
+    mac:
+      role: edge
+      runtime: compose # compose today; `kubernetes` (a cluster context) is the scale-out target, phase 10
+      docker: local # a fleetcore.host endpoint (DASH_DOCKER_HOST vocabulary)
+    forge:
+      role: workload
+      runtime: compose
+      enabled: false # the deploy switch — false: everything placed here stays on the edge
+      ssh: forge # ~/.ssh/config alias; SSH is the only API (docs/FORGE-HOST.md)
+      docker: ssh://forge
+      checkout: ~/dev/bamr87 # a git clone of the hub on the node; compose runs FROM it
+      capacity: { cpus: 8, mem_gb: 32, disk_gb: 464 } # i7-3820, 1 TB SSD (bashOS docs/FORGE.md)
+      lan_cidr: 192.168.4.0/22
+      wol_broadcast: 192.168.7.255 # the /22's broadcast — magic packets to .4.255 go nowhere
+      backup: null # an OFF-box restic target; durable volumes may not move here until set
+
+  # How the edge reaches services placed elsewhere: one SSH connection with a
+  # local forward per published port, so 127.0.0.1:<port> on the Mac and the
+  # service's name on the `fleet` network keep working wherever it runs.
+  link:
+    transport: ssh # ssh today; an overlay network (Tailscale) is an open decision (ADR 0003)
+    key: ~/.ssh/fleet_node_link # forwarding-only key — `dash node key` prints its permitopen line
+    keepalive_seconds: 15
+
+  # Hub compose service → node. Unlisted services stay on the edge. `every`
+  # runs one copy per active node (a node agent: Filebeat ships the containers
+  # of the host it runs on). Services that bind-mount the working tree or the
+  # user's own state (devenv, console, tui, mcp) are edge-bound and refused here.
+  services:
+    elasticsearch: forge
+    logstash: forge
+    kibana: forge
+    grafana: forge
+    prometheus: forge
+    otel-collector: forge
+    phoenix: forge
+    qdrant: forge
+    mkdocs: forge
+    filebeat: every
+
+  # Volumes whose loss is not recoverable by rebuilding (a reindex, a re-export
+  # or a fresh start). A service that mounts one may only be placed on a node
+  # with a `backup:` target, and OpenTofu creates them with prevent_destroy.
+  durable_volumes: [db-data, redis-data, wiki-data, wiki-repo, pgadmin-data]
+
+  # The infrastructure-as-code layer (infra/): OpenTofu, the MPL-2.0 fork of
+  # Terraform, owns each workload node's `fleet` network and its volumes;
+  # compose owns the containers. State lives outside every checkout.
+  infra:
+    tool: tofu
+    min_version: '1.8'
+    dir: infra/node
+    state_dir: ~/.local/state/bamr87-infra
+
+# --------------------------------------------------------------------------- #
 # Token contract — WHICH secret does WHAT, and where it must exist.
 #
 # `scope: hub` secrets live on bamr87/bamr87 only. `scope: fleet` secrets are
