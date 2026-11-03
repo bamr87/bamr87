@@ -1,0 +1,27 @@
+id: HUB-NEW
+slug: harness-protocol
+title: "Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV harnesses (proposed)"
+description: "Design only (Draft). Refactors the harness layer onto one agent-loop contract (tasks, sessions, a typed event stream, interrupts as approval pauses, budgets) that the Harness Console API, CI agent steps, local headless Claude Code and the JEV tiers all speak; keeps MCP for tools and AGENTS.md for repo instructions; emits one OTel GenAI span tree per task to Phoenix; treats the Unified Harness Protocol as an optional adapter and plans A2A as the later external interface (AG-UI and Agent Client Protocol as options). Harmonizes the fleet.yml harnesses contract, #586, #587, #472, the activity-replay epic #624 and FF-0032. Epic bamr87/bamr87#632, roadmap FF-0038. Spec: docs/prd/HARNESS-PROTOCOL.md."
+implemented: false
+status: planned
+surface: infra
+link: docs/prd/HARNESS-PROTOCOL.md
+docs: docs/prd/HARNESS-PROTOCOL.md
+tags: [ harness, protocol, agent-loop, mcp, otel, phoenix, a2a, uhp, jev, epic ]
+date: 2026-11-03
+tests:
+  - {na: "design-only PRD; nothing implemented yet"}
+prd: ["FR26", "FR46", "FR54", "FR56", "FR59", "FR60", "FR63", "NFR9", "NFR11", "FR-NEW:harness-loop-contract", "FR-NEW:harness-task-trace", "FR-NEW:harness-adapters", "NFR-NEW:harness-protocol-portable"]
+prd_new:
+  - key: harness-loop-contract
+    kind: FR
+    text: "Every fleet harness (the Harness Console API, CI agent steps, local headless runs and each JEV tier) must run work as tasks with sessions, a typed event stream (task, turn, tool call, interrupt, budget, artifact, error) validated by one versioned schema, interrupts that pause for approval and resume, and enforced budgets, using MCP for tools and AGENTS.md for repo instructions."
+  - key: harness-task-trace
+    kind: FR
+    text: "Every harness task must emit one OpenTelemetry GenAI span tree to Phoenix, a root span per task with a child span per turn and per tool call, whose trace id is stamped on every harness event and redacted before export."
+  - key: harness-adapters
+    kind: FR
+    text: "External agent protocols (the Unified Harness Protocol, A2A, AG-UI, Agent Client Protocol) must connect only through adapters that map to the fleet contract, each off by default, version-pinned and removable without changing the core."
+  - key: harness-protocol-portable
+    kind: NFR
+    text: "The harness core never depends on a single-vendor or pre-1.0 protocol: core tests pass with every adapter removed, a pinned spec drifting raises an attention item instead of a failure, and no adapter can bypass risk tiers, kill switches or budgets."

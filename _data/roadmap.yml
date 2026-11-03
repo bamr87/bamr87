@@ -1596,3 +1596,45 @@
   source: session:283f688e-9960-4294-9f3f-ed53bd90bbce
   created: 2026-11-02
   issue_url: https://github.com/bamr87/bamr87/issues/610
+
+- id: FF-0038
+  title: "Refactor the harness layer onto a common harness protocol and platform (one agent-loop contract)"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: proposed
+  priority: P2
+  effort: XL
+  category: infra
+  problem: >-
+    Each harness speaks its own shape: the console job API (FR60), CI agent
+    steps, local headless Claude Code (FR56), the JEV tiers and the #586
+    registry describe runs, approvals, budgets and traces differently, so
+    replay (#624), k8s tiers (#587) and MCP write tools (#472) each re-solve
+    the same problem, and outside protocols (UHP, A2A, AG-UI, ACP) are moving
+    fast with no seam to plug them into.
+  proposal: >-
+    Adopt the shared agent-loop shape as the console and harness API core:
+    tasks, sessions, a typed event stream, interrupts (approval pauses) and
+    budgets, with MCP for tools and AGENTS.md for repo instructions. Emit one
+    OTel GenAI span tree per task to Phoenix. Treat the Unified Harness
+    Protocol (HarnessRouter draft 2026-10-19, Apache-2.0) as an optional
+    adapter, and plan A2A as the later external interface with AG-UI and
+    Zed's Agent Client Protocol as options. Spec docs/prd/HARNESS-PROTOCOL.md,
+    epic #632, phases #626-#631.
+  acceptance:
+    - "A versioned harness event schema and ADR are merged, and every existing harness maps to it with no unmapped field."
+    - "The console task API supports sessions, a resumable typed event stream, interrupt/resume and budget stop, and the old job routes still pass."
+    - "A fixture task yields one Phoenix span tree (task, turns, tool calls) joined to its events by trace id."
+    - "Core tests pass with the UHP and A2A adapters removed."
+  scope:
+    in:
+      - "the contract, schema and ADR; the console core; the OTel span tree; harness adapters; an optional UHP adapter; an A2A decision"
+    out:
+      - "replacing MCP or AGENTS.md; making UHP a dependency; running anything on the Mac without Amr's yes"
+  risks:
+    - "UHP churn and single-vendor governance: pin the spec version, keep it behind an adapter, and watch for drift."
+    - "A2A, AG-UI and ACP are still evolving; decide before building (#543)."
+    - "Refactoring the job API could break console clients; keep the old routes as a compatibility layer."
+  source: manual
+  created: 2026-11-03
+  issue_url: https://github.com/bamr87/bamr87/issues/632
