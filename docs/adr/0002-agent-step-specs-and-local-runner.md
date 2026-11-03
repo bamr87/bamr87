@@ -351,7 +351,8 @@ Issue #487 held the loop runner's `apply` from the console and the MCP behind a 
 
 ## P3 — the fleet doctor (step 1)
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/637 (merged 2026-11-03 by @bamr87)
 - **Date**: 2026-11-03
 - **Scope**: the first step of bamr87/bamr87#488 — `fleet-pulse.yml` job `doctor`, step `fix`, as a spec (`tools/jev/steps/fleet-pulse/doctor.yml` + `doctor.prompt.txt`) and on the local loop runner (`fleet_pulse_doctor` adapter, `dash-gen remediate --plan-dir`, `dash-gen doctor-file`); evolve, agent-fill and the issue-pipeline tiers follow, one pull request each, appending here
 
