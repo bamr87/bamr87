@@ -14,12 +14,22 @@ item document; this filer turns it into what the maintainer reviews, and —
 behind `--apply`, which the engine adds only after the § 13.6 yes — into the
 PR or the issue CI would have opened.
 
-THIS RELEASE FILES NOTHING. The dry run is complete (the exact body bytes,
-the patch, the dedupe against the hub's and the target's open markers, the
-structural rules); `--apply` is refused with exit 2, naming bamr87/bamr87#488,
-until the publish step (push with FLEET_TOKEN probed by `gh api user`, a
-draft PR carrying the MARKER line CI dedupes on, or the hub issue) lands in
-that issue's next pull request. Nothing here can write to GitHub.
+The dry run is complete (the exact body bytes, the patch, the dedupe against
+the hub's and the target's open markers, the structural rules) and writes
+nothing. `--apply --reviewed-bodies <dir>` — the flags the engine adds only
+after the § 13.6 yes (the OPS remote-write path, amendment
+`ops-remote-write-path`) — files exactly what CI's doctor would have: the
+publish token (`GH_TOKEN`, the engine's probed FLEET_TOKEN, else the ambient
+gh login) is probed again with `gh api user`; the open-marker dedupe must be
+readable (exit 3 and nothing filed otherwise); the body and the patch must be
+byte-identical to the reviewed preview's (`<slug>.md` / `<slug>.patch` in the
+reviewed directory) or the item is withheld; then, for a `pr`, a scratch clone
+of the target (`gh repo clone`, never the hub checkout), the branch, the patch
+applied and committed, ONE push of `HEAD:refs/heads/<branch>` with git's own
+pack program pinned and the credential read from gh (`gh auth git-credential`,
+never in argv), and `gh pr create --draft` with the labels CI uses; for an
+`issue`, `gh label create --force` for the same labels and `gh issue create`.
+Nothing else is written: no merge, no force, no delete, no settings.
 
 The validated item document (`--item`):
 
@@ -31,19 +41,26 @@ The validated item document (`--item`):
 Usage:
     dash-gen doctor-file --item items/<dir>/outputs/doctor.validated.json \\
         --run-url "local run …" --bodies-dir items/<dir>/bodies [--offline]
-    …  --apply --reviewed-bodies items/<dir>/bodies      # refused: #488
+    …  --bodies-dir items/<dir>/filed --apply --reviewed-bodies items/<dir>/bodies
 
-Output: one JSON object on stdout — {"apply": false, "filed": [...], "skipped": [...],
+Output: one JSON object on stdout — {"apply": bool, "filed": [...], "skipped": [...],
 "rejected": [...]}. `filed` rows carry `title`, `kind`, `repo`, `labels`, `body_file`,
-`patch_file`, `branch` and `url` (null until an apply exists).
+`patch_file`, `branch` and `url` (null on a dry run). Exit 2: a usage or structural
+refusal; 3: the dedupe list or the publish token could not be read under --apply
+(nothing filed); 0 otherwise — a failed push or create is a `skipped` row whose
+reason says `failed`, which the adapter reads as a failure.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import remediation
@@ -60,11 +77,17 @@ SECRET_RE = re.compile(
     r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk-ant-[A-Za-z0-9_-]{20,})"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
 )
-#: the two messages the adapter and CI read off this filer's stderr
+#: the messages the adapter and CI read off this filer's stderr and result
 NO_DEDUPE = "filing without the duplicate check"
-APPLY_REFUSED = ("doctor-file --apply is not implemented in this release: the publish step (a fix branch pushed with "
-                 "FLEET_TOKEN probed by `gh api user` and a draft PR, or the hub issue, each carrying the MARKER line) "
-                 "lands with bamr87/bamr87#488's next pull request; nothing was filed")
+#: why --reviewed-bodies withheld the item (tools/jev/adapters/fleet_pulse_doctor.py reads it)
+NOT_REVIEWED = "not in the reviewed preview (its body or patch is not byte-identical to a reviewed one)"
+TOKEN_REFUSED = "the publish token was refused by `gh api user`"
+#: the commit identity of an applied fix: a noreply address, never this account's private email
+COMMIT_NAME, COMMIT_EMAIL = "fleet-doctor", "fleet-doctor@users.noreply.github.com"
+#: git's own pack program, pinned on the one push so no config can steer it (tools/jev/common.py does the same)
+RECEIVE_PACK = "--receive-pack=git-receive-pack"
+#: the credential comes from gh (GH_TOKEN in this process, else its stored login), never from argv or a URL
+CREDENTIAL_HELPER = "credential.helper=!gh auth git-credential"
 
 
 def load_item(path: Path) -> dict:
@@ -138,6 +161,20 @@ def open_keys(hub: str, repo: str, *, offline: bool) -> tuple[set[str] | None, s
     return seen, ""
 
 
+def markers_unreadable(hub: str, repo: str) -> str:
+    """Why the open-marker lists cannot be trusted: the one `gh issue list` and
+    `gh pr list` per repository must each answer (a read, `--limit 1`); '' when
+    they do. `remediation.open_markers` treats a failed list as empty, which a
+    dry run may show but an apply must never file on."""
+    for nwo in dict.fromkeys((hub, repo)):
+        for noun in ("issue", "pr"):
+            ok, _out, err = _run(["gh", noun, "list", "-R", nwo, "--state", "open", "--limit", "1", "--json", "number"],
+                                 timeout=90)
+            if not ok:
+                return f"gh {noun} list -R {nwo}: {_why(err)}"
+    return ""
+
+
 def run_file(args: argparse.Namespace) -> int:
     item_path = Path(args.item)
     try:
@@ -145,42 +182,199 @@ def run_file(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         sys.stderr.write(f"doctor-file: --item {item_path}: {exc}\n")
         return 2
-    if args.apply:
-        sys.stderr.write(f"doctor-file: {APPLY_REFUSED}\n")
+    if args.apply and not args.reviewed_bodies:
+        sys.stderr.write("doctor-file: --apply needs --reviewed-bodies (the engine adds both after the § 13.6 yes)\n")
         return 2
-    if args.reviewed_bodies:
+    if args.apply and args.offline:
+        sys.stderr.write("doctor-file: --apply with --offline is refused: filing needs the live dedupe\n")
+        return 2
+    if not args.apply and args.reviewed_bodies:
         sys.stderr.write("doctor-file: --reviewed-bodies only means something with --apply\n")
         return 2
     bodies = Path(args.bodies_dir)
     bodies.mkdir(parents=True, exist_ok=True)
     rejected = [{"title": str(item.get("title") or "?")[:80], "reason": why}
                 for why in problems(item, item_path.parent)]
-    result: dict = {"apply": False, "run_url": args.run_url, "filed": [], "skipped": [], "rejected": rejected}
+    result: dict = {"apply": bool(args.apply), "run_url": args.run_url, "filed": [], "skipped": [],
+                    "rejected": rejected}
     if rejected:
         print(json.dumps(result, separators=(",", ":")))
         return 0
     seen, why = open_keys(args.hub, str(item["repo"]), offline=args.offline)
+    if args.apply and seen is not None:
+        # remediation.open_markers reads a failed `gh … list` as nothing open; an apply must know the difference
+        unreadable = markers_unreadable(args.hub, str(item["repo"]))
+        if unreadable:
+            seen, why = None, unreadable
     if seen is None and not args.offline:
+        if args.apply:
+            # the reviewed preview was deduped: filing without the list could re-file what it dropped
+            sys.stderr.write(f"doctor-file: could not list the open issues and PRs ({why}) — --apply files nothing "
+                             "without the duplicate check\n")
+            result["skipped"].append({"title": item["title"], "reason": f"dedupe unavailable ({why}): nothing filed"})
+            print(json.dumps(result, separators=(",", ":")))
+            return 3
         sys.stderr.write(f"doctor-file: could not list the open issues and PRs ({why}) — {NO_DEDUPE}\n")
     if seen is not None and item["key"] in seen:
         result["skipped"].append({"title": item["title"], "reason": "already tracked by an open issue or fix PR"})
         print(json.dumps(result, separators=(",", ":")))
         return 0
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", str(item["key"])).strip("-.")[:80] or "item"
+    body = str(item["body"])
+    patch_bytes = (item_path.parent / str(item["patch"])).read_bytes() if item.get("patch") else None
+    if args.apply:
+        if not reviewed_matches(Path(args.reviewed_bodies), slug, body, patch_bytes):
+            sys.stderr.write(f"doctor-file: {item['title']}: {NOT_REVIEWED}\n")
+            result["skipped"].append({"title": item["title"], "reason": NOT_REVIEWED})
+            print(json.dumps(result, separators=(",", ":")))
+            return 0
+        login, why = probe_token()
+        if login is None:
+            sys.stderr.write(f"doctor-file: {TOKEN_REFUSED}: {why} — nothing filed\n")
+            result["skipped"].append({"title": item["title"], "reason": f"{TOKEN_REFUSED}: {why}"})
+            print(json.dumps(result, separators=(",", ":")))
+            return 3
+        sys.stderr.write(f"doctor-file: publishing as {login}\n")
     body_file = bodies / f"{slug}.md"
-    body_file.write_text(str(item["body"]), encoding="utf-8")
+    body_file.write_text(body, encoding="utf-8")
     patch_file = None
-    if item.get("patch"):
+    if patch_bytes is not None:
         patch_file = bodies / f"{slug}.patch"
-        patch_file.write_bytes((item_path.parent / str(item["patch"])).read_bytes())
-    result["filed"].append({
+        patch_file.write_bytes(patch_bytes)
+    row = {
         "title": item["title"], "kind": item["kind"], "repo": item["repo"], "where": item.get("where"),
         "labels": list(LABELS), "body_file": str(body_file), "patch_file": str(patch_file) if patch_file else None,
         "branch": item.get("branch"), "url": None,
-    })
-    sys.stderr.write(f"doctor-file: dry run — would open a {item['kind']} in {item['repo']}: {item['title']}\n")
+    }
+    if not args.apply:
+        result["filed"].append(row)
+        sys.stderr.write(f"doctor-file: dry run — would open a {item['kind']} in {item['repo']}: {item['title']}\n")
+        print(json.dumps(result, separators=(",", ":")))
+        return 0
+    ensure_labels(str(item["repo"]))
+    if item["kind"] == "issue":
+        url, why = create_issue(item, body_file)
+    else:
+        url, why = open_pr(item, patch_file, body_file, args.run_url)
+    if url is None:
+        result["skipped"].append({"title": item["title"], "reason": why})
+        sys.stderr.write(f"  ✗ {item['title']}: {why}\n")
+    else:
+        row["url"] = url
+        result["filed"].append(row)
+        sys.stderr.write(f"  ✓ filed: {item['title']}  [{' '.join(LABELS)}]  {url}\n")
     print(json.dumps(result, separators=(",", ":")))
     return 0
+
+
+# --------------------------------------------------------------------------- #
+# the apply: what CI's doctor would have written, and nothing else
+# --------------------------------------------------------------------------- #
+def _run(argv: list[str], *, cwd: Path | None = None, timeout: int = 600, env: dict | None = None):
+    """A subprocess with its stdin closed; (ok, stdout, stderr-or-why)."""
+    try:
+        out = subprocess.run(argv, cwd=str(cwd) if cwd else None, capture_output=True, text=True, timeout=timeout,
+                             stdin=subprocess.DEVNULL, env=env)
+    except FileNotFoundError:
+        return False, "", f"{argv[0]} is not installed"
+    except subprocess.TimeoutExpired:
+        return False, "", f"{argv[0]} timed out after {timeout}s"
+    return out.returncode == 0, out.stdout, (out.stderr or out.stdout).strip()
+
+
+def _why(err: str, n: int = 240) -> str:
+    """The last line of a failure, with any credential shape removed."""
+    last = (err.strip().splitlines() or [""])[-1]
+    return SECRET_RE.sub("[REDACTED]", last)[-n:]
+
+
+def reviewed_matches(reviewed: Path, slug: str, body: str, patch: bytes | None) -> bool:
+    """The body (and the patch, when there is one) are byte-identical to the
+    reviewed preview's `<slug>.md` / `<slug>.patch`."""
+    body_file, patch_file = reviewed / f"{slug}.md", reviewed / f"{slug}.patch"
+    if not body_file.is_file() or body_file.is_symlink():
+        return False
+    if hashlib.sha256(body_file.read_bytes()).hexdigest() != hashlib.sha256(body.encode("utf-8")).hexdigest():
+        return False
+    if patch is None:
+        return not patch_file.exists()
+    return patch_file.is_file() and not patch_file.is_symlink() and \
+        hashlib.sha256(patch_file.read_bytes()).hexdigest() == hashlib.sha256(patch).hexdigest()
+
+
+def probe_token() -> tuple[str | None, str]:
+    """`gh api user` with the credential gh holds (GH_TOKEN in this process —
+    the engine's probed FLEET_TOKEN — else its stored login): the login, or
+    None and why. A token's presence proves nothing (AGENTS.md)."""
+    ok, out, err = _run(["gh", "api", "user", "--jq", ".login"], timeout=60)
+    login = out.strip()
+    if not ok or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?", login):
+        return None, _why(err) or "no login"
+    return login, ""
+
+
+def ensure_labels(repo: str) -> None:
+    """The labels CI's doctor passes to `gh pr create` / `gh issue create` must
+    exist in the target; `--force` only refreshes an existing one."""
+    for name in LABELS:
+        ok, _out, err = _run(["gh", "label", "create", name, "-R", repo, "--force"], timeout=60)
+        if not ok:
+            sys.stderr.write(f"doctor-file: gh label create {name} -R {repo}: {_why(err)} (continuing)\n")
+
+
+def create_issue(item: dict, body_file: Path) -> tuple[str | None, str]:
+    """Step 3c: ONE tracking issue, MARKER line first (the body file's bytes)."""
+    argv = ["gh", "issue", "create", "-R", str(item["repo"]), "--title", str(item["title"]),
+            "--body-file", str(body_file), "--label", ",".join(LABELS)]
+    ok, out, err = _run(argv, timeout=120)
+    if not ok:
+        return None, f"gh issue create failed: {_why(err)}"
+    url = (out.strip().splitlines() or [""])[-1]
+    return (url, "") if url.startswith("https://") else (None, f"gh issue create failed: no URL ({_why(out)})")
+
+
+def open_pr(item: dict, patch_file: Path | None, body_file: Path, run_url: str) -> tuple[str | None, str]:
+    """Steps 3a / 3b: a scratch clone of the target (never the hub checkout or
+    a submodule working tree), the fix branch, the reviewed patch applied and
+    committed, ONE push of `HEAD:refs/heads/<branch>` (git's receive-pack
+    pinned, the credential from gh, nothing in argv) and a draft PR with the
+    labels CI uses. The clone is removed whatever happens."""
+    repo, branch = str(item["repo"]), str(item["branch"])
+    base = str(item.get("base") or "main")
+    if patch_file is None:
+        return None, "a pr needs a patch"
+    with tempfile.TemporaryDirectory(prefix="jev-doctor-apply-") as tmp:
+        dest = Path(tmp) / "repo"
+        ok, _out, err = _run(["gh", "repo", "clone", repo, str(dest), "--", "--quiet", "--no-tags"], timeout=900)
+        if not ok:
+            return None, f"clone failed: {_why(err)}"
+        git = ["git", "-C", str(dest), "-c", "core.hooksPath=/dev/null", "-c", "credential.helper="]
+        ok, _out, err = _run([*git, "checkout", "-q", "-b", branch])
+        if not ok:
+            return None, f"branch {branch} failed: {_why(err)}"
+        ok, _out, err = _run([*git, "apply", "--index", str(patch_file)])
+        if not ok:
+            return None, f"the reviewed patch does not apply on {base} any more: {_why(err)}"
+        subject = str(item["title"])
+        trailer = (f"Fleet doctor, run locally ({run_url}); the pull request body carries the MARKER line."
+                   if run_url else "Fleet doctor, run locally; the pull request body carries the MARKER line.")
+        ok, _out, err = _run([*git, "-c", f"user.name={COMMIT_NAME}", "-c", f"user.email={COMMIT_EMAIL}",
+                              "-c", "commit.gpgsign=false", "commit", "-q", "-m", subject, "-m", trailer])
+        if not ok:
+            return None, f"commit failed: {_why(err)}"
+        ok, _out, err = _run([*git, "-c", CREDENTIAL_HELPER, "push", "-q", RECEIVE_PACK, "origin",
+                              f"HEAD:refs/heads/{branch}"], timeout=600)
+        if not ok:
+            return None, f"push failed ({branch} in {repo}): {_why(err)}"
+        argv = ["gh", "pr", "create", "-R", repo, "--draft", "--base", base, "--head", branch,
+                "--title", subject, "--body-file", str(body_file)]
+        for name in LABELS:
+            argv += ["--label", name]
+        ok, out, err = _run(argv, timeout=120)
+        if not ok:
+            return None, f"gh pr create failed after the push of {branch}: {_why(err)}"
+        url = (out.strip().splitlines() or [""])[-1]
+        return (url, "") if url.startswith("https://") else (None, f"gh pr create failed: no URL ({_why(out)})")
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -189,9 +383,11 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bodies-dir", required=True, metavar="DIR", help="where the exact body bytes are written")
     parser.add_argument("--hub", default=HUB_DEFAULT, metavar="OWNER/REPO")
     parser.add_argument("--offline", action="store_true", help="no GitHub reads: no open-marker dedupe")
-    parser.add_argument("--apply", action="store_true", help="file it (refused in this release: #488)")
+    parser.add_argument("--apply", action="store_true",
+                        help="file it: the push + draft PR, or the issue, CI would have opened (the engine adds "
+                             "this only after the § 13.6 yes; needs --reviewed-bodies)")
     parser.add_argument("--reviewed-bodies", default=None, metavar="DIR",
-                        help="with --apply: file only bodies byte-identical to this reviewed preview")
+                        help="with --apply: file only a body and patch byte-identical to this reviewed preview's")
     parser.set_defaults(func=run_file)
 
 

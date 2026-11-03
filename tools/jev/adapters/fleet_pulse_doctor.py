@@ -58,7 +58,8 @@ LOCAL_ARTEFACT_RX = re.compile(r"EAI_AGAIN|ENOTFOUND|Could not resolve host|geta
                                r"has been denied because Claude Code is running in don't ask mode")
 #: the filer's stderr messages (fleet_doctor_file.NO_DEDUPE; CI's doctor has no filer)
 NO_DEDUPE = "filing without the duplicate check"
-APPLY_REFUSED = "doctor-file --apply is not implemented"
+NOT_REVIEWED = "not in the reviewed preview"
+TOKEN_REFUSED = "the publish token was refused by `gh api user`"
 BRIEF_MAX_BYTES = 1024 * 1024
 RESULT_MAX_CHARS = 20_000
 
@@ -272,11 +273,11 @@ class FleetPulseDoctor(Adapter):
                               "filings_attempted": len(intents), "source": source, "title": title})
 
     def publish(self, ctx, item: Item, verdict: Verdict, execute, *, apply: bool = False) -> PublishPlan:
-        res = execute()   # the spec's publish argv; with --apply only after the gate (refused by the filer today)
+        res = execute()   # the spec's publish argv; with --apply (and --reviewed-bodies) only after the § 13.6 yes
         if not res.ok:
             why = res.err.strip()[-300:]
-            blocker = (f"doctor-file --apply is refused in this release (bamr87/bamr87#488): {why}"
-                       if APPLY_REFUSED in res.err else f"doctor-file exited {res.code}: {why}")
+            blocker = (f"doctor-file --apply filed nothing (exit 3: the dedupe list or the publish token could not "
+                       f"be read): {why}" if res.code == 3 else f"doctor-file exited {res.code}: {why}")
             return PublishPlan(False, [blocker], [], None)
         try:
             out = _last_json(res.out)
@@ -290,7 +291,33 @@ class FleetPulseDoctor(Adapter):
         return PublishPlan(publishable=bool(rows) and not blockers, blockers=blockers, rows=rows,
                            bodies_dir=ctx.bodies_dir(item, apply=apply),
                            failures=[s.get("title", "?") for s in out.get("skipped") or []
-                                     if "failed" in str(s.get("reason") or "")])
+                                     if "failed" in str(s.get("reason") or "")
+                                     or NOT_REVIEWED in str(s.get("reason") or "")
+                                     or TOKEN_REFUSED in str(s.get("reason") or "")])
+
+    def apply_steps(self, ctx, item: Item, plan: PublishPlan) -> list[str]:
+        """What `--apply` writes for this item, for the plan's review document:
+        a scratch clone, the branch, the reviewed patch, ONE push and a draft
+        PR (Steps 3a/3b), or the hub issue (3c) — the same filer, nothing else."""
+        rows = plan.rows or []
+        if not rows:
+            return ["Nothing: no fix or filing would be published."]
+        r = rows[0]
+        repo = r.get("repo") or item.nwo
+        if r.get("kind") == "issue":
+            return [f"`gh label create <name> -R {repo} --force` for fleet-doctor, automation — this can refresh an "
+                    "existing label's colour and description.",
+                    f"`gh issue create -R {repo}` with the body below (MARKER line first), after the live recheck "
+                    "(today's queue), the reviewed-bytes check, the open-marker dedupe and the token probe; "
+                    "nothing else is written."]
+        return [f"`gh repo clone {repo}` into a scratch directory (never the hub checkout or a submodule tree), "
+                f"`git checkout -b {r.get('branch')}`, the reviewed patch applied with `git apply --index` and "
+                "committed as fleet-doctor.",
+                f"ONE push of `HEAD:refs/heads/{r.get('branch')}` to origin (git's receive-pack pinned, the "
+                "credential from `gh auth git-credential`, never in argv) — no force, no delete.",
+                f"`gh label create <name> -R {repo} --force` for fleet-doctor, automation, then `gh pr create -R "
+                f"{repo} --draft` with the body below (MARKER line first), after the live recheck, the "
+                "reviewed-bytes check, the open-marker dedupe and the token probe; nothing else is written."]
 
     def context_request(self, ctx, item: Item) -> ContextRequest:
         """The hub and its checkout name, plus the candidate as code-index

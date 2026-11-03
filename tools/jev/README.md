@@ -44,7 +44,7 @@ python3 -m tools.jev loop run repo-scout --target SCHEMA --apply     # … and f
 python3 -m tools.jev loop publish <run_id> --apply      # file a reviewed earlier dry run (once)
 python3 -m tools.jev loop plan fleet-pulse              # the fleet doctor: today's queue, one item per candidate
 python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml --rehearse   # one candidate, $0
-python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml   # one capped attempt ($40): the patch + the filing it asked for, previewed; --apply is refused until #488's publish step
+python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml   # one capped attempt ($40): the patch + the filing it asked for, previewed; --apply files it (§ 11.8)'s publish step
 python3 -m tools.jev loop show --latest
 python3 -m tools.jev loop budget                        # the month against budget.loops and budget.jev; exit 1 when together they exceed harnesses.budget.monthly_ai_usd
 ```

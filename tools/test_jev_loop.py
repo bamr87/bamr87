@@ -271,6 +271,10 @@ if argv[:2] == ["api", "user"]:
     print("bamr87"); sys.exit(0)
 if argv[:2] == ["label", "create"]:
     sys.exit(0)
+if argv[:2] == ["pr", "list"]:
+    print("[]"); sys.exit(0)
+if argv[:2] == ["pr", "create"]:
+    print(f"https://github.com/{argv[argv.index('-R') + 1]}/pull/77"); sys.exit(0)
 if argv[:2] == ["issue", "create"]:
     count = sum(1 for line in open(os.environ["STUB_GH_LOG"]) if '"create"' in line and '"issue"' in line)
     if os.environ.get("STUB_GH_CREATE_FAIL") or count > int(os.environ.get("STUB_GH_CREATE_FAIL_AFTER") or 10 ** 6):
@@ -533,7 +537,7 @@ def jev(*argv: str) -> tuple[int, str, str]:
 
 def no_writes(box: Box) -> None:
     writes = [c for c in box.gh_calls() if c[:2] in (["issue", "create"], ["label", "create"], ["issue", "edit"],
-                                                     ["pr", "merge"], ["variable", "set"])
+                                                     ["pr", "create"], ["pr", "merge"], ["variable", "set"])
               or (c[:1] == ["api"] and common._api_method(c) != "GET")]
     assert not writes, writes
     assert not box.prompted(), "a real prompt reached claude"
@@ -3153,8 +3157,8 @@ def test_an_attempt_with_no_fix_and_no_filing_is_rejected_and_apply_is_refused_b
         code, _, _ = jev("run", "fleet-pulse", "--plan-file", str(plan), "--item", "ci", "--context", "off",
                          "--apply", "--fresh")
         item = box.last()["items"][0]
-    # the live recheck (the real planner against today's queue) or the filer's own refusal (#488) stops the
-    # filing: either way nothing is written, and the preview is on disk for the reviewer
+    # the live recheck (the real planner against today's queue, where this fixture candidate is not) stops
+    # the filing before the filer's apply runs: nothing is written, and the preview is on disk for the reviewer
     assert item["status"] in ("publish-skipped", "publish-failed", "partial") and item.get("published", 0) == 0, item
     assert item["publishable"] and item["would_file"] == 1
     no_writes(box)
