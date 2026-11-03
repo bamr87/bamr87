@@ -47,6 +47,7 @@ coverage: listed
 | `kilo.jsonc` | file | Kilo Code project config — codebase indexing for this worktree, including checked-out submodules; URLs must agree with `_data/fleet.yml` `observability.indexing` | |
 | `.gitattributes` | file | How git treats generated and append-only files: `merge=jev-regen` (keep ours, regenerate — `tools/jev/merge-regen.sh`) and `merge=union`; amendment 0002, docs/JEV.md; and byte-pinned agent prompts (`eol=lf`, `tools/jev/steps/`) | |
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
+| `.vscode/` | dir | The editor as a front door (constitution § 20): launch configurations and tasks for every harness surface through `tools/dash`, machine-neutral settings, the shared extension list; pickers held to the registries by `tools/test_vscode_launch.py` | required |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
 | `*.code-workspace` | pattern | Other VS Code multi-root workspaces over a group of submodules (e.g. `bash-cms`: the content sites) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
@@ -62,6 +63,7 @@ coverage: listed
 - New gate, generator, or fleet script → `tools/`
 - New operator doc → `docs/UPPERCASE-TOPIC.md`
 - New dash surface or loop → a fragment in `features/features.d/<slug>.yml` (`id: HUB-NEW`, numbered at merge) + a user scenario in `verify/scenarios/` (docs/VERIFICATION.md)
+- New dash subcommand, loop, gate, scenario, site or submodule → also its F5 entry in `.vscode/launch.json` (+ `tasks.json`, the picker, the `.vscode/README.md` line) in the same change (constitution § 20)
 - New harness/loop diagram → `diagrams/<name>.<type>.json`, then `tools/render-diagrams.sh`
 - New registry → `_data/`, registered in `_data/SCHEMA.md`
 - New fleet dev-stack service or project → `_data/ports.yml`, then `tools/fleet-compose.py sync`

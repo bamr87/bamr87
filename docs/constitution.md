@@ -88,6 +88,7 @@ Every PR passes the checks the repo's guide names:
 - `python3 tools/console/test_pages.py` _(AGENTS.md)_
 - `python3 <bamr87/bamr87>/tools/governance_lint.py check .` (feature catalog ↔ PRD, constitution, amendments)
 - `python3 <bamr87/bamr87>/tools/projects_lint.py check` (work-tracking spec; live coverage when the token can read projects — § 9)
+- `python3 tools/test_vscode_launch.py` (the editor is a front door: `.vscode/` calls `tools/dash`, its pickers and ports follow the registries — § 20)
 
 ## 8. Amendments
 
@@ -235,3 +236,14 @@ _(amendment `fleet-pr-review`, numbered at merge — see the [amendment log](ame
 7. **AI review triggers** — AI review runs on `opened`, `ready_for_review` and an explicit label, not on every push; it checks the central switch (§ 17) and is held to § 13.
 8. **Summaries, not comments** — cost, usage and test tables go to the job summary.
 9. **Rollout** — conformance is warn-only per repo until its fan-out PR lands, then a hard failure; a repo with no pull requests is not applicable.
+
+## 20. The editor is a front door
+
+_(amendment `editor-front-door`, numbered at merge — see the [amendment log](amendments/README.md); follows § 19 `fleet-pr-review`; extends § 2 (SCHEMA protocol) and § 7; spec UPS-REPO-40; feature `editor-front-door`, requirement `FR-NEW:editor-front-door`)_
+
+1. **One front door** — every development tool, loop, gate and surface of the hub is reachable from the editor: [`.vscode/launch.json`](../.vscode/launch.json) and [`.vscode/tasks.json`](../.vscode/tasks.json) call `tools/dash`, a tool's own entry point, or `docker compose` against the hub's own services, and never carry a second implementation of anything the CLI, the Harness Console's job API or CI runs.
+2. **Registries, not numbers** — a port, project, site, scenario or loop named in an editor configuration comes from its registry (`_data/ports.yml`, `_data/fleet.yml` `containers.ports`, `docker-compose.yml`, `.gitmodules`, `verify/scenarios/`, `content.sites`); a picker is held equal to its registry by `tools/test_vscode_launch.py`, which is one of the § 7 gates.
+3. **Parity in the same PR** — a new `tools/dash` subcommand, loop, gate, user scenario, content site or submodule adds its editor entry and the `.vscode/README.md` line that describes it in the same pull request (README-Last applies to `.vscode/`); an entry that points at a retired path is removed, never left to fail.
+4. **Debuggers, not terminals** — where a surface can be debugged (the console's API and page, a generator or hub test, a container that ships a debug layer) the entry is a real debugger (`debugpy`, a browser with source maps, an attach) on a hub port that never collides with the running core; a terminal launcher is the fallback, not the default.
+5. **Fleet** — a fleet repo with a run, test or debug command carries its own `.vscode/launch.json` and `tasks.json` that call the repo's own one-command entry points (UPS-REPO-40); the hub's `.devcontainer/` and `.vscode/extensions.json` are the reference extension set (UPS-REPO-30). Warn-only per repo until a seed kit exists and its fan-out PR lands.
+6. **Exemptions** — content repos, forks and archived or retired repos are exempt; any other exemption is recorded as a standard deviation (UPS README "Deviating").

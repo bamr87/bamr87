@@ -17,7 +17,7 @@ tools/dash dev ports                    # the allocation table
 tools/dash dev down --all
 ```
 
-In VS Code: the **0-fleet** launch group wraps all of the above, and **7-python** has real `debugpy` attach configurations.
+In VS Code: the **0-fleet** launch group wraps all of the above, and **7-projects** has real `debugpy` attach configurations ([.vscode/README.md](../.vscode/README.md)).
 
 ---
 

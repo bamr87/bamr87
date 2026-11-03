@@ -431,6 +431,53 @@ def _env_example(r, k):
     return _ok() if r.has(".env.example", ".env.sample", ".env.template") else _no(f"code reads env ({reads}) but no .env.example")
 
 
+def _jsonc(path):
+    """Parse a VS Code JSONC file: line comments stripped, trailing commas
+    tolerated — what VS Code itself accepts. Returns (doc, error)."""
+    import json
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return None, str(e)
+    text = re.sub(r"^\s*//.*$", "", text, flags=re.M)
+    text = re.sub(r",(\s*[}\]])", r"\1", text)
+    try:
+        return json.loads(text), ""
+    except ValueError as e:
+        return None, f"{path.name}: {e}"
+
+
+@check("UPS-REPO-40")
+def _vscode_front_door(r, k):
+    """The editor is a front door (hub constitution § 20): .vscode/launch.json
+    + tasks.json present and parseable, every preLaunchTask resolving to a
+    task label. What the entries CALL is reviewed, not audited — a repo's own
+    entry points cannot be enumerated offline for every stack."""
+    launch = r.path / ".vscode" / "launch.json"
+    tasks = r.path / ".vscode" / "tasks.json"
+    if not launch.exists():
+        return _no("no .vscode/launch.json (run/test/debug from the editor through the repo's own entry points)")
+    ldoc, err = _jsonc(launch)
+    if ldoc is None:
+        return _no(f".vscode/launch.json does not parse: {err}")
+    configs = ldoc.get("configurations") or []
+    if not configs:
+        return _no(".vscode/launch.json has no configurations")
+    labels: set[str] = set()
+    if tasks.exists():
+        tdoc, err = _jsonc(tasks)
+        if tdoc is None:
+            return _no(f".vscode/tasks.json does not parse: {err}")
+        labels = {str(x.get("label")) for x in (tdoc.get("tasks") or []) if isinstance(x, dict)}
+    wanted = {str(c.get("preLaunchTask")) for c in configs if isinstance(c, dict) and c.get("preLaunchTask")}
+    wanted |= {str(c.get("postDebugTask")) for c in configs if isinstance(c, dict) and c.get("postDebugTask")}
+    missing = sorted(w for w in wanted if w not in labels)
+    if missing:
+        where = "no .vscode/tasks.json" if not tasks.exists() else "not in .vscode/tasks.json"
+        return _no(f"launch.json names task(s) {', '.join(missing)} — {where}")
+    return _ok(f"{len(configs)} configuration(s)" + (f", {len(labels)} task(s)" if labels else ""))
+
+
 @check("UPS-AGENT-06")
 def _claude_wf(r, k):
     return _ok() if r.has(".github/workflows/claude.yml") else _no("no .github/workflows/claude.yml")

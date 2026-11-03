@@ -229,7 +229,7 @@ requirements:
     gap: false
   - id: UPS-REPO-30
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: SHOULD
     applies: [app, api, site]
     requirement: "A `docker-compose.yml` (or `compose.yml`) runs the whole app locally with one command; a `.devcontainer/devcontainer.json` composes it and pins the fleet VS Code extension set."
@@ -238,7 +238,7 @@ requirements:
     gap: false
   - id: UPS-REPO-34
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: MUST
     applies: [app, api, site]
     requirement: "**Every published port is env-overridable and loopback-bound** — `\"127.0.0.1:${NAME_PORT:-<default>}:<container>\"`, never a bare `8000:8000`. The default comes from that project's allocation in the hub's [`_data/ports.yml`](../_data/ports.yml), not from a fixed per-role number. This replaces the old fixed map (4000/5000/5173/8000/5432/6379), which every repo obeyed and which is exactly why six repos published 5432, six 3000, five 8000 and 8080, and four 4000 — correct for one repo at a time, impossible for the fleet at once."
@@ -247,7 +247,7 @@ requirements:
     gap: false
   - id: UPS-REPO-35
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: MUST
     applies: [app, api, site]
     requirement: "**No `container_name:`.** Container names are global to the Docker daemon, so two repos that pick the same one cannot run together — the hub and `projects/README` both claimed `bamr87-wiki`. Let Compose namespace containers as `<project>-<service>-1`."
@@ -256,7 +256,7 @@ requirements:
     gap: false
   - id: UPS-REPO-36
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: SHOULD
     applies: [app, api]
     requirement: "An `env_file:` entry that a fresh clone will not have uses the long form with `required: false`; a service that a shared hub service supersedes locally sits behind `profiles: [standalone]`. Both keep the repo runnable standalone *and* inside the fleet stack."
@@ -265,7 +265,7 @@ requirements:
     gap: false
   - id: UPS-REPO-37
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: MUST
     applies: [app, api, site]
     requirement: "**Container image versions come from one registry.** A Dockerfile `FROM` or compose `image:` for postgres, redis, node, python, ruby or nginx tracks [`_data/fleet.yml`](../_data/fleet.yml) `images:` — the tag's variant (`-alpine`, `-slim`) is the repo's own choice, a version is never lowered, and `bookworm` variants move to `trixie`. A deliberate pin is a comment on or directly above the image line containing \"pinned\", \"bump deliberately\", \"do not bump\" or \"fleet-pin\" (it freezes that image family repo-wide). A repo whose ecosystem lags gets a ceiling with its reason in `image_overrides:` (law-ai: Python 3.13, `crewai` has no 3.14 release)."
@@ -274,7 +274,7 @@ requirements:
     gap: false
   - id: UPS-REPO-38
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: MUST
     applies: [app, api, site]
     requirement: "A `healthcheck:` probes `127.0.0.1`, never `localhost` — `localhost` resolves to `::1` first and most servers bind IPv4 only, so a healthy service reports unhealthy (seen on Wiki.js, barodybroject docs, zer0-cms). It uses a tool the image actually ships: qdrant has no `curl`, so `bash -c ':> /dev/tcp/127.0.0.1/6333'`; `celery inspect ping` needs an explicit `--timeout`."
@@ -283,7 +283,7 @@ requirements:
     gap: false
   - id: UPS-REPO-39
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: MUST
     applies: [app, api]
     applies_notes: ["api (with Postgres)"]
@@ -293,7 +293,7 @@ requirements:
     gap: false
   - id: UPS-REPO-31
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: MUST
     applies: [app, api]
     requirement: "Dockerfiles are multi-stage, run as a non-root user, declare a `HEALTHCHECK` hitting the health endpoint (BE-10), and never copy `.env`."
@@ -302,7 +302,7 @@ requirements:
     gap: false
   - id: UPS-REPO-32
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: MUST
     applies: [all]
     applies_notes: ["all with env config"]
@@ -312,13 +312,22 @@ requirements:
     gap: true
   - id: UPS-REPO-33
     area: REPO
-    section: "Containers and local environment"
+    section: "Containers, local environment and the editor"
     level: SHOULD
     applies: [all]
     requirement: "One bootstrap script (`tools/setup.sh` or the stack's `make setup`/`npm run setup`) brings a fresh clone to a passing test run; the README Quick start calls it."
     satisfied_by: "script present"
     seed: "`scripts/project-init.sh`"
     gap: false
+  - id: UPS-REPO-40
+    area: REPO
+    section: "Containers, local environment and the editor"
+    level: SHOULD
+    applies: [app, api, site, ext, cli, lib]
+    requirement: "**The editor is a front door** (hub constitution § 20). A repo with a run, test or debug command carries `.vscode/launch.json` and `.vscode/tasks.json` whose entries call the repo's own one-command entry points — its compose file, its `npm`/`make`/`tools/` scripts, the same commands its README Quick start names (REPO-11) — never a second implementation; a debuggable surface gets a real debugger entry (`debugpy`, browser, attach) rather than a terminal launcher; ports are the compose file's env-overridable ones (REPO-34); `extensions.json` recommends the fleet set the hub's `.devcontainer/` pins (REPO-30). JSONC with line comments is fine; every `preLaunchTask` must resolve to a `tasks.json` label. Content repos, forks and archived repos are exempt."
+    satisfied_by: "`.vscode/launch.json` + `tasks.json` present and parseable, every `preLaunchTask` resolving — `tools/conformance.py` check `UPS-REPO-40`; hub reference: [`.vscode/README.md`](../.vscode/README.md); `dash audit` artifact `vscode`"
+    seed: "`templates/vscode/` (gap — roadmap; the hub's `.vscode/` is the reference)"
+    gap: true
   - id: UPS-AGENT-01
     area: AGENT
     section: "The context file"

@@ -129,6 +129,6 @@ Optionally add it to a group in `_data/fleet.yml` `containers.groups`; a test as
 | `tools/fleet/db-init/` | Generated Postgres provisioning (committed — it is mounted at startup) |
 | `.fleet/compose/` | Generated per-project overrides (gitignored) |
 | `tools/dash up\|down\|ps` | The orchestrator |
-| `.vscode/launch.json` | F5 entries — `tools/dash up <project>` for compose-backed projects, `compose exec devenv` for the workspace nine |
+| `.vscode/launch.json` | F5 entries — `tools/dash up` for the shared core, `tools/dash dev up <project>` for compose-backed projects (the `_data/ports.yml` map, drift check (m)), `compose exec devenv` on the workspace block for the rest ([.vscode/README.md](../.vscode/README.md)) |
 
 Tests: `.github/scripts/dash-gen/test_fleet_compose.py` — 24 checks, offline, no docker.

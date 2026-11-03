@@ -201,7 +201,7 @@ projects:
     host: compose
     compose: projects/zer0-cms/docker-compose.yml
     services:
-      cms:      { port: 8117, band: api, var: ZER0_CMS_PORT }
+      content:  { port: 8117, band: api, var: ZER0_CMS_PORT }
       imagegen: { port: 8118, band: api, var: ZER0_CMS_IMAGEGEN_PORT }
 
   # ---- devenv-hosted: no compose of their own --------------------------------
