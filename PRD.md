@@ -110,6 +110,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-063](features/features.yml) | JEV: the loop runner's context pack — the fleet's planes, read on the host for a sealed agent | partial | [`tools/jev/context.py`](tools/jev/context.py) · [`docs/JEV.md`](docs/JEV.md) | FR59 |
 | [HUB-064](features/features.yml) | In-flight job status for agents: state, ages and slowness diagnostics | planned | [`tools/console/mcp_layer/server.py`](tools/console/mcp_layer/server.py) · [`tools/console/docs/job-status.md`](tools/console/docs/job-status.md) | FR60 |
 | [HUB-065](features/features.yml) | Fleet PR review workflow with one sticky summary | planned | `docs/amendments/proposed/fleet-pr-review.md` | FR61 |
+| [HUB-066](features/features.yml) | Quest Log showcase: every deep-dived repo gets an article, two LinkedIn drafts and a better first screen | partial | [`.claude/skills/deep-dive-showcase/SKILL.md`](.claude/skills/deep-dive-showcase/SKILL.md) · [`docs/SHOWCASE.md`](docs/SHOWCASE.md) | FR62, NFR8 |
 
 **Requirement → feature trace**
 
@@ -145,7 +146,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR23 | HUB-027 |
 | FR24 | HUB-029 |
 | FR25 | HUB-029 |
-| NFR8 | HUB-029 |
+| NFR8 | HUB-029, HUB-066 |
 | FR26 | HUB-031 |
 | NFR9 | HUB-031 |
 | FR27 | HUB-032 |
@@ -187,6 +188,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR59 | HUB-063 |
 | FR60 | HUB-064 |
 | FR61 | HUB-065 |
+| FR62 | HUB-066 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -242,6 +244,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR59: Before a local loop attempt, the hub must give the sealed agent read-only, capped, redacted and freshness-stamped context from the fleet's data lake, code index, telemetry and the loop's own earlier attempts as a file beside the brief in its clone, built on the host without changing the reviewed prompt bytes, with a mode that turns it off for a CI-identical run and a mode that refuses to spend when a plane is unavailable.
 - FR60: The Harness Console must report each in-flight job's state (queued, running, stalled, done, failed), time since sent and since last progress, and slowness diagnostics, through its API, its MCP layer (job_status, jobs_list) and the Jobs page.
 - FR61: The hub must provide a reusable PR review workflow that posts at most one sticky summary comment per PR (none when clean), inline comments only for severity-tagged deduplicated findings, a fleet signature footer on every comment, never posts with the maintainer's personal token, skips content checks on Dependabot and release PRs, runs AI review only on opened, ready_for_review or label events behind the central switch, and sends cost and test tables to job summaries.
+- FR62: Every repo the deep-dive routine processes also gets a Quest Log showcase drafted for approval: a long-form article and a personal LinkedIn draft on bamr87.github.io, a company-page LinkedIn draft on bash-365.com and a presentation pull request in the repo itself, each a pull request a human merges, with nothing posted, published or changed in a repo's settings before that merge; the ledger records each repo's showcase (article, both drafts, presentation PRs) without changing its deep-dive status, and its projection counts the repos showcased this cycle; see docs/SHOWCASE.md
 
 **Non-functional**
 
