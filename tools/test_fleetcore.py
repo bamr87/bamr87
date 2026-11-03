@@ -9,6 +9,7 @@ the standard library and PyYAML.
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -36,6 +37,60 @@ def test_keys_v1_universal_layer_is_the_plan():
         assert web.get(dom) == action, (dom, web.get(dom))
     assert "q" not in web, "the browser has no quit"
     assert {k.dom for k in keys.bindings_for("tui")} >= {"q"}
+
+
+def test_the_loop_run_key_is_in_the_dash_layer_on_both_surfaces():
+    """`L` runs the selected repo through a loop's agent step (the console's
+    loop-run op) — bound by the TUI and the page from this one table."""
+    for surface in keys.SURFACES:
+        k = next(k for k in keys.bindings_for(surface) if k.action == "loop_run")
+        assert k.dom == "L" and k.group == "dash", k
+
+
+def test_loop_job_fields_are_read_from_the_record_or_the_status_lines():
+    """tools/fleetcore/loopjob.py — the one parser of a loop-run job's log."""
+    from fleetcore import loopjob
+    record = {"schema": "jev-loop-run/v1", "run_id": "r-1", "status": "completed", "exit_code": 0, "mode": "run",
+              "loop": "repo-scout", "step": "scout", "options": {"target": "SCHEMA"},
+              "tier": {"model": "claude-sonnet-5-5", "max_turns": 40, "cap_usd": 8.0},
+              "totals": {"attempts": 1, "estimated_usd": 0, "label": "API-equivalent (estimate)", "published": 0,
+                         "spent_usd": 0.61},
+              "usage_limited": False, "finished": "2026-11-03T18:00:00Z",
+              "items": [{"key": "bamr87/SCHEMA", "status": "validated", "decision": "attempt", "reason": "",
+                         "outcome": "ok", "cost_usd": 0.61, "cost_source": "reported", "turns": 17,
+                         "flags": ["1 permission denial(s)"], "context": {"line": "context auto · 3 sections"}}],
+              "notes": ["manual run"]}
+    log = ("$ tools/dash loop run repo-scout --target SCHEMA --json\n"
+           "jev loop: run r-1\n"
+           "jev loop: manual run — bypasses vars.REPO_SCOUT_ENABLED exactly as a workflow_dispatch does\n"
+           "  validated      bamr87/SCHEMA  \n"
+           "                 ! 1 permission denial(s)\n"
+           "jev loop: completed — $0.61 spent (API-equivalent (estimate)); exit 0\n"
+           + json.dumps(record, indent=2, sort_keys=True) + "\n")
+    f = loopjob.parse_log(log)
+    assert f["record"] and f["run_id"] == "r-1" and f["status"] == "completed" and f["exit_code"] == 0
+    assert (f["loop"], f["step"], f["target"], f["model"], f["max_turns"], f["cap_usd"]) == \
+        ("repo-scout", "scout", "SCHEMA", "claude-sonnet-5-5", 40, 8.0)
+    assert f["spent_usd"] == 0.61 and f["cost_label"] == "API-equivalent (estimate)" and f["attempts"] == 1
+    item = f["items"][0]
+    assert (item["key"], item["status"], item["outcome"], item["cost_usd"], item["turns"]) == \
+        ("bamr87/SCHEMA", "validated", "ok", 0.61, 17)
+    assert item["flags"] == ["1 permission denial(s)"] and item["context"] == "context auto · 3 sections"
+    text = "\n".join(loopjob.summary_lines(f))
+    assert "completed" in text and "$0.61 spent (API-equivalent (estimate))" in text and "17 turns" in text, text
+    # before the record exists (still running, or died): the status lines carry what is known
+    partial = loopjob.parse_log(log.split("jev loop: completed")[0])
+    assert not partial["record"] and partial["run_id"] == "r-1" and partial["status"] is None
+    assert [i["key"] for i in partial["items"]] == ["bamr87/SCHEMA"] and partial["notes"] == ["manual run — bypasses vars.REPO_SCOUT_ENABLED exactly as a workflow_dispatch does"]
+    ended = loopjob.parse_log(log.split("{", 1)[0])
+    assert ended["status"] == "completed" and ended["spent_usd"] == 0.61 and ended["exit_code"] == 0
+    assert loopjob.parse_log("") == loopjob.empty() and loopjob.summary_lines(loopjob.empty()) == []
+    # a refusal before any run: the note is kept, nothing else is invented
+    refused = loopjob.parse_log("$ x\njev loop: the work root /w is inside the hub (set JEV_WORK_ROOT)\n")
+    assert refused["run_id"] is None and refused["notes"] == ["the work root /w is inside the hub (set JEV_WORK_ROOT)"]
+    # a record from a newer engine with unknown keys, and junk braces, still parses
+    noisy = log.replace("jev loop: run r-1", "jev loop: run r-1\n{\nnot json\n}") 
+    assert loopjob.parse_log(noisy)["run_id"] == "r-1" and loopjob.parse_log(noisy)["record"]
 
 
 def test_theme_css_covers_every_role_in_every_mode():

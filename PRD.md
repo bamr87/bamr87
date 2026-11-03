@@ -113,6 +113,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-066](features/features.yml) | Quest Log showcase: every deep-dived repo gets an article, two LinkedIn drafts and a better first screen | partial | [`.claude/skills/deep-dive-showcase/SKILL.md`](.claude/skills/deep-dive-showcase/SKILL.md) · [`docs/SHOWCASE.md`](docs/SHOWCASE.md) | FR62, NFR8 |
 | [HUB-067](features/features.yml) | The editor is a front door: every harness surface from VS Code through tools/dash | shipped | [`.vscode/launch.json`](.vscode/launch.json) · [`.vscode/README.md`](.vscode/README.md) | FR63 |
 | [HUB-068](features/features.yml) | Workloads placed across fleet nodes, with OpenTofu for node infrastructure | partial | [`tools/fleetcore/nodes.py`](tools/fleetcore/nodes.py) · [`docs/PLATFORM.md`](docs/PLATFORM.md) | FR64 |
+| [HUB-069](features/features.yml) | Run a loop's agent step locally from the console, the TUI and the MCP (loop-run) | partial | route `/loops/repo_scout` · [`tools/console/README.md`](tools/console/README.md) | FR56, FR65 |
+| [HUB-070](features/features.yml) | JEV: the fleet doctor's step spec and local dry run (P3, step 1) | partial | [`tools/jev/steps/fleet-pulse/doctor.yml`](tools/jev/steps/fleet-pulse/doctor.yml) · [`docs/DAILY-ANALYSIS.md`](docs/DAILY-ANALYSIS.md) | FR56 |
 
 **Requirement → feature trace**
 
@@ -184,7 +186,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR53 | HUB-056 |
 | FR54 | HUB-057 |
 | FR55 | HUB-058 |
-| FR56 | HUB-060 |
+| FR56 | HUB-060, HUB-069, HUB-070 |
 | FR57 | HUB-061 |
 | FR58 | HUB-062 |
 | FR59 | HUB-063 |
@@ -193,6 +195,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR62 | HUB-066 |
 | FR63 | HUB-067 |
 | FR64 | HUB-068 |
+| FR65 | HUB-069 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -251,6 +254,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR62: Every repo the deep-dive routine processes also gets a Quest Log showcase drafted for approval: a long-form article and a personal LinkedIn draft on bamr87.github.io, a company-page LinkedIn draft on bash-365.com and a presentation pull request in the repo itself, each a pull request a human merges, with nothing posted, published or changed in a repo's settings before that merge; the ledger records each repo's showcase (article, both drafts, presentation PRs) without changing its deep-dive status, and its projection counts the repos showcased this cycle; see docs/SHOWCASE.md
 - FR63: Every development tool, loop, gate and surface of the hub is reachable from the editor through the same entry points the CLI, the Harness Console's job API and CI run (`tools/dash`, a tool's own entry point, or `docker compose` against the hub's services), never a second implementation; every port, project, site, scenario and loop an editor configuration names comes from its registry and a gate (`tools/test_vscode_launch.py`) holds the pickers equal to those registries; a new surface adds its editor entry in the same pull request; fleet repos with a run, test or debug command carry their own `.vscode/launch.json` + `tasks.json` calling their own one-command entry points (UPS-REPO-40); see constitution § 20 and `.vscode/README.md`
 - FR64: The placement of every hub service on a fleet node is declared once in `_data/fleet.yml` `nodes:` and resolved by one implementation shared by every surface; a placement that would pin an edge-bound service off the edge, make a workload node call back to the edge, put durable data on a node without an off-box backup, or collide a link port is refused before anything runs; a node's durable infrastructure (its network and data volumes) is owned by OpenTofu with durable volumes protected from deletion; and no step that changes a machine runs without an explicit, planned deploy (constitution § 10.5)
+- FR65: The product must let an operator run a loop's agent step on their own machine from the console, the terminal dash and the fleet MCP through one job API, as a dry run that files nothing, with a live attempt confirmed as spend, at most one run per loop at a time, and apply refused until the § 11 write-path decision.
 
 **Non-functional**
 

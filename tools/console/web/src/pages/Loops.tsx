@@ -1,12 +1,15 @@
 // The control plane's loops: cadence from fleet.yml `schedule:`, liveness from
 // the age of each loop's committed outputs. A loop's page runs its local half
 // (the same tools/ entrypoint CI runs) or dispatches it in CI.
-import { Link, useParams } from 'react-router';
-import { Anchor, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Link, useNavigate, useParams } from 'react-router';
+import { Anchor, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
+import { IconPlayerPlay } from '@tabler/icons-react';
+import { hasConsole } from '../api/backend';
 import { useJobs, useOps, useStateDoc } from '../api/hooks';
-import type { Loop, StateDoc } from '../api/types';
+import type { AgentStep, Loop, StateDoc } from '../api/types';
 import { DataTable } from '../components/DataTable';
-import { Banner, External, Load, Mono, PageHeader, Section, Status, type Tone } from '../components/ui';
+import { useKeyScope } from '../components/keyscope';
+import { Banner, External, Load, LocalOnly, Mono, PageHeader, Section, Status, type Tone } from '../components/ui';
 import { JobStatus } from '../jobs/JobStatus';
 import { RunButton } from '../jobs/RunButton';
 import { age, when } from '../lib/format';
@@ -54,12 +57,23 @@ export function Loops() {
   );
 }
 
+/** The op-form link for one agent step: the user picks the target there, and the server confirms a spending run. */
+const runLocally = (st: AgentStep) => to.op('loop-run', { loop: st.loop, step: st.step });
+
 function LoopBody({ l, s }: { l: Loop; s: StateDoc }) {
   const ops = useOps();
   const jobs = useJobs();
+  const navigate = useNavigate();
   const byId = new Map((ops.data ?? []).map((o) => [o.id, o]));
   const f = freshness(l);
-  const mine = (jobs.data ?? []).filter((j) => l.local_ops.includes(j.op) || (j.op === 'dispatch' && j.argv.join(' ').includes(`${l.workflow}.yml`)));
+  const steps = l.agent_steps ?? [];
+  // Run locally needs a console (the runner, the clone, the sandbox live there): the public build shows the step, not a button.
+  const local = hasConsole() && steps.length > 0;
+  const blocked = byId.get('loop-run')?.unavailable ?? null;
+  useKeyScope({ loopRun: () => navigate(runLocally(steps[0])) }, local);
+  const mine = (jobs.data ?? []).filter((j) => l.local_ops.includes(j.op)
+    || (j.op === 'loop-run' && j.params?.loop === l.workflow)
+    || (j.op === 'dispatch' && j.argv.join(' ').includes(`${l.workflow}.yml`)));
   return (
     <>
       <PageHeader
@@ -75,10 +89,35 @@ function LoopBody({ l, s }: { l: Loop; s: StateDoc }) {
             <RunButton op="dispatch" params={{ workflow: l.workflow, fields: DISPATCH_INPUTS[l.workflow] ?? {} }} variant="filled">
               Dispatch in CI{DISPATCH_INPUTS[l.workflow] ? ' (dry run)' : ''}
             </RunButton>
+            {local ? (
+              <Button size="xs" variant="filled" leftSection={<IconPlayerPlay size={14} />} component={Link} to={runLocally(steps[0])}
+                disabled={Boolean(blocked)} title={blocked ?? 'The same agent step CI runs, on this machine — a dry run (L)'} data-testid="run-locally">
+                Run locally (dry run)
+              </Button>
+            ) : null}
           </>
         }
       />
-      <Section mt={0} title="Local half" description="The same tools/ entrypoints the workflow runs, run here as jobs. Each operation's page has its parameters.">
+      {steps.length ? (
+        <Section mt={0} title="Agent step — runs here too" description="The step's spec (tools/jev/steps/) is what CI renders and what the JEV loop runner runs on this machine: one capped attempt per item in the § 13.8 sandbox, then a dry-run preview under .fleet/runs/ — never a filing from here (docs/JEV.md).">
+          <Stack gap="xs">
+            {steps.map((st) => (
+              <Paper key={st.id} p="sm" data-testid="agent-step">
+                <Group justify="space-between" wrap="wrap" gap="xs">
+                  <div>
+                    <Text fw={600} size="sm"><Mono>{st.id}</Mono> <Text span size="xs" c="dimmed">· {st.call_site}</Text></Text>
+                    <Text size="xs" c="dimmed">{st.model} · {st.max_turns} turns · ${st.cap_usd} cap per attempt ({st.cost_label}){st.switch ? <> · switch <Mono>{st.switch.config}</Mono>={String(st.switch.config_value ?? '—')} / <Mono>vars.{st.switch.variable}</Mono></> : null}{st.publish_tier ? ` · publish tier ${st.publish_tier}` : ''}</Text>
+                  </div>
+                  {local
+                    ? <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} component={Link} to={runLocally(st)} disabled={Boolean(blocked)}>Run locally</Button>
+                    : <LocalOnly what="running it" />}
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+        </Section>
+      ) : null}
+      <Section mt={steps.length ? undefined : 0} title="Local half" description="The same tools/ entrypoints the workflow runs, run here as jobs. Each operation's page has its parameters.">
         {l.local_ops.length ? (
           <Stack gap="xs">
             {l.local_ops.filter((o) => byId.has(o)).map((o) => {

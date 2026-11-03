@@ -247,8 +247,55 @@ LOOPS = [
 ]
 
 
+# The agent steps a loop runs that ALSO run on this machine: every step spec
+# under tools/jev/steps/ with a `local:` block (the JEV loop runner, docs/JEV.md).
+# Read through tools.jev itself — never a list kept here — and cached for a
+# minute, because /api/state is polled. Data only: no path of this machine.
+COST_LABEL = "API-equivalent (estimate)"
+CLAUDE_BIN = "claude"
+_AGENT_STEPS: dict = {"at": 0.0, "steps": [], "error": None}
+
+
+def agent_steps() -> list[dict]:
+    """Every loop agent step the local runner can run, as data for the Loops
+    page, the TUI and the `loop-run` form: loop, step, model, turn cap, the
+    call-site dollar cap (API-equivalent, an estimate) and the kill switch. A
+    spec that fails to load leaves the list empty and the reason recorded, so
+    the state document never falls over on one broken spec."""
+    now = time.time()
+    if now - _AGENT_STEPS["at"] < 60:
+        return [dict(s) for s in _AGENT_STEPS["steps"]]
+    steps: list[dict] = []
+    error = None
+    try:
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from tools.jev import loop as jev_loop
+        fleet = jev_loop.load_fleet()
+        for s in jev_loop.local_specs(fleet=fleet):
+            sw = s.local.switch
+            try:
+                spec_path = str(s.path.relative_to(REPO_ROOT))
+            except ValueError:
+                spec_path = s.path.name
+            steps.append({
+                "id": f"{s.loop}/{s.step}", "loop": s.loop, "step": s.step, "call_site": s.call_site,
+                "spec": spec_path, "adapter": s.local.adapter, "model": s.resolved.model,
+                "max_turns": s.resolved.max_turns, "cap_usd": s.resolved.max_budget_usd, "cost_label": COST_LABEL,
+                "switch": None if sw is None else {"config": sw.config, "variable": sw.variable,
+                                                   "default": sw.default,
+                                                   "config_value": jev_loop.fleet_value(fleet, sw.config)},
+                "publish_tier": jev_loop.publish_tier(s), "on_budget_hit": s.local.on_budget_hit,
+            })
+    except Exception as exc:  # noqa: BLE001 — a broken spec is reported, never raised into /api/state
+        error = f"{type(exc).__name__}: {exc}"
+    _AGENT_STEPS.update(at=now, steps=steps, error=error)
+    return [dict(s) for s in steps]
+
+
 def loop_cards(fleet: dict, sources: dict) -> list[dict]:
     schedule = (fleet or {}).get("schedule") or {}
+    steps = agent_steps()
     cards = []
     for loop in LOOPS:
         cron = schedule.get(loop["schedule_key"]) if loop["schedule_key"] else None
@@ -257,6 +304,8 @@ def loop_cards(fleet: dict, sources: dict) -> list[dict]:
         missing = [o for o in loop["outputs"] if not sources.get(o, {}).get("present")]
         cards.append({
             **loop,
+            # the loop's agent steps that run locally (`loop-run`), by the workflow stem
+            "agent_steps": [s for s in steps if s["loop"] == loop["workflow"]],
             "cron": cron,
             "cron_human": describe_cron(cron) if cron else "dispatch only",
             "freshest_output_days": min(ages) if ages else None,
@@ -1034,6 +1083,50 @@ def _workflow_new(params: dict) -> list[str]:
     return argv
 
 
+def _loop_run(params: dict) -> list[str]:
+    """`tools/dash loop run <loop> [step] --target <name> --json [--rehearse]`.
+
+    The loop and the step must name an agent step with a `local:` spec (what
+    `agent_steps()` lists), the target is a registry name or `all` (today's
+    sample), and `apply` is refused outright: constitution § 11 allows console
+    writes only through `tools/console/gh_projects_write.py`'s allowlist, which
+    has no issue or PR create, so until the maintainer's decision on
+    bamr87/bamr87#487 lands the op is a dry run from the console and the MCP
+    alike. A live attempt spends (one capped attempt per item, held to
+    `budget.loops`), so it is confirm-gated; `rehearse` stops before the model
+    call at $0 and is not.
+    """
+    steps = agent_steps()
+    loop = str(params.get("loop") or "").strip()
+    known = sorted({s["loop"] for s in steps})
+    if loop not in known:
+        raise ValueError(f"loop must be one of {known} (a loop whose agent step has a local: spec)")
+    mine = [s["step"] for s in steps if s["loop"] == loop]
+    step = str(params.get("step") or "").strip()
+    if step and step not in mine:
+        raise ValueError(f"{loop} has no local agent step {step!r}; its steps: {mine}")
+    if not step and len(mine) != 1:
+        raise ValueError(f"{loop} has {len(mine)} local agent steps — name one of {mine}")
+    if _flag(params, "apply"):
+        raise ValueError("apply is refused from the console and the MCP until the § 11 write-path decision on "
+                         "bamr87/bamr87#487 lands: run the dry run here, review .fleet/runs/<run_id>/, and file it "
+                         "from a terminal with `tools/dash loop publish <run_id> --apply`")
+    target = str(params.get("target") or "all").strip()
+    if target != "all" and not NAME_RX.match(target):
+        raise ValueError(f"target must be 'all' or match {NAME_RX.pattern}")
+    argv = [DASH, "loop", "run", loop, *([step] if step else []), "--target", target, "--json"]
+    if _flag(params, "rehearse"):
+        argv.append("--rehearse")
+    return argv
+
+
+def _loop_exclusive(params: dict) -> str:
+    """Two local runs of ONE loop never overlap (the engine holds the budget
+    lock per attempt, but a queue of two would interleave their previews);
+    different loops may run beside each other."""
+    return f"loop:{str(params.get('loop') or '').strip()}"
+
+
 def contract_secrets() -> list[dict]:
     """The token contract's live (non-deprecated) entries — names and scope only."""
     fleet = load_yaml(DATA / "fleet.yml") or {}
@@ -1230,6 +1323,17 @@ OPS: dict[str, dict] = {
     "scout": dict(title="Plan today's repo-scout sample (offline)", group="plan",
                   argv=lambda p: [DASH_GEN, "scout", "--offline"], needs_token=False,
                   desc="Today's rotation over the owned, non-archived registry repos + their briefs (no backpressure check without GitHub)."),
+    "loop-run": dict(title="Run a loop's agent step locally (dry run)", group="plan",
+                     argv=_loop_run, needs_token=True, needs="claude", exclusive=_loop_exclusive,
+                     remote=lambda p: not _flag(p, "rehearse"), confirm="spend",
+                     desc="tools/dash loop run <loop> [step] --target <name> --json — the step's own spec, planner "
+                          "and prompt bytes (what CI runs), one capped attempt per item inside the § 13.8 sandbox, "
+                          "then the dry-run preview under .fleet/runs/<run_id>/ — nothing is filed. `rehearse` stops "
+                          "before the model call ($0). A live attempt spends Claude budget (API-equivalent, an "
+                          "estimate; held to budget.loops), so it asks first. `apply` is refused here until the § 11 "
+                          "write-path decision on #487 (docs/JEV.md).",
+                     params=["loop", "step", "target", "rehearse", "apply"],
+                     meta=lambda: {"agent_steps": agent_steps()}),
     "reconcile": dict(title="Reconcile registry vs GitHub (report only)", group="plan",
                       argv=lambda p: [DASH_GEN, "reconcile"], needs_token=True,
                       desc="Renames, url mismatches, 404s, branch drift — reported, never applied from here."),
@@ -1435,24 +1539,54 @@ def docker_unavailable() -> str | None:
     return reason
 
 
+def claude_unavailable() -> str | None:
+    """Why the local loop runner cannot run from this process: no `claude` CLI
+    on its PATH — the console container and the devenv image carry none, and
+    the runner refuses to start without one (exit 127). Asked on every
+    /api/ops; `shutil.which` is a PATH walk, so it is not cached."""
+    if shutil.which(CLAUDE_BIN):
+        return None
+    return ("no `claude` CLI on this console's PATH (the console container and the devenv image have none)."
+            " Run it from a host terminal instead: tools/dash loop run <loop> --target <name>")
+
+
 def op_unavailable(op_id: str) -> str | None:
     """Why an operation cannot run here at all — independent of its params."""
-    if (OPS.get(op_id) or {}).get("needs") == "docker":
+    needs = (OPS.get(op_id) or {}).get("needs")
+    if needs == "docker":
         why = docker_unavailable()
         if why:
             return (f"{why}. Run it from a host terminal instead: "
                     f"tools/dash observe {op_id.split('-', 1)[1]}")
+    if needs == "claude":
+        return claude_unavailable()
     return None
 
 
+def _exclusive_key(op_id: str, params: dict) -> str | None:
+    """The key a job holds while queued or running: a fixed one (`lake`), or
+    one computed from its parameters (`loop:<loop>`), or None."""
+    exclusive = (OPS.get(op_id) or {}).get("exclusive")
+    return exclusive(params) if callable(exclusive) else exclusive
+
+
 def list_ops() -> list[dict]:
-    return [
-        {"id": op_id, "title": op["title"], "group": op["group"], "desc": op.get("desc", ""),
-         "needs_token": op["needs_token"], "params": op.get("params", []),
-         "remote_write": "remote" in op, "exclusive": op.get("exclusive"),
-         "unavailable": op_unavailable(op_id)}
-        for op_id, op in OPS.items()
-    ]
+    out = []
+    for op_id, op in OPS.items():
+        exclusive = op.get("exclusive")
+        out.append({
+            "id": op_id, "title": op["title"], "group": op["group"], "desc": op.get("desc", ""),
+            "needs_token": op["needs_token"], "params": op.get("params", []),
+            "remote_write": "remote" in op,
+            # what the confirm gate guards: a GitHub write (the default for a remote op) or Claude spend
+            "confirm": op.get("confirm", "write" if "remote" in op else None),
+            # a per-parameter key is reported by its family (`loop`): the key itself needs the params
+            "exclusive": exclusive.__name__.lstrip("_").split("_")[0] if callable(exclusive) else exclusive,
+            "unavailable": op_unavailable(op_id),
+            # extra data the form needs (loop-run: the agent steps); never a local path or a value
+            **(op["meta"]() if "meta" in op else {}),
+        })
+    return out
 
 
 def build_argv(op_id: str, params: dict | None = None) -> tuple[list[str], bool]:
@@ -1504,6 +1638,7 @@ class Job:
         self.argv = argv
         self.remote = remote
         self.params = params
+        self.exclusive = _exclusive_key(op_id, params)
         self.status = "queued"
         self.created = dt.datetime.now(dt.timezone.utc)
         self.started: dt.datetime | None = None
@@ -1527,6 +1662,9 @@ class Job:
             # The operation's group (observe, plan, verify, lake, content,
             # deploy) — what the Jobs page groups and filters by.
             "group": (OPS.get(self.op) or {}).get("group"),
+            # what its confirm guarded (a GitHub write, or Claude spend) and the key it holds while live
+            "confirm": (OPS.get(self.op) or {}).get("confirm", "write" if self.remote else None),
+            "exclusive": self.exclusive,
         }
 
     @classmethod
@@ -1548,6 +1686,7 @@ class Job:
         job.started = _parse_ts(d.get("started"))
         job.finished = _parse_ts(d.get("finished"))
         job.exit_code = d.get("exit_code")
+        job.exclusive = d.get("exclusive")
         job.log_path = job_dir / f"{job.id}.log"
         job.proc = None
         return job
@@ -1571,6 +1710,20 @@ def job_env() -> dict:
     """
     return {**os.environ, "PYTHONUNBUFFERED": "1", "FORCE_COLOR": "0", "NO_COLOR": "1",
             "PYTHON": sys.executable}
+
+
+def loop_job_fields(log_path: Path) -> dict:
+    """The structured view of a `loop-run` job's log — the engine's `--json`
+    run record when it printed one, else what its status lines say so far —
+    from `tools/fleetcore/loopjob.py`, the one parser both surfaces use."""
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    from fleetcore import loopjob
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = ""
+    return loopjob.parse_log(text)
 
 
 class JobManager:
@@ -1675,15 +1828,16 @@ class JobManager:
             raise JobUnavailable(f"'{op_id}' cannot run here: {why}")
         job = Job(op_id, argv, remote, params)
         job.log_path = self.job_dir / f"{job.id}.log"
-        exclusive = OPS[op_id].get("exclusive")
+        exclusive = job.exclusive
         with self._lock:
             if exclusive:
                 holder = next((j for j in self.jobs.values() if j.status in ("queued", "running")
-                               and (OPS.get(j.op) or {}).get("exclusive") == exclusive), None)
+                               and getattr(j, "exclusive", None) == exclusive), None)
                 if holder is not None:
+                    what = (f"is already writing the {exclusive}" if exclusive == "lake"
+                            else f"already holds {exclusive} (one local run of a loop at a time)")
                     raise JobConflict(
-                        f"'{holder.op}' (job {holder.id}) is already writing the {exclusive} — "
-                        f"wait for it to finish, then run '{op_id}'")
+                        f"'{holder.op}' (job {holder.id}) {what} — wait for it to finish, then run '{op_id}'")
             self.jobs[job.id] = job
             self.order.append(job.id)
             self._evict()
@@ -1742,8 +1896,13 @@ class JobManager:
                 chunk = fh.read(limit)
                 new_offset = offset + len(chunk)
                 text = chunk.decode("utf-8", "replace")
-        return {"job": job.to_dict(), "text": text, "offset": new_offset,
-                "done": job.status in FINISHED_STATES}
+        out = {"job": job.to_dict(), "text": text, "offset": new_offset,
+               "done": job.status in FINISHED_STATES}
+        if job.op == "loop-run":
+            # parsed ONCE, here (tools/fleetcore/loopjob.py): the page and the
+            # TUI render these fields rather than reading the raw lines
+            out["loop"] = loop_job_fields(job.log_path)
+        return out
 
     def cancel(self, job_id: str) -> Job:
         job = self.jobs.get(job_id)
