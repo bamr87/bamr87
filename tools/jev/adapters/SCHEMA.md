@@ -21,6 +21,8 @@ coverage: listed
 | `repo_scout.py` | file | repo-scout's adapter: maps `dash-gen scout` and `dash-gen scout-file`, tier-0 reuse on the same HEAD and brief, the dedupe block on `--apply`, the privacy filter and the local-runner artefact flags | required |
 | `fleet_pulse_doctor.py` | file | The fleet doctor's adapter (ADR 0002 P3): maps `dash-gen remediate --plan-dir` (one item per candidate, the hub as the checkout) and `dash-gen doctor-file`; validates the engine's patch harvest plus the filing the agent asked gh for, MARKER line first; the privacy filter; `--apply` is refused by the filer until #488's publish step | required |
 
+| `fanout_agent_fill.py` | file | The fan-out agent fill's adapter (ADR 0002 P3, step 3): maps `dash-gen agent-fill --kit <kit>` (one item per target at the kit's PR branch, no brief) and `dash-gen agent-fill-file`; validates the harvested patch against the kit's brief (only CLAUDE.md, only SCHEMA.md files); serves both kit specs (the adapter of `../steps/fanout/agent-fill-*.yml`) | required |
+
 ## Placement
 
 - New adapter → `<name>.py` exposing `ADAPTER`, a row in `REGISTRY`, a row here, `tools/test_jev_adapter_<name>.py`, and the step spec's `local.adapter: <name>`.

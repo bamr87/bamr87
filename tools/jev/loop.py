@@ -2704,10 +2704,11 @@ def cmd_list(args: argparse.Namespace) -> int:
         print(json.dumps(rows, indent=2, sort_keys=True))
         return 0
     for r in rows:
-        sw = r["switch"] or {}
+        sw = r["switch"]
+        gate = (f"{sw['config']}={sw['config_value']} · vars.{sw['variable']} default {sw['default']}" if sw
+                else "no switch (dispatch-only: a manual run; --scheduled is refused)")
         print(f"{r['step']}  adapter {r['adapter']} · {r['model']} · {r['max_turns']} turns · "
-              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {sw.get('config')}={sw.get('config_value')} · "
-              f"vars.{sw.get('variable')} default {sw.get('default')} · publish tier {r['publish_tier']}")
+              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {gate} · publish tier {r['publish_tier']}")
     if not rows:
         print("no step spec has a local: block yet")
     return 0

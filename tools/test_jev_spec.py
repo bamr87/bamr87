@@ -375,7 +375,8 @@ def test_check_all_reports_a_broken_spec_instead_of_raising():
     specs, errors = S.check_all(root, fleet=fleet())
     # the broken scout spec is reported, not raised, and the other specs still load
     assert all(sp.loop != "repo-scout" for sp in specs) and any("schema must be" in e for e in errors), errors
-    assert [sp.loop for sp in specs] == ["fleet-pulse"], [sp.loop for sp in specs]
+    loops = [sp.loop for sp in specs]
+    assert "repo-scout" not in loops and "fleet-pulse" in loops and "fanout" in loops, loops
 
 
 # --------------------------------------------------------------------------- #
@@ -876,6 +877,111 @@ def test_importing_the_module_has_no_side_effects():
     out = subprocess.run([sys.executable, "-c", "import tools.jev.spec"], cwd=ROOT,
                          capture_output=True, text=True, check=False)
     assert out.returncode == 0 and out.stdout == "" and out.stderr == "", out.stderr
+
+
+# --------------------------------------------------------------------------- #
+# the fan-out agent fill (ADR 0002 P3, step 3): one spec per kit, a tokenless
+# prompt the workflow carries inline per kit step, no brief, the target as the
+# checkout, the `none` posture with both action gaps declared, the patch harvest
+# --------------------------------------------------------------------------- #
+FANOUT_WORKFLOW = ROOT / ".github" / "workflows" / "fanout.yml"
+# The two quoted heredocs fanout.yml's "Write the brief" step carried at 3b30f87,
+# the last commit before the briefs became the specs — the bytes each kit's fill
+# ran on, plus the one final newline $GITHUB_OUTPUT dropped (ADR 0002).
+AGENT_FILL_PROMPTS = {
+    "standardize": ("5c1819670dde1ab472d05fe3256b46d10d7e5aab24826c00d19a4aea06fd8982", 674),
+    "schema": ("f3a7f3498bf23658ffaa43aa2bc5fa7c47d0cae33c14ce5fd9e244c627210a66", 818),
+}
+
+
+def agent_fill(kit: str, **kw) -> S.StepSpec:
+    return S.load_spec("fanout", f"agent-fill-{kit}", **kw)
+
+
+def fanout_workflow() -> dict:
+    return yaml.safe_load(FANOUT_WORKFLOW.read_text(encoding="utf-8"))
+
+
+def fill_step(wf: dict, kit: str) -> dict:
+    return next(st for st in wf["jobs"]["agent-fill"]["steps"] if st.get("id") == f"fill-{kit}")
+
+
+def edit_agent_fill(root: Path, fn, kit: str = "standardize") -> None:
+    p = root / "fanout" / f"agent-fill-{kit}.yml"
+    data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    fn(data)
+    p.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def test_each_agent_fill_spec_reproduces_its_heredoc_at_3b30f87_byte_for_byte():
+    for kit, (sha, size) in AGENT_FILL_PROMPTS.items():
+        d = agent_fill(kit)
+        assert d.inputs == {} and d.template == S.render_prompt(d, {}), "no token: the render is the file"
+        assert len(d.template.encode("utf-8")) == size and d.template_sha256 == sha, kit
+        assert fill_step(fanout_workflow(), kit)["with"]["prompt"] == d.template, "the workflow's inline copy is the spec"
+        out = subprocess.run([sys.executable, "-m", "tools.jev", "steps", "render", "fanout", f"agent-fill-{kit}"],
+                             cwd=ROOT, capture_output=True, check=False)
+        assert out.returncode == 0 and hashlib.sha256(out.stdout).hexdigest() == sha, kit
+    assert agent_fill("standardize").template != agent_fill("schema").template
+
+
+def test_the_agent_fill_steps_resolve_their_homes_and_their_caps_are_the_workflow_literals():
+    f = fleet()
+    wf = fanout_workflow()
+    for kit in AGENT_FILL_PROMPTS:
+        d = agent_fill(kit)
+        assert d.resolved.model == f["agent_fill"]["model"] == "claude-sonnet-5-5"
+        assert d.resolved.max_turns == f["agent_fill"]["max_turns"] == 25 and d.resolved.max_budget_usd == 10.0
+        assert d.step_id == f"fill-{kit}" and d.call_site == "fanout.yml:agent-fill" and d.timeout_minutes == 45
+        assert S.parity_errors(d, wf, f) == [], kit
+        step = fill_step(wf, kit)
+        assert step["env"][S.STEP_SHA_ENV] == d.content_sha256 and step["if"] == "${{ inputs.kit == '%s' }}" % kit
+    # one job, two mutually exclusive agent steps: the cost step reads whichever ran
+    cost = next(st for st in wf["jobs"]["agent-fill"]["steps"] if st.get("id") == "cost")
+    assert "steps.fill-standardize.outcome" in cost["with"]["outcome"] and "steps.fill-schema.outcome" in cost["with"]["outcome"]
+
+
+def test_the_agent_fill_workspace_and_local_block_load_as_declared():
+    d = agent_fill("schema")
+    ws = d.workspace
+    assert (ws.cwd, ws.brief_dir, ws.brief_file, ws.no_brief, ws.outputs) == ("target", ".fanout", None, True, ())
+    assert ws.github_credential == "none" and set(ws.exceptions) == {"app-token", "setting-sources"}
+    assert d.local.harvest == "patch" and d.local.adapter == "fanout_agent_fill" and d.local.switch is None
+    assert d.local.planner.argv == ("agent-fill", "--kit", "schema", "--plan-dir", "{plan_dir}")
+    assert d.local.planner.flags == {"target": "--target", "offline": "--offline"}
+    assert d.local.publish.argv[0] == "agent-fill-file" and d.local.publish.apply_flag == "--apply"
+    assert d.local.context.mode == "off"
+
+
+def test_no_brief_is_refused_with_a_brief_file_a_pack_or_a_non_boolean_and_parity_needs_no_download():
+    cases = {
+        "no_brief non-boolean": (lambda data: data["workspace"].update({"no_brief": "yes"}), "no_brief is a boolean"),
+        "no_brief with brief_file": (lambda data: data["workspace"].update({"brief_file": "order.md"}),
+                                     "declares no brief, but brief_file"),
+        "no_brief with a pack": (lambda data: data["local"].update({"context": {"mode": "auto"}}),
+                                 "nothing to point at the pack"),
+        "a brief-less planner needs a pattern": (lambda data: data["local"]["planner"].update({"argv": ["scout"]}),
+                                                 ""),   # scout's argv loads; only the shape is exercised
+    }
+    for label, (fn, needle) in cases.items():
+        root = tmp_root()
+        edit_agent_fill(root, fn)
+        if needle:
+            assert refused(lambda: S.load_spec("fanout", "agent-fill-standardize", root=root, fleet=fleet()), needle), label
+    # no download-artifact step is required of a no_brief step; dropping no_brief then demands one
+    wf = fanout_workflow()
+    assert not any("download-artifact" in e for e in S.parity_errors(agent_fill("standardize"), wf, fleet()))
+    root = tmp_root()
+    edit_agent_fill(root, lambda data: data["workspace"].pop("no_brief"))
+    plain = S.load_spec("fanout", "agent-fill-standardize", root=root, fleet=fleet())
+    assert any("download-artifact" in e for e in S.parity_errors(plain, wf, fleet()))
+    # the none posture is exact: a token reaching the step is a drift; a second step of the same id is refused
+    leaky = fanout_workflow()
+    fill_step(leaky, "schema")["env"]["GH_TOKEN"] = "${{ secrets.FLEET_TOKEN }}"
+    assert any("github_credential is none" in e for e in S.parity_errors(agent_fill("schema"), leaky, fleet()))
+    twice = fanout_workflow()
+    twice["jobs"]["agent-fill"]["steps"].append(dict(fill_step(twice, "schema")))
+    assert any("exactly one" in e for e in S.parity_errors(agent_fill("schema"), twice, fleet()))
 
 
 if __name__ == "__main__":

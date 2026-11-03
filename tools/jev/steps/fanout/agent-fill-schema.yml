@@ -1,0 +1,151 @@
+# The ONE spec for the fan-out agent fill, kit schema: .github/workflows/fanout.yml,
+# job `agent-fill`, step id `fill-schema` (tools/jev/steps/README.md, docs/adr/0002 P3).
+#
+# fanout.yml's agent-fill is one job with one claude-code-action step PER KIT,
+# each gated on `inputs.kit`: the brief was a shell `case` over two quoted
+# heredocs, and a step spec holds one prompt, so each kit's brief is its own
+# spec pair and its own step. The prompt has no caller-filled part (the kit
+# chose the step): it renders to its own bytes, and the workflow carries that
+# text inline, byte-equal (parity proves it). Model, turns and dollars are
+# REFERENCES into _data/fleet.yml, never copies; the caps and the allowlist are
+# also literals in that step's claude_args, and `python3 -m tools.jev steps
+# check` holds every copy equal to this file.
+schema: loop-step/v1
+# == this directory == the workflow stem (fanout.yml)
+loop: fanout
+step: agent-fill-schema
+# <workflow file>:<job id>, the key of _data/fleet.yml budget.call_sites —
+# the two kit steps are mutually exclusive, so the job's cap is each one's
+call_site: fanout.yml:agent-fill
+# the claude-code-action step's `id:` in that job
+step_id: fill-schema
+
+# Beside this file: UTF-8, LF, exactly one trailing newline, never .md. The
+# bytes of the `schema` heredoc fanout.yml carried at 3b30f87, plus the one
+# final newline $GITHUB_OUTPUT used to drop (recorded in ADR 0002).
+prompt: agent-fill-schema.prompt.txt
+# No {{TOKEN}}: the kit chose this step; the target repository is the workspace.
+inputs: {}
+
+# Resolved from _data/fleet.yml. The model must be an exact id in
+# ai_models.allowed (constitution 13.3): the step passed no --model before
+# this spec, so the CLI's own default ran; the pin makes it explicit.
+model_from: agent_fill.model
+max_turns_from: agent_fill.max_turns
+# == jobs.agent-fill.timeout-minutes; the local engine's wall clock
+timeout_minutes: 45
+
+# == claude_args --allowedTools, joined with "," in THIS order (both kit steps
+# carry the same list: parity reads the literal per step). The fill fills the Pyramid Schema scaffold:
+# read the repository, edit SCHEMA.md files, and nothing else; `python3 tools/schema_lint.py` is the
+# schema kit's own gate. No gh, no push, no network: filing is the workflow's
+# push step in CI and the engine's filer locally.
+allowed_tools:
+  - Bash(ls:*)
+  - Bash(cat:*)
+  - Bash(head:*)
+  - Bash(tail:*)
+  - Bash(grep:*)
+  - Bash(find:*)
+  - Bash(wc:*)
+  - Bash(git status:*)
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git ls-files:*)
+  - Bash(python3 tools/schema_lint.py:*)
+  - Read
+  - Grep
+  - Glob
+  - Edit
+  - Write
+
+# What a runner must reproduce. CI implements it in the job's steps, except
+# what `exceptions` names; the local engine builds all of it.
+workspace:
+  # the target repository at the kit's PR branch (CI: actions/checkout of
+  # needs.plan.outputs.slug at needs.plan.outputs.branch; locally: a clone of
+  # the item's nwo at that branch)
+  cwd: target
+  # the engine's own directory in the clone: the agent's TMPDIR, git-excluded;
+  # CI has no such directory
+  brief_dir: .fanout
+  # the prompt IS the work order: CI downloads no artifact, the planner's rows
+  # carry no brief, the engine places none (and the context pack stays off)
+  no_brief: true
+  # the agent's edits to the checkout ARE the output (local.harvest: patch)
+  outputs: []
+  # The posture CI gives this step, as parity reads it: no token in the step's
+  # env or inputs, no resolve-fleet-token before it. Honest note: the job's
+  # checkout runs with `token: secrets.FLEET_TOKEN` and default
+  # persist-credentials, so the clone's git config holds that token for the
+  # later push step — a route parity's detector does not model; this
+  # allowlist grants no push and no gh (closing it with persist-credentials:
+  # false and an explicit token on the push step is the ADR 0002 follow-up).
+  github_credential: none
+  exceptions:
+    app-token: >-
+      claude-code-action, given no github_token input, still exports its
+      OIDC App token (contents, issues, pull requests: write) to the agent's
+      subprocesses; the fix (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, a read-only
+      github_token posture, or base-action) is the follow-up issue scout's
+      spec names
+    setting-sources: >-
+      claude_args passes no --setting-sources, so the target checkout's
+      .claude/settings.json (permissions.allow, hooks) loads in CI; the same
+      follow-up issue, and the local runner isolates settings itself
+
+# Constitution 13.6 / 13.8: in CI the step reads an untrusted repository and
+# the job then pushes its edits to that repository's PR branch with
+# FLEET_TOKEN — external, high. Locally every leg is cut: no credential, no
+# network, and the only send is the engine's filer after the maintainer's
+# --apply.
+risk:
+  agent:
+    what: >-
+      reads the target repository and edits SCHEMA.md files, and nothing else in its checkout; in
+      CI the job commits and pushes that edit to the kit's open PR branch
+    tags:
+      - external
+    tier: high
+  publish:
+    what: >-
+      dash-gen agent-fill-file --apply would push the validated patch as the
+      `(Claude agent pass)` commit onto the kit's PR branch, the commit CI's
+      dedupe reads (refused until bamr87/bamr87#488's publish step lands)
+    tags:
+      - external
+    tier: high
+
+# Constitution 13.1: the eval set's path, null during the grace period.
+evals: null
+
+# How `python3 -m tools.jev loop` runs this step on a workstation (docs/JEV.md,
+# ADR 0002 P3). CI ignores this block; the prompt above stays the CI prompt.
+# No `switch`: fanout.yml is dispatch-only (no schedule, no kill switch); the
+# agent-fill job is gated on the dispatch's own `agent_fill` input.
+local:
+  # a key of tools/jev/adapters REGISTRY (tools/jev/adapters/fanout_agent_fill.py)
+  adapter: fanout_agent_fill
+  # one item per target repository the kit's branch is on (the fan-out's own
+  # target list: bamr87-owned registry repos that are not archived); online
+  # the planner checks the branch and whether the agent pass already landed
+  planner:
+    argv: [agent-fill, --kit, schema, --plan-dir, '{plan_dir}']
+    flags:
+      target: --target
+      offline: --offline
+  # the filer: a dry run of the validated patch as the commit CI would push;
+  # --apply only after the 13.6 yes, and refused by the filer itself in this
+  # release (#488)
+  publish:
+    argv: [agent-fill-file, --item, '{validated}', --run-url, '{run_ref}', --bodies-dir, '{bodies_dir}']
+    apply_flag: --apply
+    risk: publish
+  # JEV's rule: a budget-hit attempt is discarded
+  on_budget_hit: discard
+  # the agent's edits to the checkout ARE the output: the engine diffs the
+  # clone against the fresh HEAD and hands the adapter changes.patch
+  harvest: patch
+  # no brief to point from (workspace.no_brief): the CI-identical run
+  context:
+    mode: 'off'
