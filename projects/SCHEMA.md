@@ -17,6 +17,7 @@ coverage: listed
 | entry | kind | purpose | rules |
 |---|---|---|---|
 | `README.md` | file | Projects index page | |
+| `*.code-workspace` | pattern | VS Code multi-root workspaces over a subset of the submodules (folder paths relative to this directory) | |
 | `README/` | dir | Context engine for the bamr87 fleet: crawlers and distillers that build queryable docs for every pr… | terminal |
 | `ai-world-view.github.io/` | dir | AI World View — the root site of the self-growing country knowledge-base network; the per-country r… | terminal |
 | `bamr87.github.io/` | dir | Amr Abdel-Motaleb's personal profile, résumé and project portfolio site, built with Jekyll on GitHu… | terminal |

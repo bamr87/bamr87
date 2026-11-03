@@ -48,6 +48,7 @@ coverage: listed
 | `.gitattributes` | file | How git treats generated and append-only files: `merge=jev-regen` (keep ours, regenerate — `tools/jev/merge-regen.sh`) and `merge=union`; amendment 0002, docs/JEV.md; and byte-pinned agent prompts (`eol=lf`, `tools/jev/steps/`) | |
 | `.agents/` | dir | Project agent skills loaded from this worktree | |
 | `home.code-workspace` | file | Consolidated VS Code multi-root workspace (dash + related clones) | |
+| `bash-cms.code-workspace` | file | VS Code multi-root workspace over the CMS and the Jekyll sites it publishes (bash-365.com, zer0-cms, bamr87.github.io, lifehacker.dev, it-journey, zer0-mistakes) | |
 | `remediation-workorder.md` | file | Ephemeral remediation work order (dash-gen remediate → fleet-pulse doctor; gitignored) | generated |
 | `issue-workorder-t*.md` | pattern | Ephemeral per-tier issue work orders (`dash issues` → issue-pipeline.yml; gitignored) | generated |
 | `evolution-workorders/` | dir | Ephemeral per-repo evolution briefs (dash-gen targets → repo-evolution.yml; gitignored) | generated |
