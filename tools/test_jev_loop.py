@@ -276,6 +276,12 @@ if argv[:2] == ["issue", "create"]:
     if os.environ.get("STUB_GH_CREATE_FAIL") or count > int(os.environ.get("STUB_GH_CREATE_FAIL_AFTER") or 10 ** 6):
         sys.stderr.write("GraphQL: could not create issue\n"); sys.exit(1)
     print(f"https://github.com/{argv[argv.index('-R') + 1]}/issues/{100 + count}"); sys.exit(0)
+if argv[:1] == ["api"] and "/branches/" in argv[1]:   # the agent fill's kit-branch check
+    if os.environ.get("STUB_GH_BRANCH_MISSING"):
+        sys.stderr.write("gh: Not Found (HTTP 404)\n"); sys.exit(1)
+    print(json.dumps({"name": argv[1].rsplit("/branches/", 1)[1]})); sys.exit(0)
+if argv[:1] == ["api"] and "/commits?" in argv[1]:   # …and its agent-pass dedupe: the branch's recent commits
+    print(os.environ.get("STUB_GH_BRANCH_COMMITS") or "[]"); sys.exit(0)
 if argv[:1] == ["api"] and "/commits/" in argv[1]:
     nwo = argv[1].split("repos/", 1)[1].split("/commits/", 1)[0]
     if os.environ.get("STUB_GH_COMMITS_ERROR"):
@@ -444,19 +450,20 @@ class Box:
     def last(self) -> dict:
         return json.loads((self.latest() / "run.json").read_text())
 
-    def seed_probe(self, ok: bool = True, posture: str = "sandbox", loop: str = "repo-scout") -> None:
-        spec = L.load_step(loop)
+    def seed_probe(self, ok: bool = True, posture: str = "sandbox", loop: str = "repo-scout",
+                   step: str | None = None) -> None:
+        spec = L.load_step(loop, step)
         L.store(".probe.json", L.cache_key((2, 1, 308), spec, H.Posture(posture)),
                 {"ok": ok, "problems": [] if ok else ["isolated: a project hook ran"], "at": L.iso()})
 
     def seed_live(self, scenario: dict | list | None = None, *, canary: bool = True,
                   posture: str = "sandbox", auth: H.AuthChoice | None = H.AuthChoice("oauth", "env"),
-                  loop: str = "repo-scout") -> None:
+                  loop: str = "repo-scout", step: str | None = None) -> None:
         """What a live attempt needs: a passing probe (and canary, for `auth`'s
         credential exposure: the box's env OAuth token by default), and the stub's script."""
-        self.seed_probe(posture=posture, loop=loop)
+        self.seed_probe(posture=posture, loop=loop, step=step)
         if canary:
-            L.store(".canary.json", L.canary_key((2, 1, 308), L.load_step(loop), H.Posture(posture), auth),
+            L.store(".canary.json", L.canary_key((2, 1, 308), L.load_step(loop, step), H.Posture(posture), auth),
                     {"ok": True, "problems": [], "at": L.iso()})
         if scenario is not None:
             (self.bin / "scenario.json").write_text(json.dumps(scenario))
@@ -3155,7 +3162,7 @@ def test_the_agent_fill_runs_in_the_target_at_the_kit_branch_with_no_brief_and_i
     box = Box()
     with world(box):
         box.seed_live({"kind": "ok", "bash": 1, "edits": {"CLAUDE.md": "\nA Jekyll theme for the fleet's sites.\n"}},
-                      loop="fanout")
+                      loop="fanout", step="agent-fill-standardize")
         plan = agent_fill_plan(box)
         code, _, err = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
                            "--context", "off")
@@ -3183,13 +3190,13 @@ def test_an_agent_fill_that_edits_outside_its_brief_or_changes_nothing_is_reject
     box = Box()
     with world(box):
         box.seed_live({"kind": "ok", "bash": 1, "edits": {"README.md": "\nnot allowed\n", "CLAUDE.md": "\nx\n"}},
-                      loop="fanout")
+                      loop="fanout", step="agent-fill-standardize")
         plan = agent_fill_plan(box)
         code, _, _ = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
                          "--context", "off")
         item = box.last()["items"][0]
         assert code == 1 and item["status"] == "rejected" and "README.md" in item["reason"], item
-        box.seed_live({"kind": "ok", "bash": 1}, loop="fanout")
+        box.seed_live({"kind": "ok", "bash": 1}, loop="fanout", step="agent-fill-standardize")
         code, _, _ = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
                          "--context", "off", "--fresh")
         item = box.last()["items"][0]
