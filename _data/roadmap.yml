@@ -1390,3 +1390,70 @@
   source: session
   created: 2026-11-01
   issue_url: null
+
+- id: FF-0035
+  title: "Fleet platform: offload the Mac onto forge, OpenTofu for infrastructure, Ansible and Salt for configuration, and a path to any cluster"
+  project: bamr87
+  repo_url: https://github.com/bamr87/bamr87
+  status: in-progress
+  priority: P1
+  effort: XL
+  category: infra
+  problem: >-
+    The Mac carries the whole fleet: 25 containers used 6.53 GiB of its 7.75
+    GiB Docker VM (84%) on 2026-11-02, the observability planes alone about
+    3.2 GiB and 4 cores, and Elasticsearch is held to a 512 MB heap after an
+    OOM kill. forge (i7-3820, 32 GB, ~464 GB free) sits nearly idle, but
+    nothing says which service belongs where, nothing keeps a moved service
+    reachable at its old address, `dash host rebuild` deletes every volume on
+    forge, there is no infrastructure as code, and no path from the local
+    stack to a cloud or on-premise cluster.
+  proposal: >-
+    A local-first platform placed across nodes (ADR 0003, docs/PLATFORM.md).
+    `_data/fleet.yml` `nodes:` maps each hub service to the Mac (the edge) or
+    forge (a workload node); `tools/fleetcore/nodes.py` resolves it against
+    docker-compose.yml under four rules (edge-bound services stay, workload
+    services never call back to the edge, durable data moves only where it is
+    backed up, link ports never collide). An SSH ambassador with a
+    forwarding-only key keeps 127.0.0.1 ports and service names working
+    wherever a service runs. OpenTofu (the MPL-2.0 Terraform fork) owns each
+    node's network and data volumes, prevent_destroy on durable ones; Ansible
+    bootstraps nodes and runs every ordered deploy step (check mode is the
+    plan) from an inventory generated from `nodes:`; Salt holds the steady
+    state and ships its events to ELK; compose owns containers; bashOS owns
+    forge's interactive layer. Then, phase by phase: the
+    observability planes to forge, Docker logs streamed into the console and
+    analysed in ELK, multi-node buildx images by digest, the Docker MCP
+    Gateway per node, delegated batch work, stateful services and app stacks,
+    and Kubernetes as the scale-out target with manifests generated from
+    compose, clusters from OpenTofu and delivery by GitOps.
+  acceptance:
+    - "P0 lands: the nodes: model with forge disabled, `dash node status|plan|gen|key`, `dash infra plan|apply` (apply gated on --yes and a current plan), infra/node, the infra.yml gate, the rebuild fence, ADR 0003 and docs/PLATFORM.md."
+    - "With forge enabled the observability planes run on forge, the Mac reaches them at unchanged addresses, and the Mac's container memory drops by at least 3 GiB, measured."
+    - "Docker logs from every node reach Elasticsearch, and the console shows a live, redacted tail plus error signatures and OOM/restart events."
+    - "forge is bootstrapped by an Ansible playbook whose --check --diff run is reviewed first, and held steady by Salt highstate (test=True preview, central kill switch) with beacon and reactor events in ELK; every managed resource has exactly one owner."
+    - "Images build natively for arm64 and amd64 on the two nodes and deploy by digest with SBOM, provenance, a scan and a signature."
+    - "MCP servers run behind the Docker MCP Gateway with tool allowlists; Playwright runs on forge."
+    - "One app's compose services render to validated Kubernetes manifests, deploy to a k3s pilot on forge, and the same OpenTofu + GitOps path targets a cloud cluster."
+    - "Every step that changes a machine is an approved deploy; no step deletes durable data."
+  scope:
+    in:
+      - placement model, resolver and planner; the SSH link; OpenTofu node infrastructure
+      - configuration management: Ansible (bootstrap, deploy steps) and Salt (steady state, events)
+      - observability planes, logs streaming and analysis, images, MCP gateway, delegated work
+      - stateful services and app stacks on forge; Kubernetes portability (generated manifests, k3s pilot, cluster modules, GitOps)
+    out:
+      - Kubernetes as the daily development runtime
+      - automatic failover of stateful services between nodes
+      - a self-hosted GitHub Actions runner on forge (fork PRs on public repos; separate decision)
+      - two-way file sync of the hub working tree
+      - managing the Mac with Ansible or Salt (opt-in later, § 10.5)
+  risks:
+    - forge becomes a dependency for the planes; while it is off they are unavailable (agents buffer; editing is unaffected).
+    - The SSH link is LAN-only until the overlay-network decision (Tailscale, Headscale or WireGuard).
+    - OpenTofu state for forge lives on the Mac; it needs a backup.
+    - Durable data migration (Postgres, wiki) needs an off-box backup and a restore drill first.
+    - A Salt master is a high-value target; it stays off the internet, keys are accepted by hand, and patches are prompt.
+  source: session:283f688e-9960-4294-9f3f-ed53bd90bbce
+  created: 2026-11-02
+  issue_url: https://github.com/bamr87/bamr87/issues/594

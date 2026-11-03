@@ -1,0 +1,19 @@
+# features/features.d/fleet-platform-nodes.yml — compiled into features/features.yml at merge (HUB-NEW)
+id: HUB-NEW
+slug: fleet-platform-nodes
+title: "Workloads placed across fleet nodes, with OpenTofu for node infrastructure"
+description: "Where every hub service runs is data: _data/fleet.yml `nodes:` places each compose service on the Mac (the edge) or forge (a workload node), and tools/fleetcore/nodes.py resolves it against docker-compose.yml, refusing an edge-bound service off the edge, a workload service that calls back to the edge, durable data on a node without a backup and a colliding link port. `tools/dash node status|plan|gen|key` show reachability, capacity and drift, preview the move (--assume-enabled), write each node's compose overlay, its OpenTofu inputs and the Ansible inventory of the workload nodes, and print the forwarding-only link key; `tools/dash infra plan|apply` runs OpenTofu (infra/node) for the node's network and data volumes, apply gated on --yes and a saved plan of the current inputs; .github/workflows/infra.yml validates the HCL. forge ships disabled, so nothing moves until that flag is the deploy step (ADR 0003, docs/PLATFORM.md)."
+implemented: true
+status: partial
+surface: infra
+link: tools/fleetcore/nodes.py
+docs: docs/PLATFORM.md
+tags: [ platform, nodes, forge, opentofu, iac, docker, placement, offload ]
+date: 2026-11-02
+tests:
+  - tools/test_fleetcore_nodes.py
+prd: ["FR-NEW:fleet-platform-nodes"]
+prd_new:
+  - key: fleet-platform-nodes
+    kind: FR
+    text: "The placement of every hub service on a fleet node is declared once in `_data/fleet.yml` `nodes:` and resolved by one implementation shared by every surface; a placement that would pin an edge-bound service off the edge, make a workload node call back to the edge, put durable data on a node without an off-box backup, or collide a link port is refused before anything runs; a node's durable infrastructure (its network and data volumes) is owned by OpenTofu with durable volumes protected from deletion; and no step that changes a machine runs without an explicit, planned deploy (constitution § 10.5)"
