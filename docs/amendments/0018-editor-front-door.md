@@ -1,12 +1,12 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — The editor is a front door: every harness surface from VS Code, through the same entry points
+# 0018 — The editor is a front door: every harness surface from VS Code, through the same entry points
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0018
 - **Date:** 2026-11-02
 - **Proposed by:** agent (Claude Fable 5.1, on a branch opened for bamr87 at Amr's request on 2026-11-02)
 - **Ratified by:** (leave blank until merged)
-- **Affects:** constitution new § 20 (follows § 19 `fleet-pr-review`), § 7 (new gate line); specs UPS-REPO-40 (new row, SHOULD); `_data/standards.yml` (new artifact `vscode`); `tools/conformance.py` (new check `UPS-REPO-40`); `tools/test_vscode_launch.py` (new gate); `.vscode/SCHEMA.md` and the root `SCHEMA.md` row; feature `HUB-NEW:editor-front-door`; requirement `FR-NEW:editor-front-door`
+- **Affects:** constitution new § 20 (follows § 19 `fleet-pr-review`), § 7 (new gate line); specs UPS-REPO-40 (new row, SHOULD); `_data/standards.yml` (new artifact `vscode`); `tools/conformance.py` (new check `UPS-REPO-40`); `tools/test_vscode_launch.py` (new gate); `.vscode/SCHEMA.md` and the root `SCHEMA.md` row; feature `HUB-067`; requirement `FR63`
 - **Supersedes:** none (extends § 2's SCHEMA protocol and § 7)
 - **Related:** [`.vscode/README.md`](../../../.vscode/README.md), [docs/CONTAINERS.md](../../CONTAINERS.md), [docs/FLEET-COMPOSE.md](../../FLEET-COMPOSE.md), [docs/DASH.md](../../DASH.md), [specs/REPOSITORY.md](../../../specs/REPOSITORY.md) UPS-REPO-30 / UPS-REPO-34, 0016 `fleet-design-consistency` (the warn-then-fail rollout pattern)
 
