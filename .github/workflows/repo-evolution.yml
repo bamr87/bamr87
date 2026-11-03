@@ -258,17 +258,27 @@ jobs:
         env:
           # Read-only use, enforced by the allowlist below (view/list/diff
           # subcommands only). Gives the agent the listed issues/PRs on
-          # private targets, which GITHUB_TOKEN could not see.
+          # private targets, which GITHUB_TOKEN could not see. The step spec
+          # names this exact route (workspace.github_credential: fleet-read).
           GH_TOKEN: ${{ secrets.FLEET_TOKEN }}
+          # The step spec pair's content hash (tools/jev/steps/repo-evolution/:
+          # evolve.yml, NUL, evolve.prompt.txt). A no-op at run time; `tools.jev
+          # steps check` requires it to equal the spec, so changing the hard
+          # rules also changes this workflow file — which GITHUB_TOKEN and the
+          # Claude App cannot push (docs/adr/0002, governance trade-off).
+          JEV_STEP_SHA256: c587590137cff5d33718ef9eace30167471242617d18d2e9a08429d25cea53d2
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
-          # BUDGET: one repo per job, so both caps are per repo. max_turns is
-          # read from _data/fleet.yml through the plan so the number is stated
-          # once; the DOLLAR ceiling is declared in the same file under
-          # `budget.call_sites` and repeated literally here, because a
-          # `claude_args` string cannot read YAML. test_ai_budget.py asserts the
-          # two agree and that the cap clears `usd_per_turn * max_turns` —
+          # BUDGET: one repo per job, so both caps are per repo. The turn cap is
+          # the LITERAL of _data/fleet.yml evolution.max_turns and the model the
+          # LITERAL of evolution.model (an exact id: `opus` resolved to it); the
+          # DOLLAR ceiling is declared in the same file under `budget.call_sites`
+          # and repeated literally here, because a `claude_args` string cannot
+          # read YAML. The step spec tools/jev/steps/repo-evolution/evolve.yml
+          # references the same keys and carries the allowlist; `tools.jev steps
+          # check` and test_evolution.py hold all of them equal, and
+          # test_ai_budget.py asserts the cap clears `usd_per_turn * max_turns` —
           # `--max-turns` bounds iterations, not spend, and run 33376132003
           # billed $3.51 for work that was then thrown away.
           #
@@ -279,10 +289,16 @@ jobs:
           # cover the `grep` on the right of a pipe), and a denied call still
           # costs a turn.
           claude_args: >-
-            --model opus
-            --max-turns ${{ needs.plan.outputs.max_turns }}
+            --model claude-opus-5-5
+            --max-turns 120
             --max-budget-usd 20
             --allowedTools "Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git grep:*),Bash(git ls-files:*),Bash(git blame:*),Bash(git restore:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr diff:*),Bash(gh run view:*),Bash(gh run list:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(jq:*),Bash(diff:*),Bash(echo:*),Bash(mkdir:*),Bash(cd:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(python:*),Bash(pip:*),Bash(pytest:*),Bash(bundle:*),Bash(ruby:*),Bash(gem:*),Bash(go:*),Bash(cargo:*),Bash(make:*),Bash(shellcheck:*),Read,Grep,Glob,Edit,Write"
+          # PROMPT: the hard rules (surgical, draft-only, the lanes) are the JEV
+          # step spec tools/jev/steps/repo-evolution/evolve.prompt.txt, whose
+          # {{NWO}} / {{REPO_NAME}} / {{BRANCH}} / {{BRIEF}} tokens the matrix
+          # row fills; this inline copy, with the matrix expressions in their
+          # place, is held byte-equal to the spec's render by `tools.jev steps
+          # check` and test_evolution.py (ADR 0002 P3).
           prompt: |
             You are the fleet's **evolution agent** (Opus) for ONE repository:
             `${{ matrix.nwo }}` (registry name `${{ matrix.name }}`, branch

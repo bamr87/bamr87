@@ -45,6 +45,9 @@ python3 -m tools.jev loop publish <run_id> --apply      # file a reviewed earlie
 python3 -m tools.jev loop plan fleet-pulse              # the fleet doctor: today's queue, one item per candidate
 python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml --rehearse   # one candidate, $0
 python3 -m tools.jev loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml   # one capped attempt ($40): the patch + the filing it asked for, previewed; --apply is refused until #488's publish step
+python3 -m tools.jev loop plan repo-evolution           # the evolution agent: today's opted-in targets, one open pass per repo
+python3 -m tools.jev loop run repo-evolution --target README --rehearse   # one target, $0
+python3 -m tools.jev loop run repo-evolution --target README   # one capped attempt ($20): the patch + the draft PR body, previewed; a budget hit is previewed flagged
 python3 -m tools.jev loop show --latest
 python3 -m tools.jev loop budget                        # the month against budget.loops and budget.jev; exit 1 when together they exceed harnesses.budget.monthly_ai_usd
 ```
@@ -143,6 +146,7 @@ python3 tools/test_jev_number.py      # the compiler: assignment, slug refs, con
 python3 tools/test_jev_ratify.py      # ratify: triggers, skips, accept/complete, bytes, apply, check-diff, select, every guard branch, the PR body, the job
 python3 tools/test_jev_classify.py    # the tier ladder and the file-kind rules
 python3 tools/test_jev_adapter_fleet_pulse_doctor.py   # the doctor's adapter (P3): the planner's plan mode, the patch + filing document, the filer
+python3 tools/test_jev_adapter_repo_evolution_evolve.py   # the evolution agent's adapter (P3): the planner offline, the patch + report document, publish-flagged, the filer
 python3 tools/test_jev_conflicts.py   # eligibility, validation, the no-merge/no-admin guard
 python3 tools/test_jev_ledger.py      # the ledger and the monthly cap
 python3 tools/test_jev_generated.py   # the main-only guard and the tier-0 main-only resolution
