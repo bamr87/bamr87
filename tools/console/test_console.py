@@ -86,11 +86,12 @@ def test_argv_shapes_are_exact_and_never_shell():
         pass
     else:
         raise AssertionError("shell metacharacters accepted in key")
+    loop0 = (core.agent_steps() or [{"loop": ""}])[0]["loop"]   # loop-run needs a loop with a local: spec
     for op_id in core.OPS:
         if op_id in ("tests",):
             continue
         argv, _ = core.build_argv(op_id, {"target": "alpha", "workflow": "fleet-pulse", "fields": {},
-                                          "kind": "gate", "id": "doc-check"})
+                                          "kind": "gate", "id": "doc-check", "loop": loop0})
         assert all(isinstance(a, str) for a in argv) and "bash" not in argv[0], (op_id, argv)
 
 
@@ -510,6 +511,98 @@ def test_docker_ops_say_why_they_cannot_run_instead_of_failing():
     finally:
         core._DOCKER_CHECK.clear(); core._DOCKER_CHECK.update(saved)
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
+    """P2 of epic #484 (#487): the JEV loop runner as a console op. The loop
+    and step must name a spec with a local: block, the target is a registry
+    name or `all`, every value is an argv element, `apply` is refused with the
+    issue named (the § 11 write-path decision is the maintainer's), a live
+    attempt is confirm-gated as Claude spend while a rehearsal is not, two
+    runs of ONE loop never overlap while different loops may, and without a
+    `claude` CLI the op says so instead of starting a job that exits 127."""
+    ops = {o["id"]: o for o in core.list_ops()}
+    op = ops["loop-run"]
+    assert op["confirm"] == "spend" and op["remote_write"] and op["exclusive"] == "loop", op
+    steps = op["agent_steps"]
+    assert steps and all(k in steps[0] for k in ("loop", "step", "model", "max_turns", "cap_usd", "switch")), steps
+    assert steps[0]["cost_label"] == "API-equivalent (estimate)"
+    blob = json.dumps(op)
+    assert str(core.REPO_ROOT) not in blob and str(Path.home()) not in blob, "a local path leaked into /api/ops"
+    loop, step = steps[0]["loop"], steps[0]["step"]
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "rehearse": True})
+    assert argv == [core.DASH, "loop", "run", loop, "--target", "SCHEMA", "--json", "--rehearse"], argv
+    assert remote is False, "a rehearsal spends nothing and needs no confirm"
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "step": step})
+    assert argv == [core.DASH, "loop", "run", loop, step, "--target", "all", "--json"] and remote is True, argv
+    for bad, needle in (({"loop": "no-such-loop"}, "loop must be one of"),
+                        ({"loop": loop, "step": "nope"}, "no local agent step"),
+                        ({"loop": loop, "target": "../x"}, "target must be"),
+                        ({"loop": loop, "target": "a;b"}, "target must be"),
+                        ({"loop": loop, "apply": True}, "#487"),
+                        ({"loop": loop, "apply": "true"}, "refused")):
+        try:
+            core.build_argv("loop-run", bad)
+        except ValueError as exc:
+            assert needle in str(exc), (bad, exc)
+        else:
+            raise AssertionError(f"accepted {bad!r}")
+    # the per-loop key: on the job, persisted, and compared at submit
+    job = core.Job("loop-run", ["true"], True, {"loop": loop, "target": "SCHEMA"})
+    assert job.exclusive == f"loop:{loop}" and job.to_dict()["exclusive"] == job.exclusive
+    assert job.to_dict()["confirm"] == "spend"
+    back = core.Job.from_dict(job.to_dict(), Path(tempfile.mkdtemp()))
+    assert back.exclusive == job.exclusive
+    tmp = Path(tempfile.mkdtemp())
+    saved_argv = core.OPS["loop-run"]["argv"]
+    try:
+        jm = core.JobManager(job_dir=tmp)
+        try:
+            jm.submit("loop-run", {"loop": loop, "target": "SCHEMA"}, confirm=False)
+        except PermissionError as exc:
+            assert "confirm" in str(exc), exc
+        else:
+            raise AssertionError("a live (spending) attempt ran without confirm")
+        holder = job
+        holder.status = "running"
+        jm.jobs[holder.id] = holder
+        jm.order.append(holder.id)
+        try:
+            jm.submit("loop-run", {"loop": loop, "target": "other", "rehearse": True})
+        except core.JobConflict as exc:
+            assert holder.id in str(exc) and f"loop:{loop}" in str(exc), exc
+        else:
+            raise AssertionError("a second run of the same loop started beside a running one")
+        # a different loop's key is a different lock: nothing to collide with
+        assert core._exclusive_key("loop-run", {"loop": "other-loop"}) == "loop:other-loop"
+        assert core._exclusive_key("lake-sync", {}) == "lake" and core._exclusive_key("gaps", {}) is None
+        holder.status = "succeeded"
+        # a rehearsal runs through the real job manager (argv stubbed: no claude, no clone here)
+        core.OPS["loop-run"]["argv"] = lambda p: ["sh", "-c", "echo 'jev loop: run r-1'; echo '  rehearsed      bamr87/X  '; "
+                                                   "echo 'jev loop: rehearsed — $0.00 spent (API-equivalent (estimate)); exit 0'"]
+        done = _wait_done(jm, jm.submit("loop-run", {"loop": loop, "target": "X", "rehearse": True}).id)
+        assert done["job"]["status"] == "succeeded" and done["loop"]["status"] == "rehearsed", done
+        assert done["loop"]["run_id"] == "r-1" and done["loop"]["items"][0]["key"] == "bamr87/X", done["loop"]
+        assert done["loop"]["spent_usd"] == 0.0 and done["loop"]["cost_label"] == "API-equivalent (estimate)"
+        assert "loop" not in jm.tail(jm.submit("gaps").id), "the parsed fields are a loop-run's only"
+    finally:
+        core.OPS["loop-run"]["argv"] = saved_argv
+        shutil.rmtree(tmp, ignore_errors=True)
+    # no claude on PATH: unavailable with the host command, refused at submit, never started
+    saved_which = core.shutil.which
+    core.shutil.which = lambda name, *a, **k: None if name == core.CLAUDE_BIN else saved_which(name, *a, **k)
+    try:
+        why = {o["id"]: o for o in core.list_ops()}["loop-run"]["unavailable"]
+        assert why and "tools/dash loop run" in why and "PATH" in why, why
+        try:
+            core.JobManager(Path(tempfile.mkdtemp())).submit("loop-run", {"loop": loop, "rehearse": True})
+        except core.JobUnavailable as exc:
+            assert "host terminal" in str(exc), exc
+        else:
+            raise AssertionError("loop-run started where no claude CLI exists")
+    finally:
+        core.shutil.which = saved_which
+    assert {o["id"]: o for o in core.list_ops()}["gaps"]["unavailable"] is None
 
 
 def test_state_document_degrades_without_signals(monkeypatch_dir=None):

@@ -99,6 +99,7 @@ export function GlobalKeys() {
         open_live: () => handlerFor('openLive')?.(),
         copy: () => handlerFor('copy')?.(),
         sort: () => handlerFor('sort')?.(),
+        loop_run: () => handlerFor('loopRun')?.(),
       };
       if (k.action.startsWith('tab:')) {
         const section = NAV[Number(k.action.slice(4)) - 1];

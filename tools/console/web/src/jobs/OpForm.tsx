@@ -20,17 +20,25 @@ const BOOL: Record<string, string> = {
   no_fetch: 'Local checkouts only (no clone / fetch)',
   hub_only: 'Hub only (the weekly rotation fans out)',
   allow_long_lived: 'Allow keys that outlive the lifetime policy',
+  rehearse: 'Rehearse — everything up to the model call, $0 (no attempt, no preview)',
 };
 
 const DEFAULTS: Params = { days: 14, artifacts: 'claude', dry_run: true, jobs: 'ai', logs: 'ai', workflow: 'fanout', kind: 'loop' };
 
 export function initialParams(op: Op, preset: Params = {}): Params {
   const out: Params = {};
+  const steps = op.agent_steps ?? [];
   for (const k of op.params) {
     if (k in preset) out[k] = preset[k];
+    else if (k === 'loop' && steps.length) out[k] = steps[0].loop;
     else if (k in DEFAULTS) out[k] = DEFAULTS[k];
     else if (k in BOOL) out[k] = false;
     else out[k] = '';
+  }
+  // the loop's one local step needs no choosing
+  if (op.params.includes('step') && !out.step) {
+    const mine = steps.filter((s) => s.loop === out.loop);
+    if (mine.length === 1) out.step = mine[0].step;
   }
   return out;
 }
@@ -71,6 +79,11 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
   const writes = remoteWrite(op, params);
 
   const field = (k: string) => {
+    if (k === 'apply' && op.confirm === 'spend') {
+      // refused server-side too: constitution § 11 has no console path to an issue or PR create yet
+      return <Checkbox key={k} label={BOOL.apply} checked={false} disabled
+        description="Refused from the console and the MCP until the § 11 write-path decision on #487 lands: review the dry run under .fleet/runs/<run_id>/, then file it from a terminal with tools/dash loop publish <run_id> --apply." />;
+    }
     if (k in BOOL) {
       return <Checkbox key={k} label={BOOL[k]} checked={Boolean(values[k])} onChange={(e) => set(k, e.currentTarget.checked)} color={k === 'apply' ? 'red' : undefined} />;
     }
@@ -78,7 +91,18 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
       case 'days':
         return <NumberInput key={k} label="Days" min={1} max={90} w={140} value={Number(values[k]) || 14} onChange={(v) => set(k, v)} />;
       case 'target':
-        return <TextInput key={k} label="Target" description="A submodule / repo / site name — blank for all" value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
+        return <TextInput key={k} label="Target" description={op.id === 'loop-run' ? "One registry name — blank for today's sample (one capped attempt per repo in it)" : 'A submodule / repo / site name — blank for all'} value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
+      case 'loop': {
+        const loops = [...new Set((op.agent_steps ?? []).map((s) => s.loop))];
+        return <Select key={k} label="Loop" description="A loop whose agent step has a local spec (tools/jev/steps/)" data={loops} value={String(values[k] ?? '')}
+          onChange={(v) => { set(k, v ?? ''); const mine = (op.agent_steps ?? []).filter((s) => s.loop === v); set('step', mine.length === 1 ? mine[0].step : ''); }} allowDeselect={false} />;
+      }
+      case 'step': {
+        const mine = (op.agent_steps ?? []).filter((s) => s.loop === values.loop);
+        const s = mine.find((x) => x.step === values.step) ?? mine[0];
+        return <Select key={k} label="Step" data={mine.map((x) => x.step)} value={String(values[k] ?? '')} onChange={(v) => set(k, v ?? '')} allowDeselect={false}
+          description={s ? `${s.model} · ${s.max_turns} turns · $${s.cap_usd} cap per attempt (${s.cost_label})` : 'which agent step'} />;
+      }
       case 'artifacts':
         return <TextInput key={k} label="Artifacts" description="Kit artifacts, comma-separated" value={String(values[k] ?? '')} onChange={(e) => set(k, e.currentTarget.value)} />;
       case 'key':
@@ -124,7 +148,7 @@ export function OpForm({ op, preset, onStarted }: { op: Op; preset?: Params; onS
       <Group gap="sm" mt="xs">
         <Button leftSection={<IconPlayerPlay size={16} />} color={writes ? 'red' : undefined} disabled={Boolean(op.unavailable)}
           onClick={async () => { const job = await runOp(op.id, params); if (job) onStarted?.(job.id); }}>
-          {writes ? 'Run — writes to GitHub' : 'Run'}
+          {writes ? (op.confirm === 'spend' ? 'Run — spends Claude budget' : 'Run — writes to GitHub') : 'Run'}
         </Button>
         {op.unavailable ? <Text size="xs" c="dimmed">Not available in this console: {op.unavailable}</Text> : null}
         {op.remote_write && !writes ? <Text size="xs" c="dimmed">Dry run: nothing reaches GitHub.</Text> : null}
