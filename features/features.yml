@@ -1205,3 +1205,35 @@ features:
     - na: planned; tests land with the implementation issue
     prd:
     - FR61
+  - id: HUB-066
+    title: 'Quest Log showcase: every deep-dived repo gets an article, two LinkedIn drafts and a better
+      first screen'
+    description: 'Extends the daily deep dive (HUB-029): each repo the routine processes also gets a Quest
+      Log showcase, made by the deep-dive-showcase skill for the scheduled routine or Amr by hand. The pieces
+      are a long-form article and a personal LinkedIn draft in bamr87/bamr87.github.io (pages/_posts/quest-log/,
+      .zer0/drafts/linkedin/), a company-page LinkedIn draft in bash-365/bash-365.com (drafts/linkedin/,
+      which publishes when merged), and a presentation PR in the repo itself (README first screen, live-site
+      first impression, a GitHub About proposal it never applies). Each is a pull request Amr merges. tools/deep_dive.py
+      record --article/--linkedin-personal/--linkedin-company/--presentation-pr/--showcase-note writes an
+      optional per-repo showcase mapping into _data/deep-dive.yml without touching the run''s status; the
+      _data/deep_dive.json projection carries it, plus a summary count of repos showcased this cycle once
+      any showcase exists, so older ledgers project unchanged; today --json adds the slug and the done repos
+      still missing a showcase. Partial: the routine''s own prompt must call the skill, and Amr''s personal
+      LinkedIn channel is not connected yet, so personal posts are posted by hand. Campaign: docs/SHOWCASE.md.'
+    implemented: true
+    status: partial
+    surface: infra
+    link: .claude/skills/deep-dive-showcase/SKILL.md
+    docs: docs/SHOWCASE.md
+    tags:
+    - deep-dive
+    - showcase
+    - linkedin
+    - content
+    - routine
+    date: 2026-11-01
+    tests:
+    - tools/test_deep_dive.py
+    prd:
+    - FR62
+    - NFR8
