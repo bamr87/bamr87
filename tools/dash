@@ -752,6 +752,21 @@ cmd_up() {
 
   cd "$ROOT" || return 1
 
+  # 0. A db-data volume behind the Postgres image. `up -d` would recreate a
+  #    working db onto it and leave one that restarts in a loop, so refuse here
+  #    with the fix — `dash dev up` only warns, but there the project is the
+  #    only casualty; here every project loses its database.
+  local pgout pgrc=0 tag svc old new
+  pgout="$("${TOOLS}/pg-major-upgrade.sh" --check -- --project-directory "$ROOT" 2>/dev/null)" || pgrc=$?
+  if [[ $pgrc -eq 3 ]]; then
+    while IFS=$'\t' read -r tag svc old new _; do
+      [[ "$tag" == "MISMATCH" ]] || continue
+      echo "  ✗ fleet/${svc}: its volume holds PostgreSQL ${old} but the image is ${new} — it would restart in a loop." >&2
+      echo "    fix: tools/pg-major-upgrade.sh --service ${svc} --yes -- --project-directory .    (backs up first; a dry run without --yes)" >&2
+    done <<< "$pgout"
+    return 1
+  fi
+
   # 1. The shared core, always. Everything else needs its network and its db.
   echo "fleet core:"
   local pargs=()
