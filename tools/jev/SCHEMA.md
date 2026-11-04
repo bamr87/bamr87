@@ -5,7 +5,7 @@ coverage: listed
 
 # SCHEMA — tools/jev
 
-> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the ratification and acceptance recorder (`ratify.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`), and its context pack (`context.py`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
+> JEV, the harness-level agent logic engine: the assign-at-merge numbering compiler (`number.py`), the ratification and acceptance recorder (`ratify.py`), the tiered pull-request conflict triage and resolution engine (`conflicts.py`, `classify.py`, `ledger.py`), the loop step specs (`spec.py`, `steps/`), the headless Claude Code executor layer (`headless.py`), the local loop runner built on them (`loop.py`, `workspace.py`, `adapters/`), its context pack (`context.py`), and recursive harness refinement (`surface.py`, `library.py`, `refine.py`, `missions/`). Entry point `python3 -m tools.jev`; doc `docs/JEV.md`.
 
 ## Conventions
 
@@ -19,7 +19,7 @@ coverage: listed
 | --- | --- | --- | --- |
 | `README.md` | file | How to run JEV, set up the merge driver, and read the tier ladder | required |
 | `__init__.py` | file | Package marker and version | required |
-| `__main__.py` | file | The CLI entry point — the `number`, `ratify`, `conflicts`, `generated`, `steps` and `loop` command groups | required |
+| `__main__.py` | file | The CLI entry point — the `number`, `ratify`, `conflicts`, `generated`, `steps`, `loop` and `refine` command groups | required |
 | `common.py` | file | Hub paths, `_data/fleet.yml` `jev:` / `budget.jev` reader, the `gh` and `git` wrappers (no hooks, no fsmonitor; `git_bytes` for a blob's exact bytes), the guards they apply (no merge, no `--admin`, no destructive or settings verb, allowlists of the gh commands and the git subcommands, options and `-c` keys JEV uses, no `gh api` but a GET or an inline GraphQL query, no force-push, mirror or remote delete), the shared `owner/repo` and bare-file-name checks, the subprocess helper (merged or replaced environment) and the named-keys `.env` reader | required |
 | `classify.py` | file | The deterministic classifier: conflicted file → kind, and (files, hunks, lines, history) → one tier | required |
 | `number.py` | file | The assign-at-merge compiler: fragments → `features/features.yml`, `PRD.md`, `CHANGELOG.md`, `docs/amendments/NNNN-*.md`; plus the hand-picked-number lint | required |
@@ -33,6 +33,10 @@ coverage: listed
 | `loop.py` | file | The local loop runner, `python3 -m tools.jev loop` (`list`, `doctor [--live]`, `plan`, `run`, `publish`, `show`, `budget`): gates, the host checks, the `budget.loops` ceiling, the plan, tier 0, classify, the workspace, the attempt through `dash-gen ai-run`, the per-run posture checks, harvest and validation, the dry-run preview, the `--apply` gate and the filing, the canary, the per-item context pack (built on the host, placed beside the brief; `--context`, `--refresh-context`, the `loop plan` preview and the `loop doctor` planes section), and the run record under `.fleet/runs/` | required |
 | `workspace.py` | file | The runner's throwaway workspaces: a hardened clone outside the hub under `~/.cache/jev/work`, an engine-held pristine GIT_DIR that every engine git call on the clone uses, a tamper baseline over `.git` and any nested `.git`, a placement that writes only new files under real directories (`O_EXCL`, no link followed), a no-follow, regular-file-only harvest, and a `destroy` that never chmods through a symlink | required |
 | `context.py` | file | The loop runner's context pack, engine half: this loop's earlier attempts on the item (`attempts.jsonl`, `validate.json`), the planes' `fleet-context/v1` document through `ctx.dash_gen(['context', …])` (a subprocess, never an import), the markdown render (data inside fences no row can close, a size cap trimmed lowest priority first), redaction, the 0600 `context.md` / `context.json` in the item's run directory, the brief pointer paragraph and the status line; modes `auto`, `off`, `require` (tested by `tools/test_jev_context.py`) | required |
+| `surface.py` | file | The harness surface (capability three): Harness²'s eight components mapped onto a Claude Code harness, read as one tree and validated (the always-on cap, skill and subagent frontmatter, the hooks shape, every named script exists, MCP, injection phrasing), the census, the diff and the diversity of candidate trees; `refine surface check`, `census` and `diff` | required |
+| `library.py` | file | The experience library (capability three): `_data/harness_library/<loop>/<domain>/<entry>/experience.yml` (`jev-experience/v1`) + `harness.diff`, the entry schema and field caps, the leak check through the context pack's redaction, the registry domain of an item, `check_all`; `refine library …` | required |
+| `refine.py` | file | Recursive harness refinement (capability three, ADR 0004): the Propose–Probe–Compose schedule in both modes and the R = 4k / P = 3k ledger identity, the `harness_refinement:` config, the one-pass mission render, `refine plan` (the ceiling against `budget.loops`), `refine evidence` (the redacted tree a proposer reads, from `.fleet/runs`), and the `refine` CLI group | required |
+| `missions/` | dir | The five stage prompts of a refinement step (data only, adapted from Harness², Apache-2.0); see its SCHEMA | |
 | `adapters/` | dir | One adapter per loop the runner can run (the contract and `REGISTRY`); see its SCHEMA | |
 | `steps/` | dir | The loop step specs themselves, one directory per loop workflow (data only); see its SCHEMA | |
 
@@ -41,6 +45,7 @@ coverage: listed
 - New JEV capability → a module here plus a `tools/test_jev_<name>.py`, a row in this table, and a section in `docs/JEV.md`.
 - New loop agent step → a spec pair under `steps/<workflow stem>/` (see `steps/SCHEMA.md`), never a prompt inline in a workflow.
 - A loop step that runs locally → its spec's `local:` block, plus `adapters/<name>.py` registered in `adapters.REGISTRY`, plus `tools/test_jev_adapter_<name>.py`.
+- New refinement stage → `missions/<stage>.prompt.txt` plus its row in `refine.MISSION_INPUTS`; a lesson → `_data/harness_library/` through `refine library add`, never by hand.
 
 ## Forbidden
 
@@ -51,4 +56,5 @@ coverage: listed
 - No GitHub credential in a local loop-step agent's environment, and no loop-step `claude -p` outside `headless.claude_flags` and `headless.agent_env` (ADR 0002, P1) — except `conflicts.claude_argv` (tiers 1–2), not yet isolated and switched off by `jev.auto_tiers: [tier0]`; it moves onto headless.py before tier1 or tier2 is enabled.
 - No `--dangerously-skip-permissions`, `bypassPermissions` or `--bare` in an agent argv.
 - No publish without the § 13.6 gate, no unattended (`--scheduled`) local filing, and no sandbox-posture attempt without a passing isolation probe and canary for the installed CLI.
-- No workspace inside the hub tree, and no run record outside the gitignored `.fleet/runs/`.
+- No workspace inside the hub tree, and no run record outside the gitignored `.fleet/runs/` (a refinement's evidence tree outside `.fleet/refine/`).
+- No refinement that edits a step spec's prompt, grant or caps (§ 12.3): a hard-rule change is a proposal a person reviews; no model call from `refine.py` in this release.

@@ -357,7 +357,7 @@ jobs:
         # GITHUB_TOKEN and the Claude App cannot push (docs/adr/0002, P3).
         env:
           FLEET_WRITE_TOKEN: ${{ secrets.FLEET_TOKEN }}
-          JEV_STEP_SHA256: a90b10c9e27f80ef727cc32f08456e5d3a83392357fe54abe1f8dd5b9c383e9f
+          JEV_STEP_SHA256: 9c31452ae1ece613a7391b67872cc58b5185b243bc7b776750ee7109a0295d57
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}

@@ -96,6 +96,7 @@ class FakeCtx:
         self.runs.mkdir(parents=True, exist_ok=True)
         self.history = History(self.runs)
         self.home, self.hostname, self.work_root = home, hostname, work_root
+        self.library_root = root / "library"   # the experience library: empty, never the hub's
         self.calls: list[list[str]] = []
         self.answer = answer if answer is not None else (lambda argv: ok_answer(plane_doc()))
 
@@ -535,7 +536,7 @@ def test_render_has_the_header_the_fixed_order_and_a_provenance_line_per_section
     md = C.render(doc, brief_dir=".scout")
     assert headings(md) == expected_headings(doc), headings(md)
     titles = [h.split(" — ")[0][3:] for h in headings(md)[1:]]
-    assert titles == [C.TITLES[k] for k in ("history", "lake_issues", "lake_ci", "lake_agents",
+    assert titles == [C.TITLES[k] for k in ("history", "library", "lake_issues", "lake_ci", "lake_agents",
                                              "telemetry_errors", "index_code")], titles
     for phrase in ("assembled by the hub's loop engine at", "read-only queries of the fleet's data lake, code index",
                    "earlier attempts on this repository", "DATA written by people and agents",
@@ -689,7 +690,7 @@ def test_a_key_marker_the_render_joins_cannot_swallow_a_fence_or_forge_a_heading
             pack = C.build(FakeCtx(root, answer=lambda _a, d=doc: ok_answer(d)), ITEM, REQ)
             md = pack.path.read_text(encoding="utf-8")
             twin = pack.doc_path.read_text(encoding="utf-8")
-        assert headings(md) == expected_headings({"nwo": NWO, "sections": {"history": {"status": "empty"},
+        assert headings(md) == expected_headings({"nwo": NWO, "sections": {"history": {"status": "empty"}, "library": {"status": "empty"},
                                                                            **doc["sections"]}}), (what, headings(md))
         assert "[REDACTED PRIVATE KEY]" in md and "BEGIN RSA PRIVATE" not in md, (what, md)
         assert C.structure_problem(md) is None and not any("fail closed" in n for n in pack.notes), (what, pack.notes)
@@ -739,7 +740,7 @@ def test_a_host_named_like_the_packs_own_words_keeps_its_structure_and_masks_eve
             md = pack.path.read_text(encoding="utf-8")
         assert not md.endswith(C.FAIL_CLOSED + "\n") and not any("fail closed" in n for n in pack.notes), \
             (host, pack.notes)
-        assert headings(md) == expected_headings({"nwo": NWO, "sections": {"history": {"status": "empty"},
+        assert headings(md) == expected_headings({"nwo": NWO, "sections": {"history": {"status": "empty"}, "library": {"status": "empty"},
                                                                            **doc["sections"]}}), (host, headings(md))
         marks, closed = C.skeleton(md)
         fences = [line for _i, kind, line in marks if kind == "fence"]
@@ -776,7 +777,7 @@ def test_a_host_named_like_a_word_of_the_header_keeps_its_sentences_and_masks_on
             (host, lines[2])
         assert f"Unavailable ({lake}): the <host> could not be read" in lines, (host, lines)
         sources = [line for line in lines if line.startswith("Source: ")]
-        assert len(sources) == 5 and sum(line.startswith(f"Source: {lake} ") for line in sources) == 2, \
+        assert len(sources) == 6 and sum(line.startswith(f"Source: {lake} ") for line in sources) == 2, \
             (host, sources)
         assert any(line.startswith("#9 issue closed") and "Fix the <host> build" in line for line in lines), host
 
@@ -794,7 +795,7 @@ def test_a_host_named_like_a_section_key_status_or_field_keeps_the_document_whol
     doc = plane_doc(lake_ci=sec("lake", "unavailable", note="the lake could not be read"),
                     index_code=sec("qdrant", "stale", plane_doc()["sections"]["index_code"]["rows"], as_of=None,
                                    age=None, note="index behind the checkout"))
-    want = {"history": "empty", **{k: v["status"] for k, v in doc["sections"].items()}}
+    want = {"history": "empty", "library": "empty", **{k: v["status"] for k, v in doc["sections"].items()}}
     rows = {k: [sorted(r) for r in v["rows"]] for k, v in doc["sections"].items()}
     # the row values that are the document's own words, compared as they are: a row's kind, a code hit's project
     own = {k: [(r.get("kind"), r.get("project")) for r in v["rows"]] for k, v in doc["sections"].items()}
@@ -1065,7 +1066,7 @@ def test_build_auto_writes_both_files_private_and_notes_what_is_missing():
         assert pack.path == ctx.item_dir(ITEM) / "context.md" and pack.doc_path.name == "context.json"
     assert modes == {"context.md": 0o600, "context.json": 0o600}, modes
     assert pack.mode == "auto" and pack.missing == ["index_code"] and not pack.blocked
-    assert pack.sections == {"history": "empty", "lake_issues": "ok", "lake_ci": "stale", "lake_agents": "ok",
+    assert pack.sections == {"history": "empty", "library": "empty", "lake_issues": "ok", "lake_ci": "stale", "lake_agents": "ok",
                              "index_code": "unavailable", "telemetry_errors": "ok"}, pack.sections
     assert any("index_code unavailable" in n and "mode auto" in n for n in pack.notes), pack.notes
     assert any("lake_ci is stale (80 h old)" in n and "never a failure" in n for n in pack.notes), pack.notes
@@ -1202,10 +1203,11 @@ def test_the_shared_constants_match_the_planes_module():
     assert set(C.TITLES) == set(C.PROVIDERS) == set(C.RENDER_ORDER) == set(C.TRIM_ORDER)
     assert C.TRIM_ORDER[-1] == "history" and C.RENDER_ORDER[0] == "history"
     # docs/JEV.md states the trim order literally; the cap sweep derives its expectation from TRIM_ORDER
-    assert C.TRIM_ORDER == ("index_code", "telemetry_errors", "lake_ci", "lake_agents", "lake_issues", "history")
+    assert C.TRIM_ORDER == ("index_code", "telemetry_errors", "lake_ci", "lake_agents", "lake_issues", "library",
+                            "history")
     doc = (HUB / "docs" / "JEV.md").read_text(encoding="utf-8")
-    assert ("`index_code`, then `telemetry_errors`, `lake_ci`, `lake_agents`, `lake_issues`, and `history` last"
-            in doc), "docs/JEV.md's trim order drifted"
+    assert ("`index_code`, then `telemetry_errors`, `lake_ci`, `lake_agents`, `lake_issues`, `library`, and "
+            "`history` last" in doc), "docs/JEV.md's trim order drifted"
     from tools.jev import loop
     assert C.COST_LABEL == loop.COST_LABEL
 

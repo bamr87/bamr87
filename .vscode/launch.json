@@ -779,6 +779,23 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "5-loops", "order": 10 }
     },
+    // Harness refinement (docs/HARNESS-REFINEMENT.md): every subcommand is $0.
+    {
+      "name": "🧪 Refine: surface check (the hub's harness surface)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine surface check",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 11 }
+    },
+    {
+      "name": "🧪 Refine: plan (pick a loop; one Propose–Probe–Compose step, never calls a model)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash refine plan ${input:refineLoop}",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "5-loops", "order": 12 }
+    },
 
     // ---------------------------------------------------------------- VERIFY
     // The hub gate (AGENTS.md "A change is done when…"). The native debug
@@ -1477,6 +1494,13 @@
       "description": "Loop id (tools/dash loop list)",
       "type": "promptString",
       "default": "repo-scout/scout"
+    },
+    {
+      // Loops with a step spec (tools/jev/steps/<loop>/): the refinement's unit.
+      "id": "refineLoop",
+      "description": "Loop (a tools/jev/steps/ directory: repo-scout, repo-evolution, fleet-pulse)",
+      "type": "promptString",
+      "default": "repo-scout"
     },
     {
       // _data/fleet.yml `content.sites`.

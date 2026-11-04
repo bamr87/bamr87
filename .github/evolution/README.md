@@ -1,6 +1,6 @@
 # `.github/evolution/` — the repo-evolution brief
 
-Version-controlled prompt material for the weekly **per-repo evolution loop** ([`repo-evolution.yml`](../workflows/repo-evolution.yml), documented in [`docs/EVOLUTION.md`](../../docs/EVOLUTION.md)). These files are the *tunable* half of what the agent reads; the *hard rules* (draft-only, surgical, the lane boundaries with the other loops) live in the workflow's prompt so that a prompt edit here can never loosen them.
+Version-controlled prompt material for the weekly **per-repo evolution loop** ([`repo-evolution.yml`](../workflows/repo-evolution.yml), documented in [`docs/EVOLUTION.md`](../../docs/EVOLUTION.md)). These files are the *tunable* half of what the agent reads; the *hard rules* (draft-only, surgical, the lane boundaries with the other loops) live in the workflow's prompt so that a prompt edit here can never loosen them. This directory is also the **tunable half** a harness refinement may edit: a Propose–Probe–Compose step proposes changes here from real trajectories, never to the spec ([`docs/HARNESS-REFINEMENT.md`](../../docs/HARNESS-REFINEMENT.md)).
 
 | File | Purpose |
 | --- | --- |

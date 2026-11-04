@@ -181,7 +181,9 @@ local:
     mode: auto
     # a bare .md name beside the brief: never a brief's name or a declared output
     file: context.md
-    providers: [history, lake_issues, lake_ci, lake_agents, index_code, telemetry_errors]
+    # `library`: the experience library's lessons for this loop in the item's domain
+    # (docs/HARNESS-REFINEMENT.md, ADR 0004), data to re-verify, trimmed just before history
+    providers: [history, library, lake_issues, lake_ci, lake_agents, index_code, telemetry_errors]
     # the rendered pack's cap (about 4k tokens), 2000..64000
     max_chars: 16000
     # the planes' wall clock, seconds, at most 300

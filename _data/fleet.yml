@@ -768,6 +768,29 @@ harness:
     credential_grace_days: 15     # past max_age_days + this, a credential is an alarm, not a chore
 
 # --------------------------------------------------------------------------- #
+# Harness refinement — JEV capability three: recursive harness refinement after
+# Harness² (google-research/harness2; docs/HARNESS-REFINEMENT.md, ADR 0004).
+#
+# The $0 half (`tools/dash refine`: the surface check, the Propose–Probe–Compose
+# plan, the evidence tree, the experience library) reads its caps here. The
+# model-backed stages (P1) stay OFF until `enabled: true` AND the maintainer's
+# --apply, run only through the loop runner's executor, and are capped per
+# improvement session by `stage_usd` inside budget.loops. `k_max` bounds the
+# task-level recursion budget (4k rollouts + 3k sessions per step).
+# --------------------------------------------------------------------------- #
+harness_refinement:
+  enabled: false
+  k_max: 3
+  mode: parallel                      # parallel: k candidates per dimension, k compositions; sequential: k rounds
+  always_on_max_chars: 32000          # the context-file chain (CLAUDE.md + AGENTS.md): paid for on every turn
+  skill_max_chars: 100000             # about the 25,000 tokens the runtime loads per skill
+  stage_usd: 2                        # the cap of ONE improvement session (propose / compose / select / reflect)
+  model: claude-sonnet-5-5            # the proposer; an exact id in ai_models.allowed (§ 13.3)
+  max_turns: 40
+  library_dir: _data/harness_library  # the experience library (committed, human-gated)
+  obs_trunc_chars: 6000               # per tool observation in a rendered trajectory; the trajectory itself is whole
+
+# --------------------------------------------------------------------------- #
 # Harnesses — the fleet-wide AI-HARNESS DEPLOYMENT contract.
 #
 # `harness:` above watches the hub's own six layers; THIS block governs the
