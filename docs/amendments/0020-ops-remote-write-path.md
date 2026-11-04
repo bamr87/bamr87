@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0020 — The OPS remote-write path: how the console and the local loop runner write to GitHub
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0020
 - **Date:** 2026-11-03
 - **Proposed by:** agent (Claude Fable 5.1, on a branch opened for bamr87). Option (a) of bamr87/bamr87#487 is the agent's recommendation, made under the maintainer's 2026-11-03 instruction to continue the epic's remaining work; the maintainer had not picked (a) or (b) — their merge of this PR is the choice and the ratification.
-- **Ratified by:** the merged PR URL (left blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/642 (merged 2026-11-04 by @bamr87)
 - **Affects:** constitution § 11 (scope line; new item 8 "The OPS remote-write path"); feature HUB-069; ADR 0002 (appended "P2 — the write path"); `tools/console/core.py` (`loop-run` `apply`), `.github/scripts/dash-gen/fleet_doctor_file.py` (`--apply`); docs/HARNESS-OPS.md, docs/JEV.md, docs/DAILY-ANALYSIS.md, tools/console/README.md
 - **Supersedes:** none (clarifies 0006 `projects-write-back`; extends § 10.6 and § 13.6)
 - **Related:** bamr87/bamr87#487 (P2), #488 (P3), epic #484; [ADR 0002](../../adr/0002-agent-step-specs-and-local-runner.md); `tools/console/gh_projects_write.py`; `tools/jev/loop.py` (`publish_phase`, `apply_item`, `probe_publish_token`)

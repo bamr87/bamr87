@@ -9,7 +9,7 @@
 # Rendered at /features/ on the dash. Kit: templates/verify/ · doc: docs/VERIFICATION.md
 # =============================================================================
 schema: features-index/v1
-generated_at: '2026-11-03T06:03:59Z'
+generated_at: '2026-11-04T06:03:39Z'
 kit_version: 0.1.0
 totals:
   repos_scanned: 1
@@ -17,27 +17,27 @@ totals:
   repos_with_kit: 1
   repos_prose_only: 0
   repos_no_index: 0
-  features: 68
-  implemented: 43
-  covered: 62
-  evidenced: 10
+  features: 74
+  implemented: 47
+  covered: 68
+  evidenced: 11
   verified: 8
-  ui: 18
-  ui_covered: 18
+  ui: 19
+  ui_covered: 19
   ui_verified: 8
-  scenarios: 11
-  screenshots: 50
-  dangling: 5
+  scenarios: 12
+  screenshots: 59
+  dangling: 6
 pct:
-  coverage: 144
+  coverage: 145
   evidence: 23
-  verified: 19
+  verified: 17
   ui_coverage: 100
 attention:
 - repo: bamr87
   severity: 40
   kind: dangling-links
-  detail: 5 test/scenario/evidence path(s) in the index do not exist
+  detail: 6 test/scenario/evidence path(s) in the index do not exist
   lever: fix the paths in features/features.yml
 repos:
 - name: bamr87
@@ -74,10 +74,15 @@ repos:
     - 'features/features.yml HUB-063: description contains ''<'' or ''>'' — renders as markup on the features page'
     - 'features/features.yml HUB-065: docs path not found: docs/amendments/proposed/fleet-pr-review.md'
     - 'features/features.yml HUB-067: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'features/features.yml HUB-069: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'features/features.yml HUB-069: scenarios path not found: loop-run'
+    - 'features/features.yml HUB-071: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'features/features.yml HUB-074: description contains ''<'' or ''>'' — renders as markup on the features page'
+    - 'verify/scenarios/loop-run.yml: references unknown feature id HUB-NEW:console-loop-run-op'
   kit:
     config: true
     runner: true
-    scenarios: 11
+    scenarios: 12
     workflow: true
     workflow_fleet_caller: true
     workflow_gate: false
@@ -87,22 +92,22 @@ repos:
     legacy_evidence_kit: false
     legacy_visual_evidence_skill: false
   counts:
-    features: 68
-    implemented: 43
-    covered: 62
-    evidenced: 10
+    features: 74
+    implemented: 47
+    covered: 68
+    evidenced: 11
     verified: 8
-    ui: 18
-    ui_covered: 18
+    ui: 19
+    ui_covered: 19
     ui_verified: 8
-    dangling: 5
+    dangling: 6
   pct:
     coverage: 100
     evidence: 23
-    verified: 19
+    verified: 17
   last_run: null
   gaps:
-  - 5 dangling test/scenario/evidence link(s)
+  - 6 dangling test/scenario/evidence link(s)
   items:
   - id: HUB-001
     title: Portfolio + dashboard from the registry
@@ -1629,6 +1634,7 @@ repos:
     provenance: null
     tests:
     - tools/console/test_gh_projects.py
+    - tools/test_projects_backfill.py
     waived: []
     scenarios: []
     evidence: []
@@ -1646,6 +1652,7 @@ repos:
       evidence: []
       tests:
       - https://github.com/bamr87/bamr87/blob/main/tools/console/test_gh_projects.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_projects_backfill.py
       scenarios: []
       screenshots: []
   - id: HUB-042
@@ -2562,6 +2569,279 @@ repos:
       evidence: []
       tests:
       - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore_nodes.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-069
+    title: Run a loop's agent step locally from the console, the TUI and the MCP (loop-run)
+    surface: ui
+    implemented: true
+    link: /loops/repo_scout
+    docs: tools/console/README.md
+    tags:
+    - console
+    - tui
+    - mcp
+    - jev
+    - loops
+    - local
+    date: '2026-11-03'
+    provenance: null
+    tests:
+    - tools/console/test_console.py
+    - tools/test_fleetcore.py
+    - tools/tui/test_app.py
+    - tools/console/test_pages.py
+    waived: []
+    scenarios: []
+    evidence:
+    - test/evidence/loop-run
+    screenshots:
+    - test/evidence/loop-run/console-after-desktop.png
+    - test/evidence/loop-run/console-after-mobile.png
+    - test/evidence/loop-run/console-before-desktop.png
+    - test/evidence/loop-run/console-form-desktop.png
+    - test/evidence/loop-run/console-job-done-desktop.png
+    - test/evidence/loop-run/console-job-done-mobile.png
+    - test/evidence/loop-run/console-job-live-desktop.png
+    - test/evidence/loop-run/desktop-loop-page.png
+    - test/evidence/loop-run/mobile-loop-page.png
+    verified: null
+    covered: true
+    evidenced: true
+    dangling:
+    - loop-run
+    summary: 'P2 of epic #484 (bamr87/bamr87#487): the JEV loop runner as the console''s `loop-run` op. Every loop page lists
+      the agent steps whose spec has a `local:` block (read through tools.jev, never a list kept in the console) and offers
+      Run locally'
+    urls:
+      link: https://bamr87.github.io/bamr87/loops/repo_scout
+      docs: https://github.com/bamr87/bamr87/blob/main/tools/console/README.md
+      evidence:
+      - https://github.com/bamr87/bamr87/tree/main/test/evidence/loop-run
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_console.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_fleetcore.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/tui/test_app.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/console/test_pages.py
+      scenarios: []
+      screenshots:
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/console-after-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/console-after-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/console-before-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/console-form-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/console-job-done-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/console-job-done-mobile.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/console-job-live-desktop.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/desktop-loop-page.png
+      - https://raw.githubusercontent.com/bamr87/bamr87/main/test/evidence/loop-run/mobile-loop-page.png
+  - id: HUB-070
+    title: 'JEV: the fleet doctor''s step spec and local dry run (P3, step 1)'
+    surface: cli
+    implemented: true
+    link: tools/jev/steps/fleet-pulse/doctor.yml
+    docs: docs/DAILY-ANALYSIS.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - fleet-pulse
+    date: '2026-11-03'
+    provenance: null
+    tests:
+    - tools/test_jev_spec.py
+    - tools/test_jev_adapter_fleet_pulse_doctor.py
+    - tools/test_jev_loop.py
+    - tools/test_jev_workspace.py
+    - .github/scripts/dash-gen/test_fleet_pulse_doctor.py
+    - .github/scripts/dash-gen/test_remediation.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'The fleet doctor (fleet-pulse.yml, job doctor) is the second agent step with one spec CI and the local loop
+      runner render from (tools/jev/steps/fleet-pulse/doctor.yml + doctor.prompt.txt; ADR 0002 P3, bamr87/bamr87#488, epic
+      #484): the prom'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/steps/fleet-pulse/doctor.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/DAILY-ANALYSIS.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_spec.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_adapter_fleet_pulse_doctor.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_loop.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_workspace.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_fleet_pulse_doctor.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_remediation.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_ai_budget.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-071
+    title: 'JEV: the evolution agent''s step spec and local dry run (P3, step 2)'
+    surface: cli
+    implemented: true
+    link: tools/jev/steps/repo-evolution/evolve.yml
+    docs: docs/EVOLUTION.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - repo-evolution
+    date: '2026-11-03'
+    provenance: null
+    tests:
+    - tools/test_jev_spec.py
+    - tools/test_jev_adapter_repo_evolution_evolve.py
+    - tools/test_jev_loop.py
+    - .github/scripts/dash-gen/test_evolution.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'The evolution agent (repo-evolution.yml, job evolve) is the third agent step with one spec CI and the local
+      loop runner render from (tools/jev/steps/repo-evolution/evolve.yml + evolve.prompt.txt; ADR 0002 P3, bamr87/bamr87#488,
+      epic #484): '
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/steps/repo-evolution/evolve.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/EVOLUTION.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_spec.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_adapter_repo_evolution_evolve.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_loop.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_evolution.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_ai_budget.py
+      scenarios: []
+      screenshots: []
+  - id: HUB-072
+    title: 'Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed)'
+    surface: ui
+    implemented: false
+    link: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    docs: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    tags:
+    - console
+    - otel
+    - phoenix
+    - epic
+    - observability
+    - activity-log
+    - replay
+    - timeline
+    - docker
+    - storage
+    - visualization
+    date: '2026-11-03'
+    provenance: null
+    tests: []
+    waived:
+    - design-only PRD; nothing implemented yet
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Design only (Draft). Captures container lifecycle and stats, agent session, job and fleet_event activity from
+      the fleet Docker stack into the fleet's own storage (an append-only fleet_activity table in the fleet-db Postgres, hot
+      tail in Red
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/FLEET-ACTIVITY-REPLAY.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/FLEET-ACTIVITY-REPLAY.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-073
+    title: 'Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV harnesses (proposed)'
+    surface: infra
+    implemented: false
+    link: docs/prd/HARNESS-PROTOCOL.md
+    docs: docs/prd/HARNESS-PROTOCOL.md
+    tags:
+    - harness
+    - protocol
+    - agent-loop
+    - mcp
+    - otel
+    - phoenix
+    - a2a
+    - uhp
+    - jev
+    - epic
+    date: '2026-11-03'
+    provenance: null
+    tests: []
+    waived:
+    - design-only PRD; nothing implemented yet
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: Design only (Draft). Refactors the harness layer onto one agent-loop contract (tasks, sessions, a typed event
+      stream, interrupts as approval pauses, budgets) that the Harness Console API, CI agent steps, local headless Claude
+      Code and the J
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/docs/prd/HARNESS-PROTOCOL.md
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/prd/HARNESS-PROTOCOL.md
+      evidence: []
+      tests: []
+      scenarios: []
+      screenshots: []
+  - id: HUB-074
+    title: 'JEV: the fan-out agent fill''s step specs and local dry run (P3, step 3)'
+    surface: cli
+    implemented: true
+    link: tools/jev/steps/fanout/agent-fill-standardize.yml
+    docs: docs/SCHEMA-FRAMEWORK.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - fanout
+    date: '2026-11-03'
+    provenance: null
+    tests:
+    - tools/test_jev_spec.py
+    - tools/test_jev_adapter_fanout_agent_fill.py
+    - tools/test_jev_loop.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    waived: []
+    scenarios: []
+    evidence: []
+    screenshots: []
+    verified: null
+    covered: true
+    evidenced: false
+    dangling: []
+    summary: 'The fan-out agent fill (fanout.yml, job agent-fill) is the next agent step with specs CI and the local loop
+      runner render from: one pair per kit (tools/jev/steps/fanout/agent-fill-standardize.yml + .prompt.txt, agent-fill-schema.yml
+      + .prom'
+    urls:
+      link: https://github.com/bamr87/bamr87/blob/main/tools/jev/steps/fanout/agent-fill-standardize.yml
+      docs: https://github.com/bamr87/bamr87/blob/main/docs/SCHEMA-FRAMEWORK.md
+      evidence: []
+      tests:
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_spec.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_adapter_fanout_agent_fill.py
+      - https://github.com/bamr87/bamr87/blob/main/tools/test_jev_loop.py
+      - https://github.com/bamr87/bamr87/blob/main/.github/scripts/dash-gen/test_ai_budget.py
       scenarios: []
       screenshots: []
   truncated: false
