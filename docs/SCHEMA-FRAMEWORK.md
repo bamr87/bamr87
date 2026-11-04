@@ -56,6 +56,20 @@ Seeding is idempotent and additive-only: existing files are never overwritten, e
 
 Rollout playbook: dispatch with `target=all, dry_run=true` and read the logs; pick a pilot (`target=<name>, dry_run=false, agent_fill=true`); merge its PR and let `schema-check.yml` run in the submodule; then fan out the rest in batches, setting `schema: {status: pending, pr: …}` → `adopted` in `_data/projects.yml` as PRs open and merge.
 
+## Run it locally
+
+The agent pass of either kit runs on a workstation through the JEV loop runner ([JEV.md](JEV.md#the-loop-runner-p1); epic [#484](https://github.com/bamr87/bamr87/issues/484), [#488](https://github.com/bamr87/bamr87/issues/488)) from the same specs CI's prompts are held to — [`tools/jev/steps/fanout/agent-fill-schema.yml`](../tools/jev/steps/fanout/agent-fill-schema.yml) + `agent-fill-schema.prompt.txt` and the `standardize` pair beside it; `python3 -m tools.jev steps check` holds each kit's inline prompt in `fanout.yml` byte-equal to its spec. One claude-code-action step per kit, gated on the dispatch's kit, replaced the shell `case` over two heredocs: a step spec holds one prompt. The target repository at the kit's PR branch is the workspace, exactly as in CI, so a local run needs the fan-out to have pushed that branch first (`fanout.yml` with `dry_run=false`); the planner checks it, and skips a target whose branch is missing or already carries the `(Claude agent pass)` commit CI's dedupe reads.
+
+```bash
+tools/dash loop doctor fanout                                        # $0 host checks for both kit steps
+tools/dash loop plan fanout agent-fill-schema --target <name>        # the target at chore/schema-adoption: branch state, dedupe, prompt sha
+tools/dash loop run fanout agent-fill-schema --target <name> --rehearse --offline   # the prompt, settings and argv, $0, no clone
+tools/dash loop run fanout agent-fill-standardize --target <name>    # one capped attempt ($10, the call-site cap): the CLAUDE.md patch previewed
+tools/dash loop show --latest                                        # items/<dir>/outputs/changes.patch, agent-fill.validated.json, bodies/
+```
+
+The attempt's output is the patch the engine harvests from the clone, held to the kit's brief (only `CLAUDE.md` for `standardize`, only `SCHEMA.md` files for `schema`; anything else withholds the whole attempt), then `dash-gen agent-fill-file` runs the structural rules and writes the exact patch and commit message CI's push step would make. `--apply` is **refused by the filer in this release**, naming #488: the publish step (the validated patch committed as the `(Claude agent pass)` commit and pushed to the kit's PR branch with `FLEET_TOKEN` probed by `gh api user`) lands with that issue's next pull request. Until then the preview is the deliverable, and nothing a local run does reaches GitHub.
+
 ## Adoption tracking
 
 `_data/projects.yml` gains an optional per-project key (documented in the registry header):

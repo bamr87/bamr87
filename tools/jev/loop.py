@@ -799,8 +799,13 @@ class RunContext:
         return dash_gen(argv, stdin=stdin)
 
     def planner(self, *, target: str | None = None, no_files: bool = False) -> dict:
+        """The spec's planner. A targeted call (the live recheck of one item)
+        is routed into a scratch directory whatever the planner's flags, so the
+        run's plan/plan.json — the rows `loop publish` finds its items in — is
+        never overwritten by a one-target plan; `no_files` additionally asks a
+        brief-writing planner to write none (its own flag)."""
         with tempfile.TemporaryDirectory(prefix="jev-plan-") as tmp:
-            out_dir = Path(tmp) if no_files else self.plan_dir
+            out_dir = Path(tmp) if (no_files or target is not None) else self.plan_dir
             res = dash_gen(planner_argv(self.spec, out_dir, self.opts, target=target, no_files=no_files))
         plan = parse_last_json(res.out)
         if res.code not in (0, 1) or plan is None:
@@ -1219,7 +1224,12 @@ def context_settings(spec: StepSpec) -> ContextSpec:
 
 
 def context_mode(ctx: RunContext) -> str:
-    """`--context` when given, else the spec's mode."""
+    """`--context` when given, else the spec's mode — except for a step with
+    no brief (`workspace.no_brief`), which is always `off`: the spec loader
+    refuses any other mode there, and the CLI override would otherwise build
+    and place a pack nothing points at (or block the item under `require`)."""
+    if ctx.spec.workspace.no_brief:
+        return "off"
     return ctx.opts.context or context_settings(ctx.spec).mode
 
 
@@ -1752,18 +1762,28 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
                "CLAUDE_CODE_OAUTH_TOKEN (docs/TOKEN-ROTATION.md)")
         ctx.stop = (EXIT["credential"], why)
         return done("failed", why, EXIT["credential"])
+    flagged = False
     if kind in ("budget_hit", "max_turns"):
         # local.on_budget_hit: discard (JEV's rule) — CI's file job would file what the leg left behind.
-        # Any other value (P3) has no behaviour here yet: fail closed rather than discard it silently.
-        if spec.local.on_budget_hit != "discard":
+        # publish-flagged (P3, evolve): a budget hit's edits are harvested and previewed FLAGGED as partial,
+        # as CI's publish step marks such a body; a turn exhaustion is still discarded (CI's salvage
+        # publishes only a reported success, which classifies as ok here). Any other value has no
+        # behaviour here: fail closed rather than discard it silently.
+        if spec.local.on_budget_hit == "publish-flagged" and kind == "budget_hit":
+            flagged = True
+            report.setdefault("flags", []).append(
+                f"budget hit ({detail}): the pass was stopped MID-TASK — the preview is flagged PARTIAL "
+                "(on_budget_hit publish-flagged); nothing is filed without --apply")
+        elif spec.local.on_budget_hit not in ("discard", "publish-flagged"):
             return done("failed", f"{kind}: on_budget_hit {spec.local.on_budget_hit!r} has no engine behaviour — "
                                   "the output is left unread")
-        return done("discarded", f"{kind}: {detail} — the partial output is discarded (on_budget_hit "
-                                 f"{spec.local.on_budget_hit}); a rerun costs about one attempt")
+        else:
+            return done("discarded", f"{kind}: {detail} — the partial output is discarded (on_budget_hit "
+                                     f"{spec.local.on_budget_hit}); a rerun costs about one attempt")
     if kind == "interrupted":
         ctx.stop = (EXIT["interrupted"], f"interrupted: {detail}")
         return done("failed", f"interrupted: {detail}", EXIT["interrupted"])
-    if kind != "ok":
+    if kind != "ok" and not flagged:
         return done("failed", f"{kind}: {detail}")
 
     tree = wsp.tree_report(ws)
@@ -1863,6 +1883,7 @@ def preview(ctx: RunContext, item: Item, verdict: Verdict) -> dict:
            "argv": argv, "apply_flag": ctx.spec.local.publish.apply_flag, "bodies": bodies,
            "rows": plan.rows, "blockers": plan.blockers, "failures": plan.failures,
            "publishable": plan.publishable and bool(bodies), "labels": labels,
+           "apply_steps": ctx.adapter.apply_steps(ctx, item, plan),
            "flags": verdict.flags, "facts": verdict.facts, "created": iso()}
     write_json(d / "publish-plan.json", doc)
     (d / "publish-plan.md").write_text(_plan_md(doc, ctx.bodies_dir(item, apply=False)), encoding="utf-8")
@@ -1877,7 +1898,10 @@ def _plan_md(doc: dict, bodies_dir: Path) -> str:
              f"- publishable: {'yes' if doc['publishable'] else 'no'}"
              + (f" — blockers: {', '.join(doc['blockers'])}" if doc["blockers"] else ""), "",
              "## What `--apply` does", ""]
-    if doc["labels"]:
+    steps = doc.get("apply_steps")
+    if isinstance(steps, list) and steps:
+        lines += [f"{n}. {step}" for n, step in enumerate(steps, 1)]
+    elif doc["labels"]:
         lines.append(f"1. `gh label create <name> -R {item['nwo']} --force` for {', '.join(doc['labels'])} — this "
                      "can refresh an existing label's colour and description.")
         lines.append(f"2. `gh issue create -R {item['nwo']}` once per body below, after a live recheck "
@@ -2730,10 +2754,11 @@ def cmd_list(args: argparse.Namespace) -> int:
         print(json.dumps(rows, indent=2, sort_keys=True))
         return 0
     for r in rows:
-        sw = r["switch"] or {}
+        sw = r["switch"]
+        gate = (f"{sw['config']}={sw['config_value']} · vars.{sw['variable']} default {sw['default']}" if sw
+                else "no switch (dispatch-only: a manual run; --scheduled is refused)")
         print(f"{r['step']}  adapter {r['adapter']} · {r['model']} · {r['max_turns']} turns · "
-              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {sw.get('config')}={sw.get('config_value')} · "
-              f"vars.{sw.get('variable')} default {sw.get('default')} · publish tier {r['publish_tier']}")
+              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {gate} · publish tier {r['publish_tier']}")
     if not rows:
         print("no step spec has a local: block yet")
     return 0

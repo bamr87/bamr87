@@ -86,8 +86,8 @@ def harvested(dest: Path | None, reason: str = "ok") -> dict:
 # the registry
 # --------------------------------------------------------------------------- #
 def test_the_registry_names_modules_and_get_returns_an_adapter():
-    assert A.REGISTRY == {"repo_scout": "tools.jev.adapters.repo_scout",
-                          "fleet_pulse_doctor": "tools.jev.adapters.fleet_pulse_doctor"}
+    assert A.REGISTRY["repo_scout"] == "tools.jev.adapters.repo_scout"
+    assert all(v.startswith("tools.jev.adapters.") and v.rsplit(".", 1)[1] == k for k, v in A.REGISTRY.items())
     assert isinstance(ADAPTER, A.Adapter) and ADAPTER.name == "repo_scout"
     try:
         A.get("os")

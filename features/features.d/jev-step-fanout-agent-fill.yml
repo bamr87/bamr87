@@ -1,0 +1,23 @@
+# features/features.d/jev-step-fanout-agent-fill.yml — numbered at merge (amendment 0002)
+id: HUB-NEW
+title: "JEV: the fan-out agent fill's step specs and local dry run (P3, step 3)"
+description: "The fan-out agent fill (fanout.yml, job agent-fill) is the next agent step with specs CI and the local loop runner render from: one pair per kit (tools/jev/steps/fanout/agent-fill-standardize.yml + .prompt.txt, agent-fill-schema.yml + .prompt.txt), each the quoted heredoc the workflow's brief step carried, now inline in its own claude-code-action step gated on the kit, with the model, turns, cap and allowlist explicit and held equal by `steps check`. Locally `tools/dash loop run fanout agent-fill-<kit>` runs the pass on the target at the kit's PR branch (no brief: the prompt is the whole work order), harvests the agent's edits as a patch held to the kit's brief, and previews the commit CI's push step would make; `--apply` is refused until #488's publish step lands."
+implemented: true
+status: partial
+surface: cli
+link: tools/jev/steps/fanout/agent-fill-standardize.yml
+docs: docs/SCHEMA-FRAMEWORK.md
+tags:
+  - jev
+  - ai
+  - loops
+  - local
+  - fanout
+date: 2026-11-03
+tests:
+  - tools/test_jev_spec.py
+  - tools/test_jev_adapter_fanout_agent_fill.py
+  - tools/test_jev_loop.py
+  - .github/scripts/dash-gen/test_ai_budget.py
+prd:
+  - FR56

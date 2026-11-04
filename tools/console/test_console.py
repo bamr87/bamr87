@@ -86,12 +86,14 @@ def test_argv_shapes_are_exact_and_never_shell():
         pass
     else:
         raise AssertionError("shell metacharacters accepted in key")
-    loop0 = (core.agent_steps() or [{"loop": ""}])[0]["loop"]   # loop-run needs a loop with a local: spec
+    # loop-run needs a loop with a local: spec, and its step named when the loop has several (fanout's kits)
+    first = (core.agent_steps() or [{"loop": "", "step": ""}])[0]
     for op_id in core.OPS:
         if op_id in ("tests",):
             continue
         argv, _ = core.build_argv(op_id, {"target": "alpha", "workflow": "fleet-pulse", "fields": {},
-                                          "kind": "gate", "id": "doc-check", "loop": loop0})
+                                          "kind": "gate", "id": "doc-check", "loop": first["loop"],
+                                          "step": first["step"]})
         assert all(isinstance(a, str) for a in argv) and "bash" not in argv[0], (op_id, argv)
 
 
@@ -529,8 +531,18 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     assert steps[0]["cost_label"] == "API-equivalent (estimate)"
     blob = json.dumps(op)
     assert str(core.REPO_ROOT) not in blob and str(Path.home()) not in blob, "a local path leaked into /api/ops"
-    loop, step = steps[0]["loop"], steps[0]["step"]
+    # a loop with exactly one local step: its step may be left unnamed (fanout's two kits must be named)
+    single = [s for s in steps if sum(1 for t in steps if t["loop"] == s["loop"]) == 1]
+    loop, step = single[0]["loop"], single[0]["step"]
     argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "rehearse": True})
+    multi = next((s for s in steps if s not in single), None)
+    if multi is not None:
+        try:
+            core.build_argv("loop-run", {"loop": multi["loop"], "target": "SCHEMA", "rehearse": True})
+        except ValueError as exc:
+            assert "name one of" in str(exc), exc
+        else:
+            raise AssertionError("a loop with several local steps accepted an unnamed step")
     assert argv == [core.DASH, "loop", "run", loop, "--target", "SCHEMA", "--json", "--rehearse"], argv
     assert remote is False, "a rehearsal spends nothing and needs no confirm"
     argv, remote = core.build_argv("loop-run", {"loop": loop, "step": step})
@@ -877,10 +889,10 @@ def test_config_editor_reaches_every_section_and_splices_each():
         before = fleet.read_text().splitlines()
         out = core.update_config({"remediation.max_candidates": 5,
                                   "schedule.fleet_pulse": "30 6 * * *",
-                                  "evolution.max_turns": 130,
+                                  "evolution.max_targets": 7,
                                   "variables.NODE_VERSION": "22"}, fleet)
         assert set(out["applied"]) == {"remediation.max_candidates", "schedule.fleet_pulse",
-                                       "evolution.max_turns", "variables.NODE_VERSION"}, out["applied"]
+                                       "evolution.max_targets", "variables.NODE_VERSION"}, out["applied"]
         assert set(out["sections"]) == {"remediation", "schedule", "evolution", "variables"}
         after = fleet.read_text().splitlines()
         assert len(before) == len(after), f"line count changed: {len(before)} -> {len(after)}"
@@ -893,9 +905,16 @@ def test_config_editor_reaches_every_section_and_splices_each():
         assert 'fleet_pulse: "30 6 * * *"' in "\n".join(after)
         import yaml
         doc = yaml.safe_load("\n".join(after))
-        assert doc["remediation"]["max_candidates"] == 5 and doc["evolution"]["max_turns"] == 130
+        assert doc["remediation"]["max_candidates"] == 5 and doc["evolution"]["max_targets"] == 7
         assert doc["variables"]["NODE_VERSION"] == "22"
-        assert core.update_config({"evolution.max_turns": 130}, fleet)["applied"] == {}
+        assert core.update_config({"evolution.max_targets": 7}, fleet)["applied"] == {}
+        # the turn cap is the step spec's and the workflow literal's (ADR 0002 P3): not a console knob
+        try:
+            core.update_config({"evolution.max_turns": 130}, fleet)
+        except ValueError as exc:
+            assert "not editable" in str(exc), exc
+        else:
+            raise AssertionError("evolution.max_turns is still editable from the console")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

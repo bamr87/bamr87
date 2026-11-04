@@ -109,7 +109,10 @@ WORKSPACE_KEYS = frozenset({"cwd", "brief_dir", "outputs", "github_credential"})
 #: prompt reads its brief at a FIXED name in the clone root (the doctor's
 #: `remediation-workorder.md`) names it here; the engine places the brief
 #: there, and `brief_dir` stays the engine's own directory (TMPDIR, the pack).
-WORKSPACE_OPTIONAL = frozenset({"exceptions", "brief_file"})
+#: `no_brief`: the prompt is the whole work order (agent-fill): CI downloads no
+#: artifact, the planner's rows carry no `brief`, the engine places none, and
+#: the context pack stays off (nothing to append its pointer to).
+WORKSPACE_OPTIONAL = frozenset({"exceptions", "brief_file", "no_brief"})
 #: `workspace.cwd`: `target` (the item's repository is the checkout — scout)
 #: or `hub` (the hub itself is the checkout whatever the item names — the
 #: doctor, which fixes hub workflows in place and files the rest).
@@ -119,13 +122,18 @@ WORKSPACE_CWDS = frozenset({"target", "hub"})
 #: CI hands the agent step FLEET_TOKEN as FLEET_WRITE_TOKEN in its env, the
 #: resolve-fleet-token probe's winner as its `github_token` input, so the step
 #: carries exactly CREDENTIAL_SITES — never more, never less, so a token
-#: cannot drift in or out of the step unnoticed. The LOCAL engine hands the
-#: agent no credential under any posture: its publish step holds it (§ 13.8).
-GITHUB_CREDENTIALS = frozenset({"none", "fleet-write"})
+#: cannot drift in or out of the step unnoticed. `fleet-read` (P3, evolve):
+#: CI hands the agent step FLEET_TOKEN as GH_TOKEN in its env, for the
+#: read-only gh verbs its allowlist grants on private targets, and nothing
+#: else (no github_token input, so `app-token` stays a declared gap). The
+#: LOCAL engine hands the agent no credential under any posture: its publish
+#: step holds it (§ 13.8).
+GITHUB_CREDENTIALS = frozenset({"none", "fleet-write", "fleet-read"})
 CREDENTIAL_SITES = {
     "none": frozenset(),
     "fleet-write": frozenset({"env FLEET_WRITE_TOKEN", "with.github_token",
                               "earlier step `token` (resolve-fleet-token)"}),
+    "fleet-read": frozenset({"env GH_TOKEN"}),
 }
 #: What claude-code-action does outside the step's `env:`, breaking a
 #: `github_credential: none` contract. Parity reports each one the workflow
@@ -162,7 +170,10 @@ CONTEXT_MAX_CHARS = (2000, 64000)
 #: placed beside the brief, so it may never be a name a brief could take.
 #: Adding a planner to PLANNER_COMMANDS adds its pattern here.
 PLANNER_BRIEFS = {"scout": re.compile(r"scout-workorder-.+\.md", re.I),
-                  "remediate": re.compile(r"doctor-workorder-.+\.md", re.I)}
+                  "remediate": re.compile(r"doctor-workorder-.+\.md", re.I),
+                  "targets": re.compile(r"evolution-workorder-.+\.md", re.I),
+                  # agent-fill emits no brief (workspace.no_brief); the name is reserved all the same
+                  "agent-fill": re.compile(r"agent-fill-workorder-.+\.md", re.I)}
 #: The stems of the files the engine writes in an item's run directory, where
 #: the pack and its `.json` twin are written too — so neither may be one of
 #: them (tools/test_jev_loop.py holds this set to what a live run writes).
@@ -173,8 +184,12 @@ PLANNER_KEYS = frozenset({"argv", "flags"})
 #: engine option → the planner's own flag (`--target NAME` is passed as `--target=NAME`)
 PLANNER_FLAGS = frozenset({"target", "focus", "day", "offline", "no_files"})
 PUBLISH_KEYS = frozenset({"argv", "apply_flag", "risk"})
-#: JEV's rule: a budget-hit attempt is discarded. P3 adds `publish-flagged` (evolve).
-ON_BUDGET_HIT = frozenset({"discard"})
+#: JEV's rule: a budget-hit attempt is discarded. `publish-flagged` (P3, evolve):
+#: a `budget_hit` session's edits are harvested and previewed flagged as PARTIAL,
+#: as CI's publish step marks such a body (never filed without --apply); a
+#: `max_turns` session is still discarded, since CI's salvage step publishes
+#: only a reported success (#238's open question).
+ON_BUDGET_HIT = frozenset({"discard", "publish-flagged"})
 #: The `{token}`s an argv template may carry; the engine fills them, one pass.
 #: `bodies_dir` is the publish phase's own directory (the dry preview's and the
 #: apply's differ, so filing never overwrites the bodies a person reviewed).
@@ -186,13 +201,15 @@ SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
 #: only behind its apply flag, which the engine adds after the § 13.6 gate.
 #: Adding one is a reviewed change here (ai-run, or any writer, is never a planner).
 #: A filer is pinned with its own apply flag: a spec's `apply_flag` must be it.
-PLANNER_COMMANDS = frozenset({"scout", "remediate"})
-PUBLISH_COMMANDS = {"scout-file": "--apply", "doctor-file": "--apply"}
+PLANNER_COMMANDS = frozenset({"scout", "remediate", "targets", "agent-fill"})
+PUBLISH_COMMANDS = {"scout-file": "--apply", "doctor-file": "--apply", "evolve-file": "--apply", "agent-fill-file": "--apply"}
 #: Each filer's flag naming the reviewed preview's bodies directory, which the
 #: engine adds beside the apply flag (a template never carries it): the filer
 #: then files no body that is not byte-identical to a reviewed one, and nothing
 #: when it cannot list the open issues to dedupe against.
-PUBLISH_REVIEWED_FLAGS = {"scout-file": "--reviewed-bodies", "doctor-file": "--reviewed-bodies"}
+PUBLISH_REVIEWED_FLAGS = {"scout-file": "--reviewed-bodies", "doctor-file": "--reviewed-bodies",
+                          "evolve-file": "--reviewed-bodies",
+                          "agent-fill-file": "--reviewed-bodies"}
 #: the write flag no planner may carry, whatever the spec's publish block says
 APPLY_FLAG = "--apply"
 FLAG_RX = re.compile(r"--[a-z][a-z0-9-]*")
@@ -227,6 +244,8 @@ class Workspace:
     exceptions: Mapping[str, str]
     #: the fixed name the prompt reads the brief at, in the clone root (P3); None = `<brief_dir>/<brief>`
     brief_file: str | None = None
+    #: the prompt is the whole work order: no brief in CI or locally (agent-fill)
+    no_brief: bool = False
 
 
 @dataclass(frozen=True)
@@ -504,6 +523,10 @@ def _check_context(raw: object, workspace: Workspace, planner: str, at: str) -> 
     if mode not in ctxmod.MODES or not isinstance(mode, str):
         # a bare `off` is a YAML 1.1 boolean, so the value must be quoted
         raise StepSpecError(f"{at}.mode: the quoted string 'auto', 'off' or 'require', not {mode!r}")
+    if workspace.no_brief and mode != "off":
+        # the pack reaches the agent through a pointer appended to the brief's copy: with no brief, nothing points
+        raise StepSpecError(f"{at}.mode: a workspace with no_brief has nothing to point at the pack from — "
+                            f"mode must be 'off', not {mode!r}")
     file = raw.get("file", "context.md")
     if not ctxmod.is_pack_file(file):
         # written verbatim into the brief's pointer: no space, backtick, line break or invisible character
@@ -704,9 +727,14 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
         if brief_file.lower() in (ws["brief_dir"].lower(), *(o.lower().strip("/") for o in outputs)):
             raise StepSpecError(f"{where}: workspace.brief_file {brief_file!r} collides with the brief directory or "
                                 "a declared output")
+    no_brief = ws.get("no_brief", False)
+    if not isinstance(no_brief, bool):
+        raise StepSpecError(f"{where}: workspace.no_brief is a boolean")
+    if no_brief and brief_file is not None:
+        raise StepSpecError(f"{where}: workspace.no_brief declares no brief, but brief_file names one")
     workspace = Workspace(cwd=ws["cwd"], brief_dir=ws["brief_dir"], outputs=tuple(outputs),
                           github_credential=ws["github_credential"], exceptions=dict(exceptions),
-                          brief_file=brief_file)
+                          brief_file=brief_file, no_brief=no_brief)
 
     if "risk" in data:
         _check_risk(data["risk"], where)
@@ -953,7 +981,9 @@ def parity_errors(spec: StepSpec, workflow: Mapping, fleet: Mapping) -> list[str
                 if str(s.get("uses", "")).startswith(action)]
 
     downloads = artifact_paths("actions/download-artifact")
-    if spec.workspace.brief_file is not None:
+    if spec.workspace.no_brief:
+        pass   # the prompt is the whole work order: CI downloads nothing (agent-fill)
+    elif spec.workspace.brief_file is not None:
         # the brief lands in the checkout root, where the prompt reads it by its fixed name
         if not any(d in ("", ".") for d in downloads):
             errs.append(f"{me}: workspace.brief_file {spec.workspace.brief_file!r} ({spec.path.name}) needs a "
