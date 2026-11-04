@@ -1,11 +1,11 @@
 <!-- kit: governance v0.1.0 -->
 # 0019 — Container images are built once, from pinned bases, and promoted by digest
 
-- **Status:** proposed
+- **Status:** ratified
 - **Number:** 0019
 - **Date:** 2026-11-02
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
-- **Ratified by:** the merged PR URL (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/591 (merged 2026-11-04 by @bamr87)
 - **Affects:** constitution § 2 (new invariant), new § 21 (follows § 20 `editor-front-door`); feature `fleet-container-management` (HUB-NEW, follow-up fragment); requirements: none yet
 - **Supersedes:** none (extends § 13, § 17 and the image standard in `docs/DOCKER.md`)
 - **Related:** bamr87/bamr87#590 (backlog issue), #588, #589, Fleet project #14, `docs/DOCKER.md`, `docs/CONTAINERS.md`, `docs/FLEET-COMPOSE.md`, release-please, Design for Failure (DFF, `.github/copilot-instructions.md`)
