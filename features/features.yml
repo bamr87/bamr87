@@ -660,6 +660,7 @@ features:
     date: 2026-10-30
     tests:
     - tools/console/test_gh_projects.py
+    - tools/test_projects_backfill.py
     prd:
     - FR32
     - FR33
