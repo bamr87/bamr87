@@ -23,6 +23,7 @@ import { Load, PageHeader, StatTile } from '../components/ui';
 import { LogView, useJobTail } from '../jobs/JobLog';
 import { useRunner } from '../jobs/JobRunner';
 import { JobStatus } from '../jobs/JobStatus';
+import { LoopRunSummary } from '../jobs/LoopRunSummary';
 import { duration, includesText, when } from '../lib/format';
 import { to } from '../lib/links';
 import u from '../styles/utils.module.css';
@@ -227,7 +228,7 @@ export function JobPage() {
       <PageHeader
         crumbs={[{ label: 'Jobs', to: to.jobs() }, { label: j?.title ?? id }]}
         title={j?.title ?? 'Job'}
-        badges={j ? <><JobStatus status={j.status} />{j.remote_write ? <Badge color="yellow" variant="light">writes to GitHub</Badge> : null}</> : null}
+        badges={j ? <><JobStatus status={j.status} />{j.remote_write ? <Badge color="yellow" variant="light">{j.confirm === 'spend' ? 'spends Claude budget' : 'writes to GitHub'}</Badge> : null}</> : null}
         actions={j ? (
           <>
             <Anchor component={Link} to={to.op(j.op)} size="sm">About {j.op}</Anchor>
@@ -254,6 +255,7 @@ export function JobPage() {
           </Stack>
         </Paper>
       ) : null}
+      {tail?.loop ? <LoopRunSummary f={tail.loop} done={Boolean(tail.done)} /> : null}
       <LogView raw={raw} height="calc(100vh - 300px)" />
     </>
   );

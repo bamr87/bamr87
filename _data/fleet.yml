@@ -174,6 +174,19 @@ schedule:
 # weekend.
 # --------------------------------------------------------------------------- #
 remediation:
+  # The loop's switch for the LOCAL planner (tools/jev/steps/fleet-pulse/
+  # doctor.yml local.switch.config); CI's kill switch is vars.FLEET_PULSE_ENABLED
+  # on the pulse job, default on — `steps check` holds the two equal.
+  enabled: true
+  # The doctor's model and turn cap, the home the step spec references
+  # (model_from / max_turns_from; ADR 0002 P3). An exact id from
+  # ai_models.allowed (constitution § 13.3): `opus` resolves to this on the
+  # fleet's first-party auth, so the pin is a no-op there and removes the
+  # alias's provider-dependent meaning. fleet-pulse.yml repeats both as
+  # literals in the step's claude_args; `python3 -m tools.jev steps check`
+  # and test_fleet_pulse_doctor.py hold them equal.
+  model: claude-opus-5-5
+  max_turns: 240
   # Bounded by what the doctor agent can actually WORK, not by what looks
   # ambitious: each candidate costs it ~46 observed turns (55 with margin,
   # MIN_TURNS_PER_CANDIDATE) out of a 240-turn budget (`--max-turns` in
@@ -587,8 +600,14 @@ budget:
   # attempt: about 27 typical runs, or 3 at the full cap, before the manual
   # ceiling binds. Changing it is a gated change (constitution § 12.3).
   loops:
-    monthly_usd: 25            # every local loop attempt, all steps together
-    scheduled_stop_pct: 80     # a --scheduled run stops at $20, leaving the rest for a manual run
+    # Every local loop attempt, all steps together. An attempt runs only when
+    # the month's spend plus the step's FULL call-site cap fits under this, so
+    # the ceiling must cover the largest local step's cap: the doctor's $40
+    # (fleet-pulse.yml:doctor, ADR 0002 P3) raised it from the $25 the scout
+    # pilot was set at on 2026-10-31 — a maintainer decision, reviewed in that
+    # PR; test_ai_budget.py pairs the two.
+    monthly_usd: 50
+    scheduled_stop_pct: 80     # a --scheduled run stops at $40, leaving the rest for a manual run
 
 # --------------------------------------------------------------------------- #
 # JEV — the harness-level agent logic engine (docs/JEV.md).

@@ -1,0 +1,17 @@
+# A loop's agent step on the published site: the step is shown, the run stays on a console.
+id: loop-run
+feature: HUB-NEW:console-loop-run-op
+title: "A loop page shows its agent step and offers Run locally only on a console"
+description: "/loops/repo_scout on the public build lists the agent step the JEV loop runner can run (model, turn cap, dollar cap labelled as an estimate, the kill switch) with 'Runs on a console' in place of a run button; the Dispatch in CI control is still there and the page does not scroll sideways. On a running console the same page shows Run locally (dry run) beside Dispatch in CI — recorded by hand in the evidence README."
+viewports: [desktop, mobile]
+ignore_console: ["Failed to load resource", "net::ERR_"]
+steps:
+  - goto: /loops/repo_scout
+  - expect: { status: 200 }
+  - wait: { selector: "[data-testid='agent-step']" }
+  - expect: { text: "repo-scout/scout" }
+  - expect: { text: "API-equivalent (estimate)" }
+  - expect: { text: "Dispatch in CI" }
+  - expect: { count: { selector: "[data-testid='run-locally']", max: 0 } }
+  - expect: { no_horizontal_scroll: true }
+  - screenshot: loop-page

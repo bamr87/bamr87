@@ -174,6 +174,20 @@ tools/dash remediate --no-dedupe            # skip the open-issue/PR check (offl
 #   inputs: days, max_candidates, dry_run (data only, no fixer), skip_publish
 ```
 
+## Run it locally
+
+The doctor's agent step runs on a workstation through the JEV loop runner ([JEV.md](JEV.md#the-loop-runner-p1); epic [#484](https://github.com/bamr87/bamr87/issues/484), [#488](https://github.com/bamr87/bamr87/issues/488)) from the same spec CI's prompt is held to — [`tools/jev/steps/fleet-pulse/doctor.yml`](../tools/jev/steps/fleet-pulse/doctor.yml) + `doctor.prompt.txt`; `python3 -m tools.jev steps check` keeps the workflow's inline prompt, caps and allowlist equal to it. Three things differ from CI, by design: the queue is worked **one candidate per attempt** (`dash-gen remediate --plan-dir` splits it and writes one work order per candidate), the attempt's shell has **no network and no credential** (the planner fetches what Step 2 of the prompt would read with `gh` — the filtered `--log-failed` log, the workflow definition, a slow run's step timings — into each work order under an *Evidence* heading, and the agent reads it there), and the agent **files nothing**: its edits to the hub clone come out as a patch, the `gh pr create` or `gh issue create` it asked for (refused by the permission layer) comes out as the title and body, MARKER line first, and `dash-gen doctor-file` writes the dry-run preview for review. A submodule candidate cannot be cloned offline, so the agent falls back to Step 3c and the preview is the hub issue it asked for.
+
+```bash
+tools/dash loop doctor fleet-pulse                       # $0 host checks for this step (and the one-time canary with --live)
+tools/dash loop plan fleet-pulse                         # today's queue as items: key, where, signals, evidence status, prompt sha
+tools/dash loop run fleet-pulse --rehearse               # every item up to the model call, $0 (--context off = the CI-identical run)
+tools/dash loop run fleet-pulse --target bamr87/law-ai:.github/workflows/ci.yml   # one capped attempt ($40, the call-site cap): patch + filing previewed
+tools/dash loop show --latest                            # items/<dir>/outputs/changes.patch, doctor.validated.json, bodies/, publish-plan.md
+```
+
+`--apply` is **refused by the filer in this release**, naming #488: the publish step (a `fix/fleet-doctor-*` branch pushed with `FLEET_TOKEN` probed by `gh api user` and a draft PR, or the hub issue, each carrying the MARKER line tomorrow's CI run dedupes on) lands with that issue's next pull request. Until then the preview is the deliverable, and nothing a local run does reaches GitHub. One `$40` attempt needs `budget.loops` to afford it, which is why the ceiling is $50 (`_data/fleet.yml`). The CI behaviour is unchanged: the same prompt bytes, `--model claude-opus-5-5` (the exact id `opus` resolved to), the same turn and dollar caps, the same allowlist.
+
 ## Tokens & secrets
 
 Declared centrally in [`_data/fleet.yml`](../_data/fleet.yml); audit what is actually set with `tools/dash secrets`.

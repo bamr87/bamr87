@@ -30,6 +30,13 @@ Description: JEV capability two — loop STEP SPECS. One file pair per agent ste
              planner and publish argv templates, the budget-hit rule and the
              host-built context pack (`local.context`). CI and every P0
              consumer ignore it.
+             P3 (#488, the fleet doctor) added, each optional and v1-keeping:
+             an empty `inputs` (a prompt with no caller-filled part),
+             `workspace.cwd: hub`, `workspace.brief_file` (the brief at a
+             fixed name in the clone root), the `fleet-write` credential
+             posture (CI's token routes, held exact by parity; the local
+             engine still hands the agent none) and `local.harvest: patch`
+             (the agent's edits are the output).
 Author: bamr87
 Created: 2026-10-30
 Version: 0.1.0
@@ -51,7 +58,7 @@ from typing import TypeGuard
 
 import yaml
 
-from .common import FLEET_YML, HUB, JevError, is_clone_relpath, is_nwo
+from .common import FLEET_YML, HUB, JevError, is_bare_name, is_clone_relpath, is_nwo
 
 SPEC_ROOT = HUB / "tools" / "jev" / "steps"
 WORKFLOWS_DIR = HUB / ".github" / "workflows"
@@ -98,10 +105,28 @@ REQUIRED_KEYS = frozenset({"schema", "loop", "step", "call_site", "step_id", "pr
                            "workspace"})
 OPTIONAL_KEYS = frozenset({"risk", "evals", "local"})
 WORKSPACE_KEYS = frozenset({"cwd", "brief_dir", "outputs", "github_credential"})
-WORKSPACE_OPTIONAL = frozenset({"exceptions"})
-#: v1 knows one credential posture; a step that holds a token (P3: doctor,
-#: issue-pipeline) extends this set in its own PR, with the parity it needs.
-GITHUB_CREDENTIALS = frozenset({"none"})
+#: `exceptions`: the ACTION_GAPS CI leaves open. `brief_file` (P3): a step whose
+#: prompt reads its brief at a FIXED name in the clone root (the doctor's
+#: `remediation-workorder.md`) names it here; the engine places the brief
+#: there, and `brief_dir` stays the engine's own directory (TMPDIR, the pack).
+WORKSPACE_OPTIONAL = frozenset({"exceptions", "brief_file"})
+#: `workspace.cwd`: `target` (the item's repository is the checkout — scout)
+#: or `hub` (the hub itself is the checkout whatever the item names — the
+#: doctor, which fixes hub workflows in place and files the rest).
+WORKSPACE_CWDS = frozenset({"target", "hub"})
+#: The credential postures. `none`: no GitHub credential reaches the agent
+#: step (parity refuses one by any route). `fleet-write` (P3, the doctor):
+#: CI hands the agent step FLEET_TOKEN as FLEET_WRITE_TOKEN in its env, the
+#: resolve-fleet-token probe's winner as its `github_token` input, so the step
+#: carries exactly CREDENTIAL_SITES — never more, never less, so a token
+#: cannot drift in or out of the step unnoticed. The LOCAL engine hands the
+#: agent no credential under any posture: its publish step holds it (§ 13.8).
+GITHUB_CREDENTIALS = frozenset({"none", "fleet-write"})
+CREDENTIAL_SITES = {
+    "none": frozenset(),
+    "fleet-write": frozenset({"env FLEET_WRITE_TOKEN", "with.github_token",
+                              "earlier step `token` (resolve-fleet-token)"}),
+}
 #: What claude-code-action does outside the step's `env:`, breaking a
 #: `github_credential: none` contract. Parity reports each one the workflow
 #: leaves open; a spec may declare one as a known exception
@@ -119,7 +144,15 @@ RISK_KEYS = frozenset({"what", "tags", "tier"})
 FORBIDDEN_TEMPLATE_CHARS = {"\r": "CR", "\t": "tab", "\x00": "NUL", "﻿": "BOM"}
 # `local:` (P1). Every sub-key has a consumer in tools/jev/loop.py; P3 adds more
 # (tiers, workspace kinds, rounds) as optional sub-keys, which keeps v1.
-LOCAL_KEYS = frozenset({"adapter", "switch", "planner", "publish", "on_budget_hit", "context"})
+LOCAL_KEYS = frozenset({"adapter", "switch", "planner", "publish", "on_budget_hit", "context", "harvest"})
+#: `local.harvest`: `outputs` (the declared workspace.outputs are copied out and
+#: tracked edits are discarded, as CI's "tree untouched" check does — scout) or
+#: `patch` (P3, the doctor: the agent's edits to tracked files and its new files
+#: ARE the output; the engine diffs the clone against the fresh HEAD with its
+#: own git and hands the adapter `changes.patch`, and the clone may carry the
+#: agent's own branch and commits). Never both: a patch step declares no outputs.
+HARVEST_MODES = frozenset({"outputs", "patch"})
+PATCH_OUTPUT = "changes.patch"
 LOCAL_REQUIRED = frozenset({"adapter", "planner"})
 #: `local.context`: how the engine builds the context pack (tools/jev/context.py)
 #: for this step. Every key is optional; an absent block is all the defaults.
@@ -128,7 +161,8 @@ CONTEXT_MAX_CHARS = (2000, 64000)
 #: Each planner's brief file name (the plan row's `brief`): the pack's file is
 #: placed beside the brief, so it may never be a name a brief could take.
 #: Adding a planner to PLANNER_COMMANDS adds its pattern here.
-PLANNER_BRIEFS = {"scout": re.compile(r"scout-workorder-.+\.md", re.I)}
+PLANNER_BRIEFS = {"scout": re.compile(r"scout-workorder-.+\.md", re.I),
+                  "remediate": re.compile(r"doctor-workorder-.+\.md", re.I)}
 #: The stems of the files the engine writes in an item's run directory, where
 #: the pack and its `.json` twin are written too — so neither may be one of
 #: them (tools/test_jev_loop.py holds this set to what a live run writes).
@@ -152,13 +186,13 @@ SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
 #: only behind its apply flag, which the engine adds after the § 13.6 gate.
 #: Adding one is a reviewed change here (ai-run, or any writer, is never a planner).
 #: A filer is pinned with its own apply flag: a spec's `apply_flag` must be it.
-PLANNER_COMMANDS = frozenset({"scout"})
-PUBLISH_COMMANDS = {"scout-file": "--apply"}
+PLANNER_COMMANDS = frozenset({"scout", "remediate"})
+PUBLISH_COMMANDS = {"scout-file": "--apply", "doctor-file": "--apply"}
 #: Each filer's flag naming the reviewed preview's bodies directory, which the
 #: engine adds beside the apply flag (a template never carries it): the filer
 #: then files no body that is not byte-identical to a reviewed one, and nothing
 #: when it cannot list the open issues to dedupe against.
-PUBLISH_REVIEWED_FLAGS = {"scout-file": "--reviewed-bodies"}
+PUBLISH_REVIEWED_FLAGS = {"scout-file": "--reviewed-bodies", "doctor-file": "--reviewed-bodies"}
 #: the write flag no planner may carry, whatever the spec's publish block says
 APPLY_FLAG = "--apply"
 FLAG_RX = re.compile(r"--[a-z][a-z0-9-]*")
@@ -191,6 +225,8 @@ class Workspace:
     github_credential: str
     #: ACTION_GAPS key → why it is still open; empty when the workflow closes them all.
     exceptions: Mapping[str, str]
+    #: the fixed name the prompt reads the brief at, in the clone root (P3); None = `<brief_dir>/<brief>`
+    brief_file: str | None = None
 
 
 @dataclass(frozen=True)
@@ -241,6 +277,8 @@ class LocalSpec:
     on_budget_hit: str = "discard"
     #: always set by the loader (an absent `local.context` is all the defaults)
     context: ContextSpec | None = None
+    #: HARVEST_MODES; `patch` only for a step with no declared outputs
+    harvest: str = "outputs"
 
 
 @dataclass(frozen=True)
@@ -574,9 +612,15 @@ def _check_local(raw: object, risk: Mapping | None, fleet: Mapping, where: str, 
     on_hit = raw.get("on_budget_hit", "discard")
     if on_hit not in ON_BUDGET_HIT:
         raise StepSpecError(f"{at}.on_budget_hit: one of {sorted(ON_BUDGET_HIT)}, not {on_hit!r}")
+    harvest = raw.get("harvest", "outputs")
+    if harvest not in HARVEST_MODES:
+        raise StepSpecError(f"{at}.harvest: one of {sorted(HARVEST_MODES)}, not {harvest!r}")
+    if harvest == "patch" and workspace.outputs:
+        raise StepSpecError(f"{at}.harvest: patch harvests the agent's edits — a patch step declares no "
+                            f"workspace.outputs ({list(workspace.outputs)})")
     context = _check_context(raw.get("context", {}), workspace, planner.argv[0], f"{at}.context")
     return LocalSpec(adapter=raw["adapter"], planner=planner, switch=switch, publish=publish,
-                     on_budget_hit=on_hit, context=context)
+                     on_budget_hit=on_hit, context=context, harvest=harvest)
 
 
 def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | None = None) -> StepSpec:
@@ -622,10 +666,13 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
         raise StepSpecError(f"{where}: allowed_tools entries cannot contain ',' or '\"': {bad}")
 
     inputs = data["inputs"]
-    if (not isinstance(inputs, dict) or not inputs
+    # An empty mapping is a prompt with no caller-filled part (P3, the doctor):
+    # it renders to its own bytes. `null` or a non-mapping is still refused.
+    if (not isinstance(inputs, dict)
             or not all(isinstance(k, str) and TOKEN_RX.fullmatch("{{%s}}" % k) for k in inputs)
             or not all(isinstance(v, str) and ROW_KEY_RX.fullmatch(v) for v in inputs.values())):
-        raise StepSpecError(f"{where}: inputs maps UPPER_SNAKE token → caller row key")
+        raise StepSpecError(f"{where}: inputs maps UPPER_SNAKE token → caller row key (an empty mapping for a "
+                            "prompt with no token)")
 
     ws = data["workspace"]
     if (not isinstance(ws, dict) or not WORKSPACE_KEYS <= set(ws)
@@ -639,14 +686,27 @@ def load_spec(loop: str, step: str, *, root: Path = SPEC_ROOT, fleet: Mapping | 
     if not is_clone_relpath(ws["brief_dir"]):
         raise StepSpecError(f"{where}: workspace.brief_dir {ws['brief_dir']!r} is a relative path inside the clone "
                             "(no '..', '.' or '.git' part)")
+    if ws["cwd"] not in WORKSPACE_CWDS:
+        raise StepSpecError(f"{where}: workspace.cwd must be one of {sorted(WORKSPACE_CWDS)}, not {ws['cwd']!r}")
     if ws["github_credential"] not in GITHUB_CREDENTIALS:
         raise StepSpecError(f"{where}: workspace.github_credential must be one of {sorted(GITHUB_CREDENTIALS)}")
     exceptions = ws.get("exceptions", {})
     if (not isinstance(exceptions, dict) or not set(exceptions) <= set(ACTION_GAPS)
             or not all(isinstance(v, str) and v.strip() for v in exceptions.values())):
         raise StepSpecError(f"{where}: workspace.exceptions maps a known gap {sorted(ACTION_GAPS)} → why it is open")
+    brief_file = ws.get("brief_file")
+    if brief_file is not None:
+        # the prompt's fixed name for the brief, in the clone root: a bare name (the engine places it there
+        # and git-excludes it), never the brief directory's own name, never a declared output
+        if not is_bare_name(brief_file) or brief_file.startswith("."):
+            raise StepSpecError(f"{where}: workspace.brief_file {brief_file!r} is a bare, visible file name in the "
+                                "clone root")
+        if brief_file.lower() in (ws["brief_dir"].lower(), *(o.lower().strip("/") for o in outputs)):
+            raise StepSpecError(f"{where}: workspace.brief_file {brief_file!r} collides with the brief directory or "
+                                "a declared output")
     workspace = Workspace(cwd=ws["cwd"], brief_dir=ws["brief_dir"], outputs=tuple(outputs),
-                          github_credential=ws["github_credential"], exceptions=dict(exceptions))
+                          github_credential=ws["github_credential"], exceptions=dict(exceptions),
+                          brief_file=brief_file)
 
     if "risk" in data:
         _check_risk(data["risk"], where)
@@ -893,29 +953,47 @@ def parity_errors(spec: StepSpec, workflow: Mapping, fleet: Mapping) -> list[str
                 if str(s.get("uses", "")).startswith(action)]
 
     downloads = artifact_paths("actions/download-artifact")
-    if spec.workspace.brief_dir.rstrip("/") not in downloads:
+    if spec.workspace.brief_file is not None:
+        # the brief lands in the checkout root, where the prompt reads it by its fixed name
+        if not any(d in ("", ".") for d in downloads):
+            errs.append(f"{me}: workspace.brief_file {spec.workspace.brief_file!r} ({spec.path.name}) needs a "
+                        f"download-artifact step with no `path` (the checkout root) in {wf} job `{spec.job}` "
+                        f"{downloads}")
+    elif spec.workspace.brief_dir.rstrip("/") not in downloads:
         errs.append(f"{me}: workspace.brief_dir {spec.workspace.brief_dir!r} ({spec.path.name}) is not a "
                     f"download-artifact path in {wf} job `{spec.job}` {downloads}")
+    if spec.workspace.cwd == "hub":
+        # the checkout IS the hub: the job's first checkout names no other repository
+        checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout")]
+        first = (checkouts[0].get("with") or {}).get("repository") if checkouts else None
+        if not checkouts or (first and first != "bamr87/bamr87"):
+            errs.append(f"{me}: workspace.cwd is hub ({spec.path.name}) but {wf} job `{spec.job}` does not check "
+                        f"out the hub first (found repository {first!r})")
     uploads = artifact_paths("actions/upload-artifact")
     for out in spec.workspace.outputs:
         if out not in uploads:
             errs.append(f"{me}: workspace.outputs {out!r} ({spec.path.name}) is not an upload-artifact "
                         f"path in {wf} job `{spec.job}` {uploads}")
-    if spec.workspace.github_credential == "none":
-        held = agent_credentials(workflow, job, step)
+    posture = spec.workspace.github_credential
+    held = agent_credentials(workflow, job, step)
+    if posture == "none":
         if held:
             errs.append(f"{me}: workspace.github_credential is none ({spec.path.name}) but the agent step in "
                         f"{wf} inherits or carries a GitHub credential: {held}")
-        gaps = action_gaps(workflow, job, step)
-        for gap in gaps:
-            if gap not in spec.workspace.exceptions:
-                errs.append(f"{me}: workspace.github_credential is none ({spec.path.name}) but {ACTION_GAPS[gap]} "
-                            f"({wf} step `{spec.step_id}`) — close it in the workflow, or declare "
-                            f"workspace.exceptions.{gap} with the reason")
-        for gap in spec.workspace.exceptions:
-            if gap not in gaps:
-                errs.append(f"{me}: workspace.exceptions.{gap} ({spec.path.name}) is stale — {wf} step "
-                            f"`{spec.step_id}` closes it; remove the exception")
+    elif set(held) != CREDENTIAL_SITES[posture]:
+        # a declared posture is exact: a route that appears or disappears is a drift, not a detail
+        errs.append(f"{me}: workspace.github_credential is {posture} ({spec.path.name}), whose credential routes "
+                    f"are exactly {sorted(CREDENTIAL_SITES[posture])}; the agent step in {wf} carries {sorted(held)}")
+    gaps = action_gaps(workflow, job, step)
+    for gap in gaps:
+        if gap not in spec.workspace.exceptions:
+            errs.append(f"{me}: {ACTION_GAPS[gap]} ({wf} step `{spec.step_id}`; workspace.github_credential "
+                        f"{posture}, {spec.path.name}) — close it in the workflow, or declare "
+                        f"workspace.exceptions.{gap} with the reason")
+    for gap in spec.workspace.exceptions:
+        if gap not in gaps:
+            errs.append(f"{me}: workspace.exceptions.{gap} ({spec.path.name}) is stale — {wf} step "
+                        f"`{spec.step_id}` closes it; remove the exception")
     pinned = (step.get("env") or {}).get(STEP_SHA_ENV)
     if pinned != spec.content_sha256:
         errs.append(f"{me}: {wf} step `{spec.step_id}` env {STEP_SHA_ENV} {pinned!r} != {spec.content_sha256} "
