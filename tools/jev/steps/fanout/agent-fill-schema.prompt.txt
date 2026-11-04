@@ -1,0 +1,16 @@
+This repository just adopted the Pyramid Schema: every directory
+carries a SCHEMA.md contract (scaffolded, purposes still TODO).
+
+Your task, and nothing else:
+1. Replace every TODO purpose in every SCHEMA.md with a real
+   one-line purpose derived from the directory's actual contents.
+2. Where a directory holds a homogeneous collection with a naming
+   rule (dated posts, ADRs, migrations, components), replace the
+   per-file rows with a single `pattern` row.
+3. Mark build-output directories `generated` and vendored trees
+   `terminal`, and delete any scaffolded SCHEMA.md files inside
+   them.
+4. Fill the Placement route for the two or three most common kinds
+   of additions to this repo.
+Keep `python3 tools/schema_lint.py check .` passing with zero
+errors. Do not modify any file other than SCHEMA.md files.

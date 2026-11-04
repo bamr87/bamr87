@@ -1,0 +1,13 @@
+This repository's CLAUDE.md is an unfilled agent-context scaffold
+(TODO placeholders for the description and the stack/commands).
+
+Your task, and nothing else:
+1. Replace the description TODO with one accurate paragraph — what
+   this project is and who it serves — derived from the repo's
+   README, manifests (package.json / requirements / gemspec /
+   Makefile), and code layout. Never invent facts.
+2. Fill the "Stack & commands" block with the real install / dev /
+   test / lint commands verified against those manifests; delete
+   rows that don't apply.
+3. Keep the Conventions and Fleet context sections as they are.
+Do not modify any file other than CLAUDE.md.

@@ -160,10 +160,11 @@ ACTION_SITES: set[str] = set()   # the claude-code-action sites, filled by call_
 def declared_max_turns(args: str, fleet: dict) -> int | None:
     """The step's turn cap, resolving the one site that reads it from fleet.yml.
 
-    repo-evolution passes `--max-turns ${{ needs.plan.outputs.max_turns }}`,
-    which the plan job reads from `evolution.max_turns` — so the arithmetic
-    below still has a real number to work with. A site with no turn cap at all
-    (the @claude mention handler) returns None and is skipped.
+    Every spec'd step carries its turn cap as a literal held to fleet.yml by
+    `tools.jev steps check` (repo-evolution's `${{ needs.plan.outputs.max_turns }}`
+    became `--max-turns 120` in ADR 0002 P3); the expression form is still read
+    through `evolution.max_turns` for any caller that keeps it. A site with no
+    turn cap at all (the @claude mention handler) returns None and is skipped.
     """
     m = re.search(r"--max-turns\s+(\d+)", args)
     if m:

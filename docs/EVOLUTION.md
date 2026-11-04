@@ -56,7 +56,7 @@ The plan job also **probes** `FLEET_TOKEN` with `gh api user` (a present-but-exp
 
 ### 2. Evolve — one job per repo
 
-Each matrix job checks the target repository out at its declared branch, downloads its brief into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus Claude Code agent with a prompt whose hard rules are fixed in the workflow:
+Each matrix job checks the target repository out at its declared branch, downloads its brief into `.evolution/` (excluded from git, so it can never be committed there), and runs one Opus Claude Code agent (`--model claude-opus-5-5`, the exact id `opus` resolved to; `--max-turns 120`, the literal of `evolution.max_turns`) with a prompt whose hard rules are the JEV step spec [`tools/jev/steps/repo-evolution/evolve.prompt.txt`](../tools/jev/steps/repo-evolution/evolve.prompt.txt) — the workflow carries it inline with the matrix expressions in its token places, byte-equal, held by `python3 -m tools.jev steps check` (ADR 0002 P3):
 
 - the brief's **Conformance gaps** section (from `_data/conformance.yml`, written by `dash spec fleet --write`) is the agent's adoption lane: failing Universal Project Standard rows, MUST first, each pointing at its spec file and a reference implementation in `_data/references.yml`;
 - the agent reads the brief, then orients README-First (`README.md`, `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `SCHEMA.md` — house rules there override the prompt);
@@ -127,7 +127,7 @@ Or from the Actions tab: **🌿 Repo Evolution** → *Run workflow*.
 
 ## Configuration
 
-All in [`_data/fleet.yml`](../_data/fleet.yml), read by the planner and wired into the workflow through the plan job's outputs so each number is stated once (`test_evolution.py` asserts the wiring):
+All in [`_data/fleet.yml`](../_data/fleet.yml), read by the planner; the model and the turn cap are also literals in the workflow's `claude_args`, which the step spec references and `python3 -m tools.jev steps check` holds equal (`test_evolution.py` asserts the same):
 
 | Key | Default | What it bounds |
 | --- | --- | --- |
@@ -137,8 +137,23 @@ All in [`_data/fleet.yml`](../_data/fleet.yml), read by the planner and wired in
 | `evolution.branch_prefix` / `marker` / `label` | `ai-evolution` / `repo-evolution` / `ai-evolution` | how a pass is recognised and labelled |
 | `evolution.max_targets` | `6` | repos per run |
 | `evolution.max_parallel` | `2` | concurrent agents (the Claude loops share one OAuth account) |
+| `evolution.model` | `claude-opus-5-5` | the agent's model, an exact id from `ai_models.allowed` (the spec's `model_from`; the workflow's `--model` literal) |
 | `evolution.max_turns` | `120` | per repo — orient, read, edit, verify, report (60 cut off 2 of 3 targets in run 33376132003; the job's `timeout-minutes: 45` is the real ceiling) |
 | `evolution.signals.max_issues` / `max_prs` | `8` / `5` | how much of the triage snapshot a brief quotes |
+
+## Run it locally
+
+The evolve step runs on a workstation through the JEV loop runner ([JEV.md](JEV.md#the-loop-runner-p1); epic [#484](https://github.com/bamr87/bamr87/issues/484), [#488](https://github.com/bamr87/bamr87/issues/488)) from the same spec CI's prompt is held to — [`tools/jev/steps/repo-evolution/evolve.yml`](../tools/jev/steps/repo-evolution/evolve.yml) + `evolve.prompt.txt`; `python3 -m tools.jev steps check` keeps the workflow's inline prompt, caps and allowlist equal to it. The planner is CI's own (`dash-gen targets`: the opted-in submodules, one open pass per repo, the cap, one brief per target, every plan row carrying the spec's rendered prompt), the attempt's shell has **no network and no credential** (the brief already lists the issues and PRs the prompt would read with `gh`), and the agent's edits come out as a patch the engine harvests from the target clone, paired with its final message as the draft PR body — the marker line first, CI's footer, CI's lockfile drop, CI's PARTIAL warning on a budget hit, the `ai-evolution/<date>-<run>` branch and the publish remote derived from the repository's `nwo` (#220). An empty pass is a valid result that files nothing, as in CI.
+
+```bash
+tools/dash loop doctor repo-evolution                    # $0 host checks for this step (and the one-time canary with --live)
+tools/dash loop plan repo-evolution                      # today's targets as items: the open-pass dedupe, the cap, prompt sha
+tools/dash loop run repo-evolution --rehearse            # every item up to the model call, $0 (--context off = the CI-identical run)
+tools/dash loop run repo-evolution --target README       # one capped attempt ($20, the call-site cap): patch + draft PR body previewed
+tools/dash loop show --latest                            # items/<dir>/outputs/changes.patch, evolve.validated.json, bodies/, publish-plan.md
+```
+
+`--apply` is **refused by the filer in this release**, naming #488: the publish step (the `ai-evolution/*` branch pushed to the target with `FLEET_TOKEN` probed by `gh api user`, and a draft PR carrying the marker line the next run dedupes on) lands with that issue's next pull request, after the write path #487 settles. Until then the preview is the deliverable, and nothing a local run does reaches GitHub. A pass stopped at its `$20` cap is previewed flagged PARTIAL (`local.on_budget_hit: publish-flagged`, the body CI's publish step would write) rather than discarded; a genuine turn exhaustion is discarded, as CI's salvage step publishes only a reported success ([#238](https://github.com/bamr87/bamr87/issues/238)). The CI behaviour is unchanged: the same prompt bytes, the same model and turn literals, the same dollar cap, the same allowlist.
 
 ## Tokens
 

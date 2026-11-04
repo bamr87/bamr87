@@ -1752,18 +1752,28 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
                "CLAUDE_CODE_OAUTH_TOKEN (docs/TOKEN-ROTATION.md)")
         ctx.stop = (EXIT["credential"], why)
         return done("failed", why, EXIT["credential"])
+    flagged = False
     if kind in ("budget_hit", "max_turns"):
         # local.on_budget_hit: discard (JEV's rule) — CI's file job would file what the leg left behind.
-        # Any other value (P3) has no behaviour here yet: fail closed rather than discard it silently.
-        if spec.local.on_budget_hit != "discard":
+        # publish-flagged (P3, evolve): a budget hit's edits are harvested and previewed FLAGGED as partial,
+        # as CI's publish step marks such a body; a turn exhaustion is still discarded (CI's salvage
+        # publishes only a reported success, which classifies as ok here). Any other value has no
+        # behaviour here: fail closed rather than discard it silently.
+        if spec.local.on_budget_hit == "publish-flagged" and kind == "budget_hit":
+            flagged = True
+            report.setdefault("flags", []).append(
+                f"budget hit ({detail}): the pass was stopped MID-TASK — the preview is flagged PARTIAL "
+                "(on_budget_hit publish-flagged); nothing is filed without --apply")
+        elif spec.local.on_budget_hit not in ("discard", "publish-flagged"):
             return done("failed", f"{kind}: on_budget_hit {spec.local.on_budget_hit!r} has no engine behaviour — "
                                   "the output is left unread")
-        return done("discarded", f"{kind}: {detail} — the partial output is discarded (on_budget_hit "
-                                 f"{spec.local.on_budget_hit}); a rerun costs about one attempt")
+        else:
+            return done("discarded", f"{kind}: {detail} — the partial output is discarded (on_budget_hit "
+                                     f"{spec.local.on_budget_hit}); a rerun costs about one attempt")
     if kind == "interrupted":
         ctx.stop = (EXIT["interrupted"], f"interrupted: {detail}")
         return done("failed", f"interrupted: {detail}", EXIT["interrupted"])
-    if kind != "ok":
+    if kind != "ok" and not flagged:
         return done("failed", f"{kind}: {detail}")
 
     tree = wsp.tree_report(ws)
@@ -2734,10 +2744,11 @@ def cmd_list(args: argparse.Namespace) -> int:
         print(json.dumps(rows, indent=2, sort_keys=True))
         return 0
     for r in rows:
-        sw = r["switch"] or {}
+        sw = r["switch"]
+        gate = (f"{sw['config']}={sw['config_value']} · vars.{sw['variable']} default {sw['default']}" if sw
+                else "no switch (dispatch-only: a manual run; --scheduled is refused)")
         print(f"{r['step']}  adapter {r['adapter']} · {r['model']} · {r['max_turns']} turns · "
-              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {sw.get('config')}={sw.get('config_value')} · "
-              f"vars.{sw.get('variable')} default {sw.get('default')} · publish tier {r['publish_tier']}")
+              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {gate} · publish tier {r['publish_tier']}")
     if not rows:
         print("no step spec has a local: block yet")
     return 0
