@@ -81,6 +81,17 @@ Some issues get `human-review` behaviour without the label — `assisted` autono
 
 Labels say *where* an issue is; they cannot say *which comes first*, and the pipeline computes priority rather than reading a `priority:` label (T1 writes that label from its own score). [`_data/work_queue.yml`](../_data/work_queue.yml) is where a person overrules both. A key in its `order:` list goes ahead of every unpinned issue in its tier, in that order (still within the per-repo and cross-repo sub-caps). A `priority:` entry replaces the computed priority, which T1's work order then applies as the label. The [Work board](WORK-BOARD.md) (`/work`) writes the file by drag and drop and shows the next run's cut line before you commit. The snapshot carries every open issue under `backlog:` and every pipeline PR under `pipeline_prs:`, so the board can show what waits behind the capped queues.
 
+### Prerequisites before dependents
+
+An issue names its prerequisites in its body: `Blocked by #12`, `Depends on bamr87/other#3, #4 and #5` (case-insensitive; a bare `#n` is the same repo; refs inside fenced code are ignored). GitHub's native blocked-by links are added when the issue's list payload counts some (`issue_dependencies_summary`), one request each; a 404 or 403 leaves the body refs alone. After every repo is swept, `resolve_dependencies` gives each issue `blocked_by` (every ref), `open_blockers` (those still open), `open_dependents`, `dep_boost` and `deps_reason`:
+
+- **An open blocker keeps the issue off the T2 queue.** It stays `agent:ready`, and the backlog and the [Work board](WORK-BOARD.md) show `deps_reason` (`blocked by bamr87/x#12`). Intake is not held back: enriching a blocked issue is still useful. Closing the blocker releases it on the next run.
+- **A prerequisite goes first within its priority band.** The sort is `rank`, priority, `dep_boost` (open dependents, capped by `dependencies.boost_cap`), readiness, age. The boost never crosses a band: a P2 that unblocks three issues still waits behind a P1, because priority is the statement of urgency and the boost only orders work inside it. A pinned `rank` beats both.
+- **Cycles are reported, not looped on.** A walk that visits each issue once finds them; every member gets `deps_reason: dependency cycle: A → B → A` and none reaches T2 until a human breaks the cycle. The run log and the snapshot's `dependencies.cycles` list them.
+- **State costs almost nothing.** A ref in the sweep is open; a ref to a swept repo that is not in the sweep is closed. Only refs to repos outside the sweep cost a request, and they share `dependencies.max_lookups` with the native fetches. A ref that cannot be resolved never blocks; it is listed under `dependencies.unresolved`.
+
+Sub-issue links are not read as blockers: a parent epic is not blocked by its children. Order an epic's phases with `Blocked by` on each sub-issue.
+
 ## What is deterministic vs what the AI decides
 
 Everything selective happens in Python, before any model runs:
@@ -118,6 +129,8 @@ From [`_data/fleet.yml`](../_data/fleet.yml):
 | `evidence.max_runs` | 6 | sandboxes built per run — the expensive half |
 | `evidence.ttl_days` | 7 | a newer bundle is reused, not rebuilt |
 | `evidence.timeout_minutes` | 8 | per **phase**; the step's own timeout is the hard ceiling |
+| `dependencies.boost_cap` | 3 | most open dependents that still raise a prerequisite |
+| `dependencies.max_lookups` | 20 | REST calls per run for native links and refs outside the sweep |
 
 ## Latency, stated plainly
 

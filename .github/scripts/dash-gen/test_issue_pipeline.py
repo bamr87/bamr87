@@ -341,6 +341,142 @@ def test_queues():
           f"{q['intake']} {q['implement']}")
 
 
+def dep_issue(nwo, number, **kw):
+    """An issue fixture keyed like collect_repo keys it (owner/repo#n)."""
+    i = issue(number, **kw)
+    i["key"] = ip.issue_key(nwo, number)
+    i["blocked_by"] = ip.parse_dependency_refs(i["_body"], nwo)
+    return i
+
+
+def test_dependencies():
+    print("\ndependencies — prerequisites before dependents")
+    # (f) parsing
+    body = ("Blocked by #12\nDEPENDS ON bamr87/other#3, #4 and bamr87/x#5\n"
+            "depends on: #12\n\n```\nBlocked by #99\n```\n~~~\ndepends on #98\n~~~\n"
+            "Mentions #77 without a phrase.")
+    refs = ip.parse_dependency_refs(body, "bamr87/x")
+    check("(f) Blocked by / Depends on accept #n and owner/repo#n, any case; dupes dropped",
+          refs == ["bamr87/x#12", "bamr87/other#3", "bamr87/x#4", "bamr87/x#5"], str(refs))
+    check("(f) refs inside code fences are ignored",
+          "bamr87/x#99" not in refs and "bamr87/x#98" not in refs, str(refs))
+    check("(f) a bare mention is not a dependency", "bamr87/x#77" not in refs)
+
+    cfg = ip.deep_merge(CFG, {"tiers": {"implement": {"max_issues": 5, "max_cross_repo": 5}}})
+
+    # (a) open blocker keeps a ready issue off T2, with the reason
+    blocker = dep_issue(HUB, 12, stage="intake", priority="P2")
+    dependent = dep_issue(HUB, 13, stage="ready", priority="P1", readiness=99,
+                          body="Blocked by #12")
+    r = repo(HUB, issues=[blocker, dependent])
+    summary = ip.resolve_dependencies([r], cfg)
+    impl = [c["number"] for c in ip.build_queues([r], cfg)["implement"]]
+    check("(a) an issue with an open blocker is not on the T2 ready queue", 13 not in impl, str(impl))
+    check("(a) …and carries the reason",
+          dependent["deps_reason"] == f"blocked by {HUB}#12", str(dependent["deps_reason"]))
+    check("(a) the blocker counts its open dependent",
+          blocker["open_dependents"] == 1 and blocker["dep_boost"] == 1)
+    check("(a) the run summary counts the held issue", summary["blocked"] == 1, str(summary))
+
+    # (b) prerequisite sorts ahead of a same-priority, same-readiness peer
+    prereq = dep_issue(HUB, 20, stage="ready", priority="P2", readiness=80, age=1)
+    peer = dep_issue(HUB, 21, stage="ready", priority="P2", readiness=80, age=50)
+    waiting = dep_issue(HUB, 22, stage="intake", body="Depends on #20")
+    r = repo(HUB, issues=[peer, prereq, waiting])
+    ip.resolve_dependencies([r], cfg)
+    impl = [c["number"] for c in ip.build_queues([r], cfg)["implement"]]
+    check("(b) a prerequisite sorts ahead of a same-priority peer (despite being younger)",
+          impl[:2] == [20, 21], str(impl))
+    hi = dep_issue(HUB, 23, stage="ready", priority="P1", readiness=80)
+    r = repo(HUB, issues=[peer, prereq, waiting, hi])
+    ip.resolve_dependencies([r], cfg)
+    impl = [c["number"] for c in ip.build_queues([r], cfg)["implement"]]
+    check("(b) the boost never crosses a priority band", impl[0] == 23, str(impl))
+    many = [dep_issue(HUB, 100 + n, stage="intake", body="blocked by #20") for n in range(9)]
+    r = repo(HUB, issues=[prereq, *many])
+    ip.resolve_dependencies([r], ip.deep_merge(cfg, {"dependencies": {"boost_cap": 2}}))
+    check("(b) the boost is bounded by dependencies.boost_cap",
+          prereq["open_dependents"] == 9 and prereq["dep_boost"] == 2,
+          f"{prereq['open_dependents']} / {prereq['dep_boost']}")
+
+    # (c) a pinned rank still sorts first
+    pinned = dep_issue(HUB, 30, stage="ready", priority="P3", readiness=10)
+    pinned["rank"] = 0
+    r = repo(HUB, issues=[peer, prereq, waiting, pinned])
+    ip.resolve_dependencies([r], cfg)
+    impl = [c["number"] for c in ip.build_queues([r], cfg)["implement"]]
+    check("(c) a pinned rank still sorts first", impl[0] == 30, str(impl))
+
+    # (d) a 2-cycle is detected, reported, terminates, and both stay off T2
+    a = dep_issue(HUB, 40, stage="ready", body="Blocked by #41")
+    b = dep_issue(HUB, 41, stage="ready", body="Blocked by #40")
+    r = repo(HUB, issues=[a, b])
+    summary = ip.resolve_dependencies([r], cfg)
+    impl = [c["number"] for c in ip.build_queues([r], cfg)["implement"]]
+    check("(d) a 2-cycle is reported", len(summary["cycles"]) == 1
+          and set(summary["cycles"][0]) == {f"{HUB}#40", f"{HUB}#41"}, str(summary["cycles"]))
+    check("(d) both cycle members say so",
+          all((x["deps_reason"] or "").startswith("dependency cycle:") for x in (a, b)),
+          f"{a['deps_reason']} / {b['deps_reason']}")
+    check("(d) both cycle members stay off the T2 ready queue", 40 not in impl and 41 not in impl, str(impl))
+    self_ref = dep_issue(HUB, 42, stage="ready", body="Blocked by #42")
+    ip.resolve_dependencies([repo(HUB, issues=[self_ref])], cfg)
+    check("(d) a self-reference is ignored, not a cycle", not self_ref["open_blockers"])
+
+    # (e) a closed blocker does not block
+    closed_dep = dep_issue(HUB, 50, stage="ready", body="Blocked by #49")   # #49 not open in a scanned repo
+    ext_dep = dep_issue(HUB, 51, stage="ready", body="Blocked by bamr87/elsewhere#7")
+    asked: list[str] = []
+
+    def lookup(key):
+        asked.append(key)
+        return "closed"
+    r = repo(HUB, issues=[closed_dep, ext_dep])
+    summary = ip.resolve_dependencies([r], cfg, lookup=lookup)
+    impl = [c["number"] for c in ip.build_queues([r], cfg)["implement"]]
+    check("(e) a closed blocker in a scanned repo does not block (and costs no request)",
+          50 in impl and f"{HUB}#49" not in asked, f"{impl} {asked}")
+    check("(e) a ref outside the sweep is looked up, and closed does not block",
+          asked == ["bamr87/elsewhere#7"] and 51 in impl, f"{asked} {impl}")
+    unk = dep_issue(HUB, 52, stage="ready", body="Blocked by bamr87/elsewhere#8")
+    summary = ip.resolve_dependencies([repo(HUB, issues=[unk])],
+                                      ip.deep_merge(cfg, {"dependencies": {"max_lookups": 0}}),
+                                      lookup=lookup)
+    check("lookups stop at dependencies.max_lookups; an unresolved ref never blocks",
+          not unk["open_blockers"] and summary["unresolved"] == ["bamr87/elsewhere#8"]
+          and summary["lookups"] == 0, str(summary))
+
+    # native GitHub links: only fetched when the payload counts some; errors degrade to body refs
+    nat = dep_issue(HUB, 60, stage="ready")
+    nat["_native_blocked"] = 1
+    plain = dep_issue(HUB, 61, stage="ready", body="Blocked by #62")
+    plain["_native_blocked"] = 1
+    other = dep_issue(HUB, 62, stage="intake")
+    fetched: list[str] = []
+
+    def native(key):
+        fetched.append(key)
+        if key.endswith("#61"):
+            raise RuntimeError("404")
+        return [("bamr87/elsewhere#9", "open")]
+    r = repo(HUB, issues=[nat, plain, other])
+    ip.resolve_dependencies([r], cfg, native=native)
+    check("a native blocked-by link holds the issue back",
+          nat["open_blockers"] == ["bamr87/elsewhere#9"], str(nat["open_blockers"]))
+    check("a failed native fetch keeps the body refs",
+          plain["open_blockers"] == [f"{HUB}#62"], str(plain["open_blockers"]))
+    check("native links are only fetched for issues whose payload counts some",
+          sorted(fetched) == [f"{HUB}#60", f"{HUB}#61"], str(fetched))
+    off = dep_issue(HUB, 70, stage="ready", body="Blocked by #71")
+    ip.resolve_dependencies([repo(HUB, issues=[off, dep_issue(HUB, 71)])],
+                            ip.deep_merge(cfg, {"dependencies": {"enabled": False}}))
+    check("dependencies.enabled: false turns the hold off", not off["open_blockers"])
+
+    row = ip.backlog_list([repo(HUB, issues=[dependent, blocker])])[0]
+    check("the backlog snapshot carries the dependency fields",
+          all(k in row[0] for k in ("blocked_by", "open_blockers", "open_dependents", "deps_reason")))
+
+
 def test_tier3_queue():
     print("\ntier 3 queue")
     cfg = ip.deep_merge(CFG, {"tiers": {"complete": {"max_prs": 3}}})
@@ -408,6 +544,10 @@ def test_real_fleet_config():
               *cfg["labels"]["state"].values(), *cfg["labels"]["types"],
               *cfg["labels"]["priorities"], *cfg["labels"]["sizes"]]))
     check("the hub is the control-plane repo", cfg["hub"] == HUB, cfg["hub"])
+    raw = (ip.load_yaml(ip.FLEET).get("issue_pipeline") or {}).get("dependencies") or {}
+    check("_data/fleet.yml declares the dependency caps (not literals)",
+          all(isinstance(raw.get(k), int) and raw[k] >= 0 for k in ("boost_cap", "max_lookups")),
+          str(raw))
 
 
 # --------------------------------------------------------------------------- #
@@ -509,6 +649,7 @@ def main() -> int:
     test_gaps()
     test_autonomy()
     test_queues()
+    test_dependencies()
     test_tier3_queue()
     test_markers_and_config()
     test_real_fleet_config()
