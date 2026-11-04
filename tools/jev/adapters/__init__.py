@@ -148,6 +148,12 @@ class Adapter:
         `ctx.bodies_dir(item, apply=apply)`, the phase's own directory."""
         raise NotImplementedError
 
+    def apply_steps(self, ctx, item: Item, plan: "PublishPlan") -> list[str] | None:
+        """The numbered steps `--apply` would take for this item, for the plan's
+        review document (publish-plan.md); None = the engine's default text
+        (labels, then one `gh issue create` per body)."""
+        return None
+
     def recheck(self, ctx, item: Item) -> str | None:
         """Live state re-read just before an applied write; a reason cancels it."""
         return None

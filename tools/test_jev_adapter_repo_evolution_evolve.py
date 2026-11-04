@@ -32,6 +32,7 @@ sys.path.insert(0, str(HUB))
 from tools.jev import adapters as A  # noqa: E402
 from tools.jev import loop as L  # noqa: E402
 from tools.jev import spec as S  # noqa: E402
+from tools.jev.adapters import common as C  # noqa: E402
 from tools.jev.adapters import repo_evolution_evolve as EV  # noqa: E402
 from tools.jev.common import JevError, Run  # noqa: E402
 from tools.jev.workspace import Harvest  # noqa: E402
@@ -214,18 +215,105 @@ def test_an_empty_pass_is_valid_and_files_nothing():
     assert absent.ok and json.loads(absent.publish_file.read_text())["kind"] == "none"
 
 
-def test_a_lockfile_is_dropped_from_the_patch_as_cis_publish_step_drops_it():
+TRACKED_LOCK = ("diff --git a/Gemfile.lock b/Gemfile.lock\nindex 587be6b..d735d34 100644\n--- a/Gemfile.lock\n"
+                "+++ b/Gemfile.lock\n@@ -1 +1 @@\n-x\n+x2\n")
+SPACE_FILE = ("diff --git a/src/new file.txt b/src/new file.txt\nnew file mode 100644\nindex 0000000..975fbec\n"
+              "--- /dev/null\n+++ b/src/new file.txt\t\n@@ -0,0 +1 @@\n+y\n")
+QUOTED_FILE = ('diff --git "a/src/\\303\\274n\\303\\257code.txt" "b/src/\\303\\274n\\303\\257code.txt"\n'
+               "new file mode 100644\nindex 0000000..b680253\n--- /dev/null\n+++ \"b/src/\\303\\274n\\303\\257code.txt\"\n"
+               "@@ -0,0 +1 @@\n+z\n")
+
+
+def test_only_an_untracked_lockfile_is_dropped_as_cis_publish_step_drops_only_those():
     c = ctx(Path(tempfile.mkdtemp()))
     v = validate(c, item_for(c), session(), patch=PATCH + LOCK)
     assert v.ok, v.problems
     doc = json.loads(v.publish_file.read_text())
     assert doc["dropped_lockfiles"] == ["package-lock.json"] and doc["kind"] == "pr"
     assert (v.publish_file.parent / "evolve.patch").read_text() == PATCH
-    assert any("lockfile" in f for f in v.flags)
+    assert any("untracked lockfile" in f for f in v.flags)
     only = validate(c, item_for(c), session(), patch=LOCK)
-    assert only.ok and json.loads(only.publish_file.read_text())["kind"] == "none", "a lockfile alone is no change"
-    kept, dropped = EV.drop_lockfiles(b"no diff header at all\n")
-    assert kept == b"no diff header at all\n" and dropped == []
+    assert only.ok and json.loads(only.publish_file.read_text())["kind"] == "none", "an untracked lockfile alone is no change"
+    # CI commits a TRACKED lockfile the agent modified (`git ls-files --others` lists only new ones): it stays
+    kept = validate(c, item_for(c), session(), patch=TRACKED_LOCK + PATCH)
+    assert kept.ok, kept.problems
+    kdoc = json.loads(kept.publish_file.read_text())
+    assert kdoc["dropped_lockfiles"] == [] and kdoc["kind"] == "pr"
+    assert (kept.publish_file.parent / "evolve.patch").read_text() == TRACKED_LOCK + PATCH
+    alone = validate(c, item_for(c), session(), patch=TRACKED_LOCK)
+    assert alone.ok and json.loads(alone.publish_file.read_text())["kind"] == "pr", "a tracked lockfile edit is a change"
+    kept_b, dropped = EV.drop_lockfiles(b"no diff header at all\n")
+    assert kept_b == b"no diff header at all\n" and dropped == []
+    # the policy comes from fleet.yml: a pattern added there reaches the drop
+    extra = EV.drop_lockfiles(b"diff --git a/bun.lockb b/bun.lockb\nnew file mode 100644\n--- /dev/null\n+++ b/bun.lockb\n@@\n+x\n",
+                              patterns=("bun.lockb",))
+    assert extra[1] == ["bun.lockb"] and extra[0] == b""
+    assert EV.drop_lockfiles(LOCK.encode(), patterns=("bun.lockb",)) == (LOCK.encode(), [])
+
+
+def test_a_path_with_a_space_or_in_gits_quoted_form_is_its_own_section_and_never_rides_a_neighbour():
+    # the review's case: the lockfile header followed by `src/new file.txt` — the space broke the old regex
+    kept, dropped = EV.drop_lockfiles((LOCK + SPACE_FILE).encode())
+    assert dropped == ["package-lock.json"] and kept.decode() == SPACE_FILE
+    kept, dropped = EV.drop_lockfiles((LOCK + QUOTED_FILE).encode())
+    assert dropped == ["package-lock.json"] and kept.decode() == QUOTED_FILE
+    assert [p for p, _s, _n in C.diff_sections(SPACE_FILE + QUOTED_FILE)[1]] == ["src/new file.txt", "src/ünïcode.txt"]
+    sys.path.insert(0, str(HUB / ".github" / "scripts" / "dash-gen"))
+    import fleet_evolve_file as filer
+    assert filer.diff_files(LOCK + SPACE_FILE + TRACKED_LOCK) == [("package-lock.json", True), ("src/new file.txt", True),
+                                                                   ("Gemfile.lock", False)]
+    assert filer.diff_header_path(QUOTED_FILE.splitlines()[0]) == "src/ünïcode.txt"
+
+
+def test_the_host_name_is_matched_as_a_whole_token_and_paths_as_substrings():
+    # the review's case: a Mac called `work`, `main`, `home` or `mini` must not withhold every pass
+    for host, innocent in (("work", "the workflow runs"), ("main", "def main(): pass"), ("home", "the homepage"),
+                           ("mini", "a minimal fix")):
+        c = ctx(Path(tempfile.mkdtemp()))
+        c.hostname = host
+        assert not C.leaks_private(innocent, c), (host, innocent)
+        assert C.leaks_private(f"built on {host} today", c) and C.leaks_private(f"ran on {host}.", c), host
+        assert C.leaks_private(f"{host}:/tmp/x", c) and not C.leaks_private(f"{host}-2 is another box", c), host
+        assert not C.leaks_private(f"https://github.com/x/y/blob/{host}/docs/E.md", c), "a path component is not a host"
+        v = validate(c, item_for(c), session(result=innocent))
+        assert v.ok, (host, v.problems)
+    c = ctx(Path(tempfile.mkdtemp()))
+    assert C.leaks_private("see /Users/someone/.ssh", c) and C.leaks_private("/Users/someone/.cache/jev/work/r", c)
+    assert C.private_pattern(SimpleNamespace(home=Path("/"), hostname="", work_root=Path("/x"))) is None
+
+
+def test_a_publishing_verb_is_seen_wherever_a_command_segment_starts():
+    seen = {"cd pkg && git push origin HEAD": ["git push origin HEAD"],
+            "git -C . commit -m x": ["git -C . commit -m x"],
+            "env GIT_DIR=.git git push": ["git push"],
+            "make build | gh pr create --fill": ["gh pr create --fill"],
+            "git --git-dir=.git -c user.name=x push": ["git --git-dir=.git -c user.name=x push"],
+            "ls; GIT_DIR=.git git tag v1": ["git tag v1"],
+            "(cd a && git checkout -b feat)": ["git checkout -b feat"]}
+    for command, want in seen.items():
+        assert C.publishing_commands(command) == want, (command, C.publishing_commands(command))
+    for innocent in ("echo git push", "git status && git diff", "grep 'gh pr create' README.md", "git log --oneline",
+                     "python3 -c \"print('git push')\""):
+        assert C.publishing_commands(innocent) == [], innocent
+    c = ctx(Path(tempfile.mkdtemp()))
+    v = validate(c, item_for(c), session([("cd pkg && git push origin HEAD", "denied", True),
+                                          ("git status", "clean", False)]))
+    assert v.ok and v.facts["publish_attempts"] == 1 and any("git push" in f for f in v.flags), (v.flags, v.facts)
+
+
+def test_the_apply_steps_name_the_branch_push_and_the_draft_pr_never_an_issue():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c)
+    plan = A.PublishPlan(True, [], [{"title": "t", "kind": "pr", "repo": NWO, "base": "main",
+                                     "branch": "ai-evolution/20261103-local-t", "remote": f"https://github.com/{NWO}",
+                                     "labels": ["ai-evolution", "automation"]}], None)
+    steps = ADAPTER.apply_steps(c, item, plan)
+    assert len(steps) == 2 and steps[0].startswith("Push the validated patch") and "ai-evolution/20261103-local-t" in steps[0]
+    assert f"https://github.com/{NWO}" in steps[0] and "gh pr create --draft" in steps[1] and "#488" in steps[1]
+    assert not any("issue create" in s for s in steps)
+    empty = ADAPTER.apply_steps(c, item, A.PublishPlan(False, [], [], None))
+    assert len(empty) == 1 and "no branch is pushed" in empty[0]
+    assert A.get("repo_scout").apply_steps(c, item, plan) is None, "scout keeps the engine's default wording"
 
 
 def test_a_budget_hit_is_previewed_flagged_with_cis_partial_warning():
@@ -339,7 +427,9 @@ def test_the_filer_refuses_a_foreign_remote_a_wrong_branch_and_a_lockfile_patch(
     assert any("marker" in p for p in filer.problems({**good, "marker": '<!-- repo-evolution key="bamr87/b" -->'}, d, cfg))
     assert any("first line" in p for p in filer.problems({**good, "body": "no marker"}, d, cfg))
     (d / "lock.patch").write_text(LOCK, encoding="utf-8")
-    assert any("lockfile" in p for p in filer.problems({**good, "patch": "lock.patch"}, d, cfg))
+    assert any("creates a lockfile" in p for p in filer.problems({**good, "patch": "lock.patch"}, d, cfg))
+    (d / "tracked-lock.patch").write_text(TRACKED_LOCK, encoding="utf-8")
+    assert filer.problems({**good, "patch": "tracked-lock.patch"}, d, cfg) == [], "a tracked lockfile edit is CI's own"
     assert any("no changes carries no patch" in p for p in filer.problems({**good, "kind": "none"}, d, cfg))
     assert filer.problems({**good, "kind": "none", "patch": None, "branch": None}, d, cfg) == []
 
@@ -380,7 +470,11 @@ def test_the_markers_and_messages_agree_with_the_planner_and_the_filer():
     cfg = evolution.load_config(None)
     assert evolution.marker_line(cfg, NWO) == MARKER and EV.MARKER_RX.fullmatch(MARKER)
     assert EV.NO_DEDUPE == filer.NO_DEDUPE and EV.APPLY_REFUSED in filer.APPLY_REFUSED and EV.NO_CHANGES in filer.NO_CHANGES
-    assert EV.LOCKFILE_RX.pattern == filer.LOCKFILE_RE.pattern
+    # one policy, read from fleet.yml by both sides (test_evolution.py holds CI's publish step to the same list)
+    cfg = evolution.load_config(evolution.FLEET_DEFAULT)
+    fleet = S.load_fleet()
+    assert tuple(cfg["lockfile_patterns"]) == C.lockfile_patterns(fleet) == tuple(fleet["dependencies"]["lockfile_patterns"])
+    assert filer.lockfile_re(cfg).pattern == C.lockfile_regex(C.lockfile_patterns(fleet)).pattern
     assert S.PUBLISH_COMMANDS["evolve-file"] == "--apply" and S.PUBLISH_REVIEWED_FLAGS["evolve-file"] == "--reviewed-bodies"
     assert S.PLANNER_BRIEFS["targets"].fullmatch("evolution-workorder-ragio-ai.md")
     assert "targets" in S.PLANNER_COMMANDS and "fleet-read" in S.GITHUB_CREDENTIALS

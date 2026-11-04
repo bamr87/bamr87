@@ -62,10 +62,71 @@ SECRET_RE = re.compile(
     r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk-ant-[A-Za-z0-9_-]{20,})"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
 )
-#: the lockfiles CI's publish step drops before it commits (always-latest policy)
-LOCKFILE_RE = re.compile(r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|Gemfile\.lock|"
-                         r"poetry\.lock|Pipfile\.lock|uv\.lock|composer\.lock)$")
-DIFF_PATH_RE = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.M)
+#: `diff --git a/<path> b/<path>`: a path with a space is printed unquoted, an
+#: unusual one in git's quoted form (`"a/\303\274.txt" "b/…"`); both are read
+DIFF_HEADER = "diff --git "
+_C_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "a": "\a", "b": "\b", "f": "\f", "v": "\v"}
+
+
+def lockfile_re(cfg: dict) -> re.Pattern:
+    """The fleet's lockfile policy (`_data/fleet.yml` `dependencies.lockfile_patterns`,
+    carried on `cfg["lockfile_patterns"]` by evolution.load_config): the same
+    list CI's publish step greps, so the preview and CI drop the same files."""
+    pats = [str(x) for x in (cfg.get("lockfile_patterns") or evolution.DEFAULT_LOCKFILE_PATTERNS)]
+    return re.compile(r"(^|/)(?:" + "|".join(re.escape(x) for x in pats) + r")$")
+
+
+def _unquote(s: str) -> str:
+    out = bytearray()
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and i + 1 < len(s):
+            octal = s[i + 1:i + 4]
+            if len(octal) == 3 and all(c in "01234567" for c in octal):
+                out += bytes([int(octal, 8)])
+                i += 4
+                continue
+            if s[i + 1] in _C_ESCAPES:
+                out += _C_ESCAPES[s[i + 1]].encode("utf-8")
+                i += 2
+                continue
+        out += ch.encode("utf-8", errors="surrogateescape")
+        i += 1
+    return out.decode("utf-8", errors="surrogateescape")
+
+
+def diff_header_path(line: str) -> str | None:
+    """The new path of a `diff --git` header line, or None for any other line."""
+    if not line.startswith(DIFF_HEADER):
+        return None
+    rest = line[len(DIFF_HEADER):].rstrip("\r\n")
+    if rest.startswith('"'):
+        m = re.fullmatch(r'"((?:[^"\\]|\\.)*)" "((?:[^"\\]|\\.)*)"', rest)
+        if not m:
+            return None
+        b = _unquote(m.group(2))
+        return b[2:] if b.startswith("b/") else None
+    parts = rest.split(" b/")
+    for k in range(1, len(parts)):   # equal halves: the engine harvests no rename
+        left, right = " b/".join(parts[:k]), " b/".join(parts[k:])
+        if left.startswith("a/") and left[2:] == right:
+            return right
+    return parts[1] if len(parts) == 2 and parts[0].startswith("a/") else None
+
+
+def diff_files(text: str) -> list[tuple[str, bool]]:
+    """(path, is_new) per file section of a unified diff; `is_new` reads the
+    section's header (`new file mode` / `--- /dev/null`): an untracked file."""
+    out: list[tuple[str, bool]] = []
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        path = diff_header_path(ln)
+        if path is None:
+            continue
+        head = lines[i + 1:i + 6]
+        out.append((path, any(h.startswith("new file mode") or h.startswith("--- /dev/null") for h in head)))
+    return out
 #: the two messages the adapter reads off this filer's stderr
 NO_DEDUPE = "filing without the duplicate check"
 APPLY_REFUSED = ("evolve-file --apply is not implemented in this release: the publish step (the ai-evolution branch "
@@ -143,9 +204,11 @@ def problems(item: dict, item_dir: Path, cfg: dict) -> list[str]:
                 out.append(f"the patch is over {PATCH_MAX} bytes")
             elif SECRET_RE.search(text):
                 out.append("the patch carries a credential shape")
-            locks = sorted({b for _a, b in DIFF_PATH_RE.findall(text) if LOCKFILE_RE.search(b)})
+            rx = lockfile_re(cfg)
+            locks = sorted({path for path, is_new in diff_files(text) if is_new and rx.search(path)})
             if locks:
-                out.append(f"the patch touches a lockfile ({', '.join(locks)}): CI drops them, never commits them")
+                out.append(f"the patch creates a lockfile ({', '.join(locks)}): CI drops an untracked lockfile, "
+                           "never commits it (a tracked one the agent modified is committed, and stays)")
     return out
 
 

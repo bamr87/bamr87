@@ -1883,6 +1883,7 @@ def preview(ctx: RunContext, item: Item, verdict: Verdict) -> dict:
            "argv": argv, "apply_flag": ctx.spec.local.publish.apply_flag, "bodies": bodies,
            "rows": plan.rows, "blockers": plan.blockers, "failures": plan.failures,
            "publishable": plan.publishable and bool(bodies), "labels": labels,
+           "apply_steps": ctx.adapter.apply_steps(ctx, item, plan),
            "flags": verdict.flags, "facts": verdict.facts, "created": iso()}
     write_json(d / "publish-plan.json", doc)
     (d / "publish-plan.md").write_text(_plan_md(doc, ctx.bodies_dir(item, apply=False)), encoding="utf-8")
@@ -1897,7 +1898,10 @@ def _plan_md(doc: dict, bodies_dir: Path) -> str:
              f"- publishable: {'yes' if doc['publishable'] else 'no'}"
              + (f" — blockers: {', '.join(doc['blockers'])}" if doc["blockers"] else ""), "",
              "## What `--apply` does", ""]
-    if doc["labels"]:
+    steps = doc.get("apply_steps")
+    if isinstance(steps, list) and steps:
+        lines += [f"{n}. {step}" for n, step in enumerate(steps, 1)]
+    elif doc["labels"]:
         lines.append(f"1. `gh label create <name> -R {item['nwo']} --force` for {', '.join(doc['labels'])} — this "
                      "can refresh an existing label's colour and description.")
         lines.append(f"2. `gh issue create -R {item['nwo']}` once per body below, after a live recheck "

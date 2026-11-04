@@ -889,10 +889,10 @@ def test_config_editor_reaches_every_section_and_splices_each():
         before = fleet.read_text().splitlines()
         out = core.update_config({"remediation.max_candidates": 5,
                                   "schedule.fleet_pulse": "30 6 * * *",
-                                  "evolution.max_turns": 130,
+                                  "evolution.max_targets": 7,
                                   "variables.NODE_VERSION": "22"}, fleet)
         assert set(out["applied"]) == {"remediation.max_candidates", "schedule.fleet_pulse",
-                                       "evolution.max_turns", "variables.NODE_VERSION"}, out["applied"]
+                                       "evolution.max_targets", "variables.NODE_VERSION"}, out["applied"]
         assert set(out["sections"]) == {"remediation", "schedule", "evolution", "variables"}
         after = fleet.read_text().splitlines()
         assert len(before) == len(after), f"line count changed: {len(before)} -> {len(after)}"
@@ -905,9 +905,16 @@ def test_config_editor_reaches_every_section_and_splices_each():
         assert 'fleet_pulse: "30 6 * * *"' in "\n".join(after)
         import yaml
         doc = yaml.safe_load("\n".join(after))
-        assert doc["remediation"]["max_candidates"] == 5 and doc["evolution"]["max_turns"] == 130
+        assert doc["remediation"]["max_candidates"] == 5 and doc["evolution"]["max_targets"] == 7
         assert doc["variables"]["NODE_VERSION"] == "22"
-        assert core.update_config({"evolution.max_turns": 130}, fleet)["applied"] == {}
+        assert core.update_config({"evolution.max_targets": 7}, fleet)["applied"] == {}
+        # the turn cap is the step spec's and the workflow literal's (ADR 0002 P3): not a console knob
+        try:
+            core.update_config({"evolution.max_turns": 130}, fleet)
+        except ValueError as exc:
+            assert "not editable" in str(exc), exc
+        else:
+            raise AssertionError("evolution.max_turns is still editable from the console")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
