@@ -83,14 +83,14 @@ After that barodybroject's remaining failure is its own frontend — the latest 
 The new server refuses data written by an older major, and Postgres 18 also moved its data directory. Dev data is disposable (`docker compose down -v`) — but you should not have to guess:
 
 - `tools/dash dev up` runs a **preflight** and, for a volume behind its image, names the exact command instead of letting the database crash-loop.
+- `tools/dash up` runs the same preflight on the hub core's `db` and **refuses** to start rather than warn: a recreate onto an old volume replaces a working server with one that restarts in a loop, and every project loses its database with it. The fix it names is `tools/pg-major-upgrade.sh --service db --yes -- --project-directory .` — not `dash dev db-upgrade hub`, whose `hub` is the separate `fleet-hub` stack and a different volume.
 - `tools/dash dev db-upgrade <project> [--service S] [--yes]` stops the service,
 copies the **raw volume** to `<volume>-pre<major>`, takes a `pg_dumpall` from a throwaway server of the *old* major into `~/.fleet-backups/`, **verifies the dump is complete before removing anything**, recreates the volume on the new layout, and restores. Dry run without `--yes`; a second run is a no-op. Tested end to end: 15.19 → 18.6 with data intact.
 - TimescaleDB (aieo) is refused: its dump needs the extension in the *old* server, and guessing that image is how data gets lost. Do it by hand.
 
 ## Two hazards the design deliberately handles
 
-- **The hub's own Wiki.js database is pinned at Postgres 15** — real content lives
-in that volume, and because 18 also moved its data directory the new server would start on an *empty* cluster with the old data unreachable in the same volume. Migrate deliberately (`tools/dash dev db-upgrade hub --service db --yes`) and delete the pin.
+- **The hub's own `db` is on Postgres 18, and its volume must be too.** The pin at 15 was dropped without migrating the volume, so the first recreate on the 18 image left the core database restarting in a loop; the `dash up` preflight above now stops that before it happens. Because 18 also moved its data directory, an old cluster in the same volume is never opened — it is refused, or it sits unreachable beside an empty new one.
 - **The shared tier publishes 5439/6389, not 5432/6379**, because the hub's own
 `db`/`redis` already hold those in the same compose project. Containers reach it as `fleet-db:5432` either way — the host port only matters to tools on the host.
 

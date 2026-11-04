@@ -167,7 +167,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`install-workspace-sync.sh`](tools/install-workspace-sync.sh) | Installs the `com.bamr87.workspace-sync` LaunchAgent (macOS) that runs `update-submodules.sh --no-commit --no-push` daily and at login, keeping the local clone on `main`… |
 | [`issue-evidence.sh`](tools/issue-evidence.sh) | Builds one issue's **evidence bundle** in an isolated virtual environment — fresh clone, own toolchain (`venv`/`node_modules`/`vendor/bundle`), the project's own lint/te… |
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
-| [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`): backs up the raw volume, dumps, verifies, recreates on the new layout, r… |
+| [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`; `--check` is the `dash up` and `dash dev up` preflight): backs up the raw… |
 | [`pipeline_map.py`](tools/pipeline_map.py) | pipeline_map.py — the data layer of the harness pipeline map (HUB-025, HUB-026). |
 | [`projects_lint.py`](tools/projects_lint.py) | Work-tracking gate (constitution § 9, amendment 0003, feature projects-coverage-gate). |
 | [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
@@ -194,6 +194,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
+| [`test_jev_adapter_fleet_pulse_doctor.py`](tools/test_jev_adapter_fleet_pulse_doctor.py) | Fixture tests for tools/jev/adapters/fleet_pulse_doctor.py — the fleet doctor's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3). |
 | [`test_jev_adapter_repo_scout.py`](tools/test_jev_adapter_repo_scout.py) | Fixture tests for tools/jev/adapters/ — the loop engine's adapter contract and its first adapter, repo_scout (#486, ADR 0002 P1). |
 | [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
 | [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |

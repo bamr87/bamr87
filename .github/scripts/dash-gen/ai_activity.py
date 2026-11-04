@@ -1287,6 +1287,9 @@ def _settle(args: argparse.Namespace, hl, inv, *, budget: float, redactor, choic
         "cli_version": cli_ver, "tool_uses": inv.tool_uses,
         "permission_denials": inv.permission_denials, "denied_tools": inv.denied_tools, "models_flagged": flagged,
         "ledger": str(ledger_path), "ledger_error": ledger_error or None, "call_site": record["call_site"],
+        # the sandbox runtime's own stderr lines (redacted, capped): on 2.1.308
+        # the per-command `Applied restrictions` line is logged nowhere else
+        "sandbox_lines": inv.sandbox_lines,
     })
 
     if inv.stderr_tail:
