@@ -240,15 +240,19 @@ def test_headers_with_spaces_or_gits_quoted_paths_are_read_and_an_unreadable_one
     assert validate(schema, item_for(schema, row(kit="schema")), quoted).ok, "a quoted SCHEMA.md path is still a SCHEMA.md"
 
 
-def test_the_host_name_is_matched_as_a_token_or_a_path_component_never_inside_a_word():
-    assert not FA.host_mentioned("the workflow runs; def main(): homepage minimal", "work")
-    assert FA.host_mentioned("see /Users/work/x", "work") and FA.host_mentioned("work.local", "work")
-    assert FA.host_mentioned("user@WORK:", "work") and not FA.host_mentioned("x", "abc") and not FA.host_mentioned("x", None)
+def test_the_host_name_is_matched_as_a_whole_token_never_inside_a_word():
+    from tools.jev.adapters.common import leaks_private
     c = ctx(Path(tempfile.mkdtemp()))
     c.hostname = "work"
+    assert not leaks_private("the workflow runs; def main(): homepage minimal", c)
+    assert leaks_private("work.local", c) and leaks_private("user@WORK:", c), "a token, any case"
+    # a path component is a word in a path, not a host name (blob/main/docs); the home path is its own substring
+    assert not leaks_private("see /Volumes/work/x", c) and leaks_private(f"see {c.home}/x", c)
     assert validate(c, item_for(c), CLAUDE_PATCH.replace("the fleet's sites", "the workflow")).ok
     withheld = validate(c, item_for(c), CLAUDE_PATCH.replace("the fleet's sites", "built on work.local"))
     assert not withheld.ok and any("host name" in p for p in withheld.problems)
+    c.hostname = "abc"
+    assert not leaks_private("abc", c), "a short name never matches by accident"
 
 
 def test_the_planner_reuses_evolutions_spec_loader_and_never_puts_the_hub_first_on_sys_path():

@@ -36,6 +36,7 @@ import tempfile
 from ..common import JevError, is_nwo
 from ..context import MAX_QUERY_CHARS, ContextRequest
 from . import Adapter, Item, PlanResult, PublishPlan, Tier0, Triage, Verdict
+from .common import last_json, leaks_private
 
 PATCH = "changes.patch"
 VALIDATED = "agent-fill.validated.json"
@@ -56,16 +57,6 @@ ROW_KEYS = ("key", "name", "nwo", "branch", "kit", "commit_subject", "branch_sta
 #: what the kit's brief lets the agent touch, as the filer reads it too
 QUERIES = {"standardize": ("CLAUDE.md description stack commands", "README install dev test lint"),
            "schema": ("SCHEMA.md purpose pattern generated terminal", "directory layout placement")}
-
-
-def _last_json(text: str) -> dict:
-    lines = [ln for ln in (text or "").strip().splitlines() if ln.strip()]
-    if not lines:
-        raise ValueError("no output")
-    out = json.loads(lines[-1])
-    if not isinstance(out, dict):
-        raise ValueError("not a JSON object")
-    return out
 
 
 _QUOTED_RX = re.compile(r'"((?:[^"\\]|\\.)*)"')
@@ -162,19 +153,6 @@ def patch_files(patch: str) -> list[str]:
     return seen
 
 
-#: a host name counts only as a whole token or path component (`/host/`,
-#: `host.local`, `user@host`), never inside a word: a Mac named `work`,
-#: `main`, `home` or `mini` would otherwise withhold every patch that says
-#: `workflow`, `def main`, `homepage` or `minimal`
-_TOKEN_EDGE = "A-Za-z0-9_-"
-
-
-def host_mentioned(text: str, hostname: str | None) -> bool:
-    if not hostname or len(hostname) <= 3:
-        return False
-    return re.search(rf"(?<![{_TOKEN_EDGE}]){re.escape(hostname)}(?![{_TOKEN_EDGE}])", text, re.I) is not None
-
-
 def allowed_file(kit: str, path: str) -> bool:
     """standardize edits CLAUDE.md alone; schema edits SCHEMA.md files (any
     directory, a deletion included), never a path that leaves the clone."""
@@ -268,9 +246,9 @@ class FanoutAgentFill(Adapter):
         if outside:
             return Verdict(False, [f"the {kit} brief allows no edit to {', '.join(outside)} — the whole attempt is "
                                    "withheld (CI would have pushed it)"])
-        # never put this machine's paths or its name in a public repository
-        paths = [s for s in (str(ctx.home), str(ctx.work_root)) if s and len(s) > 3]
-        if any(s in text for s in paths) or host_mentioned(text, ctx.hostname):
+        # never put this machine's paths or its name in a public repository (the shared
+        # matcher: paths as substrings, the host name only as a whole token)
+        if leaks_private(text, ctx):
             return Verdict(False, ["the patch carries a local path or the host name — withheld"])
         out_dir = ctx.item_dir(item) / "outputs"
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -284,7 +262,7 @@ class FanoutAgentFill(Adapter):
         if not dry.ok:
             return Verdict(False, [f"agent-fill-file --offline exited {dry.code}: {dry.err.strip()[-300:]}"])
         try:
-            res = _last_json(dry.out)
+            res = last_json(dry.out)
         except ValueError as exc:
             return Verdict(False, [f"agent-fill-file --offline printed no result: {exc}"])
         if res.get("rejected"):
@@ -301,7 +279,7 @@ class FanoutAgentFill(Adapter):
                        if APPLY_REFUSED in res.err else f"agent-fill-file exited {res.code}: {why}")
             return PublishPlan(False, [blocker], [], None)
         try:
-            out = _last_json(res.out)
+            out = last_json(res.out)
         except ValueError as exc:
             return PublishPlan(False, [f"agent-fill-file printed no result: {exc}"], [], None)
         blockers = ["dedupe_unavailable"] if NO_DEDUPE in res.err else []
