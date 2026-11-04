@@ -26,14 +26,14 @@ New constitution section:
 > 1. **Rule — daily chronicle** — the monorepo's writing section, `pages/posts/` (dated `YYYY-MM-DD-slug.md`, rendered by `tools/console/site_docs.py` as the console's and public site's Writing section), chronicles, documents, journals and notes, repo-wide and fleet-wide, all fleet operations, AI prompting and any activity agents are working on, pushing, committing and deploying across all repos, in a summarized chronicle fashion, so Amr or other readers can read and recall what happened each day.
 > 2. **Form** — one chronicle entry per day with activity (`pages/posts/YYYY-MM-DD-chronicle.md`, category `chronicle`), summarizing, per repo, operations, prompts given, agents run, work in progress, pushes, commits, PRs opened or merged, deployments, and outcomes; summaries, not raw transcripts.
 > 3. **Redaction** — a chronicle never records tokens, secrets, credentials, keys, or private values; anything secret-shaped is redacted before commit.
-> 4. **Drafts** — entries may land as `draft: true` (console-only) until Amr publishes them.
+> 4. **Drafts by default, reviewed before publishing** — every chronicle entry lands as a draft (`draft: true`, console-only); nothing publishes until it has been reviewed by a human and/or an agent, and only then is `draft: true` removed.
 > 5. **Enforcement** — generation (a daily chronicle generator, `HUB-NEW`) is a follow-up; until it lands, agents add or append the day's entry by PR.
 
 ## Open questions
 
 - **Privacy / secret redaction:** chronicles never record tokens, secrets, credentials or keys (rule 3). Should the generator run a secret scanner (e.g. gitleaks patterns) as a hard gate before commit?
 - **Employer-sensitive content:** should work done for an employer, or anything employer-confidential, be excluded or kept to draft-only entries? (As written: not explicitly excluded — Amr to decide.)
-- Should entries default to `draft: true` (console-only) or be public by default?
+- ~~Should entries default to `draft: true` or be public by default?~~ **Decided (Amr, 2026-11-04):** drafts by default; nothing publishes until reviewed by a human and/or an agent (rule 4).
 - Granularity: one entry per day, or per day per repo?
 
 ## Consequences
@@ -45,3 +45,4 @@ New constitution section:
 ## Revisions
 
 - 2026-11-04: on Amr's review, scope widened from fleet operations and AI prompting to repo-wide/fleet-wide — any activity agents are working on, pushing, committing and deploying across all repos; daily entries summarize per repo. Linked hub issue #662.
+- 2026-11-04: on Amr's review, rule 4 made explicit — chronicle entries are drafts by default (`draft: true`) and nothing publishes until reviewed by a human and/or an agent; the drafts-vs-public open question is resolved accordingly.
