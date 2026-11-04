@@ -263,3 +263,13 @@ _(amendment `container-management`, numbered at merge — see the [amendment log
 7. **Dev parity** — each repo's devcontainer and compose service use the same bases and join the shared `fleet` plane (§ 2 overrides rule).
 8. **Ownership and cost** — each repo owns its images and their retention; registry storage and build minutes are budgeted in `_data/fleet.yml`; build, scan and SBOM are deterministic tier-0 steps, and any AI step on findings is tiered and capped under § 13 and switched under § 17.
 9. **Rollout** — warn-only per repo until its fan-out PR lands, then a hard failure; repos that publish no image are not applicable.
+
+## 23. Writing section chronicles fleet activity
+
+_(amendment `writing-chronicle`, numbered at merge — see the [amendment log](amendments/README.md); follows § 22 `repo-cap-42` (PR #660), renumber to § 22 if that amendment does not merge first)_
+
+1. **Rule — daily chronicle** — the monorepo's writing section, `pages/posts/` (dated `YYYY-MM-DD-slug.md`, rendered by `tools/console/site_docs.py` as the console's and public site's Writing section), chronicles, documents, journals and notes all fleet operations, AI prompting and agent activity, in a summarized chronicle fashion, so Amr or other readers can read and recall what happened each day.
+2. **Form** — one chronicle entry per day with activity (`pages/posts/YYYY-MM-DD-chronicle.md`, category `chronicle`), summarizing operations, prompts given, agents run, PRs opened or merged, and outcomes; summaries, not raw transcripts.
+3. **Redaction** — a chronicle never records tokens, secrets, credentials, keys, or private values; anything secret-shaped is redacted before commit.
+4. **Drafts** — entries may land as `draft: true` (console-only) until Amr publishes them.
+5. **Enforcement** — generation (a daily chronicle generator, `HUB-NEW`) is a follow-up; until it lands, agents add or append the day's entry by PR.
