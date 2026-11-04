@@ -675,6 +675,76 @@ def test_importing_the_module_has_no_side_effects():
     assert out.returncode == 0 and out.stdout == "" and out.stderr == "", out.stderr
 
 
+# --------------------------------------------------------------------------- #
+# a `local.harvest: patch` step (ADR 0002 P3, the doctor): the brief at a fixed
+# root name, the agent's own branch and commits, the patch of its edits
+# --------------------------------------------------------------------------- #
+def make_doctor(run_id: str | None = None) -> W.Workspace:
+    run_id = run_id or f"t-{os.urandom(3).hex()}"
+    return W.clone_local(FIXTURE, "bamr87/alpha", "main", run_id=run_id, brief_dir=".doctor",
+                         brief_file="remediation-workorder.md", allow_commits=True)
+
+
+def test_the_brief_file_sits_at_the_root_git_excluded_and_may_not_be_committed():
+    ws = make_doctor()
+    assert ws.brief_file == "remediation-workorder.md" and ws.tmp == ws.path / ".doctor" / ".tmp"
+    exclude = (ws.path / ".git" / "info" / "exclude").read_text()
+    assert "/.doctor/" in exclude and "/remediation-workorder.md" in exclude
+    W.place_bytes(ws, b"# work order\n", "remediation-workorder.md")
+    assert W.tree_report(ws) == W.TreeReport([], []), "the placed brief is not the agent's edit"
+    committed = fixture_with({"remediation-workorder.md": "x\n"})
+    try:
+        W.clone_local(committed, "bamr87/alpha", "main", run_id=f"t-{os.urandom(3).hex()}", brief_dir=".doctor",
+                      brief_file="remediation-workorder.md")
+    except JevError as e:
+        assert "commits remediation-workorder.md" in str(e)
+    else:
+        raise AssertionError("a target committing the brief's fixed name was accepted")
+
+
+def test_an_allowed_commit_is_not_tampering_but_config_and_hooks_still_are():
+    ws = make_doctor()
+    (ws.path / "README.md").write_text("# fixture\nfixed\n", encoding="utf-8")
+    assert git(["checkout", "-q", "-b", "fix/fleet-doctor-x"], cwd=ws.path).ok
+    assert git(["add", "-A"], cwd=ws.path).ok and git([*CFG, "commit", "-q", "-m", "fix"], cwd=ws.path).ok
+    assert W.tampered(ws) == [], "a branch and a commit by the agent are inside the allowance"
+    assert W.tree_report(ws).tracked == ["README.md"], "the engine's git still sees the edit against the fresh HEAD"
+    with (ws.path / ".git" / "config").open("a") as fh:
+        fh.write("[core]\n\tfsmonitor = /tmp/evil\n")
+    assert W.tampered(ws) == ["config"], W.tampered(ws)
+    # without the allowance the same commit IS tampering (scout's workspace)
+    plain = make()
+    assert git(["checkout", "-q", "-b", "x"], cwd=plain.path).ok
+    assert W.tampered(plain), "HEAD moved: outside a plain workspace's baseline"
+
+
+def test_diff_patch_holds_tracked_edits_and_new_files_and_skips_the_engines_own_files():
+    ws = make_doctor()
+    out = Path(tempfile.mkdtemp()) / "outputs"
+    empty = W.diff_patch(ws, out)
+    assert empty.reason == "ok" and empty.size == 0 and empty.dest.read_bytes() == b""
+    W.place_bytes(ws, b"# work order\n", "remediation-workorder.md")
+    (ws.path / "README.md").write_text("# fixture\nfixed\n", encoding="utf-8")
+    (ws.path / ".github" / "workflows").mkdir(parents=True)
+    (ws.path / ".github" / "workflows" / "ci.yml").write_text("name: CI\n", encoding="utf-8")
+    (ws.tmp / "scratch.txt").write_text("tmp\n", encoding="utf-8")
+    h = W.diff_patch(ws, out)
+    text = h.dest.read_text()
+    assert h.reason == "ok" and "+fixed" in text and "ci.yml" in text and "+name: CI" in text, text
+    assert "remediation-workorder.md" not in text and "scratch.txt" not in text
+    assert h.sha256 == hashlib.sha256(h.dest.read_bytes()).hexdigest() and h.size == len(h.dest.read_bytes())
+    big = W.diff_patch(ws, out, max_bytes=10)
+    assert big.reason == "too-large" and big.dest is None
+    with (ws.path / ".git" / "config").open("a") as fh:
+        fh.write("[core]\n\tfsmonitor = /tmp/evil\n")
+    try:
+        W.diff_patch(ws, out)
+    except JevError as e:
+        assert "refusing to run git" in str(e)
+    else:
+        raise AssertionError("a tampered clone was diffed")
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0

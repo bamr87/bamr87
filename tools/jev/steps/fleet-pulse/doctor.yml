@@ -1,0 +1,165 @@
+# The ONE spec for the fleet doctor's agent step: .github/workflows/fleet-pulse.yml,
+# job `doctor`, step id `fix` (tools/jev/steps/README.md, docs/adr/0002 P3).
+#
+# The prompt has no caller-filled part: doctor.prompt.txt renders to its own
+# bytes, and the workflow carries that text inline, byte-equal (parity proves
+# it). Model, turns and dollars are REFERENCES into _data/fleet.yml, never
+# copies; the caps and the allowlist are also literals in that step's
+# claude_args (harness_registry and test_ai_budget read literals), and
+# `python3 -m tools.jev steps check` holds every copy equal to this file.
+schema: loop-step/v1
+# == this directory == the workflow stem (the console's LOOPS id fleet_pulse
+# joins through its `workflow` field)
+loop: fleet-pulse
+step: doctor
+# <workflow file>:<job id>, the key of _data/fleet.yml budget.call_sites
+call_site: fleet-pulse.yml:doctor
+# the claude-code-action step's `id:` in that job
+step_id: fix
+
+# Beside this file: UTF-8, LF, exactly one trailing newline, never .md.
+prompt: doctor.prompt.txt
+# No {{TOKEN}}: the queue reaches the agent as the work order it reads, not
+# through the prompt (an empty mapping is a prompt with no token).
+inputs: {}
+
+# Resolved from _data/fleet.yml. The model must be an exact id in
+# ai_models.allowed (constitution 13.3): `opus` became claude-opus-5-5 there
+# and in the workflow's literal (ADR 0002 P3).
+model_from: remediation.model
+max_turns_from: remediation.max_turns
+# == jobs.doctor.timeout-minutes; the local engine's wall clock
+timeout_minutes: 60
+
+# == claude_args --allowedTools, joined with "," in THIS order. gh and git are
+# the work itself (reading run logs, branching, committing, filing); the
+# filters exist because a `--log-failed` dump is matched per pipe segment.
+# Locally the engine's deny list wins over gh, git push/remote/config, curl
+# and the rest: the agent reads the brief's pre-fetched evidence instead, and
+# the engine's filer holds the credential.
+allowed_tools:
+  - Bash(gh:*)
+  - Bash(git:*)
+  - Bash(mkdir:*)
+  - Bash(cd:*)
+  - Bash(ls:*)
+  - Bash(cat:*)
+  - Bash(grep:*)
+  - Bash(head:*)
+  - Bash(tail:*)
+  - Bash(wc:*)
+  - Bash(sed:*)
+  - Bash(awk:*)
+  - Bash(cut:*)
+  - Bash(sort:*)
+  - Bash(uniq:*)
+  - Bash(tr:*)
+  - Bash(jq:*)
+  - Bash(echo:*)
+  - Read
+  - Grep
+  - Glob
+  - Edit
+  - Write
+
+# What a runner must reproduce. CI implements it in the job's steps, except
+# what `exceptions` names; the local engine builds all of it.
+workspace:
+  # the HUB checkout, whatever the candidate names (CI: actions/checkout of this
+  # repository; locally: a clone of the hub for every item)
+  cwd: hub
+  # the engine's own directory in the clone: the agent's TMPDIR and the
+  # context pack live here, git-excluded; CI has no such directory
+  brief_dir: .doctor
+  # the prompt reads the work order by this fixed name in the checkout root
+  # (CI: download-artifact with no path; locally: the engine places the
+  # item's brief there and git-excludes it)
+  brief_file: remediation-workorder.md
+  # the doctor keeps no file output: its edits to the checkout are the fix
+  # (local.harvest: patch), and its filing is what it asks gh for
+  outputs: []
+  # The posture CI gives this step, exactly: FLEET_TOKEN as FLEET_WRITE_TOKEN
+  # in the step's env, the resolve-fleet-token probe's winner as its
+  # github_token input. Parity holds the step to exactly those routes. The
+  # LOCAL engine hands the agent no credential (its environment is built
+  # from scratch and gh is denied): the filer holds it, behind --apply.
+  github_credential: fleet-write
+  # Known gaps CI leaves open today (ADR 0002). app-token is CLOSED here: the
+  # step passes its own github_token, so the action mints no App token.
+  exceptions:
+    setting-sources: >-
+      claude_args passes no --setting-sources, so the hub checkout's own
+      .claude/settings.json (permissions.allow, hooks) loads in CI; the same
+      follow-up issue as scout's, and the local runner isolates settings itself
+
+# Constitution 13.6 / 13.8: in CI the step meets the lethal trifecta —
+# private data (FLEET_TOKEN, fleet run logs), untrusted content (the failing
+# repositories' logs and workflow files) and an external send (a push, a PR,
+# an issue, with that token) — ungated. Locally every leg is cut: no
+# credential, no network, and the only send is the engine's filer after the
+# maintainer's --apply.
+risk:
+  agent:
+    what: >-
+      reads failing fleet runs' logs and workflow files, edits workflows in
+      the hub checkout or a cloned submodule, and in CI pushes fix branches,
+      opens draft PRs and files hub issues with FLEET_TOKEN
+    tags:
+      - external
+    tier: high
+  publish:
+    what: >-
+      dash-gen doctor-file --apply would push the fix branch and open the
+      draft PR, or file the hub issue, each carrying the MARKER line CI dedupes
+      on (refused until bamr87/bamr87#488's publish step lands)
+    tags:
+      - external
+    tier: high
+
+# Constitution 13.1: the eval set's path, null during the grace period.
+evals: null
+
+# How `python3 -m tools.jev loop` runs this step on a workstation (docs/JEV.md,
+# ADR 0002 P3). CI ignores this block; the prompt above stays the CI prompt.
+local:
+  # a key of tools/jev/adapters REGISTRY (tools/jev/adapters/fleet_pulse_doctor.py)
+  adapter: fleet_pulse_doctor
+  # == fleet-pulse.yml pulse job `if:` (vars.FLEET_PULSE_ENABLED != 'false'):
+  # default ON, a switch added to a loop already in service. `steps check`
+  # holds them equal.
+  switch:
+    config: remediation.enabled
+    variable: FLEET_PULSE_ENABLED
+    default: 'on'
+  # CI's remediation queue, split into one item per candidate, each brief
+  # carrying the evidence Step 2 of the prompt reads (fetched by the planner:
+  # the attempt's shell has no network); its stdout is plan.json
+  planner:
+    argv: [remediate, --plan-dir, '{plan_dir}']
+    flags:
+      target: --target
+      offline: --offline
+      no_files: --no-briefs
+  # the filer: a dry run of the validated patch + filing (the exact body
+  # bytes for the reviewer); --apply only after the 13.6 yes, and refused by
+  # the filer itself in this release (#488)
+  publish:
+    argv: [doctor-file, --item, '{validated}', --run-url, '{run_ref}', --bodies-dir, '{bodies_dir}']
+    apply_flag: --apply
+    risk: publish
+  # JEV's rule: a budget-hit attempt is discarded
+  on_budget_hit: discard
+  # the agent's edits to the checkout ARE the output: the engine diffs the
+  # clone against the fresh HEAD and hands the adapter changes.patch; the
+  # clone may carry the agent's own fix branch and commits
+  harvest: patch
+  # The context pack beside the brief directory (the CI-identical run is
+  # `--context off`): the hub's lake, code index and telemetry, and this
+  # loop's earlier attempts on the candidate.
+  context:
+    mode: auto
+    file: context.md
+    providers: [history, lake_issues, lake_ci, lake_agents, index_code, telemetry_errors]
+    max_chars: 16000
+    deadline_s: 20
+    days: 30

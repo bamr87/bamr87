@@ -106,6 +106,24 @@ export interface ScoreMetric {
   status?: string;
 }
 
+/** One agent step of a loop that the JEV loop runner can run on this machine (a step spec under tools/jev/steps/ with a `local:` block). */
+export interface AgentStep {
+  id: string;
+  loop: string;
+  step: string;
+  call_site: string;
+  spec: string;
+  adapter: string;
+  model: string;
+  max_turns: number;
+  cap_usd: number;
+  /** Always "API-equivalent (estimate)": a throughput ceiling under OAuth, not an invoice. */
+  cost_label: string;
+  switch?: { config: string; variable: string; default: boolean | string | null; config_value?: unknown } | null;
+  publish_tier?: string | null;
+  on_budget_hit?: string;
+}
+
 export interface Loop {
   id: string;
   title: string;
@@ -113,6 +131,8 @@ export interface Loop {
   doc: string;
   outputs: string[];
   local_ops: string[];
+  /** The loop's agent steps that also run locally (`loop-run`). */
+  agent_steps: AgentStep[];
   cron?: string | null;
   cron_human: string;
   freshest_output_days?: number | null;
@@ -168,10 +188,14 @@ export interface Op {
   needs_token: boolean;
   params: string[];
   remote_write: boolean;
-  /** Ops sharing this key never run at once (e.g. every writer of the lake). */
+  /** What the confirm gate guards: a GitHub write (the default for a remote op) or Claude spend. */
+  confirm?: 'write' | 'spend' | null;
+  /** Ops sharing this key never run at once (e.g. every writer of the lake); `loop` = one run per loop. */
   exclusive?: string | null;
-  /** Why this op cannot run in this console process at all (e.g. no Docker), or null. */
+  /** Why this op cannot run in this console process at all (e.g. no Docker, no claude CLI), or null. */
   unavailable?: string | null;
+  /** loop-run only: the agent steps the form offers. */
+  agent_steps?: AgentStep[];
 }
 
 export interface Job {
@@ -188,6 +212,51 @@ export interface Job {
   exit_code?: number | null;
   /** The operation's group: observe, plan, verify, lake, content, deploy. */
   group?: string | null;
+  /** What its confirm guarded: a GitHub write or Claude spend. */
+  confirm?: 'write' | 'spend' | null;
+  /** The key it holds while queued or running (`lake`, `loop:<loop>`), or null. */
+  exclusive?: string | null;
+}
+
+/** One item of a loop-run job (tools/fleetcore/loopjob.py). */
+export interface LoopJobItem {
+  key: string;
+  status: string;
+  decision?: string | null;
+  reason: string;
+  outcome?: string | null;
+  cost_usd?: number | null;
+  cost_source?: string | null;
+  turns?: number | null;
+  flags: string[];
+  urls: string[];
+  context?: string;
+}
+
+/** The structured view of a loop-run job's log, parsed once on the server. */
+export interface LoopJob {
+  schema: string;
+  record: boolean;
+  run_id?: string | null;
+  status?: string | null;
+  exit_code?: number | null;
+  mode?: string | null;
+  loop?: string | null;
+  step?: string | null;
+  target?: string | null;
+  model?: string | null;
+  max_turns?: number | null;
+  cap_usd?: number | null;
+  spent_usd?: number | null;
+  estimated_usd?: number | null;
+  cost_label: string;
+  attempts?: number | null;
+  published?: number | null;
+  usage_limited?: boolean | null;
+  finished?: string | null;
+  items: LoopJobItem[];
+  run_dir?: string | null;
+  notes: string[];
 }
 
 export interface JobTail {
@@ -195,6 +264,8 @@ export interface JobTail {
   text: string;
   offset: number;
   done: boolean;
+  /** Present on a loop-run job: its parsed fields. */
+  loop?: LoopJob;
 }
 
 export interface FleetRow {

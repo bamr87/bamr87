@@ -373,7 +373,9 @@ def test_check_all_reports_a_broken_spec_instead_of_raising():
     root = tmp_root()
     edit_spec(root, lambda d: d.update({"schema": "loop-step/v2"}))
     specs, errors = S.check_all(root, fleet=fleet())
-    assert not specs and any("schema must be" in e for e in errors), errors
+    # the broken scout spec is reported, not raised, and the other specs still load
+    assert all(sp.loop != "repo-scout" for sp in specs) and any("schema must be" in e for e in errors), errors
+    assert [sp.loop for sp in specs] == ["fleet-pulse"], [sp.loop for sp in specs]
 
 
 # --------------------------------------------------------------------------- #
@@ -730,6 +732,138 @@ def test_switch_parity_holds_the_workflow_gate_to_the_spec_default():
     on = S.load_spec("repo-scout", "scout", root=root, fleet=fleet())
     errs = S.switch_errors(on, workflow())
     assert any("!= 'false'" in e for e in errs) and any("opposite" in e for e in errs), errs
+
+
+# --------------------------------------------------------------------------- #
+# the fleet doctor (ADR 0002 P3): a tokenless prompt, the brief at a fixed root
+# name, the hub as the checkout, the fleet-write posture, the patch harvest
+# --------------------------------------------------------------------------- #
+DOCTOR_WORKFLOW = ROOT / ".github" / "workflows" / "fleet-pulse.yml"
+# The YAML-parsed `prompt: |` of fleet-pulse.yml (job doctor, step fix) at d05df58,
+# the last commit before the prompt became the spec — the bytes the doctor ran on.
+DOCTOR_PROMPT_SHA256 = "019a7f40e2dee00b43725368a210473432a1f754afc59800277ed605550508f0"
+DOCTOR_PROMPT_BYTES = 5394
+
+
+def doctor(**kw) -> S.StepSpec:
+    return S.load_spec("fleet-pulse", "doctor", **kw)
+
+
+def doctor_workflow() -> dict:
+    return yaml.safe_load(DOCTOR_WORKFLOW.read_text(encoding="utf-8"))
+
+
+def doctor_step(wf: dict) -> dict:
+    return next(st for st in wf["jobs"]["doctor"]["steps"] if st.get("id") == "fix")
+
+
+def edit_doctor(root: Path, fn) -> None:
+    p = root / "fleet-pulse" / "doctor.yml"
+    data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    fn(data)
+    p.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _doctor_wf_mutation(fn) -> list[str]:
+    wf = doctor_workflow()
+    fn(wf)
+    return S.parity_errors(doctor(), wf, fleet())
+
+
+def test_the_doctor_spec_reproduces_the_inline_prompt_at_d05df58_byte_for_byte():
+    d = doctor()
+    assert d.inputs == {} and d.template == S.render_prompt(d, {}), "no token: the render is the file"
+    assert len(d.template.encode("utf-8")) == DOCTOR_PROMPT_BYTES and d.template_sha256 == DOCTOR_PROMPT_SHA256
+    assert doctor_step(doctor_workflow())["with"]["prompt"] == d.template, "the workflow's inline copy is the spec"
+    out = subprocess.run([sys.executable, "-m", "tools.jev", "steps", "render", "fleet-pulse", "doctor"],
+                         cwd=ROOT, capture_output=True, check=False)
+    assert out.returncode == 0 and hashlib.sha256(out.stdout).hexdigest() == DOCTOR_PROMPT_SHA256
+
+
+def test_the_doctor_resolves_its_homes_and_its_caps_are_the_workflow_literals():
+    d = doctor()
+    f = fleet()
+    assert d.resolved.model == f["remediation"]["model"] == "claude-opus-5-5"
+    assert d.resolved.max_turns == f["remediation"]["max_turns"] == 240 and d.resolved.max_budget_usd == 40.0
+    assert d.step_id == "fix" and d.call_site == "fleet-pulse.yml:doctor" and d.timeout_minutes == 60
+    assert S.parity_errors(d, doctor_workflow(), f) == []
+    assert doctor_step(doctor_workflow())["env"][S.STEP_SHA_ENV] == d.content_sha256
+
+
+def test_the_doctor_workspace_and_local_block_load_as_declared():
+    d = doctor()
+    ws = d.workspace
+    assert (ws.cwd, ws.brief_dir, ws.brief_file, ws.outputs) == ("hub", ".doctor", "remediation-workorder.md", ())
+    assert ws.github_credential == "fleet-write" and set(ws.exceptions) == {"setting-sources"}
+    assert d.local.harvest == "patch" and d.local.adapter == "fleet_pulse_doctor"
+    assert d.local.planner.argv[0] == "remediate" and d.local.publish.argv[0] == "doctor-file"
+    assert d.local.switch.variable == "FLEET_PULSE_ENABLED" and d.local.switch.default == "on"
+    assert d.local.publish.apply_flag == "--apply" and d.local.publish.risk == "publish"
+
+
+def test_the_format_extensions_are_refused_when_misused():
+    cases = {
+        "inputs null": (lambda data: data.update({"inputs": None}), "inputs maps"),
+        "cwd elsewhere": (lambda data: data["workspace"].update({"cwd": "elsewhere"}), "workspace.cwd must be one of"),
+        "credential unknown": (lambda data: data["workspace"].update({"github_credential": "app"}),
+                               "github_credential must be one of"),
+        "brief_file hidden": (lambda data: data["workspace"].update({"brief_file": ".order.md"}), "bare, visible"),
+        "brief_file with a dir": (lambda data: data["workspace"].update({"brief_file": "x/order.md"}), "bare, visible"),
+        "brief_file is the brief dir": (lambda data: data["workspace"].update({"brief_dir": "order", "brief_file": "order"}),
+                                        "collides"),
+        "harvest unknown": (lambda data: data["local"].update({"harvest": "tarball"}), "local.harvest: one of"),
+        "patch with outputs": (lambda data: data["workspace"].update({"outputs": [".doctor/out.json"]}),
+                               "declares no workspace.outputs"),
+    }
+    for label, (fn, needle) in cases.items():
+        root = tmp_root()
+        edit_doctor(root, fn)
+        assert refused(lambda: S.load_spec("fleet-pulse", "doctor", root=root, fleet=fleet()), needle), label
+
+
+def test_the_fleet_write_posture_is_exact_the_brief_lands_at_the_root_and_the_hub_is_checked_out():
+    # a credential route the posture does not name, or one it names going missing, is a drift
+    cases = {
+        "an extra env token": lambda wf: doctor_step(wf)["env"].update({"GH_TOKEN": "${{ secrets.FLEET_TOKEN }}"}),
+        "github_token dropped": lambda wf: doctor_step(wf)["with"].pop("github_token"),
+        "FLEET_WRITE_TOKEN dropped": lambda wf: (doctor_step(wf)["env"].pop("FLEET_WRITE_TOKEN"),
+                                                  wf["jobs"]["doctor"]["env"].pop("FLEET_WRITE_TOKEN")),
+    }
+    for label, fn in cases.items():
+        errs = _doctor_wf_mutation(fn)
+        assert any("fleet-write" in e and "routes" in e for e in errs), (label, errs)
+    # the brief: a download-artifact step with NO path (the checkout root), never the brief directory
+    moved = _doctor_wf_mutation(lambda wf: next(
+        st for st in wf["jobs"]["doctor"]["steps"] if st.get("name") == "Download work order")["with"].update(
+            {"path": ".doctor"}))
+    assert any("brief_file" in e and "no `path`" in e for e in moved), moved
+    # the checkout is the hub
+    other = _doctor_wf_mutation(lambda wf: next(
+        st for st in wf["jobs"]["doctor"]["steps"] if str(st.get("uses", "")).startswith("actions/checkout")
+        ).update({"with": {"repository": "bamr87/other"}}))
+    assert any("cwd is hub" in e for e in other), other
+    # app-token is closed by the step's own github_token: declaring it is stale; dropping the token reopens it
+    root = tmp_root()
+    edit_doctor(root, lambda data: data["workspace"]["exceptions"].update({"app-token": "x"}))
+    stale = S.parity_errors(S.load_spec("fleet-pulse", "doctor", root=root, fleet=fleet()), doctor_workflow(), fleet())
+    assert any("exceptions.app-token" in e and "stale" in e for e in stale), stale
+
+
+def test_the_doctor_pins_its_hash_and_an_edited_prompt_breaks_the_inline_copy():
+    d = doctor()
+    root = tmp_root()
+    p = root / "fleet-pulse" / "doctor.prompt.txt"
+    p.write_bytes(p.read_bytes().replace(b"Draft PRs only.", b"Merge when green."))
+    moved = S.load_spec("fleet-pulse", "doctor", root=root, fleet=fleet())
+    assert moved.content_sha256 != d.content_sha256
+    errs = S.parity_errors(moved, doctor_workflow(), fleet())
+    assert any(S.STEP_SHA_ENV in e for e in errs) and any("byte-equal" in e for e in errs), errs
+
+
+def test_an_empty_inputs_mapping_renders_and_refuses_any_value():
+    d = doctor()
+    assert S.values_from(d, {"anything": "x"}) == {} and S.matrix_expressions(d) == {}
+    assert refused(lambda: S.render_prompt(d, {"NWO": "a/b"}), "undeclared")
 
 
 def test_template_hygiene():
