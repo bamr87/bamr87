@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — The OPS remote-write path: how the console and the local loop runner write to GitHub
+# 0020 — The OPS remote-write path: how the console and the local loop runner write to GitHub
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0020
 - **Date:** 2026-11-03
 - **Proposed by:** agent (Claude Fable 5.1, on a branch opened for bamr87). Option (a) of bamr87/bamr87#487 is the agent's recommendation, made under the maintainer's 2026-11-03 instruction to continue the epic's remaining work; the maintainer had not picked (a) or (b) — their merge of this PR is the choice and the ratification.
 - **Ratified by:** the merged PR URL (left blank until merged)
