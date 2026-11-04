@@ -449,6 +449,29 @@ def test_board_cut_line_is_the_pipelines():
           and items[f"issue:{HUB}#10"]["next_run"] == 1)
 
 
+def test_dependency_reason_on_the_board():
+    print("\nboard: an issue held by an open prerequisite says so")
+    root = fixture_root()
+    snap_path = root / "_data" / "issue_pipeline.yml"
+    snap = yaml.safe_load(snap_path.read_text())
+    for r in snap["backlog"]:
+        if r["key"] == f"{HUB}#11":
+            r.update({"blocked_by": ["bamr87/noisy#1"], "open_blockers": ["bamr87/noisy#1"],
+                      "deps_reason": "blocked by bamr87/noisy#1"})
+        if r["key"] == "bamr87/noisy#1":
+            r.update({"open_dependents": 1, "dep_boost": 1})
+    snap_path.write_text(yaml.safe_dump(snap))
+    items = by_key(board(root, local=False))
+    held = items[f"issue:{HUB}#11"]
+    check("the Work board item carries the dependency reason",
+          held["detail"]["deps_reason"] == "blocked by bamr87/noisy#1"
+          and held["detail"]["open_blockers"] == ["bamr87/noisy#1"], str(held["detail"]))
+    check("…and the board's T2 cut line leaves it out, as the pipeline does",
+          not held["next_run"], str(held["next_run"]))
+    check("the prerequisite shows how many it unblocks",
+          items["issue:bamr87/noisy#1"]["detail"]["open_dependents"] == 1)
+
+
 def test_plans_refuse_what_they_cannot_do():
     print("\nplans: validated, split by destination")
     root = fixture_root()
@@ -599,6 +622,7 @@ def main() -> int:
     test_pipeline_honours_order()
     test_board_lanes_and_sources()
     test_board_cut_line_is_the_pipelines()
+    test_dependency_reason_on_the_board()
     test_plans_refuse_what_they_cannot_do()
     test_roadmap_edit()
     test_degraded_inputs()

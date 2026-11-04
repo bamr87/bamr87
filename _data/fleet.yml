@@ -332,6 +332,15 @@ issue_pipeline:
   readiness:
     min_score: 70                 # 100 − gap weights; below this T1 must not pass it on
 
+  # Prerequisites (`Blocked by #n` / `Depends on owner/repo#n` in the body, plus
+  # GitHub's native blocked-by links). An issue with an OPEN blocker stays off
+  # the T2 queue (shown with its reason); each open dependent lifts its
+  # prerequisite one step, inside its priority band, never across it.
+  dependencies:
+    enabled: true
+    boost_cap: 3                  # most open dependents that still raise a prerequisite
+    max_lookups: 20               # REST calls per run: native links + refs outside the sweep
+
   # What may proceed unattended, and what stops one step short of asking for a
   # merge. `assisted` still gets a full implementation and a PR — it just never
   # gets marked ready-for-review by an agent.
