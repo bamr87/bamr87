@@ -119,6 +119,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-072](features/features.yml) | Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](docs/prd/FLEET-ACTIVITY-REPLAY.md) | FR5, FR7, FR10, FR15, FR16, FR17, FR18, FR19, FR20, FR26, FR60, NFR4, NFR5, NFR6, NFR7, NFR9, FR66, FR67, FR68, NFR13, FR69 |
 | [HUB-073](features/features.yml) | Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV harnesses (proposed) | planned | [`docs/prd/HARNESS-PROTOCOL.md`](docs/prd/HARNESS-PROTOCOL.md) | FR26, FR46, FR54, FR56, FR59, FR60, FR63, NFR9, NFR11, FR70, FR71, FR72, NFR14 |
 | [HUB-074](features/features.yml) | JEV: the fan-out agent fill's step specs and local dry run (P3, step 3) | partial | [`tools/jev/steps/fanout/agent-fill-standardize.yml`](tools/jev/steps/fanout/agent-fill-standardize.yml) · [`docs/SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | FR56 |
+| [HUB-075](features/features.yml) | Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library | partial | [`tools/jev/refine.py`](tools/jev/refine.py) · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | FR73 |
 
 **Requirement → feature trace**
 
@@ -209,6 +210,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR71 | HUB-073 |
 | FR72 | HUB-073 |
 | NFR14 | HUB-073 |
+| FR73 | HUB-075 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -275,6 +277,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR70: Every fleet harness (the Harness Console API, CI agent steps, local headless runs and each JEV tier) must run work as tasks with sessions, a typed event stream (task, turn, tool call, interrupt, budget, artifact, error) validated by one versioned schema, interrupts that pause for approval and resume, and enforced budgets, using MCP for tools and AGENTS.md for repo instructions.
 - FR71: Every harness task must emit one OpenTelemetry GenAI span tree to Phoenix, a root span per task with a child span per turn and per tool call, whose trace id is stamped on every harness event and redacted before export.
 - FR72: External agent protocols (the Unified Harness Protocol, A2A, AG-UI, Agent Client Protocol) must connect only through adapters that map to the fleet contract, each off by default, version-pinned and removable without changing the core.
+- FR73: The hub must be able to refine a loop's harness from the evidence of its own attempts: validate the harness surface as a sensor, propose, probe and compose edits to the loop's tunable half under its own caps and gates (never to a step spec's hard rules), and keep what each refinement learned in a reviewed library the next attempt reads.
 
 **Non-functional**
 
