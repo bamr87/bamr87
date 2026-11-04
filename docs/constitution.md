@@ -268,8 +268,8 @@ _(amendment `container-management`, numbered at merge — see the [amendment log
 
 _(amendment `writing-chronicle`, numbered at merge — see the [amendment log](amendments/README.md); follows § 22 `repo-cap-42` (PR #660), renumber to § 22 if that amendment does not merge first)_
 
-1. **Rule — daily chronicle** — the monorepo's writing section, `pages/posts/` (dated `YYYY-MM-DD-slug.md`, rendered by `tools/console/site_docs.py` as the console's and public site's Writing section), chronicles, documents, journals and notes all fleet operations, AI prompting and agent activity, in a summarized chronicle fashion, so Amr or other readers can read and recall what happened each day.
-2. **Form** — one chronicle entry per day with activity (`pages/posts/YYYY-MM-DD-chronicle.md`, category `chronicle`), summarizing operations, prompts given, agents run, PRs opened or merged, and outcomes; summaries, not raw transcripts.
+1. **Rule — daily chronicle** — the monorepo's writing section, `pages/posts/` (dated `YYYY-MM-DD-slug.md`, rendered by `tools/console/site_docs.py` as the console's and public site's Writing section), chronicles, documents, journals and notes, repo-wide and fleet-wide, all fleet operations, AI prompting and any activity agents are working on, pushing, committing and deploying across all repos, in a summarized chronicle fashion, so Amr or other readers can read and recall what happened each day.
+2. **Form** — one chronicle entry per day with activity (`pages/posts/YYYY-MM-DD-chronicle.md`, category `chronicle`), summarizing, per repo, operations, prompts given, agents run, work in progress, pushes, commits, PRs opened or merged, deployments, and outcomes; summaries, not raw transcripts.
 3. **Redaction** — a chronicle never records tokens, secrets, credentials, keys, or private values; anything secret-shaped is redacted before commit.
 4. **Drafts** — entries may land as `draft: true` (console-only) until Amr publishes them.
 5. **Enforcement** — generation (a daily chronicle generator, `HUB-NEW`) is a follow-up; until it lands, agents add or append the day's entry by PR.
