@@ -90,6 +90,10 @@ DEFAULTS: dict = {
     "signals": {"max_issues": 8, "max_prs": 5},
 }
 DEFAULT_HUB_OWNER = "bamr87"
+#: the fleet's lockfile policy when `dependencies.lockfile_patterns` is absent
+#: (fleet.yml states it once; the publish step, the filer and the adapter read it)
+DEFAULT_LOCKFILE_PATTERNS = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
+                             "Gemfile.lock", "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock")
 
 
 # --------------------------------------------------------------------------- #
@@ -127,6 +131,10 @@ def load_config(path: Path | str | None) -> dict:
     cfg["signals"] = {**DEFAULTS["signals"], **(raw.get("signals") or {})}
     hub = (fleet.get("hub") or {}).get("repo") or ""
     cfg["hub_owner"] = hub.split("/")[0] if "/" in hub else DEFAULT_HUB_OWNER
+    pats = ((fleet.get("dependencies") or {}).get("lockfile_patterns") if isinstance(fleet, dict) else None) or []
+    cfg["lockfile_patterns"] = [str(x) for x in pats if isinstance(x, str) and x.strip()] or list(DEFAULT_LOCKFILE_PATTERNS)
+    # the whole document, for the step spec: its model and turn cap follow the config given
+    cfg["_fleet"] = fleet
     return cfg
 
 
@@ -497,7 +505,9 @@ def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: 
     the open-PR check entirely: `force` marks the rows `off`, an `offline`
     plan (the loop runner's rehearsals) marks them `unavailable`."""
     jev = step_spec()
-    spec = jev.load_spec(*EVOLVE_STEP)   # a spec that does not load raises StepSpecError before any leg
+    # the spec resolved against the config this plan was built from (`--config`), so the plan's
+    # model and turn cap follow it; a spec that does not load raises StepSpecError before any leg
+    spec = jev.load_spec(*EVOLVE_STEP, fleet=cfg.get("_fleet") or None)
     now = now or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     selected, dropped = select_targets(registry, cfg, target)
     skipped: list[dict] = []
@@ -567,7 +577,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="plan mode (the JEV loop runner): no GitHub reads — the open-PR dedupe is marked "
                              "unavailable on every row, so a local --apply refuses until a live plan")
     parser.add_argument("--no-dedupe", action="store_true",
-                        help="skip the open-PR check (offline, or the workflow's `force` input)")
+                        help="skip the open-PR check and mark every row `off` (the workflow's `force` input); "
+                             "an offline plan uses --offline instead, which marks the rows `unavailable`")
     parser.add_argument("--no-briefs", action="store_true",
                         help="plan only — print the JSON, write no files")
     parser.set_defaults(func=run)

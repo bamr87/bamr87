@@ -95,7 +95,6 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       count: ${{ steps.plan.outputs.count }}
       max_parallel: ${{ steps.plan.outputs.max_parallel }}
-      max_turns: ${{ steps.plan.outputs.max_turns }}
       branch_prefix: ${{ steps.plan.outputs.branch_prefix }}
       label: ${{ steps.plan.outputs.label }}
     env:
@@ -140,7 +139,6 @@ jobs:
             echo "matrix=$(jq -c '{include: .include}' plan.json)"
             echo "count=$(jq -r '.count' plan.json)"
             echo "max_parallel=$(jq -r '.max_parallel // 2' plan.json)"
-            echo "max_turns=$(jq -r '.max_turns // 120' plan.json)"
             echo "branch_prefix=$(jq -r '.branch_prefix // "ai-evolution"' plan.json)"
             echo "label=$(jq -r '.label // "ai-evolution"' plan.json)"
           } >> "$GITHUB_OUTPUT"

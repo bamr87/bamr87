@@ -52,7 +52,7 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | [`docs/OBSERVABILITY.md`](OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`docs/PLATFORM.md`](PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-premise cluster. |
 | [`docs/PORTFOLIO.md`](PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
-| [`docs/PROJECTS-FRAMEWORK.md`](PROJECTS-FRAMEWORK.md) | Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and PRD requirements `projects-coverage`, `projects-sync`… |
+| [`docs/PROJECTS-FRAMEWORK.md`](PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync-console` and… |
 | [`docs/RELEASES.md`](RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`docs/SCHEMA-FRAMEWORK.md`](SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`docs/SCHEMA.md`](SCHEMA.md) | Operator documentation for the dash machinery — how the hub, gates, and fleet workflows are meant to be run. |
@@ -79,7 +79,10 @@ The root [`README.md`](../README.md) is a GitHub profile. To work in the repo st
 | Document | What it covers |
 | --- | --- |
 | [`docs/prd/FLEET-ACTIVITY-LOG.md`](prd/FLEET-ACTIVITY-LOG.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-024` in [`features/features.yml`](../features/features.yml) (`status: planned`). Requirements: FR7–FR15, NFR4–NFR6 in the root… |
+| [`docs/prd/FLEET-ACTIVITY-REPLAY-PLAN.md`](prd/FLEET-ACTIVITY-REPLAY-PLAN.md) | **Status: Draft / proposed.** Plan only; nothing here is implemented. Accepted when the maintainer merges this PR; each phase lands in its own PR. Feature: `HUB-NEW` (slug `fleet-activity-replay`) — the same feature the design PR… |
+| [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](prd/FLEET-ACTIVITY-REPLAY.md) | **Status: Draft / proposed.** Design only; nothing is implemented by this PR. Feature: `HUB-NEW`… |
 | [`docs/prd/HARNESS-PIPELINE-MAP.md`](prd/HARNESS-PIPELINE-MAP.md) | **Status: Draft / proposed.** Data layer implemented in this PR; the console page is specified, not built. Features: `HUB-025` (pipeline map) and `HUB-026` (GitHub workflow nodes) in [`features/features.yml`](../features/features.yml).… |
+| [`docs/prd/HARNESS-PROTOCOL.md`](prd/HARNESS-PROTOCOL.md) | **Status: Draft / proposed.** Design only; nothing here is implemented yet. Feature: `HUB-NEW` (slug `harness-protocol`) in [`features/features.d/harness-protocol.yml`](../features/features.d/harness-protocol.yml). The number is… |
 | [`docs/prd/SCHEMA.md`](prd/SCHEMA.md) | Sub-PRDs: detailed product requirements for one feature area. The root `PRD.md` owns every requirement id (`FRn`/`NFRn`); a sub-PRD expands them and is linked from it and from the feature's `docs:` in `features/features.yml`. |
 
 <!-- AUTO:docs-index:end -->

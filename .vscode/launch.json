@@ -686,6 +686,14 @@
       "cwd": "${workspaceFolder}",
       "presentation": { "group": "4-generate", "order": 19 }
     },
+    {
+      "name": "📋 Projects: triage + Fleet board backfill plan (dry run)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "tools/dash projects plan --board",
+      "cwd": "${workspaceFolder}",
+      "presentation": { "group": "4-generate", "order": 20 }
+    },
 
     // ----------------------------------------------------------------- LOOPS
     // Every loop's agent step runs locally through JEV (docs/JEV.md): `plan`

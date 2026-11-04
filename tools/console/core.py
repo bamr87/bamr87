@@ -2109,14 +2109,15 @@ CONFIG_SECTIONS: list[dict] = [
          "autonomy.default": _f("choice", "what may proceed unattended", ("auto", "assisted")),
      }},
     {"key": "evolution", "title": "Repo evolution — the weekly proactive loop", "doc": "docs/EVOLUTION.md",
-     "blurb": "One Opus agent and one draft PR per target. max_turns is wired into the workflow "
-              "through the plan, so this is the only place it is stated.",
+     "blurb": "One Opus agent and one draft PR per target. The model and the turn cap are not edited "
+              "here: the step spec (tools/jev/steps/repo-evolution/evolve.yml) references evolution.model and "
+              "evolution.max_turns, and the workflow carries both as literals that `python3 -m tools.jev steps "
+              "check` holds equal, so a change is a pull request that moves fleet.yml and the workflow together.",
      "fields": {
          "enabled": _f("bool", "run the weekly pass"),
          "skip_when_open_pr": _f("bool", "one open evolution PR per repo is the backpressure"),
          "max_targets": _f("int", "repos evolved per run"),
          "max_parallel": _f("int", "concurrent agents (one OAuth account's rate limit)"),
-         "max_turns": _f("int", "per-repo turn budget — set above observed demand, not at it"),
          "signals.max_issues": _f("int", "issues quoted into each brief"),
          "signals.max_prs": _f("int", "PRs quoted into each brief"),
      }},

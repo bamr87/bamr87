@@ -441,7 +441,9 @@ def _weight(item: dict) -> float:
     """Within one priority, each kind keeps its own loop's order (higher first)."""
     k = item["kind"]
     if k == "issue":
-        return (item.get("readiness") or 0) * 10_000 + min(item.get("age_days") or 0, 9_999)
+        # issue_pipeline.queue_sort_key's order: prerequisite boost, readiness, age
+        return ((item["detail"].get("dep_boost") or 0) * 10_000_000
+                + (item.get("readiness") or 0) * 10_000 + min(item.get("age_days") or 0, 9_999))
     if k == "pr":
         d = item["detail"]
         return ((900 if d.get("ci") == "fail" else 0) + (50 if d.get("draft") else 0)
@@ -520,7 +522,11 @@ def _items(inp: dict, queue: dict, stage_over: dict[str, str],
             "progress": None, "note": (queue.get("notes") or {}).get(key),
             "detail": {"number": r["number"], "type": r.get("type"), "score": r.get("priority_score"),
                        "gaps": r.get("gaps") or [], "owner": r.get("owner"), "pr": r.get("pr"),
-                       "comments": r.get("comments"), "derived": bool(r.get("_derived"))},
+                       "comments": r.get("comments"), "derived": bool(r.get("_derived")),
+                       # why the pipeline holds it back (issue_pipeline.resolve_dependencies)
+                       "blocked_by": r.get("blocked_by") or [], "open_blockers": r.get("open_blockers") or [],
+                       "open_dependents": r.get("open_dependents") or 0, "dep_boost": r.get("dep_boost") or 0,
+                       "deps_reason": r.get("deps_reason")},
         })
 
     # --- pull requests ---------------------------------------------------------
@@ -649,7 +655,8 @@ def _simulate(items: list[dict], inp: dict) -> dict[str, list[str]]:
             r["issues"].append({"key": it["key"], "number": it["detail"]["number"], "stage": it["stage"],
                                 "autonomy": it["autonomy"], "priority": "unscored" if derived else it["priority"],
                                 "readiness": it.get("readiness") or 0, "age_days": it.get("age_days") or 0,
-                                "rank": it.get("rank")})
+                                "rank": it.get("rank"), "open_blockers": it["detail"]["open_blockers"],
+                                "dep_boost": it["detail"]["dep_boost"]})
         elif it["detail"].get("pipeline"):
             r["prs"].append({"key": it["key"], "number": it["detail"]["number"], "pipeline": True,
                              "draft": it["detail"]["draft"], "ci": it["detail"]["ci"],

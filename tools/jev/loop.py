@@ -799,8 +799,13 @@ class RunContext:
         return dash_gen(argv, stdin=stdin)
 
     def planner(self, *, target: str | None = None, no_files: bool = False) -> dict:
+        """The spec's planner. A targeted call (the live recheck of one item)
+        is routed into a scratch directory whatever the planner's flags, so the
+        run's plan/plan.json — the rows `loop publish` finds its items in — is
+        never overwritten by a one-target plan; `no_files` additionally asks a
+        brief-writing planner to write none (its own flag)."""
         with tempfile.TemporaryDirectory(prefix="jev-plan-") as tmp:
-            out_dir = Path(tmp) if no_files else self.plan_dir
+            out_dir = Path(tmp) if (no_files or target is not None) else self.plan_dir
             res = dash_gen(planner_argv(self.spec, out_dir, self.opts, target=target, no_files=no_files))
         plan = parse_last_json(res.out)
         if res.code not in (0, 1) or plan is None:
@@ -1219,7 +1224,12 @@ def context_settings(spec: StepSpec) -> ContextSpec:
 
 
 def context_mode(ctx: RunContext) -> str:
-    """`--context` when given, else the spec's mode."""
+    """`--context` when given, else the spec's mode — except for a step with
+    no brief (`workspace.no_brief`), which is always `off`: the spec loader
+    refuses any other mode there, and the CLI override would otherwise build
+    and place a pack nothing points at (or block the item under `require`)."""
+    if ctx.spec.workspace.no_brief:
+        return "off"
     return ctx.opts.context or context_settings(ctx.spec).mode
 
 

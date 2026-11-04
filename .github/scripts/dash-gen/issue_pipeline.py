@@ -106,6 +106,9 @@ DEFAULT_CONFIG = {
     "evidence": {"enabled": True, "max_runs": 6, "ttl_days": 7,
                  "timeout_minutes": 12, "screenshots": True},
     "readiness": {"min_score": 70},
+    # Prerequisites: an open blocker keeps an issue off the T2 queue, and each
+    # open dependent lifts its prerequisite (bounded) within its priority band.
+    "dependencies": {"enabled": True, "boost_cap": 3, "max_lookups": 20},
     "autonomy": {
         "default": "auto",
         "never_merge": True,
@@ -216,6 +219,14 @@ SMALL_WORK_RE = re.compile(
 MARKER_RE = re.compile(r'<!-- issue-pipeline tier="(\d)" key="([^"]+)" -->')
 EVIDENCE_MARKER_RE = re.compile(r'<!-- issue-evidence key="([^"]+)"'
                                 r'(?: at="([^"]*)")? -->')
+# "Blocked by #12", "depends on: bamr87/x#3, #4 and #5" — the refs that follow
+# the phrase on the same line. Fenced code is stripped first (FENCE_RE) so a
+# quoted log or template never manufactures a dependency.
+DEPENDS_RE = re.compile(
+    r"\b(?:blocked\s+by|depends\s+on)\b\s*:?\s*"
+    r"((?:(?:[\w.-]+/[\w.-]+)?#\d+\b(?:\s*(?:,|&|\band\b)\s*)?)+)", re.I)
+DEP_REF_RE = re.compile(r"(?:([\w.-]+/[\w.-]+))?#(\d+)\b")
+FENCE_RE = re.compile(r"^[ \t]*(```|~~~)[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$", re.M)
 CLOSES_RE = re.compile(r"\b(clos(?:e|es|ed)|fix(?:e[sd])?|resolv(?:e|es|ed))\s+"
                        r"#(\d+)\b", re.I)
 
@@ -500,6 +511,35 @@ def linked_issue_numbers(pr_body: str) -> set[int]:
     return {int(m.group(2)) for m in CLOSES_RE.finditer(pr_body or "")}
 
 
+def parse_dependency_refs(body: str, nwo: str) -> list[str]:
+    """`Blocked by` / `Depends on` refs in an issue body, as `owner/repo#n` keys.
+
+    Case-insensitive; a bare `#n` belongs to `nwo`. Refs inside fenced code are
+    ignored. Order is first-seen, duplicates dropped.
+    """
+    text = FENCE_RE.sub("", body or "")
+    out: list[str] = []
+    for m in DEPENDS_RE.finditer(text):
+        for ref in DEP_REF_RE.finditer(m.group(1)):
+            key = issue_key(ref.group(1) or nwo, int(ref.group(2)))
+            if key.lower() not in {k.lower() for k in out}:
+                out.append(key)
+    return out
+
+
+def _native_blocked_count(iss) -> int:
+    """GitHub's own blocked-by count from the list payload (no extra request).
+
+    0 when the field is absent (older API, or dependencies not enabled) — the
+    scan then relies on the body text alone.
+    """
+    try:
+        summary = iss._rawData.get("issue_dependencies_summary") or {}  # noqa: SLF001
+        return int(summary.get("total_blocked_by") or summary.get("blocked_by") or 0)
+    except (AttributeError, TypeError, ValueError):
+        return 0
+
+
 def first_n(paginated, limit: int):
     """Yield at most `limit` items from a PyGithub PaginatedList.
 
@@ -670,6 +710,10 @@ def collect_repo(gh, project: dict, cfg: dict, reds: set[str],
                 "evidence": None,
                 "gaps": gaps,
                 "readiness": readiness(gaps),
+                # dependency refs from the body; native links and the open/closed
+                # state are resolved fleet-wide by resolve_dependencies()
+                "blocked_by": parse_dependency_refs(body, nwo),
+                "_native_blocked": _native_blocked_count(iss),
                 "_body": body,
             })
     except GithubException:
@@ -743,6 +787,170 @@ def enrich_candidates(gh, cands: list[dict], cfg: dict) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# dependencies — prerequisites before dependents
+# --------------------------------------------------------------------------- #
+def _ref_from_payload(item: dict) -> str | None:
+    """`owner/repo#n` from a REST issue object (dependencies endpoint)."""
+    m = re.search(r"github\.com/([\w.-]+/[\w.-]+)/(?:issues|pull)/(\d+)",
+                  str(item.get("html_url") or ""))
+    if m:
+        return issue_key(m.group(1), int(m.group(2)))
+    m = re.search(r"/repos/([\w.-]+/[\w.-]+)$", str(item.get("repository_url") or ""))
+    if m and item.get("number"):
+        return issue_key(m.group(1), int(item["number"]))
+    return None
+
+
+def _gh_native_blockers(gh, key: str) -> list[tuple[str, str]]:
+    """GitHub's blocked-by links for one issue: [(owner/repo#n, state), …].
+
+    Raises GithubException on 404/403 (endpoint absent or not permitted); the
+    caller treats that as "no native links" and keeps the body refs.
+    """
+    nwo, num = key.split("#")
+    _, data = gh.requester.requestJsonAndCheck(
+        "GET", f"/repos/{nwo}/issues/{num}/dependencies/blocked_by")
+    out = []
+    for item in data or []:
+        ref = _ref_from_payload(item) if isinstance(item, dict) else None
+        if ref:
+            out.append((ref, str(item.get("state") or "open").lower()))
+    return out
+
+
+def _gh_issue_state(gh, key: str) -> str:
+    nwo, num = key.split("#")
+    return str(gh.get_repo(nwo).get_issue(int(num)).state or "").lower()
+
+
+def _find_cycles(edges: dict[str, list[str]]) -> list[list[str]]:
+    """Every cycle a depth-first walk meets, as [a, b, …, a]. Iterative, so a
+    long chain cannot hit the recursion limit, and each node is visited once,
+    so a cycle can never loop the scan."""
+    color: dict[str, int] = {}
+    cycles: list[list[str]] = []
+    for start in sorted(edges):
+        if color.get(start):
+            continue
+        color[start] = 1
+        stack = [(start, iter(edges[start]))]
+        path = [start]
+        while stack:
+            node, it = stack[-1]
+            nxt = next(it, None)
+            if nxt is None:
+                color[node] = 2
+                stack.pop()
+                path.pop()
+                continue
+            state = color.get(nxt, 0)
+            if state == 0:
+                color[nxt] = 1
+                stack.append((nxt, iter(edges.get(nxt, []))))
+                path.append(nxt)
+            elif state == 1:
+                cycles.append(path[path.index(nxt):] + [nxt])
+    return cycles
+
+
+def resolve_dependencies(repos: list[dict], cfg: dict, *, native=None,
+                         lookup=None) -> dict:
+    """One fleet-wide pass over every collected issue's prerequisites.
+
+    Sets on each issue: `blocked_by` (body refs + native links), `open_blockers`
+    (the refs still open), `open_dependents` (open issues it blocks),
+    `dep_boost` (`min(open_dependents, boost_cap)`, the queue_sort_key term),
+    `deps_cycle` and `deps_reason` (why it is held back, for the board).
+
+    A ref's state is known for free when it is in the scanned set (open) or in
+    a scanned repo but not in it (closed — the sweep lists every open issue).
+    Only a ref to a repo outside the sweep, or GitHub's native links (fetched
+    only for issues whose payload counts some), costs a request; both share
+    `dependencies.max_lookups`. A ref left unresolved never blocks.
+    `native(key)` / `lookup(key)` are injected so tests stay offline.
+    """
+    dcfg = cfg.get("dependencies") or {}
+    issues = [i for r in repos for i in r["issues"]]
+    for i in issues:
+        i.setdefault("blocked_by", [])
+        i.update({"open_blockers": [], "open_dependents": 0, "dep_boost": 0,
+                  "deps_cycle": None, "deps_reason": None})
+    summary = {"blocked": 0, "cycles": [], "lookups": 0, "unresolved": []}
+    if not dcfg.get("enabled", True):
+        return summary
+    budget = int(dcfg.get("max_lookups", 20))
+    cap = int(dcfg.get("boost_cap", 3))
+    index = {i["key"].lower(): i for i in issues}
+    scanned = {r["nwo"].lower() for r in repos}
+    state: dict[str, str] = {k: "open" for k in index}
+
+    if native is not None:
+        for i in issues:
+            if not i.get("_native_blocked") or summary["lookups"] >= budget:
+                continue
+            summary["lookups"] += 1
+            try:
+                links = native(i["key"])
+            except Exception:  # noqa: BLE001 — 404/403/network: keep body refs
+                continue
+            for ref, st in links:
+                if ref.lower() not in {b.lower() for b in i["blocked_by"]}:
+                    i["blocked_by"].append(ref)
+                state.setdefault(ref.lower(), st)
+
+    def state_of(ref: str) -> str:
+        low = ref.lower()
+        if low in state:
+            return state[low]
+        if low.split("#")[0] in scanned:
+            state[low] = "closed"
+        elif lookup is not None and summary["lookups"] < budget:
+            summary["lookups"] += 1
+            try:
+                state[low] = lookup(ref) or "unknown"
+            except Exception:  # noqa: BLE001 — unreachable ref: never blocks
+                state[low] = "unknown"
+        else:
+            state[low] = "unknown"
+        return state[low]
+
+    edges: dict[str, list[str]] = {}
+    for i in issues:
+        me = i["key"].lower()
+        for ref in i["blocked_by"]:
+            if ref.lower() == me:
+                continue
+            st = state_of(ref)
+            if st == "open":
+                i["open_blockers"].append(ref)
+                if ref.lower() in index:
+                    edges.setdefault(me, []).append(ref.lower())
+            elif st == "unknown" and ref not in summary["unresolved"]:
+                summary["unresolved"].append(ref)
+    for i in issues:
+        for ref in i["open_blockers"]:
+            dep = index.get(ref.lower())
+            if dep is not None:
+                dep["open_dependents"] += 1
+    for i in issues:
+        i["dep_boost"] = min(i["open_dependents"], cap)
+
+    for cyc in _find_cycles(edges):
+        shown = [index[k]["key"] for k in cyc]
+        summary["cycles"].append(shown)
+        for k in cyc[:-1]:
+            index[k]["deps_cycle"] = shown
+    for i in issues:
+        if i["deps_cycle"]:
+            i["deps_reason"] = "dependency cycle: " + " → ".join(i["deps_cycle"])
+        elif i["open_blockers"]:
+            i["deps_reason"] = "blocked by " + ", ".join(i["open_blockers"])
+        if i["deps_reason"]:
+            summary["blocked"] += 1
+    return summary
+
+
+# --------------------------------------------------------------------------- #
 # queue selection
 # --------------------------------------------------------------------------- #
 def queue_sort_key(c: dict):
@@ -754,11 +962,18 @@ def queue_sort_key(c: dict):
     nearly-complete issue is the one an agent can actually finish today, and
     shipping it clears the queue faster than starting the oldest half-specified
     one.
+
+    `dep_boost` (open dependents, capped by `dependencies.boost_cap`) sits
+    after priority and before readiness: a prerequisite goes ahead of its
+    same-priority peers, never across a priority band — a P2 that unblocks
+    three issues still waits behind a P1, because priority is the human's (or
+    T1's) statement of urgency and the boost only orders work inside it.
     """
     order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
     rank = c.get("rank")
     return (0 if rank is not None else 1, rank if rank is not None else 0,
-            order.get(c["priority"], 9), -c["readiness"], -(c["age_days"] or 0))
+            order.get(c["priority"], 9), -(c.get("dep_boost") or 0),
+            -c["readiness"], -(c["age_days"] or 0))
 
 
 def complete_sort_key(p: dict):
@@ -788,7 +1003,11 @@ def build_queues(repos: list[dict], cfg: dict) -> dict[str, list[dict]]:
                     intake.append(item)
                     per_repo += 1
             elif item["stage"] == "ready" and item["autonomy"] != "blocked":
-                ready.append(item)
+                # A PR for an issue whose prerequisite is still open is a
+                # wasted implement slot; it waits (with deps_reason) instead.
+                # Intake is not held back: enriching it is still useful.
+                if not item.get("open_blockers"):
+                    ready.append(item)
         for p in r["prs"]:
             if not p["pipeline"]:
                 continue
@@ -989,7 +1208,8 @@ def render_t3(q: list[dict], cfg: dict, counts: dict) -> str:
 BACKLOG_FIELDS = ("number", "key", "title", "url", "labels", "assignees", "comments",
                   "age_days", "idle_days", "stage", "type", "priority", "priority_auto",
                   "priority_source", "priority_score", "rank", "size", "autonomy",
-                  "autonomy_reason", "owner", "pr", "readiness")
+                  "autonomy_reason", "owner", "pr", "readiness", "blocked_by",
+                  "open_blockers", "open_dependents", "dep_boost", "deps_reason")
 
 
 def backlog_list(repos: list[dict]) -> tuple[list[dict], int]:
@@ -1017,7 +1237,8 @@ def backlog_list(repos: list[dict]) -> tuple[list[dict], int]:
 
 def build_report(repos: list[dict], queues: dict, cfg: dict,
                  skipped: dict[str, list[str]],
-                 queue: dict | None = None, queue_problems: list[str] | None = None) -> dict:
+                 queue: dict | None = None, queue_problems: list[str] | None = None,
+                 deps: dict | None = None) -> dict:
     stage_totals: dict[str, int] = {}
     for r in repos:
         for k, v in r["counts"].items():
@@ -1069,6 +1290,10 @@ def build_report(repos: list[dict], queues: dict, cfg: dict,
             "priority_overrides": len(queue.get("priority") or {}),
             "problems": list(queue_problems or []),
         },
+        # Prerequisite resolution (resolve_dependencies): how many issues an
+        # open blocker holds back, the cycles found, the request budget used.
+        "dependencies": deps or {"blocked": 0, "cycles": [], "lookups": 0,
+                                 "unresolved": []},
         "backlog": backlog,
         "backlog_private_omitted": omitted,
         "pipeline_prs": pipeline_prs,
@@ -1197,6 +1422,16 @@ def run(args: argparse.Namespace) -> int:
     for why, nwos in sorted(skipped.items()):
         sys.stderr.write(f"  ~ {len(nwos)} repo(s) skipped ({why})\n")
 
+    # Before queue selection: a held-back issue must not take an implement slot.
+    deps = resolve_dependencies(repos, cfg,
+                                native=lambda k: _gh_native_blockers(gh, k),
+                                lookup=lambda k: _gh_issue_state(gh, k))
+    if deps["blocked"] or deps["cycles"]:
+        sys.stderr.write(f"Dependencies: {deps['blocked']} issue(s) held by an open "
+                         f"blocker, {len(deps['cycles'])} cycle(s), "
+                         f"{deps['lookups']} lookup(s)\n")
+    for cyc in deps["cycles"]:
+        sys.stderr.write(f"  ! dependency cycle: {' → '.join(cyc)}\n")
     queues = build_queues(repos, cfg)
     # Gap analysis needs each issue's comment history; run it only over the two
     # capped issue queues so the API cost tracks the queue, not the backlog.
@@ -1215,7 +1450,7 @@ def run(args: argparse.Namespace) -> int:
     (out_dir / "issue-workorder-t2.md").write_text(render_t2(queues["implement"], cfg, counts))
     (out_dir / "issue-workorder-t3.md").write_text(render_t3(queues["complete"], cfg, counts))
 
-    report = build_report(repos, queues, cfg, skipped, queue, queue_problems)
+    report = build_report(repos, queues, cfg, skipped, queue, queue_problems, deps)
     if not args.no_snapshot:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
