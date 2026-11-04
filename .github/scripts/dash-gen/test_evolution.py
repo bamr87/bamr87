@@ -121,6 +121,19 @@ def fake_gh(answers: dict[str, list[dict] | None]):
     return _gh
 
 
+def spec_render(row: dict) -> str:
+    """The step spec (tools/jev/steps/repo-evolution/evolve.yml + evolve.prompt.txt)
+    rendered for one plan row — the prompt CI's matrix leg and the local loop
+    runner both run. Imported with the hub root APPENDED to sys.path, so this
+    directory's modules keep precedence (ADR 0002 P3)."""
+    import importlib
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    jev = importlib.import_module("tools.jev.spec")
+    spec = jev.load_spec("repo-evolution", "evolve")
+    return jev.render_prompt(spec, jev.values_from(spec, row))
+
+
 def temp_prompt_dir(with_category=True) -> Path:
     d = Path(tempfile.mkdtemp(prefix="evo-prompts-"))
     (d / "evolve-prompt.md").write_text("## Goals\nImprove {{REPO_NAME}} ({{NWO}} @ {{BRANCH}}), "
@@ -271,7 +284,11 @@ def test_plan_and_config() -> None:
     check("briefs are keyed by the matrix entry's brief filename",
           set(briefs) == {e["brief"] for e in plan["include"]})
     check("the plan carries the knobs the workflow wires (stated once, in fleet.yml)",
-          {"max_parallel", "max_turns", "branch_prefix", "label", "marker"} <= set(plan))
+          {"max_parallel", "max_turns", "model", "branch_prefix", "label", "marker"} <= set(plan))
+    check("every row ends with the spec's rendered prompt (the matrix leg's `prompt`, the loop runner's parity)",
+          all(list(e)[-1] == "prompt" and e["prompt"] == spec_render(e) for e in plan["include"]))
+    check("the plan's model and turns are the spec's resolved fleet.yml homes (exact id, no alias)",
+          plan["model"] == "claude-opus-5-5" and plan["max_turns"] == int(CFG["max_turns"]))
     check("dropped + skipped are reported in the plan", "dropped" in plan and "skipped" in plan)
     json.dumps(plan)
     check("the plan is JSON-serialisable", True)
@@ -279,6 +296,10 @@ def test_plan_and_config() -> None:
     plan, briefs = ev.build_plan(REGISTRY_FIX, CFG, TRIAGE_FIX, target="all", prompt_dir=pdir, gh=None, now="t")
     check("gh=None (--no-dedupe / force) skips the open-PR check entirely",
           all(e["dedupe"] == "off" for e in plan["include"]))
+    plan, _ = ev.build_plan(REGISTRY_FIX, CFG, TRIAGE_FIX, target="all", prompt_dir=pdir, gh=None, now="t",
+                            offline=True)
+    check("an offline plan (the loop runner's rehearsals) marks the dedupe unavailable, so a local --apply refuses",
+          all(e["dedupe"] == "unavailable" for e in plan["include"]))
 
     d = Path(tempfile.mkdtemp(prefix="evo-cfg-"))
     (d / "fleet.yml").write_text("hub:\n  repo: acme/hub\nevolution:\n  max_targets: 2\n  signals:\n    max_prs: 1\n")
@@ -287,6 +308,20 @@ def test_plan_and_config() -> None:
     check("nested signals merge too", cfg["signals"] == {"max_issues": 8, "max_prs": 1})
     check("hub owner comes from hub.repo", cfg["hub_owner"] == "acme")
     check("a missing config file yields the defaults", ev.load_config(d / "nope.yml")["max_turns"] == ev.DEFAULTS["max_turns"])
+    check("the lockfile policy rides on the config (fleet.yml dependencies.lockfile_patterns, else the defaults)",
+          ev.load_config(d / "nope.yml")["lockfile_patterns"] == list(ev.DEFAULT_LOCKFILE_PATTERNS)
+          and ev.load_config(ev.FLEET_DEFAULT)["lockfile_patterns"] == ev.load_yaml(FLEET)["dependencies"]["lockfile_patterns"])
+    # --config governs the plan's model and turn cap: the spec is resolved against the given document
+    import copy
+    alt = copy.deepcopy(ev.load_yaml(FLEET))
+    alt["evolution"]["max_turns"] = 77
+    alt_path = d / "alt.yml"
+    alt_path.write_text(yaml.safe_dump(alt), encoding="utf-8")
+    alt_cfg = ev.load_config(alt_path)
+    alt_plan, _ = ev.build_plan(ev.load_yaml(REGISTRY) or [], alt_cfg, None, gh=None, prompt_dir=PROMPT_DIR,
+                                offline=True)
+    check("--config governs the plan's max_turns (the spec resolved against that document)",
+          alt_plan["max_turns"] == 77 and alt_plan["model"] == alt["evolution"]["model"])
 
     check("owner_repo parses https/.git/ssh forms",
           ev.owner_repo("https://github.com/a/b.git") == "a/b"
@@ -394,7 +429,26 @@ def test_workflow_contract() -> None:
     check("each credential is gated on the chosen method, never passed both",
           "steps.claude-auth.outputs.method == 'oauth'" in ev_step["with"]["claude_code_oauth_token"]
           and "steps.claude-auth.outputs.method == 'api_key'" in ev_step["with"]["anthropic_api_key"])
-    check("--max-turns is wired from the plan", "--max-turns ${{ needs.plan.outputs.max_turns }}" in args)
+    # ADR 0002 P3: the caps are LITERALS the step spec holds equal to fleet.yml
+    # (`python3 -m tools.jev steps check`); the summary reads plan.json itself.
+    check("the plan job exports no dead max_turns output (nothing reads it since the literal)",
+          "max_turns" not in (plan.get("outputs") or {}) and ".max_turns //" not in step(plan, "Build the plan")["run"])
+    turns = re.search(r"--max-turns\s+(\d+)", args)
+    check("--max-turns is the literal of _data/fleet.yml evolution.max_turns (the spec holds it)",
+          bool(turns) and int(turns.group(1)) == int(fleet["evolution"]["max_turns"]))
+    model = re.search(r"--model\s+(\S+)", args)
+    check("--model is the literal of _data/fleet.yml evolution.model, an exact id (no `opus` alias)",
+          bool(model) and model.group(1) == fleet["evolution"]["model"] == "claude-opus-5-5"
+          and model.group(1) in (fleet.get("ai_models") or {}).get("allowed", {}).get("anthropic", []))
+    matrix_row = {"nwo": "${{ matrix.nwo }}", "name": "${{ matrix.name }}", "branch": "${{ matrix.branch }}",
+                  "brief": "${{ matrix.brief }}"}
+    check("the inline prompt is byte-equal to tools/jev/steps/repo-evolution/evolve.prompt.txt rendered with the "
+          "matrix expressions (the spec CI and the local loop runner render)",
+          ev_step["with"]["prompt"] == spec_render(matrix_row))
+    check("the evolve step pins the spec pair's hash (JEV_STEP_SHA256; `tools.jev steps check` holds it)",
+          bool(re.fullmatch(r"[0-9a-f]{64}", str((ev_step.get("env") or {}).get("JEV_STEP_SHA256", "")))))
+    check("the step carries FLEET_TOKEN as GH_TOKEN and nothing else (the spec's fleet-read posture)",
+          "FLEET_TOKEN" in str(ev_step["env"].get("GH_TOKEN")) and set(ev_step["env"]) == {"GH_TOKEN", "JEV_STEP_SHA256"})
     m = re.search(r'--allowedTools\s+"([^"]+)"', args)
     check("claude_args declares --allowedTools", bool(m))
     allowed = {t.strip() for t in m.group(1).split(",")} if m else set()
@@ -405,6 +459,8 @@ def test_workflow_contract() -> None:
     for bad in FORBIDDEN_ALLOWS:
         check(f"allowlist does NOT grant `{bad}` (publishing is the workflow's job)", bad not in allowed)
     check("prompt tells the agent to read its brief", ".evolution/${{ matrix.brief }}" in prompt)
+    # the hard-rule checks below read the SPEC's render: the workflow copy is held byte-equal above
+    prompt = " ".join(spec_render(matrix_row).split())
     check("prompt states the lanes (doctor / issue pipeline / open PRs)",
           "fleet doctor" in prompt and "issue pipeline" in prompt and "open pr" in prompt.lower())
     check("prompt says the agent never pushes and the workflow opens a DRAFT",

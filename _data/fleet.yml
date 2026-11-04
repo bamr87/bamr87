@@ -332,6 +332,15 @@ issue_pipeline:
   readiness:
     min_score: 70                 # 100 − gap weights; below this T1 must not pass it on
 
+  # Prerequisites (`Blocked by #n` / `Depends on owner/repo#n` in the body, plus
+  # GitHub's native blocked-by links). An issue with an OPEN blocker stays off
+  # the T2 queue (shown with its reason); each open dependent lifts its
+  # prerequisite one step, inside its priority band, never across it.
+  dependencies:
+    enabled: true
+    boost_cap: 3                  # most open dependents that still raise a prerequisite
+    max_lookups: 20               # REST calls per run: native links + refs outside the sweep
+
   # What may proceed unattended, and what stops one step short of asking for a
   # merge. `assisted` still gets a full implementation and a PR — it just never
   # gets marked ready-for-review by an agent.
@@ -393,6 +402,14 @@ issue_pipeline:
 evolution:
   enabled: true
 
+  # The evolve step's model, the home tools/jev/steps/repo-evolution/evolve.yml
+  # references (model_from; ADR 0002 P3). An exact id from ai_models.allowed
+  # (constitution § 13.3): `opus` resolves to this on the fleet's first-party
+  # auth, so the pin is a no-op there and removes the alias's provider-dependent
+  # meaning. repo-evolution.yml repeats it as a literal in the step's claude_args;
+  # `python3 -m tools.jev steps check` and test_evolution.py hold them equal.
+  model: claude-opus-5-5
+
   # One open evolution PR per repository at a time. A repo whose previous pass
   # is still open for review is skipped — recognised by the branch prefix OR
   # the hidden marker in the PR body, so a renamed branch cannot fool it. One
@@ -432,6 +449,21 @@ evolution:
     max_prs: 5
 
 # --------------------------------------------------------------------------- #
+# The fan-out agent fill (fanout.yml job agent-fill: kit standardize fills the
+# CLAUDE.md scaffold, kit schema the SCHEMA.md purposes; single target, non-dry,
+# dispatch-only — no schedule, no kill switch). The model and turn cap are the
+# home the two step specs reference (tools/jev/steps/fanout/agent-fill-*.yml
+# model_from / max_turns_from; ADR 0002 P3): an exact id from ai_models.allowed
+# (constitution § 13.3). The step passed no --model before the specs, so the
+# CLI's own default ran; Sonnet is pinned for a read-and-edit task of this
+# size. fanout.yml repeats both as literals in each fill step's claude_args;
+# `python3 -m tools.jev steps check` holds them equal, and the dollar cap is
+# budget.call_sites fanout.yml:agent-fill.
+agent_fill:
+  model: claude-sonnet-5-5
+  max_turns: 25
+
+# --------------------------------------------------------------------------- #
 # Repo scout — the daily proactive ISSUE loop (repo-scout.yml, docs/SCOUT.md).
 # Where repo-evolution writes code (a weekly draft PR in opted-in repos), the
 # scout writes TICKETS: it visits `sample` repositories a day in a fixed
@@ -443,7 +475,6 @@ evolution:
 # with FLEET_TOKEN. A repo opts out with `scout: false` in projects.yml.
 # Kill switch: vars.REPO_SCOUT_ENABLED — a NEW loop, so it starts OFF and runs
 # on its cron only once that variable is 'true' (a dispatch always runs).
-# --------------------------------------------------------------------------- #
 scout:
   enabled: true
   sample: 2                 # repos visited per day; full cycle every ceil(eligible / sample) days

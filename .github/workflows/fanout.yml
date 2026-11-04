@@ -312,63 +312,106 @@ jobs:
           has-oauth: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-      - name: Write the brief
-        id: brief
-        env:
-          KIT: ${{ inputs.kit }}
-        run: |
-          set -euo pipefail
-          case "$KIT" in
-            standardize) cat > brief.md <<'BRIEF'
-          This repository's CLAUDE.md is an unfilled agent-context scaffold
-          (TODO placeholders for the description and the stack/commands).
-
-          Your task, and nothing else:
-          1. Replace the description TODO with one accurate paragraph — what
-             this project is and who it serves — derived from the repo's
-             README, manifests (package.json / requirements / gemspec /
-             Makefile), and code layout. Never invent facts.
-          2. Fill the "Stack & commands" block with the real install / dev /
-             test / lint commands verified against those manifests; delete
-             rows that don't apply.
-          3. Keep the Conventions and Fleet context sections as they are.
-          Do not modify any file other than CLAUDE.md.
-          BRIEF
-            ;;
-            schema) cat > brief.md <<'BRIEF'
-          This repository just adopted the Pyramid Schema: every directory
-          carries a SCHEMA.md contract (scaffolded, purposes still TODO).
-
-          Your task, and nothing else:
-          1. Replace every TODO purpose in every SCHEMA.md with a real
-             one-line purpose derived from the directory's actual contents.
-          2. Where a directory holds a homogeneous collection with a naming
-             rule (dated posts, ADRs, migrations, components), replace the
-             per-file rows with a single `pattern` row.
-          3. Mark build-output directories `generated` and vendored trees
-             `terminal`, and delete any scaffolded SCHEMA.md files inside
-             them.
-          4. Fill the Placement route for the two or three most common kinds
-             of additions to this repo.
-          Keep `python3 tools/schema_lint.py check .` passing with zero
-          errors. Do not modify any file other than SCHEMA.md files.
-          BRIEF
-            ;;
-          esac
-          { echo "prompt<<__BRIEF_EOF__"; cat brief.md; echo "__BRIEF_EOF__"; } >> "$GITHUB_OUTPUT"
-          rm -f brief.md
-
-      - name: Fill the scaffold with Claude Code
-        id: fill
+      # KIT standardize: the hard rules are the JEV step spec tools/jev/steps/fanout/
+      # agent-fill-standardize.prompt.txt (the quoted heredoc this step's brief used
+      # to be), which has no caller-filled part, so the inline text below IS
+      # that file, byte for byte — `python3 -m tools.jev steps check` accepts
+      # the inline form only while they are equal, and the local loop runner
+      # renders the same bytes from the spec. One claude-code-action step per
+      # kit, gated on the dispatch's kit: a spec holds one prompt.
+      - name: Fill the scaffold with Claude Code (kit standardize)
+        id: fill-standardize
+        if: ${{ inputs.kit == 'standardize' }}
         uses: anthropics/claude-code-action@v1
+        # JEV_STEP_SHA256: the step spec pair's content hash (tools/jev/steps/
+        # fanout/: agent-fill-standardize.yml, NUL, agent-fill-standardize.prompt.txt).
+        # A no-op at run time; `steps check` requires it to equal the spec, so
+        # changing the hard rules also changes this workflow file (docs/adr/0002).
+        env:
+          JEV_STEP_SHA256: 91e3af92aaf29bd91ce441b2be1b1bf850118cf344d1f4578e7cab69cd938813
         with:
           claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
-          prompt: ${{ steps.brief.outputs.prompt }}
-          # `--max-turns` bounds iterations, not spend. Dollar ceiling declared
-          # in _data/fleet.yml `budget.call_sites`; test_ai_budget.py asserts
-          # this literal and that entry agree.
-          claude_args: "--max-turns 25 --max-budget-usd 10"
+          # MODEL and TURNS are the literals of _data/fleet.yml agent_fill.model
+          # and agent_fill.max_turns (an exact id, constitution § 13.3; the step
+          # spec references the same keys). `--max-turns` bounds iterations, not
+          # spend: the dollar ceiling is _data/fleet.yml `budget.call_sites`
+          # fanout.yml:agent-fill, repeated here because `claude_args` is a
+          # literal; test_ai_budget.py and `steps check` hold them equal.
+          # ALLOWLIST: read the repository, edit the one file kind the brief
+          # allows, and the schema kit's own gate (python3 tools/schema_lint.py);
+          # no gh, no push — filing is the push step below.
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 25
+            --max-budget-usd 10
+            --allowedTools "Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git ls-files:*),Bash(python3 tools/schema_lint.py:*),Read,Grep,Glob,Edit,Write"
+          prompt: |
+            This repository's CLAUDE.md is an unfilled agent-context scaffold
+            (TODO placeholders for the description and the stack/commands).
+
+            Your task, and nothing else:
+            1. Replace the description TODO with one accurate paragraph — what
+               this project is and who it serves — derived from the repo's
+               README, manifests (package.json / requirements / gemspec /
+               Makefile), and code layout. Never invent facts.
+            2. Fill the "Stack & commands" block with the real install / dev /
+               test / lint commands verified against those manifests; delete
+               rows that don't apply.
+            3. Keep the Conventions and Fleet context sections as they are.
+            Do not modify any file other than CLAUDE.md.
+
+      # KIT schema: the hard rules are the JEV step spec tools/jev/steps/fanout/
+      # agent-fill-schema.prompt.txt (the quoted heredoc this step's brief used
+      # to be), which has no caller-filled part, so the inline text below IS
+      # that file, byte for byte — `python3 -m tools.jev steps check` accepts
+      # the inline form only while they are equal, and the local loop runner
+      # renders the same bytes from the spec. One claude-code-action step per
+      # kit, gated on the dispatch's kit: a spec holds one prompt.
+      - name: Fill the scaffold with Claude Code (kit schema)
+        id: fill-schema
+        if: ${{ inputs.kit == 'schema' }}
+        uses: anthropics/claude-code-action@v1
+        # JEV_STEP_SHA256: the step spec pair's content hash (tools/jev/steps/
+        # fanout/: agent-fill-schema.yml, NUL, agent-fill-schema.prompt.txt).
+        # A no-op at run time; `steps check` requires it to equal the spec, so
+        # changing the hard rules also changes this workflow file (docs/adr/0002).
+        env:
+          JEV_STEP_SHA256: 6aebbe8e1aff86dcebc2ae5d6e8799c65a7c7d022a60f222ee6f90fca832878f
+        with:
+          claude_code_oauth_token: ${{ steps.claude-auth.outputs.method == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ steps.claude-auth.outputs.method == 'api_key' && secrets.ANTHROPIC_API_KEY || '' }}
+          # MODEL and TURNS are the literals of _data/fleet.yml agent_fill.model
+          # and agent_fill.max_turns (an exact id, constitution § 13.3; the step
+          # spec references the same keys). `--max-turns` bounds iterations, not
+          # spend: the dollar ceiling is _data/fleet.yml `budget.call_sites`
+          # fanout.yml:agent-fill, repeated here because `claude_args` is a
+          # literal; test_ai_budget.py and `steps check` hold them equal.
+          # ALLOWLIST: read the repository, edit the one file kind the brief
+          # allows, and the schema kit's own gate (python3 tools/schema_lint.py);
+          # no gh, no push — filing is the push step below.
+          claude_args: >-
+            --model claude-sonnet-5-5
+            --max-turns 25
+            --max-budget-usd 10
+            --allowedTools "Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git ls-files:*),Bash(python3 tools/schema_lint.py:*),Read,Grep,Glob,Edit,Write"
+          prompt: |
+            This repository just adopted the Pyramid Schema: every directory
+            carries a SCHEMA.md contract (scaffolded, purposes still TODO).
+
+            Your task, and nothing else:
+            1. Replace every TODO purpose in every SCHEMA.md with a real
+               one-line purpose derived from the directory's actual contents.
+            2. Where a directory holds a homogeneous collection with a naming
+               rule (dated posts, ADRs, migrations, components), replace the
+               per-file rows with a single `pattern` row.
+            3. Mark build-output directories `generated` and vendored trees
+               `terminal`, and delete any scaffolded SCHEMA.md files inside
+               them.
+            4. Fill the Placement route for the two or three most common kinds
+               of additions to this repo.
+            Keep `python3 tools/schema_lint.py check .` passing with zero
+            errors. Do not modify any file other than SCHEMA.md files.
 
       - name: Report Claude run cost
         id: cost
@@ -378,7 +421,8 @@ jobs:
           tier: Fan-out agent fill — ${{ inputs.kit }}
           icon: 📦
           budget-usd: "10"
-          outcome: ${{ steps.fill.outcome }}
+          # the kit's step ran; the other was skipped
+          outcome: ${{ steps.fill-standardize.outcome == 'skipped' && steps.fill-schema.outcome || steps.fill-standardize.outcome }}
 
       - name: Push the agent pass to the PR branch
         env:

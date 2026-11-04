@@ -195,6 +195,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
 | [`test_jev_adapter_fleet_pulse_doctor.py`](tools/test_jev_adapter_fleet_pulse_doctor.py) | Fixture tests for tools/jev/adapters/fleet_pulse_doctor.py — the fleet doctor's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3). |
+| [`test_jev_adapter_repo_evolution_evolve.py`](tools/test_jev_adapter_repo_evolution_evolve.py) | Fixture tests for tools/jev/adapters/repo_evolution_evolve.py — the evolution agent's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 2). |
 | [`test_jev_adapter_repo_scout.py`](tools/test_jev_adapter_repo_scout.py) | Fixture tests for tools/jev/adapters/ — the loop engine's adapter contract and its first adapter, repo_scout (#486, ADR 0002 P1). |
 | [`test_jev_classify.py`](tools/test_jev_classify.py) | Fixture tests for tools/jev/classify.py — JEV's deterministic conflict classifier. |
 | [`test_jev_conflicts.py`](tools/test_jev_conflicts.py) | Fixture tests for tools/jev/conflicts.py — the conflict engine's safety rules, its reading of a real conflicted working tree, and its validation gate. |
