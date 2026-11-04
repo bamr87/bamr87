@@ -1,0 +1,512 @@
+# =============================================================================
+# _data/projects_backfill.yml — the reviewed triage and board-backfill plan (projects-backfill/v1)
+# =============================================================================
+# The maintainer's decisions for the hub's open issues and their Fleet project
+# items, written once per triage pass and applied through the § 11 service by
+# `tools/dash projects plan` / `apply` (tools/projects_backfill.py). Committing a
+# change to `issues:` is the review; `apply` still needs HARNESS_PROJECTS_WRITES=1
+# and `--confirm` with the previewed plan ids (constitution § 11.4). Every
+# decision carries its evidence in `why:`. Hand-edited; `applied:` is appended
+# by the tool, one record per applied batch. Docs: docs/PROJECTS-FRAMEWORK.md § 3b.
+#
+#   issues.close       close with `reason: completed | not_planned`
+#   issues.labels      add / remove labels that exist in the repo (never creates one)
+#   issues.sub_issues  link children to a parent (the parent carries `epic`)
+#   board              Status / Priority / Area rules on top of templates/projects/framework.yml
+#                      `labels.canonical`; first match wins, then the default
+# =============================================================================
+schema: projects-backfill/v1
+repo: bamr87/bamr87
+project:
+  owner: bamr87
+  number: 14
+reviewed: 2026-11-04
+issues:
+  close:
+  - number: 71
+    title: "it-journey Link Health Guardian: fix already landed (#586) — verify on next full scan, and decide the >5-broken-links gate"
+    reason: completed
+    why: "the fix landed upstream (it-journey#586); Link Health Guardian green on main 2026-11-02"
+  - number: 80
+    title: "zpl-viewer CI: Linux visual goldens unreproducible on runner, macOS integration tests cannot launch VS Code"
+    reason: completed
+    why: "zpl-viewer removed its pixel goldens (AGENTS.md: never add pixel goldens, draw-call tests instead); CI green on main 2026-10-31"
+  - number: 89
+    title: "gitorio Factory 3 (dependency warden) starves at max-turns: compiler orders a Read it never grants"
+    reason: completed
+    why: "Factory 3's last two scheduled runs are green (2026-10-05, 2026-10-12)"
+  - number: 148
+    title: "🔑 Fleet credential rotation needs attention"
+    reason: completed
+    why: "superseded: the 2026-11-02 rotation ledger shows attention [] for every fleet token, and API keys are the api-keys loop's own issue (#577)"
+  - number: 250
+    title: "it-journey/quest-perfection: engine exit 1 on the Stack Attack quest wipes the daily sweep (upstream it-journey#709)"
+    reason: completed
+    why: "upstream it-journey#709 is closed; Quest Perfection Loop green on main 2026-11-03"
+  - number: 288
+    title: "lifehacker.dev: pipeline/triage/nightly red — bad merge left _data/fleet/improvements.yml unparseable (+ duplicate DOC-029)"
+    reason: completed
+    why: "the pipeline PR landed (no open agent/issue-288 branch in lifehacker.dev); pipeline, triage and nightly green 2026-11-03"
+  - number: 294
+    title: "lifehacker.dev auto-update: FLEET_TOKEN expired (secret dated 2026-08-05); not covered by token-rotation"
+    reason: completed
+    why: "auto-update green on main 2026-11-03 (the secret was replaced after the ticket)"
+  - number: 335
+    title: "fleet-pulse doctor: 2 of last 3 runs died on a Claude subscription 429 (session limit), not a workflow defect"
+    reason: completed
+    why: "a spent usage window is a warning since PR #422 (claude-cost usage-limit: skip, paired with continue-on-error; test_ai_budget.py holds it)"
+  - number: 348
+    title: "issue-pipeline: Claude subscription session limit (HTTP 429) kills tiers 2–3 on busy mornings"
+    reason: completed
+    why: "same class as #335, fixed by PR #422; the ANTHROPIC_API_KEY fallback it asked about was declined there (metered billing)"
+  - number: 374
+    title: "fleet-doctor: zer0-CMS extension.yml red on main — AGENTS.md leaks into VSIX (fix open: zer0-CMS#32)"
+    reason: completed
+    why: "fix zer0-CMS#32 merged 2026-10-17; extension.yml green on main 2026-11-03"
+  - number: 390
+    title: "godotgo Claude Improve: no CLAUDE_CODE_OAUTH_TOKEN — registered after last token-rotation run (self-heals 10-26)"
+    reason: completed
+    why: "Claude Improve green on main 2026-11-02, after the 10-26 rotation the ticket predicted"
+  - number: 406
+    title: "gitorio Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (SDLC kit gap)"
+    reason: completed
+    why: "gitorio holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 407
+    title: "rewind-arcade Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled"
+    reason: completed
+    why: "rewind-arcade holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 408
+    title: "godotgo Release: release-please can't open its PR — repo has no secrets (no RELEASE_PLEASE_TOKEN) and Actions PR-creation disabled"
+    reason: completed
+    why: "godotgo holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 413
+    title: "zer0-CMS parodynews: pip-audit red on DRF 3.18.1 CVEs — fix in zer0-CMS#59 blocked by a hardcoded setuptools==83.0.0 guard test"
+    reason: completed
+    why: "fix zer0-CMS#59 merged 2026-10-26; zer0-CMS ci.yml green on main 2026-11-03"
+  - number: 414
+    title: "README Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (same as #406)"
+    reason: completed
+    why: "README holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 415
+    title: "cv-pro Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (same as #406)"
+    reason: completed
+    why: "cv-pro holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 418
+    title: "lifehacker.dev Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (same as #406)"
+    reason: completed
+    why: "lifehacker.dev holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 419
+    title: "githubai Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (same as #406)"
+    reason: completed
+    why: "githubai holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 424
+    title: "scripts Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (same as #406)"
+    reason: completed
+    why: "scripts holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 427
+    title: "outbox Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (same as #406)"
+    reason: completed
+    why: "outbox holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 428
+    title: "djangoerp Release: release-please can't open its PR — no RELEASE_PLEASE_TOKEN and Actions PR-creation disabled (same as #406)"
+    reason: completed
+    why: "djangoerp holds RELEASE_PLEASE_TOKEN and its latest Release run is green (#456's 2026-11-01 table; re-checked 2026-11-04). The epic #456 stays open for bashcrawl (#423) and fredgar-ai (#97), which lack the secret"
+  - number: 429
+    title: "ocrmd ci: generated CLI reference depends on $USER — red on main (fix open: ocrmd#14)"
+    reason: completed
+    why: "fix ocrmd#14 merged 2026-10-30; ocrmd ci.yml green on main 2026-10-30"
+  - number: 469
+    title: "P0: amendment + Projects service layer (read + guarded write-back, flag-off)"
+    reason: completed
+    why: "P0 shipped: PR #475 merged 2026-10-30 (service layer + tests; amendment 0006 ratified)"
+  - number: 499
+    title: "zer0-mistakes Visual evidence autogen: reviewer step always fails — Node 20 installs Claude Code 2.1.197 + invalid ANTHROPIC_API_KEY fallback"
+    reason: completed
+    why: "PR #497 installs claude-code@latest on Node 20; visual-evidence-autogen green on every PR run since 2026-11-03"
+  - number: 103
+    title: "lifehacker.dev: content-factory's 'tool' leg is cancelled mid-agent every run, and its transcript is the one never uploaded"
+    reason: not_planned
+    why: "content-factory was restructured: the 2026-11-03 run has the jobs gate and generate; the 'tool' leg no longer exists"
+  - number: 268
+    title: "fix(ci): rewind-arcade Pages deploy blocked by account Actions billing, not a workflow defect"
+    reason: not_planned
+    why: "the account billing block is lifted: Deploy arcade to GitHub Pages green 2026-10-24; not a workflow defect per the ticket"
+  - number: 359
+    title: "fix(ci): lifehacker.dev ci.yml red is a merge-before-tag race on @v2, already self-resolved"
+    reason: not_planned
+    why: "self-resolved per the ticket itself; lifehacker.dev ci.yml is green"
+  - number: 367
+    title: "cv-builder-pro CI: red from account Actions billing block, not a workflow defect"
+    reason: not_planned
+    why: "billing block lifted: cv-pro CI green on main 2026-10-30; not a workflow defect per the ticket"
+  - number: 368
+    title: "gitorio CI: red/flaky from account Actions billing block, not a workflow defect"
+    reason: not_planned
+    why: "billing block lifted: gitorio CI green on main 2026-11-01; not a workflow defect per the ticket"
+  - number: 369
+    title: "drsai CI: red/flaky from account Actions billing block, not a workflow defect"
+    reason: not_planned
+    why: "the same account-level billing block, lifted (every sibling repo is green again); drsai is outside the hub's checkout, so the evidence is indirect"
+  - number: 384
+    title: "zer0-mistakes Content & Docs Review: Claude tier red because the OAuth weekly quota is exhausted"
+    reason: not_planned
+    why: "a spent usage window is capacity, not a defect (AGENTS.md standing rule, PR #422)"
+  - number: 389
+    title: "ai-seed seed-grow: OAuth token revoked — registry-archived repo skipped by token-rotation but its SEED_*_ENABLED loops still on"
+    reason: not_planned
+    why: "bamr87/ai-seed is archived in the registry (status: archived, checkout retired 2026-10-20); the archived-repo auto-stop it asks for is #511's scope"
+  - number: 391
+    title: "law-ai CI: high-cost signal is a resolved red stretch, not a workflow defect (backend-test ~20m is the only lever)"
+    reason: not_planned
+    why: "not a workflow defect per the ticket; the backend-test lever belongs to law-ai's own backlog"
+  - number: 398
+    title: "zer0-mistakes Manifest Sync 'flaky' is 0-job phantom runs from GITHUB_TOKEN pushes, not a workflow defect"
+    reason: not_planned
+    why: "not a workflow defect per the ticket (0-job phantom runs); Manifest Sync runs green since"
+  labels:
+  - number: 210
+    title: "it-journey: CodeQL 'failure' is collateral — cms-daily-loop merges its PR 4s after opening it"
+    add: ["P2"]
+    remove: ["P0"]
+    why: "the ticket says the CodeQL failure is collateral; the process fault (the loop merges its own PR in 4 s) is real but not urgent"
+  - number: 238
+    title: "evolve pass: max_turns termination discards work even when is_error is false"
+    add: ["P3"]
+    remove: ["P1"]
+    why: "per the ticket the salvage step already exists; what remains is a scope decision"
+  - number: 329
+    title: "standard-ci can pass without testing anything: root-only stack detection, pytest exit 5 = pass (v2.0.0, with #310)"
+    add: ["P1", "size:m"]
+    why: "a shared gate that passes without testing anything is a fleet-wide correctness hole"
+  - number: 364
+    title: "Site quality: fleet WARN rollup — theme contrast, #dropdown-news target size, feed link name (19 sites, 2026-10-15)"
+    remove: ["agent:queued"]
+    why: "stale intake marker: a later pipeline stage is set"
+  - number: 397
+    title: "githubai Claude Review cancels itself: its own size:* label re-triggers the workflow-level concurrency group"
+    add: ["ci", "P2"]
+    why: "still happening: Claude Review cancelled three times on one PR on 2026-10-31"
+  - number: 399
+    title: "zer0-mistakes CI: full pipeline re-runs on every push to a read-only mirror (~14 billed min per sync)"
+    add: ["ci", "P2"]
+    why: "actionable waste (~14 billed minutes per mirror sync)"
+  - number: 454
+    title: "Kaizen continuous improvement routine and model for hub and submodules"
+    add: ["epic"]
+    why: "umbrella of the three [kaizen] roadmap items"
+  - number: 455
+    title: "ERP system model and platform on the monorepo framework, with Django ERP as hub"
+    add: ["epic"]
+    why: "umbrella of the three [erp] roadmap items"
+  - number: 461
+    title: "Security triage 2026-10-30: 1 critical + 25 high Dependabot, ~23 high code-scanning"
+    remove: ["agent:queued"]
+    why: "stale intake marker: a later pipeline stage is set"
+  - number: 467
+    title: "[kaizen] Amendment: model changes flow from quarterly retro to docs/amendments/proposed"
+    add: ["docs"]
+    why: "an amendment proposal; type was missing"
+  - number: 470
+    title: "P1: read aggregator, cache, read-only MCP tools and Projects page"
+    add: ["feature"]
+    why: "phase of epic #468; type was missing"
+  - number: 471
+    title: "P2: cross-repo linked graph and Linked view"
+    add: ["feature"]
+    why: "phase of epic #468; type was missing"
+  - number: 472
+    title: "P3: enable guarded apply — confirm UI, audit page, MCP write tools (flag-off)"
+    add: ["feature"]
+    why: "phase of epic #468; type was missing"
+  - number: 473
+    title: "P4: auto-add workflow (githubai), webhook cache invalidation, live coverage, #453 backfill"
+    add: ["feature"]
+    why: "phase of epic #468; type was missing"
+  - number: 474
+    title: "P5: deploy to live harness (needs Amr's OK)"
+    add: ["chore"]
+    why: "deploy phase of epic #468; type was missing"
+  - number: 476
+    title: "Roadmap: harness console Starred Repos dashboard (analyzed and summarized stars)"
+    add: ["feature"]
+    why: "roadmap console feature; type was missing"
+  - number: 477
+    title: "Roadmap: architecture research harness (R&D loop + research papers)"
+    add: ["feature"]
+    why: "roadmap console feature; type was missing"
+  - number: 479
+    title: "Roadmap: harness console live interactive map of loops and harnesses (Gitorio-style)"
+    add: ["feature"]
+    why: "roadmap console feature; type was missing"
+  - number: 492
+    title: "Build QA Lead: completeness-review bot for major/frontend PRs (#491)"
+    remove: ["enhancement"]
+    why: "framework alias: enhancement → feature (feature already set)"
+  - number: 495
+    title: "Build AIEO engine: AI-readiness validator (#494)"
+    remove: ["enhancement"]
+    why: "framework alias: enhancement → feature (feature already set)"
+  - number: 500
+    title: "docs: 7 dead amendments/proposed/* links in PRD.md + features.yml; FR45 cites HUB-049 (should be HUB-048)"
+    add: ["P2"]
+    why: "still true: PRD.md rows HUB-042..050 link docs/amendments/proposed/*.md, which moved to numbered records"
+  - number: 501
+    title: "governance: merged amendments 0002–0011 still 'proposed'; constitution § 13 precedes § 12 with stale 'numbered at merge' notes"
+    add: ["P2"]
+    why: "part 1 is done (every numbered record now says ratified, PRs #571/#575); § 13 still precedes § 12 in the constitution"
+  - number: 502
+    title: "governance: PRD NFR11 '$75 fleet ceiling' contradicts fleet.yml budget.monthly_ai_usd: 200"
+    add: ["docs", "P2"]
+    why: "still true: PRD NFR11 says a $75 fleet ceiling, fleet.yml budget.monthly_ai_usd is 200 (#441)"
+  - number: 503
+    title: "ci: docs_index.py --lint is not gated anywhere — it failed on main while CI was green"
+    add: ["P2", "size:xs"]
+    why: "check-drift.sh still runs docs_index.py only for vendored parity, never --lint"
+  - number: 504
+    title: "console UI a11y: DataTable sort headers/rows not keyboard or screen-reader operable; no reduced-motion or skip link"
+    add: ["feature", "P2"]
+    remove: ["enhancement"]
+    why: "framework alias enhancement → feature; a11y gap on a shipped surface"
+  - number: 505
+    title: "feat: governance_lint checks the amendment log, constitution order and doc links (governance-records-lint)"
+    add: ["P2"]
+    remove: ["enhancement"]
+    why: "framework alias; planned feature (PR #509)"
+  - number: 511
+    title: "Fleet-wide agent pause switch (FLEET_AGENTS_PAUSED) + archived-repo auto-stop"
+    add: ["feature", "P2"]
+    why: "the global level of #526's switch map (its call-site test and archived-repo auto-stop stay here)"
+  - number: 513
+    title: "OpenSSF Scorecard read-only sweep into the conformance snapshot"
+    add: ["feature", "P3"]
+    why: "deep-dive proposal, not yet planned"
+  - number: 514
+    title: "Conformance check: leaf agent workflows keep hub guardrails"
+    add: ["feature", "P2"]
+    why: "guardrail conformance for leaf agent workflows; cheap static check"
+  - number: 515
+    title: "Maturity levels over UPS conformance (Bronze/Silver/Gold)"
+    add: ["feature", "P3"]
+    why: "planned by PR #520"
+  - number: 516
+    title: "feat(catalog): export _data/projects.yml as Backstage catalog-info.yaml"
+    add: ["feature", "P3"]
+    why: "planned by PR #520"
+  - number: 517
+    title: "feat(console): fan-out campaigns page — per-repo PR/CI/merge state per kit rollout"
+    add: ["feature", "P3"]
+    why: "planned by PR #520"
+  - number: 518
+    title: "feat(fanout): Copier-style 3-way --upgrade for hand-edited kit files (remainder of #127)"
+    add: ["feature", "P3"]
+    why: "planned by PR #520"
+  - number: 519
+    title: "feat(fanout): mani/gita-style tag selectors for --target"
+    add: ["feature", "P3"]
+    why: "planned by PR #520"
+  - number: 526
+    title: "Centrally managed loop kill switches (fleet.yml switch map, scoped pause/resume, conformance + drift)"
+    add: ["feature", "P2", "epic"]
+    remove: ["enhancement"]
+    why: "amendment 0014 (central loop switches) is ratified; this is its implementation epic — #511 and #550 become its phases"
+  - number: 529
+    title: "Risk-tier registry and earned-autonomy enforcement for agent actions (§13.6–13.7)"
+    add: ["feature", "P2"]
+    why: "§ 13.6–13.7 are ratified (amendment 0011); implementation needs Amr's tier decisions"
+  - number: 530
+    title: "Eval sets per agent role + eval-regression check (§13.1–13.2)"
+    remove: ["agent:queued"]
+    why: "stale intake marker: a later pipeline stage is set"
+  - number: 532
+    title: "claude-run: bounded in-run retry with backoff for transient (529/503/overloaded) failures"
+    add: ["ci", "P2", "size:s"]
+    why: "bounded retry in claude-run; small, well-specified"
+  - number: 533
+    title: "Tier-down fallback to cheaper allowed model on model/quota failure, gated by evals"
+    add: ["feature", "P2"]
+    why: "§ 13.4 cheaper-only-if-green"
+  - number: 534
+    title: "issue-pipeline: machine-checked handoff contract between tiers (ADP-01)"
+    add: ["feature", "P2"]
+    why: "issue-pipeline handoff contract (ADP-01)"
+  - number: 535
+    title: "Pipeline outcome feedback loop into prompt review (agent Level 2 self-improvement, ADP-09)"
+    add: ["feature", "P3"]
+    why: "outcome loop into prompt review; overlaps #539 (keep both: prompt review vs loop briefs)"
+  - number: 536
+    title: "Agent-to-agent hand-off contract and coordinator role (§16, agent Level 3)"
+    add: ["feature", "P3"]
+    why: "§ 16 Level-3 hand-off; a decision for Amr first"
+  - number: 537
+    title: "issue-pipeline T3: structured per-acceptance-criterion verdict gating agent:done (ADP-11 gap)"
+    add: ["feature", "P2"]
+    why: "T3 per-criterion verdict (ADP-11)"
+  - number: 538
+    title: "issue-pipeline: dependency-aware queue ordering (blocked-by / prerequisites) (ADP-20 gap)"
+    remove: ["agent:queued"]
+    why: "stale intake marker: a later pipeline stage is set"
+  - number: 539
+    title: "Close the outcome loop: record agent-PR outcomes and feed lessons into prompts"
+    add: ["feature", "P3"]
+    why: "outcome ledger feeding loop briefs; overlaps #535"
+  - number: 540
+    title: "Model ids outside ai_models.allowed: JEV tiers and scout alias"
+    add: ["chore", "P1"]
+    why: "model ids outside ai_models.allowed violate § 13.3; a compliance fix that needs Amr"
+  - number: 541
+    title: "Console MCP server: add MCP Registry server.json (§16 AI-ready, ADP-10)"
+    add: ["feature", "P3"]
+    why: "MCP Registry server.json (§ 16)"
+  - number: 542
+    title: "templates/ai-ready: agent-card.template.json (and other README-listed kit files) missing (ADP-15)"
+    add: ["bug", "P2"]
+    why: "the kit README lists files that do not exist"
+  - number: 543
+    title: "Fleet A2A server/client in hub console — adopt A2A? (§16, ADP-15)"
+    add: ["feature", "P3"]
+    why: "A2A adoption question (§ 16)"
+  - number: 544
+    title: "Per-call-site reasoning effort / thinking budget"
+    add: ["feature", "P3"]
+    why: "per-call-site reasoning effort; needs Amr"
+  - number: 545
+    title: "Repo-scout: rank exploration targets by signal and add a critic/tournament pass"
+    add: ["feature", "P3"]
+    why: "repo-scout ranking and critic pass"
+  - number: 546
+    title: "dash lake recall: searchable session memory + read-only MCP tool (ADP-08 gap)"
+    add: ["feature", "P3"]
+    why: "lake recall MCP tool (ADP-08)"
+  - number: 547
+    title: "templates/ai-ready: build the mcp-site per-site MCP server skeleton (ADP-14 gap, §16)"
+    add: ["feature", "P3"]
+    why: "mcp-site kit skeleton (ADP-14)"
+  - number: 550
+    title: "JEV loop runner: honour fleet-wide pause and central switch on every run, manual included (§17 proposal)"
+    add: ["feature", "P2"]
+    why: "§ 17 is ratified (amendment 0014); the runner must honour the switch map — a phase of #526"
+  - number: 551
+    title: "claude-run installs @anthropic-ai/claude-code@latest unpinned (#497): pin a version"
+    add: ["ci", "P2"]
+    why: "pin the claude-code CLI version claude-run installs (#497 follow-up); needs Amr"
+  - number: 552
+    title: "zer0-mistakes TEST (Latest Dependencies): ~2–3 min/run spent handing a Docker image across 3 runners — merge into one job"
+    add: ["ci", "P3"]
+    why: "actionable waste (image handed across three runners)"
+  - number: 556
+    title: "Console: in-flight job status for agents (job_status, stalled detection, diagnostics)"
+    add: ["feature", "P2"]
+    why: "HUB-064 is planned (PR #555); this is its implementation"
+  - number: 564
+    title: "Implement reusable .github/workflows/pr-review.yml and per-repo stub (amendment fleet-pr-review)"
+    add: ["feature", "P2"]
+    why: "amendment 0017 (fleet PR review) is ratified; this is the implementation"
+  - number: 565
+    title: "Decide bot identity for PR comments: fleet app vs GITHUB_TOKEN; stop automation posting with Amr's PAT"
+    add: ["chore", "P1"]
+    why: "44.5 % of audited PR comments were posted as bamr87 by automation; a decision only Amr can make"
+  - number: 576
+    title: "fix(ci): gitorio triage line (Factory 1) fails at --max-turns 8 after succeeding in 9 turns"
+    add: ["ci", "P2"]
+    why: "Gitorio Factory 1 is still red on main (2026-11-01)"
+  - number: 577
+    title: "🔑 Anthropic API keys need a human"
+    add: ["security", "needs-amr", "P1"]
+    why: "every Console API key expired 2026-10-22 and the repos using them are failing; only Amr can mint keys"
+  - number: 583
+    title: "Backlog: enterprise-grade AppShell refactor for the harness console (static web view, account-based orgs and teams)"
+    add: ["feature", "P3", "size:xl"]
+    why: "Amr's backlog item of 2026-11-02, not scheduled"
+  - number: 584
+    title: "Backlog: fleet-wide self-hosted PostHog analytics across monorepo submodules and repos"
+    add: ["feature", "P3", "size:l"]
+    why: "Amr's backlog item of 2026-11-02, not scheduled"
+  - number: 585
+    title: "Backlog: bashOS as an operating system to install, run, manage and interact with every monorepo repo"
+    add: ["feature", "P3", "size:xl"]
+    why: "Amr's backlog item of 2026-11-02, not scheduled"
+  - number: 586
+    title: "Epic: harness and loop management layer in the console (registry, visualization, configuration)"
+    add: ["epic", "feature", "P3", "size:xl"]
+    why: "titled as an epic; phases to be filed as sub-issues when scheduled"
+  - number: 587
+    title: "Research: Kubernetes for a JEV-tiered harness (orchestration, scaling, deployment, management)"
+    add: ["docs", "P3"]
+    why: "research item (its output is a written assessment); the hub has no research label yet"
+  - number: 588
+    title: "Backlog: project-management harness and loop via GitHub Projects (Fleet project), standard in githubai"
+    add: ["epic", "feature", "P3", "size:xl"]
+    why: "the project-management loop; #589 is its first phase"
+  - number: 589
+    title: "Project-management loop: two-hourly progress review and progress-rate capture"
+    add: ["feature", "P3", "size:l"]
+    why: "phase of #588"
+  - number: 590
+    title: "Fleet Docker image and container management (dev and production)"
+    add: ["P2", "size:xl"]
+    why: "container management standard; amendment PR #591 open, P0 landed in #606"
+  - number: 609
+    title: "FF-0036: Inbox + Work board: link a failing workflow to its green, mergeable fix PR and rank 'merge #N to clear X' first"
+    remove: ["enhancement"]
+    why: "framework alias: enhancement → feature (feature already set)"
+  - number: 610
+    title: "FF-0037: Detect fleet callers that pin a hub reusable workflow or action at a ref where it does not exist"
+    remove: ["enhancement"]
+    why: "framework alias: enhancement → feature (feature already set)"
+  - number: 614
+    title: "zer0-mistakes Evidence gate: 'flaky' is one PR missing its regression spec, not a workflow defect"
+    add: ["ci", "P3", "agent:hold"]
+    why: "informational doctor record (the signal is one PR missing its spec); hold keeps the pipeline off it while the doctor dedupes on it"
+  - number: 615
+    title: "bashcrawl Claude: 'slow' is 60m wall-clock on a skipped run that billed 0 ms, not a workflow defect"
+    add: ["ci", "P3", "agent:hold"]
+    why: "informational doctor record (a skipped run's wall-clock); hold keeps the pipeline off it while the doctor dedupes on it"
+  sub_issues:
+  - parent: 454
+    title: "Kaizen continuous improvement routine and model for hub and submodules"
+    children: [465, 466, 467]
+    why: "the [kaizen] roadmap items are its phases"
+  - parent: 455
+    title: "ERP system model and platform on the monorepo framework, with Django ERP as hub"
+    children: [462, 463, 464]
+    why: "the [erp] roadmap items are its phases"
+  - parent: 526
+    title: "Centrally managed loop kill switches (fleet.yml switch map, scoped pause/resume, conformance + drift)"
+    children: [511, 550]
+    why: "the global pause switch and the runner's switch check are phases of the switch-map epic"
+  - parent: 588
+    title: "Backlog: project-management harness and loop via GitHub Projects (Fleet project), standard in githubai"
+    children: [589]
+    why: "the two-hourly review loop is the first phase of the project-management loop"
+  - parent: 468
+    title: "GitHub Projects as a console surface, with linked view and guarded write-back"
+    children: [453]
+    why: "the backfill is the work P4 (#473) hands to #453"
+board:
+  # Status from labels, first match wins (framework.yml `agent:*` rows apply first).
+  status:
+    closed: Done
+    needs-amr: Needs Amr        # Blocked when the project has no such option (§ 12.4)
+    human-review: Triaged
+    default: Triaged            # every open item carries a type and a priority after this pass
+    pr: In review
+    pr_draft: In progress
+  priority:
+    default: P2
+  # Area from labels, then title keywords, then the default (framework.yml fields.Area options).
+  area:
+    labels:
+      security: security
+      dependencies: deps
+      ci: ci
+      docs: docs
+      area:docs: docs
+      area:a11y: ux
+      test: ci
+    keywords:
+      agents: [agent, claude, loop, jev, scout, pipeline, evolve, doctor, bot]
+      site: [site quality, pages, jekyll]
+      content: [content]
+      data: [lake, ledger, telemetry, snapshot]
+    default: platform
+applied: []
