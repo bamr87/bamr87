@@ -54,6 +54,7 @@ crash. Fixture tests: python3 test_evolution.py
 from __future__ import annotations
 
 import argparse
+import importlib
 import datetime as dt
 import json
 import subprocess
@@ -89,11 +90,28 @@ DEFAULTS: dict = {
     "signals": {"max_issues": 8, "max_prs": 5},
 }
 DEFAULT_HUB_OWNER = "bamr87"
+#: the fleet's lockfile policy when `dependencies.lockfile_patterns` is absent
+#: (fleet.yml states it once; the publish step, the filer and the adapter read it)
+DEFAULT_LOCKFILE_PATTERNS = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
+                             "Gemfile.lock", "poetry.lock", "Pipfile.lock", "uv.lock", "composer.lock")
 
 
 # --------------------------------------------------------------------------- #
 # config + helpers
 # --------------------------------------------------------------------------- #
+#: the agent step's spec (tools/jev/steps/repo-evolution/): every plan row carries
+#: its render, so CI's matrix and the local loop runner run the same bytes
+EVOLVE_STEP = ("repo-evolution", "evolve")
+
+
+def step_spec():
+    """tools.jev.spec, imported lazily with the hub root APPENDED to sys.path
+    (tools/ is a namespace package), so this directory's modules keep precedence."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    return importlib.import_module("tools.jev.spec")
+
+
 def load_yaml(path: Path | str):
     with Path(path).open(encoding="utf-8") as fh:
         return yaml.safe_load(fh)
@@ -113,6 +131,10 @@ def load_config(path: Path | str | None) -> dict:
     cfg["signals"] = {**DEFAULTS["signals"], **(raw.get("signals") or {})}
     hub = (fleet.get("hub") or {}).get("repo") or ""
     cfg["hub_owner"] = hub.split("/")[0] if "/" in hub else DEFAULT_HUB_OWNER
+    pats = ((fleet.get("dependencies") or {}).get("lockfile_patterns") if isinstance(fleet, dict) else None) or []
+    cfg["lockfile_patterns"] = [str(x) for x in pats if isinstance(x, str) and x.strip()] or list(DEFAULT_LOCKFILE_PATTERNS)
+    # the whole document, for the step spec: its model and turn cap follow the config given
+    cfg["_fleet"] = fleet
     return cfg
 
 
@@ -478,9 +500,14 @@ def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str
 def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: str = "all",
                focus: str = "", prompt_dir: Path | str = PROMPT_DIR_DEFAULT, gh=_gh_json,
                now: str | None = None, conformance: dict | None = None,
-               queue: dict | None = None) -> tuple[dict, dict[str, str]]:
+               queue: dict | None = None, offline: bool = False) -> tuple[dict, dict[str, str]]:
     """The whole deterministic step: select → dedupe → brief. `gh=None` skips
-    the open-PR check entirely (offline / `force`)."""
+    the open-PR check entirely: `force` marks the rows `off`, an `offline`
+    plan (the loop runner's rehearsals) marks them `unavailable`."""
+    jev = step_spec()
+    # the spec resolved against the config this plan was built from (`--config`), so the plan's
+    # model and turn cap follow it; a spec that does not load raises StepSpecError before any leg
+    spec = jev.load_spec(*EVOLVE_STEP, fleet=cfg.get("_fleet") or None)
     now = now or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     selected, dropped = select_targets(registry, cfg, target)
     skipped: list[dict] = []
@@ -498,14 +525,20 @@ def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: 
             "category": t["category"],
             "brief": fname,
             "marker": marker_line(cfg, t["nwo"]),
-            "dedupe": t.get("dedupe", "off"),
+            # `off`: the check is disabled; `clear`: no open pass; `unavailable`: gh could not answer, or
+            # the plan was built offline (--offline) — a local --apply then refuses (the adapter's classify)
+            "dedupe": t.get("dedupe", "unavailable" if offline and cfg.get("skip_when_open_pr", True) else "off"),
         })
+        # Last key: the rendered prompt — the matrix leg's `prompt` (held byte-equal to the
+        # workflow's inline copy) and the local engine's (tools/jev/loop.py check_plan_prompts).
+        include[-1]["prompt"] = jev.render_prompt(spec, jev.values_from(spec, include[-1]))
     plan = {
         "generated_at": now,
         "count": len(include),
         "include": include,
         "max_parallel": int(cfg["max_parallel"]),
-        "max_turns": int(cfg["max_turns"]),
+        "max_turns": spec.resolved.max_turns,
+        "model": spec.resolved.model,
         "branch_prefix": str(cfg["branch_prefix"]),
         "label": str(cfg["label"]),
         "marker": str(cfg["marker"]),
@@ -540,8 +573,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="brief template + category emphasis (default .github/evolution/)")
     parser.add_argument("--limit", type=int, default=None, metavar="N",
                         help="override evolution.max_targets")
+    parser.add_argument("--offline", action="store_true",
+                        help="plan mode (the JEV loop runner): no GitHub reads — the open-PR dedupe is marked "
+                             "unavailable on every row, so a local --apply refuses until a live plan")
     parser.add_argument("--no-dedupe", action="store_true",
-                        help="skip the open-PR check (offline, or the workflow's `force` input)")
+                        help="skip the open-PR check and mark every row `off` (the workflow's `force` input); "
+                             "an offline plan uses --offline instead, which marks the rows `unavailable`")
     parser.add_argument("--no-briefs", action="store_true",
                         help="plan only — print the JSON, write no files")
     parser.set_defaults(func=run)
@@ -565,7 +602,8 @@ def run(args: argparse.Namespace) -> int:
         sys.stderr.write(f"  ! {line}\n")
     plan, briefs = build_plan(registry, cfg, triage, target=args.target, focus=args.focus,
                               prompt_dir=Path(args.prompt_dir),
-                              gh=None if args.no_dedupe else _gh_json, conformance=conformance, queue=queue)
+                              gh=None if (args.no_dedupe or args.offline) else _gh_json,
+                              conformance=conformance, queue=queue, offline=args.offline)
 
     if not args.no_briefs and briefs:
         out = Path(args.out_dir)
@@ -582,7 +620,8 @@ def run(args: argparse.Namespace) -> int:
     for s in plan["skipped"]:
         sys.stderr.write(f"  ⏭ {s['name']}: {s['reason']}\n")
     sys.stderr.write(f"Selected {plan['count']} target(s); {len(plan['dropped'])} dropped, "
-                     f"{len(plan['skipped'])} skipped (open PR).\n")
+                     f"{len(plan['skipped'])} skipped (open PR); {plan['model']}, {plan['max_turns']} turns"
+                     f"{' (offline: no dedupe)' if args.offline else ''}.\n")
 
     print(json.dumps(plan, separators=(",", ":")))
     # An explicit ask that yields nothing is an error the caller should see —

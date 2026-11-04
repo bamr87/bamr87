@@ -40,6 +40,7 @@ from ..common import JevError, is_bare_name, is_nwo
 from ..context import MAX_QUERY_CHARS, ContextRequest
 from ..headless import read_events, tool_calls
 from . import Adapter, Item, PlanResult, PublishPlan, Tier0, Triage, Verdict
+from .common import LOCAL_ARTEFACT_RX, last_json as _last_json, leaks_private, result_text as _result_text
 
 #: the engine's harvest for a `local.harvest: patch` step (spec.PATCH_OUTPUT)
 PATCH = "changes.patch"
@@ -51,26 +52,10 @@ VOLATILE_RX = re.compile(r"^(?:Signals: .*|.*What they printed when the planner 
 MARKER_RX = re.compile(r'<!-- fleet-doctor key="([^"]+)" -->')
 #: the prompt's own branch name for a hub fix
 BRANCH_RX = re.compile(r"fix/fleet-doctor-[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
-#: what a sandboxed, offline shell says when it is refused — flagged for the
-#: reviewer, never a reason to reject: the doctor must not diagnose from it
-LOCAL_ARTEFACT_RX = re.compile(r"EAI_AGAIN|ENOTFOUND|Could not resolve host|getaddrinfo|"
-                               r"Operation not permitted|sandbox-exec|Network is unreachable|"
-                               r"has been denied because Claude Code is running in don't ask mode")
 #: the filer's stderr messages (fleet_doctor_file.NO_DEDUPE; CI's doctor has no filer)
 NO_DEDUPE = "filing without the duplicate check"
 APPLY_REFUSED = "doctor-file --apply is not implemented"
 BRIEF_MAX_BYTES = 1024 * 1024
-RESULT_MAX_CHARS = 20_000
-
-
-def _last_json(text: str) -> dict:
-    lines = [ln for ln in (text or "").strip().splitlines() if ln.strip()]
-    if not lines:
-        raise ValueError("no output")
-    out = json.loads(lines[-1])
-    if not isinstance(out, dict):
-        raise ValueError("not a JSON object")
-    return out
 
 
 def _gh_create(command: str) -> dict | None:
@@ -134,12 +119,6 @@ def filing_intents(events: list[dict]) -> tuple[list[dict], str | None]:
     return intents, branch
 
 
-def _result_text(events: list[dict]) -> str:
-    """The session's final `result` text (ai-run's trace is redacted), clipped."""
-    for e in reversed(events):
-        if e.get("type") == "result":
-            return str(e.get("result") or "")[:RESULT_MAX_CHARS]
-    return ""
 
 
 class FleetPulseDoctor(Adapter):
@@ -206,7 +185,6 @@ class FleetPulseDoctor(Adapter):
         intents, branch = filing_intents(events)
         row = item.row
         marker = str(row["marker"])
-        private = [s for s in (str(ctx.home), ctx.hostname, str(ctx.work_root)) if s and len(s) > 3]
         flags: list[str] = []
         # the filing: what the agent asked gh for, else what a hub fix with no call becomes
         intent = next((i for i in intents if i["kind"] == "pr"), None) or next(iter(intents), None)
@@ -235,7 +213,7 @@ class FleetPulseDoctor(Adapter):
             body = marker + "\n\n" + body.lstrip("\n")
         title = " ".join(str(intent.get("title") or "").split())[:200] or f"fleet doctor — {row['repo']}/{row['workflow']}"
         text = title + "\n" + body + "\n" + patch.decode("utf-8", errors="replace")
-        if any(s in text for s in private):   # never put this machine's paths in a public tracker
+        if leaks_private(text, ctx):   # never put this machine's paths in a public tracker
             return Verdict(False, ["the filing or the patch carries a local path or the host name — withheld"])
         if LOCAL_ARTEFACT_RX.search(body):
             flags.append("the body cites a local-runner denial; check the diagnosis rests on the brief's evidence")

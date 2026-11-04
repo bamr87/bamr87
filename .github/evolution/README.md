@@ -45,6 +45,6 @@ A missing category file is not an error — the brief says so and the general go
 - **What every pass does** → edit `evolve-prompt.md`. Preview the result with `tools/dash gen targets --no-dedupe` and read `evolution-workorders/`.
 - **One category** → edit the matching `categories/*.md`.
 - **Which repos, how many, how often** → `_data/projects.yml` (`auto_evolve: true`) and `_data/fleet.yml` (`schedule.repo_evolution`, `evolution:`), **not** here.
-- **The rules** → the `prompt:` in `repo-evolution.yml`, guarded by `test_evolution.py`.
+- **The rules** → the JEV step spec `tools/jev/steps/repo-evolution/evolve.prompt.txt` (+ `evolve.yml`), which the `prompt:` in `repo-evolution.yml` carries inline, byte-equal; `python3 -m tools.jev steps check` and `test_evolution.py` hold the two equal, and the `evolve` step's `JEV_STEP_SHA256` re-pins the pair in the same PR (`tools/jev/steps/README.md`).
 
 The manual [`/evolve-project`](../../.claude/skills/evolve-project/SKILL.md) skill reads the same goals file, so a local pass and the scheduled one aim at the same things.
