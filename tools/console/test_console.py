@@ -531,8 +531,18 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     assert steps[0]["cost_label"] == "API-equivalent (estimate)"
     blob = json.dumps(op)
     assert str(core.REPO_ROOT) not in blob and str(Path.home()) not in blob, "a local path leaked into /api/ops"
-    loop, step = steps[0]["loop"], steps[0]["step"]
+    # a loop with exactly one local step: its step may be left unnamed (fanout's two kits must be named)
+    single = [s for s in steps if sum(1 for t in steps if t["loop"] == s["loop"]) == 1]
+    loop, step = single[0]["loop"], single[0]["step"]
     argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "rehearse": True})
+    multi = next((s for s in steps if s not in single), None)
+    if multi is not None:
+        try:
+            core.build_argv("loop-run", {"loop": multi["loop"], "target": "SCHEMA", "rehearse": True})
+        except ValueError as exc:
+            assert "name one of" in str(exc), exc
+        else:
+            raise AssertionError("a loop with several local steps accepted an unnamed step")
     assert argv == [core.DASH, "loop", "run", loop, "--target", "SCHEMA", "--json", "--rehearse"], argv
     assert remote is False, "a rehearsal spends nothing and needs no confirm"
     argv, remote = core.build_argv("loop-run", {"loop": loop, "step": step})
