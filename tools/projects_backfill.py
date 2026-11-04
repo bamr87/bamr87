@@ -712,7 +712,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("plan", help="compile the decisions, read the current state, preview before → after")
     p.add_argument("--board", action="store_true", help="also plan the Fleet project items (GraphQL)")
     p.add_argument("--json", action="store_true")
-    p.add_argument("--out", help="preview file (default .fleet/projects/plan-<stamp>.json)")
+    p.add_argument("--out", help="preview file (default .fleet/backfill/plan-<stamp>.json)")
     p.add_argument("--decisions", default=str(DECISIONS))
     a = sub.add_parser("apply", help="apply a previewed plan, batch by batch, through the § 11 service")
     a.add_argument("file")
