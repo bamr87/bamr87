@@ -1752,18 +1752,28 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
                "CLAUDE_CODE_OAUTH_TOKEN (docs/TOKEN-ROTATION.md)")
         ctx.stop = (EXIT["credential"], why)
         return done("failed", why, EXIT["credential"])
+    flagged = False
     if kind in ("budget_hit", "max_turns"):
         # local.on_budget_hit: discard (JEV's rule) — CI's file job would file what the leg left behind.
-        # Any other value (P3) has no behaviour here yet: fail closed rather than discard it silently.
-        if spec.local.on_budget_hit != "discard":
+        # publish-flagged (P3, evolve): a budget hit's edits are harvested and previewed FLAGGED as partial,
+        # as CI's publish step marks such a body; a turn exhaustion is still discarded (CI's salvage
+        # publishes only a reported success, which classifies as ok here). Any other value has no
+        # behaviour here: fail closed rather than discard it silently.
+        if spec.local.on_budget_hit == "publish-flagged" and kind == "budget_hit":
+            flagged = True
+            report.setdefault("flags", []).append(
+                f"budget hit ({detail}): the pass was stopped MID-TASK — the preview is flagged PARTIAL "
+                "(on_budget_hit publish-flagged); nothing is filed without --apply")
+        elif spec.local.on_budget_hit not in ("discard", "publish-flagged"):
             return done("failed", f"{kind}: on_budget_hit {spec.local.on_budget_hit!r} has no engine behaviour — "
                                   "the output is left unread")
-        return done("discarded", f"{kind}: {detail} — the partial output is discarded (on_budget_hit "
-                                 f"{spec.local.on_budget_hit}); a rerun costs about one attempt")
+        else:
+            return done("discarded", f"{kind}: {detail} — the partial output is discarded (on_budget_hit "
+                                     f"{spec.local.on_budget_hit}); a rerun costs about one attempt")
     if kind == "interrupted":
         ctx.stop = (EXIT["interrupted"], f"interrupted: {detail}")
         return done("failed", f"interrupted: {detail}", EXIT["interrupted"])
-    if kind != "ok":
+    if kind != "ok" and not flagged:
         return done("failed", f"{kind}: {detail}")
 
     tree = wsp.tree_report(ws)
@@ -1863,6 +1873,7 @@ def preview(ctx: RunContext, item: Item, verdict: Verdict) -> dict:
            "argv": argv, "apply_flag": ctx.spec.local.publish.apply_flag, "bodies": bodies,
            "rows": plan.rows, "blockers": plan.blockers, "failures": plan.failures,
            "publishable": plan.publishable and bool(bodies), "labels": labels,
+           "apply_steps": ctx.adapter.apply_steps(ctx, item, plan),
            "flags": verdict.flags, "facts": verdict.facts, "created": iso()}
     write_json(d / "publish-plan.json", doc)
     (d / "publish-plan.md").write_text(_plan_md(doc, ctx.bodies_dir(item, apply=False)), encoding="utf-8")
@@ -1877,7 +1888,10 @@ def _plan_md(doc: dict, bodies_dir: Path) -> str:
              f"- publishable: {'yes' if doc['publishable'] else 'no'}"
              + (f" — blockers: {', '.join(doc['blockers'])}" if doc["blockers"] else ""), "",
              "## What `--apply` does", ""]
-    if doc["labels"]:
+    steps = doc.get("apply_steps")
+    if isinstance(steps, list) and steps:
+        lines += [f"{n}. {step}" for n, step in enumerate(steps, 1)]
+    elif doc["labels"]:
         lines.append(f"1. `gh label create <name> -R {item['nwo']} --force` for {', '.join(doc['labels'])} — this "
                      "can refresh an existing label's colour and description.")
         lines.append(f"2. `gh issue create -R {item['nwo']}` once per body below, after a live recheck "

@@ -42,6 +42,9 @@ Subcommands:
   doctor-file The fleet doctor's local filer (JEV loop runner, ADR 0002 P3):
            a dry run of an attempt's validated patch + filing; --apply is
            refused until #488's publish step. Implemented in fleet_doctor_file.py.
+  evolve-file The evolution agent's local filer (JEV loop runner, ADR 0002 P3):
+           a dry run of an attempt's validated patch + draft PR body; --apply
+           is refused until #488's publish step. Implemented in fleet_evolve_file.py.
   remediate Merge the fleet's failing + expensive workflow signals into ONE
            ranked, deduped, capped fix queue and emit the work order that
            drives fleet-pulse.yml's `doctor` job. Implemented in remediation.py.
@@ -112,6 +115,7 @@ import issue_pipeline
 import machine_api
 import reconcile
 import fleet_doctor_file
+import fleet_evolve_file
 import remediation
 import schema_vendor
 import workflow_atlas
@@ -664,6 +668,12 @@ def main(argv: list[str] | None = None) -> int:
              "(--apply refused until bamr87/bamr87#488's publish step lands)",
     )
     fleet_doctor_file.add_arguments(p_doctor_file)
+    p_evolve_file = sub.add_parser(
+        "evolve-file",
+        help="the evolution agent's local filer: a dry run of a loop runner attempt's validated patch + draft PR "
+             "body (--apply refused until bamr87/bamr87#488's publish step lands)",
+    )
+    fleet_evolve_file.add_arguments(p_evolve_file)
 
     p_issues = sub.add_parser(
         "issues",

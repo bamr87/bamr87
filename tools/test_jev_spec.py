@@ -375,7 +375,7 @@ def test_check_all_reports_a_broken_spec_instead_of_raising():
     specs, errors = S.check_all(root, fleet=fleet())
     # the broken scout spec is reported, not raised, and the other specs still load
     assert all(sp.loop != "repo-scout" for sp in specs) and any("schema must be" in e for e in errors), errors
-    assert [sp.loop for sp in specs] == ["fleet-pulse"], [sp.loop for sp in specs]
+    assert [sp.loop for sp in specs] == ["fleet-pulse", "repo-evolution"], [sp.loop for sp in specs]
 
 
 # --------------------------------------------------------------------------- #
@@ -596,7 +596,7 @@ def test_a_malformed_local_block_is_refused():
          "spells --apply"),
         (sub("publish", apply_flag="--yes"), "not scout-file's apply flag"),
         (lambda d: d["local"]["publish"].pop("risk"), "publish"),
-        (lambda d: d["local"].update(on_budget_hit="publish-flagged"), "on_budget_hit"),
+        (lambda d: d["local"].update(on_budget_hit="publish-anyway"), "on_budget_hit"),
     ]
     for fn, needle in cases:
         root = tmp_root()
@@ -876,6 +876,134 @@ def test_importing_the_module_has_no_side_effects():
     out = subprocess.run([sys.executable, "-c", "import tools.jev.spec"], cwd=ROOT,
                          capture_output=True, text=True, check=False)
     assert out.returncode == 0 and out.stdout == "" and out.stderr == "", out.stderr
+
+
+# --------------------------------------------------------------------------- #
+# the evolution agent (ADR 0002 P3, step 2): four matrix tokens, the target as
+# the checkout, the fleet-read posture, the patch harvest, publish-flagged
+# --------------------------------------------------------------------------- #
+EVOLVE_WORKFLOW = ROOT / ".github" / "workflows" / "repo-evolution.yml"
+# The YAML-parsed `prompt: |` of repo-evolution.yml (job evolve, step evolve) at 3b30f87,
+# the last commit before the prompt became the spec — the bytes every pass ran on.
+EVOLVE_INLINE_SHA256 = "b0977de383e76f676b0e38193523b74dcc571e96d59e82d0aad3e952aa24ee6f"
+EVOLVE_INLINE_BYTES = 3919
+EVOLVE_TEMPLATE_SHA256 = "fa2cedfc45fe29b064d5b07fb6030a9d3433415c121d8ee859a0ff633750c0cf"
+EVOLVE_TEMPLATE_BYTES = 3864
+README_LEG = {"nwo": "bamr87/README", "name": "README", "branch": "main", "brief": "evolution-workorder-README.md"}
+README_SHA256 = "f4257e167d05e3a944c2c9ab89e283ef68393ae8520824c934029d8b925eef3e"
+README_BYTES = 3889
+
+
+def evolve(**kw) -> S.StepSpec:
+    return S.load_spec("repo-evolution", "evolve", **kw)
+
+
+def evolve_workflow() -> dict:
+    return yaml.safe_load(EVOLVE_WORKFLOW.read_text(encoding="utf-8"))
+
+
+def evolve_step(wf: dict) -> dict:
+    return next(st for st in wf["jobs"]["evolve"]["steps"] if st.get("id") == "evolve")
+
+
+def edit_evolve(root: Path, fn) -> None:
+    p = root / "repo-evolution" / "evolve.yml"
+    data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    fn(data)
+    p.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _evolve_wf_mutation(fn) -> list[str]:
+    wf = evolve_workflow()
+    fn(wf)
+    return S.parity_errors(evolve(), wf, fleet())
+
+
+def test_the_evolve_spec_reproduces_the_inline_prompt_at_3b30f87_for_every_leg():
+    e = evolve()
+    assert e.inputs == {"NWO": "nwo", "REPO_NAME": "name", "BRANCH": "branch", "BRIEF": "brief"}
+    assert len(e.template.encode("utf-8")) == EVOLVE_TEMPLATE_BYTES and e.template_sha256 == EVOLVE_TEMPLATE_SHA256
+    out = S.render_prompt(e, S.matrix_expressions(e))
+    assert len(out.encode("utf-8")) == EVOLVE_INLINE_BYTES and sha(out) == EVOLVE_INLINE_SHA256
+    assert evolve_step(evolve_workflow())["with"]["prompt"] == out, "the workflow's inline copy is the spec's render"
+    leg = S.render_prompt(e, S.values_from(e, README_LEG))
+    assert len(leg.encode("utf-8")) == README_BYTES and sha(leg) == README_SHA256
+    assert "Read `.evolution/evolution-workorder-README.md` with the Read tool." in leg
+    args = ["--set", "NWO=bamr87/README", "--set", "REPO_NAME=README", "--set", "BRANCH=main",
+            "--set", "BRIEF=evolution-workorder-README.md"]
+    cli = subprocess.run([sys.executable, "-m", "tools.jev", "steps", "render", "repo-evolution", "evolve", *args],
+                         cwd=ROOT, capture_output=True, check=False)
+    assert cli.returncode == 0 and hashlib.sha256(cli.stdout).hexdigest() == README_SHA256
+
+
+def test_the_evolve_spec_resolves_its_homes_and_its_caps_are_the_workflow_literals():
+    e = evolve()
+    f = fleet()
+    assert e.resolved.model == f["evolution"]["model"] == "claude-opus-5-5"
+    assert e.resolved.max_turns == f["evolution"]["max_turns"] == 120 and e.resolved.max_budget_usd == 20.0
+    assert e.step_id == "evolve" and e.call_site == "repo-evolution.yml:evolve" and e.timeout_minutes == 45
+    assert S.parity_errors(e, evolve_workflow(), f) == []
+    assert evolve_step(evolve_workflow())["env"][S.STEP_SHA_ENV] == e.content_sha256
+    args = " ".join(evolve_step(evolve_workflow())["with"]["claude_args"].split())
+    assert "--model claude-opus-5-5" in args and "--max-turns 120" in args and "${{" not in args.split("--allowedTools")[0]
+
+
+def test_the_evolve_workspace_and_local_block_load_as_declared():
+    e = evolve()
+    ws = e.workspace
+    assert (ws.cwd, ws.brief_dir, ws.brief_file, ws.outputs) == ("target", ".evolution", None, ())
+    assert ws.github_credential == "fleet-read" and set(ws.exceptions) == {"app-token", "setting-sources"}
+    assert e.local.harvest == "patch" and e.local.adapter == "repo_evolution_evolve"
+    assert e.local.on_budget_hit == "publish-flagged"
+    assert e.local.planner.argv == ("targets", "--out-dir", "{plan_dir}")
+    assert e.local.planner.flags == {"target": "--target", "focus": "--focus", "offline": "--offline",
+                                     "no_files": "--no-briefs"}
+    assert e.local.publish.argv[0] == "evolve-file" and e.local.publish.apply_flag == "--apply"
+    assert e.local.switch.variable == "REPO_EVOLUTION_ENABLED" and e.local.switch.default == "on"
+    assert e.local.publish.risk == "publish" and e.local.context.mode == "auto"
+
+
+def test_the_fleet_read_posture_is_exact_and_publish_flagged_is_the_only_other_budget_rule():
+    # the one route the posture names: a token that appears elsewhere, or GH_TOKEN going missing, is a drift
+    cases = {
+        "github_token added": lambda wf: evolve_step(wf)["with"].update({"github_token": "${{ secrets.FLEET_TOKEN }}"}),
+        "GH_TOKEN dropped": lambda wf: evolve_step(wf)["env"].pop("GH_TOKEN"),
+        "a second env token": lambda wf: evolve_step(wf)["env"].update({"FLEET_WRITE_TOKEN": "${{ secrets.FLEET_TOKEN }}"}),
+    }
+    for label, fn in cases.items():
+        errs = _evolve_wf_mutation(fn)
+        assert any("fleet-read" in e and "routes" in e for e in errs), (label, errs)
+    # the two action gaps stay declared: a declared gap the workflow closes is stale
+    root = tmp_root()
+    edit_evolve(root, lambda d: d["workspace"]["exceptions"].pop("app-token"))
+    missing = S.parity_errors(S.load_spec("repo-evolution", "evolve", root=root, fleet=fleet()), evolve_workflow(), fleet())
+    assert any("app-token" in e and "declare" in e for e in missing), missing
+    # on_budget_hit: discard and publish-flagged load; anything else is refused
+    root = tmp_root()
+    edit_evolve(root, lambda d: d["local"].update({"on_budget_hit": "discard"}))
+    assert S.load_spec("repo-evolution", "evolve", root=root, fleet=fleet()).local.on_budget_hit == "discard"
+    root = tmp_root()
+    edit_evolve(root, lambda d: d["local"].update({"on_budget_hit": "publish"}))
+    assert refused(lambda: S.load_spec("repo-evolution", "evolve", root=root, fleet=fleet()), "on_budget_hit")
+    assert S.ON_BUDGET_HIT == frozenset({"discard", "publish-flagged"})
+    # the model literal and the turn literal are held to fleet.yml
+    moved = _evolve_wf_mutation(lambda wf: evolve_step(wf)["with"].update(
+        {"claude_args": evolve_step(wf)["with"]["claude_args"].replace("--max-turns 120", "--max-turns 60")}))
+    assert any("--max-turns" in e for e in moved), moved
+    alias = _evolve_wf_mutation(lambda wf: evolve_step(wf)["with"].update(
+        {"claude_args": evolve_step(wf)["with"]["claude_args"].replace("--model claude-opus-5-5", "--model opus")}))
+    assert any("--model" in e for e in alias), alias
+
+
+def test_the_evolve_spec_pins_its_hash_and_an_edited_prompt_breaks_the_inline_copy():
+    e = evolve()
+    root = tmp_root()
+    p = root / "repo-evolution" / "evolve.prompt.txt"
+    p.write_bytes(p.read_bytes().replace(b"never commit,", b"you may commit,"))
+    moved = S.load_spec("repo-evolution", "evolve", root=root, fleet=fleet())
+    assert moved.content_sha256 != e.content_sha256
+    errs = S.parity_errors(moved, evolve_workflow(), fleet())
+    assert any(S.STEP_SHA_ENV in e for e in errs) and any("byte-equal" in e for e in errs), errs
 
 
 if __name__ == "__main__":

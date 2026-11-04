@@ -30,7 +30,8 @@ from ..context import ContextRequest
 #: name → module; a module exposes ADAPTER, an Adapter instance. Adding one is a
 #: reviewed change here plus `tools/test_jev_adapter_<name>.py` (SCHEMA.md).
 REGISTRY: dict[str, str] = {"repo_scout": "tools.jev.adapters.repo_scout",
-                            "fleet_pulse_doctor": "tools.jev.adapters.fleet_pulse_doctor"}
+                            "fleet_pulse_doctor": "tools.jev.adapters.fleet_pulse_doctor",
+                            "repo_evolution_evolve": "tools.jev.adapters.repo_evolution_evolve"}
 #: How long a completed attempt can stand in for a new one at tier 0.
 REUSE_DAYS = 7
 
@@ -145,6 +146,12 @@ class Adapter:
         `apply` the write) and read its result; `bodies_dir` is
         `ctx.bodies_dir(item, apply=apply)`, the phase's own directory."""
         raise NotImplementedError
+
+    def apply_steps(self, ctx, item: Item, plan: "PublishPlan") -> list[str] | None:
+        """The numbered steps `--apply` would take for this item, for the plan's
+        review document (publish-plan.md); None = the engine's default text
+        (labels, then one `gh issue create` per body)."""
+        return None
 
     def recheck(self, ctx, item: Item) -> str | None:
         """Live state re-read just before an applied write; a reason cancels it."""

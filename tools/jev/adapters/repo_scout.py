@@ -27,14 +27,11 @@ import re
 from ..common import JevError, is_bare_name, is_nwo
 from ..context import MAX_QUERIES, MAX_QUERY_CHARS, ContextRequest
 from . import Adapter, Item, PlanResult, PublishPlan, Tier0, Triage, Verdict
+from .common import LOCAL_ARTEFACT_RX, last_json as _last_json, leaks_private
 
 OUTPUT = ".scout/proposals.json"
 #: the brief's one per-run line (repo_scout.render_brief: 'Prepared {now} by `dash-gen scout` …')
 PREPARED_RX = re.compile(r"Prepared \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC")
-#: what a sandboxed, offline shell says when it is refused — flagged for the
-#: reviewer, not rejected: a repo about sandboxes may legitimately say it
-LOCAL_ARTEFACT_RX = re.compile(r"EAI_AGAIN|ENOTFOUND|Could not resolve host|getaddrinfo|"
-                               r"Operation not permitted|sandbox-exec|Network is unreachable")
 #: scout-file's per-issue failure (CI's file job greps it to fail the job)
 FILE_FAILED = "gh issue create failed"
 #: scout-file's stderr when the open issues cannot be listed
@@ -107,16 +104,6 @@ def brief_queries(text: str) -> list[str]:
     return kept[:MAX_QUERIES]
 
 
-def _last_json(text: str) -> dict:
-    lines = [ln for ln in (text or "").strip().splitlines() if ln.strip()]
-    if not lines:
-        raise ValueError("no output")
-    out = json.loads(lines[-1])
-    if not isinstance(out, dict):
-        raise ValueError("not a JSON object")
-    return out
-
-
 class RepoScout(Adapter):
     name = "repo_scout"
     sources = (".github/scripts/dash-gen/repo_scout.py", ".github/scout/")
@@ -180,11 +167,10 @@ class RepoScout(Adapter):
             raw, notes = list(data.get("proposals") or []), str(data.get("notes") or "")
         else:
             return Verdict(False, [f"{OUTPUT} is neither a list nor an object"])
-        private = [s for s in (str(ctx.home), ctx.hostname, str(ctx.work_root)) if s and len(s) > 3]
         kept, withheld, flags = [], [], []
         for p in raw:
             text = json.dumps(p, ensure_ascii=False)
-            if any(s in text for s in private):   # never put this machine's paths in a public tracker
+            if leaks_private(text, ctx):   # never put this machine's paths in a public tracker
                 withheld.append({"title": "proposal withheld", "reason": "carries a local path or the host name"})
                 continue
             if LOCAL_ARTEFACT_RX.search(text):

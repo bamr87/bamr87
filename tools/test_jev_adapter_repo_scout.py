@@ -87,7 +87,8 @@ def harvested(dest: Path | None, reason: str = "ok") -> dict:
 # --------------------------------------------------------------------------- #
 def test_the_registry_names_modules_and_get_returns_an_adapter():
     assert A.REGISTRY == {"repo_scout": "tools.jev.adapters.repo_scout",
-                          "fleet_pulse_doctor": "tools.jev.adapters.fleet_pulse_doctor"}
+                          "fleet_pulse_doctor": "tools.jev.adapters.fleet_pulse_doctor",
+                          "repo_evolution_evolve": "tools.jev.adapters.repo_evolution_evolve"}
     assert isinstance(ADAPTER, A.Adapter) and ADAPTER.name == "repo_scout"
     try:
         A.get("os")
