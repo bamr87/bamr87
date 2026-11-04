@@ -141,8 +141,8 @@ local:
       offline: --offline
       no_files: --no-briefs
   # the filer: a dry run of the validated patch + filing (the exact body
-  # bytes for the reviewer); --apply only after the 13.6 yes, and refused by
-  # the filer itself in this release (#488)
+  # bytes for the reviewer); --apply only after the 13.6 yes, through the
+  # OPS remote-write path (constitution 11.8): one pushed branch + draft PR
   publish:
     argv: [doctor-file, --item, '{validated}', --run-url, '{run_ref}', --bodies-dir, '{bodies_dir}']
     apply_flag: --apply

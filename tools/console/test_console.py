@@ -518,11 +518,13 @@ def test_docker_ops_say_why_they_cannot_run_instead_of_failing():
 def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     """P2 of epic #484 (#487): the JEV loop runner as a console op. The loop
     and step must name a spec with a local: block, the target is a registry
-    name or `all`, every value is an argv element, `apply` is refused with the
-    issue named (the § 11 write-path decision is the maintainer's), a live
-    attempt is confirm-gated as Claude spend while a rehearsal is not, two
-    runs of ONE loop never overlap while different loops may, and without a
-    `claude` CLI the op says so instead of starting a job that exits 127."""
+    name or `all`, every value is an argv element, a live attempt is
+    confirm-gated as Claude spend while a rehearsal is not, `apply` (the OPS
+    remote-write path, constitution § 11.8) is a GitHub write behind the same
+    confirm — never with rehearse, never with a scheduled parameter —
+    `run_id` publishes an earlier reviewed preview, two runs of ONE loop never
+    overlap while different loops may, and without a `claude` CLI the op says
+    so instead of starting a job that exits 127."""
     ops = {o["id"]: o for o in core.list_ops()}
     op = ops["loop-run"]
     assert op["confirm"] == "spend" and op["remote_write"] and op["exclusive"] == "loop", op
@@ -531,8 +533,10 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     assert steps[0]["cost_label"] == "API-equivalent (estimate)"
     blob = json.dumps(op)
     assert str(core.REPO_ROOT) not in blob and str(Path.home()) not in blob, "a local path leaked into /api/ops"
-    # a loop with exactly one local step: its step may be left unnamed (fanout's two kits must be named)
-    single = [s for s in steps if sum(1 for t in steps if t["loop"] == s["loop"]) == 1]
+    assert all("can_apply" in s for s in steps), "the page needs to know which steps may apply"
+    # a loop with exactly one local step whose filer files under apply: its step may be left unnamed
+    # (fanout's two kits must be named), and apply is accepted for it
+    single = [s for s in steps if sum(1 for t in steps if t["loop"] == s["loop"]) == 1 and s["can_apply"]]
     loop, step = single[0]["loop"], single[0]["step"]
     argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "rehearse": True})
     multi = next((s for s in steps if s not in single), None)
@@ -547,22 +551,50 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     assert remote is False, "a rehearsal spends nothing and needs no confirm"
     argv, remote = core.build_argv("loop-run", {"loop": loop, "step": step})
     assert argv == [core.DASH, "loop", "run", loop, step, "--target", "all", "--json"] and remote is True, argv
+    # apply: the engine's publish gate behind the console's confirm (§ 11.8); run_id publishes an earlier preview
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "apply": True})
+    assert argv == [core.DASH, "loop", "run", loop, "--target", "SCHEMA", "--json", "--apply"] and remote is True
+    run_id = "20261103T210353Z-repo-scout-scout-f6c613"
+    key = "bamr87/netprobe:.github/workflows/ci.yml"   # a preview is keyed by its item key, never a registry name
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "run_id": run_id, "item": key, "apply": "true"})
+    assert argv == [core.DASH, "loop", "publish", run_id, "--item", key, "--json", "--apply"] and remote is True
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "run_id": run_id, "item": "bamr87/SCHEMA"})
+    assert argv == [core.DASH, "loop", "publish", run_id, "--item", "bamr87/SCHEMA", "--json"] and remote is False
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "run_id": run_id})
+    assert argv == [core.DASH, "loop", "publish", run_id, "--json"] and remote is False, "a publish check reads only"
+    # a step whose filer cannot file yet refuses apply before anything runs, naming #488
+    no_apply = next((s for s in steps if not s["can_apply"]), None)
+    if no_apply is not None:
+        try:
+            core.build_argv("loop-run", {"loop": no_apply["loop"], "step": no_apply["step"], "apply": True})
+        except ValueError as exc:
+            assert "#488" in str(exc) and "cannot file yet" in str(exc), exc
+        else:
+            raise AssertionError(f"apply accepted for {no_apply['id']}, whose filer cannot file")
+    assert "--scheduled" not in " ".join(core.build_argv("loop-run", {"loop": loop, "apply": True})[0])
     for bad, needle in (({"loop": "no-such-loop"}, "loop must be one of"),
                         ({"loop": loop, "step": "nope"}, "no local agent step"),
                         ({"loop": loop, "target": "../x"}, "target must be"),
                         ({"loop": loop, "target": "a;b"}, "target must be"),
-                        ({"loop": loop, "apply": True}, "#487"),
-                        ({"loop": loop, "apply": "true"}, "refused")):
+                        ({"loop": loop, "apply": True, "rehearse": True}, "rehearsal files nothing"),
+                        ({"loop": loop, "apply": True, "scheduled": True}, "never a console parameter"),
+                        ({"loop": loop, "run_id": "../x"}, "run_id must match"),
+                        ({"loop": loop, "run_id": run_id, "target": "SCHEMA"}, "name the preview by item"),
+                        ({"loop": loop, "run_id": run_id, "item": "SCHEMA"}, "item must be a run's item key"),
+                        ({"loop": loop, "run_id": run_id, "item": "bamr87/x:../etc/passwd"}, "item must be"),
+                        ({"loop": loop, "run_id": run_id, "item": "bamr87/x; rm"}, "item must be"),
+                        ({"loop": loop, "item": "bamr87/x"}, "pass run_id with it")):
         try:
             core.build_argv("loop-run", bad)
         except ValueError as exc:
             assert needle in str(exc), (bad, exc)
         else:
             raise AssertionError(f"accepted {bad!r}")
-    # the per-loop key: on the job, persisted, and compared at submit
+    # the per-loop key: on the job, persisted, and compared at submit; an applied run is a write
     job = core.Job("loop-run", ["true"], True, {"loop": loop, "target": "SCHEMA"})
     assert job.exclusive == f"loop:{loop}" and job.to_dict()["exclusive"] == job.exclusive
     assert job.to_dict()["confirm"] == "spend"
+    assert core.Job("loop-run", ["true"], True, {"loop": loop, "apply": True}).to_dict()["confirm"] == "write"
     back = core.Job.from_dict(job.to_dict(), Path(tempfile.mkdtemp()))
     assert back.exclusive == job.exclusive
     tmp = Path(tempfile.mkdtemp())
@@ -579,6 +611,14 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
             assert "confirm" in str(exc), exc
         else:
             raise AssertionError("a live (spending) attempt ran without confirm")
+        for params in ({"loop": loop, "target": "SCHEMA", "apply": True},
+                       {"loop": loop, "run_id": "20261103T210353Z-repo-scout-scout-f6c613", "apply": True}):
+            try:
+                jm.submit("loop-run", params, confirm=False)
+            except PermissionError as exc:
+                assert "confirm" in str(exc), exc
+            else:
+                raise AssertionError(f"an apply ran without confirm: {params}")
         holder = job
         holder.status = "running"
         jm.jobs[holder.id] = holder
@@ -598,6 +638,10 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
                                                    "echo 'jev loop: rehearsed — $0.00 spent (API-equivalent (estimate)); exit 0'"]
         done = _wait_done(jm, jm.submit("loop-run", {"loop": loop, "target": "X", "rehearse": True}).id)
         assert done["job"]["status"] == "succeeded" and done["loop"]["status"] == "rehearsed", done
+        # a confirmed apply runs (argv stubbed here) and its document says it was a write
+        applied = jm.submit("loop-run", {"loop": loop, "target": "X", "apply": True}, confirm=True)
+        assert applied.remote and applied.to_dict()["confirm"] == "write"
+        _wait_done(jm, applied.id)
         assert done["loop"]["run_id"] == "r-1" and done["loop"]["items"][0]["key"] == "bamr87/X", done["loop"]
         assert done["loop"]["spent_usd"] == 0.0 and done["loop"]["cost_label"] == "API-equivalent (estimate)"
         assert "loop" not in jm.tail(jm.submit("gaps").id), "the parsed fields are a loop-run's only"

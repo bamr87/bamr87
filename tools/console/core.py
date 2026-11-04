@@ -286,6 +286,9 @@ def agent_steps() -> list[dict]:
                                                    "default": sw.default,
                                                    "config_value": jev_loop.fleet_value(fleet, sw.config)},
                 "publish_tier": jev_loop.publish_tier(s), "on_budget_hit": s.local.on_budget_hit,
+                # whether the step's filer files under apply today (spec.PUBLISH_CAN_APPLY); False = the
+                # page disables apply and the op refuses it, naming bamr87/bamr87#488
+                "can_apply": s.local.publish is not None and s.local.publish.can_apply,
             })
     except Exception as exc:  # noqa: BLE001 — a broken spec is reported, never raised into /api/state
         error = f"{type(exc).__name__}: {exc}"
@@ -1083,18 +1086,29 @@ def _workflow_new(params: dict) -> list[str]:
     return argv
 
 
+#: a loop run id as the engine writes it (`<UTC stamp>-<loop>-<step>-<hex>`)
+RUN_ID_RX = re.compile(r"[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,80}")
+#: a run's item KEY as the engine's previews are keyed: `owner/repo`, or
+#: `owner/repo:<path>` for the doctor's per-workflow items — never a bare name
+ITEM_KEY_RX = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}(?::[A-Za-z0-9_./-]{1,200})?")
+
+
 def _loop_run(params: dict) -> list[str]:
-    """`tools/dash loop run <loop> [step] --target <name> --json [--rehearse]`.
+    """`tools/dash loop run <loop> [step] --target <name> --json [--rehearse] [--apply]`,
+    or with `run_id`: `tools/dash loop publish <run_id> [--item <key>] --json [--apply]`.
 
     The loop and the step must name an agent step with a `local:` spec (what
     `agent_steps()` lists), the target is a registry name or `all` (today's
-    sample), and `apply` is refused outright: constitution § 11 allows console
-    writes only through `tools/console/gh_projects_write.py`'s allowlist, which
-    has no issue or PR create, so until the maintainer's decision on
-    bamr87/bamr87#487 lands the op is a dry run from the console and the MCP
-    alike. A live attempt spends (one capped attempt per item, held to
+    sample). A live attempt spends (one capped attempt per item, held to
     `budget.loops`), so it is confirm-gated; `rehearse` stops before the model
-    call at $0 and is not.
+    call at $0 and is not. `apply` files the reviewed preview through the
+    engine's own publish gate — the OPS remote-write path, constitution § 11.8
+    (amendment `ops-remote-write-path`): it is a GitHub write at tier high,
+    refused without `confirm` by `JobManager.submit`, and the engine refuses
+    it with `--scheduled` (which this op never passes), with `--rehearse`, and
+    with a dirty engine. `run_id` publishes an earlier run's reviewed preview
+    (`loop publish`); without `apply` that is the read-only "matches / differs"
+    check.
     """
     steps = agent_steps()
     loop = str(params.get("loop") or "").strip()
@@ -1107,16 +1121,39 @@ def _loop_run(params: dict) -> list[str]:
         raise ValueError(f"{loop} has no local agent step {step!r}; its steps: {mine}")
     if not step and len(mine) != 1:
         raise ValueError(f"{loop} has {len(mine)} local agent steps — name one of {mine}")
-    if _flag(params, "apply"):
-        raise ValueError("apply is refused from the console and the MCP until the § 11 write-path decision on "
-                         "bamr87/bamr87#487 lands: run the dry run here, review .fleet/runs/<run_id>/, and file it "
-                         "from a terminal with `tools/dash loop publish <run_id> --apply`")
+    apply = _flag(params, "apply")
+    if apply and _flag(params, "rehearse"):
+        raise ValueError("apply with rehearse is refused: a rehearsal files nothing (the engine refuses it too)")
+    if "scheduled" in params:
+        raise ValueError("scheduled is never a console parameter: an unattended filing is refused by the engine "
+                         "(--apply with --scheduled) until § 13.7 earned autonomy")
+    chosen = next((s for s in steps if s["loop"] == loop and s["step"] == (step or s["step"])), None)
+    if apply and chosen is not None and not chosen.get("can_apply", False):
+        raise ValueError(f"apply is refused for {loop}/{chosen['step']}: its filer cannot file yet "
+                         "(bamr87/bamr87#488's publish step) — run the dry run and review .fleet/runs/<run_id>/")
     target = str(params.get("target") or "all").strip()
     if target != "all" and not NAME_RX.match(target):
         raise ValueError(f"target must be 'all' or match {NAME_RX.pattern}")
-    argv = [DASH, "loop", "run", loop, *([step] if step else []), "--target", target, "--json"]
-    if _flag(params, "rehearse"):
-        argv.append("--rehearse")
+    run_id = str(params.get("run_id") or "").strip()
+    item = str(params.get("item") or "").strip()
+    if item and not run_id:
+        raise ValueError("item names a preview of an earlier run: pass run_id with it (a run takes target)")
+    if run_id:
+        if not RUN_ID_RX.fullmatch(run_id):
+            raise ValueError(f"run_id must match {RUN_ID_RX.pattern}")
+        if target != "all":
+            raise ValueError("with run_id name the preview by item (its key: owner/repo, or owner/repo:path for "
+                             "the doctor), not by target — a registry name matches no preview")
+        if item and (not ITEM_KEY_RX.fullmatch(item) or ".." in item.split(":", 1)[-1].split("/")):
+            raise ValueError(f"item must be a run's item key — owner/repo, or owner/repo:path (no '..'); "
+                             f"not {item!r}")
+        argv = [DASH, "loop", "publish", run_id, *(["--item", item] if item else []), "--json"]
+    else:
+        argv = [DASH, "loop", "run", loop, *([step] if step else []), "--target", target, "--json"]
+        if _flag(params, "rehearse"):
+            argv.append("--rehearse")
+    if apply:
+        argv.append("--apply")
     return argv
 
 
@@ -1323,16 +1360,22 @@ OPS: dict[str, dict] = {
     "scout": dict(title="Plan today's repo-scout sample (offline)", group="plan",
                   argv=lambda p: [DASH_GEN, "scout", "--offline"], needs_token=False,
                   desc="Today's rotation over the owned, non-archived registry repos + their briefs (no backpressure check without GitHub)."),
-    "loop-run": dict(title="Run a loop's agent step locally (dry run)", group="plan",
+    "loop-run": dict(title="Run a loop's agent step locally (dry run, or apply the reviewed preview)", group="plan",
                      argv=_loop_run, needs_token=True, needs="claude", exclusive=_loop_exclusive,
-                     remote=lambda p: not _flag(p, "rehearse"), confirm="spend",
+                     remote=lambda p: _flag(p, "apply") or (not _flag(p, "rehearse") and not p.get("run_id")),
+                     confirm="spend",
                      desc="tools/dash loop run <loop> [step] --target <name> --json — the step's own spec, planner "
                           "and prompt bytes (what CI runs), one capped attempt per item inside the § 13.8 sandbox, "
-                          "then the dry-run preview under .fleet/runs/<run_id>/ — nothing is filed. `rehearse` stops "
-                          "before the model call ($0). A live attempt spends Claude budget (API-equivalent, an "
-                          "estimate; held to budget.loops), so it asks first. `apply` is refused here until the § 11 "
-                          "write-path decision on #487 (docs/JEV.md).",
-                     params=["loop", "step", "target", "rehearse", "apply"],
+                          "then the dry-run preview under .fleet/runs/<run_id>/. `rehearse` stops before the model "
+                          "call ($0). A live attempt spends Claude budget (API-equivalent, an estimate; held to "
+                          "budget.loops), so it asks first. `apply` files the reviewed preview through the engine's "
+                          "publish gate — the OPS remote-write path (constitution § 11.8, amendment "
+                          "ops-remote-write-path): a GitHub write at tier high behind confirm, the token probed with "
+                          "`gh api user` first, never with --scheduled; `run_id` publishes an earlier run's preview "
+                          "(`loop publish`, read-only without apply), `item` naming it by the preview's key "
+                          "(owner/repo, or owner/repo:path for the doctor) when the run has several. A step whose "
+                          "filer cannot file yet (bamr87/bamr87#488) refuses apply before anything runs.",
+                     params=["loop", "step", "target", "rehearse", "apply", "run_id", "item"],
                      meta=lambda: {"agent_steps": agent_steps()}),
     "reconcile": dict(title="Reconcile registry vs GitHub (report only)", group="plan",
                       argv=lambda p: [DASH_GEN, "reconcile"], needs_token=True,
@@ -1663,7 +1706,9 @@ class Job:
             # deploy) — what the Jobs page groups and filters by.
             "group": (OPS.get(self.op) or {}).get("group"),
             # what its confirm guarded (a GitHub write, or Claude spend) and the key it holds while live
-            "confirm": (OPS.get(self.op) or {}).get("confirm", "write" if self.remote else None),
+            # an applied loop-run is a GitHub write, whatever the op's default gate wording
+            "confirm": ("write" if _flag(self.params or {}, "apply")
+                        else (OPS.get(self.op) or {}).get("confirm", "write" if self.remote else None)),
             "exclusive": self.exclusive,
         }
 
