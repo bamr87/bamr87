@@ -86,12 +86,14 @@ def test_argv_shapes_are_exact_and_never_shell():
         pass
     else:
         raise AssertionError("shell metacharacters accepted in key")
-    loop0 = (core.agent_steps() or [{"loop": ""}])[0]["loop"]   # loop-run needs a loop with a local: spec
+    # loop-run needs a loop with a local: spec, and its step named when the loop has several (fanout's kits)
+    first = (core.agent_steps() or [{"loop": "", "step": ""}])[0]
     for op_id in core.OPS:
         if op_id in ("tests",):
             continue
         argv, _ = core.build_argv(op_id, {"target": "alpha", "workflow": "fleet-pulse", "fields": {},
-                                          "kind": "gate", "id": "doc-check", "loop": loop0})
+                                          "kind": "gate", "id": "doc-check", "loop": first["loop"],
+                                          "step": first["step"]})
         assert all(isinstance(a, str) for a in argv) and "bash" not in argv[0], (op_id, argv)
 
 
