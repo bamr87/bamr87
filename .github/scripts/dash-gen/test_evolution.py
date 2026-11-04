@@ -308,6 +308,20 @@ def test_plan_and_config() -> None:
     check("nested signals merge too", cfg["signals"] == {"max_issues": 8, "max_prs": 1})
     check("hub owner comes from hub.repo", cfg["hub_owner"] == "acme")
     check("a missing config file yields the defaults", ev.load_config(d / "nope.yml")["max_turns"] == ev.DEFAULTS["max_turns"])
+    check("the lockfile policy rides on the config (fleet.yml dependencies.lockfile_patterns, else the defaults)",
+          ev.load_config(d / "nope.yml")["lockfile_patterns"] == list(ev.DEFAULT_LOCKFILE_PATTERNS)
+          and ev.load_config(ev.FLEET_DEFAULT)["lockfile_patterns"] == ev.load_yaml(FLEET)["dependencies"]["lockfile_patterns"])
+    # --config governs the plan's model and turn cap: the spec is resolved against the given document
+    import copy
+    alt = copy.deepcopy(ev.load_yaml(FLEET))
+    alt["evolution"]["max_turns"] = 77
+    alt_path = d / "alt.yml"
+    alt_path.write_text(yaml.safe_dump(alt), encoding="utf-8")
+    alt_cfg = ev.load_config(alt_path)
+    alt_plan, _ = ev.build_plan(ev.load_yaml(REGISTRY) or [], alt_cfg, None, gh=None, prompt_dir=PROMPT_DIR,
+                                offline=True)
+    check("--config governs the plan's max_turns (the spec resolved against that document)",
+          alt_plan["max_turns"] == 77 and alt_plan["model"] == alt["evolution"]["model"])
 
     check("owner_repo parses https/.git/ssh forms",
           ev.owner_repo("https://github.com/a/b.git") == "a/b"
@@ -416,7 +430,9 @@ def test_workflow_contract() -> None:
           "steps.claude-auth.outputs.method == 'oauth'" in ev_step["with"]["claude_code_oauth_token"]
           and "steps.claude-auth.outputs.method == 'api_key'" in ev_step["with"]["anthropic_api_key"])
     # ADR 0002 P3: the caps are LITERALS the step spec holds equal to fleet.yml
-    # (`python3 -m tools.jev steps check`); the plan output still feeds the summary.
+    # (`python3 -m tools.jev steps check`); the summary reads plan.json itself.
+    check("the plan job exports no dead max_turns output (nothing reads it since the literal)",
+          "max_turns" not in (plan.get("outputs") or {}) and ".max_turns //" not in step(plan, "Build the plan")["run"])
     turns = re.search(r"--max-turns\s+(\d+)", args)
     check("--max-turns is the literal of _data/fleet.yml evolution.max_turns (the spec holds it)",
           bool(turns) and int(turns.group(1)) == int(fleet["evolution"]["max_turns"]))

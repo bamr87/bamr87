@@ -35,12 +35,14 @@ import hashlib
 import json
 import re
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 
 from ..common import JevError, is_bare_name, is_nwo
 from ..context import MAX_QUERY_CHARS, ContextRequest
 from ..headless import read_events, tool_calls
 from . import Adapter, Item, PlanResult, PublishPlan, Tier0, Triage, Verdict
+from .common import (DEFAULT_LOCKFILE_PATTERNS, LOCAL_ARTEFACT_RX, diff_sections, last_json as _last_json, leaks_private, lockfile_patterns, lockfile_regex, publishing_commands, result_text as _result_text)
 
 #: the engine's harvest for a `local.harvest: patch` step (spec.PATCH_OUTPUT)
 PATCH = "changes.patch"
@@ -50,17 +52,6 @@ PATCH_COPY = "evolve.patch"
 PREPARED_RX = re.compile(r"Prepared \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC")
 #: a repo-evolution marker line (evolution.marker_line; the planner writes it)
 MARKER_RX = re.compile(r'<!-- repo-evolution key="([^"]+)" -->')
-#: the lockfiles CI's publish step drops before it commits (always-latest policy)
-LOCKFILE_RX = re.compile(r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|Gemfile\.lock|"
-                         r"poetry\.lock|Pipfile\.lock|uv\.lock|composer\.lock)$")
-DIFF_HEADER_RX = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.M)
-#: what the agent may not do, and the permission layer refused: flagged for the reviewer
-PUBLISH_ATTEMPT_RX = re.compile(r"^\s*(?:git\s+(?:push|checkout\s+-b|commit|tag)|gh\s+pr\s+create)\b")
-#: what a sandboxed, offline shell says when it is refused — flagged for the
-#: reviewer, never a reason to reject: the agent must not diagnose from it
-LOCAL_ARTEFACT_RX = re.compile(r"EAI_AGAIN|ENOTFOUND|Could not resolve host|getaddrinfo|"
-                               r"Operation not permitted|sandbox-exec|Network is unreachable|"
-                               r"has been denied because Claude Code is running in don't ask mode")
 #: the filer's stderr messages (fleet_evolve_file.NO_DEDUPE / APPLY_REFUSED / NO_CHANGES)
 NO_DEDUPE = "filing without the duplicate check"
 APPLY_REFUSED = "evolve-file --apply is not implemented"
@@ -70,7 +61,6 @@ NO_FOCUS = "_No operator focus was given"
 FOCUS_SECTION = "## Focus for this run"
 NO_SUMMARY = "_The agent left no summary — review the diff._"
 BRIEF_MAX_BYTES = 1024 * 1024
-RESULT_MAX_CHARS = 20_000
 #: CI's publish step, verbatim but for the run reference: the warning a budget hit's body carries
 PARTIAL_BLOCK = ("> **⛔ This pass hit its `--max-budget-usd` ceiling and was stopped MID-TASK.**\n"
                  "> The diff is PARTIAL by construction and the agent's own verification never ran.\n"
@@ -83,50 +73,38 @@ FOOTER = ("---\n"
           "repository while this one is open.\n")
 
 
-def _last_json(text: str) -> dict:
-    lines = [ln for ln in (text or "").strip().splitlines() if ln.strip()]
-    if not lines:
-        raise ValueError("no output")
-    out = json.loads(lines[-1])
-    if not isinstance(out, dict):
-        raise ValueError("not a JSON object")
-    return out
-
-
-def _result_text(events: list[dict]) -> str:
-    """The session's final `result` text (ai-run's trace is redacted), clipped."""
-    for e in reversed(events):
-        if e.get("type") == "result":
-            return str(e.get("result") or "")[:RESULT_MAX_CHARS]
-    return ""
-
-
 def publish_attempts(events: list[dict]) -> list[str]:
     """Every publishing command the session attempted (the allowlist refuses
-    them; CI's publish step owns them): shown to the reviewer, never filed."""
+    them; CI's publish step owns them): shown to the reviewer, never filed. The
+    verb is seen wherever a command segment starts (after `cd pkg &&`, in
+    `git -C . commit`, behind an `env GIT_DIR=.git` prefix, after a `|`)."""
     out = []
     for call in tool_calls(events):
         if call["name"] != "Bash":
             continue
         command = str(call["input"].get("command") or "").strip()
-        if PUBLISH_ATTEMPT_RX.match(command):
+        if publishing_commands(command):
             out.append(command[:120])
     return out
 
 
-def drop_lockfiles(patch: bytes) -> tuple[bytes, list[str]]:
+def drop_lockfiles(patch: bytes, patterns: Iterable[str] = DEFAULT_LOCKFILE_PATTERNS) -> tuple[bytes, list[str]]:
     """The patch without the file sections CI's publish step would have
-    dropped (a verify step's lockfile), and the paths dropped. A patch is
-    split on its `diff --git` headers; everything before the first is kept."""
+    dropped, and the paths dropped. CI drops only UNTRACKED lockfiles (`git
+    ls-files --others`, a verify step's leftovers): a tracked lockfile the
+    agent modified is committed there, so it stays here too. A section is
+    untracked when its header creates the file (`new file mode`, `---
+    /dev/null`, as the engine's `git diff --no-index /dev/null …` harvest
+    writes). Headers are read by `common.diff_header_paths` (a path with a
+    space, or git's quoted form); everything before the first header is kept."""
     text = patch.decode("utf-8", errors="surrogateescape")
-    starts = [m.start() for m in DIFF_HEADER_RX.finditer(text)]
-    if not starts:
+    pre, sections = diff_sections(text)
+    if not sections:
         return patch, []
-    kept, dropped = [text[: starts[0]]], []
-    for i, start in enumerate(starts):
-        section = text[start: starts[i + 1] if i + 1 < len(starts) else len(text)]
-        path = DIFF_HEADER_RX.match(section).group(2)
-        if LOCKFILE_RX.search(path):
+    rx = lockfile_regex(patterns)
+    kept, dropped = [pre], []
+    for path, section, is_new in sections:
+        if is_new and rx.search(path):
             dropped.append(path)
         else:
             kept.append(section)
@@ -217,16 +195,15 @@ class RepoEvolutionEvolve(Adapter):
         if h.dest is None and h.reason != "absent":
             return Verdict(False, [f"{PATCH} refused: {h.reason}"])
         patch = h.dest.read_bytes() if h.dest is not None else b""
-        patch, dropped = drop_lockfiles(patch)
+        patch, dropped = drop_lockfiles(patch, lockfile_patterns(getattr(ctx, "fleet", None)))
         out_dir = ctx.item_dir(item) / "outputs"
         out_dir.mkdir(parents=True, exist_ok=True)
         events = read_events(ctx.item_dir(item) / "trace.jsonl")
         row = item.row
         marker = str(row["marker"])
-        private = [s for s in (str(ctx.home), ctx.hostname, str(ctx.work_root)) if s and len(s) > 3]
         flags: list[str] = []
         if dropped:
-            flags.append(f"lockfile(s) dropped from the patch, as CI's publish step does: {', '.join(dropped)}")
+            flags.append(f"untracked lockfile(s) dropped from the patch, as CI's publish step does: {', '.join(dropped)}")
         attempts = publish_attempts(events)
         if attempts:
             flags.append(f"the agent attempted {len(attempts)} publishing command(s) the allowlist refuses "
@@ -242,7 +219,7 @@ class RepoEvolutionEvolve(Adapter):
         body += summary + "\n\n" + FOOTER.format(run_ref=run_ref, brief=brief)
         title = f"chore(evolve): AI improvement pass — {dt.datetime.now(dt.timezone.utc):%Y-%m-%d}"
         text = title + "\n" + body + "\n" + patch.decode("utf-8", errors="replace")
-        if any(s in text for s in private):   # never put this machine's paths in a public tracker
+        if leaks_private(text, ctx):   # never put this machine's paths in a public tracker
             return Verdict(False, ["the body or the patch carries a local path or the host name — withheld"])
         if LOCAL_ARTEFACT_RX.search(summary):
             flags.append("the body cites a local-runner denial; check the report rests on the repository, not on it")
@@ -294,10 +271,25 @@ class RepoEvolutionEvolve(Adapter):
                  "branch": f.get("branch"), "remote": f.get("remote"), "labels": f.get("labels"),
                  "flagged": f.get("flagged"), "url": f.get("url"), "body_file": f.get("body_file"),
                  "patch_file": f.get("patch_file")} for f in out.get("filed") or []]
+        # no `failures`: evolve-file skips only for "no changes" and an open pass, never a failed filing
         return PublishPlan(publishable=bool(rows) and not blockers, blockers=blockers, rows=rows,
-                           bodies_dir=ctx.bodies_dir(item, apply=apply),
-                           failures=[s.get("title", "?") for s in out.get("skipped") or []
-                                     if "failed" in str(s.get("reason") or "")])
+                           bodies_dir=ctx.bodies_dir(item, apply=apply))
+
+    def apply_steps(self, ctx, item: Item, plan: PublishPlan) -> list[str] | None:
+        """What `--apply` would write for an evolution pass: never an issue —
+        a branch pushed to the target and one draft PR (the filer refuses
+        `--apply` in this release, so the steps say what the yes would mean)."""
+        rows = [r for r in plan.rows if r.get("kind") == "pr"]
+        if not rows:
+            return ["Nothing: the pass made no changes, so no branch is pushed and no pull request is opened."]
+        r = rows[0]
+        labels = ", ".join(str(lab) for lab in (r.get("labels") or [])) or "none"
+        return [f"Push the validated patch, committed as bamr87-bot, as branch `{r.get('branch')}` to "
+                f"`{r.get('remote')}` (the remote derived from the item's nwo, bamr87/bamr87#220; the only push), "
+                "after a live recheck (one open evolution PR per repository, the token probe).",
+                f"`gh pr create --draft -R {item.nwo}` against `{r.get('base')}` with the body below (marker line "
+                f"first) and the labels {labels}; nothing else is written. (`evolve-file --apply` is refused in this "
+                "release: bamr87/bamr87#488.)"]
 
     def context_request(self, ctx, item: Item) -> ContextRequest:
         """The repository and its registry name, plus the operator's focus and

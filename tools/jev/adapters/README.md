@@ -18,10 +18,15 @@ The engine owns the workspace, the argv, the agent's environment, the `--setting
 | `classify(ctx, item)` | not blocked | loop-specific blocks, after the engine's own |
 | `validate(ctx, item, harvested, outcome)` | every declared output present | whether the harvested outputs are publishable; names the validated copy to publish in `Verdict.publish_file` (the engine's `{validated}`), never the raw output |
 | `publish(ctx, item, verdict, execute, *, apply)` | required when the spec declares `local.publish` | parses what the spec's publish argv printed, dry or applied, into rows, blockers and per-item failures; its bodies are in `ctx.bodies_dir(item, apply=apply)` (the spec's `{bodies_dir}`: the preview's and the apply's differ) |
+| `apply_steps(ctx, item, plan)` | `None` (the engine's default text: labels, then one `gh issue create` per body) | the numbered steps `--apply` would take, as `publish-plan.md` shows them to the reviewer — a PR-kind filer names its branch push and draft PR |
 | `recheck(ctx, item)` | `None` | a live re-read just before an applied write; a reason cancels the filing |
 | `context_request(ctx, item)` | `ContextRequest(item.nwo, item.name)`, no queries | what the host-built context pack is for (`tools/jev/context.py`): the repository, its checkout name and up to three code-index queries of one line and at most 300 characters each (`ContextRequest` refuses more); `None` places no pack for the item. The engine sets the window from the spec's `local.context.days` |
 
 `sources` lists the hub paths the adapter's behaviour depends on besides `tools/jev/`; the engine records whether they were dirty when a run started, and a later `--apply` refuses a dirty one without `--allow-dirty`.
+
+## common
+
+[`common.py`](common.py) holds what every adapter reads the same way: a filer's last-line JSON (`last_json`), the session's final result text from the redacted trace (`result_text`), the strings that must never reach a public tracker (`private_strings`: this machine's home, host name and work root), the wording a sandboxed, offline shell leaves behind (`LOCAL_ARTEFACT_RX`, flagged for the reviewer, never a reason to reject), the fleet's lockfile policy (`lockfile_patterns` from `_data/fleet.yml` `dependencies.lockfile_patterns`, `lockfile_regex`) and a `diff --git` header reader (`diff_header_paths`, `diff_sections`) that accepts a path with a space and git's quoted form. No dash-gen import.
 
 ## repo_scout
 
