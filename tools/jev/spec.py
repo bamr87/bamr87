@@ -122,13 +122,18 @@ WORKSPACE_CWDS = frozenset({"target", "hub"})
 #: CI hands the agent step FLEET_TOKEN as FLEET_WRITE_TOKEN in its env, the
 #: resolve-fleet-token probe's winner as its `github_token` input, so the step
 #: carries exactly CREDENTIAL_SITES — never more, never less, so a token
-#: cannot drift in or out of the step unnoticed. The LOCAL engine hands the
-#: agent no credential under any posture: its publish step holds it (§ 13.8).
-GITHUB_CREDENTIALS = frozenset({"none", "fleet-write"})
+#: cannot drift in or out of the step unnoticed. `fleet-read` (P3, evolve):
+#: CI hands the agent step FLEET_TOKEN as GH_TOKEN in its env, for the
+#: read-only gh verbs its allowlist grants on private targets, and nothing
+#: else (no github_token input, so `app-token` stays a declared gap). The
+#: LOCAL engine hands the agent no credential under any posture: its publish
+#: step holds it (§ 13.8).
+GITHUB_CREDENTIALS = frozenset({"none", "fleet-write", "fleet-read"})
 CREDENTIAL_SITES = {
     "none": frozenset(),
     "fleet-write": frozenset({"env FLEET_WRITE_TOKEN", "with.github_token",
                               "earlier step `token` (resolve-fleet-token)"}),
+    "fleet-read": frozenset({"env GH_TOKEN"}),
 }
 #: What claude-code-action does outside the step's `env:`, breaking a
 #: `github_credential: none` contract. Parity reports each one the workflow
@@ -166,6 +171,7 @@ CONTEXT_MAX_CHARS = (2000, 64000)
 #: Adding a planner to PLANNER_COMMANDS adds its pattern here.
 PLANNER_BRIEFS = {"scout": re.compile(r"scout-workorder-.+\.md", re.I),
                   "remediate": re.compile(r"doctor-workorder-.+\.md", re.I),
+                  "targets": re.compile(r"evolution-workorder-.+\.md", re.I),
                   # agent-fill emits no brief (workspace.no_brief); the name is reserved all the same
                   "agent-fill": re.compile(r"agent-fill-workorder-.+\.md", re.I)}
 #: The stems of the files the engine writes in an item's run directory, where
@@ -178,8 +184,12 @@ PLANNER_KEYS = frozenset({"argv", "flags"})
 #: engine option → the planner's own flag (`--target NAME` is passed as `--target=NAME`)
 PLANNER_FLAGS = frozenset({"target", "focus", "day", "offline", "no_files"})
 PUBLISH_KEYS = frozenset({"argv", "apply_flag", "risk"})
-#: JEV's rule: a budget-hit attempt is discarded. P3 adds `publish-flagged` (evolve).
-ON_BUDGET_HIT = frozenset({"discard"})
+#: JEV's rule: a budget-hit attempt is discarded. `publish-flagged` (P3, evolve):
+#: a `budget_hit` session's edits are harvested and previewed flagged as PARTIAL,
+#: as CI's publish step marks such a body (never filed without --apply); a
+#: `max_turns` session is still discarded, since CI's salvage step publishes
+#: only a reported success (#238's open question).
+ON_BUDGET_HIT = frozenset({"discard", "publish-flagged"})
 #: The `{token}`s an argv template may carry; the engine fills them, one pass.
 #: `bodies_dir` is the publish phase's own directory (the dry preview's and the
 #: apply's differ, so filing never overwrites the bodies a person reviewed).
@@ -191,13 +201,14 @@ SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
 #: only behind its apply flag, which the engine adds after the § 13.6 gate.
 #: Adding one is a reviewed change here (ai-run, or any writer, is never a planner).
 #: A filer is pinned with its own apply flag: a spec's `apply_flag` must be it.
-PLANNER_COMMANDS = frozenset({"scout", "remediate", "agent-fill"})
-PUBLISH_COMMANDS = {"scout-file": "--apply", "doctor-file": "--apply", "agent-fill-file": "--apply"}
+PLANNER_COMMANDS = frozenset({"scout", "remediate", "targets", "agent-fill"})
+PUBLISH_COMMANDS = {"scout-file": "--apply", "doctor-file": "--apply", "evolve-file": "--apply", "agent-fill-file": "--apply"}
 #: Each filer's flag naming the reviewed preview's bodies directory, which the
 #: engine adds beside the apply flag (a template never carries it): the filer
 #: then files no body that is not byte-identical to a reviewed one, and nothing
 #: when it cannot list the open issues to dedupe against.
 PUBLISH_REVIEWED_FLAGS = {"scout-file": "--reviewed-bodies", "doctor-file": "--reviewed-bodies",
+                          "evolve-file": "--reviewed-bodies",
                           "agent-fill-file": "--reviewed-bodies"}
 #: the write flag no planner may carry, whatever the spec's publish block says
 APPLY_FLAG = "--apply"

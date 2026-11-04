@@ -54,6 +54,7 @@ crash. Fixture tests: python3 test_evolution.py
 from __future__ import annotations
 
 import argparse
+import importlib
 import datetime as dt
 import json
 import subprocess
@@ -94,6 +95,19 @@ DEFAULT_HUB_OWNER = "bamr87"
 # --------------------------------------------------------------------------- #
 # config + helpers
 # --------------------------------------------------------------------------- #
+#: the agent step's spec (tools/jev/steps/repo-evolution/): every plan row carries
+#: its render, so CI's matrix and the local loop runner run the same bytes
+EVOLVE_STEP = ("repo-evolution", "evolve")
+
+
+def step_spec():
+    """tools.jev.spec, imported lazily with the hub root APPENDED to sys.path
+    (tools/ is a namespace package), so this directory's modules keep precedence."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))
+    return importlib.import_module("tools.jev.spec")
+
+
 def load_yaml(path: Path | str):
     with Path(path).open(encoding="utf-8") as fh:
         return yaml.safe_load(fh)
@@ -478,9 +492,12 @@ def render_brief(t: dict, cfg: dict, triage: dict | None, prompt_dir: Path | str
 def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: str = "all",
                focus: str = "", prompt_dir: Path | str = PROMPT_DIR_DEFAULT, gh=_gh_json,
                now: str | None = None, conformance: dict | None = None,
-               queue: dict | None = None) -> tuple[dict, dict[str, str]]:
+               queue: dict | None = None, offline: bool = False) -> tuple[dict, dict[str, str]]:
     """The whole deterministic step: select → dedupe → brief. `gh=None` skips
-    the open-PR check entirely (offline / `force`)."""
+    the open-PR check entirely: `force` marks the rows `off`, an `offline`
+    plan (the loop runner's rehearsals) marks them `unavailable`."""
+    jev = step_spec()
+    spec = jev.load_spec(*EVOLVE_STEP)   # a spec that does not load raises StepSpecError before any leg
     now = now or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     selected, dropped = select_targets(registry, cfg, target)
     skipped: list[dict] = []
@@ -498,14 +515,20 @@ def build_plan(registry: list[dict], cfg: dict, triage: dict | None, *, target: 
             "category": t["category"],
             "brief": fname,
             "marker": marker_line(cfg, t["nwo"]),
-            "dedupe": t.get("dedupe", "off"),
+            # `off`: the check is disabled; `clear`: no open pass; `unavailable`: gh could not answer, or
+            # the plan was built offline (--offline) — a local --apply then refuses (the adapter's classify)
+            "dedupe": t.get("dedupe", "unavailable" if offline and cfg.get("skip_when_open_pr", True) else "off"),
         })
+        # Last key: the rendered prompt — the matrix leg's `prompt` (held byte-equal to the
+        # workflow's inline copy) and the local engine's (tools/jev/loop.py check_plan_prompts).
+        include[-1]["prompt"] = jev.render_prompt(spec, jev.values_from(spec, include[-1]))
     plan = {
         "generated_at": now,
         "count": len(include),
         "include": include,
         "max_parallel": int(cfg["max_parallel"]),
-        "max_turns": int(cfg["max_turns"]),
+        "max_turns": spec.resolved.max_turns,
+        "model": spec.resolved.model,
         "branch_prefix": str(cfg["branch_prefix"]),
         "label": str(cfg["label"]),
         "marker": str(cfg["marker"]),
@@ -540,6 +563,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="brief template + category emphasis (default .github/evolution/)")
     parser.add_argument("--limit", type=int, default=None, metavar="N",
                         help="override evolution.max_targets")
+    parser.add_argument("--offline", action="store_true",
+                        help="plan mode (the JEV loop runner): no GitHub reads — the open-PR dedupe is marked "
+                             "unavailable on every row, so a local --apply refuses until a live plan")
     parser.add_argument("--no-dedupe", action="store_true",
                         help="skip the open-PR check (offline, or the workflow's `force` input)")
     parser.add_argument("--no-briefs", action="store_true",
@@ -565,7 +591,8 @@ def run(args: argparse.Namespace) -> int:
         sys.stderr.write(f"  ! {line}\n")
     plan, briefs = build_plan(registry, cfg, triage, target=args.target, focus=args.focus,
                               prompt_dir=Path(args.prompt_dir),
-                              gh=None if args.no_dedupe else _gh_json, conformance=conformance, queue=queue)
+                              gh=None if (args.no_dedupe or args.offline) else _gh_json,
+                              conformance=conformance, queue=queue, offline=args.offline)
 
     if not args.no_briefs and briefs:
         out = Path(args.out_dir)
@@ -582,7 +609,8 @@ def run(args: argparse.Namespace) -> int:
     for s in plan["skipped"]:
         sys.stderr.write(f"  ⏭ {s['name']}: {s['reason']}\n")
     sys.stderr.write(f"Selected {plan['count']} target(s); {len(plan['dropped'])} dropped, "
-                     f"{len(plan['skipped'])} skipped (open PR).\n")
+                     f"{len(plan['skipped'])} skipped (open PR); {plan['model']}, {plan['max_turns']} turns"
+                     f"{' (offline: no dedupe)' if args.offline else ''}.\n")
 
     print(json.dumps(plan, separators=(",", ":")))
     # An explicit ask that yields nothing is an error the caller should see —

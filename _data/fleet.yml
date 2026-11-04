@@ -393,6 +393,14 @@ issue_pipeline:
 evolution:
   enabled: true
 
+  # The evolve step's model, the home tools/jev/steps/repo-evolution/evolve.yml
+  # references (model_from; ADR 0002 P3). An exact id from ai_models.allowed
+  # (constitution § 13.3): `opus` resolves to this on the fleet's first-party
+  # auth, so the pin is a no-op there and removes the alias's provider-dependent
+  # meaning. repo-evolution.yml repeats it as a literal in the step's claude_args;
+  # `python3 -m tools.jev steps check` and test_evolution.py hold them equal.
+  model: claude-opus-5-5
+
   # One open evolution PR per repository at a time. A repo whose previous pass
   # is still open for review is skipped — recognised by the branch prefix OR
   # the hidden marker in the PR body, so a renamed branch cannot fool it. One
