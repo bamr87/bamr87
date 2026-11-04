@@ -1,8 +1,8 @@
 <!-- kit: governance v0.1.0 -->
-# NEW — Container images are built once, from pinned bases, and promoted by digest
+# 0019 — Container images are built once, from pinned bases, and promoted by digest
 
 - **Status:** proposed
-- **Number:** NEW
+- **Number:** 0019
 - **Date:** 2026-11-02
 - **Proposed by:** agent (Grok Bot, on a branch opened for bamr87)
 - **Ratified by:** the merged PR URL (leave blank until merged)

@@ -118,6 +118,7 @@ Where each spec row was lifted from — go here for a proven implementation, not
 | [`ports.yml`](_data/ports.yml) | THE fleet port allocation — bands, shared services, and every project's published ports; projected onto the dev stack by `tools/fleet-compose.py`, gated by drift check (… | required |
 | [`profile.yml`](_data/profile.yml) | WHO the public site is about — name, title, links, avatar, the site's own title and description (hand-edited; read by `tools/console/site_docs.py`; replaced the identity… | required |
 | [`projects.yml`](_data/projects.yml) | THE project registry — cross-checked against .gitmodules by the drift gate | required |
+| [`projects_backfill.yml`](_data/projects_backfill.yml) | THE reviewed triage + Fleet-board backfill plan (`projects-backfill/v1`) — per open hub issue: close (completed / not planned), label edits, sub-issue links, each with i… | — |
 | [`references.yml`](_data/references.yml) | Hand-edited map of reference implementations in the fleet (repo + path) to the UPS requirement ids they exemplify; rendered into CATALOG.md | — |
 | [`roadmap.yml`](_data/roadmap.yml) | Feature roadmap entries surfaced on the dash; the Work board edits an entry's `status:` / `priority:` line in place | — |
 | [`scripts.yml`](_data/scripts.yml) | Catalog of fleet scripts | — |
@@ -169,6 +170,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`macos-register-nerd-fonts.swift`](tools/macos-register-nerd-fonts.swift) | One-shot CoreText helper for `setup-terminal.sh` — registers the MesloLGS Nerd Font `.ttf`s with the user's font registry so Terminal.app can see them without a logout/l… |
 | [`pg-major-upgrade.sh`](tools/pg-major-upgrade.sh) | Upgrade a compose service's Postgres across a MAJOR without losing data (`dash dev db-upgrade`; `--check` is the `dash up` and `dash dev up` preflight): backs up the raw… |
 | [`pipeline_map.py`](tools/pipeline_map.py) | pipeline_map.py — the data layer of the harness pipeline map (HUB-025, HUB-026). |
+| [`projects_backfill.py`](tools/projects_backfill.py) | The issue-triage and **Fleet board backfill** pass (constitution § 10 / § 11; `dash projects`). |
 | [`projects_lint.py`](tools/projects_lint.py) | Work-tracking gate (constitution § 9, amendment 0003, feature projects-coverage-gate). |
 | [`protect-branch.sh`](tools/protect-branch.sh) | Requires the CI gate on a repo's default branch (wrapped by `dash protect`) |
 | [`render-diagrams.sh`](tools/render-diagrams.sh) | Validates every `diagrams/*.json` archify IR file and delivers the standalone HTML beside it |
@@ -194,6 +196,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
 | [`test_frontend_registry.py`](tools/test_frontend_registry.py) | Tests for tools/frontend_registry.py — the § 18 frontend: block lint and the launcher projection. |
 | [`test_governance_lint.py`](tools/test_governance_lint.py) | Tests for tools/governance_lint.py (stdlib + PyYAML). |
+| [`test_jev_adapter_fanout_agent_fill.py`](tools/test_jev_adapter_fanout_agent_fill.py) | Fixture tests for tools/jev/adapters/fanout_agent_fill.py — the fan-out agent fill's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 3). |
 | [`test_jev_adapter_fleet_pulse_doctor.py`](tools/test_jev_adapter_fleet_pulse_doctor.py) | Fixture tests for tools/jev/adapters/fleet_pulse_doctor.py — the fleet doctor's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3). |
 | [`test_jev_adapter_repo_evolution_evolve.py`](tools/test_jev_adapter_repo_evolution_evolve.py) | Fixture tests for tools/jev/adapters/repo_evolution_evolve.py — the evolution agent's adapter on the loop engine (bamr87/bamr87#488, ADR 0002 P3, step 2). |
 | [`test_jev_adapter_repo_scout.py`](tools/test_jev_adapter_repo_scout.py) | Fixture tests for tools/jev/adapters/ — the loop engine's adapter contract and its first adapter, repo_scout (#486, ADR 0002 P1). |
@@ -210,6 +213,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_jev_workspace.py`](tools/test_jev_workspace.py) | Fixture tests for tools/jev/workspace.py — the local loop engine's throwaway workspaces (#486, ADR 0002 P1). |
 | [`test_pin_policy.py`](tools/test_pin_policy.py) | Fixture tests for the UPS-QA-40 pin policy in tools/conformance.py. |
 | [`test_pipeline_map.py`](tools/test_pipeline_map.py) | Offline tests for tools/pipeline_map.py (HUB-025, HUB-026): pipeline definition integrity, status derivation over the EXAMPLE fixture, drill-down, unavailable log, workf… |
+| [`test_projects_backfill.py`](tools/test_projects_backfill.py) | Offline tests for `projects_backfill.py` — decisions validation and compilation, the 50-op batching, the REST state reader and executor against a recording fake `gh`, th… |
 | [`test_projects_lint.py`](tools/test_projects_lint.py) | — |
 | [`test_quality_contract.py`](tools/test_quality_contract.py) | Tests specs/QUALITY.contract.yml against _data/specs.yml and every tool that reads it. |
 | [`test_tui_fleet.py`](tools/test_tui_fleet.py) | Fixture tests for tools/fleetcore/fleet.py + host.py — the data layer the terminal dash and the console share. |
@@ -391,7 +395,7 @@ Index in [`docs/README.md`](docs/README.md). One UPPERCASE-TOPIC.md per concern;
 | [`OBSERVABILITY.md`](docs/OBSERVABILITY.md) | The local log, metrics and trace planes joined on one `trace.id`: retention, redaction, the console's Observe portal and the code index. |
 | [`PLATFORM.md`](docs/PLATFORM.md) | How the fleet's development platform spreads its workloads across the Mac and forge, which layer owns what, and how the same definitions scale out to any cloud or on-pre… |
 | [`PORTFOLIO.md`](docs/PORTFOLIO.md) | The portfolio standard: repository descriptions, the topic taxonomy, the homepage rule, the README skeleton and the profile index. |
-| [`PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | Status: **proposed** — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-projects-framework`, `projects-coverage-gate`, `projects-sync… |
+| [`PROJECTS-FRAMEWORK.md`](docs/PROJECTS-FRAMEWORK.md) | Status: **ratified** (amendment 0003, 2026-10-30; § 10 by 0005, § 11 by 0006) — [amendment 0003](amendments/0003-github-projects-work-tracking.md), features `github-proj… |
 | [`RELEASES.md`](docs/RELEASES.md) | Release and versioning methodology across the fleet. |
 | [`SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | The Pyramid Schema — `SCHEMA.md` structural contracts across the fleet, and how to follow, propagate and verify them. |
 | [`SCOUT.md`](docs/SCOUT.md) | The daily repo-scout loop — a sample of repos a day, an agent that proposes, a filer that opens issues for the issue pipeline. |

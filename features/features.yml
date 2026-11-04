@@ -1417,3 +1417,131 @@ features:
     - .github/scripts/dash-gen/test_ai_budget.py
     prd:
     - FR56
+  - id: HUB-072
+    title: 'Fleet activity replay: live and historical animated view of agents, harnesses and containers
+      (proposed)'
+    description: 'Design only (Draft). Captures container lifecycle and stats, agent session, job and fleet_event
+      activity from the fleet Docker stack into the fleet''s own storage (an append-only fleet_activity
+      table in the fleet-db Postgres, hot tail in Redis Streams), serves it through one read-only console
+      API that both streams live (SSE, the /api/live/stream pattern) and replays any past window at a chosen
+      speed, and renders it as an animated timeline + node graph console plugin (/replay) in the fleet shell,
+      with Grafana, Kibana and Phoenix deep links per event. Builds on the activity log (HUB-024), the pipeline
+      map (HUB-025) and /live (HUB-030); it is the runtime/history layer the /map roadmap item (bamr87/bamr87#479)
+      consumes. Spec: docs/prd/FLEET-ACTIVITY-REPLAY.md; implementation plan and epic: docs/prd/FLEET-ACTIVITY-REPLAY-PLAN.md
+      (Phoenix + OTel GenAI spans as the trace store of record, the existing OTel Collector fanning out
+      to Phoenix and Grafana, hook and container events through Redis pub/sub and a capped stream into Postgres,
+      agent-prism trace components, and a Module Federation 2.0 fleet-shell plugin).'
+    implemented: false
+    status: planned
+    surface: ui
+    link: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    docs: docs/prd/FLEET-ACTIVITY-REPLAY.md
+    tags:
+    - console
+    - otel
+    - phoenix
+    - epic
+    - observability
+    - activity-log
+    - replay
+    - timeline
+    - docker
+    - storage
+    - visualization
+    date: 2026-11-03
+    tests:
+    - na: design-only PRD; nothing implemented yet
+    prd:
+    - FR5
+    - FR7
+    - FR10
+    - FR15
+    - FR16
+    - FR17
+    - FR18
+    - FR19
+    - FR20
+    - FR26
+    - FR60
+    - NFR4
+    - NFR5
+    - NFR6
+    - NFR7
+    - NFR9
+    - FR66
+    - FR67
+    - FR68
+    - NFR13
+    - FR69
+  - id: HUB-073
+    title: 'Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV
+      harnesses (proposed)'
+    description: 'Design only (Draft). Refactors the harness layer onto one agent-loop contract (tasks,
+      sessions, a typed event stream, interrupts as approval pauses, budgets) that the Harness Console API,
+      CI agent steps, local headless Claude Code and the JEV tiers all speak; keeps MCP for tools and AGENTS.md
+      for repo instructions; emits one OTel GenAI span tree per task to Phoenix; treats the Unified Harness
+      Protocol as an optional adapter and plans A2A as the later external interface (AG-UI and Agent Client
+      Protocol as options). Harmonizes the fleet.yml harnesses contract, #586, #587, #472, the activity-replay
+      epic #624 and FF-0032. Epic bamr87/bamr87#632, roadmap FF-0038. Spec: docs/prd/HARNESS-PROTOCOL.md.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: docs/prd/HARNESS-PROTOCOL.md
+    docs: docs/prd/HARNESS-PROTOCOL.md
+    tags:
+    - harness
+    - protocol
+    - agent-loop
+    - mcp
+    - otel
+    - phoenix
+    - a2a
+    - uhp
+    - jev
+    - epic
+    date: 2026-11-03
+    tests:
+    - na: design-only PRD; nothing implemented yet
+    prd:
+    - FR26
+    - FR46
+    - FR54
+    - FR56
+    - FR59
+    - FR60
+    - FR63
+    - NFR9
+    - NFR11
+    - FR70
+    - FR71
+    - FR72
+    - NFR14
+  - id: HUB-074
+    title: 'JEV: the fan-out agent fill''s step specs and local dry run (P3, step 3)'
+    description: 'The fan-out agent fill (fanout.yml, job agent-fill) is the next agent step with specs
+      CI and the local loop runner render from: one pair per kit (tools/jev/steps/fanout/agent-fill-standardize.yml
+      + .prompt.txt, agent-fill-schema.yml + .prompt.txt), each the quoted heredoc the workflow''s brief
+      step carried, now inline in its own claude-code-action step gated on the kit, with the model, turns,
+      cap and allowlist explicit and held equal by `steps check`. Locally `tools/dash loop run fanout agent-fill-<kit>`
+      runs the pass on the target at the kit''s PR branch (no brief: the prompt is the whole work order),
+      harvests the agent''s edits as a patch held to the kit''s brief, and previews the commit CI''s push
+      step would make; `--apply` is refused until #488''s publish step lands.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/jev/steps/fanout/agent-fill-standardize.yml
+    docs: docs/SCHEMA-FRAMEWORK.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - fanout
+    date: 2026-11-03
+    tests:
+    - tools/test_jev_spec.py
+    - tools/test_jev_adapter_fanout_agent_fill.py
+    - tools/test_jev_loop.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    prd:
+    - FR56
