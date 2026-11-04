@@ -225,6 +225,8 @@ def test_content_ops_argv_and_only_apply_is_remote():
     import json
     doc = core.content_report()
     assert "present" in doc and "declared" in doc and "sites" in doc, doc.keys()
+    # the topic loop read back (content_atlas.in_flight) rides on every analyzed site
+    assert all("in_flight" in a for a in doc["sites"]), [a["site"] for a in doc["sites"] if "in_flight" not in a]
     json.dumps(doc)
     try:
         core.content_report("no-such-site")

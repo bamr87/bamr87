@@ -38,6 +38,8 @@ const NEXT: Record<string, [string, string][]> = {
   done: [['proposed', 'Reopen']],
 };
 const DIR_TONE: Record<string, Tone> = { approved: 'good', filed: 'info', done: 'good', rejected: 'info', proposed: 'warn' };
+// `tools/dash content trace` records the pull request that answers a filed directive.
+const PR_TONE: Record<string, Tone> = { merged: 'good', open: 'info', draft: 'warn', closed: 'crit' };
 
 function usePlanWrite(setDiff: (d: string) => void) {
   const qc = useQueryClient();
@@ -215,7 +217,16 @@ function Directives({ a, write }: { a: Row; write: ReturnType<typeof usePlanWrit
           { key: 's', header: 'status', sort: (d) => String(d.status ?? 'proposed'), render: (d) => <Status tone={DIR_TONE[d.status ?? 'proposed'] ?? 'warn'}>{String(d.status ?? 'proposed')}</Status> },
           { key: 't', header: 'directive', render: (d) => <div><Text size="sm" fw={600}>{String(d.title)}</Text><Text size="xs" c="dimmed">{String(d.brief ?? '')}</Text></div> },
           { key: 'k', header: 'kind', render: (d) => <Text size="sm">{String(d.kind)} · {String(d.priority)}{d.pillar ? ` · ${d.pillar}` : ''}</Text> },
-          { key: 'i', header: 'issue', render: (d) => (d.issue ? <External href={String(d.issue)} size="sm">issue</External> : '—') },
+          {
+            key: 'i', header: 'issue', render: (d) => (d.issue ? (
+              <Group gap={4} wrap="nowrap"><External href={String(d.issue)} size="sm">#{String(d.issue).split('/').pop()}</External><Status tone={d.status === 'done' ? 'good' : 'info'}>{d.status === 'done' ? 'closed' : 'open'}</Status></Group>
+            ) : '—'),
+          },
+          {
+            key: 'pr', header: 'pull request', sort: (d) => String(d.pr_state ?? ''), render: (d) => (d.pr ? (
+              <Group gap={4} wrap="nowrap"><External href={String(d.pr)} size="sm">#{String(d.pr).split('/').pop()}</External><Status tone={PR_TONE[String(d.pr_state)] ?? 'info'}>{String(d.pr_state ?? 'open')}</Status></Group>
+            ) : '—'),
+          },
           { key: 'dec', header: 'decided', render: (d) => <Text size="xs" c="dimmed">{String(d.decided ?? '')} · {String(d.source ?? '')}</Text> },
           {
             key: 'a', header: '', render: (d) => (
@@ -228,6 +239,7 @@ function Directives({ a, write }: { a: Row; write: ReturnType<typeof usePlanWrit
           },
         ]}
       />
+      <Text size="xs" c="dimmed">A filed issue is picked up by the site's gardener or by a zer0-CMS brief, and comes back as a pull request that closes it on merge; <Mono>tools/dash content trace</Mono> (also run by every file pass) reads that pull request back into this table.</Text>
       <Accordion variant="contained">
         <Accordion.Item value="add">
           <Accordion.Control>Add a directive of your own</Accordion.Control>

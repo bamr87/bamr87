@@ -18,7 +18,10 @@ the plan trustworthy as the record of an editorial decision:
     bad issue URLs), preserve comments, and round-trip byte-for-byte outside
     the edited lines (skipped without ruamel.yaml);
   * `file` is a dry run by default, dedupes against issues already carrying
-    the marker, and a CLOSED issue marks its directive done.
+    the marker, and a CLOSED issue marks its directive done;
+  * `trace` reads only, picks the pull request that answers a directive (in
+    the issue's own repo; merged > open > draft > closed), records `pr` +
+    `pr_state` only where one exists, and `report` / `brief` show it in flight.
 
 No network, no gh, no pytest — git and PyYAML only:
 
@@ -309,6 +312,147 @@ def test_file_is_dry_by_default_dedupes_and_closes():
             ds = {d["key"]: d for d in ca.site_plan(ca.load_plan(path), "demo")["directives"]}
             assert ds["k-new"]["status"] == "filed" and ds["k-new"]["issue"].endswith("/9")
             assert ds["k-old"]["status"] == "done", "a closed issue marks its directive done"
+    finally:
+        shutil.rmtree(tmp)
+
+
+def _xref(repo: str, n: int, state: str = "open", draft: bool = False, merged: bool = False) -> dict:
+    return {"event": "cross-referenced", "source": {"type": "issue", "issue": {
+        "html_url": f"https://github.com/{repo}/pull/{n}", "title": f"PR {n}", "state": state, "draft": draft,
+        "repository": {"full_name": repo},
+        "pull_request": {"url": f"https://api.github.com/repos/{repo}/pulls/{n}",
+                         "merged_at": "2026-09-25T10:00:00Z" if merged else None}}}}
+
+
+TRACE_PLAN = PLAN.replace("    directives: []", """    directives:
+      - key: k-merged
+        kind: write
+        priority: P2
+        title: Merged one
+        status: done
+        issue: https://github.com/acme/demo/issues/1
+      - key: k-draft
+        kind: write
+        priority: P2
+        title: Draft one
+        status: filed
+        issue: https://github.com/acme/demo/issues/2
+      - key: k-none
+        kind: write
+        priority: P2
+        title: Nothing yet
+        status: filed
+        issue: https://github.com/acme/demo/issues/3
+      - key: k-approved
+        kind: write
+        priority: P2
+        title: Not filed
+        status: approved""")
+
+# One timeline per issue, paginated the way `gh api --paginate` prints it:
+# #1 — an older closed PR, then the merged one (plus a hub PR that only
+# mentions it); #2 — a draft; #3 — a plain comment, no pull request.
+TIMELINES = {
+    "1": json.dumps([_xref("acme/demo", 4, state="closed"), {"event": "commented"}])
+         + "\n" + json.dumps([_xref("acme/demo", 5, state="closed", merged=True),
+                              _xref("bamr87/bamr87", 900, state="open"), {"event": "closed"}]),
+    "2": json.dumps([_xref("acme/demo", 6, draft=True)]),
+    "3": json.dumps([{"event": "commented"}]),
+}
+
+
+def _fake_timeline(calls):
+    def fake(argv, timeout=60, stdin=None, cwd=None):
+        calls.append(argv)
+        assert argv[:3] == ["gh", "api", "--paginate"], f"trace only reads: {argv}"
+        return 0, TIMELINES[argv[3].split("/")[4]]
+    return fake
+
+
+def test_trace_reads_the_loop_back():
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        path = tmp / "editorial.yml"
+        path.write_text(TRACE_PLAN)
+        c = {"sites": [{"name": "demo"}]}
+        a = {"site": "demo", "repo": "acme/demo", "directives": ca.site_plan(ca.load_plan(path), "demo")["directives"]}
+        calls = []
+        res = ca.trace_directives(a, c, path, apply=False, log=lambda *_: None, run=_fake_timeline(calls))
+        by = {r["key"]: r for r in res}
+        assert set(by) == {"k-merged", "k-draft", "k-none"}, "one row per filed directive; approved is not traced"
+        assert (by["k-merged"]["pr_state"], by["k-merged"]["pr"]) == ("merged", "https://github.com/acme/demo/pull/5"), \
+            "the merged PR beats the closed one, and a hub PR that mentions the issue is not its answer"
+        assert by["k-merged"]["issue_state"] == "closed"
+        assert (by["k-draft"]["pr_state"], by["k-draft"]["issue_state"]) == ("draft", "open")
+        assert (by["k-none"]["pr"], by["k-none"]["action"]) == (None, "none")
+        assert path.read_text() == TRACE_PLAN, "a dry run never writes the plan"
+        if _has_ruamel():
+            ca.trace_directives(a, c, path, apply=True, log=lambda *_: None, run=_fake_timeline(calls), today=TODAY)
+            ds = {d["key"]: d for d in ca.site_plan(ca.load_plan(path), "demo")["directives"]}
+            assert (ds["k-merged"]["pr"], ds["k-merged"]["pr_state"]) == ("https://github.com/acme/demo/pull/5", "merged")
+            assert (ds["k-merged"]["status"], ds["k-draft"]["status"]) == ("done", "filed"), "a trace never moves a directive"
+            assert ds["k-draft"]["pr_state"] == "draft"
+            assert "pr" not in ds["k-none"] and "pr_state" not in ds["k-none"], "no PR, nothing recorded"
+            assert "this comment must survive" in path.read_text()
+            # A settled directive (done + merged) is not read again.
+            calls.clear()
+            a["directives"] = list(ds.values())
+            again = ca.trace_directives(a, c, path, apply=True, log=lambda *_: None, run=_fake_timeline(calls))
+            assert {r["key"] for r in again} == {"k-draft", "k-none"}
+            assert {r["action"] for r in again} == {"unchanged", "none"}
+            try:
+                ca.decide(path, "demo", "status", "k-none", c, fields={"pr": "https://evil.example/pull/1"})
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("a non-GitHub pull request URL was accepted")
+            try:
+                ca.decide(path, "demo", "status", "k-none", c, fields={"pr_state": "bogus"})
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("an unknown pr_state was accepted")
+    finally:
+        shutil.rmtree(tmp)
+
+
+def test_trace_degrades_when_gh_fails():
+    a = {"site": "demo", "repo": "acme/demo", "directives": [
+        {"key": "k", "status": "filed", "issue": "https://github.com/acme/demo/issues/1"}]}
+    res = ca.trace_directives(a, {}, None, run=lambda *a, **k: (1, "HTTP 404"), log=lambda *_: None)
+    assert res[0]["action"] == "failed" and "404" in res[0]["error"]
+    res = ca.trace_directives(a, {}, None, run=lambda *a, **k: (0, "not json"), log=lambda *_: None)
+    assert res[0]["action"] == "failed"
+
+
+def test_trace_follows_a_repo_that_changed_owner():
+    """An issue filed before a transfer keeps the old owner in its URL; the PR
+    that answers it lives under the site's declared repo and still counts."""
+    a = {"site": "demo", "repo": "new-org/demo", "directives": [
+        {"key": "k", "status": "filed", "issue": "https://github.com/old-org/demo/issues/1"}]}
+    timeline = json.dumps([_xref("new-org/demo", 7, merged=True, state="closed")])
+    res = ca.trace_directives(a, {}, None, run=lambda *a, **k: (0, timeline), log=lambda *_: None)
+    assert (res[0]["pr_state"], res[0]["action"]) == ("merged", "would-record"), res
+
+
+def test_in_flight_block_in_report_and_brief():
+    dirs = [{"key": "k-merged", "title": "Merged | one", "status": "done", "issue": "https://github.com/acme/demo/issues/1",
+             "pr": "https://github.com/acme/demo/pull/5", "pr_state": "merged"},
+            {"key": "k-none", "title": "Nothing yet", "status": "filed", "issue": "https://github.com/acme/demo/issues/3"},
+            {"key": "k-approved", "title": "Not filed", "status": "approved"}]
+    rows = ca.in_flight(dirs)
+    assert [r["key"] for r in rows] == ["k-merged", "k-none"]
+    assert (rows[0]["issue_state"], rows[0]["done"], rows[1]["issue_state"], rows[1]["pr_state"]) == ("closed", True, "open", None)
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        tree, contract, conn, _, _ = _synced(tmp)
+        plan = {"sites": {"demo": {"narrative": "N", "pillars": [], "directives": dirs}}}
+        a = ca.report(conn, contract, plan, today=TODAY)["sites"][0]
+        assert a["in_flight"] == rows, "the /api/content document carries the in-flight rows"
+        md = ca.render_brief(a)
+        assert "## In flight" in md and "[merged](https://github.com/acme/demo/pull/5)" in md
+        assert "Merged \\| one" in md, "a pipe in a title cannot break the table"
+        assert "| Nothing yet | [open](https://github.com/acme/demo/issues/3) | — | no |" in md
     finally:
         shutil.rmtree(tmp)
 
