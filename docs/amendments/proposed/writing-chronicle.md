@@ -32,7 +32,7 @@ New constitution section:
 ## Open questions
 
 - **Privacy / secret redaction:** chronicles never record tokens, secrets, credentials or keys (rule 3). Should the generator run a secret scanner (e.g. gitleaks patterns) as a hard gate before commit?
-- **Employer-sensitive content:** should work done for an employer, or anything employer-confidential, be excluded or kept to draft-only entries? (As written: not explicitly excluded — Amr to decide.)
+- **Former-employer content:** how, if at all, should chronicles treat content concerning Amr's former employer? Undecided — no rule is set by this amendment; Amr to decide.
 - ~~Should entries default to `draft: true` or be public by default?~~ **Decided (Amr, 2026-11-04):** drafts by default; nothing publishes until reviewed by a human and/or an agent (rule 4).
 - Granularity: one entry per day, or per day per repo?
 
