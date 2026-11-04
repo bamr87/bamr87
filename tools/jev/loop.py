@@ -2458,13 +2458,37 @@ def _canary_fixture(root: Path, secret: Path) -> Path:
     return repo
 
 
+#: the Bash grants the canary's probes need (`cat` and `python3 -c` one-liners):
+#: added to a step whose allowlist lacks them, since the probes test Seatbelt,
+#: which wraps every child alike — the settings document, the isolation flags,
+#: the toolset and the environment stay the step's own, and the verdict
+#: records what was added (bamr87/bamr87#488: the doctor grants no python3)
+CANARY_GRANTS = ("Bash(cat:*)", "Bash(python3:*)")
+
+
+def canary_grants(spec: StepSpec, posture: headless.Posture) -> list[str]:
+    """Pure: which of CANARY_GRANTS the step's own allowlist lacks (none when
+    the posture grants no Bash at all: the canary refuses under `reduced`)."""
+    allowed = headless.posture_tools(spec.allowed_tools, posture)
+    if "Bash" not in headless.tool_families(allowed):
+        return []
+    return [g for g in CANARY_GRANTS if g not in allowed]
+
+
 def canary_flags(spec: StepSpec, posture: headless.Posture, **paths: object) -> list[str]:
     """The step's own isolation flags — the same settings, toolset, allowlist
     and deny list the posture template hashes — with only the model and the
-    turn cap swapped for the canary's (neither changes what is enforced)."""
+    turn cap swapped for the canary's (neither changes what is enforced), plus
+    the probe grants (`canary_grants`) a narrower allowlist lacks, appended to
+    `--allowedTools` so the probes reach the sandbox instead of the permission
+    layer; `--tools` (the families the init record is held to) is unchanged."""
     flags = headless.claude_flags(spec, posture, **paths)
     flags[flags.index("--model") + 1] = CANARY_MODEL
     flags[flags.index("--max-turns") + 1] = str(CANARY_TURNS)
+    added = canary_grants(spec, posture)
+    if added:
+        i = flags.index("--allowedTools") + 1
+        flags[i] = ",".join([*flags[i].split(","), *added])
     return flags
 
 
@@ -2527,13 +2551,15 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
         relay_dash_gen([*argv, "--", *flags], env=ai_run_env(host.auth), timeout=CANARY_TIMEOUT_S + OUTER_GRACE_S)
         expected = headless.tool_families(headless.posture_tools(spec.allowed_tools, posture))
         outcome = read_json(d / "outcome.json")
-        return headless.judge_canary(
+        verdict = headless.judge_canary(
             headless.read_events(d / "trace.jsonl"),
             headless.posture_lines(headless.reduce_debug_log(d / "debug.log"), outcome),
             outcome, plant=plant, left_behind=[str(t) for t in targets if t.exists()],
             expected_tools=expected, credential_env=headless.credential_exposure(host.auth),
             # ai-run's trace Redactor has the HOME it was given: the same one, so the same `~` paths
             redact=headless.Redactor(ai_run_env(host.auth)).text)
+        verdict.facts["grants_added"] = canary_grants(spec, posture)
+        return verdict
     finally:
         if ws is not None:
             wsp.destroy(ws)
