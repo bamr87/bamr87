@@ -172,6 +172,7 @@ def test_a_claude_md_patch_becomes_the_validated_document_the_filer_accepts():
                    "patch": "agent-fill.patch", "files": ["CLAUDE.md"]}
     assert (v.publish_file.parent / "agent-fill.patch").read_text() == CLAUDE_PATCH
     assert v.facts["files"] == ["CLAUDE.md"] and v.facts["patch_bytes"] == len(CLAUDE_PATCH) and v.flags == []
+    assert "files in the patch" not in FA.__dict__.get("__doc__", "") and not hasattr(FA, "DIFF_HEADER_RX")
 
 
 def test_the_schema_kit_allows_schema_md_files_anywhere_and_nothing_else():
@@ -190,6 +191,76 @@ def test_the_schema_kit_allows_schema_md_files_anywhere_and_nothing_else():
     assert not other.ok and any("README.md" in p and "withheld" in p for p in other.problems), other.problems
     assert FA.patch_files(SCHEMA_PATCH + CLAUDE_PATCH) == ["SCHEMA.md", "_posts/SCHEMA.md", "CLAUDE.md"]
     assert not FA.allowed_file("schema", "../SCHEMA.md") and not FA.allowed_file("docker", "CLAUDE.md")
+
+
+def test_a_rename_or_a_deletion_names_its_source_so_the_brief_check_sees_it():
+    # git prints a rename as one header with both names (diff.renames is on by default): README.md → CLAUDE.md
+    # would delete README.md when pushed, so the standardize brief refuses it although CLAUDE.md is allowed
+    rename = ("diff --git a/README.md b/CLAUDE.md\nsimilarity index 92%\nrename from README.md\nrename to CLAUDE.md\n"
+              "--- a/README.md\n+++ b/CLAUDE.md\n@@ -1 +1 @@\n-x\n+y\n")
+    assert FA.patch_files(rename) == ["README.md", "CLAUDE.md"]
+    c = ctx(Path(tempfile.mkdtemp()))
+    v = validate(c, item_for(c), rename)
+    assert not v.ok and any("README.md" in p for p in v.problems), v.problems
+    deleted = "diff --git a/README.md b/README.md\ndeleted file mode 100644\n--- a/README.md\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
+    assert FA.patch_files(deleted) == ["README.md"]
+    gone = validate(c, item_for(c), CLAUDE_PATCH + deleted)
+    assert not gone.ok and any("README.md" in p for p in gone.problems), gone.problems
+    schema = ctx(Path(tempfile.mkdtemp()), kit="schema")
+    moved = "diff --git a/src/app.py b/SCHEMA.md\nrename from src/app.py\nrename to SCHEMA.md\n"
+    out = validate(schema, item_for(schema, row(kit="schema")), moved)
+    assert not out.ok and any("src/app.py" in p for p in out.problems), out.problems
+
+
+def test_headers_with_spaces_or_gits_quoted_paths_are_read_and_an_unreadable_one_fails_closed():
+    assert FA.diff_header_paths("diff --git a/src/new file.txt b/src/new file.txt") == ("src/new file.txt",) * 2
+    assert FA.diff_header_paths('diff --git "a/docs/caf\\303\\251.md" "b/docs/caf\\303\\251.md"') == ("docs/caf\u00e9.md",) * 2
+    assert FA.diff_header_paths('diff --git a/plain.md "b/caf\\303\\251.md"') == ("plain.md", "caf\u00e9.md")
+    assert FA.diff_header_paths('diff --git "a/x \\"q\\".md" b/plain.md') == ('x "q".md', "plain.md")
+    assert FA.diff_header_paths("diff --git a/README.md b/CLAUDE.md") == ("README.md", "CLAUDE.md")
+    for bad in ("diff --git a/x", 'diff --git "a/x" "b/y" z', 'diff --git "a/\\400.md" "b/\\400.md"',
+                'diff --git "a/\\000x" b/x', "diff --git x/a b/b", 'diff --git "a/unterminated b/x', 'diff --git "a/\\q" b/x'):
+        try:
+            FA.diff_header_paths(bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted {bad!r}")
+    # a patch whose header the parser cannot read is withheld, never passed
+    c = ctx(Path(tempfile.mkdtemp()))
+    spaced = ("diff --git a/CLAUDE.md b/CLAUDE.md\n--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1 +1 @@\n-a\n+b\n"
+              "diff --git a/src/new file.txt b/src/new file.txt\nnew file mode 100644\n--- /dev/null\n+++ b/src/new file.txt\n"
+              "@@ -0,0 +1 @@\n+x\n")
+    v = validate(c, item_for(c), spaced)
+    assert not v.ok and any("src/new file.txt" in p for p in v.problems), v.problems
+    unreadable = validate(c, item_for(c), CLAUDE_PATCH + 'diff --git "a/\\400.md" "b/\\400.md"\n')
+    assert not unreadable.ok and any("cannot be read" in p for p in unreadable.problems), unreadable.problems
+    quoted = ('diff --git "a/docs/caf\\303\\251/SCHEMA.md" "b/docs/caf\\303\\251/SCHEMA.md"\n--- a/x\n+++ b/x\n'
+              "@@ -1 +1 @@\n-> TODO\n+> Posts\n")
+    schema = ctx(Path(tempfile.mkdtemp()), kit="schema")
+    assert validate(schema, item_for(schema, row(kit="schema")), quoted).ok, "a quoted SCHEMA.md path is still a SCHEMA.md"
+
+
+def test_the_host_name_is_matched_as_a_token_or_a_path_component_never_inside_a_word():
+    assert not FA.host_mentioned("the workflow runs; def main(): homepage minimal", "work")
+    assert FA.host_mentioned("see /Users/work/x", "work") and FA.host_mentioned("work.local", "work")
+    assert FA.host_mentioned("user@WORK:", "work") and not FA.host_mentioned("x", "abc") and not FA.host_mentioned("x", None)
+    c = ctx(Path(tempfile.mkdtemp()))
+    c.hostname = "work"
+    assert validate(c, item_for(c), CLAUDE_PATCH.replace("the fleet's sites", "the workflow")).ok
+    withheld = validate(c, item_for(c), CLAUDE_PATCH.replace("the fleet's sites", "built on work.local"))
+    assert not withheld.ok and any("host name" in p for p in withheld.problems)
+
+
+def test_the_planner_reuses_evolutions_spec_loader_and_never_puts_the_hub_first_on_sys_path():
+    sys.path.insert(0, str(HUB / ".github" / "scripts" / "dash-gen"))
+    import agent_fill as planner
+    import evolution
+    assert planner.step_spec is evolution.step_spec and not hasattr(planner, "_jev_spec")
+    first = sys.path[0]
+    assert planner.step_spec().load_spec is S.load_spec
+    assert sys.path[0] == first, "the hub root is appended, never inserted first"
+    src = (HUB / ".github" / "scripts" / "dash-gen" / "agent_fill.py").read_text(encoding="utf-8")
+    assert "sys.path.insert" not in src
 
 
 def test_nothing_changed_no_header_and_the_privacy_filter_reject():
@@ -297,6 +368,22 @@ def test_the_kits_and_messages_agree_with_the_planner_the_filer_and_the_workflow
     assert planner.KITS == FA.KITS and planner.AGENT_PASS_MARK == FA.AGENT_PASS_MARK
     assert FA.NO_DEDUPE == filer.NO_DEDUPE and FA.APPLY_REFUSED in filer.APPLY_REFUSED
     assert filer.patch_files(SCHEMA_PATCH) == FA.patch_files(SCHEMA_PATCH)
+    for header in ("diff --git a/README.md b/CLAUDE.md\n", "diff --git a/src/new file.txt b/src/new file.txt\n",
+                   'diff --git "a/docs/caf\\303\\251.md" "b/docs/caf\\303\\251.md"\n', 'diff --git a/p.md "b/x \\"y\\".md"\n'):
+        assert filer.patch_files(header) == FA.patch_files(header) != [], header
+    for bad in ('diff --git "a/\\400.md" "b/\\400.md"\n', "diff --git a/x\n"):
+        for fn in (filer.patch_files, FA.patch_files):
+            try:
+                fn(bad)
+            except ValueError:
+                continue
+            raise AssertionError(f"{fn.__module__} accepted {bad!r}")
+    # the filer refuses an unreadable header too (nothing passes on a path the check cannot see)
+    tmp = Path(tempfile.mkdtemp())
+    (tmp / "p.patch").write_text(CLAUDE_PATCH + 'diff --git "a/\\400.md" "b/\\400.md"\n', encoding="utf-8")
+    doc = {"kit": "standardize", "repo": "bamr87/alpha", "key": "bamr87/alpha", "branch": FA.KITS["standardize"]["branch"],
+           "commit_subject": FA.KITS["standardize"]["subject"], "patch": "p.patch", "files": ["CLAUDE.md"]}
+    assert any("cannot be read" in why for why in filer.problems(doc, tmp))
     for kit in FA.KITS:
         for path in ("CLAUDE.md", "SCHEMA.md", "a/SCHEMA.md", "README.md", "../SCHEMA.md"):
             assert filer.allowed_file(kit, path) == FA.allowed_file(kit, path), (kit, path)

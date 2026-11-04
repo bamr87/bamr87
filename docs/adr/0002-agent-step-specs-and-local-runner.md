@@ -379,6 +379,14 @@ As the doctor's record says: `claude.yml`, `fleet-verify` and `ai-lane` / `claud
 
 The push step's credential route (above), `on_budget_hit: publish-flagged` (evolve's, step 2), and the issue-pipeline tiers.
 
+### Review fixes (2026-11-04)
+
+- **Both sides of every `diff --git` header count.** `patch_files` (the adapter and the filer alike) read only the `b/` side, so a rename whose destination the brief allows (`README.md` → `CLAUDE.md`, which git prints as one header with `rename from/to`) hid the deletion of its source. Both paths of every header are held to the brief now, so a rename or a deletion of a file the kit does not allow fails the check; git's quoted-path form (`"a/docs/caf\303\251.md"`, C-style escapes, either side) and unquoted paths with spaces are parsed, and a header the parser cannot read (a bad escape, an octal above 255, a NUL, trailing text, missing prefixes) withholds the whole attempt rather than passing a path the check cannot see. The two copies are held equal by the adapter suite's agreement test.
+- **A recheck never writes into the run's plan.** `RunContext.planner` routes every targeted call (the live recheck of one item) into a scratch directory whatever the planner's flags; before, only a planner with a `no_files` flag was routed there, and the agent-fill planner, which has none, overwrote `plan/plan.json` with its one-target plan so `loop publish` lost the run's other items.
+- **No brief, no pack, whatever `--context` says.** `context_mode` returns `off` for a `workspace.no_brief` step, so the CLI override can neither build and place a pack nothing points at nor block the item under `require`; the spec loader's invariant holds at run time too.
+- **The host name is matched as a token or a path component**, never inside a word (`host_mentioned`): a Mac named `work`, `main`, `home` or `mini` no longer withholds a patch that says `workflow`, `def main`, `homepage` or `minimal`, while `/Users/work/x`, `work.local` and `user@work` are still withheld. The evolve step carries the same matcher in the shared adapter helpers; the agent-fill adapter adopts that helper once both land.
+- **One spec loader.** The planner reuses `evolution.step_spec` (the hub root appended to `sys.path`, so dash-gen's own modules keep precedence) instead of a second loader that inserted it first; the unreachable "N files in the patch" flag and the `/dev/null` branch of the old header parser are gone.
+
 ## Supersedes / Superseded by
 
 - Supersedes: none

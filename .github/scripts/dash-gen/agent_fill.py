@@ -37,6 +37,8 @@ from pathlib import Path
 
 import yaml
 
+from evolution import step_spec
+
 HUB = Path(__file__).resolve().parents[3]
 REGISTRY_DEFAULT = HUB / "_data" / "projects.yml"
 OWNER = "bamr87"
@@ -52,14 +54,6 @@ KITS: dict[str, dict[str, str]] = {
 AGENT_PASS_MARK = "(Claude agent pass)"
 NWO_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 COMMIT_WINDOW = 30
-
-
-def _jev_spec():
-    """tools/jev/spec.py, imported lazily from the hub root (the prompt's bytes)."""
-    if str(HUB) not in sys.path:
-        sys.path.insert(0, str(HUB))
-    from tools.jev import spec as jev_spec  # noqa: PLC0415 - lazy, keeps this module light
-    return jev_spec
 
 
 def gh_json(args: list[str], *, timeout: int = 60) -> tuple[object | None, str]:
@@ -130,7 +124,7 @@ def targets(registry: list[dict], want: str) -> tuple[list[dict], list[dict]]:
 
 def build_plan(args: argparse.Namespace) -> dict:
     kit = KITS[args.kit]
-    jev = _jev_spec()
+    jev = step_spec()   # evolution's loader: the hub root APPENDED, so this directory's modules keep precedence
     spec = jev.load_spec(LOOP, f"agent-fill-{args.kit}")
     try:
         registry = yaml.safe_load(Path(args.registry).read_text(encoding="utf-8")) or []

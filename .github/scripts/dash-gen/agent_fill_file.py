@@ -47,7 +47,6 @@ from pathlib import Path
 from agent_fill import AGENT_PASS_MARK, KITS, NWO_RE, branch_state
 
 PATCH_MAX = 1024 * 1024
-DIFF_HEADER_RE = re.compile(r"^diff --git a/(.+?) b/(.+)$", re.M)
 #: the same credential shapes repo_scout.SECRET_RE refuses in a proposal
 SECRET_RE = re.compile(
     r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk-ant-[A-Za-z0-9_-]{20,})"
@@ -61,13 +60,97 @@ APPLY_REFUSED = ("agent-fill-file --apply is not implemented in this release: th
                  "nothing was pushed")
 
 
+_QUOTED_RX = re.compile(r'"((?:[^"\\]|\\.)*)"')
+_C_ESCAPES = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13, '"': 34, "\\": 92}
+
+
+def _unquote(quoted: str) -> str:
+    """git's C-style quoting (core.quotePath): `\\ooo` octal bytes and the
+    `\\" \\\\ \\t \\n …` escapes; an escape or a byte sequence that does not
+    read is a ValueError (the caller fails closed)."""
+    out = bytearray()
+    i = 0
+    while i < len(quoted):
+        ch = quoted[i]
+        if ch != "\\":
+            out += ch.encode("utf-8")
+            i += 1
+            continue
+        nxt = quoted[i + 1:i + 2]
+        if nxt and nxt in "01234567":
+            octal = quoted[i + 1:i + 4]
+            if len(octal) != 3 or any(c not in "01234567" for c in octal) or int(octal, 8) > 0xFF:
+                raise ValueError(f"bad octal escape in {quoted!r}")
+            out.append(int(octal, 8))
+            i += 4
+            continue
+        if nxt in _C_ESCAPES:
+            out.append(_C_ESCAPES[nxt])
+            i += 2
+            continue
+        raise ValueError(f"bad escape in {quoted!r}")
+    text = out.decode("utf-8")
+    if "\x00" in text:
+        raise ValueError(f"a NUL in a quoted path {quoted!r}")
+    return text
+
+
+def _quoted_or_rest(text: str) -> tuple[str | None, str]:
+    """A leading quoted path (unquoted) and what follows it, or (None, text)."""
+    if not text.startswith('"'):
+        return None, text
+    m = _QUOTED_RX.match(text)
+    if m is None:
+        raise ValueError(f"unterminated quoted path in {text!r}")
+    return _unquote(m.group(1)), text[m.end():]
+
+
+def diff_header_paths(line: str) -> tuple[str, str]:
+    """`diff --git a/<old> b/<new>` → (old, new): git's quoted form (either
+    side, both) and unquoted paths with spaces included. Raises ValueError for
+    a header that cannot be read — the callers fail closed on it, since a
+    path the check cannot see is a path the check cannot hold to the brief."""
+    if not line.startswith("diff --git "):
+        raise ValueError(f"not a diff header: {line!r}")
+    rest = line[len("diff --git "):]
+    first, tail = _quoted_or_rest(rest)
+    if first is not None:
+        if not tail.startswith(" "):
+            raise ValueError(f"no second path in {line!r}")
+        second, after = _quoted_or_rest(tail[1:])
+        if second is None:
+            second, after = tail[1:], ""
+    else:
+        quote = rest.find(' "')
+        if quote != -1:
+            first = rest[:quote]
+            second, after = _quoted_or_rest(rest[quote + 1:])
+        else:
+            splits = [i for i in range(len(rest)) if rest.startswith(" b/", i)]
+            if not splits:
+                raise ValueError(f"no ` b/` in {line!r}")
+            pairs = [(rest[:i], rest[i + 1:]) for i in splits]
+            # the same path on both sides (every edit but a rename) decides an ambiguous split
+            first, second = next(((a, b) for a, b in pairs if a[2:] == b[2:]), pairs[0])
+            after = ""
+    if after:
+        raise ValueError(f"trailing text after the paths in {line!r}")
+    if not (first.startswith("a/") and second.startswith("b/")):
+        raise ValueError(f"paths without their a/ and b/ prefixes in {line!r}")
+    return first[2:], second[2:]
+
+
 def patch_files(patch: str) -> list[str]:
-    """The paths a unified diff touches, from its `diff --git` headers, in order."""
+    """Every path a unified diff touches, from BOTH sides of each `diff --git`
+    header, in order: a rename names its source and its destination, a
+    deletion its file. Raises ValueError on a header that cannot be read."""
     seen: list[str] = []
-    for a, b in DIFF_HEADER_RE.findall(patch):
-        path = b if b != "/dev/null" else a
-        if path not in seen:
-            seen.append(path)
+    for line in patch.splitlines():
+        if not line.startswith("diff --git "):
+            continue
+        for path in diff_header_paths(line):
+            if path != "/dev/null" and path not in seen:
+                seen.append(path)
     return seen
 
 
@@ -114,7 +197,10 @@ def problems(item: dict, item_dir: Path) -> list[str]:
     text = patch_path.read_text(encoding="utf-8", errors="replace")
     if not text.strip():
         out.append("the patch is empty: the agent changed nothing")
-    touched = patch_files(text)
+    try:
+        touched = patch_files(text)   # both sides of every header; an unreadable header fails closed
+    except ValueError as exc:
+        return [*out, f"a `diff --git` header cannot be read, so the patch cannot be held to the brief: {exc}"]
     declared = item.get("files")
     if not isinstance(declared, list) or declared != touched:
         out.append(f"files {declared!r} do not match the patch's own headers {touched!r}")

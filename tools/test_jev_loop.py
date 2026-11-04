@@ -47,6 +47,7 @@ sys.path.insert(0, str(HUB))
 
 from tools.jev import context as C  # noqa: E402
 from tools.jev import headless as H  # noqa: E402
+from tools.jev import adapters as A  # noqa: E402
 from tools.jev import loop as L  # noqa: E402
 from tools.jev import spec as S  # noqa: E402
 from tools.jev.__main__ import main as jev_main  # noqa: E402
@@ -3224,6 +3225,59 @@ def test_the_agent_fill_runs_in_the_target_at_the_kit_branch_with_no_brief_and_i
     assert not list(d.glob("*workorder*")) and not (d / "context.md").exists()
     no_writes(box)
     assert not list(box.work.glob("*/*")), "the clone is destroyed after the harvest"
+
+
+def test_a_rechecks_one_target_plan_never_overwrites_the_runs_plan():
+    """The live recheck re-runs the planner for one target. The agent-fill planner has no no_files
+    flag, so before the fix that one-target plan landed in the run's plan/plan.json — the rows
+    `loop publish` finds its items in — and every other item vanished from the record."""
+    box = Box()
+    with world(box):
+        spec = L.load_step("fanout", "agent-fill-standardize")
+        plan_dir = box.root / "run-plan"
+        plan_dir.mkdir()
+        k = {"branch": "chore/standardize-baseline", "kit": "standardize",
+             "commit_subject": "docs(agent-context): fill CLAUDE.md scaffold (Claude agent pass)",
+             "branch_status": "present", "dedupe": "clear"}
+        two = {"count": 2, "include": [{"key": "bamr87/alpha", "name": "alpha", "nwo": "bamr87/alpha", **k},
+                                       {"key": "bamr87/SCHEMA", "name": "SCHEMA", "nwo": "bamr87/SCHEMA", **k}],
+               "skipped": [], "dropped": [], "kit": "standardize", "branch": k["branch"]}
+        L.write_json(plan_dir / "plan.json", two)
+        before = (plan_dir / "plan.json").read_bytes()
+        ctx = L.RunContext(spec=spec, adapter=A.get("fanout_agent_fill"), fleet=L.load_fleet(),
+                           opts=L.Options(offline=True), plan_dir=plan_dir, history=L.History(box.runs))
+        fresh = ctx.planner(target="bamr87/SCHEMA")   # the real planner, offline, for one registry target
+        assert [r["key"] for r in fresh.get("include") or []] == ["bamr87/SCHEMA"], fresh
+        assert (plan_dir / "plan.json").read_bytes() == before, "the run's plan is untouched by the recheck"
+        assert not list(plan_dir.glob("*workorder*")) and [p.name for p in plan_dir.iterdir()] == ["plan.json"]
+        # the scout planner keeps writing its briefs into the run's plan dir for the first, untargeted plan only
+        scout = L.RunContext(spec=L.load_step("repo-scout"), adapter=A.get("repo_scout"), fleet=L.load_fleet(),
+                             opts=L.Options(offline=True), plan_dir=plan_dir, history=L.History(box.runs))
+        scout.planner(target="SCHEMA", no_files=True)
+        assert (plan_dir / "plan.json").read_bytes() == before
+
+
+def test_a_context_override_cannot_build_a_pack_for_a_step_with_no_brief():
+    box = Box()
+    with world(box):
+        for mode in ("auto", "require"):
+            box.seed_live({"kind": "ok", "bash": 1, "edits": {"CLAUDE.md": "\nA Jekyll theme.\n"}},
+                          loop="fanout", step="agent-fill-standardize")
+            plan = agent_fill_plan(box)
+            code, _, err = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
+                               "--context", mode, "--fresh")
+            rec = box.last()
+            item = rec["items"][0]
+            assert code == 0 and item["status"] == "previewed", (mode, item, err)
+            recorded = item.get("context") or {}
+            assert recorded.get("mode", "off") == "off" and not recorded.get("missing"), (mode, recorded)
+            d = box.latest() / "items" / item["dir"]
+            assert not (d / "context.md").exists() and not (d / "context.json").exists()
+            assert box.planes_calls("context") == [], "no plane was asked"
+            code, out, _ = jev("plan", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
+                               "--context", mode)
+            assert code == 0 and "context-blocked" not in out, out
+    no_writes(box)
 
 
 def test_an_agent_fill_that_edits_outside_its_brief_or_changes_nothing_is_rejected():
