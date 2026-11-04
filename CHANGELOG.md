@@ -32,6 +32,7 @@ The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - `tools/pg-major-upgrade.sh` reads the cluster the image will open (`<major>/docker`, then the mount root) before searching, so a volume holding a second cluster cannot report the wrong major.
 - `docker-compose.yml`, `docs/DOCKER.md` and `AGENTS.md` no longer point the core's migration at `dash dev db-upgrade hub`, which targets the separate `fleet-hub` volume.
 - `tools/jev` loop runner (HUB-060): the per-run sandbox evidence works on Claude Code 2.1.308 — the sandbox runtime's per-command line is read from its stderr under `SRT_DEBUG` (which the agent environment now sets) and recorded by `ai-run` in the outcome file, the `--settings` read-fence line is required as well, and the live canary's judge no longer reads a traceback's echoed source as a network success, pairs each `cat` with a python twin, and plants neutrally named fixture files (bamr87/bamr87#560, decision 4c).
+- `tools/jev` loop runner (HUB-060): the live canary appends the `cat` and `python3` probe grants a step's allowlist lacks (the doctor grants no `python3`), recorded in its verdict, so a narrower step's sandbox can be proven instead of judged inconclusive.
 
 ## [2.0.0] - 2026-10-14
 
