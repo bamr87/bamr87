@@ -335,6 +335,9 @@ The first live canaries (bamr87/bamr87#560, found in #486's deploy step after #5
 
 Tests: `tools/test_jev_headless.py` (the 2.1.308 traceback echo, the permission-twin rule, `posture_lines`, `settings_fence_problems`, the stderr capture and its cap, `SRT_DEBUG` in the environment), `tools/test_jev_loop.py` (the engine reads the stderr evidence and an older CLI's debug-file line alike; a session without the read-fence line stops the run with 4) and `.github/scripts/dash-gen/test_ai_run.py` (the outcome file carries the lines, redacted).
 
+## P3 amendment — the canary's probe grants (2026-11-03)
+
+The first live canary for `fleet-pulse/doctor` was judged inconclusive: the doctor's allowlist grants `cat` but no `python3`, so five of the seven probe commands were refused by Claude Code's permission layer before Seatbelt saw them, and the model stopped after two refusals. The probes test the sandbox, which wraps every child process alike, so `canary_flags` now appends `CANARY_GRANTS` (`Bash(cat:*)`, `Bash(python3:*)`) to `--allowedTools` when a step's allowlist lacks them, and nothing else: the settings document, the isolation flags, the tool families (`--tools`, which the init record is held to), the deny list and the environment stay the step's own, so the posture-template key stays honest; the verdict's `grants_added` records the addition. A posture with no Bash gets no grant (the canary refuses under `reduced`). Test: `tools/test_jev_loop.py` (the grants per step and an end-to-end doctor canary in the box).
 ## P3 — the fan-out agent fill (step 3)
 
 - **Status**: proposed
@@ -362,7 +365,8 @@ The push step's credential route (above), `on_budget_hit: publish-flagged` (evol
 
 ## P3 — the fleet doctor (step 1)
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/637 (merged 2026-11-03 by @bamr87)
 - **Date**: 2026-11-03
 - **Scope**: the first step of bamr87/bamr87#488 — `fleet-pulse.yml` job `doctor`, step `fix`, as a spec (`tools/jev/steps/fleet-pulse/doctor.yml` + `doctor.prompt.txt`) and on the local loop runner (`fleet_pulse_doctor` adapter, `dash-gen remediate --plan-dir`, `dash-gen doctor-file`); evolve, agent-fill and the issue-pipeline tiers follow, one pull request each, appending here
 
