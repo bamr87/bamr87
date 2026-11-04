@@ -1,6 +1,7 @@
 # ADR 0004 — Recursive harness refinement: the Harness² method adopted into JEV, the hub's harness surface as a sensor, and a human-gated experience library
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/652 (merged 2026-11-04 by @bamr87)
 - **Date**: 2026-11-04
 - **Deciders**: proposed by an agent at the maintainer's request (2026-11-03); the maintainer accepts or rejects it by merging the PR that adds it
 - **Related**: [docs/HARNESS-REFINEMENT.md](../HARNESS-REFINEMENT.md), [docs/HARNESS.md](../HARNESS.md) (the six layers and the ratchet), [docs/JEV.md](../JEV.md), [ADR 0002](0002-agent-step-specs-and-local-runner.md) (the step specs and the local runner this builds on), constitution § 10.8 (prior art first), § 12.3 (gated changes), § 13 (eval baseline and risk tiers), epic bamr87/bamr87#484 (run every loop locally)

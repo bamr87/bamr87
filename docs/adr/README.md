@@ -27,4 +27,4 @@ Add an ADR in the same PR as the change it justifies.
 | 0001 | [Record architecture decisions](0001-record-architecture-decisions.md) | accepted |
 | 0002 | [Agent step specs and the local loop runner](0002-agent-step-specs-and-local-runner.md) | accepted |
 | 0003 | [The fleet platform: workloads placed across nodes, OpenTofu for infrastructure, a path to any cluster](0003-fleet-platform-nodes-iac-and-scale-out.md) | accepted |
-| 0004 | [Recursive harness refinement: the Harness² method adopted into JEV, the hub's harness surface as a sensor, and a human-gated experience library](0004-recursive-harness-refinement.md) | proposed |
+| 0004 | [Recursive harness refinement: the Harness² method adopted into JEV, the hub's harness surface as a sensor, and a human-gated experience library](0004-recursive-harness-refinement.md) | accepted |
