@@ -57,6 +57,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash secrets [sync|push|rotate|plan]${c_off} per-repo matrix of declared secrets/variables vs GitHub; \`sync --apply\` provisions the token contract (values from env); \`push --apply\` reads the contract's names from .env and writes them hub-first, then fans the fleet-scoped ones out; \`rotate --apply\` runs the weekly credential loop (audit ages, mint where possible, propagate hub-first); \`plan\` shows the ages read-only
   ${c_bold}dash config [show|audit|sync|auth]${c_off} read _data/fleet.yml (\`show [dotted.key]\`); \`audit\` = \`dash secrets\`; \`sync --apply\` projects canonical variables onto the fleet; \`auth [sync --apply]\` resolves the per-repo AI auth order (ai_auth:) and projects CLAUDE_AUTH_ORDER
   ${c_bold}dash estimate${c_off}          draft client-engagement estimates from open issues → _data/engagements.yml
+  ${c_bold}dash projects [inventory|plan|apply]${c_off} the issue-triage + Fleet-board backfill pass (constitution § 10/§ 11): \`inventory\` counts open work per repo; \`plan [--board]\` compiles _data/projects_backfill.yml into § 11 ops and previews before → after with plan ids (GraphQL for the board, skipped where unreachable); \`apply FILE --confirm\` writes through the service, only with HARNESS_PROJECTS_WRITES=1 (docs/PROJECTS-FRAMEWORK.md § 3b)
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
   ${c_bold}dash content [sync|report|plan|brief|file]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo (docs/CONTENT-ATLAS.md)
@@ -617,6 +618,7 @@ cmd_config() {
   esac
 }
 cmd_estimate() { "${TOOLS}/dash-gen" estimate "$@"; }
+cmd_projects() { "$PY" "${TOOLS}/projects_backfill.py" "$@"; }
 cmd_ledger() { "${TOOLS}/dash-gen" ledger "$@"; }
 # The local data lake + trace export (local stack; docs/HARNESS-OPS.md).
 # Two EXTRACT commands, one for each plane Claude runs in, then one analysis:
@@ -898,6 +900,7 @@ main() {
     keys)    cmd_keys "$@" ;;
     config)  cmd_config "$@" ;;
     estimate) cmd_estimate "$@" ;;
+    projects) cmd_projects "$@" ;;
     ledger)  cmd_ledger "$@" ;;
     lake)    cmd_lake "$@" ;;
     dev)     cmd_dev "$@" ;;
