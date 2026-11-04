@@ -44,6 +44,13 @@ export const to = {
   workflow: (id: string) => `/workflows/${enc(id)}`,
   action: (id: string) => `/workflows/actions/${id.split('/').map(enc).join('/')}`,
   loop: (id: string) => `/loops/${enc(id)}`,
+  refine: (tab?: string, q?: Record<string, string>) => {
+    const qs = new URLSearchParams(q ?? {});
+    if (tab) qs.set('tab', tab);
+    const s = qs.toString();
+    return `/refine${s ? `?${s}` : ''}`;
+  },
+  assist: (q?: string) => `/assist${q ? `?q=${enc(q)}` : ''}`,
   costs: () => '/costs',
   activity: () => '/activity',
   observe: (pane: 'logs' | 'metrics' | 'traces' | 'lines' | 'index') => `/observe/${pane}`,

@@ -267,6 +267,64 @@ class ReadTools(unittest.TestCase):
         self.assertTrue({"harness://overview", "harness://health", "harness://ops", "harness://deep-dive"} <= uris)
 
 
+class RefineTools(unittest.TestCase):
+    """The refinement read tools route to /api/refine and shape what an agent needs (ADR 0004 P2)."""
+
+    DOC = {"schema": "refine-doc/v1", "generated_at": "t0", "config": {"k_max": 3}, "missions": {"compose": "abc"},
+           "stages": ["compose"], "modes": ["parallel"], "cost_label": "API-equivalent (estimate)",
+           "surface": {"ok": True, "errors": [], "warnings": [], "notes": [], "census": {"files": 9}},
+           "fleet_surface": {"repos": [{"name": "SCHEMA"}], "totals": {"checked_out": 1, "clean": 1}},
+           "plans": [{"loop": "repo-scout", "step": "scout", "k": 1, "mode": "parallel", "identity": {"R": 4, "P": 3},
+                      "cost": {"ceiling_usd": 42.0}, "budget": {"available": False}, "steps": [1, 2, 3], "error": None}],
+           "library": {"root": "_data/harness_library", "count": 2, "uncommitted": ["a"], "entries": [
+               {"loop": "repo-scout", "domain": "dev-tools", "id": "e1", "cue": "c1", "confidence": "low"},
+               {"loop": "repo-evolution", "domain": "docs", "id": "e2", "cue": "c2", "confidence": "high"}]},
+           "evidence": [{"stamp": "s1"}], "reviews": [{"run_id": "r1", "loop": "repo-scout", "item": "bamr87/SCHEMA",
+                                                      "would_file": 1, "can_apply": True, "bodies": []}]}
+
+    def test_status_summarises_and_a_section_narrows(self):
+        fc = FakeConsole({"/api/refine": self.DOC})
+        res, text = call(srv.build_server(fc), "refine_status")
+        self.assertFalse(res.is_error, text)
+        d = payload(res, text)
+        self.assertEqual(d["plans"][0]["ceiling_usd"], 42.0)
+        self.assertNotIn("census", d["surface"])
+        self.assertEqual(d["fleet_surface"], {"checked_out": 1, "clean": 1})
+        self.assertEqual(d["reviews"], [{"run_id": "r1", "loop": "repo-scout", "item": "bamr87/SCHEMA",
+                                         "would_file": 1, "can_apply": True}])
+        self.assertEqual(d["evidence"], 1)
+        res, text = call(srv.build_server(fc), "refine_status", {"section": "plans"})
+        self.assertEqual(payload(res, text)["plans"][0]["steps"], [1, 2, 3])
+        res, text = call(srv.build_server(fc), "refine_status", {"section": "nope"})
+        self.assertTrue(res.is_error)
+        self.assertEqual(fc.calls[-1][1], "/api/refine")
+
+    def test_library_filters_by_loop_and_domain(self):
+        fc = FakeConsole({"/api/refine": self.DOC})
+        res, text = call(srv.build_server(fc), "refine_library", {"loop": "repo-evolution"})
+        d = payload(res, text)
+        self.assertEqual([e["id"] for e in d["items"]], ["e2"])
+        self.assertEqual(d["uncommitted"], ["a"])
+        res, text = call(srv.build_server(fc), "refine_library", {"domain": "dev-tools", "limit": 1})
+        self.assertEqual([e["id"] for e in payload(res, text)["items"]], ["e1"])
+
+    def test_reviews_are_the_unfiled_previews(self):
+        fc = FakeConsole({"/api/refine": self.DOC})
+        res, text = call(srv.build_server(fc), "refine_reviews")
+        self.assertEqual(payload(res, text)["items"][0]["run_id"], "r1")
+
+    def test_refine_tools_are_read_only_and_listed(self):
+        names = tool_names(srv.build_server(FakeConsole(), allow_writes=False))
+        self.assertTrue({"refine_status", "refine_library", "refine_reviews"} <= names)
+
+    def test_job_log_cuts_the_routes_text_field(self):
+        fc = FakeConsole({"/api/jobs/j1": {"job": {"id": "j1"}, "text": "x" * 50, "offset": 50, "done": True}})
+        res, text = call(srv.build_server(fc), "job_log", {"job_id": "j1", "tail_chars": 10})
+        d = payload(res, text)
+        self.assertEqual(d["text"], "x" * 10)
+        self.assertTrue(d["log_truncated"])
+
+
 class WriteTools(unittest.TestCase):
     def setUp(self):
         self.fc = FakeConsole({("POST", "/api/jobs"): {"id": "j9"}, ("POST", "/api/jobs/j9/cancel"): {"ok": True},

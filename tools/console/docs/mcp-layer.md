@@ -158,6 +158,9 @@ Read tools are annotated `readOnlyHint: true`. Lists come back as `{count, items
 | `deep_dive` | `/api/data/deep_dive` | Deep-dive cycle progress and per-repo status |
 | `work_board` | `/api/work` | One page of the Work board (`lane`, `repo`, `kind`, `stage`, `priority`, `q`, `limit`, `offset`, `summary`) |
 | `loops` | `/api/state` `loops` | The control-plane loops |
+| `refine_status` | `/api/refine` | Harness refinement (docs/HARNESS-REFINEMENT.md): the hub's surface check, the fleet sweep's totals, one Propose–Probe–Compose plan per agent step with its ceiling, the library's count, the evidence trees and the review queue; `section` returns one key in full (surface, fleet_surface, plans, library, evidence, reviews, config) |
+| `refine_library` | `/api/refine` `library` | The experience library's lessons (cue, lesson, evidence, confidence, verdicts), newest first (`loop`, `domain`, `limit`) — data to re-verify, never a rule |
+| `refine_reviews` | `/api/refine` `reviews` | Every local loop-run attempt whose dry-run preview has not been filed, with whether its step can file (`can_apply`) |
 | `fleet_overview` / `fleet_apps` / `fleet_inbox` / `fleet_work` | committed signals (`tools/fleetcore`) | The merged `fleet` server's views; no console needed |
 | `console_ops` / `console_jobs` / `console_job_log` | as `ops_list` / `jobs_list` / `job_log` | Legacy `fleet` names |
 

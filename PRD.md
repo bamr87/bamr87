@@ -119,7 +119,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-072](features/features.yml) | Fleet activity replay: live and historical animated view of agents, harnesses and containers (proposed) | planned | [`docs/prd/FLEET-ACTIVITY-REPLAY.md`](docs/prd/FLEET-ACTIVITY-REPLAY.md) | FR5, FR7, FR10, FR15, FR16, FR17, FR18, FR19, FR20, FR26, FR60, NFR4, NFR5, NFR6, NFR7, NFR9, FR66, FR67, FR68, NFR13, FR69 |
 | [HUB-073](features/features.yml) | Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV harnesses (proposed) | planned | [`docs/prd/HARNESS-PROTOCOL.md`](docs/prd/HARNESS-PROTOCOL.md) | FR26, FR46, FR54, FR56, FR59, FR60, FR63, NFR9, NFR11, FR70, FR71, FR72, NFR14 |
 | [HUB-074](features/features.yml) | JEV: the fan-out agent fill's step specs and local dry run (P3, step 3) | partial | [`tools/jev/steps/fanout/agent-fill-standardize.yml`](tools/jev/steps/fanout/agent-fill-standardize.yml) · [`docs/SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | FR56 |
-| [HUB-075](features/features.yml) | Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library | partial | [`tools/jev/refine.py`](tools/jev/refine.py) · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | FR73 |
+| [HUB-075](features/features.yml) | Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library, the console's Refine page and review queue, the assistant | partial | route `/refine` · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | FR73 |
 
 **Requirement → feature trace**
 
