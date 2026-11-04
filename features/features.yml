@@ -1376,3 +1376,43 @@ features:
     - .github/scripts/dash-gen/test_ai_budget.py
     prd:
     - FR56
+  - id: HUB-071
+    title: 'JEV: the evolution agent''s step spec and local dry run (P3, step 2)'
+    description: 'The evolution agent (repo-evolution.yml, job evolve) is the third agent step with one
+      spec CI and the local loop runner render from (tools/jev/steps/repo-evolution/evolve.yml + evolve.prompt.txt;
+      ADR 0002 P3, bamr87/bamr87#488, epic #484): its four matrix tokens (NWO, REPO_NAME, BRANCH, BRIEF)
+      are the plan row''s keys, the workflow keeps the prompt inline with the matrix expressions in their
+      places and parity holds it byte-equal to the spec''s render, --model opus became the exact id claude-opus-5-5
+      (_data/fleet.yml evolution.model) and --max-turns the literal of evolution.max_turns, and the evolve
+      step pins the spec pair''s hash. The spec format gained, each optional and v1-compatible, the fleet-read
+      credential posture (CI''s one GH_TOKEN route for the read-only gh verbs, held exact by parity) and
+      local.on_budget_hit publish-flagged (a budget hit''s edits are previewed flagged PARTIAL, the body
+      CI''s publish step would write, never silently discarded; a turn exhaustion is still discarded, as
+      CI''s salvage step publishes only a reported success). Locally, python3 -m tools.jev loop run repo-evolution
+      runs CI''s plan one repository per attempt: dash-gen targets (the planner, now also --offline and
+      carrying the spec''s render in every row) selects the opted-in submodules and skips an open pass,
+      the sealed attempt edits the target clone, the engine harvests changes.patch, the adapter drops the
+      lockfiles CI drops and pairs the patch with the agent''s final message as the draft PR body (marker
+      line first, CI''s footer, the ai-evolution/<date>-<run> branch, the publish remote derived from the
+      nwo per #220), and dash-gen evolve-file writes the dry-run preview; an empty pass is a valid result
+      that files nothing, and --apply is refused by the filer, naming #488, until the publish step lands.'
+    implemented: true
+    status: partial
+    surface: cli
+    link: tools/jev/steps/repo-evolution/evolve.yml
+    docs: docs/EVOLUTION.md
+    tags:
+    - jev
+    - ai
+    - loops
+    - local
+    - repo-evolution
+    date: 2026-11-03
+    tests:
+    - tools/test_jev_spec.py
+    - tools/test_jev_adapter_repo_evolution_evolve.py
+    - tools/test_jev_loop.py
+    - .github/scripts/dash-gen/test_evolution.py
+    - .github/scripts/dash-gen/test_ai_budget.py
+    prd:
+    - FR56
