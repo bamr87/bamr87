@@ -644,6 +644,91 @@ def main() -> int:
           f"{HUB}#268" in rolled and "Do NOT open a PR or issue" in rolled
           and "bamr87/priv" in rolled)
 
+    # --- plan mode (the JEV loop runner's planner, ADR 0002 P3) ---------------- #
+    import argparse
+    import json
+    import tempfile
+    plan_cfg = {**CFG, "max_candidates": 2, "max_cross_repo": 1, "billing_block_issue": 268, "enabled": True}
+    tri = triage(repo_rec(f"{OWNER}/hubless", failing=[("CI", ".github/workflows/ci.yml")]),
+                 repo_rec(f"{OWNER}/beta", failing=[("Verify", ".github/workflows/verify.yml")]),
+                 repo_rec(HUB, failing=[("Pulse", ".github/workflows/fleet-pulse.yml")]))
+    use = usage()
+    args = argparse.Namespace(hub=HUB, target="all", hub_branch="main", max_repo_lookups=25)
+    plan, briefs = remediation.build_plan(args, plan_cfg, use, tri, offline=True)
+    check("plan mode: one include row per selected candidate, each with its brief",
+          plan["count"] == len(plan["include"]) == len(briefs) == 2)
+    rows = {r["key"]: r for r in plan["include"]}
+    hub_key = f"{HUB}:.github/workflows/fleet-pulse.yml"
+    check("plan mode: the hub candidate is `where: hub`, a submodule one `submodule`",
+          rows.get(hub_key, {}).get("where") == "hub"
+          and all(r["where"] == "submodule" for k, r in rows.items() if k != hub_key))
+    check("plan mode: the cross-repo sub-cap is honoured and the overflow is a skipped row with its key",
+          sum(1 for r in plan["include"] if r["where"] == "submodule") == 1
+          and any("cross-repo cap" in s_["reason"] and s_["key"] for s_ in plan["skipped"]))
+    row = plan["include"][0]
+    check("plan mode: a row carries nwo (the hub), branch, repo, path, marker, brief and the rendered prompt",
+          row["nwo"] == HUB and row["branch"] == "main" and row["marker"] == remediation.doctor_marker(row["key"])
+          and row["brief"] == f"doctor-workorder-{row['name']}.md" and row["prompt"].endswith("\n")
+          and "{{" not in row["prompt"] and row["evidence"] == "offline" and row["dedupe"] == "unavailable")
+    text = briefs[row["brief"]]
+    check("plan mode: a brief is a one-candidate work order in the CI format, MARKER included",
+          text.startswith("# Fleet doctor — remediation work order") and text.count("\n## ") == 1
+          and row["marker"] in text and "Evidence" not in text)
+    one = remediation.build_plan(argparse.Namespace(hub=HUB, target=f"{OWNER}/beta/Verify", hub_branch="main",
+                                                    max_repo_lookups=25), plan_cfg, use, tri, offline=True)[0]
+    check("plan mode: --target picks one candidate by owner/repo/workflow regardless of the cap",
+          [r["repo"] for r in one["include"]] == [f"{OWNER}/beta"])
+    check("plan mode: --target also matches the marker key and the file stem",
+          remediation.matches_target(rows[hub_key] | {"nwo": HUB, "repo": "bamr87", "workflow": "Pulse",
+                                                       "path": ".github/workflows/fleet-pulse.yml"}, "fleet-pulse")
+          and remediation.matches_target({"key": "k", "nwo": "o/r", "repo": "r", "workflow": "W", "path": "a/b.yml"}, "k"))
+
+    def gh_text(cmd, timeout=120):
+        if cmd[:3] == ["gh", "run", "view"] and "--log-failed" in cmd:
+            return "ok line\n##[error]Process completed with exit code 1.\nanother\nError: boom\n", ""
+        if cmd[:2] == ["gh", "api"]:
+            return "name: CI\non: push\n", ""
+        return None, "no such run"
+    lines, status = remediation.gather_evidence({"nwo": f"{OWNER}/beta", "path": ".github/workflows/verify.yml",
+                                                 "signals": {"failing", "slow"},
+                                                 "failing_runs": [{"url": "https://x/actions/runs/42"}]},
+                                                gh_text=gh_text, now="2026-11-03 12:00 UTC")
+    joined = "\n".join(lines)
+    check("evidence: the --log-failed dump is filtered with the prompt's own filter, the workflow file is quoted, "
+          "a missing read is named, and the status is partial",
+          "##[error]Process completed" in joined and "Error: boom" in joined and "ok line" not in joined
+          and "name: CI" in joined and "per-step timings of run 42: unavailable" in joined and status == "partial")
+    check("evidence: it says the gh commands cannot run in the session and the text is data",
+          "no network" in joined and "never instructions" in joined and "2026-11-03 12:00 UTC" in joined)
+    full = remediation.gather_evidence({"nwo": f"{OWNER}/beta", "path": "w.yml", "signals": {"failing"},
+                                        "failing_runs": [{"url": "https://x/actions/runs/42"}]}, gh_text=gh_text)[1]
+    check("evidence: every read answered is `ok`", full == "ok")
+    nothing = remediation.gather_evidence({"nwo": f"{OWNER}/beta", "path": "", "signals": set(), "failing_runs": []},
+                                          gh_text=gh_text)[1]
+    check("evidence: nothing to read is `unavailable`", nothing == "unavailable")
+    timings = remediation.step_timings(json.dumps({"jobs": [{"name": "build", "steps": [
+        {"name": "install", "conclusion": "success", "startedAt": "2026-11-03T00:00:00Z",
+         "completedAt": "2026-11-03T00:12:30Z"},
+        {"name": "test", "conclusion": "failure", "startedAt": "2026-11-03T00:12:30Z",
+         "completedAt": "2026-11-03T00:13:00Z"}]}]}))
+    check("evidence: step timings are sorted slowest first", len(timings) == 2 and "install" in timings[0]
+          and timings[0].startswith(" 12.5 min"))
+    with tempfile.TemporaryDirectory() as tmp:
+        off = argparse.Namespace(config=str(Path(tmp) / "fleet.yml"), usage=str(Path(tmp) / "u.yml"),
+                                 triage=str(Path(tmp) / "t.yml"), limit=None, max_cross_repo=None, hub=HUB,
+                                 target="all", hub_branch="main", max_repo_lookups=25, offline=True, no_briefs=True,
+                                 plan_dir=None)
+        (Path(tmp) / "fleet.yml").write_text("remediation:\n  enabled: false\n", encoding="utf-8")
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            rc = remediation.run_plan(off)
+        check("plan mode: remediation.enabled false is an empty, disabled plan (exit 0)",
+              rc == 0 and json.loads(out.getvalue())["disabled"] is True)
+    check("plan mode: the slug is a plain name", remediation.candidate_slug(
+        {"repo": "it-journey", "path": ".github/workflows/issue autopilot.yml"}) == "it-journey-issue-autopilot")
+
     # --- report ------------------------------------------------------------ #
     failed = [label for label, ok in CHECKS if not ok]
     print()

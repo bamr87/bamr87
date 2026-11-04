@@ -51,6 +51,9 @@ KEYS: tuple[Key, ...] = (
     # dash — the fleet views both surfaces share
     Key("l", "l", "open_live", "Live site", group="dash"),
     Key("s", "s", "sort", "Sort", group="dash"),
+    # the loop runner (docs/JEV.md): the TUI runs the selected repo through the
+    # loop's agent step on this machine; the page opens the same op's form
+    Key("L", "L", "loop_run", "Run loop locally", group="dash"),
 )
 
 

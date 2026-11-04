@@ -48,6 +48,7 @@ keys v1 ([`fleetcore/keys.py`](../fleetcore/keys.py)): the browser console binds
 | `o` / `l` / `y` | open the repo (or, on the Inbox, the item) / open `live_url` / copy the link. With no browser to hand it to (Docker, SSH) the link is shown instead |
 | `r` / `R` | reload YAML, re-poll Docker and the jobs / run `tools/dash-gen health` (progress streams into the status line) |
 | `d` | cancel the selected job (Jobs tab; asks first) |
+| `L` | run the selected repo through a loop's agent step on this machine (the console's `loop-run` op — the JEV loop runner, a dry run that files nothing; asks first because a live attempt spends). The finished job's summary — status, spend as an estimate, one line per item — is written under its log |
 | `?` | key help |
 | `q` | quit |
 

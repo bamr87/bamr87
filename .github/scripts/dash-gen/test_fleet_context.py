@@ -380,12 +380,20 @@ def build(lake_dir, url, **kw):
 
 
 def run_main(argv: list[str]) -> tuple[int, str, str]:
+    """The CLI under the fixtures' clock: `build` is given `now=NOW`, but
+    `main` reads `fc.utcnow()`, and the fixtures' timestamps (2026-10-31)
+    would otherwise age past every freshness window on the wall clock."""
     out, err = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        try:
-            code = fc.main(argv)
-        except SystemExit as exc:   # argparse's own usage errors
-            code = exc.code
+    real = fc.utcnow
+    fc.utcnow = lambda: NOW
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = fc.main(argv)
+            except SystemExit as exc:   # argparse's own usage errors
+                code = exc.code
+    finally:
+        fc.utcnow = real
     return code, out.getvalue(), err.getvalue()
 
 

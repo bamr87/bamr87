@@ -70,7 +70,8 @@ from . import workspace as wsp
 from .adapters import REUSE_DAYS, Adapter, Item, PlanResult, PublishPlan, Verdict
 from .common import HUB, JevError, Run, dotenv_values, gh, git, hub_repo, is_bare_name, load_config, run
 from .ledger import BudgetState, Ledger, budget_state
-from .spec import (PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, ContextSpec, StepSpec, StepSpecError, allowed_models,
+from .spec import (PATCH_OUTPUT, PUBLISH_REVIEWED_FLAGS, SPEC_ROOT, ContextSpec, StepSpec, StepSpecError,
+                   allowed_models,
                    fleet_value, load_fleet, load_spec, render_argv, render_prompt, spec_files, values_from)
 
 DASH_GEN = HUB / "tools" / "dash-gen"
@@ -91,7 +92,10 @@ CANARY_TURNS = 12
 CANARY_CAP_USD = 0.10
 CANARY_TIMEOUT_S = 300
 SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
-TARGET_RX = re.compile(r"[A-Za-z0-9_.-]+")
+#: `--target`: a registry name (scout), or a planner's own item key — the doctor's
+#: marker key `owner/repo:.github/workflows/x.yml`, `owner/repo/workflow` or a file
+#: stem. One token: no whitespace, no control character, never option-shaped.
+TARGET_RX = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./:@-]{0,199}")
 DAY_RX = re.compile(r"\d{4}-\d{2}-\d{2}")
 #: the backstop's SIGTERM-to-SIGKILL grace: ai-run's own SIGINT-first ladder needs well under it
 BACKSTOP_KILL_S = 60
@@ -190,7 +194,7 @@ def option_refusal(opts: Options, *, verb: str) -> str | None:
     if bool(opts.plan_file) != bool(opts.item):
         return "--plan-file and --item go together (one row of a saved plan)"
     if opts.target != "all" and not TARGET_RX.fullmatch(opts.target or ""):
-        return f"--target {opts.target!r} is not a registry name"
+        return f"--target {opts.target!r} is not a registry name or a planner item key (one plain token)"
     if opts.day and not DAY_RX.fullmatch(opts.day):
         return f"--day {opts.day!r} is not YYYY-MM-DD"
     if any(c in (opts.focus or "") for c in "\0\r\n"):
@@ -236,9 +240,11 @@ def load_step(loop: str, step: str | None = None, *, fleet: dict | None = None) 
     if spec.local is None:
         raise StepSpecError(f"{spec.loop}/{spec.step}: no local runner for this step yet "
                             "(its spec has no local: block)")
-    if spec.workspace.cwd != "target" or spec.workspace.github_credential != "none":
-        raise StepSpecError(f"{spec.loop}/{spec.step}: workspace cwd {spec.workspace.cwd!r} / github_credential "
-                            f"{spec.workspace.github_credential!r} — P1 runs only cwd target with no credential (P3)")
+    # Every workspace kind and credential posture the loader accepts runs here
+    # the same way: the clone is the item's `nwo` (the adapter names the hub for
+    # a `cwd: hub` step), and the agent's environment carries NO GitHub
+    # credential under any posture — `fleet-write` describes what CI hands the
+    # step; locally the engine's publish step holds the token (§ 13.8, ADR 0002 P3).
     return spec
 
 
@@ -1297,7 +1303,8 @@ def place_inputs(ctx: RunContext, ws: wsp.Workspace, brief: Path | None, pack: c
         data = brief.read_bytes()
         if built:
             data += b"\n" + cpack.pointer(bd, file).encode("utf-8")
-        wsp.place_bytes(ws, data, f"{bd}/{brief.name}")
+        # a step whose prompt reads the brief by a fixed name gets it in the clone root (workspace.brief_file)
+        wsp.place_bytes(ws, data, ctx.spec.workspace.brief_file or f"{bd}/{brief.name}")
     if built:
         data = pack.path.read_bytes()
         if hashlib.sha256(data).hexdigest() != pack.sha256:
@@ -1463,7 +1470,8 @@ def run_item(ctx: RunContext, item: Item, host: HostReport, posture: headless.Po
         if not ctx.opts.offline:
             try:
                 ws = wsp.clone(item.nwo, item.branch, run_id=ctx.run.run_id, brief_dir=ctx.spec.workspace.brief_dir,
-                               dirname=dirname)
+                               dirname=dirname, brief_file=ctx.spec.workspace.brief_file,
+                               allow_commits=ctx.spec.local.harvest == "patch")
             except JevError as exc:
                 report.update(status="failed", reason=str(exc), code=EXIT["attention"])
                 ctx.run.append_attempt({**row, "decision": report["decision"], "attempt_id": attempt_id,
@@ -1626,7 +1634,11 @@ def posture_breach(spec: StepSpec, posture: headless.Posture, outcome: dict, deb
     accounting, not evidence: that attempt fails as attention instead. Bash
     calls the permission layer denied never ran, so only executed ones need
     the sandbox line (and its fences); without per-tool denials (an older
-    outcome) every call counts as executed."""
+    outcome) every call counts as executed. `debug` is `headless.posture_lines`:
+    the reduced debug log plus the sandbox runtime's stderr lines the outcome
+    carries, since 2.1.308 logs the per-command line only there (#560,
+    decision 4c: the document's read-fence line AND the per-command line,
+    each failing closed)."""
     applied = headless.user_settings_env_keys(debug)
     if applied:
         return (f"a user settings env block was applied to the session ({', '.join(applied)}): a settings file "
@@ -1642,13 +1654,18 @@ def posture_breach(spec: StepSpec, posture: headless.Posture, outcome: dict, deb
     elif ((outcome.get("cost_source") == "reported" and float(outcome.get("cost_usd") or 0) > 0)
           or kind in ("ok", "budget_hit", "max_turns") or tool_uses or events):
         return "the session reported a result or tool use but left no init record, so its posture cannot be checked"
+    if init is not None and posture.name == "sandbox":
+        fence = headless.settings_fence_problems(debug)
+        if fence:
+            return "the --settings document is not proven applied to this session: " + "; ".join(fence)
     bash = int(tool_uses.get("Bash") or 0)
     if bash and posture.name == "reduced":
         return f"Bash ran {bash} time(s) under the reduced posture, which grants none"
     denied = outcome.get("denied_tools")
     executed = bash - int(denied.get("Bash") or 0) if isinstance(denied, dict) else bash
     if executed > 0 and not headless.sandbox_engaged(debug):
-        return (f"Bash executed {executed} time(s) but the debug log shows no sandbox engaged — the outputs are "
+        return (f"Bash executed {executed} time(s) but no sandbox engaged: neither the debug log nor the sandbox "
+                f"runtime's stderr ({headless.SANDBOX_DEBUG_ENV}) shows a wrapped command — the outputs are "
                 "destroyed unread; re-run `tools/dash loop doctor` and the canary")
     fences = headless.sandbox_fence_problems(debug) if executed > 0 else []
     if fences:
@@ -1693,7 +1710,7 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
         record_unledgered(ctx, row, report["attempt_id"], float(outcome.get("cost_usd") or 0.0),
                           str(outcome.get("cost_source") or "reported"))
         report.setdefault("flags", []).append(f"this attempt is not in the AI ledger: {outcome['ledger_error']}")
-    debug = headless.reduce_debug_log(d / "debug.log")
+    debug = headless.posture_lines(headless.reduce_debug_log(d / "debug.log"), outcome)
     (d / "debug-sandbox.txt").write_text("\n".join(debug) + "\n", encoding="utf-8")
     kind = str(outcome.get("kind"))
     cost = float(outcome.get("cost_usd") or 0.0)
@@ -1751,13 +1768,22 @@ def attempt(ctx: RunContext, item: Item, ws, posture: headless.Posture, argv: li
 
     tree = wsp.tree_report(ws)
     _write_tree(d, tree)
-    if tree.tracked:
-        wsp.discard_tracked(ws)   # CI's "Verify the tree is untouched"
-        report.setdefault("flags", []).append(f"tracked edits discarded: {', '.join(tree.tracked)}")
-    if tree.untracked:
-        report.setdefault("flags", []).append(f"untracked files outside {spec.workspace.brief_dir}/ left in the "
-                                              f"clone (ignored): {', '.join(tree.untracked[:10])}")
-    harvested = {rel: wsp.harvest(ws, rel, d / "outputs") for rel in spec.workspace.outputs}
+    if spec.local.harvest == "patch":
+        # the agent's edits ARE the output: one patch through the engine's own git, nothing discarded
+        patch = wsp.diff_patch(ws, d / "outputs")
+        harvested = {PATCH_OUTPUT: patch}
+        if tree.tracked or tree.untracked:
+            report.setdefault("flags", []).append(
+                f"{len(tree.tracked)} tracked edit(s) and {len(tree.untracked)} new file(s) harvested as "
+                f"{PATCH_OUTPUT} ({patch.reason}, {patch.size} bytes)")
+    else:
+        if tree.tracked:
+            wsp.discard_tracked(ws)   # CI's "Verify the tree is untouched"
+            report.setdefault("flags", []).append(f"tracked edits discarded: {', '.join(tree.tracked)}")
+        if tree.untracked:
+            report.setdefault("flags", []).append(f"untracked files outside {spec.workspace.brief_dir}/ left in "
+                                                  f"the clone (ignored): {', '.join(tree.untracked[:10])}")
+        harvested = {rel: wsp.harvest(ws, rel, d / "outputs") for rel in spec.workspace.outputs}
     verdict = ctx.adapter.validate(ctx, item, harvested, outcome)
     write_json(d / "validate.json", {"ok": verdict.ok, "problems": verdict.problems, "flags": verdict.flags,
                                      "facts": verdict.facts,
@@ -2422,13 +2448,37 @@ def _canary_fixture(root: Path, secret: Path) -> Path:
     return repo
 
 
+#: the Bash grants the canary's probes need (`cat` and `python3 -c` one-liners):
+#: added to a step whose allowlist lacks them, since the probes test Seatbelt,
+#: which wraps every child alike — the settings document, the isolation flags,
+#: the toolset and the environment stay the step's own, and the verdict
+#: records what was added (bamr87/bamr87#488: the doctor grants no python3)
+CANARY_GRANTS = ("Bash(cat:*)", "Bash(python3:*)")
+
+
+def canary_grants(spec: StepSpec, posture: headless.Posture) -> list[str]:
+    """Pure: which of CANARY_GRANTS the step's own allowlist lacks (none when
+    the posture grants no Bash at all: the canary refuses under `reduced`)."""
+    allowed = headless.posture_tools(spec.allowed_tools, posture)
+    if "Bash" not in headless.tool_families(allowed):
+        return []
+    return [g for g in CANARY_GRANTS if g not in allowed]
+
+
 def canary_flags(spec: StepSpec, posture: headless.Posture, **paths: object) -> list[str]:
     """The step's own isolation flags — the same settings, toolset, allowlist
     and deny list the posture template hashes — with only the model and the
-    turn cap swapped for the canary's (neither changes what is enforced)."""
+    turn cap swapped for the canary's (neither changes what is enforced), plus
+    the probe grants (`canary_grants`) a narrower allowlist lacks, appended to
+    `--allowedTools` so the probes reach the sandbox instead of the permission
+    layer; `--tools` (the families the init record is held to) is unchanged."""
     flags = headless.claude_flags(spec, posture, **paths)
     flags[flags.index("--model") + 1] = CANARY_MODEL
     flags[flags.index("--max-turns") + 1] = str(CANARY_TURNS)
+    added = canary_grants(spec, posture)
+    if added:
+        i = flags.index("--allowedTools") + 1
+        flags[i] = ",".join([*flags[i].split(","), *added])
     return flags
 
 
@@ -2440,11 +2490,11 @@ def _plant(path: Path, token: str) -> None:
 
 def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, fleet: dict) -> headless.ProbeResult:
     """The ≤ $0.10 canary: one real session (it is ledgered like any attempt)
-    in a canary clone, asked to read a planted secret (inside the home fence,
-    and a second copy in a denied private path outside it) with `cat` and with
-    python, reach the network, write outside the clone with a sandboxed command
-    and with the Write tool, count the SECRET_ENV variables it can see, and read
-    a committed symlink. It runs under the run's own credential, so its pass
+    in a canary clone, asked to read a planted fixture file holding a random
+    token (inside the home fence, and a second copy in a denied private path
+    outside it) with `cat` and with python, reach the network, write outside
+    the clone with a sandboxed command and with the Write tool, count the
+    SECRET_ENV variables it can see, and read a committed symlink. It runs under the run's own credential, so its pass
     is cached for that exposure. `headless.judge_canary` decides; the secrets
     and every scratch file are removed whatever happens."""
     if CANARY_MODEL not in allowed_models(fleet):
@@ -2455,9 +2505,10 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
     token = secrets.token_hex(16)
     outside_root = next((Path(p).resolve() for p in headless.private_read_paths() if Path(p).is_dir()), None)
     outside_dir = Path(tempfile.mkdtemp(prefix="jev-canary-", dir=outside_root)) if outside_root else None
-    plant = headless.CanaryPlant(token=token, secret=str(cdir / "secret.txt"), written=str(cdir / "written.txt"),
+    # neutral names: a model asked to read a `secret` may decline on its own (#560, item 3)
+    plant = headless.CanaryPlant(token=token, secret=str(cdir / "fixture.txt"), written=str(cdir / "written.txt"),
                                  write_tool=str(cdir / "written-by-write.txt"),
-                                 outside=str(outside_dir / "secret.txt") if outside_dir else None)
+                                 outside=str(outside_dir / "fixture.txt") if outside_dir else None)
     targets = [Path(plant.written), Path(plant.write_tool)]
     for t in targets:
         t.unlink(missing_ok=True)
@@ -2489,12 +2540,16 @@ def run_canary(spec: StepSpec, posture: headless.Posture, host: HostReport, flee
             argv += ["--meta", f"{k}={v}"]
         relay_dash_gen([*argv, "--", *flags], env=ai_run_env(host.auth), timeout=CANARY_TIMEOUT_S + OUTER_GRACE_S)
         expected = headless.tool_families(headless.posture_tools(spec.allowed_tools, posture))
-        return headless.judge_canary(
-            headless.read_events(d / "trace.jsonl"), headless.reduce_debug_log(d / "debug.log"),
-            read_json(d / "outcome.json"), plant=plant, left_behind=[str(t) for t in targets if t.exists()],
+        outcome = read_json(d / "outcome.json")
+        verdict = headless.judge_canary(
+            headless.read_events(d / "trace.jsonl"),
+            headless.posture_lines(headless.reduce_debug_log(d / "debug.log"), outcome),
+            outcome, plant=plant, left_behind=[str(t) for t in targets if t.exists()],
             expected_tools=expected, credential_env=headless.credential_exposure(host.auth),
             # ai-run's trace Redactor has the HOME it was given: the same one, so the same `~` paths
             redact=headless.Redactor(ai_run_env(host.auth)).text)
+        verdict.facts["grants_added"] = canary_grants(spec, posture)
+        return verdict
     finally:
         if ws is not None:
             wsp.destroy(ws)
@@ -2541,7 +2596,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                               "exit": EXIT["host_unsafe"]}, indent=2, sort_keys=True))
         return EXIT["host_unsafe"]
     root = private_work_root()
-    for spec in local_specs(fleet=fleet):
+    chosen = local_specs(fleet=fleet)
+    if getattr(args, "loop", None):
+        chosen = [s for s in chosen if s.loop == args.loop and (args.step is None or s.step == args.step)]
+        if not chosen:
+            print(f"jev loop: no step spec with a local: block for {args.loop}"
+                  f"{'/' + args.step if args.step else ''} (`loop list`)", file=sys.stderr)
+            return EXIT["usage"]
+    for spec in chosen:
         scratch = Path(tempfile.mkdtemp(prefix=".doctor-", dir=root))
         try:
             host = host_check(spec, posture, fleet, args.claude_bin, scratch / "preflight", live=False,
@@ -2584,6 +2646,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                                    "credential_env": headless.credential_exposure(host.auth), "at": iso()})
                             host.canary = "ok" if verdict.ok else "failed"
                             canary_problems = verdict.problems
+                            if verdict.ok:
+                                # the host check's note was written before the canary ran
+                                host.notes = [n for n in host.notes if not n.startswith("canary: none passing")]
+                                host.notes.append(
+                                    f"canary: passed — {verdict.facts.get('sandbox_lines', 0)} sandboxed command "
+                                    f"line(s), fences {verdict.facts.get('fences') or {}}; cached for this CLI, "
+                                    "posture template and credential exposure")
                             if not verdict.ok:
                                 host.problems.append((EXIT["host_unsafe"],
                                                       "the canary failed: the sandbox did not enforce"))
@@ -2855,7 +2924,9 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     ls.add_argument("--json", action="store_true")
     doc = sub.add_parser("doctor",
                          help="$0 host checks: CLI floor, sandbox, credential, flag preflight, isolation probe; "
-                              "--live adds the one-time canary (≤ $0.10)")
+                              "--live adds the one-time canary (≤ $0.10); every local step, or the one named")
+    doc.add_argument("loop", nargs="?", default=None, help="only this loop's step(s) (default: every local step)")
+    doc.add_argument("step", nargs="?", default=None, help="only this step of the loop")
     doc.add_argument("--posture", choices=("sandbox", "reduced"), default="sandbox")
     doc.add_argument("--live", action="store_true",
                      help=f"also run the canary: one ledgered session, ≤ ${CANARY_CAP_USD:.2f} ({COST_LABEL}), "
