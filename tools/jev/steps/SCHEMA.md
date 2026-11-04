@@ -17,6 +17,7 @@ coverage: listed
 | entry | kind | purpose | rules |
 | --- | --- | --- | --- |
 | `README.md` | file | What a step spec is, its keys, the placeholder rule, and how to change a prompt | required |
+| `fleet-pulse/` | dir | The agent step of `.github/workflows/fleet-pulse.yml` (job `doctor`, the fleet doctor); see its SCHEMA | |
 | `repo-scout/` | dir | The agent step of `.github/workflows/repo-scout.yml` (job `scout`); see its SCHEMA | |
 
 ## Placement

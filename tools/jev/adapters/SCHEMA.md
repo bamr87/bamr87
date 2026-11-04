@@ -19,6 +19,7 @@ coverage: listed
 | `README.md` | file | The adapter contract on one page: the seven hooks, their defaults, what the engine owns | required |
 | `__init__.py` | file | The contract: `REGISTRY` (name → module), `get`, the `Item` / `PlanResult` / `Tier0` / `Triage` / `Verdict` / `PublishPlan` data classes and the `Adapter` base class with its defaults | required |
 | `repo_scout.py` | file | repo-scout's adapter: maps `dash-gen scout` and `dash-gen scout-file`, tier-0 reuse on the same HEAD and brief, the dedupe block on `--apply`, the privacy filter and the local-runner artefact flags | required |
+| `fleet_pulse_doctor.py` | file | The fleet doctor's adapter (ADR 0002 P3): maps `dash-gen remediate --plan-dir` (one item per candidate, the hub as the checkout) and `dash-gen doctor-file`; validates the engine's patch harvest plus the filing the agent asked gh for, MARKER line first; the privacy filter; `--apply` is refused by the filer until #488's publish step | required |
 
 ## Placement
 

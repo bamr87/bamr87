@@ -60,6 +60,17 @@ PRISTINE = ".gitdir-pristine"
 BASELINE_SKIP = ("objects", "index")
 #: …except these, which redirect where objects are read from
 BASELINE_ALSO = ("objects/info/alternates", "objects/info/http-alternates")
+#: …and, for a workspace made with `allow_commits` (a `local.harvest: patch`
+#: step: the agent may branch and commit its fix), the entries git's own
+#: branch, add and commit write — refs, logs and the HEAD files. The engine's
+#: git never reads them (it runs on the pristine GIT_DIR), so a change there
+#: steers nothing; config, hooks, info/ and the object redirects stay hashed.
+COMMIT_ENTRIES_RX = re.compile(
+    r"^(?:HEAD|ORIG_HEAD|FETCH_HEAD|COMMIT_EDITMSG|MERGE_HEAD|MERGE_MSG|MERGE_MODE|MERGE_RR|CHERRY_PICK_HEAD|"
+    r"REVERT_HEAD|BISECT_[A-Z_]+|AUTO_MERGE|packed-refs|index\.lock|logs|refs|rebase-merge|rebase-apply|sequencer|"
+    r"lost-found|rr-cache)(?:/.*)?$")
+#: `diff_patch`'s cap: the agent's whole diff, tracked edits and new files together
+PATCH_MAX = 512 * 1024
 #: every engine git call on an agent-touched clone (with the pristine GIT_DIR)
 ENGINE_GIT_OPTS = ("-c", "core.attributesFile=/dev/null", "-c", "submodule.recurse=false",
                    "-c", "diff.ignoreSubmodules=all", "-c", "core.symlinks=false")
@@ -76,6 +87,10 @@ class Workspace:
     brief_dir: str
     baseline: dict[str, str] = field(default_factory=dict)
     gitdir: Path | None = None   # <root>/.gitdir-pristine — the engine's git reads only this
+    #: the prompt's fixed name for the brief, in the clone root (spec workspace.brief_file); None = <brief_dir>/<brief>
+    brief_file: str | None = None
+    #: the agent may branch and commit (local.harvest: patch): COMMIT_ENTRIES_RX is outside the tamper baseline
+    allow_commits: bool = False
 
     @property
     def tmp(self) -> Path:
@@ -152,7 +167,8 @@ def check_brief_dir(brief_dir: object) -> str:
     return brief_dir
 
 
-def _finish(root: Path, nwo: str, branch: str, brief_dir: str) -> Workspace:
+def _finish(root: Path, nwo: str, branch: str, brief_dir: str, brief_file: str | None = None,
+            allow_commits: bool = False) -> Workspace:
     """Harden the fresh clone and take its baseline; an OSError is the item's
     JevError. The caller (`_made`) removes the root on any failure."""
     path = root / nwo.split("/", 1)[1]
@@ -162,9 +178,14 @@ def _finish(root: Path, nwo: str, branch: str, brief_dir: str) -> Workspace:
         if committed.out.strip() or os.path.lexists(path / brief_dir):
             raise JevError(f"{nwo} commits {brief_dir}/ — the brief directory must be the engine's alone "
                            "(a committed output would be harvested as the agent's)")
+        if brief_file is not None:
+            at_root = git(["ls-tree", "--name-only", "HEAD", "--", brief_file], cwd=path)
+            if at_root.out.strip() or os.path.lexists(path / brief_file):
+                raise JevError(f"{nwo} commits {brief_file} — the brief's fixed name must be the engine's alone")
         head = git(["rev-parse", "HEAD"], cwd=path)
         ws = Workspace(root=root, path=path, nwo=nwo, branch=branch,
-                       head_sha=head.out.strip() if head.ok else "", brief_dir=brief_dir)
+                       head_sha=head.out.strip() if head.ok else "", brief_dir=brief_dir,
+                       brief_file=brief_file, allow_commits=allow_commits)
         harden(ws)
         ws.gitdir = _pristine_gitdir(ws)
         ws.baseline = baseline(ws)
@@ -184,7 +205,8 @@ def _made(root: Path, make) -> Workspace:
         raise
 
 
-def clone(nwo: str, branch: str, *, run_id: str, brief_dir: str, dirname: str | None = None) -> Workspace:
+def clone(nwo: str, branch: str, *, run_id: str, brief_dir: str, dirname: str | None = None,
+          brief_file: str | None = None, allow_commits: bool = False) -> Workspace:
     """A fresh, hardened clone of `nwo` at `branch`, full history (CI's fetch-depth 0).
     `--no-upstream`: for a fork, gh would otherwise add and fetch the parent as
     a second remote with a live push URL."""
@@ -197,12 +219,12 @@ def clone(nwo: str, branch: str, *, run_id: str, brief_dir: str, dirname: str | 
                  env=CLONE_ENV, timeout=900)
         if not res.ok:
             raise JevError(f"gh repo clone {nwo} ({branch}) failed: {(res.err or res.out).strip()[-300:]}")
-        return _finish(root, nwo, branch, brief_dir)
+        return _finish(root, nwo, branch, brief_dir, brief_file, allow_commits)
     return _made(root, make)
 
 
 def clone_local(src: Path, nwo: str, branch: str, *, run_id: str, brief_dir: str,
-                dirname: str | None = None) -> Workspace:
+                dirname: str | None = None, brief_file: str | None = None, allow_commits: bool = False) -> Workspace:
     """The same workspace from a local repository (the tests and the canary)."""
     check_brief_dir(brief_dir)
     root = _item_root(nwo, run_id, dirname)
@@ -212,7 +234,7 @@ def clone_local(src: Path, nwo: str, branch: str, *, run_id: str, brief_dir: str
         res = git(["clone", "--branch", branch, *CLONE_OPTS, str(src), str(dest)], cwd=root, env=CLONE_ENV)
         if not res.ok:
             raise JevError(f"git clone {src} failed: {res.err.strip()[-300:]}")
-        return _finish(root, nwo, branch, brief_dir)
+        return _finish(root, nwo, branch, brief_dir, brief_file, allow_commits)
     return _made(root, make)
 
 
@@ -239,6 +261,8 @@ def harden(ws: Workspace) -> None:
     info.mkdir(parents=True, exist_ok=True)
     with (info / "exclude").open("a", encoding="utf-8") as fh:
         fh.write(f"\n/{ws.brief_dir}/\n")
+        if ws.brief_file is not None:
+            fh.write(f"/{ws.brief_file}\n")
     ws.tmp.mkdir(parents=True, exist_ok=True)
 
 
@@ -319,9 +343,10 @@ def _pristine_gitdir(ws: Workspace) -> Path:
     return dest
 
 
-def _git_inventory(g: Path) -> dict[str, str]:
-    """Every entry under `.git` but BASELINE_SKIP: a regular file's sha256, a
-    symlink's target (never followed), "dir", or "special" (a FIFO is never read)."""
+def _git_inventory(g: Path, *, allow_commits: bool = False) -> dict[str, str]:
+    """Every entry under `.git` but BASELINE_SKIP (and, with `allow_commits`,
+    COMMIT_ENTRIES_RX): a regular file's sha256, a symlink's target (never
+    followed), "dir", or "special" (a FIFO is never read)."""
     try:
         st = os.lstat(g)
     except FileNotFoundError:
@@ -339,7 +364,7 @@ def _git_inventory(g: Path) -> dict[str, str]:
             continue
         for e in entries:
             rel = Path(e.path).relative_to(g).as_posix()
-            if rel in BASELINE_SKIP:
+            if rel in BASELINE_SKIP or (allow_commits and COMMIT_ENTRIES_RX.match(rel)):
                 continue
             if e.is_symlink():
                 out[rel] = f"symlink:{os.readlink(e.path)}"
@@ -374,7 +399,7 @@ def _nested_git(ws: Workspace) -> list[str]:
 def baseline(ws: Workspace) -> dict[str, str]:
     """The tamper baseline: all of `.git` but its objects and index, the
     object redirects, and the list of nested `.git` entries."""
-    out = _git_inventory(ws.path / ".git")
+    out = _git_inventory(ws.path / ".git", allow_commits=ws.allow_commits)
     out["nested .git"] = ",".join(_nested_git(ws))
     return out
 
@@ -415,10 +440,41 @@ def tree_report(ws: Workspace) -> TreeReport:
         if len(line) < 4:
             continue
         code, path = line[:2], line[3:]
-        if path == ws.brief_dir or path.startswith(ws.brief_dir.rstrip("/") + "/"):
+        if path == ws.brief_dir or path.startswith(ws.brief_dir.rstrip("/") + "/") or path == ws.brief_file:
             continue
         (untracked if code == "??" else tracked).append(path)
     return TreeReport(tracked=tracked, untracked=untracked)
+
+
+def diff_patch(ws: Workspace, dest_dir: Path, *, max_bytes: int = PATCH_MAX) -> Harvest:
+    """The agent's edits as ONE patch, through `engine_git` (refused on a
+    tampered clone): tracked changes against the fresh HEAD, then every new
+    file git does not ignore (the brief directory and the brief's fixed name
+    excluded) as a creation hunk. Written to `<dest_dir>/changes.patch`; an
+    empty patch is `ok` with size 0 (the agent changed nothing). Over
+    `max_bytes` it is `too-large` and nothing is written."""
+    rel = "changes.patch"
+    tracked = engine_git(ws, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "HEAD", "--"])
+    if not tracked.ok:
+        raise JevError(f"git diff failed in {ws.path}: {tracked.err.strip()}")
+    parts = [tracked.out] if tracked.out else []
+    total = len(tracked.out.encode("utf-8"))
+    for new in sorted(p for p in tree_report(ws).untracked if not p.endswith("/")):
+        # exit 1 is "differs", which a creation always is; anything else is a failure
+        one = engine_git(ws, ["diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", new])
+        if one.code not in (0, 1):
+            raise JevError(f"git diff --no-index failed in {ws.path} for {new}: {one.err.strip()}")
+        parts.append(one.out)
+        total += len(one.out.encode("utf-8"))
+        if total > max_bytes:
+            return Harvest(rel, None, None, total, "too-large")
+    data = "".join(parts).encode("utf-8")
+    if len(data) > max_bytes:
+        return Harvest(rel, None, None, len(data), "too-large")
+    dest = Path(dest_dir) / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    return Harvest(rel, dest, hashlib.sha256(data).hexdigest(), len(data), "ok")
 
 
 def discard_tracked(ws: Workspace) -> None:
