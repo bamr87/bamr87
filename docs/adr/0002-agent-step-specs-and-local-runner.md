@@ -340,7 +340,8 @@ Tests: `tools/test_jev_headless.py` (the 2.1.308 traceback echo, the permission-
 The first live canary for `fleet-pulse/doctor` was judged inconclusive: the doctor's allowlist grants `cat` but no `python3`, so five of the seven probe commands were refused by Claude Code's permission layer before Seatbelt saw them, and the model stopped after two refusals. The probes test the sandbox, which wraps every child process alike, so `canary_flags` now appends `CANARY_GRANTS` (`Bash(cat:*)`, `Bash(python3:*)`) to `--allowedTools` when a step's allowlist lacks them, and nothing else: the settings document, the isolation flags, the tool families (`--tools`, which the init record is held to), the deny list and the environment stay the step's own, so the posture-template key stays honest; the verdict's `grants_added` records the addition. A posture with no Bash gets no grant (the canary refuses under `reduced`). Test: `tools/test_jev_loop.py` (the grants per step and an end-to-end doctor canary in the box).
 ## P3 — repo evolution (step 2)
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/641 (merged 2026-11-04 by @bamr87)
 - **Date**: 2026-11-03
 - **Scope**: the second step of bamr87/bamr87#488 — `repo-evolution.yml` job `evolve`, step `evolve`, as a spec (`tools/jev/steps/repo-evolution/evolve.yml` + `evolve.prompt.txt`) and on the local loop runner (`repo_evolution_evolve` adapter, `dash-gen targets --out-dir … [--offline]`, `dash-gen evolve-file`); agent-fill and the issue-pipeline tiers follow, one pull request each, appending here
 
@@ -368,7 +369,8 @@ The first live canary for `fleet-pulse/doctor` was judged inconclusive: the doct
 As the doctor's record says: `claude.yml`, `fleet-verify` and `ai-lane` / `claude-run` stay out; `fanout.yml:agent-fill` and the three issue-pipeline tiers follow in their own pull requests.
 ## P3 — the fan-out agent fill (step 3)
 
-- **Status**: proposed
+- **Status**: accepted
+- **Accepted in**: https://github.com/bamr87/bamr87/pull/640 (merged 2026-11-04 by @bamr87)
 - **Date**: 2026-11-03
 - **Scope**: the third step of bamr87/bamr87#488 — `fanout.yml` job `agent-fill` as two specs (`tools/jev/steps/fanout/agent-fill-standardize.yml` + `.prompt.txt`, `agent-fill-schema.yml` + `.prompt.txt`) and on the local loop runner (`fanout_agent_fill` adapter, `dash-gen agent-fill --kit <kit>`, `dash-gen agent-fill-file`); evolve and the issue-pipeline tiers follow, appending here
 
