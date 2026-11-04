@@ -2,15 +2,15 @@
   "schema": "deep-dive/v1",
   "owner": "bamr87",
   "label": "deep-dive",
-  "refreshed_at": "2026-11-03T12:25:56Z",
+  "refreshed_at": "2026-11-04T12:25:37Z",
   "summary": {
-    "as_of": "2026-11-03",
+    "as_of": "2026-11-04",
     "cycle": 1,
     "cycle_start": "2026-10-30",
     "cycle_end": "2026-12-10",
     "cycle_days": 42,
     "total": 38,
-    "day": 5,
+    "day": 6,
     "processed": 3,
     "counts": {
       "pending": 35,
@@ -20,20 +20,20 @@
     },
     "progress": 0.0789,
     "today": {
-      "date": "2026-11-03",
-      "cycle": 1,
-      "day": 5,
-      "cycle_days": 42,
-      "kind": "scheduled",
-      "repo": "zer0-mistakes"
-    },
-    "next": {
       "date": "2026-11-04",
       "cycle": 1,
       "day": 6,
       "cycle_days": 42,
       "kind": "scheduled",
       "repo": "djangoerp"
+    },
+    "next": {
+      "date": "2026-11-05",
+      "cycle": 1,
+      "day": 7,
+      "cycle_days": 42,
+      "kind": "scheduled",
+      "repo": "scripts"
     },
     "last": "fredgar-ai",
     "last_date": "2026-11-02",
