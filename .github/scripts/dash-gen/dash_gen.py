@@ -39,6 +39,13 @@ Subcommands:
            is never written twice. LOCAL-ONLY — never runs in CI, nothing is
            published. Implemented in fleet_observe.py; doc docs/OBSERVABILITY.md.
 
+  agent-fill  The fan-out agent fill's planner (JEV loop runner, ADR 0002 P3):
+           one item per bamr87-owned registry repo at the kit's PR branch, the
+           branch and the `(Claude agent pass)` dedupe checked online. Read-only.
+           Implemented in agent_fill.py.
+  agent-fill-file The fan-out agent fill's local filer: a dry run of the commit
+           CI's push step makes from a loop runner attempt's validated patch;
+           --apply refused until #488's publish step. In agent_fill_file.py.
   doctor-file The fleet doctor's local filer (JEV loop runner, ADR 0002 P3):
            a dry run of an attempt's validated patch + filing; --apply is
            refused until #488's publish step. Implemented in fleet_doctor_file.py.
@@ -114,6 +121,8 @@ import harness_registry
 import issue_pipeline
 import machine_api
 import reconcile
+import agent_fill
+import agent_fill_file
 import fleet_doctor_file
 import fleet_evolve_file
 import remediation
@@ -674,6 +683,18 @@ def main(argv: list[str] | None = None) -> int:
              "body (--apply refused until bamr87/bamr87#488's publish step lands)",
     )
     fleet_evolve_file.add_arguments(p_evolve_file)
+    p_agent_fill = sub.add_parser(
+        "agent-fill",
+        help="the fan-out agent fill's planner (JEV loop runner, ADR 0002 P3): one item per target repository "
+             "at the kit's PR branch, the branch and the agent-pass dedupe checked online; read-only",
+    )
+    agent_fill.add_arguments(p_agent_fill)
+    p_agent_fill_file = sub.add_parser(
+        "agent-fill-file",
+        help="the fan-out agent fill's local filer: a dry run of a loop runner attempt's validated patch as the "
+             "commit CI's push step makes (--apply refused until bamr87/bamr87#488's publish step lands)",
+    )
+    agent_fill_file.add_arguments(p_agent_fill_file)
 
     p_issues = sub.add_parser(
         "issues",

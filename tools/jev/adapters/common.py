@@ -87,7 +87,7 @@ def private_pattern(ctx) -> re.Pattern | None:
     host = str(getattr(ctx, "hostname", "") or "")
     for s in private_strings(ctx):
         if s == host:
-            parts.append(rf"(?<!{_TOKEN_BEFORE}){re.escape(s)}(?!{_TOKEN_AFTER})")
+            parts.append(rf"(?i:(?<!{_TOKEN_BEFORE}){re.escape(s)}(?!{_TOKEN_AFTER}))")
         else:
             parts.append(re.escape(s))
     return re.compile("|".join(parts)) if parts else None

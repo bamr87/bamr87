@@ -31,7 +31,8 @@ from ..context import ContextRequest
 #: reviewed change here plus `tools/test_jev_adapter_<name>.py` (SCHEMA.md).
 REGISTRY: dict[str, str] = {"repo_scout": "tools.jev.adapters.repo_scout",
                             "fleet_pulse_doctor": "tools.jev.adapters.fleet_pulse_doctor",
-                            "repo_evolution_evolve": "tools.jev.adapters.repo_evolution_evolve"}
+                            "repo_evolution_evolve": "tools.jev.adapters.repo_evolution_evolve",
+                            "fanout_agent_fill": "tools.jev.adapters.fanout_agent_fill"}
 #: How long a completed attempt can stand in for a new one at tier 0.
 REUSE_DAYS = 7
 

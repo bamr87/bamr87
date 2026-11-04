@@ -47,6 +47,7 @@ sys.path.insert(0, str(HUB))
 
 from tools.jev import context as C  # noqa: E402
 from tools.jev import headless as H  # noqa: E402
+from tools.jev import adapters as A  # noqa: E402
 from tools.jev import loop as L  # noqa: E402
 from tools.jev import spec as S  # noqa: E402
 from tools.jev.__main__ import main as jev_main  # noqa: E402
@@ -278,6 +279,12 @@ if argv[:2] == ["issue", "create"]:
     if os.environ.get("STUB_GH_CREATE_FAIL") or count > int(os.environ.get("STUB_GH_CREATE_FAIL_AFTER") or 10 ** 6):
         sys.stderr.write("GraphQL: could not create issue\n"); sys.exit(1)
     print(f"https://github.com/{argv[argv.index('-R') + 1]}/issues/{100 + count}"); sys.exit(0)
+if argv[:1] == ["api"] and "/branches/" in argv[1]:   # the agent fill's kit-branch check
+    if os.environ.get("STUB_GH_BRANCH_MISSING"):
+        sys.stderr.write("gh: Not Found (HTTP 404)\n"); sys.exit(1)
+    print(json.dumps({"name": argv[1].rsplit("/branches/", 1)[1]})); sys.exit(0)
+if argv[:1] == ["api"] and "/commits?" in argv[1]:   # …and its agent-pass dedupe: the branch's recent commits
+    print(os.environ.get("STUB_GH_BRANCH_COMMITS") or "[]"); sys.exit(0)
 if argv[:1] == ["api"] and "/commits/" in argv[1]:
     nwo = argv[1].split("repos/", 1)[1].split("/commits/", 1)[0]
     if os.environ.get("STUB_GH_COMMITS_ERROR"):
@@ -448,19 +455,20 @@ class Box:
     def last(self) -> dict:
         return json.loads((self.latest() / "run.json").read_text())
 
-    def seed_probe(self, ok: bool = True, posture: str = "sandbox", loop: str = "repo-scout") -> None:
-        spec = L.load_step(loop)
+    def seed_probe(self, ok: bool = True, posture: str = "sandbox", loop: str = "repo-scout",
+                   step: str | None = None) -> None:
+        spec = L.load_step(loop, step)
         L.store(".probe.json", L.cache_key((2, 1, 308), spec, H.Posture(posture)),
                 {"ok": ok, "problems": [] if ok else ["isolated: a project hook ran"], "at": L.iso()})
 
     def seed_live(self, scenario: dict | list | None = None, *, canary: bool = True,
                   posture: str = "sandbox", auth: H.AuthChoice | None = H.AuthChoice("oauth", "env"),
-                  loop: str = "repo-scout") -> None:
+                  loop: str = "repo-scout", step: str | None = None) -> None:
         """What a live attempt needs: a passing probe (and canary, for `auth`'s
         credential exposure: the box's env OAuth token by default), and the stub's script."""
-        self.seed_probe(posture=posture, loop=loop)
+        self.seed_probe(posture=posture, loop=loop, step=step)
         if canary:
-            L.store(".canary.json", L.canary_key((2, 1, 308), L.load_step(loop), H.Posture(posture), auth),
+            L.store(".canary.json", L.canary_key((2, 1, 308), L.load_step(loop, step), H.Posture(posture), auth),
                     {"ok": True, "problems": [], "at": L.iso()})
         if scenario is not None:
             (self.bin / "scenario.json").write_text(json.dumps(scenario))
@@ -550,19 +558,28 @@ def hub_status() -> str:
 # --------------------------------------------------------------------------- #
 # refusals before anything runs
 # --------------------------------------------------------------------------- #
+#: every step with a local: block, in `loop list` order (sorted by spec path)
+ALL_STEPS = ['fanout/agent-fill-schema', 'fanout/agent-fill-standardize', 'fleet-pulse/doctor', 'repo-evolution/evolve', 'repo-scout/scout']
+
+
 def test_list_shows_every_local_step():
     code, out, _ = jev("list", "--json")
     rows = json.loads(out)
-    assert code == 0 and [r["step"] for r in rows] == ["fleet-pulse/doctor", "repo-evolution/evolve", "repo-scout/scout"]
-    evolve = next(r for r in rows if r["step"] == "repo-evolution/evolve")
+    assert code == 0 and [r["step"] for r in rows] == ALL_STEPS
+    by_step = {r["step"]: r for r in rows}
+    evolve = by_step["repo-evolution/evolve"]
     assert evolve["adapter"] == "repo_evolution_evolve" and evolve["cap_usd"] == 20.0 and evolve["on_budget_hit"] == "publish-flagged"
-    scout = next(r for r in rows if r["step"] == "repo-scout/scout")
+    scout = by_step["repo-scout/scout"]
     assert scout["publish_tier"] == "high" and scout["switch"]["variable"] == "REPO_SCOUT_ENABLED"
     assert scout["cap_usd"] == 8.0 and scout["on_budget_hit"] == "discard"
-    doctor = next(r for r in rows if r["step"] == "fleet-pulse/doctor")
+    doctor = by_step["fleet-pulse/doctor"]
     assert doctor["adapter"] == "fleet_pulse_doctor" and doctor["cap_usd"] == 40.0 and doctor["publish_tier"] == "high"
     assert doctor["switch"] == {"config": "remediation.enabled", "config_value": True, "variable": "FLEET_PULSE_ENABLED",
                                 "default": "on"}
+    fill = by_step["fanout/agent-fill-schema"]
+    assert fill["adapter"] == "fanout_agent_fill" and fill["cap_usd"] == 10.0 and fill["switch"] is None
+    code, out, _ = jev("list")
+    assert code == 0 and "fanout/agent-fill-schema" in out and "no switch (dispatch-only" in out
 
 
 def test_a_live_run_offline_is_refused_before_anything_runs():
@@ -1275,8 +1292,7 @@ def test_doctor_runs_the_probe_credential_free_and_caches_it():
         code, _, _ = jev("run", "repo-scout", "--rehearse", "--target", TARGET, "--offline")
         assert code == 0 and box.last()["host"]["probe"] == "ok", "a rehearsal reads the cached probe"
         code, out, _ = jev("doctor", "--json")
-        assert code == 0 and [e["step"] for e in json.loads(out)["steps"]] == ["fleet-pulse/doctor", "repo-evolution/evolve",
-                                                                                "repo-scout/scout"]
+        assert code == 0 and [e["step"] for e in json.loads(out)["steps"]] == ALL_STEPS
         assert jev("doctor", "no-such-loop")[0] == 2
     assert not box.prompted() and not list(box.work.glob(".doctor-*")), "scratch removed"
 
@@ -3158,6 +3174,128 @@ def test_the_doctor_runs_in_the_hub_edits_commits_and_its_patch_and_filing_are_p
     assert "remediation-workorder.md" in (d / "prompt.txt").read_text()
     no_writes(box)
     assert not list(box.work.glob("*/*")), "the clone is destroyed after the harvest"
+
+
+
+# --------------------------------------------------------------------------- #
+# the fan-out agent fill (ADR 0002 P3, step 3): no brief, the target as the
+# checkout at the kit's branch, the patch held to the kit's brief
+# --------------------------------------------------------------------------- #
+def agent_fill_plan(box: Box, kit: str = "standardize", nwo: str = NWO) -> Path:
+    """A saved one-item agent-fill plan (what `dash-gen agent-fill --plan-dir` writes): no brief."""
+    d = box.root / "agent-fill-plan"
+    d.mkdir(exist_ok=True)
+    spec = L.load_step("fanout", f"agent-fill-{kit}")
+    kits = {"standardize": ("chore/standardize-baseline", "docs(agent-context): fill CLAUDE.md scaffold (Claude agent pass)"),
+            "schema": ("chore/schema-adoption", "docs(schema): fill scaffold purposes (Claude agent pass)")}
+    branch, subject = kits[kit]
+    # the fixture carries the kit branch the fan-out would have pushed
+    subprocess.run(["git", "-C", str(FIXTURE), "branch", "-f", branch, "HEAD"], check=True, capture_output=True)
+    row = {"key": nwo, "name": nwo.split("/", 1)[1], "nwo": nwo, "branch": branch, "kit": kit, "commit_subject": subject,
+           "branch_status": "present", "dedupe": "clear"}
+    row["prompt"] = S.render_prompt(spec, S.values_from(spec, row))
+    plan = {"count": 1, "include": [row], "skipped": [], "dropped": [], "kit": kit, "branch": branch}
+    (d / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+    return d / "plan.json"
+
+
+def test_the_agent_fill_runs_in_the_target_at_the_kit_branch_with_no_brief_and_its_patch_is_previewed():
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "ok", "bash": 1, "edits": {"CLAUDE.md": "\nA Jekyll theme for the fleet's sites.\n"}},
+                      loop="fanout", step="agent-fill-standardize")
+        plan = agent_fill_plan(box)
+        code, _, err = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
+                           "--context", "off")
+    rec = box.last()
+    item = rec["items"][0]
+    assert code == 0 and item["status"] == "previewed", (item, err)
+    d = box.latest() / "items" / item["dir"]
+    assert "CLAUDE.md" in (d / "outputs" / "changes.patch").read_text()
+    doc = json.loads((d / "outputs" / "agent-fill.validated.json").read_text())
+    assert doc["kit"] == "standardize" and doc["files"] == ["CLAUDE.md"] and doc["branch"] == "chore/standardize-baseline"
+    plan_doc = json.loads((d / "publish-plan.json").read_text())
+    assert plan_doc["publishable"] and plan_doc["rows"][0]["kind"] == "push" and plan_doc["rows"][0]["url"] is None
+    assert list((d / "bodies").glob("*.patch")) and list((d / "bodies").glob("*.md"))
+    # the live claude ran in the TARGET clone at the kit branch, with the spec's own bytes as the prompt, no brief
+    # placed and no credential; the item directory holds no brief either
+    [call] = box.live_calls()
+    assert call["cwd"].endswith("/" + TARGET) and not {"GH_TOKEN", "GITHUB_TOKEN", "FLEET_TOKEN"} & set(call["env"])
+    assert (d / "prompt.txt").read_bytes() == L.load_step("fanout", "agent-fill-standardize").template.encode()
+    assert not list(d.glob("*workorder*")) and not (d / "context.md").exists()
+    no_writes(box)
+    assert not list(box.work.glob("*/*")), "the clone is destroyed after the harvest"
+
+
+def test_a_rechecks_one_target_plan_never_overwrites_the_runs_plan():
+    """The live recheck re-runs the planner for one target. The agent-fill planner has no no_files
+    flag, so before the fix that one-target plan landed in the run's plan/plan.json — the rows
+    `loop publish` finds its items in — and every other item vanished from the record."""
+    box = Box()
+    with world(box):
+        spec = L.load_step("fanout", "agent-fill-standardize")
+        plan_dir = box.root / "run-plan"
+        plan_dir.mkdir()
+        k = {"branch": "chore/standardize-baseline", "kit": "standardize",
+             "commit_subject": "docs(agent-context): fill CLAUDE.md scaffold (Claude agent pass)",
+             "branch_status": "present", "dedupe": "clear"}
+        two = {"count": 2, "include": [{"key": "bamr87/alpha", "name": "alpha", "nwo": "bamr87/alpha", **k},
+                                       {"key": "bamr87/SCHEMA", "name": "SCHEMA", "nwo": "bamr87/SCHEMA", **k}],
+               "skipped": [], "dropped": [], "kit": "standardize", "branch": k["branch"]}
+        L.write_json(plan_dir / "plan.json", two)
+        before = (plan_dir / "plan.json").read_bytes()
+        ctx = L.RunContext(spec=spec, adapter=A.get("fanout_agent_fill"), fleet=L.load_fleet(),
+                           opts=L.Options(offline=True), plan_dir=plan_dir, history=L.History(box.runs))
+        fresh = ctx.planner(target="bamr87/SCHEMA")   # the real planner, offline, for one registry target
+        assert [r["key"] for r in fresh.get("include") or []] == ["bamr87/SCHEMA"], fresh
+        assert (plan_dir / "plan.json").read_bytes() == before, "the run's plan is untouched by the recheck"
+        assert not list(plan_dir.glob("*workorder*")) and [p.name for p in plan_dir.iterdir()] == ["plan.json"]
+        # the scout planner keeps writing its briefs into the run's plan dir for the first, untargeted plan only
+        scout = L.RunContext(spec=L.load_step("repo-scout"), adapter=A.get("repo_scout"), fleet=L.load_fleet(),
+                             opts=L.Options(offline=True), plan_dir=plan_dir, history=L.History(box.runs))
+        scout.planner(target="SCHEMA", no_files=True)
+        assert (plan_dir / "plan.json").read_bytes() == before
+
+
+def test_a_context_override_cannot_build_a_pack_for_a_step_with_no_brief():
+    box = Box()
+    with world(box):
+        for mode in ("auto", "require"):
+            box.seed_live({"kind": "ok", "bash": 1, "edits": {"CLAUDE.md": "\nA Jekyll theme.\n"}},
+                          loop="fanout", step="agent-fill-standardize")
+            plan = agent_fill_plan(box)
+            code, _, err = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
+                               "--context", mode, "--fresh")
+            rec = box.last()
+            item = rec["items"][0]
+            assert code == 0 and item["status"] == "previewed", (mode, item, err)
+            recorded = item.get("context") or {}
+            assert recorded.get("mode", "off") == "off" and not recorded.get("missing"), (mode, recorded)
+            d = box.latest() / "items" / item["dir"]
+            assert not (d / "context.md").exists() and not (d / "context.json").exists()
+            assert box.planes_calls("context") == [], "no plane was asked"
+            code, out, _ = jev("plan", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
+                               "--context", mode)
+            assert code == 0 and "context-blocked" not in out, out
+    no_writes(box)
+
+
+def test_an_agent_fill_that_edits_outside_its_brief_or_changes_nothing_is_rejected():
+    box = Box()
+    with world(box):
+        box.seed_live({"kind": "ok", "bash": 1, "edits": {"README.md": "\nnot allowed\n", "CLAUDE.md": "\nx\n"}},
+                      loop="fanout", step="agent-fill-standardize")
+        plan = agent_fill_plan(box)
+        code, _, _ = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
+                         "--context", "off")
+        item = box.last()["items"][0]
+        assert code == 1 and item["status"] == "rejected" and "README.md" in item["reason"], item
+        box.seed_live({"kind": "ok", "bash": 1}, loop="fanout", step="agent-fill-standardize")
+        code, _, _ = jev("run", "fanout", "agent-fill-standardize", "--plan-file", str(plan), "--item", TARGET,
+                         "--context", "off", "--fresh")
+        item = box.last()["items"][0]
+        assert code == 1 and item["status"] == "rejected" and "changed nothing" in item["reason"], item
+    no_writes(box)
 
 
 def test_a_submodule_candidate_falls_back_to_the_issue_the_agent_asked_for():
