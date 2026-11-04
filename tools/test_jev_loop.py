@@ -2950,7 +2950,7 @@ def test_plan_previews_each_items_context_and_off_skips_it():
         assert c["missing"] == ["index_code", "telemetry_errors"] and c["ages"]["lake_ci"] == 1.0, c
         assert "rows" not in json.dumps(c), "statuses and ages only"
         code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--context", "require")
-        assert code == 0 and "context (require): history empty · lake_issues empty" in out, out
+        assert code == 0 and "context (require): history empty · library empty · lake_issues empty" in out, out
         assert "a run fails this item before any spend: index_code, telemetry_errors unavailable" in out, out
         calls = len(box.planes_calls())
         code, out, _ = jev("plan", "repo-scout", "--target", TARGET, "--json", "--context", "off")

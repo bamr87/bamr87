@@ -159,7 +159,9 @@ local:
   context:
     mode: auto
     file: context.md
-    providers: [history, lake_issues, lake_ci, lake_agents, index_code, telemetry_errors]
+    # `library`: the experience library's lessons for this loop in the item's domain
+    # (docs/HARNESS-REFINEMENT.md, ADR 0004), data to re-verify, trimmed just before history
+    providers: [history, library, lake_issues, lake_ci, lake_agents, index_code, telemetry_errors]
     max_chars: 16000
     deadline_s: 20
     days: 30

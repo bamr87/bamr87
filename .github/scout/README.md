@@ -6,7 +6,7 @@ Version-controlled prompt material for the daily **repo-scout loop** ([`repo-sco
 | --- | --- |
 | `scout-prompt.md` | What to look for (fix → update → feature), what a proposal must contain, and the working method. Contains `{{PLACEHOLDER}}` tokens filled per repository. |
 
-The same brief and spec also drive a local run on a workstation through JEV's loop runner ([`docs/SCOUT.md`](../../docs/SCOUT.md#run-it-locally)).
+The same brief and spec also drive a local run on a workstation through JEV's loop runner ([`docs/SCOUT.md`](../../docs/SCOUT.md#run-it-locally)). This directory is also the **tunable half** a harness refinement may edit: a Propose–Probe–Compose step proposes changes here from real trajectories, never to the spec ([`docs/HARNESS-REFINEMENT.md`](../../docs/HARNESS-REFINEMENT.md)).
 
 Category emphasis is shared with the evolution loop: [`../evolution/categories/<category>.md`](../evolution/categories/) is appended to every scout brief too, so a documentation project and a dev tool are scouted with the same weighting they are evolved with.
 
