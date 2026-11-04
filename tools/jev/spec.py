@@ -203,6 +203,11 @@ SUBCOMMAND_RX = re.compile(r"[a-z][a-z0-9-]*")
 #: A filer is pinned with its own apply flag: a spec's `apply_flag` must be it.
 PLANNER_COMMANDS = frozenset({"scout", "remediate", "targets", "agent-fill"})
 PUBLISH_COMMANDS = {"scout-file": "--apply", "doctor-file": "--apply", "evolve-file": "--apply", "agent-fill-file": "--apply"}
+#: The filers whose apply flag FILES today. The others take the flag only to
+#: refuse it (exit 2, naming bamr87/bamr87#488's publish step), so the engine
+#: and the console refuse `--apply` for their steps before any clone or spend
+#: (`ArgvTemplate.can_apply`; `loop.apply_refusal`).
+PUBLISH_CAN_APPLY = frozenset({"scout-file", "doctor-file"})
 #: Each filer's flag naming the reviewed preview's bodies directory, which the
 #: engine adds beside the apply flag (a template never carries it): the filer
 #: then files no body that is not byte-identical to a reviewed one, and nothing
@@ -269,6 +274,12 @@ class ArgvTemplate:
     apply_flag: str = ""
     #: publish only: the `risk.<action>` whose tier governs the write
     risk: str = ""
+
+    @property
+    def can_apply(self) -> bool:
+        """Publish only: whether this filer files under its apply flag today
+        (PUBLISH_CAN_APPLY); False means the flag is refused before any spend."""
+        return bool(self.argv) and self.argv[0] in PUBLISH_CAN_APPLY
 
 
 @dataclass(frozen=True)

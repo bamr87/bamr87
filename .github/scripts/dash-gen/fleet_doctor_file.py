@@ -71,6 +71,11 @@ TITLE_MAX = 200
 BODY_MAX = 60_000
 PATCH_MAX = 512 * 1024
 BRANCH_RE = re.compile(r"fix/fleet-doctor-[a-z0-9][a-z0-9._-]{0,80}")
+#: the branch a PR is based on and opened against: the target's registry
+#: branch (the hub's, for a hub fix), written by the adapter — never assumed
+BASE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,119}")
+LABELS_REFUSED = "the labels could not be created before the push"
+BRANCH_TAKEN = "the fix branch already exists in the target with a commit that is not this run's"
 NWO_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 #: the same credential shapes repo_scout.SECRET_RE refuses in a proposal
 SECRET_RE = re.compile(
@@ -129,6 +134,10 @@ def problems(item: dict, item_dir: Path) -> list[str]:
         branch = str(item.get("branch") or "")
         if not BRANCH_RE.fullmatch(branch):
             out.append(f"branch {branch!r} is not fix/fleet-doctor-<slug>")
+        base = item.get("base")
+        if not isinstance(base, str) or not BASE_RE.fullmatch(base) or ".." in base.split("/"):
+            out.append(f"base {base!r} is not the target's branch (the adapter writes the registry branch; a pr "
+                       "is never based on an assumed default)")
         if not patch:
             out.append("a pr needs a patch")
     if patch:
@@ -251,7 +260,13 @@ def run_file(args: argparse.Namespace) -> int:
         sys.stderr.write(f"doctor-file: dry run — would open a {item['kind']} in {item['repo']}: {item['title']}\n")
         print(json.dumps(result, separators=(",", ":")))
         return 0
-    ensure_labels(str(item["repo"]))
+    why = ensure_labels(str(item["repo"]))
+    if why:
+        # nothing pushed, nothing created: a PR or issue without CI's labels would escape the dedupe's readers
+        result["skipped"].append({"title": item["title"], "reason": f"{LABELS_REFUSED}: {why}"})
+        sys.stderr.write(f"doctor-file: {LABELS_REFUSED} ({why}) — nothing filed\n")
+        print(json.dumps(result, separators=(",", ":")))
+        return 3
     if item["kind"] == "issue":
         url, why = create_issue(item, body_file)
     else:
@@ -313,13 +328,17 @@ def probe_token() -> tuple[str | None, str]:
     return login, ""
 
 
-def ensure_labels(repo: str) -> None:
+def ensure_labels(repo: str) -> str:
     """The labels CI's doctor passes to `gh pr create` / `gh issue create` must
-    exist in the target; `--force` only refreshes an existing one."""
+    exist in the target (`--force` only refreshes an existing one) BEFORE
+    anything is pushed or created: '' when they do, else why — the caller
+    files nothing then, since a `gh pr create --label` that fails after the
+    push would strand the branch."""
     for name in LABELS:
         ok, _out, err = _run(["gh", "label", "create", name, "-R", repo, "--force"], timeout=60)
         if not ok:
-            sys.stderr.write(f"doctor-file: gh label create {name} -R {repo}: {_why(err)} (continuing)\n")
+            return f"gh label create {name} -R {repo}: {_why(err)}"
+    return ""
 
 
 def create_issue(item: dict, body_file: Path) -> tuple[str | None, str]:
@@ -340,32 +359,57 @@ def open_pr(item: dict, patch_file: Path | None, body_file: Path, run_url: str) 
     pinned, the credential from gh, nothing in argv) and a draft PR with the
     labels CI uses. The clone is removed whatever happens."""
     repo, branch = str(item["repo"]), str(item["branch"])
-    base = str(item.get("base") or "main")
+    base = str(item.get("base") or "")
     if patch_file is None:
         return None, "a pr needs a patch"
+    if not base:
+        return None, "the validated document names no base branch (the target's registry branch): nothing filed"
+    subject = str(item["title"])
+    trailer = (f"Fleet doctor, run locally ({run_url}); the pull request body carries the MARKER line."
+               if run_url else "Fleet doctor, run locally; the pull request body carries the MARKER line.")
     with tempfile.TemporaryDirectory(prefix="jev-doctor-apply-") as tmp:
         dest = Path(tmp) / "repo"
         ok, _out, err = _run(["gh", "repo", "clone", repo, str(dest), "--", "--quiet", "--no-tags"], timeout=900)
         if not ok:
             return None, f"clone failed: {_why(err)}"
         git = ["git", "-C", str(dest), "-c", "core.hooksPath=/dev/null", "-c", "credential.helper="]
-        ok, _out, err = _run([*git, "checkout", "-q", "-b", branch])
+        # the target's branch, never the clone's default: the registry says what the PR is based on
+        ok, _out, err = _run([*git, "checkout", "-q", base])
         if not ok:
-            return None, f"branch {branch} failed: {_why(err)}"
-        ok, _out, err = _run([*git, "apply", "--index", str(patch_file)])
+            return None, f"base branch {base} is not in {repo}: {_why(err)} — registry branch drift?"
+        # the fix branch must not already exist on the remote: a push is never a force, so a leftover from an
+        # earlier filing (a PR create that failed after its push) would be rejected forever; this run's own
+        # commit on it is reused, anything else is a human's call
+        ok, out, err = _run([*git, "ls-remote", "--heads", "origin", branch], timeout=120)
         if not ok:
-            return None, f"the reviewed patch does not apply on {base} any more: {_why(err)}"
-        subject = str(item["title"])
-        trailer = (f"Fleet doctor, run locally ({run_url}); the pull request body carries the MARKER line."
-                   if run_url else "Fleet doctor, run locally; the pull request body carries the MARKER line.")
-        ok, _out, err = _run([*git, "-c", f"user.name={COMMIT_NAME}", "-c", f"user.email={COMMIT_EMAIL}",
-                              "-c", "commit.gpgsign=false", "commit", "-q", "-m", subject, "-m", trailer])
-        if not ok:
-            return None, f"commit failed: {_why(err)}"
-        ok, _out, err = _run([*git, "-c", CREDENTIAL_HELPER, "push", "-q", RECEIVE_PACK, "origin",
-                              f"HEAD:refs/heads/{branch}"], timeout=600)
-        if not ok:
-            return None, f"push failed ({branch} in {repo}): {_why(err)}"
+            return None, f"could not read the remote's branches: {_why(err)}"
+        existing = out.strip() != ""
+        if existing:
+            ok, _out, err = _run([*git, "fetch", "-q", "--no-tags", "origin", branch], timeout=600)
+            if not ok:
+                return None, f"could not fetch the existing {branch}: {_why(err)}"
+            ok, out, _err = _run([*git, "log", "-1", "--format=%s%n%b", "FETCH_HEAD"])
+            lines = out.splitlines() if ok else []
+            ours = bool(lines) and lines[0] == subject and (not run_url or any(run_url in ln for ln in lines[1:]))
+            if not ours:
+                return None, f"{BRANCH_TAKEN} ({branch} in {repo}): delete or rename it before filing"
+            sys.stderr.write(f"doctor-file: {branch} already carries this run's commit in {repo}: reusing it, "
+                             "no push\n")
+        else:
+            ok, _out, err = _run([*git, "checkout", "-q", "-b", branch])
+            if not ok:
+                return None, f"branch {branch} failed: {_why(err)}"
+            ok, _out, err = _run([*git, "apply", "--index", str(patch_file)])
+            if not ok:
+                return None, f"the reviewed patch does not apply on {base} any more: {_why(err)}"
+            ok, _out, err = _run([*git, "-c", f"user.name={COMMIT_NAME}", "-c", f"user.email={COMMIT_EMAIL}",
+                                  "-c", "commit.gpgsign=false", "commit", "-q", "-m", subject, "-m", trailer])
+            if not ok:
+                return None, f"commit failed: {_why(err)}"
+            ok, _out, err = _run([*git, "-c", CREDENTIAL_HELPER, "push", "-q", RECEIVE_PACK, "origin",
+                                  f"HEAD:refs/heads/{branch}"], timeout=600)
+            if not ok:
+                return None, f"push failed ({branch} in {repo}): {_why(err)}"
         argv = ["gh", "pr", "create", "-R", repo, "--draft", "--base", base, "--head", branch,
                 "--title", subject, "--body-file", str(body_file)]
         for name in LABELS:

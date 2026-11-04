@@ -533,8 +533,10 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     assert steps[0]["cost_label"] == "API-equivalent (estimate)"
     blob = json.dumps(op)
     assert str(core.REPO_ROOT) not in blob and str(Path.home()) not in blob, "a local path leaked into /api/ops"
-    # a loop with exactly one local step: its step may be left unnamed (fanout's two kits must be named)
-    single = [s for s in steps if sum(1 for t in steps if t["loop"] == s["loop"]) == 1]
+    assert all("can_apply" in s for s in steps), "the page needs to know which steps may apply"
+    # a loop with exactly one local step whose filer files under apply: its step may be left unnamed
+    # (fanout's two kits must be named), and apply is accepted for it
+    single = [s for s in steps if sum(1 for t in steps if t["loop"] == s["loop"]) == 1 and s["can_apply"]]
     loop, step = single[0]["loop"], single[0]["step"]
     argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "rehearse": True})
     multi = next((s for s in steps if s not in single), None)
@@ -553,10 +555,22 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
     argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "apply": True})
     assert argv == [core.DASH, "loop", "run", loop, "--target", "SCHEMA", "--json", "--apply"] and remote is True
     run_id = "20261103T210353Z-repo-scout-scout-f6c613"
-    argv, remote = core.build_argv("loop-run", {"loop": loop, "target": "SCHEMA", "run_id": run_id, "apply": "true"})
-    assert argv == [core.DASH, "loop", "publish", run_id, "--item", "SCHEMA", "--json", "--apply"] and remote is True
+    key = "bamr87/netprobe:.github/workflows/ci.yml"   # a preview is keyed by its item key, never a registry name
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "run_id": run_id, "item": key, "apply": "true"})
+    assert argv == [core.DASH, "loop", "publish", run_id, "--item", key, "--json", "--apply"] and remote is True
+    argv, remote = core.build_argv("loop-run", {"loop": loop, "run_id": run_id, "item": "bamr87/SCHEMA"})
+    assert argv == [core.DASH, "loop", "publish", run_id, "--item", "bamr87/SCHEMA", "--json"] and remote is False
     argv, remote = core.build_argv("loop-run", {"loop": loop, "run_id": run_id})
     assert argv == [core.DASH, "loop", "publish", run_id, "--json"] and remote is False, "a publish check reads only"
+    # a step whose filer cannot file yet refuses apply before anything runs, naming #488
+    no_apply = next((s for s in steps if not s["can_apply"]), None)
+    if no_apply is not None:
+        try:
+            core.build_argv("loop-run", {"loop": no_apply["loop"], "step": no_apply["step"], "apply": True})
+        except ValueError as exc:
+            assert "#488" in str(exc) and "cannot file yet" in str(exc), exc
+        else:
+            raise AssertionError(f"apply accepted for {no_apply['id']}, whose filer cannot file")
     assert "--scheduled" not in " ".join(core.build_argv("loop-run", {"loop": loop, "apply": True})[0])
     for bad, needle in (({"loop": "no-such-loop"}, "loop must be one of"),
                         ({"loop": loop, "step": "nope"}, "no local agent step"),
@@ -564,7 +578,12 @@ def test_loop_run_op_is_validated_dry_run_only_and_one_per_loop():
                         ({"loop": loop, "target": "a;b"}, "target must be"),
                         ({"loop": loop, "apply": True, "rehearse": True}, "rehearsal files nothing"),
                         ({"loop": loop, "apply": True, "scheduled": True}, "never a console parameter"),
-                        ({"loop": loop, "run_id": "../x"}, "run_id must match")):
+                        ({"loop": loop, "run_id": "../x"}, "run_id must match"),
+                        ({"loop": loop, "run_id": run_id, "target": "SCHEMA"}, "name the preview by item"),
+                        ({"loop": loop, "run_id": run_id, "item": "SCHEMA"}, "item must be a run's item key"),
+                        ({"loop": loop, "run_id": run_id, "item": "bamr87/x:../etc/passwd"}, "item must be"),
+                        ({"loop": loop, "run_id": run_id, "item": "bamr87/x; rm"}, "item must be"),
+                        ({"loop": loop, "item": "bamr87/x"}, "pass run_id with it")):
         try:
             core.build_argv("loop-run", bad)
         except ValueError as exc:

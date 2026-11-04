@@ -122,6 +122,8 @@ export interface AgentStep {
   switch?: { config: string; variable: string; default: boolean | string | null; config_value?: unknown } | null;
   publish_tier?: string | null;
   on_budget_hit?: string;
+  /** whether the step's filer files under apply today (spec.PUBLISH_CAN_APPLY); false = apply is refused, naming #488 */
+  can_apply?: boolean;
 }
 
 export interface Loop {

@@ -606,6 +606,22 @@ def test_apply_with_scheduled_or_rehearse_and_reduced_with_scheduled_are_refused
     assert not box.run_dirs() and not box.gh_calls()
 
 
+def test_apply_is_refused_before_any_spend_for_a_filer_that_cannot_file():
+    # evolve-file and agent-fill-file take --apply only to refuse it (#488): the engine says so before a clone,
+    # a token probe or an attempt, as usage (exit 2), with no run directory and no live call
+    assert L.apply_refusal(L.load_step("repo-scout")) is None
+    assert L.apply_refusal(L.load_step("fleet-pulse", "doctor")) is None
+    why = L.apply_refusal(L.load_step("repo-evolution"))
+    assert why and "#488" in why and "evolve-file" in why and "without --apply" in why, why
+    box = Box()
+    with world(box, FLEET_TOKEN=FLEET_TOKEN):
+        box.seed_live({"kind": "ok", "proposals": GOOD})
+        code, _, err = jev("run", "repo-evolution", "--target", "README", "--apply")
+        assert code == 2 and "#488" in err and "evolve-file" in err, err
+        assert not box.live_calls() and not box.ledger_rows() and not box.gh_calls()
+    assert not box.run_dirs(), "refused before a run directory exists"
+
+
 def test_a_step_with_no_local_block_is_refused():
     box = Box()
     root = Path(tempfile.mkdtemp()) / "steps"

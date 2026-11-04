@@ -2155,6 +2155,21 @@ def interrupt_on_signals() -> Iterator[None]:
             signal.signal(sig, handler)
 
 
+def apply_refusal(spec: StepSpec) -> str | None:
+    """Why `--apply` cannot run for this step at all — its filer takes the flag
+    only to refuse it (bamr87/bamr87#488's publish step is not built) — or
+    None. Checked before any clone, any spend and any token probe, so a run
+    that could never file never pays for an attempt."""
+    pub = spec.local.publish
+    if pub is None:
+        return f"{spec.loop}/{spec.step} declares no publish step: nothing to apply"
+    if pub.can_apply:
+        return None
+    return (f"--apply is refused for {spec.loop}/{spec.step}: its filer `{pub.argv[0]}` cannot file yet "
+            "(bamr87/bamr87#488's publish step) — run the dry run without --apply (`python3 -m tools.jev loop run "
+            f"{spec.loop} {spec.step} --target <item>`) and review .fleet/runs/<run_id>/")
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     opts = Options.from_args(args)
     refused = option_refusal(opts, verb="run")
@@ -2163,6 +2178,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         return EXIT["usage"]
     fleet = load_fleet()
     spec = load_step(args.loop, args.step, fleet=fleet)
+    if opts.apply:
+        refused = apply_refusal(spec)
+        if refused:
+            print(f"jev loop: {refused}", file=sys.stderr)
+            return EXIT["usage"]
     adapter = adapters.get(spec.local.adapter)
     posture = headless.Posture(opts.posture)
     with step_lock(spec):
@@ -2739,6 +2759,7 @@ def cmd_list(args: argparse.Namespace) -> int:
                          "config": sw.config, "config_value": fleet_value(fleet, sw.config),
                          "variable": sw.variable, "default": sw.default},
                      "publish_tier": publish_tier(s), "on_budget_hit": s.local.on_budget_hit,
+                     "can_apply": s.local.publish is not None and s.local.publish.can_apply,
                      "postures": ["sandbox", "reduced"]})
     if args.json:
         print(json.dumps(rows, indent=2, sort_keys=True))
@@ -2747,8 +2768,9 @@ def cmd_list(args: argparse.Namespace) -> int:
         sw = r["switch"]
         gate = (f"{sw['config']}={sw['config_value']} · vars.{sw['variable']} default {sw['default']}" if sw
                 else "no switch (dispatch-only: a manual run; --scheduled is refused)")
+        apply = "" if r["can_apply"] else " · --apply refused (#488: the filer cannot file yet)"
         print(f"{r['step']}  adapter {r['adapter']} · {r['model']} · {r['max_turns']} turns · "
-              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {gate} · publish tier {r['publish_tier']}")
+              f"${r['cap_usd']:g} cap (API-equivalent, estimate) · {gate} · publish tier {r['publish_tier']}{apply}")
     if not rows:
         print("no step spec has a local: block yet")
     return 0
@@ -2812,6 +2834,11 @@ def cmd_publish(args: argparse.Namespace) -> int:
     if spec.local.publish is None:
         print(f"jev loop: {spec.loop}/{spec.step} declares no publish step", file=sys.stderr)
         return EXIT["usage"]
+    if args.apply:
+        refused = apply_refusal(spec)
+        if refused:
+            print(f"jev loop: {refused}", file=sys.stderr)
+            return EXIT["usage"]
     doc, item, why = _publish_target(rd, record, args.item)
     if doc is None or item is None:
         print(f"jev loop: {why}", file=sys.stderr)

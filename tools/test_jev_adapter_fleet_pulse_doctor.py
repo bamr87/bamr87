@@ -39,6 +39,9 @@ from tools.jev.adapters import fleet_pulse_doctor as FD  # noqa: E402
 from tools.jev.common import JevError, Run  # noqa: E402
 from tools.jev.workspace import Harvest  # noqa: E402
 
+sys.path.insert(0, str(HUB / ".github" / "scripts" / "dash-gen"))
+import fleet_doctor_file as FILER  # noqa: E402  — the filer's own structural rules and messages
+
 SPEC = S.load_spec("fleet-pulse", "doctor")
 FD_FILER_NOT_REVIEWED = ("not in the reviewed preview (its body or patch is not byte-identical to a reviewed one)")
 ADAPTER = A.get("fleet_pulse_doctor")
@@ -279,7 +282,9 @@ def test_publish_parses_the_dry_run_and_reads_an_exit_3_or_a_withheld_body_as_fa
                                apply=True)
     assert not withheld.publishable and withheld.failures == ["t"], withheld
     steps = ADAPTER.apply_steps(c, item, plan)
-    assert len(steps) == 3 and "HEAD:refs/heads/fix/fleet-doctor-ci" in steps[1] and "--draft" in steps[2]
+    assert len(steps) == 4 and "gh label create" in steps[0] and "before anything is pushed" in steps[0], steps
+    assert "git checkout main" in steps[1] and "HEAD:refs/heads/fix/fleet-doctor-ci" in steps[2], steps
+    assert "--draft --base main" in steps[3], steps
     issue_plan = A.PublishPlan(True, [], [{**filed["filed"][0], "kind": "issue", "branch": None}], None)
     assert len(ADAPTER.apply_steps(c, item, issue_plan)) == 2 and "gh issue create" in ADAPTER.apply_steps(c, item, issue_plan)[1]
 
@@ -302,6 +307,8 @@ if argv[:2] == ["repo", "clone"]:
     rest = argv[argv.index("--") + 1:] if "--" in argv else []
     sys.exit(subprocess.run(["git", "clone", *rest, os.environ["DOCTOR_STUB_REMOTE"], argv[3]]).returncode)
 if argv[:2] == ["label", "create"]:
+    if os.environ.get("DOCTOR_STUB_LABEL_FAIL"):
+        sys.stderr.write("HTTP 403: Resource not accessible by integration (labels)\n"); sys.exit(1)
     sys.exit(0)
 if argv[:2] == ["pr", "create"]:
     print("https://github.com/" + argv[argv.index("-R") + 1] + "/pull/77"); sys.exit(0)
@@ -317,11 +324,16 @@ def _git(args: list[str], cwd: Path) -> str:
 
 
 def _remote(tmp: Path) -> Path:
-    """A local 'origin' on main carrying the file the fixture patch edits."""
+    """A local 'origin' on main carrying the file the fixture patch edits, plus a
+    `trunk` branch with the same file (a target whose registry branch is not main)."""
     repo = tmp / "origin"
     (repo / ".github" / "workflows").mkdir(parents=True)
     (repo / ".github" / "workflows" / "ci.yml").write_text("runs-on: ubuntu-20.04\n")
     _git(["init", "-q", "-b", "main"], repo); _git(["add", "-A"], repo); _git(["commit", "-q", "-m", "init"], repo)
+    _git(["branch", "trunk"], repo)
+    (repo / "TRUNK.md").write_text("only on trunk\n")
+    _git(["checkout", "-q", "trunk"], repo); _git(["add", "-A"], repo); _git(["commit", "-q", "-m", "trunk"], repo)
+    _git(["checkout", "-q", "main"], repo)
     _git(["config", "receive.denyCurrentBranch", "updateInstead"], repo)
     return repo
 
@@ -453,6 +465,120 @@ def test_the_filer_apply_refuses_a_rejected_token_an_unreadable_dedupe_and_an_un
     assert out["filed"] == [] and out["skipped"][0]["reason"] == FD_FILER_NOT_REVIEWED
 
 
+def test_the_validated_document_carries_the_base_and_the_filer_refuses_a_pr_without_one():
+    c = ctx(Path(tempfile.mkdtemp()))
+    v = validate(c, item_for(c), session([(GH_PR, "denied", True)]))
+    assert v.ok, v.problems
+    doc = json.loads(v.publish_file.read_text())
+    assert doc["base"] == "main" == item_for(c).branch, "the PR's base is the target's registry branch, the row's"
+    assert any("base" in line and "main" in line for line in ADAPTER.apply_steps(c, item_for(c), SimpleNamespace(
+        rows=[{"kind": "pr", "repo": "bamr87/bamr87", "branch": "fix/fleet-doctor-ci", "base": "main"}])))
+    without = dict(doc); without.pop("base")
+    assert any("base" in p and "assumed default" in p for p in FILER.problems(without, v.publish_file.parent))
+    for bad in ("", "../main", "main/../x", "a b"):
+        assert any("base" in p for p in FILER.problems({**doc, "base": bad}, v.publish_file.parent)), bad
+    # an issue needs no base
+    issue = {**doc, "kind": "issue", "branch": None, "patch": None, "base": None}
+    assert not any("base" in p for p in FILER.problems(issue, v.publish_file.parent))
+
+
+def test_the_filer_apply_checks_out_the_targets_branch_and_opens_the_pr_against_it():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c, row(branch="trunk"))   # the hub's registry branch here is trunk, not the clone's default
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    assert v.ok and json.loads(v.publish_file.read_text())["base"] == "trunk", v.problems
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] and out["filed"][0]["url"].endswith("/pull/77"), out
+    create = next(json.loads(x)["argv"] for x in log.read_text().splitlines() if '"create"' in x and '"pr"' in x)
+    assert create[create.index("--base") + 1] == "trunk", create
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    fix_parent = _git(["rev-parse", "fix/fleet-doctor-ci^"], remote).strip()
+    assert fix_parent == _git(["rev-parse", "trunk"], remote).strip(), "the fix branch starts at the base, not main"
+    assert "only on trunk" in _git(["show", "fix/fleet-doctor-ci:TRUNK.md"], remote)
+    assert "ubuntu-latest" in _git(["show", "fix/fleet-doctor-ci:.github/workflows/ci.yml"], remote)
+    # a base the target does not have: refused after the clone, nothing pushed
+    item2 = item_for(c, row(branch="nope"))
+    v2 = validate(c, item2, session([(GH_PR, "denied", True)]))
+    argv2 = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item2, validated=v2.publish_file))
+    tmp2 = Path(tempfile.mkdtemp())
+    env2, log2 = _apply_world(tmp2)
+    assert L.dash_gen([*argv2[:-1], str(tmp2 / "bodies"), "--offline"], env=env2).ok
+    out2 = L.parse_last_json(L.dash_gen([*argv2[:-1], str(tmp2 / "filed"), "--apply", "--reviewed-bodies",
+                                         str(tmp2 / "bodies")], env=env2).out)
+    assert out2["filed"] == [] and "base branch nope is not in" in out2["skipped"][0]["reason"], out2
+    assert ["pr", "create"] not in _gh_calls(log2)
+    assert "fix/fleet-doctor-ci" not in _git(["branch", "--list", "fix/fleet-doctor-ci"], Path(env2["DOCTOR_STUB_REMOTE"]))
+
+
+def test_the_filer_apply_files_nothing_when_a_label_cannot_be_created():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c)
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp, DOCTOR_STUB_LABEL_FAIL="1")
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.code == 3 and FD.LABELS_REFUSED in res.err and "nothing filed" in res.err, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] == [] and FD.LABELS_REFUSED in out["skipped"][0]["reason"], out
+    calls = _gh_calls(log)
+    assert ["label", "create"] in calls and ["repo", "clone"] not in calls and ["pr", "create"] not in calls, calls
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    assert "fix/fleet-doctor-ci" not in _git(["branch", "--list", "fix/fleet-doctor-ci"], remote), "nothing pushed"
+
+
+def test_the_filer_apply_never_pushes_onto_an_existing_fix_branch():
+    c = ctx(Path(tempfile.mkdtemp()))
+    item = item_for(c)
+    v = validate(c, item, session([(GH_PR, "denied", True)]))
+    argv = S.render_argv(SPEC.local.publish.argv, L.item_values(c, item, validated=v.publish_file))
+    run_url = argv[argv.index("--run-url") + 1]
+    # someone else's commit on the fix branch: refused, the branch untouched, no PR
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    _git(["checkout", "-q", "-b", "fix/fleet-doctor-ci"], remote)
+    (remote / "OTHER.md").write_text("someone else's work\n")
+    _git(["add", "-A"], remote); _git(["commit", "-q", "-m", "unrelated"], remote); _git(["checkout", "-q", "main"], remote)
+    taken_tip = _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip()
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] == [] and FD.BRANCH_TAKEN in out["skipped"][0]["reason"], out
+    assert _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip() == taken_tip, "no push onto the branch"
+    assert ["pr", "create"] not in _gh_calls(log)
+    # this run's own commit already on the branch (a PR create that failed after its push): reused, no push
+    tmp = Path(tempfile.mkdtemp())
+    env, log = _apply_world(tmp)
+    remote = Path(env["DOCTOR_STUB_REMOTE"])
+    _git(["checkout", "-q", "-b", "fix/fleet-doctor-ci"], remote)
+    (remote / ".github" / "workflows" / "ci.yml").write_text("runs-on: ubuntu-latest\n")
+    _git(["add", "-A"], remote)
+    _git(["commit", "-q", "-m", "ci: move off the retired runner", "-m",
+          f"Fleet doctor, run locally ({run_url}); the pull request body carries the MARKER line."], remote)
+    _git(["checkout", "-q", "main"], remote)
+    ours_tip = _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip()
+    reviewed = tmp / "bodies"
+    assert L.dash_gen([*argv[:-1], str(reviewed), "--offline"], env=env).ok
+    res = L.dash_gen([*argv[:-1], str(tmp / "filed"), "--apply", "--reviewed-bodies", str(reviewed)], env=env)
+    assert res.ok, res.err
+    out = L.parse_last_json(res.out)
+    assert out["filed"] and out["filed"][0]["url"].endswith("/pull/77") and "reusing it, no push" in res.err, (out, res.err)
+    assert _git(["rev-parse", "fix/fleet-doctor-ci"], remote).strip() == ours_tip, "reused as it was"
+    assert ["pr", "create"] in _gh_calls(log)
+
+
 def test_context_request_names_the_hub_and_queries_the_candidate():
     c = ctx(Path(tempfile.mkdtemp()))
     req = ADAPTER.context_request(c, item_for(c))
@@ -499,6 +625,7 @@ def test_the_markers_and_messages_agree_with_the_planner_and_the_filer():
     assert remediation.doctor_marker(KEY) == MARKER
     assert FD.NO_DEDUPE == filer.NO_DEDUPE and FD.NOT_REVIEWED in filer.NOT_REVIEWED
     assert FD.TOKEN_REFUSED == filer.TOKEN_REFUSED and filer.RECEIVE_PACK == "--receive-pack=git-receive-pack"
+    assert FD.LABELS_REFUSED == filer.LABELS_REFUSED and FD.BRANCH_TAKEN == filer.BRANCH_TAKEN
     assert S.PUBLISH_COMMANDS["doctor-file"] == "--apply" and S.PUBLISH_REVIEWED_FLAGS["doctor-file"] == "--reviewed-bodies"
     assert S.PLANNER_BRIEFS["remediate"].fullmatch("doctor-workorder-law-ai-ci.md")
 

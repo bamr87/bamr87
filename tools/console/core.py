@@ -286,6 +286,9 @@ def agent_steps() -> list[dict]:
                                                    "default": sw.default,
                                                    "config_value": jev_loop.fleet_value(fleet, sw.config)},
                 "publish_tier": jev_loop.publish_tier(s), "on_budget_hit": s.local.on_budget_hit,
+                # whether the step's filer files under apply today (spec.PUBLISH_CAN_APPLY); False = the
+                # page disables apply and the op refuses it, naming bamr87/bamr87#488
+                "can_apply": s.local.publish is not None and s.local.publish.can_apply,
             })
     except Exception as exc:  # noqa: BLE001 — a broken spec is reported, never raised into /api/state
         error = f"{type(exc).__name__}: {exc}"
@@ -1085,11 +1088,14 @@ def _workflow_new(params: dict) -> list[str]:
 
 #: a loop run id as the engine writes it (`<UTC stamp>-<loop>-<step>-<hex>`)
 RUN_ID_RX = re.compile(r"[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]{0,80}")
+#: a run's item KEY as the engine's previews are keyed: `owner/repo`, or
+#: `owner/repo:<path>` for the doctor's per-workflow items — never a bare name
+ITEM_KEY_RX = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}(?::[A-Za-z0-9_./-]{1,200})?")
 
 
 def _loop_run(params: dict) -> list[str]:
     """`tools/dash loop run <loop> [step] --target <name> --json [--rehearse] [--apply]`,
-    or with `run_id`: `tools/dash loop publish <run_id> [--item <name>] --json [--apply]`.
+    or with `run_id`: `tools/dash loop publish <run_id> [--item <key>] --json [--apply]`.
 
     The loop and the step must name an agent step with a `local:` spec (what
     `agent_steps()` lists), the target is a registry name or `all` (today's
@@ -1121,14 +1127,27 @@ def _loop_run(params: dict) -> list[str]:
     if "scheduled" in params:
         raise ValueError("scheduled is never a console parameter: an unattended filing is refused by the engine "
                          "(--apply with --scheduled) until § 13.7 earned autonomy")
+    chosen = next((s for s in steps if s["loop"] == loop and s["step"] == (step or s["step"])), None)
+    if apply and chosen is not None and not chosen.get("can_apply", False):
+        raise ValueError(f"apply is refused for {loop}/{chosen['step']}: its filer cannot file yet "
+                         "(bamr87/bamr87#488's publish step) — run the dry run and review .fleet/runs/<run_id>/")
     target = str(params.get("target") or "all").strip()
     if target != "all" and not NAME_RX.match(target):
         raise ValueError(f"target must be 'all' or match {NAME_RX.pattern}")
     run_id = str(params.get("run_id") or "").strip()
+    item = str(params.get("item") or "").strip()
+    if item and not run_id:
+        raise ValueError("item names a preview of an earlier run: pass run_id with it (a run takes target)")
     if run_id:
         if not RUN_ID_RX.fullmatch(run_id):
             raise ValueError(f"run_id must match {RUN_ID_RX.pattern}")
-        argv = [DASH, "loop", "publish", run_id, *(["--item", target] if target != "all" else []), "--json"]
+        if target != "all":
+            raise ValueError("with run_id name the preview by item (its key: owner/repo, or owner/repo:path for "
+                             "the doctor), not by target — a registry name matches no preview")
+        if item and (not ITEM_KEY_RX.fullmatch(item) or ".." in item.split(":", 1)[-1].split("/")):
+            raise ValueError(f"item must be a run's item key — owner/repo, or owner/repo:path (no '..'); "
+                             f"not {item!r}")
+        argv = [DASH, "loop", "publish", run_id, *(["--item", item] if item else []), "--json"]
     else:
         argv = [DASH, "loop", "run", loop, *([step] if step else []), "--target", target, "--json"]
         if _flag(params, "rehearse"):
@@ -1353,8 +1372,10 @@ OPS: dict[str, dict] = {
                           "publish gate — the OPS remote-write path (constitution § 11.8, amendment "
                           "ops-remote-write-path): a GitHub write at tier high behind confirm, the token probed with "
                           "`gh api user` first, never with --scheduled; `run_id` publishes an earlier run's preview "
-                          "(`loop publish`, read-only without apply).",
-                     params=["loop", "step", "target", "rehearse", "apply", "run_id"],
+                          "(`loop publish`, read-only without apply), `item` naming it by the preview's key "
+                          "(owner/repo, or owner/repo:path for the doctor) when the run has several. A step whose "
+                          "filer cannot file yet (bamr87/bamr87#488) refuses apply before anything runs.",
+                     params=["loop", "step", "target", "rehearse", "apply", "run_id", "item"],
                      meta=lambda: {"agent_steps": agent_steps()}),
     "reconcile": dict(title="Reconcile registry vs GitHub (report only)", group="plan",
                       argv=lambda p: [DASH_GEN, "reconcile"], needs_token=True,

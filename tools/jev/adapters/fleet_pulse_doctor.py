@@ -60,6 +60,10 @@ LOCAL_ARTEFACT_RX = re.compile(r"EAI_AGAIN|ENOTFOUND|Could not resolve host|geta
 NO_DEDUPE = "filing without the duplicate check"
 NOT_REVIEWED = "not in the reviewed preview"
 TOKEN_REFUSED = "the publish token was refused by `gh api user`"
+#: the filer's two other pre-write refusals (exit 3 / a skipped row): CI's labels could not be created, or
+#: the fix branch is already on the remote with someone else's commit — nothing pushed either way
+LABELS_REFUSED = "the labels could not be created before the push"
+BRANCH_TAKEN = "the fix branch already exists in the target with a commit that is not this run's"
 BRIEF_MAX_BYTES = 1024 * 1024
 RESULT_MAX_CHARS = 20_000
 
@@ -251,6 +255,9 @@ class FleetPulseDoctor(Adapter):
         doc = {"kind": kind, "repo": repo, "where": row["where"], "key": item.key, "marker": marker,
                "workflow": row["workflow"], "path": row["path"], "title": title, "body": body,
                "branch": branch if kind == "pr" else None, "patch": patch_name, "source": source,
+               # the PR's base: the target's registry branch (a hub fix is based on the hub's branch, which is
+               # the clone's — the planner's row carries it); never a default the filer would assume
+               "base": item.branch if kind == "pr" else None,
                "signals": list(row.get("signals") or [])}
         if kind == "pr" and not doc["branch"]:
             doc["branch"] = "fix/fleet-doctor-" + re.sub(r"[^a-z0-9]+", "-", row["name"].lower()).strip("-")[:60]
@@ -277,7 +284,8 @@ class FleetPulseDoctor(Adapter):
         if not res.ok:
             why = res.err.strip()[-300:]
             blocker = (f"doctor-file --apply filed nothing (exit 3: the dedupe list or the publish token could not "
-                       f"be read): {why}" if res.code == 3 else f"doctor-file exited {res.code}: {why}")
+                       f"be read, or a label could not be created before the push): {why}"
+                       if res.code == 3 else f"doctor-file exited {res.code}: {why}")
             return PublishPlan(False, [blocker], [], None)
         try:
             out = _last_json(res.out)
@@ -310,14 +318,20 @@ class FleetPulseDoctor(Adapter):
                     f"`gh issue create -R {repo}` with the body below (MARKER line first), after the live recheck "
                     "(today's queue), the reviewed-bytes check, the open-marker dedupe and the token probe; "
                     "nothing else is written."]
-        return [f"`gh repo clone {repo}` into a scratch directory (never the hub checkout or a submodule tree), "
-                f"`git checkout -b {r.get('branch')}`, the reviewed patch applied with `git apply --index` and "
-                "committed as fleet-doctor.",
+        base = r.get("base") or item.branch
+        return [f"`gh label create <name> -R {repo} --force` for fleet-doctor, automation — before anything is "
+                "pushed: a label that cannot be created files nothing.",
+                f"`gh repo clone {repo}` into a scratch directory (never the hub checkout or a submodule tree), "
+                f"`git checkout {base}` (the target's registry branch, the PR's base), then `git checkout -b "
+                f"{r.get('branch')}`, the reviewed patch applied with `git apply --index` and committed as "
+                "fleet-doctor — unless `{branch}` already exists on the remote: carrying this run's commit it is "
+                "reused with no push, carrying anything else the item is refused for a human to decide."
+                .replace("{branch}", str(r.get("branch"))),
                 f"ONE push of `HEAD:refs/heads/{r.get('branch')}` to origin (git's receive-pack pinned, the "
                 "credential from `gh auth git-credential`, never in argv) — no force, no delete.",
-                f"`gh label create <name> -R {repo} --force` for fleet-doctor, automation, then `gh pr create -R "
-                f"{repo} --draft` with the body below (MARKER line first), after the live recheck, the "
-                "reviewed-bytes check, the open-marker dedupe and the token probe; nothing else is written."]
+                f"`gh pr create -R {repo} --draft --base {base}` with the body below (MARKER line first), after the "
+                "live recheck, the reviewed-bytes check, the open-marker dedupe and the token probe; nothing else "
+                "is written."]
 
     def context_request(self, ctx, item: Item) -> ContextRequest:
         """The hub and its checkout name, plus the candidate as code-index
