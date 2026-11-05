@@ -167,6 +167,8 @@ schedule:
   jev_conflicts: "23 */6 * * *"   # every six hours: JEV scans the fleet for CONFLICTING open PRs
                                   # and resolves what it can (docs/JEV.md). Off the hour and off
                                   # the daily chain's lanes; gated by vars.JEV_CONFLICTS_ENABLED.
+  scorecard_sweep: "17 6 * * 0"   # weekly read-only OpenSSF Scorecard sweep → conformance.yml security:
+                                  # (docs/SECURITY-POSTURE.md); gated by vars.SCORECARD_SWEEP_ENABLED.
 
 # --------------------------------------------------------------------------- #
 # Remediation — the auto-fix loop's guardrails.

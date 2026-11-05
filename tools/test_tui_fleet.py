@@ -329,6 +329,24 @@ def test_triage_join_and_kpis():
         fl.attach_triage(rows, None)  # absent file is a no-op, not a crash
 
 
+def test_security_join():
+    # conformance.yml `security:` (tools/scorecard_snapshot.py) → the Projects `scorecard` column
+    conf = {"security": {"repos": {
+        "IT-Journey": {"aggregate": 5.6, "checks": {"Branch-Protection": -1, "SAST": 7}},
+        "wtd": {"aggregate": -1, "checks": {}},
+    }}}
+    with tempfile.TemporaryDirectory() as td:
+        rows, _ = fl.join_fleet(write_reg(Path(td), SAMPLE, HEALTH))
+        fl.attach_security(rows, conf)
+        ij, wtd, schema = rows
+        assert ij.scorecard == 5.6 and ij.scorecard_checks == {"Branch-Protection": -1.0, "SAST": 7.0}  # case-insensitive
+        assert wtd.scorecard == -1.0  # inconclusive is kept, the UI shows `?`
+        assert schema.scorecard is None and schema.scorecard_checks == {}  # not swept
+        fl.attach_security(rows, None)  # absent file / block is a no-op
+        fl.attach_security(rows, {"security": "garbage"})
+        assert ij.scorecard == 5.6
+
+
 def test_inbox_and_repo_items():
     items = fl.inbox_items(TRIAGE)
     assert [i.priority for i in items] == [90, 55, 40]
@@ -419,6 +437,7 @@ def main() -> int:
         test_docker_hosts_parsing,
         test_docker_list_all_keeps_errors_per_host,
         test_triage_join_and_kpis,
+        test_security_join,
         test_inbox_and_repo_items,
         test_sources_freshness,
         test_cycle_includes_unknown_values,

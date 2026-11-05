@@ -11,7 +11,8 @@
 #   (c) broken internal links in the built dash        (warn; --links only; needs _site)
 #   (d) every top-level module dir has a README
 #   (e) each submodule is on its declared branch
-#   (f) submodule standardization conformance          (warn; see `dash audit`)
+#   (f) submodule standardization conformance          (warn; see `dash audit`;
+#       the conformance.yml `security:` block matching its Scorecard cache gates)
 #   (g) registry <-> GitHub reality: renamed / deleted repos & branch drift
 #       (warn; --remote / --ci only; needs gh + network). Catches the class the
 #       set-vs-set parity check (a) cannot: registry and .gitmodules agreeing
@@ -228,6 +229,13 @@ if [[ -x "$ROOT/tools/audit-standards.sh" ]]; then
   fi
 else
   warn "tools/audit-standards.sh not found"
+fi
+# The conformance snapshot's `security:` block (docs/SECURITY-POSTURE.md) is
+# rendered from _data/scorecard.yml by the weekly sweep; a hand edit gates.
+if "$PY" "$ROOT/tools/scorecard_snapshot.py" --check >/dev/null 2>&1; then
+  ok "conformance.yml security: block matches its Scorecard cache"
+else
+  bad "conformance.yml security: block was hand-edited or not re-rendered (run: python3 tools/scorecard_snapshot.py --check)"
 fi
 
 # --- (h): SCHEMA.md pyramid (structural contracts) --------------------------

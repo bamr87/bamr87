@@ -1,0 +1,181 @@
+name: "🛡️ Scorecard sweep"
+
+# The fleet's weekly security-posture sweep (bamr87/bamr87#513,
+# docs/SECURITY-POSTURE.md). READ-ONLY: it runs the OpenSSF Scorecard CLI
+# against every public registry repo with the job's own GITHUB_TOKEN
+# (contents: read — the fleet.yml token contract has no read-only cross-repo
+# token, and this loop needs none) and records seven checks as the `security:`
+# block of _data/conformance.yml, the dash's Projects `scorecard` column.
+#
+#   plan     `scorecard_snapshot.py targets` — registry repos on github.com,
+#            archived skipped. Private repos drop out in `scan` (the job token
+#            cannot see them; the sweep is public-only by design).
+#   scan     one matrix job per repo: the Scorecard container, --checks below,
+#            JSON uploaded as an artifact. Pinned-Dependencies is deliberately
+#            NOT checked: the fleet is always-latest (docs/DEPENDENCIES.md), so it
+#            would fail every repo by design. Without admin read, Branch-Protection
+#            can come back inconclusive (-1); the snapshot shows it as `?`.
+#   publish  `ingest` the JSON into the raw cache _data/scorecard.yml, splice the
+#            block into conformance.yml (`--write`), prove it (`--check`), and
+#            publish both through utilities/publish-data with auto-merge OFF.
+#
+# It never files an issue (fleet-pulse's doctor is the fleet's one filer) and
+# never pushes to main. § 10.8: Scorecard adopted (read-only); Allstar skipped,
+# because it opens issues and would be a second filer beside fleet-doctor.
+#
+# Sunday 06:17 UTC, declared in _data/fleet.yml `schedule.scorecard_sweep`
+# (test_scorecard_snapshot.py, `tools/dash workflows lint`). New loop: the cron
+# runs only while vars.SCORECARD_SWEEP_ENABLED is 'true'; a manual dispatch
+# always runs.
+
+on:
+  schedule:
+    - cron: '17 6 * * 0'   # _data/fleet.yml schedule.scorecard_sweep
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Registry name of one repo, or 'all'"
+        type: string
+        default: all
+      dry_run:
+        description: "Scan and render, upload the result as an artifact, but publish nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scorecard-sweep
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan the sweep
+    if: ${{ github.event_name != 'schedule' || vars.SCORECARD_SWEEP_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      - name: Registry targets
+        id: plan
+        env:
+          TARGET: ${{ inputs.target || 'all' }}
+        run: |
+          set -euo pipefail
+          python3 tools/scorecard_snapshot.py targets > "$RUNNER_TEMP/targets.json"
+          matrix="$(python3 - "$RUNNER_TEMP/targets.json" <<'PY'
+          import json, os, sys
+          rows = json.load(open(sys.argv[1]))
+          t = os.environ["TARGET"].strip()
+          if t and t != "all":
+              rows = [r for r in rows if r["name"] == t]
+          print(json.dumps({"include": rows}))
+          PY
+          )"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "$matrix" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["include"]), "target(s)")'
+
+  scan:
+    name: "Scorecard: ${{ matrix.name }}"
+    needs: plan
+    if: ${{ needs.plan.outputs.matrix != '' && needs.plan.outputs.matrix != '{"include":[]}' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Run the Scorecard CLI (read-only)
+        env:
+          GITHUB_AUTH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          NWO: ${{ matrix.nwo }}
+          NAME: ${{ matrix.name }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          if [ "$(gh api "repos/$NWO" --jq .private 2>/dev/null)" != "false" ]; then
+            echo "::notice::$NWO is private or unreadable with the job token — skipped (the sweep is public-only)"
+            exit 0
+          fi
+          if docker run --rm -e GITHUB_AUTH_TOKEN gcr.io/openssf/scorecard:stable \
+               --repo="github.com/$NWO" \
+               --checks=Branch-Protection,Token-Permissions,Dangerous-Workflow,Code-Review,Security-Policy,SAST,Vulnerabilities \
+               --format=json > "out/$NAME.json"; then
+            echo "scored $NWO"
+          else
+            echo "::warning::Scorecard failed for $NWO — its last result stays in the cache"
+            rm -f "out/$NAME.json"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: scorecard-${{ matrix.name }}
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    name: Render and publish the snapshot
+    needs: scan
+    if: ${{ !cancelled() && needs.scan.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write         # publish the refreshed snapshot
+      pull-requests: write    # …via a PR when a direct push is refused
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup/dash-gen
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: scorecard-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/scorecard
+
+      - name: Ingest, render, check
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/scorecard"
+          python3 tools/scorecard_snapshot.py ingest "$RUNNER_TEMP/scorecard"
+          python3 tools/scorecard_snapshot.py --write
+          python3 tools/scorecard_snapshot.py --check
+          { echo '### Scorecard sweep'; echo; echo '```yaml'; python3 tools/scorecard_snapshot.py; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: scorecard-snapshot-${{ github.run_id }}
+          path: |
+            _data/scorecard.yml
+            _data/conformance.yml
+          retention-days: 14
+
+      - name: Publish the snapshot
+        if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+        uses: ./.github/actions/utilities/publish-data
+        with:
+          paths: "_data/scorecard.yml _data/conformance.yml"
+          message: "chore(data): refresh the OpenSSF Scorecard security snapshot [skip ci]"
+          branch: chore/scorecard-sweep
+          title: "chore(data): OpenSSF Scorecard security snapshot"
+          auto-merge: 'false'
+          body: |
+            Automated refresh of the `security:` block of `_data/conformance.yml`
+            and its raw cache `_data/scorecard.yml` (docs/SECURITY-POSTURE.md):
+            the weekly read-only OpenSSF Scorecard sweep of the public registry
+            repos. Nothing was filed or changed in any repo. Auto-merge is off:
+            review the diff, then merge.
+          token: ${{ github.token }}
