@@ -135,6 +135,8 @@ def _where(repo: Path, prd: Path, f: dict) -> str:
             continue
         if re.match(r"^https?://", v):
             out.append(f"[{key}]({v})")
+        elif not v.strip("/"):
+            out.append(f"route `{v}`")  # the site root: the repo root exists, but its link label would be empty
         elif v.startswith("/") and not (repo / v.lstrip("/")).exists():
             out.append(f"route `{v}`")
         elif (repo / v.lstrip("/")).exists():
