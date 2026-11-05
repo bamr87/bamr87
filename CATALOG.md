@@ -193,6 +193,7 @@ Operator scripts, gates, and generators; index in [`tools/README.md`](tools/READ
 | [`test_fleet_ci_gate.py`](tools/test_fleet_ci_gate.py) | Fixture tests for UPS-QA-20 in tools/conformance.py: `ci.yml` is a thin caller of the ONE shared gate, bamr87/bamr87's standard-ci.yml. |
 | [`test_fleet_config.py`](tools/test_fleet_config.py) | Fixture tests for tools/fleet-config.py — the per-repo AI auth order (`ai_auth:`) and the per-workspace Anthropic API keys (`api_keys:`, `dash keys`). |
 | [`test_fleetcore.py`](tools/test_fleetcore.py) | Fixture tests for tools/fleetcore's shared contracts — keys v1, the theme, the console client. |
+| [`test_fleetcore_apps.py`](tools/test_fleetcore_apps.py) | Tests for tools/fleetcore/apps.py — the app portal's launcher: every registry frontend joined to its live address and its local dev stack's (ADR 0005). |
 | [`test_fleetcore_host.py`](tools/test_fleetcore_host.py) | Fixture tests for tools/fleetcore/host.py — live Docker inventory matched onto registry rows. |
 | [`test_fleetcore_mcp.py`](tools/test_fleetcore_mcp.py) | Fixture tests for tools/fleetcore/mcp_server.py — the fleet console as an MCP server, the agent's write path into the console's job API. |
 | [`test_fleetcore_nodes.py`](tools/test_fleetcore_nodes.py) | Fixture tests for tools/fleetcore/nodes.py — where each hub workload runs (ADR 0003, docs/PLATFORM.md). |
@@ -443,6 +444,8 @@ The pages of the public site — the Harness Console built static ([`docs/CONSOL
 | Profile | Contact | `/contact` | get in touch |
 | Overview | Overview | `/overview` | attention, KPIs, signal freshness |
 | Fleet | Projects | `/projects` | every registry project — the TUI’s Apps view |
+| Fleet | Desktop | `/desktop` | the bashOS desktop: an icon per app, each in a window with the same controls |
+| Fleet | Apps | `/apps` | every fleet frontend, opened here: the live site or a local stack |
 | Fleet | Inbox | `/inbox` | flagged issues, PRs and failing workflows |
 | Fleet | Roadmap | `/roadmap` | feature specs across the fleet |
 | Fleet | Features | `/features` | what each repo does and what proves it |

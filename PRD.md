@@ -122,6 +122,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-075](features/features.yml) | Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library, the console's Refine page and review queue, the assistant | partial | route `/refine` · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | FR73 |
 | [HUB-076](features/features.yml) | The topic loop read back: directive → issue → pull request → merged, on the Content page | shipped | [`.github/scripts/dash-gen/content_atlas.py`](.github/scripts/dash-gen/content_atlas.py) · [`docs/CONTENT-ATLAS.md`](docs/CONTENT-ATLAS.md) | FR74 |
 | [HUB-077](features/features.yml) | The routine PM review: project, roadmap and release alignment | partial | [`tools/pm_review.py`](tools/pm_review.py) · [`docs/PM.md`](docs/PM.md) | FR75, NFR15 |
+| [HUB-078](features/features.yml) | The app portal: every fleet frontend opened inside the Harness Console, at its live address or its local stack | partial | route `/apps` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR76 |
+| [HUB-079](features/features.yml) | The bashOS desktop: an icon for every fleet app, each opened in a window that shares one App Shell | partial | route `/desktop` · [`docs/FRONTEND-PLATFORM.md`](docs/FRONTEND-PLATFORM.md) | FR58, FR77 |
 
 **Requirement → feature trace**
 
@@ -195,7 +197,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR55 | HUB-058 |
 | FR56 | HUB-060, HUB-069, HUB-070, HUB-071, HUB-073, HUB-074 |
 | FR57 | HUB-061 |
-| FR58 | HUB-062 |
+| FR58 | HUB-062, HUB-078, HUB-079 |
 | FR59 | HUB-063, HUB-073 |
 | FR60 | HUB-064, HUB-072, HUB-073 |
 | FR61 | HUB-065 |
@@ -216,6 +218,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR74 | HUB-076 |
 | FR75 | HUB-077 |
 | NFR15 | HUB-077 |
+| FR76 | HUB-078 |
+| FR77 | HUB-079 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -285,6 +289,8 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR73: The hub must be able to refine a loop's harness from the evidence of its own attempts: validate the harness surface as a sensor, propose, probe and compose edits to the loop's tunable half under its own caps and gates (never to a step spec's hard rules), and keep what each refinement learned in a reviewed library the next attempt reads.
 - FR74: The hub must read a filed editorial directive back from the site that answers it — the issue's state and the pull request that closes it, with that pull request's state — and show it beside the directive in the report, the brief and the Content page, without writing to the site's repository.
 - FR75: The product must review, on a schedule, every open issue and pull request of the registry repos against the Fleet project, the roadmap and each repo's release train, and report each mismatch with its evidence and a proposed fix.
+- FR76: The product must let a person open any frontend the registry declares from one place, in the browser and from a terminal, at its deployed address or at its local development stack and at a chosen device size, framing only addresses the registry declares and asking a visitor's own machine nothing unprompted.
+- FR77: The product must present the fleet as a desktop in the browser on the bashOS layout engine: an icon for every app, each opened in a window that shares one set of controls, every repo listed by the frontend component it has or is owed, and the same desktop usable at a phone's width.
 
 **Non-functional**
 
