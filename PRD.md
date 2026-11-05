@@ -120,6 +120,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | [HUB-073](features/features.yml) | Common harness protocol and platform: one agent-loop contract for console, CI, local and JEV harnesses (proposed) | planned | [`docs/prd/HARNESS-PROTOCOL.md`](docs/prd/HARNESS-PROTOCOL.md) | FR26, FR46, FR54, FR56, FR59, FR60, FR63, NFR9, NFR11, FR70, FR71, FR72, NFR14 |
 | [HUB-074](features/features.yml) | JEV: the fan-out agent fill's step specs and local dry run (P3, step 3) | partial | [`tools/jev/steps/fanout/agent-fill-standardize.yml`](tools/jev/steps/fanout/agent-fill-standardize.yml) · [`docs/SCHEMA-FRAMEWORK.md`](docs/SCHEMA-FRAMEWORK.md) | FR56 |
 | [HUB-075](features/features.yml) | Recursive harness refinement (Harness²): the surface check, the Propose–Probe–Compose plan and evidence tree, the experience library | partial | [`tools/jev/refine.py`](tools/jev/refine.py) · [`docs/HARNESS-REFINEMENT.md`](docs/HARNESS-REFINEMENT.md) | FR73 |
+| [HUB-076](features/features.yml) | The topic loop read back: directive → issue → pull request → merged, on the Content page | shipped | [`.github/scripts/dash-gen/content_atlas.py`](.github/scripts/dash-gen/content_atlas.py) · [`docs/CONTENT-ATLAS.md`](docs/CONTENT-ATLAS.md) | FR74 |
 
 **Requirement → feature trace**
 
@@ -211,6 +212,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 | FR72 | HUB-073 |
 | NFR14 | HUB-073 |
 | FR73 | HUB-075 |
+| FR74 | HUB-076 |
 <!-- features:end -->
 
 ## 5. Requirements
@@ -278,6 +280,7 @@ Every user-facing capability has a stable id in the feature catalog [`features/f
 - FR71: Every harness task must emit one OpenTelemetry GenAI span tree to Phoenix, a root span per task with a child span per turn and per tool call, whose trace id is stamped on every harness event and redacted before export.
 - FR72: External agent protocols (the Unified Harness Protocol, A2A, AG-UI, Agent Client Protocol) must connect only through adapters that map to the fleet contract, each off by default, version-pinned and removable without changing the core.
 - FR73: The hub must be able to refine a loop's harness from the evidence of its own attempts: validate the harness surface as a sensor, propose, probe and compose edits to the loop's tunable half under its own caps and gates (never to a step spec's hard rules), and keep what each refinement learned in a reviewed library the next attempt reads.
+- FR74: The hub must read a filed editorial directive back from the site that answers it — the issue's state and the pull request that closes it, with that pull request's state — and show it beside the directive in the report, the brief and the Content page, without writing to the site's repository.
 
 **Non-functional**
 

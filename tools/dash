@@ -60,7 +60,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash projects [inventory|plan|apply]${c_off} the issue-triage + Fleet-board backfill pass (constitution § 10/§ 11): \`inventory\` counts open work per repo; \`plan [--board]\` compiles _data/projects_backfill.yml into § 11 ops and previews before → after with plan ids (GraphQL for the board, skipped where unreachable); \`apply FILE --confirm\` writes through the service, only with HARNESS_PROJECTS_WRITES=1 (docs/PROJECTS-FRAMEWORK.md § 3b)
   ${c_bold}dash ledger${c_off}            accrue engagement actuals + variance from usage evidence (/engagements/ portal)
   ${c_bold}dash lake [sync|sessions|review|status|export]${c_off} the local data lake — \`sync\` extracts GitHub runs/jobs/steps/logs/issues/workflows/.factory into .dash-lake/fleet.sqlite; \`sessions\` extracts this machine's Claude Code transcripts; \`review\` analyzes BOTH planes offline; \`status\` reports it; \`export [--local] [--dry-run]\` ships OpenInference traces to Phoenix (:6006; docs/HARNESS-OPS.md)
-  ${c_bold}dash content [sync|report|plan|brief|file]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo (docs/CONTENT-ATLAS.md)
+  ${c_bold}dash content [sync|report|plan|brief|file|trace]${c_off} the CONTENT ATLAS — \`sync\` extracts the fleet.yml \`content.sites\` (lifehacker.dev, it-journey, …) into the lake; \`report\` shows topics/activity/aging/hygiene/pillar coverage + suggestions; \`plan\` approves/rejects directives in _data/editorial.yml; \`brief\` renders a site's brief; \`file [--apply]\` opens approved directives as issues in the site's repo; \`trace [--apply]\` reads back the pull request that answers each filed directive (docs/CONTENT-ATLAS.md)
   ${c_bold}dash dev <cmd> [project...]${c_off} the fleet DEV STACK — launch/debug any submodule from the hub
                          up|down|ps|logs|exec|build|config|ports|list; --all for everything,
                          --debug to layer a repo's own debugpy compose (docs/FLEET-COMPOSE.md)
@@ -644,6 +644,7 @@ cmd_lake() { "${TOOLS}/dash-gen" lake "$@"; }
 #   dash content plan approve|reject|add|status --site S --key K   decide (_data/editorial.yml)
 #   dash content brief --site S      the site's editorial brief (Markdown)
 #   dash content file --site S [--apply]   approved directives → issues in the site's repo
+#   dash content trace [--site S] [--apply]   filed directives → the pull request that answers each
 cmd_content() { "${TOOLS}/dash-gen" content "${@:-report}"; }
 
 # The local LOG plane (docs/OBSERVABILITY.md). Phoenix holds traces, Grafana

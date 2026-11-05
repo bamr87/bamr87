@@ -16,6 +16,7 @@ The **content atlas** answers those questions for every content site in the flee
         │                                       ▼
         └──────────── file --apply ──▶ one issue per approved directive
                                        in the site's repo (editorial:directive)
+                       trace ◀── the pull request that answers it (see "The topic loop")
 ```
 
 ## The three files
@@ -41,6 +42,8 @@ tools/dash content plan add --site S --key human:my-idea --title "…" [--brief 
 tools/dash content plan status --site S --key K --status done
 tools/dash content file --site S           # DRY RUN: what would be filed
 tools/dash content file --site S --apply   # one issue per approved directive, in the site's repo
+tools/dash content trace [--site S]        # DRY RUN: each filed directive's issue state and pull request
+tools/dash content trace [--site S] --apply  # …and record `pr` + `pr_state` in the plan
 ```
 
 The same operations run as jobs in the **Harness Console** (`tools/dash console`, then the **Content** tab). They are listed under the `content` group on the Jobs tab, and `content-file` with apply asks for confirmation like every other GitHub write.
@@ -106,6 +109,35 @@ proposed ──approve──▶ approved ──file --apply──▶ filed ─�
 
 `file` dedupes on a hidden marker (`<!-- editorial-directive key=… site=… -->`) against every issue carrying the label, open or closed. A directive filed from another machine, or one whose plan edit was never committed, is re-linked rather than filed twice. A closed issue marks its directive `done` on the next `file --apply` pass. The issue body quotes the site's narrative, so whoever picks it up in the site's repo sees the direction along with the task.
 
+## The topic loop
+
+Filing a directive is half the loop. The other half is the site writing the piece and the hub seeing that it did:
+
+```text
+plan add / plan approve ──▶ file --apply ──▶ issue (editorial:directive) in the site's repo
+                                                │
+                     the site's gardener  ◀─────┤─────▶  a zer0-CMS brief (directives automation)
+                                                ▼
+                               pull request "Closes #n" ──merge──▶ issue closed
+                                                                       │
+ trace ◀── issue timeline (cross-referenced PRs) ◀─────────────────────┘
+   └─▶ plan: pr, pr_state (draft · open · merged · closed);  next file --apply: done
+```
+
+To launch a topic:
+
+1. `tools/dash content plan add --site S --key human:<slug> --title "…" --brief "…"` (or approve a suggestion with `plan approve`). Commit `_data/editorial.yml`.
+2. `tools/dash content file --site S --apply` opens the issue in the site's repo. The same pass runs `trace`.
+3. The site's own lane takes it. On bash-365.com that is the gardener (bash-365/bash-365.com#73), which needs the repo variable `CONTENT_GARDENER_ENABLED` set to `true`. On a zer0-CMS managed site it is a `directives` automation (bamr87/zer0-CMS#86) (a schedule that pulls the site's `editorial:directive` issues into briefs), which starts paused and has to be resumed by a person. Either way the work comes back as a pull request whose body says `Closes #<n>`.
+4. A human reviews and merges the pull request. GitHub closes the issue.
+5. `tools/dash content trace --site S --apply` (or the next `file --apply`) records the pull request and its state. The next `file --apply` sees the closed issue and marks the directive `done`.
+
+`trace` reads each filed directive's issue timeline (`gh api repos/<repo>/issues/<n>/timeline`) and keeps only cross-references from pull requests in the issue's own repository, under the owner in the issue URL or the site's declared `repo`, so a hub PR that only mentions the issue does not count. When several pull requests reference the issue, a merged one wins over an open one, open over draft, and draft over closed. Among equals the newest wins. It is read-only toward GitHub. A dry run prints one row per filed directive. `--apply` writes `pr` and `pr_state` into the plan, through the same validated `decide` path as every other plan write, and only for directives whose issue has such a pull request. A directive that is `done` with a merged or closed pull request is settled and is not read again.
+
+`report`, `brief` and the Content page (the Directives tab, `/api/content` `in_flight`) show the result as an "in flight" block with one row per directive that left the hub: the directive, its issue (open while `filed`, closed once `done`), the pull request and its state, and whether it is done.
+
+**Reach.** The hub's issue pipeline sweeps only `bamr87`-owned repositories. A directive filed in a site under another owner (bash-365.com is owned by `bash-365`) is worked by that site's own lane, not by the hub's tiers, and `trace` is the only way the hub sees it come back.
+
 ## Seeding and tuning the plan
 
 The committed `_data/editorial.yml` was seeded on 2026-09-26 from each site's own CLAUDE.md and its observed mix. The targets are starting values, not measurements. The first report on that seed already showed things worth deciding:
@@ -122,6 +154,6 @@ Add an entry to `_data/fleet.yml` → `content.sites`. A registry project needs 
 
 ## Limits
 
-- **Read-only on content.** Only `file --apply` writes to a site repo, and it writes an issue, never a commit. The site's own loop and a human still decide what ships.
+- **Read-only on content.** Only `file --apply` writes to a site repo, and it writes an issue, never a commit. `trace` only reads. The site's own loop and a human still decide what ships.
 - **Local-only.** Nothing is published. The lake stays on this machine, like the rest of the local stack (docs/HARNESS-OPS.md, "The local stack").
 - **Issues are the delivery channel.** Issues reach every site today: it-journey's issue autopilot and lifehacker.dev's triage both consume them. A per-site adapter would let a directive feed a site's native queue directly, for example lifehacker.dev's `_data/backlog.yml` or irony-works' domain rotation. None exists yet.
