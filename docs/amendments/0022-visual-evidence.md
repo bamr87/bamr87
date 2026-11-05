@@ -1,10 +1,10 @@
 # 0022 — Visual evidence is required for tutorials, guides and setup docs
 
-- **Status:** proposed (ratification pending — Amr ratifies by merging this PR)
+- **Status:** ratified (ratification pending — Amr ratifies by merging this PR)
 - **Number:** 0022
 - **Date:** 2026-11-05
 - **Proposed by:** Grok Bot (agent), on Amr's instruction as owner
-- **Ratified by:** the merged PR URL (leave blank until merged)
+- **Ratified by:** https://github.com/bamr87/bamr87/pull/680 (merged 2026-11-05 by @bamr87)
 - **Affects:** constitution § 24 (new, follows § 23 `writing-chronicle` on main; § 22 is proposed by open PR #660 `repo-cap-42` — § 24 stays free either way; renumber only if a later amendment claims 24 first); § 15 by reference (PR evidence stays there); feature `HUB-081`; requirement `FR79`; roadmap FF-0039; docs `VISUAL-EVIDENCE.md`, `prd/VISUAL-EVIDENCE.md`
 - **Supersedes:** none (extends § 7, § 15 and UPS-QA-52 to *guides*, without changing frontend-PR rules)
 - **Related:** epic #678, backlog #679; amendment 0010 `major-change-evidence` (§ 15); `docs/VERIFICATION.md`; `test/evidence/`; Design for Failure (DFF, `.github/copilot-instructions.md`)
