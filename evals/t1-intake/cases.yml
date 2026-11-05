@@ -1,0 +1,176 @@
+# evals/t1-intake/cases.yml — the seed eval set for issue-pipeline tier 1
+# (intake), constitution § 13.1. The prompt under test is the tier1 step of
+# .github/workflows/issue-pipeline.yml (docs/ISSUE-PIPELINE.md "Tier 1").
+#
+# Each case is a real past intake: the issue, a short statement of what the
+# reporter asked and the gaps the deterministic scorer listed, and the exit
+# decision (ready / blocked) and type label that stood after review. A
+# `blocked` exit is right when a HUMAN gap remains (a settings change, a deploy
+# to the maintainer's machine, a product decision); `ready` when every gap was
+# closable from the code and the evidence.
+#
+#   python3 tools/evals.py run t1-intake --dry-run   # schema only, no model (CI)
+#   python3 tools/evals.py run t1-intake             # asks `model`, capped by budget.local_usd
+#
+# `model` must be an id in _data/fleet.yml ai_models.allowed.
+schema: evals/v1
+role: t1-intake
+mode: model
+target: .github/workflows/issue-pipeline.yml#tier1
+model: claude-sonnet-5-5
+min_cases: 10
+rubric: >-
+  An LLM judge, if used, scores 1 when the exit matches and the stated reason
+  names the specific human gap (for blocked) or confirms every agent gap was
+  closed (for ready); 0 for a vague "needs clarification".
+cases:
+  # ---- blocked: a human gap remains -------------------------------------- #
+  - id: fredgar-ai-105-code-scanning-settings
+    source: bamr87/fredgar-ai#105
+    input:
+      repo: bamr87/fredgar-ai
+      title: "security: code scanning not enabled; secret scanning status unverifiable (settings — for Amr)"
+      summary: Code scanning is off and secret-scanning status cannot be read with the fleet token. Turning them on is a repository setting.
+      gaps:
+        - {gap: enable code scanning and secret scanning in repository settings, by: human}
+    expected: {exit: blocked, type: security}
+    pass: exit and type equal expected
+  - id: github-io-49-push-protection
+    source: bamr87/bamr87.github.io#49
+    input:
+      repo: bamr87/bamr87.github.io
+      title: Enable secret scanning and push protection (currently disabled)
+      summary: Secret scanning and push protection are disabled on the site repo; only the owner may change security settings.
+      gaps:
+        - {gap: flip secret scanning and push protection in settings, by: human}
+    expected: {exit: blocked, type: security}
+    pass: exit and type equal expected
+  - id: hub-506-security-settings
+    source: bamr87/bamr87#506
+    input:
+      repo: bamr87/bamr87
+      title: "Security: hub has secret scanning, push protection and code scanning disabled — needs Amr"
+      summary: The hub's security features are disabled. Agents never change repo settings (constitution § 12.3).
+      gaps:
+        - {gap: the owner enables the three security settings, by: human}
+    expected: {exit: blocked, type: security}
+    pass: exit and type equal expected
+  - id: hub-460-leaked-key
+    source: bamr87/bamr87#460
+    input:
+      repo: bamr87/bamr87
+      title: "Security: public secret-scanning alert (google_api_key) in zer0-CMS — needs Amr"
+      summary: A Google API key is exposed publicly. It must be revoked and rotated at the provider, which only the key's owner can do.
+      gaps:
+        - {gap: revoke and rotate the key at Google Cloud, by: human}
+        - {gap: confirm which file and commit carry the key, by: agent}
+    expected: {exit: blocked, type: security}
+    pass: exit and type equal expected
+  - id: bashos-63-deploy-to-machine
+    source: bamr87/bashos#63
+    input:
+      repo: bamr87/bashos
+      title: "Deploy 2: boot forge from the bashOS image on USB, once"
+      summary: Boot the forge node from a bashOS USB image. This changes the maintainer's hardware; nothing on Amr's machines changes before an approved deploy step.
+      gaps:
+        - {gap: the maintainer approves and performs the deploy, by: human}
+    expected: {exit: blocked, type: feature}
+    pass: exit and type equal expected
+  - id: hub-512-repo-settings-model
+    source: bamr87/bamr87#512
+    input:
+      repo: bamr87/bamr87
+      title: Declarative repo settings + drift audit (safe-settings model for a personal account)
+      summary: Manage every repo's settings declaratively and audit drift. Whether the tool may apply settings, or only report, is a design decision on settings authority.
+      gaps:
+        - {gap: "choose: audit-only vs. apply-with-confirm for repository settings", by: human}
+        - {gap: inventory current settings across the fleet, by: agent}
+    expected: {exit: blocked, type: ci}
+    pass: exit and type equal expected
+
+  # ---- ready: every gap closable from code and evidence ------------------ #
+  - id: fredgar-ai-118-oneline-changelog
+    source: bamr87/fredgar-ai#118
+    input:
+      repo: bamr87/fredgar-ai
+      title: "fix(ci): markdown-oneline gate fails on release-please-generated CHANGELOG.md"
+      summary: The markdown-oneline workflow fails because it checks the generated CHANGELOG.md; the hub's own copy excludes it.
+      gaps:
+        - {gap: reproduce the failing gate in the sandbox, by: agent}
+        - {gap: name the exclude flag the hub uses, by: agent}
+    expected: {exit: ready, type: ci}
+    pass: exit and type equal expected
+  - id: hub-538-dependency-ordering
+    source: bamr87/bamr87#538
+    input:
+      repo: bamr87/bamr87
+      title: "issue-pipeline: dependency-aware queue ordering (blocked-by / prerequisites) (ADP-20 gap)"
+      summary: The T2 queue ignores "Blocked by" links, so a dependent issue can be implemented before its prerequisite.
+      gaps:
+        - {gap: locate the queue builder and the blocked-by parsing point, by: agent}
+        - {gap: write mechanically checkable acceptance criteria, by: agent}
+    expected: {exit: ready, type: ci}
+    pass: exit and type equal expected
+  - id: hub-507-token-in-run
+    source: bamr87/bamr87#507
+    input:
+      repo: bamr87/bamr87
+      title: "ci(security): configure-git action expands the token into run: and persists it in global git config"
+      summary: The composite action interpolates the token into a run script and writes it to global git config. The fix moves it to env and a scoped credential helper.
+      gaps:
+        - {gap: confirm the interpolation lines in the action, by: agent}
+        - {gap: list every caller of the action, by: agent}
+    expected: {exit: ready, type: ci}
+    pass: exit and type equal expected
+  - id: bashos-53-pin-pypi-publish
+    source: bamr87/bashos#53
+    input:
+      repo: bamr87/bashos
+      title: "ci: pin pypa/gh-action-pypi-publish in release.yml to a version tag"
+      summary: release.yml uses the action at a branch ref; pin it to a release tag.
+      gaps:
+        - {gap: confirm the current ref in release.yml, by: agent}
+    expected: {exit: ready, type: security}
+    pass: exit and type equal expected
+  - id: bashos-51-security-md
+    source: bamr87/bashos#51
+    input:
+      repo: bamr87/bashos
+      title: "docs: add SECURITY.md with private vulnerability reporting policy"
+      summary: The repo has no SECURITY.md. The fleet template exists; copy and adapt it.
+      gaps:
+        - {gap: find the fleet's SECURITY.md template, by: agent}
+    expected: {exit: ready, type: security}
+    pass: exit and type equal expected
+  - id: zer0-cms-64-unsaved-edits
+    source: bamr87/zer0-CMS#64
+    input:
+      repo: bamr87/zer0-CMS
+      title: Preserve unsaved edits across refreshes and navigation
+      summary: Edits in the editor are lost on refresh or navigation. Reproduced in the sandbox; the editor state is not persisted.
+      gaps:
+        - {gap: identify the editor state store, by: agent}
+        - {gap: write a test that loses edits before the fix, by: agent}
+    expected: {exit: ready, type: bug}
+    pass: exit and type equal expected
+  - id: github-io-19-broken-sidebar-links
+    source: bamr87/bamr87.github.io#19
+    input:
+      repo: bamr87/bamr87.github.io
+      title: "Broken sidebar links in _data/navigation/*.yml (posts, docs, about, hobbies, home) — 404s on ~85 pages"
+      summary: Navigation data points at moved pages; a link check in the sandbox lists every 404.
+      gaps:
+        - {gap: list each broken link and its correct target, by: agent}
+    expected: {exit: ready, type: bug}
+    pass: exit and type equal expected
+  - id: hub-530-eval-sets
+    source: bamr87/bamr87#530
+    input:
+      repo: bamr87/bamr87
+      title: Eval sets per agent role + eval-regression check (§13.1–13.2)
+      summary: No eval sets, runner or workflow exist. Build two sets, an offline runner and a kill-switched workflow. Making the check required is the maintainer's call and explicitly out of scope.
+      gaps:
+        - {gap: confirm no eval machinery exists, by: agent}
+        - {gap: name the classifier entry point and fleet.yml keys to read, by: agent}
+    expected: {exit: ready, type: feature}
+    pass: exit and type equal expected
