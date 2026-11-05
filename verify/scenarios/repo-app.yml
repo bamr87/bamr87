@@ -1,6 +1,6 @@
 # The generated repo app on the published site: a repo with no interface is still an app, and its README stays off the public page.
 id: repo-app
-feature: HUB-NEW:repo-app
+feature: HUB-080
 title: "A repo with no frontend opens as a generated app, and the public page carries no README"
 description: "Every repo in the registry is an app. One with no interface of its own (a CLI, a library, a kernel) opens as the repo app the console generates from what the hub holds about it: its description and stack, its health, CI and open work, its standards audit, how to get it. The README is read only by a console from the repo's checkout, so the public build shows none and says where to read it. Nothing is framed and nothing scrolls sideways."
 viewports: [desktop, mobile]

@@ -9,30 +9,33 @@
 //   App Shell  what every window shares — AppPane (./Apps): where the app
 //              runs, a device size, a path, reload, open outside.
 //   App        a fleet frontend from the launcher, framed under the same rules
-//              as the Apps page; or, for a repo with no frontend the shell can
-//              show, the repo app the shell generates (./RepoApp).
+//              as the Apps page; for a repo with no frontend the shell can
+//              show, the repo app the shell generates (./RepoApp); or one of
+//              the console's own pages, framed without its header and sidebar
+//              (the reducer's "plain" experience) so the window is its chrome.
 //
 // A layout carries scene and app ids and geometry, never an address: a shared
 // link can only open what the registry declares. Below the reducer's narrow
 // width the desktop becomes a home screen: the icons, then one app at a time.
 import {
-  useEffect, useMemo, useReducer, useRef, useState,
+  Fragment, useEffect, useMemo, useReducer, useRef, useState,
   type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode,
 } from 'react';
 import { Link } from 'react-router';
-import { Anchor, Badge, Code, Group, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Code, Group, Menu, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import { useViewportSize } from '@mantine/hooks';
 import {
   IconAppWindow, IconArrowsMinimize, IconChevronLeft, IconDeviceGamepad2, IconDeviceMobile, IconFileText, IconFolder,
   IconLayoutGrid, IconLink, IconMaximize, IconMinus, IconPlayerPlayFilled, IconPuzzle, IconStack2, IconTerminal2,
   IconWorld, IconX,
 } from '@tabler/icons-react';
-import { hasConsole } from '../api/backend';
+import { BASENAME, EMBEDDED, OPEN_EVENT, hasConsole } from '../api/backend';
 import { useApps } from '../api/hooks';
 import type { AppsDoc, FleetApp, FleetRepo } from '../api/types';
 import { ThemeToggle } from '../components/Shell';
 import { Load, Status } from '../components/ui';
 import { to } from '../lib/links';
+import { FLAT, NAV, activeIndex } from '../nav';
 import {
   MAX_WINDOWS, decodeLayout, effectiveExperience, encodeLayout, initialState, reduce,
   type ShellAction, type ShellState, type ShellWindow,
@@ -41,14 +44,32 @@ import { AppPane, type AppView } from './Apps';
 import { RepoApp } from './RepoApp';
 import c from './Desktop.module.css';
 
-/** What a window can hold. `app` and `repo` name a registry id in resourceId. */
-const SCENES = ['welcome', 'fleet', 'app', 'repo'];
+/** What a window can hold. `app` and `repo` name a registry id in resourceId; `page` a path of this console. */
+const SCENES = ['welcome', 'fleet', 'app', 'repo', 'page'];
 const LAYOUT_PARAM = 'windows';
 const TAB_KEY = 'bashos_desktop_layout';
 // The menu bar and taskbar heights in Desktop.module.css, for counting dock rows.
 const MENUBAR_PX = 44;
 const TASKBAR_PX = 48;
 const DOCK_ROW_PX = 82; // an icon row (80) and its gap
+
+// The console's own pages a window may hold: the first path segment of every
+// page in the navigation (their drill-downs sit under them). Never the Desktop
+// itself, and never anything that is not a page of this app.
+const PAGE_ROOTS = new Set(FLAT.map((item) => item.to.split('/')[1] ?? ''));
+PAGE_ROOTS.delete('desktop');
+
+/** A path of this console that may open in a window, normalised; null for anything else. */
+export function pagePath(raw: string | null | undefined): string | null {
+  if (!raw || raw.length > 300 || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return null;
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.origin !== window.location.origin) return null;
+    return PAGE_ROOTS.has(url.pathname.split('/')[1] ?? '') ? `${url.pathname}${url.search}` : null;
+  } catch {
+    return null;
+  }
+}
 
 function typeIcon(type: string | null | undefined, size = 22): ReactNode {
   if (type === 'site') return <IconWorld size={size} stroke={1.6} />;
@@ -103,7 +124,8 @@ function boot(doc: AppsDoc): ShellState {
   const known = (w: ShellWindow) =>
     w.sceneId === 'welcome' || w.sceneId === 'fleet'
     || (w.sceneId === 'app' && w.resourceId !== null && framed.has(w.resourceId))
-    || (w.sceneId === 'repo' && w.resourceId !== null && repos.has(w.resourceId));
+    || (w.sceneId === 'repo' && w.resourceId !== null && repos.has(w.resourceId))
+    || (w.sceneId === 'page' && pagePath(w.resourceId) === w.resourceId);
   for (const payload of [decodeParam(new URLSearchParams(window.location.search).get(LAYOUT_PARAM)), readTab()]) {
     const st = decodeLayout(payload, SCENES);
     const windows = st?.windows.filter(known) ?? [];
@@ -131,7 +153,7 @@ function WelcomePanel({ doc, open }: { doc: AppsDoc; open: Open }) {
         Every icon is a fleet frontend from the registry. Open one and it runs in a window with the same controls as every other: where it runs (the live site or the stack on this machine), a device size, and a path inside the app.
       </Text>
       <Text size="sm" c="dimmed">
-        Drag a window by its title bar; drop it on the left or right edge to fill that half, or on the top edge to fill the desktop. Shift-click an icon for a second window of the same app, to put Live beside Local. The taskbar brings a minimized window back.
+        Drag a window by its title bar; drop it on the left or right edge to fill that half, or on the top edge to fill the desktop. Shift-click an icon for a second window of the same app, to put Live beside Local. The taskbar brings a minimized window back, and its bashOS button opens any page of the console in a window.
       </Text>
       <Group gap="xs">
         <Status tone="good">{doc.summary.embeddable} apps open in a window</Status>
@@ -140,7 +162,7 @@ function WelcomePanel({ doc, open }: { doc: AppsDoc; open: Open }) {
       <Group gap="md">
         <Anchor component="button" type="button" size="sm" onClick={() => open('fleet', null)}>Every repo and its component</Anchor>
         <Anchor component={Link} to={to.apps()} size="sm">The same apps as a list</Anchor>
-        <Anchor component={Link} to={to.overview()} size="sm">The classic console</Anchor>
+        <Anchor component="button" type="button" size="sm" onClick={() => open('page', '/overview')}>The console's Overview, in a window</Anchor>
       </Group>
       <Text size="xs" c="dimmed">The same launcher in a terminal: <Code>tools/dash apps</Code>, and <Code>tools/dash apps plan</Code> for what each repo is owed.</Text>
     </Stack>
@@ -189,7 +211,13 @@ type Open = (sceneId: string, resourceId: string | null, another?: boolean) => v
 
 interface Described { title: string; sub?: string; icon: ReactNode }
 
-function describe(win: ShellWindow, doc: AppsDoc, view: AppView | undefined): Described {
+function describe(win: ShellWindow, doc: AppsDoc, view: AppView | undefined, livePath?: string): Described {
+  if (win.sceneId === 'page') {
+    const path = livePath ?? win.resourceId ?? '/';
+    const item = FLAT[activeIndex(path.split('?')[0])];
+    const Ico = item?.icon ?? IconTerminal2;
+    return { title: item?.label ?? 'Console', sub: path, icon: <Ico size={16} stroke={1.6} /> };
+  }
   if (win.sceneId === 'app') {
     const app = doc.apps.find((a) => a.id === win.resourceId);
     const target = app?.targets.find((t) => t.id === view?.target) ?? app?.targets[0];
@@ -213,6 +241,14 @@ function Scene({ win, doc, view, onView, open }: {
   if (win.sceneId === 'repo') {
     const repo = doc.repos.find((r) => r.id === win.resourceId);
     return repo ? <RepoApp repo={repo} fill /> : <Text className={c.panel} size="sm">The registry no longer lists this repo.</Text>;
+  }
+  if (win.sceneId === 'page') {
+    const path = pagePath(win.resourceId);
+    // This console's own page: it is this app, on this origin, so it is not
+    // sandboxed. It drops its header and sidebar when it finds itself framed.
+    return path
+      ? <iframe className={c.pageFrame} src={`${BASENAME}${path}`} title={`Console page ${path}`} />
+      : <Text className={c.panel} size="sm">That is not a page of this console.</Text>;
   }
   if (win.sceneId === 'fleet') return <FleetPanel doc={doc} open={open} />;
   return <WelcomePanel doc={doc} open={open} />;
@@ -301,6 +337,8 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
   const [home, setHome] = useState(true);
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  // Where each console-page window has navigated to, as the page itself reports it.
+  const [live, setLive] = useState<Record<string, string>>({});
   const surface = useRef<HTMLDivElement | null>(null);
   const viewport = useViewportSize();
   const width = viewport.width || window.innerWidth;
@@ -311,7 +349,11 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
   const rows = Math.max(1, Math.floor(((viewport.height || window.innerHeight) - MENUBAR_PX - TASKBAR_PX - 24) / DOCK_ROW_PX));
   const dock = { '--rows': rows, '--cols': Math.ceil((framed.length + 2) / rows) } as CSSProperties;
 
-  useEffect(() => { saveTab(state); }, [state]);
+  // A layout remembers where a console page is now, not where its window was opened.
+  const withLivePaths = (st: ShellState): ShellState => ({
+    ...st, windows: st.windows.map((w) => (w.sceneId === 'page' && live[w.id] ? { ...w, resourceId: live[w.id] } : w)),
+  });
+  useEffect(() => { saveTab(withLivePaths(state)); }, [state, live]);
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(t);
@@ -330,30 +372,59 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
         dispatch({ type: 'cycle' });
       }
     };
+    // A console page in a window says where it is (Shell, when framed). Only
+    // this origin is heard, only from a frame in one of these windows, and
+    // only a path that is a page of this console is kept.
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data as { bridge?: unknown; v?: unknown; type?: unknown; path?: unknown } | null;
+      if (e.origin !== window.location.origin || !data || data.bridge !== 'fleet' || data.v !== 1 || data.type !== 'route') return;
+      const path = pagePath(typeof data.path === 'string' ? data.path : null);
+      const frame = [...document.querySelectorAll<HTMLIFrameElement>('[data-window-id] iframe')].find((f) => f.contentWindow === e.source);
+      const id = frame?.closest<HTMLElement>('[data-window-id]')?.dataset.windowId;
+      if (id && path) setLive((all) => (all[id] === path ? all : { ...all, [id]: path }));
+    };
+    const onOpen = (e: Event) => openPath.current(String((e as CustomEvent<{ path?: unknown }>).detail?.path ?? ''));
     window.addEventListener('blur', onBlur);
     window.addEventListener('keydown', onKey);
+    window.addEventListener('message', onMessage);
+    window.addEventListener(OPEN_EVENT, onOpen);
     return () => {
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('message', onMessage);
+      window.removeEventListener(OPEN_EVENT, onOpen);
     };
   }, []);
 
+  // What a window shows now: a console page may have navigated since it opened.
+  const at = (w: ShellWindow) => (w.sceneId === 'page' ? live[w.id] ?? w.resourceId : w.resourceId) ?? null;
   const open: Open = (sceneId, resourceId, another = false) => {
-    const existing = state.windows.some((w) => w.sceneId === sceneId && (w.resourceId ?? null) === resourceId);
-    dispatch({ type: 'navigate', sceneId, resourceId, intent: existing && !another ? 'focus' : 'new' });
+    const match = state.windows.find((w) => w.sceneId === sceneId && at(w) === resourceId);
+    if (match && !another) dispatch({ type: 'focus', id: match.id });
+    else dispatch({ type: 'navigate', sceneId, resourceId, intent: 'new' });
     setHome(false);
+  };
+  // A path picked elsewhere (the palette): an app's page opens the app, any
+  // other page of the console opens as a page window.
+  const openPath = useRef<(raw: string) => void>(() => undefined);
+  openPath.current = (raw) => {
+    const id = /^\/apps\/([^/?#]+)/.exec(raw)?.[1];
+    if (id && framed.some((a) => a.id === id)) return open('app', id);
+    if (id && doc.repos.some((r) => r.id === id)) return open('repo', id);
+    const path = pagePath(raw);
+    if (path) open('page', path);
   };
   const isOpen = (sceneId: string, resourceId: string | null) =>
     state.windows.some((w) => w.sceneId === sceneId && (w.resourceId ?? null) === resourceId);
   const current = state.windows.find((w) => w.id === state.focusId) ?? state.windows[0];
-  const describedOf = (w: ShellWindow) => describe(w, doc, views[contentKey(w)]);
+  const describedOf = (w: ShellWindow) => describe(w, doc, views[contentKey(w)], live[w.id]);
   const scene = (w: ShellWindow) => (
     <Scene key={contentKey(w)} win={w} doc={doc} open={open} view={views[contentKey(w)] ?? {}}
       onView={(v) => setViews((all) => ({ ...all, [contentKey(w)]: v }))} />
   );
   const copyLink = () => {
     const url = new URL(window.location.href);
-    url.searchParams.set(LAYOUT_PARAM, encodeParam(state));
+    url.searchParams.set(LAYOUT_PARAM, encodeParam(withLivePaths(state)));
     void navigator.clipboard?.writeText(url.href).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
@@ -372,10 +443,16 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
     <>
       <IconButton label="Fleet" glyph={<IconFolder size={20} stroke={1.6} />} title="Every repo and the frontend component it has or is owed"
         open={isOpen('fleet', null)} onClick={() => open('fleet', null)} />
-      <Link className={c.icon} to={to.overview()} title="The classic console: overview, projects, loops, jobs, settings">
-        <span className={c.glyph}><IconTerminal2 size={20} stroke={1.6} /></span>
-        <span className={c.iconLabel}>Console</span>
-      </Link>
+      {narrow ? (
+        // A phone has no taskbar to pick pages from: the classic console is its own way around.
+        <Link className={c.icon} to={to.overview()} title="The classic console: overview, projects, loops, jobs, settings">
+          <span className={c.glyph}><IconTerminal2 size={20} stroke={1.6} /></span>
+          <span className={c.iconLabel}>Console</span>
+        </Link>
+      ) : (
+        <IconButton label="Console" glyph={<IconTerminal2 size={20} stroke={1.6} />} title="The console's Overview in a window; the bashOS button lists every page"
+          open={state.windows.some((w) => w.sceneId === 'page')} onClick={() => open('page', '/overview')} />
+      )}
     </>
   );
 
@@ -398,7 +475,7 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
           {home ? (
             <nav className={c.home} aria-label="Apps">{icons}{system}</nav>
           ) : (
-            <section className={c.sheet} aria-label={`${describedOf(current).title} window`}>
+            <section className={c.sheet} data-window-id={current.id} aria-label={`${describedOf(current).title} window`}>
               <header className={c.winHead}>
                 <button type="button" className={c.winBtn} onClick={() => setHome(true)} aria-label="Home"><IconChevronLeft size={16} /></button>
                 <span className={c.winIcon}>{describedOf(current).icon}</span>
@@ -427,7 +504,25 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
 
       {narrow ? null : (
         <footer className={c.taskbar}>
-          <button type="button" className={c.start} onClick={() => open('welcome', null)} title="Welcome"><IconPlayerPlayFilled size={12} /> bashOS</button>
+          <Menu position="top-start" offset={8} shadow="md" width={260}>
+            <Menu.Target>
+              <button type="button" className={c.start} title="Open any page of the console in a window"><IconPlayerPlayFilled size={12} /> bashOS</button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <ScrollArea.Autosize mah={460} type="auto">
+                <Menu.Item leftSection={<IconPlayerPlayFilled size={13} />} onClick={() => open('welcome', null)}>Welcome</Menu.Item>
+                <Menu.Item leftSection={<IconFolder size={15} stroke={1.6} />} onClick={() => open('fleet', null)}>Fleet: every repo</Menu.Item>
+                {NAV.map((section) => (
+                  <Fragment key={section.label}>
+                    <Menu.Label>{section.label}</Menu.Label>
+                    {section.items.filter((item) => item.to !== to.desktop()).map((item) => (
+                      <Menu.Item key={item.to} leftSection={<item.icon size={15} stroke={1.6} />} onClick={() => open('page', item.to)}>{item.label}</Menu.Item>
+                    ))}
+                  </Fragment>
+                ))}
+              </ScrollArea.Autosize>
+            </Menu.Dropdown>
+          </Menu>
           <div className={c.tasks} role="toolbar" aria-label="Open windows">
             {state.windows.map((w) => {
               const d = describedOf(w);
@@ -452,6 +547,13 @@ function DesktopShell({ doc }: { doc: AppsDoc }) {
 }
 
 export function Desktop() {
+  // A window cannot hold the desktop it sits on.
+  return EMBEDDED
+    ? <Text className={c.panel} size="sm">The desktop does not open inside one of its own windows.</Text>
+    : <DesktopPage />;
+}
+
+function DesktopPage() {
   const apps = useApps();
   useEffect(() => {
     document.title = 'Desktop · bashOS';
