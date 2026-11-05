@@ -911,7 +911,9 @@
     framework: jekyll-zer0
     surfaces: [browser]
     token_version: none
-    entry_url: https://bash-365.com/
+    # www, where the site is served: the apex (bash-365-apex) is a client-side
+    # redirect, and a frame may only load an origin the registry declares.
+    entry_url: https://www.bash-365.com/
     shell: zer0
 
 - name: fleet-infra

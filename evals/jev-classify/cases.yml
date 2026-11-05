@@ -1,0 +1,268 @@
+# evals/jev-classify/cases.yml — the eval set for JEV's deterministic conflict
+# classifier (tools/jev/classify.py `classify()` + `kind_of()`), constitution
+# § 13.1. Runner: python3 tools/evals.py run jev-classify (offline, no model).
+#
+# Each case is a conflict shape the hub has actually produced on a pull request:
+# the paths are real hub paths and the kinds are the ones those paths carry.
+# `_data/jev_resolutions.yml` has no recorded resolutions yet, so the sizes are
+# representative rather than copied from a ledger row; replace a case with a
+# recorded one as the ledger fills (docs/EVALS.md "Growing a set").
+#
+# input:     files[] (path, hunks, lines, optional kind / binary), optional
+#            globs{generated,fragments,union,append} and any classify() option
+#            (attempts, id_collision, squash_only, budget_exhausted,
+#            force_min_tier, the tier envelopes).
+# expected:  tier (required); kinds{path: kind} and reason_contains (optional).
+# pass:      the human-readable criterion the runner enforces.
+schema: evals/v1
+role: jev-classify
+mode: deterministic
+target: tools/jev/classify.py
+min_cases: 20
+cases:
+  # ---- tier 0: nothing for a model to do ---------------------------------- #
+  - id: empty-trial-merge
+    source: a PR GitHub flagged CONFLICTING that merged clean on a fresh trial merge
+    input: {files: []}
+    expected: {tier: tier0, reason_contains: no conflicted files}
+    pass: tier equals expected and the reason names the empty merge
+  - id: catalog-regenerate
+    source: two PRs each adding a tool, both touching the generated CATALOG.md
+    input:
+      files: [{path: CATALOG.md, hunks: 4, lines: 30}]
+    expected: {tier: tier0, kinds: {CATALOG.md: generated}}
+    pass: a generated file is tier 0 however large its conflict
+  - id: docs-index-and-catalog
+    source: two docs PRs racing on main-only generated indexes
+    input:
+      files:
+        - {path: docs/README.md, hunks: 2, lines: 12}
+        - {path: CATALOG.md, hunks: 1, lines: 6}
+    expected: {tier: tier0, kinds: {docs/README.md: generated, CATALOG.md: generated}}
+    pass: every file generated means tier 0
+  - id: generated-site-output
+    source: a stale MkDocs build under site/ on a long-lived branch
+    input:
+      files: [{path: site/index.html, hunks: 9, lines: 300}]
+    expected: {tier: tier0, kinds: {site/index.html: generated}}
+    pass: build output is generated, tier 0
+  - id: feature-fragment-same-slug
+    source: two PRs writing features/features.d/<slug>.yml for the same slug (amendment 0002)
+    input:
+      files: [{path: features/features.d/central-loop-switches.yml, hunks: 1, lines: 8}]
+    expected: {tier: tier0, kinds: {features/features.d/central-loop-switches.yml: fragment}}
+    pass: a fragment conflict is a numbering question, tier 0
+  - id: changelog-and-amendment-fragments
+    source: an amendment PR and its changelog fragment colliding with a sibling PR
+    input:
+      files:
+        - {path: changelog.d/eval-sets.md, hunks: 1, lines: 4}
+        - {path: docs/amendments/proposed/eval-baseline-risk-tiers.md, hunks: 2, lines: 10}
+    expected: {tier: tier0}
+    pass: fragments only, tier 0
+  - id: id-collision-fragment
+    source: two feature fragments both claiming id HUB-NEW resolved to the same number
+    input:
+      id_collision: true
+      files: [{path: features/features.d/eval-sets.yml, hunks: 1, lines: 2}]
+    expected: {tier: tier0}
+    pass: an id collision over fragments stays tier 0
+  - id: union-glob
+    source: the append-only AI activity log configured as merge=union
+    input:
+      globs: {union: [_data/ai_activity.yml]}
+      files: [{path: _data/ai_activity.yml, hunks: 1, lines: 14}]
+    expected: {tier: tier0, kinds: {_data/ai_activity.yml: union}}
+    pass: a configured union file is tier 0
+  - id: append-glob
+    source: two roadmap entries appended to _data/roadmap.yml at the same place
+    input:
+      globs: {append: [_data/roadmap.yml]}
+      files: [{path: _data/roadmap.yml, hunks: 1, lines: 40}]
+    expected: {tier: tier0, kinds: {_data/roadmap.yml: append}}
+    pass: a configured append list is tier 0 (tier 0 itself checks the stages)
+
+  # ---- tier 3: a human owns it, whatever the size ------------------------ #
+  - id: console-lockfile
+    source: a dependency bump that committed tools/console/web/package-lock.json (the fleet commits none)
+    input:
+      files: [{path: tools/console/web/package-lock.json, hunks: 1, lines: 2}]
+    expected: {tier: tier3, kinds: {tools/console/web/package-lock.json: lockfile}, reason_contains: lockfile}
+    pass: a one-line lockfile conflict still goes to a human
+  - id: lockfile-beats-generated
+    source: a Gemfile.lock conflict riding along with a CATALOG.md one
+    input:
+      files:
+        - {path: Gemfile.lock, hunks: 1, lines: 3}
+        - {path: CATALOG.md, hunks: 1, lines: 3}
+    expected: {tier: tier3, reason_contains: lockfile}
+    pass: one human-only file sends the whole PR to tier 3
+  - id: lockfile-under-workflows
+    source: kind_of() precedence — a lockfile under .github/workflows/ is still a lockfile
+    input:
+      files: [{path: .github/workflows/yarn.lock, hunks: 1, lines: 2}]
+    expected: {tier: tier3, kinds: {.github/workflows/yarn.lock: lockfile}}
+    pass: lockfile wins over workflow
+  - id: diagram-png
+    source: a re-rendered harness diagram PNG on two branches
+    input:
+      files: [{path: diagrams/harness-layers.png, hunks: 0, lines: 0}]
+    expected: {tier: tier3, kinds: {diagrams/harness-layers.png: binary}, reason_contains: binary}
+    pass: binary files go to a human
+  - id: binary-by-git-attribute
+    source: a file git reports as binary with no telltale suffix
+    input:
+      files: [{path: tools/fixtures/blob, binary: true}]
+    expected: {tier: tier3, kinds: {tools/fixtures/blob: binary}}
+    pass: git's binary flag is honoured
+  - id: squash-only-repo
+    source: a fleet repo that allows squash merges only
+    input:
+      squash_only: true
+      files: [{path: CATALOG.md, hunks: 1, lines: 3}]
+    expected: {tier: tier3, reason_contains: squash}
+    pass: squash-only beats an otherwise tier-0 conflict
+  - id: second-failed-attempt
+    source: a PR JEV already tried twice
+    input:
+      attempts: 2
+      files: [{path: tools/check-drift.sh, hunks: 1, lines: 4}]
+    expected: {tier: tier3, reason_contains: already failed}
+    pass: max_attempts reached means a human
+  - id: budget-exhausted
+    source: a conflict found after the month's JEV budget is spent
+    input:
+      budget_exhausted: true
+      files: [{path: README.md, hunks: 1, lines: 4}]
+    expected: {tier: tier3, reason_contains: budget}
+    pass: no budget, no model
+  - id: exceeds-every-envelope
+    source: a long-lived refactor branch against a moved main
+    input:
+      files:
+        - {path: tools/console/server.py, hunks: 6, lines: 30}
+        - {path: tools/console/snapshot.py, hunks: 4, lines: 30}
+        - {path: tools/console/site_docs.py, hunks: 3, lines: 30}
+        - {path: tools/console/jobs.py, hunks: 3, lines: 30}
+        - {path: tools/console/ops.py, hunks: 3, lines: 30}
+        - {path: tools/fleetcore/views.py, hunks: 3, lines: 30}
+        - {path: tools/fleetcore/keys.py, hunks: 2, lines: 30}
+        - {path: tools/fleetcore/colors.py, hunks: 2, lines: 30}
+        - {path: tools/tui/app.py, hunks: 2, lines: 30}
+        - {path: tools/tui/views.py, hunks: 2, lines: 30}
+        - {path: tools/dash, hunks: 2, lines: 30}
+        - {path: tools/check-drift.sh, hunks: 2, lines: 30}
+        - {path: tools/conformance.py, hunks: 2, lines: 30}
+        - {path: tools/schema_lint.py, hunks: 2, lines: 30}
+        - {path: docs/HARNESS-OPS.md, hunks: 2, lines: 30}
+        - {path: docs/DASH.md, hunks: 2, lines: 30}
+    expected: {tier: tier3, reason_contains: exceed}
+    pass: 16 files and 480 lines exceed both tier-2 limits
+
+  # ---- tier 1: small, cheap model ---------------------------------------- #
+  - id: small-shell-script
+    source: two fixes to the drift gate touching neighbouring lines
+    input:
+      files: [{path: tools/check-drift.sh, hunks: 2, lines: 12}]
+    expected: {tier: tier1, kinds: {tools/check-drift.sh: source}}
+    pass: one small source file is tier 1
+  - id: tier1-boundary
+    source: three agent-context docs edited on two branches
+    input:
+      files:
+        - {path: README.md, hunks: 1, lines: 10}
+        - {path: AGENTS.md, hunks: 1, lines: 15}
+        - {path: docs/JEV.md, hunks: 2, lines: 15}
+    expected: {tier: tier1}
+    pass: exactly 3 files / 40 lines is still inside tier 1
+  - id: fleet-config-edit
+    source: two PRs each adding a key to _data/fleet.yml
+    input:
+      files: [{path: _data/fleet.yml, hunks: 1, lines: 8}]
+    expected: {tier: tier1, kinds: {_data/fleet.yml: source}}
+    pass: fleet.yml is source, small is tier 1
+  - id: one-prior-attempt
+    source: a small conflict JEV tried once
+    input:
+      attempts: 1
+      files: [{path: tools/README.md, hunks: 1, lines: 6}]
+    expected: {tier: tier1}
+    pass: one failed attempt is under max_attempts
+  - id: forced-floor-tier1-over-generated
+    source: a maintainer forcing review past tier 0 on a generated file
+    input:
+      force_min_tier: tier1
+      files: [{path: CATALOG.md, hunks: 1, lines: 10}]
+    expected: {tier: tier1}
+    pass: force_min_tier lifts a tier-0 conflict to tier 1
+
+  # ---- tier 2: strong model ----------------------------------------------- #
+  - id: four-files-too-many-for-tier1
+    source: a tool PR touching its module, test, doc and index
+    input:
+      files:
+        - {path: tools/evals.py, hunks: 1, lines: 5}
+        - {path: tools/test_evals.py, hunks: 1, lines: 5}
+        - {path: docs/EVALS.md, hunks: 1, lines: 5}
+        - {path: evals/README.md, hunks: 1, lines: 5}
+    expected: {tier: tier2, reason_contains: too large for tier 1}
+    pass: 4 files exceed tier 1's 3-file envelope
+  - id: one-file-41-lines
+    source: a large rewrite of one doc section on two branches
+    input:
+      files: [{path: docs/ISSUE-PIPELINE.md, hunks: 3, lines: 41}]
+    expected: {tier: tier2}
+    pass: 41 lines exceed tier 1's 40-line envelope
+  - id: workflow-forbidden-for-tier1
+    source: two PRs editing the issue pipeline's prompt
+    input:
+      files: [{path: .github/workflows/issue-pipeline.yml, hunks: 1, lines: 4}]
+    expected: {tier: tier2, kinds: {.github/workflows/issue-pipeline.yml: workflow}, reason_contains: workflow}
+    pass: a workflow never goes to the cheap model
+  - id: token-rotation-is-secret
+    source: two PRs adding secrets to token-rotation.yml's env
+    input:
+      files: [{path: .github/workflows/token-rotation.yml, hunks: 1, lines: 3}]
+    expected: {tier: tier2, kinds: {.github/workflows/token-rotation.yml: secret}}
+    pass: the secret glob is tested before the workflow prefix
+  - id: env-example-is-secret
+    source: two PRs adding variables to .env.example
+    input:
+      files: [{path: .env.example, hunks: 1, lines: 4}]
+    expected: {tier: tier2, kinds: {.env.example: secret}}
+    pass: env files are secret, never tier 1
+  - id: migration
+    source: two schema migrations numbered the same in a fleet app
+    input:
+      files: [{path: app/db/migrate/20261101_add_index.rb, hunks: 1, lines: 6}]
+    expected: {tier: tier2, kinds: {app/db/migrate/20261101_add_index.rb: migration}}
+    pass: migrations never go to the cheap model
+  - id: forced-floor-tier2
+    source: a maintainer forcing the strong model on a small conflict
+    input:
+      force_min_tier: tier2
+      files: [{path: tools/dash, hunks: 1, lines: 4}]
+    expected: {tier: tier2, reason_contains: tier 1 was ruled out}
+    pass: force_min_tier tier2 skips tier 1
+  - id: many-files-few-lines
+    source: a rename touching 16 files by a line or two each
+    input:
+      files:
+        - {path: docs/AI-INTEGRATION.md, hunks: 1, lines: 2}
+        - {path: docs/CONTAINERS.md, hunks: 1, lines: 2}
+        - {path: docs/DASH.md, hunks: 1, lines: 2}
+        - {path: docs/DOCKER.md, hunks: 1, lines: 2}
+        - {path: docs/EVOLUTION.md, hunks: 1, lines: 2}
+        - {path: docs/HARNESS-OPS.md, hunks: 1, lines: 2}
+        - {path: docs/ISSUE-PIPELINE.md, hunks: 1, lines: 2}
+        - {path: docs/JEV.md, hunks: 1, lines: 2}
+        - {path: docs/OBSERVABILITY.md, hunks: 1, lines: 2}
+        - {path: docs/PLATFORM.md, hunks: 1, lines: 2}
+        - {path: docs/SCOUT.md, hunks: 1, lines: 2}
+        - {path: docs/STANDARDS.md, hunks: 1, lines: 2}
+        - {path: docs/SUBMODULES.md, hunks: 1, lines: 2}
+        - {path: docs/VERIFICATION.md, hunks: 1, lines: 2}
+        - {path: docs/WORK-BOARD.md, hunks: 1, lines: 2}
+        - {path: docs/WORKFLOW-ATLAS.md, hunks: 1, lines: 2}
+    expected: {tier: tier2}
+    pass: 16 files but 32 lines fits tier 2's "files OR lines" envelope

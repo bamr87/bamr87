@@ -191,3 +191,4 @@ command is redacted before it is echoed — the logs are published as artifacts 
 - [`docs/DASH.md`](DASH.md) — the dash architecture
 - [`docs/WORK-BOARD.md`](WORK-BOARD.md) — reorder and reprioritise the queues by drag and drop
 - [`docs/ESTIMATION.md`](ESTIMATION.md) — issues as client engagements
+- [`docs/EVALS.md`](EVALS.md) — tier 1's eval set (`evals/t1-intake/`): past intakes and the exit that stood, rerun when this workflow changes

@@ -1,0 +1,456 @@
+{
+  "id": "repo-app",
+  "title": "A repo with no frontend opens as a generated app, and the public page carries no README",
+  "features": [
+    "HUB-NEW:repo-app"
+  ],
+  "path": "verify/scenarios/repo-app.yml",
+  "started": "2026-11-05T06:34:41.503Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1280,
+      "height": 800,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/apps/?type=generated",
+          "ok": true,
+          "ms": 610
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=opens as the generated repo app"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "kvlite"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main a[href*='/apps/']",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 15,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "no-interface-list",
+          "ok": true,
+          "file": "test/evidence/repo-app/desktop-no-interface-list.png",
+          "ms": 41
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/kvlite/",
+          "ok": true,
+          "ms": 555
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no interface of its own"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Last commit"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "git clone https://github.com/bamr87/kvlite"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Standards"
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-app-overview",
+          "ok": true,
+          "file": "test/evidence/repo-app/desktop-repo-app-overview.png",
+          "ms": 23
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/README/]",
+          "ok": true,
+          "ms": 23
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=The public page carries no README"
+          },
+          "ok": true,
+          "ms": 51
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Read it in the repository"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-app-readme",
+          "ok": true,
+          "file": "test/evidence/repo-app/desktop-repo-app-readme.png",
+          "ms": 38
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Open work/]",
+          "ok": true,
+          "ms": 26
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Every open issue and pull request"
+          },
+          "ok": true,
+          "ms": 2
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 1280,
+            "cw": 1280
+          },
+          "ms": 0
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/repo-app/desktop-no-interface-list.png",
+        "test/evidence/repo-app/desktop-repo-app-overview.png",
+        "test/evidence/repo-app/desktop-repo-app-readme.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:5113/apps/kvlite/"
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "ok": true,
+      "steps": [
+        {
+          "step": "goto",
+          "arg": "/apps/?type=generated",
+          "ok": true,
+          "ms": 606
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=opens as the generated repo app"
+          },
+          "ok": true,
+          "ms": 11
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "kvlite"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "main a[href*='/apps/']",
+              "min": 10
+            }
+          },
+          "ok": true,
+          "value": 15,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "no-interface-list",
+          "ok": true,
+          "file": "test/evidence/repo-app/mobile-no-interface-list.png",
+          "ms": 28
+        },
+        {
+          "step": "goto",
+          "arg": "/apps/kvlite/",
+          "ok": true,
+          "ms": 549
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "status": 200
+          },
+          "ok": true,
+          "ms": 0
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=has no interface of its own"
+          },
+          "ok": true,
+          "ms": 10
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Last commit"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "git clone https://github.com/bamr87/kvlite"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Standards"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "count": {
+              "selector": "iframe",
+              "max": 0
+            }
+          },
+          "ok": true,
+          "value": 0,
+          "ms": 0
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-app-overview",
+          "ok": true,
+          "file": "test/evidence/repo-app/mobile-repo-app-overview.png",
+          "ms": 10
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/README/]",
+          "ok": true,
+          "ms": 37
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=The public page carries no README"
+          },
+          "ok": true,
+          "ms": 40
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "text": "Read it in the repository"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 0
+        },
+        {
+          "step": "screenshot",
+          "arg": "repo-app-readme",
+          "ok": true,
+          "file": "test/evidence/repo-app/mobile-repo-app-readme.png",
+          "ms": 26
+        },
+        {
+          "step": "click",
+          "arg": "role=tab[name=/Open work/]",
+          "ok": true,
+          "ms": 35
+        },
+        {
+          "step": "wait",
+          "arg": {
+            "selector": "text=Every open issue and pull request"
+          },
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "step": "expect",
+          "arg": {
+            "no_horizontal_scroll": true
+          },
+          "ok": true,
+          "value": {
+            "sw": 390,
+            "cw": 390
+          },
+          "ms": 1
+        }
+      ],
+      "console_errors": [],
+      "screenshots": [
+        "test/evidence/repo-app/mobile-no-interface-list.png",
+        "test/evidence/repo-app/mobile-repo-app-overview.png",
+        "test/evidence/repo-app/mobile-repo-app-readme.png"
+      ],
+      "evals": {},
+      "final_url": "http://127.0.0.1:5113/apps/kvlite/"
+    }
+  ],
+  "ok": true,
+  "finished": "2026-11-05T06:34:44.348Z",
+  "base": "http://127.0.0.1:5113"
+}

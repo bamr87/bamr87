@@ -104,6 +104,19 @@ def test_theme_css_covers_every_role_in_every_mode():
             assert re.fullmatch(r"#[0-9a-f]{6}|rgba\([\d., ]+\)", value), value
 
 
+def test_theme_css_carries_the_os_shell_palette_beside_the_dashboard_roles():
+    """The Desktop page draws the bashOS desktop: its paper palette rides in the
+    same sheet under --os-*, in every mode, without renaming a dashboard role."""
+    css = theme.css()
+    assert set(theme.OS_TOKENS) == set(theme.TOKENS)
+    for var, role in theme.OS_CSS_ROLES.items():
+        assert var.startswith("--os-") and var not in theme.CSS_ROLES, var
+        assert css.count(f"{var}:") == 3, var
+        for mode, tokens in theme.OS_TOKENS.items():
+            assert re.fullmatch(r"#[0-9a-f]{6}", tokens[role]), (mode, role)
+    assert theme.OS_TOKENS["light"]["paper"] != theme.TOKENS["light"]["background"]
+
+
 def test_levels_share_the_status_colours():
     assert theme.level_color("red") == theme.TOKENS["dark"]["error"]
     assert theme.level_color("green", "light") == theme.TOKENS["light"]["success"]

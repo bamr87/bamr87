@@ -101,7 +101,7 @@ function JobsIndicator() {
   );
 }
 
-function ThemeToggle() {
+export function ThemeToggle() {
   const { setColorScheme } = useMantineColorScheme();
   const computed = useComputedColorScheme('dark');
   // /theme.css (fleetcore) keys its dark roles on data-theme; Mantine keys its

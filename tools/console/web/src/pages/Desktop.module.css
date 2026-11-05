@@ -1,0 +1,301 @@
+/* The bashOS desktop in the browser: the OS shell that hosts the App Shell.
+   The look is the bashOS GUI desktop's (bashos src/bashos/gui/web/app.css):
+   dotted paper, an icon column, floating windows, a taskbar with a bashOS
+   button. Every colour is an --os-* role from /theme.css
+   (tools/fleetcore/theme.py OS_TOKENS); what is inside a window keeps the
+   console's own roles. */
+.os {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--os-paper);
+  color: var(--os-ink);
+  font-size: rem(14px);
+}
+
+/* ------------------------------------------------------------- menu bar */
+.menubar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: rem(12px);
+  height: rem(44px);
+  padding: 0 rem(14px);
+  border-bottom: rem(1px) solid var(--os-line);
+  background: var(--os-paper);
+}
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: rem(8px);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--os-muted);
+}
+.crumbs strong { color: var(--os-ink); font-weight: 650; }
+.menuRight { display: flex; align-items: center; gap: rem(8px); flex: none; }
+.pill {
+  padding: rem(3px) rem(10px);
+  border: rem(1px) solid var(--os-line);
+  border-radius: rem(999px);
+  background: var(--os-surface);
+  color: var(--os-muted);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: rem(12px);
+  text-decoration: none;
+  white-space: nowrap;
+}
+a.pill:hover { color: var(--os-ink); border-color: var(--os-muted); }
+
+/* -------------------------------------------------------------- surface */
+.surface {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--os-paper);
+  background-image: radial-gradient(var(--os-line) rem(1px), transparent rem(1px));
+  background-size: rem(22px) rem(22px);
+}
+/* The icons are a dock, not a layer under the windows: the window area starts
+   beside them, so a maximized or tiled window never covers the launcher. */
+/* Rows and columns are counted by the page (--rows, --cols): a grid that
+   flows in columns cannot size its own width from rows it has not laid out. */
+.icons {
+  flex: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rows, 8), rem(80px));
+  grid-template-columns: repeat(var(--cols, 2), rem(84px));
+  gap: rem(2px) rem(2px);
+  align-content: start;
+  padding: rem(12px) rem(8px);
+  overflow: hidden;
+}
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+/* A drag or a resize must not lose the pointer to a framed app. */
+.stage[data-dragging] iframe { pointer-events: none; }
+.stage[data-dragging] { user-select: none; }
+
+.icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: rem(4px);
+  width: rem(84px);
+  padding: rem(4px) rem(3px);
+  border: 0;
+  border-radius: rem(10px);
+  background: transparent;
+  color: var(--os-ink);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.icon:hover .glyph,
+.icon:focus-visible .glyph { border-color: var(--os-accent); color: var(--os-accent); }
+.icon:focus-visible { outline: rem(2px) solid var(--os-accent); outline-offset: rem(1px); }
+.icon[data-open] .glyph { border-color: var(--os-accent); box-shadow: 0 rem(2px) 0 var(--os-accent); }
+.glyph {
+  display: grid;
+  place-items: center;
+  width: rem(38px);
+  height: rem(38px);
+  border: rem(1px) solid var(--os-line);
+  border-radius: rem(10px);
+  background: var(--os-surface);
+  color: var(--os-ink);
+  box-shadow: 0 rem(2px) 0 var(--os-line);
+}
+.iconLabel {
+  max-width: 100%;
+  font-size: rem(12px);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------- window */
+.window {
+  position: absolute;
+  left: calc(var(--x) * 1%);
+  top: calc(var(--y) * 1%);
+  width: calc(var(--w) * 1%);
+  height: calc(var(--h) * 1%);
+  z-index: var(--z);
+  display: flex;
+  flex-direction: column;
+  min-width: rem(280px);
+  min-height: rem(180px);
+  border: rem(1px) solid var(--os-line);
+  border-radius: rem(12px);
+  background: var(--os-surface);
+  box-shadow: 0 rem(6px) 0 var(--os-line-soft), 0 rem(12px) rem(28px) rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+.window[hidden] { display: none; }
+.window[data-focus] {
+  border-color: var(--os-accent);
+  box-shadow: 0 rem(6px) 0 var(--os-accent-soft), 0 rem(14px) rem(34px) rgba(0, 0, 0, 0.18);
+}
+.window[data-snapped] { border-radius: 0; }
+
+.winHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: rem(8px);
+  height: rem(40px);
+  padding: 0 rem(6px) 0 rem(12px);
+  border-bottom: rem(1px) solid var(--os-line);
+  background: var(--os-paper);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.window[data-focus] .winHead .winIcon { color: var(--os-accent); }
+.winTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.winSub { font-weight: 400; color: var(--os-muted); }
+.winIcon { flex: none; display: grid; place-items: center; color: var(--os-muted); }
+.winBtn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: rem(30px);
+  height: rem(28px);
+  border: 0;
+  border-radius: rem(6px);
+  background: transparent;
+  color: var(--os-muted);
+  cursor: pointer;
+}
+.winBtn:hover { background: var(--os-paper-sunk); color: var(--os-ink); }
+.winBtn:focus-visible { outline: rem(2px) solid var(--os-accent); }
+.window[data-focus] .winBtn { color: var(--os-accent); }
+
+/* Inside a window the console's own surface and ink apply. */
+.winBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--ink);
+}
+.resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: rem(18px);
+  height: rem(18px);
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, var(--os-line) 50%, var(--os-line) 60%, transparent 60%, transparent 72%, var(--os-line) 72%, var(--os-line) 82%, transparent 82%);
+}
+
+/* -------------------------------------------------------------- taskbar */
+.taskbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: rem(8px);
+  height: rem(48px);
+  padding: 0 rem(10px);
+  border-top: rem(1px) solid var(--os-line);
+  background: var(--os-surface);
+}
+.tasks {
+  flex: 1 1 auto;
+  display: flex;
+  gap: rem(6px);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.start,
+.task,
+.tray {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: rem(6px);
+  height: rem(32px);
+  padding: 0 rem(10px);
+  border: rem(1px) solid var(--os-line);
+  border-radius: rem(8px);
+  background: var(--os-paper);
+  color: var(--os-ink);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.start { font-weight: 700; box-shadow: 0 rem(2px) 0 var(--os-line); }
+.start svg { color: var(--os-accent); }
+.task { max-width: rem(180px); overflow: hidden; text-overflow: ellipsis; }
+.task[data-active] { border-color: var(--os-accent); background: var(--os-accent-soft); font-weight: 650; }
+.task[data-minimized] { color: var(--os-muted); border-style: dashed; }
+.tray { padding: 0 rem(8px); color: var(--os-muted); }
+.start:hover, .task:hover, .tray:hover { border-color: var(--os-muted); color: var(--os-ink); }
+.start:focus-visible, .task:focus-visible, .tray:focus-visible { outline: rem(2px) solid var(--os-accent); outline-offset: rem(1px); }
+.clock { flex: none; font-family: var(--mantine-font-family-monospace); font-size: rem(12px); color: var(--os-muted); }
+
+/* --------------------------------------------------- panels in a window */
+.panel { padding: rem(16px) rem(18px); }
+.repoRow {
+  display: flex;
+  align-items: center;
+  gap: rem(10px);
+  width: 100%;
+  padding: rem(7px) rem(8px);
+  border: 0;
+  border-bottom: rem(1px) solid var(--grid);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.repoRow:hover, .repoRow:focus-visible { background: var(--panel); outline: none; }
+.repoName { flex: 0 0 rem(190px); font-weight: 600; overflow-wrap: anywhere; }
+.repoWhat { flex: 1 1 auto; min-width: 0; color: var(--muted); font-size: rem(13px); }
+
+/* ------------------------------------------ narrow: a phone's home screen */
+.os[data-narrow] .mode { display: none; }
+.os[data-narrow] .surface { display: block; position: relative; overflow: auto; background-size: rem(18px) rem(18px); }
+.home {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(rem(84px), 1fr));
+  gap: rem(10px) rem(4px);
+  padding: rem(16px) rem(10px);
+}
+.home .icon { width: auto; }
+.os[data-narrow] .home { grid-template-rows: none; }
+.sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--os-surface);
+}
+.sheet .winHead { cursor: default; }

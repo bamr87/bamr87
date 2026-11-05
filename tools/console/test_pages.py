@@ -94,6 +94,31 @@ def test_one_fleet_view_per_sort_each_row_searchable():
             f"fleet/{sort}: the page filters on `haystack` (fleetcore's own predicate) — it must be on every row"
 
 
+def test_the_launcher_is_published_as_addresses_with_a_page_per_app():
+    """The public page lists every frontend and frames the live ones. What it
+    publishes is the two registries joined — never what a port on the build
+    machine answered — and each app's deep link is a page of its own."""
+    doc = docs()["apps"]
+    assert doc["schema"] == "fleet-launcher/v1" and doc["apps"], "no launcher in the snapshot"
+    keys = {k for a in doc["apps"] for t in a["targets"] for k in t}
+    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start"}, f"unexpected target fields: {sorted(keys)}"
+    routes = snapshot.routes(docs())
+    for a in doc["apps"]:
+        assert f"apps/{a['id']}" in routes, f"/apps/{a['id']} would 404 on Pages"
+    assert routes["apps"][0] == "Apps"
+    # The desktop's Fleet window lists every repo with the component it is owed.
+    assert routes["desktop"][0] == "Desktop"
+    assert doc["repos"] and doc["summary"]["repos"] == len(doc["repos"])
+    assert {r["component"]["kind"] for r in doc["repos"]} <= {"own", "preview", "terminal", "generated"}
+    # Every repo is an app with a page of its own, and none publishes its README:
+    # a private repo's, checked out on the build machine, must never reach Pages.
+    for r in doc["repos"]:
+        assert f"apps/{r['id']}" in routes, f"/apps/{r['id']} would 404 on Pages"
+    # (one repo is itself named README: its project document is not a README)
+    assert not [k for k in docs() if k.endswith("/readme")], "a README is in the public snapshot"
+    assert not any("markdown" in d for k, d in docs().items() if k.startswith("project/") and isinstance(d, dict))
+
+
 def test_every_app_route_has_a_page_in_the_build():
     """main.tsx's <Route path> table ↔ STATIC_ROUTES: a route the build does
     not know about is a deep link that answers 404 on Pages."""

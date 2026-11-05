@@ -18,8 +18,9 @@ lever. So every request's Host header is checked against a loopback allowlist
 proxy or a real hostname).
 A Content-Security-Policy rides alongside that guard: the page is a built
 bundle with no inline script, so `script-src 'self'` holds; frame-src names
-the observability UIs the Observe pages embed, and frame-ancestors 'none'
-stops anything embedding this console in turn. The WebSocket the Terminal
+the observability UIs the Observe pages embed and the fleet frontends the Apps
+page frames (the launcher's own origins, nothing wider), and frame-ancestors
+'none' stops anything embedding this console in turn. The WebSocket the Terminal
 page uses never passes through HTTP middleware, so tui_bridge.py repeats the
 Host check and adds an Origin check of its own.
 Credentials: jobs inherit the process environment exactly like a terminal
@@ -54,6 +55,7 @@ import claude_telemetry
 # The core both surfaces share (tools/fleetcore): the fleet views the TUI
 # renders, the keys v1 table, and the bashOS palette.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fleetcore import apps as fapps  # noqa: E402
 from fleetcore import keys as fkeys  # noqa: E402
 from fleetcore import theme as ftheme  # noqa: E402
 from fleetcore import views as fviews  # noqa: E402
@@ -132,8 +134,16 @@ def content_policy(path: str, host: str) -> str:
     origin explicitly, for the Terminal page, because older Safari does not
     let 'self' cover WebSocket schemes; the Host is echoed only when it is a
     plain host[:port], so a crafted Host cannot inject a directive.
+
+    The Apps page frames the fleet's own frontends and asks each address
+    whether it answers, so frame-src and connect-src also name the launcher's
+    origins (fleetcore.apps.target_origins): exactly the live sites and
+    loopback dev ports the two registries declare for an app the page can
+    show, each a plain scheme://host[:port]. No wildcard: a new origin is a
+    registry change, reviewed like any other.
     """
     frames = " ".join(core.frame_src())
+    apps_src = " ".join(fapps.target_origins(core.REPO_ROOT))
     if path.startswith("/diagrams/"):
         # The archify diagrams boot from inline script. They run sandboxed with
         # no same-origin access (the page frames them the same way), so the
@@ -146,8 +156,8 @@ def content_policy(path: str, host: str) -> str:
     return "; ".join([
         "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
         # The GitHub page shows the connected account's avatar.
-        "img-src 'self' data: https://avatars.githubusercontent.com", "font-src 'self' data:", f"connect-src 'self'{ws}",
-        f"frame-src 'self' {frames}".strip(), "frame-ancestors 'none'",
+        "img-src 'self' data: https://avatars.githubusercontent.com", "font-src 'self' data:", f"connect-src 'self'{ws} {apps_src}".strip(),
+        f"frame-src 'self' {frames} {apps_src}".strip(), "frame-ancestors 'none'",
         "object-src 'none'", "base-uri 'self'", "form-action 'self'",
     ])
 
@@ -719,6 +729,18 @@ def project(name: str) -> dict:
     return detail
 
 
+@app.get("/api/project/{name}/readme", dependencies=[Depends(require_token)])
+def project_readme(name: str) -> dict:
+    """The repo's README from its checkout on this machine, for the generated
+    repo app (ADR 0005 F1). Never part of the public snapshot."""
+    try:
+        return core.project_readme(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"no registry project named '{name}'")
+
+
 # --------------------------------------------------------------------------- #
 # The site — profile, long-form pages, posts, public registries (site_docs.py).
 # The same documents the static Pages build writes, so Home, Portfolio and
@@ -895,6 +917,16 @@ def fleet_docker() -> dict:
     console holding one would be root on the Docker host), so each host reports
     its error and the terminal dash's Docker tab is where containers live."""
     return fviews.dash_view(core.REPO_ROOT, docker=True)["docker"]
+
+
+@app.get("/api/apps", dependencies=[Depends(require_token)])
+def apps_view() -> dict:
+    """The app portal's launcher (fleetcore.apps): every registry frontend with
+    its live address and its local dev stack's, the device matrix and the
+    counts — the document `tools/dash apps` prints and the Apps page frames
+    from. Addresses only: whether one answers is the browser's to find out,
+    because a frame loads from where the reader sits, not from this process."""
+    return fapps.apps_view(core.REPO_ROOT)
 
 
 @app.get("/api/keys")

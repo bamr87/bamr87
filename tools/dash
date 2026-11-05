@@ -73,6 +73,7 @@ ${c_bold}dash${c_off} — central CLI for the bamr87 development dash
   ${c_bold}dash host [setup|ps|up|rebuild --wipe-all]${c_off}  forge Docker host — up a submodule, or the legacy whole-hub rebuild (deletes every container and volume on forge, so it needs --wipe-all)
   ${c_bold}dash node [status|plan|gen|key]${c_off}  where hub workloads run — the Mac edge and the forge workload node, from _data/fleet.yml \`nodes:\` (docs/PLATFORM.md); read-only except gen, which writes .fleet/nodes/
   ${c_bold}dash infra [plan|apply] [node]${c_off}  the IaC layer — OpenTofu plans a workload node's network and volumes (infra/); apply needs --yes and a saved plan of the current inputs
+  ${c_bold}dash apps [list|url|open|check|plan|json]${c_off}  the app portal's launcher — every fleet frontend with its live address and its local dev stack's (registry \`frontend:\` ⨝ _data/ports.yml; docs/FRONTEND-PLATFORM.md); \`open <app> [--target local]\` opens it in the console, \`check\` asks each address whether it answers and can be framed, \`plan\` lists every repo's frontend component and what it is owed; read-only
   ${c_bold}dash console [--docker]${c_off} the Harness Console — local control plane UI on :4001 (native venv, or the compose service; docs/HARNESS-OPS.md)
   ${c_bold}dash mcp [--http|--tunnel]${c_off} the Harness Console as an MCP server for AI agents — stdio, streamable HTTP on 127.0.0.1:4002 with bearer auth, or a temporary cloudflared tunnel (tools/console/docs/mcp-layer.md)
   ${c_bold}dash sync${c_off}              update submodules + regenerate dash data
@@ -261,6 +262,38 @@ cmd_node() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes "$@"); }
 # `apply` changes the node, so it refuses without --yes and a saved plan of the
 # current inputs (constitution § 10.5).
 cmd_infra() { (cd "$TOOLS" && "$PY" -m fleetcore.nodes infra "$@"); }
+
+# The app portal's launcher (ADR 0005, docs/FRONTEND-PLATFORM.md): every fleet
+# frontend and where it runs, from the registry `frontend:` blocks joined to
+# _data/ports.yml (tools/fleetcore/apps.py — the document the console's Apps
+# page frames from). Read-only: `open` hands an address to the browser, `check`
+# sends one GET per registry address (tools/frontend_registry.py probe).
+cmd_apps() {
+  local sub="${1:-list}"
+  case "$sub" in
+    open)
+      shift
+      local app="${1:-}" target="live"
+      [[ -n "$app" ]] || { echo "usage: dash apps open <app> [--target live|local|local-<service>]" >&2; return 2; }
+      shift
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --target) target="${2:-}"; shift 2 ;;
+          --target=*) target="${1#--target=}"; shift ;;
+          *) echo "dash apps open: unknown argument '$1'" >&2; return 2 ;;
+        esac
+      done
+      # Resolving the address first refuses an app or target the registry does not have.
+      (cd "$TOOLS" && "$PY" -m fleetcore.apps url "$app" --target "$target" >/dev/null) || return 2
+      local url="http://127.0.0.1:${CONSOLE_PORT:-4001}/apps/${app}"
+      [[ "$target" == "live" ]] || url="${url}?target=${target}"
+      echo "opening ${url}"
+      command -v open >/dev/null 2>&1 && open "$url" || echo "open ${url}"
+      ;;
+    check) shift; "$PY" "${TOOLS}/frontend_registry.py" probe "$@" ;;
+    *) (cd "$TOOLS" && "$PY" -m fleetcore.apps "$@") ;;
+  esac
+}
 
 # The Harness Console: the credentialed, write-capable front end of the local
 # stack (the Jekyll dash is its read-only twin). Native runs bootstrap a venv
@@ -929,6 +962,7 @@ main() {
     host)    cmd_host "$@" ;;
     node)    cmd_node "$@" ;;
     infra)   cmd_infra "$@" ;;
+    apps)    cmd_apps "$@" ;;
     console) cmd_console "$@" ;;
     mcp)     cmd_mcp "$@" ;;
     sync)    cmd_sync "$@" ;;

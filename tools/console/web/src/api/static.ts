@@ -59,6 +59,9 @@ export async function staticGet<T>(path: string): Promise<T> {
     return { ...view, rows, inbox, repo, query: { q: qs.get('q') ?? '', sort: view.query?.sort ?? 'featured', health: health || null } } as T;
   }
   if (p === 'auth') localOnly('Credential management');
+  // A repo's README is read from a checkout on the operator's machine; the
+  // public build carries none (a private repo's must never be published).
+  if (/^project\/[^/]+\/readme$/.test(p)) return { present: false, reason: 'the public page carries no README — read it in the repository' } as T;
   if (p.startsWith('index/search') || p.startsWith('index/harmonize')) localOnly('The code index');
   if (/^content\/[^/]+\/docs$/.test(p)) return [] as T;
   if (/^content\/[^/]+\/brief$/.test(p)) localOnly('The content brief (it reads the data lake)');

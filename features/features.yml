@@ -1636,3 +1636,141 @@ features:
     prd:
     - FR75
     - NFR15
+  - id: HUB-078
+    title: 'The app portal: every fleet frontend opened inside the Harness Console, at its live address
+      or its local stack'
+    description: 'P0 of ADR 0005. One launcher (fleet-launcher/v1, tools/fleetcore/apps.py) joins each registry
+      `frontend:` block to its live address and to the ports its compose-hosted dev stack publishes in _data/ports.yml.
+      The console''s Apps page (/apps, GET /api/apps, the public snapshot) lists every frontend and opens
+      one in a sandboxed frame at /apps/<id>: Live or Local, at the page width or one of the verify kit''s
+      device sizes, with a path box that stays inside the app. A stopped local stack shows the command that
+      starts it; the public page asks no address anything until a reader opens an app. `tools/dash apps`
+      prints the same list in a terminal, `apps open` opens one in the console, and `apps check` reports
+      whether each address answers, whether it moves to another origin and whether the shell may frame it.
+      The console''s Content-Security-Policy names exactly the launcher''s origins. Starting a stack, running
+      a repo''s scenarios from the portal, the bridge, and the VS Code and mobile shells are later phases.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: /apps
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - portal
+    - registry
+    - launcher
+    - cli
+    date: 2026-11-04
+    tests:
+    - tools/test_fleetcore_apps.py
+    - tools/test_frontend_registry.py
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    scenarios:
+    - apps
+    evidence:
+    - test/evidence/apps
+    prd:
+    - FR58
+    - FR76
+  - id: HUB-079
+    title: 'The bashOS desktop: an icon for every fleet app, each opened in a window that shares one App
+      Shell'
+    description: 'ADR 0005 decisions 9 and 10 (phase D0). The console''s Desktop page (/desktop) is the
+      bashOS OS shell in the browser: a dock of icons, one per fleet frontend, floating windows and a taskbar,
+      in the bashOS GUI''s paper palette (--os-* in /theme.css). Its window state is bashOS''s own layout
+      reducer, vendored byte-identical in tools/console/web/src/vendor/bashos/ and pinned by tools/console/test_bashos_shell.py:
+      open, focus, move, resize, snap to an edge, minimize and restore, tile and cascade, and a layout shared
+      as a ?windows= link that carries ids and geometry and never an address. Every window hosts the common
+      App Shell (the Apps page''s controls) around the framed app. The Fleet window lists every repo in
+      the registry by the frontend component it has or is owed (fleetcore.apps repos, `tools/dash apps plan`),
+      and a repo with no frontend opens a window that says which component it gets. Below 900 px the desktop
+      is a home screen that opens one app at a time. Console pages as windows and the generated repo app
+      are later phases.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: /desktop
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - bashos
+    - desktop
+    - portal
+    - registry
+    date: 2026-11-05
+    tests:
+    - tools/console/test_bashos_shell.py
+    - tools/test_fleetcore_apps.py
+    - tools/test_fleetcore.py
+    - tools/console/test_pages.py
+    scenarios:
+    - desktop
+    evidence:
+    - test/evidence/desktop
+    prd:
+    - FR58
+    - FR77
+  - id: HUB-080
+    title: 'The generated repo app: every repo in the fleet opens as an app, with or without a frontend
+      of its own'
+    description: 'ADR 0005 decision 10, phase F1. A repo the shell has no frontend to frame (a CLI, a library,
+      infrastructure, a kernel; an editor extension, a terminal UI or an app with no address until its own
+      component exists) opens as one generated app, at /apps/<id> and in a window on the Desktop: an overview
+      from the registry and the hub''s signals (stack, licence, health, CI, last commit, open work, the
+      standards audit, automation, how to get it), the repo''s README, its open work and its automation.
+      GET /api/project/<name>/readme reads the README from the repo''s submodule checkout on the console''s
+      machine (the registry''s path, directly under projects/, no symlink, capped); the public snapshot
+      publishes none, because some fleet repos are private. The Apps page lists all 38 repos. The panels
+      by kind (an API explorer, a CLI run in a terminal) are not built.'
+    implemented: true
+    status: partial
+    surface: ui
+    link: /apps/kvlite
+    docs: docs/FRONTEND-PLATFORM.md
+    tags:
+    - console
+    - frontend
+    - portal
+    - registry
+    - desktop
+    date: 2026-11-05
+    tests:
+    - tools/console/test_console.py
+    - tools/console/test_pages.py
+    - tools/test_fleetcore_apps.py
+    scenarios:
+    - repo-app
+    evidence:
+    - test/evidence/repo-app
+    prd:
+    - FR58
+    - FR78
+  - id: HUB-081
+    title: 'Visual evidence standard: screenshots and front-end evidence for tutorials, guides and setup
+      docs'
+    description: 'A hub-owned standard (constitution § 24) that requires tutorials, how-tos, setup docs,
+      console/UI help and walkthrough articles to ship screenshots, GIFs or recordings — with naming under
+      docs/assets/guides/<slug>/ or test/evidence/<slug>/, meaningful alt text, redaction of secrets/PII/tokens,
+      and re-capture when the depicted UI changes — plus a warn-then-fail guides lint (tools/guides_visual_lint.py),
+      Harness Console capture/attach helpers (phased), and fleet fan-out from the hub. Distinct from § 15
+      frontend-PR evidence; epic #678, backlog #679, roadmap FF-0039.'
+    implemented: false
+    status: planned
+    surface: infra
+    link: tools/guides_visual_lint.py
+    docs: docs/VISUAL-EVIDENCE.md
+    tags:
+    - docs
+    - guides
+    - evidence
+    - console
+    - lint
+    - standards
+    date: 2026-11-05
+    tests:
+    - tools/test_guides_visual_lint.py
+    prd:
+    - FR79

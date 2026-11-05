@@ -298,3 +298,4 @@ Watch `_data/jev_resolutions.yml` and `python3 -m tools.jev conflicts budget` fo
 - [AI-INTEGRATION.md](AI-INTEGRATION.md) — the fleet's Claude auth order, spend guardrails and ledger
 - [DAILY-ANALYSIS.md](DAILY-ANALYSIS.md) — why no workflow ends in a bare push to a protected branch
 - [ISSUE-PIPELINE.md](ISSUE-PIPELINE.md) — the other loop that opens pull requests and never merges them
+- [EVALS.md](EVALS.md) — the classifier's eval set (`evals/jev-classify/`), rerun by the evals check on every change under `tools/jev/`

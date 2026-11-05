@@ -28,3 +28,5 @@ Add an ADR in the same PR as the change it justifies.
 | 0002 | [Agent step specs and the local loop runner](0002-agent-step-specs-and-local-runner.md) | accepted |
 | 0003 | [The fleet platform: workloads placed across nodes, OpenTofu for infrastructure, a path to any cluster](0003-fleet-platform-nodes-iac-and-scale-out.md) | accepted |
 | 0004 | [Recursive harness refinement: the Harness² method adopted into JEV, the hub's harness surface as a sensor, and a human-gated experience library](0004-recursive-harness-refinement.md) | accepted |
+| 0005 | [The Harness Console is the fleet's portal: one launcher from the registry, frontends mounted by frame and bridge, one shell per surface](0005-console-as-fleet-portal.md) | accepted |
+| 0006 | [Django is the hub's management backend and what a frontend's private mode signs in to: accounts, admin and operational records in a database, the registries still in git, the FastAPI console ported route family by route family](0006-django-management-backend.md) | accepted |
