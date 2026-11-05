@@ -60,6 +60,7 @@ coverage: listed
 | `voices.py` | file | The fleet voice model check — validates `_data/voices/voices.yml` against `voices.schema.json`, `--against` flags drift in a consumer copy, `assign` names the persona for an activity (constitution § 23 rule 7) | |
 | `features_index.py` | file | The fleet features index — validates a repo's `features/features.yml`, grades verification coverage from files on disk, aggregates every submodule → `_data/features_index.yml` (`dash features`; docs/VERIFICATION.md) | |
 | `test_fleet_config.py` | file | Fixture tests for fleet-config.py's per-repo AI auth order — precedence, category groups, conflict/unknown errors, order-aware secret targets, the projected variable (run by run-all-tests.sh) | |
+| `test_loop_switches.py` | file | Offline checks for `_data/fleet.yml` `switches:` (constitution § 17) — entry shape, and every scheduled or `vars.*_ENABLED`-switched hub workflow has an entry whose variable it reads | |
 | `test_features_index.py` | file | Fixture tests for features_index.py (run by run-all-tests.sh) | |
 | `governance_lint.py` | file | The fleet governance check — constitution + amendment log + PRD ↔ feature catalog links (UPS-WORK-15/16); `prd-ids` / `prd-sync` generate the PRD requirement ids and Feature catalog block; `fleet` checks every submodule | |
 | `test_governance_lint.py` | file | Fixture tests for governance_lint.py | |
