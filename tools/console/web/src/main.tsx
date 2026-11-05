@@ -32,6 +32,7 @@ import { Overview } from './pages/Overview';
 import { Projects } from './pages/Projects';
 import { ProjectPage } from './pages/ProjectPage';
 import { AppWorkspace, Apps } from './pages/Apps';
+import { Desktop } from './pages/Desktop';
 import { Inbox } from './pages/Inbox';
 import { Containers } from './pages/Containers';
 import { Inventory } from './pages/Inventory';
@@ -76,6 +77,8 @@ createRoot(document.getElementById('root')!).render(
               <GlobalKeys />
               <CommandCenter />
               <Routes>
+                {/* The OS shell is its own chrome: the desktop, not a page inside the console's frame. */}
+                <Route path="desktop" element={<Desktop />} />
                 <Route element={<Shell />}>
                   <Route index element={<Home />} />
                   {PROFILE_PAGES.map((slug) => <Route key={slug} path={slug} element={<ProfilePage key={slug} slug={slug} />} />)}

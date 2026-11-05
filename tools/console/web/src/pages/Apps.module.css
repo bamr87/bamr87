@@ -52,3 +52,23 @@
 
 .card { height: 100%; }
 .card[data-embed='none'] { opacity: 0.78; }
+
+/* The App Shell inside a Desktop window: it takes the window, and the stage
+   takes what the toolbar leaves. */
+.pane[data-fill] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: rem(10px);
+}
+.pane[data-fill] .stage,
+.pane[data-fill] .stage[data-device='fit'],
+.pane[data-fill] .stage:not([data-device='fit']) {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+/* In a window the path box gives way first, so the controls stay on one row. */
+.pane[data-fill] form { flex: 1 1 rem(120px); }

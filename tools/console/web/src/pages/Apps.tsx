@@ -185,21 +185,32 @@ function CopyCommand({ value }: { value: string }) {
   );
 }
 
-function Workspace({ app, doc }: { app: FleetApp; doc: AppsDoc }) {
-  const [sp, setSp] = useSearchParams();
+/** What one open app is showing: which target, at which device size, at which path. */
+export interface AppView {
+  target?: string | null;
+  device?: string | null;
+  path?: string | null;
+}
+
+/**
+ * The common App Shell: the controls every fleet frontend gets (where it runs,
+ * a device size, a path, reload, open outside) around its frame. The Apps page
+ * holds the view in the URL; a window on the Desktop holds it per window and
+ * passes `fill`, so the frame takes the window and the registry facts stay on
+ * the page.
+ */
+export function AppPane({ app, doc, view, onView, fill = false }: {
+  app: FleetApp; doc: AppsDoc; view: AppView; onView: (next: AppView) => void; fill?: boolean;
+}) {
   const [nonce, setNonce] = useState(0);
   const [forced, setForced] = useState<string | null>(null);
   const [asked, setAsked] = useState<string | null>(null);
-  const target = app.targets.find((t) => t.id === sp.get('target')) ?? app.targets[0];
-  const device = doc.viewports.find((v) => v.id === sp.get('device'));
-  const path = sp.get('path') ?? '';
+  const target = app.targets.find((t) => t.id === view.target) ?? app.targets[0];
+  const device = doc.viewports.find((v) => v.id === view.device);
+  const path = view.path ?? '';
   const [draft, setDraft] = useState(path);
-  const set = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(sp);
-    for (const [k, v] of Object.entries(patch)) {
-      if (v) next.set(k, v); else next.delete(k);
-    }
-    setSp(next, { replace: true });
+  const set = (patch: AppView) => {
+    onView({ ...view, ...patch });
     if ('path' in patch) setDraft(patch.path ?? '');
   };
 
@@ -232,7 +243,7 @@ function Workspace({ app, doc }: { app: FleetApp; doc: AppsDoc }) {
   const stageVars = device ? ({ '--frame-w': `${device.width}px`, '--frame-h': `${device.height}px` } as CSSProperties) : undefined;
 
   return (
-    <>
+    <div className={c.pane} data-fill={fill || undefined}>
       <Group gap="sm" mb="sm" wrap="wrap" align="flex-end">
         <SegmentedControl size="xs" value={target.kind} aria-label="Where the app runs"
           onChange={(k) => set({ target: app.targets.find((t) => t.kind === k)?.id ?? null, path: null })}
@@ -312,12 +323,13 @@ function Workspace({ app, doc }: { app: FleetApp; doc: AppsDoc }) {
           </Vacant>
         )}
       </div>
-      {showFrame ? (
+      {showFrame && !fill ? (
         <Text size="xs" c="dimmed" mt={6}>
           An empty or refused frame means the app forbids being framed — open it in a new tab; <Code>tools/dash apps check {app.id}</Code> reports its frame policy.
         </Text>
       ) : null}
 
+      {fill ? null : (
       <Section title="Platform" description="What the registry says about this frontend (constitution § 18): its tier decides which shared layers it takes, and the check stays warn-only until its adoption PR merges.">
         <Paper p="xs">
           <Table verticalSpacing={4}>
@@ -346,8 +358,24 @@ function Workspace({ app, doc }: { app: FleetApp; doc: AppsDoc }) {
           </Table>
         </Paper>
       </Section>
-    </>
+      )}
+    </div>
   );
+}
+
+/** The Apps page's workspace: the App Shell with its view kept in the URL, so a link restores it. */
+function Workspace({ app, doc }: { app: FleetApp; doc: AppsDoc }) {
+  const [sp, setSp] = useSearchParams();
+  const view: AppView = { target: sp.get('target'), device: sp.get('device'), path: sp.get('path') };
+  const onView = (next: AppView) => {
+    const qs = new URLSearchParams(sp);
+    for (const k of ['target', 'device', 'path'] as const) {
+      const v = next[k];
+      if (v) qs.set(k, v); else qs.delete(k);
+    }
+    setSp(qs, { replace: true });
+  };
+  return <AppPane app={app} doc={doc} view={view} onView={onView} />;
 }
 
 export function AppWorkspace() {
