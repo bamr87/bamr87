@@ -31,6 +31,7 @@ import { Connect } from './pages/Connect';
 import { Overview } from './pages/Overview';
 import { Projects } from './pages/Projects';
 import { ProjectPage } from './pages/ProjectPage';
+import { AppWorkspace, Apps } from './pages/Apps';
 import { Inbox } from './pages/Inbox';
 import { Containers } from './pages/Containers';
 import { Inventory } from './pages/Inventory';
@@ -89,6 +90,8 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="connect" element={<Connect />} />
                   <Route path="projects" element={<Projects />} />
                   <Route path="projects/:name" element={<ProjectPage />} />
+                  <Route path="apps" element={<Apps />} />
+                  <Route path="apps/:id" element={<AppWorkspace />} />
                   <Route path="inbox" element={<Inbox />} />
                   <Route path="containers" element={<Containers />} />
                   <Route path="github" element={<GithubPage />} />

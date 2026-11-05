@@ -28,6 +28,15 @@ export const to = {
   connect: () => '/connect',
   projects: () => '/projects',
   project: (name: string, tab?: string) => `/projects/${enc(name)}${tab ? `?tab=${enc(tab)}` : ''}`,
+  apps: () => '/apps',
+  app: (id: string, f: { target?: string; path?: string; device?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (f.target && f.target !== 'live') qs.set('target', f.target);
+    if (f.device) qs.set('device', f.device);
+    if (f.path) qs.set('path', f.path);
+    const s = qs.toString();
+    return `/apps/${enc(id)}${s ? `?${s}` : ''}`;
+  },
   inbox: (kind?: string) => `/inbox${kind ? `?kind=${enc(kind)}` : ''}`,
   containers: () => '/containers',
   harnesses: (filter?: 'gaps') => `/harnesses${filter ? `?view=${filter}` : ''}`,

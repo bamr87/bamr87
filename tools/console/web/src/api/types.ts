@@ -270,6 +270,51 @@ export interface JobTail {
   loop?: LoopJob;
 }
 
+/** One place a frontend runs: the deployed site, or a service of its local dev stack. */
+export interface AppTarget {
+  id: string;
+  kind: 'live' | 'local';
+  label: string;
+  url: string;
+  service?: string;
+  port?: number;
+  band?: string;
+  /** The command that starts a local target's stack. */
+  start?: string | null;
+}
+
+/** A registry frontend as the launcher lists it (fleetcore.apps, fleet-launcher/v1). */
+export interface FleetApp {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'app' | 'console' | 'site' | 'game' | 'ext';
+  tier: 'shell' | 'tokens';
+  framework?: string | null;
+  surfaces: string[];
+  shell?: string | null;
+  token_version?: string | null;
+  enforce?: boolean;
+  status?: string | null;
+  category?: string | null;
+  featured?: boolean;
+  repo_url?: string | null;
+  url?: string | null;
+  deep_link: string;
+  targets: AppTarget[];
+  /** frame: the console can show it; none: no browser surface or no address. */
+  embed: 'frame' | 'none';
+  local_host?: string | null;
+}
+
+export interface AppsDoc {
+  schema: string;
+  source: string;
+  apps: FleetApp[];
+  viewports: { id: string; width: number; height: number }[];
+  summary: { apps: number; embeddable: number; live: number; local: number; by_type: Dict<number>; by_shell: Dict<number>; by_tier: Dict<number> };
+}
+
 export interface FleetRow {
   name: string;
   description?: string;

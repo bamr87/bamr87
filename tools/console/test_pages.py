@@ -94,6 +94,20 @@ def test_one_fleet_view_per_sort_each_row_searchable():
             f"fleet/{sort}: the page filters on `haystack` (fleetcore's own predicate) — it must be on every row"
 
 
+def test_the_launcher_is_published_as_addresses_with_a_page_per_app():
+    """The public page lists every frontend and frames the live ones. What it
+    publishes is the two registries joined — never what a port on the build
+    machine answered — and each app's deep link is a page of its own."""
+    doc = docs()["apps"]
+    assert doc["schema"] == "fleet-launcher/v1" and doc["apps"], "no launcher in the snapshot"
+    keys = {k for a in doc["apps"] for t in a["targets"] for k in t}
+    assert keys <= {"id", "kind", "label", "url", "service", "port", "band", "start"}, f"unexpected target fields: {sorted(keys)}"
+    routes = snapshot.routes(docs())
+    for a in doc["apps"]:
+        assert f"apps/{a['id']}" in routes, f"/apps/{a['id']} would 404 on Pages"
+    assert routes["apps"][0] == "Apps"
+
+
 def test_every_app_route_has_a_page_in_the_build():
     """main.tsx's <Route path> table ↔ STATIC_ROUTES: a route the build does
     not know about is a deep link that answers 404 on Pages."""

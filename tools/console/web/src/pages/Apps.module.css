@@ -1,0 +1,54 @@
+/* The app portal: the stage a fleet frontend is framed on. In "fit" the frame
+   fills the stage; at a device size it takes the verify kit's width and
+   height and the stage scrolls around it. Roles only — every colour is a
+   /theme.css variable, except the frame's own canvas (below). */
+.stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: auto;
+  min-height: rem(420px);
+  border: rem(1px) solid var(--grid);
+  border-radius: var(--mantine-radius-md);
+  background: var(--panel);
+}
+.stage[data-device='fit'] { height: calc(100dvh - rem(330px)); }
+.stage:not([data-device='fit']) {
+  max-height: calc(100dvh - rem(250px));
+  padding: rem(12px);
+}
+
+/* A framed page that sets no background expects the browser's default canvas,
+   not the console's dark surface: ask for the light canvas by name. */
+.frame {
+  display: block;
+  flex: none;
+  border: 0;
+  color-scheme: light;
+  background: Canvas;
+}
+.stage[data-device='fit'] .frame {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--mantine-radius-md);
+}
+/* An outline, not a border: the framed page must get the device's exact
+   width and height as its viewport. */
+.stage:not([data-device='fit']) .frame {
+  width: var(--frame-w);
+  height: var(--frame-h);
+  outline: rem(1px) solid var(--grid);
+  border-radius: rem(8px);
+}
+
+/* Where the frame would be, when there is nothing to show yet. */
+.vacant {
+  align-self: center;
+  max-width: rem(620px);
+  margin: rem(32px) auto;
+  padding: rem(24px);
+  text-align: center;
+}
+
+.card { height: 100%; }
+.card[data-embed='none'] { opacity: 0.78; }
